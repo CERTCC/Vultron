@@ -12,14 +12,16 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Tests for status-related use-case classes."""
 
+import json
 from typing import cast
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.models.case_actor import VultronCaseActor
-from vultron.core.models.case_log_entry import VultronCaseLogEntry
+from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.protocols import is_log_entry_model
 from vultron.core.states.em import EM
+from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.status import (
     AddCaseStatusToCaseReceivedUseCase,
     AddParticipantStatusToParticipantReceivedUseCase,
@@ -272,12 +274,12 @@ class TestStatusUseCases:
 
 
 # ---------------------------------------------------------------------------
-# CaseLogEntry cascade tests (PCR-08-003, PCR-08-004) — AC-2
+# CaseLedgerEntry cascade tests (PCR-08-003, PCR-08-004) — AC-2
 # ---------------------------------------------------------------------------
 
 
 class TestParticipantStatusLogEntryCascade:
-    """CaseLogEntry cascade for AddParticipantStatusToParticipantReceivedUseCase."""
+    """CaseLedgerEntry cascade for AddParticipantStatusToParticipantReceivedUseCase."""
 
     def _make_dl(self, case_id: str, actor_id: str) -> tuple:
         dl = SqliteDataLayer("sqlite:///:memory:")
@@ -319,7 +321,7 @@ class TestParticipantStatusLogEntryCascade:
         return dl, case_actor_id, participant, pstatus
 
     def test_cascade_commits_log_entry_on_success(self, make_payload):
-        """Cascade commits a CaseLogEntry when BT succeeds (AC-2)."""
+        """Cascade commits a CaseLedgerEntry when BT succeeds (AC-2)."""
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
@@ -346,17 +348,17 @@ class TestParticipantStatusLogEntryCascade:
 
         entries = [
             obj
-            for obj in dl.list_objects("CaseLogEntry")
+            for obj in dl.list_objects("CaseLedgerEntry")
             if is_log_entry_model(obj)
-            and cast(VultronCaseLogEntry, obj).case_id == case_id
+            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
-        assert cast(VultronCaseLogEntry, entries[0]).event_type == (
-            "add_participant_status"
+        assert cast(VultronCaseLedgerEntry, entries[0]).event_type == (
+            "add_participant_status_to_participant"
         )
 
     def test_no_fanout_without_sync_port(self, make_payload):
-        """No fan-out Announce(CaseLogEntry) is sent when sync_port is None.
+        """No fan-out Announce(CaseLedgerEntry) is sent when sync_port is None.
 
         The log entry IS committed locally, but no outbox messages are queued
         for delivery to participants.
@@ -387,11 +389,236 @@ class TestParticipantStatusLogEntryCascade:
         # Log entry MUST be committed locally even without a sync_port.
         entries = [
             obj
-            for obj in dl.list_objects("CaseLogEntry")
+            for obj in dl.list_objects("CaseLedgerEntry")
             if is_log_entry_model(obj)
-            and cast(VultronCaseLogEntry, obj).case_id == case_id
+            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
 
         # But no outbox activities should be queued for fan-out.
         assert dl.outbox_list() == []
+
+    def test_terminal_closed_update_does_not_commit_log_entry(
+        self, make_payload
+    ) -> None:
+        """CLOSED->CLOSED rewrites are rejected before log cascade."""
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        actor_id = "https://example.org/users/vendor"
+        case_id = "https://example.org/cases/st_le3"
+        dl, case_actor_id, participant, _ = self._make_dl(case_id, actor_id)
+        case = cast(VulnerabilityCase, dl.read(case_id))
+        assert case is not None
+
+        closed_status = ParticipantStatus(
+            id_=f"{case_id}/participants/p1/statuses/closed-existing",
+            context=case_id,
+            rm_state=RM.CLOSED,
+        )
+        participant.participant_statuses.append(closed_status)
+        dl.save(participant)
+        dl.create(closed_status)
+
+        duplicate_closed_status = ParticipantStatus(
+            id_=f"{case_id}/participants/p1/statuses/closed-duplicate",
+            context=case_id,
+            rm_state=RM.CLOSED,
+        )
+        dl.create(duplicate_closed_status)
+
+        activity = add_status_to_participant_activity(
+            duplicate_closed_status,
+            target=participant,
+            actor=actor_id,
+            context=case,
+        )
+        event = make_payload(activity, receiving_actor_id=case_actor_id)
+        sync_port = SyncActivityAdapter(dl)
+
+        before_count = len(participant.participant_statuses)
+        AddParticipantStatusToParticipantReceivedUseCase(
+            dl, event, sync_port=sync_port
+        ).execute()
+
+        entries = [
+            obj
+            for obj in dl.list_objects("CaseLedgerEntry")
+            if is_log_entry_model(obj)
+            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
+        ]
+        assert entries == []
+
+        updated_participant = dl.read(participant.id_)
+        assert updated_participant is not None
+        assert len(updated_participant.participant_statuses) == before_count
+
+    def test_duplicate_assertion_reuses_existing_log_entry(
+        self, make_payload
+    ) -> None:
+        """Two equivalent assertions append only one canonical log entry."""
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        actor_id = "https://example.org/users/vendor"
+        case_id = "https://example.org/cases/st_le4"
+        dl, case_actor_id, participant, pstatus = self._make_dl(
+            case_id, actor_id
+        )
+        case = cast(VulnerabilityCase, dl.read(case_id))
+        assert case is not None
+
+        activity = add_status_to_participant_activity(
+            pstatus,
+            target=participant,
+            actor=actor_id,
+            context=case,
+        )
+        event = make_payload(activity, receiving_actor_id=case_actor_id)
+        sync_port = SyncActivityAdapter(dl)
+        uc = AddParticipantStatusToParticipantReceivedUseCase(
+            dl, event, sync_port=sync_port
+        )
+
+        uc.execute()
+        uc.execute()
+
+        entries = [
+            obj
+            for obj in dl.list_objects("CaseLedgerEntry")
+            if is_log_entry_model(obj)
+            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
+        ]
+        assert len(entries) == 1
+
+    def test_non_case_actor_receiver_does_not_commit_log_entry(
+        self, make_payload
+    ) -> None:
+        """Peer-side replay of broadcast status must not append canonical entries."""
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        actor_id = "https://example.org/users/vendor"
+        non_case_actor_id = "https://example.org/users/finder"
+        case_id = "https://example.org/cases/st_le5"
+        dl, case_actor_id, participant, pstatus = self._make_dl(
+            case_id, actor_id
+        )
+        case = cast(VulnerabilityCase, dl.read(case_id))
+        assert case is not None
+
+        peer = CaseParticipant(
+            id_=f"{case_id}/participants/p2",
+            context=case_id,
+            attributed_to=non_case_actor_id,
+        )
+        dl.create(peer)
+        case.case_participants.append(peer.id_)
+        case.actor_participant_index[non_case_actor_id] = peer.id_
+        dl.save(case)
+
+        activity = add_status_to_participant_activity(
+            pstatus,
+            target=participant,
+            actor=case_actor_id,
+            context=case,
+        )
+        event = make_payload(activity, receiving_actor_id=non_case_actor_id)
+        AddParticipantStatusToParticipantReceivedUseCase(
+            dl, event, sync_port=SyncActivityAdapter(dl)
+        ).execute()
+
+        entries = [
+            obj
+            for obj in dl.list_objects("CaseLedgerEntry")
+            if is_log_entry_model(obj)
+            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
+        ]
+        assert entries == []
+
+    def test_commit_path_preserves_snapshot_actor_and_fanout_payload_identity(
+        self, make_payload
+    ) -> None:
+        """Stored snapshot keeps asserter actor and announce payload is identical."""
+        from vultron.wire.as2.enums import as_TransitiveActivityType
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        reporter_actor_id = "https://example.org/users/vendor"
+        finder_actor_id = "https://example.org/users/finder"
+        case_id = "https://example.org/cases/st_le6"
+        dl, case_actor_id, participant, pstatus = self._make_dl(
+            case_id, reporter_actor_id
+        )
+        case = cast(VulnerabilityCase, dl.read(case_id))
+        assert case is not None
+
+        finder_participant = CaseParticipant(
+            id_=f"{case_id}/participants/finder",
+            context=case_id,
+            attributed_to=finder_actor_id,
+        )
+        dl.create(finder_participant)
+        case.case_participants.append(finder_participant.id_)
+        case.actor_participant_index[finder_actor_id] = finder_participant.id_
+        dl.save(case)
+
+        activity = add_status_to_participant_activity(
+            pstatus,
+            target=participant,
+            actor=reporter_actor_id,
+            context=case,
+        )
+        event = make_payload(activity, receiving_actor_id=case_actor_id)
+        AddParticipantStatusToParticipantReceivedUseCase(
+            dl, event, sync_port=SyncActivityAdapter(dl)
+        ).execute()
+
+        entries = [
+            cast(VultronCaseLedgerEntry, obj)
+            for obj in dl.list_objects("CaseLedgerEntry")
+            if is_log_entry_model(obj)
+            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
+        ]
+        assert len(entries) == 1
+        assert entries[0].payload_snapshot.get("actor") == reporter_actor_id
+
+        announce_ids = []
+        announce_payloads = []
+        announce_actors = []
+        for activity_id in dl.outbox_list_for_actor(case_actor_id):
+            queued = dl.read(activity_id)
+            if (
+                queued is None
+                or getattr(queued, "type_", None)
+                != as_TransitiveActivityType.ANNOUNCE
+            ):
+                continue
+            queued_object = getattr(queued, "object_", None)
+            if (
+                queued_object is None
+                or getattr(queued_object, "type_", None) != "CaseLedgerEntry"
+            ):
+                continue
+            announce_ids.append(activity_id)
+            announce_actors.append(getattr(queued, "actor", None))
+            announce_payloads.append(
+                json.dumps(
+                    queued_object.model_dump(
+                        mode="json",
+                        by_alias=True,
+                        exclude_none=True,
+                        serialize_as_any=True,
+                    ),
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+            )
+
+        assert len(announce_ids) == 2
+        assert all(actor == case_actor_id for actor in announce_actors)
+        assert len(set(announce_payloads)) == 1

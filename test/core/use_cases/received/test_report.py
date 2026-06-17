@@ -15,6 +15,8 @@
 from typing import cast
 from unittest.mock import MagicMock
 
+import pytest
+
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -52,6 +54,22 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
 )
 from vultron.core.models.participant import VultronParticipant
+
+
+@pytest.fixture(autouse=True)
+def _close_sqlite_datalayers(monkeypatch):
+    """Close all SqliteDataLayer instances created during each test."""
+    created: list[SqliteDataLayer] = []
+    original_init = SqliteDataLayer.__init__
+
+    def _tracking_init(self, *args, **kwargs):
+        original_init(self, *args, **kwargs)
+        created.append(self)
+
+    monkeypatch.setattr(SqliteDataLayer, "__init__", _tracking_init)
+    yield
+    while created:
+        created.pop().close()
 
 
 class TestUseCaseExecution:
@@ -188,7 +206,9 @@ class TestDuplicateReportHandling:
         )
         return (report, event)
 
-    def test_submit_report_no_warning_on_duplicate_report(self, caplog):
+    def test_submit_report_no_warning_on_duplicate_report(
+        self, caplog, monkeypatch
+    ):
         """SubmitReportReceivedUseCase emits no WARNING when report already stored.
 
         The inbox endpoint pre-stores the nested VulnerabilityReport before
@@ -198,6 +218,13 @@ class TestDuplicateReportHandling:
         import logging
 
         from vultron.core.models.case_actor import VultronCaseActor
+        from vultron.core.use_cases.received import report as report_use_cases
+
+        monkeypatch.setattr(
+            report_use_cases,
+            "_run_submit_report_case_creation",
+            lambda *args, **kwargs: None,
+        )
 
         report, event = self._make_submit_event(
             "https://example.org/reports/r-dup-1",
@@ -1048,9 +1075,8 @@ class TestFullReportFlow:
         """After validate-report, vendor participant has RM.VALID in history.
 
         Per ADR-0015: validation transitions the vendor's RM state from
-        RECEIVED to VALID; this state change must be persisted.  The
-        subsequent auto-cascade advances to ACCEPTED, but the VALID record
-        is still present in the append-only history.
+        RECEIVED to VALID; this state change must be persisted.
+        Engage/defer is a separate, explicit protocol step.
         """
         dl = self._setup_dl()
         SubmitReportReceivedUseCase(dl, self._make_submit_event()).execute()
@@ -1064,41 +1090,6 @@ class TestFullReportFlow:
         assert (
             dl.get("ParticipantStatus", valid_id) is not None
         ), f"Vendor {self.VENDOR_ID} must have RM.VALID in history after validate-report"
-
-    def test_full_flow_vendor_auto_engages_after_validate(self):
-        """validate-report auto-cascades to engage-case (RM.VALID → RM.ACCEPTED).
-
-        D5-7-AUTOENG-2: after validate-report succeeds, ValidateCaseUseCase
-        automatically invokes SvcEngageCaseUseCase so the vendor's
-        CaseParticipant ends at RM.ACCEPTED without a separate trigger call.
-        """
-        dl = self._setup_dl()
-        SubmitReportReceivedUseCase(dl, self._make_submit_event()).execute()
-        ValidateReportReceivedUseCase(
-            dl,
-            self._make_validate_event(),
-            trigger_activity=TriggerActivityAdapter(dl),
-        ).execute()
-
-        case_obj = cast(
-            VulnerabilityCase, dl.find_case_by_report_id(self.REPORT_ID)
-        )
-        assert (
-            case_obj is not None
-        ), f"VulnerabilityCase for report '{self.REPORT_ID}' must exist"
-        participant_id = case_obj.actor_participant_index.get(self.VENDOR_ID)
-        assert (
-            participant_id is not None
-        ), f"Vendor '{self.VENDOR_ID}' must be in actor_participant_index"
-        participant = cast(VultronParticipant, dl.read(participant_id))
-        assert (
-            participant is not None
-        ), f"CaseParticipant '{participant_id}' must exist in DataLayer"
-        latest_status = participant.participant_statuses[-1]
-        assert latest_status.rm_state == RM.ACCEPTED, (
-            f"Vendor must auto-engage to RM.ACCEPTED after validate-report "
-            f"(got {latest_status.rm_state})"
-        )
 
     def test_full_flow_finder_remains_rm_accepted(self):
         """Finder participant is RM.ACCEPTED after submit and remains so after validate.
@@ -1127,10 +1118,10 @@ class TestFullReportFlow:
     def test_full_flow_produces_correct_final_state(self):
         """Full flow from Offer receipt to validation produces the expected state.
 
-        Verifies the combined invariants of ADR-0015 and D5-7-AUTOENG-2:
+        Verifies the combined invariants of ADR-0015:
         - Exactly one VulnerabilityCase
-        - Vendor participant ends at RM.ACCEPTED (auto-cascaded from VALID)
-        - Finder participant at RM.ACCEPTED
+        - Vendor participant has RM.VALID in history after validate-report
+        - Finder participant at RM.ACCEPTED (reporter is accepted upon submission)
         """
         dl = self._setup_dl()
         SubmitReportReceivedUseCase(dl, self._make_submit_event()).execute()

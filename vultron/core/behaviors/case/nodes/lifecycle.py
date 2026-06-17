@@ -16,9 +16,9 @@
 """
 Case lifecycle action nodes for case behavior trees.
 
-Provides the CommitCaseLogEntryNode for hash-chained case log replication.
+Provides the CommitCaseLedgerEntryNode for hash-chained case ledger replication.
 
-Per specs/sync-log-replication.yaml SYNC-02-002, SYNC-02-003.
+Per specs/sync-ledger-replication.yaml SYNC-02-002, SYNC-02-003.
 """
 
 import logging
@@ -32,44 +32,56 @@ from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_persistence import (
+    CaseOutboxPersistence,
+    CasePersistence,
+)
+from vultron.core.use_cases._helpers import build_activity_payload_snapshot
 
 logger = logging.getLogger(__name__)
 
 
-def _extract_payload_snapshot(activity: Any) -> dict[str, Any]:
-    """Build a normalized payload snapshot for case-log commits."""
+def _extract_payload_snapshot(
+    activity: Any, dl: CasePersistence | None = None
+) -> dict[str, Any]:
+    """Build a normalized payload snapshot for case-ledger commits."""
     event_activity = getattr(activity, "activity", None)
-    if event_activity is not None and hasattr(event_activity, "model_dump"):
+    if event_activity is not None:
         return cast(
             dict[str, Any],
-            event_activity.model_dump(
-                mode="json",
-                by_alias=True,
-                serialize_as_any=True,
-                exclude_none=True,
-            ),
+            build_activity_payload_snapshot(event_activity, dl=dl),
         )
-
-    if hasattr(activity, "model_dump"):
-        return cast(
-            dict[str, Any],
-            activity.model_dump(
-                mode="json",
-                by_alias=True,
-                serialize_as_any=True,
-                exclude_none=True,
-            ),
-        )
-    return {}
+    return cast(
+        dict[str, Any], build_activity_payload_snapshot(activity, dl=dl)
+    )
 
 
-class CommitCaseLogEntryNode(DataLayerAction):
+def _resolve_activity_fields(
+    activity: Any, case_id: str, dl: CasePersistence
+) -> tuple[str, str, dict[str, Any]]:
+    """Derive (object_id, event_type, payload_snapshot) from *activity*.
+
+    Falls back to ``case_id``-based defaults when *activity* is ``None``.
     """
-    Commit a hash-chained CaseLogEntry and fan it out to all case participants.
+    if activity is None:
+        return case_id, "case_event", {}
+    object_id: str = getattr(activity, "activity_id", case_id)
+    semantic_type = getattr(activity, "semantic_type", None)
+    event_type: str = (
+        semantic_type.value
+        if semantic_type is not None
+        else getattr(activity, "activity_type", "case_event") or "case_event"
+    )
+    payload_snapshot = _extract_payload_snapshot(activity, dl=dl)
+    return object_id, event_type, payload_snapshot
 
-    Creates a :class:`~vultron.core.models.case_log_entry.VultronCaseLogEntry`,
-    persists it, and queues one ``Announce(CaseLogEntry)`` activity per
+
+class CommitCaseLedgerEntryNode(DataLayerAction):
+    """
+    Commit a hash-chained CaseLedgerEntry and fan it out to all case participants.
+
+    Creates a :class:`~vultron.core.models.case_ledger_entry.VultronCaseLedgerEntry`,
+    persists it, and queues one ``Announce(CaseLedgerEntry)`` activity per
     participant to the actor's outbox.  The :class:`OutboxMonitor` delivers
     queued activities reactively — this node only writes to the outbox.
 
@@ -86,7 +98,7 @@ class CommitCaseLogEntryNode(DataLayerAction):
     blackboard key (the inbound :class:`~vultron.core.models.events.base.VultronEvent`
     placed there by :class:`~vultron.core.behaviors.bridge.BTBridge`).
 
-    Per specs/sync-log-replication.yaml SYNC-02-002, SYNC-02-003.
+    Per specs/sync-ledger-replication.yaml SYNC-02-002, SYNC-02-003.
     """
 
     def __init__(
@@ -123,6 +135,37 @@ class CommitCaseLogEntryNode(DataLayerAction):
         except (AttributeError, KeyError):
             self._sync_port = None
 
+    def _resolve_case_id(self) -> str | None:
+        try:
+            return self._case_id or self.blackboard.get("case_id")
+        except KeyError:
+            return self._case_id
+
+    def _resolve_activity(self) -> Any | None:
+        try:
+            return self.blackboard.get("activity")
+        except KeyError:
+            return None
+
+    def _activity_metadata(
+        self, activity: Any | None, case_id: str
+    ) -> tuple[str, str, dict[str, Any]]:
+        if activity is None:
+            return case_id, "case_event", {}
+
+        object_id = getattr(activity, "activity_id", case_id)
+        semantic_type = getattr(activity, "semantic_type", None)
+        event_type = (
+            semantic_type.value
+            if semantic_type is not None
+            else getattr(activity, "activity_type", "case_event")
+            or "case_event"
+        )
+        payload_snapshot = _extract_payload_snapshot(
+            activity, dl=self.datalayer
+        )
+        return object_id, event_type, payload_snapshot
+
     def update(self) -> Status:
         if self.datalayer is None or self.actor_id is None:
             self.logger.error(
@@ -130,35 +173,32 @@ class CommitCaseLogEntryNode(DataLayerAction):
             )
             return Status.FAILURE
 
-        try:
-            case_id = self._case_id or self.blackboard.get("case_id")
-        except KeyError:
-            case_id = self._case_id
+        case_id = self._resolve_case_id()
         if not case_id:
             self.logger.debug(
                 f"{self.name}: no case_id available — skipping log entry"
             )
             return Status.SUCCESS
 
-        try:
-            activity = self.blackboard.get("activity")
-        except KeyError:
-            activity = None
-        if activity is not None:
-            object_id: str = getattr(activity, "activity_id", case_id)
-            semantic_type = getattr(activity, "semantic_type", None)
-            event_type: str = (
-                semantic_type.value
-                if semantic_type is not None
-                else getattr(activity, "activity_type", "case_event")
-                or "case_event"
+        activity = self._resolve_activity()
+        if activity is None:
+            self.logger.warning(
+                "%s: no activity on blackboard for case '%s' — skipping"
+                " log entry",
+                self.name,
+                case_id,
             )
-        else:
-            object_id = case_id
-            event_type = "case_event"
-        payload_snapshot = (
-            _extract_payload_snapshot(activity) if activity is not None else {}
+            return Status.FAILURE
+
+        object_id, event_type, payload_snapshot = self._activity_metadata(
+            activity, case_id
         )
+
+        # Normalize context to case_id for activities that predate the case
+        # (e.g., Offer(VulnerabilityReport) submitted before the case existed).
+        if payload_snapshot and payload_snapshot.get("context") != case_id:
+            payload_snapshot = dict(payload_snapshot)
+            payload_snapshot["context"] = case_id
 
         tree = create_commit_log_entry_tree(
             case_id=case_id,

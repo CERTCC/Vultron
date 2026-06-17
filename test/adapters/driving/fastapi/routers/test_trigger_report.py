@@ -42,10 +42,13 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
+from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
 )
 from vultron.core.states.rm import RM
+from vultron.core.states.roles import CVDRole
 
 # ---------------------------------------------------------------------------
 # Module-level outbox suppression
@@ -140,9 +143,16 @@ def report(dl, actor):
 
 
 @pytest.fixture
-def offer(dl, report, actor):
+def reporter(dl):
+    reporter_obj = as_Service(name="Finder Co")
+    dl.create(reporter_obj)
+    return reporter_obj
+
+
+@pytest.fixture
+def offer(dl, report, actor, reporter):
     offer_obj = as_Offer(
-        actor=actor.id_,
+        actor=reporter.id_,
         object_=report.id_,
         target=actor.id_,
     )
@@ -151,7 +161,7 @@ def offer(dl, report, actor):
 
 
 @pytest.fixture
-def received_report(dl, actor, report, offer):
+def received_report(dl, actor, reporter, report, offer):
     """Pre-create a VulnerabilityCase for the report at RM.RECEIVED.
 
     Per ADR-0015, the case is created at report receipt.  The validate_report
@@ -166,9 +176,24 @@ def received_report(dl, actor, report, offer):
     tree = create_receive_report_case_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        reporter_actor_id=actor.id_,
+        reporter_actor_id=reporter.id_,
     )
     bridge.execute_with_setup(tree, actor_id=actor.id_)
+    case_obj = dl.find_case_by_report_id(report.id_)
+    assert isinstance(case_obj, VulnerabilityCase)
+    case_actor = as_Service(name=f"Case Actor for {case_obj.name}")
+    dl.create(case_actor)
+    case_manager_participant = CaseParticipant(
+        attributed_to=case_actor.id_,
+        context=case_obj.id_,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    dl.create(case_manager_participant)
+    case_obj.actor_participant_index[case_actor.id_] = (
+        case_manager_participant.id_
+    )
+    case_obj.case_participants.append(case_manager_participant.id_)
+    dl.save(case_obj)
     return report
 
 
@@ -842,7 +867,7 @@ class TestTriggerReportOutboxScheduling:
         )
 
     def test_validate_report_schedules_outbox_handler(
-        self, client_triggers, dl, actor, offer
+        self, client_triggers, dl, actor, offer, received_report
     ):
         """validate-report schedules outbox delivery after execution."""
         with self._make_patches() as mock_outbox:

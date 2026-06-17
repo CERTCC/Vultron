@@ -72,6 +72,7 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     post_to_inbox_and_wait,
     ref_id,
     verify_object_stored,
+    setup_demo_logging,
 )
 from vultron.wire.as2.factories import (
     add_participant_to_case_activity,
@@ -85,6 +86,21 @@ from vultron.wire.as2.factories import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _get_case_actor_id(client: DataLayerClient, case_id: str) -> str | None:
+    """Return the Case Actor Service ID for *case_id* by querying the actor list.
+
+    The Case Actor Service is stored in the DataLayer with ``context`` equal to
+    the case ID.  Returns ``None`` when no matching Service is found.
+    """
+    actors = client.get("/actors/")
+    if not isinstance(actors, list):
+        return None
+    for actor in actors:
+        if actor.get("type") == "Service" and actor.get("context") == case_id:
+            return actor.get("id")
+    return None
 
 
 def _setup_initialized_case(
@@ -179,28 +195,35 @@ def demo_invite_actor_accept(
 
     case = _setup_initialized_case(client, finder, vendor)
 
+    # PCR-08-007: the invite MUST be sent from the Case Actor's identity.
+    # The Case Actor is registered as a Service in the DataLayer after case creation.
+    case_actor_id = _get_case_actor_id(client, case.id_)
+    invite_actor_id = case_actor_id if case_actor_id else vendor.id_
+
     with demo_step("Step 2: Vendor invites coordinator to case"):
         invite = rm_invite_to_case_activity(
             coordinator,
-            actor=vendor.id_,
+            actor=invite_actor_id,
             target=case.id_,
             to=[coordinator.id_],
+            attributed_to=vendor.id_ if case_actor_id else None,
             content=f"We're inviting you to participate in {case.name}.",
         )
         logger.info(f"Sending invite: {logfmt(invite)}")
         post_to_inbox_and_wait(client, coordinator.id_, invite)
 
     with demo_step("Step 3: Coordinator accepts invitation"):
-        # reference invite by ID so the handler can rehydrate it from the
-        # datalayer with all fields intact
+        # PCR-08-008: Accept must be addressed to the Case Actor inbox.
+        # The invite's actor field carries the Case Actor ID.
+        accept_recipient = invite_actor_id
         accept = rm_accept_invite_to_case_activity(
             invite,
             actor=coordinator.id_,
-            to=[vendor.id_],
+            to=[accept_recipient],
             content=f"Accepting invitation to participate in {case.name}.",
         )
         logger.info(f"Sending accept: {logfmt(accept)}")
-        post_to_inbox_and_wait(client, vendor.id_, accept)
+        post_to_inbox_and_wait(client, accept_recipient, accept)
 
     with demo_step("Step 4: Verify coordinator added as case participant"):
         with demo_check("Coordinator present in case participant list"):
@@ -255,28 +278,33 @@ def demo_invite_actor_reject(
     initial_case = log_case_state(client, case.id_, "initial")
     initial_count = len(initial_case.case_participants) if initial_case else 0
 
+    # PCR-08-007: the invite MUST be sent from the Case Actor's identity.
+    case_actor_id = _get_case_actor_id(client, case.id_)
+    invite_actor_id = case_actor_id if case_actor_id else vendor.id_
+
     with demo_step("Step 2: Vendor invites coordinator to case"):
         invite = rm_invite_to_case_activity(
             coordinator,
-            actor=vendor.id_,
+            actor=invite_actor_id,
             target=case.id_,
             to=[coordinator.id_],
+            attributed_to=vendor.id_ if case_actor_id else None,
             content=f"We're inviting you to participate in {case.name}.",
         )
         logger.info(f"Sending invite: {logfmt(invite)}")
         post_to_inbox_and_wait(client, coordinator.id_, invite)
 
     with demo_step("Step 3: Coordinator rejects invitation"):
-        # reference invite by ID so the handler can rehydrate it from the
-        # datalayer with all fields intact
+        # PCR-08-008: Reject must also be addressed to the Case Actor inbox.
+        reject_recipient = invite_actor_id
         reject = rm_reject_invite_to_case_activity(
             invite,
             actor=coordinator.id_,
-            to=[vendor.id_],
+            to=[reject_recipient],
             content=f"Declining the invitation to participate in {case.name}.",
         )
         logger.info(f"Sending reject: {logfmt(reject)}")
-        post_to_inbox_and_wait(client, vendor.id_, reject)
+        post_to_inbox_and_wait(client, reject_recipient, reject)
 
     with demo_step("Step 4: Verify coordinator not added as participant"):
         with demo_check("Participant count unchanged after reject"):
@@ -365,19 +393,6 @@ def main(
         logger.info("")
 
 
-def _setup_logging():
-    """Configure console logging for standalone script execution."""
-    logging.getLogger("httpx").setLevel(logging.WARNING)
-    logger_ = logging.getLogger()
-    hdlr = logging.StreamHandler(sys.stdout)
-    import logging as _logging
-
-    formatter = _logging.Formatter("%(asctime)s %(levelname)s %(message)s")
-    hdlr.setFormatter(formatter)
-    logger_.addHandler(hdlr)
-    logger_.setLevel(logging.DEBUG)
-
-
 if __name__ == "__main__":
-    _setup_logging()
+    setup_demo_logging()
     main()

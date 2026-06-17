@@ -14,11 +14,15 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any, cast
 
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+import py_trees.behaviour
+
+from vultron.core.behaviors.case.add_object_trigger_tree import (
+    add_object_trigger_bt,
+)
+from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
-    add_activity_to_outbox,
     resolve_actor,
     resolve_case,
 )
@@ -27,13 +31,10 @@ from vultron.core.use_cases.triggers.requests import (
 )
 from vultron.errors import VultronNotFoundError
 
-if TYPE_CHECKING:
-    from vultron.core.ports.trigger_activity import TriggerActivityPort
-
 logger = logging.getLogger(__name__)
 
 
-class SvcAddObjectToCaseUseCase:
+class SvcAddObjectToCaseUseCase(SvcBTTriggerBase):
     """Add any existing AS2 object to a case (general-purpose).
 
     Reads the object by ``object_id`` from the datalayer, creates a generic
@@ -44,51 +45,41 @@ class SvcAddObjectToCaseUseCase:
     here after performing their own validation (TRIG-10-002).
 
     Implements: TRIG-10-001.
+
+    BT-15-001 audit: outbound Add(object,target=case) emission and outbox
+    queueing are delegated to a trigger-side BT.
     """
 
-    def __init__(
-        self,
-        dl: CaseOutboxPersistence,
-        request: AddObjectToCaseTriggerRequest,
-        trigger_activity: "TriggerActivityPort | None" = None,
-    ) -> None:
-        self._dl = dl
-        self._request = request
-        self._trigger_activity = trigger_activity
+    def _prepare(self) -> None:
+        request = cast(AddObjectToCaseTriggerRequest, self._request)
+        actor = resolve_actor(request.actor_id, self._dl)
+        self._actor_id = actor.id_
+        self._case_id = resolve_case(request.case_id, self._dl).id_
+        self._object_id: str = request.object_id
+        if self._dl.read(self._object_id) is None:
+            raise VultronNotFoundError("AS2Object", self._object_id)
 
-    def execute(self) -> dict[str, Any]:
-        actor_id = self._request.actor_id
-        case_id = self._request.case_id
-        object_id = self._request.object_id
-        dl = self._dl
-
-        actor = resolve_actor(actor_id, dl)
-        actor_id = actor.id_
-
-        resolve_case(case_id, dl)
-
-        raw = dl.read(object_id)
-        if raw is None:
-            raise VultronNotFoundError("AS2Object", object_id)
-
-        if self._trigger_activity is None:
-            raise RuntimeError(
-                "SvcAddObjectToCaseUseCase requires a TriggerActivityPort"
+    def _build_tree(self) -> py_trees.behaviour.Behaviour:
+        def _build_activity() -> tuple[str, dict[str, Any]]:
+            return self._factory.add_object_to_case(
+                actor=self._actor_id,
+                object_id=self._object_id,
+                case_id=self._case_id,
             )
 
-        activity_id, activity_dict = self._trigger_activity.add_object_to_case(
-            actor=actor_id,
-            object_id=object_id,
-            case_id=case_id,
+        return add_object_trigger_bt(
+            result_out=self._result_out,
+            activity_builder=_build_activity,
         )
 
-        add_activity_to_outbox(actor_id, activity_id, dl)
+    def _extra_execute_kwargs(self) -> dict[str, Any]:
+        return {"case_id": self._case_id}
 
+    def _handle_result(self) -> None:
+        self._captured["activity"] = self._result_out.get("activity")
         logger.info(
             "Actor '%s' added object '%s' to case '%s'",
-            actor_id,
-            object_id,
-            case_id,
+            self._actor_id,
+            self._object_id,
+            self._case_id,
         )
-
-        return {"activity": activity_dict}

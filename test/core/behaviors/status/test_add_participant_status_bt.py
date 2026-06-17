@@ -383,6 +383,44 @@ class TestValidateRMTransitionNode:
         )
         assert result.status == Status.FAILURE
 
+    def test_rejects_terminal_closed_rewrite(
+        self, populated_dl, populated_bridge
+    ):
+        """RM.CLOSED is terminal; CLOSED -> CLOSED rewrites are rejected."""
+        p = populated_dl.read(PARTICIPANT_ID)
+        closed_status = ParticipantStatus(
+            id_=f"{STATUS_ID}/closed",
+            context=CASE_ID,
+            rm_state=RM.CLOSED,
+        )
+        p.participant_statuses.append(closed_status)
+        populated_dl.save(p)
+        populated_dl.create(closed_status)
+
+        duplicate_closed_status = ParticipantStatus(
+            id_=f"{STATUS_ID}/closed-dup",
+            context=CASE_ID,
+            rm_state=RM.CLOSED,
+        )
+        populated_dl.create(duplicate_closed_status)
+
+        tree = py_trees.composites.Sequence(
+            name="test-validate-terminal-closed",
+            memory=False,
+            children=[
+                LoadParticipantNode(participant_id=PARTICIPANT_ID),
+                ResolveAndPersistStatusObjectNode(
+                    status_id=duplicate_closed_status.id_,
+                    status_obj_fallback=duplicate_closed_status,
+                ),
+                ValidateRMTransitionNode(participant_id=PARTICIPANT_ID),
+            ],
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID
+        )
+        assert result.status == Status.FAILURE
+
     def test_accepts_forward_jump(self, populated_dl, populated_bridge):
         """Non-adjacent forward RM jump is accepted (sender authoritative)."""
         p = populated_dl.read(PARTICIPANT_ID)
@@ -536,6 +574,41 @@ class TestAppendParticipantStatusSubtree:
             tree=tree, actor_id=ACTOR_ID
         )
         assert result.status == Status.FAILURE
+
+    def test_terminal_closed_duplicate_is_rejected_and_not_appended(
+        self, populated_dl, populated_bridge, participant
+    ):
+        """Repeated CLOSED updates are rejected and do not append new status."""
+        closed_status = ParticipantStatus(
+            id_=f"{STATUS_ID}/prev",
+            context=CASE_ID,
+            rm_state=RM.CLOSED,
+        )
+        participant.participant_statuses.append(closed_status)
+        populated_dl.save(participant)
+        populated_dl.create(closed_status)
+
+        duplicate_closed = ParticipantStatus(
+            id_=f"{STATUS_ID}/closed-dup",
+            context=CASE_ID,
+            rm_state=RM.CLOSED,
+        )
+        populated_dl.create(duplicate_closed)
+
+        before_count = len(participant.participant_statuses)
+        tree = append_participant_status_tree(
+            status_id=duplicate_closed.id_,
+            participant_id=PARTICIPANT_ID,
+            status_obj_fallback=duplicate_closed,
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID
+        )
+        assert result.status == Status.FAILURE
+
+        updated_participant = populated_dl.read(PARTICIPANT_ID)
+        assert updated_participant is not None
+        assert len(updated_participant.participant_statuses) == before_count
 
     def test_forward_rm_jump_accepted(
         self, populated_dl, populated_bridge, participant

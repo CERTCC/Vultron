@@ -35,6 +35,10 @@ from vultron.core.models.case_participant import (
     VendorParticipant,
     VultronParticipant,
 )
+from vultron.core.models.participant_status import (
+    coerce_cvd_roles,
+    coerce_em_consent_state,
+)
 from vultron.core.states.rm import RM, is_valid_rm_transition
 from vultron.core.states.roles import CVDRole, serialize_roles, validate_roles
 from vultron.core.models.base import NonEmptyString
@@ -153,9 +157,22 @@ class CaseParticipant(VultronAS2Object):
             ParticipantStatus(
                 context=self.context or self.id_,
                 attributed_to=self.attributed_to,
+                em_consent_state=coerce_em_consent_state(
+                    self.embargo_consent_state
+                ),
+                cvd_role=coerce_cvd_roles(self.case_roles),
             ),
         ]
         return self
+
+    def _sync_latest_status_metadata(self) -> None:
+        if not self.participant_statuses:
+            return
+        latest = self.participant_statuses[-1]
+        latest.cvd_role = coerce_cvd_roles(self.case_roles)
+        latest.em_consent_state = coerce_em_consent_state(
+            self.embargo_consent_state
+        )
 
     @property
     def participant_status(self) -> ParticipantStatus | None:
@@ -204,6 +221,10 @@ class CaseParticipant(VultronAS2Object):
                 attributed_to=actor,
                 context=context,
                 rm_state=rm_state,
+                em_consent_state=coerce_em_consent_state(
+                    self.embargo_consent_state
+                ),
+                cvd_role=coerce_cvd_roles(self.case_roles),
             )
         )
         return True
@@ -237,6 +258,7 @@ class CaseParticipant(VultronAS2Object):
                     f"Role {role} was already present in participant.case_roles"
                 )
         self.case_roles = list(roles)
+        self._sync_latest_status_metadata()
 
     def remove_role(
         self, role: CVDRole, raise_when_missing: bool = False
@@ -267,6 +289,7 @@ class CaseParticipant(VultronAS2Object):
                     f"Role {role} was not present to delete from participant.case_roles"
                 )
         self.case_roles = list(roles)
+        self._sync_latest_status_metadata()
 
     def has_role(self, role: CVDRole) -> bool:
         """Return True when the participant holds the given role."""

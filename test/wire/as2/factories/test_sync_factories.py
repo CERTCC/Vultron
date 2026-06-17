@@ -34,15 +34,15 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Announce,
     as_Reject,
 )
-from vultron.wire.as2.vocab.objects.case_log_entry import CaseLogEntry
+from vultron.wire.as2.vocab.objects.case_ledger_entry import CaseLedgerEntry
 
 _ACTOR_URI = "https://example.org/actors/alice"
 _LAST_HASH = "abc123def456"
 
 
 @pytest.fixture
-def sample_log_entry() -> CaseLogEntry:
-    return CaseLogEntry(
+def sample_log_entry() -> CaseLedgerEntry:
+    return CaseLedgerEntry(
         case_id="https://example.org/cases/case-001",
         log_object_id="https://example.org/activities/act-001",
         event_type="ReportCreated",

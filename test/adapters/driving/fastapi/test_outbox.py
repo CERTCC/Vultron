@@ -309,6 +309,22 @@ def test_extract_recipients_deduplicates():
     assert recipients == [alice]
 
 
+def test_extract_recipients_reads_to_field():
+    """_extract_recipients reads recipients directly from `to`."""
+    alice = "https://example.org/actors/alice"
+    bob = "https://example.org/actors/bob"
+    activity = SimpleNamespace(
+        to=[alice, bob],
+        cc=None,
+        bto=None,
+        bcc=None,
+    )
+
+    recipients = oh._extract_recipients(activity)
+
+    assert recipients == [alice, bob]
+
+
 def test_extract_recipients_handles_embedded_object():
     """_extract_recipients extracts id_ from embedded actor objects."""
     alice_id = "https://example.org/actors/alice"
@@ -628,6 +644,158 @@ def test_dehydrate_references_leaves_none_fields_unchanged():
     assert result["target"] is None
 
 
+def test_is_stub_object_dict_true_for_minimal_case_stub():
+    """_is_stub_object_dict identifies the selective-disclosure case stub."""
+    stub: dict[object, object] = {
+        "id": "https://example.org/cases/case-001",
+        "type": "VulnerabilityCase",
+    }
+    assert oh._is_stub_object_dict(stub) is True
+
+
+def test_coerce_reference_value_preserves_case_stub_dict():
+    """_coerce_reference_value keeps intentional case stubs inline."""
+    stub = {
+        "id": "https://example.org/cases/case-001",
+        "type": "VulnerabilityCase",
+    }
+    assert oh._coerce_reference_value(stub) == stub
+
+
+def test_coerce_reference_value_collapses_href_then_id():
+    """_coerce_reference_value prefers href over id for dict references."""
+    assert (
+        oh._coerce_reference_value(
+            {"id": "urn:uuid:obj-001", "href": "https://example.org/obj/1"}
+        )
+        == "https://example.org/obj/1"
+    )
+    assert (
+        oh._coerce_reference_value({"id": "https://example.org/obj/2"})
+        == "https://example.org/obj/2"
+    )
+
+
+def test_recover_typed_inline_object_from_dict_rehydrates_model():
+    """_recover_typed_inline_object_from_dict rebuilds configured model types."""
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        VulnerabilityCase,
+    )
+
+    activity = _make_vultron_activity(
+        to=["https://example.org/actors/alice"],
+        activity_type="Create",
+    )
+    object_dict = {
+        "id": "https://example.org/cases/case-123",
+        "type": "VulnerabilityCase",
+        "name": "Case 123",
+    }
+
+    recovered = oh._recover_typed_inline_object_from_dict(
+        object_dict,
+        "Create",
+        activity.id_,
+        activity,
+    )
+
+    assert isinstance(recovered, VulnerabilityCase)
+    assert activity.object_ is recovered
+
+
+def test_recover_typed_inline_object_from_dict_returns_input_on_validation_error(
+    monkeypatch,
+):
+    """_recover_typed_inline_object_from_dict leaves dict unchanged on failure."""
+
+    class BrokenModel:
+        @classmethod
+        def model_validate(cls, payload):
+            raise ValueError("broken")
+
+    monkeypatch.setitem(oh._STUB_OBJECT_MODEL_MAP, "BrokenType", BrokenModel)
+    activity = _make_vultron_activity(
+        to=["https://example.org/actors/alice"],
+        activity_type="Create",
+    )
+    object_dict = {
+        "id": "urn:uuid:broken-1",
+        "type": "BrokenType",
+        "name": "Broken",
+    }
+
+    recovered = oh._recover_typed_inline_object_from_dict(
+        object_dict,
+        "Create",
+        activity.id_,
+        activity,
+    )
+
+    assert recovered == object_dict
+    assert activity.object_ is None
+
+
+def test_hydrate_inline_object_if_persistable_hydrates_basemodel():
+    """_hydrate_inline_object_if_persistable calls dl.hydrate for BaseModel."""
+    from pydantic import BaseModel
+
+    class DummyModel(BaseModel):
+        id_: str
+
+    activity = _make_vultron_activity(
+        to=["https://example.org/actors/alice"],
+        activity_type="Create",
+    )
+    model = DummyModel(id_="urn:uuid:dummy-1")
+    hydrated_model = DummyModel(id_="urn:uuid:dummy-2")
+    mock_dl = MagicMock()
+    mock_dl.hydrate.return_value = hydrated_model
+
+    result = oh._hydrate_inline_object_if_persistable(model, activity, mock_dl)
+
+    mock_dl.hydrate.assert_called_once_with(model)
+    assert result is hydrated_model
+    assert activity.object_ is hydrated_model
+
+
+def test_prepare_activity_object_for_delivery_calls_helper_pipeline(
+    monkeypatch,
+):
+    """_prepare_activity_object_for_delivery uses expansion/validate/recovery/hydration."""
+    activity = _make_vultron_activity(
+        to=["https://example.org/actors/alice"],
+        activity_type="Create",
+    )
+    activity.object_ = {"id": "urn:uuid:obj", "type": "VulnerabilityCase"}
+    mock_dl = MagicMock()
+
+    expanded_obj = {"id": "urn:uuid:expanded", "type": "VulnerabilityCase"}
+    recovered_obj = SimpleNamespace(id_="urn:uuid:recovered")
+    hydrated_obj = SimpleNamespace(id_="urn:uuid:hydrated")
+
+    expand = MagicMock(return_value=expanded_obj)
+    validate = MagicMock()
+    recover = MagicMock(return_value=recovered_obj)
+    hydrate = MagicMock(return_value=hydrated_obj)
+
+    monkeypatch.setattr(oh, "_expand_inline_object", expand)
+    monkeypatch.setattr(oh, "_validate_inline_object", validate)
+    monkeypatch.setattr(oh, "_recover_typed_inline_object_from_dict", recover)
+    monkeypatch.setattr(oh, "_hydrate_inline_object_if_persistable", hydrate)
+
+    result = oh._prepare_activity_object_for_delivery(
+        activity, activity.id_, "Create", mock_dl
+    )
+
+    expand.assert_called_once()
+    validate.assert_called_once_with(activity.id_, "Create", expanded_obj)
+    recover.assert_called_once_with(
+        expanded_obj, "Create", activity.id_, activity
+    )
+    hydrate.assert_called_once_with(recovered_obj, activity, mock_dl)
+    assert result is hydrated_obj
+
+
 def test_handle_outbox_item_converts_typed_activity_with_full_target():
     """handle_outbox_item delivers when activity.target is a full domain object.
 
@@ -682,17 +850,20 @@ def test_handle_outbox_item_converts_typed_activity_with_full_target():
     assert recipient in emitted_recipients
 
 
-def test_handle_outbox_item_preserves_inline_case_log_entry_fields():
-    """Announce(CaseLogEntry) delivery keeps full inline log-entry fields."""
-    from vultron.core.models.case_log import GENESIS_HASH, HashChainLogRecord
-    from vultron.core.use_cases.triggers.sync import _to_persistable_entry
+def test_handle_outbox_item_preserves_inline_case_ledger_entry_fields():
+    """Announce(CaseLedgerEntry) delivery keeps full inline log-entry fields."""
+    from vultron.core.models.case_ledger import (
+        GENESIS_HASH,
+        HashChainLedgerRecord,
+    )
+    from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
     from vultron.wire.as2.factories import announce_log_entry_activity
-    from vultron.wire.as2.vocab.objects.case_log_entry import (
-        CaseLogEntry as WireCaseLogEntry,
+    from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+        CaseLedgerEntry as WireCaseLedgerEntry,
     )
 
     recipient = "https://example.org/actors/participant"
-    chain_entry = HashChainLogRecord(
+    chain_entry = HashChainLedgerRecord(
         case_id="https://example.org/cases/case-sync-2",
         log_index=0,
         object_id="https://example.org/activities/logged-2",
@@ -702,7 +873,7 @@ def test_handle_outbox_item_preserves_inline_case_log_entry_fields():
     )
     entry = _to_persistable_entry(chain_entry)
     activity = announce_log_entry_activity(
-        WireCaseLogEntry.from_core(entry),
+        WireCaseLedgerEntry.from_core(entry),
         actor="https://example.org/actors/case-actor",
         to=[recipient],
     )
@@ -859,6 +1030,34 @@ def test_handle_outbox_item_no_warning_when_only_to_set(caplog):
     assert not any(
         any(f in msg for f in ("cc", "bto", "bcc")) for msg in warning_texts
     )
+
+
+def test_handle_outbox_item_raises_integrity_error_for_bare_object():
+    """Malformed bare-string object_ must raise integrity error (OX-09/MV-09)."""
+    activity = _make_vultron_activity(
+        to=["https://example.org/actors/alice"],
+        activity_type="Create",
+    )
+    activity.object_ = "urn:uuid:bare-object"  # type: ignore[assignment]
+    mock_dl = MagicMock()
+    mock_dl.read.side_effect = lambda id_: (
+        activity if id_ == activity.id_ else None
+    )
+    mock_emitter = AsyncMock()
+
+    with pytest.raises(VultronOutboxObjectIntegrityError) as exc_info:
+        asyncio.run(
+            oh.handle_outbox_item(
+                "actor-abc",
+                activity.id_,
+                mock_dl,
+                mock_emitter,
+            )
+        )
+
+    assert exc_info.value.activity_id == activity.id_
+    assert exc_info.value.activity_type == "Create"
+    mock_emitter.emit.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

@@ -32,11 +32,12 @@ Per specs/behavior-tree-integration.yaml:
 - BT-05-003: Populates blackboard with activity and actor state
 - BT-05-004: Executes tree and returns execution result
 
-Per specs/sync-log-replication.yaml:
+Per specs/sync-ledger-replication.yaml:
 - SYNC-09-003: Leadership role-check port; always True in single-node.
 """
 
 import logging
+import threading
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable
 
@@ -47,9 +48,20 @@ from py_trees.display import unicode_tree
 from vultron.core.ports.case_persistence import CasePersistence
 
 if TYPE_CHECKING:
+    from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
+
+# py_trees uses a process-global blackboard (Blackboard.storage).
+# FastAPI runs synchronous BackgroundTask callables in a thread-pool
+# executor, so two BT executions can run on different threads at the
+# same time, corrupting each other's actor_id / datalayer entries.
+# This lock serialises BT executions from *different* threads while
+# allowing same-thread re-entrancy (e.g. lifecycle.py nodes that call
+# execute_with_setup internally).  RLock is used instead of Lock to
+# prevent deadlock in those re-entrant paths.
+_BT_GLOBAL_LOCK = threading.RLock()
 
 
 @dataclass
@@ -92,6 +104,7 @@ class BTBridge:
         datalayer: CasePersistence,
         is_leader: Callable[[], bool] = _default_is_leader,
         trigger_activity: "TriggerActivityPort | None" = None,
+        sync_port: "SyncActivityPort | None" = None,
     ):
         """
         Initialize BT bridge with DataLayer access and optional leadership guard.
@@ -106,10 +119,18 @@ class BTBridge:
                 placed on the py_trees blackboard under the key
                 ``trigger_activity_factory`` so that BT nodes can call it
                 without importing from the wire layer.
+            sync_port: Optional port for SYNC-2 replication fan-out
+                (SYNC-02-002).  When provided it is placed on the py_trees
+                blackboard under the key ``sync_port`` so that
+                ``CommitCaseLedgerEntryNode`` can fan out
+                ``Announce(CaseLedgerEntry)`` activities to participants.
+                Without this, ledger entries committed inside BTs are
+                persisted locally but not replicated.
         """
         self.datalayer = datalayer
         self.is_leader = is_leader
         self.trigger_activity = trigger_activity
+        self.sync_port = sync_port
         self.logger = logging.getLogger(
             f"{__name__}.{self.__class__.__name__}"
         )
@@ -160,6 +181,13 @@ class BTBridge:
                 access=py_trees.common.Access.WRITE,
             )
             blackboard.trigger_activity_factory = self.trigger_activity
+
+        if self.sync_port is not None:
+            blackboard.register_key(
+                key="sync_port",
+                access=py_trees.common.Access.WRITE,
+            )
+            blackboard.sync_port = self.sync_port
 
         if activity is not None:
             blackboard.register_key(
@@ -319,8 +347,45 @@ class BTBridge:
                 status=Status.FAILURE,
                 feedback_message=msg,
             )
-        bt = self.setup_tree(tree, actor_id, activity, **context_data)
-        return self.execute_tree(bt, max_iterations)
+        with _BT_GLOBAL_LOCK:
+            managed_keys = ["datalayer", "trigger_activity_factory"]
+            storage = py_trees.blackboard.Blackboard.storage
+            key_aliases: set[str] = set()
+            for key in managed_keys:
+                key_aliases.add(key)
+                key_aliases.add(f"/{key}")
+            previous_values = {
+                key: (key in storage, storage.get(key)) for key in key_aliases
+            }
+            bt = self.setup_tree(tree, actor_id, activity, **context_data)
+            try:
+                return self.execute_tree(bt, max_iterations)
+            finally:
+                # Restore managed blackboard keys to their pre-execution state.
+                # setup_tree() writes these keys to Blackboard.storage, which
+                # is process-global; without explicit cleanup the entries
+                # persist after execution, keeping SqliteDataLayer objects and
+                # TriggerActivityAdapter objects (both hold sqlite3 connections)
+                # alive until the next BT execution overwrites them.  That
+                # delayed release causes ResourceWarning: unclosed database
+                # when GC runs at an unpredictable moment — typically during
+                # the next test's SQL activity, which pytest promotes to a test
+                # failure via PytestUnraisableExceptionWarning (pytest 9.1.0+).
+                #
+                # ``trigger_activity_factory`` is included here even though
+                # each setup_tree() call re-writes it: restoring the previous
+                # value (or removing it when it was absent) ensures that the
+                # previous TriggerActivityAdapter reference is released
+                # promptly rather than being held until the next execution.
+                # Nested execute_with_setup calls are safe because the RLock
+                # is reentrant and previous_values captures the outer call's
+                # state, so the inner call restores exactly what the outer
+                # call wrote.
+                for _key, (_had_value, _value) in previous_values.items():
+                    if _had_value:
+                        storage[_key] = _value
+                    else:
+                        storage.pop(_key, None)
 
     @staticmethod
     def get_failure_reason(

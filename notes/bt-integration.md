@@ -139,13 +139,29 @@ access:
 
 ## Concurrency Model
 
-**Prototype approach**: Sequential FIFO message processing.
-
-**Rationale**: Eliminates race conditions without complexity. Single-threaded
-execution of the inbox queue is sufficient for prototype validation.
+**Prototype approach**: Sequential FIFO message processing per actor.
 
 **Implementation**: BackgroundTasks queues messages; inbox endpoint returns
-202 immediately. BT execution happens in the background, sequentially.
+202 immediately. BT execution happens in the background via
+`anyio.to_thread.run_sync`, which places synchronous callables onto a
+**thread pool** — not a single thread.
+
+**Critical implication**: Two BT executions can and do run on different
+threads simultaneously. The `py_trees.blackboard.Blackboard.storage` dict
+is process-global and is **not** thread-safe without explicit locking.
+
+**Fix**: `BTBridge.execute_with_setup` wraps its entire
+setup → execute → cleanup critical section with a module-level
+`threading.RLock`. An `RLock` (not `Lock`) is required because
+`lifecycle.py` BT nodes call `execute_with_setup` recursively — a plain
+`Lock` deadlocks in that path.
+
+**Race condition that prompted this fix** (PR-886): Thread A's
+`execute_with_setup` writes `actor_id=A` and `datalayer=DL_A`; Thread B
+overwrites them with `actor_id=B` / `datalayer=DL_B`; Thread A then reads
+the wrong `actor_id`, queuing its outbound activity under the wrong actor's
+outbox — the activity is silently lost. Thread B may also crash when
+Thread A's cleanup removes `/datalayer` before B reads it.
 
 **Future optimization paths** (defer until needed):
 
@@ -931,3 +947,211 @@ silently regress.
 - When a new node class is added to a file, **always verify class boundaries
   with `grep -n "^class " <file>`** before committing. Python silently accepts
   duplicate method definitions within a class; the last definition wins.
+
+---
+
+### BT Result Channel for Domain Errors
+
+(ISSUE-711, 2026-06-09)
+
+When strict state-machine transitions move into BT action nodes, use cases
+still need the original domain exception types (e.g.,
+`VultronInvalidStateTransitionError`) to preserve caller and test semantics.
+
+**Pattern**: Write the error into `result_out["error"]` inside the BT node,
+then let the use case's `execute()` re-raise it directly:
+
+```python
+# In BT node:
+def update(self) -> Status:
+    try:
+        lifecycle.do_transition(...)
+    except VultronInvalidStateTransitionError as e:
+        self.blackboard.result_out = {"error": e}
+        return Status.FAILURE
+    return Status.SUCCESS
+
+# In use case execute():
+result = bridge.execute_with_setup(tree, ...)
+if result.status == Status.FAILURE:
+    err = (result_out or {}).get("error")
+    if isinstance(err, VultronError):
+        raise err
+```
+
+This avoids collapsing domain errors into generic BT failure messages and
+lets tests assert on the original exception type.
+
+---
+
+### Lenient vs. Strict Participant Lookup Node Variants
+
+(ISSUE-710, 2026-06-09)
+
+Two distinct lookup patterns exist for resolving a participant from an
+actor ID:
+
+- **Strict** (`LookupParticipantNode`, fail-on-missing): Required for
+  operations that must have a participant record (e.g., recording acceptance).
+  Returns `FAILURE` when the participant is not found.
+- **Lenient** (`OptionalLookupParticipantNode`, succeed-on-missing): Correct
+  for operations where the participant may not exist on this peer yet (e.g.,
+  processing an invite or reject). Returns `SUCCESS` even when the participant
+  is absent, so the broadcast log entry can proceed.
+
+**Why "Always SUCCESS" is intentional for the lenient variant**: When a
+peer receives a log entry for a participant it has not yet seen, succeeding
+allows the case ledger cascade to proceed. The state gap resolves when the
+participant is later introduced via the normal invite/accept flow.
+
+**Documentation rule**: The docstring for any lenient node MUST explicitly
+state that it always returns `SUCCESS` and explain *why* this is correct for
+its use case — so future reviewers understand it is a deliberate design
+choice, not a missing failure check.
+
+**Constructor parameter audit**: When migrating procedural logic to BT
+nodes, verify that all constructor parameters are actually used inside the
+node. An unused parameter (e.g., `actor_id_source`) creates confusion about
+whether the parameter controls behavior — it suggests a future branching
+path that may never be implemented.
+
+**Actor ID handoff in invite trees**: When the invitee actor ID differs
+from the sender actor ID, pass the *invitee* ID (not the sender) to
+`bridge.execute_with_setup()` so participant-lookup nodes resolve the
+correct participant record.
+
+---
+
+### Decomposed BT Leaf Must Return FAILURE for Missing Blackboard Keys
+
+(ISSUE-752, 2026-06-09)
+
+When a god node is decomposed into a sequence of leaf nodes, each leaf
+that requires blackboard context MUST explicitly convert a missing-key read
+into node `FAILURE` with a clear error message — not propagate the exception
+up to the bridge level where it becomes an opaque failure.
+
+```python
+# BAD — exception escapes the node
+def update(self) -> Status:
+    case_id = self.blackboard.get("case_id")  # raises KeyError if unset
+
+# GOOD — missing key → explicit FAILURE
+def update(self) -> Status:
+    try:
+        case_id = self.blackboard.get("case_id")
+    except KeyError:
+        self.logger.error("case_id not set in blackboard")
+        return Status.FAILURE
+```
+
+The caller sees a clean `FAILURE` status with a logged reason rather than
+an unhandled exception that bypasses normal failure-path handling.
+
+---
+
+### Embargo Subtree Idempotency with Blackboard Flag
+
+(ISSUE-750, 2026-06-08)
+
+When a god node is decomposed into a sequence of leaf nodes, the original
+single-pass semantics may break if duplicate-run behavior depended on the
+god node's internal guard. Preserve idempotency explicitly:
+
+- Add a blackboard flag (e.g., `embargo_initialized: bool`) that is set
+  to `True` only when the current execution actually created a new embargo.
+- Side-effect leaves that should only fire on first initialization (e.g.,
+  seeding participants, creating events) MUST check this flag before
+  acting.
+- When moving EM transition logic to `EmbargoLifecycle.propose_embargo`,
+  keep event creation and participant-seeding behavior aligned with
+  existing duplicate-report tests to avoid introducing regressions.
+
+---
+
+### Conditional BT Branches as Selector Composites
+
+(ISSUE-751, 2026-06-09)
+
+For god-node decomposition where optional behavior depends on runtime
+state, use an explicit `Selector` subtree instead of inline `if/else`
+logic in a single `update()` method:
+
+```python
+# Pattern: Selector(active-branch-check, no-active-guard)
+Selector(
+    name="HandleActiveEmbargoOrSkip",
+    memory=False,
+    children=[
+        Sequence(children=[CheckActiveEmbargo(), ProcessActiveEmbargo()]),
+        AlwaysSuccess(name="no-active-embargo"),
+    ],
+)
+```
+
+**Blackboard handoff keys**: Each leaf node reads from and writes to named
+blackboard keys (`new_case_participant`, `participant_case`,
+`new_participant_id`). This makes each leaf independently testable and the
+overall flow readable from the tree structure alone.
+
+---
+
+### Fan-out / SYNC Decomposition: Context Handoff Pattern
+
+(ISSUE-755, 2026-06-10)
+
+For replay/fan-out flows, split nodes along blackboard context boundaries:
+
+1. **Collect context leaf** — reads domain state, writes derived context
+   (index, recipient list, current position) to named blackboard keys.
+2. **Side-effect leaves** — each reads the context written by step 1 and
+   performs a single side effect (emit activity, update record).
+
+**Condition+action hybrid nodes**: If a node checks a condition and then
+performs an action, decompose it further into a `Selector` composite:
+
+```python
+Selector(
+    name="EmitIfRecipientExists",
+    memory=False,
+    children=[
+        CheckRecipientPresent(),   # pure condition; returns FAILURE → fall through
+        AlwaysSuccess("skip"),     # no-op when condition already met
+    ],
+)
+```
+
+This preserves the original guard semantics without embedding conditional
+logic inside a single `update()`.
+
+---
+
+### Inbox Test Seam Must Preserve Production Deferral Semantics
+
+(ISSUE-769, 2026-06-08)
+
+A test-only inbox pipeline that reimplements defer/replay logic can drift
+from production behavior unless it reuses the same expiry path. When
+writing case-deferral tests:
+
+- Set canonical `to` recipients matching the expected actor-scoped queue
+  so actor-scoped queues are exercised under the same addressing assumptions
+  as inbox processing.
+- Do not reimplement the defer/replay path inline in tests — call the
+  production code path directly so timing and queue semantics stay aligned.
+
+---
+
+### Decomposed BT Nodes Must Preserve Alternate Context Seams
+
+(ISSUE-714, 2026-06-10)
+
+When replacing a god node with a leaf-node sequence, preserve all input
+seams the original node accepted:
+
+- `case_id` from a blackboard key
+- `case_obj`-derived context set during setup
+
+If downstream leaves rely on blackboard keys written during setup, add
+explicit fallback reads from staged objects/status context to avoid
+regressing call paths that provide context in one form but not the other.

@@ -254,28 +254,34 @@ groups:
   kind: pattern
   specs:
   - id: BTND-07-001
-    priority: SHOULD
+    priority: MUST
     statement: >-
-      (**SHOULD**) BT node classes for a given protocol step SHOULD be organized into a
-      `nodes/` subpackage rather than a single flat `nodes.py` module. Submodules MUST
-      be grouped by semantic concern (e.g., `conditions.py`, `case_setup.py`,
-      `participant.py`, `embargo.py`, `communication.py`, `lifecycle.py`). The package
-      `__init__.py` MUST re-export all public node names to preserve import compatibility
-      with callers.
+      BT node classes for a given protocol step MUST be organized into a `nodes/`
+      subpackage rather than a single flat `nodes.py` module. This applies to all
+      BT-bearing process areas in `vultron/core/behaviors/` regardless of current node
+      count or file size — the `nodes/` subpackage is the standard organizational unit
+      for leaf node implementations. Submodules MUST be grouped by semantic concern
+      (e.g., `conditions.py`, `case_setup.py`, `participant.py`, `embargo.py`,
+      `communication.py`, `lifecycle.py`). The package `__init__.py` MUST re-export all
+      public node names to preserve import compatibility with callers.
     rationale: >-
-      A flat `nodes.py` accumulating ten or more BT node classes becomes a high-churn,
-      high-blast-radius file where every change — regardless of which workflow step it
-      touches — modifies the same module. This makes code review shallow, increases the
-      risk of duplicate method definitions silently shadowing correct logic, and degrades
-      test maintainability. Grouping by semantic concern reduces diff scope, improves
-      discoverability, and lets reviewers focus on the affected concern in isolation.
+      A flat `nodes.py` becomes a high-churn, high-blast-radius file where every change
+      — regardless of which workflow step it touches — modifies the same module. This
+      makes code review shallow, increases the risk of duplicate method definitions
+      silently shadowing correct logic, and degrades test maintainability. Applying the
+      `nodes/` subpackage pattern uniformly (not just when a file grows large) keeps the
+      hierarchy consistent across all process areas and prevents gradual accumulation that
+      creates a large-file problem later. Grouping by semantic concern reduces diff scope,
+      improves discoverability, and lets reviewers focus on the affected concern in
+      isolation.
     relationships:
     - rel_type: refines
       spec_id: BT-06-004
     verification: >-
-      Any `nodes.py` containing ten or more BT node classes SHOULD be flagged for
-      refactoring into a `nodes/` subpackage. CI or a codebase-scan tool MAY enforce this
-      threshold.
+      Every BT-bearing process area under `vultron/core/behaviors/` has a `nodes/`
+      subpackage and does not retain a flat `nodes.py` module at the area root.
+      Helper-only areas that do not define BT tree composition or BT leaf nodes are
+      exempt.
   - id: BTND-07-002
     priority: SHOULD
     statement: >-
@@ -292,3 +298,45 @@ groups:
     verification: >-
       For any `nodes/` subpackage, confirm that a matching `test/…/nodes/` directory
       exists with per-submodule test files.
+  - id: BTND-07-003
+    priority: MUST
+    statement: >-
+      Each BT-bearing process area directory under `vultron/core/behaviors/` MUST
+      maintain a clear structural split between tree factory modules and leaf node
+      modules. Tree factory modules (files named `*_tree.py` at the area root) define
+      BT composition and structure. Leaf node modules (files in the `nodes/`
+      subpackage) define BT `Behaviour` subclasses. Supporting files (e.g., `policy.py`,
+      `update_support.py`) MAY exist at the area root alongside tree modules. This
+      two-level hierarchy MAY be deepened further: a `nodes/` subpackage MAY itself
+      contain sub-subpackages when a semantic concern grows large, following the same
+      split pattern recursively.
+    rationale: >-
+      Mixing tree factory functions and leaf node class definitions in the same module
+      conflates two separate concerns: composition/structure (how the tree is assembled)
+      and implementation/detail (what each leaf node does). Keeping them in separate
+      modules makes the tree structure immediately readable without navigating past
+      implementation details, and lets each concern evolve independently without
+      cross-contaminating diffs.
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-07-001
+    verification: >-
+      For each BT-bearing process area under `vultron/core/behaviors/`, confirm that
+      `*_tree.py` modules do not define `Behaviour` subclasses inline (except trivial
+      one-off composites), and that `nodes/` submodules do not define top-level tree
+      factory functions.
+  - id: BTND-07-004
+    priority: MUST
+    statement: >-
+      BT leaf node modules under `vultron/core/behaviors/**/nodes/` MUST stay under
+      500 lines each. A leaf module that exceeds 500 lines MUST be further decomposed
+      into concern-focused modules or subpackages.
+    rationale: >-
+      Subpackage splits fail when they recreate the same god-module risk in a new file.
+      A hard per-module cap keeps decomposition recursive and auditable.
+    relationships:
+    - rel_type: refines
+      spec_id: CS-18-002
+    verification: >-
+      For each BT-bearing area, scan `nodes/` modules and fail compliance when any leaf
+      module exceeds 500 lines.

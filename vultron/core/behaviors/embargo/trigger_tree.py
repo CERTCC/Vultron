@@ -19,7 +19,7 @@ from collections.abc import Callable
 
 import py_trees
 
-from vultron.core.behaviors.embargo.trigger_nodes import (
+from vultron.core.behaviors.embargo.nodes import (
     AcceptEmbargoLifecycleNode,
     PersistEmbargoEventNode,
     ProposeEmbargoLifecycleNode,

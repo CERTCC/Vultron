@@ -13,13 +13,26 @@ from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
 from vultron.core.models.case import VultronCase
-from vultron.core.models.case_log import GENESIS_HASH, HashChainLogRecord
+from vultron.core.models.case_ledger import GENESIS_HASH, HashChainLedgerRecord
 from vultron.core.ports.sync_activity import SyncActivityPort
-from vultron.core.use_cases.triggers.sync import _to_persistable_entry
+from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 
 OWNER_ACTOR_ID = "https://example.org/actors/vendor"
 PEER_ID = "https://example.org/actors/reporter"
 CASE_ID = "https://example.org/cases/case-sync"
+
+
+def _canonical_note_snapshot(actor_id: str, note_id: str) -> dict[str, object]:
+    return {
+        "type": "Add",
+        "actor": actor_id,
+        "object": {
+            "type": "Note",
+            "id": note_id,
+            "context": CASE_ID,
+        },
+        "context": CASE_ID,
+    }
 
 
 @pytest.fixture(autouse=True)
@@ -55,7 +68,7 @@ def case_obj(datalayer):
 
 def _make_entry(log_index: int, prev_hash: str):
     return _to_persistable_entry(
-        HashChainLogRecord(
+        HashChainLedgerRecord(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=f"https://example.org/activities/log-{log_index}",
@@ -82,6 +95,9 @@ def test_commit_tree_persists_entry_and_fans_out(bridge, datalayer, case_obj):
         case_id=CASE_ID,
         object_id="https://example.org/activities/act-1",
         event_type="case_created",
+        payload_snapshot=_canonical_note_snapshot(
+            PEER_ID, "https://example.org/notes/note-1"
+        ),
     )
 
     result = bridge.execute_with_setup(
@@ -91,7 +107,7 @@ def test_commit_tree_persists_entry_and_fans_out(bridge, datalayer, case_obj):
     )
 
     assert result.status == Status.SUCCESS
-    entries = list(datalayer.list_objects("CaseLogEntry"))
+    entries = list(datalayer.list_objects("CaseLedgerEntry"))
     assert len(entries) == 1
     assert entries[0].log_index == 0
     assert entries[0].prev_log_hash == GENESIS_HASH
@@ -110,6 +126,9 @@ def test_commit_tree_uses_existing_tail_hash(bridge, datalayer, case_obj):
             case_id=CASE_ID,
             object_id="https://example.org/activities/act-2",
             event_type="case_updated",
+            payload_snapshot=_canonical_note_snapshot(
+                PEER_ID, "https://example.org/notes/note-2"
+            ),
         ),
         actor_id=OWNER_ACTOR_ID,
         sync_port=sync_port,
@@ -117,9 +136,48 @@ def test_commit_tree_uses_existing_tail_hash(bridge, datalayer, case_obj):
 
     assert result.status == Status.SUCCESS
     entries = sorted(
-        datalayer.list_objects("CaseLogEntry"),
+        datalayer.list_objects("CaseLedgerEntry"),
         key=lambda entry: entry.log_index,
     )
     assert len(entries) == 2
     assert entries[1].log_index == 1
     assert entries[1].prev_log_hash == first_entry.entry_hash
+
+
+def test_commit_tree_reuses_equivalent_entry(bridge, datalayer, case_obj):
+    sync_port = MagicMock(spec=SyncActivityPort)
+    tree = create_commit_log_entry_tree(
+        case_id=CASE_ID,
+        object_id="https://example.org/activities/act-3",
+        event_type="case_updated",
+        payload_snapshot=_canonical_note_snapshot(
+            PEER_ID, "https://example.org/notes/note-3"
+        ),
+    )
+
+    first = bridge.execute_with_setup(
+        tree=tree,
+        actor_id=OWNER_ACTOR_ID,
+        sync_port=sync_port,
+    )
+    second = bridge.execute_with_setup(
+        tree=create_commit_log_entry_tree(
+            case_id=CASE_ID,
+            object_id="https://example.org/activities/act-3",
+            event_type="case_updated",
+            payload_snapshot=_canonical_note_snapshot(
+                PEER_ID, "https://example.org/notes/note-3"
+            ),
+        ),
+        actor_id=OWNER_ACTOR_ID,
+        sync_port=sync_port,
+    )
+
+    assert first.status == Status.SUCCESS
+    assert second.status == Status.SUCCESS
+    entries = [
+        entry
+        for entry in datalayer.list_objects("CaseLedgerEntry")
+        if entry.case_id == CASE_ID
+    ]
+    assert len(entries) == 1

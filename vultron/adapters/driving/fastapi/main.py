@@ -132,7 +132,7 @@ def _print_routes_by_tag(
         print("|:---------|:------------|")
 
         for route, full_path in route_data:
-            for method in route.methods:
+            for method in route.methods or set():
                 print(
                     line_format.format(
                         method=method,

@@ -498,7 +498,9 @@ class TestAnnounceLogEntryActivity:
     from vultron.wire.as2.vocab.activities.sync import (
         _AnnounceLogEntryActivity,
     )
-    from vultron.wire.as2.vocab.objects.case_log_entry import CaseLogEntry
+    from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+        CaseLedgerEntry,
+    )
 
     cls = _AnnounceLogEntryActivity
 
@@ -509,11 +511,13 @@ class TestAnnounceLogEntryActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_log_entry(self):
-        from vultron.wire.as2.vocab.objects.case_log_entry import CaseLogEntry
+        from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+            CaseLedgerEntry,
+        )
 
         _assert_accepts_inline(
             self.cls,
-            CaseLogEntry(
+            CaseLedgerEntry(
                 case_id="https://example.org/cases/c1",
                 log_object_id="https://example.org/cases/c1/events/e1",
                 event_type="test_event",

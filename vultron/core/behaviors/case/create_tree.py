@@ -34,7 +34,7 @@ Structure:
        ├─ CreateCaseActorNode          # Create CaseActor service (CM-02-001)
        ├─ EmitCreateCaseActivity       # Generate CreateCaseActivity activity
        ├─ UpdateActorOutbox            # Append activity to actor outbox
-       └─ CommitCaseLogEntryNode       # Log entry → Announce fan-out (SYNC-02-002)
+       └─ CommitCaseLedgerEntryNode       # Log entry → Announce fan-out (SYNC-02-002)
 
 Note: ``ValidateCaseObject`` was removed (#716).  ``VultronBase.id_`` is typed
 ``NonEmptyString`` with a ``default_factory``, so Pydantic enforces a valid
@@ -49,14 +49,20 @@ import py_trees
 
 from vultron.core.models.actor_config import ActorConfig
 from vultron.core.models.vultron_types import VultronCase
+from vultron.core.behaviors.case.case_setup_tree import (
+    CreateCaseActorNode,
+    RecordCaseCreationEvents,
+)
+from vultron.core.behaviors.case.communication_tree import (
+    EmitCreateCaseActivity,
+)
+from vultron.core.behaviors.case.participant_tree import (
+    CreateCaseOwnerParticipant,
+)
 from vultron.core.behaviors.case.nodes import (
     CheckCaseAlreadyExists,
-    CommitCaseLogEntryNode,
-    CreateCaseActorNode,
-    CreateCaseOwnerParticipant,
-    EmitCreateCaseActivity,
+    CommitCaseLedgerEntryNode,
     PersistCase,
-    RecordCaseCreationEvents,
     SetCaseAttributedTo,
     UpdateActorOutbox,
 )
@@ -106,7 +112,7 @@ def create_create_case_tree(
             CreateCaseActorNode(case_id=case_id),
             EmitCreateCaseActivity(),
             UpdateActorOutbox(),
-            CommitCaseLogEntryNode(case_id=case_id),
+            CommitCaseLedgerEntryNode(case_id=case_id),
         ],
     )
 

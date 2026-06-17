@@ -24,13 +24,14 @@ functions used across all demo scripts (DC-02-001).
 import json
 import logging
 import os
+import sys
 import time
 from contextlib import contextmanager
 from http import HTTPMethod
 from typing import Any, Generator, Optional, Sequence, Tuple, cast
 
 # Third-party imports
-import httpx
+import httpx2 as httpx
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 
@@ -166,7 +167,7 @@ class DataLayerClient(BaseModel):
 
         Returns:
             Parsed JSON response body.  Most endpoints return a ``dict``, but
-            list endpoints (e.g. the case-log endpoint) return a ``list``.
+            list endpoints (e.g. the case-ledger endpoint) return a ``list``.
 
         Raises:
             httpx.HTTPStatusError: When the response status is not OK.
@@ -529,3 +530,15 @@ def check_server_availability(
         if attempt < max_retries - 1:
             time.sleep(retry_delay)
     return False
+
+
+def setup_demo_logging() -> None:
+    """Configure console logging for standalone demo script execution."""
+    logging.getLogger("httpx2").setLevel(logging.WARNING)
+    _logger = logging.getLogger()
+    hdlr = logging.StreamHandler(sys.stdout)
+    hdlr.setFormatter(
+        logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+    )
+    _logger.addHandler(hdlr)
+    _logger.setLevel(logging.DEBUG)

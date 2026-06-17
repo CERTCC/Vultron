@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Behavior tree factory for committing and fanning out case log entries."""
+"""Behavior tree factory for committing and fanning out case ledger entries."""
 
 from typing import Any
 

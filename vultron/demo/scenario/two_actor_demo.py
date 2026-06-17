@@ -28,7 +28,7 @@ import pathlib
 import sys
 from typing import Optional, Tuple
 
-import httpx
+import httpx2 as httpx
 
 from vultron.adapters.utils import strip_id_prefix
 from vultron.core.states.cs import CS_vfd
@@ -55,6 +55,7 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     reset_demo_failures,
     seed_actor,
     verify_object_stored,
+    setup_demo_logging,
 )
 
 # Re-export shared helpers so that existing imports via this module continue to
@@ -115,6 +116,7 @@ from vultron.demo.helpers.verification import (  # noqa: F401
 from vultron.demo.helpers.workflow import (  # noqa: F401
     _load_case_from_datalayer,
     _report_id_from_offer_data,
+    coordinator_engages_case,
     coordinator_validates_report,
     find_case_for_offer,
     reporter_submits_report,
@@ -423,6 +425,14 @@ def _phase_report_submission(
             )
         logger.info("Case created: %s", case.id_)
 
+    # validate-report advances RM to VALID only; engage-case is a separate
+    # explicit step that advances RM to ACCEPTED (RM state machine protocol).
+    coordinator_engages_case(
+        coordinator_client=vendor_client,
+        coordinator=vendor_in_vendor,
+        case_id=case.id_,
+    )
+
     wait_for_case_participants(
         vendor_client=vendor_client,
         case_id=case.id_,
@@ -520,20 +530,21 @@ def _phase_sync_verification(
     logger.info("Phase 2: Replica synchronization verification")
     logger.info("─" * 80)
 
-    with demo_step("Committing case log entry on Vendor (CaseActor)"):
-        entry_hash = trigger_log_commit(
-            client=vendor_client,
-            actor_id=vendor.id_,
-            case_id=case.id_,
-            event_type="demo_verification",
-        )
-
-    with demo_step("Waiting for Finder to receive replicated log entry"):
-        wait_for_finder_log_entry(
-            finder_client=finder_client,
-            case_id=case.id_,
-            entry_hash=entry_hash,
-        )
+    # Synthetic checkpoint entries (demo_verification) are explicitly
+    # excluded from the canonical case ledger per ADR-0019 (CLP-07-004):
+    # only verbatim asserted protocol-significant AS2 activities belong on
+    # the chain. Diagnostic markers belong in Python `logging`. Replication
+    # is verified by comparing replica state directly rather than polling
+    # for a new entry.
+    #
+    # `trigger_log_commit` and `wait_for_finder_log_entry` remain available
+    # in `vultron.demo.helpers.sync` for tests that need to drive a *real*
+    # protocol event and wait for its replica; they are intentionally not
+    # called here.
+    logger.info(
+        "Verifying SYNC-2 replication by comparing vendor ↔ finder replica"
+        " state (ADR-0019: synthetic entries omitted from canonical ledger)"
+    )
 
     with demo_check("Finder replica state matches authoritative Vendor state"):
         verify_finder_replica_state(
@@ -711,7 +722,7 @@ def _phase_case_closure(
 # ---------------------------------------------------------------------------
 
 
-def _phase_dump_case_logs(
+def _phase_dump_case_ledgers(
     finder_client: DataLayerClient,
     vendor_client: DataLayerClient,
     finder: as_Actor,
@@ -720,12 +731,12 @@ def _phase_dump_case_logs(
     case_actor_client: DataLayerClient | None = None,
     demo_name: str = "two-actor",
 ) -> None:
-    """Dump case log entries from each actor container to JSONL files.
+    """Dump case ledger entries from each actor container to JSONL files.
 
     Reads ``DEVLOGS_DIR`` from the environment (default ``/app/devlogs``) and
     writes one JSONL file per actor under::
 
-        {DEVLOGS_DIR}/{demo_name}/{actor_name}/{case_id_slug}-case-log.jsonl
+        {DEVLOGS_DIR}/{demo_name}/{actor_name}/{case_id_slug}-case-ledger.jsonl
 
     The case-actor log is always included: from *case_actor_client* when a
     dedicated case-actor service is configured, otherwise from the vendor
@@ -775,7 +786,7 @@ def _phase_dump_case_logs(
         actors.append(("case-actor", vendor_client, case_actor_sub_actor_key))
 
     for actor_name, client, actor_route_key in actors:
-        with demo_step(f"Dumping case log for {actor_name}"):
+        with demo_step(f"Dumping case ledger for {actor_name}"):
             case_key = strip_id_prefix(case_id)
             log_path = f"/actors/{actor_route_key}/demo/cases/{case_key}/log"
             try:
@@ -811,13 +822,13 @@ def _phase_dump_case_logs(
                 entries = vendor_client.get_list(fallback_path)
             if not entries:
                 raise ValueError(
-                    f"No case log entries for actor={actor_name!r}, "
+                    f"No case ledger entries for actor={actor_name!r}, "
                     f"case_id={case_id!r}"
                 )
 
             out_dir = output_root / demo_name / actor_name
             out_dir.mkdir(parents=True, exist_ok=True)
-            out_file = out_dir / f"{case_id_slug}-case-log.jsonl"
+            out_file = out_dir / f"{case_id_slug}-case-ledger.jsonl"
 
             with out_file.open("w", encoding="utf-8") as fh:
                 for entry in entries:
@@ -893,7 +904,7 @@ def run_two_actor_demo(
         finder_in_finder,
         case,
     )
-    _phase_dump_case_logs(
+    _phase_dump_case_ledgers(
         finder_client=finder_client,
         vendor_client=vendor_client,
         finder=finder,
@@ -972,18 +983,6 @@ def main(
         assert_demo_success()
 
 
-def _setup_logging() -> None:
-    """Configure console logging for standalone script execution."""
-    logging.getLogger("httpx").setLevel(logging.WARNING)
-    _logger = logging.getLogger()
-    hdlr = logging.StreamHandler(sys.stdout)
-    hdlr.setFormatter(
-        logging.Formatter("%(asctime)s %(levelname)s %(message)s")
-    )
-    _logger.addHandler(hdlr)
-    _logger.setLevel(logging.DEBUG)
-
-
 if __name__ == "__main__":
-    _setup_logging()
+    setup_demo_logging()
     main()

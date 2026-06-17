@@ -57,10 +57,10 @@ from vultron.adapters.driving.fastapi.trigger_models import (
     NotifyPublishedRequest,
     SyncLogEntryRequest,
 )
-from vultron.core.models.case_log_entry import VultronCaseLogEntry
+from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.protocols import is_case_model
-from vultron.wire.as2.vocab.objects.case_log_entry import (
-    CaseLogEntry as WireCaseLogEntry,
+from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+    CaseLedgerEntry as WireCaseLedgerEntry,
 )
 from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
 from vultron.core.ports.trigger_service import TriggerServicePort
@@ -122,65 +122,6 @@ def demo_add_note_to_case(
         )
     background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
     return result
-
-
-@router.post(
-    "/{actor_id}/demo/sync-log-entry",
-    status_code=status.HTTP_202_ACCEPTED,
-    summary="[Demo] Commit a case log entry and replicate to peers.",
-    description=(
-        "Demo-only scaffold. "
-        "Commits a new ``VultronCaseLogEntry`` to the local hash-chain and "
-        "fans it out to all case participants as ``Announce(CaseLogEntry)`` "
-        "activities queued in the actor's outbox. "
-        "In a production deployment, log entries are committed automatically "
-        "as a cascade effect of every state-changing operation; this endpoint "
-        "exists only to let demo scripts inject entries manually. "
-        "Returns the committed entry's ID, hash, and log index. "
-        "Only available in ``RunMode.PROTOTYPE``. "
-        "Spec: TRIG-09-001, TRIG-10-004, SYNC-02-002, SYNC-02-003."
-    ),
-    operation_id="actors_demo_sync_log_entry",
-)
-def demo_sync_log_entry(
-    actor_id: str,
-    body: SyncLogEntryRequest,
-    background_tasks: BackgroundTasks,
-    svc: TriggerServicePort = Depends(get_trigger_service),
-    dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
-) -> dict:
-    """Commit a case log entry and fan it out to all case participants (demo).
-
-    Implements:
-        TRIG-09-001, TRIG-09-004, TRIG-10-004,
-        SYNC-02-002, SYNC-02-003, TB-01-001, TB-01-002, TB-04-001,
-        TB-06-001, TB-06-002, TB-07-001
-
-    TEST SCAFFOLD ONLY — do not call from normal protocol flows.
-    In production, CaseLogEntry commits fire automatically as a cascade
-    consequence of every accepted participant message (PCR-08-003, PCR-08-004).
-    This endpoint exists only to let demo/test scripts inject log entries
-    manually during verification.
-    """
-    actor = dl.read(actor_id) or dl.find_actor_by_short_id(actor_id)
-    canonical_actor_id = (
-        actor.id_ if actor and hasattr(actor, "id_") else actor_id
-    )
-
-    with domain_error_translation():
-        entry = svc.commit_log_entry(
-            case_id=body.case_id,
-            object_id=body.object_id,
-            event_type=body.event_type,
-            actor_id=canonical_actor_id,
-        )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
-    return {
-        "log_entry_id": entry.id_,
-        "entry_hash": entry.entry_hash,
-        "log_index": entry.log_index,
-    }
 
 
 @router.post(
@@ -332,13 +273,121 @@ def demo_close_case(
     return result
 
 
+@router.post(
+    "/{actor_id}/demo/sync-log-entry",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="[Demo] Commit a case ledger entry and fan it out to participants.",
+    description=(
+        "Demo-only trigger. Commits a ``VultronCaseLedgerEntry`` for the "
+        "given case via the canonical BT commit path and queues an "
+        "``Announce(CaseLedgerEntry)`` per participant for fan-out delivery. "
+        "Uses ``Announce(VulnerabilityCase)`` as the canonical payload type. "
+        "Only available in ``RunMode.PROTOTYPE``. "
+        "Spec: TRIG-09-001, SYNC-02-002, SYNC-02-003."
+    ),
+    operation_id="actors_demo_sync_log_entry",
+)
+def demo_sync_log_entry(
+    actor_id: str,
+    body: SyncLogEntryRequest,
+    background_tasks: BackgroundTasks,
+    dl: DataLayer = Depends(get_trigger_dl),
+    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
+) -> JSONResponse:
+    """Commit a case ledger entry and fan it out (demo scaffold, BT-06-006 compliant).
+
+    Uses BTBridge + create_commit_log_entry_tree via a canonical
+    Announce(VulnerabilityCase) payload so the entry passes canonical
+    validation (CLP-07).  The caller-supplied event_type is stored verbatim.
+
+    Spec: TRIG-09-001, SYNC-02-002, SYNC-02-003.
+    """
+    from vultron.core.behaviors.bridge import BTBridge
+    from vultron.core.behaviors.sync.commit_tree import (
+        create_commit_log_entry_tree,
+    )
+    from vultron.core.sync_helpers import _find_equivalent_recorded_entry
+    from vultron.core.use_cases._helpers import _find_case_actor_id
+
+    case_id = body.case_id
+    object_id = body.object_id
+    event_type = body.event_type
+
+    # Resolve canonical actor URI (slug from path param → full ID).
+    _actor = dl.read(actor_id) or dl.find_actor_by_short_id(actor_id)
+    canonical_actor_id = (
+        _actor.id_ if _actor and hasattr(_actor, "id_") else actor_id
+    )
+    case_actor_id = _find_case_actor_id(dl, case_id) or canonical_actor_id
+    payload_snapshot = {
+        "type": "Announce",
+        "object": {"type": "VulnerabilityCase", "id": case_id},
+        "actor": case_actor_id,
+        "context": case_id,
+    }
+
+    with domain_error_translation():
+        from typing import cast as _cast
+
+        from vultron.adapters.driven.sync_activity_adapter import (
+            SyncActivityAdapter,
+        )
+        from vultron.core.ports.case_persistence import CaseOutboxPersistence
+
+        cop = _cast(CaseOutboxPersistence, dl)
+        sync_port = SyncActivityAdapter(cop)
+        bridge = BTBridge(datalayer=dl)
+        bridge.execute_with_setup(
+            tree=create_commit_log_entry_tree(
+                case_id=case_id,
+                object_id=object_id,
+                event_type=event_type,
+                payload_snapshot=payload_snapshot,
+            ),
+            actor_id=case_actor_id,
+            sync_port=sync_port,
+        )
+
+    entry = _find_equivalent_recorded_entry(
+        case_id=case_id,
+        object_id=object_id,
+        event_type=event_type,
+        payload_snapshot=payload_snapshot,
+        dl=dl,
+    )
+
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+
+    if entry is None:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"detail": "Log entry commit did not persist."},
+        )
+
+    from vultron.core.models.case_ledger_entry import (
+        VultronCaseLedgerEntry as DomainEntry,
+    )
+
+    if not isinstance(entry, DomainEntry):
+        entry = DomainEntry.model_validate(entry.model_dump(mode="json"))
+
+    return JSONResponse(
+        status_code=status.HTTP_202_ACCEPTED,
+        content={
+            "log_entry_id": entry.id_,
+            "entry_hash": entry.entry_hash,
+            "log_index": entry.log_index,
+        },
+    )
+
+
 @router.get(
     "/{actor_id}/demo/cases/{case_id}/log",
     status_code=status.HTTP_200_OK,
-    summary="[Demo] List all case log entries for a case, sorted by log_index.",
+    summary="[Demo] List all case ledger entries for a case, sorted by log_index.",
     description=(
         "Demo-only read endpoint. "
-        "Returns all ``VultronCaseLogEntry`` objects for the specified case, "
+        "Returns all ``VultronCaseLedgerEntry`` objects for the specified case, "
         "sorted ascending by ``log_index``. "
         "Default response is ``application/json``. "
         "Request ``Accept: application/x-ndjson`` or pass ``?format=ndjson`` "
@@ -350,9 +399,9 @@ def demo_close_case(
         "Only available in ``RunMode.PROTOTYPE``. "
         "Spec: TRIG-09-001, SYNC-01-002, SYNC-02-003."
     ),
-    operation_id="actors_demo_get_case_log",
+    operation_id="actors_demo_get_case_ledger",
 )
-def demo_get_case_log(
+def demo_get_case_ledger(
     actor_id: str,  # noqa: ARG001
     case_id: str,
     request: Request,
@@ -363,7 +412,7 @@ def demo_get_case_log(
     ),
     dl: DataLayer = Depends(get_trigger_dl),
 ) -> Response:
-    """Return ordered case log entries for a case (demo scaffold).
+    """Return ordered case ledger entries for a case (demo scaffold).
 
     Implements:
         TRIG-09-001, SYNC-01-002, SYNC-02-003.
@@ -373,8 +422,8 @@ def demo_get_case_log(
     canonical_case_id = _resolve_case_id(case_id, dl)
     raw_entries = [
         e
-        for e in dl.list_objects("CaseLogEntry")
-        if isinstance(e, (VultronCaseLogEntry, WireCaseLogEntry))
+        for e in dl.list_objects("CaseLedgerEntry")
+        if isinstance(e, (VultronCaseLedgerEntry, WireCaseLedgerEntry))
         and e.case_id == canonical_case_id
     ]
     raw_entries.sort(key=lambda e: e.log_index)
@@ -393,24 +442,24 @@ def demo_get_case_log(
 @router.get(
     "/{actor_id}/demo/cases/{case_id}/log/{index}",
     status_code=status.HTTP_200_OK,
-    summary="[Demo] Get a single case log entry by log_index.",
+    summary="[Demo] Get a single case ledger entry by log_index.",
     description=(
         "Demo-only read endpoint. "
-        "Returns the single ``VultronCaseLogEntry`` at the given ``log_index`` "
+        "Returns the single ``VultronCaseLedgerEntry`` at the given ``log_index`` "
         "for the specified case. "
         "Returns HTTP 404 if no entry exists at that index. "
         "Only available in ``RunMode.PROTOTYPE``. "
         "Spec: TRIG-09-001, SYNC-01-002, SYNC-02-003."
     ),
-    operation_id="actors_demo_get_case_log_entry",
+    operation_id="actors_demo_get_case_ledger_entry",
 )
-def demo_get_case_log_entry(
+def demo_get_case_ledger_entry(
     actor_id: str,  # noqa: ARG001
     case_id: str,
     index: int = Path(ge=0, description="Zero-based log entry index."),
     dl: DataLayer = Depends(get_trigger_dl),
 ) -> dict[str, Any]:
-    """Return the case log entry at the given index (demo scaffold).
+    """Return the case ledger entry at the given index (demo scaffold).
 
     Implements:
         TRIG-09-001, SYNC-01-002, SYNC-02-003.
@@ -420,7 +469,7 @@ def demo_get_case_log_entry(
     canonical_case_id = _resolve_case_id(case_id, dl)
     entry_id = f"{canonical_case_id}/log/{index}"
     obj = dl.read(entry_id)
-    if not isinstance(obj, (VultronCaseLogEntry, WireCaseLogEntry)):
+    if not isinstance(obj, (VultronCaseLedgerEntry, WireCaseLedgerEntry)):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={

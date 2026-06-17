@@ -58,7 +58,7 @@ The following steps MUST execute in order:
 | 3 | Initialize default embargo → `EM.ACTIVE`; seed owner as `SIGNATORY` | Conditional on embargo policy being configured (CM-12-004) |
 | 4 | Queue `Create(Case)` activity addressed to reporter; flush outbox | **Must precede step 5** |
 | 5 | Add reporter `VultronParticipant` (RM.ACCEPTED, `CVDRole.FINDER`/`REPORTER`); seed as `SIGNATORY` | — |
-| 6 | Commit case log entry → `Announce(CaseLogEntry)` fan-out to all participants | Reporter is now a participant and receives the fan-out |
+| 6 | Commit case ledger entry → `Announce(CaseLedgerEntry)` fan-out to all participants | Reporter is now a participant and receives the fan-out |
 
 Steps 3 and 6 are each conditional (embargo policy must exist for step 3;
 fan-out only reaches the participants who exist at that point for step 6),
@@ -82,7 +82,7 @@ required ordering above (implemented in commit `2d8ce2c4`).
 | 4a | `CreateCaseActivity` | `vultron/core/behaviors/report/nodes.py` |
 | 4b | `UpdateActorOutbox` | `vultron/core/behaviors/case/nodes.py` |
 | 5 | `CreateCaseParticipantNode` + reporter SIGNATORY seed | `vultron/core/behaviors/case/nodes.py` |
-| 6 | `CommitCaseLogEntryNode` | `vultron/core/behaviors/case/nodes.py` |
+| 6 | `CommitCaseLedgerEntryNode` | `vultron/core/behaviors/case/nodes.py` |
 
 ---
 

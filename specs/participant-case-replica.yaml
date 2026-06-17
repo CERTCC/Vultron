@@ -4,11 +4,11 @@ description: >-
   Requirements for how each Vultron Actor maintains and manages its local copy (replica) of
   a `VulnerabilityCase`. Covers replica identity, bootstrap, update authority, case-context
   message routing, reporter case discovery, and unknown-context handling. `specs/case-management.md`
-  CM-01-001, CM-02-002, CM-02-010, CM-06-001, CM-06-002; `specs/sync-log-replication.md` SYNC-02-001,
+  CM-01-001, CM-02-002, CM-02-010, CM-06-001, CM-06-002; `specs/sync-ledger-replication.md` SYNC-02-001,
   SYNC-02-003; `specs/actor-knowledge-model.md` AKM-01-001, AKM-01-002, AKM-02-001; `specs/response-format.md`
-  **Relationship to sync-log-replication.md**: This spec governs the *participant replica
+  **Relationship to sync-ledger-replication.md**: This spec governs the *participant replica
   lifecycle* (bootstrap, authority, routing). The SYNC spec governs the *log replication transport*
-  (hash-chain, per-peer state, `Announce(CaseLogEntry)`). Both must be satisfied simultaneously;
+  (hash-chain, per-peer state, `Announce(CaseLedgerEntry)`). Both must be satisfied simultaneously;
   neither supersedes the other.
 version: 1.0.0
 kind: domain
@@ -194,20 +194,20 @@ groups:
     priority: MUST_NOT
     statement: >-
       A participant actor MUST NOT assume that other participants will receive its case-scoped
-      messages through any channel other than the Case Actor's `Announce(CaseLogEntry)` broadcast.
+      messages through any channel other than the Case Actor's `Announce(CaseLedgerEntry)` broadcast.
       Sending to `case_addressees()` or any multi-recipient list that includes non-CaseActor actors
       is a violation of this rule.
   - id: PCR-08-003
     priority: MUST
     statement: >-
       The Case Actor MUST, for every participant message it receives and accepts, commit a
-      `CaseLogEntry` recording the outcome and broadcast `Announce(CaseLogEntry)` to all case
+      `CaseLedgerEntry` recording the outcome and broadcast `Announce(CaseLedgerEntry)` to all case
       participants as the standard cascade. This cascade is the only mechanism by which participants
       learn of accepted case-state changes.
   - id: PCR-08-004
     priority: MUST_NOT
     statement: >-
-      The `CaseLogEntry + broadcast` cascade MUST NOT be manually triggered by demo scripts or
+      The `CaseLedgerEntry + broadcast` cascade MUST NOT be manually triggered by demo scripts or
       external clients. It MUST fire automatically as a consequence of the Case Actor processing
       any accepted participant message, not only via explicit demo endpoint invocation.
   - id: PCR-08-005
@@ -223,6 +223,46 @@ groups:
     statement: >-
       Unit and integration tests MUST verify that a participant's outbound activity is addressed
       only to the Case Actor, and that no direct peer-to-peer delivery is attempted.
+  - id: PCR-08-007
+    priority: MUST
+    statement: >-
+      `RmInviteToCaseActivity` MUST be sent with `actor` set to the Case Actor's ID, not
+      the case owner's ID. The case owner triggers the invite action, but the Case Actor
+      MUST be the ActivityStreams actor performing the send. Optionally, `attributedTo` on
+      the activity MAY carry the case owner's ID to record who initiated the invitation.
+    relationships:
+    - rel_type: refines
+      spec_id: PCR-08-001
+  - id: PCR-08-008
+    priority: MUST
+    statement: >-
+      The invitee's `RmAcceptInviteToCaseActivity` MUST be addressed to the Case Actor
+      (not the case owner). The Case Actor is the authoritative recipient and processor of
+      all case-management handshake messages after case creation.
+    relationships:
+    - rel_type: refines
+      spec_id: PCR-08-001
+  - id: PCR-08-009
+    priority: MUST
+    statement: >-
+      The Case Actor MUST process `RmAcceptInviteToCaseActivity` and record the invitee's
+      RM state transition (VALID → ACCEPTED) in its own DataLayer. The case owner MUST NOT
+      author or emit any RM state-change activity on behalf of the invitee.
+    relationships:
+    - rel_type: refines
+      spec_id: PCR-08-001
+    - rel_type: refines
+      spec_id: PCR-08-003
+  - id: PCR-08-010
+    priority: MUST_NOT
+    statement: >-
+      A received-side use case MUST NOT construct or emit an ActivityStreams activity with
+      `actor` set to a different actor's ID (identity spoofing). It MUST NOT execute a
+      Behavior Tree with `actor_id` set to any actor other than the one whose DataLayer
+      is active for that use case invocation.
+    relationships:
+    - rel_type: refines
+      spec_id: PCR-08-001
 - id: PCR-07
   title: Testing
   specs:
@@ -263,3 +303,19 @@ groups:
       Integration tests MUST verify the late-joiner sequence: `Invite` → `Accept` → CaseActor
       sends `Announce(VulnerabilityCase)` to new participant → new participant creates local
       replica.
+  - id: PCR-07-008
+    priority: MUST
+    statement: >-
+      Integration tests MUST verify that `RmInviteToCaseActivity` carries `actor` set to the
+      Case Actor's ID, and that the invitee's `RmAcceptInviteToCaseActivity` is processed
+      by the Case Actor (not the case owner). Tests MUST assert that no RM state-change
+      activity is emitted with `actor` set to the invitee's ID from the case owner's context.
+    relationships:
+    - rel_type: verifies
+      spec_id: PCR-08-007
+    - rel_type: verifies
+      spec_id: PCR-08-008
+    - rel_type: verifies
+      spec_id: PCR-08-009
+    - rel_type: verifies
+      spec_id: PCR-08-010

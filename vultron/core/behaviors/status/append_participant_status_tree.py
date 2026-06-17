@@ -32,18 +32,16 @@ Per specs/behavior-tree-node-design.yaml BTND-07-001 (god-node decomposition).
 """
 
 import logging
-from typing import Any
 
 import py_trees
-from py_trees.common import Status
 
 from vultron.core.models.protocols import PersistableModel
-from vultron.core.use_cases._helpers import _as_id
 from vultron.core.behaviors.status.nodes import (
+    AppendStatusAndSaveParticipantNode,
     LoadParticipantNode,
     ResolveAndPersistStatusObjectNode,
+    SkipIfIdempotentNode,
     ValidateRMTransitionNode,
-    AppendStatusAndSaveParticipantNode,
 )
 
 logger = logging.getLogger(__name__)
@@ -79,40 +77,6 @@ def append_participant_status_tree(
     Returns:
         Root node of the ``AppendParticipantStatusBT`` Sequence.
     """
-
-    class SkipIfIdempotentNode(py_trees.behaviour.Behaviour):
-        """Skip the append if status is already appended (idempotent)."""
-
-        def __init__(self):
-            super().__init__(name="SkipIfIdempotentNode")
-            self.status_id = status_id
-            self.participant_id = participant_id
-
-        def setup(self, **kwargs: Any) -> None:
-            self.blackboard = py_trees.blackboard.Client(name=self.name)
-            self.blackboard.register_key(
-                key="append_status_participant",
-                access=py_trees.common.Access.READ,
-            )
-
-        def update(self) -> Status:
-            participant = self.blackboard.get("append_status_participant")
-            if participant is None:
-                return Status.FAILURE
-
-            existing_ids = [
-                _as_id(s) for s in participant.participant_statuses
-            ]
-            if self.status_id in existing_ids:
-                logging.getLogger(self.__class__.__module__).info(
-                    "SkipIfIdempotentNode: status '%s' already on participant"
-                    " '%s' — idempotent, skipping (SUCCESS)",
-                    self.status_id,
-                    self.participant_id,
-                )
-                return Status.SUCCESS
-            return Status.FAILURE
-
     append_subtree = py_trees.composites.Sequence(
         name="AppendParticipantStatusProcessNode",
         memory=False,
@@ -138,7 +102,10 @@ def append_participant_status_tree(
                 name="IdempotencyCheckSelector",
                 memory=False,
                 children=[
-                    SkipIfIdempotentNode(),
+                    SkipIfIdempotentNode(
+                        status_id=status_id,
+                        participant_id=participant_id,
+                    ),
                     append_subtree,
                 ],
             ),

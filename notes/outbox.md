@@ -160,9 +160,61 @@ emitter.emit.assert_called_once()
 
 ---
 
+## Test-Coverage Requirements for Delivery Changes
+
+The `outbox_handler.py` file is a high-churn module (31+ commits/90 days) due to
+ongoing protocol feature additions, DataLayer architectural changes, and bug
+fixes in delivery routing. To prevent silent delivery failures and message loss,
+**every change to recipient routing, object dehydration, or activity validation
+MUST include targeted unit tests**.
+
+### Required Test Coverage
+
+When modifying `outbox_handler.py`, add or update tests for these scenarios:
+
+1. **Recipient Extraction and Deduplication** (`_extract_recipients`)
+   - Test: extract from `to` field
+   - Test: deduplicate across multiple recipients
+   - Test: handle missing/None fields gracefully
+   - Location: `test/adapters/driving/fastapi/test_outbox.py`
+
+2. **Object Dehydration** (`_dehydrate_references`)
+   - Test: collapse reference fields to URI strings
+   - Test: preserve inline objects in `object` field (OX-09-001)
+   - Test: preserve minimal stub dicts for selective disclosure (MV-10-001)
+   - Test: handle mixed dict and string values in lists
+   - Location: `test/adapters/driving/fastapi/test_outbox.py`
+
+3. **Activity Validation** (`handle_outbox_item`)
+   - Test: reject missing or empty `to:` field (OX-08-001, OX-08-002)
+   - Test: warn on `cc`/`bto`/`bcc` presence (OX-08-004)
+   - Test: enforce `VultronOutboxObjectIntegrityError` for malformed activities
+   - Location: `test/adapters/driving/fastapi/test_outbox.py`
+
+### Test Philosophy
+
+- **Unit tests only**: Focus on quick-running tests for local development
+  velocity. Integration tests (full multi-actor scenarios) are handled by CI
+  demo verification or separate acceptance test suites.
+- **Fail-fast gates**: Each delivery-routing change MUST be gated on passing
+  the corresponding unit test(s) before commit. This prevents silent regressions
+  in recipient targeting or activity structure.
+- **No test exemptions**: Even refactors or style changes that touch
+  `_extract_recipients`, `_dehydrate_references`, or `handle_outbox_item`
+  MUST verify that existing tests still pass. If tests are modified, document
+  the reason in the commit message.
+
+### Related Issue
+
+See GitHub Concern #653 for the full context and commitment to test-driven
+delivery validation.
+
+---
+
 ## Related
 
-- `specs/outbox.yaml` — OX-08-* requirements
+- `specs/outbox.yaml` — OX-08-*, OX-09-*, MV-10-* requirements
 - `vultron/adapters/driving/fastapi/outbox_handler.py` — enforcement point
 - `vultron/errors.py` — exception hierarchy
 - `test/adapters/driving/fastapi/test_outbox.py` — test location
+- GitHub Concern #653 — high-churn analysis and test-coverage commitment

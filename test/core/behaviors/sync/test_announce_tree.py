@@ -14,16 +14,16 @@ from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
 )
 from vultron.core.models.case_actor import VultronCaseActor
-from vultron.core.models.case_log import GENESIS_HASH, HashChainLogRecord
-from vultron.core.models.case_log_entry import VultronCaseLogEntry
+from vultron.core.models.case_ledger import GENESIS_HASH, HashChainLedgerRecord
+from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.states.em import EM
-from vultron.core.use_cases.triggers.sync import _to_persistable_entry
+from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import announce_log_entry_activity
-from vultron.wire.as2.vocab.objects.case_log_entry import (
-    CaseLogEntry as WireCaseLogEntry,
+from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+    CaseLedgerEntry as WireCaseLedgerEntry,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
@@ -63,9 +63,9 @@ def case_actor(datalayer):
     return actor
 
 
-def _make_entry(log_index: int, prev_hash: str) -> VultronCaseLogEntry:
+def _make_entry(log_index: int, prev_hash: str) -> VultronCaseLedgerEntry:
     return _to_persistable_entry(
-        HashChainLogRecord(
+        HashChainLedgerRecord(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=f"https://example.org/activities/log-{log_index}",
@@ -77,9 +77,11 @@ def _make_entry(log_index: int, prev_hash: str) -> VultronCaseLogEntry:
 
 
 def _make_event(
-    entry: VultronCaseLogEntry, actor_id: str
+    entry: VultronCaseLedgerEntry, actor_id: str
 ) -> AnnounceLogEntryReceivedEvent:
-    wire_entry = WireCaseLogEntry.model_validate(entry.model_dump(mode="json"))
+    wire_entry = WireCaseLedgerEntry.model_validate(
+        entry.model_dump(mode="json")
+    )
     activity = announce_log_entry_activity(entry=wire_entry, actor=actor_id)
     return cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
 
@@ -119,7 +121,7 @@ def test_case_actor_round_trip_logs_delivery_without_repersisting(
     )
 
     assert result.status == Status.SUCCESS
-    entries = list(datalayer.list_objects("CaseLogEntry"))
+    entries = list(datalayer.list_objects("CaseLedgerEntry"))
     assert len(entries) == 1
 
 
@@ -162,9 +164,9 @@ def test_hash_mismatch_sends_reject_and_does_not_store(
 
 def _make_remove_embargo_entry(
     log_index: int, prev_hash: str
-) -> VultronCaseLogEntry:
+) -> VultronCaseLedgerEntry:
     return _to_persistable_entry(
-        HashChainLogRecord(
+        HashChainLedgerRecord(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=f"https://example.org/activities/log-{log_index}",

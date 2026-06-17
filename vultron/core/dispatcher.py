@@ -27,15 +27,32 @@ import logging
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, Callable
 
+from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.models.events import MessageSemantics
 from vultron.core.ports.dispatcher import ActivityDispatcher
-from vultron.errors import VultronApiHandlerNotFoundError
+from vultron.errors import (
+    VultronApiHandlerNotFoundError,
+    VultronValidationError,
+)
 
 if TYPE_CHECKING:
     from vultron.core.models.events import VultronEvent
     from vultron.core.ports.datalayer import DataLayer
 
 logger = logging.getLogger(__name__)
+
+_JOIN_BACKFILL_GATED_SEMANTICS = frozenset(
+    {
+        MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
+        MessageSemantics.ADD_NOTE_TO_CASE,
+        MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
+        MessageSemantics.DEFER_CASE,
+        MessageSemantics.ENGAGE_CASE,
+        MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
+        MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE,
+        MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE,
+    }
+)
 
 
 class DispatcherBase:
@@ -80,6 +97,7 @@ class DispatcherBase:
         self._handle(event, dl)
 
     def _handle(self, event: "VultronEvent", dl: "DataLayer") -> None:
+        self._enforce_join_backfill_gate(event, dl)
         use_case_class = self._get_use_case(event.semantic_type)
         extra_kwargs: dict[str, Any] = {}
         port_factory = self._port_factories.get(event.semantic_type)
@@ -96,6 +114,97 @@ class DispatcherBase:
                 exc_info=True,
             )
             raise
+
+    def _enforce_join_backfill_gate(
+        self, event: "VultronEvent", dl: "DataLayer"
+    ) -> None:
+        if event.semantic_type not in _JOIN_BACKFILL_GATED_SEMANTICS:
+            return
+        sender_id = event.actor_id
+        if not sender_id:
+            return
+        case_id = self._extract_case_id(event, dl)
+        if not case_id:
+            return
+        highest_contiguous_index, has_case_entries = (
+            self._highest_contiguous_case_log_index(case_id, dl)
+        )
+        if not has_case_entries:
+            return
+        state_id = VultronReplicationState(
+            case_id=case_id,
+            peer_id=sender_id,
+        ).id_
+        state = dl.read(state_id)
+        if not isinstance(state, VultronReplicationState):
+            return
+        if state.join_backfill_last_sent_index < 0:
+            raise VultronValidationError(
+                f"Actor '{sender_id}' has no contiguous canonical ledger "
+                f"prefix for case '{case_id}' (genesis backfill not started)."
+            )
+        if state.join_backfill_last_sent_index > highest_contiguous_index:
+            raise VultronValidationError(
+                f"Actor '{sender_id}' reported join backfill index "
+                f"{state.join_backfill_last_sent_index} for case '{case_id}', "
+                "but the canonical ledger prefix is not contiguous to that "
+                "index."
+            )
+
+    def _highest_contiguous_case_log_index(
+        self, case_id: str, dl: "DataLayer"
+    ) -> tuple[int, bool]:
+        case_indices = sorted(
+            int(getattr(obj, "log_index"))
+            for obj in dl.list_objects("CaseLedgerEntry")
+            if getattr(obj, "case_id", None) == case_id
+            and isinstance(getattr(obj, "log_index", None), int)
+        )
+        if not case_indices:
+            return -1, False
+        expected = 0
+        for index in case_indices:
+            if index != expected:
+                break
+            expected += 1
+        return expected - 1, True
+
+    def _extract_case_id(
+        self, event: "VultronEvent", dl: "DataLayer"
+    ) -> str | None:
+        if (
+            event.semantic_type
+            == MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT
+        ):
+            status_obj = getattr(event, "object_", None)
+            status_context = getattr(status_obj, "context", None)
+            if isinstance(status_context, str) and status_context:
+                return status_context
+        if (
+            event.semantic_type
+            == MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE
+        ):
+            invite_id = getattr(event, "invite_id", None)
+            if isinstance(invite_id, str) and invite_id:
+                invite = dl.read(invite_id)
+                invite_context = getattr(invite, "context", None)
+                if isinstance(invite_context, str) and invite_context:
+                    return invite_context
+                invite_context_id = getattr(invite, "context_id", None)
+                if isinstance(invite_context_id, str) and invite_context_id:
+                    return invite_context_id
+        for attr in (
+            "case_id",
+            "inner_context_id",
+            "context_id",
+            "origin_id",
+            "inner_target_id",
+            "target_id",
+        ):
+            value = getattr(event, attr, None)
+            if isinstance(value, str) and value:
+                return value
+        return None
 
     def _get_use_case(self, semantics: MessageSemantics) -> type:
         use_case_class = self._use_case_map.get(semantics)

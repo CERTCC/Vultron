@@ -9,14 +9,14 @@ import pytest
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.models.case_actor import VultronCaseActor
-from vultron.core.models.case_log import HashChainLogRecord
-from vultron.core.models.case_log_entry import VultronCaseLogEntry
+from vultron.core.models.case_ledger import HashChainLedgerRecord
+from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
-from vultron.core.use_cases.triggers.sync import _to_persistable_entry
+from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import announce_log_entry_activity
-from vultron.wire.as2.vocab.objects.case_log_entry import (
-    CaseLogEntry as WireCaseLogEntry,
+from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+    CaseLedgerEntry as WireCaseLedgerEntry,
 )
 
 OWNER_ACTOR_ID = "https://example.org/actors/vendor"
@@ -52,9 +52,9 @@ def case_actor(datalayer):
     return actor
 
 
-def _make_entry(log_index: int, prev_hash: str) -> VultronCaseLogEntry:
+def _make_entry(log_index: int, prev_hash: str) -> VultronCaseLedgerEntry:
     return _to_persistable_entry(
-        HashChainLogRecord(
+        HashChainLedgerRecord(
             case_id=CASE_ID,
             log_index=log_index,
             object_id=f"https://example.org/activities/log-{log_index}",
@@ -66,8 +66,10 @@ def _make_entry(log_index: int, prev_hash: str) -> VultronCaseLogEntry:
 
 
 def _make_event(
-    entry: VultronCaseLogEntry, actor_id: str
+    entry: VultronCaseLedgerEntry, actor_id: str
 ) -> AnnounceLogEntryReceivedEvent:
-    wire_entry = WireCaseLogEntry.model_validate(entry.model_dump(mode="json"))
+    wire_entry = WireCaseLedgerEntry.model_validate(
+        entry.model_dump(mode="json")
+    )
     activity = announce_log_entry_activity(entry=wire_entry, actor=actor_id)
     return cast(AnnounceLogEntryReceivedEvent, extract_event(activity))

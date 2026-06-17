@@ -32,8 +32,6 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Protocol
 
-from vultron.core.models.case_log_entry import VultronCaseLogEntry
-
 
 class TriggerServicePort(Protocol):
     """Inbound port for all actor-initiated trigger operations.
@@ -205,20 +203,3 @@ class TriggerServicePort(Protocol):
         case_id: str,
         invitee_id: str,
     ) -> dict[str, Any]: ...
-
-    # -----------------------------------------------------------------------
-    # Sync / log-replication triggers
-    # -----------------------------------------------------------------------
-
-    def commit_log_entry(
-        self,
-        case_id: str,
-        object_id: str,
-        event_type: str,
-        actor_id: str,
-        payload_snapshot: dict[str, Any] | None = None,
-        term: int | None = None,
-        reason_code: str | None = None,
-        reason_detail: str | None = None,
-        disposition: str = "recorded",
-    ) -> VultronCaseLogEntry: ...

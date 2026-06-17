@@ -23,9 +23,10 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerCondition
-from vultron.core.models.case_log_entry import VultronCaseLogEntry
+from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.protocols import is_log_entry_model
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.sync_helpers import is_ledger_fresh_for_case
 from vultron.errors import VultronError
 
 logger = logging.getLogger(__name__)
@@ -49,18 +50,20 @@ def _find_case_actor(
     return None
 
 
-def _require_log_entry(activity: Any, node_name: str) -> VultronCaseLogEntry:
+def _require_log_entry(
+    activity: Any, node_name: str
+) -> VultronCaseLedgerEntry:
     entry = getattr(activity, "log_entry", None)
     if entry is None:
         entry = getattr(activity, "object_", None)
     if is_log_entry_model(entry):
-        if isinstance(entry, VultronCaseLogEntry):
+        if isinstance(entry, VultronCaseLedgerEntry):
             return entry
-        return VultronCaseLogEntry.model_validate(
+        return VultronCaseLedgerEntry.model_validate(
             entry.model_dump(mode="json")
         )
     raise VultronError(
-        f"{node_name}: activity did not carry a VultronCaseLogEntry"
+        f"{node_name}: activity did not carry a VultronCaseLedgerEntry"
     )
 
 
@@ -155,7 +158,7 @@ class VerifySenderIsOwnIdNode(DataLayerCondition):
         return Status.FAILURE
 
 
-class CheckLogEntryAlreadyStoredNode(DataLayerCondition):
+class CheckLedgerEntryAlreadyStoredNode(DataLayerCondition):
     def setup(self, **kwargs: Any) -> None:
         super().setup(**kwargs)
         self.blackboard.register_key(
@@ -204,3 +207,73 @@ class IsNotRemoveEmbargoEventNode(DataLayerCondition):
         if entry.event_type != _REMOVE_EMBARGO_EVENT:
             return Status.SUCCESS
         return Status.FAILURE
+
+
+class CheckLedgerFreshnessNode(DataLayerCondition):
+    """Gate: return SUCCESS only when the local ledger for *case_id* is fresh.
+
+    "Fresh" means the actor's local ledger entries for the case form a
+    contiguous, hash-verified sequence from ``log_index=0``
+    (``prev_log_hash == GENESIS_HASH``) through the actor's highest stored
+    entry.  The actor does **not** need to be at the CaseActor's current tip
+    — lagging is permitted so long as the local prefix has no gaps.
+
+    An empty local ledger is trivially fresh (the acknowledged prefix is the
+    empty prefix).
+
+    When the gate fails (not fresh), a WARNING is emitted that includes the
+    staleness reason, surfacing the explicit stale-or-catching-up condition
+    required by SYNC-10-002.  This FAILURE result blocks or defers any
+    protocol-significant case action that depends on ledger freshness per
+    SYNC-10-001.
+
+    Constructor args:
+        case_id: URI of the case whose ledger to check.  If ``None``, the
+            node reads ``case_id`` from the blackboard key ``"case_id"``.
+
+    Spec: SYNC-10-001, SYNC-10-002, SYNC-10-003, SYNC-10-004, SYNC-10-005.
+    """
+
+    def __init__(
+        self, case_id: str | None = None, name: str | None = None
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._case_id = case_id
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        if self._case_id is None:
+            self.blackboard.register_key(
+                key="case_id", access=py_trees.common.Access.READ
+            )
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            self.logger.error("%s: DataLayer not available", self.name)
+            return Status.FAILURE
+
+        if self._case_id is not None:
+            case_id = self._case_id
+        else:
+            try:
+                case_id = self.blackboard.case_id
+            except KeyError:
+                self.logger.error(
+                    "%s: case_id not on blackboard and not provided at "
+                    "construction",
+                    self.name,
+                )
+                return Status.FAILURE
+
+        fresh, reason = is_ledger_fresh_for_case(case_id, self.datalayer)
+        if not fresh:
+            self.logger.warning(
+                "%s: ledger NOT fresh for case '%s' — stale-or-catching-up: %s",
+                self.name,
+                case_id,
+                reason,
+            )
+            return Status.FAILURE
+
+        self.logger.debug("%s: ledger fresh for case '%s'", self.name, case_id)
+        return Status.SUCCESS

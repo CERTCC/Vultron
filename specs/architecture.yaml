@@ -79,13 +79,13 @@ groups:
       `SyncActivityPort` MUST be defined as a `typing.Protocol` in
       `vultron/core/ports/sync_activity_port.py` with two fire-and-forget
       methods:
-        - `send_reject_log_entry(entry: VultronCaseLogEntry, tail_hash: str, actor_id: str, to: str) -> None`
-        - `send_announce_log_entry(entry: VultronCaseLogEntry, actor_id: str, to: str) -> None`
+        - `send_reject_log_entry(entry: VultronCaseLedgerEntry, tail_hash: str, actor_id: str, to: str) -> None`
+        - `send_announce_log_entry(entry: VultronCaseLedgerEntry, actor_id: str, to: str) -> None`
       The concrete adapter (`SyncActivityAdapter`) MUST be implemented in
       `vultron/adapters/driven/sync_activity_adapter.py` and own the full
       domain → wire → persist → outbox pipeline. Core use cases and BT nodes
       MUST call only the port methods and MUST NOT import wire types
-      (`CaseLogEntry`, `WireCaseLogEntry`) or wire factory functions
+      (`CaseLedgerEntry`, `WireCaseLedgerEntry`) or wire factory functions
       (`announce_log_entry_activity`, `reject_log_entry_activity`).
     rationale: >-
       The incremental fix for ARCH-01-001 violations in `received/sync.py`

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Behavior tree factory for inbound Announce(CaseLogEntry) handling."""
+"""Behavior tree factory for inbound Announce(CaseLedgerEntry) handling."""
 
 import py_trees
 
@@ -8,7 +8,7 @@ from vultron.core.behaviors.sync.nodes import (
     CheckHashOrRejectOnMismatchNode,
     CheckIsOwnCaseActorNode,
     CheckIsNotOwnCaseActorNode,
-    CheckLogEntryAlreadyStoredNode,
+    CheckLedgerEntryAlreadyStoredNode,
     IsNotRemoveEmbargoEventNode,
     LogDeliveryConfirmationNode,
     PersistReceivedLogEntryNode,
@@ -42,7 +42,9 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
         name="ParticipantSubtree",
         memory=False,
         children=[
-            CheckLogEntryAlreadyStoredNode(name="CheckLogEntryAlreadyStored"),
+            CheckLedgerEntryAlreadyStoredNode(
+                name="CheckLogEntryAlreadyStored"
+            ),
             validate_and_persist,
         ],
     )

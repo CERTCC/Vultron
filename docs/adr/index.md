@@ -72,16 +72,15 @@ General information about architectural decision records is available at <https:
   Hierarchy](0017-domain-wire-object-separation.md)
 - [ADR-0018 Canonical Case History Convergence on
   `CaseLogEntry`](0018-canonical-case-history-convergence.md)
+- [ADR-0019 Separate the Case Ledger from the Per-Actor Process
+  Log](0019-separate-case-ledger-from-process-log.md)
 
 ## Proposed ADRs
 
-- none
+- [ADR-0020 Move Inbox Orchestration into a Core BT Module with a Typed
+  `process_payload` Seam](0020-inbox-bt-orchestration.md)
 
 ## Rejected ADRs
-
-- none
-
-## Deprecated ADRs
 
 - none
 

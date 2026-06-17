@@ -20,11 +20,18 @@ No HTTP framework imports permitted here.
 """
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import cast
 
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+import py_trees.behaviour
+
+from vultron.core.behaviors.case.actor_trigger_trees import (
+    accept_case_invite_trigger_bt,
+    invite_actor_to_case_trigger_bt,
+    suggest_actor_to_case_trigger_bt,
+)
+from vultron.core.use_cases._helpers import _find_case_actor_id
+from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
-    add_activity_to_outbox,
     resolve_actor,
     resolve_case,
 )
@@ -33,175 +40,134 @@ from vultron.core.use_cases.triggers.requests import (
     InviteActorToCaseTriggerRequest,
     SuggestActorToCaseTriggerRequest,
 )
-from vultron.errors import VultronNotFoundError, VultronValidationError
-
-if TYPE_CHECKING:
-    from vultron.core.ports.trigger_activity import TriggerActivityPort
+from vultron.errors import (
+    VultronNotFoundError,
+    VultronValidationError,
+)
 
 logger = logging.getLogger(__name__)
 
 
-class SvcSuggestActorToCaseUseCase:
+class SvcSuggestActorToCaseUseCase(SvcBTTriggerBase):
     """Recommend another actor for participation in an existing case.
 
-    Emits a RecommendActorActivity addressed to the case owner (typically
-    the CaseActor), which then autonomously invites the suggested actor.
-    The originating actor is the ``actor`` field; ``object_`` is the actor
-    being suggested; ``target`` is the case.
+    Emits a RecommendActorActivity routed through the Case Manager
+    (SenderSideBT / PCR-08-001).
     """
 
-    def __init__(
-        self,
-        dl: CaseOutboxPersistence,
-        request: SuggestActorToCaseTriggerRequest,
-        trigger_activity: "TriggerActivityPort | None" = None,
-    ) -> None:
-        self._dl = dl
-        self._request = request
-        self._trigger_activity = trigger_activity
+    def _prepare(self) -> None:
+        request = cast(SuggestActorToCaseTriggerRequest, self._request)
+        actor = resolve_actor(request.actor_id, self._dl)
+        self._actor_id = actor.id_
+        self._case = resolve_case(request.case_id, self._dl)
 
-    def execute(self) -> dict[str, Any]:
-        actor_id = self._request.actor_id
-        actor = resolve_actor(actor_id, self._dl)
-        actor_id = actor.id_
-        case = resolve_case(self._request.case_id, self._dl)
-
-        suggested_raw = self._dl.read(self._request.suggested_actor_id)
+        suggested_raw = self._dl.read(request.suggested_actor_id)
         if suggested_raw is None:
-            raise VultronNotFoundError(
-                "Actor", self._request.suggested_actor_id
-            )
+            raise VultronNotFoundError("Actor", request.suggested_actor_id)
 
-        if self._trigger_activity is None:
-            raise RuntimeError(
-                "SvcSuggestActorToCaseUseCase requires a TriggerActivityPort"
-            )
+        self._suggested_actor_id = request.suggested_actor_id
 
-        activity_id, activity_dict = (
-            self._trigger_activity.suggest_actor_to_case(
-                recommended_id=self._request.suggested_actor_id,
-                case_id=case.id_,
-                actor=actor_id,
+    def _build_tree(self) -> py_trees.behaviour.Behaviour:
+        def _build_activities(case_manager_id: str) -> list[str]:
+            activity_id, activity_dict = self._factory.suggest_actor_to_case(
+                recommended_id=self._suggested_actor_id,
+                case_id=self._case.id_,
+                actor=self._actor_id,
+                to=[case_manager_id],
             )
+            self._captured["activity"] = activity_dict
+            return [activity_id]
+
+        return suggest_actor_to_case_trigger_bt(
+            case_id=self._case.id_,
+            activity_builder=_build_activities,
         )
 
-        add_activity_to_outbox(actor_id, activity_id, self._dl)
-
+    def _handle_result(self) -> None:
         logger.info(
             "Actor '%s' suggested actor '%s' for case '%s'",
-            actor_id,
-            self._request.suggested_actor_id,
-            case.id_,
+            self._actor_id,
+            self._suggested_actor_id,
+            self._case.id_,
         )
 
-        return {"activity": activity_dict}
 
-
-class SvcInviteActorToCaseUseCase:
+class SvcInviteActorToCaseUseCase(SvcBTTriggerBase):
     """Directly invite an actor to a case (case-owner action).
 
-    Emits an RmInviteToCaseActivity addressed to the invitee, queued in the
-    actor's outbox for delivery.
+    Emits RmInviteToCaseActivity from the Case Actor's identity
+    (PCR-08-007).  ``self._actor_id`` is set to the Case Actor URI in
+    ``_prepare()`` so the BT queues the invite in the Case Actor's outbox.
     """
 
-    def __init__(
-        self,
-        dl: CaseOutboxPersistence,
-        request: InviteActorToCaseTriggerRequest,
-        trigger_activity: "TriggerActivityPort | None" = None,
-    ) -> None:
-        self._dl = dl
-        self._request = request
-        self._trigger_activity = trigger_activity
+    def _prepare(self) -> None:
+        request = cast(InviteActorToCaseTriggerRequest, self._request)
+        actor = resolve_actor(request.actor_id, self._dl)
+        owner_id = actor.id_
+        self._case = resolve_case(request.case_id, self._dl)
 
-    def execute(self) -> dict[str, Any]:
-        actor_id = self._request.actor_id
-        actor = resolve_actor(actor_id, self._dl)
-        actor_id = actor.id_
-        case = resolve_case(self._request.case_id, self._dl)
-
-        invitee_raw = self._dl.read(self._request.invitee_id)
+        invitee_raw = self._dl.read(request.invitee_id)
         if invitee_raw is None:
-            raise VultronNotFoundError("Actor", self._request.invitee_id)
+            raise VultronNotFoundError("Actor", request.invitee_id)
 
-        if self._trigger_activity is None:
-            raise RuntimeError(
-                "SvcInviteActorToCaseUseCase requires a TriggerActivityPort"
-            )
+        self._invitee_id = request.invitee_id
 
-        activity_id, activity_dict = (
-            self._trigger_activity.invite_actor_to_case(
-                invitee_id=self._request.invitee_id,
-                case_id=case.id_,
-                actor=actor_id,
-                to=[self._request.invitee_id],
-            )
+        case_actor_id = _find_case_actor_id(self._dl, self._case.id_)
+        self._actor_id = case_actor_id if case_actor_id else owner_id
+        self._attributed_to = owner_id if case_actor_id else None
+
+    def _build_tree(self) -> py_trees.behaviour.Behaviour:
+        return invite_actor_to_case_trigger_bt(
+            invitee_id=self._invitee_id,
+            case_id=self._case.id_,
+            attributed_to=self._attributed_to,
+            captured=self._captured,
         )
 
-        add_activity_to_outbox(actor_id, activity_id, self._dl)
-
+    def _handle_result(self) -> None:
         logger.info(
             "Actor '%s' invited actor '%s' to case '%s'",
-            actor_id,
-            self._request.invitee_id,
-            case.id_,
+            self._actor_id,
+            self._invitee_id,
+            self._case.id_,
         )
 
-        return {"activity": activity_dict}
 
-
-class SvcAcceptCaseInviteUseCase:
+class SvcAcceptCaseInviteUseCase(SvcBTTriggerBase):
     """Accept a case invitation by emitting RmAcceptInviteToCaseActivity.
 
-    The invitee actor reads the invite from the DataLayer, coerces it to
-    the expected typed class if needed, and queues the accept activity in
-    their outbox for delivery to the case owner.
+    The invitee actor reads the invite from the DataLayer and queues the
+    Accept activity for delivery to the Case Actor.
     """
 
-    def __init__(
-        self,
-        dl: CaseOutboxPersistence,
-        request: AcceptCaseInviteTriggerRequest,
-        trigger_activity: "TriggerActivityPort | None" = None,
-    ) -> None:
-        self._dl = dl
-        self._request = request
-        self._trigger_activity = trigger_activity
+    def _prepare(self) -> None:
+        request = cast(AcceptCaseInviteTriggerRequest, self._request)
+        actor = resolve_actor(request.actor_id, self._dl)
+        self._actor_id = actor.id_
 
-    def execute(self) -> dict[str, Any]:
-        actor_id = self._request.actor_id
-        actor = resolve_actor(actor_id, self._dl)
-        actor_id = actor.id_
-
-        raw_invite = self._dl.read(self._request.invite_id)
+        raw_invite = self._dl.read(request.invite_id)
         if raw_invite is None:
             raise VultronNotFoundError(
-                "RmInviteToCaseActivity", self._request.invite_id
+                "RmInviteToCaseActivity", request.invite_id
             )
 
         invite_type = getattr(raw_invite, "type_", "")
         if invite_type != "Invite":
             raise VultronValidationError(
-                f"'{self._request.invite_id}' is not an"
-                " RmInviteToCaseActivity"
+                f"'{request.invite_id}' is not an RmInviteToCaseActivity"
             )
 
-        if self._trigger_activity is None:
-            raise RuntimeError(
-                "SvcAcceptCaseInviteUseCase requires a TriggerActivityPort"
-            )
+        self._invite_id = request.invite_id
 
-        activity_id, activity_dict = self._trigger_activity.accept_case_invite(
-            invite_id=self._request.invite_id,
-            actor=actor_id,
+    def _build_tree(self) -> py_trees.behaviour.Behaviour:
+        return accept_case_invite_trigger_bt(
+            invite_id=self._invite_id,
+            captured=self._captured,
         )
 
-        add_activity_to_outbox(actor_id, activity_id, self._dl)
-
+    def _handle_result(self) -> None:
         logger.info(
             "Actor '%s' accepted case invite '%s'",
-            actor_id,
-            self._request.invite_id,
+            self._actor_id,
+            self._invite_id,
         )
-
-        return {"activity": activity_dict}

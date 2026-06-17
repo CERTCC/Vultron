@@ -14,167 +14,118 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any, cast
 
+import py_trees.behaviour
+
+from vultron.core.behaviors.case.add_participant_status_trigger_tree import (
+    add_participant_status_trigger_bt,
+)
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.states.cs import CS_vfd
 from vultron.core.states.rm import RM
-from vultron.core.use_cases._helpers import _resolve_case_manager_id
+from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
-    add_activity_to_outbox,
     resolve_actor,
     resolve_case,
 )
 from vultron.core.use_cases.triggers.requests import (
     AddParticipantStatusTriggerRequest,
 )
-from vultron.errors import VultronNotFoundError
-
-if TYPE_CHECKING:
-    from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
 
 
-class SvcAddParticipantStatusUseCase:
+class SvcAddParticipantStatusUseCase(SvcBTTriggerBase):
     """Self-report actor RM/VFD/PXA state to the Case Manager.
 
-    Creates a ParticipantStatus object, saves it, then emits an
-    Add(ParticipantStatus, target=CaseParticipant) activity addressed to the
-    Case Manager (DEMOMA-07-001).
+    Delegates ParticipantStatus record creation to
+    :class:`~vultron.core.behaviors.case.nodes.participant\
+.CreateParticipantStatusNode` via BTBridge (BT-15-001), then emits an
+    ``Add(ParticipantStatus, target=CaseParticipant)`` activity addressed
+    to the Case Manager (DEMOMA-07-001).
+
+    BT-15-001 audit: ``ParticipantStatus`` writes with explicit
+    ``rm_state``/``vfd_state`` are protocol-significant behavior and are
+    performed inside the BT, not directly in ``execute()``.  The
+    ``rm_state``/``vfd_state`` values represent the actor's current
+    (already-transitioned) state; no RM state-machine transition is
+    performed here.
     """
 
-    def __init__(
-        self,
-        dl: CaseOutboxPersistence,
-        request: AddParticipantStatusTriggerRequest,
-        trigger_activity: "TriggerActivityPort | None" = None,
-    ) -> None:
-        self._dl = dl
-        self._request = request
-        self._trigger_activity = trigger_activity
+    def _prepare(self) -> None:
+        request = cast(AddParticipantStatusTriggerRequest, self._request)
+        actor = resolve_actor(request.actor_id, self._dl)
+        self._actor_id = actor.id_
+        self._case_id = resolve_case(request.case_id, self._dl).id_
+        self._rm_state = request.rm_state
+        self._vfd_state = request.vfd_state
+        self._pxa_state = request.pxa_state
+
+    def _build_tree(self) -> py_trees.behaviour.Behaviour:
+        def _build_activities(case_manager_id: str) -> list[str]:
+            status_id = self._result_out.get("status_id")
+            participant_id = self._result_out.get("participant_id")
+            if not isinstance(status_id, str) or not isinstance(
+                participant_id, str
+            ):
+                raise RuntimeError(
+                    "CreateParticipantStatusNode did not populate result_out"
+                    " before activity_builder was called"
+                )
+            activity_id = self._factory.add_participant_status_to_participant(
+                status_id=status_id,
+                participant_id=participant_id,
+                actor=self._actor_id,
+                to=[case_manager_id],
+            )
+            self._result_out["activity_id"] = activity_id
+            return [activity_id]
+
+        return add_participant_status_trigger_bt(
+            case_id=self._case_id,
+            actor_id=self._actor_id,
+            rm_state=self._rm_state,
+            vfd_state=self._vfd_state,
+            pxa_state=self._pxa_state,
+            result_out=self._result_out,
+            activity_builder=_build_activities,
+        )
+
+    def _handle_result(self) -> None:
+        logger.info(
+            "Actor '%s' reported status in case '%s'",
+            self._actor_id,
+            self._case_id,
+        )
+
+    def execute(self) -> dict[str, Any]:
+        super().execute()
+        return {
+            "activity_id": self._result_out.get("activity_id"),
+            "status_id": self._result_out.get("status_id"),
+        }
 
     def _resolve_current_participant_state(
         self,
         dl: CaseOutboxPersistence,
         participant_id: str,
     ) -> tuple[RM, CS_vfd]:
-        """Return (current_rm, current_vfd) from the participant's latest status."""
-        participant_obj = dl.read(participant_id)
-        if participant_obj is not None and hasattr(
-            participant_obj, "participant_statuses"
-        ):
-            statuses = getattr(participant_obj, "participant_statuses")
-            if statuses:
-                latest = statuses[-1]
-                raw_rm = getattr(latest, "rm_state", RM.START)
-                raw_vfd = getattr(latest, "vfd_state", CS_vfd.vfd)
-                rm_state = raw_rm if isinstance(raw_rm, RM) else RM.START
-                vfd_state = (
-                    raw_vfd if isinstance(raw_vfd, CS_vfd) else CS_vfd.vfd
-                )
-                return rm_state, vfd_state
-        return RM.START, CS_vfd.vfd
+        """Return (current_rm, current_vfd) from the participant's latest status.
 
-    def execute(self) -> dict[str, Any]:
-        from vultron.core.models.case_status import CaseStatus
-        from vultron.core.models.participant_status import ParticipantStatus
-        from vultron.core.states.em import EM
+        Preserved for backward compatibility; delegates to
+        :func:`~vultron.core.behaviors.case.nodes.participant\
+.resolve_participant_state_from_dl`.
+        """
+        from typing import cast as typing_cast
 
-        request = self._request
-        actor_id = request.actor_id
-        case_id = request.case_id
-        dl = self._dl
-
-        actor = resolve_actor(actor_id, dl)
-        actor_id = actor.id_
-
-        case = resolve_case(case_id, dl)
-
-        if self._trigger_activity is None:
-            raise RuntimeError(
-                "SvcAddParticipantStatusUseCase requires a TriggerActivityPort"
-            )
-
-        participant_id = case.actor_participant_index.get(actor_id)
-        if participant_id is None:
-            raise VultronNotFoundError(
-                "CaseParticipant",
-                f"actor '{actor_id}' not in case '{case_id}'",
-            )
-
-        case_status: CaseStatus | None = None
-        if request.pxa_state is not None:
-            current_em = getattr(
-                getattr(case, "current_status", None), "em_state", None
-            )
-            case_status = CaseStatus(
-                context=case_id,
-                attributed_to=actor_id,
-                em_state=current_em if current_em is not None else EM.NONE,
-                pxa_state=request.pxa_state,
-            )
-
-        current_rm, current_vfd = self._resolve_current_participant_state(
-            dl, participant_id
+        from vultron.core.behaviors.case.nodes.participant import (
+            resolve_participant_state_from_dl,
+        )
+        from vultron.core.ports.case_persistence import (
+            CasePersistence,
         )
 
-        status = ParticipantStatus(
-            context=case_id,
-            attributed_to=actor_id,
-            rm_state=(
-                request.rm_state
-                if request.rm_state is not None
-                else current_rm
-            ),
-            vfd_state=(
-                request.vfd_state
-                if request.vfd_state is not None
-                else current_vfd
-            ),
-            case_status=case_status,
+        return resolve_participant_state_from_dl(
+            typing_cast(CasePersistence, dl), participant_id
         )
-        try:
-            dl.create(status)
-        except ValueError:
-            dl.save(status)
-
-        participant_obj = dl.read(participant_id)
-        wire_status = dl.read(status.id_)
-        participant_statuses = (
-            getattr(participant_obj, "participant_statuses", None)
-            if participant_obj is not None
-            else None
-        )
-        if participant_statuses is not None and wire_status is not None:
-            participant_statuses.append(wire_status)
-            if participant_obj is not None:
-                dl.save(participant_obj)
-
-        case_manager_id = _resolve_case_manager_id(case, dl)
-        if case_manager_id is None:
-            raise VultronNotFoundError(
-                "CaseParticipant",
-                f"no CASE_MANAGER found in case '{case_id}'"
-                " — cannot send status update",
-            )
-
-        activity_id = (
-            self._trigger_activity.add_participant_status_to_participant(
-                status_id=status.id_,
-                participant_id=participant_id,
-                actor=actor_id,
-                to=[case_manager_id],
-            )
-        )
-
-        add_activity_to_outbox(actor_id, activity_id, dl)
-
-        logger.info(
-            "Actor '%s' reported status to participant '%s' in case '%s'",
-            actor_id,
-            participant_id,
-            case_id,
-        )
-
-        return {"activity_id": activity_id, "status_id": status.id_}

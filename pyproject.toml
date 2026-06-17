@@ -32,7 +32,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-    "fastapi>=0.136.3",
+    "fastapi>=0.137.1",
     "isodate>=0.7.2",
     "markdown-exec>=1.11.0",
     "mkdocs-autorefs>=1.4.3",
@@ -59,7 +59,7 @@ dependencies = [
     "pyyaml>=6.0",
     "python-frontmatter>=1.3.0",
     "pydantic-settings>=2.14.1",
-    "httpx>=0.28.1",
+    "httpx2",
 ]
 dynamic = ["version",]
 
@@ -132,6 +132,7 @@ filterwarnings = [
 markers = [
     "integration: marks tests as integration tests (exercise the full HTTP stack; deselected by default)",
     "spec(spec_id): mark test as verifying a specific spec requirement ID",
+    "case_ledger_invariants: marks tests as case-ledger invariant harness tests (require devlogs/ JSONL artifacts; skip when absent)",
 ]
 
 [tool.uv.workspace]
@@ -152,8 +153,8 @@ dev = [
     "pandas-stubs>=3.0.3.260530",
     "pre-commit>=4.6.0",
     "pyright>=1.1.410",
-    "pytest>=9.0.3",
+    "pytest>=9.1.0",
     "pytest-timeout>=0.5",
-    "types-networkx>=3.6.1.20260518",
+    "types-networkx>=3.6.1.20260612",
     "types-pyyaml>=6.0.12.20260518",
 ]

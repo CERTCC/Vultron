@@ -64,7 +64,7 @@ def configure_logging() -> None:
 
     # Suppress httpx library internals (request/response lifecycle events)
     # to reduce DEBUG output noise by ~30%.
-    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpx2").setLevel(logging.WARNING)
 
 
 def _auto_inject_isolated_datalayer(application: FastAPI) -> None:

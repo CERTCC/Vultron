@@ -67,6 +67,6 @@ groups:
     priority: MAY
     statement: >-
       A future implementation MAY track which objects have been shared with each participant
-      (e.g., via `CaseLogEntry` hash-chain records) to avoid redundant full-object transmission.
+      (e.g., via `CaseLedgerEntry` hash-chain records) to avoid redundant full-object transmission.
     scope:
     - production

@@ -187,47 +187,61 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             # peers into believing the status was accepted.
             return
 
-        self._commit_log_cascade()
+        self._commit_log_cascade_bt()
 
-    def _commit_log_cascade(self) -> None:
-        """Commit a CaseLogEntry and fan it out to all participants (PCR-08-003).
+    def _resolve_case_id_for_log_cascade(self) -> str | None:
+        request = self._request
+
+        if request.status is not None:
+            context = getattr(request.status, "context", None)
+            if context:
+                return str(context)
+
+        if request.context_id is not None:
+            return request.context_id
+
+        if request.status_id:
+            stored_status = self._dl.read(request.status_id)
+            if stored_status is not None:
+                context = getattr(stored_status, "context", None)
+                if context:
+                    return str(context)
+        return None
+
+    def _is_case_actor_receiver(
+        self, *, case_id: str, case_actor_id: str
+    ) -> bool:
+        receiving_actor_id = self._request.receiving_actor_id
+        if receiving_actor_id is None:
+            logger.warning(
+                "add_participant_status: missing receiving_actor_id for case '%s'"
+                " — skipping canonical commit to avoid non-CaseActor append",
+                case_id,
+            )
+            return False
+        if receiving_actor_id != case_actor_id:
+            logger.debug(
+                "add_participant_status: receiving actor is not the CaseActor for"
+                " case '%s' — skipping canonical commit",
+                case_id,
+            )
+            return False
+        return True
+
+    def _commit_log_cascade_bt(self) -> None:
+        """Commit a CaseLedgerEntry via CommitCaseLedgerEntryNode (PCR-08-003).
 
         Derives case_id from the inline status object's ``context`` field.
         Uses ``receiving_actor_id`` (the CaseActor's canonical ID) when
         available, falling back to a DataLayer lookup for the Service object
         whose ``context`` matches *case_id*.
         """
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.behaviors.case.nodes import CommitCaseLedgerEntryNode
         from vultron.core.use_cases.received.actor import _find_case_actor_id
-        from vultron.core.use_cases.triggers.sync import (
-            commit_log_entry_trigger,
-            extract_activity_snapshot,
-        )
 
         request = self._request
-
-        # Derive case_id from the inline status object (same approach as BT).
-        case_id: str | None = None
-        if request.status is not None:
-            context = getattr(request.status, "context", None)
-            if context:
-                case_id = str(context)
-
-        # Fallback 1: activity-level context (populated when activity.context
-        # is set to the case object by the caller, e.g. add_status_to_participant
-        # sets context=case).
-        if case_id is None:
-            case_id = request.context_id
-
-        # Fallback 2: read the stored ParticipantStatus and check its context.
-        # Handles cases where the inline object was omitted and the BT resolved
-        # it via a DataLayer lookup (VerifySenderIsParticipantNode._resolve_case_id).
-        if case_id is None and request.status_id:
-            stored_status = self._dl.read(request.status_id)
-            if stored_status is not None:
-                ctx = getattr(stored_status, "context", None)
-                if ctx:
-                    case_id = str(ctx)
-
+        case_id = self._resolve_case_id_for_log_cascade()
         if case_id is None:
             logger.warning(
                 "add_participant_status: cannot determine case_id"
@@ -235,23 +249,22 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             )
             return
 
-        actor_id = request.receiving_actor_id
-        if actor_id is None:
-            actor_id = _find_case_actor_id(self._dl, case_id)
-        if actor_id is None:
+        case_actor_id = _find_case_actor_id(self._dl, case_id)
+        if case_actor_id is None:
             logger.warning(
                 "add_participant_status: cannot resolve CaseActor for case '%s'"
                 " — skipping log entry cascade (PCR-08-003)",
                 case_id,
             )
             return
+        if not self._is_case_actor_receiver(
+            case_id=case_id, case_actor_id=case_actor_id
+        ):
+            return
 
-        commit_log_entry_trigger(
-            case_id=case_id,
-            object_id=request.status_id or request.activity_id,
-            event_type="add_participant_status",
-            actor_id=actor_id,
-            dl=self._dl,
+        BTBridge(datalayer=self._dl).execute_with_setup(
+            tree=CommitCaseLedgerEntryNode(case_id=case_id),
+            actor_id=case_actor_id,
+            activity=request,
             sync_port=self._sync_port,
-            payload_snapshot=extract_activity_snapshot(request),
         )

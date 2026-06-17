@@ -1,7 +1,7 @@
 """Use cases for embargo management activities."""
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from vultron.core.models.events.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedEvent,
@@ -21,83 +21,11 @@ from vultron.core.models.protocols import (
     PersistableModel,
     is_case_model,
 )
-from vultron.core.use_cases.triggers.sync import (
-    commit_log_entry_trigger,
-    extract_activity_snapshot,
-)
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
 
 logger = logging.getLogger(__name__)
-
-
-def _commit_embargo_log_cascade(
-    case_id: str | None,
-    object_id: str | None,
-    event_type: str,
-    dl: CaseOutboxPersistence,
-    receiving_actor_id: str | None,
-    sync_port: "SyncActivityPort | None",
-    payload_snapshot: dict[str, Any] | None = None,
-) -> None:
-    """Commit a CaseLogEntry and fan it out to all case participants.
-
-    Shared helper for all embargo received-side handlers that need to fire
-    the ``commit_log_entry → fan_out`` cascade after accepting an embargo
-    operation (PCR-08-003, PCR-08-004).
-
-    Silently skips when *case_id* or *object_id* is ``None``, or when no
-    CaseActor can be resolved.
-
-    Args:
-        payload_snapshot: Optional normalised AS2 activity snapshot.  Pass
-            the result of ``extract_activity_snapshot(request)`` to ensure
-            each log entry carries the full inbound AS2 activity payload.
-    """
-    from vultron.core.use_cases.received.actor import _find_case_actor_id
-
-    if case_id is None or object_id is None:
-        logger.warning(
-            "embargo cascade: missing case_id or object_id"
-            " — skipping log entry cascade (PCR-08-003)"
-        )
-        return
-
-    # Resolve the CaseActor ID.  Only use receiving_actor_id if it
-    # resolves to a Service (CaseActor) whose context matches case_id.
-    # Some handlers (e.g. InviteToEmbargoOnCaseReceivedUseCase) set
-    # receiving_actor_id to the invitee's actor ID; using that would
-    # attribute the log entry to the wrong actor and exclude the wrong
-    # recipient from fan-out.
-    actor_id: str | None = None
-    if receiving_actor_id is not None:
-        obj = dl.read(receiving_actor_id)
-        if (
-            obj is not None
-            and getattr(obj, "type_", None) == "Service"
-            and str(getattr(obj, "context", None)) == case_id
-        ):
-            actor_id = receiving_actor_id
-    if actor_id is None:
-        actor_id = _find_case_actor_id(dl, case_id)
-    if actor_id is None:
-        logger.warning(
-            "embargo cascade: cannot resolve CaseActor for case '%s'"
-            " — skipping log entry cascade (PCR-08-003)",
-            case_id,
-        )
-        return
-
-    commit_log_entry_trigger(
-        case_id=case_id,
-        object_id=object_id,
-        event_type=event_type,
-        actor_id=actor_id,
-        dl=dl,
-        payload_snapshot=payload_snapshot,
-        sync_port=sync_port,
-    )
 
 
 def _resolve_case_for_embargo_acceptance(
@@ -181,13 +109,13 @@ class AddEmbargoEventToCaseReceivedUseCase:
         tree = add_embargo_to_case_tree(
             case_id=case_id,
             embargo_id=embargo_id,
-            payload_snapshot=extract_activity_snapshot(request),
         )
         bridge = BTBridge(datalayer=self._dl)
         result = bridge.execute_with_setup(
             tree=tree,
             actor_id=request.actor_id,
             activity=request,
+            sync_port=self._sync_port,
         )
 
         if result.status != Status.SUCCESS:
@@ -236,6 +164,7 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
             tree=tree,
             actor_id=request.actor_id,
             activity=request,
+            sync_port=self._sync_port,
         )
 
         if result.status != Status.SUCCESS:
@@ -251,15 +180,19 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
         # Always commit a log entry regardless of BT result.  FAILURE means
         # the embargo was already cleared or only in proposed_embargoes —
         # both are non-error outcomes that still require fan-out (PCR-08-003).
-        _commit_embargo_log_cascade(
-            case_id=case_id,
-            object_id=embargo_id,
-            event_type="remove_embargo_event_from_case",
-            dl=self._dl,
-            receiving_actor_id=request.receiving_actor_id,
-            sync_port=self._sync_port,
-            payload_snapshot=extract_activity_snapshot(request),
-        )
+        from vultron.core.behaviors.case.nodes import CommitCaseLedgerEntryNode
+        from vultron.core.use_cases.received.actor import _find_case_actor_id
+
+        commit_actor_id = _find_case_actor_id(self._dl, case_id)
+        if commit_actor_id is None:
+            commit_actor_id = request.receiving_actor_id
+        if commit_actor_id is not None:
+            BTBridge(datalayer=self._dl).execute_with_setup(
+                tree=CommitCaseLedgerEntryNode(case_id=case_id),
+                actor_id=commit_actor_id,
+                activity=request,
+                sync_port=self._sync_port,
+            )
 
 
 class AnnounceEmbargoEventToCaseReceivedUseCase:
@@ -311,13 +244,13 @@ class InviteToEmbargoOnCaseReceivedUseCase:
             case_id=case_id,
             invitee_id=invitee_id,
             invite_id=invite_id,
-            payload_snapshot=extract_activity_snapshot(request),
         )
         bridge = BTBridge(datalayer=self._dl)
         result = bridge.execute_with_setup(
             tree=tree,
             actor_id=invitee_id,
             activity=request,
+            sync_port=self._sync_port,
         )
 
         if result.status != Status.SUCCESS:
@@ -370,7 +303,6 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             embargo_id=embargo_id,
             accepting_actor_id=accepting_actor_id,
             invite_id=invite_id,
-            payload_snapshot=extract_activity_snapshot(request),
         )
         bridge = BTBridge(datalayer=self._dl)
         result = bridge.execute_with_setup(
@@ -438,7 +370,6 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
             rejecting_actor_id=rejecting_actor_id,
             invite_id=invite_id or "",
             embargo_id=embargo_id,
-            payload_snapshot=extract_activity_snapshot(request),
         )
         bridge = BTBridge(datalayer=self._dl)
         result = bridge.execute_with_setup(

@@ -23,7 +23,7 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
-from vultron.core.models.case_log_entry import VultronCaseLogEntry
+from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.protocols import (
     LogEntryModel,
     is_case_model,
@@ -36,35 +36,37 @@ from vultron.errors import VultronError
 logger = logging.getLogger(__name__)
 
 
-def _require_log_entry(activity: Any, node_name: str) -> VultronCaseLogEntry:
+def _require_log_entry(
+    activity: Any, node_name: str
+) -> VultronCaseLedgerEntry:
     entry = getattr(activity, "log_entry", None)
     if entry is None:
         entry = getattr(activity, "object_", None)
     if is_log_entry_model(entry):
-        if isinstance(entry, VultronCaseLogEntry):
+        if isinstance(entry, VultronCaseLedgerEntry):
             return entry
-        return VultronCaseLogEntry.model_validate(
+        return VultronCaseLedgerEntry.model_validate(
             entry.model_dump(mode="json")
         )
     raise VultronError(
-        f"{node_name}: activity did not carry a VultronCaseLogEntry"
+        f"{node_name}: activity did not carry a VultronCaseLedgerEntry"
     )
 
 
 def _require_rejected_entry(
     activity: Any, node_name: str
-) -> VultronCaseLogEntry:
+) -> VultronCaseLedgerEntry:
     entry = getattr(activity, "rejected_entry", None)
     if entry is None:
         entry = getattr(activity, "object_", None)
     if is_log_entry_model(entry):
-        if isinstance(entry, VultronCaseLogEntry):
+        if isinstance(entry, VultronCaseLedgerEntry):
             return entry
-        return VultronCaseLogEntry.model_validate(
+        return VultronCaseLedgerEntry.model_validate(
             entry.model_dump(mode="json")
         )
     raise VultronError(
-        f"{node_name}: activity did not carry a rejected VultronCaseLogEntry"
+        f"{node_name}: activity did not carry a rejected VultronCaseLedgerEntry"
     )
 
 
@@ -122,7 +124,79 @@ class FindCaseActorNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class ReplayMissingEntriesNode(DataLayerAction):
+class CollectAndSortCaseLedgerEntriesNode(DataLayerAction):
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="activity", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="replay_entry", access=py_trees.common.Access.WRITE
+        )
+        self.blackboard.register_key(
+            key="replay_peer_id", access=py_trees.common.Access.WRITE
+        )
+        self.blackboard.register_key(
+            key="replay_case_ledger_entries",
+            access=py_trees.common.Access.WRITE,
+        )
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            self.logger.error("%s: DataLayer not available", self.name)
+            return Status.FAILURE
+
+        activity = self.blackboard.activity
+        entry = _require_rejected_entry(activity, self.name)
+        peer_id = activity.actor_id
+        if not peer_id:
+            raise VultronError(
+                f"{self.name}: Reject(CaseLedgerEntry) missing peer actor_id"
+            )
+
+        entries: list[LogEntryModel] = [
+            obj
+            for obj in self.datalayer.list_objects("CaseLedgerEntry")
+            if is_log_entry_model(obj) and obj.case_id == entry.case_id
+        ]
+        entries.sort(key=lambda log_entry: log_entry.log_index)
+
+        self.blackboard.replay_entry = entry
+        self.blackboard.replay_peer_id = peer_id
+        self.blackboard.replay_case_ledger_entries = entries
+        return Status.SUCCESS
+
+
+class FindDivergenceIndexNode(DataLayerAction):
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="activity", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="replay_case_ledger_entries",
+            access=py_trees.common.Access.READ,
+        )
+        self.blackboard.register_key(
+            key="replay_from_index", access=py_trees.common.Access.WRITE
+        )
+
+    def update(self) -> Status:
+        entries = cast(
+            list[LogEntryModel], self.blackboard.replay_case_ledger_entries
+        )
+        from_hash = self.blackboard.activity.last_accepted_hash
+        from_index = -1
+        for log_entry in entries:
+            if log_entry.entry_hash == from_hash:
+                from_index = log_entry.log_index
+                break
+
+        self.blackboard.replay_from_index = from_index
+        return Status.SUCCESS
+
+
+class SendMissingEntriesNode(DataLayerAction):
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._sync_port: SyncActivityPort | None = None
@@ -130,10 +204,20 @@ class ReplayMissingEntriesNode(DataLayerAction):
     def setup(self, **kwargs: Any) -> None:
         super().setup(**kwargs)
         self.blackboard.register_key(
-            key="activity", access=py_trees.common.Access.READ
+            key="case_actor_id", access=py_trees.common.Access.READ
         )
         self.blackboard.register_key(
-            key="case_actor_id", access=py_trees.common.Access.READ
+            key="replay_entry", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="replay_peer_id", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="replay_case_ledger_entries",
+            access=py_trees.common.Access.READ,
+        )
+        self.blackboard.register_key(
+            key="replay_from_index", access=py_trees.common.Access.READ
         )
         self.blackboard.register_key(
             key="sync_port", access=py_trees.common.Access.READ
@@ -155,27 +239,12 @@ class ReplayMissingEntriesNode(DataLayerAction):
                 f"{self.name}: sync_port must be injected to replay entries"
             )
 
-        activity = self.blackboard.activity
-        entry = _require_rejected_entry(activity, self.name)
-        peer_id = activity.actor_id
-        if not peer_id:
-            raise VultronError(
-                f"{self.name}: Reject(CaseLogEntry) missing peer actor_id"
-            )
-
-        entries: list[LogEntryModel] = [
-            obj
-            for obj in self.datalayer.list_objects("CaseLogEntry")
-            if is_log_entry_model(obj) and obj.case_id == entry.case_id
-        ]
-        entries.sort(key=lambda e: e.log_index)
-
-        from_hash = activity.last_accepted_hash
-        from_index = -1
-        for log_entry in entries:
-            if log_entry.entry_hash == from_hash:
-                from_index = log_entry.log_index
-                break
+        entry = cast(VultronCaseLedgerEntry, self.blackboard.replay_entry)
+        peer_id = cast(str, self.blackboard.replay_peer_id)
+        entries = cast(
+            list[LogEntryModel], self.blackboard.replay_case_ledger_entries
+        )
+        from_index = cast(int, self.blackboard.replay_from_index)
 
         replayed = 0
         for log_entry in entries:
@@ -198,16 +267,73 @@ class ReplayMissingEntriesNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class FanOutLogEntryNode(DataLayerAction):
+class ReplayMissingEntriesNode(py_trees.composites.Sequence):
+    def __init__(self, name: str | None = None) -> None:
+        super().__init__(
+            name=name or self.__class__.__name__,
+            memory=False,
+            children=[
+                CollectAndSortCaseLedgerEntriesNode(
+                    name="CollectAndSortCaseLedgerEntries"
+                ),
+                FindDivergenceIndexNode(name="FindDivergenceIndex"),
+                SendMissingEntriesNode(name="SendMissingEntries"),
+            ],
+        )
+
+
+class CollectLogEntryRecipientsNode(DataLayerAction):
     def __init__(self, case_id: str, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="log_entry", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="fanout_recipients", access=py_trees.common.Access.WRITE
+        )
+
+    def update(self) -> Status:
+        if self.datalayer is None or self.actor_id is None:
+            self.logger.error(
+                "%s: DataLayer or actor_id not available", self.name
+            )
+            return Status.FAILURE
+
+        entry = cast(VultronCaseLedgerEntry, self.blackboard.log_entry)
+        case_obj = self.datalayer.read(self.case_id)
+        if not is_case_model(case_obj):
+            self.logger.warning(
+                "%s: case '%s' not found; skipping fan-out for '%s'",
+                self.name,
+                self.case_id,
+                entry.id_,
+            )
+            self.blackboard.fanout_recipients = []
+            return Status.SUCCESS
+
+        recipients = case_addressees(
+            case_obj, excluding_actor_id=self.actor_id
+        )
+        self.blackboard.fanout_recipients = recipients
+        return Status.SUCCESS
+
+
+class SendLogEntryToEachNode(DataLayerAction):
+    def __init__(self, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
         self._sync_port: SyncActivityPort | None = None
 
     def setup(self, **kwargs: Any) -> None:
         super().setup(**kwargs)
         self.blackboard.register_key(
             key="log_entry", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="fanout_recipients", access=py_trees.common.Access.READ
         )
         self.blackboard.register_key(
             key="sync_port", access=py_trees.common.Access.READ
@@ -221,13 +347,12 @@ class FanOutLogEntryNode(DataLayerAction):
             self._sync_port = None
 
     def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                "%s: DataLayer or actor_id not available", self.name
-            )
+        if self.actor_id is None:
+            self.logger.error("%s: actor_id not available", self.name)
             return Status.FAILURE
 
-        entry = cast(VultronCaseLogEntry, self.blackboard.log_entry)
+        entry = cast(VultronCaseLedgerEntry, self.blackboard.log_entry)
+        recipients = cast(list[str], self.blackboard.fanout_recipients)
         if self._sync_port is None:
             self.logger.debug(
                 "%s: sync_port not injected; skipping fan-out for '%s'",
@@ -236,19 +361,6 @@ class FanOutLogEntryNode(DataLayerAction):
             )
             return Status.SUCCESS
 
-        case_obj = self.datalayer.read(self.case_id)
-        if not is_case_model(case_obj):
-            self.logger.warning(
-                "%s: case '%s' not found; skipping fan-out for '%s'",
-                self.name,
-                self.case_id,
-                entry.id_,
-            )
-            return Status.SUCCESS
-
-        recipients = case_addressees(
-            case_obj, excluding_actor_id=self.actor_id
-        )
         for recipient_id in recipients:
             self._sync_port.send_announce_log_entry(
                 entry=entry,
@@ -262,3 +374,18 @@ class FanOutLogEntryNode(DataLayerAction):
             len(recipients),
         )
         return Status.SUCCESS
+
+
+class FanOutLogEntryNode(py_trees.composites.Sequence):
+    def __init__(self, case_id: str, name: str | None = None) -> None:
+        super().__init__(
+            name=name or self.__class__.__name__,
+            memory=False,
+            children=[
+                CollectLogEntryRecipientsNode(
+                    case_id=case_id,
+                    name="CollectLogEntryRecipients",
+                ),
+                SendLogEntryToEachNode(name="SendLogEntryToEach"),
+            ],
+        )

@@ -20,7 +20,9 @@ from py_trees.common import Status
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.protocols import is_case_model
+from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
+from vultron.core.states.roles import CVDRole
 from vultron.core.use_cases._helpers import (
     _idempotent_create,
     _report_phase_status_id,
@@ -135,13 +137,19 @@ class TransitionRMtoValid(DataLayerAction):
             return Status.FAILURE
 
         try:
+            # CLP-07-007: context must use the case URI once a case exists.
+            case = self.datalayer.find_case_by_report_id(self.report_id)
+            context = case.id_ if is_case_model(case) else self.report_id
+
             status = ParticipantStatus(
                 id_=_report_phase_status_id(
                     self.actor_id, self.report_id, RM.VALID.value
                 ),
-                context=self.report_id,
+                context=context,
                 attributed_to=self.actor_id,
                 rm_state=RM.VALID,
+                em_consent_state=PEC.NO_EMBARGO,
+                cvd_role=[CVDRole.REPORTER],
             )
             _idempotent_create(
                 self.datalayer,
@@ -156,7 +164,6 @@ class TransitionRMtoValid(DataLayerAction):
                 self.actor_id,
             )
 
-            case = self.datalayer.find_case_by_report_id(self.report_id)
             if is_case_model(case):
                 update_participant_rm_state(
                     case.id_, self.actor_id, RM.VALID, self.datalayer
@@ -209,13 +216,19 @@ class TransitionRMtoInvalid(DataLayerAction):
             return Status.FAILURE
 
         try:
+            # CLP-07-007: context must use the case URI once a case exists.
+            case = self.datalayer.find_case_by_report_id(self.report_id)
+            context = case.id_ if is_case_model(case) else self.report_id
+
             status = ParticipantStatus(
                 id_=_report_phase_status_id(
                     self.actor_id, self.report_id, RM.INVALID.value
                 ),
-                context=self.report_id,
+                context=context,
                 attributed_to=self.actor_id,
                 rm_state=RM.INVALID,
+                em_consent_state=PEC.NO_EMBARGO,
+                cvd_role=[CVDRole.REPORTER],
             )
             _idempotent_create(
                 self.datalayer,
@@ -277,13 +290,19 @@ class TransitionRMtoClosed(DataLayerAction):
             return Status.FAILURE
 
         try:
+            # CLP-07-007: context must use the case URI once a case exists.
+            case = self.datalayer.find_case_by_report_id(self.report_id)
+            context = case.id_ if is_case_model(case) else self.report_id
+
             status = ParticipantStatus(
                 id_=_report_phase_status_id(
                     self.actor_id, self.report_id, RM.CLOSED.value
                 ),
-                context=self.report_id,
+                context=context,
                 attributed_to=self.actor_id,
                 rm_state=RM.CLOSED,
+                em_consent_state=PEC.NO_EMBARGO,
+                cvd_role=[CVDRole.REPORTER],
             )
             _idempotent_create(
                 self.datalayer,

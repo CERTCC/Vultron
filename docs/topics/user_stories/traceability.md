@@ -10,7 +10,7 @@ requirements with a brief traceability note. Stories with no clear mapping
 to an existing requirement are marked *No mapped requirements*.
 
 Source user stories: `docs/topics/user_stories/story_2022_NNN.md`
-Source specifications: `specs/*.md`
+Source specifications: `specs/*.yaml`
 
 ---
 
@@ -62,6 +62,10 @@ Source specifications: `specs/*.md`
       Accepted to send a Report Submission — submission precondition.
     - **MV-01-001** (`message-validation.md`): Incoming payloads MUST conform
       to ActivityStreams 2.0 structure — message format for report submission.
+    - **VAM-02-002** (`vultron-as2-mapping.md`): `SUBMIT_REPORT` MUST be
+      represented as `Offer(VulnerabilityReport)` — submission wire mapping.
+    - **VAM-02-004** (`vultron-as2-mapping.md`): `VALIDATE_REPORT` MUST be
+      represented as `Accept(Offer(VulnerabilityReport))` — validation result.
     - **IE-02-002** (`inbox-endpoint.md`): The endpoint MUST accept POST
       requests only — HTTP entry point for report.
 
@@ -474,6 +478,12 @@ Source specifications: `specs/*.md`
       included — who to propose.
     - **VP-08-012** (`vultron-protocol-spec.md`): Participants MAY engage a
       third-party Coordinator — coordinator as proposed participant.
+    - **AKM-02-001** (`actor-knowledge-model.md`): An Actor MUST NOT assume
+      that a recipient has knowledge of any object not previously shared —
+      proposed-participant discovery.
+    - **AKM-03-001** (`actor-knowledge-model.md`): Outbound initiating
+      activities MUST carry the `object` field as a fully inline typed domain
+      object — invite proposal payload integrity.
 
 - **story_2022_054** — "As a Participant, vote/accept new Participants to a case"
   - *Mapped requirements:*
@@ -490,6 +500,12 @@ Source specifications: `specs/*.md`
       as Participants when necessary and appropriate — non-vendor inclusion.
     - **VP-08-004** (`vultron-protocol-spec.md`): All known Vendors of affected
       software SHOULD be included — vendor coverage before others.
+    - **PRM-01-001** (`participant-role-management.md`): VultronParticipant
+      MUST expose a read-only `roles` property — role inspection for case
+      membership.
+    - **PRM-02-001** (`participant-role-management.md`): `add_role()` MUST add
+      a role to the participant's role set — role assignment for non-vendor
+      participants.
 
 - **story_2022_064** — "As a Participant, include the Government in the case"
   - *Mapped requirements:*
@@ -536,6 +552,13 @@ Source specifications: `specs/*.md`
       unambiguous date and time — timeline anchor.
     - **SL-04-001** (`structured-logging.md`): Log entries MUST include
       structured state-transition format (`PROD_ONLY`) — event log for tracking.
+    - **SYNC-01-001** (`sync-ledger-replication.md`): The canonical recorded case
+      log MUST be append-only — event timeline integrity.
+    - **SYNC-01-002** (`sync-ledger-replication.md`): Each log entry MUST carry a
+      monotonically increasing index scoped to its case — timeline ordering.
+    - **CLP-02-006** (`case-ledger-processing.md`): `CaseLedgerEntry` MUST include a
+      `log_index` field corresponding to `SYNC-01-002` — canonical ordering for
+      recorded events.
 
 - **story_2022_088** — "As a Participant, maintain knowledge of case state"
   - *Mapped requirements:*
@@ -549,6 +572,9 @@ Source specifications: `specs/*.md`
       maintained independently per case — per-case state.
     - **CM-07-001** (`case-management.md`): The system SHOULD expose an
       endpoint returning valid next actions — state-aware API.
+    - **CLP-04-006** (`case-ledger-processing.md`): The canonical recorded log is
+      the authoritative source of truth for case participant membership and
+      case state — case-state knowledge derives from canonical history.
 
 - **story_2022_104** — "As a Participant, address multiple vulnerabilities across vendors"
   - *Mapped requirements:*
@@ -580,6 +606,15 @@ Source specifications: `specs/*.md`
       SHOULD use well-defined format — interoperable, decentralized messaging.
     - **VP-15-002** (`vultron-protocol-spec.md`): Implementations SHOULD use
       common identity mechanisms (`PROD_ONLY`) — federated identity.
+    - **EDF-02-001** (`event-driven-control-flow.md`): Every protocol-significant
+      action in Vultron MUST be triggered by an event — decentralized control
+      flow.
+    - **EDF-03-001** (`event-driven-control-flow.md`): All cascade steps that do
+      not require external input MUST be implemented as BT subtrees —
+      automation within the actor.
+    - **SBT-01-001** (`sync-behavior-trees.md`): Sync log entry protocol flows
+      MUST be implemented as behavior trees, not procedural use-case code —
+      decentralized sync handling.
 
 ---
 
@@ -651,6 +686,15 @@ Source specifications: `specs/*.md`
       others when a new Participant is added to a case.
     - **VP-01-001** (`vultron-protocol-spec.md`): Participants SHOULD track the
       state of other Participants — state tracking implies membership.
+    - **PCR-01-001** (`participant-case-replica.md`): Each Vultron Actor MUST
+      maintain its local case replica as an internal concern — participant
+      membership is actor-local.
+    - **PCR-02-002** (`participant-case-replica.md`): When a new participant is
+      added to a case, the CaseActor MUST send `Announce(VulnerabilityCase)` to
+      that participant — replica bootstrap for membership awareness.
+    - **PCR-04-002** (`participant-case-replica.md`): All case-scoped protocol
+      activities sent by the CaseActor MUST carry `context` set to the case ID
+      — routing the membership replica.
 
 - **story_2022_093** — "As a Participant, ensure Participant list is complete"
   - *Mapped requirements:*
@@ -1063,6 +1107,14 @@ Source specifications: `specs/*.md`
       their prioritization choices when prioritizing.
     - **VP-02-034** (`vultron-protocol-spec.md`): Participants MAY
       re-prioritize Accepted or Deferred cases.
+    - **TRIG-01-001** (`triggerable-behaviors.md`): Trigger endpoints use the
+      `POST /actors/{actor_id}/trigger/{behavior-name}` path pattern — response
+      prioritization can be exposed as a trigger.
+    - **TRIG-01-004** (`triggerable-behaviors.md`): Trigger processing MUST NOT
+      block the HTTP response — operator-driven prioritization remains async.
+    - **TRIG-05-001** (`triggerable-behaviors.md`): Trigger endpoints SHOULD
+      reuse existing BT trees rather than duplicating behavior logic — trigger
+      wiring for prioritization.
 
 - **story_2022_087** — "As a Participant, share info to prioritize work on a report"
   - *Mapped requirements:*

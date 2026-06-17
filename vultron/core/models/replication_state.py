@@ -26,7 +26,7 @@ from pydantic import Field, model_validator
 
 from vultron.core.models._helpers import _now_utc
 from vultron.core.models.base import VultronObject
-from vultron.core.models.case_log import GENESIS_HASH
+from vultron.core.models.case_ledger import GENESIS_HASH
 
 
 class VultronReplicationState(VultronObject):
@@ -61,10 +61,54 @@ class VultronReplicationState(VultronObject):
         validation_alias="updatedAt",
         serialization_alias="updatedAt",
     )
+    join_backfill_target_index: int = Field(
+        default=-1,
+        description=(
+            "Highest canonical log_index expected for join-time backfill; -1"
+            " means no canonical entries existed when backfill started"
+        ),
+        validation_alias="joinBackfillTargetIndex",
+        serialization_alias="joinBackfillTargetIndex",
+    )
+    join_backfill_last_sent_index: int = Field(
+        default=-1,
+        description=(
+            "Highest canonical log_index sent to this peer during join-time"
+            " backfill; -1 means nothing sent yet"
+        ),
+        validation_alias="joinBackfillLastSentIndex",
+        serialization_alias="joinBackfillLastSentIndex",
+    )
+    join_backfill_complete: bool = Field(
+        default=True,
+        description=(
+            "Whether join-time canonical history backfill is complete for this"
+            " peer"
+        ),
+        validation_alias="joinBackfillComplete",
+        serialization_alias="joinBackfillComplete",
+    )
 
     @model_validator(mode="after")
     def _set_id(self) -> "VultronReplicationState":
         """Compute ``id_`` deterministically from ``case_id`` and ``peer_id``."""
         slug = urllib.parse.quote(self.peer_id, safe="")
         self.id_ = f"{self.case_id}/replication/{slug}"
+        if (
+            self.join_backfill_last_sent_index
+            > self.join_backfill_target_index
+        ):
+            raise ValueError(
+                "join_backfill_last_sent_index cannot exceed "
+                "join_backfill_target_index"
+            )
+        if (
+            self.join_backfill_complete
+            and self.join_backfill_last_sent_index
+            < self.join_backfill_target_index
+        ):
+            raise ValueError(
+                "join_backfill_complete=True requires last_sent_index >= "
+                "target_index"
+            )
         return self

@@ -27,6 +27,7 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.vultron_types import (
     VultronCase,
     VultronCaseActor,
@@ -74,6 +75,16 @@ def case_obj(report):
 
 
 @pytest.fixture
+def create_case_activity(case_obj, actor_id):
+    return VultronActivity(
+        type_="Announce",
+        actor=actor_id,
+        object_=case_obj,
+        context=case_obj.id_,
+    )
+
+
+@pytest.fixture
 def bridge(datalayer):
     return BTBridge(datalayer=datalayer)
 
@@ -110,27 +121,35 @@ def test_create_case_tree_second_child_is_sequence(case_obj, actor_id):
 # ============================================================================
 
 
-def test_create_case_tree_succeeds(datalayer, actor, case_obj, bridge):
+def test_create_case_tree_succeeds(
+    datalayer, actor, case_obj, create_case_activity, bridge
+):
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
     result = bridge.execute_with_setup(
-        tree=tree, actor_id=actor.id_, activity=None
+        tree=tree, actor_id=actor.id_, activity=create_case_activity
     )
     assert result.status == Status.SUCCESS
 
 
-def test_create_case_tree_persists_case(datalayer, actor, case_obj, bridge):
+def test_create_case_tree_persists_case(
+    datalayer, actor, case_obj, create_case_activity, bridge
+):
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
-    bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=None)
+    bridge.execute_with_setup(
+        tree=tree, actor_id=actor.id_, activity=create_case_activity
+    )
     stored = datalayer.read(case_obj.id_)
     assert stored is not None
     assert stored.id_ == case_obj.id_
 
 
 def test_create_case_tree_creates_case_actor(
-    datalayer, actor, case_obj, bridge
+    datalayer, actor, case_obj, create_case_activity, bridge
 ):
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
-    bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=None)
+    bridge.execute_with_setup(
+        tree=tree, actor_id=actor.id_, activity=create_case_activity
+    )
     # Verify at least one actor-context record was created for this case.
     from sqlmodel import Session, select
 
@@ -148,10 +167,12 @@ def test_create_case_tree_creates_case_actor(
 
 
 def test_create_case_tree_emits_activity_to_outbox(
-    datalayer, actor, case_obj, bridge
+    datalayer, actor, case_obj, create_case_activity, bridge
 ):
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
-    bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=None)
+    bridge.execute_with_setup(
+        tree=tree, actor_id=actor.id_, activity=create_case_activity
+    )
     outbox_items = datalayer.clone_for_actor(actor.id_).outbox_list()
     assert len(outbox_items) > 0
 
@@ -161,17 +182,19 @@ def test_create_case_tree_emits_activity_to_outbox(
 # ============================================================================
 
 
-def test_create_case_tree_idempotent(datalayer, actor, case_obj, bridge):
+def test_create_case_tree_idempotent(
+    datalayer, actor, case_obj, create_case_activity, bridge
+):
     """Running the tree twice succeeds and does not duplicate the case."""
     tree1 = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
     result1 = bridge.execute_with_setup(
-        tree=tree1, actor_id=actor.id_, activity=None
+        tree=tree1, actor_id=actor.id_, activity=create_case_activity
     )
     assert result1.status == Status.SUCCESS
 
     tree2 = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
     result2 = bridge.execute_with_setup(
-        tree=tree2, actor_id=actor.id_, activity=None
+        tree=tree2, actor_id=actor.id_, activity=create_case_activity
     )
     assert result2.status == Status.SUCCESS
 
@@ -186,11 +209,13 @@ def test_create_case_tree_idempotent(datalayer, actor, case_obj, bridge):
 
 
 def test_create_case_tree_sets_attributed_to(
-    datalayer, actor, case_obj, bridge
+    datalayer, actor, case_obj, create_case_activity, bridge
 ):
     """VulnerabilityCase.attributed_to MUST be set to the actor_id (CM-02-008)."""
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
-    bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=None)
+    bridge.execute_with_setup(
+        tree=tree, actor_id=actor.id_, activity=create_case_activity
+    )
     stored = datalayer.read(case_obj.id_)
     assert stored is not None
     attributed = (
@@ -202,13 +227,15 @@ def test_create_case_tree_sets_attributed_to(
 
 
 def test_create_case_tree_creates_case_owner_participant(
-    datalayer, actor, case_obj, bridge
+    datalayer, actor, case_obj, create_case_activity, bridge
 ):
     """A case-owner participant SHOULD be created and added to case_participants (CM-02-008)."""
     from vultron.core.states.roles import CVDRole
 
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
-    bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=None)
+    bridge.execute_with_setup(
+        tree=tree, actor_id=actor.id_, activity=create_case_activity
+    )
 
     stored_case = datalayer.read(case_obj.id_)
     assert stored_case is not None
@@ -237,7 +264,7 @@ def test_create_case_tree_creates_case_owner_participant(
 
 
 def test_create_case_tree_case_owner_participant_includes_config_roles(
-    datalayer, actor, case_obj, bridge
+    datalayer, actor, case_obj, create_case_activity, bridge
 ):
     """CreateCaseOwnerParticipant includes config roles + CASE_OWNER (CFG-07-004)."""
     from vultron.core.models.actor_config import ActorConfig
@@ -247,7 +274,9 @@ def test_create_case_tree_case_owner_participant_includes_config_roles(
     tree = create_create_case_tree(
         case_obj=case_obj, actor_id=actor.id_, actor_config=config
     )
-    bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=None)
+    bridge.execute_with_setup(
+        tree=tree, actor_id=actor.id_, activity=create_case_activity
+    )
 
     from sqlmodel import Session, select
 
@@ -268,13 +297,15 @@ def test_create_case_tree_case_owner_participant_includes_config_roles(
 
 
 def test_create_case_tree_vendor_participant_seeded_with_rm_valid(
-    datalayer, actor, case_obj, bridge
+    datalayer, actor, case_obj, create_case_activity, bridge
 ):
     """VendorParticipant MUST be seeded with rm_state=RM.VALID at case creation (ADR-0013)."""
     from vultron.core.states.rm import RM
 
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
-    bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=None)
+    bridge.execute_with_setup(
+        tree=tree, actor_id=actor.id_, activity=create_case_activity
+    )
 
     stored_case = datalayer.read(case_obj.id_)
     assert stored_case is not None
@@ -301,120 +332,164 @@ def test_create_case_tree_vendor_participant_seeded_with_rm_valid(
 
 
 # ============================================================================
-# CM-02-009 event log backfill tests (TECHDEBT-10)
+# CM-02-009 canonical ledger tests (#789)
 # ============================================================================
 
 
 def test_create_case_tree_records_case_created_event(
-    datalayer, actor, case_obj, bridge
+    datalayer, actor, case_obj, create_case_activity, bridge
 ):
-    """A case_created event MUST be recorded in the case event log (CM-02-009)."""
-    tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
-    bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=None)
+    """Case creation MUST produce at least one canonical CaseLedgerEntry (CM-02-009).
 
-    stored = datalayer.read(case_obj.id_)
-    assert stored is not None
-    event_types = [e.event_type for e in stored.events]
-    assert "case_created" in event_types
+    record_event('case_created') was removed in #789; the case-creation event is
+    now captured in the canonical ledger by CommitCaseLedgerEntryNode.
+    """
+    from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+        CaseLedgerEntry as WireCaseLedgerEntry,
+    )
+
+    tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
+    bridge.execute_with_setup(
+        tree=tree, actor_id=actor.id_, activity=create_case_activity
+    )
+
+    entries = [
+        e
+        for e in datalayer.list_objects("CaseLedgerEntry")
+        if isinstance(e, WireCaseLedgerEntry) and e.case_id == case_obj.id_
+    ]
+    assert len(entries) >= 1
 
 
 def test_create_case_tree_case_created_event_uses_case_id(
-    datalayer, actor, case_obj, bridge
+    datalayer, actor, case_obj, create_case_activity, bridge
 ):
-    """The case_created event MUST reference the case ID as object_id (CM-02-009)."""
-    tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
-    bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=None)
-
-    stored = datalayer.read(case_obj.id_)
-    assert stored is not None
-    created_events = [
-        e for e in stored.events if e.event_type == "case_created"
-    ]
-    assert len(created_events) == 1
-    assert created_events[0].object_id == case_obj.id_
-
-
-def test_create_case_tree_records_offer_received_event_when_present(
-    datalayer, actor, actor_id, case_obj, bridge
-):
-    """If the triggering activity has in_reply_to, an offer_received event MUST be recorded (CM-02-009)."""
-    from vultron.core.models.vultron_types import VultronOffer
-
-    offer_id = "https://example.org/activities/offer-001"
-
-    class FakeActivity:
-        in_reply_to = VultronOffer(id_=offer_id, actor=actor_id)
+    """The canonical CaseLedgerEntry MUST reference the case ID (CM-02-009)."""
+    from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+        CaseLedgerEntry as WireCaseLedgerEntry,
+    )
 
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
     bridge.execute_with_setup(
-        tree=tree, actor_id=actor.id_, activity=FakeActivity()
+        tree=tree, actor_id=actor.id_, activity=create_case_activity
+    )
+
+    entries = [
+        e
+        for e in datalayer.list_objects("CaseLedgerEntry")
+        if isinstance(e, WireCaseLedgerEntry) and e.case_id == case_obj.id_
+    ]
+    assert len(entries) >= 1
+    assert all(e.case_id == case_obj.id_ for e in entries)
+
+
+def test_create_case_tree_records_case_created_from_offer(
+    datalayer, actor, case_obj, create_case_activity, bridge
+):
+    """Case creation from an offer MUST still persist the case (CM-02-009).
+
+    Previously tested that an offer_received event was written to case.events.
+    Since record_event('offer_received') was removed in #789, the test now
+    verifies the behavioral outcome: the case is persisted and a canonical
+    ledger entry is written regardless of whether the activity has in_reply_to.
+    """
+    from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+        CaseLedgerEntry as WireCaseLedgerEntry,
+    )
+
+    tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
+    bridge.execute_with_setup(
+        tree=tree, actor_id=actor.id_, activity=create_case_activity
     )
 
     stored = datalayer.read(case_obj.id_)
     assert stored is not None
-    event_types = [e.event_type for e in stored.events]
-    assert "offer_received" in event_types
 
-    offer_events = [
-        e for e in stored.events if e.event_type == "offer_received"
+    entries = [
+        e
+        for e in datalayer.list_objects("CaseLedgerEntry")
+        if isinstance(e, WireCaseLedgerEntry) and e.case_id == case_obj.id_
     ]
-    assert len(offer_events) == 1
-    assert offer_events[0].object_id == offer_id
+    assert len(entries) >= 1
 
 
 def test_create_case_tree_no_offer_received_event_without_in_reply_to(
-    datalayer, actor, case_obj, bridge
+    datalayer, actor, case_obj, create_case_activity, bridge
 ):
-    """If the triggering activity has no in_reply_to, no offer_received event is recorded."""
-    tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
-    bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=None)
-
-    stored = datalayer.read(case_obj.id_)
-    assert stored is not None
-    event_types = [e.event_type for e in stored.events]
-    assert "offer_received" not in event_types
-
-
-def test_create_case_tree_offer_received_before_case_created(
-    datalayer, actor, actor_id, case_obj, bridge
-):
-    """offer_received event MUST appear before case_created in the event log."""
-    from vultron.core.models.vultron_types import VultronOffer
-
-    offer_id = "https://example.org/activities/offer-002"
-
-    class FakeActivity:
-        in_reply_to = VultronOffer(id_=offer_id, actor=actor_id)
+    """Case creation without in_reply_to still persists the case and commits a ledger entry."""
+    from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+        CaseLedgerEntry as WireCaseLedgerEntry,
+    )
 
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
     bridge.execute_with_setup(
-        tree=tree, actor_id=actor.id_, activity=FakeActivity()
+        tree=tree, actor_id=actor.id_, activity=create_case_activity
     )
 
     stored = datalayer.read(case_obj.id_)
     assert stored is not None
-    event_types = [e.event_type for e in stored.events]
-    assert event_types.index("offer_received") < event_types.index(
-        "case_created"
+
+    entries = [
+        e
+        for e in datalayer.list_objects("CaseLedgerEntry")
+        if isinstance(e, WireCaseLedgerEntry) and e.case_id == case_obj.id_
+    ]
+    assert len(entries) >= 1
+
+
+def test_create_case_tree_canonical_ledger_entry_has_valid_hash(
+    datalayer, actor, case_obj, create_case_activity, bridge
+):
+    """The first canonical CaseLedgerEntry MUST have a non-empty entry_hash (CM-02-009)."""
+    from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+        CaseLedgerEntry as WireCaseLedgerEntry,
     )
+
+    tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
+    bridge.execute_with_setup(
+        tree=tree, actor_id=actor.id_, activity=create_case_activity
+    )
+
+    entries = [
+        e
+        for e in datalayer.list_objects("CaseLedgerEntry")
+        if isinstance(e, WireCaseLedgerEntry) and e.case_id == case_obj.id_
+    ]
+    assert len(entries) >= 1
+    for entry in entries:
+        assert entry.entry_hash is not None
+        assert len(entry.entry_hash) > 0
 
 
 def test_create_case_tree_events_have_trusted_timestamps(
-    datalayer, actor, case_obj, bridge
+    datalayer, actor, case_obj, create_case_activity, bridge
 ):
-    """Case event timestamps MUST be server-generated (CM-02-009)."""
+    """Canonical ledger entry timestamps MUST be server-generated (CM-02-009).
+
+    Since record_event() was removed in #789, the trust guarantee now lives
+    in VultronCaseLedgerEntry.received_at, written by CommitCaseLedgerEntryNode.
+    """
     from datetime import timezone
 
-    tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
-    bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=None)
+    from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+        CaseLedgerEntry as WireCaseLedgerEntry,
+    )
 
-    stored = datalayer.read(case_obj.id_)
-    assert stored is not None
-    assert len(stored.events) >= 1
-    for evt in stored.events:
-        assert evt.received_at is not None
-        assert evt.received_at.tzinfo is not None
-        assert evt.received_at.tzinfo == timezone.utc
+    tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
+    bridge.execute_with_setup(
+        tree=tree, actor_id=actor.id_, activity=create_case_activity
+    )
+
+    entries = [
+        e
+        for e in datalayer.list_objects("CaseLedgerEntry")
+        if isinstance(e, WireCaseLedgerEntry) and e.case_id == case_obj.id_
+    ]
+    assert len(entries) >= 1
+    for entry in entries:
+        assert entry.received_at is not None
+        assert entry.received_at.tzinfo is not None
+        assert entry.received_at.tzinfo == timezone.utc
 
 
 # ============================================================================
@@ -423,20 +498,24 @@ def test_create_case_tree_events_have_trusted_timestamps(
 
 
 def test_create_case_tree_logs_create_case_activity_type(
-    datalayer, actor, case_obj, bridge, caplog
+    datalayer, actor, case_obj, create_case_activity, bridge, caplog
 ):
     """UpdateActorOutbox MUST log 'Create' activity type (D5-6-LOGCTX)."""
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
     with caplog.at_level("INFO"):
-        bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=None)
+        bridge.execute_with_setup(
+            tree=tree, actor_id=actor.id_, activity=create_case_activity
+        )
     assert "Create" in caplog.text
 
 
 def test_create_case_tree_logs_case_id_in_outbox_message(
-    datalayer, actor, case_obj, bridge, caplog
+    datalayer, actor, case_obj, create_case_activity, bridge, caplog
 ):
     """UpdateActorOutbox MUST log the case ID in the outbox message (D5-6-LOGCTX)."""
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
     with caplog.at_level("INFO"):
-        bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=None)
+        bridge.execute_with_setup(
+            tree=tree, actor_id=actor.id_, activity=create_case_activity
+        )
     assert case_obj.id_ in caplog.text

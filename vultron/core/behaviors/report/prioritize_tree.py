@@ -30,14 +30,16 @@ Per specs/behavior-tree-integration.yaml BT-06 requirements.
 Structure:
 
     EngageCaseBT (Sequence)
-    ├─ CheckParticipantExists              # Precondition: actor has a participant record
-    ├─ TransitionParticipantRMtoAccepted   # Update RM state to ACCEPTED
-    └─ CommitCaseLogEntryNode              # Log entry → Announce fan-out (SYNC-02-002)
+    ├─ CheckParticipantExists                        # Precondition: actor has a participant record
+    ├─ TransitionParticipantRMtoAccepted             # Update RM state to ACCEPTED
+    ├─ CommitCaseLedgerEntryNode                        # Log entry → Announce fan-out (SYNC-02-002)
+    ├─ CaptureCaseUpdateBroadcastExclusionsNode      # Resolve embargo-based exclusions
+    └─ BroadcastCaseUpdateNode                       # Announce(VulnerabilityCase) → all participants
 
     DeferCaseBT (Sequence)
     ├─ CheckParticipantExists              # Precondition: actor has a participant record
     ├─ TransitionParticipantRMtoDeferred   # Update RM state to DEFERRED
-    └─ CommitCaseLogEntryNode              # Log entry → Announce fan-out (SYNC-02-002)
+    └─ CommitCaseLedgerEntryNode              # Log entry → Announce fan-out (SYNC-02-002)
 
 Note: EvaluateCasePriority (in nodes.py) is the stub node for the outgoing
 direction — when the local actor decides whether to engage or defer. It is
@@ -45,18 +47,28 @@ not used in these receive-side trees but is exported for future use.
 """
 
 import logging
+from typing import TYPE_CHECKING
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes import CommitCaseLogEntryNode
+from vultron.core.behaviors.case.engage_defer_trigger_tree import (
+    defer_case_trigger_bt,
+    engage_case_trigger_bt,
+)
+from vultron.core.behaviors.case.nodes import CommitCaseLedgerEntryNode
+from vultron.core.behaviors.case.nodes.update import (
+    BroadcastCaseUpdateNode,
+    CaptureCaseUpdateBroadcastExclusionsNode,
+)
 from vultron.core.behaviors.report.nodes import (
     CheckParticipantExists,
-    EmitDeferCaseActivity,
-    EmitEngageCaseActivity,
     EvaluateCasePriority,
     TransitionParticipantRMtoAccepted,
     TransitionParticipantRMtoDeferred,
 )
+
+if TYPE_CHECKING:
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +83,9 @@ def create_engage_case_tree(
     Handles receipt of RmEngageCaseActivity (Join(VulnerabilityCase)): the sending
     actor has decided to engage the case, so we record their RM state
     transition to ACCEPTED in their CaseParticipant.participant_status.
+    After committing the log entry, broadcasts an Announce(VulnerabilityCase)
+    to all eligible participants so they receive the updated case state
+    (including embedded CaseParticipant objects for #572/#573 coverage).
 
     Args:
         case_id: ID of VulnerabilityCase being engaged
@@ -87,7 +102,9 @@ def create_engage_case_tree(
             TransitionParticipantRMtoAccepted(
                 case_id=case_id, actor_id=actor_id
             ),
-            CommitCaseLogEntryNode(case_id=case_id),
+            CommitCaseLedgerEntryNode(case_id=case_id),
+            CaptureCaseUpdateBroadcastExclusionsNode(case_id=case_id),
+            BroadcastCaseUpdateNode(case_id=case_id),
         ],
     )
 
@@ -121,7 +138,7 @@ def create_defer_case_tree(
             TransitionParticipantRMtoDeferred(
                 case_id=case_id, actor_id=actor_id
             ),
-            CommitCaseLogEntryNode(case_id=case_id),
+            CommitCaseLedgerEntryNode(case_id=case_id),
         ],
     )
 
@@ -132,6 +149,7 @@ def create_defer_case_tree(
 def create_prioritize_subtree(
     case_id: str,
     actor_id: str,
+    trigger_activity: "TriggerActivityPort | None" = None,
 ) -> py_trees.behaviour.Behaviour:
     """
     Create behavior tree subtree for case prioritization (engage or defer).
@@ -139,47 +157,88 @@ def create_prioritize_subtree(
     Phase 1: EvaluateCasePriority always returns SUCCESS → engage path.
     Future: Plug in SSVC or other priority evaluator (IDEA-26041004).
 
+    Uses the canonical :func:`sender_side_bt` pattern (PCR-08-001) via
+    :func:`engage_case_trigger_bt` and :func:`defer_case_trigger_bt`, which
+    resolve the Case Manager and address outbound activities exclusively to
+    that actor.
+
     Structure::
 
         PrioritizeBT (Selector)
         ├─ EngagePath (Sequence)
-        │    ├─ EvaluateCasePriority      # stub: SUCCESS = engage
-        │    ├─ EmitEngageCaseActivity    # emit RmEngageCaseActivity
-        │    └─ TransitionParticipantRMtoAccepted  # RM → ACCEPTED
-        └─ DeferPath (Sequence)
-             ├─ EmitDeferCaseActivity     # emit RmDeferCaseActivity
-             └─ TransitionParticipantRMtoDeferred   # RM → DEFERRED
+        │    ├─ EvaluateCasePriority                # stub: SUCCESS = engage
+        │    └─ EngageCaseTriggerBT (Sequence)      # RM → ACCEPTED, emit Join
+        │         ├─ TransitionParticipantRMtoAccepted
+        │         └─ SenderSideBT (Sequence)
+        │              ├─ ResolveCaseManagerNode    # resolve Case Manager actor
+        │              ├─ ConstructActivitiesNode   # build Join(Case) activity
+        │              └─ QueueToOutboxNode
+        └─ DeferCaseTriggerBT (Sequence)            # RM → DEFERRED, emit Ignore
+             ├─ TransitionParticipantRMtoDeferred
+             └─ SenderSideBT (Sequence)
+                  ├─ ResolveCaseManagerNode         # resolve Case Manager actor
+                  ├─ ConstructActivitiesNode        # build Ignore(Case) activity
+                  └─ QueueToOutboxNode
 
     Per specs/behavior-tree-integration.yaml BT-06-005, BT-06-006.
+    Per specs/participant-case-replica.yaml PCR-08-001, PCR-08-002.
     This is the SSVC evaluator connection point (IDEA-26041004).
 
     Args:
         case_id: ID of VulnerabilityCase to prioritize
         actor_id: ID of Actor making the engage/defer decision
+        trigger_activity: Port for constructing outbound AS2 activities.
+            When ``None``, the sender-side subtrees will fail at execution
+            time with a descriptive error (consistent with the behaviour
+            when the blackboard does not carry a factory).
 
     Returns:
         Root node of the prioritize behavior tree (Selector)
     """
+    factory = trigger_activity
+
+    def _build_engage(case_manager_id: str) -> list[str]:
+        if factory is None:
+            raise RuntimeError(
+                "create_prioritize_subtree: no TriggerActivityPort; "
+                "cannot build engage_case activity"
+            )
+        activity_id, _ = factory.engage_case(
+            case_id=case_id,
+            actor=actor_id,
+            to=[case_manager_id],
+        )
+        return [activity_id]
+
+    def _build_defer(case_manager_id: str) -> list[str]:
+        if factory is None:
+            raise RuntimeError(
+                "create_prioritize_subtree: no TriggerActivityPort; "
+                "cannot build defer_case activity"
+            )
+        activity_id, _ = factory.defer_case(
+            case_id=case_id,
+            actor=actor_id,
+            to=[case_manager_id],
+        )
+        return [activity_id]
+
     engage_path = py_trees.composites.Sequence(
         name="EngagePath",
         memory=False,
         children=[
             EvaluateCasePriority(case_id=case_id),
-            EmitEngageCaseActivity(case_id=case_id, actor_id=actor_id),
-            TransitionParticipantRMtoAccepted(
-                case_id=case_id, actor_id=actor_id
+            engage_case_trigger_bt(
+                case_id=case_id,
+                actor_id=actor_id,
+                activity_builder=_build_engage,
             ),
         ],
     )
-    defer_path = py_trees.composites.Sequence(
-        name="DeferPath",
-        memory=False,
-        children=[
-            EmitDeferCaseActivity(case_id=case_id, actor_id=actor_id),
-            TransitionParticipantRMtoDeferred(
-                case_id=case_id, actor_id=actor_id
-            ),
-        ],
+    defer_path = defer_case_trigger_bt(
+        case_id=case_id,
+        actor_id=actor_id,
+        activity_builder=_build_defer,
     )
     root = py_trees.composites.Selector(
         name="PrioritizeBT",

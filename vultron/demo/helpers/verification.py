@@ -21,7 +21,7 @@ avoids duplication when future multi-actor scenarios need the same checks.
 import logging
 from typing import Optional
 
-import httpx
+import httpx2 as httpx
 
 from vultron.core.states.cs import CS_pxa, CS_vfd
 from vultron.core.states.em import EM
@@ -364,13 +364,6 @@ def verify_coordinator_case_state(
     _assert_vendor_participant_state(
         coordinator_client, coordinator_participant_id
     )
-
-    event_types = [event.event_type for event in final_case.events]
-    if "participant_added" not in event_types:
-        raise AssertionError(
-            "Expected participant_added event after reporter was added to the"
-            " case"
-        )
 
     _assert_vendor_case_status(final_case)
     _assert_case_notes(final_case, question_note_id, reply_note_id)

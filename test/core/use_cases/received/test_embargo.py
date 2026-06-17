@@ -20,7 +20,7 @@ from vultron.adapters.driven.db_record import StorableRecord
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.models.case_actor import VultronCaseActor
-from vultron.core.models.case_log_entry import VultronCaseLogEntry
+from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.protocols import is_log_entry_model
 from vultron.core.states.em import EM
 from vultron.core.use_cases.received.embargo import (
@@ -169,7 +169,7 @@ class TestEmbargoUseCases:
     def test_add_embargo_event_to_case_warns_on_non_standard_transition(
         self, monkeypatch, make_payload, caplog
     ):
-        """add_embargo_event_to_case logs WARNING when EM state is not on the standard machine path (state-sync override)."""
+        """add_embargo_event_to_case ledgers WARNING when EM state is not on the standard machine path (state-sync override)."""
         import logging
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
@@ -286,7 +286,7 @@ class TestEmbargoUseCases:
     def test_accept_invite_to_embargo_warns_on_non_standard_transition(
         self, monkeypatch, make_payload, caplog
     ):
-        """accept_invite_to_embargo_on_case logs WARNING when EM state is not on the standard machine path."""
+        """accept_invite_to_embargo_on_case ledgers WARNING when EM state is not on the standard machine path."""
         import logging
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
@@ -389,7 +389,13 @@ class TestEmbargoUseCases:
     def test_accept_invite_to_embargo_records_case_event(
         self, monkeypatch, make_payload
     ):
-        """accept_invite_to_embargo_on_case appends a trusted-timestamp event to case.events (CM-02-009)."""
+        """accept_invite_to_embargo_on_case transitions EM state to ACTIVE
+        and persists the case (CM-02-009).
+
+        record_event('embargo_accepted') was removed in #789; the behavioral
+        invariant is verified by checking case.active_embargo is not None
+        after acceptance.
+        """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -424,21 +430,19 @@ class TestEmbargoUseCases:
         )
         event = make_payload(accept)
 
-        assert len(case.events) == 0
-
         AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
 
         case = dl.read(case.id_)
         assert case is not None
         case = cast(VulnerabilityCase, case)
-        assert len(case.events) >= 1
-        event_types = [e.event_type for e in case.events]
-        assert "embargo_accepted" in event_types
+        assert (
+            case.active_embargo is not None
+        ), "Expected active_embargo to be set after embargo acceptance"
 
-    def test_reject_invite_to_embargo_on_case_logs_rejection(
+    def test_reject_invite_to_embargo_on_case_ledgers_rejection(
         self, make_payload
     ):
-        """reject_invite_to_embargo_on_case logs without raising."""
+        """reject_invite_to_embargo_on_case ledgers without raising."""
         from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
 
         embargo = EmbargoEvent(
@@ -721,7 +725,7 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
 
 
 # ---------------------------------------------------------------------------
-# CaseLogEntry cascade tests (PCR-08-003, PCR-08-004) — AC-3
+# CaseLedgerEntry cascade tests (PCR-08-003, PCR-08-004) — AC-3
 # ---------------------------------------------------------------------------
 
 
@@ -778,10 +782,10 @@ def _make_embargo_case_with_actor(
 
 
 class TestEmbargoLogEntryCascade:
-    """CaseLogEntry cascade for each embargo received-side handler (AC-3)."""
+    """CaseLedgerEntry cascade for each embargo received-side handler (AC-3)."""
 
     def test_add_embargo_event_commits_log_entry(self, make_payload):
-        """AddEmbargoEventToCaseReceivedUseCase commits a CaseLogEntry."""
+        """AddEmbargoEventToCaseReceivedUseCase commits a CaseLedgerEntry."""
         author_id = "https://example.org/users/coord"
         case_id = "https://example.org/cases/em_cas_add"
         dl, case_actor, case, embargo = _make_embargo_case_with_actor(
@@ -803,17 +807,17 @@ class TestEmbargoLogEntryCascade:
 
         entries = [
             obj
-            for obj in dl.list_objects("CaseLogEntry")
+            for obj in dl.list_objects("CaseLedgerEntry")
             if is_log_entry_model(obj)
-            and cast(VultronCaseLogEntry, obj).case_id == case_id
+            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
-        assert cast(VultronCaseLogEntry, entries[0]).event_type == (
+        assert cast(VultronCaseLedgerEntry, entries[0]).event_type == (
             "add_embargo_event_to_case"
         )
 
     def test_remove_embargo_event_commits_log_entry(self, make_payload):
-        """RemoveEmbargoEventFromCaseReceivedUseCase commits a CaseLogEntry."""
+        """RemoveEmbargoEventFromCaseReceivedUseCase commits a CaseLedgerEntry."""
         import py_trees
 
         py_trees.blackboard.Blackboard.enable_activity_stream()
@@ -842,12 +846,12 @@ class TestEmbargoLogEntryCascade:
 
         entries = [
             obj
-            for obj in dl.list_objects("CaseLogEntry")
+            for obj in dl.list_objects("CaseLedgerEntry")
             if is_log_entry_model(obj)
-            and cast(VultronCaseLogEntry, obj).case_id == case_id
+            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
-        assert cast(VultronCaseLogEntry, entries[0]).event_type == (
+        assert cast(VultronCaseLedgerEntry, entries[0]).event_type == (
             "remove_embargo_event_from_case"
         )
 
@@ -857,7 +861,7 @@ class TestEmbargoLogEntryCascade:
         """RemoveEmbargoEventFromCaseReceivedUseCase cascades even when BT fails.
 
         BT FAILURE means "embargo already cleared" — it is not an error. The
-        CaseLogEntry MUST be committed regardless so participants learn the
+        CaseLedgerEntry MUST be committed regardless so participants learn the
         current state.
         """
         import py_trees
@@ -887,15 +891,15 @@ class TestEmbargoLogEntryCascade:
 
         entries = [
             obj
-            for obj in dl.list_objects("CaseLogEntry")
+            for obj in dl.list_objects("CaseLedgerEntry")
             if is_log_entry_model(obj)
-            and cast(VultronCaseLogEntry, obj).case_id == case_id
+            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
         ]
         # Cascade must fire even on BT FAILURE.
         assert len(entries) == 1
 
     def test_invite_to_embargo_commits_log_entry(self, make_payload):
-        """InviteToEmbargoOnCaseReceivedUseCase commits a CaseLogEntry."""
+        """InviteToEmbargoOnCaseReceivedUseCase commits a CaseLedgerEntry."""
         author_id = "https://example.org/users/coord"
         case_id = "https://example.org/cases/em_cas_invite"
         invitee_id = "https://example.org/users/vendor"
@@ -921,17 +925,17 @@ class TestEmbargoLogEntryCascade:
 
         entries = [
             obj
-            for obj in dl.list_objects("CaseLogEntry")
+            for obj in dl.list_objects("CaseLedgerEntry")
             if is_log_entry_model(obj)
-            and cast(VultronCaseLogEntry, obj).case_id == case_id
+            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
-        assert cast(VultronCaseLogEntry, entries[0]).event_type == (
+        assert cast(VultronCaseLedgerEntry, entries[0]).event_type == (
             "invite_to_embargo_on_case"
         )
 
     def test_accept_invite_to_embargo_commits_log_entry(self, make_payload):
-        """AcceptInviteToEmbargoOnCaseReceivedUseCase commits a CaseLogEntry."""
+        """AcceptInviteToEmbargoOnCaseReceivedUseCase commits a CaseLedgerEntry."""
         coordinator_id = "https://example.org/users/coordinator"
         case_id = "https://example.org/cases/em_cas_accept"
         dl, case_actor, case, embargo = _make_embargo_case_with_actor(
@@ -963,17 +967,17 @@ class TestEmbargoLogEntryCascade:
 
         entries = [
             obj
-            for obj in dl.list_objects("CaseLogEntry")
+            for obj in dl.list_objects("CaseLedgerEntry")
             if is_log_entry_model(obj)
-            and cast(VultronCaseLogEntry, obj).case_id == case_id
+            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
-        assert cast(VultronCaseLogEntry, entries[0]).event_type == (
+        assert cast(VultronCaseLedgerEntry, entries[0]).event_type == (
             "accept_invite_to_embargo_on_case"
         )
 
     def test_reject_invite_to_embargo_commits_log_entry(self, make_payload):
-        """RejectInviteToEmbargoOnCaseReceivedUseCase commits a CaseLogEntry."""
+        """RejectInviteToEmbargoOnCaseReceivedUseCase commits a CaseLedgerEntry."""
         coordinator_id = "https://example.org/users/coordinator"
         case_id = "https://example.org/cases/em_cas_reject"
         dl, case_actor, case, embargo = _make_embargo_case_with_actor(
@@ -1001,12 +1005,12 @@ class TestEmbargoLogEntryCascade:
 
         entries = [
             obj
-            for obj in dl.list_objects("CaseLogEntry")
+            for obj in dl.list_objects("CaseLedgerEntry")
             if is_log_entry_model(obj)
-            and cast(VultronCaseLogEntry, obj).case_id == case_id
+            and cast(VultronCaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
-        assert cast(VultronCaseLogEntry, entries[0]).event_type == (
+        assert cast(VultronCaseLedgerEntry, entries[0]).event_type == (
             "reject_invite_to_embargo_on_case"
         )
 

@@ -19,6 +19,11 @@ Embargo management action nodes and helpers for case behavior trees.
 Provides helpers and action nodes for initializing default embargo events
 during case creation.
 
+The composite subtree assembling these leaf nodes is defined in the sibling
+``embargo_tree.py`` module at the process-area root per BTND-07-003:
+
+- ``InitializeDefaultEmbargoNode``
+
 Per specs/case-management.yaml CM-02, OX-03-001 and
 notes/protocol-event-cascades.md D5-6-EMBARGORCP.
 """
@@ -292,7 +297,6 @@ class AttachEmbargoToCaseNode(DataLayerAction):
         if active_embargo_id is None:
             stored_case.active_embargo = embargo_id
             stored_case.current_status.em_state = EM.ACTIVE
-            stored_case.record_event(embargo_id, "embargo_initialized")
             self.datalayer.save(stored_case)
             self.logger.info(
                 "Attached embargo '%s' to case '%s' as active_embargo",
@@ -396,20 +400,3 @@ class SeedOwnerAsSignatoryNode(DataLayerAction):
             case_id,
         )
         return Status.SUCCESS
-
-
-class InitializeDefaultEmbargoNode(py_trees.composites.Sequence):
-    """Composed subtree for default embargo initialization on case creation."""
-
-    def __init__(self, name: str | None = None) -> None:
-        super().__init__(
-            name=name or self.__class__.__name__,
-            memory=False,
-            children=[
-                ResolveEmbargoDurationNode(),
-                CreateEmbargoEventNode(),
-                AdvanceEMStateToActiveNode(),
-                AttachEmbargoToCaseNode(),
-                SeedOwnerAsSignatoryNode(),
-            ],
-        )

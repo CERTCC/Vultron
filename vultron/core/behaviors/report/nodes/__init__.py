@@ -25,7 +25,7 @@ Submodules:
 - ``rm_transitions``: Report-management transition action nodes
 - ``case_creation``: Case creation and Create(Case) activity nodes
 - ``participant``: Case participant RM transition action nodes
-- ``emit``: Outbound engage/defer activity emission nodes
+- ``emit``: Outbound report activity emission nodes
 - ``storage``: Idempotent storage nodes for inbound report objects
 """
 
@@ -46,8 +46,6 @@ from vultron.core.behaviors.report.nodes.conditions import (
 )
 from vultron.core.behaviors.report.nodes.emit import (
     EmitCloseReportActivity,
-    EmitDeferCaseActivity,
-    EmitEngageCaseActivity,
     EmitInvalidateReportActivity,
 )
 from vultron.core.behaviors.report.nodes.participant import (
@@ -89,8 +87,6 @@ __all__ = [
     "TransitionParticipantRMtoAccepted",
     "TransitionParticipantRMtoDeferred",
     # emit
-    "EmitEngageCaseActivity",
-    "EmitDeferCaseActivity",
     "EmitInvalidateReportActivity",
     "EmitCloseReportActivity",
     # storage

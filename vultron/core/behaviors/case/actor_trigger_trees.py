@@ -1,0 +1,133 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Trigger-side behavior trees for actor-participation workflows.
+
+Three trigger trees are provided:
+
+- ``suggest_actor_to_case_trigger_bt`` — SenderSideBT wrapper for
+  Offer(Actor, Case) routed through the Case Manager (PCR-08-001).
+- ``invite_actor_to_case_trigger_bt`` — direct-route Sequence for
+  Invite(Actor, Case) sent from the Case Actor identity.
+- ``accept_case_invite_trigger_bt`` — Sequence for Accept(Invite)
+  sent by the invitee.
+
+Per specs/behavior-tree-integration.yaml BT-15-001, BT-15-002.
+"""
+
+import logging
+from typing import Callable
+
+import py_trees
+
+from vultron.core.behaviors.case.nodes.actor import (
+    EmitAcceptCaseInviteNode,
+    EmitInviteActorToCaseNode,
+)
+from vultron.core.behaviors.sender.send_tree import sender_side_bt
+
+logger = logging.getLogger(__name__)
+
+
+def suggest_actor_to_case_trigger_bt(
+    case_id: str,
+    activity_builder: Callable[[str], list[str]],
+) -> py_trees.behaviour.Behaviour:
+    """Return the trigger-side BT for the suggest-actor workflow.
+
+    Routes Offer(Actor, Case) through the Case Manager via
+    :func:`~vultron.core.behaviors.sender.send_tree.sender_side_bt`
+    (PCR-08-001).
+
+    Args:
+        case_id: ID of the VulnerabilityCase.
+        activity_builder: Closure called with the resolved Case Manager ID;
+            returns the list of outbound activity IDs.
+
+    Returns:
+        SenderSideBT Sequence.
+    """
+    return sender_side_bt(case_id=case_id, activity_builder=activity_builder)
+
+
+def invite_actor_to_case_trigger_bt(
+    invitee_id: str,
+    case_id: str,
+    attributed_to: str | None = None,
+    captured: dict | None = None,
+) -> py_trees.behaviour.Behaviour:
+    """Return the trigger-side BT for the invite-actor workflow.
+
+    Emits Invite(Actor, Case) from the Case Actor's identity directly to
+    the invitee (no Case Manager resolution needed — the Case Actor IS the
+    routing endpoint here per PCR-08-007).
+
+    Args:
+        invitee_id: Actor URI of the participant being invited.
+        case_id: ID of the VulnerabilityCase.
+        attributed_to: Optional original requesting actor URI.
+        captured: Optional dict; ``captured["activity"]`` is set on success.
+
+    Returns:
+        Sequence containing a single EmitInviteActorToCaseNode.
+    """
+    root = py_trees.composites.Sequence(
+        name="InviteActorToCaseTriggerBT",
+        memory=False,
+        children=[
+            EmitInviteActorToCaseNode(
+                invitee_id=invitee_id,
+                case_id=case_id,
+                attributed_to=attributed_to,
+                captured=captured,
+            ),
+        ],
+    )
+    logger.debug(
+        "Created InviteActorToCaseTriggerBT for invitee=%s case=%s",
+        invitee_id,
+        case_id,
+    )
+    return root
+
+
+def accept_case_invite_trigger_bt(
+    invite_id: str,
+    captured: dict | None = None,
+) -> py_trees.behaviour.Behaviour:
+    """Return the trigger-side BT for the accept-case-invite workflow.
+
+    Emits Accept(Invite) from the invitee's identity; the factory derives
+    the recipient from the persisted invite object.
+
+    Args:
+        invite_id: ID of the RmInviteToCaseActivity being accepted.
+        captured: Optional dict; ``captured["activity"]`` is set on success.
+
+    Returns:
+        Sequence containing a single EmitAcceptCaseInviteNode.
+    """
+    root = py_trees.composites.Sequence(
+        name="AcceptCaseInviteTriggerBT",
+        memory=False,
+        children=[
+            EmitAcceptCaseInviteNode(
+                invite_id=invite_id,
+                captured=captured,
+            ),
+        ],
+    )
+    logger.debug("Created AcceptCaseInviteTriggerBT for invite=%s", invite_id)
+    return root

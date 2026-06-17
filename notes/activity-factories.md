@@ -256,7 +256,7 @@ duplicate the logic in the factory.
 
 `vultron/core/use_cases/received/sync.py` and
 `vultron/core/use_cases/triggers/sync.py` call `from_core()` on wire
-objects (`CaseLogEntry.from_core(entry)`, `WireCaseLogEntry.from_core(entry)`).
+objects (`CaseLedgerEntry.from_core(entry)`, `WireCaseLedgerEntry.from_core(entry)`).
 This violates the hexagonal architecture rule that core modules must not
 import from the wire layer.
 

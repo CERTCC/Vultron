@@ -13,6 +13,7 @@ from vultron.core.models.protocols import (
     is_case_model,
     is_participant_model,
 )
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.participant_embargo_consent import (
     PEC,
@@ -24,6 +25,24 @@ from vultron.core.states.roles import CVDRole
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)
+
+_SNAPSHOT_REFERENCE_FIELDS = {
+    "object",
+    "object_",
+    "target",
+    "active_embargo",
+    "activeEmbargo",
+    "proposed_embargoes",
+    "proposedEmbargoes",
+    "vulnerability_reports",
+    "vulnerabilityReports",
+    "notes",
+    "case_participants",
+    "caseParticipants",
+    "case_statuses",
+    "caseStatuses",
+}
+_SNAPSHOT_INLINE_DEPTH_LIMIT = 8
 
 
 def _as_id(obj: Any) -> str | None:
@@ -42,6 +61,138 @@ def _as_id(obj: Any) -> str | None:
     if isinstance(id_, str):
         return id_
     return str(obj)
+
+
+def _inline_snapshot_reference_value(
+    value: Any,
+    dl: CasePersistence | None,
+    *,
+    should_resolve_strings: bool,
+    resolving_ids: set[str],
+    expected_context: str | None,
+    depth: int,
+) -> Any:
+    """Inline nested AS2 object references for canonical payload snapshots."""
+    if depth > _SNAPSHOT_INLINE_DEPTH_LIMIT:
+        return value
+
+    if isinstance(value, dict):
+        inlined: dict[str, Any] = {}
+        for key, child in value.items():
+            inlined[key] = _inline_snapshot_reference_value(
+                child,
+                dl,
+                should_resolve_strings=(key in _SNAPSHOT_REFERENCE_FIELDS),
+                resolving_ids=resolving_ids,
+                expected_context=expected_context,
+                depth=depth + 1,
+            )
+        return inlined
+
+    if isinstance(value, list):
+        return [
+            _inline_snapshot_reference_value(
+                item,
+                dl,
+                should_resolve_strings=should_resolve_strings,
+                resolving_ids=resolving_ids,
+                expected_context=expected_context,
+                depth=depth + 1,
+            )
+            for item in value
+        ]
+
+    if (
+        not should_resolve_strings
+        or dl is None
+        or not isinstance(value, str)
+        or value in resolving_ids
+    ):
+        return value
+
+    resolved = dl.read(value)
+    if resolved is None or not hasattr(resolved, "model_dump"):
+        return value
+    resolved_context = _as_id(getattr(resolved, "context", None))
+    if (
+        expected_context is None
+        or resolved_context is None
+        or resolved_context != expected_context
+    ):
+        return value
+
+    resolving_ids.add(value)
+    try:
+        dumped = resolved.model_dump(
+            mode="json",
+            by_alias=True,
+            serialize_as_any=True,
+            exclude_none=True,
+        )
+        return _inline_snapshot_reference_value(
+            dumped,
+            dl,
+            should_resolve_strings=False,
+            resolving_ids=resolving_ids,
+            expected_context=expected_context,
+            depth=depth + 1,
+        )
+    finally:
+        resolving_ids.remove(value)
+
+
+def build_activity_payload_snapshot(
+    activity: Any, dl: CasePersistence | None = None
+) -> dict[str, Any]:
+    """Return a normalized, self-contained payload snapshot for ledger entries.
+
+    If a DataLayer is provided, known nested object-reference fields are inlined
+    from storage so canonical CaseLedgerEntry snapshots do not carry bare ID
+    strings for protocol-significant nested objects.
+    """
+    if activity is None or not hasattr(activity, "model_dump"):
+        return {}
+
+    snapshot: dict[str, Any] = activity.model_dump(
+        mode="json",
+        by_alias=True,
+        serialize_as_any=True,
+        exclude_none=True,
+    )
+    expected_context = snapshot.get("context")
+    if not isinstance(expected_context, str):
+        expected_context = None
+    inlined = _inline_snapshot_reference_value(
+        snapshot,
+        dl,
+        should_resolve_strings=False,
+        resolving_ids=set(),
+        expected_context=expected_context,
+        depth=0,
+    )
+    return inlined if isinstance(inlined, dict) else {}
+
+
+def _find_case_actor_id(dl: CasePersistence, case_id: str) -> str | None:
+    """Return the CaseActor Service ID for *case_id*, if present in the DataLayer.
+
+    First checks for a ``VultronReportCaseLink`` whose ``trusted_case_actor_id``
+    was established during bootstrap (CBT-01-006).  Falls back to the legacy
+    Service-object scan for backward compatibility.
+
+    Returns ``None`` when no CaseActor Service can be found for *case_id*.
+    This is the authoritative resolver for PCR-08-007 (invite sender) and
+    PCR-08-008 (accept recipient).
+    """
+    for link in dl.list_objects("ReportCaseLink"):
+        if isinstance(link, VultronReportCaseLink):
+            if link.case_id == case_id and link.trusted_case_actor_id:
+                return str(link.trusted_case_actor_id)
+
+    for service in dl.list_objects("Service"):
+        if getattr(service, "context", None) == case_id:
+            return service.id_
+    return None
 
 
 def _idempotent_create(

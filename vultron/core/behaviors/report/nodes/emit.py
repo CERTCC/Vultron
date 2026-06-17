@@ -22,7 +22,7 @@ from py_trees.common import Status
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.protocols import is_case_model
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.use_cases._helpers import case_addressees
+from vultron.core.use_cases._helpers import _resolve_case_manager_id
 
 
 def _compute_report_addressees(
@@ -33,8 +33,8 @@ def _compute_report_addressees(
 ) -> list[str] | None:
     """Compute outbound recipient list for a report-phase trigger activity.
 
-    Tries case participants first; falls back to the offer submitter when no
-    case is found.
+    For case-scoped report activities, route only to the Case Actor. Falls back
+    to the offer submitter when no case is found (no case-scoped routing).
 
     Args:
         report_id: VulnerabilityReport ID used to locate the linked case.
@@ -47,9 +47,10 @@ def _compute_report_addressees(
     """
     case = dl.find_case_by_report_id(report_id)
     if is_case_model(case):
-        recipients = case_addressees(case, actor_id)
-        if recipients:
-            return recipients
+        case_manager_id = _resolve_case_manager_id(case, dl)
+        if case_manager_id and case_manager_id != actor_id:
+            return [case_manager_id]
+        return None
 
     offer_actor = getattr(offer, "actor", None)
     if offer_actor is None:
@@ -62,160 +63,6 @@ def _compute_report_addressees(
     if offer_actor_id and offer_actor_id != actor_id:
         return [offer_actor_id]
     return None
-
-
-class EmitEngageCaseActivity(DataLayerAction):
-    """Emit RmEngageCaseActivity (Join(VulnerabilityCase)) to the actor outbox.
-
-    Creates the activity, persists it to the datalayer (idempotent), appends
-    its ID to the actor's ``outbox.items`` collection, and queues it for
-    delivery via ``record_outbox_item``.
-
-    Phase 1: Always called after EvaluateCasePriority returns SUCCESS.
-    Future: May be gated by an SSVC policy node (IDEA-26041004).
-
-    Per specs/behavior-tree-integration.yaml BT-06-005.
-    """
-
-    def __init__(self, case_id: str, actor_id: str, name: str | None = None):
-        """
-        Initialize EmitEngageCaseActivity node.
-
-        Args:
-            case_id: ID of VulnerabilityCase the actor is engaging
-            actor_id: ID of Actor emitting the engage activity
-            name: Optional custom node name (defaults to class name)
-        """
-        super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self.actor_id = actor_id
-
-    def update(self) -> Status:
-        """
-        Create and queue RmEngageCaseActivity.
-
-        Returns:
-            SUCCESS if activity created and outbox updated, FAILURE on error
-        """
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                f"{self.name}: DataLayer or actor_id not available"
-            )
-            return Status.FAILURE
-
-        if self.trigger_activity_factory is None:
-            self.logger.warning(
-                "%s: no TriggerActivityPort — cannot emit EngageCase activity",
-                self.name,
-            )
-            return Status.FAILURE
-
-        try:
-            case = self.datalayer.read(self.case_id)
-            addressees: list[str] | None = None
-            if is_case_model(case):
-                recipients = case_addressees(case, self.actor_id)
-                if recipients:
-                    addressees = recipients
-
-            activity_id, _ = self.trigger_activity_factory.engage_case(
-                case_id=self.case_id,
-                actor=self.actor_id,
-                to=addressees,
-            )
-
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, activity_id
-            )
-            self.logger.info(
-                "Actor '%s' emitted RmEngageCaseActivity for case '%s'",
-                self.actor_id,
-                self.case_id,
-            )
-            return Status.SUCCESS
-
-        except Exception as e:
-            self.logger.error(
-                f"{self.name}: Error emitting engage activity: {e}"
-            )
-            return Status.FAILURE
-
-
-class EmitDeferCaseActivity(DataLayerAction):
-    """Emit RmDeferCaseActivity (Ignore(VulnerabilityCase)) to the actor outbox.
-
-    Creates the activity, persists it to the datalayer (idempotent), appends
-    its ID to the actor's ``outbox.items`` collection, and queues it for
-    delivery via ``record_outbox_item``.
-
-    Called when EvaluateCasePriority returns FAILURE (defer path in
-    PrioritizeBT).
-
-    Per specs/behavior-tree-integration.yaml BT-06-006.
-    """
-
-    def __init__(self, case_id: str, actor_id: str, name: str | None = None):
-        """
-        Initialize EmitDeferCaseActivity node.
-
-        Args:
-            case_id: ID of VulnerabilityCase the actor is deferring
-            actor_id: ID of Actor emitting the defer activity
-            name: Optional custom node name (defaults to class name)
-        """
-        super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self.actor_id = actor_id
-
-    def update(self) -> Status:
-        """
-        Create and queue RmDeferCaseActivity.
-
-        Returns:
-            SUCCESS if activity created and outbox updated, FAILURE on error
-        """
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                f"{self.name}: DataLayer or actor_id not available"
-            )
-            return Status.FAILURE
-
-        if self.trigger_activity_factory is None:
-            self.logger.warning(
-                "%s: no TriggerActivityPort — cannot emit DeferCase activity",
-                self.name,
-            )
-            return Status.FAILURE
-
-        try:
-            case = self.datalayer.read(self.case_id)
-            addressees: list[str] | None = None
-            if is_case_model(case):
-                recipients = case_addressees(case, self.actor_id)
-                if recipients:
-                    addressees = recipients
-
-            activity_id, _ = self.trigger_activity_factory.defer_case(
-                case_id=self.case_id,
-                actor=self.actor_id,
-                to=addressees,
-            )
-
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, activity_id
-            )
-            self.logger.info(
-                "Actor '%s' emitted RmDeferCaseActivity for case '%s'",
-                self.actor_id,
-                self.case_id,
-            )
-            return Status.SUCCESS
-
-        except Exception as e:
-            self.logger.error(
-                f"{self.name}: Error emitting defer activity: {e}"
-            )
-            return Status.FAILURE
 
 
 class EmitInvalidateReportActivity(DataLayerAction):
@@ -269,6 +116,16 @@ class EmitInvalidateReportActivity(DataLayerAction):
                 offer,
                 cast(CaseOutboxPersistence, self.datalayer),
             )
+            if not addressees:
+                self.logger.error(
+                    "%s: no routable recipients for report activity"
+                    " (offer_id=%s, report_id=%s, actor_id=%s)",
+                    self.name,
+                    self.offer_id,
+                    self.report_id,
+                    self.actor_id,
+                )
+                return Status.FAILURE
 
             activity_id, _ = self.trigger_activity_factory.invalidate_report(
                 offer_id=self.offer_id,
@@ -348,6 +205,16 @@ class EmitCloseReportActivity(DataLayerAction):
                 offer,
                 cast(CaseOutboxPersistence, self.datalayer),
             )
+            if not addressees:
+                self.logger.error(
+                    "%s: no routable recipients for report activity"
+                    " (offer_id=%s, report_id=%s, actor_id=%s)",
+                    self.name,
+                    self.offer_id,
+                    self.report_id,
+                    self.actor_id,
+                )
+                return Status.FAILURE
 
             activity_id, _ = self.trigger_activity_factory.close_report(
                 offer_id=self.offer_id,
@@ -369,5 +236,69 @@ class EmitCloseReportActivity(DataLayerAction):
         except Exception as e:
             self.logger.error(
                 "%s: Error emitting close-report activity: %s", self.name, e
+            )
+            return Status.FAILURE
+
+
+class EmitSubmitReportActivity(DataLayerAction):
+    """Create Offer(VulnerabilityReport) and queue in actor outbox.
+
+    Calls ``trigger_activity_factory.submit_report()`` and queues the
+    offer ID via ``record_outbox_item``.  Stores the offer dict in
+    ``captured["offer"]`` if *captured* is provided.
+
+    Per BT-15-001: outbound activity construction and queueing must be
+    BT leaf nodes.
+    """
+
+    def __init__(
+        self,
+        report_id: str,
+        recipient_id: str,
+        captured: dict | None = None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.report_id = report_id
+        self.recipient_id = recipient_id
+        self._captured = captured
+
+    def update(self) -> Status:
+        if self.datalayer is None or self.actor_id is None:
+            self.logger.error(
+                "%s: DataLayer or actor_id not available", self.name
+            )
+            return Status.FAILURE
+
+        if self.trigger_activity_factory is None:
+            self.logger.warning(
+                "%s: no TriggerActivityPort — cannot emit SubmitReport offer",
+                self.name,
+            )
+            return Status.FAILURE
+
+        try:
+            offer_id, offer_dict = self.trigger_activity_factory.submit_report(
+                report_id=self.report_id,
+                actor=self.actor_id,
+                to=self.recipient_id,
+                target=self.recipient_id,
+            )
+            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
+                self.actor_id, offer_id
+            )
+            if self._captured is not None:
+                self._captured["offer"] = offer_dict
+            self.logger.info(
+                "Actor '%s' emitted Offer(VulnerabilityReport) '%s' to '%s'",
+                self.actor_id,
+                offer_id,
+                self.recipient_id,
+            )
+            return Status.SUCCESS
+
+        except Exception as e:
+            self.logger.error(
+                "%s: Error emitting submit-report offer: %s", self.name, e
             )
             return Status.FAILURE

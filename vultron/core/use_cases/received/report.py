@@ -11,7 +11,6 @@ from vultron.core.models.events.report import (
     SubmitReportReceivedEvent,
     ValidateReportReceivedEvent,
 )
-from vultron.core.models.protocols import is_case_model
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.use_cases.received.case import (
     ValidateCaseUseCase,
@@ -19,6 +18,7 @@ from vultron.core.use_cases.received.case import (
 from vultron.errors import VultronValidationError
 
 if TYPE_CHECKING:
+    from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
@@ -95,6 +95,7 @@ def _run_submit_report_case_creation(
     receiving_actor_id: str,
     report_id: str,
     trigger_activity: "TriggerActivityPort | None" = None,
+    sync_port: "SyncActivityPort | None" = None,
 ) -> None:
     from py_trees.common import Status
 
@@ -109,7 +110,11 @@ def _run_submit_report_case_creation(
         request.report_id,
     )
 
-    bridge = BTBridge(datalayer=dl, trigger_activity=trigger_activity)
+    bridge = BTBridge(
+        datalayer=dl,
+        trigger_activity=trigger_activity,
+        sync_port=sync_port,
+    )
     tree = create_receive_report_case_tree(
         report_id=report_id,
         offer_id=request.activity_id,
@@ -183,10 +188,12 @@ class SubmitReportReceivedUseCase:
         dl: CasePersistence,
         request: SubmitReportReceivedEvent,
         trigger_activity: "TriggerActivityPort | None" = None,
+        sync_port: "SyncActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: SubmitReportReceivedEvent = request
         self._trigger_activity = trigger_activity
+        self._sync_port = sync_port
 
     def execute(self) -> None:
         request = self._request
@@ -214,6 +221,7 @@ class SubmitReportReceivedUseCase:
             receiving_actor_id,
             request.report_id,
             trigger_activity=self._trigger_activity,
+            sync_port=self._sync_port,
         )
 
 
@@ -238,17 +246,6 @@ class ValidateReportReceivedUseCase:
                 "ValidateReportReceivedEvent requires report_id and offer_id"
             )
 
-        case = self._dl.find_case_by_report_id(report_id)
-        case_id: str | None = None
-        if is_case_model(case):
-            case_id = case.id_
-        else:
-            logger.warning(
-                "ValidateReportReceivedUseCase: no case found for report "
-                "'%s' — RM state will not be updated in participant record",
-                report_id,
-            )
-
         logger.info(
             "Actor '%s' validates VulnerabilityReport '%s'",
             actor_id,
@@ -260,8 +257,6 @@ class ValidateReportReceivedUseCase:
             actor_id=actor_id,
             report_id=report_id,
             offer_id=offer_id,
-            case_id=case_id,
-            trigger_activity=self._trigger_activity,
         ).execute()
 
 

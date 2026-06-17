@@ -199,9 +199,12 @@ class TriggerActivityPort(Protocol):
         actor: str,
         to: list[str] | None = None,
         id_: str | None = None,
+        attributed_to: str | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist an ``Invite(Actor, Case)`` activity.
 
+        ``actor`` SHOULD be the Case Actor ID (PCR-08-007); ``attributed_to``
+        MAY carry the case owner's ID for attribution.
         ``id_`` allows callers to supply a deterministic ID for idempotency.
         Returns ``(activity_id, activity_dict)``.
         """
@@ -223,6 +226,7 @@ class TriggerActivityPort(Protocol):
         recommended_id: str,
         case_id: str,
         actor: str,
+        to: list[str] | None = None,
         id_: str | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist a ``Offer(Actor, Case)`` recommendation activity.

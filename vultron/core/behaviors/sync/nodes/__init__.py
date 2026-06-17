@@ -36,7 +36,8 @@ from vultron.core.behaviors.sync.nodes.chain import (
 from vultron.core.behaviors.sync.nodes.conditions import (
     CheckIsNotOwnCaseActorNode,
     CheckIsOwnCaseActorNode,
-    CheckLogEntryAlreadyStoredNode,
+    CheckLedgerEntryAlreadyStoredNode,
+    CheckLedgerFreshnessNode,
     IsNotRemoveEmbargoEventNode,
     VerifySenderIsOwnIdNode,
     _find_case_actor,  # noqa: F401
@@ -44,14 +45,21 @@ from vultron.core.behaviors.sync.nodes.conditions import (
     _require_log_entry,  # noqa: F401
 )
 from vultron.core.behaviors.sync.nodes.receive import (
+    CheckHashMatchesNode,
     CheckHashOrRejectOnMismatchNode,
     LogDeliveryConfirmationNode,
     PersistReceivedLogEntryNode,
+    SendRejectLogEntryNode,
 )
 from vultron.core.behaviors.sync.nodes.replay import (
+    CollectAndSortCaseLedgerEntriesNode,
+    CollectLogEntryRecipientsNode,
     FanOutLogEntryNode,
     FindCaseActorNode,
+    FindDivergenceIndexNode,
     ReplayMissingEntriesNode,
+    SendLogEntryToEachNode,
+    SendMissingEntriesNode,
 )
 
 __all__ = [
@@ -59,11 +67,14 @@ __all__ = [
     "CheckIsOwnCaseActorNode",
     "CheckIsNotOwnCaseActorNode",
     "VerifySenderIsOwnIdNode",
-    "CheckLogEntryAlreadyStoredNode",
+    "CheckLedgerEntryAlreadyStoredNode",
+    "CheckLedgerFreshnessNode",
     "IsNotRemoveEmbargoEventNode",
     # receive
     "LogDeliveryConfirmationNode",
     "PersistReceivedLogEntryNode",
+    "CheckHashMatchesNode",
+    "SendRejectLogEntryNode",
     "CheckHashOrRejectOnMismatchNode",
     # chain
     "ReconstructChainTailNode",
@@ -72,7 +83,12 @@ __all__ = [
     "PersistLogEntryNode",
     # replay
     "FindCaseActorNode",
+    "CollectAndSortCaseLedgerEntriesNode",
+    "FindDivergenceIndexNode",
+    "SendMissingEntriesNode",
     "ReplayMissingEntriesNode",
+    "CollectLogEntryRecipientsNode",
+    "SendLogEntryToEachNode",
     "FanOutLogEntryNode",
     # re-exported helper functions (backward compat)
     "_find_case_actor",

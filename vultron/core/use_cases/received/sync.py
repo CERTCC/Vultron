@@ -33,6 +33,10 @@ from vultron.core.models.events.sync import (
     AnnounceLogEntryReceivedEvent,
     RejectLogEntryReceivedEvent,
 )
+from vultron.core.models.pending_assertion import (
+    PendingAssertionStore,
+    get_pending_assertion_store,
+)
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.ports.case_persistence import (
     CasePersistence,
@@ -97,15 +101,20 @@ def _update_replication_state(
         )
 
 
-class AnnounceLogEntryReceivedUseCase:
-    """Process a received ``Announce(CaseLogEntry)`` activity.
+class AnnounceLedgerEntryReceivedUseCase:
+    """Process a received ``Announce(CaseLedgerEntry)`` activity.
 
     Validates the incoming entry against the local hash-chain tail and
     persists it if the chain is consistent.  On mismatch, sends a
-    ``Reject(CaseLogEntry)`` back to the CaseActor carrying the local
+    ``Reject(CaseLedgerEntry)`` back to the CaseActor carrying the local
     tail hash (SYNC-03-001).
 
-    Spec: SYNC-02-003, SYNC-03-001 through SYNC-03-003.
+    When *pending_assertions* is provided (or resolved from the per-actor
+    registry), clears the matching pending assertion on receipt so that
+    future emits for the same ``(case_id, event_type, log_object_id)``
+    triple are no longer suppressed (SYNC-11-003).
+
+    Spec: SYNC-02-003, SYNC-03-001 through SYNC-03-003, SYNC-11-003.
     """
 
     def __init__(
@@ -113,17 +122,19 @@ class AnnounceLogEntryReceivedUseCase:
         dl: CaseOutboxPersistence,
         request: AnnounceLogEntryReceivedEvent,
         sync_port: SyncActivityPort | None = None,
+        pending_assertions: PendingAssertionStore | None = None,
     ) -> None:
         self._dl = dl
         self._request = request
         self._sync_port = sync_port
+        self._pending_assertions = pending_assertions
 
     def execute(self) -> None:
         request = self._request
         entry = request.log_entry
         if entry is None:
             logger.warning(
-                "sync: received ANNOUNCE_CASE_LOG_ENTRY activity '%s' "
+                "sync: received ANNOUNCE_CASE_LEDGER_ENTRY activity '%s' "
                 "with no log entry object — ignoring",
                 request.activity_id,
             )
@@ -150,11 +161,25 @@ class AnnounceLogEntryReceivedUseCase:
                 result.feedback_message,
             )
 
+        # Clear pending assertion for this entry regardless of BT outcome
+        # (SYNC-11-003): both "recorded" and "rejected" dispositions confirm
+        # the assertion has been processed by the log authority.
+        receiving_actor_id = request.receiving_actor_id or ""
+        store = self._pending_assertions
+        if store is None and receiving_actor_id:
+            store = get_pending_assertion_store(receiving_actor_id)
+        if store is not None:
+            store.clear(
+                entry.case_id,
+                entry.event_type,
+                entry.log_object_id,
+            )
 
-class RejectLogEntryReceivedUseCase:
+
+class RejectLedgerEntryReceivedUseCase:
     """CaseActor handles a participant's rejection of a log entry announcement.
 
-    When a participant rejects an ``Announce(CaseLogEntry)`` because the
+    When a participant rejects an ``Announce(CaseLedgerEntry)`` because the
     ``prev_log_hash`` does not match their local tail, the CaseActor:
 
     1. Updates :class:`~vultron.core.models.replication_state.VultronReplicationState`
@@ -180,14 +205,14 @@ class RejectLogEntryReceivedUseCase:
         rejected_entry = request.rejected_entry
         if rejected_entry is None:
             logger.warning(
-                "sync: received REJECT_CASE_LOG_ENTRY from '%s' "
+                "sync: received REJECT_CASE_LEDGER_ENTRY from '%s' "
                 "with no log entry object — ignoring",
                 request.actor_id,
             )
             return
 
         logger.info(
-            "sync: received Reject(CaseLogEntry) from peer '%s' "
+            "sync: received Reject(CaseLedgerEntry) from peer '%s' "
             "for case '%s', last_accepted_hash=%.16s…",
             request.actor_id,
             rejected_entry.case_id,

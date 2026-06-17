@@ -25,10 +25,13 @@ from pydantic import Field, field_serializer, field_validator, model_validator
 from vultron.core.models.case_status import CaseStatus as CoreCaseStatus
 from vultron.core.models.participant_status import (
     ParticipantStatus as CoreParticipantStatus,
+    coerce_cvd_roles,
 )
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.core.states.cs import CS_pxa, CS_vfd
+from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.roles import CVDRole
 from vultron.core.models.base import NonEmptyString
 from vultron.core.models.enums import VultronObjectType as VO_type
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef, as_Link
@@ -122,6 +125,16 @@ class ParticipantStatus(VultronAS2Object):
     vfd_state: CS_vfd = CS_vfd.vfd
     case_engagement: bool = True
     embargo_adherence: bool = True
+    em_consent_state: PEC | None = Field(
+        default=None,
+        validation_alias="emConsentState",
+        serialization_alias="emConsentState",
+    )
+    cvd_role: list[CVDRole] = Field(
+        default_factory=lambda: [CVDRole.OTHER],
+        validation_alias="cvdRole",
+        serialization_alias="cvdRole",
+    )
     tracking_id: NonEmptyString | None = None
     case_status: CaseStatus | None = None
 
@@ -144,6 +157,22 @@ class ParticipantStatus(VultronAS2Object):
         if isinstance(v, str):
             return CS_vfd[v]
         return v
+
+    @field_validator("em_consent_state", mode="before")
+    def validate_em_consent_state(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, str):
+            return PEC[v]
+        return v
+
+    @field_validator("cvd_role", mode="before")
+    def validate_cvd_role(cls, v):
+        return coerce_cvd_roles(v)
+
+    @field_serializer("cvd_role")
+    def serialize_cvd_role(self, cvd_role: list[CVDRole]) -> list[str]:
+        return [role.name for role in cvd_role]
 
     @model_validator(mode="after")
     def set_name(self):

@@ -35,11 +35,13 @@ from vultron.core.behaviors.case.receive_report_case_tree import (
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.vultron_types import (
     VultronCaseActor,
-    VultronOffer,
-    VultronReport,
 )
 from vultron.core.states.rm import RM
 from vultron.core.use_cases._helpers import _report_phase_status_id
+from vultron.wire.as2.factories import rm_submit_report_activity
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    VulnerabilityReport,
+)
 
 # ============================================================================
 # Fixtures
@@ -83,7 +85,7 @@ def reporter_actor(datalayer, reporter_actor_id):
 @pytest.fixture
 def report(datalayer):
     """Create test VulnerabilityReport."""
-    obj = VultronReport(
+    obj = VulnerabilityReport(
         id_="https://example.org/reports/CVE-2024-001",
         name="Test Vulnerability Report",
         content="Buffer overflow in component X",
@@ -130,11 +132,10 @@ def vendor_received_status(datalayer, actor_id, report):
 @pytest.fixture
 def offer(datalayer, report, actor_id, reporter_actor_id):
     """Create test Offer activity (reporter submits report to vendor)."""
-    obj = VultronOffer(
-        id_="https://example.org/activities/offer-123",
+    obj = rm_submit_report_activity(
+        report=report,
         actor=reporter_actor_id,
-        object_=report.id_,
-        target=actor_id,
+        to=actor_id,
     )
     datalayer.create(obj)
     return obj
@@ -232,7 +233,9 @@ def test_tree_succeeds(
         offer_id=offer.id_,
         reporter_actor_id=reporter_actor_id,
     )
-    result = bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
+    result = bridge.execute_with_setup(
+        tree=tree, actor_id=actor.id_, activity=offer
+    )
     assert result.status == Status.SUCCESS
 
 
@@ -253,7 +256,7 @@ def test_tree_creates_case(
         offer_id=offer.id_,
         reporter_actor_id=reporter_actor_id,
     )
-    bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
+    bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=offer)
 
     case = datalayer.find_case_by_report_id(report.id_)
     assert case is not None
@@ -284,7 +287,7 @@ def test_tree_creates_case_owner_participant_at_rm_received(
         offer_id=offer.id_,
         reporter_actor_id=reporter_actor_id,
     )
-    bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
+    bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=offer)
 
     case = datalayer.find_case_by_report_id(report.id_)
     assert case is not None
@@ -337,7 +340,7 @@ def test_tree_creates_finder_participant_at_rm_accepted(
         offer_id=offer.id_,
         reporter_actor_id=reporter_actor_id,
     )
-    bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
+    bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=offer)
 
     case = datalayer.find_case_by_report_id(report.id_)
     assert case is not None
@@ -388,7 +391,7 @@ def test_tree_creates_default_embargo(
         offer_id=offer.id_,
         reporter_actor_id=reporter_actor_id,
     )
-    bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
+    bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=offer)
 
     case = datalayer.find_case_by_report_id(report.id_)
     assert case is not None
@@ -417,7 +420,7 @@ def test_tree_sets_em_state_active_after_embargo_init(
         offer_id=offer.id_,
         reporter_actor_id=reporter_actor_id,
     )
-    bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
+    bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=offer)
 
     case = datalayer.find_case_by_report_id(report.id_)
     assert case is not None
@@ -442,22 +445,26 @@ def test_tree_records_embargo_initialized_event(
     reporter_accepted_status,
     vendor_received_status,
 ):
-    """After embargo initialization, an 'embargo_initialized' event MUST be
-    recorded in the case event log (D5-7-EMSTATE-1, CM-02-009).
+    """After embargo initialization the case MUST have an active embargo
+    (D5-7-EMSTATE-1).
+
+    record_event('embargo_initialized') was removed in #789; the behavioral
+    invariant is now verified by checking case.active_embargo is not None.
+    The canonical ledger commit (CommitCaseLedgerEntryNode) records the
+    submit_report entry that caused the embargo to be initialized.
     """
     tree = create_receive_report_case_tree(
         report_id=report.id_,
         offer_id=offer.id_,
         reporter_actor_id=reporter_actor_id,
     )
-    bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
+    bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=offer)
 
     case = datalayer.find_case_by_report_id(report.id_)
     assert case is not None
-    event_types = [e.event_type for e in case.events]
     assert (
-        "embargo_initialized" in event_types
-    ), f"Expected 'embargo_initialized' in case events, got {event_types}"
+        case.active_embargo is not None
+    ), "Expected case.active_embargo to be set after embargo initialization"
 
 
 def test_tree_embargo_initialized_event_references_embargo_id(
@@ -471,24 +478,25 @@ def test_tree_embargo_initialized_event_references_embargo_id(
     reporter_accepted_status,
     vendor_received_status,
 ):
-    """The 'embargo_initialized' event MUST reference the embargo's ID as
-    object_id (D5-7-EMSTATE-1, CM-02-009).
+    """The active embargo MUST reference the correct embargo object ID
+    (D5-7-EMSTATE-1).
+
+    record_event('embargo_initialized') was removed in #789; the behavioral
+    invariant is now verified by checking case.active_embargo equals the
+    expected embargo ID.
     """
     tree = create_receive_report_case_tree(
         report_id=report.id_,
         offer_id=offer.id_,
         reporter_actor_id=reporter_actor_id,
     )
-    bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
+    bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=offer)
 
     case = datalayer.find_case_by_report_id(report.id_)
     assert case is not None
     assert case.active_embargo is not None
-    embargo_events = [
-        e for e in case.events if e.event_type == "embargo_initialized"
-    ]
-    assert len(embargo_events) == 1
-    assert embargo_events[0].object_id == case.active_embargo
+    embargo = datalayer.read(case.active_embargo)
+    assert embargo is not None
 
 
 def test_tree_queues_create_case_activity(
@@ -508,7 +516,7 @@ def test_tree_queues_create_case_activity(
         offer_id=offer.id_,
         reporter_actor_id=reporter_actor_id,
     )
-    bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
+    bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=offer)
 
     outbox_items = datalayer.clone_for_actor(actor.id_).outbox_list()
     assert len(outbox_items) > 0
@@ -536,7 +544,7 @@ def test_create_case_precedes_add_participant_in_outbox(
         offer_id=offer.id_,
         reporter_actor_id=reporter_actor_id,
     )
-    bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
+    bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=offer)
 
     items = datalayer.clone_for_actor(actor.id_).outbox_list()
     assert len(items) >= 2, f"Expected >= 2 outbox items; got {len(items)}"
@@ -579,7 +587,9 @@ def test_tree_is_idempotent(
         offer_id=offer.id_,
         reporter_actor_id=reporter_actor_id,
     )
-    result1 = bridge.execute_with_setup(tree=tree1, actor_id=actor.id_)
+    result1 = bridge.execute_with_setup(
+        tree=tree1, actor_id=actor.id_, activity=offer
+    )
     assert result1.status == Status.SUCCESS
 
     tree2 = create_receive_report_case_tree(
@@ -587,7 +597,9 @@ def test_tree_is_idempotent(
         offer_id=offer.id_,
         reporter_actor_id=reporter_actor_id,
     )
-    result2 = bridge.execute_with_setup(tree=tree2, actor_id=actor.id_)
+    result2 = bridge.execute_with_setup(
+        tree=tree2, actor_id=actor.id_, activity=offer
+    )
     assert result2.status == Status.SUCCESS
 
     # Only one case for this report
@@ -613,7 +625,7 @@ def test_tree_early_exits_when_case_already_initialized(
         offer_id=offer.id_,
         reporter_actor_id=reporter_actor_id,
     )
-    bridge.execute_with_setup(tree=tree1, actor_id=actor.id_)
+    bridge.execute_with_setup(tree=tree1, actor_id=actor.id_, activity=offer)
 
     # Record outbox length before second run
     outbox_count_before = len(
@@ -626,7 +638,9 @@ def test_tree_early_exits_when_case_already_initialized(
         offer_id=offer.id_,
         reporter_actor_id=reporter_actor_id,
     )
-    result2 = bridge.execute_with_setup(tree=tree2, actor_id=actor.id_)
+    result2 = bridge.execute_with_setup(
+        tree=tree2, actor_id=actor.id_, activity=offer
+    )
     assert result2.status == Status.SUCCESS
 
     # No additional outbox items (early exit skips CreateCaseActivity)
@@ -658,7 +672,7 @@ def test_vendor_participant_reuses_existing_received_status(
         offer_id=offer.id_,
         reporter_actor_id=reporter_actor_id,
     )
-    bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
+    bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=offer)
 
     case = datalayer.find_case_by_report_id(report.id_)
     assert case is not None
@@ -700,7 +714,9 @@ def test_case_owner_participant_created_without_pre_existing_status(
         offer_id=offer.id_,
         reporter_actor_id=reporter_actor_id,
     )
-    result = bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
+    result = bridge.execute_with_setup(
+        tree=tree, actor_id=actor.id_, activity=offer
+    )
     assert result.status == Status.SUCCESS
 
     case = datalayer.find_case_by_report_id(report.id_)
@@ -796,7 +812,7 @@ def test_owner_seeded_as_signatory_after_embargo_init(
         offer_id=offer.id_,
         reporter_actor_id=reporter_actor_id,
     )
-    bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
+    bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=offer)
 
     case = datalayer.find_case_by_report_id(report.id_)
     assert case is not None
@@ -860,7 +876,7 @@ def test_reporter_seeded_as_signatory_when_active_embargo(
         offer_id=offer.id_,
         reporter_actor_id=reporter_actor_id,
     )
-    bridge.execute_with_setup(tree=tree, actor_id=actor.id_)
+    bridge.execute_with_setup(tree=tree, actor_id=actor.id_, activity=offer)
 
     case = datalayer.find_case_by_report_id(report.id_)
     assert case is not None

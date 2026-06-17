@@ -46,9 +46,18 @@ class CaseStatusModel(Protocol):
     pxa_state: CS_pxa
 
 
-class ParticipantStatusModel(Protocol):
+class ParticipantStatusModel(PersistableModel, Protocol):
+    """Duck-type protocol for a persisted ParticipantStatus record.
+
+    Satisfied by both the core :class:`~vultron.core.models.participant_status.ParticipantStatus`
+    and the wire-layer type returned by the DataLayer vocabulary registry.
+    """
+
     rm_state: RM
     vfd_state: CS_vfd
+    context: str
+    cvd_role: list
+    em_consent_state: Any | None
 
 
 class CaseModel(PersistableModel, Protocol):
@@ -116,14 +125,31 @@ def is_participant_model(
     )
 
 
+def is_participant_status_model(
+    obj: object | None,
+) -> "TypeGuard[ParticipantStatusModel]":
+    """Return True if *obj* duck-types as a ParticipantStatus record.
+
+    Checks ``type_ == "ParticipantStatus"`` rather than using ``isinstance``
+    so it works for both the core model and the wire-layer type returned by
+    the DataLayer vocabulary registry (CLP-07-007).
+    """
+    return bool(
+        obj is not None
+        and getattr(obj, "type_", None) == "ParticipantStatus"
+        and hasattr(obj, "rm_state")
+        and hasattr(obj, "context")
+    )
+
+
 def has_outbox(obj: PersistableModel | None) -> TypeGuard[ActorModel]:
     return bool(obj is not None and hasattr(obj, "outbox"))
 
 
 class LogEntryModel(PersistableModel, Protocol):
-    """Protocol for a persisted canonical case log entry.
+    """Protocol for a persisted canonical case ledger entry.
 
-    Satisfied by :class:`~vultron.core.models.case_log_entry.VultronCaseLogEntry`.
+    Satisfied by :class:`~vultron.core.models.case_ledger_entry.VultronCaseLedgerEntry`.
     Used by the receive-side use case without importing from wire layer.
     """
 
@@ -145,7 +171,7 @@ def is_log_entry_model(obj: object | None) -> TypeGuard[LogEntryModel]:
     """Return True if *obj* satisfies the :class:`LogEntryModel` protocol."""
     return bool(
         obj is not None
-        and getattr(obj, "type_", None) == "CaseLogEntry"
+        and getattr(obj, "type_", None) == "CaseLedgerEntry"
         and hasattr(obj, "case_id")
         and hasattr(obj, "log_index")
         and hasattr(obj, "prev_log_hash")

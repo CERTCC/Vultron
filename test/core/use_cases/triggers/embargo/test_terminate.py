@@ -1,0 +1,45 @@
+"""Tests for SvcTerminateEmbargoUseCase."""
+
+from typing import cast
+
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
+from vultron.core.states.em import EM
+from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.use_cases.triggers.embargo import SvcTerminateEmbargoUseCase
+from vultron.core.use_cases.triggers.requests import (
+    TerminateEmbargoTriggerRequest,
+)
+from vultron.wire.as2.vocab.base.objects.actors import as_Service
+from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+
+from .conftest import _build_active_embargo_case, _persist_actor
+
+
+def test_terminate_embargo_transitions_case_to_exited_via_bt_path(
+    finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """TerminateEmbargo transitions ACTIVE → EXITED and clears active_embargo."""
+    finder, finder_dl = finder_actor_and_dl
+    owner = _persist_actor(finder_dl, "Vendor Co")
+    case, _, participant_id = _build_active_embargo_case(
+        finder_dl, owner.id_, finder.id_
+    )
+    request = TerminateEmbargoTriggerRequest(
+        actor_id=owner.id_,
+        case_id=case.id_,
+    )
+
+    result = SvcTerminateEmbargoUseCase(
+        finder_dl, request, trigger_activity=TriggerActivityAdapter(finder_dl)
+    ).execute()
+
+    assert "activity" in result
+    updated_case = cast(VulnerabilityCase, finder_dl.read(case.id_))
+    updated_participant = cast(CaseParticipant, finder_dl.read(participant_id))
+    assert updated_case.current_status.em_state == EM.EXITED
+    assert updated_case.active_embargo is None
+    assert updated_participant.embargo_consent_state == PEC.NO_EMBARGO.value
