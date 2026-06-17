@@ -26,7 +26,7 @@ Tree structure::
     ├── CreateInviteeParticipantAtAcceptedNode — build participant at RM.ACCEPTED
     ├── MaybeSignEmbargoConsentNode            — sign when embargo is EM.ACTIVE
     ├── PersistInviteeParticipantNode          — dl.create, attach, save case
-    ├── CommitCaseLedgerEntryNode              — canonical log entry + SYNC-02-002 fan-out
+    ├── GuardedCommitCaseLedgerEntryBT         — canonical log entry + SYNC-02-002 fan-out
     └── EmitAnnounceCaseToInviteeNode          — queue Announce(VulnerabilityCase)
 
 Specs: PCR-08-010 (identity constraint), CM-10-001/CM-10-003 (embargo
@@ -40,7 +40,9 @@ from typing import cast
 import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.case.nodes import CommitCaseLedgerEntryNode
+from vultron.core.behaviors.case.nodes import (
+    create_guarded_commit_case_ledger_entry_tree,
+)
 from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
 from vultron.core.models.protocols import (
     LogEntryModel,
@@ -664,7 +666,7 @@ def create_accept_invite_actor_to_case_tree(
         ├── PersistInviteeParticipantNode          — persist, attach, save case
         ├── EmitAnnounceCaseToInviteeNode          — queue Announce to invitee
         ├── BackfillCanonicalLedgerToInviteeNode   — send prior ledger to invitee
-        └── CommitCaseLedgerEntryNode              — canonical log entry + fan-out
+        └── GuardedCommitCaseLedgerEntryBT         — canonical log entry + fan-out
 
     Args:
         case_id: ID of the VulnerabilityCase the invitee accepted.
@@ -696,7 +698,7 @@ def create_accept_invite_actor_to_case_tree(
             BackfillCanonicalLedgerToInviteeNode(
                 case_id=case_id, invitee_id=invitee_id
             ),
-            CommitCaseLedgerEntryNode(case_id=case_id),
+            create_guarded_commit_case_ledger_entry_tree(case_id=case_id),
         ],
     )
 

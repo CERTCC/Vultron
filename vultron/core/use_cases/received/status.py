@@ -208,36 +208,17 @@ class AddParticipantStatusToParticipantReceivedUseCase:
                     return str(context)
         return None
 
-    def _is_case_actor_receiver(
-        self, *, case_id: str, case_actor_id: str
-    ) -> bool:
-        receiving_actor_id = self._request.receiving_actor_id
-        if receiving_actor_id is None:
-            logger.warning(
-                "add_participant_status: missing receiving_actor_id for case '%s'"
-                " — skipping canonical commit to avoid non-CaseActor append",
-                case_id,
-            )
-            return False
-        if receiving_actor_id != case_actor_id:
-            logger.debug(
-                "add_participant_status: receiving actor is not the CaseActor for"
-                " case '%s' — skipping canonical commit",
-                case_id,
-            )
-            return False
-        return True
-
     def _commit_log_cascade_bt(self) -> None:
-        """Commit a CaseLedgerEntry via CommitCaseLedgerEntryNode (PCR-08-003).
+        """Commit a CaseLedgerEntry via the guarded commit subtree.
 
-        Derives case_id from the inline status object's ``context`` field.
-        Uses ``receiving_actor_id`` (the CaseActor's canonical ID) when
-        available, falling back to a DataLayer lookup for the Service object
-        whose ``context`` matches *case_id*.
+        Derives ``case_id`` from the inline status object's ``context`` field,
+        resolves the CaseActor ID for that case, and executes the guarded
+        canonical-commit subtree as that actor.
         """
         from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.case.nodes import CommitCaseLedgerEntryNode
+        from vultron.core.behaviors.case.nodes import (
+            create_guarded_commit_case_ledger_entry_tree,
+        )
         from vultron.core.use_cases.received.actor import _find_case_actor_id
 
         request = self._request
@@ -257,13 +238,31 @@ class AddParticipantStatusToParticipantReceivedUseCase:
                 case_id,
             )
             return
-        if not self._is_case_actor_receiver(
-            case_id=case_id, case_actor_id=case_actor_id
-        ):
+
+        # Guard: only the CaseActor receiver may commit a canonical log entry.
+        # This preserves the semantics of the removed _is_case_actor_receiver
+        # check — the in-tree CASE_MANAGER gate alone is insufficient because
+        # actor_id is always case_actor_id here regardless of who received the
+        # message.
+        receiving_actor_id = request.receiving_actor_id
+        if receiving_actor_id is None:
+            logger.warning(
+                "add_participant_status: missing receiving_actor_id for case '%s'"
+                " — skipping canonical commit to avoid non-CaseActor append",
+                case_id,
+            )
+            return
+        if receiving_actor_id != case_actor_id:
+            logger.debug(
+                "add_participant_status: receiving actor '%s' is not the"
+                " CaseActor for case '%s' — skipping canonical commit",
+                receiving_actor_id,
+                case_id,
+            )
             return
 
         BTBridge(datalayer=self._dl).execute_with_setup(
-            tree=CommitCaseLedgerEntryNode(case_id=case_id),
+            tree=create_guarded_commit_case_ledger_entry_tree(case_id=case_id),
             actor_id=case_actor_id,
             activity=request,
             sync_port=self._sync_port,

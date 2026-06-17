@@ -66,6 +66,7 @@ from vultron.core.behaviors.case.nodes.communication import (
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckCaseAlreadyExists,
     CheckCaseExistsForReport,
+    CheckIsCaseManagerNode,
 )
 from vultron.core.behaviors.case.nodes.embargo import (
     AdvanceEMStateToActiveNode,
@@ -76,6 +77,7 @@ from vultron.core.behaviors.case.nodes.embargo import (
 )
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
+    create_guarded_commit_case_ledger_entry_tree,
 )
 from vultron.core.behaviors.case.nodes.participant import (
     CreateParticipantStatusNode,
@@ -98,6 +100,7 @@ __all__ = [
     # conditions
     "CheckCaseAlreadyExists",
     "CheckCaseExistsForReport",
+    "CheckIsCaseManagerNode",
     # case_setup (leaf nodes)
     "PersistCase",
     "SetCaseAttributedTo",
@@ -132,6 +135,7 @@ __all__ = [
     "SendOfferCaseManagerRoleNode",
     # lifecycle
     "CommitCaseLedgerEntryNode",
+    "create_guarded_commit_case_ledger_entry_tree",
     # update
     "CheckCaseUpdateOwnerNode",
     "CaptureCaseUpdateBroadcastExclusionsNode",

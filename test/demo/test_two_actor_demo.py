@@ -1594,7 +1594,7 @@ class TestCaseLedgerInvariants:
     _REQUIRED_EVENT_TYPES: frozenset[str] = frozenset(
         {
             "add_participant_status_to_participant",  # participant tracking — CI invariant 7
-            "submit_report",  # report intake
+            "offer_case_manager_role",  # CaseActor initialization backfill (#1021)
         }
     )
 
