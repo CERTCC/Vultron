@@ -38,6 +38,13 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Create", "VulnerabilityCase"),
     ("Offer", "VulnerabilityReport"),
     ("Offer", "VulnerabilityCase"),
+    # Accept(Offer(VulnerabilityReport)) — validate_report (RV message).
+    # The payload object is the Offer wrapping the VulnerabilityReport.
+    ("Accept", "Offer"),
+    # TentativeReject(Offer(VulnerabilityReport)) — invalidate_report (RI).
+    ("TentativeReject", "Offer"),
+    # Reject(Offer(VulnerabilityReport)) — close_report (RC).
+    ("Reject", "Offer"),
     ("Add", "Note"),
     ("Add", "ParticipantStatus"),
     ("Add", "EmbargoEvent"),
