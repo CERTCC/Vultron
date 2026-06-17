@@ -65,6 +65,9 @@ _DEVLOGS_DIR: Path = _REPO_ROOT / "devlogs"
 #: - fix_ready/fix_deployed/published transitions are recorded as
 #:   ``add_participant_status_to_participant`` entries; invariant 15 checks
 #:   the actual CS state values within those snapshots.
+#: - announce_case_ledger_entry is the replication envelope used by the
+#:   CaseActor to broadcast canonical entries, not a canonical entry type
+#:   itself (CLP-10-004); it is excluded from EXPECTED_EVENT_TYPES.
 EXPECTED_EVENT_TYPES: frozenset[str] = frozenset(
     {
         "validate_report",
@@ -74,7 +77,6 @@ EXPECTED_EVENT_TYPES: frozenset[str] = frozenset(
         "add_participant_status_to_participant",
         "close_case",
         "add_note_to_case",
-        "announce_case_ledger_entry",
     }
 )
 
@@ -367,32 +369,82 @@ def test_invariant_4_non_empty_payload_snapshot(
     )
 
 
-@pytest.mark.case_ledger_invariants
-@pytest.mark.xfail(
-    strict=False,
-    reason=(
-        "Several trigger trees lack emit nodes addressed to the CaseActor, "
-        "and several received use cases lack the CaseActor delegation pattern "
-        "needed for canonical ledger commits. Routing gaps documented in #1026. "
-        "Will pass once all event types are routed to the CaseActor inbox."
+_EVENT_TYPE_PARAMS = [
+    pytest.param(
+        "validate_report",
+        marks=[],
+        id="validate_report",
     ),
-)
+    pytest.param(
+        "ack_report",
+        marks=pytest.mark.xfail(
+            strict=False,
+            reason="Open: #1026 follow-on. Trigger tree lacks emit node and received UC lacks guarded commit.",
+        ),
+        id="ack_report",
+    ),
+    pytest.param(
+        "invite_to_embargo_on_case",
+        marks=pytest.mark.xfail(
+            strict=False,
+            reason="Open: #1026 follow-on. Trigger tree lacks emit node and received UC lacks guarded commit.",
+        ),
+        id="invite_to_embargo_on_case",
+    ),
+    pytest.param(
+        "accept_invite_to_embargo_on_case",
+        marks=pytest.mark.xfail(
+            strict=False,
+            reason="Open: #1026 follow-on. Trigger tree lacks emit node and received UC lacks guarded commit.",
+        ),
+        id="accept_invite_to_embargo_on_case",
+    ),
+    pytest.param(
+        "add_participant_status_to_participant",
+        marks=[],
+        id="add_participant_status_to_participant",
+    ),
+    pytest.param(
+        "close_case",
+        marks=pytest.mark.xfail(
+            strict=False,
+            reason="Open: #1026 follow-on. Trigger tree lacks emit node and received UC lacks guarded commit.",
+        ),
+        id="close_case",
+    ),
+    pytest.param(
+        "add_note_to_case",
+        marks=pytest.mark.xfail(
+            strict=False,
+            reason="Open: #1026 follow-on. Trigger tree lacks emit node and received UC lacks guarded commit.",
+        ),
+        id="add_note_to_case",
+    ),
+]
+
+
+@pytest.mark.case_ledger_invariants
+@pytest.mark.parametrize("event_type", _EVENT_TYPE_PARAMS)
 def test_invariant_5_expected_event_types_present(
+    event_type: str,
     case_ledger_replicas: dict[str, list[dict]],
 ) -> None:
-    """All expected protocol eventTypes appear at least once (AC-4.5).
+    """Each expected protocol eventType appears at least once (AC-4.5).
+
+    Parameterized per event type; each type is tested separately so that
+    passing types do not mask missing types, and so that xfail can be
+    removed per-type as fixes land.
 
     Checked against the ``case-actor`` replica (authoritative log).
     Falls back to any available replica when no ``case-actor`` key exists.
-    Restored to xfail: most vendor operations never reach the CaseActor inbox
-    because trigger trees lack emit nodes and received use cases lack the
-    CaseActor delegation pattern. See #1026 for root cause and fix plan.
+
+    AC-3: Promoted to hard pass for validate_report (#1029);
+    other types remain xfail pending #1026 follow-on fixes.
     """
     auth = _auth_entries(case_ledger_replicas)
     found = {_event_type(e) for e in auth}
-    missing = EXPECTED_EVENT_TYPES - found
-    assert not missing, (
-        f"Missing expected eventTypes in case-actor log: {sorted(missing)}\n"
+    assert event_type in found, (
+        f"Expected eventType {event_type!r} not found in case-actor log.\n"
         f"Found: {sorted(found)}"
     )
 

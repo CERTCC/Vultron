@@ -154,7 +154,9 @@ class TriggerService:
         req = ValidateReportTriggerRequest(
             actor_id=actor_id, offer_id=offer_id, note=note
         )
-        return SvcValidateReportUseCase(self._dl, req).execute()
+        return SvcValidateReportUseCase(
+            self._dl, req, trigger_activity=self._trigger_activity
+        ).execute()
 
     def invalidate_report(
         self,
