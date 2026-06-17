@@ -161,7 +161,12 @@ def create_validate_report_tree(
     )
 
     # Fallback: just validate if emit is not available (received-side)
-    # Create a separate validation selector since the first one is used above
+    # Create a separate validation selector since the first one is used above.
+    # NOTE: py_trees does not allow a node to have more than one parent, so
+    # the subtree below is intentionally a structural duplicate of
+    # ``validation_or_shortcut`` above.  Any future changes to the primary
+    # validation flow (children of ValidationFlow / ValidationActions) MUST be
+    # mirrored here to keep both branches equivalent.
     validation_only = py_trees.composites.Selector(
         name="ValidationOrShortcutFallback",
         memory=False,

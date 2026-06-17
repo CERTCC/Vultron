@@ -130,6 +130,18 @@ def bridge(datalayer, trigger_activity):
 
 
 @pytest.fixture
+def bridge_no_emit(datalayer):
+    """BTBridge without TriggerActivityPort — emit nodes return FAILURE immediately.
+
+    Use this fixture for tests that exercise paths where the emit must fail so
+    that the root Selector falls through to the validation-only branch.  Without
+    a TriggerActivityPort, EmitValidateReportActivity returns FAILURE before any
+    side-effects (like TransitionRMtoValid) can occur in the emit+validate branch.
+    """
+    return BTBridge(datalayer=datalayer)
+
+
+@pytest.fixture
 def case(
     bridge,
     datalayer,
@@ -475,13 +487,16 @@ def test_tree_execution_missing_actor_id_fails(
 
 
 def test_tree_execution_missing_report_fails(
-    bridge, datalayer, actor_id, offer, actor, reporter_actor
+    bridge_no_emit, datalayer, actor_id, offer, actor, reporter_actor
 ):
-    """Tree behavior with non-existent report ID (per #1029 tree restructure).
+    """Tree fails when the report ID does not exist in the DataLayer.
 
-    Per #1029 ADR-0021: tree now has optional emit with fallback validation.
-    Emit fails (no TriggerActivityPort in test), then fallback validation runs.
-    Fallback validation behavior depends on whether case/embargo exists.
+    Without a TriggerActivityPort the emit node fails immediately, preventing
+    any TransitionRMtoValid side-effects in the emit+validate branch.  The
+    fallback validation-only branch then runs: CheckRMStateReceivedOrInvalid
+    returns SUCCESS (no status record yet), the transition runs, then
+    EnsureEmbargoExists returns FAILURE because no case is linked to the
+    fake report ID.  The overall tree therefore returns FAILURE (DUR-07-004).
     """
     # Arrange: Use non-existent report ID — no case will exist for it
     fake_report_id = "https://example.org/reports/non-existent"
@@ -492,16 +507,14 @@ def test_tree_execution_missing_report_fails(
     )
 
     # Act: Execute tree
-    result = bridge.execute_with_setup(
+    result = bridge_no_emit.execute_with_setup(
         tree=tree,
         actor_id=actor_id,
         datalayer=datalayer,
     )
 
-    # Assert: Tree may succeed or fail depending on tree traversal.
-    # With optional emit: if emit fails, fallback validation is tried.
-    # Behavior is implementation-dependent on fallback path.
-    assert result.status in [Status.SUCCESS, Status.FAILURE]
+    # Assert: Tree fails — no case exists so EnsureEmbargoExists blocks (DUR-07-004).
+    assert result.status == Status.FAILURE
 
 
 # ============================================================================
@@ -588,28 +601,28 @@ def test_tree_execution_actor_isolation(
 
 
 def test_ensure_embargo_exists_fails_without_case(
-    bridge, datalayer, actor_id, report, offer, actor, reporter_actor
+    bridge_no_emit, datalayer, actor_id, report, offer, actor, reporter_actor
 ):
-    """validate-report BT behavior with no case (per #1029 tree restructure).
+    """validate-report BT returns FAILURE when no case is linked to the report.
 
-    Per #1029 ADR-0021: tree now has optional emit with fallback validation.
-    EnsureEmbargoExists should fail without a case, but fallback validation
-    behavior depends on tree traversal and early-exit short-circuits.
+    Without a TriggerActivityPort the emit node fails immediately, so the root
+    Selector falls through to the validation-only branch.  EnsureEmbargoExists
+    returns FAILURE because ``find_case_by_report_id`` returns None.  The
+    overall tree therefore returns FAILURE (DUR-07-004 guard: embargo MUST be
+    established before RM.VALID).
     """
     # No case fixture — simulate report submitted but case not yet created.
     tree = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
     )
-    result = bridge.execute_with_setup(
+    result = bridge_no_emit.execute_with_setup(
         tree=tree,
         actor_id=actor_id,
         datalayer=datalayer,
     )
-    # With optional emit and fallback validation, the result depends on
-    # whether early-exit short-circuits prevent EnsureEmbargoExists from
-    # being the blocking failure point. The test verifies BT executes.
-    assert result.status in [Status.SUCCESS, Status.FAILURE]
+    # EnsureEmbargoExists blocks: no linked case exists (DUR-07-004).
+    assert result.status == Status.FAILURE
 
 
 def test_validate_report_tree_case_has_active_embargo(

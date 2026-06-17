@@ -1269,3 +1269,78 @@ class TestValidateReportReceivedGuardedCommit:
             and "skipping canonical commit" in r.message
             for r in caplog.records
         ), "Expected debug log indicating skip due to non-CaseActor receiving actor"
+
+    def test_calls_commit_bt_when_receiving_actor_is_case_actor(
+        self, monkeypatch
+    ):
+        """Guarded commit BT runs when receiving_actor_id == case_actor_id (CLP-10-002).
+
+        When all pre-flight guards pass — receiving_actor_id is set, a case is
+        linked to the report, a CaseActor ID is resolvable, and
+        receiving_actor_id == case_actor_id — the guarded commit BT MUST be
+        executed.  Verified by patching ``create_guarded_commit_case_ledger_entry_tree``
+        in the use-case module's namespace; it is called only after all guards
+        succeed.
+        """
+        import vultron.core.use_cases.received.report as report_module
+        from vultron.core.models.report_case_link import VultronReportCaseLink
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        CASE_ID = "https://example.org/cases/c-commit-positive"
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+
+        report = VultronReport(id_=self.REPORT_ID)
+        dl.save(report)
+
+        case = VulnerabilityCase(
+            id_=CASE_ID,
+            name="Guarded Commit Positive Test",
+        )
+        case.vulnerability_reports.append(self.REPORT_ID)
+        dl.save(case)
+
+        # VultronReportCaseLink establishes the CaseActor mapping checked by
+        # _find_case_actor_id (CBT-01-006).
+        link = VultronReportCaseLink(
+            report_id=self.REPORT_ID,
+            case_id=CASE_ID,
+            trusted_case_actor_id=self.CASE_ACTOR_ID,
+        )
+        dl.save(link)
+
+        # Receiving actor IS the CaseActor — all pre-flight guards must pass.
+        event = self._make_validate_event_with_receiving_actor(
+            receiving_actor_id=self.CASE_ACTOR_ID
+        )
+
+        # Track calls to create_guarded_commit_case_ledger_entry_tree in the
+        # use-case module's namespace.  This function is invoked only when the
+        # pre-flight guard passes (CLP-10-002).
+        original_create = (
+            report_module.create_guarded_commit_case_ledger_entry_tree
+        )
+        commit_tree_calls: list[str | None] = []
+
+        def tracking_create(case_id: str | None = None):
+            commit_tree_calls.append(case_id)
+            return original_create(case_id=case_id)
+
+        monkeypatch.setattr(
+            report_module,
+            "create_guarded_commit_case_ledger_entry_tree",
+            tracking_create,
+        )
+
+        ValidateReportReceivedUseCase(dl, event).execute()
+
+        assert commit_tree_calls, (
+            "Expected create_guarded_commit_case_ledger_entry_tree to be "
+            "called when receiving_actor_id == case_actor_id (CLP-10-002)"
+        )
+        assert commit_tree_calls[0] == CASE_ID, (
+            f"Expected guarded commit called for case {CASE_ID!r}, "
+            f"got {commit_tree_calls[0]!r}"
+        )

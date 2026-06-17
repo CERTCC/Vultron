@@ -372,10 +372,7 @@ def test_invariant_4_non_empty_payload_snapshot(
 _EVENT_TYPE_PARAMS = [
     pytest.param(
         "validate_report",
-        marks=pytest.mark.xfail(
-            False,
-            reason="Implemented in #1029: trigger tree emit node + received UC guarded commit",
-        ),
+        marks=[],
         id="validate_report",
     ),
     pytest.param(
