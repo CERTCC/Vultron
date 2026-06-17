@@ -68,6 +68,7 @@ from vultron.core.behaviors.report.nodes import (
     EvaluateReportValidity,
     TransitionRMtoValid,
 )
+from vultron.core.behaviors.report.nodes.emit import EmitValidateReportActivity
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +87,11 @@ def create_validate_report_tree(
     Advances RM state to VALID only.  The engage/defer decision
     (RM → ACCEPTED or RM → DEFERRED) is a separate, explicit protocol step
     that the operator must trigger via ``engage-case`` or ``defer-case``.
+
+    Per ADR-0021 CLP-10-001: the root Selector now includes an emit node
+    that sends an RmValidateReportActivity addressed to the Case Actor
+    (CASE_MANAGER participant). This enables the CaseActor's inbox to receive
+    the activity and execute the guarded commit (CLP-10-002, CLP-10-003).
 
     Args:
         report_id: ID of VulnerabilityReport to validate
@@ -134,13 +140,64 @@ def create_validate_report_tree(
         ],
     )
 
-    # Root selector: Early exit if valid OR run full validation flow
-    root = py_trees.composites.Selector(
-        name="ValidateReportBT",
+    # Validation selector (used by both branches)
+    validation_or_shortcut = py_trees.composites.Selector(
+        name="ValidationOrShortcut",
         memory=False,
         children=[
             CheckRMStateValid(report_id=report_id),
             validation_flow,
+        ],
+    )
+
+    # Sequence: Emit then validate (trigger-side preference)
+    emit_and_validate = py_trees.composites.Sequence(
+        name="EmitAndValidate",
+        memory=False,
+        children=[
+            EmitValidateReportActivity(offer_id=offer_id, report_id=report_id),
+            validation_or_shortcut,
+        ],
+    )
+
+    # Fallback: just validate if emit is not available (received-side)
+    # Create a separate validation selector since the first one is used above
+    validation_only = py_trees.composites.Selector(
+        name="ValidationOrShortcutFallback",
+        memory=False,
+        children=[
+            CheckRMStateValid(report_id=report_id),
+            py_trees.composites.Sequence(
+                name="ValidationFlow",
+                memory=False,
+                children=[
+                    CheckRMStateReceivedOrInvalid(report_id=report_id),
+                    EvaluateReportCredibility(report_id=report_id),
+                    EvaluateReportValidity(report_id=report_id),
+                    py_trees.composites.Sequence(
+                        name="ValidationActions",
+                        memory=False,
+                        children=[
+                            TransitionRMtoValid(
+                                report_id=report_id, offer_id=offer_id
+                            ),
+                            EnsureEmbargoExists(report_id=report_id),
+                        ],
+                    ),
+                ],
+            ),
+        ],
+    )
+
+    # Root Selector: try emit+validate, fallback to validate-only
+    # On trigger side: emit succeeds, validation proceeds
+    # On received side: emit fails (no TriggerActivityPort), fallback validates
+    root = py_trees.composites.Selector(
+        name="ValidateReportBT",
+        memory=False,
+        children=[
+            emit_and_validate,
+            validation_only,
         ],
     )
 

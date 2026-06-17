@@ -25,6 +25,99 @@ from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import _resolve_case_manager_id
 
 
+class EmitValidateReportActivity(DataLayerAction):
+    """Emit RmValidateReportActivity to the Case Actor's inbox.
+
+    Calls ``trigger_activity_factory.validate_report()`` and queues the
+    resulting activity ID via ``record_outbox_item``. Routes the activity
+    to the Case Actor (CASE_MANAGER participant) using ``_compute_report_addressees``.
+
+    Per ADR-0021 CLP-10-001: trigger trees MUST emit an outbound activity
+    addressed to case_manager_id so the CaseActor receives the activity and
+    can execute the guarded commit.
+
+    Per issue #1029 AC-1: validate_tree.py transitions from
+    ``_requires_trigger_activity = False`` to having a proper emit node.
+    """
+
+    def __init__(
+        self, offer_id: str, report_id: str, name: str | None = None
+    ) -> None:
+        """Initialize EmitValidateReportActivity.
+
+        Args:
+            offer_id: ID of the Offer activity being validated.
+            report_id: ID of the VulnerabilityReport (for address resolution).
+            name: Optional custom node name.
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self.offer_id = offer_id
+        self.report_id = report_id
+
+    def update(self) -> Status:
+        """Create and queue RmValidateReportActivity.
+
+        Returns:
+            SUCCESS if activity created and outbox updated, FAILURE on error.
+        """
+        if self.datalayer is None or self.actor_id is None:
+            self.logger.error(
+                "%s: DataLayer or actor_id not available", self.name
+            )
+            return Status.FAILURE
+
+        if self.trigger_activity_factory is None:
+            self.logger.warning(
+                "%s: no TriggerActivityPort — cannot emit ValidateReport activity",
+                self.name,
+            )
+            return Status.FAILURE
+
+        try:
+            offer = self.datalayer.read(self.offer_id)
+            addressees = _compute_report_addressees(
+                self.report_id,
+                self.actor_id,
+                offer,
+                cast(CaseOutboxPersistence, self.datalayer),
+            )
+            if not addressees:
+                self.logger.error(
+                    "%s: no routable recipients for report activity"
+                    " (offer_id=%s, report_id=%s, actor_id=%s)",
+                    self.name,
+                    self.offer_id,
+                    self.report_id,
+                    self.actor_id,
+                )
+                return Status.FAILURE
+
+            activity_id, _ = self.trigger_activity_factory.validate_report(
+                offer_id=self.offer_id,
+                report_id=self.report_id,
+                actor=self.actor_id,
+                to=addressees,
+            )
+
+            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
+                self.actor_id, activity_id
+            )
+            self.logger.info(
+                "Actor '%s' emitted RmValidateReportActivity for report '%s'",
+                self.actor_id,
+                self.report_id,
+            )
+            return Status.SUCCESS
+
+        except Exception as e:
+            self.logger.error(
+                "%s: Error emitting validate-report activity: %s",
+                self.name,
+                e,
+            )
+            return Status.FAILURE
+
+
 def _compute_report_addressees(
     report_id: str,
     actor_id: str,

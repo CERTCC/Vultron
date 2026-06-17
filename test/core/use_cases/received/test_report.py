@@ -1145,3 +1145,127 @@ class TestFullReportFlow:
         assert (
             dl.get("ParticipantStatus", accepted_id) is not None
         ), "Finder must be RM.ACCEPTED after full Offer(Report) to Accept flow"
+
+
+class TestValidateReportReceivedGuardedCommit:
+    """Tests for ValidateReportReceivedUseCase guarded commit behavior (AC-5).
+
+    Per ADR-0021 CLP-10-002, CLP-10-003: the received use case MUST skip the
+    canonical commit step when receiving_actor_id != case_actor_id. These tests
+    verify that the pre-flight guard works correctly.
+    """
+
+    CASE_ACTOR_ID = "https://example.org/actors/case-actor"
+    VENDOR_ID = "https://example.org/actors/vendor"
+    REPORT_ID = "https://example.org/reports/r-guarded-commit"
+    OFFER_ID = "https://example.org/activities/offer-guarded"
+
+    def _make_validate_event_with_receiving_actor(
+        self,
+        report_id: str = REPORT_ID,
+        offer_id: str = OFFER_ID,
+        receiving_actor_id: str | None = None,
+    ) -> ValidateReportReceivedEvent:
+        """Create a ValidateReportReceivedEvent with specified receiving_actor_id."""
+        activity = VultronActivity(
+            id_=self.OFFER_ID,
+            type_="Accept",
+            actor=self.VENDOR_ID,
+        )
+        offer = VultronObject(id_=offer_id, type_="Offer")
+        report = VultronReport(id_=report_id)
+        return ValidateReportReceivedEvent(
+            semantic_type=MessageSemantics.VALIDATE_REPORT,
+            activity_id=self.OFFER_ID,
+            actor_id=self.VENDOR_ID,
+            object_=offer,
+            inner_object=report,
+            activity=activity,
+            receiving_actor_id=receiving_actor_id,
+        )
+
+    def test_skip_commit_when_no_receiving_actor(self, caplog):
+        """ValidateReportReceivedUseCase skips commit when receiving_actor_id is None.
+
+        Per CLP-10-003: when receiving_actor_id is not set, the commit is skipped.
+        """
+        import logging
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        event = self._make_validate_event_with_receiving_actor(
+            receiving_actor_id=None
+        )
+
+        with caplog.at_level(logging.DEBUG):
+            ValidateReportReceivedUseCase(dl, event).execute()
+
+        assert any(
+            "receiving_actor_id not set" in r.message for r in caplog.records
+        ), "Expected debug log indicating skip due to missing receiving_actor_id"
+
+    def test_skip_commit_when_no_case_found(self, caplog):
+        """ValidateReportReceivedUseCase skips commit when no case for report.
+
+        Per CLP-10-003: when no case is linked to the report,
+        the commit is skipped.
+        """
+        import logging
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        event = self._make_validate_event_with_receiving_actor(
+            receiving_actor_id=self.CASE_ACTOR_ID
+        )
+
+        with caplog.at_level(logging.DEBUG):
+            ValidateReportReceivedUseCase(dl, event).execute()
+
+        assert any(
+            "no case found" in r.message.lower() for r in caplog.records
+        ), "Expected debug log indicating skip due to missing case"
+
+    def test_skip_commit_when_receiving_actor_not_case_actor(self, caplog):
+        """ValidateReportReceivedUseCase skips commit when receiving_actor != CaseActor.
+
+        Per CLP-10-003: the pre-flight guard MUST skip the guarded commit BT when
+        the receiving actor is not the CaseActor.
+        """
+        import logging
+
+        from vultron.wire.as2.vocab.objects.report_case_link import (
+            VultronReportCaseLink,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+
+        # Create a report and link it to a case with CaseActor
+        report = VultronReport(id_=self.REPORT_ID)
+        dl.save(report)
+
+        case = VulnerabilityCase(
+            id_="https://example.org/cases/c-guarded",
+            name="Guarded Commit Test Case",
+        )
+        case.vulnerability_reports.append(self.REPORT_ID)
+        dl.save(case)
+
+        # Create a ReportCaseLink to establish the CaseActor mapping
+        link = VultronReportCaseLink(
+            report_id=self.REPORT_ID,
+            case_id=case.id_,
+            trusted_case_actor_id=self.CASE_ACTOR_ID,
+        )
+        dl.save(link)
+
+        # Send the event as a different actor (not the CaseActor)
+        event = self._make_validate_event_with_receiving_actor(
+            receiving_actor_id=self.VENDOR_ID  # != case_actor_id
+        )
+
+        with caplog.at_level(logging.DEBUG):
+            ValidateReportReceivedUseCase(dl, event).execute()
+
+        assert any(
+            "is not the CaseActor" in r.message
+            and "skipping canonical commit" in r.message
+            for r in caplog.records
+        ), "Expected debug log indicating skip due to non-CaseActor receiving actor"

@@ -231,12 +231,22 @@ class ValidateReportReceivedUseCase:
         dl: CasePersistence,
         request: ValidateReportReceivedEvent,
         trigger_activity: "TriggerActivityPort | None" = None,
+        sync_port: "SyncActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: ValidateReportReceivedEvent = request
         self._trigger_activity = trigger_activity
+        self._sync_port = sync_port
 
     def execute(self) -> None:
+        from py_trees.common import Status
+
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.behaviors.case.nodes import (
+            create_guarded_commit_case_ledger_entry_tree,
+        )
+        from vultron.core.use_cases.received.actor import _find_case_actor_id
+
         request = self._request
         actor_id = request.actor_id
         report_id = request.report_id
@@ -258,6 +268,73 @@ class ValidateReportReceivedUseCase:
             report_id=report_id,
             offer_id=offer_id,
         ).execute()
+
+        # Per ADR-0021 CLP-10-002, CLP-10-003: guarded commit with pre-flight
+        # guard. Only the CaseActor should commit a canonical ledger entry for
+        # this activity. Non-CaseActors skip the commit entirely.
+        receiving_actor_id = request.receiving_actor_id
+        if receiving_actor_id is None:
+            logger.debug(
+                "ValidateReportReceivedUseCase: receiving_actor_id not set"
+                " — skipping canonical commit (issue #1026)"
+            )
+            return
+
+        case = self._dl.find_case_by_report_id(report_id)
+        if case is None:
+            logger.debug(
+                "ValidateReportReceivedUseCase: no case found for report '%s'"
+                " — skipping canonical commit",
+                report_id,
+            )
+            return
+
+        case_id = getattr(case, "id_", None)
+        if case_id is None:
+            logger.debug(
+                "ValidateReportReceivedUseCase: case has no id_"
+                " — skipping canonical commit"
+            )
+            return
+
+        case_actor_id = _find_case_actor_id(self._dl, case_id)
+        if case_actor_id is None:
+            logger.warning(
+                "ValidateReportReceivedUseCase: cannot resolve CaseActor for"
+                " case '%s' — skipping canonical commit",
+                case_id,
+            )
+            return
+
+        if receiving_actor_id != case_actor_id:
+            logger.debug(
+                "ValidateReportReceivedUseCase: receiving actor '%s' is not"
+                " the CaseActor for case '%s' — skipping canonical commit"
+                " (CLP-10-003)",
+                receiving_actor_id,
+                case_id,
+            )
+            return
+
+        bridge = BTBridge(
+            datalayer=self._dl,
+            sync_port=self._sync_port,
+        )
+        tree = create_guarded_commit_case_ledger_entry_tree(case_id=case_id)
+        result = bridge.execute_with_setup(
+            tree=tree,
+            actor_id=case_actor_id,
+            activity=request,
+        )
+
+        if result.status != Status.SUCCESS:
+            reason = BTBridge.get_failure_reason(tree)
+            logger.warning(
+                "ValidateReportReceivedUseCase: guarded commit BT did not"
+                " succeed for case '%s': %s",
+                case_id,
+                reason or result.feedback_message or "",
+            )
 
 
 class InvalidateReportReceivedUseCase:
