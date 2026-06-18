@@ -29,7 +29,7 @@ specs/sync-ledger-replication.yaml SYNC-02-002.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 import py_trees
 from py_trees.common import Status
@@ -176,7 +176,31 @@ class ApplyParticipantStatusFromLedgerNode(DataLayerAction):
         if self.datalayer.read(status_id) is None:
             self.datalayer.save(status_obj)
 
-        participant.participant_statuses.append(status_obj)
+        # Read back from the DataLayer to obtain the vocabulary-typed
+        # (wire-format) version of the status object.  Appending the
+        # core-model instance directly to ``participant_statuses``
+        # (typed ``list[WireParticipantStatus]``) causes Pydantic to
+        # serialize the list with default field values instead of the
+        # actual values, because the declared element type governs
+        # serialization when the runtime type differs.  Reading back
+        # via the DataLayer reconstructs the object through the
+        # vocabulary registry, returning the wire-format class that
+        # round-trips correctly.
+        from vultron.core.models.protocols import ParticipantStatusModel
+
+        status_from_dl = self.datalayer.read(status_id)
+        if status_from_dl is None:
+            self.logger.warning(
+                "%s: status '%s' not readable from DataLayer after"
+                " save — skipping participant update",
+                self.name,
+                status_id,
+            )
+            return Status.SUCCESS
+
+        participant.participant_statuses.append(
+            cast(ParticipantStatusModel, status_from_dl)
+        )
         self.datalayer.save(participant)
 
         self.logger.info(
