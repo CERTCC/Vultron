@@ -121,15 +121,19 @@ class PublicDisclosureBranchNode(py_trees.composites.Selector):
     the sender holds the CASE_OWNER role.
 
     When the condition is met, delegates to :class:`TerminateEmbargoNode`.
-    Skips silently if conditions are not met or trigger_activity_factory
-    is unavailable.
+    Skips silently if conditions are not met.
 
-    Always returns SUCCESS (failure to initiate teardown is not fatal to
-    the parent sequence).
+    Returns SUCCESS when teardown conditions are not met (skip path) or
+    when teardown completes and the broadcast activity is queued.
+    Returns FAILURE when teardown is needed but the outbound
+    ``Terminate(EmbargoEvent)`` activity cannot be dispatched (BT-14-001).
 
     Implemented as a ``py_trees.composites.Selector`` (memory=False):
-    - Child 1 ``_PublicDisclosureSkipConditionNode``: SUCCESS → skip teardown.
-    - Child 2 ``TerminateEmbargoNode``: always SUCCESS → teardown attempted.
+
+    - Child 1 ``_PublicDisclosureSkipConditionNode``: SUCCESS → skip
+      teardown.
+    - Child 2 ``TerminateEmbargoNode``: SUCCESS on success; FAILURE when
+      dispatch fails (BT-14-001).
 
     Per DEMOMA-07-003 step 4.
     """

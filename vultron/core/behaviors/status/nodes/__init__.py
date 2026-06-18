@@ -21,12 +21,13 @@ submodules so that existing import paths
 without modification.
 
 Submodules:
+
 - ``conditions``: Participant verification condition nodes
 - ``broadcast``: Peer fan-out helper and nodes (_find_case_manager_id,
   FindCaseManagerNode, FilterPeerRecipientsNode,
-  CreateStatusBroadcastActivityNode, BroadcastQueueToOutboxNode,
-  BroadcastStatusToPeersNode); shared nodes are re-exported from
-  :mod:`vultron.core.behaviors.broadcast.nodes` (BT-14-001, BT-14-002)
+  BroadcastQueueToOutboxNode, BroadcastStatusToPeersNode); shared nodes
+  are re-exported from :mod:`vultron.core.behaviors.broadcast.nodes`
+  (BT-14-001, BT-14-002)
 - ``append``: Load, validate RM transition, and append action nodes
   (SkipIfIdempotentNode, LoadParticipantNode,
   CheckStatusNotAlreadyAppendedNode, ResolveAndPersistStatusObjectNode,
@@ -41,7 +42,6 @@ Submodules:
 from vultron.core.behaviors.status.nodes.broadcast import (
     BroadcastQueueToOutboxNode,
     BroadcastStatusToPeersNode,
-    CreateStatusBroadcastActivityNode,
     FilterPeerRecipientsNode,
     FindCaseManagerNode,
     _find_case_manager_id,
@@ -76,7 +76,6 @@ __all__ = [
     "_find_case_manager_id",
     "FindCaseManagerNode",
     "FilterPeerRecipientsNode",
-    "CreateStatusBroadcastActivityNode",
     "BroadcastQueueToOutboxNode",
     "BroadcastStatusToPeersNode",
     # append

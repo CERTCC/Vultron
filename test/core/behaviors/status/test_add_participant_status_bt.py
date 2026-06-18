@@ -20,7 +20,8 @@ Covers all five DEMOMA-07-003 steps:
   2. AppendParticipantStatusNode  — status appended, RM regression rejected
   3. BroadcastStatusToPeersNode   — fail-fast (BT-14-001): FAILURE when no
      factory or delivery fails; SUCCESS when no peers to notify (no-op)
-  4. PublicDisclosureBranchNode   — always SUCCESS, only triggers teardown on CS.P + CASE_OWNER
+  4. PublicDisclosureBranchNode   — SUCCESS when skip conditions met; FAILURE
+     when teardown needed but dispatch fails (BT-14-001)
   5. AutoCloseBranchNode          — always SUCCESS, logs when all RM.CLOSED
 
 Per specs/multi-actor-demo.yaml DEMOMA-07-003.
@@ -40,13 +41,13 @@ from vultron.core.behaviors.status.add_participant_status_tree import (
 from vultron.core.behaviors.status.append_participant_status_tree import (
     append_participant_status_tree,
 )
+from vultron.core.behaviors.broadcast.nodes import CreateBroadcastActivityNode
 from vultron.core.behaviors.status.nodes import (
     AppendStatusAndSaveParticipantNode,
     AutoCloseBranchNode,
     BroadcastQueueToOutboxNode,
     BroadcastStatusToPeersNode,
     CheckStatusNotAlreadyAppendedNode,
-    CreateStatusBroadcastActivityNode,
     FilterPeerRecipientsNode,
     FindCaseManagerNode,
     LoadParticipantNode,
@@ -941,75 +942,6 @@ class TestFilterPeerRecipientsNode:
 
 
 # ---------------------------------------------------------------------------
-# Step 3 leaf nodes: CreateStatusBroadcastActivityNode
-# ---------------------------------------------------------------------------
-
-
-class TestCreateStatusBroadcastActivityNode:
-    def _run_to_create(self, dl, actor_id, trigger_activity=None):
-        """Run the three-node prefix ending at CreateStatusBroadcastActivityNode."""
-        seq = py_trees.composites.Sequence(
-            name="TestSeq",
-            memory=False,
-            children=[
-                FindCaseManagerNode(case_id=CASE_ID),
-                FilterPeerRecipientsNode(
-                    sender_actor_id=ACTOR_ID, case_id=CASE_ID
-                ),
-                CreateStatusBroadcastActivityNode(
-                    status_id=STATUS_ID,
-                    participant_id=PARTICIPANT_ID,
-                ),
-            ],
-        )
-        bridge = BTBridge(datalayer=dl, trigger_activity=trigger_activity)
-        return bridge.execute_with_setup(tree=seq, actor_id=actor_id)
-
-    def test_returns_failure_without_trigger_activity_factory(
-        self, populated_dl_with_peer
-    ):
-        """No trigger_activity → CreateStatusBroadcastActivityNode FAILURE."""
-        result = self._run_to_create(
-            populated_dl_with_peer, actor_id=CASE_MANAGER_ID
-        )
-        assert result.status == Status.FAILURE
-
-    def test_calls_factory_with_correct_args(self, populated_dl_with_peer):
-        """Calls factory with case_manager as actor and peer as recipient."""
-        trigger_activity = MagicMock()
-        trigger_activity.add_participant_status_to_participant.return_value = (
-            "urn:uuid:activity-1"
-        )
-        result = self._run_to_create(
-            populated_dl_with_peer,
-            actor_id=CASE_MANAGER_ID,
-            trigger_activity=trigger_activity,
-        )
-        assert result.status == Status.SUCCESS
-        trigger_activity.add_participant_status_to_participant.assert_called_once_with(
-            status_id=STATUS_ID,
-            participant_id=PARTICIPANT_ID,
-            actor=CASE_MANAGER_ID,
-            to=[PEER_ACTOR_ID],
-        )
-
-    def test_returns_failure_on_vultron_error(self, populated_dl_with_peer):
-        """VultronError from factory → FAILURE (non-fatal for caller)."""
-        from vultron.errors import VultronError
-
-        trigger_activity = MagicMock()
-        trigger_activity.add_participant_status_to_participant.side_effect = (
-            VultronError("factory error")
-        )
-        result = self._run_to_create(
-            populated_dl_with_peer,
-            actor_id=CASE_MANAGER_ID,
-            trigger_activity=trigger_activity,
-        )
-        assert result.status == Status.FAILURE
-
-
-# ---------------------------------------------------------------------------
 # Step 3 leaf nodes: BroadcastQueueToOutboxNode
 # ---------------------------------------------------------------------------
 
@@ -1027,9 +959,13 @@ class TestBroadcastQueueToOutboxNode:
                 FilterPeerRecipientsNode(
                     sender_actor_id=ACTOR_ID, case_id=CASE_ID
                 ),
-                CreateStatusBroadcastActivityNode(
-                    status_id=STATUS_ID,
-                    participant_id=PARTICIPANT_ID,
+                CreateBroadcastActivityNode(
+                    activity_builder=lambda factory, cm_id, recipients: factory.add_participant_status_to_participant(
+                        status_id=STATUS_ID,
+                        participant_id=PARTICIPANT_ID,
+                        actor=cm_id,
+                        to=recipients,
+                    )
                 ),
                 BroadcastQueueToOutboxNode(),
             ],
@@ -1115,7 +1051,12 @@ class TestPublicDisclosureBranchNode:
     def test_triggers_teardown_on_public_aware_case_owner(
         self, populated_dl, populated_bridge, case, status_obj
     ):
-        """CS.P + CASE_OWNER sender → embargo terminated, EM=EXITED, PEC reset."""
+        """CS.P + CASE_OWNER sender → embargo terminated (EM=EXITED), but
+        FAILURE when no broadcast factory (BT-14-001).
+
+        State transitions are committed before broadcast; the FAILURE propagates
+        from the missing factory so callers can handle delivery errors.
+        """
         from vultron.core.states.cs import CS_pxa
         from vultron.core.states.em import EM
         from vultron.wire.as2.vocab.objects.case_status import CaseStatus
@@ -1141,15 +1082,67 @@ class TestPublicDisclosureBranchNode:
             sender_actor_id=ACTOR_ID,
             case_id=CASE_ID,
         )
+        # No factory → broadcast fails → FAILURE (BT-14-001)
         result = populated_bridge.execute_with_setup(
             tree=node, actor_id=CASE_MANAGER_ID
         )
-        assert result.status == Status.SUCCESS
+        assert result.status == Status.FAILURE
+
+        from typing import cast as c
 
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
+
+        # State was still applied before the broadcast attempt
+        updated = c(VulnerabilityCase, populated_dl.read(CASE_ID))
+        assert updated.current_status.em_state == EM.EXITED
+        assert updated.active_embargo is None
+
+    def test_triggers_teardown_succeeds_with_factory(
+        self, populated_dl, case, status_obj
+    ):
+        """CS.P + CASE_OWNER sender + factory → SUCCESS and EM=EXITED."""
+        from unittest.mock import MagicMock
         from typing import cast as c
+
+        from vultron.core.states.cs import CS_pxa
+        from vultron.core.states.em import EM
+        from vultron.wire.as2.vocab.objects.case_status import CaseStatus
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        embargo = EmbargoEvent(
+            id_=f"{CASE_ID}/embargo_events/e1", context=CASE_ID
+        )
+        case.active_embargo = embargo.id_
+        case.current_status.em_state = EM.ACTIVE
+        populated_dl.create(embargo)
+        populated_dl.save(case)
+
+        cs = CaseStatus()
+        cs.pxa_state = CS_pxa.Pxa
+        status_obj.case_status = cs
+        populated_dl.save(status_obj)
+
+        mock_factory = MagicMock()
+        mock_factory.terminate_embargo.return_value = (
+            "urn:uuid:terminate-1",
+            "urn:uuid:terminate-event-1",
+        )
+        bridge = BTBridge(
+            datalayer=populated_dl, trigger_activity=mock_factory
+        )
+
+        node = PublicDisclosureBranchNode(
+            status_obj=status_obj,
+            sender_actor_id=ACTOR_ID,
+            case_id=CASE_ID,
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.SUCCESS
 
         updated = c(VulnerabilityCase, populated_dl.read(CASE_ID))
         assert updated.current_status.em_state == EM.EXITED

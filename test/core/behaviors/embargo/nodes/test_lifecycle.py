@@ -42,7 +42,11 @@ class TestTerminateEmbargoNode:
     """Tests for TerminateEmbargoNode (trigger-side embargo teardown)."""
 
     def test_terminates_active_embargo(self):
-        """Node transitions ACTIVE → EXITED, clears active_embargo, returns SUCCESS."""
+        """Node transitions ACTIVE → EXITED, clears active_embargo, returns FAILURE.
+
+        The state transition and persistence succeed, but dispatch fails because
+        no trigger_activity_factory is set (BT-14-001).
+        """
         dl = SqliteDataLayer("sqlite:///:memory:")
         case, embargo = make_case_and_embargo("ten1", em_state=EM.ACTIVE)
         dl.create(case)
@@ -53,13 +57,14 @@ class TestTerminateEmbargoNode:
         bt.setup()
         bt.tick()
 
-        assert node.status == py_trees.common.Status.SUCCESS
+        # State transition succeeded even though dispatch returns FAILURE.
+        assert node.status == py_trees.common.Status.FAILURE
         updated = cast(VulnerabilityCase, dl.read(case.id_))
         assert updated.current_status.em_state == EM.EXITED
         assert updated.active_embargo is None
 
     def test_terminates_revise_embargo(self):
-        """Node transitions REVISE → EXITED, returns SUCCESS."""
+        """Node transitions REVISE → EXITED, returns FAILURE (no factory)."""
         dl = SqliteDataLayer("sqlite:///:memory:")
         case, embargo = make_case_and_embargo("ten2", em_state=EM.REVISE)
         dl.create(case)
@@ -70,7 +75,7 @@ class TestTerminateEmbargoNode:
         bt.setup()
         bt.tick()
 
-        assert node.status == py_trees.common.Status.SUCCESS
+        assert node.status == py_trees.common.Status.FAILURE
         updated = cast(VulnerabilityCase, dl.read(case.id_))
         assert updated.current_status.em_state == EM.EXITED
         assert updated.active_embargo is None
@@ -139,7 +144,7 @@ class TestTerminateEmbargoNode:
         assert node.status == py_trees.common.Status.SUCCESS
 
     def test_resets_participant_pec_state(self):
-        """Node resets participant embargo_consent_state to NO_EMBARGO."""
+        """Node resets participant embargo_consent_state to NO_EMBARGO, returns FAILURE (no factory)."""
         dl = SqliteDataLayer("sqlite:///:memory:")
         case, _ = make_case_and_embargo("ten6", em_state=EM.ACTIVE)
         participant = CaseParticipant(
@@ -157,7 +162,8 @@ class TestTerminateEmbargoNode:
         bt.setup()
         bt.tick()
 
-        assert node.status == py_trees.common.Status.SUCCESS
+        # Dispatch fails (no factory), but PEC reset was applied before dispatch.
+        assert node.status == py_trees.common.Status.FAILURE
         updated_p = cast(CaseParticipant, dl.read(participant.id_))
         assert updated_p.embargo_consent_state == PEC.NO_EMBARGO.value
 
@@ -199,6 +205,48 @@ class TestTerminateEmbargoNode:
 
         assert node.status == py_trees.common.Status.SUCCESS
         factory.terminate_embargo.assert_called_once()
+
+    def test_returns_failure_when_factory_raises(self):
+        """FAILURE when factory.terminate_embargo raises (BT-14-001)."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, _ = make_case_and_embargo("ten8", em_state=EM.ACTIVE)
+
+        case_manager_participant = CaseParticipant(
+            id_=f"{case.id_}/participants/cm",
+            attributed_to="https://example.org/actors/case-manager",
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        case.case_participants.append(case_manager_participant.id_)
+        case.actor_participant_index[
+            "https://example.org/actors/case-manager"
+        ] = case_manager_participant.id_
+        dl.create(case)
+        dl.create(case_manager_participant)
+
+        py_trees.blackboard.Blackboard.enable_activity_stream()
+        py_trees.blackboard.Blackboard.storage.clear()
+        blackboard = py_trees.blackboard.Client(name="test-setup-ten8")
+        for key in ("datalayer", "actor_id", "trigger_activity_factory"):
+            blackboard.register_key(
+                key=key, access=py_trees.common.Access.WRITE
+            )
+        blackboard.datalayer = dl
+        blackboard.actor_id = "https://example.org/actors/case-manager"
+
+        factory = MagicMock()
+        factory.terminate_embargo.side_effect = RuntimeError("dispatch error")
+        blackboard.trigger_activity_factory = factory
+
+        node = TerminateEmbargoNode(case_id=case.id_)
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert node.status == py_trees.common.Status.FAILURE
+        factory.terminate_embargo.assert_called_once()
+        # State transition was still applied before dispatch failed.
+        updated = cast(VulnerabilityCase, dl.read(case.id_))
+        assert updated.current_status.em_state == EM.EXITED
 
 
 class TestValidateEmbargoRevisionStateNode:
