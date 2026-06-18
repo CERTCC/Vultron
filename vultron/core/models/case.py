@@ -74,7 +74,11 @@ class VulnerabilityCase(CoreObject):
         default="",
         description=(
             "Per-case genesis hash binding this ledger to its origin "
-            "identity and timestamp (CLP-08-003)"
+            "identity and timestamp (CLP-08-003). "
+            "The empty-string default is intentional: rehydration paths "
+            "may deserialise objects that were stored before genesis hashes "
+            "were introduced. The model_validator enforces non-empty when "
+            "attributed_to is present at construction time."
         ),
     )
     # ADR-0017: ID-only cross-refs to avoid graph-cycle issues

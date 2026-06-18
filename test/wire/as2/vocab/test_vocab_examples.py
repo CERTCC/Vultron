@@ -223,6 +223,24 @@ class TestVocabExamples(unittest.TestCase):
         json = case.to_json()
         self.assertIsInstance(json, str)
 
+    def test_case_has_genesis_hash(self):
+        # CLP-08-003: example cases must carry a non-empty genesis hash
+        case = examples.case()
+        self.assertIsInstance(case, VulnerabilityCase)
+        self.assertTrue(
+            case.genesis_hash,
+            "examples.case() genesis_hash must be non-empty (CLP-08-003)",
+        )
+
+    def test_case_random_id_has_genesis_hash(self):
+        # CLP-08-003: random-id variant must also carry a non-empty genesis hash
+        case = examples.case(random_id=True)
+        self.assertIsInstance(case, VulnerabilityCase)
+        self.assertTrue(
+            case.genesis_hash,
+            "examples.case(random_id=True) genesis_hash must be non-empty (CLP-08-003)",
+        )
+
     def test_create_case(self):
         # is it an activity?
         create_case = examples.create_case()

@@ -62,6 +62,7 @@ _REPORT = VulnerabilityReport(
 )
 _CASE = VulnerabilityCase(
     name=f"{_VENDOR.name} Case #{case_number}",
+    attributed_to=_VENDOR.id_,
 )
 
 
@@ -98,6 +99,7 @@ def case(random_id=False) -> VulnerabilityCase:
         _case = VulnerabilityCase(
             name=f"{_VENDOR.name} Case #{_case_number}",
             id_=_make_id("VulnerabilityCase"),
+            attributed_to=_VENDOR.id_,
         )
         return _case
     return _CASE
