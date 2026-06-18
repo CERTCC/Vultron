@@ -141,10 +141,14 @@ a slightly-behind participant.
 
 ### SYNC-1 Scope
 
-The current `CaseEvent` model (`vultron/wire/as2/vocab/objects/case_event.py`)
-provides the foundation. SYNC-1 extends it toward a true canonical recorded
+The canonical `CaseLedgerEntry` model (see `notes/case-ledger-authority.md`)
+provides the foundation. SYNC-1 extended it toward a true canonical recorded
 log with hash-chain indexing; the richer long-term content model is described
 in `notes/case-ledger-authority.md`.
+
+Note: the earlier `CaseEvent` lightweight event model and
+`VulnerabilityCase.record_event()` helper were removed in #792 once
+canonical `CaseLedgerEntry` fully covered protocol-significant history.
 
 Core domain classes (transport-agnostic):
 
@@ -336,4 +340,4 @@ is handled gracefully without patching.
 - `specs/case-ledger-processing.yaml` — assertion recording and canonical
   `CaseLedgerEntry` requirements
 - `docs/adr/` — architectural decisions for CaseActor, per-actor DataLayer
-- `notes/case-state-model.md` — CaseEvent model and trusted timestamps
+- `notes/case-state-model.md` — CaseStatus append-only history and state model

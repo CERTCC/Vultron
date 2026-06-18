@@ -292,12 +292,13 @@ configuration.
 **`case-state-model.md`**
 VFD/PXA case state hypercube, potential actions per state, measuring CVD
 quality, participant-specific vs participant-agnostic state, append-only
-`CaseStatus`/`ParticipantStatus` history model, `CaseEvent` trusted-timestamp
-design (SC-PRE-1), actor-to-participant index (SC-PRE-2), report-as-proto-case
-lifecycle, pre-case event backfill, and multi-vendor action rules.
+`CaseStatus`/`ParticipantStatus` history model, actor-to-participant index
+(SC-PRE-2), report-as-proto-case lifecycle, pre-case event backfill, and
+multi-vendor action rules. Note: `CaseEvent`/`record_event()` were removed
+in issue #792; all protocol-significant history now lives in the canonical
+`CaseLedgerEntry` hash chain.
 **Load when**: working with case state machines, implementing participant or
-embargo status transitions, adding `record_event()` calls, or debugging action
-rule filtering.
+embargo status transitions, or debugging action rule filtering.
 
 **`case-communication-model.md`**
 Canonical communication model for post-case-creation participant messaging:

@@ -23,7 +23,6 @@ from typing import Literal
 from pydantic import Field, model_validator
 
 from vultron.core.models.base import CoreObject
-from vultron.core.models.case_event import CaseEvent
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.errors import VultronValidationError
@@ -70,7 +69,6 @@ class VulnerabilityCase(CoreObject):
     active_embargo: str | None = None
     proposed_embargoes: list[str] = Field(default_factory=list)
     case_activity: list[str] = Field(default_factory=list)
-    events: list[CaseEvent] = Field(default_factory=list)
     # ADR-0017: ID-only cross-refs to avoid graph-cycle issues
     parent_cases: list[str] = Field(default_factory=list)
     child_cases: list[str] = Field(default_factory=list)
@@ -180,25 +178,6 @@ class VulnerabilityCase(CoreObject):
         """
         if activity_id not in self.case_activity:
             self.case_activity.append(activity_id)
-
-    def record_event(self, object_id: str, event_type: str) -> CaseEvent:
-        """Append a trusted-timestamp event to the case event log.
-
-        The ``received_at`` timestamp is set to the current UTC time at the
-        moment this method is called.  Callers MUST NOT supply a
-        ``received_at`` value sourced from an incoming activity payload.
-
-        Args:
-            object_id: Full URI of the object being acted upon.
-            event_type: Short descriptor of the event kind
-                (e.g. ``"embargo_accepted"``).
-
-        Returns:
-            The newly-created :class:`CaseEvent`.
-        """
-        event = CaseEvent(object_id=object_id, event_type=event_type)
-        self.events.append(event)
-        return event
 
     @property
     def current_status(self) -> CaseStatus:

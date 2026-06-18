@@ -65,7 +65,6 @@ class CaseModel(PersistableModel, Protocol):
     vulnerability_reports: list
     active_embargo: object
     actor_participant_index: dict[str, str]
-    events: list
     attributed_to: object
     notes: list
     case_statuses: list

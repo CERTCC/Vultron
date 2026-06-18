@@ -4,6 +4,16 @@ Longer-term notes can be found in `/notes/*.md`. This file is ephemeral
 and will be reset periodically, so it's meant to capture more immediate
 insights, issues, and learnings during the implementation process.
 
+### 2026-06-18 PROTOCOL-FIELD-SYNC-792 — CaseModel Protocol fields must stay in sync with concrete type
+
+When removing a field from a concrete domain model (e.g., `VulnerabilityCase.events`),
+also remove the matching declaration from any structural `Protocol` that lists it
+(e.g., `CaseModel.events` in `protocols.py`). Static type checkers (mypy/pyright)
+check conformance in the concrete→Protocol direction, so a Protocol member that no
+longer exists on the concrete class will not produce a lint error — but it will
+silently break future callers who accept `CaseModel` and access the removed attribute.
+The pre-PR code review caught this gap; the fix was one-line deletion in `protocols.py`.
+
 ### 2026-06-18 IS-CASE-MODEL-DISCRIMINATOR-888 — is_case_model() must not use removed methods as discriminators
 
 `is_case_model()` in `vultron/core/models/protocols.py` used

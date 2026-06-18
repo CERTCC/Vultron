@@ -17,7 +17,6 @@ import pytest
 
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase, VultronCase
-from vultron.core.models.case_event import CaseEvent
 from vultron.core.models.case_participant import (
     FinderParticipant,
     VendorParticipant,
@@ -62,7 +61,6 @@ class TestVulnerabilityCaseBasics:
         assert case.vulnerability_reports == []
         assert case.notes == []
         assert case.case_activity == []
-        assert case.events == []
         assert case.parent_cases == []
         assert case.child_cases == []
         assert case.sibling_cases == []
@@ -252,37 +250,6 @@ class TestVulnerabilityCaseRecordActivity:
         case.record_activity("urn:uuid:activity-1")
         case.record_activity("urn:uuid:activity-2")
         assert len(case.case_activity) == 2
-
-
-class TestVulnerabilityCaseRecordEvent:
-    """record_event creates and appends a CaseEvent."""
-
-    def test_record_event_returns_case_event(self, case: VulnerabilityCase):
-        event = case.record_event("urn:uuid:obj-1", "embargo_accepted")
-        assert isinstance(event, CaseEvent)
-
-    def test_record_event_appended_to_events(self, case: VulnerabilityCase):
-        event = case.record_event("urn:uuid:obj-1", "embargo_accepted")
-        assert event in case.events
-
-    def test_record_event_stores_object_id(self, case: VulnerabilityCase):
-        event = case.record_event("urn:uuid:obj-1", "embargo_accepted")
-        assert event.object_id == "urn:uuid:obj-1"
-
-    def test_record_event_stores_event_type(self, case: VulnerabilityCase):
-        event = case.record_event("urn:uuid:obj-1", "participant_joined")
-        assert event.event_type == "participant_joined"
-
-    def test_record_event_sets_trusted_timestamp(
-        self, case: VulnerabilityCase
-    ):
-        event = case.record_event("urn:uuid:obj-1", "embargo_accepted")
-        assert event.received_at.tzinfo is not None
-
-    def test_multiple_events_accumulate(self, case: VulnerabilityCase):
-        case.record_event("urn:uuid:obj-1", "event_one")
-        case.record_event("urn:uuid:obj-2", "event_two")
-        assert len(case.events) == 2
 
 
 class TestVulnerabilityCaseWireRoundTrip:
