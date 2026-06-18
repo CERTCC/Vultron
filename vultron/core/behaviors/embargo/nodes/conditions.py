@@ -173,15 +173,23 @@ class OptionalLookupParticipantNode(DataLayerCondition):
 
     Used in received-side BT workflows where participant may legitimately not
     exist locally yet.
+
+    When ``target_actor_id`` is provided it is used for the participant lookup
+    instead of the BT-execution ``actor_id`` (which is the receiving actor).
+    This is the ADR-0022 single-BT pattern: the tree executes under
+    ``actor_id=receiving_actor_id`` for guarded-commit gating, while the PEC
+    lookup targets the message's actual invitee/subject.
     """
 
     def __init__(
         self,
         case_id: str,
+        target_actor_id: str | None = None,
         name: str | None = None,
     ):
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
+        self.target_actor_id = target_actor_id
 
     def setup(self, **kwargs: object) -> None:
         super().setup(**kwargs)
@@ -199,7 +207,12 @@ class OptionalLookupParticipantNode(DataLayerCondition):
             self.logger.debug("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
 
-        actor_id = self.actor_id
+        # Use target_actor_id when provided (ADR-0022 single-BT pattern:
+        # tree executes under receiving_actor_id but PEC lookup targets the
+        # actual invitee/subject). Fall back to the BT execution actor_id.
+        actor_id = (
+            self.target_actor_id if self.target_actor_id else self.actor_id
+        )
         if actor_id is None:
             self.feedback_message = "actor_id not found in blackboard — skipping participant lookup"
             self.logger.debug("%s: %s", self.name, self.feedback_message)

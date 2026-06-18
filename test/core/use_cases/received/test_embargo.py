@@ -227,7 +227,9 @@ class TestEmbargoUseCases:
             id_="https://example.org/cases/case_em2/embargo_proposals/1",
         )
 
-        event = make_payload(proposal)
+        event = make_payload(
+            proposal, receiving_actor_id="https://example.org/users/vendor"
+        )
 
         InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
 
@@ -273,7 +275,7 @@ class TestEmbargoUseCases:
             context=case,
             actor=coordinator_id,
         )
-        event = make_payload(accept)
+        event = make_payload(accept, receiving_actor_id=coordinator_id)
 
         AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
 
@@ -321,7 +323,7 @@ class TestEmbargoUseCases:
             context=case,
             actor=coordinator_id,
         )
-        event = make_payload(accept)
+        event = make_payload(accept, receiving_actor_id=coordinator_id)
 
         with caplog.at_level(logging.WARNING):
             AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
@@ -377,7 +379,7 @@ class TestEmbargoUseCases:
             context=case,
             actor=coordinator_id,
         )
-        event = make_payload(accept)
+        event = make_payload(accept, receiving_actor_id=coordinator_id)
 
         AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
 
@@ -428,7 +430,7 @@ class TestEmbargoUseCases:
             context=case,
             actor=coordinator_id,
         )
-        event = make_payload(accept)
+        event = make_payload(accept, receiving_actor_id=coordinator_id)
 
         AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
 
@@ -992,7 +994,10 @@ class TestEmbargoLogEntryCascade:
             context=case,
             actor=coordinator_id,
         )
-        event = make_payload(accept, receiving_actor_id=case_actor.id_)
+        # Per ADR-0022 / CLP-10-005: the guarded commit fires when
+        # receiving_actor_id holds CVDRole.CASE_MANAGER.  coordinator_id is
+        # the CASE_MANAGER in this fixture (case_manager_actor_id=coordinator_id).
+        event = make_payload(accept, receiving_actor_id=coordinator_id)
         sync_port = SyncActivityAdapter(dl)
         AcceptInviteToEmbargoOnCaseReceivedUseCase(
             dl, event, sync_port=sync_port
