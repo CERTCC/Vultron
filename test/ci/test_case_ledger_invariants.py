@@ -298,7 +298,7 @@ def test_invariant_1_local_hash_chain_consistent(
 
 
 # ---------------------------------------------------------------------------
-# Invariants 2–11 — xfail until upstream fixes land
+# Invariants 2–11 — all promoted from xfail; permanent regression guards
 # ---------------------------------------------------------------------------
 
 

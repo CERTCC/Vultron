@@ -327,3 +327,33 @@ Positive freshness tests that don't save a `VulnerabilityCase` to the DataLayer 
 bypass the genesis-hash validation path — they pass even if `_get_case_genesis_hash` is
 broken. Always add a positive test that stores the case first (via `dl.save(_make_case())`)
 to exercise the active genesis-hash check path (CLP-08-004).
+
+### 2026-06-18 POST-CONVERGENCE-REVIEW-1025 — all 17 #923 findings resolved; #788 Epic complete
+
+Post-convergence two-actor demo log review (#1025) against CI run 27793292787
+(PR #1063, after all prerequisites #1021, #1022, #888, #792 merged to main).
+
+Results:
+
+- All 26 invariants PASS with no xfail markers remaining.
+- All 3 actors (case-actor, vendor, finder) have identical 12-entry logs with
+  matching hashes at every logIndex — hash-chain fork (Finding 1) RESOLVED.
+- No RM oscillation; both participants end RM=CLOSED — oscillation loop
+  (Finding 2) RESOLVED.
+- Finder has complete log from logIndex=0 — completeness gap (Finding 3) RESOLVED.
+- `demo_verification` entries gone per ADR-0019 — Finding 4 RESOLVED.
+- All entries have non-empty payloadSnapshot with inline objects — Finding 5/15 RESOLVED.
+- All expected eventTypes present: validate_report, add_participant_status_to_participant,
+  close_case, add_note_to_case — Findings 7-11 (for current EXPECTED_EVENT_TYPES) RESOLVED.
+- emConsentState + cvdRole present on all ParticipantStatus — Findings 12/13 RESOLVED.
+- PXA transition (pxaState=Pxa) observed inline in ParticipantStatus.caseStatus at
+  entries [6] and [7] — CS-transition invariant (inv 15) PASSES.
+- Embargo: ACTIVE → EXITED observed.
+- VFD: vfd → VFd ([4]) → VFD ([5+]) observed.
+
+Note: `ack_report` (added by #1022) does not appear in this demo run —
+the two-actor scenario does not call the acknowledge flow
+(acknowledge_demo.py). This is expected; `ack_report` is excluded from
+EXPECTED_EVENT_TYPES accordingly.
+
+README table updated from all-⏳ to all-✅ with inv-15 row added.
