@@ -496,7 +496,9 @@ class TestEmbargoUseCases:
             origin=case,
             actor="https://example.org/users/coord",
         )
-        event = make_payload(activity)
+        event = make_payload(
+            activity, receiving_actor_id="https://example.org/users/coord"
+        )
 
         RemoveEmbargoEventFromCaseReceivedUseCase(dl, event).execute()
 
@@ -540,7 +542,9 @@ class TestEmbargoUseCases:
             origin=case,
             actor="https://example.org/users/coord",
         )
-        event = make_payload(activity)
+        event = make_payload(
+            activity, receiving_actor_id="https://example.org/users/coord"
+        )
 
         RemoveEmbargoEventFromCaseReceivedUseCase(dl, event).execute()
 
@@ -582,7 +586,9 @@ class TestEmbargoUseCases:
             origin=case,
             actor="https://example.org/users/coord",
         )
-        event = make_payload(activity)
+        event = make_payload(
+            activity, receiving_actor_id="https://example.org/users/coord"
+        )
 
         RemoveEmbargoEventFromCaseReceivedUseCase(dl, event).execute()
 
@@ -1116,7 +1122,7 @@ class TestResetEmbargoConsentWithInlineParticipants:
             origin=case,
             actor=actor_id,
         )
-        event = make_payload(activity)
+        event = make_payload(activity, receiving_actor_id=actor_id)
 
         # Must not raise TypeError
         RemoveEmbargoEventFromCaseReceivedUseCase(dl, event).execute()

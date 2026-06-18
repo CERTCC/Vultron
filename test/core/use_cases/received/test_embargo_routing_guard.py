@@ -32,10 +32,12 @@ from vultron.core.states.roles import CVDRole
 from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
     InviteToEmbargoOnCaseReceivedUseCase,
+    RemoveEmbargoEventFromCaseReceivedUseCase,
 )
 from vultron.wire.as2.factories import (
     em_accept_embargo_activity,
     em_propose_embargo_activity,
+    remove_embargo_from_case_activity,
 )
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
@@ -258,5 +260,96 @@ class TestAcceptInviteToEmbargoRoutingGuard:
         event_types = _ledger_event_types(dl)
         assert "accept_invite_to_embargo_on_case" not in event_types, (
             "Non-CaseActor must NOT write an accept_invite_to_embargo_on_case"
+            f" ledger entry; found: {event_types}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Tests: RemoveEmbargoEventFromCaseReceivedUseCase
+# ---------------------------------------------------------------------------
+
+
+class TestRemoveEmbargoRoutingGuard:
+    """Pre-flight guard for RemoveEmbargoEventFromCaseReceivedUseCase.
+
+    The guarded commit is embedded in ``remove_embargo_from_case_tree`` and
+    runs via the single ``execute_with_setup`` call with
+    ``actor_id=receiving_actor_id``.  ``CheckIsCaseManagerNode`` inside the
+    tree fires only when that actor holds ``CVDRole.CASE_MANAGER``.
+    """
+
+    AUTHOR_ID = "https://example.org/actors/coord-remove"
+    CASE_ID = "https://example.org/cases/c-remove-em"
+    CASE_ACTOR_ID = f"{CASE_ID}/actor"
+    OTHER_ACTOR_ID = "https://example.org/actors/vendor-remove"
+
+    def _setup(
+        self,
+    ) -> tuple[
+        SqliteDataLayer, VultronCaseActor, VulnerabilityCase, EmbargoEvent
+    ]:
+        dl, case_actor, case, embargo = _make_embargo_case(
+            self.CASE_ID, self.AUTHOR_ID, self.CASE_ACTOR_ID
+        )
+        # Add embargo to proposed list so the BT removal step succeeds.
+        read_case = dl.read(case.id_)
+        assert read_case is not None
+        case = cast(VulnerabilityCase, read_case)
+        case.proposed_embargoes.append(embargo.id_)
+        dl.save(case)
+        return dl, case_actor, case, embargo
+
+    def test_caseactor_commits_remove_embargo_ledger_entry(self, make_payload):
+        """Guarded commit fires when receiving_actor_id == case_actor_id.
+
+        Per CLP-10-002: the CaseActor MUST commit a canonical ledger entry.
+        """
+        dl, case_actor, case, embargo = self._setup()
+
+        remove_activity = remove_embargo_from_case_activity(
+            embargo,
+            origin=self.CASE_ID,
+            actor=self.AUTHOR_ID,
+        )
+
+        event = make_payload(
+            remove_activity, receiving_actor_id=self.CASE_ACTOR_ID
+        )
+        RemoveEmbargoEventFromCaseReceivedUseCase(
+            dl, event, sync_port=SyncActivityAdapter(dl)
+        ).execute()
+
+        event_types = _ledger_event_types(dl)
+        assert "remove_embargo_event_from_case" in event_types, (
+            "Expected CaseLedgerEntry with"
+            " event_type='remove_embargo_event_from_case';"
+            f" found: {event_types}"
+        )
+
+    def test_non_caseactor_does_not_commit_remove_embargo_ledger_entry(
+        self, make_payload
+    ):
+        """Guarded commit does NOT fire when receiving_actor_id != case_actor_id.
+
+        Per CLP-10-003: non-CaseActor receiving actors must skip the commit.
+        """
+        dl, case_actor, case, embargo = self._setup()
+
+        remove_activity = remove_embargo_from_case_activity(
+            embargo,
+            origin=self.CASE_ID,
+            actor=self.AUTHOR_ID,
+        )
+
+        event = make_payload(
+            remove_activity, receiving_actor_id=self.OTHER_ACTOR_ID
+        )
+        RemoveEmbargoEventFromCaseReceivedUseCase(
+            dl, event, sync_port=SyncActivityAdapter(dl)
+        ).execute()
+
+        event_types = _ledger_event_types(dl)
+        assert "remove_embargo_event_from_case" not in event_types, (
+            "Non-CaseActor must NOT write a remove_embargo_event_from_case"
             f" ledger entry; found: {event_types}"
         )
