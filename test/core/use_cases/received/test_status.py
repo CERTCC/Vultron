@@ -22,7 +22,6 @@ from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.protocols import is_log_entry_model
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
-from vultron.core.states.roles import CVDRole
 from vultron.core.use_cases.received.status import (
     AddCaseStatusToCaseReceivedUseCase,
     AddParticipantStatusToParticipantReceivedUseCase,

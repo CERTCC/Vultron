@@ -568,6 +568,62 @@ class TestPeerBroadcastBt:
         assert result.status == Status.FAILURE
         builder.assert_not_called()
 
+    def test_no_stale_activity_reenqueued_on_noop_second_run(
+        self, populated_dl
+    ):
+        """Regression: stale broadcast_activity_id must not be re-enqueued.
+
+        If a first run writes broadcast_activity_id to the process-global
+        blackboard, then a second run finds an empty recipient list, the no-op
+        path must clear/sentinel the key so BroadcastQueueToOutboxNode does not
+        re-enqueue the stale activity.  The blackboard is intentionally NOT
+        cleared between the two execute_with_setup calls in this test.
+        """
+        mock_factory = MagicMock()
+        mock_factory.deliver.return_value = "urn:uuid:broadcast-stale"
+
+        def builder(factory, cm_id, recipient_ids):
+            return factory.deliver(actor=cm_id, to=recipient_ids)
+
+        bridge = BTBridge(
+            datalayer=populated_dl, trigger_activity=mock_factory
+        )
+        enqueue_calls: list = []
+        original_record = populated_dl.record_outbox_item
+
+        def _counting_record(*args, **kwargs):
+            enqueue_calls.append(args)
+            return original_record(*args, **kwargs)
+
+        populated_dl.record_outbox_item = _counting_record  # type: ignore[method-assign]
+
+        # First run: peer exists → activity created and enqueued once.
+        tree1 = self._make_bt(builder)
+        result1 = bridge.execute_with_setup(
+            tree=tree1, actor_id=CASE_MANAGER_ID
+        )
+        assert result1.status == Status.SUCCESS
+        assert len(enqueue_calls) == 1, "first run should enqueue exactly once"
+
+        # Remove peer: recipient list becomes empty for the second run.
+        # The blackboard is NOT cleared — broadcast_activity_id retains the
+        # stale value from run 1.
+        case = populated_dl.read(CASE_ID)
+        del case.actor_participant_index[PEER_ID]
+        populated_dl.save(case)
+
+        # Second run: no recipients → no-op → stale activity must NOT be
+        # re-enqueued (BT-14-001 fix for process-global blackboard leakage).
+        tree2 = self._make_bt(builder)
+        result2 = bridge.execute_with_setup(
+            tree=tree2, actor_id=CASE_MANAGER_ID
+        )
+        assert result2.status == Status.SUCCESS
+        assert len(enqueue_calls) == 1, (
+            "stale broadcast_activity_id must not be re-enqueued on "
+            "no-op second run"
+        )
+
     def test_no_guaranteed_success_fallback(self, populated_dl):
         """Verify there is no Selector+Success anti-pattern (BT-14-001).
 

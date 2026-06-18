@@ -296,6 +296,11 @@ class CreateBroadcastActivityNode(DataLayerAction):
             return Status.FAILURE
 
         if not recipient_ids:
+            # Clear any stale value from a previous execution (the blackboard
+            # is process-global; execute_with_setup does not clean broadcast_*
+            # keys between runs).  BroadcastQueueToOutboxNode treats None as
+            # the no-op sentinel, so it will skip outbox enqueue.
+            self.blackboard.broadcast_activity_id = None
             self.logger.debug(
                 "%s: no recipients — skipping activity creation", self.name
             )
@@ -374,6 +379,41 @@ class BroadcastQueueToOutboxNode(DataLayerAction):
             access=py_trees.common.Access.READ,
         )
 
+    def _enqueue_activity(
+        self,
+        case_manager_id: str,
+        activity_id: str,
+        recipient_ids: list[str],
+    ) -> Status:
+        """Enqueue *activity_id* to *case_manager_id*'s outbox."""
+        if self.datalayer is None:
+            self.feedback_message = "DataLayer not available"
+            return Status.FAILURE
+
+        from vultron.core.ports.case_persistence import CaseOutboxPersistence
+        from vultron.errors import VultronError
+
+        try:
+            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
+                case_manager_id, activity_id
+            )
+        except VultronError as exc:
+            self.feedback_message = (
+                f"Failed to queue broadcast to outbox: {exc}"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        self.logger.info(
+            "%s: Case Manager '%s' queued broadcast activity '%s'"
+            " to %d peer(s) (BT-14-001)",
+            self.name,
+            case_manager_id,
+            activity_id,
+            len(recipient_ids),
+        )
+        return Status.SUCCESS
+
     def update(self) -> Status:
         try:
             case_manager_id: str = self.blackboard.broadcast_case_manager_id
@@ -382,9 +422,16 @@ class BroadcastQueueToOutboxNode(DataLayerAction):
             return Status.FAILURE
 
         # No activity was created (no-op path when recipient list was empty).
+        # CreateBroadcastActivityNode writes None on the no-op path to clear
+        # any stale value from a prior execution (blackboard is process-global).
+        # We accept both KeyError (first-ever run) and None (cleared by prior
+        # no-op) as equivalent no-op sentinels.
         try:
-            activity_id: str = self.blackboard.broadcast_activity_id
+            activity_id: str | None = self.blackboard.broadcast_activity_id
         except KeyError:
+            activity_id = None
+
+        if activity_id is None:
             self.logger.debug(
                 "%s: no broadcast_activity_id — skipping outbox enqueue",
                 self.name,
@@ -399,30 +446,6 @@ class BroadcastQueueToOutboxNode(DataLayerAction):
             self.feedback_message = f"Required blackboard key missing: {exc}"
             return Status.FAILURE
 
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.FAILURE
-
-        from vultron.core.ports.case_persistence import CaseOutboxPersistence
-        from vultron.errors import VultronError
-
-        try:
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                case_manager_id, activity_id
-            )
-            self.logger.info(
-                "%s: Case Manager '%s' queued broadcast activity '%s'"
-                " to %d peer(s) (BT-14-001)",
-                self.name,
-                case_manager_id,
-                activity_id,
-                len(recipient_ids),
-            )
-        except VultronError as exc:
-            self.feedback_message = (
-                f"Failed to queue broadcast to outbox: {exc}"
-            )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-
-        return Status.SUCCESS
+        return self._enqueue_activity(
+            case_manager_id, activity_id, recipient_ids
+        )

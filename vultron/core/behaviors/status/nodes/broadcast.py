@@ -105,6 +105,13 @@ class CreateStatusBroadcastActivityNode(DataLayerAction):
             self.feedback_message = f"Required blackboard key missing: {exc}"
             return Status.FAILURE
 
+        if not recipient_ids:
+            self.logger.debug(
+                "CreateStatusBroadcastActivity: no recipients — skipping"
+                " (DEMOMA-07-003 step 3)"
+            )
+            return Status.SUCCESS
+
         from vultron.errors import VultronError
 
         try:
