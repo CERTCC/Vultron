@@ -19,11 +19,15 @@ AddParticipantStatus behavior tree composition.
 Composes the five-step DEMOMA-07-003 workflow as a Sequence BT:
 
     AddParticipantStatusBT (Sequence)
-    ├─ VerifySenderIsParticipantNode   # Step 1: sender must be known participant
-    ├─ AppendParticipantStatusNode     # Step 2: append status to participant record
-    ├─ BroadcastStatusToPeersNode      # Step 3: Case Manager broadcasts to peers
-    ├─ PublicDisclosureBranchNode      # Step 4: embargo teardown on CS.P + CASE_OWNER
-    └─ AutoCloseBranchNode             # Step 5: log auto-close if all RM.CLOSED
+    ├─ VerifySenderIsParticipantNode      # Step 1: sender must be known participant
+    ├─ AppendParticipantStatusNode        # Step 2: append status to participant record
+    ├─ BroadcastStatusToPeersNode         # Step 3: Case Manager broadcasts to peers
+    ├─ PublicDisclosureBranchNode         # Step 4: embargo teardown on CS.P + CASE_OWNER
+    └─ AutoCloseIfCaseManager (Selector)  # Step 5: auto-close only when CASE_MANAGER
+        ├─ Sequence
+        │   ├─ CheckIsCaseManagerNode
+        │   └─ AutoCloseBranchNode
+        └─ Success (skip if not CASE_MANAGER)
 
 Per specs/multi-actor-demo.yaml DEMOMA-07-003.
 """
@@ -35,6 +39,7 @@ import py_trees
 from vultron.core.models.events.status import (
     AddParticipantStatusToParticipantReceivedEvent,
 )
+from vultron.core.behaviors.case.nodes.conditions import CheckIsCaseManagerNode
 from vultron.core.behaviors.status.append_participant_status_tree import (
     append_participant_status_tree,
 )
@@ -109,8 +114,22 @@ def add_participant_status_tree(
                 sender_actor_id=actor_id,
                 case_id=case_id,
             ),
-            AutoCloseBranchNode(
-                case_id=case_id,
+            py_trees.composites.Selector(
+                name="AutoCloseIfCaseManager",
+                memory=False,
+                children=[
+                    py_trees.composites.Sequence(
+                        name="CaseManagerAutoClose",
+                        memory=False,
+                        children=[
+                            CheckIsCaseManagerNode(case_id=case_id),
+                            AutoCloseBranchNode(case_id=case_id),
+                        ],
+                    ),
+                    py_trees.behaviours.Success(
+                        name="AutoCloseSkippedNotCaseManager"
+                    ),
+                ],
             ),
         ],
     )

@@ -20,6 +20,7 @@ all-participants-closed auto-close branch (step 5).
 """
 
 import logging
+import threading
 from typing import Any
 
 import py_trees
@@ -34,6 +35,14 @@ from vultron.core.states.roles import CVDRole
 from vultron.core.use_cases._helpers import _as_id
 
 logger = logging.getLogger(__name__)
+
+# Guard against AutoCloseBranchNode firing more than once per case.
+# Keyed by case_id — the first BT execution to observe all-participants-CLOSED
+# for a given case wins; subsequent ones are no-ops for that case.
+# Protected by a threading.Lock because FastAPI BackgroundTasks run on a
+# thread pool (see AGENTS.md: "BTBridge Thread-Safety (RLock)").
+_auto_close_lock: threading.Lock = threading.Lock()
+_auto_close_triggered: set[str] = set()  # case_ids that have fired AutoClose
 
 
 class _PublicDisclosureSkipConditionNode(DataLayerCondition):
@@ -212,6 +221,16 @@ class AutoCloseBranchNode(DataLayerAction):
 
         if not self._all_participants_closed(case):
             return Status.SUCCESS
+
+        with _auto_close_lock:
+            if self.case_id in _auto_close_triggered:
+                self.logger.debug(
+                    "AutoCloseBranch: close_case already triggered for"
+                    " case '%s' — skipping duplicate fire",
+                    self.case_id,
+                )
+                return Status.SUCCESS
+            _auto_close_triggered.add(self.case_id)
 
         case_manager_id = _find_case_manager_id(self.datalayer, case)
         if case_manager_id is None:
