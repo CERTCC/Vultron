@@ -12,6 +12,7 @@ See: specs/multi-actor-demo.yaml DEMOMA-07-003 step 3.
 """
 
 import uuid
+from datetime import datetime, timezone
 from typing import cast
 
 import pytest
@@ -30,10 +31,18 @@ from vultron.core.behaviors.sync.nodes.effects import (
     ApplyParticipantStatusFromLedgerNode,
 )
 from vultron.core.models.case_actor import VultronCaseActor
-from vultron.core.models.case_ledger import GENESIS_HASH, HashChainLedgerRecord
+from vultron.core.models.case_ledger import (
+    compute_genesis_hash,
+    HashChainLedgerRecord,
+)
 from vultron.core.states.cs import CS_vfd
 from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+
+_FIXED_CREATED_AT = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+CASE_GENESIS_HASH = compute_genesis_hash(
+    CASE_ID, _FIXED_CREATED_AT, OWNER_ACTOR_ID
+)
 
 VENDOR_ACTOR_ID = "https://example.org/actors/vendor"
 VENDOR_PARTICIPANT_ID = f"urn:uuid:{uuid.uuid4()}"
@@ -44,7 +53,7 @@ def _make_participant(
     participant_id: str = VENDOR_PARTICIPANT_ID,
 ) -> CaseParticipant:
     return CaseParticipant(
-        id=participant_id,
+        id_=participant_id,
         attributed_to=VENDOR_ACTOR_ID,
         context=CASE_ID,
     )
@@ -95,7 +104,7 @@ def _make_status_entry(
             object_id="https://example.org/activities/add-status",
             event_type="add_participant_status_to_participant",
             payload_snapshot=snapshot,
-            prev_log_hash=GENESIS_HASH,
+            prev_log_hash=CASE_GENESIS_HASH,
         )
     )
 
