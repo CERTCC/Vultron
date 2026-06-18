@@ -28,7 +28,7 @@ Build: `npm run build` (tsc + vite). Lint: `npm run lint` (eslint).
 | **Single-vendor** (`'single'`) | `App.tsx` | Scripted / hardcoded actions |
 | **Multi-vendor** (`'multi'`, default) | `App-multivendor.tsx` | Scripted via `actions/` handlers |
 | **Multi-vendor (Validated)** (`'multi-validated'`) | `App-multivendor-validated.tsx` | Same as multi-vendor, but RM/EM/VFD/PXA defer to `protocol_states.json` (§9). **In-progress overhaul** — a frozen fork of multi-vendor. |
-| **Log Replay** (`'logreplay'`) | `App-logreplay.tsx` | Uploaded JSONL case logs |
+| **Log Replay** (`'logreplay'`) | `App-logreplay.tsx` | Real case-ledger JSONL, validated against `protocol_states.json` (§5–6). |
 
 These are **separate, parallel implementations** — they do **not** share one
 engine. The multi-vendor demo is driven by handcrafted action handlers in
@@ -124,79 +124,95 @@ Case Actor lane down — see `inviteActions.ts`, which re-maps existing events'
 
 ---
 
-## 5. Log Replay pipeline (`src/utils/`)
+## 5. Log Replay pipeline (`src/utils/`) — RESTARTED, grounded in the protocol
 
-`jsonlParser.ts` → `logEventMapper.ts` → `App-logreplay.tsx`.
+> **2026-06 restart.** The log generator was refactored and the replay demo was
+> rebuilt from scratch on the **new case-ledger format**, grounded in the protocol
+> source of truth (`protocol.ts` → `protocol_states.json`, §9). The OLD pipeline
+> (`jsonlParser.ts` + `logEventMapper.ts`) is **frozen, dead, and kept only as
+> historical reference** — nothing imports it. The "known bugs" / "data contract
+> gaps" that used to fill §5–6 described the OLD format and are obsolete (see git
+> history).
 
-- `parseJsonl` parses one `CaseLogEntry` per line.
-- `extractActorType(url)` maps actor URLs to lane ids:
-  `case-actor`→`caseactor`, `//vendor:`→`vendor-1`, `//finder:`→`finder`.
-- `buildTimelineFromLogs` groups entries into 1-second buckets keyed
-  `${eventType}:${roundedTime}`, then tries to split each group into a
-  decision entry + consequence entries.
+**New pipeline:** `caseLedgerParser.ts` → `caseLedgerMapper.ts` → `App-logreplay.tsx`.
 
-### Known bugs in the replay mapper (diagnosed, NOT yet fixed)
+- **`caseLedgerParser.ts`** — `parseCaseLedger(content)` → one `CaseLedgerEntry`
+  per line; `normalizeLedger(entries)` dedups by `entryHash` (the per-folder copies
+  are byte-identical) and sorts by `logIndex` (NOT `receivedAt` — several entries
+  share a wall-clock second). `actorUrlToLaneId(url)` maps actor URLs to lanes
+  (`case-actor`→`caseactor` tested FIRST, `//vendor:`→`vendor-1`,
+  `//finder:`→`finder`).
+- **`caseLedgerMapper.ts`** — `buildTimelineFromCaseLedger(entries)` walks entries
+  once in `logIndex` order maintaining a **shadow protocol state** (per-participant
+  RM/VFD, case-level EM/PXA). For each entry it derives the protocol trigger(s) and
+  **validates each against `../protocol`**: legal → advance via `nextState`; illegal
+  → flag the node `violation:true`, log a `PROTOCOL VIOLATION` line, and force the
+  shadow to the log's snapshot so replay continues (the protocol is the *validating
+  function*; see §6). Emits the standard decision/consequence + `causedBy` + same-X
+  grammar (§2). The old `visualEventIndex`-skip and no-`causedBy` bugs are gone by
+  construction (single linear loop; the column advances only when a cluster is
+  emitted; every cluster carries a real `causedBy`).
+- **`App-logreplay.tsx`** — "Load Sample Case" button imports the committed sample
+  ledger via `?raw` (repo-root file served through `server.fs.allow`, the same trick
+  `protocol.ts` uses for `protocol_states.json`); manual `.jsonl` upload still works
+  (dedup makes uploading all three folders safe). Violation nodes render with a red
+  outline + ⚠️.
 
-1. **Missing arrows / no consequences.** The real logs carry no causal link, so
-   no `causedBy` is produced for most events → no arrows.
-2. **X-overlap / bad vertical alignment.** `visualEventIndex` is only
-   incremented in the decision/consequence path of `buildTimelineFromLogs`
-   (~line 291). The `else` branch that handles plain status/embargo/verification
-   events (~lines 224–239) `return`s early **without incrementing**, so those
-   events pile up at the same X as the next grouped event. This is why
-   "Engage Case" and "STATUS: Accepted VFD" rendered on top of each other.
-3. **No dedup.** `mergeLogEntries` sorts by `receivedAt` but never dedups by
-   `entryHash`, and in `devlogs/two-actor` the vendor and case-actor files are
-   byte-identical — so duplicates flow through.
+### The case-ledger format (current)
 
-Do not "fix" these by faking data in the mapper. The deeper problem is the log
-format (below); the mapper fixes only matter once the logs carry the needed
-fields.
+Each line is a `CaseLedgerEntry`: `{ logIndex, eventType, payloadSnapshot (an AS2
+activity), entryHash, prevLogHash, receivedAt, … }`. Six `eventType` verbs:
+`offer_case_manager_role`, `validate_report`, `add_note_to_case`,
+`add_participant_status_to_participant`, `remove_embargo_event_from_case`,
+`close_case`. The log records **state SNAPSHOTS, not transitions** — the mapper
+recovers the trigger by diffing each participant's snapshot against the previous one
+(RM/VFD via `object.rmState`/`vfdState`; EM/PXA via `caseStatus` /
+`caseStatuses[0]` structured fields). A status `name` like `"ACCEPTED VFD ACTIVE
+Pxa"` is a cross-check only — trust structured fields (the offer's CaseStatus
+`name="NONE pxa"` lies; its `emState` is ACTIVE).
 
 ---
 
-## 6. What the demo needs FROM the logs (the data contract) — and the gaps
+## 6. How the protocol validates the log — and the format's quirks
 
-The demo needs, per event: **(a)** whose event it is, **(b)** which event caused
-it, **(c)** question-vs-answer, **(d)** the actor's RM/EM/VFD/PXA state.
+The mapper treats `protocol_states.json` (via `protocol.ts`) as the authority:
+every RM/VFD/EM/PXA step derived from a log entry is checked with
+`isLegalTransition`; the shortest legal trigger path between two snapshot states is
+found by a small BFS (`triggerPath`). This is the §9 deferral idea applied to
+replay rather than to the interactive demo.
 
-Audit of `devlogs/two-actor/` against that contract:
+Quirks of the current sample the mapper handles explicitly (carry forward):
 
-**Present and reliable:** `actor`, per-participant `rmState`+`vfdState`,
-embargo consent (`target.embargoConsentState` = SIGNATORY/NO_EMBARGO +
-`acceptedEmbargoIds`), `logIndex` (monotonic ordering), `receivedAt`,
-`entryHash`/`prevLogHash`.
+1. **Mid-stream start.** The two-actor sample begins with EM already **ACTIVE** at
+   `logIndex 0` (no submit/propose/accept-embargo events). The mapper **seeds** the
+   shadow from the first snapshot it sees rather than from `initialState()`. A
+   participant's first snapshot is a *seed*, never a transition (you can't validate
+   what has no source).
+2. **`validate_report` carries no status snapshot.** The vendor is pre-seeded
+   `RM=RECEIVED` at case-creation (the receipt seed) so `validate` is a legal
+   RECEIVED→VALID step — seeding it at ACCEPTED would falsely flag a violation.
+3. **One entry can pack several advances.** `logIndex 4` shows the vendor at
+   `"ACCEPTED VFd"` — both RM `accept` (VALID→ACCEPTED) and VFD `fix_is_ready`
+   (Vfd→VFd). The mapper applies both shadow advances but emits **one** node,
+   labeled by the primary (RM > VFD > PXA > EM), with all changes in the bullets.
+4. **Stale embedded case status.** `logIndex 8` (a finder status) still carries
+   `caseStatus.emState=ACTIVE` *after* the embargo terminated at `logIndex 7`.
+   Case-level EM/PXA are applied **forward-only** — a participant-local snapshot may
+   advance PXA but must never regress the verb-driven EM; a regress is logged and
+   ignored.
+5. **Notes lack `inReplyTo` linkage.** Both sample notes have `inReplyTo:null`, so
+   question-vs-answer is a heuristic (first unanswered note = question; the next
+   note by a *different* actor while one is pending = its answer).
+6. **`actor` ≠ subject.** On `offer_case_manager_role` / `close_case` the recorded
+   `actor` is the Case Actor while `object.attributedTo` is the vendor. The mapper
+   puts the decision node in the **actor/recorder** lane (caseactor) but reads
+   "whose machine" from `object.attributedTo`.
 
-**Present but unreliable:** case-level **EM/PXA** (`caseStatus.{emState,
-pxaState}`) is stamped on only *some* status events and lives in 3+ different
-locations (`object.caseStatus`, `target.participantStatuses[N].caseStatus`,
-`engage_case`'s `caseStatuses[0]`). Needs to be on **every** entry in **one**
-fixed place.
-
-**The biggest gaps — raise these with the log developer:**
-
-1. **No `causedBy` / correlationId.** Nothing links an originating action to the
-   receipt entries it triggers. `prevLogHash` is sequential, not causal. This is
-   the root cause of missing arrows + misalignment. **Top priority.**
-2. **No explicit `actionType` verb.** ~29 distinct demo actions (validate,
-   accept, defer, propose-embargo, accept-revision, fix-ready, publish, …) all
-   collapse into a single `add_participant_status` / AS2 `Add`. Distinguishable
-   only by diffing state against the previous entry; embargo *negotiation* verbs
-   aren't recoverable at all.
-3. **No `loggedBy` / perspective field.** Whose copy a log entry is is only
-   implied by which folder the file is in — and the vendor and case-actor files
-   are byte-identical, while the finder file is a truncated subset starting at
-   `logIndex 2`. So genuine cross-perspective records don't exist in this sample.
-4. **Notes (questions & answers) are absent.** The `notes` array is always `[]`
-   and there is no `add_note` / `Note` event type in the vocabulary. The entire
-   Q&A dimension — central to the demo — has **no schema slot yet**.
-5. **No first-class participant-join event.** Lanes appearing is only inferable
-   from new actors showing up.
-
-Also: `actor` ≠ subject. For some entries the `actor` is the recorder/relay
-while `object.attributedTo` is the real subject (e.g. `logIndex 9`:
-actor=vendor, attributedTo=finder). Use `attributedTo` for "whose state",
-not `actor`.
+Still genuinely **absent** from the format (would further improve replay; raise with
+the log developer): an explicit `causedBy`/correlationId (the mapper infers
+causality from the entry itself, which suffices for now), and a `loggedBy`
+perspective field (all three folders remain byte-identical — one shared ledger, not
+three perspectives).
 
 ---
 
@@ -206,9 +222,10 @@ not `actor`.
   to run JSONL through node/python scripts.
 - **`jq`** is available (`/usr/bin/jq`) — use it to inspect `*.jsonl` logs.
 - `node_modules/.bin` tools (eslint, tsc, vite) work via `npm run *`.
-- `devlogs/two-actor/{finder,vendor,case-actor}/` hold the sample logs. They are
-  **known to be incomplete/duplicated** (see §6) — treat them as a flawed
-  fixture, not a reference format.
+- `devlogs/two-actor/{finder,vendor,case-actor}/` hold the sample case ledger
+  (`urn_uuid_…-case-ledger.jsonl`). All three are byte-identical (one shared
+  ledger; no per-perspective copies yet — see §6). The "Load Sample Case" button
+  imports the case-actor copy via `?raw`; dedup handles the rest.
 
 ---
 
@@ -453,22 +470,23 @@ non-forked originals. A quick check:
 `grep -nE "from './(actions|state)/" src/App-multivendor-validated.tsx` should
 show only `validated/` paths.
 
-### Lint / build status (end of this session)
-- `npm run build` (`tsc -b && vite build`): **GREEN.**
-- `npm run lint`: **3 errors + 4 warnings, all pre-existing or copied** — left
-  intentionally. The 3 errors are in the held-back log-replay pipeline
+### Lint / build status
+- **MUST be re-verified by the user** after the replay restart — the container has
+  no node/npm (see below), so `npm run build` / `npm run lint` were NOT run here.
+- The 3 pre-existing lint errors lived in the OLD replay pipeline
   (`utils/jsonlParser.ts` `no-explicit-any` ×2, `utils/logEventMapper.ts`
-  `no-useless-assignment`) — frozen pending the log-generator rework (§5–6). The
-  4 warnings are `react-hooks/exhaustive-deps` in App.tsx / both multivendor
-  apps (the 4th is just the fork's copy of the original's warning). Do NOT
-  "fix" the log-replay lint by guessing types for the unstable log format.
-- Earlier in this session a full rebuild (triggered by the tsconfig edit)
-  unmasked 6 TS `noUnusedLocals` errors + a batch of eslint errors in files
-  unrelated to this work; the trivial ones (dead locals, `(v: any)` filter
-  callbacks → inferred, `let`→`const`) were cleared. `handleLoadDemoLogs` in
-  `App-logreplay.tsx` was found unused but **kept** (`void`-referenced, with a
-  comment) — it's a parked feature awaiting the log-generator rework, not dead
-  code.
+  `no-useless-assignment`). Those files are now **dead** (nothing imports them).
+  Cleanest follow-up: **delete `jsonlParser.ts` + `logEventMapper.ts`** (git history
+  preserves them) — that clears those 3 errors. Left in place for now so the user
+  can confirm the new pipeline first. The new `caseLedgerParser.ts` /
+  `caseLedgerMapper.ts` avoid `any` and dead assignments by design.
+- Replay-restart files to expect green: `utils/caseLedgerParser.ts`,
+  `utils/caseLedgerMapper.ts`, `App-logreplay.tsx`, `types.ts` (one additive
+  optional `violation?` field). The old parked `handleLoadDemoLogs` was REMOVED and
+  replaced by `handleLoadSample` (wired to a real button), so the `void`-reference
+  hack is gone.
+- The 4 `react-hooks/exhaustive-deps` warnings in App.tsx / both multivendor apps
+  are unrelated and untouched.
 
 ### Branch / sync context
 - Work lives on **`feature/demo-ui`**. As of this session it was synced with

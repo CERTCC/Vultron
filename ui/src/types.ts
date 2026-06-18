@@ -30,6 +30,10 @@ export interface TimelineEvent {
   causedBy?: string
   enablesNext?: boolean
   timestamp?: number
+  violation?: boolean  // set by the validating replay mapper when the derived
+                       // protocol trigger was illegal from the shadow source state
+                       // (see ui/src/utils/caseLedgerMapper.ts). Renderers may
+                       // style flagged nodes (e.g. red); all other code ignores it.
 }
 
 export interface DemoState {

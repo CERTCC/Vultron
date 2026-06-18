@@ -1,15 +1,27 @@
 import { useState, useCallback, useRef } from 'react'
 import type { DemoState } from './types'
 import './App.css'
-import { LANE_HEIGHT, ACTOR_PANEL_WIDTH, NODE_COLORS, NODE_HEIGHT } from './constants'
+import { LANE_HEIGHT, ACTOR_PANEL_WIDTH, NODE_COLORS, NODE_HEIGHT, NODE_WIDTH } from './constants'
 import { ActorPanel, AnimatedNode } from './components'
 import { getActiveLanes } from './state/participantHelpers'
-import { parseJsonl, mergeLogEntries, type CaseLogEntry } from './utils/jsonlParser'
-import { buildTimelineFromLogs } from './utils/logEventMapper'
+import {
+  parseCaseLedger,
+  normalizeLedger,
+  type CaseLedgerEntry,
+} from './utils/caseLedgerParser'
+import { buildTimelineFromCaseLedger } from './utils/caseLedgerMapper'
+// The committed sample case ledger, imported raw from the repo root (Vite serves
+// it via `server.fs.allow`, the same mechanism protocol.ts uses for
+// protocol_states.json — see vite.config.ts / ui/CLAUDE.md §9). A plain
+// fetch('/devlogs/…') would resolve against ui/ as the web root and 404, so we
+// import the text at build time instead. All three folders hold the byte-identical
+// shared ledger; dedup-by-entryHash (in normalizeLedger) makes loading all safe,
+// so importing one copy is sufficient and avoids redundant bundling.
+import sampleLedgerRaw from '../../devlogs/two-actor/case-actor/urn_uuid_b9e6d36c-8f90-46bc-8bf7-a36446738f39-case-ledger.jsonl?raw'
 
 function AppLogReplay() {
   const [demoState, setDemoState] = useState<DemoState | null>(null)
-  const [accumulatedEntries, setAccumulatedEntries] = useState<CaseLogEntry[]>([])
+  const [accumulatedEntries, setAccumulatedEntries] = useState<CaseLedgerEntry[]>([])
   const [uploadCount, setUploadCount] = useState(0)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -21,6 +33,14 @@ function AppLogReplay() {
   const sidebarScrollRef = useRef<HTMLDivElement>(null)
   const playIntervalRef = useRef<number | null>(null)
 
+  // Build (or rebuild) the replay state from a full set of ledger entries.
+  const rebuildFromEntries = useCallback((allEntries: CaseLedgerEntry[]) => {
+    const normalized = normalizeLedger(allEntries)
+    const state = buildTimelineFromCaseLedger(normalized)
+    setDemoState(state)
+    setCurrentEventIndex(0)
+  }, [])
+
   // Handle file input - accumulates entries from multiple uploads
   const handleFileUpload = useCallback(async (files: FileList | null, shouldAccumulate = true) => {
     if (!files || files.length === 0) return
@@ -29,14 +49,12 @@ function AppLogReplay() {
     setError(null)
 
     try {
-      const newEntries: CaseLogEntry[] = []
+      const newEntries: CaseLedgerEntry[] = []
 
       // Read all uploaded files
       for (let i = 0; i < files.length; i++) {
-        const file = files[i]
-        const content = await file.text()
-        const entries = parseJsonl(content)
-        newEntries.push(...entries)
+        const content = await files[i].text()
+        newEntries.push(...parseCaseLedger(content))
       }
 
       // Either accumulate or replace
@@ -44,86 +62,35 @@ function AppLogReplay() {
       setAccumulatedEntries(allEntries)
       setUploadCount(prev => prev + 1)
 
-      // Merge and build timeline
-      const mergedEntries = mergeLogEntries(allEntries)
-      const state = buildTimelineFromLogs(mergedEntries)
-
-      setDemoState(state)
-
-      // Start at the first event (index 0)
-      if (state.timelineEvents.length > 0) {
-        setCurrentEventIndex(0)
-      }
+      rebuildFromEntries(allEntries)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load log files')
       console.error('Error processing log files:', err)
     } finally {
       setLoading(false)
     }
-  }, [accumulatedEntries])
+  }, [accumulatedEntries, rebuildFromEntries])
 
-  // Load demo logs from known location
-  const handleLoadDemoLogs = useCallback(async () => {
+  // Load the committed sample case ledger directly (no file picker needed).
+  const handleLoadSample = useCallback(() => {
     setLoading(true)
     setError(null)
 
     try {
-      // Find the most recent case ID in devlogs/two-actor
-      const response = await fetch('/devlogs/two-actor/case-list.json')
-      if (!response.ok) {
-        throw new Error('Could not find demo logs. Make sure the dev server is serving the devlogs folder.')
-      }
-
-      const { caseId } = await response.json()
-
-      // Load all three log files
-      const paths = [
-        `/devlogs/two-actor/finder/${caseId}-case-log.jsonl`,
-        `/devlogs/two-actor/vendor/${caseId}-case-log.jsonl`,
-        `/devlogs/two-actor/case-actor/${caseId}-case-log.jsonl`,
-      ]
-
-      const allEntries: CaseLogEntry[] = []
-
-      for (const path of paths) {
-        try {
-          const response = await fetch(path)
-          if (response.ok) {
-            const content = await response.text()
-            const entries = parseJsonl(content)
-            allEntries.push(...entries)
-          }
-        } catch (err) {
-          console.warn(`Failed to load ${path}:`, err)
-        }
-      }
-
+      const allEntries = parseCaseLedger(sampleLedgerRaw)
       if (allEntries.length === 0) {
-        throw new Error('No log entries found. Please use file upload instead.')
+        throw new Error('Sample ledger was empty — try file upload instead.')
       }
-
       setAccumulatedEntries(allEntries)
-
-      // Merge and build timeline
-      const mergedEntries = mergeLogEntries(allEntries)
-      const state = buildTimelineFromLogs(mergedEntries)
-
-      setDemoState(state)
+      setUploadCount(prev => prev + 1)
+      rebuildFromEntries(allEntries)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load demo logs')
-      console.error('Error loading demo logs:', err)
+      setError(err instanceof Error ? err.message : 'Failed to load sample logs')
+      console.error('Error loading sample logs:', err)
     } finally {
       setLoading(false)
     }
-  }, [])
-
-  // NOTE: `handleLoadDemoLogs` is intentionally defined but not yet wired to a
-  // button. The "load demo logs from a known location" feature is on hold until
-  // the log generator emits the data this path needs — a `case-list.json` index
-  // plus per-actor logs that carry causal links and aren't byte-identical
-  // duplicates (see ui/CLAUDE.md §5–6). Referencing it here keeps the parked
-  // implementation in the build (noUnusedLocals) without faking a wire-up.
-  void handleLoadDemoLogs
+  }, [rebuildFromEntries])
 
   // Reset everything
   const handleReset = useCallback(() => {
@@ -236,8 +203,31 @@ function AppLogReplay() {
             </div>
           )}
 
+          {/* Primary action: load the committed sample case ledger directly */}
+          <button
+            onClick={handleLoadSample}
+            style={{
+              display: 'block',
+              margin: '1.5rem auto 0.5rem',
+              padding: '1rem 2rem',
+              background: '#2e7d32',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              fontSize: '1rem',
+              width: 'fit-content',
+            }}
+          >
+            ▶ Load Sample Case
+          </button>
+          <p style={{ fontSize: '0.8rem', color: '#888', margin: '0 0 0.5rem' }}>
+            Loads <code style={{ background: '#fff', padding: '0.125rem 0.375rem', borderRadius: '3px' }}>devlogs/two-actor/</code> — or upload your own below
+          </p>
+
           <div style={{
-            margin: '2rem 0',
+            margin: '1rem 0 2rem',
             padding: '2rem',
             border: '2px dashed #0d47a1',
             borderRadius: '4px',
@@ -710,17 +700,46 @@ function AppLogReplay() {
               const yPosition = event.lane * LANE_HEIGHT + (LANE_HEIGHT - NODE_HEIGHT) / 2
 
               return (
-                <AnimatedNode
-                  key={event.id}
-                  event={event}
-                  allEvents={demoState.timelineEvents}
-                  isHovered={hoveredEvent === event.id}
-                  fillColor={fillColor}
-                  yPosition={yPosition}
-                  isCollapsed={false}
-                  onMouseEnter={() => setHoveredEvent(event.id)}
-                  onMouseLeave={() => setHoveredEvent(null)}
-                />
+                <g key={event.id}>
+                  <AnimatedNode
+                    event={event}
+                    allEvents={demoState.timelineEvents}
+                    isHovered={hoveredEvent === event.id}
+                    fillColor={fillColor}
+                    yPosition={yPosition}
+                    isCollapsed={false}
+                    onMouseEnter={() => setHoveredEvent(event.id)}
+                    onMouseLeave={() => setHoveredEvent(null)}
+                  />
+                  {/* Protocol-violation outline: the derived trigger was illegal
+                      from the shadow state at this point (see caseLedgerMapper).
+                      AnimatedNode centers its rect on yPosition, so match that. */}
+                  {event.violation && (
+                    <>
+                      <rect
+                        x={event.x - NODE_WIDTH / 2 - 3}
+                        y={yPosition - NODE_HEIGHT / 2 - 3}
+                        width={NODE_WIDTH + 6}
+                        height={NODE_HEIGHT + 6}
+                        rx="10"
+                        ry="10"
+                        fill="none"
+                        stroke="#d32f2f"
+                        strokeWidth={4}
+                        pointerEvents="none"
+                      />
+                      <text
+                        x={event.x + NODE_WIDTH / 2 - 6}
+                        y={yPosition - NODE_HEIGHT / 2 + 4}
+                        textAnchor="end"
+                        fontSize="22"
+                        pointerEvents="none"
+                      >
+                        ⚠️
+                      </text>
+                    </>
+                  )}
+                </g>
               )
               })}
             </svg>
