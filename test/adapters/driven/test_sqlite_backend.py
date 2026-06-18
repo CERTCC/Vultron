@@ -37,6 +37,8 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Offer,
 )
 
+_ZERO_HASH: str = "0" * 64  # arbitrary hash for test chains
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -882,7 +884,6 @@ class TestCoerceToSemanticClass:
     def test_announce_log_entry_round_trip_returns_specific_class(self, dl):
         """dl.read returns AnnounceLogEntryActivity with CaseLedgerEntry object_."""
         from vultron.core.models.case_ledger import (
-            GENESIS_HASH,
             HashChainLedgerRecord,
         )
         from vultron.core.behaviors.sync.nodes.chain import (
@@ -898,7 +899,7 @@ class TestCoerceToSemanticClass:
             object_id="https://example.org/activities/logged-1",
             event_type="log_entry_committed",
             payload_snapshot={"status": "ok"},
-            prev_log_hash=GENESIS_HASH,
+            prev_log_hash=_ZERO_HASH,
         )
         entry = _to_persistable_entry(chain_entry)
         announce = announce_log_entry_activity(

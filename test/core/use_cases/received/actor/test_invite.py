@@ -402,10 +402,12 @@ class TestInviteActorUseCases:
 
         dl = SqliteDataLayer("sqlite:///:memory:")
         invitee_id = "https://example.org/users/coordinator"
+        case_actor_id = "https://example.org/cases/caseIA3/actor"
         invitee = as_Organization(id_=invitee_id)
         case = VulnerabilityCase(
             id_="https://example.org/cases/caseIA3",
             name="TEST-ACCEPT-INVITE-EVENT",
+            attributed_to=case_actor_id,
         )
         invite = rm_invite_to_case_activity(
             invitee,
@@ -421,7 +423,6 @@ class TestInviteActorUseCases:
         )
         from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
-        case_actor_id = f"{case.id_}/actor"
         dl.create(as_Service(id_=case_actor_id, context=case.id_))
         case_manager_participant = CaseParticipant(
             id_=f"{case.id_}/participants/case-actor-p",
@@ -481,6 +482,7 @@ class TestInviteActorUseCases:
         case = VulnerabilityCase(
             id_="https://example.org/cases/caseLJ1",
             name="TEST-LATE-JOIN-BACKFILL",
+            attributed_to=case_actor_id,
         )
         case_actor.context = case.id_
         invite = rm_invite_to_case_activity(
@@ -585,6 +587,7 @@ class TestInviteActorUseCases:
         case = VulnerabilityCase(
             id_="https://example.org/cases/caseLJ2",
             name="TEST-LATE-JOIN-RESUME",
+            attributed_to=case_actor_id,
         )
         case_actor.context = case.id_
         invite = rm_invite_to_case_activity(
@@ -718,6 +721,7 @@ class TestInviteActorUseCases:
         case = VulnerabilityCase(
             id_="https://example.org/cases/caseLJ3",
             name="TEST-LATE-JOIN-NO-MARKER",
+            attributed_to=case_actor_id,
         )
         case_actor.context = case.id_
         participant = VultronParticipant(
@@ -820,6 +824,7 @@ class TestInviteActorUseCases:
         case = VulnerabilityCase(
             id_="https://example.org/cases/caseLJ4",
             name="TEST-LATE-JOIN-NO-ANNOUNCE",
+            attributed_to=case_actor_id,
         )
         case_actor.context = case.id_
         invite = rm_invite_to_case_activity(

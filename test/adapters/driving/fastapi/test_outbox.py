@@ -47,6 +47,8 @@ from vultron.errors import (
     VultronOutboxToFieldMissingError,
 )
 
+_ZERO_HASH: str = "0" * 64  # arbitrary hash for test chains
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -853,7 +855,6 @@ def test_handle_outbox_item_converts_typed_activity_with_full_target():
 def test_handle_outbox_item_preserves_inline_case_ledger_entry_fields():
     """Announce(CaseLedgerEntry) delivery keeps full inline log-entry fields."""
     from vultron.core.models.case_ledger import (
-        GENESIS_HASH,
         HashChainLedgerRecord,
     )
     from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
@@ -869,7 +870,7 @@ def test_handle_outbox_item_preserves_inline_case_ledger_entry_fields():
         object_id="https://example.org/activities/logged-2",
         event_type="log_entry_committed",
         payload_snapshot={"state": "replicated"},
-        prev_log_hash=GENESIS_HASH,
+        prev_log_hash=_ZERO_HASH,
     )
     entry = _to_persistable_entry(chain_entry)
     activity = announce_log_entry_activity(

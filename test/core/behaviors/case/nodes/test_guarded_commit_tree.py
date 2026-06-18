@@ -52,6 +52,7 @@ def _seed_case_with_manager(bt_scenario: BTTestScenario) -> None:
     case = VultronCase(
         id_=CASE_ID,
         name="Test Case",
+        attributed_to=MANAGER_ACTOR_ID,
         case_participants=[manager_participant.id_, vendor_participant.id_],
         actor_participant_index={
             MANAGER_ACTOR_ID: manager_participant.id_,

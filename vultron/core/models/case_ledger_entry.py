@@ -44,7 +44,6 @@ from pydantic import Field, model_validator
 
 from vultron.core.models._helpers import _now_utc
 from vultron.core.models.base import CoreObject
-from vultron.core.models.case_ledger import GENESIS_HASH
 
 
 class CaseLedgerEntry(CoreObject):
@@ -117,8 +116,8 @@ class CaseLedgerEntry(CoreObject):
         serialization_alias="payloadSnapshot",
     )
     prev_log_hash: str = Field(
-        default=GENESIS_HASH,
-        description="SHA-256 hex hash of the previous recorded entry",
+        default="",
+        description="SHA-256 hex hash of the previous recorded entry; per-case genesis hash for the first entry",
         validation_alias="prevLogHash",
         serialization_alias="prevLogHash",
     )

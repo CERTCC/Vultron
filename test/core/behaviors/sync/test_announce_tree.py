@@ -14,7 +14,7 @@ from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
 )
 from vultron.core.models.case_actor import VultronCaseActor
-from vultron.core.models.case_ledger import GENESIS_HASH, HashChainLedgerRecord
+from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.core.ports.sync_activity import SyncActivityPort
@@ -33,6 +33,8 @@ _ = VulnerabilityCase
 OWNER_ACTOR_ID = "https://example.org/actors/vendor"
 PARTICIPANT_ACTOR_ID = "https://example.org/actors/reporter"
 CASE_ID = "https://example.org/cases/case-sync"
+
+_ZERO_HASH: str = "0" * 64  # arbitrary prev_log_hash for test chains
 
 
 @pytest.fixture(autouse=True)
@@ -63,7 +65,16 @@ def case_actor(datalayer):
     return actor
 
 
-def _make_entry(log_index: int, prev_hash: str) -> VultronCaseLedgerEntry:
+@pytest.fixture
+def case_obj(datalayer):
+    case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+    datalayer.save(case)
+    return case
+
+
+def _make_entry(
+    log_index: int, prev_hash: str = _ZERO_HASH
+) -> VultronCaseLedgerEntry:
     return _to_persistable_entry(
         HashChainLedgerRecord(
             case_id=CASE_ID,
@@ -92,8 +103,10 @@ def test_create_announce_log_entry_tree_returns_selector():
     assert len(tree.children) == 2
 
 
-def test_participant_persists_valid_entry(bridge, datalayer, case_actor):
-    entry = _make_entry(0, GENESIS_HASH)
+def test_participant_persists_valid_entry(
+    bridge, datalayer, case_actor, case_obj
+):
+    entry = _make_entry(0, case_obj.genesis_hash)
     event = _make_event(entry, actor_id=case_actor.id_)
 
     result = bridge.execute_with_setup(
@@ -110,7 +123,7 @@ def test_participant_persists_valid_entry(bridge, datalayer, case_actor):
 def test_case_actor_round_trip_logs_delivery_without_repersisting(
     bridge, datalayer, case_actor
 ):
-    entry = _make_entry(0, GENESIS_HASH)
+    entry = _make_entry(0)
     datalayer.save(entry)
     event = _make_event(entry, actor_id=case_actor.id_)
 
@@ -126,7 +139,7 @@ def test_case_actor_round_trip_logs_delivery_without_repersisting(
 
 
 def test_case_actor_spoofed_sender_fails(bridge, datalayer, case_actor):
-    entry = _make_entry(0, GENESIS_HASH)
+    entry = _make_entry(0)
     event = _make_event(
         entry, actor_id="https://example.org/actors/attacker-service"
     )
@@ -144,7 +157,7 @@ def test_case_actor_spoofed_sender_fails(bridge, datalayer, case_actor):
 def test_hash_mismatch_sends_reject_and_does_not_store(
     bridge, datalayer, case_actor
 ):
-    first_entry = _make_entry(0, GENESIS_HASH)
+    first_entry = _make_entry(0)
     datalayer.save(first_entry)
     bad_entry = _make_entry(1, "badbadbadbadbad0" * 4)
     event = _make_event(bad_entry, actor_id=case_actor.id_)
@@ -163,7 +176,7 @@ def test_hash_mismatch_sends_reject_and_does_not_store(
 
 
 def _make_remove_embargo_entry(
-    log_index: int, prev_hash: str
+    log_index: int, prev_hash: str = _ZERO_HASH
 ) -> VultronCaseLedgerEntry:
     return _to_persistable_entry(
         HashChainLedgerRecord(
@@ -178,7 +191,9 @@ def _make_remove_embargo_entry(
 
 
 def _make_case_with_em_active(datalayer: SqliteDataLayer) -> VulnerabilityCase:
-    case = VulnerabilityCase(id_=CASE_ID, name="Test Case")
+    case = VulnerabilityCase(
+        id_=CASE_ID, name="Test Case", attributed_to=OWNER_ACTOR_ID
+    )
     case.current_status.em_state = EM.ACTIVE
     datalayer.create(case)
     return case
@@ -191,8 +206,8 @@ class TestAnnounceLogEntryAppliesEmbargoTeardown:
         self, bridge, datalayer, case_actor
     ):
         """BT applies EM.EXITED when entry has remove_embargo_event_from_case."""
-        _make_case_with_em_active(datalayer)
-        entry = _make_remove_embargo_entry(0, GENESIS_HASH)
+        case = _make_case_with_em_active(datalayer)
+        entry = _make_remove_embargo_entry(0, case.genesis_hash)
         event = _make_event(entry, actor_id=case_actor.id_)
 
         result = bridge.execute_with_setup(
@@ -212,7 +227,7 @@ class TestAnnounceLogEntryAppliesEmbargoTeardown:
     ):
         """Even if log entry is already stored, EM.EXITED must be applied."""
         _make_case_with_em_active(datalayer)
-        entry = _make_remove_embargo_entry(0, GENESIS_HASH)
+        entry = _make_remove_embargo_entry(0)
         datalayer.save(
             entry
         )  # pre-store to trigger CheckLogEntryAlreadyStored
@@ -232,10 +247,12 @@ class TestAnnounceLogEntryAppliesEmbargoTeardown:
 
     def test_em_exited_is_idempotent(self, bridge, datalayer, case_actor):
         """Running BT when case is already EM.EXITED must succeed silently."""
-        case = VulnerabilityCase(id_=CASE_ID, name="Test Case")
+        case = VulnerabilityCase(
+            id_=CASE_ID, name="Test Case", attributed_to=OWNER_ACTOR_ID
+        )
         case.current_status.em_state = EM.EXITED
         datalayer.create(case)
-        entry = _make_remove_embargo_entry(0, GENESIS_HASH)
+        entry = _make_remove_embargo_entry(0, case.genesis_hash)
         event = _make_event(entry, actor_id=case_actor.id_)
 
         result = bridge.execute_with_setup(

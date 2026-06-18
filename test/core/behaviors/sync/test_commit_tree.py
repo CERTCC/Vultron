@@ -13,9 +13,11 @@ from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
 from vultron.core.models.case import VultronCase
-from vultron.core.models.case_ledger import GENESIS_HASH, HashChainLedgerRecord
+from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
+
+_ZERO_HASH: str = "0" * 64  # arbitrary hash for test chains
 
 OWNER_ACTOR_ID = "https://example.org/actors/vendor"
 PEER_ID = "https://example.org/actors/reporter"
@@ -110,14 +112,15 @@ def test_commit_tree_persists_entry_and_fans_out(bridge, datalayer, case_obj):
     entries = list(datalayer.list_objects("CaseLedgerEntry"))
     assert len(entries) == 1
     assert entries[0].log_index == 0
-    assert entries[0].prev_log_hash == GENESIS_HASH
+    assert entries[0].prev_log_hash == case_obj.genesis_hash
+    assert len(entries[0].prev_log_hash) == 64
     sync_port.send_announce_log_entry.assert_called_once()
     call_kwargs = sync_port.send_announce_log_entry.call_args.kwargs
     assert call_kwargs["to"] == [PEER_ID]
 
 
 def test_commit_tree_uses_existing_tail_hash(bridge, datalayer, case_obj):
-    first_entry = _make_entry(0, GENESIS_HASH)
+    first_entry = _make_entry(0, case_obj.genesis_hash)
     datalayer.save(first_entry)
     sync_port = MagicMock(spec=SyncActivityPort)
 

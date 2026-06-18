@@ -42,6 +42,7 @@ Spec: CLP-07.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -54,7 +55,8 @@ from vultron.core.states.roles import CVDRole
 # ---------------------------------------------------------------------------
 
 #: Sentinel hash used for the genesis entry (mirrors vultron.core.models.case_ledger).
-GENESIS_HASH: str = "0" * 64
+#: After per-case genesis hash (CLP-08), genesis prevLogHash is a SHA-256 of case metadata.
+_SHA256_HEX_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
 _REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 _DEVLOGS_DIR: Path = _REPO_ROOT / "devlogs"
@@ -250,7 +252,8 @@ def test_invariant_1_local_hash_chain_consistent(
 
     - ``entry[N].prevLogHash == entry[N-1].entryHash``
     - If the run starts at ``logIndex=0``, that entry's ``prevLogHash``
-      must equal ``GENESIS_HASH``.
+      must be a valid 64-character hex SHA-256 (the per-case genesis hash,
+      CLP-08).
 
     Cross-fragment boundaries are **not** checked: if logIndex 4 is absent
     the check does not assert that entry 5's prevLogHash equals entry 3's
@@ -269,9 +272,10 @@ def test_invariant_1_local_hash_chain_consistent(
 
         if first_idx == 0:
             actual_prev = _prev_log_hash(first)
-            assert actual_prev == GENESIS_HASH, (
+            assert _SHA256_HEX_PATTERN.match(actual_prev), (
                 f"Actor {actor_name!r}: fragment starting at logIndex=0 "
-                f"prevLogHash={actual_prev!r} != GENESIS_HASH"
+                f"prevLogHash={actual_prev!r} is not a valid 64-char hex "
+                f"SHA-256 (per-case genesis hash, CLP-08)"
             )
 
         for i, entry in enumerate(fragment[1:], start=1):

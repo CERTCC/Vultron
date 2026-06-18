@@ -67,7 +67,11 @@ def _make_case_actor_dl() -> SqliteDataLayer:
     ca_svc = VultronCaseActor(id_=CASE_ACTOR_ID, context=CASE_ID)
     dl.save(ca_svc)
 
-    case = VulnerabilityCase(id_=CASE_ID, name="CloseCase Routing Test")
+    case = VulnerabilityCase(
+        id_=CASE_ID,
+        name="CloseCase Routing Test",
+        attributed_to=CASE_ACTOR_ID,
+    )
 
     cm_participant = CaseParticipant(
         attributed_to=CASE_ACTOR_ID,

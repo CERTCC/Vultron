@@ -8,6 +8,7 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
@@ -22,6 +23,8 @@ from vultron.wire.as2.vocab.objects.case_ledger_entry import (
 OWNER_ACTOR_ID = "https://example.org/actors/vendor"
 PARTICIPANT_ACTOR_ID = "https://example.org/actors/reporter"
 CASE_ID = "https://example.org/cases/case-sync"
+
+_ZERO_HASH: str = "0" * 64  # arbitrary prev_log_hash for test chains
 
 
 @pytest.fixture(autouse=True)
@@ -42,6 +45,13 @@ def bridge(datalayer):
 
 
 @pytest.fixture
+def case_obj(datalayer):
+    case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+    datalayer.save(case)
+    return case
+
+
+@pytest.fixture
 def case_actor(datalayer):
     actor = VultronCaseActor(
         name="Case Actor",
@@ -52,7 +62,9 @@ def case_actor(datalayer):
     return actor
 
 
-def _make_entry(log_index: int, prev_hash: str) -> VultronCaseLedgerEntry:
+def _make_entry(
+    log_index: int, prev_hash: str = _ZERO_HASH
+) -> VultronCaseLedgerEntry:
     return _to_persistable_entry(
         HashChainLedgerRecord(
             case_id=CASE_ID,

@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from datetime import datetime, timezone
 from typing import cast
 
 import anyio
@@ -23,7 +24,10 @@ import pytest
 
 from vultron.adapters.driven.asgi_emitter import ASGIEmitter
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
-from vultron.core.models.case_ledger import GENESIS_HASH, HashChainLedgerRecord
+from vultron.core.models.case_ledger import (
+    HashChainLedgerRecord,
+    compute_genesis_hash,
+)
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 from vultron.core.models.replication_state import VultronReplicationState
@@ -137,6 +141,11 @@ def test_sync_single_peer_happy_path_replication(two_app_setup) -> None:
     )
 
     case = VulnerabilityCase(name="SYNC-901 integration case")
+    case.genesis_hash = compute_genesis_hash(
+        case_id=case.id_,
+        created_at=datetime.now(timezone.utc),
+        case_actor_id=case_actor_id,
+    )
     case_actor_participant = CaseParticipant(
         attributed_to=case_actor_id,
         context=case.id_,
@@ -223,7 +232,7 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
     case_actor_iso.dl.save(case)
     case_actor_iso.dl.save(CaseActor(id_=case_actor_id, context=case.id_))
 
-    entry0 = _make_log_entry(case.id_, 0, GENESIS_HASH, "sync_902_base")
+    entry0 = _make_log_entry(case.id_, 0, case.genesis_hash, "sync_902_base")
     entry1 = _make_log_entry(case.id_, 1, entry0.entry_hash, "sync_902_mid")
     entry2 = _make_log_entry(case.id_, 2, entry1.entry_hash, "sync_902_tail")
     case_actor_iso.dl.save(entry0)
@@ -336,6 +345,11 @@ def test_sync_duplicate_delivery_idempotency(
     case = VulnerabilityCase(
         name="SYNC-903 duplicate delivery integration case"
     )
+    case.genesis_hash = compute_genesis_hash(
+        case_id=case.id_,
+        created_at=datetime.now(timezone.utc),
+        case_actor_id=case_actor_id,
+    )
     case_actor_participant = CaseParticipant(
         attributed_to=case_actor_id,
         context=case.id_,
@@ -365,7 +379,7 @@ def test_sync_duplicate_delivery_idempotency(
 
     monkeypatch.setattr(peer_iso.dl, "save", save_spy)
 
-    entry = _make_log_entry(case.id_, 0, GENESIS_HASH, "sync_903_dup")
+    entry = _make_log_entry(case.id_, 0, case.genesis_hash, "sync_903_dup")
     wire_entry = WireCaseLedgerEntry.model_validate(
         entry.model_dump(mode="json")
     )

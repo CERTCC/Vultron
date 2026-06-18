@@ -1,37 +1,79 @@
-#!/usr/bin/env python
 """Shared helpers for SYNC log-replication workflows."""
 
+import logging
 from typing import Any
 
-from vultron.core.models.case_ledger import GENESIS_HASH
 from vultron.core.models.protocols import LogEntryModel, is_log_entry_model
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.errors import VultronValidationError
+
+logger = logging.getLogger(__name__)
+
+
+def _get_case_genesis_hash(case_id: str, dl: CasePersistence) -> str:
+    """Return the per-case genesis hash for *case_id* from the DataLayer.
+
+    Looks up the :class:`~vultron.core.models.case.VulnerabilityCase` in *dl*
+    and returns its ``genesis_hash`` field.  Returns ``""`` when the case is
+    not found or has no genesis hash recorded.  Callers that require a
+    non-empty genesis hash MUST treat ``""`` as an error condition.
+
+    Args:
+        case_id: URI of the :class:`~vultron.core.models.case.VulnerabilityCase`.
+        dl: DataLayer to query.
+
+    Returns:
+        64-character hex SHA-256 genesis hash, or ``""`` if unavailable.
+    """
+    from vultron.core.models.case import VulnerabilityCase
+
+    case_obj = dl.read(case_id)
+    if isinstance(case_obj, VulnerabilityCase):
+        if case_obj.genesis_hash:
+            return case_obj.genesis_hash
+    # Duck-type fallback: wire-layer VulnerabilityCase also has genesis_hash
+    genesis = getattr(case_obj, "genesis_hash", "")
+    if genesis and isinstance(genesis, str):
+        return genesis
+    return ""
 
 
 def is_ledger_fresh_for_case(
-    case_id: str, dl: CasePersistence
+    case_id: str,
+    dl: CasePersistence,
+    genesis_hash: str | None = None,
 ) -> tuple[bool, str]:
     """Check whether the local ledger for *case_id* is contiguous from genesis.
 
     Returns ``(True, "")`` when the actor's local log entries form an
     unbroken, hash-verified sequence starting at ``log_index=0`` with
-    ``prev_log_hash == GENESIS_HASH``.  Returns ``(False, reason)`` if any
-    index gap or hash mismatch is found.
+    ``prev_log_hash`` equal to the per-case genesis hash.  Returns
+    ``(False, reason)`` if any index gap, hash mismatch, or missing genesis
+    metadata is found.
 
     An empty local log (no entries yet) is considered trivially fresh: the
     actor's acknowledged prefix is the empty prefix, which is contiguous.
     This satisfies SYNC-10-005 — the gate MUST NOT require the actor's tip to
     equal the CaseActor's current tip.
 
-    Spec: SYNC-10-003, SYNC-10-004, SYNC-10-005.
+    When *genesis_hash* is ``None``, it is looked up from the DataLayer via
+    :func:`_get_case_genesis_hash`.  When the genesis hash cannot be
+    determined (case not found or stored with an empty genesis hash),
+    ``(False, reason)`` is returned — the check is **fail-closed** per
+    CLP-08-003/CLP-08-004.
+
+    Spec: SYNC-10-003, SYNC-10-004, SYNC-10-005, CLP-08-004.
 
     Args:
         case_id: URI of the case whose local ledger to check.
         dl: The actor-local DataLayer to query.
+        genesis_hash: Expected ``prev_log_hash`` of the first entry.  When
+            ``None`` (default), looked up automatically from *dl*.
 
     Returns:
         A 2-tuple ``(is_fresh, reason)``.  ``reason`` is an empty string when
-        fresh; a human-readable explanation when stale.
+        fresh; a human-readable explanation when stale or when genesis
+        metadata is unavailable.
     """
     entries: list[LogEntryModel] = [
         obj
@@ -50,10 +92,23 @@ def is_ledger_fresh_for_case(
             f"genesis entry missing: first local entry has "
             f"log_index={first.log_index} (expected 0)"
         )
-    if first.prev_log_hash != GENESIS_HASH:
+
+    effective_genesis = (
+        genesis_hash
+        if genesis_hash is not None
+        else _get_case_genesis_hash(case_id, dl)
+    )
+    if not effective_genesis:
+        return False, (
+            f"genesis hash unavailable for case '{case_id}': "
+            "cannot verify origin binding of the first ledger entry "
+            "(CLP-08-004)"
+        )
+    if first.prev_log_hash != effective_genesis:
         return False, (
             f"genesis entry prev_log_hash mismatch: "
-            f"got {first.prev_log_hash!r}, want GENESIS_HASH"
+            f"got {first.prev_log_hash!r}, "
+            f"want per-case genesis hash {effective_genesis[:16]!r}…"
         )
 
     for i in range(1, len(entries)):
@@ -77,7 +132,28 @@ def is_ledger_fresh_for_case(
 def _reconstruct_tail_hash(
     case_id: str, dl: CasePersistence
 ) -> tuple[str, int]:
-    """Return the hash and index of the last accepted log entry for *case_id*."""
+    """Return the hash and index of the last accepted log entry for *case_id*.
+
+    When no entries are stored locally for *case_id*, returns the per-case
+    genesis hash (looked up from the DataLayer) and index ``-1``.  If the
+    case's genesis hash is not available in the DataLayer, raises
+    :exc:`~vultron.errors.VultronValidationError` — the ledger cannot be
+    safely bootstrapped without a known genesis anchor (fail-closed per
+    CLP-08-004/CLP-08-005).
+
+    Spec: CLP-08-005.
+
+    Args:
+        case_id: URI of the parent :class:`VulnerabilityCase`.
+        dl: DataLayer to query.
+
+    Returns:
+        A 2-tuple ``(tail_hash, tail_index)``.
+
+    Raises:
+        VultronValidationError: When the ledger is empty and the per-case
+            genesis hash cannot be found in the DataLayer.
+    """
     entries: list[LogEntryModel] = [
         obj
         for obj in dl.list_objects("CaseLedgerEntry")
@@ -85,7 +161,15 @@ def _reconstruct_tail_hash(
     ]
 
     if not entries:
-        return GENESIS_HASH, -1
+        genesis = _get_case_genesis_hash(case_id, dl)
+        if not genesis:
+            raise VultronValidationError(
+                f"Cannot reconstruct tail hash for case '{case_id}': "
+                "ledger is empty and per-case genesis hash is unavailable "
+                "in the DataLayer — cannot bootstrap an unanchored chain "
+                "(CLP-08-005)."
+            )
+        return genesis, -1
 
     entries.sort(key=lambda entry: entry.log_index)
     last = entries[-1]

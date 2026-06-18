@@ -214,9 +214,9 @@ class CheckLedgerFreshnessNode(DataLayerCondition):
 
     "Fresh" means the actor's local ledger entries for the case form a
     contiguous, hash-verified sequence from ``log_index=0``
-    (``prev_log_hash == GENESIS_HASH``) through the actor's highest stored
-    entry.  The actor does **not** need to be at the CaseActor's current tip
-    — lagging is permitted so long as the local prefix has no gaps.
+    (``prev_log_hash == <per-case genesis hash>``) through the actor's highest
+    stored entry.  The actor does **not** need to be at the CaseActor's current
+    tip — lagging is permitted so long as the local prefix has no gaps.
 
     An empty local ledger is trivially fresh (the acknowledged prefix is the
     empty prefix).

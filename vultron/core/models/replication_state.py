@@ -26,7 +26,6 @@ from pydantic import Field, model_validator
 
 from vultron.core.models._helpers import _now_utc
 from vultron.core.models.base import VultronObject
-from vultron.core.models.case_ledger import GENESIS_HASH
 
 
 class VultronReplicationState(VultronObject):
@@ -49,9 +48,11 @@ class VultronReplicationState(VultronObject):
     )
     peer_id: str = Field(..., description="Full URI of the participant actor")
     last_acknowledged_hash: str = Field(
-        default=GENESIS_HASH,
+        default="",
         description=(
-            "entry_hash of the last log entry acknowledged by this peer"
+            "entry_hash of the last log entry acknowledged by this peer; "
+            "empty string means no entries have been acknowledged yet "
+            "(treat as genesis — replay from the beginning)"
         ),
         validation_alias="lastAcknowledgedHash",
         serialization_alias="lastAcknowledgedHash",
