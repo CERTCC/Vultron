@@ -603,8 +603,8 @@ class TestParticipantStatusLogEntryCascade:
             context=case,
         )
         event = make_payload(activity, receiving_actor_id=case_actor_id)
-        # Supply a trigger_activity mock so BroadcastStatusToPeersNode can
-        # succeed (BT-14-001: FAILURE when factory absent and peers exist).
+        # Supply a trigger_activity mock so AutoCloseBranchNode can emit
+        # close_case if all participants close (BT step 5).
         mock_trigger = MagicMock()
         mock_trigger.add_participant_status_to_participant.return_value = (
             "urn:uuid:broadcast-1"

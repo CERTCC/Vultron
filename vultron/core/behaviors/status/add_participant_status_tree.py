@@ -16,12 +16,12 @@
 """
 AddParticipantStatus behavior tree composition.
 
-Composes the five-step DEMOMA-07-003 workflow as a Sequence BT:
+Composes the four-step DEMOMA-07-003 workflow as a Sequence BT
+(step 3 raw peer re-broadcast removed per DEMOMA-07-005):
 
     AddParticipantStatusBT (Sequence)
     ├─ VerifySenderIsParticipantNode      # Step 1: sender must be known participant
     ├─ AppendParticipantStatusNode        # Step 2: append status to participant record
-    ├─ BroadcastStatusToPeersNode         # Step 3: Case Manager broadcasts to peers
     ├─ PublicDisclosureBranchNode         # Step 4: embargo teardown on CS.P + CASE_OWNER
     └─ AutoCloseIfCaseManager (Selector)  # Step 5: auto-close only when CASE_MANAGER
         ├─ Sequence
@@ -29,7 +29,7 @@ Composes the five-step DEMOMA-07-003 workflow as a Sequence BT:
         │   └─ AutoCloseBranchNode
         └─ Success (skip if not CASE_MANAGER)
 
-Per specs/multi-actor-demo.yaml DEMOMA-07-003.
+Per specs/multi-actor-demo.yaml DEMOMA-07-003 and DEMOMA-07-005.
 """
 
 import logging
@@ -45,7 +45,6 @@ from vultron.core.behaviors.status.append_participant_status_tree import (
 )
 from vultron.core.behaviors.status.nodes import (
     AutoCloseBranchNode,
-    BroadcastStatusToPeersNode,
     PublicDisclosureBranchNode,
     VerifySenderIsParticipantNode,
 )
@@ -59,14 +58,14 @@ def add_participant_status_tree(
     """Create the behavior tree for the AddParticipantStatus workflow.
 
     Handles receipt of an ``Add(ParticipantStatus, CaseParticipant)``
-    activity.  Implements all five steps of DEMOMA-07-003 as BT nodes
-    in a Sequence.
+    activity.  Implements the four remaining steps of DEMOMA-07-003 as BT
+    nodes in a Sequence (step 3 raw re-broadcast removed per DEMOMA-07-005).
 
     The *case_id* is derived from the inline ``request.status.context``
     field.  If it is not available in the inline object, the
     ``VerifySenderIsParticipantNode`` will perform a DataLayer lookup.
 
-    ``BroadcastStatusToPeersNode`` and ``PublicDisclosureBranchNode`` use
+    ``PublicDisclosureBranchNode`` uses
     the ``trigger_activity_factory`` that the caller places on the
     py_trees blackboard via ``BTBridge(trigger_activity=...)``.
 
@@ -102,12 +101,6 @@ def add_participant_status_tree(
                 status_id=status_id,
                 participant_id=participant_id,
                 status_obj_fallback=status_obj,
-            ),
-            BroadcastStatusToPeersNode(
-                status_id=status_id,
-                participant_id=participant_id,
-                sender_actor_id=actor_id,
-                case_id=case_id,
             ),
             PublicDisclosureBranchNode(
                 status_obj=status_obj,

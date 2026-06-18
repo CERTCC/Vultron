@@ -21,13 +21,10 @@ submodules so that existing import paths
 without modification.
 
 Submodules:
-
 - ``conditions``: Participant verification condition nodes
-- ``broadcast``: Peer fan-out helper and nodes (_find_case_manager_id,
-  FindCaseManagerNode, FilterPeerRecipientsNode,
-  BroadcastQueueToOutboxNode, BroadcastStatusToPeersNode); shared nodes
-  are re-exported from :mod:`vultron.core.behaviors.broadcast.nodes`
-  (BT-14-001, BT-14-002)
+- ``broadcast``: Case-manager lookup helper (_find_case_manager_id) used
+  internally by the lifecycle nodes; the raw peer re-broadcast step was
+  removed per DEMOMA-07-005
 - ``append``: Load, validate RM transition, and append action nodes
   (SkipIfIdempotentNode, LoadParticipantNode,
   CheckStatusNotAlreadyAppendedNode, ResolveAndPersistStatusObjectNode,
@@ -39,13 +36,6 @@ Submodules:
   append nodes for the AddCaseStatusToCase workflow
 """
 
-from vultron.core.behaviors.status.nodes.broadcast import (
-    BroadcastQueueToOutboxNode,
-    BroadcastStatusToPeersNode,
-    FilterPeerRecipientsNode,
-    FindCaseManagerNode,
-    _find_case_manager_id,
-)
 from vultron.core.behaviors.status.nodes.case_status import (
     CASE_STATUS_ALREADY_PRESENT,
     AppendCaseStatusToCaseNode,
@@ -72,12 +62,6 @@ from vultron.core.behaviors.status.nodes.lifecycle import (
 __all__ = [
     # conditions
     "VerifySenderIsParticipantNode",
-    # broadcast
-    "_find_case_manager_id",
-    "FindCaseManagerNode",
-    "FilterPeerRecipientsNode",
-    "BroadcastQueueToOutboxNode",
-    "BroadcastStatusToPeersNode",
     # append
     "LoadParticipantNode",
     "CheckStatusNotAlreadyAppendedNode",
