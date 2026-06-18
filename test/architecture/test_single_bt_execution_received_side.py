@@ -14,22 +14,28 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Architecture invariant: one BT execution per inbox delivery (CLP-10-005).
 
-A received-side use case MUST NOT import or call
-``create_guarded_commit_case_ledger_entry_tree`` directly from its own
-``execute()`` method as a second, independently-gated
-``BTBridge.execute_with_setup()`` call. The guarded-commit subtree MUST be
-composed as a child of the use case's own tree-factory function (in
-``vultron/core/behaviors/``) and reached through the single
-``execute_with_setup()`` call already used for the use case's main
-operation.
+A received-side use case's ``execute()`` method MUST do exactly three
+things: build one BT via a tree-factory function in
+``vultron/core/behaviors/``, call ``BTBridge.execute_with_setup()`` exactly
+once under ``actor_id=receiving_actor_id``, and handle the result.
+``execute()`` MUST NOT contain any other domain-significant code — no
+second BT execution, no direct DataLayer mutation, and no direct import of
+``create_guarded_commit_case_ledger_entry_tree`` (or any other
+guarded-commit factory). This grep is a proxy for that broader rule: it
+catches every known violation, but fixing a violation may mean repairing
+genuine actor-identity switching, moving non-BT procedural code into the
+tree, or simply relocating an already-correct inline tree into a factory
+function — see ADR-0022 for the per-site breakdown. A reviewer MUST still
+confirm no other domain-significant code remains in ``execute()`` when
+closing each migration; this test alone does not guarantee that.
 
 Spec: CLP-10-005. Decision record: ADR-0022.
 
 Ratchet pattern
 ---------------
 ``KNOWN_VIOLATIONS`` documents every pre-existing violation awaiting
-migration (see issue #1036 and its implementation issues). The test
-asserts::
+migration (see issues #1036, #1047, and their implementation issues). The
+test asserts::
 
     actual_violations == KNOWN_VIOLATIONS
 
