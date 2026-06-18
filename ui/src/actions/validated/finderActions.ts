@@ -380,8 +380,10 @@ export function handleFinderAddNote(state: DemoState): DemoState {
 
   timestampOffset++
 
-  // Add consequence nodes to all active vendors (excluding declined vendors)
-  const activeVendors = getActiveVendors(newState).filter(v => v.rmState !== 'DECLINED')
+  // Add consequence nodes to all active vendors.
+  // (This fork drops the obsolete `!== 'DECLINED'` filter — DECLINED is not a
+  // real RM state and is never written; see CLAUDE.md §9.)
+  const activeVendors = getActiveVendors(newState)
 
   activeVendors.forEach(vendor => {
     events.push({
@@ -572,8 +574,9 @@ export function handleFinderCloseCase(state: DemoState): DemoState {
 
   timestampOffset++
 
-  // Consequence nodes in all vendor lanes (excluding declined vendors)
-  const activeVendors = getActiveVendors(newState).filter(v => v.rmState !== 'DECLINED')
+  // Consequence nodes in all vendor lanes.
+  // (This fork drops the obsolete `!== 'DECLINED'` filter — see CLAUDE.md §9.)
+  const activeVendors = getActiveVendors(newState)
 
   activeVendors.forEach(vendor => {
     events.push({
@@ -638,6 +641,10 @@ export function handleFinderProposeRevision(state: DemoState): DemoState {
   // EM destination computed from the protocol artifact (propose: ACTIVE → REVISE).
   newState = setEmState(newState, requireNextState('em', state.emState, 'propose'))
   newState = { ...newState, embargoProposerId: 'finder' }  // Track who proposed this revision
+
+  // Reset the CaseActor's response flag so they can accept/reject this new revision
+  // (mirrors the per-participant resets below). UI-only flag — see actionFilters.
+  newState = updateParticipant(newState, 'caseactor', { embargoAccepted: false })
 
   const events = []
   let timestampOffset = 0

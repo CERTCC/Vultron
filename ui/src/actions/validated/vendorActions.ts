@@ -1079,8 +1079,9 @@ export function handleVendorReplyNote(state: DemoState, vendorId: string): DemoS
     timestampOffset++
   }
 
-  // Consequence nodes in other vendor lanes (not the replying vendor)
-  const otherVendors = getActiveVendors(newState).filter(v => v.id !== vendorId && v.rmState !== 'DECLINED')
+  // Consequence nodes in other vendor lanes (not the replying vendor).
+  // (This fork drops the obsolete `!== 'DECLINED'` filter — see CLAUDE.md §9.)
+  const otherVendors = getActiveVendors(newState).filter(v => v.id !== vendorId)
 
   otherVendors.forEach(otherVendor => {
     events.push({
@@ -1196,8 +1197,9 @@ export function handleVendorCloseCase(state: DemoState, vendorId: string): DemoS
     timestampOffset++
   }
 
-  // Consequence nodes in other vendor lanes (not the closing vendor)
-  const otherVendors = getActiveVendors(newState).filter(v => v.id !== vendorId && v.rmState !== 'DECLINED')
+  // Consequence nodes in other vendor lanes (not the closing vendor).
+  // (This fork drops the obsolete `!== 'DECLINED'` filter — see CLAUDE.md §9.)
+  const otherVendors = getActiveVendors(newState).filter(v => v.id !== vendorId)
 
   otherVendors.forEach(otherVendor => {
     events.push({
@@ -1265,6 +1267,10 @@ export function handleVendorProposeRevision(state: DemoState, vendorId: string):
   // EM destination computed from the protocol artifact (propose: ACTIVE → REVISE).
   newState = setEmState(newState, requireNextState('em', state.emState, 'propose'))
   newState = { ...newState, embargoProposerId: vendorId }  // Track who proposed this revision
+
+  // Reset the CaseActor's response flag so they can accept/reject this new revision
+  // (mirrors the per-participant resets below). UI-only flag — see actionFilters.
+  newState = updateParticipant(newState, 'caseactor', { embargoAccepted: false })
 
   const events = []
   let timestampOffset = 0

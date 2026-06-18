@@ -231,6 +231,12 @@ export function handleCaseActorAcceptRevision(state: DemoState): DemoState {
 
   let newState = state
 
+  // Record the CaseActor's own response so the accept/reject-revision buttons stop
+  // being offered to them after they respond (mirrors the Finder/Vendor flag).
+  // This flag is UI-only — it is deliberately NOT part of the consensus check below,
+  // since the CaseActor facilitates and doesn't vote.
+  newState = updateParticipant(newState, 'caseactor', { embargoAccepted: true })
+
   // Per Vultron protocol: R → aA (Revise → accept → Active)
   // But ONLY if ALL embargo participants (Finder + Vendors) have accepted
   // CaseActor's acceptance doesn't count toward consensus (they facilitate, don't vote)

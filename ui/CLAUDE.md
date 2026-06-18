@@ -292,7 +292,7 @@ overlay. NOT a full generic engine.
   `vendor-notify-published` (pxa `public_becomes_aware` + em `terminate`).
   `demo`-kind = notes/replies/invites/publication-ack (no machine slot).
 
-**The 5-step plan (Steps 1–4 done, 5 next):**
+**The 5-step plan (Steps 1–5 done):**
 1. ✅ Make the artifact importable (vite + tsconfig).
 2. ✅ `protocol.ts` — typed wrapper over the JSON.
 3. ✅ `protocolActions.ts` — action-ID → machine-trigger bridge.
@@ -308,10 +308,12 @@ overlay. NOT a full generic engine.
    read the unmutated `state.emState`. Output is behaviorally identical to the
    pre-refactor demo (see "no behavioral bug" note) except where it removed an
    illegal transition (publish-while-PROPOSED, below).
-5. ⬜ Refactor the **forked** filters (`state/validated/actionFilters.ts`) so
-   RM/EM/VFD gating comes from `isLegalTransition(...)`; keep non-machine rules
-   (embargo-before-participation, `isPublic` early-termination, pending-note
-   reply gating, invite availability) as an explicit overlay.
+5. ✅ Refactored the **forked** filters
+   ([`state/validated/actionFilters.ts`](src/state/validated/actionFilters.ts))
+   so RM/EM/VFD/PXA gating comes from `isLegalTransition(...)`; non-machine
+   rules (embargo-before-participation / late-joiner consent, `isPublic`
+   early-termination, pending-note reply gating, invite availability, `phase`
+   routing, EM label selection) stay as an explicit overlay. See "Step 5" below.
 
 **Step 4 — what the refactor did and did NOT change (read before Step 5):**
 - **No behavioral bug was fixed by the RM/VFD pass.** Every RM/VFD trigger has a
@@ -350,11 +352,65 @@ overlay. NOT a full generic engine.
   demo's exact original mapping. `handleTriggerAttacks` is a single
   `attacks_are_observed` step (attacks do NOT imply public awareness — no forced P).
 
+**Step 5 — what the filter refactor did and did NOT change:**
+- **Behavior-identical, by construction.** Every machine-state literal swapped to
+  `isLegalTransition(...)` was equivalent to the literal for all reachable states
+  (verified case-by-case against `protocol_states.json`). The gating logic is now
+  *derived from the artifact* rather than hardcoded, matching what Step 4 did for
+  handlers. The one intentional behavior change is the DECLINED removal (below),
+  which is also a no-op because DECLINED was never written.
+- **Pattern used:** `isLegalTransition(machine, currentState, trigger) && <overlay>`.
+  Where the demo deliberately surfaces a transition in only *some* machine-legal
+  source states (a happy-path narrowing — e.g. CaseActor proposes a revision only
+  from ACTIVE, not via REVISE re-propose; vendor `defer` only from VALID, not from
+  ACCEPTED), the narrowing stays an explicit `=== STATE` overlay layered on the
+  legality check and is commented as such.
+- **PXA legality IS the publicity check.** `!pxaState.includes('X')` ≡
+  `isLegalTransition('pxa', s, 'exploit_made_public')`, `!includes('A')` ≡
+  `attacks_are_observed`, and `!includes('P')` ≡ `public_becomes_aware` — verified
+  from the artifact's source lists. The external/publish filters now read legality
+  directly instead of substring-testing the PXA string.
+- **Stayed as overlay (no machine slot — correct to leave literal):** late-joiner
+  embargo consent (`em.accept` is NOT legal from ACTIVE — accepting an existing
+  ACTIVE embargo is per-participant consent, not a case-level transition), the
+  RM→VFD coupling `canProgressVFD = rmState === 'ACCEPTED'`, `isPublic`
+  early-termination, pending-note reply gating, invite availability, `phase`
+  routing, and EM accept/reject label selection between negotiation phases.
+
+**CaseActor revision-response overlay bug (found while exercising Step 5; FIXED).**
+Symptom: after the CaseActor *accepted* an embargo revision, its
+"Accept/Reject Embargo Revision" buttons kept reappearing. Root cause was a
+**pre-existing overlay gap, not the filter refactor** — the EM machine
+([`em.py`](../vultron/core/states/em.py) / `protocol_states.json`) is a single
+**case-level** state with no per-participant acceptance or consensus, so
+"who has responded to this proposal" is unavoidably demo overlay for *every*
+role. That overlay tracks each participant's response in `embargoAccepted` and
+resets it on each new proposal — but the **CaseActor was never wired in**:
+its filter lacked the `!embargoAccepted` guard the Finder/Vendor filters have,
+its accept-revision handler never set the flag, and the propose-revision
+handlers never reset it. *Reject* self-healed (it fires `REVISE → ACTIVE`, so
+the button vanished via `emState`); *accept* did not, because a CaseActor accept
+leaves EM in `REVISE` pending real consensus. Fix = complete the overlay
+uniformly: add `!caseActor.embargoAccepted` to the filter
+([actionFilters.ts](src/state/validated/actionFilters.ts) caseactor REVISE block),
+set it in `handleCaseActorAcceptRevision`, and reset it in
+`handleFinderProposeRevision` / `handleVendorProposeRevision`. The flag is
+**UI-only** — deliberately kept OUT of `allParticipantsAccepted` (finder + active
+vendors only), preserving "CaseActor facilitates, doesn't vote." The EM
+transition itself still comes from the artifact via `requireNextState('em', …)`.
+The frozen original carries the same latent gap; left untouched per fork isolation.
+
 **Gotchas discovered (carry forward):**
-- **`DECLINED` RM pseudo-state** ([actionFilters.ts:237](src/state/actionFilters.ts#L237))
-  is NOT a real RM state in the JSON — it's a demo invention for declined
-  invites, and is in fact never *written* anywhere (only read). Keep it as a
-  demo-only pseudo-state, outside the machine.
+- **`DECLINED` RM pseudo-state — REMOVED from the Validated fork (Step 5).** It is
+  NOT a real RM state in the JSON; it was a demo invention for declined invites
+  and was in fact never *written* anywhere (no decline action/handler exists —
+  invited vendors enter directly at RM.RECEIVED), so its guards/filters were inert.
+  The fork deleted the `rmState === 'DECLINED'` filter guard and the four
+  `!== 'DECLINED'` consequence-filter clauses. A vendor "declining" a report is, at
+  the protocol level, `invalidate` (→INVALID→CLOSED) or `defer` (→DEFERRED→CLOSED)
+  — both already modeled. The **frozen original** still carries DECLINED
+  ([actionFilters.ts:237](src/state/actionFilters.ts#L237)); leave it until the
+  fork replaces the original.
 - **VFD `vfd→Vfd`** (and **RM `START→RECEIVED`**) have no standalone user
   action — the demo sets vendors straight to `Vfd`/`RECEIVED` at report receipt
   ([finderActions.ts:26](src/actions/finderActions.ts#L26),

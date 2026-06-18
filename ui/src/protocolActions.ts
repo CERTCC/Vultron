@@ -21,10 +21,15 @@
  *     scope of `protocol_states.json` (see ui/CLAUDE.md §6 / §9) and keep their
  *     existing demo-owned logic.
  *
- * NOTE on states absent from the artifact: the demo uses a 'DECLINED' RM
- * pseudo-state for declined invitations. It is NOT a real RM state in
- * `protocol_states.json` and is intentionally not represented here — keep any
- * 'DECLINED' handling as demo-only logic.
+ * NOTE on states absent from the artifact: the ORIGINAL multi-vendor demo
+ * carries a 'DECLINED' RM pseudo-state for declined invitations. It is NOT a
+ * real RM state in `protocol_states.json` and is intentionally not represented
+ * here. In practice it was never written anywhere (invited vendors enter at
+ * RM.RECEIVED and there is no decline action/handler), so the Validated fork
+ * has REMOVED it entirely (see ui/CLAUDE.md §9). A vendor "declining" a report
+ * is, at the protocol level, `invalidate` (→INVALID→CLOSED) or `defer`
+ * (→DEFERRED→CLOSED). If the original ever revives a real decline flow, model
+ * it as one of those triggers rather than reintroducing a pseudo-state.
  */
 
 import type { MachineName } from './protocol'
