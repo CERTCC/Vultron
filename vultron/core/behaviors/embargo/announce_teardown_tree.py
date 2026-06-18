@@ -24,8 +24,12 @@ activity (protocol ET message).  Sequence:
     RemoveEmbargoFromCaseBT (Sequence)
     ├─ ValidateCaseExistsNode          # case must exist and pass is_case_model
     ├─ RemoveFromProposedEmbargoesNode # idempotent proposed-list cleanup
-    ├─ IsActiveEmbargoNode             # guard: is this the active embargo?
-    └─ ApplyEmbargoTeardownNode        # ACTIVE/REVISE→EXITED, clear, reset PEC
+    ├─ TeardownIfActive (Selector)     # run teardown if active; skip silently
+    │  ├─ ActiveTeardown (Sequence)
+    │  │  ├─ IsActiveEmbargoNode       # guard: is this the active embargo?
+    │  │  └─ ApplyEmbargoTeardownNode  # ACTIVE/REVISE→EXITED, clear, reset PEC
+    │  └─ Success                      # embargo was only in proposed — not an error
+    └─ GuardedCommitCaseLedgerEntryBT  # commit only when actor is CASE_MANAGER
 
 Per specs/behavior-tree-integration.yaml BT-06-001.
 """
@@ -64,10 +68,16 @@ def remove_embargo_from_case_tree(
     embargo from ``proposed_embargoes`` (idempotent) and, if the embargo is
     the active one, applies the ACTIVE/REVISE → EXITED EM state transition,
     clears ``active_embargo``, and resets participant embargo consent states.
+    Always commits a canonical ledger entry when the executing actor holds
+    the ``CASE_MANAGER`` role (via the guarded commit subtree).
 
-    BT returns SUCCESS when the active embargo is terminated.
-    BT returns FAILURE when the embargo was only in ``proposed_embargoes``
-    (the cleanup still runs — FAILURE is not an error condition here).
+    The inner ``TeardownIfActive`` Selector absorbs the FAILURE that occurs
+    when the embargo was only in ``proposed_embargoes`` (not the active
+    embargo), so the outer Sequence always reaches the guarded commit step.
+
+    BT returns SUCCESS when the outer Sequence completes (including when the
+    embargo was only proposed and no teardown was needed).
+    BT returns FAILURE only when the case is not found.
 
     Args:
         case_id: ID of the VulnerabilityCase to update.
@@ -84,8 +94,24 @@ def remove_embargo_from_case_tree(
             RemoveFromProposedEmbargoesNode(
                 case_id=case_id, embargo_id=embargo_id
             ),
-            IsActiveEmbargoNode(case_id=case_id, embargo_id=embargo_id),
-            ApplyEmbargoTeardownNode(case_id=case_id),
+            py_trees.composites.Selector(
+                name="TeardownIfActive",
+                memory=False,
+                children=[
+                    py_trees.composites.Sequence(
+                        name="ActiveTeardown",
+                        memory=False,
+                        children=[
+                            IsActiveEmbargoNode(
+                                case_id=case_id, embargo_id=embargo_id
+                            ),
+                            ApplyEmbargoTeardownNode(case_id=case_id),
+                        ],
+                    ),
+                    py_trees.behaviours.Success(name="EmbargoWasNotActive"),
+                ],
+            ),
+            create_guarded_commit_case_ledger_entry_tree(case_id=case_id),
         ],
     )
     logger.info(

@@ -156,46 +156,36 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
             )
             return
 
+        receiving_actor_id = request.receiving_actor_id
+        if receiving_actor_id is None:
+            logger.debug(
+                "remove_embargo_from_case: missing receiving_actor_id"
+                " — skipping"
+            )
+            return
+
+        # The tree embeds the guarded commit as its final step (ADR-0021,
+        # CLP-10-002, CLP-10-003).  Running it with actor_id=receiving_actor_id
+        # means CheckIsCaseManagerNode naturally fires only when the receiving
+        # actor holds the CASE_MANAGER role — no identity comparison in Python.
         tree = remove_embargo_from_case_tree(
             case_id=case_id, embargo_id=embargo_id
         )
         bridge = BTBridge(datalayer=self._dl)
         result = bridge.execute_with_setup(
             tree=tree,
-            actor_id=request.actor_id,
+            actor_id=receiving_actor_id,
             activity=request,
             sync_port=self._sync_port,
         )
 
         if result.status != Status.SUCCESS:
             logger.debug(
-                "remove_embargo_from_case: BT did not fully succeed for"
-                " embargo '%s' on case '%s' (msg: '%s') — embargo may have"
-                " been in proposed_embargoes only",
+                "remove_embargo_from_case: BT did not succeed for"
+                " embargo '%s' on case '%s' (msg: '%s')",
                 embargo_id,
                 case_id,
                 result.feedback_message,
-            )
-
-        # Always commit a log entry regardless of BT result.  FAILURE means
-        # the embargo was already cleared or only in proposed_embargoes —
-        # both are non-error outcomes that still require fan-out (PCR-08-003).
-        from vultron.core.behaviors.case.nodes import (
-            create_guarded_commit_case_ledger_entry_tree,
-        )
-        from vultron.core.use_cases.received.actor import _find_case_actor_id
-
-        commit_actor_id = _find_case_actor_id(self._dl, case_id)
-        if commit_actor_id is None:
-            commit_actor_id = request.receiving_actor_id
-        if commit_actor_id is not None:
-            BTBridge(datalayer=self._dl).execute_with_setup(
-                tree=create_guarded_commit_case_ledger_entry_tree(
-                    case_id=case_id
-                ),
-                actor_id=commit_actor_id,
-                activity=request,
-                sync_port=self._sync_port,
             )
 
 
