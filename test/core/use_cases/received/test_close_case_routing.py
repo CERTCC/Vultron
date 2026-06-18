@@ -84,19 +84,28 @@ def _make_case_actor_dl() -> SqliteDataLayer:
 
 def _make_close_case_event(
     receiving_actor_id: str | None = CASE_ACTOR_ID,
+    leave_actor_id: str = VENDOR_ID,
 ) -> CloseCaseReceivedEvent:
-    """Construct a CloseCaseReceivedEvent (Leave(VulnerabilityCase))."""
+    """Construct a CloseCaseReceivedEvent (Leave(VulnerabilityCase)).
+
+    Args:
+        receiving_actor_id: The actor whose inbox is processing this Leave.
+        leave_actor_id: The ``actor`` field on the Leave activity wire object.
+            Defaults to VENDOR_ID (participant-originated Leave).  Pass
+            CASE_ACTOR_ID to simulate the AutoCloseBranchNode path where the
+            case-actor emits the Leave to itself.
+    """
     case_obj = VulnerabilityCase(id_=CASE_ID)
     activity = VultronActivity(
         id_="https://example.org/activities/leave-case",
         type_="Leave",
-        actor=VENDOR_ID,
+        actor=leave_actor_id,
         object_=case_obj,
     )
     return CloseCaseReceivedEvent(
         semantic_type=MessageSemantics.CLOSE_CASE,
         activity_id=activity.id_,
-        actor_id=VENDOR_ID,
+        actor_id=leave_actor_id,
         object_=case_obj,
         activity=activity,
         receiving_actor_id=receiving_actor_id,
@@ -153,4 +162,35 @@ class TestCloseCaseLedgerRouting:
         assert "close_case" not in event_types, (
             "Non-CaseActor receiving actor must NOT write a close_case"
             f" ledger entry; found: {event_types}"
+        )
+
+    def test_caseactor_self_leave_commits_close_case_ledger_entry(self):
+        """Case-actor-authored Leave (AutoCloseBranchNode path) is committed.
+
+        AutoCloseBranchNode emits Leave(VulnerabilityCase) with
+        actor=case_actor_id to signal that all participants have closed.  The
+        case-actor must accept its own Leave as a canonical ledger entry
+        because the close_case signature IS case-authored (DEMOMA-07-003 step 5).
+
+        This test pins the _CASE_AUTHORED_SIGNATURES entry for
+        ("Leave", "VulnerabilityCase") in chain.py.  Without it the
+        _validate_canonical_entry check raises:
+        "payloadSnapshot.actor must not be the CaseActor for non-case-authored
+        entries (signature=('Leave', 'VulnerabilityCase'))"
+        """
+        dl = _make_case_actor_dl()
+        CloseCaseReceivedUseCase(
+            dl=dl,
+            request=_make_close_case_event(
+                receiving_actor_id=CASE_ACTOR_ID,
+                leave_actor_id=CASE_ACTOR_ID,
+            ),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        event_types = _ledger_event_types(dl)
+        assert "close_case" in event_types, (
+            "Expected a CaseLedgerEntry with event_type='close_case'"
+            " when the case-actor is both sender and receiver (AutoClose path);"
+            f" found: {event_types}"
         )

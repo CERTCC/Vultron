@@ -70,6 +70,10 @@ _CASE_AUTHORED_SIGNATURES: frozenset[tuple[str, str]] = frozenset(
         ("Remove", "EmbargoEvent"),
         ("Invite", "EmbargoEvent"),
         ("Offer", "VulnerabilityCase"),
+        # Leave(VulnerabilityCase) is emitted by the case-actor's
+        # AutoCloseBranchNode when all participants reach RM.CLOSED.
+        # The case-actor is the canonical author of this closure assertion.
+        ("Leave", "VulnerabilityCase"),
     }
 )
 _INLINE_OBJECT_KEYS: frozenset[str] = frozenset(
