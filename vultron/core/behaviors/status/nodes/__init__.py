@@ -25,7 +25,8 @@ Submodules:
 - ``broadcast``: Peer fan-out helper and nodes (_find_case_manager_id,
   FindCaseManagerNode, FilterPeerRecipientsNode,
   CreateStatusBroadcastActivityNode, BroadcastQueueToOutboxNode,
-  BroadcastStatusToPeersNode)
+  BroadcastStatusToPeersNode); shared nodes are re-exported from
+  :mod:`vultron.core.behaviors.broadcast.nodes` (BT-14-001, BT-14-002)
 - ``append``: Load, validate RM transition, and append action nodes
   (SkipIfIdempotentNode, LoadParticipantNode,
   CheckStatusNotAlreadyAppendedNode, ResolveAndPersistStatusObjectNode,

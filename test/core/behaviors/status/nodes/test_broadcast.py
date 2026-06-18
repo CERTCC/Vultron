@@ -30,6 +30,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.status.nodes.broadcast import (
     BroadcastStatusToPeersNode,
+    CreateStatusBroadcastActivityNode,
     FilterPeerRecipientsNode,
     FindCaseManagerNode,
     _find_case_manager_id,
@@ -221,8 +222,8 @@ class TestFilterPeerRecipientsNode:
 
 
 class TestBroadcastStatusToPeersNode:
-    def test_always_succeeds_without_factory(self, populated_bridge):
-        """Broadcast skips gracefully when no trigger_activity_factory."""
+    def test_returns_failure_without_factory(self, populated_bridge):
+        """No trigger_activity_factory → FAILURE (BT-14-001)."""
         node = BroadcastStatusToPeersNode(
             status_id=STATUS_ID,
             participant_id=PARTICIPANT_REF_ID,
@@ -232,4 +233,78 @@ class TestBroadcastStatusToPeersNode:
         result = populated_bridge.execute_with_setup(
             tree=node, actor_id=CASE_MANAGER_ID
         )
+        assert result.status == Status.FAILURE
+
+
+# ---------------------------------------------------------------------------
+# CreateStatusBroadcastActivityNode
+# ---------------------------------------------------------------------------
+
+
+class TestCreateStatusBroadcastActivityNode:
+    def _run_with_prefilled_blackboard(
+        self,
+        dl,
+        actor_id: str,
+        recipient_ids: list,
+        factory=None,
+    ):
+        """Populate blackboard via FindCaseManagerNode+FilterPeerRecipientsNode,
+        then run CreateStatusBroadcastActivityNode."""
+        import py_trees as pt
+
+        node = CreateStatusBroadcastActivityNode(
+            status_id=STATUS_ID,
+            participant_id=PARTICIPANT_REF_ID,
+        )
+        seq = pt.composites.Sequence(
+            name="TestSeq",
+            memory=False,
+            children=[
+                FindCaseManagerNode(case_id=CASE_ID),
+                FilterPeerRecipientsNode(
+                    sender_actor_id=ACTOR_ID, case_id=CASE_ID
+                ),
+                node,
+            ],
+        )
+        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
+        return bridge.execute_with_setup(tree=seq, actor_id=actor_id)
+
+    def test_returns_success_skips_factory_when_no_recipients(
+        self, populated_dl
+    ):
+        """Empty recipient list after filtering → SUCCESS without calling factory.
+
+        Regression for the missing empty-list guard: previously,
+        CreateStatusBroadcastActivityNode would call the factory with to=[].
+        """
+        from unittest.mock import MagicMock
+
+        # Remove the peer so FilterPeerRecipientsNode writes an empty list.
+        case = populated_dl.read(CASE_ID)
+        del case.actor_participant_index[PEER_ID]
+        populated_dl.save(case)
+
+        mock_factory = MagicMock()
+        result = self._run_with_prefilled_blackboard(
+            populated_dl,
+            actor_id=CASE_MANAGER_ID,
+            recipient_ids=[],
+            factory=mock_factory,
+        )
         assert result.status == Status.SUCCESS
+        # Factory must not be called for an empty recipient list.
+        mock_factory.add_participant_status_to_participant.assert_not_called()
+
+    def test_returns_failure_when_no_factory_and_recipients_exist(
+        self, populated_dl
+    ):
+        """Recipients exist but no factory → FAILURE (BT-14-001)."""
+        result = self._run_with_prefilled_blackboard(
+            populated_dl,
+            actor_id=CASE_MANAGER_ID,
+            recipient_ids=[PEER_ID],
+            factory=None,
+        )
+        assert result.status == Status.FAILURE

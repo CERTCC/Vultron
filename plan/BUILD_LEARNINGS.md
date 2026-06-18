@@ -281,3 +281,16 @@ early and the BT never runs. Pattern: any test for a received-side use case that
 exercises BT operations MUST pass a `receiving_actor_id` in `make_payload`. Tests
 that don't need the guarded commit to fire can use the sender actor as the
 `receiving_actor_id` — `CheckIsCaseManagerNode` will reject it silently.
+
+### 2026-06-18 BROADCAST-834-STALE-BLACKBOARD — clear broadcast_activity_id sentinel on no-op path
+
+`py_trees.blackboard.Blackboard.storage` is process-global and
+`execute_with_setup` only cleans `datalayer` and `trigger_activity_factory`
+keys on exit — it does NOT clean domain-specific keys like `broadcast_*`.
+When `CreateBroadcastActivityNode` takes the no-op path (empty recipient
+list), it must write `None` to `broadcast_activity_id` to clear any stale
+value from a prior execution.  `BroadcastQueueToOutboxNode` must treat both
+`KeyError` (first-ever run) and `None` (cleared by prior no-op) as equivalent
+no-op sentinels and skip `record_outbox_item`.  Always add regression tests
+that intentionally do NOT clear the blackboard between two `execute_with_setup`
+calls to catch this class of bug.
