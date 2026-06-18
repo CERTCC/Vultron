@@ -14,14 +14,16 @@ FROM base AS dependencies
 # application source does not bust the dependency-install cache.
 # Only a change to pyproject.toml or uv.lock triggers a re-install.
 COPY pyproject.toml uv.lock /app/
-RUN uv sync --frozen --no-install-project
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-install-project
 
 # Copy the full application source and install the project package
 # (including console-script entry points such as vultron-demo).
 # Code-only changes only bust this layer, not the dependency layer above.
 COPY . /app/
 ENV PYTHONPATH=/app
-RUN uv sync --frozen
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen
 
 FROM dependencies AS test
 # Install pytest and dev dependencies

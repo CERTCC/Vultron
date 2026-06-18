@@ -48,14 +48,23 @@ jobs:
       # docker daemon for the subsequent docker compose up step.
       # Run from the docker/ directory so that context: .. resolves to the
       # repo root and ../docker/Dockerfile resolves to docker/Dockerfile.
+      #
+      # This workflow only triggers on pull_request, so a cache it writes
+      # (scope=demo-integration) is only visible to that same PR branch —
+      # GitHub Actions cache entries from a branch aren't visible to other
+      # branches. The second cache-from (scope=demo-integration-main) reads
+      # the cache written by demo-image-cache-warm.yml on pushes to main, so
+      # a brand-new PR branch still gets a warm cache instead of starting
+      # fully cold.
       - name: Build Docker images
         working-directory: docker
         run: |
           docker buildx bake \
             --allow=fs.read=.. \
             -f docker-compose-multi-actor.yml \
-            --set "*.cache-from=type=gha" \
-            --set "*.cache-to=type=gha,mode=max" \
+            --set "*.cache-from=type=gha,scope=demo-integration" \
+            --set "*.cache-from=type=gha,scope=demo-integration-main" \
+            --set "*.cache-to=type=gha,scope=demo-integration,mode=max" \
             --load
 
       # DEMOCI-02-005, DEMOCI-02-006: run two-actor demo; detect failure via
