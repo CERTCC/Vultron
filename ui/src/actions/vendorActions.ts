@@ -315,7 +315,7 @@ export function handleAcceptEmbargo(state: DemoState, vendorId: string): DemoSta
   // For REVISE state: check ALL active vendors (those participating in embargo)
   const allVendors = isRevisionAcceptance ? getActiveVendors(newState) : getVendors(newState).filter(v => v.visible && !v.hasClosed)
   const allParticipantsAccepted = (finder?.embargoAccepted || false) &&
-    allVendors.every((v: any) => v.embargoAccepted)
+    allVendors.every((v) => v.embargoAccepted)
 
   // Handle EM state transitions:
   // - Revision acceptance: check if ALL embargo participants have accepted before REVISE → ACTIVE
@@ -1288,7 +1288,7 @@ export function handleVendorProposeRevision(state: DemoState, vendorId: string):
 
   // Consequence nodes for ALL other vendors (including those who previously rejected)
   // Per Vultron protocol: embargo revision is a new proposal that ALL participants can accept/reject
-  const otherVendors = getVendors(newState).filter((v: any) => v.id !== vendorId && v.visible && !v.hasClosed)
+  const otherVendors = getVendors(newState).filter((v) => v.id !== vendorId && v.visible && !v.hasClosed)
   for (const otherVendor of otherVendors) {
     const wasParticipating = otherVendor.embargoAccepted
 
@@ -1371,7 +1371,7 @@ export function handleVendorAcceptRevision(state: DemoState, vendorId: string): 
   // Per Vultron protocol: R → aA (Revise → accept → Active)
   // But ONLY if ALL participants have now accepted
   const allParticipantsAccepted = (finder?.embargoAccepted || false) &&
-    getActiveVendors(newState).every((v: any) => v.embargoAccepted)
+    getActiveVendors(newState).every((v) => v.embargoAccepted)
 
   if (allParticipantsAccepted) {
     newState = setEmState(newState, 'ACTIVE')
@@ -1424,7 +1424,7 @@ export function handleVendorAcceptRevision(state: DemoState, vendorId: string): 
   }
 
   // Consequence nodes for other vendors
-  const otherVendors = getVendors(newState).filter((v: any) => v.id !== vendorId && v.visible && !v.hasClosed)
+  const otherVendors = getVendors(newState).filter((v) => v.id !== vendorId && v.visible && !v.hasClosed)
   for (const otherVendor of otherVendors) {
     events.push({
       id: `${eventId}-${otherVendor.id}-consequence`,
@@ -1499,7 +1499,7 @@ export function handleVendorRejectRevision(state: DemoState, vendorId: string): 
 
   // Restore embargoAccepted for vendors who were participating
   // Clear embargoProposedToParticipant for vendors who were excluded (revision opportunity passed)
-  for (const otherVendor of getVendors(newState).filter((v: any) => v.visible && !v.hasClosed)) {
+  for (const otherVendor of getVendors(newState).filter((v) => v.visible && !v.hasClosed)) {
     if (otherVendor.embargoProposedToParticipant) {
       // Was excluded, offered revision, rejected/didn't accept - clear the flag
       newState = updateParticipant(newState, otherVendor.id, {
@@ -1557,7 +1557,7 @@ export function handleVendorRejectRevision(state: DemoState, vendorId: string): 
   }
 
   // Consequence nodes for other vendors
-  const otherVendors = getVendors(newState).filter((v: any) => v.id !== vendorId && v.visible && !v.hasClosed)
+  const otherVendors = getVendors(newState).filter((v) => v.id !== vendorId && v.visible && !v.hasClosed)
   for (const otherVendor of otherVendors) {
     events.push({
       id: `${eventId}-${otherVendor.id}-consequence`,

@@ -639,7 +639,7 @@ export function handleFinderProposeRevision(state: DemoState): DemoState {
 
   // Consequence nodes for ALL vendors (including those who previously rejected)
   // Per Vultron protocol: embargo revision is a new proposal that ALL participants can accept/reject
-  for (const vendor of getVendors(newState).filter((v: any) => v.visible && !v.hasClosed)) {
+  for (const vendor of getVendors(newState).filter((v) => v.visible && !v.hasClosed)) {
     const wasParticipating = vendor.embargoAccepted
 
     // Reset embargoAccepted for ALL vendors - they need to accept the revision
@@ -716,7 +716,7 @@ export function handleFinderAcceptRevision(state: DemoState): DemoState {
 
   // Per Vultron protocol: R → aA (Revise → accept → Active)
   // But ONLY if ALL embargo participants have accepted
-  const allParticipantsAccepted = getActiveVendors(newState).every((v: any) => v.embargoAccepted)
+  const allParticipantsAccepted = getActiveVendors(newState).every((v) => v.embargoAccepted)
 
   if (allParticipantsAccepted) {
     newState = setEmState(newState, 'ACTIVE')
@@ -748,7 +748,7 @@ export function handleFinderAcceptRevision(state: DemoState): DemoState {
   timestampOffset++
 
   // Consequence nodes for all vendors
-  const vendors = getVendors(newState).filter((v: any) => v.visible && !v.hasClosed)
+  const vendors = getVendors(newState).filter((v) => v.visible && !v.hasClosed)
   for (const vendor of vendors) {
     events.push({
       id: `${eventId}-${vendor.id}-consequence`,
@@ -819,7 +819,7 @@ export function handleFinderRejectRevision(state: DemoState): DemoState {
 
   // Restore embargoAccepted for vendors who were participating
   // Clear embargoProposedToParticipant for vendors who were excluded (revision opportunity passed)
-  for (const vendor of getVendors(newState).filter((v: any) => v.visible && !v.hasClosed)) {
+  for (const vendor of getVendors(newState).filter((v) => v.visible && !v.hasClosed)) {
     if (vendor.embargoProposedToParticipant) {
       // Was excluded, offered revision, rejected/didn't accept - clear the flag
       newState = updateParticipant(newState, vendor.id, {
@@ -856,7 +856,7 @@ export function handleFinderRejectRevision(state: DemoState): DemoState {
   timestampOffset++
 
   // Consequence nodes for all vendors
-  const vendors = getVendors(newState).filter((v: any) => v.visible && !v.hasClosed)
+  const vendors = getVendors(newState).filter((v) => v.visible && !v.hasClosed)
   for (const vendor of vendors) {
     events.push({
       id: `${eventId}-${vendor.id}-consequence`,

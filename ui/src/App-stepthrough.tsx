@@ -1,15 +1,9 @@
-import { useState, useCallback } from 'react'
+import { useState } from 'react'
 import { ReactFlow, Controls } from '@xyflow/react'
-import type { Node, Edge, NodeTypes } from '@xyflow/react'
+import type { Node, Edge } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import './App.css'
 import { Swimlanes } from './components/Swimlanes'
-import { ActorNode } from './components/ActorNode'
-
-// Register custom node types
-const nodeTypes: NodeTypes = {
-  actorNode: ActorNode,
-}
 
 // Define swimlane layout (3 horizontal bands)
 const LANE_HEIGHT = 250

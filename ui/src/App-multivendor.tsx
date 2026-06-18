@@ -411,12 +411,6 @@ function App() {
     console.log('Active lanes:', activeLanes.map(p => `${p.id}: lane ${p.laneIndex}`))
   }
 
-  // Calculate max lane index to ensure SVG height accounts for all lanes with events
-  const maxLaneIndex = Math.max(
-    ...Array.from(demoState.participants.values()).map(p => p.laneIndex),
-    ...demoState.timelineEvents.map(e => e.lane)
-  )
-  const svgLaneCount = maxLaneIndex + 1  // +1 because indices are 0-based
   const minWidth = Math.max(2000, demoState.nextXPosition + 500)
   const externalActions = getExternalActions(demoState)
 

@@ -90,7 +90,7 @@ export function getNextVendorNumber(state: DemoState): number {
   return getVendorCount(state) + 1
 }
 
-export function canInviteMoreVendors(state: DemoState): boolean {
+export function canInviteMoreVendors(): boolean {
   // No artificial limit - vendors can be added indefinitely
   // Practical limits may be imposed by UI/performance considerations
   return true

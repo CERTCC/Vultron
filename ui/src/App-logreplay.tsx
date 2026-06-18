@@ -117,6 +117,14 @@ function AppLogReplay() {
     }
   }, [])
 
+  // NOTE: `handleLoadDemoLogs` is intentionally defined but not yet wired to a
+  // button. The "load demo logs from a known location" feature is on hold until
+  // the log generator emits the data this path needs — a `case-list.json` index
+  // plus per-actor logs that carry causal links and aren't byte-identical
+  // duplicates (see ui/CLAUDE.md §5–6). Referencing it here keeps the parked
+  // implementation in the build (noUnusedLocals) without faking a wire-up.
+  void handleLoadDemoLogs
+
   // Reset everything
   const handleReset = useCallback(() => {
     if (playIntervalRef.current) {

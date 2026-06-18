@@ -1585,7 +1585,7 @@ function App() {
       const now = Date.now()
 
       // Determine new phase based on current state
-      let newPhase = bothClosed ? 'case-closed' : 'vendor-closed'
+      const newPhase = bothClosed ? 'case-closed' : 'vendor-closed'
 
       setDemoState(prev => ({
         ...prev,
@@ -1661,7 +1661,7 @@ function App() {
       const now = Date.now()
 
       // Determine new phase based on current state
-      let newPhase = bothClosed ? 'case-closed' : 'finder-closed'
+      const newPhase = bothClosed ? 'case-closed' : 'finder-closed'
 
       setDemoState(prev => ({
         ...prev,
@@ -2091,7 +2091,7 @@ function App() {
             </defs>
 
             {/* Draw connecting arrows */}
-            {demoState.timelineEvents.map((event, idx) => {
+            {demoState.timelineEvents.map((event) => {
               // Draw vertical arrow from decision to consequence
               if (event.type === 'consequence' && event.causedBy) {
                 const causeEvent = demoState.timelineEvents.find(e => e.id === event.causedBy)
