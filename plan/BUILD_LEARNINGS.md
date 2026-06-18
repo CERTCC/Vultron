@@ -271,7 +271,23 @@ blackboard keys override it. The return type must be `dict[str, Any]` (not
 `dict[str, object]`) to satisfy mypy when the dict is spread into
 `execute_with_setup`'s `**context_data: Any` parameter.
 
-### 2026-06-18 REMOVE-EMBARGO-1033 — single-BT pattern requires receiving_actor_id in all callers
+### 2026-06-18 SINGLE-BT-1050 — test_accept_invite_to_embargo_commits_log_entry used VultronCaseActor ID not CASE_MANAGER ID
+
+When migrating `AcceptInviteToEmbargoOnCaseReceivedUseCase` to the
+single-BT pattern, `test_accept_invite_to_embargo_commits_log_entry`
+used `receiving_actor_id=case_actor.id_` (the VultronCaseActor service
+entity ID) and expected a commit to fire. The old Python guard
+(`receiving_actor_id == case_actor_id`) happened to pass because it
+compared the service actor ID; the new `CheckIsCaseManagerNode` gate
+compares against the actor holding `CVDRole.CASE_MANAGER` in
+`actor_participant_index`. With `case_manager_actor_id=coordinator_id`
+in the fixture, the case_actor was NOT the CASE_MANAGER, so the commit
+never fired. Fix: use `receiving_actor_id=coordinator_id` (the actual
+CASE_MANAGER) when expecting a guarded commit to fire.
+
+Rule: when writing tests for the single-BT guarded-commit pattern, the
+`receiving_actor_id` must be the actor that holds `CVDRole.CASE_MANAGER`
+via `actor_participant_index`, not the VultronCaseActor service entity.
 
 Switching `RemoveEmbargoEventFromCaseReceivedUseCase` from two `execute_with_setup`
 calls to a single call with `actor_id=receiving_actor_id` exposed that several

@@ -188,7 +188,9 @@ def invite_to_embargo_on_case_tree(
         memory=False,
         children=[
             CreateAndStoreInviteNode(),
-            OptionalLookupParticipantNode(case_id=case_id),
+            OptionalLookupParticipantNode(
+                case_id=case_id, target_actor_id=invitee_id
+            ),
             UpdateParticipantEmbargoPecNode(pec_trigger=PEC_Trigger.INVITE),
             create_guarded_commit_case_ledger_entry_tree(case_id=case_id),
         ],
@@ -232,7 +234,9 @@ def accept_invite_to_embargo_tree(
         children=[
             ValidateCaseExistsNode(case_id=case_id),
             RecordParticipantAcceptanceNode(
-                case_id=case_id, embargo_id=embargo_id
+                case_id=case_id,
+                embargo_id=embargo_id,
+                accepting_actor_id=accepting_actor_id,
             ),
             create_guarded_commit_case_ledger_entry_tree(case_id=case_id),
         ],
