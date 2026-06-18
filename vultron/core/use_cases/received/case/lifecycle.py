@@ -66,10 +66,13 @@ class CloseCaseReceivedUseCase:
         self._sync_port = sync_port
 
     def execute(self) -> None:
+        import py_trees
+
         from vultron.core.behaviors.bridge import BTBridge
         from vultron.core.behaviors.case.nodes import (
             create_guarded_commit_case_ledger_entry_tree,
         )
+        from vultron.core.behaviors.report.nodes import StoreActivityNode
 
         request = self._request
         case_id = request.case_id
@@ -108,8 +111,20 @@ class CloseCaseReceivedUseCase:
             )
             return
 
+        tree = py_trees.composites.Sequence(
+            name="CloseCaseBT",
+            memory=False,
+            children=[
+                StoreActivityNode(
+                    activity_id=request.activity_id,
+                    activity_obj=request.activity,
+                    label="Leave",
+                ),
+                create_guarded_commit_case_ledger_entry_tree(case_id=case_id),
+            ],
+        )
         BTBridge(datalayer=self._dl).execute_with_setup(
-            tree=create_guarded_commit_case_ledger_entry_tree(case_id=case_id),
+            tree=tree,
             actor_id=receiving_actor_id,
             activity=request,
             sync_port=self._sync_port,
