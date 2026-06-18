@@ -433,3 +433,34 @@ groups:
       `test_invariant_5_expected_event_types_present` (after parameterization)
       does not include `announce_case_ledger_entry` as a required event type for
       the case-actor replica.
+  - id: CLP-10-005
+    priority: MUST_NOT
+    statement: >-
+      A received-side use case MUST NOT import or call
+      `create_guarded_commit_case_ledger_entry_tree` (or any other guarded-commit
+      factory) directly from its own `execute()` method as a second,
+      independently-gated `BTBridge.execute_with_setup()` call; the guarded-commit
+      subtree MUST be composed as a child of the use case's own tree-factory
+      function and reached through the single `execute_with_setup()` call already
+      used for the use case's main operation
+    rationale: >-
+      CLP-10-002/CLP-10-003 (ADR-0021) correctly require a pre-flight guard before
+      committing, and correctly require the guard to compare against
+      `receiving_actor_id`. But satisfying those rules with a Python-level
+      `if receiving_actor_id != case_actor_id: return` that gates whether a SECOND
+      `execute_with_setup()` call happens at all reproduces the "post-BT
+      procedural cascade" anti-pattern (see `notes/bt-integration.md`) for the
+      commit step specifically: the cascade from "process this message" to
+      "commit a canonical entry if I'm the CaseActor" becomes invisible outside
+      the tree structure, even though the in-tree `CheckIsCaseManagerNode` guard
+      inside the commit tree is itself correct. An audit (issue #1036) found this
+      shape in 9 use cases across 6 modules (`embargo.py` x3, `report.py` x2,
+      `note.py`, `status.py`, `case/lifecycle.py`,
+      `actor/case_manager_role.py`). See ADR-0022.
+    verification: >-
+      `test/architecture/test_single_bt_execution_received_side.py` greps every
+      module under `vultron/core/use_cases/` for imports of
+      `create_guarded_commit_case_ledger_entry_tree`; any match outside the
+      guarded-commit factory's own module is a violation. Known violations are
+      tracked as a ratchet set (`KNOWN_VIOLATIONS`) that must shrink to empty as
+      each use case migrates to the single-tree shape.

@@ -1145,6 +1145,24 @@ re-inlining the Selector at each call site, and migrate all existing bare
 `CommitCaseLedgerEntryNode` call sites to the factory — CLP-09-002 requires
 a test asserting no bare usage remains outside it.
 
+**Call the factory from inside the use case's own tree, not as a second
+tree execution** (ADR-0022, CLP-10-005, issue #1036): a received-side use
+case MUST call `BTBridge.execute_with_setup()` exactly once per inbox
+delivery, with `actor_id=receiving_actor_id`. The guarded-commit factory
+above MUST be composed as a child of that one tree (by the use case's own
+tree-factory function in `vultron/core/behaviors/`), not invoked as a
+second, separately-gated `execute_with_setup()` call from
+`execute()`. Even when the second call's `actor_id` is provably
+`receiving_actor_id` (satisfying CLP-10-002/CLP-10-003 literally), gating
+*whether the second call happens at all* in Python reproduces the
+"Post-BT Procedural Cascade Anti-Pattern" above for the commit step
+specifically — the decision is invisible outside the tree. Nine known
+call sites across six modules (`embargo.py` x3, `report.py` x2, `note.py`,
+`status.py`, `case/lifecycle.py`, `actor/case_manager_role.py`) had this
+exact shape; see ADR-0022 for the full analysis and
+`test/architecture/test_single_bt_execution_received_side.py` for the
+migration ratchet.
+
 ---
 
 ### Fan-out / SYNC Decomposition: Context Handoff Pattern

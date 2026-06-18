@@ -76,6 +76,8 @@ General information about architectural decision records is available at <https:
   Log](0019-separate-case-ledger-from-process-log.md)
 - [ADR-0021 CaseActor Inbox Routing as the Sole Path to Canonical Ledger
   Entries](0021-caseactor-inbox-routing-canonical-ledger.md)
+- [ADR-0022 Single BT Execution Per Inbox Delivery for Received-Side
+  CaseActor Routing](0022-single-bt-execution-for-received-side-case-actor-routing.md)
 
 ## Proposed ADRs
 
