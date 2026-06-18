@@ -288,6 +288,65 @@ groups:
   - id: ARCH-11-001
     priority: SHOULD
     statement: Core ports SHOULD be organized into inbound (driving) and outbound (driven) categories
+- id: ARCH-14
+  title: Wire Vocabulary Object Naming Convention
+  rationale: >-
+    Wire vocabulary objects in `vultron/wire/as2/vocab/objects/` historically
+    used bare domain names (e.g., `VulnerabilityCase`, `CaseParticipant`) that
+    shadow identically-named core domain models. This causes persistent
+    confusion: agents and developers grab the wrong class, reason about the
+    wrong object, or inadvertently introduce wire-layer imports into core code.
+    The `as_` prefix — already established for base ActivityStreams types
+    (`as_Activity`, `as_Actor`, `as_Object`) — MUST be extended to all
+    Vultron-specific wire vocabulary objects to make the layer boundary
+    unambiguous at a glance.
+  specs:
+  - id: ARCH-14-001
+    priority: MUST
+    statement: >-
+      All Vultron-specific wire vocabulary classes defined in
+      `vultron/wire/as2/vocab/objects/` MUST use the `as_` prefix
+      (e.g., `as_VulnerabilityCase`, `as_CaseParticipant`, `as_CaseStatus`).
+      This extends the existing `as_` naming convention — already applied to
+      base ActivityStreams types (`as_Activity`, `as_Actor`, `as_Object`) —
+      to all Vultron-specific wire objects in that package.
+    rationale: >-
+      Without the `as_` prefix, wire objects shadow identically-named core
+      domain models, making it ambiguous which `VulnerabilityCase` a developer
+      or agent is working with. The `as_` prefix makes the layer boundary
+      unambiguous at a glance and enables automated detection of violations.
+    verification: >-
+      Architecture test in `test/architecture/` asserts that no class in
+      `vultron/wire/as2/vocab/objects/` shares a name with any class in
+      `vultron/core/models/`.
+  - id: ARCH-14-002
+    priority: MUST
+    statement: >-
+      The wire-layer base class for all Vultron-specific AS2 objects (currently
+      `VultronAS2Object`) MUST be renamed `as_VultronObject`. This eliminates
+      the redundant "AS2" qualifier (the `as_` prefix already connotes the
+      wire layer) and aligns the base class name with ARCH-14-001.
+    rationale: >-
+      `VultronAS2Object` does not follow the `as_` prefix convention. The
+      "AS2" suffix is redundant when the `as_` prefix already signals the
+      wire layer. Renaming to `as_VultronObject` makes the base class
+      consistent with all subclasses.
+    verification: >-
+      `vultron/wire/as2/vocab/objects/base.py` exports `as_VultronObject`;
+      no class named `VultronAS2Object` exists anywhere in the codebase.
+  - id: ARCH-14-003
+    priority: MUST
+    statement: >-
+      `TypeAlias` companion types (wire-layer reference unions, e.g.,
+      `VulnerabilityCaseRef`) MUST also use the `as_` prefix
+      (e.g., `as_VulnerabilityCaseRef`, `as_CaseParticipantRef`).
+    rationale: >-
+      Companion aliases that do not follow the `as_` naming convention
+      undermine the goal of ARCH-14-001: an import of `VulnerabilityCaseRef`
+      is just as ambiguous as importing `VulnerabilityCase` from the wire layer.
+    verification: >-
+      No `TypeAlias` variable in `vultron/wire/as2/vocab/objects/` uses a
+      name that matches a core model name without the `as_` prefix.
 - id: ARCH-13
   title: DataLayer Scope Contract
   specs:

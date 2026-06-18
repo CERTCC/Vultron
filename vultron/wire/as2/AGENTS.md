@@ -9,14 +9,26 @@
 
 ## Naming Conventions (wire layer)
 
-- **ActivityStreams class names**: Use `as_` prefix (e.g.,
-  `as_Activity`, `as_Actor`) — in this layer (`vultron/wire/as2/`)
-  **only**. Do NOT use `as_`-prefixed field names anywhere.
+- **All wire vocabulary class names** (base AS2 types AND Vultron-specific
+  objects in `vultron/wire/as2/vocab/objects/`) MUST use the `as_` prefix.
+  Examples: `as_Activity`, `as_Actor`, `as_VulnerabilityCase`,
+  `as_CaseParticipant`, `as_CaseStatus`. See ARCH-14-001.
+  - The wire base class is `as_VultronObject` (in `vocab/objects/base.py`).
+    Do NOT use `VultronAS2Object` — that name is retired. See ARCH-14-002.
+  - `TypeAlias` companion types also use the `as_` prefix:
+    `as_VulnerabilityCaseRef`, `as_CaseParticipantRef`, etc. See ARCH-14-003.
+  - **IMPORTANT**: Core domain models (`vultron/core/models/`) do NOT use the
+    `as_` prefix. `VulnerabilityCase` (no prefix) is always the core type;
+    `as_VulnerabilityCase` is always the wire type. If you find yourself
+    importing `VulnerabilityCase` from `vultron.wire.as2.vocab.objects.*`,
+    that is a bug — switch to `as_VulnerabilityCase`.
 - **Wire-layer field names**: Use trailing underscore for fields whose
   plain name collides with a Python builtin or reserved word (e.g.,
   `id_`, `type_`, `object_`, `context_`) with a Pydantic alias for the
   JSON key (e.g., `id_: str = Field(alias="id")`). See CS-07-002,
   CS-07-003.
+- **Do NOT use `as_`-prefixed field names** anywhere (the prefix is for
+  class names only, not field or variable names).
 - **Pattern objects**: Descriptive CamelCase with `Pattern` suffix
   (e.g., `CreateReportPattern`, `AcceptInviteToEmbargoOnCasePattern`)
 
