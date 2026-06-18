@@ -37,35 +37,18 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
 
-      # DEMOCI-02-007: Docker layer caching to avoid rebuilding unchanged layers.
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5  # v4.1.0
-
       # DEMOCI-02-007: Docker layer caching via Buildx GHA cache.
-      # docker buildx bake understands the compose file format and passes
-      # cache-from/cache-to through to BuildKit, which writes/reads the GHA
-      # cache natively.  --load ensures all built images are available to the
-      # docker daemon for the subsequent docker compose up step.
-      # Run from the docker/ directory so that context: .. resolves to the
-      # repo root and ../docker/Dockerfile resolves to docker/Dockerfile.
-      #
       # This workflow only triggers on pull_request, so a cache it writes
       # (scope=demo-integration) is only visible to that same PR branch —
       # GitHub Actions cache entries from a branch aren't visible to other
-      # branches. The second cache-from (scope=demo-integration-main) reads
-      # the cache written by demo-image-cache-warm.yml on pushes to main, so
-      # a brand-new PR branch still gets a warm cache instead of starting
-      # fully cold.
+      # branches. cache-from-extra-scope reads the cache written by
+      # demo-image-cache-warm.yml on pushes to main, so a brand-new PR
+      # branch still gets a warm cache instead of starting fully cold.
       - name: Build Docker images
-        working-directory: docker
-        run: |
-          docker buildx bake \
-            --allow=fs.read=.. \
-            -f docker-compose-multi-actor.yml \
-            --set "*.cache-from=type=gha,scope=demo-integration" \
-            --set "*.cache-from=type=gha,scope=demo-integration-main" \
-            --set "*.cache-to=type=gha,scope=demo-integration,mode=max" \
-            --load
+        uses: ./.github/actions/build-demo-images
+        with:
+          cache-scope: demo-integration
+          cache-from-extra-scope: demo-integration-main
 
       # DEMOCI-02-005, DEMOCI-02-006: run two-actor demo; detect failure via
       # exit code of the demo-runner container.
@@ -93,20 +76,13 @@ jobs:
       # Invariants not yet passing are marked xfail so the build stays green;
       # unexpected passes appear as XPASS (visible but not failing).
       # See test/ci/README-case-log-ratchet.md for the ratchet workflow.
-      - name: Set up Python for invariant harness
+      - name: Set up Python and uv for invariant harness
         if: always()
-        id: setup-python-invariants
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
-        with:
-          python-version: "3.13"
-
-      - name: Install dependencies for invariant harness
-        if: always() && steps.setup-python-invariants.outcome == 'success'
-        id: install-invariant-deps
-        run: python -m pip install --upgrade pip uv && uv sync --dev --frozen
+        id: setup-invariant-harness
+        uses: ./.github/actions/setup-python-uv
 
       - name: Run case-ledger invariant harness
-        if: always() && steps.install-invariant-deps.outcome == 'success'
+        if: always() && steps.setup-invariant-harness.outcome == 'success'
         run: uv run pytest -m case_ledger_invariants -v --tb=short
 
       # DEMOCI-02-008: collect combined stream and per-service logs on failure.
