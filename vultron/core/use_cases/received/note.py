@@ -93,22 +93,22 @@ class AddNoteToCaseReceivedUseCase:
         existing_ids = [_as_id(n) for n in case.notes]
         if note_id in existing_ids:
             logger.info(
-                "Note '%s' already in case '%s' — skipping (idempotent)",
+                "Note '%s' already in case '%s' — skipping attachment"
+                " (idempotent)",
                 note_id,
                 case_id,
             )
-            return
+        else:
+            case.notes.append(note_id)
+            self._dl.save(case)
+            logger.info("Added note '%s' to case '%s'", note_id, case_id)
 
-        case.notes.append(note_id)
-        self._dl.save(case)
-        logger.info("Added note '%s' to case '%s'", note_id, case_id)
-
-        self._broadcast_note_to_participants(
-            note_id=note_id,
-            case_id=case_id,
-            author_id=request.actor_id,
-            case=case,
-        )
+            self._broadcast_note_to_participants(
+                note_id=note_id,
+                case_id=case_id,
+                author_id=request.actor_id,
+                case=case,
+            )
 
         from vultron.core.behaviors.bridge import BTBridge
         from vultron.core.behaviors.case.nodes import (

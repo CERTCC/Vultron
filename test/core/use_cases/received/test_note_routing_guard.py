@@ -120,6 +120,7 @@ class TestAddNoteToCaseLedgerRouting:
         dl = _make_case_actor_dl()
 
         case = dl.read(CASE_ID)
+        assert isinstance(case, VulnerabilityCase)
         note = as_Note(id_=NOTE_ID, content="Test note content")
         activity = add_note_to_case_activity(
             note=note,
@@ -150,6 +151,7 @@ class TestAddNoteToCaseLedgerRouting:
         dl = _make_case_actor_dl()
 
         case = dl.read(CASE_ID)
+        assert isinstance(case, VulnerabilityCase)
         note = as_Note(id_=NOTE_ID, content="Test note content")
         activity = add_note_to_case_activity(
             note=note,
@@ -182,6 +184,7 @@ class TestAddNoteToCaseLedgerRouting:
         dl = _make_case_actor_dl()
 
         case = dl.read(CASE_ID)
+        assert isinstance(case, VulnerabilityCase)
         note = as_Note(id_=NOTE_ID, content="Test note content")
         activity = add_note_to_case_activity(
             note=note,

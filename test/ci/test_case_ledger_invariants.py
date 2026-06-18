@@ -377,17 +377,45 @@ _EVENT_TYPE_PARAMS = [
     ),
     pytest.param(
         "ack_report",
-        marks=[],
+        marks=[
+            pytest.mark.xfail(
+                reason=(
+                    "No demo trigger emits ack_report to the case-actor."
+                    " The vendor must send Read(Offer(Report)) after"
+                    " validate_report, but no /trigger/ack-report endpoint"
+                    " exists yet."
+                ),
+                strict=True,
+            )
+        ],
         id="ack_report",
     ),
     pytest.param(
         "invite_to_embargo_on_case",
-        marks=[],
+        marks=[
+            pytest.mark.xfail(
+                reason=(
+                    "No demo trigger emits invite_to_embargo_on_case to"
+                    " the case-actor. The two-actor demo has no"
+                    " embargo-invite step."
+                ),
+                strict=True,
+            )
+        ],
         id="invite_to_embargo_on_case",
     ),
     pytest.param(
         "accept_invite_to_embargo_on_case",
-        marks=[],
+        marks=[
+            pytest.mark.xfail(
+                reason=(
+                    "No demo trigger emits accept_invite_to_embargo_on_case"
+                    " to the case-actor. The two-actor demo has no"
+                    " embargo-invite/accept step."
+                ),
+                strict=True,
+            )
+        ],
         id="accept_invite_to_embargo_on_case",
     ),
     pytest.param(
