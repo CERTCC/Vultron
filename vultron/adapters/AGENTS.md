@@ -15,9 +15,25 @@
 - **Layer boundary**: Routers in `vultron/adapters/driving/fastapi/routers/`
   MUST NOT import from `vultron/core/` directly except through the
   dispatcher port. No business logic in routers.
+- **AS2 response pattern** (HTTP-09-002): Endpoints returning AS2 objects
+  MUST use `AS2JSONResponse` from
+  `vultron.adapters.driving.fastapi.responses`. Do NOT return a raw dict
+  from `model_dump()` or the wire model object directly. Use `response_model=`
+  on the decorator for OpenAPI schema only; `AS2JSONResponse` handles
+  serialization and sets `Content-Type: application/activity+json`.
+
+  ```python
+  # Correct pattern
+  @router.get("/cases/{id}", response_model=as_VulnerabilityCase)
+  def get_case(id: str):
+      ...
+      return AS2JSONResponse(wire_case)  # handles model_dump(by_alias=True)
+  ```
+
 - **response\_model filtering**: FastAPI's `response_model=` strips fields
-  not declared on the model. Use a wide-enough model or `response_model=None`
-  when returning subtype objects.
+  not declared on the model when the route returns a non-Response value. The
+  `AS2JSONResponse` pattern above bypasses this filtering entirely (FastAPI
+  docs: returning a `Response` subclass skips response_model filtering).
   See [notes/codebase-structure.md](../../notes/codebase-structure.md)
   § FastAPI response\_model Filtering.
 

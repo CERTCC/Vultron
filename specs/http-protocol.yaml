@@ -45,7 +45,22 @@ groups:
   specs:
   - id: HTTP-04-001
     priority: MUST
-    statement: 'All JSON responses MUST include `Content-Type: application/json` header'
+    statement: >-
+      Endpoints returning ActivityStreams objects MUST use
+      `Content-Type: application/activity+json`. Endpoints returning non-AS2
+      JSON (e.g., health checks, error bodies) MUST use
+      `Content-Type: application/json`.
+    rationale: >-
+      The ActivityStreams 2.0 specification defines `application/activity+json`
+      as the normative media type for AS2 documents. Using plain
+      `application/json` is ambiguous for federation clients that discover
+      capabilities via Content-Type. The previous requirement
+      (`application/json` for all responses) is superseded by this entry.
+    verification: >-
+      Integration test asserts that `GET /actors/{id}/profile` and
+      `GET /cases/{id}` responses carry
+      `Content-Type: application/activity+json`. Health-check response carries
+      `Content-Type: application/json`.
 - id: HTTP-05
   title: Correlation ID Propagation
   specs:
@@ -111,3 +126,56 @@ groups:
     statement: >-
       API responses MUST include all fields of the actual returned object type, not only fields
       declared on the annotated base class
+- id: HTTP-09
+  title: AS2 Response Class Convention
+  kind: language
+  rationale: >-
+    FastAPI's `response_model=` serves two purposes: OpenAPI schema generation
+    and runtime response filtering. When a route returns a wire AS2 object
+    (e.g., `as_VulnerabilityCase`), using `response_model=` for both purposes
+    risks silently stripping subclass fields (HTTP-08-001 violation). The
+    canonical fix is to separate the two concerns: use `response_model=` for
+    OpenAPI docs only, and return an `AS2JSONResponse` instance for actual
+    serialization (FastAPI skips response_model filtering when a `Response`
+    subclass is returned directly).
+  specs:
+  - id: HTTP-09-001
+    priority: MUST
+    statement: >-
+      Wire vocabulary objects (`as_VulnerabilityCase`, `as_CaseParticipant`,
+      etc.) are the canonical response type for Vultron HTTP endpoints — they
+      define the AS2-formatted JSON shape returned to clients. No separate
+      "response model" layer is needed; the wire model IS the response model.
+    rationale: >-
+      Vultron is an AS2-over-HTTP protocol. Every substantive response body is
+      an ActivityStreams object. The wire vocabulary already defines the correct
+      serialization shape (camelCase aliases, `@context`, `type`).
+  - id: HTTP-09-002
+    priority: MUST
+    statement: >-
+      FastAPI route handlers that return an AS2 object MUST return an
+      `AS2JSONResponse` instance (defined in
+      `vultron/adapters/driving/fastapi/responses.py`). They MUST NOT return a
+      raw dict from `model_dump()`, a plain `JSONResponse`, or the wire model
+      object directly. The `response_model=` decorator argument is used for
+      OpenAPI schema generation only.
+    rationale: >-
+      Returning a `Response` subclass bypasses FastAPI's `response_model`
+      filtering while preserving its use for OpenAPI schema generation (per
+      FastAPI docs). This eliminates the subtype-field-stripping bug
+      (HTTP-08-001) and ensures consistent `Content-Type: application/activity+json`
+      across all AS2 endpoints.
+    verification: >-
+      Architecture test or grep confirms no route in
+      `vultron/adapters/driving/fastapi/routers/` calls `model_dump()` and
+      returns a plain dict instead of `AS2JSONResponse`.
+  - id: HTTP-09-003
+    priority: MUST
+    statement: >-
+      `AS2JSONResponse` MUST serialize using
+      `model_dump(mode="json", by_alias=True, exclude_none=True)` and set
+      `Content-Type: application/activity+json`.
+    verification: >-
+      Unit test confirms `AS2JSONResponse(as_VulnerabilityCase(...)).body`
+      includes camelCase field names and the response headers contain
+      `Content-Type: application/activity+json`.
