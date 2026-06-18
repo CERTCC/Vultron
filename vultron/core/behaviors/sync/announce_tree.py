@@ -5,10 +5,12 @@ import py_trees
 
 from vultron.core.behaviors.embargo.nodes import ApplyEmbargoTeardownNode
 from vultron.core.behaviors.sync.nodes import (
+    ApplyParticipantStatusFromLedgerNode,
     CheckHashOrRejectOnMismatchNode,
     CheckIsOwnCaseActorNode,
     CheckIsNotOwnCaseActorNode,
     CheckLedgerEntryAlreadyStoredNode,
+    IsNotParticipantStatusEventNode,
     IsNotRemoveEmbargoEventNode,
     LogDeliveryConfirmationNode,
     PersistReceivedLogEntryNode,
@@ -48,12 +50,32 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
             validate_and_persist,
         ],
     )
-    log_entry_event_effects = py_trees.composites.Selector(
+    log_entry_event_effects = py_trees.composites.Sequence(
         name="LogEntryEventEffects",
         memory=False,
         children=[
-            IsNotRemoveEmbargoEventNode(name="IsNotRemoveEmbargoEvent"),
-            ApplyEmbargoTeardownNode(name="ApplyEmbargoTeardown"),
+            py_trees.composites.Selector(
+                name="EmbargoEffects",
+                memory=False,
+                children=[
+                    IsNotRemoveEmbargoEventNode(
+                        name="IsNotRemoveEmbargoEvent"
+                    ),
+                    ApplyEmbargoTeardownNode(name="ApplyEmbargoTeardown"),
+                ],
+            ),
+            py_trees.composites.Selector(
+                name="ParticipantStatusEffects",
+                memory=False,
+                children=[
+                    IsNotParticipantStatusEventNode(
+                        name="IsNotParticipantStatusEvent"
+                    ),
+                    ApplyParticipantStatusFromLedgerNode(
+                        name="ApplyParticipantStatusFromLedger"
+                    ),
+                ],
+            ),
         ],
     )
     participant_subtree = py_trees.composites.Sequence(
