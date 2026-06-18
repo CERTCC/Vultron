@@ -294,3 +294,20 @@ value from a prior execution.  `BroadcastQueueToOutboxNode` must treat both
 no-op sentinels and skip `record_outbox_item`.  Always add regression tests
 that intentionally do NOT clear the blackboard between two `execute_with_setup`
 calls to catch this class of bug.
+
+### 2026-06-18 CLP-08-995-WIRE-GENESIS — wire VulnerabilityCase must not fall back to `updated` for genesis hash
+
+The wire `VulnerabilityCase` model validator had `created_at = self.published or self.updated`
+for computing the genesis hash. Using `updated` as a fallback silently produces a hash that
+diverges from the CaseActor's hash (which always uses `published`). The correct fix is to
+skip genesis hash computation entirely when `published` is absent — leave `genesis_hash=""`
+and let callers treat an empty string as "unknown, skip genesis validation". A wrong hash
+is strictly worse than no hash.
+
+### 2026-06-18 CLP-08-995-POSITIVE-TEST — freshness tests need a case in DataLayer for genesis-hash path
+
+`is_ledger_fresh_for_case` skips the genesis-hash check when `effective_genesis == ""`.
+Positive freshness tests that don't save a `VulnerabilityCase` to the DataLayer always
+bypass the genesis-hash validation path — they pass even if `_get_case_genesis_hash` is
+broken. Always add a positive test that stores the case first (via `dl.save(_make_case())`)
+to exercise the active genesis-hash check path (CLP-08-004).
