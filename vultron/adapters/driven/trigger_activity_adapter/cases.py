@@ -94,6 +94,26 @@ class _CasesMixin:
             )
         return activity.id_, activity.model_dump(**_DUMP_KWARGS)
 
+    def close_case(
+        self,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist a ``Leave(VulnerabilityCase)`` close-case activity."""
+        from vultron.wire.as2.factories import rm_close_case_activity
+
+        case = cast(VulnerabilityCase, self._dl.read(case_id))
+        activity = rm_close_case_activity(case=case, actor=actor, to=to)
+        try:
+            self._dl.create(activity)
+        except ValueError:
+            logger.warning(
+                "close_case: activity '%s' already exists — skipping",
+                activity.id_,
+            )
+        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+
     def add_object_to_case(
         self,
         actor: str,

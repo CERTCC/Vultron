@@ -79,6 +79,7 @@ _SYNC_PORT_SEMANTICS = frozenset(
         MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE,
         MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
         MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY,
+        MessageSemantics.CLOSE_CASE,
         MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
         MessageSemantics.REJECT_CASE_LEDGER_ENTRY,
         MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE,
@@ -102,6 +103,7 @@ _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
 # broadcast).
 _SYNC_AND_TRIGGER_PORT_SEMANTICS = frozenset(
     {
+        MessageSemantics.ACK_REPORT,
         MessageSemantics.ADD_NOTE_TO_CASE,
         MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
         MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,

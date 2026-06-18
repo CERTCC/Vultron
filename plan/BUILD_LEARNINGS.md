@@ -169,6 +169,71 @@ avoids "possibly unbound" errors without introducing unnecessary sentinel
 values into `__init__`. Use `cast()` in `_prepare()` to restore specific
 request type narrowing lost by widening to `object` in the base `__init__`.
 
+### 2026-06-18 AUTOCLOSE-1030 — AutoCloseBranchNode must be CASE_MANAGER-only; use CheckIsCaseManagerNode role guard
+
+`AutoCloseBranchNode` fired in every actor context that processed an
+`Add(ParticipantStatus)` broadcast, because received-side use cases run the
+BT with `actor_id=sender` (the identity-spoofing pattern). On vendor-1, the
+BT sometimes ran with `actor_id=finder-actor` — a phantom fire that queued
+the Leave into a never-drained outbox slot. A module-level per-case
+idempotency set made things worse: the phantom claimed the slot and blocked
+the real fire, producing zero canonical `close_case` entries.
+
+Fix: wrap `AutoCloseBranchNode` in the standard role-guard composite at tree
+composition time (in `add_participant_status_tree.py`), using the existing
+`CheckIsCaseManagerNode`:
+
+```python
+Selector("AutoCloseIfCaseManager", children=[
+    Sequence("CaseManagerAutoClose", children=[
+        CheckIsCaseManagerNode(case_id=case_id),
+        AutoCloseBranchNode(case_id=case_id),
+    ]),
+    Success("AutoCloseSkippedNotCaseManager"),
+])
+```
+
+Keep the module-level idempotency set to prevent duplicate fires when
+multiple qualifying broadcasts arrive in the same process. The same
+`CheckIsCaseManagerNode` pattern is used in
+`create_guarded_commit_case_ledger_entry_tree` — reach for it any time a
+BT step is CASE_MANAGER-only.
+
+### 2026-06-18 DEMO-DEVLOG-RACE — wait for replica before dumping devlogs
+
+Demo phases that dump JSONL devlogs (e.g., `_phase_dump_case_ledgers`) will
+miss recently committed canonical entries if they run before the async
+`Announce(CaseLedgerEntry)` fan-out is processed by the replica. In the
+failing run the finder devlog was written 580 ms *before* finder received
+and stored the final `close_case` entry.
+
+Pattern: after any phase that commits a new canonical ledger entry, query
+vendor's current tail hash and call `wait_for_finder_log_entry` before the
+dump:
+
+```python
+vendor_entries = _get_log_entries_for_case(vendor_client, case.id_)
+if vendor_entries:
+    tail = max(vendor_entries, key=lambda e: e["log_index"])
+    wait_for_finder_log_entry(finder_client, case.id_, tail["entry_hash"])
+```
+
+This is the same poll-until-hash pattern used in `_phase_sync_verification`.
+Apply it after every phase that introduces a new tail before a devlog dump.
+
+### 2026-06-18 MODULE-IDEM-SET — module-level idempotency sets are per-process, not per-container
+
+A module-level `set[str]` used to track "already fired" in a BT node is
+isolated to the Python process. In the Docker demo, vendor-1 and finder-1
+are separate processes with separate sets. A phantom fire on finder-1
+(with the wrong `actor_id`) adds the `case_id` to finder-1's set — it does
+NOT affect vendor-1's set. This means the REAL fire on vendor-1 can still
+proceed. Conversely, two phantom fires in the SAME process on vendor-1
+(one with `actor_id=finder-actor`, then one with `actor_id=case-actor`) can
+race: the phantom claims the set slot first and blocks the real fire.
+Always pair a module-level idempotency set with a role guard so the set is
+only ever claimed by the correct actor.
+
 ### 2026-06-16 BASE-HOOK-1005 — SvcBTTriggerBase needs _extra_execute_kwargs() for trees that read case_id from blackboard
 
 `UpdateActorOutbox` reads `case_id` from the blackboard (registered via

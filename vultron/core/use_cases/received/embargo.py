@@ -265,6 +265,51 @@ class InviteToEmbargoOnCaseReceivedUseCase:
                 result.feedback_message,
             )
 
+        # Pre-flight guard + guarded commit (ADR-0021, CLP-10-002, CLP-10-003)
+        from vultron.core.behaviors.case.nodes import (
+            create_guarded_commit_case_ledger_entry_tree,
+        )
+        from vultron.core.use_cases._helpers import _find_case_actor_id
+
+        if not case_id:
+            logger.debug(
+                "invite_to_embargo_on_case: missing case_id — skipping commit"
+            )
+            return
+
+        case_actor_id = _find_case_actor_id(self._dl, case_id)
+        if case_actor_id is None:
+            logger.warning(
+                "invite_to_embargo_on_case: cannot resolve CaseActor for"
+                " case '%s' — skipping commit",
+                case_id,
+            )
+            return
+
+        receiving_actor_id = request.receiving_actor_id
+        if receiving_actor_id is None:
+            logger.debug(
+                "invite_to_embargo_on_case: missing receiving_actor_id"
+                " — skipping commit"
+            )
+            return
+
+        if receiving_actor_id != case_actor_id:
+            logger.debug(
+                "invite_to_embargo_on_case: receiving actor '%s' is not the"
+                " CaseActor for case '%s' — skipping commit (CLP-10-003)",
+                receiving_actor_id,
+                case_id,
+            )
+            return
+
+        BTBridge(datalayer=self._dl).execute_with_setup(
+            tree=create_guarded_commit_case_ledger_entry_tree(case_id=case_id),
+            actor_id=receiving_actor_id,
+            activity=request,
+            sync_port=self._sync_port,
+        )
+
 
 class AcceptInviteToEmbargoOnCaseReceivedUseCase:
     def __init__(
@@ -323,6 +368,46 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                 case_id,
                 result.feedback_message,
             )
+
+        # Pre-flight guard + guarded commit (ADR-0021, CLP-10-002, CLP-10-003)
+        from vultron.core.behaviors.case.nodes import (
+            create_guarded_commit_case_ledger_entry_tree,
+        )
+        from vultron.core.use_cases._helpers import _find_case_actor_id
+
+        case_actor_id = _find_case_actor_id(self._dl, case_id)
+        if case_actor_id is None:
+            logger.warning(
+                "accept_invite_to_embargo_on_case: cannot resolve CaseActor"
+                " for case '%s' — skipping commit",
+                case_id,
+            )
+            return
+
+        receiving_actor_id = request.receiving_actor_id
+        if receiving_actor_id is None:
+            logger.debug(
+                "accept_invite_to_embargo_on_case: missing receiving_actor_id"
+                " — skipping commit"
+            )
+            return
+
+        if receiving_actor_id != case_actor_id:
+            logger.debug(
+                "accept_invite_to_embargo_on_case: receiving actor '%s' is"
+                " not the CaseActor for case '%s' — skipping commit"
+                " (CLP-10-003)",
+                receiving_actor_id,
+                case_id,
+            )
+            return
+
+        BTBridge(datalayer=self._dl).execute_with_setup(
+            tree=create_guarded_commit_case_ledger_entry_tree(case_id=case_id),
+            actor_id=receiving_actor_id,
+            activity=request,
+            sync_port=self._sync_port,
+        )
 
 
 class RejectInviteToEmbargoOnCaseReceivedUseCase:

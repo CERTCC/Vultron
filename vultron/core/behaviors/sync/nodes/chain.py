@@ -45,6 +45,8 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("TentativeReject", "Offer"),
     # Reject(Offer(VulnerabilityReport)) — close_report (RC).
     ("Reject", "Offer"),
+    # Read(Offer(VulnerabilityReport)) — ack_report (RK message, ADR-0021).
+    ("Read", "Offer"),
     ("Add", "Note"),
     ("Add", "ParticipantStatus"),
     ("Add", "EmbargoEvent"),
@@ -68,6 +70,10 @@ _CASE_AUTHORED_SIGNATURES: frozenset[tuple[str, str]] = frozenset(
         ("Remove", "EmbargoEvent"),
         ("Invite", "EmbargoEvent"),
         ("Offer", "VulnerabilityCase"),
+        # Leave(VulnerabilityCase) is emitted by the case-actor's
+        # AutoCloseBranchNode when all participants reach RM.CLOSED.
+        # The case-actor is the canonical author of this closure assertion.
+        ("Leave", "VulnerabilityCase"),
     }
 )
 _INLINE_OBJECT_KEYS: frozenset[str] = frozenset(

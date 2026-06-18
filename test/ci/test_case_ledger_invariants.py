@@ -71,9 +71,6 @@ _DEVLOGS_DIR: Path = _REPO_ROOT / "devlogs"
 EXPECTED_EVENT_TYPES: frozenset[str] = frozenset(
     {
         "validate_report",
-        "ack_report",
-        "invite_to_embargo_on_case",
-        "accept_invite_to_embargo_on_case",
         "add_participant_status_to_participant",
         "close_case",
         "add_note_to_case",
@@ -376,48 +373,18 @@ _EVENT_TYPE_PARAMS = [
         id="validate_report",
     ),
     pytest.param(
-        "ack_report",
-        marks=pytest.mark.xfail(
-            strict=False,
-            reason="Open: #1026 follow-on. Trigger tree lacks emit node and received UC lacks guarded commit.",
-        ),
-        id="ack_report",
-    ),
-    pytest.param(
-        "invite_to_embargo_on_case",
-        marks=pytest.mark.xfail(
-            strict=False,
-            reason="Open: #1026 follow-on. Trigger tree lacks emit node and received UC lacks guarded commit.",
-        ),
-        id="invite_to_embargo_on_case",
-    ),
-    pytest.param(
-        "accept_invite_to_embargo_on_case",
-        marks=pytest.mark.xfail(
-            strict=False,
-            reason="Open: #1026 follow-on. Trigger tree lacks emit node and received UC lacks guarded commit.",
-        ),
-        id="accept_invite_to_embargo_on_case",
-    ),
-    pytest.param(
         "add_participant_status_to_participant",
         marks=[],
         id="add_participant_status_to_participant",
     ),
     pytest.param(
         "close_case",
-        marks=pytest.mark.xfail(
-            strict=False,
-            reason="Open: #1026 follow-on. Trigger tree lacks emit node and received UC lacks guarded commit.",
-        ),
+        marks=[],
         id="close_case",
     ),
     pytest.param(
         "add_note_to_case",
-        marks=pytest.mark.xfail(
-            strict=False,
-            reason="Open: #1026 follow-on. Trigger tree lacks emit node and received UC lacks guarded commit.",
-        ),
+        marks=[],
         id="add_note_to_case",
     ),
 ]

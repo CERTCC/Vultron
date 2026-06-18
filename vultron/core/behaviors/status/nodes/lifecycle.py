@@ -20,6 +20,7 @@ all-participants-closed auto-close branch (step 5).
 """
 
 import logging
+import threading
 from typing import Any
 
 import py_trees
@@ -34,6 +35,14 @@ from vultron.core.states.roles import CVDRole
 from vultron.core.use_cases._helpers import _as_id
 
 logger = logging.getLogger(__name__)
+
+# Guard against AutoCloseBranchNode firing more than once per case.
+# Keyed by case_id — the first BT execution to observe all-participants-CLOSED
+# for a given case wins; subsequent ones are no-ops for that case.
+# Protected by a threading.Lock because FastAPI BackgroundTasks run on a
+# thread pool (see AGENTS.md: "BTBridge Thread-Safety (RLock)").
+_auto_close_lock: threading.Lock = threading.Lock()
+_auto_close_triggered: set[str] = set()  # case_ids that have fired AutoClose
 
 
 class _PublicDisclosureSkipConditionNode(DataLayerCondition):
@@ -213,6 +222,16 @@ class AutoCloseBranchNode(DataLayerAction):
         if not self._all_participants_closed(case):
             return Status.SUCCESS
 
+        with _auto_close_lock:
+            if self.case_id in _auto_close_triggered:
+                self.logger.debug(
+                    "AutoCloseBranch: close_case already triggered for"
+                    " case '%s' — skipping duplicate fire",
+                    self.case_id,
+                )
+                return Status.SUCCESS
+            _auto_close_triggered.add(self.case_id)
+
         case_manager_id = _find_case_manager_id(self.datalayer, case)
         if case_manager_id is None:
             self.logger.warning(
@@ -223,9 +242,45 @@ class AutoCloseBranchNode(DataLayerAction):
             return Status.SUCCESS
 
         self.logger.info(
-            "AutoCloseBranch: Case Manager '%s' auto-closing case '%s'"
-            " — all participants CLOSED (DEMOMA-07-003 step 5)",
-            case_manager_id,
+            "AutoCloseBranch: all participants CLOSED for case '%s'"
+            " — emitting Leave(VulnerabilityCase) to CaseActor '%s'"
+            " (DEMOMA-07-003 step 5)",
             self.case_id,
+            case_manager_id,
         )
+
+        if self.trigger_activity_factory is None:
+            self.logger.warning(
+                "AutoCloseBranch: no TriggerActivityPort — cannot emit"
+                " close_case activity for case '%s'",
+                self.case_id,
+            )
+            return Status.SUCCESS
+
+        try:
+            activity_id, _ = self.trigger_activity_factory.close_case(
+                case_id=self.case_id,
+                actor=self.actor_id or "",
+                to=[case_manager_id],
+            )
+            from typing import cast as _cast
+
+            from vultron.core.ports.case_persistence import (
+                CaseOutboxPersistence,
+            )
+
+            _cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
+                self.actor_id or "", activity_id
+            )
+            self.logger.info(
+                "AutoCloseBranch: emitted close_case activity '%s'"
+                " to CaseActor '%s'",
+                activity_id,
+                case_manager_id,
+            )
+        except Exception as e:
+            self.logger.error(
+                "AutoCloseBranch: failed to emit close_case: %s", e
+            )
+
         return Status.SUCCESS
