@@ -13,6 +13,7 @@ import {
   setEmState,
 } from '../../state/stateUpdaters'
 import { getParticipant, getActiveVendors, getVendors } from '../../state/participantHelpers'
+import { requireNextState } from '../../protocol'
 
 export function handleSubmitReport(state: DemoState): DemoState {
   const nextX = state.nextXPosition
@@ -21,8 +22,15 @@ export function handleSubmitReport(state: DemoState): DemoState {
 
   let newState = state
 
-  // Update participants
-  newState = updateParticipant(newState, 'finder', { rmState: 'RECEIVED' })
+  // The Finder enters CVD already at RM.ACCEPTED. Per the formal protocol, a
+  // Finder's START → RECEIVED → VALID → ACCEPTED traversal happens privately —
+  // they discover, validate, and prioritize their own find before contacting
+  // anyone (this is the Finder → Reporter transition; see states.md start-state
+  // table: Finder/Reporter starts at (A, N, pxa)). So the only observable RM
+  // states for the Finder are ACCEPTED ⇄ DEFERRED → CLOSED. We therefore seed
+  // ACCEPTED rather than RECEIVED, which also makes the later `close` transition
+  // legal (close is not permitted from RECEIVED).
+  newState = updateParticipant(newState, 'finder', { rmState: 'ACCEPTED' })
   newState = updateParticipant(newState, 'vendor-1', { rmState: 'RECEIVED', vfdState: 'Vfd', visible: true })
   newState = updateParticipant(newState, 'caseactor', { visible: true })
 
@@ -103,7 +111,7 @@ export function handleSubmitReport(state: DemoState): DemoState {
         'Announce(Case) received in inbox',
         'Case replica created in DataLayer',
         'Finder participant record created',
-        'Finder\'s RM → RECEIVED',
+        'Finder\'s RM: ACCEPTED (validated & prioritized privately before disclosure)',
         'Trust established with CaseActor',
       ],
     },
@@ -516,9 +524,17 @@ export function handleFinderCloseCase(state: DemoState): DemoState {
   const eventId = `event-${state.timelineEvents.length + 1}`
   const now = Date.now()
 
+  const finderState = getParticipant(state, 'finder')
+  if (!finderState) return state
+
   let newState = state
 
-  newState = updateParticipant(newState, 'finder', { rmState: 'CLOSED', hasClosed: true })
+  // RM destination computed from the protocol artifact. The Finder enters CVD at
+  // ACCEPTED (see handleSubmitReport) and may pause at DEFERRED; `close` is legal
+  // from both. `hasClosed` is a demo-only flag with no machine slot.
+  const nextRmState = requireNextState('rm', finderState.rmState, 'close')
+
+  newState = updateParticipant(newState, 'finder', { rmState: nextRmState, hasClosed: true })
   // Don't change phase - in multi-vendor scenarios, finder closing doesn't stop vendors
   // Per Vultron protocol: RM state (including CLOSED) is participant-specific
   // Vendors can continue working after finder closes

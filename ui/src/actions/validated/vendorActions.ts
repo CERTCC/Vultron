@@ -13,6 +13,7 @@ import {
   setEmState,
 } from '../../state/stateUpdaters'
 import { getParticipant, getActiveParticipants, getActiveVendors, getVendors } from '../../state/participantHelpers'
+import { requireNextState } from '../../protocol'
 
 export function handleValidateReport(state: DemoState, vendorId: string): DemoState {
   const nextX = state.nextXPosition
@@ -24,7 +25,13 @@ export function handleValidateReport(state: DemoState, vendorId: string): DemoSt
 
   let newState = state
 
-  newState = updateParticipant(newState, vendorId, { rmState: 'VALID' })
+  // RM destination is computed from the protocol artifact (protocol_states.json)
+  // rather than hardcoded. The `validate` trigger is legal from RECEIVED and
+  // also from INVALID (re-validation), so deriving from the vendor's current
+  // rmState is more faithful than assuming RECEIVED → VALID.
+  const nextRmState = requireNextState('rm', vendor.rmState, 'validate')
+
+  newState = updateParticipant(newState, vendorId, { rmState: nextRmState })
   newState = setPhase(newState, 'report-validated')
 
   // Per Vultron protocol: case state changes should broadcast to all participants
@@ -93,7 +100,12 @@ export function handleAcceptReport(state: DemoState, vendorId: string): DemoStat
 
   let newState = state
 
-  newState = updateParticipant(newState, vendorId, { rmState: 'ACCEPTED' })
+  // RM destination computed from the protocol artifact. `accept` is legal from
+  // VALID and from DEFERRED (resume work) — both land at ACCEPTED — so deriving
+  // from the vendor's current rmState is more faithful than a hardcoded value.
+  const nextRmState = requireNextState('rm', vendor.rmState, 'accept')
+
+  newState = updateParticipant(newState, vendorId, { rmState: nextRmState })
   newState = setPhase(newState, 'report-accepted')
 
   const activeLanes = getActiveParticipants(newState)
@@ -160,7 +172,11 @@ export function handleDeferReport(state: DemoState, vendorId: string): DemoState
 
   let newState = state
 
-  newState = updateParticipant(newState, vendorId, { rmState: 'DEFERRED' })
+  // RM destination computed from the protocol artifact (defer is legal from
+  // VALID and from ACCEPTED; the demo only surfaces it from VALID).
+  const nextRmState = requireNextState('rm', vendor.rmState, 'defer')
+
+  newState = updateParticipant(newState, vendorId, { rmState: nextRmState })
   newState = setPhase(newState, 'report-deferred')
 
   const activeLanes = getActiveParticipants(newState)
@@ -227,7 +243,10 @@ export function handleInvalidateReport(state: DemoState, vendorId: string): Demo
 
   let newState = state
 
-  newState = updateParticipant(newState, vendorId, { rmState: 'INVALID' })
+  // RM destination computed from the protocol artifact (invalidate: RECEIVED → INVALID).
+  const nextRmState = requireNextState('rm', vendor.rmState, 'invalidate')
+
+  newState = updateParticipant(newState, vendorId, { rmState: nextRmState })
   newState = setPhase(newState, 'report-invalidated')
 
   // Per Vultron protocol: case state changes should broadcast to all participants
@@ -633,7 +652,10 @@ export function handleNotifyFixReady(state: DemoState, vendorId: string): DemoSt
 
   let newState = state
 
-  newState = updateParticipant(newState, vendorId, { vfdState: 'VFd' })
+  // VFD destination computed from the protocol artifact (fix_is_ready: Vfd → VFd).
+  const nextVfdState = requireNextState('vfd', vendor.vfdState, 'fix_is_ready')
+
+  newState = updateParticipant(newState, vendorId, { vfdState: nextVfdState })
   newState = setPhase(newState, 'fix-ready')
 
   const events = []
@@ -742,7 +764,10 @@ export function handleNotifyFixDeployed(state: DemoState, vendorId: string): Dem
 
   let newState = state
 
-  newState = updateParticipant(newState, vendorId, { vfdState: 'VFD' })
+  // VFD destination computed from the protocol artifact (fix_is_deployed: VFd → VFD).
+  const nextVfdState = requireNextState('vfd', vendor.vfdState, 'fix_is_deployed')
+
+  newState = updateParticipant(newState, vendorId, { vfdState: nextVfdState })
   newState = setPhase(newState, 'fix-deployed')
 
   const events = []
@@ -1119,7 +1144,12 @@ export function handleVendorCloseCase(state: DemoState, vendorId: string): DemoS
 
   let newState = state
 
-  newState = updateParticipant(newState, vendorId, { rmState: 'CLOSED', hasClosed: true })
+  // RM destination computed from the protocol artifact. `close` is legal from
+  // ACCEPTED, INVALID, and DEFERRED (all → CLOSED); the demo surfaces the close
+  // action from each of those. `hasClosed` is a demo-only flag with no machine slot.
+  const nextRmState = requireNextState('rm', vendor.rmState, 'close')
+
+  newState = updateParticipant(newState, vendorId, { rmState: nextRmState, hasClosed: true })
   // Don't change phase - in multi-vendor scenarios, one vendor closing doesn't affect others
   // Per Vultron protocol: RM state (including CLOSED) is participant-specific
   // The case continues as long as other participants are active
