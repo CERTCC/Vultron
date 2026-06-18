@@ -1145,6 +1145,33 @@ re-inlining the Selector at each call site, and migrate all existing bare
 `CommitCaseLedgerEntryNode` call sites to the factory — CLP-09-002 requires
 a test asserting no bare usage remains outside it.
 
+**`execute()` MUST do nothing but build one tree, run it once, and handle
+the result** (ADR-0022, CLP-10-005, issues #1036/#1047): a received-side
+use case's `execute()` method MUST (a) build exactly one BT via a
+tree-factory function in `vultron/core/behaviors/`, (b) call
+`BTBridge.execute_with_setup()` exactly once, with
+`actor_id=receiving_actor_id`, and (c) handle the result (log, extract
+output — see "Procedural Glue Exception" above). The guarded-commit
+factory above MUST be composed as a child of that one tree, not invoked
+separately, and the use case's main operation MUST itself be a BT node —
+not procedural code sitting alongside the one `execute_with_setup()` call.
+
+An audit (issue #1036, broadened to also resolve #1047) found this rule
+violated in 9 use cases across 6 modules, in three different shapes:
+genuine actor-identity switching — a real second `execute_with_setup()`
+call under a different actor (`embargo.py` x3, `report.py` x2,
+`status.py`; this is the literal pattern #1036 and #1047 describe, and in
+`embargo.py`'s case the main tree already contains the identical
+guarded-commit branch as its last child, but it no-ops because that tree
+runs under the wrong actor); a single BT call preceded by non-BT
+procedural code for the main operation (`note.py`, `actor/case_manager_role.py`
+— a BT-06-001 gap, not actor-switching); and a single BT call under the
+correct actor but assembled inline in `execute()` instead of via a
+factory function (`case/lifecycle.py`). See ADR-0022 for the full
+per-site breakdown and
+`test/architecture/test_single_bt_execution_received_side.py` for the
+migration ratchet.
+
 ---
 
 ### Fan-out / SYNC Decomposition: Context Handoff Pattern
