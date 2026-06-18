@@ -23,7 +23,6 @@ Import directly from those modules for new code:
 - ``vultron.core.models.case`` — VulnerabilityCase (VultronCase is an alias)
 - ``vultron.core.models.case_actor`` — CaseActor (VultronCaseActor is an alias),
   VultronOutbox
-- ``vultron.core.models.case_event`` — CaseEvent (VultronCaseEvent is an alias)
 - ``vultron.core.models.case_participant`` — CaseParticipant (and role
   subclasses), VultronParticipant (alias)
 - ``vultron.core.models.case_reference`` — CaseReference
@@ -48,7 +47,6 @@ from vultron.core.models.case_actor import (
     VultronCaseActor,
     VultronOutbox,
 )
-from vultron.core.models.case_event import CaseEvent, VultronCaseEvent
 from vultron.core.models.case_reference import CaseReference
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_event import EmbargoEvent, VultronEmbargoEvent
@@ -73,12 +71,10 @@ __all__ = [
     "VultronAccept",
     "VultronActivity",
     "CaseActor",
-    "CaseEvent",
     "CaseReference",
     "VulnerabilityCase",
     "VultronCase",
     "VultronCaseActor",
-    "VultronCaseEvent",
     "CaseActorParticipant",
     "CaseParticipant",
     "CaseStatus",

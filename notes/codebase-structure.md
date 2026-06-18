@@ -496,10 +496,11 @@ This module is importable from both the `behaviors/` layer and the
 inside the `triggers` package.
 
 **Corollary**: Core domain model classes (e.g., `VultronCase`) should
-implement the same interface methods as their wire-layer counterparts (e.g.,
-`record_event()`) so that Protocol guards like `is_case_model()` return
-`True` for both families. Avoid making the Protocol guard depend on the
-concrete wire-layer class.
+implement the same interface methods as their wire-layer counterparts so that
+Protocol guards like `is_case_model()` return `True` for both families.
+Avoid making the Protocol guard depend on the concrete wire-layer class, and
+never use methods that may be removed as discriminators — use Protocol-declared
+fields instead (see BUILD_LEARNINGS entry IS-CASE-MODEL-DISCRIMINATOR-888).
 
 ### FastAPI response_model Filtering
 
