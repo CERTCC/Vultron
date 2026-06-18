@@ -119,15 +119,19 @@ class CreateParticipantStatusReceivedUseCase:
 class AddParticipantStatusToParticipantReceivedUseCase:
     """Process a received Add(ParticipantStatus, CaseParticipant) message.
 
-    Delegates all five DEMOMA-07-003 steps to the ``AddParticipantStatusBT``
+    Delegates DEMOMA-07-003 steps to the ``AddParticipantStatusBT``
     behavior tree:
     1. Verify sender is a known case participant.
     2. Append the ParticipantStatus to the CaseParticipant record.
-    3. Broadcast the status update to all other case participants.
-    4. If the new status signals public awareness (CS.P) and the sender
+    3. If the new status signals public awareness (CS.P) and the sender
        holds the CASE_OWNER role, initiate embargo teardown.
-    5. If all participant RM states are CLOSED, log case closure
-       (prototype: log-only).
+    4. If all participant RM states are CLOSED and this actor is the
+       CASE_MANAGER, emit Leave(VulnerabilityCase) to trigger case closure.
+
+    The tree runs with ``actor_id=receiving_actor_id`` so that
+    ``CheckIsCaseManagerNode`` (step 4 gate) correctly evaluates the
+    executing actor, not the sender.  Sender identity is supplied via
+    constructor args to the relevant nodes.
 
     Per specs/multi-actor-demo.yaml DEMOMA-07-003,
         specs/behavior-tree-integration.yaml BT-06-001.
@@ -166,9 +170,16 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             datalayer=self._dl,
             trigger_activity=self._trigger_activity,
         )
+        # Use receiving_actor_id (the Case Actor) as the blackboard actor_id
+        # so that CheckIsCaseManagerNode in step 5 correctly identifies the
+        # executing actor as CASE_MANAGER.  Sender identity is captured via
+        # constructor args on VerifySenderIsParticipantNode and
+        # PublicDisclosureBranchNode — neither reads actor_id from the
+        # blackboard.
+        bt_actor_id = request.receiving_actor_id or request.actor_id
         result = bridge.execute_with_setup(
             tree=tree,
-            actor_id=request.actor_id,
+            actor_id=bt_actor_id,
             activity=request,
         )
 
