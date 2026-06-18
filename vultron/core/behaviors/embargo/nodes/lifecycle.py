@@ -226,12 +226,23 @@ class TerminateEmbargoNode(DataLayerAction):
 
     Applies the ACTIVE/REVISE → EXITED EM state transition via the state
     machine, clears ``active_embargo``, resets all participant embargo
-    consent states, and queues a ``Terminate(EmbargoEvent)`` activity when a
-    ``trigger_activity_factory`` is available.
+    consent states, and queues a ``Terminate(EmbargoEvent)`` activity via
+    ``trigger_activity_factory``.
 
-    Always returns SUCCESS.  Failures (no active embargo, invalid EM
-    transition, activity dispatch errors) are logged as WARNING and are
-    treated as non-fatal.
+    Returns SUCCESS when teardown completes and the broadcast activity is
+    queued successfully.
+
+    Returns SUCCESS (no-op) when:
+
+    - ``case_id`` is ``None`` or ``datalayer`` is unavailable
+    - The case is not found in the DataLayer
+    - There is no active embargo on the case
+    - The EM state machine rejects the ``terminate`` transition
+
+    Returns FAILURE (BT-14-001) when the embargo state transition succeeds
+    but the outbound ``Terminate(EmbargoEvent)`` activity cannot be created
+    or queued (missing factory, unresolvable Case Manager, or dispatch
+    exception).
     """
 
     def __init__(self, case_id: str | None, name: str | None = None):
@@ -292,33 +303,36 @@ class TerminateEmbargoNode(DataLayerAction):
             adapter.state,
         )
 
-        self._dispatch_activity(embargo_id, case_manager_id)
-        return Status.SUCCESS
+        return self._dispatch_activity(embargo_id, case_manager_id)
 
     def _dispatch_activity(
         self, embargo_id: str | None, case_manager_id: str | None
-    ) -> None:
+    ) -> Status:
         """Queue a Terminate(EmbargoEvent) activity to the case manager's outbox.
 
-        No-ops when ``trigger_activity_factory`` is unavailable, ``embargo_id``
-        is missing, or the case manager cannot be resolved.  Activity dispatch
-        failures are logged as WARNING and do not affect the BT return value.
+        Returns FAILURE (BT-14-001) when the factory is unavailable, the
+        Case Manager cannot be resolved, or dispatch raises an exception.
+        Returns SUCCESS when the activity is created and queued.
         """
-        if (
-            self.trigger_activity_factory is None
-            or embargo_id is None
-            or self.datalayer is None
-        ):
-            return
+        if self.trigger_activity_factory is None:
+            self.feedback_message = (
+                "trigger_activity_factory not available"
+                " — broadcast FAILURE (BT-14-001)"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        if embargo_id is None or self.datalayer is None:
+            self.feedback_message = "embargo_id or datalayer not available"
+            return Status.FAILURE
 
         if case_manager_id is None:
-            self.logger.warning(
-                "%s: no CASE_MANAGER found for case '%s'"
-                " — activity dispatch skipped",
-                self.name,
-                self.case_id,
+            self.feedback_message = (
+                f"no CASE_MANAGER found for case '{self.case_id}'"
+                " — activity dispatch skipped (BT-14-001)"
             )
-            return
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
 
         try:
             case_id: str = self.case_id  # type: ignore[assignment]  # guarded above
@@ -334,12 +348,13 @@ class TerminateEmbargoNode(DataLayerAction):
                 cast(CaseOutboxPersistence, self.datalayer),
             )
         except Exception as exc:
-            self.logger.warning(
-                "%s: activity dispatch failed for case '%s': %s",
-                self.name,
-                self.case_id,
-                exc,
+            self.feedback_message = (
+                f"activity dispatch failed for case '{self.case_id}': {exc}"
             )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        return Status.SUCCESS
 
 
 class SetEmbargoActiveNode(DataLayerAction):
