@@ -148,7 +148,8 @@ export function handleFinderAcceptEmbargo(state: DemoState): DemoState {
 
   // If all participants accepted, activate embargo
   if (allParticipantsAccepted) {
-    newState = { ...newState, emState: 'ACTIVE', phase: 'embargo-accepted' }
+    // EM destination computed from the protocol artifact (accept: PROPOSED → ACTIVE).
+    newState = { ...newState, emState: requireNextState('em', state.emState, 'accept'), phase: 'embargo-accepted' }
   }
 
   // Add timeline events
@@ -245,7 +246,8 @@ export function handleFinderRejectEmbargo(state: DemoState): DemoState {
 
   let newState = state
 
-  newState = { ...newState, emState: 'NONE', phase: 'embargo-rejected' }
+  // EM destination computed from the protocol artifact (reject: PROPOSED → NONE).
+  newState = { ...newState, emState: requireNextState('em', state.emState, 'reject'), phase: 'embargo-rejected' }
 
   const events = []
   let timestampOffset = 0
@@ -441,9 +443,14 @@ export function handleFinderNotifyPublished(state: DemoState): DemoState {
   newState = updateParticipant(newState, 'finder', { hasPublished: true })
   newState = setPhase(newState, 'finder-published')
 
-  // Update PXA state to P if not already
+  // Defensive fallback: if the case is somehow not yet public when the Finder
+  // acknowledges publication, advance PXA via the artifact's `public_becomes_aware`
+  // (pxa → Pxa). Normally unreachable — the filter only offers this action once
+  // pxaState is already 'Pxa' — and `finder-notify-published` is a demo-kind
+  // acknowledgement (see protocolActions.ts), not itself a machine driver. Pegged
+  // to the JSON anyway so no machine-state literal is hardcoded in the fork.
   if (state.pxaState === 'pxa') {
-    newState = setPxaState(newState, 'Pxa')
+    newState = setPxaState(newState, requireNextState('pxa', state.pxaState, 'public_becomes_aware'))
   }
 
   const finder = getParticipant(newState, 'finder')
@@ -628,7 +635,8 @@ export function handleFinderProposeRevision(state: DemoState): DemoState {
   let newState = state
 
   // Per Vultron protocol: A → pR (Active → propose → Revise)
-  newState = setEmState(newState, 'REVISE')
+  // EM destination computed from the protocol artifact (propose: ACTIVE → REVISE).
+  newState = setEmState(newState, requireNextState('em', state.emState, 'propose'))
   newState = { ...newState, embargoProposerId: 'finder' }  // Track who proposed this revision
 
   const events = []
@@ -735,7 +743,8 @@ export function handleFinderAcceptRevision(state: DemoState): DemoState {
   const allParticipantsAccepted = getActiveVendors(newState).every((v) => v.embargoAccepted)
 
   if (allParticipantsAccepted) {
-    newState = setEmState(newState, 'ACTIVE')
+    // EM destination computed from the protocol artifact (accept: REVISE → ACTIVE).
+    newState = setEmState(newState, requireNextState('em', state.emState, 'accept'))
     newState = { ...newState, embargoProposerId: undefined }  // Clear proposer when revision is accepted
   }
   // Otherwise, stay in REVISE state
@@ -823,8 +832,9 @@ export function handleFinderRejectRevision(state: DemoState): DemoState {
   let newState = state
 
   // Per Vultron protocol: R → rA (Revise → reject → Active)
-  // Revision rejected - restore original embargo state
-  newState = setEmState(newState, 'ACTIVE')
+  // Revision rejected - restore original embargo state.
+  // EM destination computed from the protocol artifact (reject: REVISE → ACTIVE).
+  newState = setEmState(newState, requireNextState('em', state.emState, 'reject'))
   newState = { ...newState, embargoProposerId: undefined }  // Clear proposer when revision is rejected
 
   // Restore embargoAccepted for participants who were bound by original embargo

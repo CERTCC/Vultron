@@ -12,6 +12,7 @@ import {
   updateParticipant,
 } from '../../state/stateUpdaters'
 import { getParticipant, getActiveVendors, getVendors } from '../../state/participantHelpers'
+import { requireNextState } from '../../protocol'
 
 export function handleProposeEmbargo(state: DemoState): DemoState {
   const nextX = state.nextXPosition
@@ -25,7 +26,8 @@ export function handleProposeEmbargo(state: DemoState): DemoState {
   let newState = state
 
   newState = setPhase(newState, 'embargo-proposed')
-  newState = setEmState(newState, 'PROPOSED')
+  // EM destination computed from the protocol artifact (propose: NONE → PROPOSED).
+  newState = setEmState(newState, requireNextState('em', state.emState, 'propose'))
   newState = { ...newState, embargoProposerId: 'caseactor' }  // Track who proposed
   newState = updateParticipant(newState, 'finder', { embargoAccepted: false })
 
@@ -121,8 +123,9 @@ export function handleCaseActorProposeRevision(state: DemoState): DemoState {
   let newState = state
 
   // Per Vultron protocol: A → pR (Active → propose → Revise)
-  // The existing embargo remains active until revision is accepted
-  newState = setEmState(newState, 'REVISE')
+  // The existing embargo remains active until revision is accepted.
+  // EM destination computed from the protocol artifact (propose: ACTIVE → REVISE).
+  newState = setEmState(newState, requireNextState('em', state.emState, 'propose'))
   newState = { ...newState, embargoProposerId: 'caseactor' }  // Track who proposed this revision
 
   const events = []
@@ -235,7 +238,8 @@ export function handleCaseActorAcceptRevision(state: DemoState): DemoState {
     getActiveVendors(newState).every((v) => v.embargoAccepted)
 
   if (allParticipantsAccepted) {
-    newState = setEmState(newState, 'ACTIVE')
+    // EM destination computed from the protocol artifact (accept: REVISE → ACTIVE).
+    newState = setEmState(newState, requireNextState('em', state.emState, 'accept'))
     newState = { ...newState, embargoProposerId: undefined }  // Clear proposer when revision is accepted
   }
   // Otherwise, stay in REVISE state
@@ -323,8 +327,9 @@ export function handleCaseActorRejectRevision(state: DemoState): DemoState {
   let newState = state
 
   // Per Vultron protocol: R → rA (Revise → reject → Active)
-  // Revision is rejected, original embargo terms remain active
-  newState = setEmState(newState, 'ACTIVE')
+  // Revision is rejected, original embargo terms remain active.
+  // EM destination computed from the protocol artifact (reject: REVISE → ACTIVE).
+  newState = setEmState(newState, requireNextState('em', state.emState, 'reject'))
   newState = { ...newState, embargoProposerId: undefined }  // Clear proposer when revision is rejected
 
   // Restore embargoAccepted for Finder (was participating)

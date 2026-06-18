@@ -292,19 +292,63 @@ overlay. NOT a full generic engine.
   `vendor-notify-published` (pxa `public_becomes_aware` + em `terminate`).
   `demo`-kind = notes/replies/invites/publication-ack (no machine slot).
 
-**The 5-step plan (Steps 1–3 done, 4–5 next):**
+**The 5-step plan (Steps 1–4 done, 5 next):**
 1. ✅ Make the artifact importable (vite + tsconfig).
 2. ✅ `protocol.ts` — typed wrapper over the JSON.
 3. ✅ `protocolActions.ts` — action-ID → machine-trigger bridge.
-4. ⬜ Refactor the **forked** handlers (`actions/validated/*.ts`) to compute
+4. ✅ Refactored **all** forked handlers (`actions/validated/*.ts`) to compute
    destination states via `requireNextState(...)` instead of hardcoding
-   `{ rmState: 'VALID' }` etc. Leave node/consequence/event-log code untouched.
-   Plan: do `handleValidateReport` first, review the diff, then apply the
-   pattern across the ~15 transition handlers.
+   `{ rmState: 'VALID' }` etc. Node/consequence/event-log code left untouched.
+   **Every** machine-state write now derives from `protocol_states.json` — RM
+   (validate/accept/defer/invalidate/close), VFD (fix_is_ready/fix_is_deployed),
+   EM (propose/accept/reject/terminate across vendor+finder+caseActor), and PXA
+   (public_becomes_aware/exploit_made_public/attacks_are_observed). The only
+   remaining machine-state *literals* are the report-receipt composite seeds (see
+   gotchas). Verified: each call's source state is filter-guaranteed; EM calls
+   read the unmutated `state.emState`. Output is behaviorally identical to the
+   pre-refactor demo (see "no behavioral bug" note) except where it removed an
+   illegal transition (publish-while-PROPOSED, below).
 5. ⬜ Refactor the **forked** filters (`state/validated/actionFilters.ts`) so
    RM/EM/VFD gating comes from `isLegalTransition(...)`; keep non-machine rules
    (embargo-before-participation, `isPublic` early-termination, pending-note
    reply gating, invite availability) as an explicit overlay.
+
+**Step 4 — what the refactor did and did NOT change (read before Step 5):**
+- **No behavioral bug was fixed by the RM/VFD pass.** Every RM/VFD trigger has a
+  single destination regardless of source (e.g. `accept` → ACCEPTED from both
+  VALID and DEFERRED), so the old hardcoded literals were already correct for all
+  reachable sources. The value of the refactor is (a) **source-of-truth deferral**
+  — destinations now follow `protocol_states.json` automatically — and (b) a
+  **guard**: `requireNextState` throws loudly if a filter/handler ever drift into
+  an illegal source. Don't describe it as a correctness fix.
+- **EM `propose`/`reject` DO have source-dependent destinations**, so there the
+  derivation is genuinely load-bearing (propose: NONE→PROPOSED vs ACTIVE→REVISE;
+  reject: PROPOSED→NONE vs REVISE→ACTIVE).
+- **One real correctness change: publish-while-PROPOSED.** When a vuln becomes
+  public while EM is merely `PROPOSED`, the protocol treats it as an implicit
+  **`reject`** (PROPOSED→NONE), NOT `terminate` — `terminate`/EXITED is reserved
+  for embargoes that had actually become ACTIVE (verified against
+  [`em.py`](../vultron/core/states/em.py) and `transitions.md:291-293`; the JSON
+  represents this correctly). The old demo reached the right end-state (NONE) but
+  via an invented `terminate`-from-PROPOSED that the machine forbids. Now both
+  `handleVendorNotifyPublished` and `handleTriggerExploit` route ACTIVE/REVISE →
+  `terminate` and PROPOSED → `reject`, both via `requireNextState`.
+- **Finder now starts at RM.ACCEPTED, not RECEIVED** (in the fork only). Per the
+  formal protocol (states.md start-state table: Finder/Reporter starts at
+  `(A, N, pxa)`; "The Secret Lives of Finders"), a Finder's
+  START→RECEIVED→VALID→ACCEPTED traversal happens *privately* before they contact
+  anyone — that private prioritization IS the Finder→Reporter transition. So the
+  only observable RM lifecycle for the Finder is ACCEPTED ⇄ DEFERRED → CLOSED.
+  `handleSubmitReport` now seeds `ACCEPTED`, which also makes the later `close`
+  legal (close is NOT permitted from RECEIVED — that was the bug this fixed).
+  `handleFinderCloseCase` is therefore now a clean `requireNextState('rm', …,
+  'close')` like the vendor handlers, not an exception.
+- **`handleTriggerExploit` / vendor publish are composites of legal steps.**
+  Exploit publication auto-implies public awareness (pxa→PXa, not the bare
+  `exploit_made_public` pxa→pXa), modeled as `exploit_made_public` THEN
+  `public_becomes_aware` — each computed from the artifact, composing to the
+  demo's exact original mapping. `handleTriggerAttacks` is a single
+  `attacks_are_observed` step (attacks do NOT imply public awareness — no forced P).
 
 **Gotchas discovered (carry forward):**
 - **`DECLINED` RM pseudo-state** ([actionFilters.ts:237](src/state/actionFilters.ts#L237))
@@ -316,6 +360,18 @@ overlay. NOT a full generic engine.
   ([finderActions.ts:26](src/actions/finderActions.ts#L26),
   [inviteActions.ts:49](src/actions/inviteActions.ts#L49)). Those triggers are
   folded into the `submit-report` / invite composites.
+- **Report-receipt composite seeds remain literals (intentional, post-Step-4).**
+  After Step 4, the ONLY hardcoded machine-state writes left in
+  `actions/validated/*.ts` are the receipt seeds: vendor-1 / invited vendors set
+  straight to `{ rmState:'RECEIVED', vfdState:'Vfd' }`
+  ([validated/finderActions.ts:34](src/actions/validated/finderActions.ts#L34),
+  [validated/inviteActions.ts:48](src/actions/validated/inviteActions.ts#L48)),
+  and the Finder seeded to `rmState:'ACCEPTED'`
+  ([validated/finderActions.ts:33](src/actions/validated/finderActions.ts#L33)).
+  These are composite *seeds*, not single transitions — the Finder's ACCEPTED in
+  particular collapses a private START→RECEIVED→VALID→ACCEPTED traversal that has
+  no single `requireNextState` trigger — so they stay literal by design. Don't
+  "finish the job" by forcing them through `requireNextState`.
 
 ### Validated fork — file layout & isolation (how to keep it safe)
 
