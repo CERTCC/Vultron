@@ -94,6 +94,20 @@ class TestContiguousChain:
         fresh, reason = is_ledger_fresh_for_case(CASE_ID, dl)
         assert fresh is True, reason
 
+    def test_per_case_genesis_hash_chain_is_fresh(self, dl):
+        """CLP-08-004: chain anchored to per-case genesis hash is accepted as fresh.
+
+        Positive path: with a VulnerabilityCase in the DataLayer, the genesis
+        hash check is active; a correctly-anchored chain must still return fresh.
+        """
+        case = _make_case()
+        dl.save(case)
+        e0 = _store(dl, _entry(0, case.genesis_hash))
+        e1 = _store(dl, _entry(1, e0.entry_hash))
+        _store(dl, _entry(2, e1.entry_hash))
+        fresh, reason = is_ledger_fresh_for_case(CASE_ID, dl)
+        assert fresh is True, reason
+
     def test_only_checks_entries_for_requested_case(self, dl):
         """Other cases' entries do not affect freshness of the requested case."""
         # Store entries for another case

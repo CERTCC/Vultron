@@ -29,8 +29,9 @@ def _get_case_genesis_hash(case_id: str, dl: CasePersistence) -> str:
         if case_obj.genesis_hash:
             return case_obj.genesis_hash
     # Duck-type fallback: wire-layer VulnerabilityCase also has genesis_hash
-    if hasattr(case_obj, "genesis_hash") and case_obj.genesis_hash:
-        return case_obj.genesis_hash
+    genesis = getattr(case_obj, "genesis_hash", "")
+    if genesis and isinstance(genesis, str):
+        return genesis
     return ""
 
 

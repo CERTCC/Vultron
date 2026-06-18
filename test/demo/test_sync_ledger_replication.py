@@ -223,7 +223,7 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
     case_actor_iso.dl.save(case)
     case_actor_iso.dl.save(CaseActor(id_=case_actor_id, context=case.id_))
 
-    entry0 = _make_log_entry(case.id_, 0, "sync_902_base")
+    entry0 = _make_log_entry(case.id_, 0, case.genesis_hash, "sync_902_base")
     entry1 = _make_log_entry(case.id_, 1, entry0.entry_hash, "sync_902_mid")
     entry2 = _make_log_entry(case.id_, 2, entry1.entry_hash, "sync_902_tail")
     case_actor_iso.dl.save(entry0)
@@ -365,7 +365,7 @@ def test_sync_duplicate_delivery_idempotency(
 
     monkeypatch.setattr(peer_iso.dl, "save", save_spy)
 
-    entry = _make_log_entry(case.id_, 0, "sync_903_dup")
+    entry = _make_log_entry(case.id_, 0, case.genesis_hash, "sync_903_dup")
     wire_entry = WireCaseLedgerEntry.model_validate(
         entry.model_dump(mode="json")
     )
