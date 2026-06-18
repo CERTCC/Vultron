@@ -221,8 +221,8 @@ class TestFilterPeerRecipientsNode:
 
 
 class TestBroadcastStatusToPeersNode:
-    def test_always_succeeds_without_factory(self, populated_bridge):
-        """Broadcast skips gracefully when no trigger_activity_factory."""
+    def test_returns_failure_without_factory(self, populated_bridge):
+        """No trigger_activity_factory → FAILURE (BT-14-001)."""
         node = BroadcastStatusToPeersNode(
             status_id=STATUS_ID,
             participant_id=PARTICIPANT_REF_ID,
@@ -232,4 +232,4 @@ class TestBroadcastStatusToPeersNode:
         result = populated_bridge.execute_with_setup(
             tree=node, actor_id=CASE_MANAGER_ID
         )
-        assert result.status == Status.SUCCESS
+        assert result.status == Status.FAILURE

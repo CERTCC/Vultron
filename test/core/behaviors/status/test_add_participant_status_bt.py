@@ -18,7 +18,8 @@
 Covers all five DEMOMA-07-003 steps:
   1. VerifySenderIsParticipantNode — unknown sender is rejected
   2. AppendParticipantStatusNode  — status appended, RM regression rejected
-  3. BroadcastStatusToPeersNode   — always SUCCESS, skips without trigger_activity
+  3. BroadcastStatusToPeersNode   — fail-fast (BT-14-001): FAILURE when no
+     factory or delivery fails; SUCCESS when no peers to notify (no-op)
   4. PublicDisclosureBranchNode   — always SUCCESS, only triggers teardown on CS.P + CASE_OWNER
   5. AutoCloseBranchNode          — always SUCCESS, logs when all RM.CLOSED
 
@@ -647,8 +648,32 @@ class TestAppendParticipantStatusSubtree:
 
 
 class TestBroadcastStatusToPeersNode:
-    def test_skips_without_trigger_activity(self, populated_bridge):
-        """No trigger_activity → returns SUCCESS silently."""
+    def test_returns_failure_without_trigger_activity(
+        self, populated_dl_with_peer
+    ):
+        """No trigger_activity_factory → FAILURE (BT-14-001).
+
+        Case has a peer recipient, so FilterPeerRecipientsNode returns
+        SUCCESS with a non-empty list.  CreateBroadcastActivityNode then
+        fails because no factory is available.
+        """
+        bridge = BTBridge(datalayer=populated_dl_with_peer)
+        node = BroadcastStatusToPeersNode(
+            status_id=STATUS_ID,
+            participant_id=PARTICIPANT_ID,
+            sender_actor_id=ACTOR_ID,
+            case_id=CASE_ID,
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.FAILURE
+
+    def test_returns_success_when_no_peer_recipients(self, populated_bridge):
+        """No peer recipients (only vendor + Case Manager) → SUCCESS (no-op).
+
+        When the recipient list is empty after filtering, broadcast is not
+        needed and the whole subtree returns SUCCESS so downstream steps
+        (PublicDisclosureBranchNode, AutoCloseBranchNode) can still run.
+        """
         node = BroadcastStatusToPeersNode(
             status_id=STATUS_ID,
             participant_id=PARTICIPANT_ID,
@@ -660,8 +685,8 @@ class TestBroadcastStatusToPeersNode:
         )
         assert result.status == Status.SUCCESS
 
-    def test_always_succeeds(self, bridge):
-        """Even with no DataLayer data, BroadcastStatusToPeers succeeds."""
+    def test_returns_failure_without_datalayer_data(self, bridge):
+        """case_id=None → FindCaseManagerNode FAILURE propagates (BT-14-001)."""
         node = BroadcastStatusToPeersNode(
             status_id=STATUS_ID,
             participant_id=PARTICIPANT_ID,
@@ -669,7 +694,7 @@ class TestBroadcastStatusToPeersNode:
             case_id=None,
         )
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
-        assert result.status == Status.SUCCESS
+        assert result.status == Status.FAILURE
 
     def test_skips_when_current_actor_is_the_only_peer(self, populated_dl):
         trigger_activity = MagicMock()
@@ -854,14 +879,22 @@ class TestFilterPeerRecipientsNode:
         result = bridge.execute_with_setup(tree=seq, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.FAILURE
 
-    def test_returns_failure_when_no_eligible_recipients(self, populated_dl):
-        """Only vendor and Case Manager in case → no peers after filtering."""
+    def test_returns_success_with_empty_list_when_no_eligible_recipients(
+        self, populated_dl
+    ):
+        """Only vendor and Case Manager in case → empty list, SUCCESS (no-op)."""
         result = self._run_find_then_filter(
             populated_dl,
             actor_id=CASE_MANAGER_ID,
             sender_actor_id=ACTOR_ID,
         )
-        assert result.status == Status.FAILURE
+        assert result.status == Status.SUCCESS
+        assert (
+            py_trees.blackboard.Blackboard.storage[
+                "/broadcast_peer_recipient_ids"
+            ]
+            == []
+        )
 
     def test_returns_success_with_eligible_peer(self, populated_dl_with_peer):
         """Third peer exists and is not sender/self/manager → SUCCESS."""
@@ -889,14 +922,22 @@ class TestFilterPeerRecipientsNode:
             "/broadcast_peer_recipient_ids"
         ] == [ACTOR_ID]
 
-    def test_excludes_self_from_recipients(self, populated_dl_with_peer):
-        """Actor running as the peer → peer excluded from recipient list."""
+    def test_excludes_self_from_recipients_empty_list(
+        self, populated_dl_with_peer
+    ):
+        """Actor running as the peer → peer excluded; empty list → SUCCESS (no-op)."""
         result = self._run_find_then_filter(
             populated_dl_with_peer,
             actor_id=PEER_ACTOR_ID,
             sender_actor_id=ACTOR_ID,
         )
-        assert result.status == Status.FAILURE
+        assert result.status == Status.SUCCESS
+        assert (
+            py_trees.blackboard.Blackboard.storage[
+                "/broadcast_peer_recipient_ids"
+            ]
+            == []
+        )
 
 
 # ---------------------------------------------------------------------------
