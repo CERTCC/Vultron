@@ -245,3 +245,14 @@ hook (default `{}`) to `SvcBTTriggerBase`; classes whose BTs need extra
 blackboard keys override it. The return type must be `dict[str, Any]` (not
 `dict[str, object]`) to satisfy mypy when the dict is spread into
 `execute_with_setup`'s `**context_data: Any` parameter.
+
+### 2026-06-18 REMOVE-EMBARGO-1033 — single-BT pattern requires receiving_actor_id in all callers
+
+Switching `RemoveEmbargoEventFromCaseReceivedUseCase` from two `execute_with_setup`
+calls to a single call with `actor_id=receiving_actor_id` exposed that several
+existing tests called `make_payload(activity)` without specifying
+`receiving_actor_id`. With the new guard, a `None` `receiving_actor_id` returns
+early and the BT never runs. Pattern: any test for a received-side use case that
+exercises BT operations MUST pass a `receiving_actor_id` in `make_payload`. Tests
+that don't need the guarded commit to fire can use the sender actor as the
+`receiving_actor_id` — `CheckIsCaseManagerNode` will reject it silently.
