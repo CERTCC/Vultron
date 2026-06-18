@@ -1,10 +1,15 @@
 """CI security tests — verify GitHub Actions SHA pinning.
 
 Implements CISEC-01-001 and CISEC-01-002 from specs/ci-security.yaml:
-- Every `uses:` line in .github/workflows/*.yml MUST reference a full
-  40-character commit SHA (not a mutable tag or branch name).
+- Every `uses:` line in .github/workflows/*.yml referencing a third-party or
+  external action MUST reference a full 40-character commit SHA (not a
+  mutable tag or branch name).
 - Every SHA-pinned line MUST carry an inline human-readable version comment
   (e.g., ``# v4.1.0``).
+
+Local actions (``uses: ./.github/actions/<name>``) are exempt: they are
+already pinned to the commit being checked out and have no separate
+tag/release lifecycle to pin against.
 """
 
 import re
@@ -23,13 +28,21 @@ _VERSION_COMMENT_RE = re.compile(r"#\s*\S+")
 
 
 def _uses_lines(workflow_path: Path) -> list[tuple[int, str]]:
-    """Return (line_number, stripped_line) pairs for every ``uses:`` line."""
+    """Return (line_number, stripped_line) pairs for every ``uses:`` line.
+
+    Local action references (``uses: ./...``) are excluded — they're pinned
+    to the checked-out commit by definition and have no separate tag/release
+    lifecycle for CISEC-01-001/002 to apply to.
+    """
     lines = []
     for lineno, raw in enumerate(
         workflow_path.read_text().splitlines(), start=1
     ):
         stripped = raw.strip()
         if stripped.startswith("uses:") or re.match(r"^-\s+uses:", stripped):
+            uses_match = re.search(r"uses:\s*(\S+)", stripped)
+            if uses_match and uses_match.group(1).startswith("./"):
+                continue
             lines.append((lineno, stripped))
     return lines
 

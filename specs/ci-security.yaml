@@ -12,8 +12,10 @@ groups:
   specs:
   - id: CISEC-01-001
     priority: MUST
-    statement: All `uses:` references in `.github/workflows/*.yml` MUST be pinned to a specific commit SHA rather than a version
-      tag or branch name
+    statement: All `uses:` references to third-party or external actions in `.github/workflows/*.yml` MUST be pinned to a
+      specific commit SHA rather than a version tag or branch name. Local path references to actions within this repository
+      (e.g. `./.github/actions/<name>`) are exempt — they are already pinned to the commit being checked out and have no
+      separate tag/release lifecycle to pin against
   - id: CISEC-01-002
     priority: MUST
     statement: Each SHA-pinned `uses:` reference MUST carry an inline comment identifying the corresponding human-readable
