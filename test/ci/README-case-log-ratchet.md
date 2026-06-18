@@ -51,7 +51,7 @@ Per-actor parametrized tests (1, 12–14) show status per actor role.
 | 3 | Cross-actor `payloadSnapshot.actor` agreement | ✅ | n/a | n/a | #789 |
 | 4 | Every recorded entry has non-empty `payloadSnapshot` | ✅ | n/a | n/a | #789 |
 | 5 | All expected protocol `eventType`s present | ✅ | n/a | n/a | #1029, #1030 |
-| 6 | No RM-state oscillation after `CLOSED` | ✅ | ✅ | ✅ | #936 |
+| 6 | No RM-state oscillation after `CLOSED` | ✅ | n/a | n/a | #936 |
 | 7 | Log terminates with all participants `RM=CLOSED` | ✅ | n/a | n/a | #789 |
 | 8 | Late-joining participants have full pre-join history | ✅ | n/a | n/a | #937 |
 | 9 | Every `ParticipantStatus` has `emConsentState`+`cvdRole` | ✅ | n/a | n/a | #936 |
