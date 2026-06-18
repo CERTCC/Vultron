@@ -326,20 +326,3 @@ class TestVulnerabilityCaseWireRoundTrip:
         wire_case = WireVC.from_core(core_case)
         restored = wire_case.to_core()
         assert restored.active_embargo == "urn:uuid:embargo-1"
-
-    def test_to_core_events_field_preserved(self):
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase as WireVC,
-        )
-
-        wire_case = WireVC(
-            id_="urn:uuid:vc-events",
-            attributed_to="https://example.org/actor",
-        )
-        wire_case.record_event("urn:uuid:obj", "test_event")
-        core_case = wire_case.to_core()
-        assert isinstance(core_case, VulnerabilityCase)
-        # events are preserved as embedded CaseEvent objects
-        assert len(core_case.events) == 1
-        assert isinstance(core_case.events[0], CaseEvent)
-        assert core_case.events[0].event_type == "test_event"

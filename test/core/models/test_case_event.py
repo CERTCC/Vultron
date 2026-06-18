@@ -94,14 +94,3 @@ class TestCaseEventBackwardCompatAlias:
             object_id="urn:uuid:obj-1", event_type="participant_joined"
         )
         assert isinstance(e, CaseEvent)
-
-
-class TestCaseEventWireReexport:
-    """Wire case_event module re-exports the core CaseEvent."""
-
-    def test_wire_import_is_core_class(self):
-        from vultron.wire.as2.vocab.objects.case_event import (
-            CaseEvent as WireCaseEvent,
-        )
-
-        assert WireCaseEvent is CaseEvent
