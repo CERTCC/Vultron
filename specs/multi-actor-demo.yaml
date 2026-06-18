@@ -197,15 +197,39 @@ groups:
       The Case Actor received handler for ADD_PARTICIPANT_STATUS_TO_PARTICIPANT MUST:
       (1) verify the activity actor is a known case participant,
       (2) update the participant status record,
-      (3) announce the update to all other case participants,
+      (3) propagate the update to all other case participants via Announce(CaseLedgerEntry)
+      fan-out (per ADR-0019 and SYNC-02-002) — NOT via a direct raw Add(ParticipantStatus)
+      re-broadcast,
       (4) if CS.P is newly set by the Case Owner, trigger embargo teardown automatically,
       (5) if all participants are RM.CLOSED, close the case automatically
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-02-002
+      note: step 3 propagation must use canonical Announce(CaseLedgerEntry) fan-out
   - id: DEMOMA-07-004
     priority: SHOULD
     statement: >-
       The participant status trigger implementation SHOULD be layered: SvcAddObjectToCaseUseCase
       (generic Add(object, target=Case)) as the base, SvcAddParticipantStatusUseCase (new core
       use case) above it, and demo-specific endpoints in demo_triggers.py at the top
+  - id: DEMOMA-07-005
+    priority: MUST_NOT
+    statement: >-
+      The Case Actor received handler for ADD_PARTICIPANT_STATUS_TO_PARTICIPANT MUST NOT
+      send a raw Add(ParticipantStatus) re-broadcast directly to peer participants after
+      updating the local participant record. Announce(CaseLedgerEntry) fan-out is the sole
+      canonical propagation path for status updates to peers (DEMOMA-07-003 step 3); a
+      parallel raw re-broadcast causes every peer to receive and process the same status
+      update twice — once as a raw Add(ParticipantStatus) and once wrapped in
+      Announce(CaseLedgerEntry) — producing duplicate state transitions and non-canonical
+      messages in peer inboxes. This artefact is superseded by ADR-0019.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-07-003
+      note: prohibits the pre-SYNC raw re-broadcast artefact superseded by ADR-0019
+    - rel_type: refines
+      spec_id: SYNC-02-002
+      note: Announce(CaseLedgerEntry) is the sole canonical propagation path for status updates
 - id: DEMOMA-08
   title: Case Actor Bootstrap and CASE_MANAGER Role
   specs:
