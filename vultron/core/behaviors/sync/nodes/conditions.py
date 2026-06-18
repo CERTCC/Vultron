@@ -181,6 +181,7 @@ class CheckLedgerEntryAlreadyStoredNode(DataLayerCondition):
 
 
 _REMOVE_EMBARGO_EVENT = "remove_embargo_event_from_case"
+_ADD_PARTICIPANT_STATUS_EVENT = "add_participant_status_to_participant"
 
 
 class IsNotRemoveEmbargoEventNode(DataLayerCondition):
@@ -205,6 +206,32 @@ class IsNotRemoveEmbargoEventNode(DataLayerCondition):
     def update(self) -> Status:
         entry = _require_log_entry(self.blackboard.activity, self.name)
         if entry.event_type != _REMOVE_EMBARGO_EVENT:
+            return Status.SUCCESS
+        return Status.FAILURE
+
+
+class IsNotParticipantStatusEventNode(DataLayerCondition):
+    """Guard: return SUCCESS when this log entry is *not* a participant-status event.
+
+    Used as the first child of the ``ParticipantStatusEffects`` Selector in
+    ``AnnounceLogEntryReceivedBT``.  When the event type is not
+    ``add_participant_status_to_participant``, the Selector short-circuits to
+    SUCCESS without running the status-apply branch.  When the event *is* a
+    participant-status event, FAILURE is returned so the Selector proceeds to
+    :class:`~vultron.core.behaviors.sync.nodes.effects.ApplyParticipantStatusFromLedgerNode`.
+
+    Per specs/multi-actor-demo.yaml DEMOMA-07-003 step 3.
+    """
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="activity", access=py_trees.common.Access.READ
+        )
+
+    def update(self) -> Status:
+        entry = _require_log_entry(self.blackboard.activity, self.name)
+        if entry.event_type != _ADD_PARTICIPANT_STATUS_EVENT:
             return Status.SUCCESS
         return Status.FAILURE
 
