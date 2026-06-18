@@ -33,6 +33,7 @@ from typing import Any
 
 import py_trees
 from py_trees.common import Status
+from pydantic.alias_generators import to_snake
 
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.participant_status import ParticipantStatus
@@ -42,6 +43,19 @@ from vultron.core.use_cases._helpers import _as_id
 logger = logging.getLogger(__name__)
 
 _ADD_PARTICIPANT_STATUS_EVENT = "add_participant_status_to_participant"
+
+
+def _normalize_to_snake(data: dict[str, Any]) -> dict[str, Any]:
+    """Convert camelCase keys to snake_case for core model validation.
+
+    The payload snapshot is generated from wire-layer AS2 activities which use
+    ``alias_generator=to_camel``, producing camelCase field names.  Core
+    domain models use snake_case field names.  This converter bridges the gap
+    so that ``model_validate`` on core types succeeds.
+
+    Keys starting with ``@`` (e.g. ``@context`` from AS2) are excluded.
+    """
+    return {to_snake(k): v for k, v in data.items() if not k.startswith("@")}
 
 
 def _extract_id_from_field(value: Any) -> str | None:
@@ -146,7 +160,9 @@ class ApplyParticipantStatusFromLedgerNode(DataLayerAction):
             return Status.SUCCESS
 
         try:
-            status_obj = ParticipantStatus.model_validate(status_data)
+            status_obj = ParticipantStatus.model_validate(
+                _normalize_to_snake(status_data)
+            )
         except Exception as exc:
             self.logger.warning(
                 "%s: failed to reconstruct ParticipantStatus from"
