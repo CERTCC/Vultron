@@ -23,6 +23,7 @@ from typing import Literal
 from pydantic import Field, model_validator
 
 from vultron.core.models.base import CoreObject
+from vultron.core.models.case_ledger import compute_genesis_hash
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.errors import VultronValidationError
@@ -69,13 +70,39 @@ class VulnerabilityCase(CoreObject):
     active_embargo: str | None = None
     proposed_embargoes: list[str] = Field(default_factory=list)
     case_activity: list[str] = Field(default_factory=list)
+    genesis_hash: str = Field(
+        default="",
+        description=(
+            "Per-case genesis hash binding this ledger to its origin "
+            "identity and timestamp (CLP-08-003)"
+        ),
+    )
     # ADR-0017: ID-only cross-refs to avoid graph-cycle issues
     parent_cases: list[str] = Field(default_factory=list)
     child_cases: list[str] = Field(default_factory=list)
     sibling_cases: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def _init_case_statuses(self) -> VulnerabilityCase:
+    def _compute_genesis_hash_if_missing(self) -> "VulnerabilityCase":
+        """Compute ``genesis_hash`` at case creation when not explicitly set.
+
+        Uses ``id_``, ``published``, and ``attributed_to`` (the CaseActor URI)
+        as inputs to :func:`~vultron.core.models.case_ledger.compute_genesis_hash`.
+        No-ops when ``genesis_hash`` is already set or when ``attributed_to``
+        is absent (genesis hash cannot be computed without the CaseActor URI).
+
+        Spec: CLP-08-002, CLP-08-003.
+        """
+        if not self.genesis_hash and self.attributed_to:
+            self.genesis_hash = compute_genesis_hash(
+                case_id=self.id_,
+                created_at=self.published,
+                case_actor_id=self.attributed_to,
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _init_case_statuses(self) -> "VulnerabilityCase":
         """Seed ``case_statuses`` with a default entry when empty."""
         if not self.case_statuses and self.attributed_to:
             self.case_statuses = [

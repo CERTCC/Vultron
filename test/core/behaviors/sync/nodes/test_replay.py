@@ -23,7 +23,6 @@ from vultron.core.behaviors.sync.nodes import (
     SendMissingEntriesNode,
 )
 from vultron.core.models.case import VultronCase
-from vultron.core.models.case_ledger import GENESIS_HASH
 from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.semantic_registry import extract_event
@@ -32,11 +31,13 @@ from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     CaseLedgerEntry as WireCaseLedgerEntry,
 )
 
+_ZERO_HASH: str = "0" * 64  # arbitrary hash for test chains
+
 
 def _make_reject_event(
     *, tail_hash: str, entry_log_index: int = 1
 ) -> RejectLogEntryReceivedEvent:
-    prev_hash = GENESIS_HASH if entry_log_index == 0 else "deadbeef" * 8
+    prev_hash = _ZERO_HASH if entry_log_index == 0 else "deadbeef" * 8
     entry = _make_entry(entry_log_index, prev_hash)
     wire_entry = WireCaseLedgerEntry.model_validate(
         entry.model_dump(mode="json")
@@ -62,7 +63,7 @@ def test_replay_missing_entries_node_is_sequence_with_named_leaf_nodes():
 def test_send_missing_entries_node_replays_entries_after_divergence(
     bridge, case_actor
 ):
-    first_entry = _make_entry(0, GENESIS_HASH)
+    first_entry = _make_entry(0)
     second_entry = _make_entry(1, first_entry.entry_hash)
     sync_port = MagicMock(spec=SyncActivityPort)
 
@@ -86,7 +87,7 @@ def test_send_missing_entries_node_replays_entries_after_divergence(
 
 
 def test_collect_and_find_replay_context_writes_blackboard(bridge, datalayer):
-    first_entry = _make_entry(0, GENESIS_HASH)
+    first_entry = _make_entry(0)
     second_entry = _make_entry(1, first_entry.entry_hash)
     datalayer.save(second_entry)
     datalayer.save(first_entry)
@@ -135,7 +136,7 @@ def test_fanout_log_entry_node_is_sequence_with_named_leaf_nodes():
 def test_replay_missing_entries_node_replays_from_divergence(
     bridge, datalayer, case_actor
 ):
-    first_entry = _make_entry(0, GENESIS_HASH)
+    first_entry = _make_entry(0)
     second_entry = _make_entry(1, first_entry.entry_hash)
     datalayer.save(first_entry)
     datalayer.save(second_entry)
@@ -168,7 +169,7 @@ def test_fanout_log_entry_node_sends_to_case_addressees(bridge, datalayer):
         },
     )
     datalayer.save(case_obj)
-    entry = _make_entry(0, GENESIS_HASH)
+    entry = _make_entry(0)
     sync_port = MagicMock(spec=SyncActivityPort)
 
     result = bridge.execute_with_setup(

@@ -14,7 +14,7 @@ from vultron.core.behaviors.sync.reject_tree import (
     create_reject_log_entry_tree,
 )
 from vultron.core.models.case_actor import VultronCaseActor
-from vultron.core.models.case_ledger import GENESIS_HASH, HashChainLedgerRecord
+from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 from vultron.core.models.replication_state import VultronReplicationState
@@ -29,6 +29,8 @@ from vultron.wire.as2.vocab.objects.case_ledger_entry import (
 OWNER_ACTOR_ID = "https://example.org/actors/vendor"
 PEER_ID = "https://example.org/actors/reporter"
 CASE_ID = "https://example.org/cases/case-sync"
+
+_ZERO_HASH: str = "0" * 64  # arbitrary prev_log_hash for test chains
 
 
 @pytest.fixture(autouse=True)
@@ -59,7 +61,9 @@ def case_actor(datalayer):
     return actor
 
 
-def _make_entry(log_index: int, prev_hash: str) -> VultronCaseLedgerEntry:
+def _make_entry(
+    log_index: int, prev_hash: str = _ZERO_HASH
+) -> VultronCaseLedgerEntry:
     return _to_persistable_entry(
         HashChainLedgerRecord(
             case_id=CASE_ID,
@@ -96,7 +100,7 @@ def test_create_reject_log_entry_tree_returns_sequence():
 def test_reject_tree_updates_replication_state_and_replays_entries(
     bridge, datalayer, case_actor
 ):
-    first_entry = _make_entry(0, GENESIS_HASH)
+    first_entry = _make_entry(0)
     second_entry = _make_entry(1, first_entry.entry_hash)
     datalayer.save(first_entry)
     datalayer.save(second_entry)
@@ -129,7 +133,7 @@ def test_reject_tree_updates_replication_state_and_replays_entries(
 def test_reject_tree_replays_all_entries_when_hash_not_found(
     bridge, datalayer, case_actor
 ):
-    first_entry = _make_entry(0, GENESIS_HASH)
+    first_entry = _make_entry(0)
     second_entry = _make_entry(1, first_entry.entry_hash)
     datalayer.save(first_entry)
     datalayer.save(second_entry)

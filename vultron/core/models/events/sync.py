@@ -15,7 +15,6 @@
 
 from typing import Literal, cast
 
-from vultron.core.models.case_ledger import GENESIS_HASH
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 
@@ -68,9 +67,12 @@ class RejectLogEntryReceivedEvent(VultronEvent):
     def last_accepted_hash(self) -> str:
         """Return the last accepted hash reported by the peer.
 
-        Falls back to ``GENESIS_HASH`` when no context is present.
+        Falls back to ``""`` (empty string) when no context is present,
+        signalling that the peer has not acknowledged any entry yet and
+        replay should start from the beginning of the recorded projection
+        (CLP-08-005).
         """
         ctx = self.context_id
         if ctx:
             return ctx
-        return GENESIS_HASH
+        return ""

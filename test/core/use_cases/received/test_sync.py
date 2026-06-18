@@ -18,7 +18,10 @@ from unittest.mock import MagicMock
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
-from vultron.core.models.case_ledger import GENESIS_HASH, HashChainLedgerRecord
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger import (
+    HashChainLedgerRecord,
+)
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.events import MessageSemantics
 from vultron.core.ports.sync_activity import SyncActivityPort
@@ -38,6 +41,7 @@ from vultron.wire.as2.vocab.objects.case_ledger_entry import (
 
 ACTOR_URI = "https://example.org/actors/case-actor"
 CASE_URI = "https://example.org/cases/case1"
+_ZERO_HASH: str = "0" * 64  # arbitrary hash for test chains
 
 
 def _to_persistable_entry(
@@ -80,13 +84,46 @@ def dl() -> SqliteDataLayer:
 
 @pytest.fixture
 def first_entry() -> VultronCaseLedgerEntry:
-    return _make_entry(CASE_URI, 0, GENESIS_HASH)
+    # Use _ZERO_HASH as prev_log_hash for chain tests that don't need
+    # genesis validation. Tests that need genesis hash must build their own.
+    return _make_entry(CASE_URI, 0, _ZERO_HASH)
+
+
+@pytest.fixture
+def case_with_genesis(dl) -> VulnerabilityCase:
+    """Create and store a VulnerabilityCase so genesis hash is known."""
+    case = _make_case()
+    dl.save(case)
+    return case
+
+
+@pytest.fixture
+def genesis_entry(case_with_genesis) -> VultronCaseLedgerEntry:
+    """First entry whose prev_log_hash matches the per-case genesis hash."""
+    return _make_entry(CASE_URI, 0, case_with_genesis.genesis_hash)
+
+
+def _make_case(case_id: str = CASE_URI) -> VulnerabilityCase:
+    """Create a VulnerabilityCase with genesis_hash for test DataLayer storage."""
+    return VulnerabilityCase(
+        id_=case_id,
+        attributed_to=ACTOR_URI,
+    )
 
 
 class TestReconstructTailHash:
     def test_empty_log_returns_genesis(self, dl):
+        case = _make_case()
+        dl.save(case)
         tail_hash, tail_index = _reconstruct_tail_hash(CASE_URI, dl)
-        assert tail_hash == GENESIS_HASH
+        assert tail_hash == case.genesis_hash
+        assert len(tail_hash) == 64
+        assert tail_index == -1
+
+    def test_empty_log_no_case_returns_empty(self, dl):
+        """Without a case in DataLayer, empty ledger returns '' as tail hash."""
+        tail_hash, tail_index = _reconstruct_tail_hash(CASE_URI, dl)
+        assert tail_hash == ""
         assert tail_index == -1
 
     def test_one_entry_returns_its_hash(self, dl, first_entry):
@@ -105,7 +142,7 @@ class TestReconstructTailHash:
 
     def test_ignores_other_case_entries(self, dl, first_entry):
         dl.save(first_entry)
-        other = _make_entry("https://example.org/cases/other", 0, GENESIS_HASH)
+        other = _make_entry("https://example.org/cases/other", 0, _ZERO_HASH)
         dl.save(other)
         tail_hash, tail_index = _reconstruct_tail_hash(CASE_URI, dl)
         assert tail_hash == first_entry.entry_hash
@@ -143,8 +180,8 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         assert event.log_entry is not None
         assert event.log_entry.case_id == CASE_URI
 
-    def test_accepts_valid_first_entry(self, dl, first_entry):
-        event = self._make_event(first_entry)
+    def test_accepts_valid_first_entry(self, dl, genesis_entry):
+        event = self._make_event(genesis_entry)
         assert (
             event.semantic_type == MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY
         )
@@ -152,7 +189,7 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         uc = AnnounceLedgerEntryReceivedUseCase(dl, event)
         uc.execute()
 
-        stored = dl.read(first_entry.id_)
+        stored = dl.read(genesis_entry.id_)
         assert stored is not None
 
     def test_rejects_entry_with_wrong_prev_hash(self, dl, first_entry):
@@ -167,7 +204,7 @@ class TestAnnounceLedgerEntryReceivedUseCase:
 
     def test_mismatch_queues_reject_activity(self, dl, first_entry):
         """Hash mismatch causes a RejectLogEntryActivity to be queued (SYNC-03-001)."""
-        # Pre-seed a good entry so tail_hash != GENESIS_HASH
+        # Pre-seed a good entry so tail_hash != the genesis hash
         dl.save(first_entry)
         # Send a second entry with wrong prev_hash
         bad_entry = _make_entry(CASE_URI, 1, "badbadbadbadbad0" * 4)
@@ -236,16 +273,16 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         ]
         assert len(case_entries) == 1
 
-    def test_sequential_chain(self, dl, first_entry):
+    def test_sequential_chain(self, dl, genesis_entry):
         """Accept two sequential entries; chain is maintained."""
-        event0 = self._make_event(first_entry)
+        event0 = self._make_event(genesis_entry)
         AnnounceLedgerEntryReceivedUseCase(dl, event0).execute()
 
-        second = _make_entry(CASE_URI, 1, first_entry.entry_hash)
+        second = _make_entry(CASE_URI, 1, genesis_entry.entry_hash)
         event1 = self._make_event(second)
         AnnounceLedgerEntryReceivedUseCase(dl, event1).execute()
 
-        assert dl.read(first_entry.id_) is not None
+        assert dl.read(genesis_entry.id_) is not None
         assert dl.read(second.id_) is not None
 
     def test_semantic_type_is_correct(self, dl, first_entry):
