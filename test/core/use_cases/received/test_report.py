@@ -1028,6 +1028,7 @@ class TestFullReportFlow:
             object_=offer,
             inner_object=report,
             activity=activity,
+            receiving_actor_id=self.VENDOR_ID,
         )
 
     def test_full_flow_case_created_at_received(self):
@@ -1223,14 +1224,15 @@ class TestValidateReportReceivedGuardedCommit:
             "no case found" in r.message.lower() for r in caplog.records
         ), "Expected debug log indicating skip due to missing case"
 
-    def test_skip_commit_when_receiving_actor_not_case_actor(self, caplog):
+    def test_skip_commit_when_receiving_actor_not_case_actor(self):
         """ValidateReportReceivedUseCase skips commit when receiving_actor != CaseActor.
 
-        Per CLP-10-003: the pre-flight guard MUST skip the guarded commit BT when
-        the receiving actor is not the CaseActor.
+        Per CLP-10-003: the guarded commit BT MUST skip the canonical commit
+        when the receiving actor is not the CaseActor.  In the single-BT
+        pattern (ADR-0022) this is enforced in-tree by CheckIsCaseManagerNode
+        rather than via a Python pre-flight guard.  We verify at the data level
+        that no CaseLedgerEntry is written.
         """
-        import logging
-
         from vultron.wire.as2.vocab.objects.report_case_link import (
             VultronReportCaseLink,
         )
@@ -1246,6 +1248,20 @@ class TestValidateReportReceivedGuardedCommit:
             name="Guarded Commit Test Case",
         )
         case.vulnerability_reports.append(self.REPORT_ID)
+        # Register case actor as CASE_MANAGER
+        from vultron.core.states.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+
+        cm_participant = CaseParticipant(
+            attributed_to=self.CASE_ACTOR_ID,
+            context=case.id_,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        dl.create(cm_participant)
+        case.case_participants.append(cm_participant.id_)
+        case.actor_participant_index[self.CASE_ACTOR_ID] = cm_participant.id_
         dl.save(case)
 
         # Create a ReportCaseLink to establish the CaseActor mapping
@@ -1261,29 +1277,30 @@ class TestValidateReportReceivedGuardedCommit:
             receiving_actor_id=self.VENDOR_ID  # != case_actor_id
         )
 
-        with caplog.at_level(logging.DEBUG):
-            ValidateReportReceivedUseCase(dl, event).execute()
+        ValidateReportReceivedUseCase(dl, event).execute()
 
-        assert any(
-            "is not the CaseActor" in r.message
-            and "skipping canonical commit" in r.message
-            for r in caplog.records
-        ), "Expected debug log indicating skip due to non-CaseActor receiving actor"
+        entries = list(dl.list_objects("CaseLedgerEntry"))
+        assert not entries, (
+            "Expected no CaseLedgerEntry when receiving actor is not the CaseActor"
+            f" (CLP-10-003); found: {entries}"
+        )
 
     def test_calls_commit_bt_when_receiving_actor_is_case_actor(
         self, monkeypatch
     ):
         """Guarded commit BT runs when receiving_actor_id == case_actor_id (CLP-10-002).
 
-        When all pre-flight guards pass — receiving_actor_id is set, a case is
-        linked to the report, a CaseActor ID is resolvable, and
-        receiving_actor_id == case_actor_id — the guarded commit BT MUST be
-        executed.  Verified by patching ``create_guarded_commit_case_ledger_entry_tree``
-        in the use-case module's namespace; it is called only after all guards
-        succeed.
+        When all pre-flight guards pass — receiving_actor_id is set and a case
+        is linked to the report with the receiving actor holding CASE_MANAGER
+        role — the guarded commit BT MUST execute, resulting in a persisted
+        CaseLedgerEntry.
         """
-        import vultron.core.use_cases.received.report as report_module
+        import vultron.core.behaviors.report.received_report_trees as rrt_module
         from vultron.core.models.report_case_link import VultronReportCaseLink
+        from vultron.core.states.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
@@ -1300,10 +1317,18 @@ class TestValidateReportReceivedGuardedCommit:
             name="Guarded Commit Positive Test",
         )
         case.vulnerability_reports.append(self.REPORT_ID)
+        # Register the CASE_ACTOR as CASE_MANAGER so CheckIsCaseManagerNode passes
+        cm_participant = CaseParticipant(
+            attributed_to=self.CASE_ACTOR_ID,
+            context=CASE_ID,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        dl.create(cm_participant)
+        case.case_participants.append(cm_participant.id_)
+        case.actor_participant_index[self.CASE_ACTOR_ID] = cm_participant.id_
         dl.save(case)
 
-        # VultronReportCaseLink establishes the CaseActor mapping checked by
-        # _find_case_actor_id (CBT-01-006).
+        # VultronReportCaseLink establishes the case_id lookup.
         link = VultronReportCaseLink(
             report_id=self.REPORT_ID,
             case_id=CASE_ID,
@@ -1311,16 +1336,15 @@ class TestValidateReportReceivedGuardedCommit:
         )
         dl.save(link)
 
-        # Receiving actor IS the CaseActor — all pre-flight guards must pass.
+        # Receiving actor IS the CaseActor — CheckIsCaseManagerNode must pass.
         event = self._make_validate_event_with_receiving_actor(
             receiving_actor_id=self.CASE_ACTOR_ID
         )
 
-        # Track calls to create_guarded_commit_case_ledger_entry_tree in the
-        # use-case module's namespace.  This function is invoked only when the
-        # pre-flight guard passes (CLP-10-002).
+        # Track calls to create_guarded_commit_case_ledger_entry_tree in
+        # received_report_trees (where it is called in the ADR-0022 pattern).
         original_create = (
-            report_module.create_guarded_commit_case_ledger_entry_tree
+            rrt_module.create_guarded_commit_case_ledger_entry_tree
         )
         commit_tree_calls: list[str | None] = []
 
@@ -1329,7 +1353,7 @@ class TestValidateReportReceivedGuardedCommit:
             return original_create(case_id=case_id)
 
         monkeypatch.setattr(
-            report_module,
+            rrt_module,
             "create_guarded_commit_case_ledger_entry_tree",
             tracking_create,
         )
