@@ -1,10 +1,13 @@
 import { useState } from 'react'
 import AppSingleVendor from './App.tsx'
 import AppMultiVendor from './App-multivendor.tsx'
+import AppMultiVendorValidated from './App-multivendor-validated.tsx'
 import AppLogReplay from './App-logreplay.tsx'
 
 export function DemoSelector() {
-  const [demoType, setDemoType] = useState<'single' | 'multi' | 'logreplay'>('multi')
+  const [demoType, setDemoType] = useState<
+    'single' | 'multi' | 'multi-validated' | 'logreplay'
+  >('multi')
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -58,6 +61,23 @@ export function DemoSelector() {
           Multi-Vendor
         </button>
         <button
+          onClick={() => setDemoType('multi-validated')}
+          style={{
+            padding: '0.5rem 1rem',
+            fontSize: '0.875rem',
+            background: demoType === 'multi-validated' ? 'white' : 'rgba(255,255,255,0.15)',
+            color: demoType === 'multi-validated' ? '#0d47a1' : 'rgba(255,255,255,0.7)',
+            border: demoType === 'multi-validated' ? '2px solid white' : '1px solid rgba(255,255,255,0.3)',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontWeight: demoType === 'multi-validated' ? 'bold' : 'normal',
+            transition: 'all 0.2s ease',
+            boxShadow: demoType === 'multi-validated' ? '0 2px 4px rgba(0,0,0,0.2)' : 'none',
+          }}
+        >
+          Multi-Vendor (Validated)
+        </button>
+        <button
           onClick={() => setDemoType('logreplay')}
           style={{
             padding: '0.5rem 1rem',
@@ -80,6 +100,7 @@ export function DemoSelector() {
       <div style={{ flex: 1, overflow: 'hidden' }}>
         {demoType === 'single' && <AppSingleVendor />}
         {demoType === 'multi' && <AppMultiVendor />}
+        {demoType === 'multi-validated' && <AppMultiVendorValidated />}
         {demoType === 'logreplay' && <AppLogReplay />}
       </div>
     </div>
