@@ -120,11 +120,17 @@ class TestReconstructTailHash:
         assert len(tail_hash) == 64
         assert tail_index == -1
 
-    def test_empty_log_no_case_returns_empty(self, dl):
-        """Without a case in DataLayer, empty ledger returns '' as tail hash."""
-        tail_hash, tail_index = _reconstruct_tail_hash(CASE_URI, dl)
-        assert tail_hash == ""
-        assert tail_index == -1
+    def test_empty_log_no_case_raises(self, dl):
+        """Without a case in DataLayer, empty ledger raises VultronValidationError.
+
+        Fail-closed: the ledger cannot be safely bootstrapped without a known
+        genesis anchor (CLP-08-005).
+        """
+        import pytest
+        from vultron.errors import VultronValidationError
+
+        with pytest.raises(VultronValidationError, match="genesis hash"):
+            _reconstruct_tail_hash(CASE_URI, dl)
 
     def test_one_entry_returns_its_hash(self, dl, first_entry):
         dl.save(first_entry)

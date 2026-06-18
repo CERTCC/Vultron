@@ -42,8 +42,8 @@ class TestCheckLedgerFreshnessNodeWithCaseIdArg:
         )
         assert result.status == Status.SUCCESS
 
-    def test_contiguous_chain_is_fresh(self, bridge, datalayer):
-        e0 = _make_entry(0)
+    def test_contiguous_chain_is_fresh(self, bridge, datalayer, case_obj):
+        e0 = _make_entry(0, case_obj.genesis_hash)
         datalayer.save(e0)
         e1 = _make_entry(1, e0.entry_hash)
         datalayer.save(e1)

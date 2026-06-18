@@ -88,8 +88,13 @@ class VulnerabilityCase(CoreObject):
 
         Uses ``id_``, ``published``, and ``attributed_to`` (the CaseActor URI)
         as inputs to :func:`~vultron.core.models.case_ledger.compute_genesis_hash`.
-        No-ops when ``genesis_hash`` is already set or when ``attributed_to``
-        is absent (genesis hash cannot be computed without the CaseActor URI).
+        When ``attributed_to`` is present, ``genesis_hash`` MUST be non-empty
+        after this validator runs — if the hash cannot be computed (e.g.,
+        ``published`` is absent), a
+        :exc:`~vultron.errors.VultronValidationError` is raised (fail-closed
+        per CLP-08-003/CLP-08-004).  No-ops when ``genesis_hash`` is already
+        set or when ``attributed_to`` is absent (genesis hash requires a
+        CaseActor URI as input).
 
         Spec: CLP-08-002, CLP-08-003.
         """
@@ -98,6 +103,12 @@ class VulnerabilityCase(CoreObject):
                 case_id=self.id_,
                 created_at=self.published,
                 case_actor_id=self.attributed_to,
+            )
+        if self.attributed_to and not self.genesis_hash:
+            raise VultronValidationError(
+                f"VulnerabilityCase '{self.id_}': genesis_hash could not "
+                "be computed — 'published' timestamp is required "
+                "(CLP-08-003)."
             )
         return self
 

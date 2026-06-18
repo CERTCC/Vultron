@@ -31,6 +31,7 @@ from vultron.core.sync_helpers import _find_equivalent_recorded_entry
 from vultron.core.sync_helpers import _reconstruct_tail_hash
 from vultron.errors import VultronCanonicalEntryError
 from vultron.errors import VultronError
+from vultron.errors import VultronValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -264,7 +265,18 @@ class ReconstructChainTailNode(DataLayerAction):
                 self.blackboard.activity, self.name
             )
 
-        tail_hash, tail_index = _reconstruct_tail_hash(case_id, self.datalayer)
+        try:
+            tail_hash, tail_index = _reconstruct_tail_hash(
+                case_id, self.datalayer
+            )
+        except VultronValidationError as exc:
+            self.logger.error(
+                "%s: cannot reconstruct tail hash for case '%s': %s",
+                self.name,
+                case_id,
+                exc,
+            )
+            return Status.FAILURE
         self.blackboard.tail_hash = tail_hash
         self.blackboard.tail_index = tail_index
         self.logger.debug(

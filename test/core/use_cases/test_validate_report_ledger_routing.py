@@ -279,6 +279,7 @@ class TestCaseActorReceivedWritesLedgerEntry:
         case = VulnerabilityCase(
             id_=self.CASE_ID,
             name="Ledger Routing Test Case",
+            attributed_to=self.CASE_ACTOR_ID,
         )
         case.vulnerability_reports.append(self.REPORT_ID)
 
@@ -466,6 +467,7 @@ class TestFullValidateReportLedgerChain:
         ca_case = VulnerabilityCase(
             id_=case.id_,
             name=case.name or "Test Case",
+            attributed_to=case_actor_id,
         )
         ca_case.vulnerability_reports.append(self.REPORT_ID)
 

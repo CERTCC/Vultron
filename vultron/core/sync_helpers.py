@@ -1,10 +1,13 @@
-#!/usr/bin/env python
 """Shared helpers for SYNC log-replication workflows."""
 
+import logging
 from typing import Any
 
 from vultron.core.models.protocols import LogEntryModel, is_log_entry_model
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.errors import VultronValidationError
+
+logger = logging.getLogger(__name__)
 
 
 def _get_case_genesis_hash(case_id: str, dl: CasePersistence) -> str:
@@ -12,8 +15,8 @@ def _get_case_genesis_hash(case_id: str, dl: CasePersistence) -> str:
 
     Looks up the :class:`~vultron.core.models.case.VulnerabilityCase` in *dl*
     and returns its ``genesis_hash`` field.  Returns ``""`` when the case is
-    not found or has no genesis hash (callers should treat ``""`` as "genesis
-    hash unknown — skip genesis-hash validation").
+    not found or has no genesis hash recorded.  Callers that require a
+    non-empty genesis hash MUST treat ``""`` as an error condition.
 
     Args:
         case_id: URI of the :class:`~vultron.core.models.case.VulnerabilityCase`.
@@ -45,7 +48,8 @@ def is_ledger_fresh_for_case(
     Returns ``(True, "")`` when the actor's local log entries form an
     unbroken, hash-verified sequence starting at ``log_index=0`` with
     ``prev_log_hash`` equal to the per-case genesis hash.  Returns
-    ``(False, reason)`` if any index gap or hash mismatch is found.
+    ``(False, reason)`` if any index gap, hash mismatch, or missing genesis
+    metadata is found.
 
     An empty local log (no entries yet) is considered trivially fresh: the
     actor's acknowledged prefix is the empty prefix, which is contiguous.
@@ -54,8 +58,9 @@ def is_ledger_fresh_for_case(
 
     When *genesis_hash* is ``None``, it is looked up from the DataLayer via
     :func:`_get_case_genesis_hash`.  When the genesis hash cannot be
-    determined (``None`` lookup returns ``""`` and no explicit value is
-    provided), the genesis-entry ``prev_log_hash`` check is skipped.
+    determined (case not found or stored with an empty genesis hash),
+    ``(False, reason)`` is returned — the check is **fail-closed** per
+    CLP-08-003/CLP-08-004.
 
     Spec: SYNC-10-003, SYNC-10-004, SYNC-10-005, CLP-08-004.
 
@@ -63,12 +68,12 @@ def is_ledger_fresh_for_case(
         case_id: URI of the case whose local ledger to check.
         dl: The actor-local DataLayer to query.
         genesis_hash: Expected ``prev_log_hash`` of the first entry.  When
-            ``None`` (default), looked up automatically from *dl*.  Pass ``""``
-            to explicitly skip the genesis-entry check.
+            ``None`` (default), looked up automatically from *dl*.
 
     Returns:
         A 2-tuple ``(is_fresh, reason)``.  ``reason`` is an empty string when
-        fresh; a human-readable explanation when stale.
+        fresh; a human-readable explanation when stale or when genesis
+        metadata is unavailable.
     """
     entries: list[LogEntryModel] = [
         obj
@@ -93,7 +98,13 @@ def is_ledger_fresh_for_case(
         if genesis_hash is not None
         else _get_case_genesis_hash(case_id, dl)
     )
-    if effective_genesis and first.prev_log_hash != effective_genesis:
+    if not effective_genesis:
+        return False, (
+            f"genesis hash unavailable for case '{case_id}': "
+            "cannot verify origin binding of the first ledger entry "
+            "(CLP-08-004)"
+        )
+    if first.prev_log_hash != effective_genesis:
         return False, (
             f"genesis entry prev_log_hash mismatch: "
             f"got {first.prev_log_hash!r}, "
@@ -125,7 +136,10 @@ def _reconstruct_tail_hash(
 
     When no entries are stored locally for *case_id*, returns the per-case
     genesis hash (looked up from the DataLayer) and index ``-1``.  If the
-    case's genesis hash is not available, returns ``""`` and ``-1``.
+    case's genesis hash is not available in the DataLayer, raises
+    :exc:`~vultron.errors.VultronValidationError` — the ledger cannot be
+    safely bootstrapped without a known genesis anchor (fail-closed per
+    CLP-08-004/CLP-08-005).
 
     Spec: CLP-08-005.
 
@@ -135,6 +149,10 @@ def _reconstruct_tail_hash(
 
     Returns:
         A 2-tuple ``(tail_hash, tail_index)``.
+
+    Raises:
+        VultronValidationError: When the ledger is empty and the per-case
+            genesis hash cannot be found in the DataLayer.
     """
     entries: list[LogEntryModel] = [
         obj
@@ -143,7 +161,15 @@ def _reconstruct_tail_hash(
     ]
 
     if not entries:
-        return _get_case_genesis_hash(case_id, dl), -1
+        genesis = _get_case_genesis_hash(case_id, dl)
+        if not genesis:
+            raise VultronValidationError(
+                f"Cannot reconstruct tail hash for case '{case_id}': "
+                "ledger is empty and per-case genesis hash is unavailable "
+                "in the DataLayer — cannot bootstrap an unanchored chain "
+                "(CLP-08-005)."
+            )
+        return genesis, -1
 
     entries.sort(key=lambda entry: entry.log_index)
     last = entries[-1]
