@@ -92,7 +92,11 @@ Do NOT introduce alternative frameworks or package managers without approval.
   (e.g., `CaseTransferOffer` not `VultronOffer`). See CS-12-001.
 - **Vulnerability**: Abbreviated as `vul` (not `vuln`)
 - Wire-layer naming (as\_ prefix, trailing underscore, pattern objects) →
-  see [`vultron/wire/as2/AGENTS.md`](vultron/wire/as2/AGENTS.md)
+  see [`vultron/wire/as2/AGENTS.md`](vultron/wire/as2/AGENTS.md).
+  **Critical**: ALL classes in `vultron/wire/as2/vocab/objects/` use the
+  `as_` prefix (`as_VulnerabilityCase`, `as_CaseParticipant`, etc.). The
+  bare name `VulnerabilityCase` (no prefix) always refers to the **core**
+  domain model. See ARCH-14-001.
 - Use-case / handler naming (Received suffix, Svc prefix, \_trigger suffix)
   → see [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md)
 
@@ -519,6 +523,19 @@ Short entries are reproduced here; longer ones are referenced below.
   and `notes/case-ledger-authority.md` § "Canonical Entry Criteria".
 - **Adding a New Pitfall: Check the Routing Policy First** — see
   [notes/agents-md-structure.md](notes/agents-md-structure.md)
+- **`as_VulnerabilityCase` (wire) vs `VulnerabilityCase` (core) — Always Check
+  Your Prefix** — The core domain model is `VulnerabilityCase` in
+  `vultron.core.models.case`. The wire AS2 projection is `as_VulnerabilityCase`
+  in `vultron.wire.as2.vocab.objects.vulnerability_case`. This `as_` prefix
+  convention applies to **all** classes in `vultron/wire/as2/vocab/objects/`:
+  `as_CaseParticipant`, `as_CaseStatus`, `as_VulnerabilityReport`, etc. If you
+  see a bare `VulnerabilityCase` import from the wire layer, that is a naming
+  violation (ARCH-14-001) — the migration to `as_` prefixes is tracked in GitHub.
+  In BT nodes, use cases, and core code: always import the bare-name core type.
+  In wire/extractor/factory code: always import the `as_`-prefixed wire type.
+  The two objects have identical field names; they differ only in field types
+  (core uses `str` IDs, wire uses `ActivityStreamRef[T]` unions). See
+  `specs/architecture.yaml` ARCH-14-001.
 - **Trigger-Side execute() Must Delegate SM Transitions to BTBridge** — A
   trigger-side `execute()` method that calls `EmbargoLifecycle`, `EMAdapter`,
   or creates `ParticipantStatus` records with a specific `rm_state`/`em_state`
