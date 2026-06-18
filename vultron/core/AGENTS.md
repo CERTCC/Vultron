@@ -78,8 +78,9 @@ class CreateReportReceivedUseCase:
 - **BT Bridge**: `vultron/core/behaviors/bridge.py`
 - **BT nodes/trees**: `vultron/core/behaviors/report/`, `case/`,
   `helpers.py`
-- **Case Event Log**: `vultron/wire/as2/vocab/objects/case_event.py` — use
-  `VulnerabilityCase.record_event(object_id, event_type)`
+- **Case Event Log**: `vultron/core/models/case_event.py` — `CaseEvent`
+  model; use the core `VulnerabilityCase.record_event(object_id, event_type)`
+  (wire-layer duplicate removed in #888)
 
 ---
 

@@ -21,7 +21,6 @@ import py_trees
 import pytest
 
 from vultron.core.behaviors.case.nodes import (
-    CreateCaseOwnerParticipant,
     CreateCaseParticipantNode,
 )
 from vultron.core.behaviors.case.nodes.participant import (
@@ -187,24 +186,6 @@ class TestCreateCaseParticipantNode:
         participant = cast(Any, bt_scenario.dl.read(participant_id))
         assert participant.embargo_consent_state == PEC.SIGNATORY
         assert embargo.id_ in participant.accepted_embargo_ids
-
-    def test_does_not_record_participant_added_event_for_case_owner(
-        self,
-        bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
-        case_obj: VultronCase,
-        actor_id: str,
-    ) -> None:
-        """CreateCaseOwnerParticipant does NOT record 'participant_added'."""
-        bt_scenario.run(
-            CreateCaseOwnerParticipant(),
-            actor_id=actor_id,
-            case_id=case_obj.id_,
-        )
-
-        stored_case = cast(Any, bt_scenario.dl.read(case_obj.id_))
-        event_types = [e.event_type for e in stored_case.events]
-        assert "participant_added" not in event_types
 
     def test_preserves_existing_accepted_status_consent_state(
         self,

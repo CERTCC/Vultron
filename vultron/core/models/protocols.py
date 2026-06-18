@@ -75,7 +75,6 @@ class CaseModel(PersistableModel, Protocol):
     def set_embargo(self, embargo_id: str) -> None: ...
     def add_participant(self, participant: object) -> None: ...
     def remove_participant(self, participant_id: str) -> None: ...
-    def record_event(self, obj_id: str, event_type: str) -> None: ...
 
     @property
     def current_status(self) -> CaseStatusModel: ...
@@ -110,7 +109,7 @@ def is_case_model(obj: PersistableModel | None) -> TypeGuard[CaseModel]:
         obj is not None
         and getattr(obj, "type_", None) == "VulnerabilityCase"
         and hasattr(obj, "case_participants")
-        and hasattr(obj, "record_event")
+        and hasattr(obj, "case_statuses")
     )
 
 
