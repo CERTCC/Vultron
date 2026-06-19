@@ -12,7 +12,7 @@ from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
 )
-from vultron.core.use_cases._helpers import _as_id, _find_case_actor_id
+from vultron.core.use_cases._helpers import _as_id
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -66,66 +66,48 @@ class CloseCaseReceivedUseCase:
         self._sync_port = sync_port
 
     def execute(self) -> None:
-        import py_trees
+        from py_trees.common import Status
 
         from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.case.nodes import (
-            create_guarded_commit_case_ledger_entry_tree,
+        from vultron.core.behaviors.case.receive_close_case_tree import (
+            create_close_case_received_tree,
         )
-        from vultron.core.behaviors.report.nodes import StoreActivityNode
 
         request = self._request
         case_id = request.case_id
-        actor_id = request.actor_id
-
         if case_id is None:
             logger.warning("close_case: missing case_id")
-            return
-
-        logger.info("Actor '%s' is closing case '%s'", actor_id, case_id)
-
-        # Pre-flight guard (ADR-0021, CLP-10-002, CLP-10-003)
-        case_actor_id = _find_case_actor_id(self._dl, case_id)
-        if case_actor_id is None:
-            logger.warning(
-                "CloseCaseReceivedUseCase: cannot resolve CaseActor for case"
-                " '%s' — skipping commit",
-                case_id,
-            )
             return
 
         receiving_actor_id = request.receiving_actor_id
         if receiving_actor_id is None:
             logger.debug(
                 "CloseCaseReceivedUseCase: missing receiving_actor_id"
-                " — skipping commit"
+                " — skipping commit (CLP-10-005)"
             )
             return
 
-        if receiving_actor_id != case_actor_id:
-            logger.debug(
-                "CloseCaseReceivedUseCase: receiving actor '%s' is not the"
-                " CaseActor for case '%s' — skipping commit (CLP-10-003)",
-                receiving_actor_id,
-                case_id,
-            )
-            return
-
-        tree = py_trees.composites.Sequence(
-            name="CloseCaseBT",
-            memory=False,
-            children=[
-                StoreActivityNode(
-                    activity_id=request.activity_id,
-                    activity_obj=request.activity,
-                    label="Leave",
-                ),
-                create_guarded_commit_case_ledger_entry_tree(case_id=case_id),
-            ],
+        logger.info(
+            "Actor '%s' is closing case '%s'",
+            request.actor_id,
+            case_id,
         )
-        BTBridge(datalayer=self._dl).execute_with_setup(
+
+        tree = create_close_case_received_tree(
+            case_id=case_id,
+            activity_id=request.activity_id,
+            activity_obj=request.activity,
+        )
+        result = BTBridge(datalayer=self._dl).execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
             activity=request,
             sync_port=self._sync_port,
         )
+        if result.status != Status.SUCCESS:
+            logger.debug(
+                "CloseCaseReceivedUseCase: BT did not fully succeed for"
+                " case '%s': %s",
+                case_id,
+                BTBridge.get_failure_reason(tree) or result.feedback_message,
+            )

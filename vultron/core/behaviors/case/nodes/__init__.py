@@ -58,6 +58,7 @@ from vultron.core.behaviors.case.nodes.case_setup import (
     SetCaseAttributedTo,
 )
 from vultron.core.behaviors.case.nodes.communication import (
+    AutoAcceptCaseManagerRoleNode,
     CollectCaseAddresseesNode,
     CreateAndPersistCaseActivityNode,
     CreateOfferCaseManagerActivityNode,
@@ -126,6 +127,7 @@ __all__ = [
     # embargo_tree (composite subtree — lazy via __getattr__)
     "InitializeDefaultEmbargoNode",
     # communication (leaf nodes)
+    "AutoAcceptCaseManagerRoleNode",
     "CollectCaseAddresseesNode",
     "CreateAndPersistCaseActivityNode",
     "CreateOfferCaseManagerActivityNode",

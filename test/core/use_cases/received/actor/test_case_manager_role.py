@@ -66,7 +66,7 @@ class TestCaseManagerRoleDelegationUseCases:
 
         dl = SqliteDataLayer("sqlite:///:memory:")
         offer = self._make_offer()
-        event = make_payload(offer)
+        event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
 
         OfferCaseManagerRoleReceivedUseCase(dl, event).execute()
 
@@ -79,7 +79,7 @@ class TestCaseManagerRoleDelegationUseCases:
 
         dl = SqliteDataLayer("sqlite:///:memory:")
         offer = self._make_offer()
-        event = make_payload(offer)
+        event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
 
         OfferCaseManagerRoleReceivedUseCase(dl, event).execute()
         OfferCaseManagerRoleReceivedUseCase(dl, event).execute()
@@ -138,28 +138,22 @@ class TestCaseManagerRoleDelegationUseCases:
         self, make_payload
     ):
         """OfferCaseManagerRoleReceivedUseCase auto-accepts when trigger_activity provided."""
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import MagicMock
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.base.objects.actors import as_Organization
 
         dl = SqliteDataLayer("sqlite:///:memory:")
-        local_actor = as_Organization(id_=self._CASE_ACTOR_URI)
-        dl.create(local_actor)
 
         offer = self._make_offer()
-        event = make_payload(offer)
+        event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
 
         trigger = MagicMock()
         trigger.accept_case_manager_role.return_value = (
             "https://example.org/activities/accept-1"
         )
 
-        with patch(
-            "vultron.core.use_cases.triggers._helpers.add_activity_to_outbox"
-        ):
-            OfferCaseManagerRoleReceivedUseCase(
-                dl, event, trigger_activity=trigger
-            ).execute()
+        OfferCaseManagerRoleReceivedUseCase(
+            dl, event, trigger_activity=trigger
+        ).execute()
 
         trigger.accept_case_manager_role.assert_called_once()
         call_kwargs = trigger.accept_case_manager_role.call_args
@@ -174,7 +168,7 @@ class TestCaseManagerRoleDelegationUseCases:
 
         dl = SqliteDataLayer("sqlite:///:memory:")
         offer = self._make_offer()
-        event = make_payload(offer)
+        event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
 
         # No trigger_activity — should not raise
         OfferCaseManagerRoleReceivedUseCase(dl, event).execute()

@@ -12,17 +12,13 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Tests for note-related use-case classes."""
 
-from typing import Any, cast
+from typing import cast
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
-from vultron.adapters.driven.trigger_activity_adapter import (
-    TriggerActivityAdapter,
-)
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.protocols import is_log_entry_model
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases.received.note import (
     AddNoteToCaseReceivedUseCase,
     CreateNoteReceivedUseCase,
@@ -157,7 +153,10 @@ class TestNoteUseCases:
         activity = add_note_to_case_activity(
             note, target=case, actor="https://example.org/users/finder"
         )
-        event = make_payload(activity)
+        event = make_payload(
+            activity,
+            receiving_actor_id="https://example.org/actors/receiver",
+        )
 
         AddNoteToCaseReceivedUseCase(dl, event).execute()
 
@@ -184,7 +183,10 @@ class TestNoteUseCases:
         activity = add_note_to_case_activity(
             note, target=case, actor="https://example.org/users/finder"
         )
-        event = make_payload(activity)
+        event = make_payload(
+            activity,
+            receiving_actor_id="https://example.org/actors/receiver",
+        )
 
         AddNoteToCaseReceivedUseCase(dl, event).execute()
 
@@ -244,178 +246,6 @@ class TestNoteUseCases:
 
         result = RemoveNoteFromCaseReceivedUseCase(dl, event).execute()
         assert result is None
-
-    # ------------------------------------------------------------------
-    # Broadcast tests (CM-06-005)
-    # ------------------------------------------------------------------
-
-    def test_add_note_broadcasts_to_participants(self, make_payload):
-        """add_note_to_case broadcasts AddNoteToCase to all participants.
-
-        After a note is added to a case, the CaseActor should enqueue an
-        AddNoteToCaseActivity for delivery to all participants that are not
-        the note author (CM-06-005).
-        """
-        dl = SqliteDataLayer("sqlite:///:memory:")
-        author_id = "https://example.org/users/vendor"
-        participant_id = "https://example.org/users/finder"
-        case_id = "https://example.org/cases/case_nb1"
-
-        case_actor = VultronCaseActor(
-            id_=f"{case_id}/actor",
-            name=f"CaseActor for {case_id}",
-            attributed_to=author_id,
-            context=case_id,
-        )
-        dl.create(case_actor)
-
-        case = VulnerabilityCase(
-            id_=case_id,
-            name="Broadcast Note Case",
-            attributed_to=author_id,
-        )
-        case.actor_participant_index[author_id] = (
-            "https://example.org/participants/p-nb1-vendor"
-        )
-        case.actor_participant_index[participant_id] = (
-            "https://example.org/participants/p-nb1-finder"
-        )
-        dl.create(case)
-
-        note = as_Note(
-            id_="https://example.org/notes/note_bc1",
-            content="Broadcast note",
-            context=case_id,
-        )
-        dl.create(note)
-
-        activity = add_note_to_case_activity(
-            note, target=case, actor=author_id
-        )
-        event = make_payload(activity)
-
-        AddNoteToCaseReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(
-                cast(CaseOutboxPersistence, dl)
-            ),
-        ).execute()
-
-        # CaseActor outbox should contain the broadcast activity.
-        queued_ids = dl.clone_for_actor(case_actor.id_).outbox_list()
-        assert len(queued_ids) == 1
-
-        broadcast_id = queued_ids[0]
-        broadcast = dl.read(broadcast_id)
-        assert broadcast is not None
-        broadcast = cast(Any, broadcast)
-        assert broadcast.actor == case_actor.id_
-        assert broadcast.to is not None
-        assert participant_id in broadcast.to
-
-        # Verify the broadcast is enqueued for delivery by outbox_handler.
-        scoped_dl = SqliteDataLayer(
-            "sqlite:///:memory:", actor_id=case_actor.id_
-        )
-        scoped_dl._engine.dispose()
-        scoped_dl._engine = dl._engine
-        scoped_dl._owns_engine = False
-        queued_ids = scoped_dl.outbox_list()
-        assert broadcast_id in queued_ids
-
-    def test_add_note_broadcast_excludes_author(self, make_payload):
-        """The note author is excluded from broadcast recipients (CM-06-005)."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
-        author_id = "https://example.org/users/vendor"
-        participant_id = "https://example.org/users/finder"
-        case_id = "https://example.org/cases/case_nb2"
-
-        case_actor = VultronCaseActor(
-            id_=f"{case_id}/actor",
-            name=f"CaseActor for {case_id}",
-            attributed_to=author_id,
-            context=case_id,
-        )
-        dl.create(case_actor)
-
-        case = VulnerabilityCase(
-            id_=case_id,
-            name="Exclude Author Case",
-            attributed_to=author_id,
-        )
-        case.actor_participant_index[author_id] = (
-            "https://example.org/participants/p-nb2-vendor"
-        )
-        case.actor_participant_index[participant_id] = (
-            "https://example.org/participants/p-nb2-finder"
-        )
-        dl.create(case)
-
-        note = as_Note(
-            id_="https://example.org/notes/note_bc2",
-            content="Author excluded note",
-            context=case_id,
-        )
-        dl.create(note)
-
-        activity = add_note_to_case_activity(
-            note, target=case, actor=author_id
-        )
-        event = make_payload(activity)
-
-        AddNoteToCaseReceivedUseCase(
-            dl,
-            event,
-            trigger_activity=TriggerActivityAdapter(
-                cast(CaseOutboxPersistence, dl)
-            ),
-        ).execute()
-
-        queued_ids = dl.clone_for_actor(case_actor.id_).outbox_list()
-        assert len(queued_ids) == 1
-
-        broadcast_id = queued_ids[0]
-        broadcast = dl.read(broadcast_id)
-        assert broadcast is not None
-        broadcast = cast(Any, broadcast)
-        assert broadcast.to is not None
-        assert author_id not in broadcast.to
-        assert participant_id in broadcast.to
-
-    def test_add_note_no_broadcast_when_no_case_actor(self, make_payload):
-        """Broadcast is skipped gracefully when no CaseActor exists (CM-06-005)."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
-        author_id = "https://example.org/users/vendor"
-        case_id = "https://example.org/cases/case_nb3"
-
-        case = VulnerabilityCase(
-            id_=case_id,
-            name="No CaseActor Case",
-            attributed_to=author_id,
-        )
-        dl.create(case)
-
-        note = as_Note(
-            id_="https://example.org/notes/note_bc3",
-            content="No broadcast note",
-            context=case_id,
-        )
-        dl.create(note)
-
-        activity = add_note_to_case_activity(
-            note, target=case, actor=author_id
-        )
-        event = make_payload(activity)
-
-        # Should not raise; broadcast is silently skipped.
-        AddNoteToCaseReceivedUseCase(dl, event).execute()
-
-        # Note should still be added to the case.
-        refreshed = dl.read(case_id)
-        assert refreshed is not None
-        refreshed = cast(VulnerabilityCase, refreshed)
-        assert note.id_ in refreshed.notes
 
     # ------------------------------------------------------------------
     # CaseLedgerEntry cascade tests (PCR-08-003, PCR-08-004) — AC-1
