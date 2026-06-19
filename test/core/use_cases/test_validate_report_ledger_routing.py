@@ -404,6 +404,7 @@ class TestCaseActorReceivedWritesLedgerEntry:
         # Register VENDOR as a case participant so TransitionRMtoValid can
         # persist the status record.
         case = dl.read(self.CASE_ID)
+        assert isinstance(case, VulnerabilityCase)
         from vultron.core.models.case_actor import VultronCaseActor
 
         vendor_svc = VultronCaseActor(id_=self.VENDOR_ID)
