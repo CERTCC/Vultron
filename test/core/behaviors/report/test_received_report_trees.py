@@ -46,7 +46,7 @@ from vultron.core.behaviors.report.nodes.storage import (
 from vultron.core.behaviors.report.received_report_trees import (
     create_ack_report_received_tree,
     create_close_report_received_tree,
-    create_create_report_received_tree,
+    create_report_received_tree,
     create_invalidate_report_received_tree,
 )
 from vultron.core.models.activity import VultronActivity
@@ -372,6 +372,7 @@ def _make_ack_report_event() -> AckReportReceivedEvent:
         object_=CoreReport(id_=ACTIVITY_ID),
         inner_object=CoreReport(id_=REPORT_ID),
         activity=_make_activity(type_="Read"),
+        receiving_actor_id=ACTOR_ID,
     )
 
 
@@ -406,7 +407,7 @@ class TestCreateReportReceivedTree:
     def test_happy_path_stores_report_and_activity(self, dl):
         """Full BT stores both VulnerabilityReport and CreateReport activity."""
         event = _make_create_report_event()
-        tree = create_create_report_received_tree(event)
+        tree = create_report_received_tree(event)
         bridge = BTBridge(datalayer=dl)
         result = bridge.execute_with_setup(
             tree=tree, actor_id=ACTOR_ID, activity=event
@@ -422,7 +423,7 @@ class TestCreateReportReceivedTree:
         bridge = BTBridge(datalayer=dl)
 
         for _ in range(2):
-            tree = create_create_report_received_tree(event)
+            tree = create_report_received_tree(event)
             result = bridge.execute_with_setup(
                 tree=tree, actor_id=ACTOR_ID, activity=event
             )

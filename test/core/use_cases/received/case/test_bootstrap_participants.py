@@ -271,7 +271,7 @@ class TestM4AddParticipantStatusAfterBootstrap:
             target=vendor_p,
             actor=_CASE_ACTOR_ID,
         )
-        event = make_payload(activity)
+        event = make_payload(activity, receiving_actor_id=_CASE_ACTOR_ID)
 
         AddParticipantStatusToParticipantReceivedUseCase(dl, event).execute()
 

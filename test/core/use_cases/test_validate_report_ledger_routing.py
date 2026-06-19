@@ -387,10 +387,51 @@ class TestCaseActorReceivedWritesLedgerEntry:
             f"ledger entry; found event_types={event_types}"
         )
 
+    def test_sender_rm_state_transitions_to_valid(self):
+        """Vendor (sender) RM state is set to VALID even when CaseActor is receiver.
 
-# ---------------------------------------------------------------------------
-# Layer 3 — Full two-DataLayer chain
-# ---------------------------------------------------------------------------
+        Verifies the sender_actor_id threading introduced in ADR-0022: nodes
+        CheckRMStateValid, CheckRMStateReceivedOrInvalid, and TransitionRMtoValid
+        receive ``sender_actor_id=VENDOR_ID`` so the RM transition targets the
+        message sender regardless of which actor ``execute_with_setup`` runs
+        under (receiving_actor_id=CASE_ACTOR_ID).
+        """
+        from vultron.core.states.rm import RM
+        from vultron.core.use_cases._helpers import _report_phase_status_id
+
+        dl = self._make_case_actor_dl()
+
+        # Register VENDOR as a case participant so TransitionRMtoValid can
+        # persist the status record.
+        case = dl.read(self.CASE_ID)
+        assert isinstance(case, VulnerabilityCase)
+        from vultron.core.models.case_actor import VultronCaseActor
+
+        vendor_svc = VultronCaseActor(id_=self.VENDOR_ID)
+        dl.save(vendor_svc)
+        vendor_p = CaseParticipant(
+            attributed_to=self.VENDOR_ID,
+            context=self.CASE_ID,
+            case_roles=[CVDRole.COORDINATOR],
+        )
+        dl.create(vendor_p)
+        case.case_participants.append(vendor_p.id_)
+        case.actor_participant_index[self.VENDOR_ID] = vendor_p.id_
+        dl.save(case)
+
+        ValidateReportReceivedUseCase(
+            dl,
+            self._make_validate_event(),  # actor_id=VENDOR, receiving=CASE_ACTOR
+        ).execute()
+
+        valid_id = _report_phase_status_id(
+            self.VENDOR_ID, self.REPORT_ID, RM.VALID.value
+        )
+        assert dl.get("ParticipantStatus", valid_id) is not None, (
+            f"Vendor (sender) {self.VENDOR_ID!r} must have RM.VALID persisted "
+            "after validate-report; sender_actor_id threading may be broken "
+            "(ADR-0022 single-BT migration)"
+        )
 
 
 class TestFullValidateReportLedgerChain:

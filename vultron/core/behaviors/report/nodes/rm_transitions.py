@@ -105,18 +105,29 @@ class TransitionRMtoValid(DataLayerAction):
     This node implements the core state transition from the validate_report handler.
     """
 
-    def __init__(self, report_id: str, offer_id: str, name: str | None = None):
+    def __init__(
+        self,
+        report_id: str,
+        offer_id: str,
+        sender_actor_id: str | None = None,
+        name: str | None = None,
+    ):
         """
         Initialize TransitionRMtoValid node.
 
         Args:
             report_id: ID of VulnerabilityReport to update
             offer_id: ID of Offer to update
+            sender_actor_id: Explicit actor ID to use instead of the blackboard
+                ``actor_id``.  Thread this in when the tree runs under
+                ``receiving_actor_id`` but the RM transition must target the
+                message sender (ADR-0022 single-BT pattern).
             name: Optional custom node name (defaults to class name)
         """
         super().__init__(name=name or self.__class__.__name__)
         self.report_id = report_id
         self.offer_id = offer_id
+        self.sender_actor_id = sender_actor_id
 
     def update(self) -> Status:
         """
@@ -130,7 +141,15 @@ class TransitionRMtoValid(DataLayerAction):
         Returns:
             SUCCESS if status updated, FAILURE on error
         """
-        if self.datalayer is None or self.actor_id is None:
+        if self.datalayer is None:
+            self.logger.error(
+                f"{self.name}: DataLayer or actor_id not available"
+            )
+            return Status.FAILURE
+        actor_id = (
+            self.sender_actor_id if self.sender_actor_id else self.actor_id
+        )
+        if actor_id is None:
             self.logger.error(
                 f"{self.name}: DataLayer or actor_id not available"
             )
@@ -143,10 +162,10 @@ class TransitionRMtoValid(DataLayerAction):
 
             status = ParticipantStatus(
                 id_=_report_phase_status_id(
-                    self.actor_id, self.report_id, RM.VALID.value
+                    actor_id, self.report_id, RM.VALID.value
                 ),
                 context=context,
-                attributed_to=self.actor_id,
+                attributed_to=actor_id,
                 rm_state=RM.VALID,
                 em_consent_state=PEC.NO_EMBARGO,
                 cvd_role=[CVDRole.REPORTER],
@@ -161,12 +180,12 @@ class TransitionRMtoValid(DataLayerAction):
             self.logger.info(
                 "RM → VALID for report '%s' (actor '%s')",
                 self.report_id,
-                self.actor_id,
+                actor_id,
             )
 
             if is_case_model(case):
                 update_participant_rm_state(
-                    case.id_, self.actor_id, RM.VALID, self.datalayer
+                    case.id_, actor_id, RM.VALID, self.datalayer
                 )
 
             return Status.SUCCESS

@@ -260,7 +260,10 @@ class TestStatusUseCases:
             actor="https://example.org/users/vendor",
             context=case_ps2,
         )
-        event = make_payload(activity)
+        event = make_payload(
+            activity,
+            receiving_actor_id="https://example.org/users/vendor",
+        )
 
         AddParticipantStatusToParticipantReceivedUseCase(dl, event).execute()
 
