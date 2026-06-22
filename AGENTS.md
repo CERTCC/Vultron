@@ -551,6 +551,20 @@ Short entries are reproduced here; longer ones are referenced below.
   [notes/bt-integration.md](notes/bt-integration.md)
   § "Trigger/Received Parity" and `specs/behavior-tree-integration.yaml`
   BT-15-001, BT-15-002.
+- **Direct DataLayer Mutations in execute() Are Not Caught by the
+  Import-Based Ratchet** — `test/architecture/test_single_bt_execution_received_side.py`
+  detects direct imports of `create_guarded_commit_case_ledger_entry_tree`
+  and (after #1074) multi-`execute_with_setup` call patterns, but it does
+  **not** detect `self._dl.save()`, `self._dl.create()`, `self._dl.update()`,
+  or `self._dl.delete()` called directly inside `execute()`. These direct
+  mutations bypass the BT audit trail, skip the hash-chained ledger-commit
+  path, and constitute protocol-significant behavior outside the tree — the
+  exact anti-pattern BT-06-001 and BT-15-001 prohibit. A second AST-based
+  ratchet (`test/architecture/test_no_dl_mutations_in_execute.py`) tracks the
+  known violations (issue #1071). Until a file is removed from
+  `KNOWN_VIOLATIONS`, do **not** add new `dl.*()` calls in its `execute()`.
+  Any new `execute()` method MUST delegate all DataLayer mutations to a BT
+  leaf node via `execute_with_setup()`.
 - **Receive-Side BTs Must Record the Triggering Activity Before Applying
   Protocol Effects** — In any receive-side BT tree that contains a
   `GuardedCommitCaseLedgerEntryBT` subtree (via
