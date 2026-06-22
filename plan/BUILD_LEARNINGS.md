@@ -4,6 +4,15 @@ Longer-term notes can be found in `/notes/*.md`. This file is ephemeral
 and will be reset periodically, so it's meant to capture more immediate
 insights, issues, and learnings during the implementation process.
 
+### 2026-06-22 TEST-SPLIT-495 — Stage new files and deleted files together when splitting
+
+When splitting a monolithic test file into several new files via `git rm` +
+manual `create`, the new files are untracked until explicitly staged. A
+pre-PR code review caught that the branch's committed diff only contained
+the deletion (from `git rm`) while the four new files sat as untracked
+working-tree files. Always run `git add <new-files>` alongside `git rm
+<old-file>` before committing a file-split refactor.
+
 ### 2026-06-18 PROTOCOL-FIELD-SYNC-792 — CaseModel Protocol fields must stay in sync with concrete type
 
 When removing a field from a concrete domain model (e.g., `VulnerabilityCase.events`),
