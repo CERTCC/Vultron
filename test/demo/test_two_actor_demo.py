@@ -24,15 +24,18 @@ True multi-container isolation is validated by the acceptance test runnable via:
 
 import importlib
 import logging
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
+from click.testing import CliRunner
 from fastapi.testclient import TestClient
 
 import vultron.demo.scenario.two_actor_demo as demo
-from test.demo._helpers import make_testclient_call
+from test.demo._helpers import make_client, make_testclient_call
 from vultron.adapters.utils import strip_id_prefix
+from vultron.demo.cli import main
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -66,16 +69,6 @@ def patch_datalayer_call(client: TestClient, base: str):
 
 
 # ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _make_client(base: str) -> demo.DataLayerClient:
-    """Return a DataLayerClient that routes through the patched TestClient."""
-    return demo.DataLayerClient(base_url=base)
-
-
-# ---------------------------------------------------------------------------
 # Unit tests for individual workflow functions
 # ---------------------------------------------------------------------------
 
@@ -86,8 +79,8 @@ class TestSeedContainers:
     def test_seed_containers_creates_finder_actor(
         self, client: TestClient, base: str
     ):
-        finder_client = _make_client(base)
-        vendor_client = _make_client(base)
+        finder_client = make_client(base)
+        vendor_client = make_client(base)
 
         finder, vendor = demo.seed_containers(
             finder_client=finder_client,
@@ -99,8 +92,8 @@ class TestSeedContainers:
     def test_seed_containers_creates_vendor_actor(
         self, client: TestClient, base: str
     ):
-        finder_client = _make_client(base)
-        vendor_client = _make_client(base)
+        finder_client = make_client(base)
+        vendor_client = make_client(base)
 
         finder, vendor = demo.seed_containers(
             finder_client=finder_client,
@@ -112,8 +105,8 @@ class TestSeedContainers:
     def test_seed_containers_registers_peers(
         self, client: TestClient, base: str
     ):
-        finder_client = _make_client(base)
-        vendor_client = _make_client(base)
+        finder_client = make_client(base)
+        vendor_client = make_client(base)
 
         finder, vendor = demo.seed_containers(
             finder_client=finder_client,
@@ -127,8 +120,8 @@ class TestSeedContainers:
         assert vendor.name in actor_names
 
     def test_seed_with_deterministic_ids(self, client: TestClient, base: str):
-        finder_client = _make_client(base)
-        vendor_client = _make_client(base)
+        finder_client = make_client(base)
+        vendor_client = make_client(base)
 
         finder_id = f"{base}/actors/finder-det-test"
         vendor_id = f"{base}/actors/vendor-det-test"
@@ -148,8 +141,6 @@ class TestResetContainers:
     """Test container reset orchestration for reproducible D5-2 runs."""
 
     def test_reset_containers_calls_reset_for_all_targets(self):
-        from unittest.mock import MagicMock, call, patch
-
         finder_client = MagicMock()
         vendor_client = MagicMock()
         case_actor_client = MagicMock()
@@ -182,7 +173,7 @@ class TestGetActorById:
     def test_returns_actor_with_matching_id(
         self, client: TestClient, base: str
     ):
-        dc = _make_client(base)
+        dc = make_client(base)
         actor_id = f"{base}/actors/test-get-actor-by-id"
         created = demo.seed_actor(
             client=dc,
@@ -194,7 +185,7 @@ class TestGetActorById:
         assert fetched.id_ == created.id_
 
     def test_raises_when_actor_not_found(self, client: TestClient, base: str):
-        dc = _make_client(base)
+        dc = make_client(base)
         with pytest.raises(ValueError, match="not found"):
             demo.get_actor_by_id(dc, "http://nonexistent.example/actors/xyz")
 
@@ -203,8 +194,8 @@ class TestFinderSubmitsReport:
     """Test that finder_submits_report creates report and offer in vendor container."""
 
     def test_report_and_offer_stored(self, client: TestClient, base: str):
-        finder_client = _make_client(base)
-        vendor_client = _make_client(base)
+        finder_client = make_client(base)
+        vendor_client = make_client(base)
 
         finder_id = f"{base}/actors/finder-sub-test"
         vendor_id = f"{base}/actors/vendor-sub-test"
@@ -234,8 +225,8 @@ class TestVendorValidatesReport:
     """Test that vendor validates report via trigger endpoint."""
 
     def test_validate_report_succeeds(self, client: TestClient, base: str):
-        finder_client = _make_client(base)
-        vendor_client = _make_client(base)
+        finder_client = make_client(base)
+        vendor_client = make_client(base)
 
         finder_id = f"{base}/actors/finder-val-test"
         vendor_id = f"{base}/actors/vendor-val-test"
@@ -264,8 +255,8 @@ class TestVendorValidatesReport:
     def test_case_created_after_validation(
         self, client: TestClient, base: str
     ):
-        finder_client = _make_client(base)
-        vendor_client = _make_client(base)
+        finder_client = make_client(base)
+        vendor_client = make_client(base)
 
         finder_id = f"{base}/actors/finder-casen-test"
         vendor_id = f"{base}/actors/vendor-casen-test"
@@ -303,8 +294,8 @@ class TestFinderAsksQuestion:
         self, client: TestClient, base: str, suffix: str
     ):
         """Shared setup: returns (finder_client, vendor_client, case, finder, vendor)."""
-        finder_client = _make_client(base)
-        vendor_client = _make_client(base)
+        finder_client = make_client(base)
+        vendor_client = make_client(base)
         finder_id = f"{base}/actors/finder-{suffix}"
         vendor_id = f"{base}/actors/vendor-{suffix}"
 
@@ -335,10 +326,8 @@ class TestFinderAsksQuestion:
             expected_count=3,  # vendor + finder + case-actor (added by CreateCaseActorNode)
         )
 
-        import vultron.wire.as2.vocab.objects.vulnerability_case as vc_module
-
         case_data = vendor_client.get(f"/datalayer/{case.id_}")
-        case = vc_module.VulnerabilityCase(**case_data)
+        case = VulnerabilityCase(**case_data)
         return finder_client, vendor_client, case, finder, vendor
 
     def test_question_note_stored_in_vendor(
@@ -406,8 +395,8 @@ class TestWaitForFinderCase:
         In single-server integration tests both actors share the same DataLayer,
         so after validate-report the case is immediately visible to the finder.
         """
-        finder_client = _make_client(base)
-        vendor_client = _make_client(base)
+        finder_client = make_client(base)
+        vendor_client = make_client(base)
         finder_id = f"{base}/actors/finder-wfc-present"
         vendor_id = f"{base}/actors/vendor-wfc-present"
 
@@ -446,7 +435,7 @@ class TestWaitForFinderCase:
         self, client: TestClient, base: str
     ):
         """Raises AssertionError when the case does not appear within timeout."""
-        finder_client = _make_client(base)
+        finder_client = make_client(base)
         with pytest.raises(AssertionError, match="Timed out"):
             demo.wait_for_finder_case(
                 finder_client=finder_client,
@@ -466,8 +455,8 @@ class TestTriggerLogCommit:
 
     def test_returns_entry_hash_string(self, client: TestClient, base: str):
         """trigger_log_commit returns a non-empty hash string."""
-        finder_client = _make_client(base)
-        vendor_client = _make_client(base)
+        finder_client = make_client(base)
+        vendor_client = make_client(base)
 
         finder, vendor = demo.seed_containers(
             finder_client=finder_client, vendor_client=vendor_client
@@ -501,8 +490,8 @@ class TestTriggerLogCommit:
         self, client: TestClient, base: str
     ):
         """Two sequential log commits produce distinct entry hashes."""
-        finder_client = _make_client(base)
-        vendor_client = _make_client(base)
+        finder_client = make_client(base)
+        vendor_client = make_client(base)
 
         finder, vendor = demo.seed_containers(
             finder_client=finder_client, vendor_client=vendor_client
@@ -543,8 +532,8 @@ class TestWaitForFinderLogEntry:
 
     def test_returns_when_entry_present(self, client: TestClient, base: str):
         """Returns immediately when the log entry exists in the DataLayer."""
-        finder_client = _make_client(base)
-        vendor_client = _make_client(base)
+        finder_client = make_client(base)
+        vendor_client = make_client(base)
 
         finder, vendor = demo.seed_containers(
             finder_client=finder_client, vendor_client=vendor_client
@@ -584,7 +573,7 @@ class TestWaitForFinderLogEntry:
         self, client: TestClient, base: str
     ):
         """Raises AssertionError when the entry does not appear within timeout."""
-        finder_client = _make_client(base)
+        finder_client = make_client(base)
         with pytest.raises(AssertionError, match="Timed out"):
             demo.wait_for_finder_log_entry(
                 finder_client=finder_client,
@@ -604,8 +593,8 @@ class TestVerifyFinderReplicaState:
         In single-server mode both clients share the same TinyDB, so the
         replica state is always consistent immediately after the log commit.
         """
-        finder_client = _make_client(base)
-        vendor_client = _make_client(base)
+        finder_client = make_client(base)
+        vendor_client = make_client(base)
 
         finder, vendor = demo.seed_containers(
             finder_client=finder_client, vendor_client=vendor_client
@@ -645,7 +634,7 @@ class TestVerifyFinderReplicaState:
         self, client: TestClient, base: str
     ):
         """Raises AssertionError when vendor has no record of the given case_id."""
-        vendor_client = _make_client(base)
+        vendor_client = make_client(base)
 
         with pytest.raises(AssertionError):
             demo.verify_finder_replica_state(
@@ -668,8 +657,8 @@ def _setup_case_with_3_participants(base: str):
     Returns a tuple of (finder_client, vendor_client, finder, vendor, case).
     The shared DataLayer will have 3 participants (Vendor + Finder + Case Actor).
     """
-    finder_client = _make_client(base)
-    vendor_client = _make_client(base)
+    finder_client = make_client(base)
+    vendor_client = make_client(base)
 
     finder, vendor = demo.seed_containers(
         finder_client=finder_client,
@@ -863,10 +852,6 @@ class TestWaitForAllParticipantsRmClosed:
             client=finder_client, actor=finder, case_id=case.id_
         )
         case_data = vendor_client.get(f"/datalayer/{case.id_}")
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
-        )
-
         refreshed_case = VulnerabilityCase.model_validate(case_data)
         result = demo._all_fetchable_participants_rm_closed(
             vendor_client, refreshed_case
@@ -890,10 +875,6 @@ class TestWaitForAllParticipantsRmClosed:
             _setup_case_with_3_participants(base)
         )
         case_data = vendor_client.get(f"/datalayer/{case.id_}")
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
-        )
-
         fetched_case = VulnerabilityCase.model_validate(case_data)
         url_based_ids = [
             p_id
@@ -982,8 +963,8 @@ class TestRunTwoActorDemo:
     def test_full_workflow_succeeds(
         self, client: TestClient, base: str, caplog
     ):
-        finder_client = _make_client(base)
-        vendor_client = _make_client(base)
+        finder_client = make_client(base)
+        vendor_client = make_client(base)
 
         finder_id = f"{base}/actors/finder-full-test"
         vendor_id = f"{base}/actors/vendor-full-test"
@@ -1157,9 +1138,6 @@ class TestTwoActorCLI:
     """Test the two-actor CLI sub-command registration and invocation."""
 
     def test_cli_command_registered(self):
-        from click.testing import CliRunner
-        from vultron.demo.cli import main
-
         runner = CliRunner()
         result = runner.invoke(main, ["two-actor", "--help"])
         assert result.exit_code == 0
@@ -1169,10 +1147,6 @@ class TestTwoActorCLI:
         )
 
     def test_cli_runs_demo(self, client: TestClient, base: str):
-        from unittest.mock import patch, MagicMock
-        from click.testing import CliRunner
-        from vultron.demo.cli import main
-
         finder_id = f"{base}/actors/finder-cli-test"
         vendor_id = f"{base}/actors/vendor-cli-test"
         case_actor_url = f"{base}/case-actor"
@@ -1318,7 +1292,6 @@ class TestDeliveryIsolation:
         via ``_TestASGIRouter`` and Finder's isolated DataLayer receives the
         case announcement.
         """
-        from test.demo._helpers import make_testclient_call
         import types
 
         finder_isolated, vendor_isolated, finder_tc, vendor_tc = delivery_setup
@@ -1506,10 +1479,8 @@ def completed_workflow(
     ``vendor-ledger-inv``) to avoid collisions with other test classes
     sharing the same module-scoped DataLayer.
     """
-    import vultron.wire.as2.vocab.objects.vulnerability_case as vc_module
-
-    finder_client = _make_client(base)
-    vendor_client = _make_client(base)
+    finder_client = make_client(base)
+    vendor_client = make_client(base)
 
     finder_id = f"{base}/actors/finder-ledger-inv"
     vendor_id = f"{base}/actors/vendor-ledger-inv"
@@ -1543,7 +1514,7 @@ def completed_workflow(
     )
     # Refresh case to get actor_participant_index populated.
     case_data = vendor_client.get(f"/datalayer/{case.id_}")
-    case = vc_module.VulnerabilityCase(**case_data)
+    case = VulnerabilityCase(**case_data)
 
     # Fix lifecycle.
     demo.actor_notifies_fix_ready(
@@ -1567,7 +1538,7 @@ def completed_workflow(
 
     # Final refresh to pick up any post-closure case-actor state.
     case_data = vendor_client.get(f"/datalayer/{case.id_}")
-    case = vc_module.VulnerabilityCase(**case_data)
+    case = VulnerabilityCase(**case_data)
 
     return vendor_client, case
 

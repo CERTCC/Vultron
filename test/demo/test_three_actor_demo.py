@@ -17,7 +17,7 @@ from click.testing import CliRunner
 from fastapi.testclient import TestClient
 
 import vultron.demo.scenario.three_actor_demo as demo
-from test.demo._helpers import make_testclient_call
+from test.demo._helpers import make_client, make_testclient_call
 
 
 @pytest.fixture(scope="module")
@@ -40,21 +40,16 @@ def patch_datalayer_call(client: TestClient, base: str):
         importlib.reload(demo)
 
 
-def _make_client(base: str) -> demo.DataLayerClient:
-    """Return a client that routes through the patched TestClient."""
-    return demo.DataLayerClient(base_url=base)
-
-
 class TestSeedContainers:
     """Tests for three-actor seeding."""
 
     def test_seed_containers_creates_local_actors(
         self, client: TestClient, base: str
     ):
-        finder_client = _make_client(base)
-        vendor_client = _make_client(base)
-        coordinator_client = _make_client(base)
-        case_actor_client = _make_client(base)
+        finder_client = make_client(base)
+        vendor_client = make_client(base)
+        coordinator_client = make_client(base)
+        case_actor_client = make_client(base)
 
         finder, vendor, coordinator, case_actor = demo.seed_containers(
             finder_client=finder_client,
@@ -75,10 +70,10 @@ class TestCoordinatorCreatesCase:
     def test_case_is_created_only_on_case_actor(
         self, client: TestClient, base: str
     ):
-        finder_client = _make_client(base)
-        vendor_client = _make_client(base)
-        coordinator_client = _make_client(base)
-        case_actor_client = _make_client(base)
+        finder_client = make_client(base)
+        vendor_client = make_client(base)
+        coordinator_client = make_client(base)
+        case_actor_client = make_client(base)
 
         demo.reset_containers(
             finder_client=finder_client,
@@ -129,10 +124,10 @@ class TestRunThreeActorDemo:
     def test_full_workflow_succeeds(
         self, client: TestClient, base: str, caplog
     ):
-        finder_client = _make_client(base)
-        vendor_client = _make_client(base)
-        coordinator_client = _make_client(base)
-        case_actor_client = _make_client(base)
+        finder_client = make_client(base)
+        vendor_client = make_client(base)
+        coordinator_client = make_client(base)
+        case_actor_client = make_client(base)
 
         with caplog.at_level(logging.ERROR):
             demo.run_three_actor_demo(
