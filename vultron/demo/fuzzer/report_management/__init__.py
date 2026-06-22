@@ -22,6 +22,7 @@ Report Management (RM) workflow, grouped by sub-topic:
 - ``develop_fix`` — fix development nodes (1 node)
 - ``close_report`` — report closure nodes (2 nodes)
 - ``other_work`` — miscellaneous work placeholder (1 node)
+- ``report_to_others`` — report-to-others workflow nodes (21 nodes)
 """
 
 from vultron.demo.fuzzer.report_management.prioritize import (
@@ -52,6 +53,29 @@ from vultron.demo.fuzzer.report_management.close_report import (
 )
 from vultron.demo.fuzzer.report_management.develop_fix import CreateFix
 from vultron.demo.fuzzer.report_management.other_work import OtherWork
+from vultron.demo.fuzzer.report_management.report_to_others import (
+    AllPartiesKnown,
+    ChooseRecipient,
+    FindContact,
+    HaveReportToOthersCapability,
+    IdentifyCoordinators,
+    IdentifyOthers,
+    IdentifyVendors,
+    InjectCoordinator,
+    InjectOther,
+    InjectParticipant,
+    InjectVendor,
+    MoreCoordinators,
+    MoreOthers,
+    MoreVendors,
+    NotificationsComplete,
+    PolicyCompatible,
+    RcptNotInQrmS,
+    RecipientEffortExceeded,
+    RemoveRecipient,
+    SetRcptQrmR,
+    TotalEffortLimitMet,
+)
 
 __all__ = [
     # validation nodes
@@ -80,4 +104,26 @@ __all__ = [
     "PreCloseAction",
     # other work
     "OtherWork",
+    # report-to-others workflow
+    "HaveReportToOthersCapability",
+    "AllPartiesKnown",
+    "IdentifyVendors",
+    "IdentifyCoordinators",
+    "IdentifyOthers",
+    "NotificationsComplete",
+    "ChooseRecipient",
+    "RemoveRecipient",
+    "RecipientEffortExceeded",
+    "PolicyCompatible",
+    "FindContact",
+    "RcptNotInQrmS",
+    "SetRcptQrmR",
+    "TotalEffortLimitMet",
+    "MoreVendors",
+    "MoreCoordinators",
+    "MoreOthers",
+    "InjectParticipant",
+    "InjectVendor",
+    "InjectCoordinator",
+    "InjectOther",
 ]
