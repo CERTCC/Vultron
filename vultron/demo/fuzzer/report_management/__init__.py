@@ -20,6 +20,9 @@ Report Management (RM) workflow, grouped by sub-topic:
 - ``prioritize`` — report prioritization nodes (5 nodes)
 - ``assign_vul_id`` — VUL ID assignment nodes (6 nodes)
 - ``develop_fix`` — fix development nodes (1 node)
+- ``deploy_fix`` — fix deployment nodes (8 nodes)
+- ``monitor_threats`` — threat monitoring nodes (4 nodes)
+- ``acquire_exploit`` — exploit acquisition nodes (8 nodes)
 - ``close_report`` — report closure nodes (2 nodes)
 - ``other_work`` — miscellaneous work placeholder (1 node)
 - ``report_to_others`` — report-to-others workflow nodes (21 nodes)
@@ -53,6 +56,32 @@ from vultron.demo.fuzzer.report_management.close_report import (
     PreCloseAction,
 )
 from vultron.demo.fuzzer.report_management.develop_fix import CreateFix
+from vultron.demo.fuzzer.report_management.deploy_fix import (
+    DeployFix,
+    DeployMitigation,
+    MitigationAvailable,
+    MitigationDeployed,
+    MonitorDeployment,
+    MonitoringRequirement,
+    NoNewDeploymentInfo,
+    PrioritizeDeployment,
+)
+from vultron.demo.fuzzer.report_management.monitor_threats import (
+    MonitorAttacks,
+    MonitorExploits,
+    MonitorPublicReports,
+    NoThreatsFound,
+)
+from vultron.demo.fuzzer.report_management.acquire_exploit import (
+    DevelopExploit,
+    EvaluateExploitPriority,
+    ExploitDeferred,
+    ExploitDesired,
+    ExploitPrioritySet,
+    FindExploit,
+    HaveExploit,
+    PurchaseExploit,
+)
 from vultron.demo.fuzzer.report_management.other_work import OtherWork
 from vultron.demo.fuzzer.report_management.report_to_others import (
     AllPartiesKnown,
@@ -116,6 +145,29 @@ __all__ = [
     "InScope",
     # fix development
     "CreateFix",
+    # fix deployment
+    "NoNewDeploymentInfo",
+    "PrioritizeDeployment",
+    "MitigationDeployed",
+    "MitigationAvailable",
+    "DeployMitigation",
+    "MonitoringRequirement",
+    "MonitorDeployment",
+    "DeployFix",
+    # threat monitoring
+    "MonitorAttacks",
+    "MonitorExploits",
+    "MonitorPublicReports",
+    "NoThreatsFound",
+    # exploit acquisition
+    "HaveExploit",
+    "ExploitDeferred",
+    "ExploitPrioritySet",
+    "EvaluateExploitPriority",
+    "ExploitDesired",
+    "FindExploit",
+    "DevelopExploit",
+    "PurchaseExploit",
     # report closure
     "OtherCloseCriteriaMet",
     "PreCloseAction",
