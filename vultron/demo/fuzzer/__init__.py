@@ -39,6 +39,19 @@ from vultron.demo.fuzzer.base import (
     UsuallySucceed,
     WeightedBehavior,
 )
+from vultron.demo.fuzzer.messaging import FollowUpOnErrorMessage
+from vultron.demo.fuzzer.report_management import (
+    EnoughPrioritizationInfo,
+    EnoughValidationInfo,
+    EvaluateReportCredibility,
+    EvaluateReportValidity,
+    GatherPrioritizationInfo,
+    GatherValidationInfo,
+    NoNewPrioritizationInfo,
+    NoNewValidationInfo,
+    OnAccept,
+    OnDefer,
+)
 from vultron.demo.fuzzer.embargo import (
     AvoidEmbargoCounterProposal,
     CurrentEmbargoAcceptable,
@@ -99,4 +112,18 @@ __all__ = [
     "OnEmbargoAccept",
     "OnEmbargoReject",
     "CurrentEmbargoAcceptable",
+    # report validation nodes
+    "NoNewValidationInfo",
+    "EvaluateReportCredibility",
+    "EvaluateReportValidity",
+    "EnoughValidationInfo",
+    "GatherValidationInfo",
+    # report prioritization nodes
+    "NoNewPrioritizationInfo",
+    "EnoughPrioritizationInfo",
+    "GatherPrioritizationInfo",
+    "OnAccept",
+    "OnDefer",
+    # messaging inbound nodes
+    "FollowUpOnErrorMessage",
 ]
