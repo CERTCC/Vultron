@@ -479,6 +479,169 @@ class TestReadmeGenValidation:
         assert not new_file.exists(), "new entry file should be rolled back"
 
 
+_LEARNING_SOURCE = "20260622-AST-RATCHET-LAMBDA"
+_LEARNING_TITLE = "AST ratchet lambda guard"
+_LEARNING_CONTENT = (
+    "---\n"
+    f"title: '{_LEARNING_TITLE}'\n"
+    "type: learning\n"
+    "timestamp: '2026-06-22T10:00:00+00:00'\n"
+    f"source: {_LEARNING_SOURCE}\n"
+    "---\n"
+    "\n"
+    "Guard ast.Lambda in the scope walker.\n"
+)
+
+
+def _make_incoming_file(
+    tmp_path: Path,
+    content: str = _LEARNING_CONTENT,
+    filename: str = f"{_LEARNING_SOURCE}.md",
+) -> Path:
+    """Write *content* to *tmp_path*/<filename> and return the path."""
+    f = tmp_path / filename
+    f.write_text(content)
+    return f
+
+
+def _run_from_file(
+    source_path: Path,
+    extra_args: list[str] | None = None,
+) -> _RunResult:
+    """Run ``append-history --from-file <source_path>``."""
+    cmd = ["append-history", "--from-file", str(source_path)]
+    if extra_args:
+        cmd.extend(extra_args)
+    return _run_with_cmd(cmd, body="")
+
+
+class TestFromFileMode:
+    """append-history --from-file: move a pre-formatted incoming learning file."""
+
+    def test_archives_file_to_history(
+        self, fake_repo: Path, tmp_path: Path
+    ) -> None:
+        """Valid file is moved to plan/history/YYMM/learning/ (BW-01-004)."""
+        src = _make_incoming_file(tmp_path)
+        result = _run_from_file(src)
+        assert result.returncode == 0
+        dest = Path(result.stdout.strip())
+        assert dest.exists()
+        assert dest.parent.name == "learning"
+        assert dest.stem == _LEARNING_SOURCE
+
+    def test_source_file_deleted_after_archive(
+        self, fake_repo: Path, tmp_path: Path
+    ) -> None:
+        """Source file is removed from plan/incoming/ on success (BW-01-004)."""
+        src = _make_incoming_file(tmp_path)
+        result = _run_from_file(src)
+        assert result.returncode == 0
+        assert not src.exists()
+
+    def test_body_content_preserved(
+        self, fake_repo: Path, tmp_path: Path
+    ) -> None:
+        src = _make_incoming_file(tmp_path)
+        result = _run_from_file(src)
+        assert result.returncode == 0
+        assert "Guard ast.Lambda" in Path(result.stdout.strip()).read_text()
+
+    def test_timestamp_determines_yymm_directory(
+        self, fake_repo: Path, tmp_path: Path
+    ) -> None:
+        """Frontmatter timestamp controls which YYMM directory is used."""
+        src = _make_incoming_file(tmp_path)
+        result = _run_from_file(src)
+        assert result.returncode == 0
+        dest = Path(result.stdout.strip())
+        assert dest.parent.parent.name == "2606"
+
+    def test_missing_source_file_exits_nonzero(self, fake_repo: Path) -> None:
+        result = _run_from_file(Path("/nonexistent/20260622-SLUG.md"))
+        assert result.returncode != 0
+        assert "not found" in result.stderr.lower()
+
+    def test_file_without_frontmatter_exits_nonzero(
+        self, fake_repo: Path, tmp_path: Path
+    ) -> None:
+        src = _make_incoming_file(tmp_path, content="No frontmatter here.\n")
+        result = _run_from_file(src)
+        assert result.returncode != 0
+
+    def test_file_with_missing_required_fields_exits_nonzero(
+        self, fake_repo: Path, tmp_path: Path
+    ) -> None:
+        content = "---\ntitle: Only title\n---\nBody.\n"
+        src = _make_incoming_file(tmp_path, content=content)
+        result = _run_from_file(src)
+        assert result.returncode != 0
+
+    def test_future_timestamp_rejected(
+        self, fake_repo: Path, tmp_path: Path
+    ) -> None:
+        future = (
+            datetime.datetime.now(_UTC) + datetime.timedelta(hours=1)
+        ).isoformat()
+        content = (
+            "---\n"
+            "title: Future entry\n"
+            "type: learning\n"
+            f"timestamp: '{future}'\n"
+            "source: 20260622-FUTURE\n"
+            "---\n"
+            "Body.\n"
+        )
+        src = _make_incoming_file(
+            tmp_path, content=content, filename="20260622-FUTURE.md"
+        )
+        result = _run_from_file(src)
+        assert result.returncode != 0
+        assert "future" in result.stderr.lower()
+
+    def test_duplicate_destination_exits_nonzero(
+        self, fake_repo: Path, tmp_path: Path
+    ) -> None:
+        src1 = _make_incoming_file(tmp_path, filename=f"{_LEARNING_SOURCE}.md")
+        _run_from_file(src1)
+        # Recreate the source so the second run has something to read.
+        src2 = _make_incoming_file(
+            tmp_path, filename=f"{_LEARNING_SOURCE}-copy.md"
+        )
+        content_dup = _LEARNING_CONTENT.replace(
+            _LEARNING_SOURCE, _LEARNING_SOURCE
+        )
+        src2.write_text(content_dup)
+        result = _run_from_file(src2)
+        assert result.returncode != 0
+        assert "already exists" in result.stderr.lower()
+
+    def test_incompatible_with_title_flag(
+        self, fake_repo: Path, tmp_path: Path
+    ) -> None:
+        src = _make_incoming_file(tmp_path)
+        result = _run_from_file(src, extra_args=["--title", "override"])
+        assert result.returncode != 0
+        assert "--title" in result.stderr
+
+    def test_incompatible_with_source_flag(
+        self, fake_repo: Path, tmp_path: Path
+    ) -> None:
+        src = _make_incoming_file(tmp_path)
+        result = _run_from_file(src, extra_args=["--source", "OTHER"])
+        assert result.returncode != 0
+        assert "--source" in result.stderr
+
+    def test_incompatible_with_positional_type(
+        self, fake_repo: Path, tmp_path: Path
+    ) -> None:
+        src = _make_incoming_file(tmp_path)
+        cmd = ["append-history", "learning", "--from-file", str(src)]
+        result = _run_with_cmd(cmd, body="")
+        assert result.returncode != 0
+        assert "positional type argument" in result.stderr
+
+
 def _run_with_cmd(
     cmd: list[str],
     body: str = _IDEA_BODY,

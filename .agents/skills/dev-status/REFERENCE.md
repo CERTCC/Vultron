@@ -171,14 +171,14 @@ comments. When all PRs are green and approved, the count is still shown but
 the row skill column should list `pr-comprehensive-fix` (it handles review
 preparation too).
 
-## Query: BUILD_LEARNINGS Entry Count
+## Query: Incoming Learnings File Count
 
 ```bash
-grep -c '^### ' plan/BUILD_LEARNINGS.md 2>/dev/null || echo 0
+find plan/incoming/learnings -name '*.md' 2>/dev/null | wc -l | tr -d ' '
 ```
 
-Returns the number of dated entry headers. Zero means the file contains only
-the preamble — no actionable entries.
+Returns the number of incoming learning files. Zero means the queue is
+empty (only `.gitkeep` present or directory missing).
 
 ## Report Template
 
@@ -187,7 +187,7 @@ the preamble — no actionable entries.
 
 | Queue                 | Count | Skill                |
 |-----------------------|-------|----------------------|
-| BUILD_LEARNINGS       |  {n}  | learn                |
+| Incoming Learnings    |  {n}  | learn                |
 | Ideas (open)          |  {n}  | plan-issue           |
 | Bugs (open)           |  {n}  | bugfix               |
 | Concerns (open)       |  {n}  | process-concerns     |
@@ -201,8 +201,8 @@ Now: {epic_titles}
 ```
 
 `{epic_titles}` lists the titles of all open `Schedule=Now` Epics on Project #24.
-When all counts are zero and BUILD_LEARNINGS is empty, replace the "Next up"
-line with:
+When all counts are zero and plan/incoming/learnings/ is empty, replace the
+"Next up" line with:
 
 ```text
 **All queues clear.** Nothing actionable at this time.

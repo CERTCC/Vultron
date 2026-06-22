@@ -138,7 +138,9 @@ focus hints from Phase 2 (e.g., `"wire layer"`, `"BT integration"`), then:
      BODY    = issue number, symptoms, root cause, fix summary, PR link
      ```
 
-   - Record observations in `plan/BUILD_LEARNINGS.md`.
+   - Record observations as individual learning files in `plan/incoming/learnings/`
+     (filename: `YYYYMMDD-SLUG.md`; frontmatter: `title`, `type: learning`,
+     `timestamp`, `source`).
    - Compute diff size: ≤50 → `size:S`; 51–300 → `size:M`; 301+ → `size:L`.
      Update the `size:` label.
    - Push and open PR using the structured body template from
@@ -165,7 +167,8 @@ focus hints from Phase 2 (e.g., `"wire layer"`, `"BT integration"`), then:
        --label "size:<X>"
      ```
 
-   - Invoke `commit` if `BUILD_LEARNINGS.md` was updated outside the PR branch.
+   - Invoke `commit` if any learning files were created in `plan/incoming/learnings/`
+     outside the PR branch.
 
 ## Constraints
 

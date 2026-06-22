@@ -1,32 +1,37 @@
 id: BW
 title: Build Workflow Learnings Policy
 description: >-
-  Defines the content policy for `plan/BUILD_LEARNINGS.md` — the ephemeral
-  queue used by the `build` and `bugfix` skills to pass implementation
-  observations upstream to the `learn` skill. Covers what belongs in the
-  file, what must not go there, how `learn` processes and archives entries,
-  and the `learning` history entry type that enables this flow.
-  Supersedes the informal usage of `plan/IMPLEMENTATION_NOTES.md`.
-version: 1.0.0
+  Defines the content policy for `plan/incoming/learnings/` — the
+  per-entry incoming queue used by the `build` and `bugfix` skills to
+  pass implementation observations upstream to the `learn` skill. Each
+  observation is a separate file with YAML frontmatter matching the
+  history entry format. This eliminates merge conflicts that occurred
+  with the legacy `plan/BUILD_LEARNINGS.md` shared flat file and gives
+  each entry a clear lifecycle: created in the PR that surfaces the
+  learning, promoted by `learn`, then moved to `plan/history/YYMM/learning/`
+  via `uv run append-history --from-file`. Covers what belongs in the
+  queue, what must not go there, file naming and format, how `learn`
+  processes and archives entries, and the `learning` history entry type.
+version: 2.0.0
 kind: pattern
 scope:
   - prototype
   - production
 groups:
   - id: BW-01
-    title: BUILD_LEARNINGS.md Content Policy
+    title: Incoming Learnings Queue Content Policy
     kind: general
     specs:
       - id: BW-01-001
         priority: MUST
         statement: >-
-          `plan/BUILD_LEARNINGS.md` MUST contain only implementation
+          `plan/incoming/learnings/` MUST contain only implementation
           observations, open questions, constraints, and insights discovered
           during `build` or `bugfix` execution that are relevant to future
           implementation work. Completion summaries, "what was done"
-          narratives, and status updates MUST NOT appear in this file.
+          narratives, and status updates MUST NOT appear here.
         rationale: >-
-          The file is a focused upstream communication channel from executing
+          The queue is a focused upstream communication channel from executing
           skills to the `learn` skill. Mixing status updates with actionable
           insights dilutes the signal and creates noise for `learn` to filter.
         relationships:
@@ -34,119 +39,179 @@ groups:
             spec_id: HM-03-001
             note: >-
               Completion summaries belong in `append-history implementation`,
-              not in BUILD_LEARNINGS.md.
+              not in the incoming learnings queue.
       - id: BW-01-002
         priority: MUST_NOT
         statement: >-
           The `build` and `bugfix` skills MUST NOT write completion summaries
-          or task-status narratives to `plan/BUILD_LEARNINGS.md`.
+          or task-status narratives to `plan/incoming/learnings/`.
           Completion summaries MUST be archived exclusively via
           `uv run append-history implementation`.
         relationships:
           - rel_type: depends_on
             spec_id: HM-05-001
       - id: BW-01-003
-        priority: SHOULD
+        priority: MUST
         statement: >-
-          Each entry in `plan/BUILD_LEARNINGS.md` SHOULD include a dated
-          header (e.g., `### 2026-04-28 LABEL — Short description`) to make
-          individual entries identifiable for archiving and review.
+          Each incoming learning file MUST be named `YYYYMMDD-SLUG.md`
+          where `YYYYMMDD` is the creation date and `SLUG` is a short
+          uppercase identifier matching the `source` frontmatter field
+          (e.g., `20260622-AST-RATCHET-LAMBDA.md`). The file MUST be
+          committed as part of the originating PR so the learning is
+          permanently linked to the work that produced it.
+        rationale: >-
+          Using individual files instead of a shared flat file eliminates
+          merge conflicts when multiple PRs each have an observation to
+          record. The date prefix provides filesystem sort order.
       - id: BW-01-004
         priority: MUST_NOT
         statement: >-
-          Skills other than `build` and `bugfix` MUST NOT write to
-          `plan/BUILD_LEARNINGS.md`. The `update-plan` skill MUST write
+          Skills other than `build` and `bugfix` MUST NOT create files in
+          `plan/incoming/learnings/`. The `update-plan` skill MUST write
           observations and open questions directly to appropriate
-          `notes/*.md` files. It MUST NOT use `BUILD_LEARNINGS.md` as an
-          intermediate staging area.
+          `notes/*.md` files. It MUST NOT use the incoming learnings queue
+          as an intermediate staging area.
         rationale: >-
-          `BUILD_LEARNINGS.md` is specifically a channel for code-execution
-          insights flowing from build/bugfix to learn. Gap-analysis
-          observations from `update-plan` are a different signal and belong
-          in notes directly.
+          `plan/incoming/learnings/` is specifically a channel for
+          code-execution insights flowing from build/bugfix to learn.
+          Gap-analysis observations from `update-plan` are a different
+          signal and belong in notes directly.
   - id: BW-02
-    title: learn Skill Processing
-    kind: pattern
+    title: Incoming Learnings File Format
+    kind: domain
     specs:
       - id: BW-02-001
         priority: MUST
         statement: >-
-          When the `learn` skill processes `plan/BUILD_LEARNINGS.md`, each
-          entry MUST be promoted to the appropriate durable destination
-          (`specs/*.yaml`, `notes/*.md`, or `AGENTS.md`) before being
-          archived via `uv run append-history learning`.
+          Every file in `plan/incoming/learnings/` MUST use the same YAML
+          frontmatter format as history entry files: required fields
+          `title`, `type` (value `learning`), `timestamp` (tz-aware ISO
+          8601 UTC), and `source` (matching the filename stem without
+          `.md`).
+        rationale: >-
+          Using identical format means archiving is a `git mv` equivalent
+          via `uv run append-history --from-file` — no content
+          transformation needed.
         relationships:
           - rel_type: depends_on
-            spec_id: HM-02-002
+            spec_id: HM-02-001
       - id: BW-02-002
         priority: MUST
         statement: >-
-          After archiving an entry, the `learn` skill MUST delete that entry
-          from `plan/BUILD_LEARNINGS.md`. Entries MUST NOT be left in the
-          file after archiving — no strike-through, no tombstone.
-        rationale: >-
-          `BUILD_LEARNINGS.md` is a queue of unprocessed items. The same
-          lifecycle pattern applies here as for GitHub Idea-type issues
-          processed by `ingest-idea`: once processed, an entry is removed
-          from the queue and its content lives in the archive and in durable
-          docs.
-      - id: BW-02-003
-        priority: SHOULD
-        statement: >-
-          After a complete `learn` cycle, `plan/BUILD_LEARNINGS.md` SHOULD
-          contain only entries that have not yet been processed. The file
-          SHOULD be empty after every learning that fully drains the queue.
+          The `source` field MUST match the filename stem
+          (`YYYYMMDD-SLUG`). The `timestamp` field MUST reflect the
+          actual creation time of the observation (not today's date if
+          the entry was written for a historical run).
+        relationships:
+          - rel_type: depends_on
+            spec_id: HM-02-001
   - id: BW-03
-    title: learning History Entry Type
-    kind: implementation
+    title: learn Skill Processing
+    kind: pattern
     specs:
       - id: BW-03-001
         priority: MUST
         statement: >-
-          A `learning` entry type MUST be added to `HistoryEntryType` in
-          `vultron/metadata/history/types.py`. The `learn` skill MUST use
-          `uv run append-history learning` to archive each processed entry
-          from `plan/BUILD_LEARNINGS.md`.
+          When the `learn` skill processes `plan/incoming/learnings/`, each
+          file MUST be promoted to the appropriate durable destination
+          (`specs/*.yaml`, `notes/*.md`, or `AGENTS.md`) before being
+          archived via `uv run append-history --from-file <path>`.
         relationships:
-          - rel_type: refines
+          - rel_type: depends_on
             spec_id: HM-02-002
       - id: BW-03-002
         priority: MUST
         statement: >-
-          History entries of type `learning` MUST follow the same frontmatter
-          and body format as all other `append-history` entry types,
-          including required fields `title`, `type`, `date`, and `source`.
+          `uv run append-history --from-file <path>` MUST be used to
+          archive each processed incoming learning file. This command
+          moves the file from `plan/incoming/learnings/` to
+          `plan/history/YYMM/learning/` and deletes the source. Files
+          MUST NOT be moved manually or remain in `plan/incoming/learnings/`
+          after archiving.
+        rationale: >-
+          Using the CLI tool preserves the audit trail, regenerates the
+          monthly history README, and enforces write-once semantics.
         relationships:
           - rel_type: depends_on
-            spec_id: HM-02-001
+            spec_id: HM-01-002
+      - id: BW-03-003
+        priority: SHOULD
+        statement: >-
+          After a complete `learn` cycle, `plan/incoming/learnings/` SHOULD
+          contain only a `.gitkeep` file. The queue SHOULD be empty after
+          every learning session that fully drains it.
   - id: BW-04
-    title: Skill Documentation Updates
-    kind: general
+    title: learning History Entry Type
+    kind: implementation
     specs:
       - id: BW-04-001
         priority: MUST
         statement: >-
-          The `build` skill documentation MUST distinguish between learnings
-          (observations, open questions, constraints to `plan/BUILD_LEARNINGS.md`)
-          and completion summaries (what was done via `uv run append-history
-          implementation`). Both outputs are required; neither may be omitted
-          or combined into a single destination.
+          The `learning` entry type MUST exist in `HistoryEntryType` in
+          `vultron/metadata/history/types.py`.  The `learn` skill MUST
+          use `uv run append-history --from-file` to archive each
+          processed incoming learning file.
+        relationships:
+          - rel_type: refines
+            spec_id: HM-02-002
       - id: BW-04-002
         priority: MUST
         statement: >-
+          History entries of type `learning` MUST follow the same
+          frontmatter and body format as all other `append-history` entry
+          types, including required fields `title`, `type`, `timestamp`,
+          and `source`.
+        relationships:
+          - rel_type: depends_on
+            spec_id: HM-02-001
+  - id: BW-05
+    title: append-history --from-file Behaviour
+    kind: implementation
+    specs:
+      - id: BW-05-001
+        priority: MUST
+        statement: >-
+          `uv run append-history --from-file <path>` MUST read the
+          complete file content (frontmatter + body), parse the
+          frontmatter to derive `type`, `title`, `source`, and
+          `timestamp`, then call the normal write path to create the
+          history entry at `plan/history/YYMM/<type>/<source>.md`.
+          It MUST delete the source file after a successful write.
+      - id: BW-05-002
+        priority: MUST
+        statement: >-
+          `uv run append-history --from-file` MUST be mutually exclusive
+          with the positional `type` argument, `--title`, `--source`,
+          `--file`, and `--timestamp` flags. Any combination MUST exit
+          non-zero with an error message listing the conflicting flags.
+      - id: BW-05-003
+        priority: MUST
+        statement: >-
+          `uv run append-history --from-file` MUST reject files whose
+          frontmatter `timestamp` is more than 60 seconds in the future
+          (HM-06-004). It MUST reject files with missing or invalid
+          frontmatter fields (HM-02-001).
+  - id: BW-06
+    title: Skill Documentation Updates
+    kind: general
+    specs:
+      - id: BW-06-001
+        priority: MUST
+        statement: >-
+          The `build` skill documentation MUST distinguish between
+          learnings (observations and constraints recorded as individual
+          files in `plan/incoming/learnings/`) and completion summaries
+          (archived via `uv run append-history implementation`). Both
+          outputs are required; neither may be omitted or combined.
+      - id: BW-06-002
+        priority: MUST
+        statement: >-
           The `learn` skill documentation MUST reference
-          `plan/BUILD_LEARNINGS.md` (not `IMPLEMENTATION_NOTES.md`) as its
-          primary input source, and MUST describe the delete-after-archive
-          lifecycle (not strike-through).
-      - id: BW-04-003
+          `plan/incoming/learnings/` as its primary input source and MUST
+          describe the `append-history --from-file` archiving lifecycle.
+      - id: BW-06-003
         priority: MUST_NOT
         statement: >-
           The `update-plan` skill MUST NOT instruct agents to write to
-          `plan/BUILD_LEARNINGS.md`. Any tidying step in `update-plan` that
-          previously wrote to `IMPLEMENTATION_NOTES.md` MUST instead direct
-          content to appropriate `notes/*.md` files.
-      - id: BW-04-004
-        priority: MUST
-        statement: >-
-          The `study-project-docs` skill MUST list `plan/BUILD_LEARNINGS.md`
-          (not `IMPLEMENTATION_NOTES.md`) in its Step 2 plan-context reads.
+          `plan/incoming/learnings/`. Observations discovered during gap
+          analysis MUST be written directly to `notes/*.md` files.
