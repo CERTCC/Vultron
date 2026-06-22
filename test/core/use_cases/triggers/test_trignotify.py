@@ -160,14 +160,33 @@ def _make_case_with_case_manager(
 def _make_two_actor_case(
     dl, vendor_id: str, finder_id: str
 ) -> VulnerabilityCase:
-    """Create a VulnerabilityCase with vendor and finder in actor_participant_index.
+    """Create a VulnerabilityCase with vendor and finder — no CASE_MANAGER.
 
-    Note: no CASE_MANAGER participant — use _make_case_with_case_manager for
-    tests that verify PCR-08-001 routing.
+    Both ``case_participants`` and ``actor_participant_index`` are kept in
+    sync via ``add_participant()``.  Participant objects are stored in the
+    DataLayer so ``resolve_case_participant_id_for_actor`` can resolve them
+    from the canonical list without hitting divergence errors.
+
+    Use ``_make_case_with_case_manager`` for tests that need PCR-08-001
+    routing or an ``EngageCaseTriggerRequest``/``AddParticipantStatusTriggerRequest``.
     """
     case = VulnerabilityCase(name="Test Case")
-    case.actor_participant_index[vendor_id] = f"{case.id_}/participants/vendor"
-    case.actor_participant_index[finder_id] = f"{case.id_}/participants/finder"
+    vendor_participant = CaseParticipant(
+        id_=f"{case.id_}/participants/vendor",
+        attributed_to=vendor_id,
+        context=case.id_,
+        case_roles=[CVDRole.VENDOR],
+    )
+    finder_participant = CaseParticipant(
+        id_=f"{case.id_}/participants/finder",
+        attributed_to=finder_id,
+        context=case.id_,
+        case_roles=[CVDRole.FINDER],
+    )
+    case.add_participant(vendor_participant)
+    case.add_participant(finder_participant)
+    dl.create(vendor_participant)
+    dl.create(finder_participant)
     dl.create(case)
     return case
 
