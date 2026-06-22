@@ -32,6 +32,17 @@ a method from a class matched by one of these guards.
 Append new items below any existing ones, marking them with the date and a
 header.
 
+### 2026-06-22 AST-RATCHET-LAMBDA — _walk_own_scope must guard ast.Lambda
+
+When implementing an AST-based scope walker to detect calls only in a
+function's *own* scope (not nested scopes), guard `ast.Lambda` in addition
+to `ast.FunctionDef` and `ast.AsyncFunctionDef`. A `lambda` body is a
+separate execution scope — mutations inside it do not belong to the enclosing
+`execute()`. Without the guard, `fn = lambda: self._dl.save(x)` inside
+`execute()` produces a false positive. The fix is one line:
+`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda))`.
+Add a synthetic test specifically for the lambda case to catch regressions.
+
 ### 2026-06-11 OUTBOX-873-TEST-COVERAGE — make acceptance criteria explicit in one file
 
 Issue #873 found that most delivery-path coverage already existed but was split
