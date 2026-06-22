@@ -229,14 +229,16 @@ def create_ack_report_received_tree(
 
     Handles receipt of a ``Read(Offer(Report))`` (AckReport) activity.
 
-    Steps (Sequence):
-    1. Store AckReport activity idempotently.
-    2. Emit AckReport to CaseActor (Selector — graceful no-op if no CaseActor).
-    3. Guarded commit (only when ``case_id`` is provided and the receiving
-       actor holds ``CVDRole.CASE_MANAGER``).
+    Steps (Sequence via :func:`create_receive_activity_tree`):
+
+    1. Guarded commit (only when ``case_id`` is provided and the receiving
+       actor holds ``CVDRole.CASE_MANAGER``) — records receipt before any
+       effects run (CLP-10-006).
+    2. Store AckReport activity idempotently.
+    3. Emit AckReport to CaseActor (Selector — graceful no-op if no CaseActor).
 
     When running under ``actor_id=receiving_actor_id`` (ADR-0022 single-BT
-    shape), step 2's ``EmitAckReportActivity`` uses the blackboard
+    shape), step 3's ``EmitAckReportActivity`` uses the blackboard
     ``actor_id`` as sender.  On the received side (no TriggerActivityPort),
     the emit node returns FAILURE and the ``NoEmitFallback`` Success absorbs
     it — so the emit is a graceful no-op in the typical CaseActor context.
@@ -244,8 +246,8 @@ def create_ack_report_received_tree(
     Args:
         request: The parsed inbound domain event.
         case_id: ID of the VulnerabilityCase linked to this report.  When
-            provided, a guarded-commit subtree is appended so the receiving
-            CaseActor can write a canonical ledger entry.
+            provided, a guarded-commit subtree is inserted first so the
+            receiving CaseActor can write a canonical ledger entry.
 
     Returns:
         Root node of the ``AckReportReceivedBT`` Sequence.

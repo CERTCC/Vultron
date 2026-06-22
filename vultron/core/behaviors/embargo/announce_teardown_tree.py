@@ -275,15 +275,20 @@ def reject_invite_to_embargo_tree(
     Returns:
         Root node of the ``RejectInviteToEmbargoBT`` Sequence.
     """
+    effect_nodes: list[py_trees.behaviour.Behaviour] = [
+        OptionalLookupParticipantNode(case_id=case_id),
+        UpdateParticipantEmbargoPecNode(pec_trigger=PEC_Trigger.DECLINE),
+    ]
+    if embargo_id is not None:
+        # Only attempt pocket-veto removal when we know which embargo to check.
+        effect_nodes.insert(
+            1, RemoveStaleAcceptanceNode(embargo_id=embargo_id)
+        )
     root = create_receive_activity_tree(
         name="RejectInviteToEmbargoBT",
         case_id=case_id,
         precondition_guards=[],
-        effect_nodes=[
-            OptionalLookupParticipantNode(case_id=case_id),
-            RemoveStaleAcceptanceNode(embargo_id=embargo_id or ""),
-            UpdateParticipantEmbargoPecNode(pec_trigger=PEC_Trigger.DECLINE),
-        ],
+        effect_nodes=effect_nodes,
     )
     logger.info(
         "Created RejectInviteToEmbargoBT for case=%s rejecting_actor=%s"

@@ -56,26 +56,6 @@ def _extract_payload_snapshot(
     )
 
 
-def _resolve_activity_fields(
-    activity: Any, case_id: str, dl: CasePersistence
-) -> tuple[str, str, dict[str, Any]]:
-    """Derive (object_id, event_type, payload_snapshot) from *activity*.
-
-    Falls back to ``case_id``-based defaults when *activity* is ``None``.
-    """
-    if activity is None:
-        return case_id, "case_event", {}
-    object_id: str = getattr(activity, "activity_id", case_id)
-    semantic_type = getattr(activity, "semantic_type", None)
-    event_type: str = (
-        semantic_type.value
-        if semantic_type is not None
-        else getattr(activity, "activity_type", "case_event") or "case_event"
-    )
-    payload_snapshot = _extract_payload_snapshot(activity, dl=dl)
-    return object_id, event_type, payload_snapshot
-
-
 class CommitCaseLedgerEntryNode(DataLayerAction):
     """
     Commit a hash-chained CaseLedgerEntry and fan it out to all case participants.
@@ -175,7 +155,7 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
 
         case_id = self._resolve_case_id()
         if not case_id:
-            self.logger.debug(
+            self.logger.warning(
                 f"{self.name}: no case_id available — skipping log entry"
             )
             return Status.SUCCESS
@@ -239,6 +219,25 @@ def create_guarded_commit_case_ledger_entry_tree(
     for the case. Non-manager actors take the success fallback and skip the
     canonical commit silently.
 
+    Structure::
+
+        GuardedCommitCaseLedgerEntryBT (Selector)
+        ├── SkipIfNotCaseManager (Sequence)
+        │   └── Inverter(CheckIsCaseManagerNode)  # SUCCESS when NOT case manager
+        └── CommitCaseLedgerEntryNode             # only reached when IS case manager
+
+    Using an ``Inverter`` separates the two distinct FAILURE modes:
+
+    - Actor is NOT the case manager → ``Inverter`` converts FAILURE→SUCCESS,
+      ``SkipIfNotCaseManager`` succeeds, Selector returns SUCCESS (skip).
+    - Actor IS the case manager but commit fails → ``Inverter`` converts
+      SUCCESS→FAILURE, ``SkipIfNotCaseManager`` fails, Selector tries
+      ``CommitCaseLedgerEntryNode`` which returns FAILURE, Selector returns
+      FAILURE (propagates the infrastructure error to abort effect nodes).
+
+    This prevents the old fallback-Success pattern from masking a genuine
+    commit failure as a benign skip.
+
     Called internally by :func:`create_receive_activity_tree`.  Direct callers
     in tree-factory modules are a CLP-10-006 ordering violation; use
     ``create_receive_activity_tree`` instead.
@@ -247,21 +246,22 @@ def create_guarded_commit_case_ledger_entry_tree(
         CheckIsCaseManagerNode,
     )
 
+    check_node = CheckIsCaseManagerNode(case_id=case_id)
     return py_trees.composites.Selector(
         name="GuardedCommitCaseLedgerEntryBT",
         memory=False,
         children=[
             py_trees.composites.Sequence(
-                name="CommitIfCaseManager",
+                name="SkipIfNotCaseManager",
                 memory=False,
                 children=[
-                    CheckIsCaseManagerNode(case_id=case_id),
-                    CommitCaseLedgerEntryNode(case_id=case_id),
+                    py_trees.decorators.Inverter(
+                        name="InvertIsNotCaseManager",
+                        child=check_node,
+                    ),
                 ],
             ),
-            py_trees.behaviours.Success(
-                name="CommitCaseLedgerEntrySkippedNotCaseManager"
-            ),
+            CommitCaseLedgerEntryNode(case_id=case_id),
         ],
     )
 
@@ -307,6 +307,12 @@ def create_receive_activity_tree(
     if case_id is not None:
         children.append(
             create_guarded_commit_case_ledger_entry_tree(case_id=case_id)
+        )
+    else:
+        logger.debug(
+            "create_receive_activity_tree(%s): case_id is None"
+            " — commit step omitted",
+            name,
         )
     children.extend(effect_nodes)
     return py_trees.composites.Sequence(

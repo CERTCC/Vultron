@@ -21,12 +21,11 @@ Composes the four-step DEMOMA-07-003 workflow as a Sequence BT
 
     AddParticipantStatusBT (Sequence)
     ├─ VerifySenderIsParticipantNode      # Step 1: sender must be known participant
-    ├─ CheckParticipantRMNotClosedNode    # Guard: reject terminal CLOSED→CLOSED rewrites
+    ├─ CheckParticipantRMNotClosedNode    # Guard: reject CLOSED→CLOSED rewrites
     ├─ GuardedCommitOrSkip (Selector, only if case_id)  # Record receipt first (CLP-10-006)
-    │   ├─ Sequence
-    │   │   ├─ CheckIsCaseManagerNode
-    │   │   └─ CommitCaseLedgerEntryNode
-    │   └─ Success("CommitSkippedNotCaseManager")
+    │   ├─ Sequence("SkipIfNotCaseManager")
+    │   │   └─ Inverter(CheckIsCaseManagerNode)
+    │   └─ CommitCaseLedgerEntryNode
     ├─ AppendParticipantStatusNode        # Step 2: append status to participant record
     ├─ PublicDisclosureBranchNode         # Step 4: embargo teardown on CS.P + CASE_OWNER
     └─ AutoCloseIfCaseManager (Selector)  # Step 5: auto-close only when CASE_MANAGER
@@ -72,18 +71,18 @@ def add_participant_status_tree(
     activity.  Implements the four remaining steps of DEMOMA-07-003 as BT
     nodes in a Sequence (step 3 raw re-broadcast removed per DEMOMA-07-005).
 
-    When ``case_id`` is provided, a guarded-commit subtree is inserted as the
-    first child (before precondition checks) so the canonical ledger records
-    receipt of the triggering activity before any protocol effects run
-    (CLP-10-006).  Running the tree with ``actor_id=receiving_actor_id``
-    (ADR-0022 single-BT shape) means ``CheckIsCaseManagerNode`` in that
-    subtree correctly fires only when the receiving actor holds
-    ``CVDRole.CASE_MANAGER``.
+    When ``case_id`` is provided (or derived from the inline status object),
+    a guarded-commit subtree is inserted after precondition guards so the
+    canonical ledger records receipt of the triggering activity before any
+    protocol effects run (CLP-10-006).  Running the tree with
+    ``actor_id=receiving_actor_id`` (ADR-0022 single-BT shape) means
+    ``CheckIsCaseManagerNode`` in that subtree correctly fires only when
+    the receiving actor holds ``CVDRole.CASE_MANAGER``.
 
-    The *case_id* for the existing children is derived from the inline
-    ``request.status.context`` field.  If it is not available in the inline
-    object, the ``VerifySenderIsParticipantNode`` will perform a DataLayer
-    lookup.
+    The *case_id* for the commit and all children is derived from the inline
+    ``request.status.context`` field when not supplied explicitly.  If it
+    is not available in the inline object, the
+    ``VerifySenderIsParticipantNode`` will perform a DataLayer lookup.
 
     ``PublicDisclosureBranchNode`` uses the ``trigger_activity_factory`` that
     the caller places on the py_trees blackboard via
@@ -91,9 +90,11 @@ def add_participant_status_tree(
 
     Args:
         request: The parsed inbound domain event.
-        case_id: ID of the VulnerabilityCase.  When provided, a guarded-commit
-            subtree is appended so the receiving CaseActor writes a canonical
-            ledger entry (CLP-10-005).  Pass ``None`` to skip the commit.
+    case_id: ID of the VulnerabilityCase.  When provided (or derivable
+        from the inline status object), a guarded-commit subtree is
+        inserted after precondition guards so the receiving CaseActor
+        writes a canonical ledger entry (CLP-10-005).  Pass ``None``
+        (with no derivable context) to skip the commit.
 
     Returns:
         Root node of the ``AddParticipantStatusBT`` Sequence.
@@ -129,14 +130,17 @@ def add_participant_status_tree(
 
     root = create_receive_activity_tree(
         name="AddParticipantStatusBT",
-        case_id=case_id,
+        case_id=tree_case_id,
         precondition_guards=[
             VerifySenderIsParticipantNode(
                 status_id=status_id,
                 sender_actor_id=actor_id,
                 case_id=tree_case_id,
             ),
-            CheckParticipantRMNotClosedNode(participant_id=participant_id),
+            CheckParticipantRMNotClosedNode(
+                participant_id=participant_id,
+                status_id=status_id,
+            ),
         ],
         effect_nodes=[
             append_participant_status_tree(
