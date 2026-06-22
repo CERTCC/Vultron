@@ -17,6 +17,8 @@ from typing import Any
 
 from fastapi.testclient import TestClient
 
+from vultron.demo.utils import DataLayerClient
+
 
 def make_testclient_call(client: TestClient, base: str):
     """Returns a DataLayerClient.call method that routes through TestClient.
@@ -46,3 +48,12 @@ def make_testclient_call(client: TestClient, base: str):
             return resp.text
 
     return testclient_call
+
+
+def make_client(base: str) -> DataLayerClient:
+    """Return a DataLayerClient pointing at *base*.
+
+    Shared by demo test modules that patch ``DataLayerClient.call`` with
+    ``make_testclient_call`` to route requests through a FastAPI TestClient.
+    """
+    return DataLayerClient(base_url=base)
