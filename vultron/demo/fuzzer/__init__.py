@@ -39,8 +39,26 @@ from vultron.demo.fuzzer.base import (
     UsuallySucceed,
     WeightedBehavior,
 )
+from vultron.demo.fuzzer.embargo import (
+    AvoidEmbargoCounterProposal,
+    CurrentEmbargoAcceptable,
+    EmbargoTimerExpired,
+    EvaluateEmbargoProposal,
+    ExitEmbargoForOtherReason,
+    ExitEmbargoWhenDeployed,
+    ExitEmbargoWhenFixReady,
+    OnEmbargoAccept,
+    OnEmbargoExit,
+    OnEmbargoReject,
+    ReasonToProposeEmbargoWhenDeployed,
+    SelectEmbargoOfferTerms,
+    StopProposingEmbargo,
+    WantToProposeEmbargo,
+    WillingToCounterEmbargoProposal,
+)
 
 __all__ = [
+    # base types
     "WeightedBehavior",
     "SuccessOrRunning",
     "AlwaysSucceed",
@@ -65,4 +83,20 @@ __all__ = [
     "LikelyFail",
     "RandomConditionNode",
     "RandomActionNode",
+    # embargo management nodes
+    "ExitEmbargoWhenDeployed",
+    "ExitEmbargoWhenFixReady",
+    "ExitEmbargoForOtherReason",
+    "EmbargoTimerExpired",
+    "OnEmbargoExit",
+    "StopProposingEmbargo",
+    "SelectEmbargoOfferTerms",
+    "WantToProposeEmbargo",
+    "WillingToCounterEmbargoProposal",
+    "AvoidEmbargoCounterProposal",
+    "ReasonToProposeEmbargoWhenDeployed",
+    "EvaluateEmbargoProposal",
+    "OnEmbargoAccept",
+    "OnEmbargoReject",
+    "CurrentEmbargoAcceptable",
 ]
