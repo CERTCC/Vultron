@@ -381,3 +381,12 @@ service; the case-actor service accepts and creates the `Case` in its own
 DataLayer. This is tracked as #1081 and blocks #810. The two-actor demo
 currently passes all invariants — #810 is architectural improvement work, not
 a bug fix.
+
+### 2026-06-22 FIXTURE-CONSOLIDATION-492 — test_trigger_actor.py also has the duplicate fixtures
+
+After consolidating `actor_and_dl`, `actor`, and `dl` from the three trigger
+test files into the shared routers `conftest.py` (issue #492), the code review
+identified that `test_trigger_actor.py` still carries the same identical
+fixture definitions. Those fixtures now shadow the conftest ones and are
+candidates for a follow-on cleanup. File a follow-up issue for the
+`test_trigger_actor.py` cleanup when #492 merges.
