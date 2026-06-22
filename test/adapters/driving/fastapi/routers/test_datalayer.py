@@ -26,8 +26,8 @@ def test_get_offers_returns_empty_dict_when_no_offers(client_datalayer):
     assert len(response.json()) == 0
 
 
-def test_get_offers_includes_created_offer(client_datalayer, dl, offer):
-    dl.create(object_to_record(offer))
+def test_get_offers_includes_created_offer(client_datalayer, datalayer, offer):
+    datalayer.create(object_to_record(offer))
     response = client_datalayer.get("/datalayer/Offers/")
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
@@ -35,8 +35,10 @@ def test_get_offers_includes_created_offer(client_datalayer, dl, offer):
     assert offer.id_ in data
 
 
-def test_get_offer_by_id_returns_offer_fields(client_datalayer, dl, offer):
-    dl.create(object_to_record(offer))
+def test_get_offer_by_id_returns_offer_fields(
+    client_datalayer, datalayer, offer
+):
+    datalayer.create(object_to_record(offer))
     response = client_datalayer.get(
         "/datalayer/Offer/", params={"object_id": offer.id_}
     )
@@ -57,9 +59,9 @@ def test_get_vulnerability_reports_returns_empty_dict_when_no_reports(
 
 
 def test_get_vulnerability_reports_includes_created_report(
-    client_datalayer, dl, report
+    client_datalayer, datalayer, report
 ):
-    dl.create(report)
+    datalayer.create(report)
     response = client_datalayer.get("/datalayer/VulnerabilityReports/")
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
@@ -68,9 +70,9 @@ def test_get_vulnerability_reports_includes_created_report(
 
 
 def test_reports_shortcut_endpoint_returns_same_results(
-    client_datalayer, dl, report
+    client_datalayer, datalayer, report
 ):
-    dl.create(report)
+    datalayer.create(report)
     response = client_datalayer.get("/datalayer/Reports/")
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
@@ -78,8 +80,8 @@ def test_reports_shortcut_endpoint_returns_same_results(
     assert report.id_ in data
 
 
-def test_get_report_by_id_returns_report(client_datalayer, dl, report):
-    dl.create(report)
+def test_get_report_by_id_returns_report(client_datalayer, datalayer, report):
+    datalayer.create(report)
     response = client_datalayer.get(
         "/datalayer/Report/", params={"id": report.id_}
     )
@@ -87,13 +89,15 @@ def test_get_report_by_id_returns_report(client_datalayer, dl, report):
     assert response.json()["id"] == report.id_
 
 
-def test_reset_endpoint_clears_all_data(client_datalayer, dl, report, offer):
-    dl.create(object_to_record(offer))
-    dl.create(report)
+def test_reset_endpoint_clears_all_data(
+    client_datalayer, datalayer, report, offer
+):
+    datalayer.create(object_to_record(offer))
+    datalayer.create(report)
 
     # sanity: ensure they exist before reset
-    assert dl.by_type("Offer") is not None
-    assert dl.by_type("VulnerabilityReport") is not None
+    assert datalayer.by_type("Offer") is not None
+    assert datalayer.by_type("VulnerabilityReport") is not None
 
     resp = client_datalayer.delete("/datalayer/reset/")
     assert resp.status_code == status.HTTP_200_OK
@@ -116,14 +120,16 @@ _HTTP_PARTICIPANT_ID = (
 )
 
 
-def test_get_by_http_url_key_returns_stored_record(client_datalayer, dl):
+def test_get_by_http_url_key_returns_stored_record(
+    client_datalayer, datalayer
+):
     """GET /datalayer/{url-encoded-http-id} must return the stored record.
 
     Regression: Starlette decodes %2F to / before routing, so single-segment
     /{key} never matched URL-format IDs.  Fix: use /{key:path} as catch-all.
     """
     participant = CaseParticipant(id_=_HTTP_PARTICIPANT_ID)
-    dl.create(object_to_record(participant))
+    datalayer.create(object_to_record(participant))
 
     encoded = quote(_HTTP_PARTICIPANT_ID, safe="")
     response = client_datalayer.get(f"/datalayer/{encoded}")
@@ -141,10 +147,10 @@ def test_get_by_http_url_key_not_found_returns_404(client_datalayer):
 
 
 def test_specific_routes_not_shadowed_by_catch_all(
-    client_datalayer, dl, offer
+    client_datalayer, datalayer, offer
 ):
     """Specific routes (e.g. /Offers/) still resolve correctly after fix."""
-    dl.create(object_to_record(offer))
+    datalayer.create(object_to_record(offer))
     response = client_datalayer.get("/datalayer/Offers/")
     assert response.status_code == status.HTTP_200_OK
     data = response.json()

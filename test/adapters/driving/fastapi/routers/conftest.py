@@ -16,6 +16,10 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from vultron.adapters.driven.db_record import object_to_record
+from vultron.adapters.driven.datalayer_sqlite import (
+    SqliteDataLayer,
+    reset_datalayer,
+)
 from vultron.adapters.driving.fastapi.routers import actors as actors_router
 from vultron.adapters.driving.fastapi.routers import (
     datalayer as datalayer_router,
@@ -35,21 +39,47 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 )
 
 
-# adapter: reuse top-level datalayer fixture for tests that ask for `dl`
 @pytest.fixture
-def dl(datalayer):
-    return datalayer
+def actor_and_dl():
+    """Create actor + per-actor DataLayer together (avoids chicken-and-egg).
+
+    The actor object is created first (no DataLayer needed), then a
+    DataLayer is instantiated scoped to that actor's ID (ADR-0012 Option B).
+    The actor is then persisted into its own DataLayer.  Callers should
+    unpack via the ``actor`` and ``dl`` fixtures below.
+    """
+    actor_obj = as_Service(name="Vendor Co")
+    actor_id = actor_obj.id_
+    reset_datalayer(actor_id)
+    actor_dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
+    actor_dl.clear_all()
+    actor_dl.create(actor_obj)
+    yield actor_obj, actor_dl
+    actor_dl.close()
+    reset_datalayer(actor_id)
+
+
+@pytest.fixture
+def actor(actor_and_dl):
+    actor_obj, _ = actor_and_dl
+    return actor_obj
+
+
+@pytest.fixture
+def dl(actor_and_dl):
+    _, actor_dl = actor_and_dl
+    return actor_dl
 
 
 # TestClient for datalayer router
 @pytest.fixture
-def client_datalayer(dl):
+def client_datalayer(datalayer):
     from vultron.adapters.driven.datalayer import get_datalayer
 
     app = FastAPI()
     app.include_router(datalayer_router.router)
     # Override get_datalayer dependency to use test's datalayer instance
-    app.dependency_overrides[get_datalayer] = lambda: dl
+    app.dependency_overrides[get_datalayer] = lambda: datalayer
     client = TestClient(app)
     yield client
     app.dependency_overrides = {}
@@ -57,13 +87,13 @@ def client_datalayer(dl):
 
 # TestClient for actors router
 @pytest.fixture
-def client_actors(dl):
+def client_actors(datalayer):
     from vultron.adapters.driven.datalayer import get_datalayer
 
     app = FastAPI()
     app.include_router(actors_router.router)
     # Override get_datalayer dependency to use test's datalayer instance
-    app.dependency_overrides[get_datalayer] = lambda: dl
+    app.dependency_overrides[get_datalayer] = lambda: datalayer
     client = TestClient(app)
     yield client
     app.dependency_overrides = {}
@@ -86,7 +116,7 @@ def actor_classes():
 
 
 @pytest.fixture
-def created_actors(dl, actor_classes):
+def created_actors(datalayer, actor_classes):
     actors = []
     for actor_cls in actor_classes:
         # CoreActor stores inbox/outbox as URI strings; provide them explicitly
@@ -99,7 +129,7 @@ def created_actors(dl, actor_classes):
             )
         else:
             actor = actor_cls(name="Test Actor for List")
-        dl.create(object_to_record(actor))
+        datalayer.create(object_to_record(actor))
         actors.append(actor)
     return actors
 
