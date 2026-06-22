@@ -19,17 +19,40 @@ from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
 
 @pytest.fixture
-def tmp_db_file(tmp_path):
-    db_path = tmp_path / "test_sqlite.db"
-    return db_path
+def dl():
+    """In-memory SqliteDataLayer for unit tests."""
+    instance = SqliteDataLayer("sqlite:///:memory:")
+    yield instance
+    instance.clear_all()
+    instance.close()
 
 
 @pytest.fixture
-def dl(tmp_db_file):
-    dl = SqliteDataLayer(db_url=f"sqlite:///{tmp_db_file}")
-    yield dl
-    dl.clear_all()
-    dl.close()
+def tmp_db_url(tmp_path):
+    """SQLite URL pointing to a temporary file (for integration tests)."""
+    db_path = tmp_path / "test_sqlite.db"
+    return f"sqlite:///{db_path}"
+
+
+@pytest.fixture
+def file_dl(tmp_db_url):
+    """File-backed SqliteDataLayer for integration tests."""
+    instance = SqliteDataLayer(tmp_db_url)
+    yield instance
+    instance.clear_all()
+    instance.close()
+
+
+@pytest.fixture
+def scoped_dl():
+    """Actor-scoped in-memory SqliteDataLayer for enqueue_callback tests."""
+    instance = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://example.org/alice",
+    )
+    yield instance
+    instance.clear_all()
+    instance.close()
 
 
 @pytest.fixture
