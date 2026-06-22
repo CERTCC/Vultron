@@ -23,6 +23,7 @@ Report Management (RM) workflow, grouped by sub-topic:
 - ``close_report`` — report closure nodes (2 nodes)
 - ``other_work`` — miscellaneous work placeholder (1 node)
 - ``report_to_others`` — report-to-others workflow nodes (21 nodes)
+- ``publication`` — publication workflow nodes (14 nodes)
 """
 
 from vultron.demo.fuzzer.report_management.prioritize import (
@@ -76,6 +77,22 @@ from vultron.demo.fuzzer.report_management.report_to_others import (
     SetRcptQrmR,
     TotalEffortLimitMet,
 )
+from vultron.demo.fuzzer.report_management.publication import (
+    AllPublished,
+    ExploitReady,
+    NoPublishExploit,
+    NoPublishFix,
+    NoPublishReport,
+    PrepareFix,
+    PrepareExploit,
+    PrepareReport,
+    PrioritizePublicationIntents,
+    Publish,
+    PublicationIntentsSet,
+    ReprioritizeExploit,
+    ReprioritizeFix,
+    ReprioritizeReport,
+)
 
 __all__ = [
     # validation nodes
@@ -126,4 +143,19 @@ __all__ = [
     "InjectVendor",
     "InjectCoordinator",
     "InjectOther",
+    # publication workflow
+    "AllPublished",
+    "PublicationIntentsSet",
+    "PrioritizePublicationIntents",
+    "Publish",
+    "NoPublishExploit",
+    "ExploitReady",
+    "PrepareExploit",
+    "ReprioritizeExploit",
+    "NoPublishFix",
+    "PrepareFix",
+    "ReprioritizeFix",
+    "NoPublishReport",
+    "PrepareReport",
+    "ReprioritizeReport",
 ]
