@@ -16,13 +16,16 @@
 """Actor-participation emit nodes for case behavior trees.
 
 Provides leaf action nodes that emit outbound activities for actor
-invitation and invite-acceptance workflows.
+invitation and invite-acceptance workflows, and for applying received
+ownership-transfer decisions to the case record.
 
 Composite subtrees assembling these leaf nodes are defined in the sibling
-``actor_trigger_trees.py`` module at the process-area root per BTND-07-003:
+``actor_trigger_trees.py`` and ``ownership_transfer_tree.py`` modules at
+the process-area root per BTND-07-003:
 
 - ``invite_actor_to_case_trigger_bt``
 - ``accept_case_invite_trigger_bt``
+- ``create_accept_ownership_transfer_tree``
 """
 
 from typing import cast
@@ -30,7 +33,9 @@ from typing import cast
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.models.protocols import is_case_model
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.use_cases._helpers import _as_id
 
 
 class EmitInviteActorToCaseNode(DataLayerAction):
@@ -148,3 +153,63 @@ class EmitAcceptCaseInviteNode(DataLayerAction):
             self.feedback_message = f"EmitAcceptCaseInvite failed: {e}"
             self.logger.error(self.feedback_message)
             return Status.FAILURE
+
+
+class AcceptCaseOwnershipTransferNode(DataLayerAction):
+    """Apply an ownership-transfer acceptance to the case record.
+
+    Reads the case from the DataLayer, updates ``case.attributed_to`` to
+    the new owner, and persists the updated case.  Idempotent: when the
+    case is already owned by ``new_owner_id``, returns ``SUCCESS`` without
+    mutation.
+
+    Returns ``SUCCESS`` on success or when already idempotent, ``FAILURE``
+    when the DataLayer is unavailable or the case is not found.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        new_owner_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.new_owner_id = new_owner_id
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            self.feedback_message = "DataLayer not available"
+            self.logger.error("%s: DataLayer not available", self.name)
+            return Status.FAILURE
+
+        case = self.datalayer.read(self.case_id)
+        if not is_case_model(case):
+            self.feedback_message = f"case '{self.case_id}' not found"
+            self.logger.warning(
+                "%s: case '%s' not found",
+                self.name,
+                self.case_id,
+            )
+            return Status.FAILURE
+
+        current_owner_id = _as_id(case.attributed_to)
+        if current_owner_id == self.new_owner_id:
+            self.logger.info(
+                "%s: case '%s' already owned by '%s' — skipping (idempotent)",
+                self.name,
+                self.case_id,
+                self.new_owner_id,
+            )
+            return Status.SUCCESS
+
+        case.attributed_to = self.new_owner_id  # type: ignore[assignment]
+        self.datalayer.save(case)
+        self.logger.info(
+            "%s: transferred ownership of case '%s' from '%s' to '%s'",
+            self.name,
+            self.case_id,
+            current_owner_id,
+            self.new_owner_id,
+        )
+        return Status.SUCCESS

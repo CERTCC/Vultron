@@ -2,7 +2,6 @@
 
 import logging
 
-from vultron.core.models.dead_letter import DeadLetterRecord
 from vultron.core.models.events.unknown import (
     UnknownReceivedEvent,
     UnresolvableObjectReceivedEvent,
@@ -42,6 +41,13 @@ class UnresolvableObjectUseCase:
         self._request = request
 
     def execute(self) -> None:
+        from py_trees.common import Status
+
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.behaviors.inbox.dead_letter_tree import (
+            create_store_dead_letter_tree,
+        )
+
         request = self._request
         unresolvable_uri = request.object_id or ""
         logger.warning(
@@ -51,16 +57,16 @@ class UnresolvableObjectUseCase:
             request.activity_id,
             request.actor_id,
         )
-        activity_summary = (
-            request.activity.model_dump(by_alias=True, exclude_none=True)
-            if request.activity is not None
-            else None
-        )
-        record = DeadLetterRecord(
-            unresolvable_uri=unresolvable_uri,
+        tree = create_store_dead_letter_tree(request=request)
+        bridge = BTBridge(datalayer=self._dl)
+        result = bridge.execute_with_setup(
+            tree=tree,
             actor_id=request.actor_id,
-            activity_id=request.activity_id,
-            activity_type=request.activity_type,
-            activity_summary=activity_summary,
+            activity=request,
         )
-        self._dl.save(record)
+        if result.status != Status.SUCCESS:
+            logger.warning(
+                "StoreDeadLetterBT did not succeed for activity '%s': %s",
+                request.activity_id,
+                BTBridge.get_failure_reason(tree),
+            )

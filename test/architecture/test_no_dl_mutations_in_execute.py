@@ -143,12 +143,8 @@ def _collect_violations() -> frozenset[str]:
 # ---------------------------------------------------------------------------
 KNOWN_VIOLATIONS: frozenset[str] = frozenset(
     {
-        "vultron/core/use_cases/received/actor/announce.py",
-        "vultron/core/use_cases/received/actor/ownership.py",
         "vultron/core/use_cases/received/case/lifecycle.py",
-        "vultron/core/use_cases/received/case_participant.py",
         "vultron/core/use_cases/received/note.py",
-        "vultron/core/use_cases/received/unknown.py",
     }
 )
 
