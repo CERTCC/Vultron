@@ -108,18 +108,14 @@ BODY    = Full original concern body + "**Resolved**: YYYY-MM-DD — ..."
           + "Docs PR: <PR_URL>. Implementation tracked in #<IMPL_ISSUE>."
 ```
 
-### learn
+### learn (incoming learning file)
 
-```text
-TYPE    = learning
-TITLE   = <short observation title>
-SOURCE  = <label from the BUILD_LEARNINGS header, e.g. TRIGGER-ACTIVITY-PORT>
-BODY    = Full original BUILD_LEARNINGS entry text
-          + "**Promoted**: YYYY-MM-DD — captured in <destination files>."
-          + "Docs PR: <PR_URL>."
-```text
+```bash
+# After adding the promotion note to the file body, run:
+uv run append-history --from-file plan/incoming/learnings/<YYYYMMDD-SLUG>.md
+```
 
-Call once per archived entry in a loop.
+This moves the file to `plan/history/YYMM/learning/` and deletes the source.
 
 ### build
 

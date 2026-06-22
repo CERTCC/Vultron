@@ -338,11 +338,11 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 
 ### Project and Agent Guidance
 
-- **`build-workflow.yaml`** - Content policy for `plan/BUILD_LEARNINGS.md`:
-  what belongs in the file, what must not, how the `learn` skill archives
-  processed entries via `uv run append-history learning`, the `learning`
-  history entry type, and skill documentation update requirements
-  (BW-01 through BW-04)
+- **`build-workflow.yaml`** - Content policy for `plan/incoming/learnings/`:
+  individual per-entry files replacing the legacy shared `BUILD_LEARNINGS.md`,
+  file naming and format requirements, how the `learn` skill archives entries
+  via `uv run append-history --from-file`, the `--from-file` CLI flag
+  behaviour, and skill documentation update requirements (BW-01 through BW-06)
 - **`parallel-development.yaml`** - Multi-agent coordination via GitHub Issues:
   issue hierarchy (Epic/Task/Subtask), label taxonomy (`group:`, `size:`,
   `stale-claim`, `needs-rebase`, `specs-notes`), task claiming protocol (branch

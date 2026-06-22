@@ -4,11 +4,12 @@ Usage::
 
     uv run append-history <type> --title "..." --source "..."
     uv run append-history <type> --title "..." --source "..." --file /path/to/body.md
+    uv run append-history --from-file plan/incoming/learnings/20260622-SLUG.md
 
 ``<type>`` must be one of the ``HistoryEntryType`` values
 (``idea``, ``implementation``, ``learning``, ``priority``).
 
-The tool:
+Normal mode (``<type>`` required):
 
 1. Parses ``<type>`` against ``HistoryEntryType``; exits 1 on unknown type.
 2. Reads body text from stdin or ``--file <path>``.
@@ -22,7 +23,21 @@ The tool:
 7. Regenerates ``plan/history/YYMM/README.md``.
 8. Prints the written file path to stdout.
 
+``--from-file`` mode (for ``plan/incoming/learnings/`` processing):
+
+1. Reads the source file as complete content (frontmatter + body).
+2. Parses and validates the frontmatter to obtain type, title, source,
+   and timestamp (HM-02-001).
+3. Moves the entry to ``plan/history/YYMM/<type>/`` using the frontmatter
+   timestamp to determine the ``YYMM`` directory.
+4. Deletes the source file from ``plan/incoming/``.
+5. Prints the written file path to stdout.
+
+``--from-file`` is mutually exclusive with ``<type>``, ``--title``,
+``--source``, ``--file``, and ``--timestamp``.
+
 See ``specs/history-management.yaml`` HM-03, HM-06, HM-07.
+See ``specs/build-workflow.yaml`` BW-01 for the incoming-learnings queue.
 """
 
 from __future__ import annotations
@@ -173,31 +188,54 @@ def _build_parser() -> argparse.ArgumentParser:
         prog="append-history",
         description=(
             "Append a write-once entry to the project history archive under "
-            "plan/history/. Body text is read from stdin by default."
+            "plan/history/. Body text is read from stdin by default. "
+            "Use --from-file to move a pre-formatted incoming learning file."
         ),
     )
     parser.add_argument(
         "entry_type",
         metavar="type",
-        help=f"History entry type. One of: {valid_types}",
+        nargs="?",
+        default=None,
+        help=(
+            f"History entry type. One of: {valid_types}. "
+            "Required unless --from-file is provided."
+        ),
     )
     parser.add_argument(
         "--title",
-        required=True,
+        default=None,
         metavar="TEXT",
-        help="Human-readable summary for the entry frontmatter.",
+        help=(
+            "Human-readable summary for the entry frontmatter. "
+            "Required unless --from-file is provided."
+        ),
     )
     parser.add_argument(
         "--source",
-        required=True,
+        default=None,
         metavar="ID",
-        help="Originating identifier (e.g. IDEA-26043001, TASK-FOO).",
+        help=(
+            "Originating identifier (e.g. IDEA-26043001, TASK-FOO). "
+            "Required unless --from-file is provided."
+        ),
     )
     parser.add_argument(
         "--file",
         metavar="PATH",
         default=None,
-        help="Read body text from FILE instead of stdin.",
+        help="Read body text from FILE instead of stdin. Incompatible with --from-file.",
+    )
+    parser.add_argument(
+        "--from-file",
+        metavar="PATH",
+        default=None,
+        dest="from_file",
+        help=(
+            "Move a pre-formatted incoming learning file (with YAML frontmatter) "
+            "to plan/history/YYMM/<type>/ and delete the source. "
+            "Incompatible with type, --title, --source, --file, --timestamp."
+        ),
     )
     parser.add_argument(
         "--timestamp",
@@ -320,10 +358,89 @@ def _parse_timestamp(value: str | None) -> datetime.datetime | None:
         _fail(str(exc))
 
 
+def _check_from_file_conflicts(args: argparse.Namespace) -> None:
+    """Fail if --from-file is combined with incompatible normal-mode flags."""
+    conflicts = []
+    if args.entry_type is not None:
+        conflicts.append("positional type argument")
+    if args.title is not None:
+        conflicts.append("--title")
+    if args.source is not None:
+        conflicts.append("--source")
+    if args.file is not None:
+        conflicts.append("--file")
+    if args.timestamp is not None:
+        conflicts.append("--timestamp")
+    if conflicts:
+        _fail(
+            f"--from-file is incompatible with: {', '.join(conflicts)}. "
+            "Provide only --from-file when moving a pre-formatted incoming file."
+        )
+
+
+def _handle_from_file_mode(source_path: Path) -> None:
+    """Archive a pre-formatted incoming learning file into plan/history/.
+
+    Reads the file's YAML frontmatter to determine the entry type, source
+    identifier, and timestamp, then delegates to :func:`append_history_entry`.
+    The source file is deleted after a successful write.
+
+    Args:
+        source_path: Path to the incoming learning file with YAML frontmatter.
+
+    Raises:
+        SystemExit: On any validation or write error (via :func:`_fail`).
+    """
+    if not source_path.exists():
+        _fail(f"file not found: {source_path}")
+
+    content = source_path.read_text(encoding="utf-8")
+
+    try:
+        fm = _validate_frontmatter(content)
+    except ValueError as exc:
+        _fail(str(exc))
+
+    try:
+        _check_timestamp_not_future(fm.timestamp)
+    except ValueError as exc:
+        _fail(str(exc))
+    target_date = fm.timestamp.date()
+
+    try:
+        entry_file = append_history_entry(
+            fm.type,
+            content,
+            target_date=target_date,
+        )
+    except (FileExistsError, FileNotFoundError, ValueError) as exc:
+        _fail(str(exc))
+
+    source_path.unlink()
+    print(str(entry_file))
+
+
 def main() -> None:
     """Entry point for ``uv run append-history``."""
     parser = _build_parser()
     args = parser.parse_args()
+
+    if args.from_file is not None:
+        _check_from_file_conflicts(args)
+        _handle_from_file_mode(Path(args.from_file))
+        return
+
+    # Normal mode — require entry_type, --title, --source.
+    if not args.entry_type:
+        _fail(
+            "entry type is required when --from-file is not provided. "
+            f"Valid values: {', '.join(t.value for t in HistoryEntryType)}"
+        )
+    if not args.title:
+        _fail("--title is required when --from-file is not provided")
+    if not args.source:
+        _fail("--source is required when --from-file is not provided")
+
     entry_type = _parse_entry_type(args.entry_type)
     body = _read_body(args.file)
     timestamp = _parse_timestamp(args.timestamp)

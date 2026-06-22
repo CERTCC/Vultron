@@ -15,8 +15,8 @@ the actual codebase, then create GitHub Issues for any untracked gaps.
 **Constraint**: Do not write new tasks to the plan — all new work items MUST be
 GitHub Issues. Do not change
 code, tests, `specs/`, or `notes/` (except when writing gap-analysis
-observations). Do **not** write to `plan/BUILD_LEARNINGS.md` — that file is
-reserved for `build` and `bugfix`.
+observations). Do **not** write to `plan/incoming/learnings/` — that directory
+is reserved for `build` and `bugfix`.
 
 **Trigger**: Use after `learn` or `plan-issue` has updated specs or notes,
 to translate those changes into concrete GitHub Issues. Also run periodically
@@ -30,7 +30,7 @@ to keep open Issues aligned with the codebase.
 3. For each gap, create a GitHub Issue (added to Project #24 with
    Schedule=Someday) rather than a plan entry.
 4. Write any significant observations or open questions directly to the
-   appropriate `notes/*.md` file (not to `BUILD_LEARNINGS.md`).
+   appropriate `notes/*.md` file (not to `plan/incoming/learnings/`).
 5. Invoke `commit`.
 
 ## Workflow
@@ -159,8 +159,8 @@ grouping. Independent gaps MUST remain flat leaf Issues.
 - Any gap-analysis observations, open questions, clarified assumptions, or
   architectural risks discovered during gap analysis SHOULD be written
   directly to the appropriate `notes/*.md` file.
-- Do **not** write these observations to `plan/BUILD_LEARNINGS.md`.
-  That file is reserved for `build` and `bugfix` outputs.
+- Do **not** write these observations to `plan/incoming/learnings/`.
+  That directory is reserved for `build` and `bugfix` outputs.
 
 ### Phase 5 — Commit
 
@@ -171,7 +171,7 @@ specific message (e.g.,
 ## Constraints
 
 - Do not modify code or tests.
-- Do not write to `plan/BUILD_LEARNINGS.md`.
+- Do not write to `plan/incoming/learnings/`.
 - Do not speculate about missing functionality; verify with code search first.
 - Do not implement anything — that is `build`'s domain.
 - Use `uv run append-history implementation` only via `build` — never from

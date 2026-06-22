@@ -106,10 +106,10 @@ Invoke `deepen-context` with focus hints derived from the issue body
    bash .agents/skills/shared/add-to-project.sh "${NEW_ISSUE}"
    ```
 
-   Record the dependency in `plan/BUILD_LEARNINGS.md` and stop.
+   Record the dependency as a learning file in `plan/incoming/learnings/` and stop.
 
 4. If more than one prerequisite is required, or the work is non-trivial,
-   record details in `plan/BUILD_LEARNINGS.md` and stop.
+   create a learning file in `plan/incoming/learnings/` and stop.
 
 ### Phase 5 — Implement
 
@@ -142,8 +142,8 @@ Invoke `deepen-context` with focus hints derived from the issue body
      blockers, not body-text markers).
    - Add a handoff comment on that Bug issue with pickup context for the next
      agent.
-   - Record the Bug link and blocked/unblocked decision in
-     `plan/BUILD_LEARNINGS.md`.
+   - Record the Bug link and blocked/unblocked decision as a learning file in
+     `plan/incoming/learnings/`.
 6. If clean-base proof cannot be obtained in-session, do **not** classify the
    failure as unrelated; continue treating it as branch-owned.
 
@@ -198,11 +198,11 @@ Findings are tagged `[BLOCKING]` (fix before continuing) or `[ADVISORY]`
    BODY    = "## Issue #<N> — <title>\n\n<completion summary, PR link>"
    ```
 
-5. Record observations in `plan/BUILD_LEARNINGS.md`
-   (`### YYYY-MM-DD LABEL — description`). Do not write completion summaries
-   here.
+5. Record observations as individual learning files in `plan/incoming/learnings/`
+   (filename: `YYYYMMDD-SLUG.md`; frontmatter: `title`, `type: learning`,
+   `timestamp`, `source`). Do not write completion summaries here.
 
-6. Invoke `commit` if `BUILD_LEARNINGS.md` was updated.
+6. Invoke `commit` if any learning files were created in `plan/incoming/learnings/`.
 
 ### Phase 9 — Merge Conflict Recovery (if needed)
 

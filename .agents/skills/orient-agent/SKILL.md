@@ -37,8 +37,8 @@ Read in parallel:
 
 ### Step 4 — Read build observations
 
-Read `plan/BUILD_LEARNINGS.md` for ephemeral build/bugfix observations
-queued for the `learn` skill.
+Read all files in `plan/incoming/learnings/` for ephemeral build/bugfix
+observations queued for the `learn` skill.
 
 > **`plan/history/` is excluded.** Read it only when investigating
 > completed work (e.g., during the `learn` skill).

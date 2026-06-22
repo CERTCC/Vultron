@@ -331,6 +331,6 @@ fi
 | Skill | Input | Docs output | Closes issue? |
 |---|---|---|---|
 | `plan-issue` | One Idea or Concern issue | Optional specs+notes for both types | Yes |
-| `learn` | BUILD_LEARNINGS + all Concern issues | specs/notes/AGENTS | Yes (batch) |
+| `learn` | plan/incoming/learnings/ + all Concern issues | specs/notes/AGENTS | Yes (batch) |
 | `new-item` | Freeform text | None | N/A (creates, not resolves) |
 | `process-concerns` | CONCERNS.md file | None | No |
