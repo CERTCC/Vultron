@@ -69,6 +69,18 @@ from vultron.demo.fuzzer.embargo import (
     WantToProposeEmbargo,
     WillingToCounterEmbargoProposal,
 )
+from vultron.demo.fuzzer.report_management import (
+    AssignId,
+    CreateFix,
+    IdAssignable,
+    IdAssigned,
+    InScope,
+    IsIDAssignmentAuthority,
+    OtherCloseCriteriaMet,
+    OtherWork,
+    PreCloseAction,
+    RequestId,
+)
 
 __all__ = [
     # base types
@@ -124,6 +136,17 @@ __all__ = [
     "GatherPrioritizationInfo",
     "OnAccept",
     "OnDefer",
+    # report management nodes
+    "IdAssigned",
+    "IdAssignable",
+    "IsIDAssignmentAuthority",
+    "RequestId",
+    "AssignId",
+    "InScope",
+    "CreateFix",
+    "OtherCloseCriteriaMet",
+    "PreCloseAction",
+    "OtherWork",
     # messaging inbound nodes
     "FollowUpOnErrorMessage",
 ]

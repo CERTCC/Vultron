@@ -11,7 +11,18 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Report management fuzzer nodes for the Vultron demo layer."""
+"""Report management fuzzer nodes for the Vultron demo layer.
+
+This sub-package provides probabilistic py_trees behaviour nodes for the
+Report Management (RM) workflow, grouped by sub-topic:
+
+- ``validate`` — report validation nodes (5 nodes)
+- ``prioritize`` — report prioritization nodes (5 nodes)
+- ``assign_vul_id`` — VUL ID assignment nodes (6 nodes)
+- ``develop_fix`` — fix development nodes (1 node)
+- ``close_report`` — report closure nodes (2 nodes)
+- ``other_work`` — miscellaneous work placeholder (1 node)
+"""
 
 from vultron.demo.fuzzer.report_management.prioritize import (
     EnoughPrioritizationInfo,
@@ -27,6 +38,20 @@ from vultron.demo.fuzzer.report_management.validate import (
     GatherValidationInfo,
     NoNewValidationInfo,
 )
+from vultron.demo.fuzzer.report_management.assign_vul_id import (
+    AssignId,
+    IdAssignable,
+    IdAssigned,
+    InScope,
+    IsIDAssignmentAuthority,
+    RequestId,
+)
+from vultron.demo.fuzzer.report_management.close_report import (
+    OtherCloseCriteriaMet,
+    PreCloseAction,
+)
+from vultron.demo.fuzzer.report_management.develop_fix import CreateFix
+from vultron.demo.fuzzer.report_management.other_work import OtherWork
 
 __all__ = [
     # validation nodes
@@ -41,4 +66,18 @@ __all__ = [
     "GatherPrioritizationInfo",
     "OnAccept",
     "OnDefer",
+    # VUL ID assignment
+    "IdAssigned",
+    "IdAssignable",
+    "IsIDAssignmentAuthority",
+    "RequestId",
+    "AssignId",
+    "InScope",
+    # fix development
+    "CreateFix",
+    # report closure
+    "OtherCloseCriteriaMet",
+    "PreCloseAction",
+    # other work
+    "OtherWork",
 ]
