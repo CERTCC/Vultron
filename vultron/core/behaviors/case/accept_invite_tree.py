@@ -23,11 +23,13 @@ Tree structure::
 
     AcceptInviteActorToCaseBT (Sequence, memory=False)
     ├── CheckInviteeNotAlreadyParticipantNode  — idempotency guard
+    ├── CapturePreCommitBackfillTargetNode     — snapshot ledger for resume case
+    ├── GuardedCommitCaseLedgerEntryBT         — record receipt (CLP-10-006)
     ├── CreateInviteeParticipantAtAcceptedNode — build participant at RM.ACCEPTED
     ├── MaybeSignEmbargoConsentNode            — sign when embargo is EM.ACTIVE
     ├── PersistInviteeParticipantNode          — dl.create, attach, save case
-    ├── GuardedCommitCaseLedgerEntryBT         — canonical log entry + SYNC-02-002 fan-out
-    └── EmitAnnounceCaseToInviteeNode          — queue Announce(VulnerabilityCase)
+    ├── EmitAnnounceCaseToInviteeNode          — queue Announce(VulnerabilityCase)
+    └── BackfillCanonicalLedgerToInviteeNode   — send prior ledger to invitee
 
 Specs: PCR-08-010 (identity constraint), CM-10-001/CM-10-003 (embargo
 consent), MV-10-003/MV-10-005 (announce after consent resolved).
@@ -41,7 +43,7 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.case.nodes import (
-    create_guarded_commit_case_ledger_entry_tree,
+    create_receive_activity_tree,
 )
 from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
 from vultron.core.models.protocols import (
@@ -64,6 +66,89 @@ from vultron.core.states.rm import RM
 from vultron.core.use_cases._helpers import _as_id
 
 logger = logging.getLogger(__name__)
+
+
+class CapturePreCommitBackfillTargetNode(DataLayerAction):
+    """Snapshot the current last ledger-entry index for resume-case backfill.
+
+    This node MUST appear AFTER ``CheckInviteeNotAlreadyParticipantNode`` in
+    the precondition-guards list, so it can read ``invitee_already_participant``
+    from the blackboard.
+
+    **Resume case** (invitee already registered, ``invitee_already_participant
+    = True``): the commit's ``FanOutLogEntryNode`` will include the invitee in
+    its recipient list (they are a current case participant), so
+    ``BackfillCanonicalLedgerToInviteeNode`` must limit its window to entries
+    that existed *before* the commit to avoid sending the new entry twice.
+    This node writes ``pre_commit_backfill_target`` to the blackboard.
+
+    **Fresh case** (invitee not yet registered, ``invitee_already_participant
+    = False``): the commit fan-out will NOT include the invitee (they are not
+    yet a participant), so backfill must include the newly committed entry in
+    its window.  This node does *not* write ``pre_commit_backfill_target``,
+    leaving ``BackfillCanonicalLedgerToInviteeNode`` to compute its target
+    from the post-commit ledger state.
+
+    Always returns ``SUCCESS``.
+    """
+
+    def __init__(self, case_id: str, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+
+    def setup(self, **kwargs) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="invitee_already_participant",
+            access=py_trees.common.Access.READ,
+        )
+        self.blackboard.register_key(
+            key="pre_commit_backfill_target",
+            access=py_trees.common.Access.WRITE,
+        )
+
+    def update(self) -> Status:
+        try:
+            already_participant = self.blackboard.get(
+                "invitee_already_participant"
+            )
+        except KeyError:
+            already_participant = False
+
+        if not already_participant:
+            # Fresh case: commit fan-out won't reach invitee (not yet
+            # registered).  Write None to pre_commit_backfill_target so that
+            # BackfillCanonicalLedgerToInviteeNode uses the post-commit target,
+            # and any stale value from a prior resume test is overwritten.
+            self.blackboard.pre_commit_backfill_target = None
+            self.logger.debug(
+                "%s: fresh invite — clearing pre-commit backfill target"
+                " (backfill will include post-commit entry)",
+                self.name,
+            )
+            return Status.SUCCESS
+
+        # Resume case: invitee IS already a participant.
+        # Capture the current last index so backfill doesn't re-send the
+        # accept-invite entry that the commit fan-out will deliver.
+        if self.datalayer is None:
+            self.blackboard.pre_commit_backfill_target = -1
+            return Status.SUCCESS
+
+        entries: list[LogEntryModel] = [
+            obj
+            for obj in self.datalayer.list_objects("CaseLedgerEntry")
+            if is_log_entry_model(obj) and obj.case_id == self.case_id
+        ]
+        target = entries[-1].log_index if entries else -1
+        self.blackboard.pre_commit_backfill_target = target
+        self.logger.debug(
+            "%s: resume case — pre-commit backfill target for case '%s' is %d",
+            self.name,
+            self.case_id,
+            target,
+        )
+        return Status.SUCCESS
 
 
 class CheckInviteeNotAlreadyParticipantNode(DataLayerCondition):
@@ -473,6 +558,10 @@ class BackfillCanonicalLedgerToInviteeNode(DataLayerAction):
         self.blackboard.register_key(
             key="sync_port", access=py_trees.common.Access.READ
         )
+        self.blackboard.register_key(
+            key="pre_commit_backfill_target",
+            access=py_trees.common.Access.READ,
+        )
 
     def initialise(self) -> None:
         super().initialise()
@@ -480,6 +569,25 @@ class BackfillCanonicalLedgerToInviteeNode(DataLayerAction):
             self._sync_port = cast(SyncActivityPort, self.blackboard.sync_port)
         except (AttributeError, KeyError):
             self._sync_port = None
+
+    def _resolve_backfill_target(self, entries: list[LogEntryModel]) -> int:
+        """Resolve the backfill target index.
+
+        Reads ``pre_commit_backfill_target`` from the blackboard when set to a
+        non-None int (resume case: CapturePreCommitBackfillTargetNode wrote the
+        last index BEFORE the commit so backfill does not re-send the new entry
+        that the commit fan-out already delivered).  ``None`` or a missing key
+        means fresh case — fall back to the post-commit last entry.
+        """
+        try:
+            pre_commit_target = self.blackboard.get(
+                "pre_commit_backfill_target"
+            )
+        except KeyError:
+            pre_commit_target = None
+        if pre_commit_target is not None:
+            return int(pre_commit_target)
+        return entries[-1].log_index if entries else -1
 
     def update(self) -> Status:
         if self.datalayer is None:
@@ -502,7 +610,7 @@ class BackfillCanonicalLedgerToInviteeNode(DataLayerAction):
         ]
         entries.sort(key=lambda log_entry: log_entry.log_index)
 
-        target_index = entries[-1].log_index if entries else -1
+        target_index = self._resolve_backfill_target(entries)
         state = self._load_or_create_state(target_index)
 
         if state.join_backfill_complete:
@@ -524,6 +632,8 @@ class BackfillCanonicalLedgerToInviteeNode(DataLayerAction):
         for entry in entries:
             if entry.log_index <= state.join_backfill_last_sent_index:
                 continue
+            if entry.log_index > target_index:
+                break
             self._sync_port.send_announce_log_entry(
                 entry=entry,
                 actor_id=self.actor_id,
@@ -660,13 +770,14 @@ def create_accept_invite_actor_to_case_tree(
     The returned Sequence::
 
         AcceptInviteActorToCaseBT (memory=False)
-        ├── CheckInviteeNotAlreadyParticipantNode — idempotency guard
+        ├── CheckInviteeNotAlreadyParticipantNode  — idempotency guard
+        ├── CapturePreCommitBackfillTargetNode     — snapshot ledger for resume case
+        ├── GuardedCommitCaseLedgerEntryBT         — record receipt (CLP-10-006)
         ├── CreateInviteeParticipantAtAcceptedNode — build participant at ACCEPTED
         ├── MaybeSignEmbargoConsentNode            — sign when EM.ACTIVE
         ├── PersistInviteeParticipantNode          — persist, attach, save case
         ├── EmitAnnounceCaseToInviteeNode          — queue Announce to invitee
-        ├── BackfillCanonicalLedgerToInviteeNode   — send prior ledger to invitee
-        └── GuardedCommitCaseLedgerEntryBT         — canonical log entry + fan-out
+        └── BackfillCanonicalLedgerToInviteeNode   — send prior ledger to invitee
 
     Args:
         case_id: ID of the VulnerabilityCase the invitee accepted.
@@ -676,13 +787,16 @@ def create_accept_invite_actor_to_case_tree(
         Configured ``Sequence`` ready for execution via
         :class:`~vultron.core.behaviors.bridge.BTBridge`.
     """
-    return py_trees.composites.Sequence(
+    return create_receive_activity_tree(
         name="AcceptInviteActorToCaseBT",
-        memory=False,
-        children=[
+        case_id=case_id,
+        precondition_guards=[
             CheckInviteeNotAlreadyParticipantNode(
                 case_id=case_id, invitee_id=invitee_id
             ),
+            CapturePreCommitBackfillTargetNode(case_id=case_id),
+        ],
+        effect_nodes=[
             CreateInviteeParticipantAtAcceptedNode(
                 case_id=case_id, invitee_id=invitee_id
             ),
@@ -698,12 +812,12 @@ def create_accept_invite_actor_to_case_tree(
             BackfillCanonicalLedgerToInviteeNode(
                 case_id=case_id, invitee_id=invitee_id
             ),
-            create_guarded_commit_case_ledger_entry_tree(case_id=case_id),
         ],
     )
 
 
 __all__ = [
+    "CapturePreCommitBackfillTargetNode",
     "CheckInviteeNotAlreadyParticipantNode",
     "CreateInviteeParticipantAtAcceptedNode",
     "MaybeSignEmbargoConsentNode",

@@ -420,3 +420,81 @@ class AppendStatusAndSaveParticipantNode(DataLayerAction):
             self.participant_id,
         )
         return Status.SUCCESS
+
+
+class CheckParticipantRMNotClosedNode(DataLayerCondition):
+    """Pre-flight guard: FAILURE when participant is in RM.CLOSED with no prior
+    status match.
+
+    Used in ``add_participant_status_tree`` precondition guards to reject
+    CLOSED→CLOSED rewrites before the commit runs (CLP-10-006).
+
+    When ``status_id`` is supplied and the participant is CLOSED, returns
+    SUCCESS if ``status_id`` is already in ``participant.participant_statuses``
+    (idempotent delivery of a VALID→CLOSED update whose trigger side already
+    appended the status).  Returns FAILURE only for genuine CLOSED→CLOSED
+    rewrite attempts (status not yet in participant's list).
+
+    Returns SUCCESS when the participant has no current status, the current
+    RM state is not CLOSED, or the incoming status was already appended.
+    """
+
+    def __init__(
+        self,
+        participant_id: str,
+        status_id: str = "",
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.participant_id = participant_id
+        self.status_id = status_id
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            self.feedback_message = "DataLayer not available"
+            return Status.FAILURE
+
+        participant = self.datalayer.read(self.participant_id)
+        if not is_participant_model(participant):
+            self.logger.debug(
+                "%s: participant '%s' not found — allowing (no terminal check)",
+                self.name,
+                self.participant_id,
+            )
+            return Status.SUCCESS
+
+        current_status = getattr(participant, "participant_status", None)
+        if current_status is None:
+            return Status.SUCCESS
+
+        current_rm = getattr(current_status, "rm_state", None)
+        if current_rm != RM.CLOSED:
+            return Status.SUCCESS
+
+        # Participant is CLOSED. Allow if the incoming status was already
+        # appended by the trigger side (idempotent re-delivery of VALID→CLOSED).
+        if self.status_id:
+            existing_ids = [
+                _as_id(s)
+                for s in getattr(participant, "participant_statuses", [])
+            ]
+            if self.status_id in existing_ids:
+                self.logger.debug(
+                    "%s: participant '%s' is CLOSED but status '%s' already"
+                    " in participant_statuses — allowing idempotent commit",
+                    self.name,
+                    self.participant_id,
+                    self.status_id,
+                )
+                return Status.SUCCESS
+
+        self.feedback_message = (
+            f"Participant '{self.participant_id}' is already in terminal"
+            " RM.CLOSED — rejecting status update (DEMOMA-07-003)"
+        )
+        self.logger.info(
+            "%s: %s",
+            self.name,
+            self.feedback_message,
+        )
+        return Status.FAILURE

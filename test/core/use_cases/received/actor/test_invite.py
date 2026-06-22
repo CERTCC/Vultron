@@ -549,8 +549,10 @@ class TestInviteActorUseCases:
             kwargs["entry"]
             for _, kwargs in sync_port.send_announce_log_entry.call_args_list
         ]
-        # Backfill sends entries 0 and 1; CommitCaseLedgerEntryNode fans out
-        # the new accept_invite entry (2) to all participants via sync_port.
+        # Commit-first ordering: commit runs before invitee is registered, so
+        # commit fan-out does NOT include the invitee.  Backfill runs after
+        # invitee is registered with post-commit target (2), sending entries
+        # 0, 1, and 2 to the invitee.
         assert [entry.log_index for entry in announced_entries] == [0, 1, 2]
         assert announced_entries[0].entry_hash == first.entry_hash
         assert announced_entries[1].entry_hash == second.entry_hash
@@ -560,8 +562,10 @@ class TestInviteActorUseCases:
         ).id_
         state = cast(Any, dl.read(state_id))
         assert state is not None
-        assert state.join_backfill_target_index == 1
-        assert state.join_backfill_last_sent_index == 1
+        # With commit-first, the accept_invite entry (2) is committed before
+        # the invitee is registered, so backfill target includes entry 2.
+        assert state.join_backfill_target_index == 2
+        assert state.join_backfill_last_sent_index == 2
         assert state.join_backfill_complete is True
 
     def test_accept_invite_resumes_backfill_without_duplicate_entries(
@@ -685,10 +689,11 @@ class TestInviteActorUseCases:
             kwargs["entry"]
             for _, kwargs in sync_port.send_announce_log_entry.call_args_list
         ]
-        # Backfill resumes from entry 1; CommitCaseLedgerEntryNode fans out
-        # the new accept_invite entry (2) to all participants via sync_port.
-        assert [entry.log_index for entry in announced_entries] == [1, 2]
-        assert announced_entries[0].entry_hash == second.entry_hash
+        # Commit-first ordering: CommitCaseLedgerEntryNode fans out the new
+        # accept_invite entry (2) first (invitee already registered), then
+        # backfill resumes from the pre-commit target index and sends entry 1.
+        assert [entry.log_index for entry in announced_entries] == [2, 1]
+        assert announced_entries[1].entry_hash == second.entry_hash
         assert all(
             entry.entry_hash != first.entry_hash for entry in announced_entries
         )
@@ -797,9 +802,10 @@ class TestInviteActorUseCases:
             kwargs["entry"]
             for _, kwargs in sync_port.send_announce_log_entry.call_args_list
         ]
-        # Backfill sends entries 0 and 1; CommitCaseLedgerEntryNode fans out
-        # the new accept_invite entry (2) to all participants via sync_port.
-        assert [entry.log_index for entry in announced_entries] == [0, 1, 2]
+        # Commit-first ordering: CommitCaseLedgerEntryNode fans out the new
+        # accept_invite entry (2) first (invitee already registered), then
+        # backfill sends entries 0 and 1 that the invitee missed.
+        assert [entry.log_index for entry in announced_entries] == [2, 0, 1]
 
     def test_accept_invite_backfill_runs_when_announce_port_missing(
         self, make_payload

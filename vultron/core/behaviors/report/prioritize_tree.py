@@ -31,15 +31,15 @@ Structure:
 
     EngageCaseBT (Sequence)
     ├─ CheckParticipantExists                        # Precondition: actor has a participant record
+    ├─ GuardedCommitCaseLedgerEntryBT                  # Record receipt before effects (CLP-10-006)
     ├─ TransitionParticipantRMtoAccepted             # Update RM state to ACCEPTED
-    ├─ GuardedCommitCaseLedgerEntryBT                  # CaseManager-only canonical log fan-out
     ├─ CaptureCaseUpdateBroadcastExclusionsNode      # Resolve embargo-based exclusions
     └─ BroadcastCaseUpdateNode                       # Announce(VulnerabilityCase) → all participants
 
     DeferCaseBT (Sequence)
     ├─ CheckParticipantExists              # Precondition: actor has a participant record
-    ├─ TransitionParticipantRMtoDeferred   # Update RM state to DEFERRED
-    └─ GuardedCommitCaseLedgerEntryBT         # CaseManager-only canonical log fan-out
+    ├─ GuardedCommitCaseLedgerEntryBT         # Record receipt before effects (CLP-10-006)
+    └─ TransitionParticipantRMtoDeferred   # Update RM state to DEFERRED
 
 Note: EvaluateCasePriority (in nodes.py) is the stub node for the outgoing
 direction — when the local actor decides whether to engage or defer. It is
@@ -56,7 +56,7 @@ from vultron.core.behaviors.case.engage_defer_trigger_tree import (
     engage_case_trigger_bt,
 )
 from vultron.core.behaviors.case.nodes import (
-    create_guarded_commit_case_ledger_entry_tree,
+    create_receive_activity_tree,
 )
 from vultron.core.behaviors.case.nodes.update import (
     BroadcastCaseUpdateNode,
@@ -96,15 +96,16 @@ def create_engage_case_tree(
     Returns:
         Root node of the engage_case behavior tree (Sequence)
     """
-    root = py_trees.composites.Sequence(
+    root = create_receive_activity_tree(
         name="EngageCaseBT",
-        memory=False,
-        children=[
+        case_id=case_id,
+        precondition_guards=[
             CheckParticipantExists(case_id=case_id, actor_id=actor_id),
+        ],
+        effect_nodes=[
             TransitionParticipantRMtoAccepted(
                 case_id=case_id, actor_id=actor_id
             ),
-            create_guarded_commit_case_ledger_entry_tree(case_id=case_id),
             CaptureCaseUpdateBroadcastExclusionsNode(case_id=case_id),
             BroadcastCaseUpdateNode(case_id=case_id),
         ],
@@ -132,15 +133,16 @@ def create_defer_case_tree(
     Returns:
         Root node of the defer_case behavior tree (Sequence)
     """
-    root = py_trees.composites.Sequence(
+    root = create_receive_activity_tree(
         name="DeferCaseBT",
-        memory=False,
-        children=[
+        case_id=case_id,
+        precondition_guards=[
             CheckParticipantExists(case_id=case_id, actor_id=actor_id),
+        ],
+        effect_nodes=[
             TransitionParticipantRMtoDeferred(
                 case_id=case_id, actor_id=actor_id
             ),
-            create_guarded_commit_case_ledger_entry_tree(case_id=case_id),
         ],
     )
 

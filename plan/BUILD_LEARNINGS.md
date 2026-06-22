@@ -4,6 +4,15 @@ Longer-term notes can be found in `/notes/*.md`. This file is ephemeral
 and will be reset periodically, so it's meant to capture more immediate
 insights, issues, and learnings during the implementation process.
 
+### 2026-06-22 TEST-SPLIT-495 — Stage new files and deleted files together when splitting
+
+When splitting a monolithic test file into several new files via `git rm` +
+manual `create`, the new files are untracked until explicitly staged. A
+pre-PR code review caught that the branch's committed diff only contained
+the deletion (from `git rm`) while the four new files sat as untracked
+working-tree files. Always run `git add <new-files>` alongside `git rm
+<old-file>` before committing a file-split refactor.
+
 ### 2026-06-18 PROTOCOL-FIELD-SYNC-792 — CaseModel Protocol fields must stay in sync with concrete type
 
 When removing a field from a concrete domain model (e.g., `VulnerabilityCase.events`),
@@ -31,6 +40,17 @@ a method from a class matched by one of these guards.
 
 Append new items below any existing ones, marking them with the date and a
 header.
+
+### 2026-06-22 AST-RATCHET-LAMBDA — _walk_own_scope must guard ast.Lambda
+
+When implementing an AST-based scope walker to detect calls only in a
+function's *own* scope (not nested scopes), guard `ast.Lambda` in addition
+to `ast.FunctionDef` and `ast.AsyncFunctionDef`. A `lambda` body is a
+separate execution scope — mutations inside it do not belong to the enclosing
+`execute()`. Without the guard, `fn = lambda: self._dl.save(x)` inside
+`execute()` produces a false positive. The fix is one line:
+`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda))`.
+Add a synthetic test specifically for the lambda case to catch regressions.
 
 ### 2026-06-11 OUTBOX-873-TEST-COVERAGE — make acceptance criteria explicit in one file
 
@@ -357,3 +377,25 @@ the two-actor scenario does not call the acknowledge flow
 EXPECTED_EVENT_TYPES accordingly.
 
 README table updated from all-⏳ to all-✅ with inv-15 row added.
+
+### 2026-06-22 CASE-PROPOSAL-810 — #810 premature; CreateCaseActorNode needs a protocol mechanism first
+
+During build investigation for #810, found that routing case actor creation to
+a dedicated container cannot be done cleanly with `Create(VulnerabilityCase)`
+(ActivityStreams semantics violation — only the authoritative creator may send
+`Create`). The issue assumed a `DemoCreateCaseActorNode` workaround without
+addressing the underlying protocol gap. The correct approach is a new
+`CaseProposal` object: vendor sends `Create(CaseProposal)` to the case-actor
+service; the case-actor service accepts and creates the `Case` in its own
+DataLayer. This is tracked as #1081 and blocks #810. The two-actor demo
+currently passes all invariants — #810 is architectural improvement work, not
+a bug fix.
+
+### 2026-06-22 FIXTURE-CONSOLIDATION-492 — test_trigger_actor.py also has the duplicate fixtures
+
+After consolidating `actor_and_dl`, `actor`, and `dl` from the three trigger
+test files into the shared routers `conftest.py` (issue #492), the code review
+identified that `test_trigger_actor.py` still carries the same identical
+fixture definitions. Those fixtures now shadow the conftest ones and are
+candidates for a follow-on cleanup. File a follow-up issue for the
+`test_trigger_actor.py` cleanup when #492 merges.
