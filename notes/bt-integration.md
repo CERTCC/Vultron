@@ -1233,3 +1233,145 @@ seams the original node accepted:
 If downstream leaves rely on blackboard keys written during setup, add
 explicit fallback reads from staged objects/status context to avoid
 regressing call paths that provide context in one form but not the other.
+
+---
+
+### Role Guard Required for All CASE_MANAGER-Only BT Subtrees
+
+(ISSUE-1030, 2026-06-18; see `specs/behavior-tree-integration.yaml` BT-17-001,
+BT-17-002)
+
+The `CheckIsCaseManagerNode` role guard is not only for `CommitCaseLedgerEntryNode`
+(see "Guarded Commit" above) — it MUST be applied to **any** BT subtree whose
+semantics are restricted to the `CVDRole.CASE_MANAGER` actor. The canonical
+composite is:
+
+```python
+Selector(
+    name="ActionIfCaseManager",
+    memory=False,
+    children=[
+        Sequence(
+            name="CaseManagerGuardedAction",
+            children=[
+                CheckIsCaseManagerNode(case_id=case_id),
+                ActionNode(case_id=case_id),   # your CASE_MANAGER-only node
+            ],
+        ),
+        py_trees.behaviours.Success(name="ActionSkippedNotCaseManager"),
+    ],
+)
+```
+
+**Why this is necessary**: Received-side use cases run the BT with the receiving
+actor's `actor_id`. Every participant that receives a broadcast may run the same
+BT. Without an in-tree role guard, a CASE_MANAGER-only node such as
+`AutoCloseBranchNode` fires for every receiving actor — including participants who
+should remain silent. Placing the guard outside the tree (e.g., in `execute()`) is
+insufficient because the same tree factory may be shared across trigger-side and
+received-side paths.
+
+#### Module-Level Idempotency Sets Must Be Paired with a Role Guard
+
+A module-level `set[str]` used to prevent duplicate fires is **per-process**,
+not per-container. In a Docker deployment, vendor-1 and finder-1 each have
+separate Python processes with separate sets; a claim in finder-1 does not
+affect vendor-1. However, **within a single process**, two fires can race:
+if a phantom fire (wrong actor) runs first and claims the slot, the legitimate
+fire (correct actor) is silently skipped.
+
+**Fix**: Always pair a module-level idempotency set with a `CheckIsCaseManagerNode`
+role guard at tree-composition time. The role guard ensures only the correct actor
+can claim the slot. Issue #1030 observed this race on `AutoCloseBranchNode`:
+the phantom fire on finder-1 claimed the set and blocked the real fire on the
+case-actor in the same process.
+
+---
+
+### `memory=False` Sequence: Partial-Write Behavior on FAILURE
+
+(BTND07-913, 2026-06-15; see `specs/behavior-tree-node-design.yaml` BTND-07-001)
+
+A `Sequence(memory=False)` re-evaluates all children from the start on each
+tick. If an early child succeeds but a later child fails, the early child's
+side effects **have already been committed**. The Sequence as a whole returns
+FAILURE, but local state written by the successful earlier children persists.
+
+Example: `add_note_to_case_trigger_bt` uses a `memory=False` Sequence with
+three children:
+
+1. `CreateNoteNode` — creates and writes the note to the DataLayer
+2. `AttachNoteFromResultNode` — attaches the note to the case
+3. `SenderSideBT` — enqueues the outbound activity
+
+If `SenderSideBT` fails (e.g., no CASE_MANAGER recipient resolved), steps 1
+and 2 have already committed. **The note IS attached to the case locally even
+though the overall BT returns FAILURE.** Tests MUST assert this partial-write
+behavior explicitly so future readers do not assume FAILURE → no writes occurred.
+
+**Design implication**: When using `memory=False` sequences for partially-
+reversible operations, document which steps are non-transactional and what
+state is committed if a later step fails.
+
+---
+
+### No-Op Path Must Clear Output Blackboard Keys
+
+(ISSUE-834, 2026-06-18; see `specs/behavior-tree-integration.yaml` BT-17-003,
+BT-17-004)
+
+`py_trees.blackboard.Blackboard.storage` is process-global. `execute_with_setup`
+cleans only the `datalayer` and `trigger_activity_factory` keys on exit — it does
+NOT clean domain-specific output keys such as `broadcast_activity_id`.
+
+**Rule**: When a BT node takes a no-op path (empty recipient list, guard
+condition not met, etc.), it MUST explicitly write `None` to any output
+blackboard key it would normally set. Leaving the key at its stale value from
+a prior execution contaminates the next execution.
+
+```python
+# ✅ Correct — clear the key on no-op path
+if not recipients:
+    self.blackboard.broadcast_activity_id = None
+    return Status.SUCCESS
+
+# ❌ Wrong — stale value visible to next execution
+if not recipients:
+    return Status.SUCCESS
+```
+
+**Consumer side**: Any node that reads an output key from a peer node MUST
+treat both `KeyError` (key never written, first-ever run) and `None` (key
+explicitly cleared by no-op path) as equivalent no-op sentinels. Only handle
+actual typed values.
+
+**Regression test pattern**: Add a test that runs two `execute_with_setup`
+calls back-to-back on the same blackboard instance without clearing between
+them. Assert the second run does not observe output values from the first when
+the producer node takes a no-op path.
+
+---
+
+### Demo Devlog Race: Wait for Replica Before Dumping
+
+(DEMO-DEVLOG-RACE, 2026-06-18)
+
+Demo phases that write JSONL devlogs will miss recently committed canonical
+ledger entries if they run before the async `Announce(CaseLedgerEntry)`
+fan-out has been processed and stored by the replica actor.
+
+**Pattern**: After any phase that commits a new canonical ledger entry, query
+the sender's current tail hash and poll until the replica acknowledges it before
+writing the devlog:
+
+```python
+vendor_entries = _get_log_entries_for_case(vendor_client, case.id_)
+if vendor_entries:
+    tail = max(vendor_entries, key=lambda e: e["log_index"])
+    wait_for_finder_log_entry(finder_client, case.id_, tail["entry_hash"])
+```
+
+Apply this poll-until-hash pattern after every phase that introduces a new
+ledger tail before a devlog dump. This is the same pattern used in
+`_phase_sync_verification` and ensures dump artifacts are always consistent
+with the replica's committed state.

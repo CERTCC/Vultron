@@ -339,6 +339,120 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: BT-06-006
+- id: BT-17
+  title: Role-Gated BT Subtrees and Blackboard Hygiene
+  kind: pattern
+  specs:
+  - id: BT-17-001
+    priority: MUST
+    statement: >-
+      Any BT subtree whose semantics are restricted to the `CVDRole.CASE_MANAGER`
+      actor MUST be wrapped in a role-guard composite using
+      `CheckIsCaseManagerNode` at tree-composition time, not enforced via
+      application-layer guards outside the tree.
+    rationale: >-
+      Received-side use cases execute BTs with the receiving actor's identity.
+      Without a role guard inside the tree, a CASE_MANAGER-only node fires for
+      every actor that receives the triggering activity — including participants
+      who should be silent recipients. Issue #1030 observed `AutoCloseBranchNode`
+      firing on `finder-actor` because no role guard existed inside the tree;
+      combined with a module-level idempotency set, the phantom fire claimed the
+      slot and prevented the legitimate CASE_MANAGER fire. The canonical role-guard
+      composite is a Selector with a guarded Sequence (CheckIsCaseManagerNode +
+      action node) and a `Success("Skipped")` fallback.
+    verification: >-
+      For any BT node whose docstring or name implies CASE_MANAGER-only
+      semantics, grep the tree-composition function that instantiates it and
+      confirm a `CheckIsCaseManagerNode` wraps the subtree.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-06-001
+      note: CASE_MANAGER-only behavior is protocol-significant; it must live
+        inside the tree with an explicit guard
+  - id: BT-17-002
+    priority: MUST
+    statement: >-
+      A module-level idempotency set (a `set[str]` used to track "already fired"
+      state for a BT node) MUST be paired with a role guard (BT-17-001) that
+      prevents any actor other than the intended role from writing to the set.
+    rationale: >-
+      Module-level sets are per-process, not per-container. In a Docker
+      deployment, each actor process has its own set; a phantom fire in process A
+      does not affect process B. However, within a single process, two phantom
+      fires (the wrong actor fires before the correct one) can race: the phantom
+      claims the set slot first and silently blocks the legitimate fire. Pairing
+      the set with a role guard ensures only the correct actor can claim the slot.
+    verification: >-
+      Inspect every module-level `set` used for BT idempotency; confirm the node
+      that writes to it is also guarded by `CheckIsCaseManagerNode` or equivalent
+      role-check at tree-composition time.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-17-001
+  - id: BT-17-003
+    priority: MUST
+    statement: >-
+      When a BT node takes a no-op path (e.g., an empty recipient list or a
+      guard condition that is not met), it MUST explicitly write `None` to any
+      output blackboard key it would normally set before returning FAILURE or
+      SUCCESS. It MUST NOT leave a stale value from a previous execution in
+      the blackboard.
+    rationale: >-
+      `py_trees.blackboard.Blackboard.storage` is process-global and is not
+      cleared between `execute_with_setup` calls for domain-specific keys.
+      `execute_with_setup` only cleans the `datalayer` and
+      `trigger_activity_factory` keys on exit. A consumer node that reads an
+      output key may receive the value from a prior execution if the producer
+      node short-circuits without writing `None`. This causes silent
+      state contamination across otherwise independent BT executions (issue #834).
+    verification: >-
+      Add a regression test that runs two `execute_with_setup` calls back-to-back
+      without clearing the blackboard between them; assert the second run does not
+      observe output values from the first when the node takes a no-op path.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-06-004
+      note: Blackboard cleanup is part of the blackboard management contract
+  - id: BT-17-004
+    priority: MUST
+    statement: >-
+      A consumer BT node that reads an output key set by a peer producer node
+      MUST treat both `KeyError` (key never written) and a `None` value
+      (producer took no-op path per BT-17-003) as equivalent no-op sentinels
+      and skip any write-dependent action.
+    rationale: >-
+      A node that only handles `KeyError` but not `None` will incorrectly proceed
+      with a `None` value on the second run after the producer has cleared the key
+      to `None`. Both states mean "producer had nothing to produce this cycle."
+    verification: >-
+      Unit tests for consumer nodes MUST include a case where the blackboard key
+      is `None` and assert the consumer skips the dependent action.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-17-003
+  - id: BT-17-005
+    priority: MUST
+    statement: >-
+      Tests for a received-side use case that exercises a BT guarded-commit path
+      MUST pass `receiving_actor_id` equal to the actor holding
+      `CVDRole.CASE_MANAGER` in `actor_participant_index`, not the
+      `VultronCaseActor` service entity ID.
+    rationale: >-
+      `CheckIsCaseManagerNode` compares `actor_id` against the participant
+      registered with `CVDRole.CASE_MANAGER` in `actor_participant_index`,
+      not against the `VultronCaseActor` service resource ID. Passing the service
+      entity ID causes the role check to fail silently: the guarded commit never
+      fires, the RM state falls through to the deferred path, and the test may
+      pass for the wrong reason. Issue #1050 discovered this after migrating
+      `AcceptInviteToEmbargoOnCaseReceivedUseCase` to the single-BT pattern.
+    verification: >-
+      In any test fixture for a received-side use case with a guarded-commit BT,
+      assert that `receiving_actor_id` matches the actor whose ID is stored as
+      `CVDRole.CASE_MANAGER` in the test case's `actor_participant_index`.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-17-001
+      note: The role guard identity check is what makes this fixture requirement necessary
 - id: BT-16
   title: Simulation Fuzzer Node Layout
   kind: pattern
