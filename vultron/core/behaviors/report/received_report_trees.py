@@ -41,7 +41,7 @@ from vultron.core.models.events.report import (
     InvalidateReportReceivedEvent,
 )
 from vultron.core.behaviors.case.nodes.lifecycle import (
-    create_guarded_commit_case_ledger_entry_tree,
+    create_receive_activity_tree,
 )
 from vultron.core.behaviors.report.nodes.conditions import (
     CheckRMStateReceivedOrInvalid,
@@ -80,31 +80,29 @@ def create_validate_report_received_tree(
     under ``actor_id=receiving_actor_id`` while still transitioning the
     *sender's* RM state to VALID.
 
-    When ``case_id`` is provided, the guarded-commit subtree
-    (``create_guarded_commit_case_ledger_entry_tree``) is appended as the
-    final child so ``CheckIsCaseManagerNode`` fires when the receiving actor
-    holds ``CVDRole.CASE_MANAGER``.  When ``case_id`` is ``None`` the tree
-    omits the guarded commit entirely (no ledger entry is written).
+    When ``case_id`` is provided, a guarded-commit subtree is inserted before
+    the validation effects so receipt is recorded before any RM state
+    transitions run (CLP-10-006).  Pass ``None`` to skip ledger commit.
 
     Structure::
 
         ValidateReportReceivedBT (Sequence)
-        ├── ValidationOrSkip (Selector)
-        │   ├── ValidationOrShortcut (Selector)   # try validation
-        │   │   ├── CheckRMStateValid(sender_actor_id)       # idempotency exit
-        │   │   └── ValidationFlow (Sequence)
-        │   │       ├── CheckRMStateReceivedOrInvalid(sender_actor_id)
-        │   │       ├── EvaluateReportCredibility
-        │   │       ├── EvaluateReportValidity
-        │   │       └── ValidationActions (Sequence)
-        │   │           ├── TransitionRMtoValid(sender_actor_id)
-        │   │           └── EnsureEmbargoExists
-        │   └── Success("ValidationSkipped")        # fallback — commit always runs
-        └── GuardedCommitOrSkip (Selector, only if case_id)
-            ├── Sequence
-            │   ├── CheckIsCaseManagerNode
-            │   └── CommitCaseLedgerEntryNode
-            └── Success("CommitSkippedNotCaseManager")
+        ├── GuardedCommitOrSkip (Selector, only if case_id)  # Record receipt (CLP-10-006)
+        │   ├── Sequence
+        │   │   ├── CheckIsCaseManagerNode
+        │   │   └── CommitCaseLedgerEntryNode
+        │   └── Success("CommitSkippedNotCaseManager")
+        └── ValidationOrSkip (Selector)
+            ├── ValidationOrShortcut (Selector)   # try validation
+            │   ├── CheckRMStateValid(sender_actor_id)       # idempotency exit
+            │   └── ValidationFlow (Sequence)
+            │       ├── CheckRMStateReceivedOrInvalid(sender_actor_id)
+            │       ├── EvaluateReportCredibility
+            │       ├── EvaluateReportValidity
+            │       └── ValidationActions (Sequence)
+            │           ├── TransitionRMtoValid(sender_actor_id)
+            │           └── EnsureEmbargoExists
+            └── Success("ValidationSkipped")        # fallback — commit already ran
 
     Args:
         report_id: ID of the VulnerabilityReport being validated.
@@ -154,26 +152,20 @@ def create_validate_report_received_tree(
         ],
     )
 
-    children: list[py_trees.behaviour.Behaviour] = [
-        py_trees.composites.Selector(
-            name="ValidationOrSkip",
-            memory=False,
-            children=[
-                validation_or_shortcut,
-                py_trees.behaviours.Success(name="ValidationSkipped"),
-            ],
-        )
-    ]
-
-    if case_id is not None:
-        children.append(
-            create_guarded_commit_case_ledger_entry_tree(case_id=case_id)
-        )
-
-    root = py_trees.composites.Sequence(
-        name="ValidateReportReceivedBT",
+    validation_or_skip = py_trees.composites.Selector(
+        name="ValidationOrSkip",
         memory=False,
-        children=children,
+        children=[
+            validation_or_shortcut,
+            py_trees.behaviours.Success(name="ValidationSkipped"),
+        ],
+    )
+
+    root = create_receive_activity_tree(
+        name="ValidateReportReceivedBT",
+        case_id=case_id,
+        precondition_guards=[],
+        effect_nodes=[validation_or_skip],
     )
     logger.debug(
         "Created ValidateReportReceivedBT for report=%s offer=%s sender=%s"
@@ -237,14 +229,16 @@ def create_ack_report_received_tree(
 
     Handles receipt of a ``Read(Offer(Report))`` (AckReport) activity.
 
-    Steps (Sequence):
-    1. Store AckReport activity idempotently.
-    2. Emit AckReport to CaseActor (Selector — graceful no-op if no CaseActor).
-    3. Guarded commit (only when ``case_id`` is provided and the receiving
-       actor holds ``CVDRole.CASE_MANAGER``).
+    Steps (Sequence via :func:`create_receive_activity_tree`):
+
+    1. Guarded commit (only when ``case_id`` is provided and the receiving
+       actor holds ``CVDRole.CASE_MANAGER``) — records receipt before any
+       effects run (CLP-10-006).
+    2. Store AckReport activity idempotently.
+    3. Emit AckReport to CaseActor (Selector — graceful no-op if no CaseActor).
 
     When running under ``actor_id=receiving_actor_id`` (ADR-0022 single-BT
-    shape), step 2's ``EmitAckReportActivity`` uses the blackboard
+    shape), step 3's ``EmitAckReportActivity`` uses the blackboard
     ``actor_id`` as sender.  On the received side (no TriggerActivityPort),
     the emit node returns FAILURE and the ``NoEmitFallback`` Success absorbs
     it — so the emit is a graceful no-op in the typical CaseActor context.
@@ -252,8 +246,8 @@ def create_ack_report_received_tree(
     Args:
         request: The parsed inbound domain event.
         case_id: ID of the VulnerabilityCase linked to this report.  When
-            provided, a guarded-commit subtree is appended so the receiving
-            CaseActor can write a canonical ledger entry.
+            provided, a guarded-commit subtree is inserted first so the
+            receiving CaseActor can write a canonical ledger entry.
 
     Returns:
         Root node of the ``AckReportReceivedBT`` Sequence.
@@ -262,34 +256,30 @@ def create_ack_report_received_tree(
     offer_id = request.offer_id or activity_id
     report_id = request.report_id or ""
 
-    children: list[py_trees.behaviour.Behaviour] = [
-        StoreActivityNode(
-            activity_id=activity_id,
-            activity_obj=request.activity,
-            label="AckReport",
-        ),
-        py_trees.composites.Selector(
-            name="MaybeEmitAckToCaseActor",
-            memory=False,
-            children=[
-                EmitAckReportActivity(
-                    offer_id=offer_id,
-                    report_id=report_id,
-                ),
-                py_trees.behaviours.Success(name="NoEmitFallback"),
-            ],
-        ),
-    ]
-
-    if case_id is not None:
-        children.append(
-            create_guarded_commit_case_ledger_entry_tree(case_id=case_id)
-        )
-
-    root = py_trees.composites.Sequence(
-        name="AckReportReceivedBT",
+    maybe_emit = py_trees.composites.Selector(
+        name="MaybeEmitAckToCaseActor",
         memory=False,
-        children=children,
+        children=[
+            EmitAckReportActivity(
+                offer_id=offer_id,
+                report_id=report_id,
+            ),
+            py_trees.behaviours.Success(name="NoEmitFallback"),
+        ],
+    )
+
+    root = create_receive_activity_tree(
+        name="AckReportReceivedBT",
+        case_id=case_id,
+        precondition_guards=[],
+        effect_nodes=[
+            StoreActivityNode(
+                activity_id=activity_id,
+                activity_obj=request.activity,
+                label="AckReport",
+            ),
+            maybe_emit,
+        ],
     )
     logger.debug(
         "Created AckReportReceivedBT for activity=%s case=%s",

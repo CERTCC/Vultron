@@ -287,7 +287,9 @@ def test_engage_tree_node_names(case_with_participant, actor_id):
         case_id=case_with_participant.id_, actor_id=actor_id
     )
     assert tree.children[0].name == "CheckParticipantExists"
-    assert tree.children[1].name == "TransitionParticipantRMtoAccepted"
+    # Commit runs before effects (CLP-10-006)
+    assert tree.children[1].name == "GuardedCommitCaseLedgerEntryBT"
+    assert tree.children[2].name == "TransitionParticipantRMtoAccepted"
 
 
 def test_defer_tree_node_names(case_with_participant, actor_id):
@@ -295,7 +297,9 @@ def test_defer_tree_node_names(case_with_participant, actor_id):
         case_id=case_with_participant.id_, actor_id=actor_id
     )
     assert tree.children[0].name == "CheckParticipantExists"
-    assert tree.children[1].name == "TransitionParticipantRMtoDeferred"
+    # Commit runs before effects (CLP-10-006)
+    assert tree.children[1].name == "GuardedCommitCaseLedgerEntryBT"
+    assert tree.children[2].name == "TransitionParticipantRMtoDeferred"
 
 
 # ============================================================================

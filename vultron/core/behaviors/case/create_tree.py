@@ -27,14 +27,14 @@ Structure:
     CreateCaseBT (Selector)
     ├─ CheckCaseAlreadyExists          # Early exit if case already in DataLayer
     └─ CreateCaseFlow (Sequence)
+       ├─ GuardedCommitCaseLedgerEntryBT  # Record receipt before effects (CLP-10-006)
        ├─ SetCaseAttributedTo          # Set attributed_to to actor_id (CM-02-008)
        ├─ PersistCase                  # Save VulnerabilityCase to DataLayer
        ├─ RecordCaseCreationEvents     # Backfill offer_received + case_created events (CM-02-009)
        ├─ CreateCaseOwnerParticipant   # Add case owner as initial participant (CM-02-008)
        ├─ CreateCaseActorNode          # Create CaseActor service (CM-02-001)
        ├─ EmitCreateCaseActivity       # Generate CreateCaseActivity activity
-       ├─ UpdateActorOutbox            # Append activity to actor outbox
-       └─ GuardedCommitCaseLedgerEntryBT  # CaseManager-only canonical log fan-out
+       └─ UpdateActorOutbox            # Append activity to actor outbox
 
 Note: ``ValidateCaseObject`` was removed (#716).  ``VultronBase.id_`` is typed
 ``NonEmptyString`` with a ``default_factory``, so Pydantic enforces a valid
@@ -64,7 +64,7 @@ from vultron.core.behaviors.case.nodes import (
     PersistCase,
     SetCaseAttributedTo,
     UpdateActorOutbox,
-    create_guarded_commit_case_ledger_entry_tree,
+    create_receive_activity_tree,
 )
 
 logger = logging.getLogger(__name__)
@@ -99,10 +99,11 @@ def create_create_case_tree(
     """
     case_id = case_obj.id_
 
-    create_case_flow = py_trees.composites.Sequence(
+    create_case_flow = create_receive_activity_tree(
         name="CreateCaseFlow",
-        memory=False,
-        children=[
+        case_id=case_id,
+        precondition_guards=[],
+        effect_nodes=[
             SetCaseAttributedTo(case_obj=case_obj),
             PersistCase(case_obj=case_obj),
             RecordCaseCreationEvents(case_obj=case_obj),
@@ -112,7 +113,6 @@ def create_create_case_tree(
             CreateCaseActorNode(case_id=case_id),
             EmitCreateCaseActivity(),
             UpdateActorOutbox(),
-            create_guarded_commit_case_ledger_entry_tree(case_id=case_id),
         ],
     )
 

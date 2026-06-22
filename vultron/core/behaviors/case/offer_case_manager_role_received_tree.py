@@ -27,7 +27,7 @@ from vultron.core.behaviors.case.nodes.communication import (
     AutoAcceptCaseManagerRoleNode,
 )
 from vultron.core.behaviors.case.nodes.lifecycle import (
-    create_guarded_commit_case_ledger_entry_tree,
+    create_receive_activity_tree,
 )
 from vultron.core.behaviors.report.nodes.storage import StoreActivityNode
 
@@ -59,12 +59,12 @@ def create_offer_case_manager_role_received_tree(
     Structure::
 
         OfferCaseManagerRoleReceivedBT (Sequence)
-        ├── StoreActivityNode("OfferCaseManagerRole")
         ├── GuardedCommitOrSkip (Selector, only when case_id provided)
-        │   ├── Sequence
+        │   ├── Sequence                              # Record receipt (CLP-10-006)
         │   │   ├── CheckIsCaseManagerNode
         │   │   └── CommitCaseLedgerEntryNode
         │   └── Success("CommitSkippedNotCaseManager")
+        ├── StoreActivityNode("OfferCaseManagerRole")
         └── AutoAcceptCaseManagerRoleNode
 
     Args:
@@ -77,30 +77,21 @@ def create_offer_case_manager_role_received_tree(
     Returns:
         Root ``OfferCaseManagerRoleReceivedBT`` Sequence node.
     """
-    children: list[py_trees.behaviour.Behaviour] = [
-        StoreActivityNode(
-            activity_id=offer_id,
-            activity_obj=offer_obj,
-            label="OfferCaseManagerRole",
-        ),
-    ]
-
-    if case_id:
-        children.append(
-            create_guarded_commit_case_ledger_entry_tree(case_id=case_id)
-        )
-
-    children.append(
-        AutoAcceptCaseManagerRoleNode(
-            offer_id=offer_id,
-            case_id=case_id,
-            participant_id=participant_id,
-            vendor_id=vendor_id,
-        )
-    )
-
-    return py_trees.composites.Sequence(
+    return create_receive_activity_tree(
         name="OfferCaseManagerRoleReceivedBT",
-        memory=False,
-        children=children,
+        case_id=case_id if case_id else None,
+        precondition_guards=[],
+        effect_nodes=[
+            StoreActivityNode(
+                activity_id=offer_id,
+                activity_obj=offer_obj,
+                label="OfferCaseManagerRole",
+            ),
+            AutoAcceptCaseManagerRoleNode(
+                offer_id=offer_id,
+                case_id=case_id,
+                participant_id=participant_id,
+                vendor_id=vendor_id,
+            ),
+        ],
     )

@@ -21,7 +21,7 @@ from typing import Any
 import py_trees
 
 from vultron.core.behaviors.case.nodes.lifecycle import (
-    create_guarded_commit_case_ledger_entry_tree,
+    create_receive_activity_tree,
 )
 from vultron.core.behaviors.report.nodes.storage import StoreActivityNode
 
@@ -38,12 +38,12 @@ def create_close_case_received_tree(
     Structure::
 
         CloseCaseBT (Sequence)
-        ├── StoreActivityNode("Leave")
-        └── GuardedCommitOrSkip (Selector)
-            ├── Sequence
-            │   ├── CheckIsCaseManagerNode
-            │   └── CommitCaseLedgerEntryNode
-            └── Success("CommitSkippedNotCaseManager")
+        ├── GuardedCommitOrSkip (Selector)             # Record receipt (CLP-10-006)
+        │   ├── Sequence
+        │   │   ├── CheckIsCaseManagerNode
+        │   │   └── CommitCaseLedgerEntryNode
+        │   └── Success("CommitSkippedNotCaseManager")
+        └── StoreActivityNode("Leave")                 # Persist inbound Leave activity
 
     Running under ``actor_id=receiving_actor_id`` means
     ``CheckIsCaseManagerNode`` naturally gates the commit to the actor that
@@ -57,15 +57,15 @@ def create_close_case_received_tree(
     Returns:
         Root ``CloseCaseBT`` Sequence node.
     """
-    return py_trees.composites.Sequence(
+    return create_receive_activity_tree(
         name="CloseCaseBT",
-        memory=False,
-        children=[
+        case_id=case_id,
+        precondition_guards=[],
+        effect_nodes=[
             StoreActivityNode(
                 activity_id=activity_id,
                 activity_obj=activity_obj,
                 label="Leave",
             ),
-            create_guarded_commit_case_ledger_entry_tree(case_id=case_id),
         ],
     )
