@@ -357,3 +357,16 @@ the two-actor scenario does not call the acknowledge flow
 EXPECTED_EVENT_TYPES accordingly.
 
 README table updated from all-⏳ to all-✅ with inv-15 row added.
+
+### 2026-06-22 CASE-PROPOSAL-810 — #810 premature; CreateCaseActorNode needs a protocol mechanism first
+
+During build investigation for #810, found that routing case actor creation to
+a dedicated container cannot be done cleanly with `Create(VulnerabilityCase)`
+(ActivityStreams semantics violation — only the authoritative creator may send
+`Create`). The issue assumed a `DemoCreateCaseActorNode` workaround without
+addressing the underlying protocol gap. The correct approach is a new
+`CaseProposal` object: vendor sends `Create(CaseProposal)` to the case-actor
+service; the case-actor service accepts and creates the `Case` in its own
+DataLayer. This is tracked as #1081 and blocks #810. The two-actor demo
+currently passes all invariants — #810 is architectural improvement work, not
+a bug fix.
