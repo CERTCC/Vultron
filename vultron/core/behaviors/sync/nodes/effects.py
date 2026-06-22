@@ -19,8 +19,11 @@ Provides action nodes that apply protocol-significant side effects when a
 non-Case-Actor participant processes a ledger entry of a specific event type.
 
 Currently implemented effects:
+
 - :class:`ApplyParticipantStatusFromLedgerNode`: applies an
   ``add_participant_status_to_participant`` event to the local participant record.
+- :class:`ApplyNoteFromLedgerNode`: applies an ``add_note_to_case`` event to
+  the local case replica by attaching the note ID to ``notes``.
 
 Per specs/multi-actor-demo.yaml DEMOMA-07-003 step 3 and
 specs/sync-ledger-replication.yaml SYNC-02-002.
@@ -36,7 +39,7 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.protocols import is_participant_model
+from vultron.core.models.protocols import is_case_model, is_participant_model
 from vultron.core.use_cases._helpers import _as_id
 
 logger = logging.getLogger(__name__)
@@ -193,5 +196,83 @@ class ApplyParticipantStatusFromLedgerNode(DataLayerAction):
             self.name,
             status_id,
             participant_id,
+        )
+        return Status.SUCCESS
+
+
+class ApplyNoteFromLedgerNode(DataLayerAction):
+    """Apply an ``add_note_to_case`` ledger entry to the local case replica.
+
+    When a non-CaseActor participant receives ``Announce(CaseLedgerEntry)``
+    and the entry's ``event_type`` is ``add_note_to_case``, this node
+    extracts the note ID from ``payload_snapshot["object"]`` and appends it
+    to the local case replica's ``notes`` list (idempotent).
+
+    This is the canonical mechanism by which non-CaseActor participants
+    learn about note additions — they must NOT update ``notes`` directly from
+    ``Add(Note, Case)`` messages; only the CaseActor does that (ADR-0022,
+    SYNC-02-002).
+
+    Lenient on missing data: if the case replica is absent, the note ID is
+    not present in the snapshot, or the snapshot is malformed, the node
+    returns SUCCESS to avoid blocking the ``Announce`` processing flow.
+    """
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="activity", access=py_trees.common.Access.READ
+        )
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            self.feedback_message = "DataLayer not available"
+            return Status.FAILURE
+
+        from vultron.core.behaviors.sync.nodes.conditions import (
+            _require_log_entry,
+        )
+
+        entry = _require_log_entry(self.blackboard.activity, self.name)
+        snapshot = entry.payload_snapshot
+
+        note_id = _extract_id_from_field(snapshot.get("object"))
+        case_id = entry.case_id
+
+        if not note_id or not case_id:
+            self.logger.debug(
+                "%s: payload_snapshot missing 'object' id or case_id"
+                " — skipping note apply (non-fatal)",
+                self.name,
+            )
+            return Status.SUCCESS
+
+        case = self.datalayer.read(case_id)
+        if not is_case_model(case):
+            self.logger.debug(
+                "%s: case '%s' not found in local DataLayer"
+                " — skipping (non-fatal, partial case view)",
+                self.name,
+                case_id,
+            )
+            return Status.SUCCESS
+
+        existing_ids = [_as_id(n) for n in case.notes]
+        if note_id in existing_ids:
+            self.logger.debug(
+                "%s: note '%s' already in case '%s' — idempotent no-op",
+                self.name,
+                note_id,
+                case_id,
+            )
+            return Status.SUCCESS
+
+        case.notes.append(note_id)
+        self.datalayer.save(case)
+        self.logger.info(
+            "%s: applied ledger note attachment '%s' to case '%s' (SYNC-02-002)",
+            self.name,
+            note_id,
+            case_id,
         )
         return Status.SUCCESS

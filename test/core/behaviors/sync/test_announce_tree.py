@@ -266,3 +266,94 @@ class TestAnnounceLogEntryAppliesEmbargoTeardown:
         updated = datalayer.read(CASE_ID)
         assert updated is not None
         assert updated.current_status.em_state == EM.EXITED
+
+
+NOTE_ID = "https://example.org/notes/test-note-1"
+
+
+def _make_add_note_entry(
+    log_index: int, prev_hash: str = _ZERO_HASH
+) -> VultronCaseLedgerEntry:
+    """Create a ledger entry with event_type='add_note_to_case'."""
+    return _to_persistable_entry(
+        HashChainLedgerRecord(
+            case_id=CASE_ID,
+            log_index=log_index,
+            object_id=f"https://example.org/activities/add-note-{log_index}",
+            event_type="add_note_to_case",
+            payload_snapshot={"object": NOTE_ID},
+            prev_log_hash=prev_hash,
+        )
+    )
+
+
+class TestAnnounceLogEntryAppliesNoteAttachment:
+    """Participant receiving add_note_to_case ledger entry attaches note."""
+
+    def test_participant_attaches_note_on_add_note_entry(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        """BT attaches note ID to case replica when entry is add_note_to_case.
+
+        A non-CaseActor participant must learn about note additions exclusively
+        via Announce(CaseLedgerEntry) fan-out (SYNC-02-002, ADR-0022).
+        """
+        entry = _make_add_note_entry(0, case_obj.genesis_hash)
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = bridge.execute_with_setup(
+            tree=create_announce_log_entry_tree(),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
+
+        assert result.status == Status.SUCCESS
+        updated = datalayer.read(CASE_ID)
+        assert updated is not None
+        assert NOTE_ID in updated.notes
+
+    def test_note_attachment_is_idempotent(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        """Running BT twice with same note entry attaches note exactly once."""
+        case_obj.notes.append(NOTE_ID)
+        datalayer.save(case_obj)
+
+        entry = _make_add_note_entry(0, case_obj.genesis_hash)
+        # Pre-store entry so second run takes the already-stored path.
+        datalayer.save(entry)
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = bridge.execute_with_setup(
+            tree=create_announce_log_entry_tree(),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
+
+        assert result.status == Status.SUCCESS
+        updated = datalayer.read(CASE_ID)
+        assert updated is not None
+        assert updated.notes.count(NOTE_ID) == 1
+
+    def test_note_not_attached_for_non_note_entry(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        """NoteEffects Selector short-circuits for unrelated event types."""
+        entry = _make_entry(
+            0, case_obj.genesis_hash
+        )  # event_type="test_event"
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = bridge.execute_with_setup(
+            tree=create_announce_log_entry_tree(),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
+
+        assert result.status == Status.SUCCESS
+        updated = datalayer.read(CASE_ID)
+        assert updated is not None
+        assert updated.notes == []

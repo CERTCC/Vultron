@@ -95,13 +95,7 @@ def _collect_violations() -> frozenset[str]:
 # `execute_with_setup()` call with the guarded commit composed as a child
 # subtree of the use case's own tree-factory function.
 # ---------------------------------------------------------------------------
-KNOWN_VIOLATIONS: frozenset[str] = frozenset(
-    {
-        "vultron/core/use_cases/received/note.py",
-        "vultron/core/use_cases/received/case/lifecycle.py",
-        "vultron/core/use_cases/received/actor/case_manager_role.py",
-    }
-)
+KNOWN_VIOLATIONS: frozenset[str] = frozenset()
 
 
 def test_received_use_cases_do_not_dispatch_guarded_commit_directly():

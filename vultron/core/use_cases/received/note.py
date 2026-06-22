@@ -1,25 +1,29 @@
 """Use cases for case note activities."""
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.note.add_note_received_tree import (
+    create_add_note_to_case_received_tree,
+)
+from vultron.core.behaviors.note.create_note_tree import create_note_tree
 from vultron.core.models.events.note import (
     AddNoteToCaseReceivedEvent,
     CreateNoteReceivedEvent,
     RemoveNoteFromCaseReceivedEvent,
 )
 from vultron.core.ports.case_persistence import (
-    CasePersistence,
     CaseOutboxPersistence,
+    CasePersistence,
 )
 from vultron.core.models.protocols import is_case_model
 from vultron.core.use_cases._helpers import _as_id
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
-    from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
 
@@ -33,10 +37,6 @@ class CreateNoteReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.note.create_note_tree import (
-            create_note_tree,
-        )
 
         note = request.note
         if note is None:
@@ -65,17 +65,29 @@ class CreateNoteReceivedUseCase:
 
 
 class AddNoteToCaseReceivedUseCase:
+    """Attach a received note to the case and commit a canonical ledger entry.
+
+    Only the CaseActor (actor holding ``CVDRole.CASE_MANAGER``) attaches the
+    note to ``VulnerabilityCase.notes`` and commits a ``CaseLedgerEntry``.
+    Non-CaseActor receivers MUST NOT update their case replica directly from
+    ``Add(Note, Case)`` messages — they receive note attachment notifications
+    exclusively via ``Announce(CaseLedgerEntry)`` fan-out from the CaseActor
+    (SYNC-02-002).
+
+    The ``CheckIsCaseManagerNode`` guard inside the BT enforces this: non-
+    CaseActors take the ``Success`` fallback and skip both attach and commit
+    (CLP-10-003).
+    """
+
     def __init__(
         self,
         dl: CaseOutboxPersistence,
         request: AddNoteToCaseReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
-        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: AddNoteToCaseReceivedEvent = request
         self._sync_port = sync_port
-        self._trigger_activity = trigger_activity
 
     def execute(self) -> None:
         request = self._request
@@ -84,137 +96,33 @@ class AddNoteToCaseReceivedUseCase:
         if note_id is None or case_id is None:
             logger.warning("add_note_to_case: missing note_id or case_id")
             return
-        case = self._dl.read(case_id)
-
-        if not is_case_model(case):
-            logger.warning("add_note_to_case: case '%s' not found", case_id)
-            return
-
-        existing_ids = [_as_id(n) for n in case.notes]
-        if note_id in existing_ids:
-            logger.info(
-                "Note '%s' already in case '%s' — skipping attachment"
-                " (idempotent)",
-                note_id,
-                case_id,
-            )
-        else:
-            case.notes.append(note_id)
-            self._dl.save(case)
-            logger.info("Added note '%s' to case '%s'", note_id, case_id)
-
-            self._broadcast_note_to_participants(
-                note_id=note_id,
-                case_id=case_id,
-                author_id=request.actor_id,
-                case=case,
-            )
-
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.case.nodes import (
-            create_guarded_commit_case_ledger_entry_tree,
-        )
-        from vultron.core.use_cases._helpers import _find_case_actor_id
-
-        case_actor_id = _find_case_actor_id(self._dl, case_id)
-        if case_actor_id is None:
-            logger.warning(
-                "add_note_to_case: cannot resolve CaseActor for case '%s'"
-                " — skipping log entry (PCR-08-003)",
-                case_id,
-            )
-            return
 
         receiving_actor_id = request.receiving_actor_id
         if receiving_actor_id is None:
             logger.debug(
                 "add_note_to_case: missing receiving_actor_id"
-                " — skipping commit"
+                " — skipping (CLP-10-005)"
             )
             return
 
-        if receiving_actor_id != case_actor_id:
-            logger.debug(
-                "add_note_to_case: receiving actor '%s' is not the CaseActor"
-                " for case '%s' — skipping commit (CLP-10-003)",
-                receiving_actor_id,
-                case_id,
-            )
-            return
-
-        BTBridge(datalayer=self._dl).execute_with_setup(
-            tree=create_guarded_commit_case_ledger_entry_tree(case_id=case_id),
+        tree = create_add_note_to_case_received_tree(
+            note_id=note_id,
+            case_id=case_id,
+        )
+        result = BTBridge(datalayer=self._dl).execute_with_setup(
+            tree=tree,
             actor_id=receiving_actor_id,
             activity=request,
             sync_port=self._sync_port,
         )
-
-    def _broadcast_note_to_participants(
-        self,
-        note_id: str,
-        case_id: str,
-        author_id: str,
-        case: Any,
-    ) -> None:
-        """Broadcast note addition to all case participants via CaseActor.
-
-        Implements CM-06-005: when a note is added to a case the CaseActor
-        MUST broadcast the note to all participants (excluding the author).
-        Recipients are derived from VulnerabilityCase.actor_participant_index.
-        """
-        if self._trigger_activity is None:
+        if result.status != Status.SUCCESS:
             logger.debug(
-                "add_note_to_case: no TriggerActivityPort for case '%s'"
-                " — skipping broadcast (CM-06-005)",
+                "add_note_to_case: BT did not fully succeed for note '%s'"
+                " in case '%s': %s",
+                note_id,
                 case_id,
+                BTBridge.get_failure_reason(tree) or result.feedback_message,
             )
-            return
-
-        # Locate the CaseActor (type_="Service") for this case.
-        case_actor_id: str | None = None
-        for service in self._dl.list_objects("Service"):
-            if getattr(service, "context", None) == case_id:
-                case_actor_id = service.id_
-                break
-
-        if case_actor_id is None:
-            logger.debug(
-                "add_note_to_case: no CaseActor found for case '%s'"
-                " — skipping broadcast (CM-06-005)",
-                case_id,
-            )
-            return
-
-        recipient_ids = [
-            actor_id
-            for actor_id in case.actor_participant_index.keys()
-            if actor_id != author_id
-        ]
-        if not recipient_ids:
-            logger.debug(
-                "add_note_to_case: no eligible recipients in case '%s'"
-                " — skipping broadcast",
-                case_id,
-            )
-            return
-
-        activity_id, _ = self._trigger_activity.add_note_to_case(
-            note_id=note_id,
-            case_id=case_id,
-            actor=case_actor_id,
-            to=recipient_ids,
-        )
-
-        self._dl.record_outbox_item(case_actor_id, activity_id)
-
-        logger.info(
-            "add_note_to_case: CaseActor '%s' broadcast AddNoteToCase for"
-            " note '%s' in case '%s' to %d participant(s) (CM-06-005)",
-            case_actor_id,
-            note_id,
-            case_id,
-            len(recipient_ids),
-        )
 
 
 class RemoveNoteFromCaseReceivedUseCase:

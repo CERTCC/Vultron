@@ -25,9 +25,6 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
-from vultron.adapters.driven.trigger_activity_adapter import (
-    TriggerActivityAdapter,
-)
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.states.roles import CVDRole
 from vultron.core.use_cases.received.note import AddNoteToCaseReceivedUseCase
@@ -136,7 +133,6 @@ class TestAddNoteToCaseLedgerRouting:
             dl=dl,
             request=event,
             sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         event_types = _ledger_event_types(dl)
@@ -167,7 +163,6 @@ class TestAddNoteToCaseLedgerRouting:
             dl=dl,
             request=event,
             sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         event_types = _ledger_event_types(dl)
@@ -202,7 +197,6 @@ class TestAddNoteToCaseLedgerRouting:
             dl=dl,
             request=event,
             sync_port=SyncActivityAdapter(dl),
-            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         event_types = _ledger_event_types(dl)

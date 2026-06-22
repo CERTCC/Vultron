@@ -468,19 +468,24 @@ class TestBootstrapSequence:
             f"Activity was incorrectly deferred (PCR-07-006 AC-2)."
         )
 
-        # Assert 2: The note ID must appear in the replica's notes list,
-        # confirming AddNoteToCaseReceivedUseCase ran to completion.
+        # Assert 2: Non-CaseActors must NOT attach the note to their replica.
+        # In the new protocol model (ADR-0022), note attachment is gated by
+        # CheckIsCaseManagerNode — only the CaseActor attaches the note to its
+        # case replica.  Non-CaseActor participants receive the note update
+        # exclusively via Announce(CaseLedgerEntry) fan-out from the CaseActor
+        # (SYNC-02-002).  The BT still returns SUCCESS (via the fallback path),
+        # so the handler ran to completion — demonstrated by Assert 3 below.
         replica = participant_iso.dl.read(_DIRECT_CASE_ID)
         assert replica is not None
         replica_note_ids = [
             getattr(n, "id_", n) if not isinstance(n, str) else n
             for n in getattr(replica, "notes", [])
         ]
-        assert note.id_ in replica_note_ids, (
-            f"Note '{note.id_}' not found in case replica notes "
-            f"after Add(Note) was dispatched. "
-            f"AddNoteToCaseReceivedUseCase may not have run "
-            f"(PCR-07-006 AC-2). Replica notes: {replica_note_ids!r}"
+        assert note.id_ not in replica_note_ids, (
+            f"Note '{note.id_}' was unexpectedly attached to a non-CaseActor "
+            f"case replica. Non-CaseActors must not update replica notes "
+            f"directly from Add(Note, Case) messages (SYNC-02-002, ADR-0022). "
+            f"Replica notes: {replica_note_ids!r}"
         )
 
         # Assert 3: The actor's inbox queue must be drained, confirming

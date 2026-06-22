@@ -3,7 +3,12 @@
 import logging
 from typing import TYPE_CHECKING
 
+from py_trees.common import Status
+
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.offer_case_manager_role_received_tree import (
+    create_offer_case_manager_role_received_tree,
+)
 from vultron.core.models.events.actor import (
     AcceptCaseManagerRoleReceivedEvent,
     OfferCaseManagerRoleReceivedEvent,
@@ -57,112 +62,43 @@ class OfferCaseManagerRoleReceivedUseCase:
         self._sync_port = sync_port
 
     def execute(self) -> None:
-        from vultron.core.use_cases.received.sync import _find_local_actor_id
-        from vultron.core.use_cases.triggers._helpers import (
-            add_activity_to_outbox,
-        )
-
         request = self._request
-        _idempotent_create(
-            self._dl,
-            request.activity_type,
-            request.activity_id,
-            request.activity,
-            "OfferCaseManagerRole",
-            request.activity_id,
-        )
-        logger.info(
-            "OfferCaseManagerRoleReceived: actor '%s' offered CASE_MANAGER"
-            " role delegation for activity '%s'",
-            request.actor_id,
-            request.activity_id,
-        )
-
-        if self._trigger_activity is None:
-            logger.warning(
-                "OfferCaseManagerRoleReceived: trigger_activity not available"
-                " — skipping auto-accept for offer '%s'",
-                request.activity_id,
+        receiving_actor_id = request.receiving_actor_id
+        if receiving_actor_id is None:
+            logger.debug(
+                "OfferCaseManagerRoleReceivedUseCase: missing"
+                " receiving_actor_id — skipping (CLP-10-005)"
             )
             return
 
-        case_id = _as_id(request.activity.object_)
-        participant_id = _as_id(request.activity.target)
         offer_id = request.activity_id
         vendor_id = request.actor_id
+        case_id = _as_id(request.activity.object_)
+        participant_id = _as_id(request.activity.target)
 
-        if not case_id or not participant_id:
-            logger.warning(
-                "OfferCaseManagerRoleReceived: missing case_id or"
-                " participant_id in offer '%s' — skipping auto-accept",
-                offer_id,
-            )
-            return
-
-        local_actor_id = request.receiving_actor_id or _find_local_actor_id(
-            self._dl
+        tree = create_offer_case_manager_role_received_tree(
+            offer_id=offer_id,
+            offer_obj=request.activity,
+            case_id=case_id or "",
+            participant_id=participant_id or "",
+            vendor_id=vendor_id or "",
         )
-        if local_actor_id is None:
-            logger.warning(
-                "OfferCaseManagerRoleReceived: no local actor found"
-                " — skipping auto-accept for offer '%s'",
+        result = BTBridge(
+            datalayer=self._dl,
+            trigger_activity=self._trigger_activity,
+        ).execute_with_setup(
+            tree=tree,
+            actor_id=receiving_actor_id,
+            activity=request,
+            sync_port=self._sync_port,
+        )
+        if result.status != Status.SUCCESS:
+            logger.debug(
+                "OfferCaseManagerRoleReceivedUseCase: BT did not fully"
+                " succeed for offer '%s': %s",
                 offer_id,
+                BTBridge.get_failure_reason(tree) or result.feedback_message,
             )
-            return
-
-        try:
-            accept_id = self._trigger_activity.accept_case_manager_role(
-                offer_id=offer_id,
-                case_id=case_id,
-                participant_id=participant_id,
-                vendor_id=vendor_id,
-                actor=local_actor_id,
-                to=[vendor_id],
-            )
-            add_activity_to_outbox(local_actor_id, accept_id, self._dl)
-            logger.info(
-                "OfferCaseManagerRoleReceived: auto-accepted offer '%s'"
-                " as actor '%s'; queued Accept '%s' to outbox",
-                offer_id,
-                local_actor_id,
-                accept_id,
-            )
-        except Exception as exc:
-            logger.error(
-                "OfferCaseManagerRoleReceived: error auto-accepting offer"
-                " '%s': %s",
-                offer_id,
-                exc,
-            )
-
-        # Backfill: the CaseActor commits its initialization event to the
-        # canonical case ledger.  The vendor MUST NOT do this (it is not
-        # the CaseActor); this is the first point at which the CaseActor
-        # is protocol-operational and can write a canonical entry.
-        # BT-15-001: protocol-significant action lives in a BT leaf.
-        if self._sync_port is not None:
-            from vultron.core.behaviors.case.nodes.lifecycle import (
-                create_guarded_commit_case_ledger_entry_tree,
-            )
-
-            result = BTBridge(
-                datalayer=self._dl,
-                trigger_activity=self._trigger_activity,
-                sync_port=self._sync_port,
-            ).execute_with_setup(
-                tree=create_guarded_commit_case_ledger_entry_tree(
-                    case_id=case_id
-                ),
-                actor_id=local_actor_id,
-                activity=request,
-            )
-            if result.status.value != "success":
-                logger.warning(
-                    "OfferCaseManagerRoleReceived: backfill ledger commit"
-                    " did not succeed for case '%s': %s",
-                    case_id,
-                    result.feedback_message,
-                )
 
 
 class AcceptCaseManagerRoleReceivedUseCase:

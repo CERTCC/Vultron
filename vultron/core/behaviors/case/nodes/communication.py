@@ -16,8 +16,8 @@
 """
 Communication action nodes for case behavior trees.
 
-Provides action nodes that emit outbound activities related to case creation
-and case-manager role offers.
+Provides action nodes that emit outbound activities related to case creation,
+case-manager role offers, and case-manager role auto-acceptance.
 
 Composite subtrees assembling these leaf nodes are defined in the sibling
 ``communication_tree.py`` module at the process-area root per BTND-07-003:
@@ -27,7 +27,7 @@ Composite subtrees assembling these leaf nodes are defined in the sibling
 """
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 import py_trees
 from py_trees.common import Status
@@ -35,6 +35,7 @@ from py_trees.common import Status
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.protocols import is_case_model
 from vultron.core.models.vultron_types import VultronCreateCaseActivity
+from vultron.core.ports.case_persistence import CaseOutboxPersistence
 
 logger = logging.getLogger(__name__)
 
@@ -310,5 +311,101 @@ class CreateOfferCaseManagerActivityNode(DataLayerAction):
         except Exception as e:
             self.logger.error(
                 f"{self.name}: Error sending Offer(CaseManagerRole): {e}"
+            )
+            return Status.FAILURE
+
+
+class AutoAcceptCaseManagerRoleNode(DataLayerAction):
+    """Auto-accept a CASE_MANAGER role delegation offer on behalf of the local actor.
+
+    When the local actor (the Case Actor entity) receives an
+    ``Offer(CaseManagerRole)`` it MUST auto-accept so the offering Vendor
+    receives confirmation.  This node creates the ``Accept`` activity via
+    ``trigger_activity_factory`` and queues it in the local actor's outbox.
+
+    Returns ``FAILURE`` when ``trigger_activity_factory`` is not available
+    so that the enclosing Sequence propagates the failure rather than
+    silently continuing.  Callers that want the guarded-commit subtree to
+    run regardless of auto-accept status should wrap this node in a
+    ``Selector`` with a ``Success`` fallback.
+
+    See DEMOMA-08-002, DEMOMA-08-003; Issue #469, Issue #1021.
+    """
+
+    def __init__(
+        self,
+        offer_id: str,
+        case_id: str,
+        participant_id: str,
+        vendor_id: str,
+        name: str | None = None,
+    ) -> None:
+        """Initialise the node.
+
+        Args:
+            offer_id: ID of the ``Offer(CaseManagerRole)`` activity.
+            case_id: ID of the VulnerabilityCase referenced by the offer.
+            participant_id: ID of the CaseParticipant being offered the role.
+            vendor_id: Actor ID of the offering Vendor (recipient of Accept).
+            name: Optional custom node name.
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self.offer_id = offer_id
+        self.case_id = case_id
+        self.participant_id = participant_id
+        self.vendor_id = vendor_id
+
+    def update(self) -> Status:
+        if self.datalayer is None or self.actor_id is None:
+            self.logger.error(
+                "%s: DataLayer or actor_id not available", self.name
+            )
+            return Status.FAILURE
+
+        if self.trigger_activity_factory is None:
+            self.logger.warning(
+                "%s: trigger_activity_factory not available"
+                " — cannot auto-accept offer '%s'",
+                self.name,
+                self.offer_id,
+            )
+            return Status.FAILURE
+
+        if not self.case_id or not self.participant_id:
+            self.logger.warning(
+                "%s: missing case_id or participant_id for offer '%s'"
+                " — skipping auto-accept",
+                self.name,
+                self.offer_id,
+            )
+            return Status.FAILURE
+
+        try:
+            accept_id = self.trigger_activity_factory.accept_case_manager_role(
+                offer_id=self.offer_id,
+                case_id=self.case_id,
+                participant_id=self.participant_id,
+                vendor_id=self.vendor_id,
+                actor=self.actor_id,
+                to=[self.vendor_id],
+            )
+            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
+                self.actor_id, accept_id
+            )
+            self.logger.info(
+                "%s: auto-accepted offer '%s' as actor '%s';"
+                " queued Accept '%s' to outbox",
+                self.name,
+                self.offer_id,
+                self.actor_id,
+                accept_id,
+            )
+            return Status.SUCCESS
+        except Exception as exc:
+            self.logger.error(
+                "%s: error auto-accepting offer '%s': %s",
+                self.name,
+                self.offer_id,
+                exc,
             )
             return Status.FAILURE

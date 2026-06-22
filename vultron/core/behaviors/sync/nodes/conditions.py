@@ -182,6 +182,7 @@ class CheckLedgerEntryAlreadyStoredNode(DataLayerCondition):
 
 _REMOVE_EMBARGO_EVENT = "remove_embargo_event_from_case"
 _ADD_PARTICIPANT_STATUS_EVENT = "add_participant_status_to_participant"
+_ADD_NOTE_TO_CASE_EVENT = "add_note_to_case"
 
 
 class IsNotRemoveEmbargoEventNode(DataLayerCondition):
@@ -232,6 +233,32 @@ class IsNotParticipantStatusEventNode(DataLayerCondition):
     def update(self) -> Status:
         entry = _require_log_entry(self.blackboard.activity, self.name)
         if entry.event_type != _ADD_PARTICIPANT_STATUS_EVENT:
+            return Status.SUCCESS
+        return Status.FAILURE
+
+
+class IsNotAddNoteEventNode(DataLayerCondition):
+    """Guard: return SUCCESS when this log entry is *not* an add-note event.
+
+    Used as the first child of the ``NoteEffects`` Selector in
+    ``AnnounceLogEntryReceivedBT``.  When the event type is not
+    ``add_note_to_case``, the Selector short-circuits to SUCCESS without
+    running the note-attachment branch.  When the event *is* an add-note
+    event, FAILURE is returned so the Selector proceeds to
+    :class:`~vultron.core.behaviors.sync.nodes.effects.ApplyNoteFromLedgerNode`.
+
+    Per SYNC-02-002.
+    """
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="activity", access=py_trees.common.Access.READ
+        )
+
+    def update(self) -> Status:
+        entry = _require_log_entry(self.blackboard.activity, self.name)
+        if entry.event_type != _ADD_NOTE_TO_CASE_EVENT:
             return Status.SUCCESS
         return Status.FAILURE
 
