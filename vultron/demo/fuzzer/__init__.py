@@ -80,6 +80,20 @@ from vultron.demo.fuzzer.report_management import (
     OtherWork,
     PreCloseAction,
     RequestId,
+    AllPublished,
+    ExploitReady,
+    NoPublishExploit,
+    NoPublishFix,
+    NoPublishReport,
+    PrepareFix,
+    PrepareExploit,
+    PrepareReport,
+    PrioritizePublicationIntents,
+    Publish,
+    PublicationIntentsSet,
+    ReprioritizeExploit,
+    ReprioritizeFix,
+    ReprioritizeReport,
 )
 
 __all__ = [
@@ -147,6 +161,21 @@ __all__ = [
     "OtherCloseCriteriaMet",
     "PreCloseAction",
     "OtherWork",
+    # publication workflow nodes
+    "AllPublished",
+    "PublicationIntentsSet",
+    "PrioritizePublicationIntents",
+    "Publish",
+    "NoPublishExploit",
+    "ExploitReady",
+    "PrepareExploit",
+    "ReprioritizeExploit",
+    "NoPublishFix",
+    "PrepareFix",
+    "ReprioritizeFix",
+    "NoPublishReport",
+    "PrepareReport",
+    "ReprioritizeReport",
     # messaging inbound nodes
     "FollowUpOnErrorMessage",
 ]
