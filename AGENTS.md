@@ -701,6 +701,17 @@ Short entries are reproduced here; longer ones are referenced below.
   violation (ADR-0009) and makes the pipeline untestable from non-HTTP entry
   points. See `specs/inbox-orchestration.yaml` IO-02-003 and IO-03-003, and
   `notes/inbox-orchestration.md`.
+- **`ProposeCaseToActorNode` Sends `Create(CaseProposal)`; `CreateCaseActorNode`
+  Does Not** — These two BT nodes have distinct responsibilities and MUST NOT be
+  conflated. `CreateCaseActorNode` registers the case-actor service as an actor
+  resource in the local DataLayer; it creates the actor identity, not the case.
+  `ProposeCaseToActorNode` sends `Create(as_CaseProposal)` to the already-registered
+  case-actor service to initiate the case initialization protocol. Updating
+  `CreateCaseActorNode` to send a CaseProposal is a violation of single
+  responsibility and causes the proposal to be sent before the actor is ready.
+  `ProposeCaseToActorNode` MUST be wired into the case-creation BT tree AFTER
+  `CreateCaseActorNode` succeeds. See `specs/case-proposal.yaml` CP-04-002 and
+  `notes/case-proposal.md`.
 
 ## Skill Interaction Rules
 

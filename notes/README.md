@@ -151,6 +151,15 @@ vocabulary examples.
 **Load when**: implementing any inbound or outbound message handler, debugging
 semantic extraction, or writing new ActivityStreams vocabulary classes.
 
+**`case-proposal.md`**
+Design rationale, protocol flow, and implementation guidance for the
+`CaseProposal` mechanism: new `as_CaseProposal` AS2 object type, the
+`Create(CaseProposal)` / `Accept(CaseProposal)` / `Reject(CaseProposal)` flow,
+`ProposeCaseToActorNode` vs `CreateCaseActorNode` responsibilities, and the
+three received-side use cases. ADR: `docs/adr/0023-case-proposal-protocol.md`.
+**Load when**: implementing `as_CaseProposal`, `ProposeCaseToActorNode`, or
+the received-side use cases; or working on issues #810, #811, #812.
+
 **`vocabulary-registry.md`**
 Design decisions and migration path for the AS2 vocabulary registry refactor:
 auto-registration via `__init_subclass__`, flat registry dict, `VocabNamespace`

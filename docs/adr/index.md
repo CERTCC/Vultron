@@ -78,6 +78,8 @@ General information about architectural decision records is available at <https:
   Entries](0021-caseactor-inbox-routing-canonical-ledger.md)
 - [ADR-0022 Single BT Execution Per Inbox Delivery for Received-Side
   CaseActor Routing](0022-single-bt-execution-for-received-side-case-actor-routing.md)
+- [ADR-0023 Introduce `CaseProposal` for Distributed Case Actor
+  Initialization](0023-case-proposal-protocol.md)
 
 ## Proposed ADRs
 
