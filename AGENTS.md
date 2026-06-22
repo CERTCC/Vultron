@@ -551,6 +551,21 @@ Short entries are reproduced here; longer ones are referenced below.
   [notes/bt-integration.md](notes/bt-integration.md)
   § "Trigger/Received Parity" and `specs/behavior-tree-integration.yaml`
   BT-15-001, BT-15-002.
+- **Receive-Side BTs Must Record the Triggering Activity Before Applying
+  Protocol Effects** — In any receive-side BT tree that contains a
+  `GuardedCommitCaseLedgerEntryBT` subtree (via
+  `create_guarded_commit_case_ledger_entry_tree`), the commit subtree MUST
+  appear BEFORE any protocol-effect node (state transitions, outbox enqueues,
+  participant record mutations). Pure precondition-guard nodes (read-only
+  checks that return FAILURE without writing state) MAY precede the commit.
+  The correct ordering is: (1) precondition guards, (2) commit, (3) all
+  protocol effects. Placing effects before the commit inverts causal ordering:
+  the case ledger shows effects without the cause that produced them, breaking
+  forensic auditability and ledger replication. The commit records that the
+  triggering activity was received — this is independent of whether subsequent
+  effects succeed. Audit issue #1068 found this inverted ordering consistently
+  across receive-side BTs; fix tracked in implementation issues blocked by
+  #1052. See `specs/case-ledger-processing.yaml` CLP-10-006.
 - **Received-Side execute() Must Not Call commit_log_entry_trigger() Directly** —
   A received-side `execute()` method that calls `commit_log_entry_trigger()`
   (or any wrapper around it) directly is a BT-06-006 violation.

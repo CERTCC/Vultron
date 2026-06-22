@@ -483,3 +483,39 @@ groups:
       it catches every known violation but a reviewer MUST still confirm no
       other domain-significant code remains in `execute()` when closing each
       migration.
+  - id: CLP-10-006
+    priority: MUST
+    statement: >-
+      In any receive-side BT tree that includes a `GuardedCommitCaseLedgerEntryBT`
+      subtree (composed via `create_guarded_commit_case_ledger_entry_tree`), the
+      commit subtree MUST appear after any pure precondition-guard nodes (nodes
+      that only read state and return FAILURE on mismatch, making no writes) and
+      BEFORE any protocol-effect nodes. A "protocol-effect node" is any node
+      that writes to the DataLayer, mutates actor or participant state, or
+      enqueues an outbox item. The ordering MUST be: (1) precondition
+      guards, (2) commit, (3) all protocol effects. A tree that applies any
+      protocol effect before committing the triggering activity inverts causal
+      ordering and MUST be corrected.
+    rationale: >-
+      The canonical case ledger records the cause (the received activity) and
+      replicates it to all participants. If protocol effects (state transitions,
+      outbox enqueues, participant updates) run before the ledger records the
+      triggering activity, the case ledger may show effects without the causes
+      that produced them. Participants replicating the ledger via
+      `Announce(CaseLedgerEntry)` would observe an effect entry with no prior
+      cause entry — making forensic and audit use of the ledger unreliable.
+      Audit issue #1068 found this inverted ordering consistently across
+      receive-side BTs in `vultron/core/behaviors/` and
+      `vultron/core/use_cases/received/`. The ledger entry records that the
+      activity was received and accepted by the CaseActor — this is independent
+      of whether subsequent effects succeed (a failed effect is an operational
+      concern, not a reason to omit the received-activity record).
+    verification: >-
+      A structural test in `test/architecture/` inspects each receive-side BT
+      tree returned by every tree-factory function in `vultron/core/behaviors/`.
+      For any tree containing `CommitCaseLedgerEntryNode` (or the guarded
+      composite wrapping it), the test asserts that no sibling node appearing
+      before the commit node in the `children` list is a protocol-effect node
+      (i.e., any node whose class name does not match the known
+      precondition-guard allowlist). The test fails if any receive-side tree
+      violates commit-first ordering.
