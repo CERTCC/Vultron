@@ -287,6 +287,22 @@ groups:
       spec_id: PCR-08-002
       note: Using case_addressees() or None as the recipient in a trigger BT is
         the specific violation this requirement prevents
+  - id: PCR-08-012
+    priority: MUST
+    statement: >-
+      The invitee's `Accept(Invite)` activity IS the invitee's RM engagement decision.
+      The Case Actor MUST derive the `RmAcceptInviteToCaseActivity` domain event from
+      this message upon receipt, recording the invitee's RM transition (VALID → ACCEPTED)
+      in its own DataLayer without requiring a separate explicit RM state-change message
+      from the invitee.
+    rationale: >-
+      PCR-08-009 prohibits the case owner from emitting RM state-change activities on
+      behalf of the invitee but did not state who IS responsible. The invitee's
+      `Accept(Invite)` is the authoritative signal; the Case Actor is the sole party
+      authorized to record the resulting RM transition.
+    relationships:
+    - rel_type: refines
+      spec_id: PCR-08-009
 - id: PCR-07
   title: Testing
   specs:

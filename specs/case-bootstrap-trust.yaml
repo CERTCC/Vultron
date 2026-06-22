@@ -139,7 +139,8 @@ groups:
           If a CaseActor-originated case message arrives before the required
           bootstrap trust handoff, the receiving actor SHOULD queue it only for
           a short bounded interval rather than accepting or permanently
-          trusting it immediately.
+          trusting it immediately. The default queue expiry interval is 300 seconds
+          (configurable via `AppConfig.pre_bootstrap_queue_timeout_seconds`).
         relationships:
           - rel_type: refines
             spec_id: PCR-06-002
@@ -155,16 +156,19 @@ groups:
       - id: CBT-03-003
         priority: MUST
         statement: >-
-          When the bounded pre-bootstrap queue expires, the receiver MUST drop
-          the queued message, log a warning, and require a resend after
-          bootstrap.
+          When the bounded pre-bootstrap queue expires (default: 300 seconds,
+          configurable via `AppConfig.pre_bootstrap_queue_timeout_seconds`),
+          the receiver MUST drop the queued message, log a warning, and require
+          a resend after bootstrap.
       - id: CBT-03-004
         priority: SHOULD
         statement: >-
           When bootstrap has not arrived in time, the receiver SHOULD request a
-          replay from the original report receiver / case creator by sending a
-          generic `Question` asking for the bootstrap `Create(VulnerabilityCase)`
-          to be resent.
+          replay from the original report receiver / case creator by sending an
+          `as_Question` activity (`vultron.wire.as2.vocab.base.objects.activities.intransitive.as_Question`)
+          asking for the bootstrap `Create(VulnerabilityCase)` to be resent.
+          The `target` of the `as_Question` SHOULD be set to the `case_actor_id`
+          recorded on the `VultronPendingCaseInbox` entry.
   - id: CBT-04
     title: Late-Joiner Bootstrap
     specs:

@@ -1,7 +1,7 @@
 id: CLP
 title: Case Ledger Processing
 description: >-
-  Requirements for participant assertions, CaseActor canonicalization, local case audit ledgerging,
+  Requirements for participant assertions, CaseActor canonicalization, local case audit ledgering,
   recorded-history projection, and replication-facing `CaseLedgerEntry` objects. `notes/activitystreams-semantics.md`,
   `notes/case-state-model.md`, `notes/sync-ledger-replication.md` `specs/sync-ledger-replication.md`,
   `specs/outbox.md`, `specs/message-validation.md`, `specs/idempotency.md` recording. Transport-layer
@@ -63,7 +63,7 @@ groups:
       Rejected `CaseLedgerEntry` objects SHOULD include a machine-readable reason code and MAY
       include human-readable detail
   - id: CLP-02-006
-    priority: MUST_NOT
+    priority: MUST
     statement: >-
       `CaseLedgerEntry` MUST include a `log_index` field corresponding to SYNC-01-002; this field
       MUST be set by the CaseActor's single authoritative write path and MUST NOT be assigned

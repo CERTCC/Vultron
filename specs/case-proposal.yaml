@@ -38,13 +38,14 @@ groups:
       - id: CP-01-004
         priority: MUST
         statement: >-
-          `as_CaseProposal` MUST include an `object_` field containing either
-          an inline `as_VulnerabilityReport` or a URI reference to the report
-          around which the case is to be created.
+          `as_CaseProposal` MUST include an `object_` field containing a fully
+          inline `as_VulnerabilityReport` around which the case is to be created.
+          URI references to the report are NOT permitted (see AKM-03-001).
         rationale: >-
           The case-actor service needs the vulnerability report to initialize
-          the case. An inline or URI-referenced report satisfies this without
-          requiring a separate fetch in the common case.
+          the case. URI references are prohibited because the receiver may not
+          have the referenced object and no dereferencing mechanism is currently
+          specified (AKM-03-001).
       - id: CP-01-005
         priority: MUST
         statement: >-
@@ -168,6 +169,29 @@ groups:
           When rejecting a proposal, the case-actor service MUST send
           `Reject(as_CaseProposal)` with the `as_CaseProposal` embedded inline
           as `object_`.
+      - id: CP-05-005
+        priority: MUST
+        statement: >-
+          If the case-actor service successfully sends `Accept(as_CaseProposal)`
+          but fails to send `Create(VulnerabilityCase)`, it MUST retry
+          `Create(VulnerabilityCase)` independently. The `Accept` is irrevocable
+          once sent and MUST NOT be resent on retry; only `Create(VulnerabilityCase)`
+          requires retry.
+        rationale: >-
+          The two-activity sequence is not atomic at the network level. Resending
+          `Accept` on retry would cause the vendor to see a duplicate acceptance
+          and potentially re-enter the initialization flow.
+      - id: CP-05-006
+        priority: SHOULD
+        statement: >-
+          The case-actor service SHOULD handle duplicate `Create(as_CaseProposal)`
+          idempotently: if a proposal for the same report has already been
+          accepted and a `VulnerabilityCase` created, it SHOULD respond with
+          a new `Accept(as_CaseProposal)` referencing the existing
+          `VulnerabilityCase` rather than creating a second one.
+        rationale: >-
+          Network retries and at-least-once delivery semantics mean the vendor
+          may resend the proposal. Idempotent handling prevents duplicate cases.
   - id: CP-06
     title: Protocol Flow — Receiving (Vendor Side)
     specs:
