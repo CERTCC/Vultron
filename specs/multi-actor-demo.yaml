@@ -158,10 +158,15 @@ groups:
   - id: DEMOMA-06-002
     priority: MUST
     statement: >-
-      The two-actor demo MUST verify the following milestones, checking both the Vendor and
-      Finder DataLayers at each checkpoint: M1 (case + 3 participants + EM.ACTIVE),
-      M2 (Finder has case replica), M4 (CS.VF on all replicas),
-      M5 (CS.VFD on all replicas), M6 (CS.VFDPxa + EM terminated on all replicas),
+      The two-actor demo MUST verify the following milestones in order, checking both the
+      Vendor and Finder DataLayers at each checkpoint:
+      M1 (case + 3 participants + EM.ACTIVE),
+      M2 (Finder has case replica with matching participant index and active embargo),
+      M3 (notes exchange complete: question note + reply note present in canonical case
+      state on both replicas),
+      M4 (CS.VF on all replicas),
+      M5 (CS.VFD on all replicas),
+      M6 (CS.VFDPxa + EM terminated on all replicas),
       M7 (all participants RM.CLOSED, case closed)
   - id: DEMOMA-06-003
     priority: MUST
@@ -251,8 +256,45 @@ groups:
       The CASE_MANAGER role delegation (Vendor hands operational management to Case Actor)
       MUST be implemented as a distinct protocol mechanism from OFFER_CASE_OWNERSHIP_TRANSFER;
       CASE_MANAGER delegation allows the Vendor to retain CASE_OWNER while delegating
-      operational authority, and requires new MessageSemantics values:
-      OFFER_CASE_MANAGER_ROLE and ACCEPT_CASE_MANAGER_ROLE
+      operational authority.
+      Wire vocab types (`_OfferCaseManagerRoleActivity`, `_AcceptCaseManagerRoleActivity`,
+      `_RejectCaseManagerRoleActivity`), extractor patterns, factory functions,
+      `MessageSemantics` values (`OFFER_CASE_MANAGER_ROLE`, `ACCEPT_CASE_MANAGER_ROLE`,
+      `REJECT_CASE_MANAGER_ROLE`), and received-side use cases are already implemented.
+      The remaining gaps are: (1) these use cases are not registered in the semantic
+      registry (`vultron/semantic_registry/__init__.py`), and
+      (2) trigger-side use cases (`SvcOfferCaseManagerRoleUseCase` and peers) are not yet
+      implemented. See DEMOMA-08-006 through DEMOMA-08-009 for the downstream specs.
+  - id: DEMOMA-08-006
+    priority: MUST
+    statement: >-
+      `OfferCaseManagerRolePattern`, `AcceptCaseManagerRolePattern`, and
+      `RejectCaseManagerRolePattern` MUST be registered in
+      `SEMANTICS_ACTIVITY_PATTERNS` in `vultron/semantic_registry/__init__.py`.
+      `OfferCaseManagerRoleReceivedUseCase`, `AcceptCaseManagerRoleReceivedUseCase`, and
+      `RejectCaseManagerRoleReceivedUseCase` MUST be registered in the `use_case_map`.
+  - id: DEMOMA-08-007
+    priority: MUST
+    statement: >-
+      A trigger-side use case `SvcOfferCaseManagerRoleUseCase` MUST be implemented in
+      `vultron/core/use_cases/triggers/actor.py` (or a new module in that package).
+      It MUST build an `_OfferCaseManagerRoleActivity` addressed to the target Case Actor
+      and enqueue it to the offering Vendor's outbox.
+  - id: DEMOMA-08-008
+    priority: SHOULD
+    statement: >-
+      A trigger-side use case `SvcAcceptCaseManagerRoleUseCase` SHOULD be implemented
+      for the Case Actor to explicitly accept (rather than auto-accepting via the received
+      use case). This allows manual override of the auto-accept behavior for deployments
+      that require explicit operator approval before the Case Actor assumes the role.
+  - id: DEMOMA-08-009
+    priority: MUST
+    statement: >-
+      Unit and integration tests MUST cover the full CASE_MANAGER delegation handshake:
+      (1) Vendor offers role via `_OfferCaseManagerRoleActivity`,
+      (2) Case Actor auto-accepts via `OfferCaseManagerRoleReceivedUseCase`,
+      (3) Vendor receives `_AcceptCaseManagerRoleActivity` and triggers
+      trust bootstrap `Create(VulnerabilityCase)` to Reporter.
   - id: DEMOMA-08-003
     priority: MUST_NOT
     statement: >-

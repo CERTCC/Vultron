@@ -138,7 +138,10 @@ groups:
       (commit call sites, commit authorization/gating, or per-actor ledger content) MUST include a
       closing sub-issue that reviews a fresh multi-actor demo run's per-actor ledger logs before the
       Epic is closed. Passing the aggregate invariant test suite alone is NOT sufficient closure
-      evidence for such an Epic.
+      evidence for such an Epic. Concretely, an Epic is "in scope" for this rule if any change
+      within it touches `CommitCaseLedgerEntryNode`, `create_guarded_commit_case_ledger_entry_tree`,
+      or `create_commit_log_entry_tree` in `vultron/core/behaviors/`, or any call site that invokes
+      these directly.
     rationale: >-
       Epic #788's aggregate invariant suite (`test/ci/test_case_ledger_invariants.py`) passed
       all checks on `main` throughout the epic, yet the originating issue (#923) found 17

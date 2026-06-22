@@ -396,7 +396,10 @@ groups:
       The `ActorScopedDataLayer` protocol type SHOULD be defined in
       `vultron/core/ports/datalayer.py` as a refinement of `DataLayer` so that
       type-checkers (mypy, pyright) can enforce scope boundaries at
-      function-signature level.
+      function-signature level. It is currently implemented there with methods:
+      `inbox_append(activity_id: str) -> None`, `inbox_list() -> list[str]`,
+      `inbox_pop() -> str | None`, `outbox_append(activity_id: str) -> None`,
+      `outbox_list() -> list[str]`, `outbox_pop() -> str | None`.
     rationale: >
       An explicit Protocol type converts a convention-only rule into a
       compile-time-enforced boundary, making violations visible without running
