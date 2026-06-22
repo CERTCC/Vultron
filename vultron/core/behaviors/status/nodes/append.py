@@ -420,3 +420,54 @@ class AppendStatusAndSaveParticipantNode(DataLayerAction):
             self.participant_id,
         )
         return Status.SUCCESS
+
+
+class CheckParticipantRMNotClosedNode(DataLayerCondition):
+    """Pre-flight guard: FAILURE when participant is already in RM.CLOSED.
+
+    Used as a precondition guard in ``add_participant_status_tree`` so that
+    a terminal-state status update is rejected BEFORE the commit runs
+    (CLP-10-006).  A CLOSED→CLOSED rewrite is a no-op that must not create a
+    canonical ledger entry.
+
+    Returns SUCCESS when the participant has no current status or the current
+    RM state is not CLOSED.  Returns FAILURE when the participant is already
+    at RM.CLOSED.
+    """
+
+    def __init__(self, participant_id: str, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.participant_id = participant_id
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            self.feedback_message = "DataLayer not available"
+            return Status.FAILURE
+
+        participant = self.datalayer.read(self.participant_id)
+        if not is_participant_model(participant):
+            self.logger.debug(
+                "%s: participant '%s' not found — allowing (no terminal check)",
+                self.name,
+                self.participant_id,
+            )
+            return Status.SUCCESS
+
+        current_status = getattr(participant, "participant_status", None)
+        if current_status is None:
+            return Status.SUCCESS
+
+        current_rm = getattr(current_status, "rm_state", None)
+        if current_rm == RM.CLOSED:
+            self.feedback_message = (
+                f"Participant '{self.participant_id}' is already in terminal"
+                " RM.CLOSED — rejecting status update (DEMOMA-07-003)"
+            )
+            self.logger.info(
+                "%s: %s",
+                self.name,
+                self.feedback_message,
+            )
+            return Status.FAILURE
+
+        return Status.SUCCESS

@@ -21,18 +21,19 @@ Composes the four-step DEMOMA-07-003 workflow as a Sequence BT
 
     AddParticipantStatusBT (Sequence)
     ├─ VerifySenderIsParticipantNode      # Step 1: sender must be known participant
-    ├─ AppendParticipantStatusNode        # Step 2: append status to participant record
-    ├─ PublicDisclosureBranchNode         # Step 4: embargo teardown on CS.P + CASE_OWNER
-    ├─ AutoCloseIfCaseManager (Selector)  # Step 5: auto-close only when CASE_MANAGER
+    ├─ CheckParticipantRMNotClosedNode    # Guard: reject terminal CLOSED→CLOSED rewrites
+    ├─ GuardedCommitOrSkip (Selector, only if case_id)  # Record receipt first (CLP-10-006)
     │   ├─ Sequence
     │   │   ├─ CheckIsCaseManagerNode
-    │   │   └─ AutoCloseBranchNode
-    │   └─ Success (skip if not CASE_MANAGER)
-    └─ GuardedCommitOrSkip (Selector, only if case_id)  # ADR-0022 / CLP-10-005
+    │   │   └─ CommitCaseLedgerEntryNode
+    │   └─ Success("CommitSkippedNotCaseManager")
+    ├─ AppendParticipantStatusNode        # Step 2: append status to participant record
+    ├─ PublicDisclosureBranchNode         # Step 4: embargo teardown on CS.P + CASE_OWNER
+    └─ AutoCloseIfCaseManager (Selector)  # Step 5: auto-close only when CASE_MANAGER
         ├─ Sequence
         │   ├─ CheckIsCaseManagerNode
-        │   └─ CommitCaseLedgerEntryNode
-        └─ Success("CommitSkippedNotCaseManager")
+        │   └─ AutoCloseBranchNode
+        └─ Success (skip if not CASE_MANAGER)
 
 Per specs/multi-actor-demo.yaml DEMOMA-07-003 and DEMOMA-07-005.
 """
@@ -46,13 +47,14 @@ from vultron.core.models.events.status import (
 )
 from vultron.core.behaviors.case.nodes.conditions import CheckIsCaseManagerNode
 from vultron.core.behaviors.case.nodes.lifecycle import (
-    create_guarded_commit_case_ledger_entry_tree,
+    create_receive_activity_tree,
 )
 from vultron.core.behaviors.status.append_participant_status_tree import (
     append_participant_status_tree,
 )
 from vultron.core.behaviors.status.nodes import (
     AutoCloseBranchNode,
+    CheckParticipantRMNotClosedNode,
     PublicDisclosureBranchNode,
     VerifySenderIsParticipantNode,
 )
@@ -70,9 +72,10 @@ def add_participant_status_tree(
     activity.  Implements the four remaining steps of DEMOMA-07-003 as BT
     nodes in a Sequence (step 3 raw re-broadcast removed per DEMOMA-07-005).
 
-    When ``case_id`` is provided, a guarded-commit subtree
-    (``create_guarded_commit_case_ledger_entry_tree``) is appended as the
-    final child.  Running the tree with ``actor_id=receiving_actor_id``
+    When ``case_id`` is provided, a guarded-commit subtree is inserted as the
+    first child (before precondition checks) so the canonical ledger records
+    receipt of the triggering activity before any protocol effects run
+    (CLP-10-006).  Running the tree with ``actor_id=receiving_actor_id``
     (ADR-0022 single-BT shape) means ``CheckIsCaseManagerNode`` in that
     subtree correctly fires only when the receiving actor holds
     ``CVDRole.CASE_MANAGER``.
@@ -108,50 +111,46 @@ def add_participant_status_tree(
         if context_field:
             tree_case_id = str(context_field)
 
-    children: list[py_trees.behaviour.Behaviour] = [
-        VerifySenderIsParticipantNode(
-            status_id=status_id,
-            sender_actor_id=actor_id,
-            case_id=tree_case_id,
-        ),
-        append_participant_status_tree(
-            status_id=status_id,
-            participant_id=participant_id,
-            status_obj_fallback=status_obj,
-        ),
-        PublicDisclosureBranchNode(
-            status_obj=status_obj,
-            sender_actor_id=actor_id,
-            case_id=tree_case_id,
-        ),
-        py_trees.composites.Selector(
-            name="AutoCloseIfCaseManager",
-            memory=False,
-            children=[
-                py_trees.composites.Sequence(
-                    name="CaseManagerAutoClose",
-                    memory=False,
-                    children=[
-                        CheckIsCaseManagerNode(case_id=tree_case_id),
-                        AutoCloseBranchNode(case_id=tree_case_id),
-                    ],
-                ),
-                py_trees.behaviours.Success(
-                    name="AutoCloseSkippedNotCaseManager"
-                ),
-            ],
-        ),
-    ]
-
-    if case_id is not None:
-        children.append(
-            create_guarded_commit_case_ledger_entry_tree(case_id=case_id)
-        )
-
-    root = py_trees.composites.Sequence(
-        name="AddParticipantStatusBT",
+    auto_close_selector = py_trees.composites.Selector(
+        name="AutoCloseIfCaseManager",
         memory=False,
-        children=children,
+        children=[
+            py_trees.composites.Sequence(
+                name="CaseManagerAutoClose",
+                memory=False,
+                children=[
+                    CheckIsCaseManagerNode(case_id=tree_case_id),
+                    AutoCloseBranchNode(case_id=tree_case_id),
+                ],
+            ),
+            py_trees.behaviours.Success(name="AutoCloseSkippedNotCaseManager"),
+        ],
+    )
+
+    root = create_receive_activity_tree(
+        name="AddParticipantStatusBT",
+        case_id=case_id,
+        precondition_guards=[
+            VerifySenderIsParticipantNode(
+                status_id=status_id,
+                sender_actor_id=actor_id,
+                case_id=tree_case_id,
+            ),
+            CheckParticipantRMNotClosedNode(participant_id=participant_id),
+        ],
+        effect_nodes=[
+            append_participant_status_tree(
+                status_id=status_id,
+                participant_id=participant_id,
+                status_obj_fallback=status_obj,
+            ),
+            PublicDisclosureBranchNode(
+                status_obj=status_obj,
+                sender_actor_id=actor_id,
+                case_id=tree_case_id,
+            ),
+            auto_close_selector,
+        ],
     )
     logger.debug(
         "Created AddParticipantStatusBT for status=%s participant=%s"

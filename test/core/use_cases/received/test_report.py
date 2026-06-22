@@ -1341,27 +1341,35 @@ class TestValidateReportReceivedGuardedCommit:
             receiving_actor_id=self.CASE_ACTOR_ID
         )
 
-        # Track calls to create_guarded_commit_case_ledger_entry_tree in
+        # Track calls to create_receive_activity_tree in
         # received_report_trees (where it is called in the ADR-0022 pattern).
-        original_create = (
-            rrt_module.create_guarded_commit_case_ledger_entry_tree
-        )
+        original_create = rrt_module.create_receive_activity_tree
         commit_tree_calls: list[str | None] = []
 
-        def tracking_create(case_id: str | None = None):
+        def tracking_create(
+            name: str,
+            case_id: str | None = None,
+            precondition_guards: list | None = None,
+            effect_nodes: list | None = None,
+        ):
             commit_tree_calls.append(case_id)
-            return original_create(case_id=case_id)
+            return original_create(
+                name=name,
+                case_id=case_id,
+                precondition_guards=precondition_guards or [],
+                effect_nodes=effect_nodes or [],
+            )
 
         monkeypatch.setattr(
             rrt_module,
-            "create_guarded_commit_case_ledger_entry_tree",
+            "create_receive_activity_tree",
             tracking_create,
         )
 
         ValidateReportReceivedUseCase(dl, event).execute()
 
         assert commit_tree_calls, (
-            "Expected create_guarded_commit_case_ledger_entry_tree to be "
+            "Expected create_receive_activity_tree to be "
             "called when receiving_actor_id == case_actor_id (CLP-10-002)"
         )
         assert commit_tree_calls[0] == CASE_ID, (

@@ -238,6 +238,10 @@ def create_guarded_commit_case_ledger_entry_tree(
     The commit runs only when the executing actor holds ``CVDRole.CASE_MANAGER``
     for the case. Non-manager actors take the success fallback and skip the
     canonical commit silently.
+
+    Called internally by :func:`create_receive_activity_tree`.  Direct callers
+    in tree-factory modules are a CLP-10-006 ordering violation; use
+    ``create_receive_activity_tree`` instead.
     """
     from vultron.core.behaviors.case.nodes.conditions import (
         CheckIsCaseManagerNode,
@@ -259,4 +263,54 @@ def create_guarded_commit_case_ledger_entry_tree(
                 name="CommitCaseLedgerEntrySkippedNotCaseManager"
             ),
         ],
+    )
+
+
+def create_receive_activity_tree(
+    name: str,
+    case_id: str | None,
+    precondition_guards: list[py_trees.behaviour.Behaviour],
+    effect_nodes: list[py_trees.behaviour.Behaviour],
+) -> py_trees.composites.Sequence:
+    """Compose a receive-side BT with CLP-10-006 ordering.
+
+    Structurally enforces the correct receive-side ordering::
+
+        [*precondition_guards] → GuardedCommit(receipt) → [*effect_nodes]
+
+    Precondition guards are read-only checks that may return FAILURE to abort
+    the tree before any state is written.  The guarded commit ledgers receipt
+    of the triggering activity (which is on the blackboard before any node
+    runs, placed there by ``BTBridge.execute_with_setup``).  Effect nodes
+    perform state transitions, outbox enqueues, and participant mutations —
+    all of which happen only after the receipt is recorded.
+
+    When ``case_id`` is ``None`` the commit step is omitted entirely,
+    preserving behaviour for trees that receive no explicit case context.
+
+    Per ``specs/case-ledger-processing.yaml`` CLP-10-006.
+
+    Args:
+        name: Display name for the root Sequence node.
+        case_id: ID of the ``VulnerabilityCase`` to ledger against.  Pass
+            ``None`` to skip the commit step (no ledger entry written).
+        precondition_guards: Zero or more read-only condition nodes placed
+            before the commit.  These nodes MUST NOT write to the DataLayer.
+        effect_nodes: Zero or more action nodes placed after the commit.
+            These may perform any state mutation.
+
+    Returns:
+        Root ``Sequence`` node ready for execution via
+        :class:`~vultron.core.behaviors.bridge.BTBridge`.
+    """
+    children: list[py_trees.behaviour.Behaviour] = list(precondition_guards)
+    if case_id is not None:
+        children.append(
+            create_guarded_commit_case_ledger_entry_tree(case_id=case_id)
+        )
+    children.extend(effect_nodes)
+    return py_trees.composites.Sequence(
+        name=name,
+        memory=False,
+        children=children,
     )
