@@ -5,6 +5,11 @@ from typing import TYPE_CHECKING
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.note.add_note_received_tree import (
+    create_add_note_to_case_received_tree,
+)
+from vultron.core.behaviors.note.create_note_tree import create_note_tree
 from vultron.core.models.events.note import (
     AddNoteToCaseReceivedEvent,
     CreateNoteReceivedEvent,
@@ -32,10 +37,6 @@ class CreateNoteReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.note.create_note_tree import (
-            create_note_tree,
-        )
 
         note = request.note
         if note is None:
@@ -66,16 +67,16 @@ class CreateNoteReceivedUseCase:
 class AddNoteToCaseReceivedUseCase:
     """Attach a received note to the case and commit a canonical ledger entry.
 
-    When the CaseActor receives ``Add(Note, Case)`` it:
+    Only the CaseActor (actor holding ``CVDRole.CASE_MANAGER``) attaches the
+    note to ``VulnerabilityCase.notes`` and commits a ``CaseLedgerEntry``.
+    Non-CaseActor receivers MUST NOT update their case replica directly from
+    ``Add(Note, Case)`` messages — they receive note attachment notifications
+    exclusively via ``Announce(CaseLedgerEntry)`` fan-out from the CaseActor
+    (SYNC-02-002).
 
-    1. Attaches the note ID to ``VulnerabilityCase.notes`` (idempotent).
-    2. Commits a ``CaseLedgerEntry`` whose ``Announce`` fan-out (via
-       ``sync_port``) notifies all participants — this is the only
-       notification mechanism; no separate ``AddNoteToCase`` broadcast
-       is emitted (``notes/case-communication-model.md``, SYNC-02-002).
-
-    Non-CaseActor receivers attach the note locally but skip the guarded
-    commit via ``CheckIsCaseManagerNode`` (CLP-10-003).
+    The ``CheckIsCaseManagerNode`` guard inside the BT enforces this: non-
+    CaseActors take the ``Success`` fallback and skip both attach and commit
+    (CLP-10-003).
     """
 
     def __init__(
@@ -103,11 +104,6 @@ class AddNoteToCaseReceivedUseCase:
                 " — skipping (CLP-10-005)"
             )
             return
-
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.note.add_note_received_tree import (
-            create_add_note_to_case_received_tree,
-        )
 
         tree = create_add_note_to_case_received_tree(
             note_id=note_id,

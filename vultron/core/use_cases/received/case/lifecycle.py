@@ -3,6 +3,12 @@
 import logging
 from typing import TYPE_CHECKING
 
+from py_trees.common import Status
+
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.receive_close_case_tree import (
+    create_close_case_received_tree,
+)
 from vultron.core.models.events.case import (
     AddReportToCaseReceivedEvent,
     CloseCaseReceivedEvent,
@@ -66,13 +72,6 @@ class CloseCaseReceivedUseCase:
         self._sync_port = sync_port
 
     def execute(self) -> None:
-        from py_trees.common import Status
-
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.case.receive_close_case_tree import (
-            create_close_case_received_tree,
-        )
-
         request = self._request
         case_id = request.case_id
         if case_id is None:

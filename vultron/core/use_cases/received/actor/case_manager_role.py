@@ -3,6 +3,12 @@
 import logging
 from typing import TYPE_CHECKING
 
+from py_trees.common import Status
+
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.offer_case_manager_role_received_tree import (
+    create_offer_case_manager_role_received_tree,
+)
 from vultron.core.models.events.actor import (
     AcceptCaseManagerRoleReceivedEvent,
     OfferCaseManagerRoleReceivedEvent,
@@ -56,13 +62,6 @@ class OfferCaseManagerRoleReceivedUseCase:
         self._sync_port = sync_port
 
     def execute(self) -> None:
-        from py_trees.common import Status
-
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.case.offer_case_manager_role_received_tree import (
-            create_offer_case_manager_role_received_tree,
-        )
-
         request = self._request
         receiving_actor_id = request.receiving_actor_id
         if receiving_actor_id is None:

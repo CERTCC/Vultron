@@ -43,28 +43,29 @@ def create_offer_case_manager_role_received_tree(
 ) -> py_trees.composites.Sequence:
     """Single-BT received-side tree for OfferCaseManagerRole (ADR-0022).
 
-    Idempotently stores the incoming Offer, auto-accepts it by emitting an
-    ``Accept(Offer(CaseManagerRole))`` to the offering Vendor, and — when the
-    receiving actor holds ``CVDRole.CASE_MANAGER`` — commits the
-    initialization ``CaseLedgerEntry`` that back-fills the canonical record
-    (DEMOMA-08-002, DEMOMA-08-003).
+    Idempotently stores the incoming Offer, then — when the receiving actor
+    holds ``CVDRole.CASE_MANAGER`` — commits the initialization
+    ``CaseLedgerEntry`` that back-fills the canonical record
+    (DEMOMA-08-002, DEMOMA-08-003).  The guarded commit runs BEFORE the
+    auto-accept so the canonical ledger entry for the Offer exists before
+    the ``Accept`` is sent to the offering Vendor.
 
-    The auto-accept step uses a ``Selector`` fallback so that the guarded
-    commit still runs even when ``trigger_activity_factory`` is unavailable
-    (e.g., unit-test contexts that only need the ledger entry).
+    Finally, the tree auto-accepts the offer by emitting
+    ``Accept(Offer(CaseManagerRole))`` to the offering Vendor.  If
+    ``trigger_activity_factory`` is unavailable the auto-accept node returns
+    ``FAILURE``, which propagates through the Sequence so the caller can log
+    the failure.  A protocol-level Reject path is tracked in GitHub.
 
     Structure::
 
         OfferCaseManagerRoleReceivedBT (Sequence)
         ├── StoreActivityNode("OfferCaseManagerRole")
-        ├── AutoAcceptOrSkip (Selector)
-        │   ├── AutoAcceptCaseManagerRoleNode
-        │   └── Success("AutoAcceptSkipped")
-        └── GuardedCommitOrSkip (Selector, only when case_id provided)
-            ├── Sequence
-            │   ├── CheckIsCaseManagerNode
-            │   └── CommitCaseLedgerEntryNode
-            └── Success("CommitSkippedNotCaseManager")
+        ├── GuardedCommitOrSkip (Selector, only when case_id provided)
+        │   ├── Sequence
+        │   │   ├── CheckIsCaseManagerNode
+        │   │   └── CommitCaseLedgerEntryNode
+        │   └── Success("CommitSkippedNotCaseManager")
+        └── AutoAcceptCaseManagerRoleNode
 
     Args:
         offer_id: ID of the ``Offer(CaseManagerRole)`` activity.
@@ -82,25 +83,21 @@ def create_offer_case_manager_role_received_tree(
             activity_obj=offer_obj,
             label="OfferCaseManagerRole",
         ),
-        py_trees.composites.Selector(
-            name="AutoAcceptOrSkip",
-            memory=False,
-            children=[
-                AutoAcceptCaseManagerRoleNode(
-                    offer_id=offer_id,
-                    case_id=case_id,
-                    participant_id=participant_id,
-                    vendor_id=vendor_id,
-                ),
-                py_trees.behaviours.Success(name="AutoAcceptSkipped"),
-            ],
-        ),
     ]
 
     if case_id:
         children.append(
             create_guarded_commit_case_ledger_entry_tree(case_id=case_id)
         )
+
+    children.append(
+        AutoAcceptCaseManagerRoleNode(
+            offer_id=offer_id,
+            case_id=case_id,
+            participant_id=participant_id,
+            vendor_id=vendor_id,
+        )
+    )
 
     return py_trees.composites.Sequence(
         name="OfferCaseManagerRoleReceivedBT",

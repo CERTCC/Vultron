@@ -18,6 +18,9 @@
 The canonical notification mechanism for note additions is
 ``Announce(CaseLedgerEntry)`` fan-out from the guarded-commit step
 (SYNC-02-002), **not** a direct ``AddNoteToCase`` broadcast to participants.
+Only the CaseActor may update the canonical case replica; non-CaseActor
+participants must not modify their local replica directly from
+``Add(Note, Case)`` messages.
 See ``notes/case-communication-model.md`` for the full communication model.
 """
 
@@ -25,8 +28,9 @@ import logging
 
 import py_trees
 
+from vultron.core.behaviors.case.nodes.conditions import CheckIsCaseManagerNode
 from vultron.core.behaviors.case.nodes.lifecycle import (
-    create_guarded_commit_case_ledger_entry_tree,
+    CommitCaseLedgerEntryNode,
 )
 from vultron.core.behaviors.note.nodes.storage import AttachNoteToCaseNode
 
@@ -36,38 +40,48 @@ logger = logging.getLogger(__name__)
 def create_add_note_to_case_received_tree(
     note_id: str,
     case_id: str,
-) -> py_trees.composites.Sequence:
+) -> py_trees.composites.Selector:
     """Single-BT received-side tree for AddNoteToCase (ADR-0022).
 
-    Attaches the note to the local case replica and, when the receiving actor
-    holds ``CVDRole.CASE_MANAGER``, commits a canonical ``CaseLedgerEntry``
-    whose ``Announce`` fan-out (via ``sync_port``) notifies all participants.
-    No separate ``AddNoteToCase`` broadcast is emitted — the
-    ``Announce(CaseLedgerEntry)`` is the notification (SYNC-02-002,
-    ``notes/case-communication-model.md``).
+    Only the CaseActor (actor holding ``CVDRole.CASE_MANAGER``) attaches the
+    note to the local case replica and commits a canonical
+    ``CaseLedgerEntry`` whose ``Announce`` fan-out (via ``sync_port``)
+    notifies all participants.  Non-CaseActors MUST NOT update their case
+    replica directly from ``Add(Note, Case)`` messages — they receive the
+    note attachment notification exclusively via ``Announce(CaseLedgerEntry)``
+    fan-out (SYNC-02-002).
 
     Structure::
 
-        AddNoteToCaseBT (Sequence)
-        ├── AttachNoteToCaseNode(note_id, case_id)
-        └── GuardedCommitOrSkip (Selector)
-            ├── Sequence
-            │   ├── CheckIsCaseManagerNode
-            │   └── CommitCaseLedgerEntryNode
-            └── Success("CommitSkippedNotCaseManager")
+        GuardedAttachAndCommitBT (Selector)
+        ├── Sequence (CaseManager path)
+        │   ├── CheckIsCaseManagerNode
+        │   ├── AttachNoteToCaseNode(note_id, case_id)
+        │   └── CommitCaseLedgerEntryNode(case_id)
+        └── Success("AttachAndCommitSkippedNotCaseManager")
 
     Args:
         note_id: ID of the Note being attached to the case.
         case_id: ID of the VulnerabilityCase receiving the note.
 
     Returns:
-        Root ``AddNoteToCaseBT`` Sequence node.
+        Root ``GuardedAttachAndCommitBT`` Selector node.
     """
-    return py_trees.composites.Sequence(
-        name="AddNoteToCaseBT",
+    return py_trees.composites.Selector(
+        name="GuardedAttachAndCommitBT",
         memory=False,
         children=[
-            AttachNoteToCaseNode(note_id=note_id, case_id=case_id),
-            create_guarded_commit_case_ledger_entry_tree(case_id=case_id),
+            py_trees.composites.Sequence(
+                name="AttachAndCommitIfCaseManager",
+                memory=False,
+                children=[
+                    CheckIsCaseManagerNode(case_id=case_id),
+                    AttachNoteToCaseNode(note_id=note_id, case_id=case_id),
+                    CommitCaseLedgerEntryNode(case_id=case_id),
+                ],
+            ),
+            py_trees.behaviours.Success(
+                name="AttachAndCommitSkippedNotCaseManager"
+            ),
         ],
     )

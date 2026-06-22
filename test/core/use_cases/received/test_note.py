@@ -136,18 +136,50 @@ class TestNoteUseCases:
         refreshed = cast(VulnerabilityCase, refreshed)
         assert refreshed.notes.count(note_id) == 1
 
-    def test_add_note_to_case_appends_note(self, monkeypatch, make_payload):
-        """add_note_to_case appends note ID to case.notes and persists."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
+    def _setup_case_with_case_manager(
+        self, dl: "SqliteDataLayer", case_id: str, case_actor_id: str
+    ) -> "VulnerabilityCase":
+        """Create a VulnerabilityCase with a CaseActor holding CASE_MANAGER."""
+        from vultron.core.states.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+
+        case_actor = VultronCaseActor(
+            id_=case_actor_id,
+            name="CaseActor",
+            attributed_to="https://example.org/users/vendor",
+            context=case_id,
+        )
+        dl.create(case_actor)
+
         case = VulnerabilityCase(
-            id_="https://example.org/cases/case_n1",
+            id_=case_id,
             name="Note Case",
         )
+        case_mgr_participant = CaseParticipant(
+            id_=f"{case_id}/participants/case-actor-p",
+            attributed_to=case_actor_id,
+            context=case_id,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        dl.create(case_mgr_participant)
+        case.case_participants.append(case_mgr_participant.id_)
+        case.actor_participant_index[case_actor_id] = case_mgr_participant.id_
+        dl.create(case)
+        return case
+
+    def test_add_note_to_case_appends_note(self, monkeypatch, make_payload):
+        """CaseActor appends note ID to case.notes on Add(Note, Case)."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case_actor_id = "https://example.org/cases/case_n1/actor"
+        case_id = "https://example.org/cases/case_n1"
+        case = self._setup_case_with_case_manager(dl, case_id, case_actor_id)
+
         note = as_Note(
             id_="https://example.org/notes/note3",
             content="A note",
         )
-        dl.create(case)
         dl.create(note)
 
         activity = add_note_to_case_activity(
@@ -155,27 +187,64 @@ class TestNoteUseCases:
         )
         event = make_payload(
             activity,
-            receiving_actor_id="https://example.org/actors/receiver",
+            receiving_actor_id=case_actor_id,
         )
 
         AddNoteToCaseReceivedUseCase(dl, event).execute()
 
-        case = dl.read(case.id_)
-        assert case is not None
-        case = cast(VulnerabilityCase, case)
-        assert note.id_ in case.notes
+        refreshed = dl.read(case_id)
+        assert refreshed is not None
+        refreshed = cast(VulnerabilityCase, refreshed)
+        assert note.id_ in refreshed.notes
 
     def test_add_note_to_case_idempotent(self, monkeypatch, make_payload):
-        """add_note_to_case skips adding a note already in the case."""
+        """CaseActor skips adding a note already in the case (idempotent)."""
         dl = SqliteDataLayer("sqlite:///:memory:")
+        case_actor_id = "https://example.org/cases/case_n2/actor"
+        case_id = "https://example.org/cases/case_n2"
         note = as_Note(
             id_="https://example.org/notes/note4",
             content="A note",
         )
+        dl.create(note)
+        case = self._setup_case_with_case_manager(dl, case_id, case_actor_id)
+        # Pre-populate note into case to exercise idempotent path
+        case.notes.append(note.id_)
+        dl.save(case)
+
+        activity = add_note_to_case_activity(
+            note, target=case, actor="https://example.org/users/finder"
+        )
+        event = make_payload(
+            activity,
+            receiving_actor_id=case_actor_id,
+        )
+
+        AddNoteToCaseReceivedUseCase(dl, event).execute()
+
+        refreshed = dl.read(case_id)
+        assert refreshed is not None
+        refreshed = cast(VulnerabilityCase, refreshed)
+        assert refreshed.notes.count(note.id_) == 1
+
+    def test_add_note_noop_for_non_case_manager(
+        self, monkeypatch, make_payload
+    ):
+        """Non-CaseActor receiving Add(Note, Case) must not update case replica.
+
+        Case replica updates arrive exclusively via Announce(CaseLedgerEntry)
+        fan-out (SYNC-02-002). The BT CheckIsCaseManagerNode guard ensures
+        the non-CaseActor takes the Success fallback and skips both attach
+        and commit.
+        """
+        dl = SqliteDataLayer("sqlite:///:memory:")
         case = VulnerabilityCase(
-            id_="https://example.org/cases/case_n2",
-            name="Note Case Idempotent",
-            notes=[note.id_],
+            id_="https://example.org/cases/case_n3_noop",
+            name="Noop Case",
+        )
+        note = as_Note(
+            id_="https://example.org/notes/note_noop",
+            content="A note",
         )
         dl.create(case)
         dl.create(note)
@@ -183,14 +252,18 @@ class TestNoteUseCases:
         activity = add_note_to_case_activity(
             note, target=case, actor="https://example.org/users/finder"
         )
+        # Non-CaseActor: no CASE_MANAGER participant registered
         event = make_payload(
             activity,
-            receiving_actor_id="https://example.org/actors/receiver",
+            receiving_actor_id="https://example.org/actors/non-manager",
         )
 
         AddNoteToCaseReceivedUseCase(dl, event).execute()
 
-        assert case.notes.count(note.id_) == 1
+        refreshed = dl.read(case.id_)
+        assert refreshed is not None
+        refreshed = cast(VulnerabilityCase, refreshed)
+        assert note.id_ not in refreshed.notes
 
     def test_remove_note_from_case_removes_note(
         self, monkeypatch, make_payload
