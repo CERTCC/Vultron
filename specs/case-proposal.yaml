@@ -1,0 +1,218 @@
+id: CP
+title: CaseProposal Protocol
+description: >-
+  Requirements for the CaseProposal protocol flow, which separates the act of
+  requesting case initialization from the act of creating the case. Covers the
+  `as_CaseProposal` wire vocabulary type, the `Create(CaseProposal)` /
+  `Accept(CaseProposal)` / `Reject(CaseProposal)` message flow, and the
+  corresponding MessageSemantics values and received-side use cases.
+  ADR: `docs/adr/0023-case-proposal-protocol.md`.
+version: 1.0.0
+kind: domain
+scope:
+  - prototype
+  - production
+groups:
+  - id: CP-01
+    title: Wire Vocabulary
+    specs:
+      - id: CP-01-001
+        priority: MUST
+        statement: >-
+          The wire layer MUST define an `as_CaseProposal` object type that
+          extends `VultronAS2Object`.
+        rationale: >-
+          A dedicated object type enables pattern-discriminated routing in the
+          semantic extractor and preserves AS2 semantics by separating the
+          proposal object from the eventual `VulnerabilityCase`.
+      - id: CP-01-002
+        priority: MUST
+        statement: >-
+          `as_CaseProposal` MUST include an `id_` field containing a full URI
+          that uniquely identifies the proposal.
+      - id: CP-01-003
+        priority: MUST
+        statement: >-
+          `as_CaseProposal` MUST include an `attributed_to` field identifying
+          the vendor actor (proposer) that originated the proposal.
+      - id: CP-01-004
+        priority: MUST
+        statement: >-
+          `as_CaseProposal` MUST include an `object_` field containing either
+          an inline `as_VulnerabilityReport` or a URI reference to the report
+          around which the case is to be created.
+        rationale: >-
+          The case-actor service needs the vulnerability report to initialize
+          the case. An inline or URI-referenced report satisfies this without
+          requiring a separate fetch in the common case.
+      - id: CP-01-005
+        priority: MUST
+        statement: >-
+          `as_CaseProposal` MUST include a `target` field containing the URI of
+          the prospective case-actor service to which the proposal is addressed.
+      - id: CP-01-006
+        priority: MAY
+        statement: >-
+          `as_CaseProposal` MAY include an optional `summary` field with a
+          human-readable description of the proposal.
+  - id: CP-02
+    title: MessageSemantics Values
+    specs:
+      - id: CP-02-001
+        priority: MUST
+        statement: >-
+          The `MessageSemantics` enum MUST include `CREATE_CASE_PROPOSAL` for
+          the pattern `Create(as_CaseProposal)`.
+      - id: CP-02-002
+        priority: MUST
+        statement: >-
+          The `MessageSemantics` enum MUST include `ACCEPT_CASE_PROPOSAL` for
+          the pattern `Accept(as_CaseProposal)`.
+      - id: CP-02-003
+        priority: MUST
+        statement: >-
+          The `MessageSemantics` enum MUST include `REJECT_CASE_PROPOSAL` for
+          the pattern `Reject(as_CaseProposal)`.
+  - id: CP-03
+    title: Extractor Patterns
+    specs:
+      - id: CP-03-001
+        priority: MUST
+        statement: >-
+          `SEMANTICS_ACTIVITY_PATTERNS` MUST contain a pattern entry for
+          `(Create, as_CaseProposal) -> CREATE_CASE_PROPOSAL`.
+      - id: CP-03-002
+        priority: MUST
+        statement: >-
+          `SEMANTICS_ACTIVITY_PATTERNS` MUST contain a pattern entry for
+          `(Accept, as_CaseProposal) -> ACCEPT_CASE_PROPOSAL`.
+      - id: CP-03-003
+        priority: MUST
+        statement: >-
+          `SEMANTICS_ACTIVITY_PATTERNS` MUST contain a pattern entry for
+          `(Reject, as_CaseProposal) -> REJECT_CASE_PROPOSAL`.
+      - id: CP-03-004
+        priority: MUST
+        statement: >-
+          All three `CaseProposal` extractor patterns MUST appear before any
+          more-general patterns that could match the same activity types (e.g.,
+          generic `Accept` or `Reject` catch-all entries), to prevent
+          misrouting (per SE-03-002).
+        relationships:
+          - rel_type: depends_on
+            spec_id: SE-03-002
+  - id: CP-04
+    title: Protocol Flow — Sending
+    specs:
+      - id: CP-04-001
+        priority: MUST
+        statement: >-
+          A vendor actor that wishes to request case initialization at a
+          dedicated case-actor service MUST send `Create(as_CaseProposal)` to
+          the case-actor service's inbox, with `actor` set to the vendor's own
+          URI.
+        rationale: >-
+          Using `Create` with the vendor as `actor` accurately declares that
+          the vendor created the proposal object, not the case itself.
+          Sending `Create(VulnerabilityCase)` from the vendor would violate
+          AS2 semantics because the vendor is not the authoritative creator of
+          the case.
+        relationships:
+          - rel_type: implements
+            spec_id: CP-01-001
+      - id: CP-04-002
+        priority: MUST
+        statement: >-
+          The BT node responsible for sending `Create(as_CaseProposal)` MUST be
+          a distinct node (`ProposeCaseToActorNode`) separate from
+          `CreateCaseActorNode`. `CreateCaseActorNode` is responsible only for
+          registering the case-actor service resource; it MUST NOT send a
+          `CaseProposal` activity.
+        rationale: >-
+          Conflating actor registration with proposal sending violates single
+          responsibility and causes the proposal to be sent before the
+          case-actor service is ready. See `notes/case-proposal.md` for the
+          pitfall.
+  - id: CP-05
+    title: Protocol Flow — Receiving (Case-Actor Side)
+    specs:
+      - id: CP-05-001
+        priority: MUST
+        statement: >-
+          A `CreateCaseProposalReceivedUseCase` MUST be implemented on the
+          case-actor side to handle incoming `Create(as_CaseProposal)`
+          activities.
+      - id: CP-05-002
+        priority: MUST
+        statement: >-
+          `CreateCaseProposalReceivedUseCase` MUST evaluate the proposal and
+          either accept or reject it, emitting the appropriate response
+          activity.
+      - id: CP-05-003
+        priority: MUST
+        statement: >-
+          When accepting a proposal, the case-actor service MUST send two
+          activities in sequence: first `Accept(as_CaseProposal)` (with the
+          `as_CaseProposal` inline as `object_`), then
+          `Create(VulnerabilityCase)` (with `actor` set to the case-actor URI
+          and `context` set to the URI of the `Accept(CaseProposal)` activity).
+        rationale: >-
+          `Accept(CaseProposal)` acknowledges the vendor's proposal.
+          `Create(VulnerabilityCase)` with `actor=case-actor` preserves AS2
+          "I created this" semantics: only the authoritative creator MUST be
+          the `actor` of a `Create` activity. Setting `context` to the Accept
+          URI establishes the proximate causal link.
+      - id: CP-05-004
+        priority: MUST
+        statement: >-
+          When rejecting a proposal, the case-actor service MUST send
+          `Reject(as_CaseProposal)` with the `as_CaseProposal` embedded inline
+          as `object_`.
+  - id: CP-06
+    title: Protocol Flow — Receiving (Vendor Side)
+    specs:
+      - id: CP-06-001
+        priority: MUST
+        statement: >-
+          An `AcceptCaseProposalReceivedUseCase` MUST be implemented on the
+          vendor side to handle incoming `Accept(as_CaseProposal)` activities.
+      - id: CP-06-002
+        priority: MUST
+        statement: >-
+          A `RejectCaseProposalReceivedUseCase` MUST be implemented on the
+          vendor side to handle incoming `Reject(as_CaseProposal)` activities.
+      - id: CP-06-003
+        priority: MUST
+        statement: >-
+          `AcceptCaseProposalReceivedUseCase` MUST update the vendor's local
+          state to reflect that the case-actor service has accepted the
+          proposal (e.g., record the case-actor URI and await the subsequent
+          `Create(VulnerabilityCase)`).
+      - id: CP-06-004
+        priority: MUST
+        statement: >-
+          `RejectCaseProposalReceivedUseCase` MUST update the vendor's local
+          state to reflect the rejection (e.g., mark the pending case as
+          rejected and surface the rejection reason if present).
+  - id: CP-07
+    title: Testing
+    specs:
+      - id: CP-07-001
+        priority: MUST
+        statement: >-
+          Unit tests MUST cover pattern matching for all three
+          `CaseProposal` extractor patterns
+          (`CREATE_CASE_PROPOSAL`, `ACCEPT_CASE_PROPOSAL`,
+          `REJECT_CASE_PROPOSAL`).
+      - id: CP-07-002
+        priority: MUST
+        statement: >-
+          Unit tests MUST cover `CreateCaseProposalReceivedUseCase`,
+          `AcceptCaseProposalReceivedUseCase`, and
+          `RejectCaseProposalReceivedUseCase` execute() paths.
+      - id: CP-07-003
+        priority: MUST
+        statement: >-
+          Integration tests MUST cover the full `Create(CaseProposal)` →
+          `Accept(CaseProposal)` + `Create(VulnerabilityCase)` round-trip
+          between a vendor actor and a case-actor service.
