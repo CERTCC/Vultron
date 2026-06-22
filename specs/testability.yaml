@@ -143,6 +143,36 @@ groups:
   - id: TB-09-003
     priority: MUST
     statement: Tests MUST be refactored along with production code
+- id: TB-11
+  title: Test Infrastructure Consistency
+  kind: pattern
+  specs:
+  - id: TB-11-001
+    priority: MUST
+    statement: >-
+      When a pytest mark is renamed or added, ALL of the following MUST be
+      updated in the same changeset: (a) the `markers` list in `pyproject.toml`,
+      (b) any `.github/workflows/` YAML files that reference the mark by name
+      (e.g., `-m "mark_name"` in `pytest` invocations), and (c) any test files
+      that apply the mark.
+    rationale: >-
+      A mark renamed in test files but not in a workflow YAML causes `pytest` to
+      select 0 tests matching the old name and exit with code 5 (no tests
+      collected). CI treats a non-zero exit code as a failure, but the failure
+      message ("no tests ran") is easily misread as an environment issue rather
+      than a naming mismatch. Issue #934 observed this after renaming
+      `case_log_invariants` to `case_ledger_invariants` across test files while
+      leaving the workflow YAML referencing the old name.
+    verification: >-
+      After any pytest mark rename: grep `.github/workflows/` for the old mark
+      name and confirm zero matches; confirm `pyproject.toml` registers the new
+      name; run `pytest -m "new_mark_name" --collect-only` and confirm non-zero
+      test collection.
+    relationships:
+    - rel_type: refines
+      spec_id: TB-07-001
+      note: Mark consistency between source, config, and CI is part of test
+        infrastructure correctness
 - id: TB-10
   title: Architecture Boundary Tests
   kind: pattern

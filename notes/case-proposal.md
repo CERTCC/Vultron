@@ -183,7 +183,7 @@ corresponding `MessageSemantics` value.
 
 | Issue | Relationship |
 |-------|-------------|
-| #810 | **Blocked by this**: demo routing to dedicated case-actor container requires the CaseProposal protocol to be in place before `CreateCaseActorNode` can be adapted for the demo layer. |
+| #810 | **Blocked by this**: demo routing to dedicated case-actor container requires the CaseProposal protocol to be in place before `CreateCaseActorNode` can be adapted for the demo layer. Note: the current two-actor demo passes all convergence invariants (all 26 invariants PASS as of #1025 review), confirming that #810 is architectural improvement work rather than a blocking bug. |
 | #811 | Spec + ADR for CaseActor dynamic spawning — a broader concern; CaseProposal is a prerequisite input. |
 | #812 | Implementation of CaseActor dynamic spawning — blocked by #811 and this work. |
 

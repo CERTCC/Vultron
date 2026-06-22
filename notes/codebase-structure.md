@@ -679,3 +679,32 @@ mode without requiring monkeypatching. Use `call_args.args` (not
 `call_args[0]`) when asserting mock positional arguments — the named
 attribute fails clearly if the call shifts to kwargs, while the index
 subscript returns an empty tuple silently.
+
+---
+
+## Logger Names: Verify from Source, Not Assumption
+
+(DEMO-CI-DIAGNOSTICS-951, 2026-06-15)
+
+When writing diagnostic docs, log-filter commands, or structured-logging guidance,
+always verify logger names directly from source — do not infer them from module
+paths.
+
+Two known non-obvious logger names in Vultron:
+
+**Inbox receipt layer (Layer 2 of the 3-layer pipeline)**:
+
+- Logger is `uvicorn.error`
+- **Not** `vultron.adapters.driving.fastapi.routers.actors`
+- The actors router explicitly overrides the module-default logger:
+  `logging.getLogger("uvicorn.error")`
+
+**`PersistLogEntryNode`**:
+
+- Logger is `vultron.core.behaviors.sync.nodes.chain.PersistLogEntryNode`
+  (class-qualified)
+- **Not** the bare module path `vultron.core.behaviors.sync.nodes.chain`
+
+When scoping `caplog` captures in tests (e.g.,
+`caplog.at_level(logging.INFO, logger="...")`), use the class-qualified name
+to avoid receiving unrelated records from other nodes in the same module.

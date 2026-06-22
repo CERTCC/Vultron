@@ -712,6 +712,56 @@ Short entries are reproduced here; longer ones are referenced below.
   `ProposeCaseToActorNode` MUST be wired into the case-creation BT tree AFTER
   `CreateCaseActorNode` succeeds. See `specs/case-proposal.yaml` CP-04-002 and
   `notes/case-proposal.md`.
+- **Protocol-Declared Fields Must Stay in Sync with Concrete Classes** — When
+  a field or method is removed from a concrete class that structurally conforms
+  to a `Protocol`, the matching member MUST also be removed from the Protocol.
+  Static type checkers verify the concrete→Protocol direction only; a stale
+  Protocol member is invisible to mypy/pyright but silently breaks callers that
+  accept a `Protocol`-typed parameter and access the removed attribute. Issue #792:
+  `CaseModel.events` was left in `protocols.py` after `VulnerabilityCase.events`
+  was removed; no lint error occurred, but future callers would have failed at
+  runtime. See `specs/code-style.yaml` CS-20-001.
+- **`TypeGuard` Discriminators Must Use Protocol-Declared Fields Only** —
+  `TypeGuard` functions such as `is_case_model()` MUST use only `hasattr`
+  checks on attributes explicitly declared in the target `Protocol`. Using a
+  method or field that is NOT in the Protocol as a discriminator causes the guard
+  to silently return `False` for valid objects when that method is later removed.
+  Issue #888: `is_case_model()` tested `hasattr(obj, "record_event")` — a method
+  never on `CaseModel` — and when `record_event()` was removed from
+  `VulnerabilityCase`, 440 test failures cascaded before the root cause was
+  traced. See `specs/code-style.yaml` CS-20-002.
+- **Emit Nodes in Case-Scoped Trigger BTs Must Fail Fast on Missing CaseActor**
+  — After switching case-scoped trigger routing from `case_addressees()` to
+  CaseActor-only routing, emit nodes must fail fast (FAILURE or immediate
+  exception) when no routable CaseActor recipient can be resolved. Silently
+  returning without setting `to` causes `VultronOutboxToFieldMissingError` to
+  fire deep in the outbox handler, masking the true sender-side routing defect.
+  See `specs/participant-case-replica.yaml` PCR-08-011.
+- **Module Split: Re-Import Moved Names for `monkeypatch` Compatibility** —
+  When splitting a module that is accessed as `import module as m` in tests
+  using `monkeypatch.setattr(m, "name", ...)`, moved names MUST be re-imported
+  into the original module's namespace (not just defined in the new submodule).
+  Without the re-import, the original module has no `name` attribute and
+  `monkeypatch.setattr` raises `AttributeError`. Add `# noqa: F401` on re-export
+  lines to suppress unused-import lint warnings. Issue #972.
+- **FastAPI `dependency_overrides` Key Must Be Re-Exported When Converting a
+  Router Module to a Package** — When a test does
+  `app.dependency_overrides[actors_router.get_shared_dl]`, it accesses
+  `get_shared_dl` as an attribute of the `actors_router` module. Converting
+  `actors.py` to an `actors/` package breaks this reference unless
+  `get_shared_dl` is explicitly re-exported in `actors/__init__.py`. Before
+  finalizing any subpackage `__init__.py`, scan tests for
+  `module.dependency_function` attribute-access patterns. Issue #970.
+- **Guarded-Commit Tests Must Use the CASE_MANAGER Actor as `receiving_actor_id`**
+  — Tests for received-side use cases that exercise a guarded-commit BT path
+  MUST set `receiving_actor_id` to the actor holding `CVDRole.CASE_MANAGER` in
+  `actor_participant_index`, not to the `VultronCaseActor` service entity ID.
+  `CheckIsCaseManagerNode` compares `actor_id` against the CASE_MANAGER
+  *participant* entry, not the service resource. Passing the service entity ID
+  causes the role check to fail silently: the guarded commit never fires, RM
+  falls through to DEFERRED, and the test may pass for the wrong reason. Any
+  test that exercises BT operations in a received-side use case MUST pass a
+  `receiving_actor_id`. See `specs/behavior-tree-integration.yaml` BT-17-005.
 
 ## Skill Interaction Rules
 

@@ -6,63 +6,63 @@
 
 | System | Type (API/DB/Queue/etc) | Purpose | Auth model | Criticality | Evidence |
 |--------|---------------------------|---------|------------|-------------|----------|
-| SQLite via SQLModel | DB | Persist Vultron objects plus inbox/outbox queue entries | Local file or in-memory DB URL; no separate DB auth shown | high | `vultron/adapters/driven/datalayer_sqlite.py`, `docker/docker-compose-multi-actor.yml` |
-| ASGIEmitter (in-process) | API | Deliver outbound AS2 activities to co-located actors via ASGI, stripping mount prefixes when mounted under `/api/v2` | None required (same-process) | high | `vultron/adapters/driven/asgi_emitter.py`, `vultron/adapters/driving/fastapi/main.py`, `vultron/adapters/driven/AGENTS.md` |
-| Peer actor inboxes via `DemoHttpDeliveryAdapter` | API | Deliver outbound AS2 activities, including bootstrap and follow-on case-sync traffic, to remote actors with HTTP POST | No auth/signing is implemented in the current adapter | high | `vultron/adapters/driven/demo_http_delivery.py`, `specs/case-bootstrap-trust.yaml` |
-| HTTP delivery (stub) | API | Future signed HTTP delivery to remote inboxes | Intended to use HTTP Signature signing; not yet implemented | medium | `vultron/adapters/driven/prod_http_delivery.py` |
-| Shared inbox (stub) | API | Future ActivityPub shared-inbox fan-out to multiple local actors | HTTP Signature validation planned; not yet implemented | medium | `vultron/adapters/driving/shared_inbox.py` |
-| Demo HTTP clients (`requests`) | API client | Drive seeded/demo scenarios and verification helpers over HTTP | None shown beyond base URL config | medium | `vultron/demo/utils.py`, `vultron/demo/helpers/verification.py` |
-| MCP trigger adapter functions | Tool/API surface | Expose trigger use cases as in-process tool functions pending MCP SDK registration | None; no network transport is registered in-tree yet | low | `vultron/adapters/driving/mcp_server.py` |
+| SQLite via SQLModel | DB | Persist Vultron objects and queue records | DB URL only; no separate DB auth shown | high | `vultron/adapters/driven/datalayer_sqlite/datalayer.py`, `config.example.yaml` |
+| `ASGIEmitter` | In-process API | Deliver outbound activities to co-located actors through the mounted ASGI app | Same-process; no network auth | high | `vultron/adapters/driven/asgi_emitter.py`, `vultron/adapters/driving/fastapi/main.py` |
+| `DemoHttpDeliveryAdapter` | Remote HTTP API | POST outbound activities to recipient inbox URLs | No signing/auth shown in this adapter | high | `vultron/adapters/driven/demo_http_delivery.py` |
+| `SyncActivityAdapter` | Internal driven port adapter | Convert domain log entries to wire activities and queue them | N/A (in-process) | high | `vultron/adapters/driven/sync_activity_adapter.py` |
+| `TriggerActivityAdapter` | Internal driven port adapter | Convert trigger-side domain actions into wire activities | N/A (in-process) | high | `vultron/adapters/driven/trigger_activity_adapter/__init__.py` |
+| Demo HTTP clients | API client | Seed actors, drive demos, and verify flows over HTTP | Base URL config only | medium | `vultron/demo/utils.py`, `vultron/demo/helpers/verification.py` |
+| MCP tool surface | In-process tool/API surface | Expose trigger use cases as callable functions pending SDK registration | None shown | low | `vultron/adapters/driving/mcp_server.py` |
+| `ProdHttpDeliveryAdapter` | Remote HTTP API stub | Placeholder for signed remote delivery | `[TODO]` not implemented | medium | `vultron/adapters/driven/prod_http_delivery.py` |
+| `SharedInboxAdapter` | Shared inbox stub | Placeholder for ActivityPub shared-inbox fan-out | `[TODO]` not implemented | medium | `vultron/adapters/driving/shared_inbox.py` |
 
 ### 2) Data Stores
 
 | Store | Role | Access layer | Key risk | Evidence |
 |-------|------|--------------|----------|----------|
-| SQLite `vultron_objects` | Primary object store | `SqliteDataLayer` | Single-node/local-file scaling and runtime dependency on local disk/SQLite semantics | `vultron/adapters/driven/datalayer_sqlite.py` |
-| SQLite `vultron_queue` | Inbox/outbox queue persistence | `SqliteDataLayer` plus outbox/inbox handlers | Queue semantics are process-local and rely on actor scoping consistency | `vultron/adapters/driven/datalayer_sqlite.py`, `vultron/adapters/driving/fastapi/inbox_handler.py` |
-| Named Docker volumes per actor | Persist per-actor SQLite DBs in multi-actor demos | Docker Compose | Operational complexity grows with actor count | `docker/docker-compose-multi-actor.yml` |
+| SQLite object store | Primary persistence for typed Vultron objects | `SqliteDataLayer` | Single-node/local-file limits | `vultron/adapters/driven/datalayer_sqlite/__init__.py`, `vultron/adapters/driven/datalayer_sqlite/datalayer.py` |
+| SQLite inbox/outbox queues | Actor-scoped queue persistence | `SqliteDataLayer` queue methods plus inbox/outbox handlers | Queue behavior depends on correct actor scoping | `vultron/core/ports/datalayer.py`, `vultron/adapters/driving/fastapi/outbox_handler.py` |
+| Named Docker volumes per actor | Persist multi-actor demo databases | Docker Compose | Operational complexity rises with actor count | `docker/docker-compose-multi-actor.yml` |
 
 ### 3) Secrets and Credentials Handling
 
-- Credential sources: environment variables and Docker Compose env blocks
-- Hardcoding checks: no API keys or secrets were present in the sampled config
-  files; committed examples mostly define names and base URLs
+- Credential sources: environment variables, YAML config, and Docker Compose env
+  blocks
+- Hardcoding checks: no API keys or passwords were found in sampled committed
+  config files; examples primarily define base URLs and actor IDs
 - Rotation or lifecycle notes: `[TODO]` no secret-rotation or external secret
   manager configuration was found
 
 ### 4) Reliability and Failure Behavior
 
-- Retry/backoff behavior: remote HTTP delivery retries with exponential
-  backoff (defaults: 3 retries, 0.5s initial delay, 2x multiplier, 30s max)
-  and per-recipient failure isolation
-- Timeout policy: local ASGI delivery uses a 10.0 second timeout; remote HTTP
-  delivery uses a 5.0 second timeout; Docker health checks probe readiness with
-  short `curl -f` timeouts
+- Retry/backoff behavior: `DemoHttpDeliveryAdapter` retries per recipient with
+  exponential backoff (`DEFAULT_MAX_RETRIES = 3`, `DEFAULT_INITIAL_DELAY = 0.5`,
+  multiplier `2.0`, max delay `30.0`)
+- Timeout policy: local ASGI delivery uses `10.0` seconds; remote HTTP delivery
+  uses `5.0` seconds; Docker health checks use short `curl -f` probes
 - Circuit-breaker or fallback behavior: `ASGIEmitter` falls back to
-  `DemoHttpDeliveryAdapter` on 404 or other local-delivery failures; no broader
-  circuit breaker was found
+  `DemoHttpDeliveryAdapter` on local delivery failures; no broader circuit
+  breaker was found
 
 ### 5) Observability for Integrations
 
-- Logging around external calls: yes; delivery attempts and demo HTTP calls log
-  status and failures
+- Logging around external calls: yes; emitters and outbox handling log delivery
+  attempts and failures
 - Metrics/tracing coverage: no metrics or tracing integration was found in the
   sampled runtime files
-- Missing visibility gaps: no structured metrics/tracing for delivery retries,
-  queue depth, or DB latency were found
+- Missing visibility gaps: queue-depth metrics, retry counters, DB latency, and
+  signed-delivery telemetry were not found
 
 ### 6) Evidence
 
-- `vultron/adapters/driven/datalayer_sqlite.py`
-- `vultron/adapters/driven/demo_http_delivery.py`
+- `vultron/adapters/driven/datalayer_sqlite/datalayer.py`
 - `vultron/adapters/driven/asgi_emitter.py`
+- `vultron/adapters/driven/demo_http_delivery.py`
+- `vultron/adapters/driven/sync_activity_adapter.py`
+- `vultron/adapters/driven/trigger_activity_adapter/__init__.py`
+- `vultron/adapters/driving/fastapi/outbox_handler.py`
+- `vultron/demo/utils.py`
+- `vultron/adapters/driving/mcp_server.py`
 - `vultron/adapters/driven/prod_http_delivery.py`
 - `vultron/adapters/driving/shared_inbox.py`
-- `vultron/adapters/driving/mcp_server.py`
-- `vultron/demo/utils.py`
-- `vultron/demo/helpers/verification.py`
-- `vultron/adapters/driven/AGENTS.md`
-- `specs/case-bootstrap-trust.yaml`
-- `docker/docker-compose.yml`
 - `docker/docker-compose-multi-actor.yml`
-- `.env.example`

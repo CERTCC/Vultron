@@ -6,82 +6,67 @@
 
 | Severity | Concern | Evidence | Impact | Suggested action |
 |----------|---------|----------|--------|------------------|
-| high | Demo helpers still depend on `requests`, but `requests` is not declared in `project.dependencies` | `vultron/demo/utils.py`, `vultron/demo/helpers/verification.py`, `pyproject.toml` | Fresh non-dev installs may fail when demo or verification helpers make HTTP calls; `httpx` (`>=0.28.1`) is already a declared runtime dep | Migrate demo HTTP helpers from `requests` to `httpx` — tracked in GitHub issue #517 |
-| high | Legacy globals and cached DataLayers still influence the deployed FastAPI path despite newer `create_app()` isolation rules | `vultron/adapters/driving/fastapi/main.py`, `vultron/adapters/driving/fastapi/app.py`, `vultron/adapters/driving/fastapi/inbox_handler.py`, `vultron/adapters/driving/fastapi/outbox_handler.py`, `vultron/adapters/driven/datalayer_sqlite.py` | Cross-app state leakage or startup-order bugs can still appear in co-located or shared-process setups | Continue migrating the mounted app path toward per-app state and keep regression tests around actor isolation |
-| medium | Outbox draining is implemented as a 1-second polling loop over all actor DataLayers | `vultron/adapters/driving/fastapi/outbox_monitor.py` | Polling cost grows with actor count and can hide queue-depth issues | Consider event-driven wakeups or queue metrics if actor count grows |
-| medium | Several source files still exceed 500 lines and mix multiple responsibilities | `vultron/core/behaviors/case/nodes.py` (1502 lines), `vultron/adapters/driven/datalayer_sqlite.py` (1108 lines), `vultron/demo/scenario/two_actor_demo.py` (863 lines), `vultron/wire/as2/extractor.py` (821 lines), `vultron/core/use_cases/triggers/embargo.py` (902 lines) | Large, multi-responsibility files are harder to test, review, and maintain; several are also high-churn | Incrementally extract cohesive sub-modules; prioritize `nodes.py`, `extractor.py`, and `datalayer_sqlite.py` |
-| medium | Current remote delivery uses plain HTTP POST via `DemoHttpDeliveryAdapter`; signing and shared-inbox support remain stubbed | `vultron/adapters/driven/demo_http_delivery.py`, `vultron/adapters/driven/prod_http_delivery.py`, `vultron/adapters/driving/shared_inbox.py` | Multi-party interoperability and security posture are limited until signed delivery paths exist | Treat signed delivery/shared inbox as explicit future work and avoid implying these flows are production-ready |
+| high | The production-style path still uses module-level shared emitter/DataLayer facilities alongside newer per-app isolation work | `vultron/adapters/driving/fastapi/main.py`, `vultron/adapters/driving/fastapi/outbox_handler.py`, `vultron/adapters/driven/datalayer_sqlite/__init__.py` | Shared-process startup order can still affect runtime behavior | Continue migrating mounted-app wiring toward app-scoped state and keep isolation tests in place |
+| high | Remote signed delivery and shared inbox handling are not implemented | `vultron/adapters/driven/prod_http_delivery.py`, `vultron/adapters/driving/shared_inbox.py` | Remote interoperability and security posture remain prototype-only | Treat these paths as explicit future work and avoid production claims |
+| medium | Outbox draining is a 1-second safety-net polling loop over all registered actor DataLayers | `vultron/adapters/driving/fastapi/outbox_monitor.py` | Polling cost grows with actor count and queue depth is not surfaced | Add stronger event-driven wakeups and queue observability if actor count grows |
+| medium | Several source files are large and likely mix responsibilities | `vultron/demo/scenario/two_actor_demo.py` (1029 lines), `vultron/core/case_states/hypercube.py` (909), `vultron/core/services/embargo_lifecycle.py` (880), `vultron/core/behaviors/case/accept_invite_tree.py` (828) | Review and testing costs increase in high-change areas | Extract cohesive submodules incrementally |
+| medium | The scan script reports false negatives for entry points, containerization, and security/compliance despite committed files existing | `docs/reference/codebase/.codebase-scan.txt`, `docker/Dockerfile`, `.github/dependabot.yml` | Blind reliance on scan output can mis-document the repo | Keep Phase 2 manual verification as mandatory; improve scan heuristics if this skill is reused frequently |
 
 ### 2) Technical Debt
 
 | Debt item | Why it exists | Where | Risk if ignored | Suggested fix |
 |-----------|---------------|-------|-----------------|---------------|
-| 15 outstanding TODO/FIXME/HACK comments remain in the production package | Incremental development; partially-finished refactors remain in core, wire, example, and legacy BT modules | `vultron/core/states/cs.py`, `vultron/wire/as2/vocab/objects/embargo_event.py`, `vultron/wire/as2/vocab/examples/*.py`, `vultron/wire/as2/vocab/activities/case_participant.py`, `vultron/wire/as2/vocab/base/objects/*.py`, `vultron/bt/report_management/_behaviors/report_to_others.py`, `vultron/bt/base/bt_node.py`, `vultron/bt/base/demo/pacman.py` | Ambiguous future work and partially-finished refactors accumulate silently | Triage each TODO into a tracked issue or remove it; do not leave long-lived TODOs in protocol-significant paths |
-| `prod_http_delivery.py` and `shared_inbox.py` are stubs with no implementation | Placeholder-driven design for future signed HTTP delivery and shared-inbox fan-out | `vultron/adapters/driven/prod_http_delivery.py`, `vultron/adapters/driving/shared_inbox.py` | No production delivery path for signed or shared-inbox flows; callers may assume these are functional | Implement or clearly gate behind feature flags before any production use |
-| Documentation/code drift around architecture targets | Notes describe both target and current structure; new ASGIEmitter rules now live in a separate note | `notes/architecture-hexagonal.md`, `vultron/core/ports/AGENTS.md`, `notes/architecture-adapters.md`, `vultron/adapters/driven/AGENTS.md`, `AGENTS.md` | New contributors may confuse target layout with what exists today | Keep onboarding docs explicitly split into "current reality" vs "target direction" and cite the ASGIEmitter note where relevant |
-| High churn in planning and guidance files | Planning/spec docs evolve rapidly during active development | `plan/BUILD_LEARNINGS.md`, `AGENTS.md` (79) in the latest scan window | Agent guidance and task context can go stale quickly | Treat `plan/` and guidance docs as volatile areas during onboarding; re-read before each session |
-| `vultron/semantic_registry/` was a 783-line centralized dispatch table | Single module consolidated all message-type to handler wiring | `vultron/semantic_registry/` (refactored in #702) | Previously any new message type required editing one large file; now split into domain sub-modules | Split completed — see `vultron/semantic_registry/` package |
+| TODO/FIXME/HACK comments remain in production code | Incremental refactors and placeholder notes | `docs/reference/codebase/.codebase-scan.txt` TODO section | Future work stays ambiguous and can drift | Triage each item into a tracked issue or remove it |
+| Shared vs actor-scoped DataLayer caching is still subtle | Backward-compatible adapter evolution | `vultron/adapters/driven/datalayer_sqlite/__init__.py`, `vultron/core/ports/datalayer.py` | Queue operations can silently hit the wrong scope | Keep narrowing callers to actor-scoped ports and expand regression coverage |
+| `mcp_server.py` exposes tool functions but is not an in-tree registered MCP server | Priority 1000 is still future work | `vultron/adapters/driving/mcp_server.py` | Readers may overestimate current MCP readiness | Document it as a callable surface, not a fully registered server |
+| Docs/build tooling lives in `project.dependencies`, not only dev dependencies | Packaging choice keeps docs buildable from runtime installs | `pyproject.toml` | Install footprint is larger than a minimal API runtime | [ASK USER] Confirm whether this packaging split is intentional or temporary |
 
 ### 3) Security Concerns
 
 | Risk | OWASP category (if applicable) | Evidence | Current mitigation | Gap |
 |------|--------------------------------|----------|--------------------|-----|
-| No explicit auth/signing was evident in sampled outbound or inbound HTTP delivery paths | A01 / N/A | `vultron/adapters/driven/demo_http_delivery.py`, `vultron/adapters/driving/fastapi/app.py`, `vultron/adapters/driving/fastapi/routers/actors.py` | Local actor IDs and inbox URLs are explicit | Authentication, authorization, or message-signing behavior was not evident in sampled files |
-| Secret handling appears to rely on plain env vars and Compose files | A05 / N/A | `.env.example`, `docker/docker-compose.yml`, `docker/docker-compose-multi-actor.yml` | Example files avoid committed secrets | No secret-rotation or secret-manager integration was found |
+| No implemented signed/authenticated remote inbox delivery was found in the active adapter path | A07 / N/A | `vultron/adapters/driven/demo_http_delivery.py`, `vultron/adapters/driven/prod_http_delivery.py` | Prototype notes and stub placeholders make the limitation visible | The active remote-delivery path still posts unsigned HTTP requests |
+| Config/secrets handling relies on env vars and Compose files | A05 / N/A | `.env.example`, `config.example.yaml`, `docker/docker-compose-multi-actor.yml` | Example files avoid committing secrets | No secret manager, rotation workflow, or auth material lifecycle was found |
 
 ### 4) Performance and Scaling Concerns
 
 | Concern | Evidence | Current symptom | Scaling risk | Suggested improvement |
 |---------|----------|-----------------|-------------|-----------------------|
-| Polling outbox handler scans every actor DataLayer once per second | `vultron/adapters/driving/fastapi/outbox_monitor.py` | Constant polling work even when queues are empty | More actors mean more unnecessary wakeups and reads | Add queue-driven wakeups or adaptive polling |
-| SQLite is the only active persistence backend exposed by the facade | `vultron/adapters/driven/datalayer.py`, `vultron/adapters/driven/datalayer_sqlite.py` | Local-file DB is simple for tests and demos | Multi-writer or higher-volume deployments may hit SQLite limits | Define the next backend/operational profile before scaling beyond demos |
+| Polling-based outbox drain loop | `vultron/adapters/driving/fastapi/outbox_monitor.py` | Constant background work even with empty queues | More actors mean more unnecessary wakeups and reads | Add queue-driven wakeups/metrics and reduce full-scan polling |
+| SQLite is the only active backend behind the public DataLayer facade | `vultron/adapters/driven/datalayer.py`, `vultron/adapters/driven/datalayer_sqlite/__init__.py` | Simple local persistence works well for demos/tests | Multi-writer or larger deployments may hit SQLite limits | Define the next supported backend before scaling beyond prototype use |
 
 ### 5) Fragile/High-Churn Areas
 
 | Area | Why fragile | Churn signal | Safe change strategy |
 |------|-------------|-------------|----------------------|
-| `plan/` documentation set | Planning/history docs change very frequently | `plan/BUILD_LEARNINGS.md` and `plan/PRIORITIES.md` top the current churn output | Read current files immediately before editing; expect stale assumptions |
-| `AGENTS.md` and spec guidance | Repo rules change often and affect coding behavior | `AGENTS.md` (79 changes in the latest scan window), `specs/README.md` in high-churn output | Re-read guidance before non-trivial changes |
-| `vultron/core/behaviors/case/nodes.py` | Encodes case-protocol BT semantics; largest source file at 1502 lines | 47 churn hits in the latest scan window | Make narrow changes with focused tests; extract sub-modules to reduce blast radius |
-| `vultron/wire/as2/extractor.py` | AS2-to-domain semantic extraction; pattern ordering is order-sensitive | 36 churn hits in the latest scan window | Run `test/test_semantic_activity_patterns.py` after every edit; add pattern tests before adding patterns |
-| `vultron/core/use_cases/triggers/embargo.py` | Embargo use-case trigger logic; 37 churn hits at 902 lines | 37 churn hits in the latest scan window | Narrow PRs with explicit test coverage for each embargo state transition |
+| `plan/` files and `AGENTS.md` | Guidance and priorities change frequently | top entries in scan churn section | Re-read before editing; expect stale assumptions |
+| `pyproject.toml` and `uv.lock` | Dependency and tooling changes are active | both appear in top churn output | Verify commands and dependency names before documenting them |
+| `vultron/core/behaviors/case/nodes.py` | Dense BT semantics in a hot area | 40 churn hits in scan output | Make narrow changes with focused tests |
+| `vultron/demo/scenario/two_actor_demo.py` | Large scenario orchestrator with active edits | 32 churn hits and 1029 lines | Prefer small refactors backed by demo tests |
+| `vultron/adapters/driving/fastapi/outbox_handler.py` and actor routes | Delivery/inbox glue is both central and active | 30 and 31 churn hits in scan output | Change with focused adapter tests plus integration coverage |
 
-### 6) Open Questions
+### 6) `[ASK USER]` Questions
 
-1. Demo HTTP helpers still use `requests`, while the declared runtime HTTP
-   client is `httpx`. Migration is tracked in GitHub issue #517 (child of
-   bug #501). No timeline is set.
-2. `prod_http_delivery.py` and `shared_inbox.py` remain architectural placeholders;
-   confirm whether they are near-term deliverables or intentionally dormant.
-3. The `{key:path}` Starlette path converter is the current tactical mitigation
-   for full-URI IDs in URL path segments (see GitHub concern #618). The deeper
-   question — whether to adopt ActivityPub's surrogate-key routing model — is
-   still open.
+1. [ASK USER] Are `ProdHttpDeliveryAdapter` and `SharedInboxAdapter` near-term
+   deliverables, or should they remain documented as dormant placeholders?
+2. [ASK USER] Is the current packaging choice of keeping MkDocs-related packages
+   in `project.dependencies` intentional for runtime installs, or should docs
+   tooling eventually move to a dev-only group?
+3. [ASK USER] Should `mcp_server.py` be presented as an internal callable surface
+   only, or is external MCP SDK registration expected soon enough to call it an
+   active interface?
 
 ### 7) Evidence
 
 - `docs/reference/codebase/.codebase-scan.txt`
-- `pyproject.toml`
-- `docker/Dockerfile`
 - `vultron/adapters/driving/fastapi/main.py`
-- `vultron/adapters/driving/fastapi/app.py`
-- `vultron/adapters/driving/fastapi/deps.py`
-- `vultron/adapters/driving/fastapi/inbox_handler.py`
-- `vultron/adapters/driving/fastapi/outbox_monitor.py`
 - `vultron/adapters/driving/fastapi/outbox_handler.py`
+- `vultron/adapters/driving/fastapi/outbox_monitor.py`
 - `vultron/adapters/driving/shared_inbox.py`
+- `vultron/adapters/driving/mcp_server.py`
 - `vultron/adapters/driven/datalayer.py`
-- `vultron/adapters/driven/datalayer_sqlite.py`
+- `vultron/adapters/driven/datalayer_sqlite/__init__.py`
 - `vultron/adapters/driven/demo_http_delivery.py`
-- `vultron/adapters/driven/asgi_emitter.py`
 - `vultron/adapters/driven/prod_http_delivery.py`
-- `vultron/adapters/driven/sync_activity_adapter.py`
-- `vultron/adapters/driven/trigger_activity_adapter.py`
-- `vultron/demo/utils.py`
-- `vultron/demo/helpers/verification.py`
-- `vultron/semantic_registry.py`
-- `vultron/core/behaviors/case/nodes.py`
-- `vultron/wire/as2/extractor.py`
-- `vultron/core/use_cases/triggers/embargo.py`
-- `vultron/adapters/driven/AGENTS.md`
-- `git log --since="90 days ago"` (churn data)
+- `pyproject.toml`
+- `.github/dependabot.yml`
