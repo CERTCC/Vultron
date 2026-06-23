@@ -97,10 +97,17 @@ class VultronCreateCaseActivity(VultronActivity):
 
     Mirrors the essential fields of ``as_CreateCase``.
     ``type_`` is ``"Create"`` to match the wire value.
+
+    ``context`` carries the URI of the ``Accept(CaseProposal)`` activity
+    that authorised case creation (CP-05-003 causal traceability).
     """
 
     type_: Literal["Create"] = Field(
         default="Create",
         validation_alias="type",
         serialization_alias="type",
+    )
+    context: str | None = Field(
+        default=None,
+        description="URI of the Accept(CaseProposal) that authorised this Create.",
     )

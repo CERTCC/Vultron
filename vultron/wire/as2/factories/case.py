@@ -75,6 +75,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     VulnerabilityCaseRef,
     VulnerabilityCaseStub,
 )
+from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
 )
@@ -768,4 +769,86 @@ def bootstrap_replay_question_activity(
         )
         raise VultronActivityConstructionError(
             "bootstrap_replay_question_activity: invalid arguments"
+        ) from exc
+
+
+def accept_case_proposal_activity(
+    actor_id: str,
+    proposal: as_CaseProposal,
+    to: list[str],
+    **kwargs,
+) -> as_Accept:
+    """Build an ``Accept(as_CaseProposal)`` sent by the case-actor service.
+
+    The case-actor service sends this to acknowledge that it will create a
+    ``VulnerabilityCase`` from the vendor's proposal.  A separate
+    ``Create(VulnerabilityCase)`` follows (CP-05-003).
+
+    Args:
+        actor_id: URI of the case-actor service that is accepting the proposal.
+        proposal: The ``as_CaseProposal`` being accepted (embedded inline as
+            ``object_``).
+        to: List of recipient URIs (typically the vendor actor URI).
+        **kwargs: Optional AS2 fields forwarded to the constructor.
+
+    Returns:
+        An ``as_Accept`` whose ``object_`` is the ``as_CaseProposal``.
+
+    Raises:
+        VultronActivityConstructionError: If Pydantic validation fails.
+    """
+    try:
+        return as_Accept(
+            actor=actor_id,
+            object_=proposal,
+            to=to,
+            **kwargs,
+        )
+    except ValidationError as exc:
+        logger.warning(
+            "accept_case_proposal_activity: invalid arguments: %s", exc
+        )
+        raise VultronActivityConstructionError(
+            "accept_case_proposal_activity: invalid arguments"
+        ) from exc
+
+
+def reject_case_proposal_activity(
+    actor_id: str,
+    proposal: as_CaseProposal,
+    to: list[str],
+    **kwargs,
+) -> as_Reject:
+    """Build a ``Reject(as_CaseProposal)`` sent by the case-actor service.
+
+    The case-actor service sends this when it declines the vendor's proposal
+    (CP-05-004).  The ``as_CaseProposal`` is embedded inline so the vendor
+    has full proposal context without an additional round-trip.
+
+    Args:
+        actor_id: URI of the case-actor service that is rejecting the proposal.
+        proposal: The ``as_CaseProposal`` being rejected (embedded inline as
+            ``object_``).
+        to: List of recipient URIs (typically the vendor actor URI).
+        **kwargs: Optional AS2 fields forwarded to the constructor.
+
+    Returns:
+        An ``as_Reject`` whose ``object_`` is the ``as_CaseProposal``.
+
+    Raises:
+        VultronActivityConstructionError: If Pydantic validation fails.
+    """
+    try:
+        return as_Reject(
+            actor=actor_id,
+            object_=proposal,
+            to=to,
+            **kwargs,
+        )
+    except ValidationError as exc:
+        logger.warning(
+            "reject_case_proposal_activity: invalid arguments: %s", exc
+        )
+        raise VultronActivityConstructionError(
+            "reject_case_proposal_activity: invalid arguments"
         ) from exc
