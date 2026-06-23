@@ -77,6 +77,10 @@ class MessageSemantics(StrEnum):
     # object_ URI could not be resolved after rehydration; activity is dead-lettered
     UNKNOWN_UNRESOLVABLE_OBJECT = auto()
 
+    CREATE_CASE_PROPOSAL = auto()
+    ACCEPT_CASE_PROPOSAL = auto()
+    REJECT_CASE_PROPOSAL = auto()
+
 
 class VultronEvent(BaseModel):
     """Base domain event produced from an inbound wire-format activity.
