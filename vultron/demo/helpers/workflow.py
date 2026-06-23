@@ -48,27 +48,27 @@ logger = logging.getLogger(__name__)
 
 
 def reporter_submits_report(
-    coordinator_client: DataLayerClient,
+    receiver_client: DataLayerClient,
     reporter: as_Actor,
-    coordinator: as_Actor,
+    receiver: as_Actor,
     reporter_client: Optional[DataLayerClient] = None,
 ) -> Tuple[VulnerabilityReport, as_Offer]:
-    """Reporter creates a vulnerability report and submits it to the coordinator.
+    """Reporter creates a vulnerability report and submits it to the receiver.
 
     When ``reporter_client`` is provided (e.g. in a multi-container Docker
     demo), the report and offer are created via the reporter container's
     ``submit-report`` trigger endpoint so that the reporter container logs tell
     the full process-flow story (D5-6a).  The resulting offer is then delivered
-    to the coordinator container's inbox.
+    to the receiver container's inbox.
 
     When ``reporter_client`` is ``None`` (e.g. single-container integration
     tests), the report and offer are constructed in memory and posted directly
-    to the coordinator container (backward-compatible path).
+    to the receiver container (backward-compatible path).
 
     Args:
-        coordinator_client: Client connected to the coordinator container.
+        receiver_client: Client connected to the receiver's container.
         reporter: Reporter ``as_Actor``.
-        coordinator: Coordinator ``as_Actor``.
+        receiver: Receiver ``as_Actor``.
         reporter_client: Optional client connected to the reporter container.
             When provided, the submit-report trigger is called on the reporter
             container; when absent the legacy in-memory path is used.
@@ -84,7 +84,7 @@ def reporter_submits_report(
             "issue to execute arbitrary code with elevated privileges."
         )
         with demo_step(
-            "Reporter submits vulnerability report to coordinator's inbox"
+            "Reporter submits vulnerability report to receiver's inbox"
         ):
             result = post_to_trigger(
                 client=reporter_client,
@@ -93,18 +93,18 @@ def reporter_submits_report(
                 body={
                     "report_name": report_name,
                     "report_content": report_content,
-                    "recipient_id": coordinator.id_,
+                    "recipient_id": receiver.id_,
                 },
             )
         offer_dict = result.get("offer", {})
         report, offer = parse_submit_report_offer(offer_dict)
-        # Deliver the offer from the reporter to the coordinator's inbox.
+        # Deliver the offer from the reporter to the receiver's inbox.
         # Per ADR-0012 (per-actor DataLayer isolation) the trigger stores the
-        # offer only in the reporter's namespace; the coordinator must receive
+        # offer only in the reporter's namespace; the receiver must receive
         # it explicitly via inbox delivery so SubmitReportReceivedUseCase runs
         # and creates the case at RM.RECEIVED (ADR-0015).
-        with demo_step("Deliver reporter's offer to coordinator's inbox"):
-            post_to_inbox_and_wait(coordinator_client, coordinator.id_, offer)
+        with demo_step("Deliver reporter's offer to receiver's inbox"):
+            post_to_inbox_and_wait(receiver_client, receiver.id_, offer)
     else:
         report = VulnerabilityReport(
             attributed_to=reporter.id_,
@@ -118,83 +118,81 @@ def reporter_submits_report(
         offer = rm_submit_report_activity(
             report,
             actor=reporter.id_,
-            target=coordinator.id_,
-            to=coordinator.id_,
+            target=receiver.id_,
+            to=receiver.id_,
         )
         with demo_step(
-            "Reporter submits vulnerability report to coordinator's inbox"
+            "Reporter submits vulnerability report to receiver's inbox"
         ):
-            post_to_inbox_and_wait(coordinator_client, coordinator.id_, offer)
-    with demo_check("Report stored in coordinator's DataLayer"):
-        verify_object_stored(coordinator_client, report.id_)
-    with demo_check("Offer stored in coordinator's DataLayer"):
-        verify_object_stored(coordinator_client, offer.id_)
+            post_to_inbox_and_wait(receiver_client, receiver.id_, offer)
+    with demo_check("Report stored in receiver's DataLayer"):
+        verify_object_stored(receiver_client, report.id_)
+    with demo_check("Offer stored in receiver's DataLayer"):
+        verify_object_stored(receiver_client, offer.id_)
     logger.info("Report submitted: %s", ref_id(report))
     return report, offer
 
 
-def coordinator_validates_report(
-    coordinator_client: DataLayerClient,
-    coordinator: as_Actor,
+def receiver_validates_report(
+    receiver_client: DataLayerClient,
+    receiver: as_Actor,
     offer_id: str,
 ) -> dict:
-    """Coordinator validates the submitted report via the trigger endpoint.
+    """Receiver validates the submitted report via the trigger endpoint.
 
     Advances RM state to VALID only.  To transition RM to ACCEPTED the
-    coordinator must subsequently call ``coordinator_engages_case``.
+    receiver must subsequently call ``receiver_engages_case``.
 
     Args:
-        coordinator_client: Client connected to the coordinator container.
-        coordinator: Coordinator ``as_Actor``.
+        receiver_client: Client connected to the receiver's container.
+        receiver: Receiver ``as_Actor``.
         offer_id: Full URI of the submit-report ``as_Offer`` to validate.
 
     Returns:
         Response dict from the trigger endpoint (contains the validate
         activity).
     """
-    coordinator_obj_id = parse_id(coordinator.id_)["object_id"]
-    with demo_step("Coordinator validates the vulnerability report"):
+    receiver_obj_id = parse_id(receiver.id_)["object_id"]
+    with demo_step("Receiver validates the vulnerability report"):
         result = post_to_trigger(
-            client=coordinator_client,
-            actor_id=coordinator.id_,
+            client=receiver_client,
+            actor_id=receiver.id_,
             behavior="validate-report",
             body={"offer_id": offer_id},
         )
-    logger.info(
-        "Validate-report trigger result for actor %s", coordinator_obj_id
-    )
+    logger.info("Validate-report trigger result for actor %s", receiver_obj_id)
     return result
 
 
-def coordinator_engages_case(
-    coordinator_client: DataLayerClient,
-    coordinator: as_Actor,
+def receiver_engages_case(
+    receiver_client: DataLayerClient,
+    receiver: as_Actor,
     case_id: str,
 ) -> dict:
-    """Coordinator engages the case via the trigger endpoint (RM → ACCEPTED).
+    """Receiver engages the case via the trigger endpoint (RM → ACCEPTED).
 
-    This is a separate, explicit step from ``coordinator_validates_report``.
+    This is a separate, explicit step from ``receiver_validates_report``.
     Validation advances RM to VALID; engagement advances RM to ACCEPTED.
-    A coordinator may validly stop at VALID and defer further work.
+    A receiver may validly stop at VALID and defer further work.
 
     Args:
-        coordinator_client: Client connected to the coordinator container.
-        coordinator: Coordinator ``as_Actor``.
+        receiver_client: Client connected to the receiver's container.
+        receiver: Receiver ``as_Actor``.
         case_id: Full URI of the ``VulnerabilityCase`` to engage.
 
     Returns:
         Response dict from the trigger endpoint (contains the engage
         activity).
     """
-    coordinator_obj_id = parse_id(coordinator.id_)["object_id"]
-    with demo_step("Coordinator engages the vulnerability case"):
+    receiver_obj_id = parse_id(receiver.id_)["object_id"]
+    with demo_step("Receiver engages the vulnerability case"):
         result = post_to_trigger(
-            client=coordinator_client,
-            actor_id=coordinator.id_,
+            client=receiver_client,
+            actor_id=receiver.id_,
             behavior="engage-case",
             body={"case_id": case_id},
         )
-    logger.info("Engage-case trigger result for actor %s", coordinator_obj_id)
+    logger.info("Engage-case trigger result for actor %s", receiver_obj_id)
     return result
 
 

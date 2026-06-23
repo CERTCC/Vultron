@@ -272,7 +272,7 @@ def _all_fetchable_participants_rm_closed(
         case: The ``VulnerabilityCase`` whose participant index to walk.
 
     Returns:
-        ``True`` if all locally-fetchable non-coordinator participants are
+        ``True`` if all locally-fetchable non-receiver participants are
         ``RM.CLOSED``; ``False`` otherwise.
     """
     for p_id in case.actor_participant_index.values():
@@ -292,28 +292,28 @@ def _all_fetchable_participants_rm_closed(
     return True
 
 
-def verify_coordinator_case_state(
-    coordinator_client: DataLayerClient,
+def verify_receiver_case_state(
+    receiver_client: DataLayerClient,
     case_id: str,
     report_id: str,
-    coordinator_actor_id: str,
+    receiver_actor_id: str,
     reporter_actor_id: str,
     question_note_id: Optional[str] = None,
     reply_note_id: Optional[str] = None,
 ) -> VulnerabilityCase:
-    """Assert the final authoritative case state on the coordinator container.
+    """Assert the final authoritative case state on the receiver container.
 
     Verifies that the case references the submitted report, that all required
-    participants are present (coordinator, reporter, plus at least one Case
-    Actor), and that the coordinator participant has reached ``RM.ACCEPTED``
+    participants are present (receiver, reporter, plus at least one Case
+    Actor), and that the receiver participant has reached ``RM.ACCEPTED``
     with ``EM.ACTIVE`` and ``pxa == CS_pxa.pxa``.  Optionally checks that
     *question_note_id* and *reply_note_id* appear in the case notes.
 
     Args:
-        coordinator_client: Client connected to the coordinator container.
+        receiver_client: Client connected to the receiver container.
         case_id: Full URI of the ``VulnerabilityCase`` to verify.
         report_id: Full URI of the submitted vulnerability report.
-        coordinator_actor_id: Full URI of the coordinator actor.
+        receiver_actor_id: Full URI of the receiver actor.
         reporter_actor_id: Full URI of the reporter actor.
         question_note_id: Optional URI of the question note to assert present.
         reply_note_id: Optional URI of the reply note to assert present.
@@ -325,25 +325,25 @@ def verify_coordinator_case_state(
         AssertionError: If any invariant is violated.
     """
     final_case = VulnerabilityCase(
-        **coordinator_client.get(f"/datalayer/{case_id}")
+        **receiver_client.get(f"/datalayer/{case_id}")
     )
 
     # Verify required participants are present by ID rather than a raw count,
     # so future changes to the participant set don't silently break CI.
-    required_ids = {coordinator_actor_id, reporter_actor_id}
+    required_ids = {receiver_actor_id, reporter_actor_id}
     missing = required_ids - set(final_case.actor_participant_index.keys())
     if missing:
         raise AssertionError(
             f"Required participants missing from case: {missing}"
         )
-    # At least one Case Actor must be present beyond coordinator and reporter.
+    # At least one Case Actor must be present beyond receiver and reporter.
     other_actors = (
         set(final_case.actor_participant_index.keys()) - required_ids
     )
     if not other_actors:
         raise AssertionError(
             "Expected at least one Case Actor participant in addition to"
-            " coordinator and reporter"
+            " receiver and reporter"
         )
 
     report_ids = [
@@ -355,15 +355,13 @@ def verify_coordinator_case_state(
             "Final case does not reference the submitted report"
         )
 
-    coordinator_participant_id = _require_case_participant_id(
+    receiver_participant_id = _require_case_participant_id(
         final_case,
-        coordinator_actor_id,
+        receiver_actor_id,
         "Coordinator",
     )
     _require_case_participant_id(final_case, reporter_actor_id, "Reporter")
-    _assert_vendor_participant_state(
-        coordinator_client, coordinator_participant_id
-    )
+    _assert_vendor_participant_state(receiver_client, receiver_participant_id)
 
     _assert_vendor_case_status(final_case)
     _assert_case_notes(final_case, question_note_id, reply_note_id)
@@ -377,7 +375,7 @@ def verify_case_actor_unused(
     """Verify the dedicated CaseActor container remains unused in D5-2.
 
     Per D5-1-G3, the per-case ``VultronCaseActor`` co-locates in the
-    coordinator container for D5-2.  The standalone ``case-actor`` service
+    receiver container for D5-2.  The standalone ``case-actor`` service
     participates in the Docker topology but should not hold the created
     ``VulnerabilityCase``.
 

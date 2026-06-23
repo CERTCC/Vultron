@@ -409,8 +409,13 @@ def test_invariant_5_expected_event_types_present(
     Checked against the ``case-actor`` replica (authoritative log).
     Falls back to any available replica when no ``case-actor`` key exists.
 
-    AC-3: Promoted to hard pass for validate_report (#1029);
-    other types remain xfail pending #1026 follow-on fixes.
+    AC-3: Promoted to hard pass for validate_report (#1029).
+    Note: ``ack_report`` is intentionally excluded from this parametrize list.
+    The two-actor demo follows an "always create case on receipt" policy, so
+    the receiver learns the report was received via case creation itself —
+    a separate pre-case ``Read(Offer(Report))`` would be protocol noise in
+    this scenario.  A dedicated scenario that models the pre-case ACK flow
+    (with an explicit "manual-create" policy option) is tracked in #1133.
     """
     auth = _auth_entries(case_ledger_replicas)
     found = {_event_type(e) for e in auth}

@@ -27,10 +27,11 @@ Sub-modules
 - :mod:`~vultron.demo.helpers.sync` — SYNC-2 ``trigger_log_commit`` and
   ``verify_replica_state``.
 - :mod:`~vultron.demo.helpers.verification` — lower-level participant and
-  case-state assertion primitives, plus ``verify_coordinator_case_state``
+  case-state assertion primitives, plus ``verify_receiver_case_state``
   and ``verify_case_actor_unused``.
 - :mod:`~vultron.demo.helpers.workflow` — ``reporter_submits_report``,
-  ``coordinator_validates_report``, and ``find_case_for_offer``.
+  ``receiver_validates_report``, ``receiver_engages_case``, and
+  ``find_case_for_offer``.
 - :mod:`~vultron.demo.helpers.notes` — ``participant_adds_note_to_case``.
 - :mod:`~vultron.demo.helpers.milestones` — lifecycle milestone verifiers
   (``verify_case_active``, ``verify_fix_ready``, ``verify_fix_deployed``,
@@ -89,12 +90,13 @@ from vultron.demo.helpers.verification import (  # noqa: F401
     _fetch_participant_data,
     _require_case_participant_id,
     verify_case_actor_unused,
-    verify_coordinator_case_state,
+    verify_receiver_case_state,
 )
 from vultron.demo.helpers.workflow import (  # noqa: F401
     _load_case_from_datalayer,
     _report_id_from_offer_data,
-    coordinator_validates_report,
     find_case_for_offer,
+    receiver_engages_case,
+    receiver_validates_report,
     reporter_submits_report,
 )
