@@ -540,12 +540,11 @@ def _phase_sync_verification(
     # `trigger_log_commit` and `wait_for_finder_log_entry` remain available
     # in `vultron.demo.helpers.sync` for tests that need to drive a *real*
     # protocol event and wait for its replica; they are intentionally not
-    # called here — EXCEPT for the final replica-state check below, where
-    # we must wait for finder to receive the vendor's latest canonical entry
-    # before comparing tail hashes.  After _phase_notes_exchange, the vendor's
-    # note reply creates a new canonical ledger entry (entry 3) whose
-    # Announce(CaseLedgerEntry) fan-out is an async BackgroundTask.
-    # Without this wait the tail hashes diverge (finder = entry 2, vendor = entry 3).
+    # called here — EXCEPT for the replica-state check below, where we must
+    # wait for finder to receive the vendor's latest canonical entry before
+    # comparing tail hashes.  The vendor's report-acceptance creates canonical
+    # ledger entries whose Announce(CaseLedgerEntry) fan-out is an async
+    # BackgroundTask; without this wait the tail hashes may diverge.
     vendor_entries = _get_log_entries_for_case(vendor_client, case.id_)
     if vendor_entries:
         vendor_tail = max(vendor_entries, key=lambda e: e["log_index"])
@@ -903,6 +902,14 @@ def run_two_actor_demo(
             vendor_id,
         )
     )
+    _phase_sync_verification(
+        finder_client,
+        vendor_client,
+        vendor,
+        finder,
+        case,
+        case_actor_client,
+    )
     _, _, _, finder_in_finder = _phase_notes_exchange(
         finder_client,
         vendor_client,
@@ -911,14 +918,6 @@ def run_two_actor_demo(
         vendor_in_vendor,
         case,
         report,
-    )
-    _phase_sync_verification(
-        finder_client,
-        vendor_client,
-        vendor,
-        finder,
-        case,
-        case_actor_client,
     )
     _phase_fix_lifecycle(
         finder_client,
