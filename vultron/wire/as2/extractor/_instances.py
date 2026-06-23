@@ -161,6 +161,7 @@ CreateCaseProposalPattern = ActivityPattern(
     ),
     activity_=TAtype.CREATE,
     object_=VOtype.CASE_PROPOSAL,
+    strict=True,
 )
 AcceptCaseProposalPattern = ActivityPattern(
     description=(
@@ -169,6 +170,7 @@ AcceptCaseProposalPattern = ActivityPattern(
     ),
     activity_=TAtype.ACCEPT,
     object_=VOtype.CASE_PROPOSAL,
+    strict=True,
 )
 RejectCaseProposalPattern = ActivityPattern(
     description=(
@@ -177,6 +179,7 @@ RejectCaseProposalPattern = ActivityPattern(
     ),
     activity_=TAtype.REJECT,
     object_=VOtype.CASE_PROPOSAL,
+    strict=True,
 )
 
 # ---------------------------------------------------------------------------
