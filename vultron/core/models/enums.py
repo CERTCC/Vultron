@@ -28,6 +28,7 @@ class VultronObjectType(StrEnum):
     CASE_STATUS = "CaseStatus"
     PARTICIPANT_STATUS = "ParticipantStatus"
     CASE_LEDGER_ENTRY = "CaseLedgerEntry"
+    CASE_PROPOSAL = "CaseProposal"
 
 
 class VultronActorType(StrEnum):

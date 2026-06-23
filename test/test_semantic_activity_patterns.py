@@ -589,3 +589,154 @@ def test_accept_case_manager_role_rejects_bare_ownership_offer():
     )
     with pytest.raises(VultronActivityConstructionError):
         accept_case_manager_role_activity(wrong_offer, actor=_CASE_ACTOR_URI)
+
+
+# ---------------------------------------------------------------------------
+# CaseProposal pattern tests (CP-03-001 through CP-03-004, CP-07-001)
+# ---------------------------------------------------------------------------
+
+_CASE_ACTOR_URI = "https://example.org/case-actors/alpha"
+
+
+def _make_case_proposal():
+    """Return a minimal as_CaseProposal for pattern-matching tests."""
+    from vultron.wire.as2.vocab.examples._base import gen_report
+    from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
+
+    return as_CaseProposal(
+        attributed_to=_VENDOR_URI,
+        object_=gen_report(),
+        target=_CASE_ACTOR_URI,
+    )
+
+
+def test_create_case_proposal_dispatches_correctly():
+    """Create(as_CaseProposal) must be classified as CREATE_CASE_PROPOSAL.
+
+    CP-03-001, CP-07-001.
+    """
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Create,
+    )
+
+    proposal = _make_case_proposal()
+    activity = as_Create(
+        actor=_VENDOR_URI,
+        object_=proposal,
+        to=[_CASE_ACTOR_URI],
+    )
+    result = find_matching_semantics(activity)
+    assert (
+        result == MessageSemantics.CREATE_CASE_PROPOSAL
+    ), f"Expected CREATE_CASE_PROPOSAL, got {result}"
+
+
+def test_accept_case_proposal_dispatches_correctly():
+    """Accept(as_CaseProposal) must be classified as ACCEPT_CASE_PROPOSAL.
+
+    CP-03-002, CP-07-001.
+    """
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Accept,
+    )
+
+    proposal = _make_case_proposal()
+    activity = as_Accept(
+        actor=_CASE_ACTOR_URI,
+        object_=proposal,
+        to=[_VENDOR_URI],
+    )
+    result = find_matching_semantics(activity)
+    assert (
+        result == MessageSemantics.ACCEPT_CASE_PROPOSAL
+    ), f"Expected ACCEPT_CASE_PROPOSAL, got {result}"
+
+
+def test_reject_case_proposal_dispatches_correctly():
+    """Reject(as_CaseProposal) must be classified as REJECT_CASE_PROPOSAL.
+
+    CP-03-003, CP-07-001.
+    """
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Reject,
+    )
+
+    proposal = _make_case_proposal()
+    activity = as_Reject(
+        actor=_CASE_ACTOR_URI,
+        object_=proposal,
+        to=[_VENDOR_URI],
+    )
+    result = find_matching_semantics(activity)
+    assert (
+        result == MessageSemantics.REJECT_CASE_PROPOSAL
+    ), f"Expected REJECT_CASE_PROPOSAL, got {result}"
+
+
+def test_create_case_proposal_not_confused_with_create_case():
+    """Create(as_CaseProposal) must NOT match CREATE_CASE.
+
+    Ordering guard: CP-03-004 — CaseProposal patterns must not be shadowed
+    by more general Create/Accept/Reject patterns.
+    """
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Create,
+    )
+
+    proposal = _make_case_proposal()
+    activity = as_Create(
+        actor=_VENDOR_URI,
+        object_=proposal,
+        to=[_CASE_ACTOR_URI],
+    )
+    result = find_matching_semantics(activity)
+    assert (
+        result != MessageSemantics.CREATE_CASE
+    ), "CREATE_CASE_PROPOSAL must not be misrouted as CREATE_CASE"
+
+
+def test_accept_case_proposal_not_confused_with_other_accept_semantics():
+    """Accept(as_CaseProposal) must NOT match any non-CaseProposal semantic.
+
+    CP-03-004 ordering invariant.
+    """
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Accept,
+    )
+
+    proposal = _make_case_proposal()
+    activity = as_Accept(
+        actor=_CASE_ACTOR_URI,
+        object_=proposal,
+        to=[_VENDOR_URI],
+    )
+    result = find_matching_semantics(activity)
+    assert result not in {
+        MessageSemantics.ACCEPT_CASE_MANAGER_ROLE,
+        MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER,
+        MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
+        MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
+        MessageSemantics.ACCEPT_SUGGEST_ACTOR_TO_CASE,
+        MessageSemantics.UNKNOWN,
+    }, f"Accept(CaseProposal) misrouted as {result}"
+
+
+def test_case_proposal_with_string_object_returns_unresolvable():
+    """Accept with a bare CaseProposal URI returns UNKNOWN_UNRESOLVABLE_OBJECT.
+
+    After rehydration, if the object_ is still a string the extractor cannot
+    match a specific pattern; it should return UNKNOWN_UNRESOLVABLE_OBJECT.
+    """
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Accept,
+    )
+
+    activity = as_Accept(
+        actor=_CASE_ACTOR_URI,
+        object_="https://example.org/proposals/xyz",
+        to=[_VENDOR_URI],
+    )
+    result = find_matching_semantics(activity)
+    assert (
+        result == MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT
+    ), f"Expected UNKNOWN_UNRESOLVABLE_OBJECT for bare URI, got {result}"

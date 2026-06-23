@@ -26,6 +26,11 @@ from vultron.core.models.events.case import (
     EngageCaseReceivedEvent,
     UpdateCaseReceivedEvent,
 )
+from vultron.core.models.events.case_proposal import (
+    AcceptCaseProposalReceivedEvent,
+    CreateCaseProposalReceivedEvent,
+    RejectCaseProposalReceivedEvent,
+)
 from vultron.core.use_cases.received.case import (
     AddReportToCaseReceivedUseCase,
     CreateCaseReceivedUseCase,
@@ -33,12 +38,20 @@ from vultron.core.use_cases.received.case import (
     EngageCaseReceivedUseCase,
     UpdateCaseReceivedUseCase,
 )
+from vultron.core.use_cases.received.case_proposal import (
+    AcceptCaseProposalReceivedUseCase,
+    CreateCaseProposalReceivedUseCase,
+    RejectCaseProposalReceivedUseCase,
+)
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.wire.as2.extractor import (
+    AcceptCaseProposalPattern,
     AddReportToCaseActivityPattern,
     CreateCaseActivityPattern,
+    CreateCaseProposalPattern,
     DeferCasePattern,
     EngageCasePattern,
+    RejectCaseProposalPattern,
     UpdateCaseActivityPattern,
 )
 from vultron.wire.as2.vocab.activities.case import (
@@ -50,6 +63,33 @@ from vultron.wire.as2.vocab.activities.case import (
 )
 
 ENTRIES: list[SemanticEntry] = [
+    # CaseProposal entries (CP-03-001 through CP-03-004): must appear before
+    # any more-general Create/Accept/Reject patterns that share the same
+    # activity_ type (SE-03-002).
+    SemanticEntry(
+        semantics=MessageSemantics.CREATE_CASE_PROPOSAL,
+        pattern=CreateCaseProposalPattern,
+        event_class=CreateCaseProposalReceivedEvent,
+        use_case_class=CreateCaseProposalReceivedUseCase,
+        wire_activity_class=None,
+        include_activity=True,
+    ),
+    SemanticEntry(
+        semantics=MessageSemantics.ACCEPT_CASE_PROPOSAL,
+        pattern=AcceptCaseProposalPattern,
+        event_class=AcceptCaseProposalReceivedEvent,
+        use_case_class=AcceptCaseProposalReceivedUseCase,
+        wire_activity_class=None,
+        include_activity=True,
+    ),
+    SemanticEntry(
+        semantics=MessageSemantics.REJECT_CASE_PROPOSAL,
+        pattern=RejectCaseProposalPattern,
+        event_class=RejectCaseProposalReceivedEvent,
+        use_case_class=RejectCaseProposalReceivedUseCase,
+        wire_activity_class=None,
+        include_activity=True,
+    ),
     SemanticEntry(
         semantics=MessageSemantics.CREATE_CASE,
         pattern=CreateCaseActivityPattern,
