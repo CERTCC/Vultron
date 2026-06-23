@@ -42,6 +42,7 @@ from vultron.errors import (
     VultronOutboxToFieldMissingError,
 )
 from vultron.wire.as2.vocab.base.links import as_Link
+from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 logger = logging.getLogger(__name__)
@@ -51,6 +52,7 @@ logger = logging.getLogger(__name__)
 # from plain dicts that result from the model_dump() → VultronActivity
 # .model_validate() round-trip.
 _STUB_OBJECT_MODEL_MAP: dict[str, type[BaseModel]] = {
+    "CaseProposal": as_CaseProposal,
     "VulnerabilityCase": VulnerabilityCase,
 }
 
