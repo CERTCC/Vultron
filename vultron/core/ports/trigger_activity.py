@@ -230,6 +230,26 @@ class TriggerActivityPort(Protocol):
         """
         ...
 
+    def create_case_proposal(
+        self,
+        actor: str,
+        report_id: str,
+        case_actor_id: str,
+        summary: str | None = None,
+        to: list[str] | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist a ``Create(as_CaseProposal)`` activity.
+
+        Builds an ``as_CaseProposal`` from the ``VulnerabilityReport``
+        identified by ``report_id``, addressed to the case-actor service at
+        ``case_actor_id``, and persists ``Create(as_CaseProposal)`` to the
+        DataLayer.
+
+        Per ``specs/case-proposal.yaml`` CP-04-001, CP-04-002.
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
     # -----------------------------------------------------------------------
     # Actors (invitations, recommendations)
     # -----------------------------------------------------------------------

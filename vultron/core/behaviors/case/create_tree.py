@@ -33,6 +33,7 @@ Structure:
        ├─ RecordCaseCreationEvents     # Backfill offer_received + case_created events (CM-02-009)
        ├─ CreateCaseOwnerParticipant   # Add case owner as initial participant (CM-02-008)
        ├─ CreateCaseActorNode          # Create CaseActor service (CM-02-001)
+       ├─ ProposeCaseToActorNode       # Send Create(as_CaseProposal) to Case Actor (CP-04-002)
        ├─ EmitCreateCaseActivity       # Generate CreateCaseActivity activity
        └─ UpdateActorOutbox            # Append activity to actor outbox
 
@@ -62,6 +63,7 @@ from vultron.core.behaviors.case.participant_tree import (
 from vultron.core.behaviors.case.nodes import (
     CheckCaseAlreadyExists,
     PersistCase,
+    ProposeCaseToActorNode,
     SetCaseAttributedTo,
     UpdateActorOutbox,
     create_receive_activity_tree,
@@ -111,6 +113,7 @@ def create_create_case_tree(
                 case_obj=case_obj, actor_config=actor_config
             ),
             CreateCaseActorNode(case_id=case_id),
+            ProposeCaseToActorNode(),
             EmitCreateCaseActivity(),
             UpdateActorOutbox(),
         ],

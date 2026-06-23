@@ -97,14 +97,44 @@ class TestTreeStructure:
     def test_tree_flow_has_ten_children(
         self, report, offer, reporter_actor_id
     ):
-        """ReceiveReportCaseFlow sequence has exactly 9 action nodes."""
+        """ReceiveReportCaseFlow sequence has exactly 10 action nodes."""
         tree = create_receive_report_case_tree(
             report_id=report.id_,
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
         flow = tree.children[1]
-        assert len(flow.children) == 9
+        assert len(flow.children) == 10
+
+    def test_propose_case_to_actor_node_is_wired(
+        self, report, offer, reporter_actor_id
+    ):
+        """ProposeCaseToActorNode appears after CreateCaseActorNode in the flow."""
+        from vultron.core.behaviors.case.nodes.actor import (
+            ProposeCaseToActorNode,
+        )
+        from vultron.core.behaviors.case.case_setup_tree import (
+            CreateCaseActorNode,
+        )
+
+        tree = create_receive_report_case_tree(
+            report_id=report.id_,
+            offer_id=offer.id_,
+            reporter_actor_id=reporter_actor_id,
+        )
+        flow = tree.children[1]
+        node_types = [type(c) for c in flow.children]
+        assert ProposeCaseToActorNode in node_types
+        propose_idx = node_types.index(ProposeCaseToActorNode)
+        create_actor_idx = next(
+            i
+            for i, c in enumerate(flow.children)
+            if isinstance(c, CreateCaseActorNode)
+        )
+        assert propose_idx == create_actor_idx + 1, (
+            "ProposeCaseToActorNode must appear immediately after "
+            "CreateCaseActorNode"
+        )
 
 
 # ============================================================================

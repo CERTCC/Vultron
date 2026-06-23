@@ -772,6 +772,48 @@ def bootstrap_replay_question_activity(
         ) from exc
 
 
+def create_case_proposal_activity(
+    actor_id: str,
+    proposal: as_CaseProposal,
+    to: list[str],
+    **kwargs,
+) -> as_Create:
+    """Build a ``Create(as_CaseProposal)`` sent by the vendor actor.
+
+    The vendor actor sends this to the case-actor service to initiate the
+    case initialization protocol (CP-04-001).  The ``as_CaseProposal``
+    is embedded inline so the case-actor service has full context without
+    an additional round-trip.
+
+    Args:
+        actor_id: URI of the vendor actor that is sending the proposal.
+        proposal: The ``as_CaseProposal`` being created (embedded inline as
+            ``object_``).
+        to: List of recipient URIs (typically the case-actor service URI).
+        **kwargs: Optional AS2 fields forwarded to the constructor.
+
+    Returns:
+        An ``as_Create`` whose ``object_`` is the ``as_CaseProposal``.
+
+    Raises:
+        VultronActivityConstructionError: If Pydantic validation fails.
+    """
+    try:
+        return as_Create(
+            actor=actor_id,
+            object_=proposal,
+            to=to,
+            **kwargs,
+        )
+    except ValidationError as exc:
+        logger.warning(
+            "create_case_proposal_activity: invalid arguments: %s", exc
+        )
+        raise VultronActivityConstructionError(
+            "create_case_proposal_activity: invalid arguments"
+        ) from exc
+
+
 def accept_case_proposal_activity(
     actor_id: str,
     proposal: as_CaseProposal,
