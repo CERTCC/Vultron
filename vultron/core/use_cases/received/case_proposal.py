@@ -109,6 +109,19 @@ class CreateCaseProposalReceivedUseCase:
             if raw_proposal is not None and hasattr(
                 raw_proposal, "model_dump"
             ):
+                # DataLayer._rehydrate_fields may have expanded the `target`
+                # URI (case-actor service URL) to a full actor object.
+                # model_dump with target typed as NonEmptyString would warn
+                # (PydanticSerializationUnexpectedValue) — normalize it back.
+                target_val = getattr(raw_proposal, "target", None)
+                if target_val is not None and not isinstance(target_val, str):
+                    raw_proposal = raw_proposal.model_copy(
+                        update={
+                            "target": getattr(
+                                target_val, "id_", str(target_val)
+                            )
+                        }
+                    )
                 proposal_dict = raw_proposal.model_dump(by_alias=True)
 
         tree = create_case_proposal_received_tree(

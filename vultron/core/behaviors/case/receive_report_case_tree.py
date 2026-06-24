@@ -41,8 +41,9 @@ Structure (CM-14 canonical order):
        ├─ UpdateActorOutbox              # Flush Create(Case) to outbox
        ├─ CreateCaseParticipantNode      # Reporter participant (RM.ACCEPTED); seed SIGNATORY
        ├─ CreateCaseActorNode            # Spawn Case Actor; write case_actor_id
+       ├─ ProposeCaseToActorNode         # Send Create(as_CaseProposal) to Case Actor
        ├─ SendOfferCaseManagerRoleNode   # Offer CASE_MANAGER role to Case Actor
-       └─ UpdateActorOutbox (Offer)      # Flush Offer to outbox
+       └─ UpdateActorOutbox (Offer)      # Flush Offer+Proposal to outbox
 
 Note: No canonical ledger commit happens here.  The vendor actor is not the
 CaseActor and MUST NOT commit canonical case-ledger entries.  The CaseActor
@@ -87,6 +88,7 @@ from vultron.core.behaviors.case.embargo_tree import (
 )
 from vultron.core.behaviors.case.nodes import (
     CheckCaseExistsForReport,
+    ProposeCaseToActorNode,
     UpdateActorOutbox,
 )
 from vultron.core.behaviors.report.nodes import (
@@ -183,8 +185,11 @@ def create_receive_report_case_tree(
             # Spawn the Case Actor entity after all participants are registered
             # so the Offer can reference a complete case snapshot (DEMOMA-08-002).
             # CreateCaseActorNode reads case_id from the blackboard and writes
-            # case_actor_id for SendOfferCaseManagerRoleNode.
+            # case_actor_id for ProposeCaseToActorNode and SendOfferCaseManagerRoleNode.
             CreateCaseActorNode(),
+            # Send Create(as_CaseProposal) so the Case Actor can initialize the
+            # case on its side (CP-04-001, CP-04-002, ADR-0023).
+            ProposeCaseToActorNode(),
             SendOfferCaseManagerRoleNode(),
             UpdateActorOutbox(name="UpdateActorOutboxOffer"),
         ],
