@@ -1,14 +1,15 @@
 ---
-title: "Vultron BT Fuzzer Nodes: External Dependency Touchpoints"
+title: "Vultron BT Fuzzer Nodes: Call-Out Points"
 status: active
 description: >
   Index and background for fuzzer (stub) BT nodes in the Vultron BT
-  simulation. Fuzzer nodes are external dependency touchpoints cataloged
-  by domain area in per-topic sub-files.
+  simulation. Fuzzer nodes are call-out points cataloged by domain area
+  in per-topic sub-files.
 related_specs:
   - specs/behavior-tree-integration.yaml
 related_notes:
   - notes/bt-integration.md
+  - notes/coordination-agents.md
   - notes/bt-fuzzer-nodes-vul-discovery.md
   - notes/bt-fuzzer-nodes-embargo.md
   - notes/bt-fuzzer-nodes-report-management.md
@@ -20,7 +21,7 @@ relevant_packages:
   - vultron/bt/vul_discovery
 ---
 
-# Vultron BT Fuzzer Nodes: External Dependency Touchpoints
+# Vultron BT Fuzzer Nodes: Call-Out Points
 
 ## Background and Purpose
 
@@ -31,9 +32,9 @@ factory function. Each one wraps a probabilistic base type from
 `ProbablySucceed`) to stand in for real-world logic that has not yet been
 implemented.
 
-Every fuzzer node is a **named external dependency touchpoint** — a location
-in the protocol simulation where one of the following is required to
-determine the outcome:
+Every fuzzer node is a **call-out point** — a location in the protocol
+simulation where the BT cannot proceed automatically. One of the following
+is required to determine the outcome:
 
 - **External data source**: e.g., threat intelligence feeds, exploit
   databases, vulnerability registries, contact directories

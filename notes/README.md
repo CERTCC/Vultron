@@ -214,11 +214,14 @@ composability violations, or refactoring near-duplicate BT implementations.
 **`bt-fuzzer-nodes.md`**
 Index and background for the fuzzer node catalog. Fuzzer nodes are stub
 implementations in the legacy BT simulation (`vultron/bt/`) that stand in for
-real-world decision logic not yet implemented. This file explains what fuzzer
-nodes represent, the entry format, automation potential categories, and the
-fuzzer base-type probability table, then indexes the per-domain sub-files.
-**Load when**: understanding what fuzzer nodes are and why they exist; jump
-directly to a sub-file for the actual catalog entries.
+real-world decision logic not yet implemented. Each fuzzer node is a
+**call-out point** — a location where the BT cannot proceed automatically and
+needs external input (data, a decision, or content). This file explains the
+entry format, automation potential categories, and the fuzzer base-type
+probability table, then indexes the per-domain sub-files.
+**Load when**: understanding what fuzzer nodes are and why they exist; mapping
+fuzzer nodes to coordination agent types; jump directly to a sub-file for the
+actual catalog entries.
 
 **`bt-fuzzer-nodes-vul-discovery.md`**
 Fuzzer node catalog for the Vulnerability Discovery workflow
@@ -470,6 +473,17 @@ execution order (design > learn > plan > build). Includes a Mermaid
 flowchart and future BT automation notes.
 **Load when**: understanding or evolving the agent skill pipeline, automating
 the development loop, or deciding which skill to run next.
+
+**`coordination-agents.md`**
+Design guidance for coordination agents — external capabilities (human, skill,
+or LLM agent) that answer Vultron call-out points. Covers the two-surface
+integration model (trigger endpoints = call-in; call-out points = call-out),
+the four agent type patterns (Sentinel, Evaluator, Retriever, Composer), the
+trust/execution-authority axis, composite agent design, and the fuzzer-node
+discovery methodology.
+**Load when**: designing a new coordination agent or call-out point integration,
+working on the fuzzer-to-agent replacement roadmap, or explaining the
+coordination agent concept to new contributors.
 
 **`agents-md-structure.md`**
 Routing policy for `AGENTS.md` content: the decision tree for whether new
