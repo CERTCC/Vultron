@@ -80,6 +80,7 @@ General information about architectural decision records is available at <https:
   CaseActor Routing](0022-single-bt-execution-for-received-side-case-actor-routing.md)
 - [ADR-0023 Introduce `CaseProposal` for Distributed Case Actor
   Initialization](0023-case-proposal-protocol.md)
+- [ADR-0024 Coordination Agent Taxonomy](0024-coordination-agent-taxonomy.md)
 
 ## Proposed ADRs
 
