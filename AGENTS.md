@@ -837,3 +837,19 @@ History entries live under `plan/history/YYMM/<type>/<entry-id>.md`. Use the
 `notes/history-management.md` for the format and usage. During `orient-agent`,
 read only `plan/*.md` — access `plan/history/` only for investigating
 completed work.
+
+---
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues; external PRs are not a triage surface. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default label vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context repo: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
