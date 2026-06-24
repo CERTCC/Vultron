@@ -190,13 +190,29 @@ class _CasesMixin:
             as_CaseProposal,
         )
 
-        report = cast(VulnerabilityReport, self._dl.read(report_id))
+        report_obj = self._dl.read(report_id)
+        if report_obj is None:
+            raise ValueError(
+                f"create_case_proposal: report '{report_id}' not found"
+                " in DataLayer"
+            )
+        report = cast(VulnerabilityReport, report_obj)
         proposal = as_CaseProposal(
             attributed_to=actor,
             object_=report,
             target=case_actor_id,
             summary=summary,
         )
+        # Persist the proposal so the outbox expansion path can find it
+        # when the as_Create activity is read back from the DataLayer.
+        try:
+            self._dl.create(proposal)
+        except ValueError:
+            logger.debug(
+                "create_case_proposal: proposal '%s' already exists"
+                " — skipping",
+                proposal.id_,
+            )
         recipients = to if to is not None else [case_actor_id]
         activity = create_case_proposal_activity(
             actor_id=actor,

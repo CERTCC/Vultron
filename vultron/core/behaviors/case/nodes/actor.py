@@ -28,14 +28,12 @@ the process-area root per BTND-07-003:
 - ``create_accept_ownership_transfer_tree``
 """
 
-import uuid
 from typing import Any, cast
 
 import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
-from vultron.core.models.activity import VultronActivity
 from vultron.core.models.protocols import is_case_model
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import _as_id
@@ -222,10 +220,12 @@ class ProposeCaseToActorNode(DataLayerAction):
     """Send ``Create(as_CaseProposal)`` to the registered case-actor service.
 
     Reads ``case_id`` and ``case_actor_id`` from the blackboard (written by
-    ``CreateCaseActorNode`` / ``ResolveCaseActorUrlsNode``), reads the
-    linked ``VulnerabilityReport`` from the DataLayer, constructs an
-    ``as_CaseProposal`` dict, and queues ``Create(as_CaseProposal)`` to the
-    actor's outbox so the case-actor service can initialize the case.
+    ``CreateCaseActorNode`` / ``ResolveCaseActorUrlsNode``), resolves the
+    linked ``VulnerabilityReport`` ID from the case record, and delegates
+    activity construction and persistence to
+    ``trigger_activity_factory.create_case_proposal()`` so the wire layer
+    handles serialization (CP-01-004: report must be embedded inline, not
+    as a URI reference).
 
     This node MUST run AFTER ``CreateCaseActorNode`` succeeds, because the
     case-actor identity must exist in the DataLayer before the proposal can
@@ -233,11 +233,11 @@ class ProposeCaseToActorNode(DataLayerAction):
 
     Returns FAILURE when:
 
-    - DataLayer or ``actor_id`` is unavailable.
+    - DataLayer, ``actor_id``, or ``trigger_activity_factory`` is unavailable.
     - ``case_id`` or ``case_actor_id`` is missing from the blackboard.
     - The case is not found in the DataLayer.
     - No ``VulnerabilityReport`` is linked to the case (CP-01-004).
-    - The linked report is not found in the DataLayer.
+    - ``trigger_activity_factory.create_case_proposal()`` raises an exception.
 
     Per ``specs/case-proposal.yaml`` CP-04-001, CP-04-002.
     """
@@ -280,13 +280,17 @@ class ProposeCaseToActorNode(DataLayerAction):
 
         return case_id, case_actor_id
 
-    def _read_report_dict(self, case_id: str) -> dict | None:
-        """Read the linked VulnerabilityReport and return its serialized dict.
+    def _get_report_id(self, case_id: str) -> str | None:
+        """Return the first VulnerabilityReport URI linked to *case_id*.
 
-        Returns the report dict on success, or ``None`` after setting
+        Returns the report ID string on success, or ``None`` after setting
         ``feedback_message`` on any error.
         """
-        case = self.datalayer.read(case_id)  # type: ignore[union-attr]
+        if self.datalayer is None:
+            self.feedback_message = "DataLayer not available"
+            return None
+
+        case = self.datalayer.read(case_id)
         if not is_case_model(case):
             self.feedback_message = f"Case '{case_id}' not found"
             self.logger.error("%s: %s", self.name, self.feedback_message)
@@ -300,24 +304,23 @@ class ProposeCaseToActorNode(DataLayerAction):
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return None
 
-        report_id = case.vulnerability_reports[0]
-        raw_report = self.datalayer.read(report_id)  # type: ignore[union-attr]
-        if raw_report is None:
-            self.feedback_message = (
-                f"VulnerabilityReport '{report_id}' not found in DataLayer"
-            )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return None
-
-        # Serialize the report inline (CP-01-004: object_ must be inline,
-        # not a URI reference).  Duck-typed to avoid a core->wire import.
-        if hasattr(raw_report, "model_dump"):
-            return raw_report.model_dump(by_alias=True)  # type: ignore[no-any-return]
-        return {"id": report_id, "type": "VulnerabilityReport"}
+        raw = case.vulnerability_reports[0]
+        # vulnerability_reports entries may be string URIs or ref objects.
+        if isinstance(raw, str):
+            return raw
+        return str(getattr(raw, "id_", raw))
 
     def update(self) -> Status:
         if self.datalayer is None or self.actor_id is None:
             self.feedback_message = "DataLayer or actor_id not available"
+            return Status.FAILURE
+
+        factory = self.trigger_activity_factory
+        if factory is None:
+            self.feedback_message = (
+                "trigger_activity_factory not in blackboard"
+            )
+            self.logger.error("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
         ids = self._read_blackboard_ids()
@@ -325,47 +328,29 @@ class ProposeCaseToActorNode(DataLayerAction):
             return Status.FAILURE
         case_id, case_actor_id = ids
 
-        report_dict = self._read_report_dict(case_id)
-        if report_dict is None:
+        report_id = self._get_report_id(case_id)
+        if report_id is None:
             return Status.FAILURE
 
-        # Build the as_CaseProposal as a plain dict (ARCH-01-001: core must
-        # not import wire types).  The vocabulary registry on the receiving
-        # side reconstructs the typed as_CaseProposal from this dict.
-        proposal_dict = {
-            "type": "CaseProposal",
-            "id": f"urn:uuid:{uuid.uuid4()}",
-            "attributed_to": self.actor_id,
-            "object": report_dict,
-            "target": case_actor_id,
-        }
-
-        # Create(as_CaseProposal) stored as a generic VultronActivity so
-        # the core layer stays wire-free.
-        activity = VultronActivity(
-            type_="Create",
-            actor=self.actor_id,
-            object_=proposal_dict,
-            to=[case_actor_id],
-        )
-
         try:
-            self.datalayer.create(activity)
-        except ValueError as exc:
-            self.feedback_message = (
-                f"Create(CaseProposal) activity creation failed: {exc}"
+            activity_id, _ = factory.create_case_proposal(
+                actor=self.actor_id,
+                report_id=report_id,
+                case_actor_id=case_actor_id,
             )
+        except Exception as exc:
+            self.feedback_message = f"create_case_proposal failed: {exc}"
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
         cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-            self.actor_id, activity.id_
+            self.actor_id, activity_id
         )
         self.logger.info(
             "%s: Queued Create(as_CaseProposal) '%s' to outbox"
             " for case-actor '%s' (case '%s')",
             self.name,
-            activity.id_,
+            activity_id,
             case_actor_id,
             case_id,
         )

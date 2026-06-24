@@ -33,6 +33,7 @@ from pydantic import Field
 from vultron.core.models.base import NonEmptyString
 from vultron.core.models.enums import VultronObjectType as VO_type
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
+from vultron.wire.as2.vocab.base.objects.base import ActivityStreamRequiredRef
 from vultron.wire.as2.vocab.objects.base import VultronAS2Object
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
@@ -78,8 +79,10 @@ class as_CaseProposal(VultronAS2Object):
         description="URI of the vendor actor that originated the proposal.",
     )
 
-    # CP-01-004: fully inline VulnerabilityReport; URI references not permitted.
-    object_: VulnerabilityReport = Field(
+    # CP-01-004: fully inline VulnerabilityReport; URI references not permitted
+    # at the wire boundary.  ActivityStreamRequiredRef allows the DataLayer to
+    # store/restore the dehydrated string ID; _rehydrate_fields expands it back.
+    object_: ActivityStreamRequiredRef[VulnerabilityReport] = Field(
         ...,
         validation_alias="object",
         serialization_alias="object",

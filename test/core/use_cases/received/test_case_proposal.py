@@ -37,6 +37,9 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.examples._base import gen_report
 from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    VulnerabilityReport,
+)
 
 _CASE_ACTOR_URI = "https://example.org/case-actors/svc-1"
 _VENDOR_URI = "https://example.org/vendors/acme"
@@ -134,7 +137,9 @@ class TestCreateCaseProposalReceivedUseCase:
         case_obj = dl.read(case_rows[0].id_)
         assert is_case_model(case_obj)
 
-        report_id = proposal.object_.id_
+        report_obj = proposal.object_
+        assert isinstance(report_obj, VulnerabilityReport)
+        report_id = report_obj.id_
         assert (
             report_id in case_obj.vulnerability_reports
         ), f"Report '{report_id}' not linked to case"
@@ -200,6 +205,9 @@ class TestAcceptCaseProposalReceivedUseCase:
         """accept_case_proposal_received updates VultronReportCaseLink.trusted_case_actor_id."""
         dl = SqliteDataLayer("sqlite:///:memory:")
         proposal = _make_proposal()
+        assert isinstance(
+            proposal.object_, VulnerabilityReport
+        ), "_make_proposal() must embed a full VulnerabilityReport"
         report_id = proposal.object_.id_
 
         # Seed a VultronReportCaseLink so the use case can find it

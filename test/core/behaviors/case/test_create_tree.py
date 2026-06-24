@@ -27,6 +27,9 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.vultron_types import (
     VultronCase,
@@ -86,7 +89,12 @@ def create_case_activity(case_obj, actor_id):
 
 @pytest.fixture
 def bridge(datalayer):
-    return BTBridge(datalayer=datalayer)
+    # ProposeCaseToActorNode requires trigger_activity_factory; inject it here
+    # so all tree-execution tests exercise the full node sequence.
+    return BTBridge(
+        datalayer=datalayer,
+        trigger_activity=TriggerActivityAdapter(datalayer),
+    )
 
 
 # ============================================================================
@@ -114,6 +122,32 @@ def test_create_case_tree_second_child_is_sequence(case_obj, actor_id):
     import py_trees
 
     assert isinstance(tree.children[1], py_trees.composites.Sequence)
+
+
+def test_propose_case_to_actor_node_wired_after_create_actor_node(
+    case_obj, actor_id
+):
+    """ProposeCaseToActorNode appears immediately after CreateCaseActorNode (CP-04-002)."""
+    from vultron.core.behaviors.case.nodes.actor import ProposeCaseToActorNode
+    from vultron.core.behaviors.case.case_setup_tree import CreateCaseActorNode
+
+    tree = create_create_case_tree(case_obj=case_obj, actor_id=actor_id)
+    effect_seq = tree.children[1]
+    node_types = [type(c) for c in effect_seq.children]
+
+    assert (
+        ProposeCaseToActorNode in node_types
+    ), "ProposeCaseToActorNode must be present in create_create_case_tree"
+    propose_idx = node_types.index(ProposeCaseToActorNode)
+    create_actor_idx = next(
+        i
+        for i, c in enumerate(effect_seq.children)
+        if isinstance(c, CreateCaseActorNode)
+    )
+    assert propose_idx == create_actor_idx + 1, (
+        "ProposeCaseToActorNode must appear immediately after "
+        "CreateCaseActorNode (CP-04-002)"
+    )
 
 
 # ============================================================================

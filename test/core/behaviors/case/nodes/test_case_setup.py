@@ -615,3 +615,35 @@ class TestProposeCaseToActorNode:
             case_actor_id=self.CASE_ACTOR_ID,
         )
         bt_scenario.assert_failure(result)
+
+    def test_fails_when_no_trigger_activity_factory(
+        self,
+        actor: VultronCaseActor,
+        actor_id: str,
+        report: VultronReport,
+        case_obj: VultronCase,
+    ) -> None:
+        """Node returns FAILURE when trigger_activity_factory is absent."""
+        import py_trees
+
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.behaviors.case.nodes.actor import (
+            ProposeCaseToActorNode,
+        )
+
+        # Build a bridge with NO trigger_activity_factory injected.
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl.create(actor)
+        dl.create(report)
+        dl.create(case_obj)
+        bridge_no_factory = BTBridge(datalayer=dl)
+
+        py_trees.blackboard.Blackboard.storage.clear()
+        result = bridge_no_factory.execute_with_setup(
+            tree=ProposeCaseToActorNode(),
+            actor_id=actor_id,
+            case_id=case_obj.id_,
+            case_actor_id=self.CASE_ACTOR_ID,
+        )
+        assert result.status == py_trees.common.Status.FAILURE
