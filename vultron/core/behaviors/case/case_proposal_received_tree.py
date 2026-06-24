@@ -6,7 +6,11 @@ two outbound activities in sequence:
   1. ``Accept(as_CaseProposal)`` — acknowledgement to the vendor
   2. ``Create(VulnerabilityCase)`` — case announcement to the vendor
 
-Spec: ``specs/case-proposal.yaml`` CP-05-001 through CP-05-004.
+A durable ``PendingCreateCaseActivity`` marker is written to the DataLayer
+after step 1 and cleared on successful completion of step 2 so that a retry
+runner (#1139) can recover the obligation if delivery of step 2 fails.
+
+Spec: ``specs/case-proposal.yaml`` CP-05-001 through CP-05-005.
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -34,7 +38,11 @@ from vultron.core.models.activity import (
     VultronCreateCaseActivity,
 )
 from vultron.core.models.case import VultronCase
+from vultron.core.models.pending_create_case_activity import (
+    PendingCreateCaseActivity,
+)
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.datalayer import DataLayer
 
 logger = logging.getLogger(__name__)
 
@@ -228,6 +236,142 @@ class _EmitCreateVulnerabilityCaseNode(DataLayerAction):
         return Status.SUCCESS
 
 
+class _WriteCreateCaseMarkerNode(DataLayerAction):
+    """Write a ``PendingCreateCaseActivity`` marker to the DataLayer.
+
+    Called after ``Accept(CaseProposal)`` has been sent and before
+    ``Create(VulnerabilityCase)`` is attempted.  The marker records the
+    obligation so that a retry runner (#1139) can complete it if the
+    subsequent ``Create(VulnerabilityCase)`` delivery fails (CP-05-005).
+
+    Reads ``case_id`` and ``accept_activity_id`` from the blackboard to
+    pre-construct the ``Create(VulnerabilityCase)`` payload stored in the
+    marker.  Returns FAILURE if either blackboard key is missing or the
+    DataLayer write fails, so the Sequence halts before attempting delivery.
+    """
+
+    def __init__(
+        self,
+        proposal_id: str,
+        vendor_uri: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._proposal_id = proposal_id
+        self._vendor_uri = vendor_uri
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="case_id", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="accept_activity_id", access=py_trees.common.Access.READ
+        )
+
+    def update(self) -> Status:
+        if self.datalayer is None or self.actor_id is None:
+            self.feedback_message = "DataLayer or actor_id not available"
+            return Status.FAILURE
+
+        try:
+            case_id = self.blackboard.get("case_id")
+        except KeyError:
+            self.feedback_message = "case_id not found in blackboard"
+            return Status.FAILURE
+
+        try:
+            accept_activity_id = self.blackboard.get("accept_activity_id")
+        except KeyError:
+            self.feedback_message = (
+                "accept_activity_id not found in blackboard"
+            )
+            return Status.FAILURE
+
+        # Pre-construct the payload that will be (re-)sent as
+        # Create(VulnerabilityCase).  Mirrors the logic in
+        # _EmitCreateVulnerabilityCaseNode so the retry runner (#1139)
+        # can reconstruct the exact same activity without re-running the BT.
+        create_activity = VultronCreateCaseActivity(
+            actor=self.actor_id,
+            object_=case_id,
+            context=accept_activity_id,
+            to=[self._vendor_uri],
+        )
+        payload = create_activity.model_dump(by_alias=True)
+
+        marker = PendingCreateCaseActivity(
+            proposal_id=self._proposal_id,
+            case_actor_id=self.actor_id,
+            vendor_uri=self._vendor_uri,
+            create_activity_payload=payload,
+        )
+
+        try:
+            self.datalayer.save(marker)
+        except Exception as exc:  # pragma: no cover
+            self.feedback_message = f"Failed to write marker: {exc}"
+            logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        logger.info(
+            "%s: Wrote PendingCreateCaseActivity marker for proposal '%s'",
+            self.name,
+            self._proposal_id,
+        )
+        return Status.SUCCESS
+
+
+class _ClearCreateCaseMarkerNode(DataLayerAction):
+    """Remove the ``PendingCreateCaseActivity`` marker after successful delivery.
+
+    Called after ``Create(VulnerabilityCase)`` has been queued to the
+    outbox.  Deletes the marker so the retry runner (#1139) does not
+    re-deliver an already-sent activity (CP-05-005, AC-3).
+
+    Always returns SUCCESS: the ``Create(VulnerabilityCase)`` has already
+    been delivered; a cleanup failure must not roll back the delivery or
+    fail the Sequence.  A warning is logged if the delete fails so that
+    stale markers can be detected during retry-runner inspection.
+    """
+
+    def __init__(
+        self,
+        proposal_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._proposal_id = proposal_id
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            logger.warning(
+                "%s: DataLayer not available — marker '%s' may be stale",
+                self.name,
+                self._proposal_id,
+            )
+            return Status.SUCCESS
+
+        marker_id = PendingCreateCaseActivity.build_id(self._proposal_id)
+        deleted = cast(DataLayer, self.datalayer).delete(
+            "PendingCreateCaseActivity", marker_id
+        )
+        if deleted:
+            logger.info(
+                "%s: Cleared PendingCreateCaseActivity marker for proposal '%s'",
+                self.name,
+                self._proposal_id,
+            )
+        else:
+            logger.warning(
+                "%s: PendingCreateCaseActivity marker for proposal '%s'"
+                " was not found during cleanup — may already be cleared",
+                self.name,
+                self._proposal_id,
+            )
+        return Status.SUCCESS
+
+
 def create_case_proposal_received_tree(
     report_id: str | None,
     proposal_id: str,
@@ -236,13 +380,19 @@ def create_case_proposal_received_tree(
 ) -> py_trees.behaviour.Behaviour:
     """Return the received-side BT for processing a ``Create(as_CaseProposal)``.
 
-    The tree is a Sequence of three leaf nodes:
+    The tree is a Sequence of five leaf nodes:
 
     1. ``_CreateCaseFromProposalNode`` — creates VulnerabilityCase
     2. ``_EmitAcceptCaseProposalNode`` — emits Accept(as_CaseProposal)
-    3. ``_EmitCreateVulnerabilityCaseNode`` — emits Create(VulnerabilityCase)
+    3. ``_WriteCreateCaseMarkerNode`` — writes durable retry marker (CP-05-005)
+    4. ``_EmitCreateVulnerabilityCaseNode`` — emits Create(VulnerabilityCase)
+    5. ``_ClearCreateCaseMarkerNode`` — removes marker on success (CP-05-005)
 
-    Spec: CP-05-001 through CP-05-004.
+    If node 4 fails the marker written in node 3 remains in the DataLayer so
+    that a retry runner (#1139) can complete the ``Create(VulnerabilityCase)``
+    delivery independently.
+
+    Spec: CP-05-001 through CP-05-005.
 
     Args:
         report_id: URI of the VulnerabilityReport embedded in the proposal
@@ -268,6 +418,11 @@ def create_case_proposal_received_tree(
                 vendor_uri=vendor_uri,
                 proposal_dict=proposal_dict,
             ),
+            _WriteCreateCaseMarkerNode(
+                proposal_id=proposal_id,
+                vendor_uri=vendor_uri,
+            ),
             _EmitCreateVulnerabilityCaseNode(vendor_uri=vendor_uri),
+            _ClearCreateCaseMarkerNode(proposal_id=proposal_id),
         ],
     )
