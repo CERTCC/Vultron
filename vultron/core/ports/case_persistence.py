@@ -75,6 +75,8 @@ class CasePersistence(Protocol):
         self, short_id: str
     ) -> PersistableModel | None: ...
 
+    def delete(self, table: str, id_: str) -> bool: ...
+
 
 class CaseOutboxPersistence(CasePersistence, Protocol):
     """CasePersistence extended for use cases that enqueue outbound activities.

@@ -193,3 +193,25 @@ corresponding `MessageSemantics` value.
 
 None — all design decisions were resolved in the planning session.
 See `docs/adr/0023-case-proposal-protocol.md` for the alternatives evaluated.
+
+---
+
+## Durable-Delivery Marker (CP-05-005)
+
+The case-actor's accepted path involves two sequenced outbound activities
+(`Accept(CaseProposal)` then `Create(VulnerabilityCase)`). If the second
+delivery fails after the first succeeds, the vendor receives an Accept with
+no corresponding case announcement.
+
+To recover from this, a `PendingCreateCaseActivity` marker is written to
+the DataLayer **after** `Accept` is sent and **before** `Create` is
+attempted (implemented in `vultron/core/behaviors/case/
+case_proposal_received_tree.py`). The marker captures the proposal ID,
+case-actor ID, vendor URI, and the pre-constructed
+`Create(VulnerabilityCase)` payload. It is deleted on successful
+`Create` delivery, so only failed deliveries leave a marker.
+
+A retry runner (issue #1139) will scan for persisted markers and
+re-deliver the `Create(VulnerabilityCase)` payload verbatim using the
+stored `id_` — never re-constructing the activity — to avoid ID
+divergence between the marker and the delivered activity.
