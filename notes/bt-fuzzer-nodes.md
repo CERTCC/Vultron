@@ -58,6 +58,20 @@ Each fuzzer node entry in the sub-files has these fields:
 - **Input dependency**: The kind of real-world input needed to replace it
 - **Notes**: Any implementation guidance from the source code comments
 - **Automation potential**: High / Medium / Low / N/A (see below)
+- **New-arch cross-ref**: The corresponding `vultron.demo.fuzzer.*` class
+  in the py_trees-based prototype (added in FUZZ-08a / PR #1179); N/A for
+  simulation-only nodes not ported to the new architecture
+- **Call-out point shape**: Evaluator, Retriever, Sentinel, Composer, or
+  N/A — per the agent shape taxonomy in
+  `docs/adr/0024-coordination-agent-taxonomy.md` (added in FUZZ-08a / PR #1179)
+- **Factory-fn placement**: The module-qualified `vultron.core.behaviors.*`
+  factory function that hosts (or should host) this call-out point node in
+  the prototype BT, with ordering hints indicating where in the tree the node
+  is inserted (e.g., guard vs effect, and which composite it belongs to).
+  Use `FUTURE: vultron.core.behaviors.<module>.create_<name>_tree` (with
+  a reference to the tracking issue) for nodes whose target factory function
+  does not yet exist. N/A for nodes that map to no prototype factory
+  function (e.g., simulation-only nodes).
 
 **Automation potential categories:**
 
