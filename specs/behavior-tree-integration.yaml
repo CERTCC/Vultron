@@ -523,3 +523,72 @@ groups:
       Automation-potential categorization guides future implementers toward the
       correct integration pattern when replacing stubs with production logic,
       supporting the future real-integration roadmap.
+- id: BT-18
+  title: Call-Out Point Abstraction Layer
+  kind: pattern
+  specs:
+  - id: BT-18-001
+    priority: MUST
+    statement: >-
+      Every call-out point node MUST declare its blackboard contract in its
+      class docstring: the set of input keys read before dispatch and the set
+      of output keys (with types) written to the blackboard on SUCCESS.
+    rationale: >-
+      The blackboard contract is the integration seam between the tree and the
+      backend. Without an explicit contract, swapping from a fuzzer backend to
+      a real implementation is a guess — the real backend may omit writing a
+      key that a downstream node expects, causing silent failures.
+    relationships:
+    - rel_type: implements
+      spec_id: BT-16-003
+      note: >-
+        Call-out points are the named integration seam that BT-16-003 requires
+        to be documented; the blackboard contract is the required documentation
+        format for data-producing nodes.
+  - id: BT-18-002
+    priority: MUST
+    statement: >-
+      A call-out point backend — fuzzer or real implementation — MUST write
+      to all declared output keys when it returns SUCCESS. A backend MUST NOT
+      return SUCCESS without writing the declared outputs.
+    rationale: >-
+      Downstream BT nodes rely on declared output keys being present after a
+      call-out point succeeds. A fuzzer that returns SUCCESS without writing
+      synthetic output to those keys produces a contract violation: a
+      downstream node reads a missing key and fails, but the failure is
+      attributed to the downstream node rather than the backend. Both fuzzer
+      and real backends must be contract-conformant to make backend swaps
+      transparent.
+  - id: BT-18-003
+    priority: MUST
+    statement: >-
+      The fuzzer backend for a data-producing call-out point (Evaluator,
+      Retriever, or Composer shape) MUST write synthetic but type-conformant
+      data to the declared output keys. The synthetic data MUST be of the
+      correct type; it does not need to be semantically meaningful.
+    rationale: >-
+      If the fuzzer backend omits output writes that a real backend would
+      perform, the demo/simulation layer cannot serve as a faithful stand-in
+      during development. Maintaining the same output contract ensures that
+      demo scenarios exercise the same downstream code paths as production
+      runs.
+  - id: BT-18-004
+    priority: MUST
+    statement: >-
+      A call-out point node MUST be constructed via a backend factory
+      callable. Tree-building functions that contain call-out points MUST
+      accept the backend factory as a parameter (or as an entry in a factory
+      mapping). The fuzzer factory MUST be the default value.
+    rationale: >-
+      Factory-based injection is the established BT construction pattern in
+      this codebase. Requiring the factory as a parameter (rather than
+      hardcoding the fuzzer import) is what makes each call-out point an
+      actual injection seam rather than a tightly-coupled stub. Without this,
+      replacing any backend requires editing the tree-building function,
+      defeating the abstraction layer's purpose.
+    relationships:
+    - rel_type: implements
+      spec_id: BT-04-001
+      note: >-
+        Factory-based injection for call-out points is an application of the
+        existing factory pattern required for all BT construction.

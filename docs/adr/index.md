@@ -86,6 +86,8 @@ General information about architectural decision records is available at <https:
 
 - [ADR-0020 Move Inbox Orchestration into a Core BT Module with a Typed
   `process_payload` Seam](0020-inbox-bt-orchestration.md)
+- [ADR-0025 Call-Out Point Abstraction Layer: Factory-Based Injection with
+  Typed Backends](0025-call-out-point-abstraction-layer.md)
 
 ## Rejected ADRs
 

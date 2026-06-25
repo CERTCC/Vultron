@@ -201,6 +201,94 @@ the same as an "uber-agent" that manages an entire case.
 
 ---
 
+## Call-Out Point Abstraction Layer
+
+> **Provisional design — formed in sand**: The pattern described here
+> reflects the intent after the #867 planning session. It will be validated
+> by #1151 (one exemplar per agent shape) and may be refined as the
+> shape-based implementation issues (FUZZ-08d through FUZZ-08g) work through
+> the full 93-node inventory. See ADR-0025 for the full decision record.
+
+### Core concept: fuzzer as adapter
+
+Every fuzzer node in `vultron/demo/fuzzer/` is a **call-out point adapter**
+— a probabilistic stand-in for logic that has not yet been implemented. The
+goal of the abstraction layer is to make the adapter *swappable* at tree
+construction time, so that real implementations can replace the fuzzer
+incrementally (node by node, scenario by scenario) without changing the BT
+tree structure.
+
+### Factory-based injection
+
+The mechanism is **factory-based injection**, consistent with how BT trees
+are already constructed elsewhere in the codebase:
+
+- Each call-out point is expressed as a **backend factory**: a callable
+  that produces a `py_trees.behaviour.Behaviour` node honouring the
+  call-out point's blackboard contract.
+- The fuzzer factory is the default for each call-out point.
+- Tree-building functions that contain call-out points accept the factory
+  (or a mapping of factories) as a parameter, with the fuzzer as the
+  default. Swapping is a construction-time operation.
+
+### Blackboard contracts
+
+Every call-out point has a **blackboard contract**:
+
+- **Input keys**: blackboard keys the node reads before dispatching
+- **Output keys + types**: blackboard keys the node writes on `SUCCESS`
+- **Signal**: `SUCCESS` or `FAILURE` to the tree
+
+The fuzzer backend MUST honour the same contract as a real backend: on
+`SUCCESS`, it writes synthetic data to the declared output keys. This ensures
+downstream nodes are unaffected by the fuzzer-vs-real swap.
+
+Blackboard contract requirements are specified in
+`specs/behavior-tree-integration.yaml` BT-17-001 through BT-17-004.
+
+### Shape base classes
+
+Each of the four agent shapes (Evaluator, Retriever, Sentinel, Composer)
+defines a **lifecycle pattern** for how the node reads input, dispatches, and
+writes output. Concrete call-out point nodes subclass the appropriate shape
+base class. The shape base class is NOT a generic reusable class; it
+documents the lifecycle pattern and defines the hook points for subclasses.
+
+- **Sentinel**: binary condition; no output keys; backend monitors a state
+  and returns `SUCCESS`/`FAILURE` only
+- **Evaluator**: reads situation context from the blackboard; writes a
+  structured recommendation to a declared output key; `SUCCESS` = answer
+  available, `FAILURE` = cannot evaluate
+- **Retriever**: reads a query from the blackboard; writes structured facts
+  to a declared output key; `SUCCESS` = facts retrieved, `FAILURE` = not
+  found or unavailable
+- **Composer**: reads composition context from the blackboard; writes a
+  generated artifact to a declared output key; `SUCCESS` = artifact ready,
+  `FAILURE` = generation failed
+
+### Implementation chain
+
+```text
+#1150 — Update catalog: add cross-refs (vultron/bt/ → demo/fuzzer/) +
+         agent-shape classification per node
+
+#1151 — Design exemplar: one call-out point per shape (provisional)
+         + shape base classes + blackboard contract documentation
+
+#1152 — Wire demo BTs: audit BTs for implicit policy nodes; externalize
+         as call-out points with deterministic (AlwaysSucceed/AlwaysFail)
+         backends; add one randomized demo
+
+FUZZ-08d — All Evaluator-shaped call-out points (cross-domain)
+FUZZ-08e — All Retriever-shaped call-out points (cross-domain)
+FUZZ-08f — All Sentinel-shaped call-out points (cross-domain)
+FUZZ-08g — All Composer-shaped call-out points (cross-domain)
+
+Domain sweep audits — verify completeness per domain after shape rollout
+```
+
+---
+
 ## Terminology Note
 
 `notes/bt-fuzzer-nodes.md` and the per-domain fuzzer notes
