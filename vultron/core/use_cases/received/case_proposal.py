@@ -41,6 +41,9 @@ from vultron.core.behaviors.case.accept_case_proposal_received_tree import (
 from vultron.core.behaviors.case.case_proposal_received_tree import (
     create_case_proposal_received_tree,
 )
+from vultron.core.behaviors.case.reject_case_proposal_received_tree import (
+    create_reject_case_proposal_received_tree,
+)
 from vultron.core.models.events.case_proposal import (
     AcceptCaseProposalReceivedEvent,
     CreateCaseProposalReceivedEvent,
@@ -214,13 +217,11 @@ class AcceptCaseProposalReceivedUseCase:
 class RejectCaseProposalReceivedUseCase:
     """Handle an inbound ``Reject(as_CaseProposal)`` on the vendor actor.
 
-    Logs the rejection so the vendor can surface it and take corrective
-    action (CP-06-002, CP-06-004).
+    Updates the vendor's ``VultronReportCaseLink`` to reflect the rejection,
+    setting ``proposal_rejected=True`` and recording any ``rejection_reason``
+    present in the activity's ``summary`` field (CP-06-002, CP-06-004).
 
-    TODO(#1088): CP-06-004 MUST — update vendor local state to reflect
-    rejection (e.g., mark VultronReportCaseLink as rejected with rejection
-    reason when present). A BT tree delegating via BTBridge is required once
-    this state field exists.
+    BT-15-001 audit: the DataLayer mutation is delegated to a BT leaf node.
 
     Spec: CP-06-002, CP-06-004.
     """
@@ -235,9 +236,44 @@ class RejectCaseProposalReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        logger.warning(
-            "reject_case_proposal_received: case-actor '%s' rejected"
-            " proposal '%s' (CP-06-004)",
-            request.actor_id,
-            request.proposal_id,
+
+        # The inner object is the VulnerabilityReport embedded in the proposal.
+        report_id = request.inner_object_id
+        if report_id is None:
+            logger.warning(
+                "reject_case_proposal_received: no report_id available"
+                " — cannot update VultronReportCaseLink (CP-06-004)"
+            )
+            return
+
+        # The rejection reason comes from the Reject activity's summary field.
+        rejection_reason: str | None = None
+        if request.activity is not None:
+            rejection_reason = request.activity.summary
+
+        receiving_actor_id = request.receiving_actor_id or request.actor_id
+
+        tree = create_reject_case_proposal_received_tree(
+            report_id=report_id,
+            rejection_reason=rejection_reason,
         )
+        result = BTBridge(datalayer=self._dl).execute_with_setup(
+            tree=tree,
+            actor_id=receiving_actor_id,
+            activity=request,
+        )
+        if result.status != Status.SUCCESS:
+            logger.warning(
+                "reject_case_proposal_received: BT did not succeed"
+                " for report '%s': %s",
+                report_id,
+                BTBridge.get_failure_reason(tree) or result.feedback_message,
+            )
+        else:
+            logger.info(
+                "reject_case_proposal_received: case-actor '%s' rejected"
+                " proposal for report '%s' (reason: %r) (CP-06-004)",
+                request.actor_id,
+                report_id,
+                rejection_reason,
+            )

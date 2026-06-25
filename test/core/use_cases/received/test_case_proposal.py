@@ -269,6 +269,87 @@ class TestAcceptCaseProposalReceivedUseCase:
 class TestRejectCaseProposalReceivedUseCase:
     """Tests for RejectCaseProposalReceivedUseCase (CP-06-002, CP-06-004)."""
 
+    def test_execute_marks_link_as_rejected(self, make_payload):
+        """Rejection sets proposal_rejected=True on VultronReportCaseLink (CP-06-004)."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        proposal = _make_proposal()
+        assert isinstance(proposal.object_, VulnerabilityReport)
+        report_id = proposal.object_.id_
+
+        # Seed a VultronReportCaseLink so the use case can find it
+        link = VultronReportCaseLink(
+            report_id=report_id,
+            trusted_case_creator_id=_CASE_ACTOR_URI,
+        )
+        dl.create(link)
+
+        activity = as_Reject(
+            actor=_CASE_ACTOR_URI,
+            object_=proposal,
+            to=[_VENDOR_URI],
+        )
+        event = make_payload(activity)
+        event = event.model_copy(update={"receiving_actor_id": _VENDOR_URI})
+
+        RejectCaseProposalReceivedUseCase(dl, event).execute()
+
+        stored_link = dl.read(VultronReportCaseLink.build_id(report_id))
+        assert isinstance(stored_link, VultronReportCaseLink)
+        assert (
+            stored_link.proposal_rejected is True
+        ), "proposal_rejected should be True after rejection"
+        assert (
+            stored_link.rejection_reason is None
+        ), "rejection_reason should be None when not provided"
+
+    def test_execute_records_rejection_reason(self, make_payload):
+        """When Reject activity carries a summary, it is stored as rejection_reason (CP-06-004)."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        proposal = _make_proposal()
+        assert isinstance(proposal.object_, VulnerabilityReport)
+        report_id = proposal.object_.id_
+
+        link = VultronReportCaseLink(
+            report_id=report_id,
+            trusted_case_creator_id=_CASE_ACTOR_URI,
+        )
+        dl.create(link)
+
+        rejection_summary = "Duplicate report; case already exists."
+        activity = as_Reject(
+            actor=_CASE_ACTOR_URI,
+            object_=proposal,
+            to=[_VENDOR_URI],
+            summary=rejection_summary,
+        )
+        event = make_payload(activity)
+        event = event.model_copy(update={"receiving_actor_id": _VENDOR_URI})
+
+        RejectCaseProposalReceivedUseCase(dl, event).execute()
+
+        stored_link = dl.read(VultronReportCaseLink.build_id(report_id))
+        assert isinstance(stored_link, VultronReportCaseLink)
+        assert stored_link.proposal_rejected is True
+        assert (
+            stored_link.rejection_reason == rejection_summary
+        ), "rejection_reason should match the Reject activity summary"
+
+    def test_execute_no_link_is_non_fatal(self, make_payload):
+        """Missing VultronReportCaseLink causes a warning but not an error (CP-06-004)."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        proposal = _make_proposal()
+
+        activity = as_Reject(
+            actor=_CASE_ACTOR_URI,
+            object_=proposal,
+            to=[_VENDOR_URI],
+        )
+        event = make_payload(activity)
+        event = event.model_copy(update={"receiving_actor_id": _VENDOR_URI})
+
+        # Should not raise even when no VultronReportCaseLink exists
+        RejectCaseProposalReceivedUseCase(dl, event).execute()
+
     def test_execute_logs_rejection(self, make_payload, caplog):
         """Rejection is surfaced via a warning-level log message (CP-06-004)."""
         dl = SqliteDataLayer("sqlite:///:memory:")
@@ -287,6 +368,3 @@ class TestRejectCaseProposalReceivedUseCase:
         assert any(
             "reject" in record.message.lower() for record in caplog.records
         ), "Expected a rejection log message"
-        # TODO(#1088): CP-06-004 MUST — update vendor local state to reflect
-        # rejection (e.g., mark VultronReportCaseLink as rejected). Tracked
-        # in https://github.com/CERTCC/Vultron/issues/1088.
