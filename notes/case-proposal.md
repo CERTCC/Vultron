@@ -211,7 +211,29 @@ case-actor ID, vendor URI, and the pre-constructed
 `Create(VulnerabilityCase)` payload. It is deleted on successful
 `Create` delivery, so only failed deliveries leave a marker.
 
-A retry runner (issue #1139) will scan for persisted markers and
-re-deliver the `Create(VulnerabilityCase)` payload verbatim using the
-stored `id_` — never re-constructing the activity — to avoid ID
-divergence between the marker and the delivered activity.
+### Retry Runner (AC-2: startup-scan option)
+
+`vultron/adapters/driving/fastapi/pending_retry.py` provides
+`retry_pending_create_case_activities()`, called once in the FastAPI
+application lifespan before the server starts accepting requests.
+
+The runner uses **option (a): on-startup scan**:
+
+1. Get all actor-scoped DataLayers from the process-level cache
+   (``get_all_actor_datalayers()``).
+2. **Supplement** by scanning the shared (unscoped) DataLayer for
+   persisted ``PendingCreateCaseActivity`` markers.  Any ``case_actor_id``
+   values found that are not already in the cache get a fresh actor-scoped
+   DataLayer via ``clone_for_actor()``.  This step is critical on
+   crash/restart: the process cache is empty, but the SQLite file still
+   holds the obligation rows.
+3. For each actor DataLayer, scan for markers, reconstruct the stored
+   ``Create(VulnerabilityCase)`` payload **verbatim** using the marker's
+   ``create_activity_payload`` (never re-constructing the activity), and
+   re-enqueue to the actor's outbox.
+4. Delete the marker on success.
+
+Using the stored payload (not a freshly constructed activity) preserves
+the original ``id_``, which is essential: the retry runner's outbox
+idempotency check looks for that specific ``id_``.  A fresh ``id_``
+would bypass the check and cause a duplicate delivery after crash/restart.

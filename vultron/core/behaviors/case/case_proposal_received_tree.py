@@ -160,59 +160,66 @@ class _EmitAcceptCaseProposalNode(DataLayerAction):
 
 
 class _EmitCreateVulnerabilityCaseNode(DataLayerAction):
-    """Build Create(VulnerabilityCase), store it, and queue it to the outbox.
+    """Reconstruct Create(VulnerabilityCase) from the stored marker and queue it.
 
-    Reads ``case_id`` and ``accept_activity_id`` from the blackboard.
-    Sets ``context`` to the Accept activity URI for causal traceability
-    (CP-05-003, ADR-0023).
+    Reads the pre-constructed ``Create(VulnerabilityCase)`` payload from the
+    ``PendingCreateCaseActivity`` marker written by
+    ``_WriteCreateCaseMarkerNode``.  Using the stored payload (rather than
+    building a new activity from blackboard fields) guarantees that the
+    activity ``id_`` in the DataLayer and outbox is identical to the ``id_``
+    recorded in the marker.  This is critical for CP-05-005 idempotency: the
+    retry runner checks outbox membership by the marker's stored ``id_``, so
+    a fresh ``id_`` here would cause a duplicate delivery after crash/restart.
 
-    Failure returns FAILURE so the Sequence surface it; the Accept has
-    already been sent at this point (CP-05-005 covers the retry case).
+    Failure returns FAILURE so the enclosing Sequence surfaces it; the Accept
+    has already been sent at this point (CP-05-005 covers the retry case).
     """
 
     def __init__(
         self,
+        proposal_id: str,
         vendor_uri: str,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
+        self._proposal_id = proposal_id
         self._vendor_uri = vendor_uri
-
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="accept_activity_id", access=py_trees.common.Access.READ
-        )
 
     def update(self) -> Status:
         if self.datalayer is None or self.actor_id is None:
             self.feedback_message = "DataLayer or actor_id not available"
             return Status.FAILURE
 
-        try:
-            case_id = self.blackboard.get("case_id")
-        except KeyError:
-            self.feedback_message = "case_id not found in blackboard"
-            return Status.FAILURE
-
-        try:
-            accept_activity_id = self.blackboard.get("accept_activity_id")
-        except KeyError:
+        # Read the pre-built payload from the marker to guarantee id_ consistency
+        # with CP-05-005 retry logic.
+        marker_id = PendingCreateCaseActivity.build_id(self._proposal_id)
+        raw_marker = self.datalayer.read(marker_id)
+        if not isinstance(raw_marker, PendingCreateCaseActivity):
             self.feedback_message = (
-                "accept_activity_id not found in blackboard"
+                f"PendingCreateCaseActivity marker '{marker_id}' not found"
+                " or wrong type; cannot emit Create(VulnerabilityCase)"
             )
+            logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        # CP-05-003: context = URI of the Accept(CaseProposal) activity
-        activity = VultronCreateCaseActivity(
-            actor=self.actor_id,
-            object_=case_id,
-            context=accept_activity_id,
-            to=[self._vendor_uri],
-        )
+        if not raw_marker.create_activity_payload:
+            self.feedback_message = (
+                f"Marker '{marker_id}' has no create_activity_payload"
+            )
+            logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        try:
+            activity = VultronCreateCaseActivity.model_validate(
+                raw_marker.create_activity_payload
+            )
+        except Exception as exc:
+            self.feedback_message = (
+                f"Could not reconstruct Create(VulnerabilityCase)"
+                f" from marker '{marker_id}': {exc}"
+            )
+            logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
 
         try:
             self.datalayer.create(activity)
@@ -235,10 +242,10 @@ class _EmitCreateVulnerabilityCaseNode(DataLayerAction):
             return Status.FAILURE
 
         logger.info(
-            "%s: Queued Create(VulnerabilityCase) '%s' for case '%s'",
+            "%s: Queued Create(VulnerabilityCase) '%s' from proposal '%s'",
             self.name,
             activity.id_,
-            case_id,
+            self._proposal_id,
         )
         return Status.SUCCESS
 
@@ -427,7 +434,10 @@ def create_case_proposal_received_tree(
                 proposal_id=proposal_id,
                 vendor_uri=vendor_uri,
             ),
-            _EmitCreateVulnerabilityCaseNode(vendor_uri=vendor_uri),
+            _EmitCreateVulnerabilityCaseNode(
+                proposal_id=proposal_id,
+                vendor_uri=vendor_uri,
+            ),
             _ClearCreateCaseMarkerNode(proposal_id=proposal_id),
         ],
     )
