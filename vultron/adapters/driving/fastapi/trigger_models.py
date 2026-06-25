@@ -327,6 +327,19 @@ class InviteActorToCaseRequest(BaseModel):
     invitee_id: UriString
 
 
+class OfferCaseManagerRoleRequest(BaseModel):
+    """Request body for the offer-case-manager-role trigger endpoint.
+
+    TB-03-001: Must include case_id identifying the target case.
+    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    The Case Actor for the case must already exist in the DataLayer.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    case_id: UriString
+
+
 class NotifyFixReadyRequest(BaseModel):
     """Request body for the notify-fix-ready demo trigger.
 
