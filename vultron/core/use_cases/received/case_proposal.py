@@ -270,7 +270,7 @@ class RejectCaseProposalReceivedUseCase:
                 BTBridge.get_failure_reason(tree) or result.feedback_message,
             )
         else:
-            logger.warning(
+            logger.info(
                 "reject_case_proposal_received: case-actor '%s' rejected"
                 " proposal for report '%s' (reason: %r) (CP-06-004)",
                 request.actor_id,
