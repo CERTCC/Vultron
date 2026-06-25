@@ -23,7 +23,6 @@ import logging
 from typing import Any, cast
 
 import py_trees.behaviour
-import py_trees.blackboard
 
 from vultron.core.behaviors.case.actor_trigger_trees import (
     accept_case_invite_trigger_bt,
@@ -212,7 +211,7 @@ class SvcOfferCaseManagerRoleUseCase(SvcBTTriggerBase):
         self._actor_id = case_actor_id
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
-        return offer_case_manager_role_trigger_bt()
+        return offer_case_manager_role_trigger_bt(captured=self._captured)
 
     def _extra_execute_kwargs(self) -> dict[str, Any]:
         return {
@@ -222,23 +221,6 @@ class SvcOfferCaseManagerRoleUseCase(SvcBTTriggerBase):
         }
 
     def _handle_result(self) -> None:
-        # ``SendOfferCaseManagerRoleNode`` writes ``activity_id`` to the
-        # global blackboard.  Only ``datalayer`` and ``trigger_activity_factory``
-        # are cleaned up by BTBridge, so the key persists here.
-        activity_id = py_trees.blackboard.Blackboard.storage.get(
-            "/activity_id"
-        )
-        if isinstance(activity_id, str):
-            activity_obj = self._dl.read(activity_id)
-            if activity_obj is not None and hasattr(
-                activity_obj, "model_dump"
-            ):
-                self._captured["activity"] = activity_obj.model_dump(
-                    mode="json",
-                    by_alias=True,
-                    serialize_as_any=True,
-                    exclude_none=True,
-                )
         logger.info(
             "Actor '%s' offered CASE_MANAGER role for case '%s'",
             self._case_actor_id,

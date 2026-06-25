@@ -137,7 +137,9 @@ def accept_case_invite_trigger_bt(
     return root
 
 
-def offer_case_manager_role_trigger_bt() -> py_trees.behaviour.Behaviour:
+def offer_case_manager_role_trigger_bt(
+    captured: dict | None = None,
+) -> py_trees.behaviour.Behaviour:
     """Return the trigger-side BT for the offer-case-manager-role workflow.
 
     Emits ``Offer(CaseManagerRole)`` from the Case Actor's identity and flushes
@@ -163,7 +165,7 @@ def offer_case_manager_role_trigger_bt() -> py_trees.behaviour.Behaviour:
         name="OfferCaseManagerRoleTriggerBT",
         memory=False,
         children=[
-            SendOfferCaseManagerRoleNode(),
+            SendOfferCaseManagerRoleNode(captured=captured),
             UpdateActorOutbox(name="UpdateActorOutbox(Offer)"),
         ],
     )

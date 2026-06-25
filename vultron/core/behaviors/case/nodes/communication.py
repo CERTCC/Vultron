@@ -236,8 +236,13 @@ class ResolveCaseManagerOfferContextNode(DataLayerAction):
 class CreateOfferCaseManagerActivityNode(DataLayerAction):
     """Create Offer(CaseManagerRole) via trigger_activity_factory."""
 
-    def __init__(self, name: str | None = None):
+    def __init__(
+        self,
+        captured: dict | None = None,
+        name: str | None = None,
+    ) -> None:
         super().__init__(name=name or self.__class__.__name__)
+        self._captured = captured
 
     def setup(self, **kwargs: Any) -> None:
         super().setup(**kwargs)
@@ -298,6 +303,17 @@ class CreateOfferCaseManagerActivityNode(DataLayerAction):
                 )
             )
             self.blackboard.activity_id = activity_id
+            if self._captured is not None:
+                activity_obj = self.datalayer.read(activity_id)
+                if activity_obj is not None and hasattr(
+                    activity_obj, "model_dump"
+                ):
+                    self._captured["activity"] = activity_obj.model_dump(
+                        mode="json",
+                        by_alias=True,
+                        serialize_as_any=True,
+                        exclude_none=True,
+                    )
             self.logger.info(
                 "%s: Queued Offer(CaseManagerRole) '%s' to Case Actor '%s'"
                 " for case '%s'",
