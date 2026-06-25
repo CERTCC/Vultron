@@ -82,7 +82,7 @@ The concrete form:
    declared set of input keys (read before the node runs), output keys
    (written to on SUCCESS), and types for each. The contract is documented
    in the node's docstring and — for nodes that produce data — in
-   `specs/behavior-tree-integration.yaml` under BT-17.
+   `specs/behavior-tree-integration.yaml` under BT-18.
 
 2. A call-out point **backend factory** is a callable with a defined
    signature:

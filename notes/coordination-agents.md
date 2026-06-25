@@ -244,7 +244,7 @@ The fuzzer backend MUST honour the same contract as a real backend: on
 downstream nodes are unaffected by the fuzzer-vs-real swap.
 
 Blackboard contract requirements are specified in
-`specs/behavior-tree-integration.yaml` BT-17-001 through BT-17-004.
+`specs/behavior-tree-integration.yaml` BT-18-001 through BT-18-004.
 
 ### Shape base classes
 
