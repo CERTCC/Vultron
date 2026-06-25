@@ -112,7 +112,10 @@ class SvcBTTriggerBase(ABC):
 
         self._handle_result()
 
-        return {"activity": self._captured.get("activity")}
+        return {
+            "activity": self._captured.get("activity"),
+            "emitting_actor_id": self._actor_id,
+        }
 
     @abstractmethod
     def _prepare(self) -> None:

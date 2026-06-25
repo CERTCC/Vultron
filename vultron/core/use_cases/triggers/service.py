@@ -42,6 +42,7 @@ from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases.triggers.actor import (
     SvcAcceptCaseInviteUseCase,
     SvcInviteActorToCaseUseCase,
+    SvcOfferCaseManagerRoleUseCase,
     SvcSuggestActorToCaseUseCase,
 )
 from vultron.core.use_cases.triggers.case import (
@@ -80,6 +81,7 @@ from vultron.core.use_cases.triggers.requests import (
     EngageCaseTriggerRequest,
     InvalidateReportTriggerRequest,
     InviteActorToCaseTriggerRequest,
+    OfferCaseManagerRoleTriggerRequest,
     ProposeEmbargoRevisionTriggerRequest,
     ProposeEmbargoTriggerRequest,
     RejectEmbargoTriggerRequest,
@@ -448,5 +450,23 @@ class TriggerService:
             invitee_id=invitee_id,
         )
         return SvcInviteActorToCaseUseCase(
+            self._dl, req, trigger_activity=self._trigger_activity
+        ).execute()
+
+    def offer_case_manager_role(
+        self,
+        actor_id: str,
+        case_id: str,
+    ) -> dict[str, Any]:
+        """Offer the CASE_MANAGER role to the Case Actor.
+
+        The Case Actor must already exist in the DataLayer.  The offer is
+        sent from the Case Actor's identity (DEMOMA-08-007).
+        """
+        req = OfferCaseManagerRoleTriggerRequest(
+            actor_id=actor_id,
+            case_id=case_id,
+        )
+        return SvcOfferCaseManagerRoleUseCase(
             self._dl, req, trigger_activity=self._trigger_activity
         ).execute()

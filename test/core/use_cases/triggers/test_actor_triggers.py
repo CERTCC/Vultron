@@ -15,9 +15,10 @@
 
 """
 Unit tests for actor-level trigger use cases.
-Covers SvcInviteActorToCaseUseCase, SvcSuggestActorToCaseUseCase, and
-SvcAcceptCaseInviteUseCase.  Includes DR-09 regression tests verifying
-that short UUIDs in actor_id are normalised to full URIs before use.
+Covers SvcInviteActorToCaseUseCase, SvcSuggestActorToCaseUseCase,
+SvcAcceptCaseInviteUseCase, and SvcOfferCaseManagerRoleUseCase.
+Includes DR-09 regression tests verifying that short UUIDs in actor_id
+are normalised to full URIs before use.
 """
 
 import pytest
@@ -30,11 +31,13 @@ from vultron.core.states.roles import CVDRole
 from vultron.core.use_cases.triggers.actor import (
     SvcAcceptCaseInviteUseCase,
     SvcInviteActorToCaseUseCase,
+    SvcOfferCaseManagerRoleUseCase,
     SvcSuggestActorToCaseUseCase,
 )
 from vultron.core.use_cases.triggers.requests import (
     AcceptCaseInviteTriggerRequest,
     InviteActorToCaseTriggerRequest,
+    OfferCaseManagerRoleTriggerRequest,
     SuggestActorToCaseTriggerRequest,
 )
 from vultron.errors import VultronNotFoundError, VultronValidationError
@@ -437,3 +440,137 @@ class TestSvcAcceptCaseInviteUseCase:
         ).execute()
 
         assert result["activity"]["actor"] == _HTTP_ACTOR_ID
+
+
+def _make_case_with_case_actor(
+    dl: SqliteDataLayer, owner_actor_id: str, case_actor_id: str
+) -> tuple[VulnerabilityCase, str]:
+    """Create a VulnerabilityCase with a registered Case Actor service and
+    CASE_MANAGER participant.  Returns ``(case, case_actor_participant_id)``.
+    """
+    case = VulnerabilityCase(
+        attributed_to=owner_actor_id, name="Test Case", content="Content"
+    )
+    owner_participant = CaseParticipant(
+        attributed_to=owner_actor_id,
+        context=case.id_,
+        case_roles=[CVDRole.CASE_OWNER],
+    )
+    case_actor_participant = CaseParticipant(
+        attributed_to=case_actor_id,
+        context=case.id_,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    case.actor_participant_index[owner_actor_id] = owner_participant.id_
+    case.actor_participant_index[case_actor_id] = case_actor_participant.id_
+    case.case_participants.append(owner_participant.id_)
+    case.case_participants.append(case_actor_participant.id_)
+    dl.create(case)
+    dl.create(owner_participant)
+    dl.create(case_actor_participant)
+    return case, case_actor_participant.id_
+
+
+class TestSvcOfferCaseManagerRoleUseCase:
+    """Tests for the offer-case-manager-role trigger use case."""
+
+    def test_offer_creates_activity_and_enqueues_outbox(self):
+        """Happy path: offer is created and queued in the Case Actor's outbox."""
+        actor, dl = _make_actor_dl("Vendor")
+        # Case Actor service uses a deterministic ID pattern.
+        case_actor = as_Service(
+            id_=f"{actor.id_}/case-actor",
+            name="CaseActorService",
+        )
+        dl.create(case_actor)
+        case, _ = _make_case_with_case_actor(dl, actor.id_, case_actor.id_)
+        # Wire the case_actor_id via the Service context so _find_case_actor_id
+        # resolves it.
+        case_actor_with_context = as_Service(
+            id_=case_actor.id_,
+            name="CaseActorService",
+            context=case.id_,
+        )
+        dl.save(case_actor_with_context)
+
+        request = OfferCaseManagerRoleTriggerRequest(
+            actor_id=actor.id_,
+            case_id=case.id_,
+        )
+        result = SvcOfferCaseManagerRoleUseCase(
+            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        # Activity should be queued in the Case Actor's outbox.
+        case_actor_dl = dl.clone_for_actor(case_actor.id_)
+        outbox = case_actor_dl.outbox_list()
+        assert (
+            len(outbox) >= 1
+        ), "Offer activity must be in Case Actor's outbox"
+
+        # result["activity"] should be populated via _handle_result.
+        assert result.get("activity") is not None
+        activity = result["activity"]
+        assert activity["type"] == "Offer"
+        assert activity["actor"] == case_actor.id_
+
+    def test_offer_raises_when_case_actor_missing(self):
+        """VultronNotFoundError when no Case Actor Service exists for the case."""
+        actor, dl = _make_actor_dl("Vendor")
+        case = VulnerabilityCase(
+            attributed_to=actor.id_, name="No CaseActor Case", content="..."
+        )
+        dl.create(case)
+
+        request = OfferCaseManagerRoleTriggerRequest(
+            actor_id=actor.id_,
+            case_id=case.id_,
+        )
+        with pytest.raises(VultronNotFoundError):
+            SvcOfferCaseManagerRoleUseCase(
+                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
+
+    def test_offer_raises_when_case_not_found(self):
+        """VultronNotFoundError when the case_id does not exist."""
+        actor, dl = _make_actor_dl("Vendor")
+
+        request = OfferCaseManagerRoleTriggerRequest(
+            actor_id=actor.id_,
+            case_id="https://example.org/cases/no-such-case",
+        )
+        with pytest.raises(Exception):
+            SvcOfferCaseManagerRoleUseCase(
+                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
+
+    def test_offer_activity_persisted_in_datalayer(self):
+        """Offer activity is readable from the DataLayer after execution."""
+        actor, dl = _make_actor_dl("Vendor")
+        case_actor = as_Service(
+            id_=f"{actor.id_}/case-actor",
+            name="CaseActorService",
+            context="placeholder",  # will be updated below
+        )
+        dl.create(case_actor)
+        case, _ = _make_case_with_case_actor(dl, actor.id_, case_actor.id_)
+        case_actor_with_context = as_Service(
+            id_=case_actor.id_,
+            name="CaseActorService",
+            context=case.id_,
+        )
+        dl.save(case_actor_with_context)
+
+        request = OfferCaseManagerRoleTriggerRequest(
+            actor_id=actor.id_,
+            case_id=case.id_,
+        )
+        result = SvcOfferCaseManagerRoleUseCase(
+            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        activity_id = result.get("activity", {}).get("id")
+        assert activity_id is not None
+        stored = dl.read(activity_id)
+        assert stored is not None
+        assert getattr(stored, "type_", None) == "Offer"

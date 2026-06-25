@@ -32,6 +32,7 @@ from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.driving.fastapi.trigger_models import (
     AcceptCaseInviteRequest,
     InviteActorToCaseRequest,
+    OfferCaseManagerRoleRequest,
     SuggestActorToCaseRequest,
 )
 from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
@@ -143,4 +144,50 @@ def trigger_invite_actor_to_case(
             invitee_id=body.invitee_id,
         )
     background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    return result
+
+
+@router.post(
+    "/{actor_id}/trigger/offer-case-manager-role",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Offer the CASE_MANAGER role to the Case Actor.",
+    description=(
+        "Emits an Offer(CaseManagerRole) from the Case Actor's identity to "
+        "itself, initiating the CASE_MANAGER delegation handshake.  The Case "
+        "Actor must already exist in the DataLayer.  This is the trigger-side "
+        "path for DEMOMA-08-007; the auto-accept is handled by "
+        "OfferCaseManagerRoleReceivedUseCase on the Case Actor's inbox side."
+    ),
+    operation_id="actors_trigger_offer_case_manager_role",
+)
+def trigger_offer_case_manager_role(
+    actor_id: str,
+    body: OfferCaseManagerRoleRequest,
+    background_tasks: BackgroundTasks,
+    svc: TriggerServicePort = Depends(get_trigger_service),
+    dl: DataLayer = Depends(get_trigger_dl),
+) -> dict:
+    """
+    Trigger the offer-case-manager-role behavior for the given actor.
+
+    The BT runs under the Case Actor's identity (PCR-08-007), so the Offer
+    activity is queued in the **Case Actor's** outbox — not the path actor's.
+    ``outbox_handler`` is therefore scheduled against the Case Actor's
+    actor-scoped DataLayer, resolved from the use-case result's
+    ``emitting_actor_id`` field.
+
+    Implements:
+        TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
+        TB-04-001; DEMOMA-08-007
+    """
+    with domain_error_translation():
+        result = svc.offer_case_manager_role(
+            actor_id=actor_id,
+            case_id=body.case_id,
+        )
+    emitting_actor_id = result.get("emitting_actor_id", actor_id)
+    emitting_dl = dl.clone_for_actor(emitting_actor_id)
+    background_tasks.add_task(
+        outbox_handler, emitting_actor_id, emitting_dl, dl
+    )
     return result

@@ -212,3 +212,12 @@ class AddParticipantStatusTriggerRequest(CaseTriggerRequest):
     rm_state: RM | None = None
     vfd_state: CS_vfd | None = None
     pxa_state: CS_pxa | None = None
+
+
+class OfferCaseManagerRoleTriggerRequest(CaseTriggerRequest):
+    """Trigger request to offer the CASE_MANAGER role to the Case Actor.
+
+    Emits an ``_OfferCaseManagerRoleActivity`` from the Case Actor's identity
+    to itself, initiating the CASE_MANAGER delegation handshake.  The Case
+    Actor must already exist in the DataLayer (DEMOMA-08-007).
+    """

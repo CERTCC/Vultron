@@ -20,13 +20,14 @@ No HTTP framework imports permitted here.
 """
 
 import logging
-from typing import cast
+from typing import Any, cast
 
 import py_trees.behaviour
 
 from vultron.core.behaviors.case.actor_trigger_trees import (
     accept_case_invite_trigger_bt,
     invite_actor_to_case_trigger_bt,
+    offer_case_manager_role_trigger_bt,
     suggest_actor_to_case_trigger_bt,
 )
 from vultron.core.use_cases._helpers import _find_case_actor_id
@@ -38,6 +39,7 @@ from vultron.core.use_cases.triggers._helpers import (
 from vultron.core.use_cases.triggers.requests import (
     AcceptCaseInviteTriggerRequest,
     InviteActorToCaseTriggerRequest,
+    OfferCaseManagerRoleTriggerRequest,
     SuggestActorToCaseTriggerRequest,
 )
 from vultron.errors import (
@@ -170,4 +172,84 @@ class SvcAcceptCaseInviteUseCase(SvcBTTriggerBase):
             "Actor '%s' accepted case invite '%s'",
             self._actor_id,
             self._invite_id,
+        )
+
+
+class SvcOfferCaseManagerRoleUseCase(SvcBTTriggerBase):
+    """Offer the CASE_MANAGER role to the Case Actor (trigger-side path).
+
+    Emits ``_OfferCaseManagerRoleActivity`` from the Case Actor's identity to
+    itself, initiating the CASE_MANAGER delegation handshake.  This is the
+    manual trigger-side counterpart to the automatic path wired into
+    ``receive_report_case_tree.py`` (DEMOMA-08-007).
+
+    The Case Actor service must already exist in the DataLayer (spawned by
+    the CaseActor spawning protocol, issue #1092).
+    """
+
+    def _prepare(self) -> None:
+        request = cast(OfferCaseManagerRoleTriggerRequest, self._request)
+        # Validate the requesting actor exists in the DataLayer.
+        resolve_actor(request.actor_id, self._dl)
+        self._case = resolve_case(request.case_id, self._dl)
+
+        case_actor_id = _find_case_actor_id(self._dl, self._case.id_)
+        if case_actor_id is None:
+            raise VultronNotFoundError("CaseActor", self._case.id_)
+
+        participant_id = self._case.actor_participant_index.get(case_actor_id)
+        if not participant_id:
+            raise VultronNotFoundError(
+                "CaseParticipant for CaseActor", case_actor_id
+            )
+
+        self._case_actor_id: str = case_actor_id
+        self._case_actor_participant_id: str = participant_id
+        # BT runs under the Case Actor's identity so the offer is queued in
+        # the Case Actor's outbox (mirrors the automatic path in
+        # receive_report_case_tree.py).
+        self._actor_id = case_actor_id
+
+    def _build_tree(self) -> py_trees.behaviour.Behaviour:
+        return offer_case_manager_role_trigger_bt(captured=self._captured)
+
+    def _extra_execute_kwargs(self) -> dict[str, Any]:
+        return {
+            "case_id": self._case.id_,
+            "case_actor_id": self._case_actor_id,
+            "case_actor_participant_id": self._case_actor_participant_id,
+        }
+
+    def _handle_result(self) -> None:
+        logger.info(
+            "CASE_MANAGER role offered for case '%s'",
+            self._case.id_,
+        )
+
+
+class SvcAcceptCaseManagerRoleUseCase:
+    """Stub for the manual accept-case-manager-role trigger path.
+
+    The auto-accept path in ``OfferCaseManagerRoleReceivedUseCase`` handles
+    CASE_MANAGER role acceptance automatically for the demo.  This class is
+    a stub satisfying the interface contract (DEMOMA-08-008); full manual
+    override is deferred until required.
+
+    TODO(#1127): Implement when a manual override trigger is needed.
+    """
+
+    def __init__(
+        self,
+        dl: object,
+        request: object,
+        trigger_activity: object = None,
+    ) -> None:
+        self._dl = dl
+        self._request = request
+
+    def execute(self) -> dict:
+        raise NotImplementedError(
+            "SvcAcceptCaseManagerRoleUseCase.execute() is not yet implemented."
+            " The auto-accept path (OfferCaseManagerRoleReceivedUseCase)"
+            " handles CASE_MANAGER acceptance automatically."
         )
