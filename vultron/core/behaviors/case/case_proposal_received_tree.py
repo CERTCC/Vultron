@@ -42,7 +42,6 @@ from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
 )
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.ports.datalayer import DataLayer
 
 logger = logging.getLogger(__name__)
 
@@ -224,9 +223,17 @@ class _EmitCreateVulnerabilityCaseNode(DataLayerAction):
             logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-            self.actor_id, activity.id_
-        )
+        try:
+            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
+                self.actor_id, activity.id_
+            )
+        except Exception as exc:
+            self.feedback_message = (
+                f"Failed to enqueue Create(VulnerabilityCase) to outbox: {exc}"
+            )
+            logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
         logger.info(
             "%s: Queued Create(VulnerabilityCase) '%s' for case '%s'",
             self.name,
@@ -309,7 +316,7 @@ class _WriteCreateCaseMarkerNode(DataLayerAction):
 
         try:
             self.datalayer.save(marker)
-        except Exception as exc:  # pragma: no cover
+        except Exception as exc:
             self.feedback_message = f"Failed to write marker: {exc}"
             logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
@@ -353,9 +360,7 @@ class _ClearCreateCaseMarkerNode(DataLayerAction):
             return Status.SUCCESS
 
         marker_id = PendingCreateCaseActivity.build_id(self._proposal_id)
-        deleted = cast(DataLayer, self.datalayer).delete(
-            "PendingCreateCaseActivity", marker_id
-        )
+        deleted = self.datalayer.delete("PendingCreateCaseActivity", marker_id)
         if deleted:
             logger.info(
                 "%s: Cleared PendingCreateCaseActivity marker for proposal '%s'",

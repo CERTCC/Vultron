@@ -215,6 +215,44 @@ class TestWriteCreateCaseMarkerNode:
         )
         assert result.status == py_trees.common.Status.FAILURE
 
+    def test_fails_when_accept_activity_id_missing(self):
+        """FAILURE returned when accept_activity_id is absent from blackboard."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        node = _WriteCreateCaseMarkerNode(
+            proposal_id=_PROPOSAL_URI, vendor_uri=_VENDOR_URI
+        )
+        tree = py_trees.composites.Sequence(
+            name="TestSeq", memory=False, children=[node]
+        )
+        # Only set case_id — omit accept_activity_id.
+        client = py_trees.blackboard.Client(name="TestSetup3")
+        client.register_key(key="case_id", access=py_trees.common.Access.WRITE)
+        client.case_id = "https://example.org/cases/c-001"
+
+        result = BTBridge(datalayer=dl).execute_with_setup(
+            tree=tree, actor_id=_CASE_ACTOR_URI
+        )
+        assert result.status == py_trees.common.Status.FAILURE
+
+    def test_fails_when_datalayer_save_raises(self):
+        """FAILURE returned when DataLayer.save raises; no subsequent write occurs."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+
+        with patch.object(dl, "save", side_effect=RuntimeError("disk full")):
+            status = self._run_node(
+                dl,
+                actor_id=_CASE_ACTOR_URI,
+                case_id="https://example.org/cases/c-001",
+                accept_id="https://example.org/activities/a-001",
+            )
+
+        assert status == py_trees.common.Status.FAILURE
+        # No marker should have been persisted.
+        marker_id = PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
+        assert (
+            dl.read(marker_id) is None
+        ), "No marker should be stored when save raises"
+
 
 class TestClearCreateCaseMarkerNode:
     """Unit tests for _ClearCreateCaseMarkerNode."""
