@@ -222,8 +222,7 @@ class SvcOfferCaseManagerRoleUseCase(SvcBTTriggerBase):
 
     def _handle_result(self) -> None:
         logger.info(
-            "Actor '%s' offered CASE_MANAGER role for case '%s'",
-            self._case_actor_id,
+            "CASE_MANAGER role offered for case '%s'",
             self._case.id_,
         )
 

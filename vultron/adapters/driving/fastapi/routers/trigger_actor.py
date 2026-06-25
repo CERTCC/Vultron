@@ -166,10 +166,15 @@ def trigger_offer_case_manager_role(
     background_tasks: BackgroundTasks,
     svc: TriggerServicePort = Depends(get_trigger_service),
     dl: DataLayer = Depends(get_trigger_dl),
-    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
 ) -> dict:
     """
     Trigger the offer-case-manager-role behavior for the given actor.
+
+    The BT runs under the Case Actor's identity (PCR-08-007), so the Offer
+    activity is queued in the **Case Actor's** outbox — not the path actor's.
+    ``outbox_handler`` is therefore scheduled against the Case Actor's
+    actor-scoped DataLayer, resolved from the use-case result's
+    ``emitting_actor_id`` field.
 
     Implements:
         TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
@@ -180,5 +185,9 @@ def trigger_offer_case_manager_role(
             actor_id=actor_id,
             case_id=body.case_id,
         )
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    emitting_actor_id = result.get("emitting_actor_id", actor_id)
+    emitting_dl = dl.clone_for_actor(emitting_actor_id)
+    background_tasks.add_task(
+        outbox_handler, emitting_actor_id, emitting_dl, dl
+    )
     return result

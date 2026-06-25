@@ -96,7 +96,10 @@ def test_hooks_called_in_order():
     assert uc.prepare_called
     assert uc.build_tree_called
     assert uc.handle_result_called
-    assert result == {"activity": None}
+    assert result == {
+        "activity": None,
+        "emitting_actor_id": "https://example.org/actor",
+    }
 
 
 def test_execute_returns_captured_activity():
@@ -114,7 +117,10 @@ def test_execute_returns_captured_activity():
         dl=MagicMock(), request=object(), trigger_activity=MagicMock()
     )
     result = uc.execute()
-    assert result == {"activity": {"type": "TestActivity"}}
+    assert result == {
+        "activity": {"type": "TestActivity"},
+        "emitting_actor_id": "https://example.org/actor",
+    }
 
 
 # ---------------------------------------------------------------------------
