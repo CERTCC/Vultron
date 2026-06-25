@@ -72,6 +72,27 @@ from vultron.core.ports.datalayer import DataLayer
 logger = logging.getLogger(__name__)
 
 
+def _discover_actor_ids_from_shared_dl(shared_dl: DataLayer) -> list[str]:
+    """Scan the shared DataLayer for ``case_actor_id`` values in persisted markers.
+
+    Used by the startup scan to find actors that have pending
+    ``PendingCreateCaseActivity`` markers even when the process-level actor
+    cache is empty (e.g., after a crash/restart). The shared (unscoped)
+    DataLayer returns rows across all actors.
+
+    Args:
+        shared_dl: An unscoped DataLayer that can see all actors' records.
+
+    Returns:
+        List of unique ``case_actor_id`` values found in persisted markers.
+    """
+    actor_ids: set[str] = set()
+    for raw in shared_dl.list_objects("PendingCreateCaseActivity"):
+        if isinstance(raw, PendingCreateCaseActivity):
+            actor_ids.add(raw.case_actor_id)
+    return list(actor_ids)
+
+
 def _reconstruct_activity(
     marker: PendingCreateCaseActivity,
 ) -> VultronCreateCaseActivity | None:
@@ -203,6 +224,7 @@ def _enqueue_and_clear(
 
 def retry_pending_create_case_activities(
     actor_datalayers_factory: Callable[[], dict[str, DataLayer]] | None = None,
+    shared_datalayer_factory: Callable[[], DataLayer] | None = None,
 ) -> int:
     """Re-queue all persisted ``PendingCreateCaseActivity`` obligations.
 
@@ -215,24 +237,65 @@ def retry_pending_create_case_activities(
     running this function multiple times does not produce duplicate
     activities (AC-4).
 
+    On crash/restart the process-level actor cache is empty.  This function
+    supplements the cache by scanning the shared (unscoped) DataLayer for
+    persisted markers and creating actor-scoped DataLayers for any
+    ``case_actor_id`` values discovered there.  The shared-DL scan runs
+    automatically when ``actor_datalayers_factory`` is ``None`` (the default
+    production path), and also when ``shared_datalayer_factory`` is
+    explicitly provided (useful for testing the startup-recovery path without
+    touching the module-level cache).
+
     Args:
         actor_datalayers_factory: Callable returning the current
             ``{actor_id: DataLayer}`` mapping.  Defaults to
             :func:`~vultron.adapters.driven.datalayer.get_all_actor_datalayers`.
             Inject a test double to avoid touching the module-level cache.
+        shared_datalayer_factory: Callable returning a shared (unscoped)
+            DataLayer used to discover actor IDs from persisted markers on
+            startup.  Defaults to
+            :func:`~vultron.adapters.driven.datalayer.get_datalayer` (no
+            actor scoping) when ``actor_datalayers_factory`` is ``None``.
+            Inject a test double to exercise the startup-recovery path in
+            isolation.
 
     Returns:
         The number of ``Create(VulnerabilityCase)`` activities successfully
         re-queued during this run.
     """
     if actor_datalayers_factory is not None:
-        factory = actor_datalayers_factory
+        actor_dls: dict[str, DataLayer] = dict(actor_datalayers_factory())
     else:
         from vultron.adapters.driven.datalayer import get_all_actor_datalayers
 
-        factory = get_all_actor_datalayers  # type: ignore[assignment]
+        actor_dls = dict(get_all_actor_datalayers())  # type: ignore[assignment]
 
-    actor_dls = factory()
+    # Supplement the map with actors discovered from persisted markers in the
+    # shared DataLayer.  On crash/restart the process cache is empty, so without
+    # this scan the runner would skip all persisted obligations.  The scan runs
+    # unconditionally on the default production path (actor_datalayers_factory is
+    # None) and when a shared_datalayer_factory is explicitly injected (test
+    # coverage of the startup-recovery path).
+    _run_shared_scan = (actor_datalayers_factory is None) or (
+        shared_datalayer_factory is not None
+    )
+    if _run_shared_scan:
+        if shared_datalayer_factory is not None:
+            shared_dl: DataLayer = shared_datalayer_factory()
+        else:
+            from vultron.adapters.driven.datalayer import get_datalayer
+
+            shared_dl = get_datalayer()  # type: ignore[assignment]
+
+        for actor_id in _discover_actor_ids_from_shared_dl(shared_dl):
+            if actor_id not in actor_dls:
+                actor_dls[actor_id] = shared_dl.clone_for_actor(actor_id)
+                logger.debug(
+                    "retry_pending: discovered actor '%s' from persisted"
+                    " markers — creating scoped DataLayer.",
+                    actor_id,
+                )
+
     if not actor_dls:
         logger.debug(
             "retry_pending: no actor DataLayers registered; skipping."

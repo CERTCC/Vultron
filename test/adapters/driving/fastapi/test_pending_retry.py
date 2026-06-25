@@ -32,6 +32,7 @@ Module under test:
 """
 
 import logging
+from collections.abc import Callable
 
 import pytest
 
@@ -267,7 +268,7 @@ class TestRetryIdempotency:
         dl.save(marker)
 
         # Patch dl.delete so it always returns False (simulating a stuck marker)
-        original_delete = dl.delete
+        original_delete: Callable[[str, str], bool] = dl.delete
 
         def _failing_delete(table: str, id_: str) -> bool:
             if table == "PendingCreateCaseActivity":
@@ -461,3 +462,99 @@ class TestRetryFullScenario:
         assert (
             not info_messages
         ), "No INFO messages expected when no markers are found"
+
+
+# ---------------------------------------------------------------------------
+# Startup recovery — shared DataLayer actor discovery (CP-05-005 crash path)
+# ---------------------------------------------------------------------------
+
+
+class TestStartupRecovery:
+    """Startup scan discovers actors from persisted markers even when cache is empty.
+
+    CP-05-005: On crash/restart the process-level actor cache (returned by
+    ``get_all_actor_datalayers()``) is empty, but the SQLite file still holds
+    ``PendingCreateCaseActivity`` rows.  The retry runner must discover those
+    actors from the shared (unscoped) DataLayer and process their markers.
+
+    Test setup mirrors production: markers are saved via an actor-scoped
+    DataLayer (as the BT node does), so the underlying record carries the
+    correct ``actor_id`` column value.  The shared (unscoped) DataLayer can
+    see all records regardless of ``actor_id``, which is how discovery works.
+    """
+
+    @staticmethod
+    def _make_shared_and_actor_dl():
+        """Return (shared_dl, actor_dl) backed by the same in-memory SQLite DB."""
+        shared_dl = SqliteDataLayer("sqlite:///:memory:")
+        actor_dl = shared_dl.clone_for_actor(_CASE_ACTOR_ID)
+        return shared_dl, actor_dl
+
+    def test_discovers_actor_from_shared_dl_when_cache_empty(self):
+        """Marker is processed when actor cache is empty but shared DL has markers.
+
+        Simulates crash/restart: actor_datalayers_factory returns {} but the
+        shared DataLayer still holds a persisted PendingCreateCaseActivity.
+        """
+        shared_dl, actor_dl = self._make_shared_and_actor_dl()
+        activity = _build_activity()
+        marker = _build_marker(activity)
+        actor_dl.save(marker)  # saved with actor_id, as the BT node does
+
+        count = retry_pending_create_case_activities(
+            actor_datalayers_factory=lambda: {},  # empty cache (post-restart)
+            shared_datalayer_factory=lambda: shared_dl,
+        )
+
+        assert count == 1, "Marker should be processed via shared-DL discovery"
+
+    def test_activity_enqueued_after_shared_dl_discovery(self):
+        """Activity is placed in the outbox after shared-DL actor discovery."""
+        shared_dl, actor_dl = self._make_shared_and_actor_dl()
+        activity = _build_activity()
+        marker = _build_marker(activity)
+        actor_dl.save(marker)
+
+        retry_pending_create_case_activities(
+            actor_datalayers_factory=lambda: {},
+            shared_datalayer_factory=lambda: shared_dl,
+        )
+
+        outbox = actor_dl.outbox_list_for_actor(_CASE_ACTOR_ID)
+        assert (
+            activity.id_ in outbox
+        ), "Activity should be in the outbox after startup recovery"
+
+    def test_marker_deleted_after_shared_dl_discovery(self):
+        """Marker is cleared after startup recovery completes (AC-3)."""
+        shared_dl, actor_dl = self._make_shared_and_actor_dl()
+        marker = _build_marker()
+        actor_dl.save(marker)
+
+        retry_pending_create_case_activities(
+            actor_datalayers_factory=lambda: {},
+            shared_datalayer_factory=lambda: shared_dl,
+        )
+
+        assert (
+            actor_dl.read(marker.id_) is None
+        ), "Marker should be deleted after startup recovery"
+
+    def test_no_duplicate_when_actor_already_in_cache(self):
+        """Actor already in the cache is not processed twice via shared-DL scan."""
+        shared_dl, actor_dl = self._make_shared_and_actor_dl()
+        activity = _build_activity()
+        marker = _build_marker(activity)
+        actor_dl.save(marker)
+
+        # Actor is in the cache AND shared_datalayer_factory is injected.
+        count = retry_pending_create_case_activities(
+            actor_datalayers_factory=lambda: {_CASE_ACTOR_ID: actor_dl},
+            shared_datalayer_factory=lambda: shared_dl,
+        )
+
+        assert count == 1, "Marker should be processed exactly once"
+        outbox = actor_dl.outbox_list_for_actor(_CASE_ACTOR_ID)
+        assert (
+            outbox.count(activity.id_) == 1
+        ), "Activity should appear exactly once in the outbox"

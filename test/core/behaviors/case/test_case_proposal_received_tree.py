@@ -390,3 +390,56 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
         assert (
             marker.create_activity_payload
         ), "create_activity_payload must not be empty (AC-1)"
+
+    def test_emit_node_uses_marker_activity_id(self, make_payload):
+        """AC-4: The activity id_ enqueued by node 4 matches the marker payload id_.
+
+        ``_WriteCreateCaseMarkerNode`` (node 3) and
+        ``_EmitCreateVulnerabilityCaseNode`` (node 4) must share the same
+        activity ``id_``.  If they diverge, the retry runner checks the
+        marker's ``id_`` against the outbox and — not finding it — enqueues
+        a second ``Create(VulnerabilityCase)`` as a duplicate.
+
+        This test asserts ID consistency by:
+        1. Running the full BT with ``_ClearCreateCaseMarkerNode`` no-oped so
+           the marker is preserved after node 4 succeeds.
+        2. Reconstructing the activity from the marker's stored payload.
+        3. Verifying that ``id_`` is present in the case-actor's outbox.
+        """
+        from vultron.core.behaviors.case.case_proposal_received_tree import (
+            _ClearCreateCaseMarkerNode,
+        )
+        from vultron.core.models.activity import VultronCreateCaseActivity
+        from vultron.core.use_cases.received.case_proposal import (
+            CreateCaseProposalReceivedUseCase,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        event = self._make_event(make_payload)
+
+        # Patch the clear node to skip deletion so the marker stays in the DL.
+        def _skip_delete(
+            self_node: _ClearCreateCaseMarkerNode,
+        ) -> py_trees.common.Status:  # noqa: N803
+            return py_trees.common.Status.SUCCESS
+
+        with patch.object(_ClearCreateCaseMarkerNode, "update", _skip_delete):
+            CreateCaseProposalReceivedUseCase(dl, event).execute()
+
+        marker_id = PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
+        marker = dl.read(marker_id)
+        assert isinstance(
+            marker, PendingCreateCaseActivity
+        ), "Marker should still be present (clear was no-oped)"
+
+        stored_activity = VultronCreateCaseActivity.model_validate(
+            marker.create_activity_payload
+        )
+        marker_activity_id = stored_activity.id_
+
+        outbox = dl.outbox_list_for_actor(_CASE_ACTOR_URI)
+        assert marker_activity_id in outbox, (
+            "Activity id_ in the marker's payload must match the id_ in the"
+            " outbox. A mismatch causes the retry runner to enqueue a"
+            " duplicate Create(VulnerabilityCase) after crash/restart."
+        )
