@@ -70,6 +70,8 @@ from unexpected or malformed inbound protocol messages.
   inquiry will be sent; in production this should be a deterministic
   policy-driven action
 - **Automation potential**: **High** — deterministic policy-driven GI message dispatch in response to error conditions; can be fully automated once the follow-up policy is defined.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.messaging.FollowUpOnErrorMessage`
+- **Call-out point shape**: N/A
 
 ---
 

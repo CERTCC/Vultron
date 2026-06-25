@@ -68,6 +68,8 @@ credible and valid for the receiving organization.
 - **Notes**: Succeeds (no new info) more often than not, avoiding redundant
   re-evaluation loops
 - **Automation potential**: **High** — event subscription on the case record or metadata timestamp comparison; fully automatable.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.validate.NoNewValidationInfo`
+- **Call-out point shape**: N/A
 
 ### `EvaluateReportCredibility`
 
@@ -83,6 +85,8 @@ credible and valid for the receiving organization.
 - **Notes**: SSVC documentation provides structured criteria for this
   evaluation
 - **Automation potential**: **Medium** — SSVC exploitation status, reporter reputation scoring, and technical plausibility checks can be partially automated; final credibility determination typically requires human analyst review.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.validate.EvaluateReportCredibility`
+- **Call-out point shape**: Evaluator
 
 ### `EvaluateReportValidity`
 
@@ -98,6 +102,8 @@ credible and valid for the receiving organization.
 - **Notes**: A report can be credible but out of scope; validity is
   contextual and role-dependent
 - **Automation potential**: **Medium** — scope checks against well-defined CNA/charter rules are automatable; organizational-context validity judgment often requires human review.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.validate.EvaluateReportValidity`
+- **Call-out point shape**: Evaluator
 
 ### `EnoughValidationInfo`
 
@@ -112,6 +118,8 @@ credible and valid for the receiving organization.
 - **Notes**: Sufficient information is the normal case; absence triggers
   info-gathering
 - **Automation potential**: **Medium** — completeness check against required fields or evidence criteria can be automated; the sufficiency threshold for final decision often involves human judgment.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.validate.EnoughValidationInfo`
+- **Call-out point shape**: Evaluator
 
 ### `GatherValidationInfo`
 
@@ -127,6 +135,8 @@ credible and valid for the receiving organization.
 - **Notes**: Succeeds most of the time in simulation to keep the workflow
   progressing
 - **Automation potential**: **Low–Medium** — structured intake form follow-ups and automated case-update requests are partially automatable; direct reporter outreach typically requires human involvement.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.validate.GatherValidationInfo`
+- **Call-out point shape**: Retriever
 
 ---
 
@@ -149,6 +159,8 @@ models the process of deciding whether to accept (engage with) or defer
   event subscription
 - **Notes**: Succeeds more often than not to avoid redundant re-evaluation
 - **Automation potential**: **High** — metadata timestamp or case-update event check; fully automatable.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.prioritize.NoNewPrioritizationInfo`
+- **Call-out point shape**: N/A
 
 ### `EnoughPrioritizationInfo`
 
@@ -162,6 +174,8 @@ models the process of deciding whether to accept (engage with) or defer
   check (e.g., SSVC decision point availability)
 - **Notes**: Insufficient info triggers a gathering phase
 - **Automation potential**: **Medium** — availability of SSVC decision-point data (e.g., CVSS score, exploitation status) is automatable; the sufficiency judgment for a final accept/defer decision usually involves human analyst review.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.prioritize.EnoughPrioritizationInfo`
+- **Call-out point shape**: Evaluator
 
 ### `GatherPrioritizationInfo`
 
@@ -177,6 +191,8 @@ models the process of deciding whether to accept (engage with) or defer
 - **Notes**: Succeeds almost always in simulation to keep the workflow
   progressing
 - **Automation potential**: **Medium** — fetching CVSS scores, EPSS scores, NVD data, and asset inventory is fully automatable via APIs; analyst interpretation and gap-filling still requires human involvement.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.prioritize.GatherPrioritizationInfo`
+- **Call-out point shape**: Retriever
 
 ### `OnDefer`
 
@@ -191,6 +207,8 @@ models the process of deciding whether to accept (engage with) or defer
   services, case management system updates
 - **Notes**: Always succeeds in simulation; must be idempotent in production
 - **Automation potential**: **High** — stakeholder notifications, follow-up scheduling, and state updates are all automatable via integration APIs.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.prioritize.OnDefer`
+- **Call-out point shape**: N/A
 
 ### `OnAccept`
 
@@ -205,6 +223,8 @@ models the process of deciding whether to accept (engage with) or defer
   initialization, case management system updates
 - **Notes**: Always succeeds in simulation; must be idempotent in production
 - **Automation potential**: **High** — stakeholder notifications, workflow initialization, and state updates are all automatable via integration APIs.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.prioritize.OnAccept`
+- **Call-out point shape**: N/A
 
 ---
 
@@ -228,6 +248,8 @@ to a validated report.
 - **Notes**: Fails most of the time in simulation because ID assignment is
   the main workflow; in production this is a simple metadata check
 - **Automation potential**: **High** — simple query against case metadata or a vulnerability registry; fully automatable.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.assign_vul_id.IdAssigned`
+- **Call-out point shape**: N/A
 
 ### `InScope`
 
@@ -242,6 +264,8 @@ to a validated report.
 - **Notes**: Scope rules vary by ID space; a broad ID space may skip
   this check
 - **Automation potential**: **High** — scope rules for well-defined ID spaces (e.g., CVE CNA rules) can be encoded as a policy check and automated; may require human review for ambiguous cases.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.assign_vul_id.InScope`
+- **Call-out point shape**: N/A
 
 ### `IsIDAssignmentAuthority`
 
@@ -257,6 +281,8 @@ to a validated report.
 - **Notes**: In production this is a static configuration check, not a
   runtime decision
 - **Automation potential**: **High** — static organizational configuration; can be fully automated as a capability metadata lookup.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.assign_vul_id.IsIDAssignmentAuthority`
+- **Call-out point shape**: N/A
 
 ### `IdAssignable`
 
@@ -272,6 +298,8 @@ to a validated report.
 - **Notes**: A participant may be an ID authority generally but not the
   authoritative CNA for this specific product
 - **Automation potential**: **High** — CNA-scope and product-to-CNA mapping checks are automatable via the CVE Services API or a local policy registry.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.assign_vul_id.IdAssignable`
+- **Call-out point shape**: N/A
 
 ### `RequestId`
 
@@ -286,6 +314,8 @@ to a validated report.
   CVE.org API), or human analyst manual submission
 - **Notes**: Could be fully automated via the CVE Services API
 - **Automation potential**: **High** — can be fully automated as an API call to the CVE Services endpoint or equivalent ID-request interface.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.assign_vul_id.RequestId`
+- **Call-out point shape**: N/A
 
 ### `AssignId`
 
@@ -300,6 +330,8 @@ to a validated report.
 - **Notes**: Always succeeds in simulation; in production may involve
   API calls or database writes
 - **Automation potential**: **High** — can be fully automated as an API call (reserve/assign) to the ID assignment authority or an internal ID pool management system.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.assign_vul_id.AssignId`
+- **Call-out point shape**: N/A
 
 ---
 
@@ -323,6 +355,8 @@ vulnerability.
 - **Notes**: Succeeds almost always in simulation; in production this
   node would integrate with the vendor's bug/patch tracking system
 - **Automation potential**: **Low** — engineering work is human-initiated; automation is limited to triggering a bug-tracker ticket or sending a development task notification.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.develop_fix.CreateFix`
+- **Call-out point shape**: Composer
 
 ---
 
@@ -346,6 +380,8 @@ the process of deploying a developed fix or mitigation to affected systems.
 - **Notes**: New deployment info is uncommon; most ticks pass through
   without update
 - **Automation potential**: **High** — metadata timestamp or deployment-event subscription check; fully automatable.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.deploy_fix.NoNewDeploymentInfo`
+- **Call-out point shape**: N/A
 
 ### `PrioritizeDeployment`
 
@@ -361,6 +397,8 @@ the process of deploying a developed fix or mitigation to affected systems.
 - **Notes**: Succeeds almost always in simulation; in production may
   involve structured prioritization criteria
 - **Automation potential**: **Medium** — CVSS environmental scores, EPSS, and asset criticality data are automatable inputs; final prioritization decision may require human approval, especially for production systems.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.deploy_fix.PrioritizeDeployment`
+- **Call-out point shape**: Evaluator
 
 ### `MitigationDeployed`
 
@@ -375,6 +413,8 @@ the process of deploying a developed fix or mitigation to affected systems.
 - **Notes**: Fails most of the time in simulation since mitigation
   deployment is modeled as the active goal
 - **Automation potential**: **High** — query to patch management system or case-state flag; fully automatable.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.deploy_fix.MitigationDeployed`
+- **Call-out point shape**: N/A
 
 ### `MitigationAvailable`
 
@@ -389,6 +429,8 @@ the process of deploying a developed fix or mitigation to affected systems.
 - **Notes**: Mitigations are available more often than not once the fix
   development cycle has progressed
 - **Automation potential**: **High** — patch or advisory feed query; fully automatable once the feed integration is in place.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.deploy_fix.MitigationAvailable`
+- **Call-out point shape**: N/A
 
 ### `DeployMitigation`
 
@@ -403,6 +445,8 @@ the process of deploying a developed fix or mitigation to affected systems.
 - **Notes**: Succeeds most of the time in simulation; production
   implementation would integrate with patch/config management tooling
 - **Automation potential**: **Medium** — automated deployment is feasible for some environments (configuration management, cloud); human approval is typically required for production system changes.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.deploy_fix.DeployMitigation`
+- **Call-out point shape**: Evaluator
 
 ### `MonitoringRequirement`
 
@@ -417,6 +461,8 @@ the process of deploying a developed fix or mitigation to affected systems.
 - **Notes**: A policy decision; could be a static rule or context-dependent
   evaluation
 - **Automation potential**: **High** — policy rule evaluation against case context (severity, asset class, environment); fully automatable as a policy engine check.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.deploy_fix.MonitoringRequirement`
+- **Call-out point shape**: N/A
 
 ### `MonitorDeployment`
 
@@ -431,6 +477,8 @@ the process of deploying a developed fix or mitigation to affected systems.
 - **Notes**: Always succeeds in simulation; in production monitors
   deployment coverage metrics
 - **Automation potential**: **High** — integration with deployment verification tools, patch compliance dashboards, or asset management platforms; fully automatable.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.deploy_fix.MonitorDeployment`
+- **Call-out point shape**: Sentinel
 
 ### `DeployFix`
 
@@ -445,6 +493,8 @@ the process of deploying a developed fix or mitigation to affected systems.
 - **Notes**: Modeled as rare per-tick because full fix deployment is a
   significant, infrequent milestone; over many ticks it eventually succeeds
 - **Automation potential**: **Medium** — release pipeline and patch distribution can be automated (CI/CD, package repositories); human approval gate is commonly required for production releases.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.deploy_fix.DeployFix`
+- **Call-out point shape**: Evaluator
 
 ---
 
@@ -468,6 +518,8 @@ vulnerability, typically to support impact assessment or testing.
 - **Notes**: Fails most of the time since acquiring the exploit is the
   modeled goal
 - **Automation potential**: **High** — query against an internal exploit repository or threat-intelligence platform; fully automatable.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.acquire_exploit.HaveExploit`
+- **Call-out point shape**: N/A
 
 ### `ExploitPrioritySet`
 
@@ -482,6 +534,8 @@ vulnerability, typically to support impact assessment or testing.
 - **Notes**: Succeeds almost always because priority-setting is a
   prerequisite step that runs early
 - **Automation potential**: **High** — metadata flag check on the case record; fully automatable.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.acquire_exploit.ExploitPrioritySet`
+- **Call-out point shape**: N/A
 
 ### `EvaluateExploitPriority`
 
@@ -496,6 +550,8 @@ vulnerability, typically to support impact assessment or testing.
 - **Notes**: Always succeeds in simulation; in production drives the
   `ExploitDesired` and `ExploitDeferred` outcomes
 - **Automation potential**: **Medium** — SSVC/CVSS scoring inputs are automatable; the final exploit-acquisition priority decision often requires human analyst judgment given organizational and legal context.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.acquire_exploit.EvaluateExploitPriority`
+- **Call-out point shape**: Evaluator
 
 ### `ExploitDeferred`
 
@@ -510,6 +566,8 @@ vulnerability, typically to support impact assessment or testing.
 - **Notes**: Succeeds (deferred) more often than not, reflecting that
   exploit acquisition is not always the highest priority
 - **Automation potential**: **High** — read the outcome of the priority evaluation from case metadata; fully automatable.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.acquire_exploit.ExploitDeferred`
+- **Call-out point shape**: N/A
 
 ### `ExploitDesired`
 
@@ -523,6 +581,8 @@ vulnerability, typically to support impact assessment or testing.
   flag or priority queue status
 - **Notes**: Complements `ExploitDeferred`; fails more often than it succeeds
 - **Automation potential**: **High** — read the outcome of the priority evaluation from case metadata; fully automatable.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.acquire_exploit.ExploitDesired`
+- **Call-out point shape**: N/A
 
 ### `FindExploit`
 
@@ -539,6 +599,8 @@ vulnerability, typically to support impact assessment or testing.
 - **Notes**: Succeeds rarely because public exploits for specific
   vulnerabilities are uncommon at intake time
 - **Automation potential**: **High** — automated search of exploit databases (ExploitDB, Metasploit module index, NVD exploit references, threat-intel APIs) is fully feasible.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.acquire_exploit.FindExploit`
+- **Call-out point shape**: Retriever
 
 ### `DevelopExploit`
 
@@ -553,6 +615,8 @@ vulnerability, typically to support impact assessment or testing.
 - **Notes**: Succeeds often in simulation to model that internal
   development is more reliably achievable than finding an external exploit
 - **Automation potential**: **Low** — security research requiring human expertise; cannot be meaningfully automated in the general case.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.acquire_exploit.DevelopExploit`
+- **Call-out point shape**: Composer
 
 ### `PurchaseExploit`
 
@@ -567,6 +631,8 @@ vulnerability, typically to support impact assessment or testing.
 - **Notes**: Modeled as rare; purchasing exploits is uncommon and involves
   legal/policy considerations
 - **Automation potential**: **Low** — procurement and legal authorization require human decision-making; cannot be automated.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.acquire_exploit.PurchaseExploit`
+- **Call-out point shape**: Evaluator
 
 ---
 
@@ -593,6 +659,8 @@ exploited in the wild. Threat detection can trigger embargo termination via
 - **Notes**: Succeeds rarely to reflect the low base rate of detected
   in-the-wild attacks during active coordination
 - **Automation potential**: **High** — SIEM queries, IDS/IPS alert feeds, and threat-intelligence platform APIs can fully automate in-the-wild attack detection.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.monitor_threats.MonitorAttacks`
+- **Call-out point shape**: Sentinel
 
 ### `MonitorExploits`
 
@@ -609,6 +677,8 @@ exploited in the wild. Threat detection can trigger embargo termination via
 - **Notes**: Rarely succeeds; public exploits typically appear after
   disclosure, not during the coordination phase
 - **Automation potential**: **High** — exploit database feeds, CVE enrichment APIs, and threat-intel platforms can fully automate exploit publication monitoring.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.monitor_threats.MonitorExploits`
+- **Call-out point shape**: Sentinel
 
 ### `MonitorPublicReports`
 
@@ -625,6 +695,8 @@ exploited in the wild. Threat detection can trigger embargo termination via
   because public discussion of vulnerabilities is more common than
   confirmed attacks
 - **Automation potential**: **High** — RSS/news feed monitoring, OSINT tools, and social-media tracking APIs can automate public disclosure detection with high coverage.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.monitor_threats.MonitorPublicReports`
+- **Call-out point shape**: Sentinel
 
 ### `NoThreatsFound`
 
@@ -639,6 +711,8 @@ exploited in the wild. Threat detection can trigger embargo termination via
 - **Notes**: Ensures `MonitorThreats` always succeeds so the broader
   workflow continues uninterrupted
 - **Automation potential**: **N/A** — terminal success placeholder; no real decision logic required.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.monitor_threats.NoThreatsFound`
+- **Call-out point shape**: N/A
 
 ---
 
@@ -662,6 +736,8 @@ preparing them, and executing publication.
 - **Notes**: Fails most of the time in simulation because publication
   is an active goal being worked toward
 - **Automation potential**: **High** — publication status flag on the case record; fully automatable as a metadata check.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.AllPublished`
+- **Call-out point shape**: N/A
 
 ### `PublicationIntentsSet`
 
@@ -677,6 +753,8 @@ preparing them, and executing publication.
 - **Notes**: Fails most of the time in simulation because setting intents
   is an early workflow step being modeled
 - **Automation potential**: **High** — publication intent flags on the case record; fully automatable as a metadata check.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.PublicationIntentsSet`
+- **Call-out point shape**: N/A
 
 ### `PrioritizePublicationIntents`
 
@@ -693,6 +771,8 @@ preparing them, and executing publication.
 - **Notes**: Always succeeds in simulation; in production this involves
   structured editorial/policy decisions
 - **Automation potential**: **Medium** — standard policy-driven publication priorities (e.g., always publish report and fix) can be automated; editorial or legal exceptions require human judgment.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.PrioritizePublicationIntents`
+- **Call-out point shape**: Evaluator
 
 ### `Publish`
 
@@ -707,6 +787,8 @@ preparing them, and executing publication.
 - **Notes**: Succeeds almost always in simulation; in production may involve
   API calls to advisory publishing platforms
 - **Automation potential**: **High** — advisory platform APIs (NVD, CVE.org, CMS, package repository) enable fully automated artifact publication.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.Publish`
+- **Call-out point shape**: N/A
 
 ### `NoPublishExploit`
 
@@ -721,6 +803,8 @@ preparing them, and executing publication.
 - **Notes**: Succeeds (no exploit publication) in most cases, reflecting
   that exploit publication is not always required or desired
 - **Automation potential**: **High** — read the exploit publication intent flag from the case record; fully automatable.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.NoPublishExploit`
+- **Call-out point shape**: N/A
 
 ### `ExploitReady`
 
@@ -733,6 +817,8 @@ preparing them, and executing publication.
 - **Input dependency**: Artifact status metadata; staging system check
 - **Notes**: Ready more often than not once preparation has started
 - **Automation potential**: **High** — artifact staging-status check in the publishing pipeline; fully automatable.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.ExploitReady`
+- **Call-out point shape**: N/A
 
 ### `PrepareExploit`
 
@@ -747,6 +833,8 @@ preparing them, and executing publication.
   artifact staging workflow
 - **Notes**: Succeeds almost always in simulation
 - **Automation potential**: **Low** — write-up and proof-of-concept packaging require human security researcher expertise; not automatable in the general case.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.PrepareExploit`
+- **Call-out point shape**: Composer
 
 ### `ReprioritizeExploit`
 
@@ -761,6 +849,8 @@ preparing them, and executing publication.
   queue management
 - **Notes**: Always succeeds in simulation
 - **Automation potential**: **Medium** — embargo state changes and threat-level updates can trigger automated reprioritization rules; human override may be needed for unusual cases.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.ReprioritizeExploit`
+- **Call-out point shape**: Evaluator
 
 ### `NoPublishFix`
 
@@ -774,6 +864,8 @@ preparing them, and executing publication.
 - **Notes**: Fails most of the time because fix publication is the standard
   expected outcome of CVD
 - **Automation potential**: **High** — read the fix publication intent flag from the case record; fully automatable.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.NoPublishFix`
+- **Call-out point shape**: N/A
 
 ### `PrepareFix`
 
@@ -787,6 +879,8 @@ preparing them, and executing publication.
   and content authoring workflow
 - **Notes**: Succeeds almost always in simulation
 - **Automation potential**: **Low–Medium** — CI/CD pipeline can automate patch build and packaging; advisory text and release notes typically require human authoring and review.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.PrepareFix`
+- **Call-out point shape**: Composer
 
 ### `ReprioritizeFix`
 
@@ -800,6 +894,8 @@ preparing them, and executing publication.
   queue management
 - **Notes**: Always succeeds in simulation
 - **Automation potential**: **Medium** — embargo state changes and threat-level updates can trigger automated reprioritization rules; human override may be needed.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.ReprioritizeFix`
+- **Call-out point shape**: Evaluator
 
 ### `NoPublishReport`
 
@@ -814,6 +910,8 @@ preparing them, and executing publication.
 - **Notes**: Fails most of the time because report publication is standard
   CVD outcome
 - **Automation potential**: **High** — read the report publication intent flag from the case record; fully automatable.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.NoPublishReport`
+- **Call-out point shape**: N/A
 
 ### `PrepareReport`
 
@@ -827,6 +925,8 @@ preparing them, and executing publication.
   approval workflow; advisory publishing pipeline
 - **Notes**: Succeeds almost always in simulation
 - **Automation potential**: **Low** — advisory writing requires human expertise and editorial judgment; review and approval workflow also typically involves human stakeholders.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.PrepareReport`
+- **Call-out point shape**: Composer
 
 ### `ReprioritizeReport`
 
@@ -840,6 +940,8 @@ preparing them, and executing publication.
   queue management
 - **Notes**: Always succeeds in simulation
 - **Automation potential**: **Medium** — policy-triggered reprioritization (e.g., on embargo exit or threat escalation) is automatable; complex editorial decisions require human oversight.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.ReprioritizeReport`
+- **Call-out point shape**: Evaluator
 
 ---
 
@@ -864,6 +966,8 @@ coordinated disclosure.
 - **Notes**: In production this is typically a static capability check,
   not a dynamic decision
 - **Automation potential**: **High** — static capability and role configuration check; fully automatable as a metadata lookup.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.HaveReportToOthersCapability`
+- **Call-out point shape**: N/A
 
 ### `AllPartiesKnown`
 
@@ -878,6 +982,8 @@ coordinated disclosure.
 - **Notes**: Modeled as a coin flip in simulation because identification
   completeness is inherently uncertain
 - **Automation potential**: **Low** — inherently requires human expert judgment about stakeholder completeness in a specific vulnerability context; hard to automate reliably.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.AllPartiesKnown`
+- **Call-out point shape**: Evaluator
 
 ### `IdentifyVendors`
 
@@ -893,6 +999,8 @@ coordinated disclosure.
 - **Notes**: Uses `SuccessOrRunning` to model that vendor identification
   may be an ongoing (multi-tick) process; never hard-fails
 - **Automation potential**: **Medium** — CPE/product database lookups, SBOM analysis, and NVD product data queries are automatable for known products; novel, multi-vendor, or open-source supply-chain cases benefit from human review.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.IdentifyVendors`
+- **Call-out point shape**: Retriever
 
 ### `IdentifyCoordinators`
 
@@ -909,6 +1017,8 @@ coordinated disclosure.
 - **Notes**: Uses `SuccessOrRunning` to model an ongoing identification
   process; never hard-fails
 - **Automation potential**: **Medium** — FIRST member directory and national CSIRT registry lookups are automatable; routing policy (when to involve a coordinator) may require human judgment.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.IdentifyCoordinators`
+- **Call-out point shape**: Retriever
 
 ### `IdentifyOthers`
 
@@ -922,6 +1032,8 @@ coordinated disclosure.
   analysis
 - **Notes**: Always succeeds in simulation (stub placeholder)
 - **Automation potential**: **Low** — by definition a catch-all for non-vendor, non-coordinator parties; requires human expert assessment of the specific disclosure context.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.IdentifyOthers`
+- **Call-out point shape**: Evaluator
 
 ### `NotificationsComplete`
 
@@ -936,6 +1048,8 @@ coordinated disclosure.
 - **Notes**: Modeled as a coin flip; in production this is a status check
   against a notification queue
 - **Automation potential**: **High** — notification status tracking against the identified-parties queue; fully automatable.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.NotificationsComplete`
+- **Call-out point shape**: N/A
 
 ### `ChooseRecipient`
 
@@ -949,6 +1063,8 @@ coordinated disclosure.
   the identified parties list
 - **Notes**: Could be fully automated; always succeeds in simulation
 - **Automation potential**: **High** — deterministic queue selection from the identified-parties list; fully automatable.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.ChooseRecipient`
+- **Call-out point shape**: N/A
 
 ### `RemoveRecipient`
 
@@ -962,6 +1078,8 @@ coordinated disclosure.
 - **Input dependency**: Notification queue management; could be automated
 - **Notes**: Always succeeds in simulation
 - **Automation potential**: **High** — queue management operation; fully automatable.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.RemoveRecipient`
+- **Call-out point shape**: N/A
 
 ### `RecipientEffortExceeded`
 
@@ -977,6 +1095,8 @@ coordinated disclosure.
 - **Notes**: Rarely triggers in simulation; in production enforces
   reasonable limits on notification attempts
 - **Automation potential**: **High** — effort counter check against a configurable policy threshold; fully automatable once the threshold policy is defined.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.RecipientEffortExceeded`
+- **Call-out point shape**: N/A
 
 ### `TotalEffortLimitMet`
 
@@ -991,6 +1111,8 @@ coordinated disclosure.
 - **Notes**: Rarely triggers in simulation; provides a global stop
   condition to prevent unbounded notification effort
 - **Automation potential**: **High** — aggregate effort counter check against a configurable policy ceiling; fully automatable.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.TotalEffortLimitMet`
+- **Call-out point shape**: N/A
 
 ### `PolicyCompatible`
 
@@ -1006,6 +1128,8 @@ coordinated disclosure.
   policy registry, or require human analyst judgment
 - **Notes**: In production may involve structured policy comparison tooling
 - **Automation potential**: **Medium** — comparison between the recipient's published CVD policy and the case embargo terms is automatable for machine-readable policies (e.g., OpenVEX, structured security.txt); human review needed for ambiguous or informal policies.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.PolicyCompatible`
+- **Call-out point shape**: Evaluator
 
 ### `FindContact`
 
@@ -1021,6 +1145,8 @@ coordinated disclosure.
 - **Notes**: Succeeds most of the time; may fail for lesser-known vendors
   with no published security contact
 - **Automation potential**: **High** — security.txt lookup, PSIRT directory queries, FIRST member database, and NVD contact data are all automatable for well-known organizations; obscure vendors may require manual research.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.FindContact`
+- **Call-out point shape**: Retriever
 
 ### `RcptNotInQrmS`
 
@@ -1035,6 +1161,8 @@ coordinated disclosure.
   recipient participant; automatable
 - **Notes**: Succeeds almost always; guards against duplicate notifications
 - **Automation potential**: **High** — RM state query against the case participant record; fully automatable.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.RcptNotInQrmS`
+- **Call-out point shape**: N/A
 
 ### `SetRcptQrmR`
 
@@ -1049,6 +1177,8 @@ coordinated disclosure.
 - **Notes**: Always succeeds in simulation; in production performs
   a state update
 - **Automation potential**: **High** — RM state write on the case participant record; fully automatable.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.SetRcptQrmR`
+- **Call-out point shape**: N/A
 
 ### `MoreVendors`
 
@@ -1063,6 +1193,8 @@ coordinated disclosure.
 - **Notes**: Fails most of the time in simulation because the vendor list
   is usually short
 - **Automation potential**: **High** — query against the vendor notification queue; fully automatable.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.MoreVendors`
+- **Call-out point shape**: N/A
 
 ### `MoreCoordinators`
 
@@ -1077,6 +1209,8 @@ coordinated disclosure.
 - **Notes**: Fails almost always because the coordinator list is typically
   short (often zero or one)
 - **Automation potential**: **High** — query against the coordinator notification queue; fully automatable.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.MoreCoordinators`
+- **Call-out point shape**: N/A
 
 ### `MoreOthers`
 
@@ -1090,6 +1224,8 @@ coordinated disclosure.
   automatable
 - **Notes**: Fails almost always; catch-all category is usually empty
 - **Automation potential**: **High** — query against the other-parties notification queue; fully automatable.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.MoreOthers`
+- **Call-out point shape**: N/A
 
 ### `InjectParticipant`
 
@@ -1104,6 +1240,8 @@ coordinated disclosure.
 - **Notes**: Always succeeds in simulation; base class for the three
   role-specific inject nodes below
 - **Automation potential**: **High** — case management system write; fully automatable once participant details are known.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.InjectParticipant`
+- **Call-out point shape**: N/A
 
 ### `InjectVendor`
 
@@ -1117,6 +1255,8 @@ coordinated disclosure.
   acceptance of participation
 - **Notes**: Specialization of `InjectParticipant` for vendor role
 - **Automation potential**: **High** — case management system write for vendor role; fully automatable.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.InjectVendor`
+- **Call-out point shape**: N/A
 
 ### `InjectCoordinator`
 
@@ -1130,6 +1270,8 @@ coordinated disclosure.
   and acceptance of participation
 - **Notes**: Specialization of `InjectParticipant` for coordinator role
 - **Automation potential**: **High** — case management system write for coordinator role; fully automatable.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.InjectCoordinator`
+- **Call-out point shape**: N/A
 
 ### `InjectOther`
 
@@ -1143,6 +1285,8 @@ coordinated disclosure.
   and acceptance of participation
 - **Notes**: Specialization of `InjectParticipant` for other-party role
 - **Automation potential**: **High** — case management system write for other-party role; fully automatable.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.InjectOther`
+- **Call-out point shape**: N/A
 
 ---
 
@@ -1168,6 +1312,8 @@ complete (or otherwise concluded).
   closure criteria are uncommon; may represent editorial board sign-off,
   legal review completion, etc.
 - **Automation potential**: **Low** — site-specific; closure criteria vary widely by organization and case context; typically requires human policy evaluation or explicit sign-off.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.close_report.OtherCloseCriteriaMet`
+- **Call-out point shape**: Evaluator
 
 ### `PreCloseAction`
 
@@ -1183,6 +1329,8 @@ complete (or otherwise concluded).
 - **Notes**: Always succeeds in simulation; production may involve
   multi-step pre-close workflows
 - **Automation potential**: **Medium** — archiving and standard notification steps can be automated; QA review and final approvals typically require human involvement.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.close_report.PreCloseAction`
+- **Call-out point shape**: N/A
 
 ---
 
@@ -1208,5 +1356,7 @@ accepted vulnerability report outside of the more specific sub-trees.
 - **Notes**: Always succeeds; this is an extensibility point for
   organizations to plug in their own workflow steps
 - **Automation potential**: **Low** — intentional extensibility stub for unmodeled work; automation potential is entirely site-specific and cannot be assessed generically.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.other_work.OtherWork`
+- **Call-out point shape**: Evaluator
 
 ---
