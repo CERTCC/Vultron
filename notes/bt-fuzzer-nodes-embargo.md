@@ -66,6 +66,8 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Notes**: Modeled as unlikely because deployment alone is usually
   insufficient (e.g., partial rollout, emergency deployment)
 - **Automation potential**: **Medium** — deployment status check is automatable via patch-management or case-state APIs; the *decision* to exit still requires policy-rule evaluation or human confirmation.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.ExitEmbargoWhenDeployed`
+- **Call-out point shape**: Evaluator
 
 ### `ExitEmbargoWhenFixReady`
 
@@ -80,6 +82,8 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Notes**: Less common than deployment-triggered exit; vendor may want to
   coordinate simultaneous deployment across affected population first
 - **Automation potential**: **Medium** — fix-readiness flag is queryable automatically; the exit decision depends on configurable organizational policy that may require human override.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.ExitEmbargoWhenFixReady`
+- **Call-out point shape**: Evaluator
 
 ### `ExitEmbargoForOtherReason`
 
@@ -94,6 +98,8 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Notes**: Intentionally very rare in simulation; represents extraordinary
   circumstances
 - **Automation potential**: **Low** — rare edge case representing extraordinary circumstances; fundamentally requires human judgment that cannot be anticipated by a general policy rule.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.ExitEmbargoForOtherReason`
+- **Call-out point shape**: Evaluator
 
 ### `EmbargoTimerExpired`
 
@@ -109,6 +115,8 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Notes**: Rare in simulation (most ticks occur well before expiry); in
   production this is a simple timestamp comparison
 - **Automation potential**: **High** — simple system-clock comparison against the recorded embargo expiry timestamp; fully automatable with no human involvement.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.EmbargoTimerExpired`
+- **Call-out point shape**: N/A
 
 ### `OnEmbargoExit`
 
@@ -124,6 +132,8 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Notes**: Always succeeds in simulation; production implementation
   must ensure idempotent execution
 - **Automation potential**: **High** — integration hook (notifications, state updates, downstream triggers); can be fully automated via API calls to notification and case-management systems.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.OnEmbargoExit`
+- **Call-out point shape**: N/A
 
 ### `StopProposingEmbargo`
 
@@ -138,6 +148,8 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Notes**: Modeled as uncommon; parties are usually willing to keep
   negotiating
 - **Automation potential**: **Low** — fundamentally a negotiation-fatigue judgment; depends on relationship context and subjective assessment of negotiation prospects; requires human decision.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.StopProposingEmbargo`
+- **Call-out point shape**: Evaluator
 
 ### `SelectEmbargoOfferTerms`
 
@@ -153,6 +165,8 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Notes**: Always succeeds in simulation; in production may involve
   negotiation-support tooling or policy lookup
 - **Automation potential**: **Medium** — standard terms (duration, conditions) can be drawn from organizational policy templates automatically; atypical situations may need human review.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.SelectEmbargoOfferTerms`
+- **Call-out point shape**: Evaluator
 
 ### `WantToProposeEmbargo`
 
@@ -167,6 +181,8 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Notes**: Default recommendation is to propose an embargo; fuzzer
   exercises both paths equally
 - **Automation potential**: **Medium** — default policy (always propose) can be automated; exceptions (e.g., already-public vulnerability, no vendor identified) could be rule-encoded, but edge cases may need human override.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.WantToProposeEmbargo`
+- **Call-out point shape**: Evaluator
 
 ### `WillingToCounterEmbargoProposal`
 
@@ -182,6 +198,8 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Notes**: Intentionally low probability; the recommended behavior is to
   accept the current proposal and negotiate revisions separately
 - **Automation potential**: **Low** — nuanced negotiation judgment about whether countering is strategically preferable to accepting and revising; best left to human discretion.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.WillingToCounterEmbargoProposal`
+- **Call-out point shape**: Evaluator
 
 ### `ReasonToProposeEmbargoWhenDeployed`
 
@@ -196,6 +214,8 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Notes**: Very rare by design; post-deployment embargo proposals are
   exceptional
 - **Automation potential**: **Low** — highly exceptional circumstance; no general rule can anticipate valid reasons, so human judgment is required.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.ReasonToProposeEmbargoWhenDeployed`
+- **Call-out point shape**: Evaluator
 
 ### `EvaluateEmbargoProposal`
 
@@ -211,6 +231,8 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Notes**: Modeled as usually succeeding (acceptance is the common
   outcome); in production may involve structured negotiation support
 - **Automation potential**: **Medium** — basic compatibility check (is proposed duration within policy bounds?) is automatable; final accept/reject for out-of-range proposals typically needs human review.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.EvaluateEmbargoProposal`
+- **Call-out point shape**: Evaluator
 
 ### `OnEmbargoAccept`
 
@@ -225,6 +247,8 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
   calendar/timer services, case management system updates
 - **Notes**: Always succeeds in simulation; must be idempotent in production
 - **Automation potential**: **High** — notification dispatch, timer initialization, and state-update actions are all integration-automatable via APIs.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.OnEmbargoAccept`
+- **Call-out point shape**: N/A
 
 ### `OnEmbargoReject`
 
@@ -239,6 +263,8 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
   management updates
 - **Notes**: Always succeeds in simulation; must be idempotent in production
 - **Automation potential**: **High** — notification dispatch and logging actions are fully automatable via APIs.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.OnEmbargoReject`
+- **Call-out point shape**: N/A
 
 ### `CurrentEmbargoAcceptable`
 
@@ -253,5 +279,7 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Notes**: Modeled as usually acceptable; revision proposals are
   relatively uncommon
 - **Automation potential**: **Medium** — automated comparison of current terms against policy preferences is feasible; edge cases and dynamic negotiation contexts may still require human judgment.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.CurrentEmbargoAcceptable`
+- **Call-out point shape**: Evaluator
 
 ---
