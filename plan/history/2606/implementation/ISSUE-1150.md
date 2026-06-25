@@ -17,8 +17,8 @@ fuzzer node entries across the four domain catalog files:
 - `notes/bt-fuzzer-nodes-vul-discovery.md` (3 nodes — marked N/A,
   simulation-only BT not ported to new architecture)
 
-Shape distribution: N/A (43), Evaluator (31), Retriever (11), Sentinel (4),
-Composer (4). Shapes assigned per the methodology in
+Shape distribution: N/A (50), Evaluator (28), Retriever (6), Sentinel (4),
+Composer (5). Shapes assigned per the methodology in
 `notes/coordination-agents.md`. Cross-references point to the corresponding
 `vultron.demo.fuzzer.*` classes created in FUZZ-01–07.
 
