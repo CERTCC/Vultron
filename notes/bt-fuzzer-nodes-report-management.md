@@ -69,7 +69,7 @@ credible and valid for the receiving organization.
   re-evaluation loops
 - **Automation potential**: **High** — event subscription on the case record or metadata timestamp comparison; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.validate.NoNewValidationInfo`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Sentinel — binary change-detection condition; monitors the case record for new validation-relevant events via a metadata timestamp or event subscription; returns SUCCESS/FAILURE with no output keys.
 
 ### `EvaluateReportCredibility`
 
@@ -160,7 +160,7 @@ models the process of deciding whether to accept (engage with) or defer
 - **Notes**: Succeeds more often than not to avoid redundant re-evaluation
 - **Automation potential**: **High** — metadata timestamp or case-update event check; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.prioritize.NoNewPrioritizationInfo`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Sentinel — binary change-detection condition; monitors the case record for new prioritization-relevant events via a metadata timestamp or event subscription; returns SUCCESS/FAILURE with no output keys.
 
 ### `EnoughPrioritizationInfo`
 
@@ -208,7 +208,7 @@ models the process of deciding whether to accept (engage with) or defer
 - **Notes**: Always succeeds in simulation; must be idempotent in production
 - **Automation potential**: **High** — stakeholder notifications, follow-up scheduling, and state updates are all automatable via integration APIs.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.prioritize.OnDefer`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Composer — integration hook that generates outbound notifications, schedules follow-up tasks, and writes case-status updates when a report is deferred; the produced artifacts are the emitted stakeholder notifications and workflow records.
 
 ### `OnAccept`
 
@@ -224,7 +224,7 @@ models the process of deciding whether to accept (engage with) or defer
 - **Notes**: Always succeeds in simulation; must be idempotent in production
 - **Automation potential**: **High** — stakeholder notifications, workflow initialization, and state updates are all automatable via integration APIs.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.prioritize.OnAccept`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Composer — integration hook that generates outbound notifications, initializes the case workflow, and writes case-status updates when a report is accepted; the produced artifacts are the emitted stakeholder notifications and workflow-initialization records.
 
 ---
 
@@ -249,7 +249,7 @@ to a validated report.
   the main workflow; in production this is a simple metadata check
 - **Automation potential**: **High** — simple query against case metadata or a vulnerability registry; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.assign_vul_id.IdAssigned`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Sentinel — binary status check against case metadata or an external vulnerability registry; returns SUCCESS if an identifier has already been assigned to this vulnerability, FAILURE otherwise, with no output keys.
 
 ### `InScope`
 
@@ -265,7 +265,7 @@ to a validated report.
   this check
 - **Automation potential**: **High** — scope rules for well-defined ID spaces (e.g., CVE CNA rules) can be encoded as a policy check and automated; may require human review for ambiguous cases.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.assign_vul_id.InScope`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Sentinel — binary policy check against CNA scope rules or a product/component registry; returns SUCCESS if the vulnerability falls within the applicable ID namespace, FAILURE otherwise, with no output keys.
 
 ### `IsIDAssignmentAuthority`
 
@@ -282,7 +282,7 @@ to a validated report.
   runtime decision
 - **Automation potential**: **High** — static organizational configuration; can be fully automated as a capability metadata lookup.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.assign_vul_id.IsIDAssignmentAuthority`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Sentinel — binary organizational capability check against static participant metadata; returns SUCCESS if this participant holds ID-assignment authority, FAILURE otherwise, with no output keys.
 
 ### `IdAssignable`
 
@@ -299,7 +299,7 @@ to a validated report.
   authoritative CNA for this specific product
 - **Automation potential**: **High** — CNA-scope and product-to-CNA mapping checks are automatable via the CVE Services API or a local policy registry.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.assign_vul_id.IdAssignable`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Sentinel — binary CNA-scope check against CNA rules and product-to-CNA mappings; returns SUCCESS if this participant has assignment authority for this specific vulnerability, FAILURE otherwise, with no output keys.
 
 ### `RequestId`
 
@@ -315,7 +315,7 @@ to a validated report.
 - **Notes**: Could be fully automated via the CVE Services API
 - **Automation potential**: **High** — can be fully automated as an API call to the CVE Services endpoint or equivalent ID-request interface.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.assign_vul_id.RequestId`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Retriever — queries an external ID assignment authority (e.g., CVE Services API) with a reservation/assignment request and writes the resulting assigned ID to the case record; SUCCESS = ID retrieved and recorded.
 
 ### `AssignId`
 
@@ -331,7 +331,7 @@ to a validated report.
   API calls or database writes
 - **Automation potential**: **High** — can be fully automated as an API call (reserve/assign) to the ID assignment authority or an internal ID pool management system.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.assign_vul_id.AssignId`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Composer — generates a new vulnerability identifier from this participant's own ID pool via the ID management system or CVE Services reserve/assign endpoint; the produced artifact is the newly assigned ID recorded in the case.
 
 ---
 
@@ -381,7 +381,7 @@ the process of deploying a developed fix or mitigation to affected systems.
   without update
 - **Automation potential**: **High** — metadata timestamp or deployment-event subscription check; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.deploy_fix.NoNewDeploymentInfo`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Sentinel — binary change-detection condition; monitors the case/deployment record for new deployment-relevant events via a metadata timestamp or event subscription; returns SUCCESS/FAILURE with no output keys.
 
 ### `PrioritizeDeployment`
 
@@ -414,7 +414,7 @@ the process of deploying a developed fix or mitigation to affected systems.
   deployment is modeled as the active goal
 - **Automation potential**: **High** — query to patch management system or case-state flag; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.deploy_fix.MitigationDeployed`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Sentinel — binary status query against an asset/patch management system or case-state flag; returns SUCCESS if a mitigation has been deployed, FAILURE otherwise, with no output keys.
 
 ### `MitigationAvailable`
 
@@ -430,7 +430,7 @@ the process of deploying a developed fix or mitigation to affected systems.
   development cycle has progressed
 - **Automation potential**: **High** — patch or advisory feed query; fully automatable once the feed integration is in place.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.deploy_fix.MitigationAvailable`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Sentinel — binary availability query against a patch/advisory feed or internal mitigation catalog; returns SUCCESS if a mitigation is currently available, FAILURE otherwise, with no output keys.
 
 ### `DeployMitigation`
 
@@ -462,7 +462,7 @@ the process of deploying a developed fix or mitigation to affected systems.
   evaluation
 - **Automation potential**: **High** — policy rule evaluation against case context (severity, asset class, environment); fully automatable as a policy engine check.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.deploy_fix.MonitoringRequirement`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Sentinel — binary policy-rule evaluation against case context (severity, asset class, environment); returns SUCCESS if organizational policy requires post-deployment monitoring for this case, FAILURE otherwise, with no output keys.
 
 ### `MonitorDeployment`
 
@@ -519,7 +519,7 @@ vulnerability, typically to support impact assessment or testing.
   modeled goal
 - **Automation potential**: **High** — query against an internal exploit repository or threat-intelligence platform; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.acquire_exploit.HaveExploit`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Sentinel — binary query against an internal exploit repository or threat-intelligence platform; returns SUCCESS if a working exploit is already available for this vulnerability, FAILURE otherwise, with no output keys.
 
 ### `ExploitPrioritySet`
 
@@ -535,7 +535,7 @@ vulnerability, typically to support impact assessment or testing.
   prerequisite step that runs early
 - **Automation potential**: **High** — metadata flag check on the case record; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.acquire_exploit.ExploitPrioritySet`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Sentinel — binary case-metadata flag check; returns SUCCESS if a priority decision for exploit acquisition has already been recorded for this case, FAILURE otherwise, with no output keys.
 
 ### `EvaluateExploitPriority`
 
@@ -567,7 +567,7 @@ vulnerability, typically to support impact assessment or testing.
   exploit acquisition is not always the highest priority
 - **Automation potential**: **High** — read the outcome of the priority evaluation from case metadata; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.acquire_exploit.ExploitDeferred`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Sentinel — binary case-metadata flag check against the outcome written by EvaluateExploitPriority; returns SUCCESS if the decision was to defer exploit acquisition, FAILURE otherwise, with no output keys.
 
 ### `ExploitDesired`
 
@@ -582,7 +582,7 @@ vulnerability, typically to support impact assessment or testing.
 - **Notes**: Complements `ExploitDeferred`; fails more often than it succeeds
 - **Automation potential**: **High** — read the outcome of the priority evaluation from case metadata; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.acquire_exploit.ExploitDesired`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Sentinel — binary case-metadata flag check against the outcome written by EvaluateExploitPriority; returns SUCCESS if the decision was to acquire an exploit, FAILURE otherwise, with no output keys.
 
 ### `FindExploit`
 
@@ -710,9 +710,9 @@ exploited in the wild. Threat detection can trigger embargo termination via
 - **Input dependency**: None; terminal success placeholder
 - **Notes**: Ensures `MonitorThreats` always succeeds so the broader
   workflow continues uninterrupted
-- **Automation potential**: **N/A** — terminal success placeholder; no real decision logic required.
+- **Automation potential**: **TerminalPlaceholder** — terminal success placeholder; no real decision logic required.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.monitor_threats.NoThreatsFound`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: ProtocolInternal — terminal success placeholder; AlwaysSucceed fallback leaf that prevents MonitorThreats from failing when no active threats are detected in this monitoring cycle; no external input, output, or monitoring seam.
 
 ---
 
@@ -737,7 +737,7 @@ preparing them, and executing publication.
   is an active goal being worked toward
 - **Automation potential**: **High** — publication status flag on the case record; fully automatable as a metadata check.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.AllPublished`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Sentinel — binary publication-status check against a case-record flag; returns SUCCESS if all intended publication artifacts have been published, FAILURE otherwise, with no output keys.
 
 ### `PublicationIntentsSet`
 
@@ -754,7 +754,7 @@ preparing them, and executing publication.
   is an early workflow step being modeled
 - **Automation potential**: **High** — publication intent flags on the case record; fully automatable as a metadata check.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.PublicationIntentsSet`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Sentinel — binary case-metadata flag check; returns SUCCESS if publication intentions have already been established for this case, FAILURE otherwise, with no output keys.
 
 ### `PrioritizePublicationIntents`
 
@@ -788,7 +788,7 @@ preparing them, and executing publication.
   API calls to advisory publishing platforms
 - **Automation potential**: **High** — advisory platform APIs (NVD, CVE.org, CMS, package repository) enable fully automated artifact publication.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.Publish`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Composer — submits a prepared publication artifact to an external advisory platform (NVD, CVE.org, CMS, package repository, or equivalent); the produced artifact is the externally visible published entry at the target platform.
 
 ### `NoPublishExploit`
 
@@ -804,7 +804,7 @@ preparing them, and executing publication.
   that exploit publication is not always required or desired
 - **Automation potential**: **High** — read the exploit publication intent flag from the case record; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.NoPublishExploit`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Sentinel — binary publication-intent flag check against the record set by PrioritizePublicationIntents; returns SUCCESS if the exploit is not intended for publication, FAILURE otherwise, with no output keys.
 
 ### `ExploitReady`
 
@@ -818,7 +818,7 @@ preparing them, and executing publication.
 - **Notes**: Ready more often than not once preparation has started
 - **Automation potential**: **High** — artifact staging-status check in the publishing pipeline; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.ExploitReady`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Sentinel — binary artifact-staging status check against the publishing pipeline; returns SUCCESS if the exploit artifact is staged and ready for publication, FAILURE otherwise, with no output keys.
 
 ### `PrepareExploit`
 
@@ -865,7 +865,7 @@ preparing them, and executing publication.
   expected outcome of CVD
 - **Automation potential**: **High** — read the fix publication intent flag from the case record; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.NoPublishFix`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Sentinel — binary publication-intent flag check against the record set by PrioritizePublicationIntents; returns SUCCESS if the fix is not intended for publication, FAILURE otherwise, with no output keys.
 
 ### `PrepareFix`
 
@@ -911,7 +911,7 @@ preparing them, and executing publication.
   CVD outcome
 - **Automation potential**: **High** — read the report publication intent flag from the case record; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.NoPublishReport`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Sentinel — binary publication-intent flag check against the record set by PrioritizePublicationIntents; returns SUCCESS if the vulnerability report is not intended for publication, FAILURE otherwise, with no output keys.
 
 ### `PrepareReport`
 
@@ -967,7 +967,7 @@ coordinated disclosure.
   not a dynamic decision
 - **Automation potential**: **High** — static capability and role configuration check; fully automatable as a metadata lookup.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.HaveReportToOthersCapability`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Sentinel — binary role/capability configuration check against participant metadata and organizational policy; returns SUCCESS if this participant has the capability and mandate to notify other parties, FAILURE otherwise, with no output keys.
 
 ### `AllPartiesKnown`
 
@@ -1049,7 +1049,7 @@ coordinated disclosure.
   against a notification queue
 - **Automation potential**: **High** — notification status tracking against the identified-parties queue; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.NotificationsComplete`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Sentinel — binary status check against notification tracking metadata; returns SUCCESS if all identified parties have been successfully notified, FAILURE otherwise, with no output keys.
 
 ### `ChooseRecipient`
 
@@ -1064,7 +1064,7 @@ coordinated disclosure.
 - **Notes**: Could be fully automated; always succeeds in simulation
 - **Automation potential**: **High** — deterministic queue selection from the identified-parties list; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.ChooseRecipient`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Retriever — reads the next recipient entry from the identified-parties queue according to the priority ordering and writes the selected recipient details to the blackboard for downstream nodes (FindContact, SetRcptQrmR, etc.); SUCCESS = next recipient selected and written.
 
 ### `RemoveRecipient`
 
@@ -1079,7 +1079,7 @@ coordinated disclosure.
 - **Notes**: Always succeeds in simulation
 - **Automation potential**: **High** — queue management operation; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.RemoveRecipient`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Composer — writes a queue-removal record to the notification queue in the case management system, dequeuing the current recipient after successful notification or after the per-recipient effort limit is exceeded; the produced artifact is the updated queue state.
 
 ### `RecipientEffortExceeded`
 
@@ -1096,7 +1096,7 @@ coordinated disclosure.
   reasonable limits on notification attempts
 - **Automation potential**: **High** — effort counter check against a configurable policy threshold; fully automatable once the threshold policy is defined.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.RecipientEffortExceeded`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Sentinel — binary effort-threshold check against the per-recipient attempt counter and a configurable policy threshold; returns SUCCESS if the notification-attempt budget for this recipient has been exhausted, FAILURE otherwise, with no output keys.
 
 ### `TotalEffortLimitMet`
 
@@ -1112,7 +1112,7 @@ coordinated disclosure.
   condition to prevent unbounded notification effort
 - **Automation potential**: **High** — aggregate effort counter check against a configurable policy ceiling; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.TotalEffortLimitMet`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Sentinel — binary aggregate effort-limit check against the total notification-effort counter and a configurable policy ceiling; returns SUCCESS if the global notification budget has been exhausted, FAILURE otherwise, with no output keys.
 
 ### `PolicyCompatible`
 
@@ -1162,7 +1162,7 @@ coordinated disclosure.
 - **Notes**: Succeeds almost always; guards against duplicate notifications
 - **Automation potential**: **High** — RM state query against the case participant record; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.RcptNotInQrmS`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Sentinel — binary RM-state check against the recipient's participant record in the case; returns SUCCESS if the recipient's RM state is still START (not yet notified), FAILURE otherwise, with no output keys.
 
 ### `SetRcptQrmR`
 
@@ -1178,7 +1178,7 @@ coordinated disclosure.
   a state update
 - **Automation potential**: **High** — RM state write on the case participant record; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.SetRcptQrmR`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Composer — writes a recipient RM-state transition (START → RECEIVED) to the case management system, recording that the recipient has been successfully notified; the produced artifact is the updated participant state record.
 
 ### `MoreVendors`
 
@@ -1194,7 +1194,7 @@ coordinated disclosure.
   is usually short
 - **Automation potential**: **High** — query against the vendor notification queue; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.MoreVendors`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Sentinel — binary queue-status check against the vendor notification queue; returns SUCCESS if additional vendors are pending notification, FAILURE otherwise, with no output keys.
 
 ### `MoreCoordinators`
 
@@ -1210,7 +1210,7 @@ coordinated disclosure.
   short (often zero or one)
 - **Automation potential**: **High** — query against the coordinator notification queue; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.MoreCoordinators`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Sentinel — binary queue-status check against the coordinator notification queue; returns SUCCESS if additional coordinators are pending notification, FAILURE otherwise, with no output keys.
 
 ### `MoreOthers`
 
@@ -1225,7 +1225,7 @@ coordinated disclosure.
 - **Notes**: Fails almost always; catch-all category is usually empty
 - **Automation potential**: **High** — query against the other-parties notification queue; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.MoreOthers`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Sentinel — binary queue-status check against the other-parties notification queue; returns SUCCESS if additional other parties are pending notification, FAILURE otherwise, with no output keys.
 
 ### `InjectParticipant`
 
@@ -1241,7 +1241,7 @@ coordinated disclosure.
   role-specific inject nodes below
 - **Automation potential**: **High** — case management system write; fully automatable once participant details are known.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.InjectParticipant`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Composer — writes a new participant record to the case management system, registering the notified party as an active case participant; the produced artifact is the participant entry in the case data store.
 
 ### `InjectVendor`
 
@@ -1256,7 +1256,7 @@ coordinated disclosure.
 - **Notes**: Specialization of `InjectParticipant` for vendor role
 - **Automation potential**: **High** — case management system write for vendor role; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.InjectVendor`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Composer — inherits InjectParticipant; writes a vendor-role participant record to the case management system; the produced artifact is the vendor participant entry in the case data store.
 
 ### `InjectCoordinator`
 
@@ -1271,7 +1271,7 @@ coordinated disclosure.
 - **Notes**: Specialization of `InjectParticipant` for coordinator role
 - **Automation potential**: **High** — case management system write for coordinator role; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.InjectCoordinator`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Composer — inherits InjectParticipant; writes a coordinator-role participant record to the case management system; the produced artifact is the coordinator participant entry in the case data store.
 
 ### `InjectOther`
 
@@ -1286,7 +1286,7 @@ coordinated disclosure.
 - **Notes**: Specialization of `InjectParticipant` for other-party role
 - **Automation potential**: **High** — case management system write for other-party role; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.InjectOther`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Composer — inherits InjectParticipant; writes an other-party participant record to the case management system; the produced artifact is the other-party participant entry in the case data store.
 
 ---
 
@@ -1330,7 +1330,7 @@ complete (or otherwise concluded).
   multi-step pre-close workflows
 - **Automation potential**: **Medium** — archiving and standard notification steps can be automated; QA review and final approvals typically require human involvement.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.close_report.PreCloseAction`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Composer — triggers pre-close integration hooks including QA pipeline checks, final stakeholder notifications, and case archiving; the produced artifacts are the archive record, final notifications, and any required sign-off records.
 
 ---
 

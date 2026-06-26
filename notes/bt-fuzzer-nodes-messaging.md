@@ -71,7 +71,7 @@ from unexpected or malformed inbound protocol messages.
   policy-driven action
 - **Automation potential**: **High** — deterministic policy-driven GI message dispatch in response to error conditions; can be fully automated once the follow-up policy is defined.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.messaging.FollowUpOnErrorMessage`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Composer — generates and dispatches a follow-up GI inquiry message to the sender of an unexpected or error protocol message; the produced artifact is the outbound GI protocol message.
 
 ---
 
