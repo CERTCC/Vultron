@@ -285,8 +285,8 @@ class TestCreateCaseProposalIdempotency:
         # full domain object; extract the id_ in that case.
         if isinstance(raw_result, str):
             result_val = raw_result
-        elif hasattr(raw_result, "id_"):
-            result_val = raw_result.id_
+        elif raw_result is not None and hasattr(raw_result, "id_"):
+            result_val = getattr(raw_result, "id_")
         elif isinstance(raw_result, dict):
             result_val = raw_result.get("id_") or raw_result.get("id")
         else:
