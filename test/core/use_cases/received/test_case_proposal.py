@@ -13,7 +13,8 @@
 """Unit tests for CaseProposal received-side use cases.
 
 Covers the execute() paths for:
-  - CreateCaseProposalReceivedUseCase (AC-1, CP-05-001 through CP-05-004)
+  - CreateCaseProposalReceivedUseCase (AC-1 through AC-4, CP-05-001 through
+    CP-05-006)
   - AcceptCaseProposalReceivedUseCase (AC-2, CP-06-001, CP-06-003)
   - RejectCaseProposalReceivedUseCase (AC-3, CP-06-002, CP-06-004)
 
@@ -23,6 +24,9 @@ Spec: specs/case-proposal.yaml CP-05 through CP-07.
 import logging
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.models.pending_create_case_activity import (
+    PendingCreateCaseActivity,
+)
 from vultron.core.models.protocols import is_case_model
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.use_cases.received.case_proposal import (
@@ -51,6 +55,18 @@ def _make_proposal() -> as_CaseProposal:
         object_=gen_report(),
         target=_CASE_ACTOR_URI,
     )
+
+
+def _run_create_proposal(dl, proposal, make_payload):
+    """Helper: build and execute CreateCaseProposalReceivedUseCase."""
+    activity = as_Create(
+        actor=_VENDOR_URI,
+        object_=proposal,
+        to=[_CASE_ACTOR_URI],
+    )
+    event = make_payload(activity)
+    event = event.model_copy(update={"receiving_actor_id": _CASE_ACTOR_URI})
+    CreateCaseProposalReceivedUseCase(dl, event).execute()
 
 
 class TestCreateCaseProposalReceivedUseCase:
@@ -196,6 +212,109 @@ class TestCreateCaseProposalReceivedUseCase:
             f"Create(VulnerabilityCase).context should be Accept URI '{accept_id}'"
             f", got '{context_val}'"
         )
+
+
+class TestCreateCaseProposalIdempotency:
+    """Tests for CP-05-006 duplicate-proposal idempotency."""
+
+    def test_duplicate_proposal_does_not_create_second_case(
+        self, make_payload
+    ):
+        """AC-1: Second proposal for same report creates no duplicate case."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        proposal = _make_proposal()
+
+        _run_create_proposal(dl, proposal, make_payload)
+        cases_after_first = list(dl.list_objects("VulnerabilityCase"))
+        assert (
+            len(cases_after_first) == 1
+        ), "First proposal must create one case"
+
+        # Resend the same proposal
+        _run_create_proposal(dl, proposal, make_payload)
+
+        all_cases = [
+            obj
+            for obj in dl.list_objects("VulnerabilityCase")
+            if is_case_model(obj)
+        ]
+        assert (
+            len(all_cases) == 1
+        ), "Duplicate proposal must not create a second VulnerabilityCase (AC-1)"
+
+    def test_duplicate_proposal_sends_accept_referencing_existing_case(
+        self, make_payload
+    ):
+        """AC-2: Duplicate proposal triggers a new Accept referencing existing case."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        proposal = _make_proposal()
+
+        _run_create_proposal(dl, proposal, make_payload)
+        first_accepts = list(dl.list_objects("Accept"))
+        assert first_accepts, "First proposal must produce an Accept"
+        first_case_id = list(dl.list_objects("VulnerabilityCase"))[0].id_
+
+        # Resend with the same proposal
+        _run_create_proposal(dl, proposal, make_payload)
+
+        all_accepts = list(dl.list_objects("Accept"))
+        # A new Accept should have been added for the duplicate
+        assert (
+            len(all_accepts) >= 2
+        ), "Duplicate proposal should produce a second Accept (AC-2)"
+
+        # The new Create(VulnerabilityCase) must reference the existing case.
+        # object_ may be a str or an object with id_ after DataLayer round-trip.
+        all_creates = list(dl.list_objects("Create"))
+        case_ids_referenced = set()
+        for cr in all_creates:
+            obj = dl.read(cr.id_)
+            obj_val = getattr(obj, "object_", None)
+            if obj_val is None:
+                continue
+            if isinstance(obj_val, str):
+                case_ids_referenced.add(obj_val)
+            else:
+                id_val = getattr(obj_val, "id_", None) or (
+                    obj_val.get("id") if isinstance(obj_val, dict) else None
+                )
+                if id_val:
+                    case_ids_referenced.add(id_val)
+        assert first_case_id in case_ids_referenced, (
+            f"Duplicate proposal should reference existing case '{first_case_id}'"
+            f" in Create(VulnerabilityCase); found {case_ids_referenced!r} (AC-2)"
+        )
+
+    def test_in_flight_proposal_is_no_op(self, make_payload):
+        """AC-3: Proposal with existing marker is a no-op (no duplicate Accept)."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        proposal = _make_proposal()
+
+        # Run first proposal fully so a case and outbox entries exist
+        _run_create_proposal(dl, proposal, make_payload)
+        first_accepts = list(dl.list_objects("Accept"))
+        first_creates = list(dl.list_objects("Create"))
+
+        # Manually re-insert the marker to simulate an in-flight state
+        marker = PendingCreateCaseActivity(
+            proposal_id=proposal.id_,
+            case_actor_id=_CASE_ACTOR_URI,
+            vendor_uri=_VENDOR_URI,
+            create_activity_payload={},
+        )
+        dl.save(marker)
+
+        # Resend proposal — marker present, so use case should no-op
+        _run_create_proposal(dl, proposal, make_payload)
+
+        after_accepts = list(dl.list_objects("Accept"))
+        after_creates = list(dl.list_objects("Create"))
+        assert len(after_accepts) == len(
+            first_accepts
+        ), "No new Accept should be sent when marker is present (AC-3)"
+        assert len(after_creates) == len(
+            first_creates
+        ), "No new Create should be sent when marker is present (AC-3)"
 
 
 class TestAcceptCaseProposalReceivedUseCase:
