@@ -626,3 +626,89 @@ groups:
         BT-16-005 defines automation potential categories; BT-18-005 clarifies
         that those categories govern the automation-potential field only and
         have no bearing on call-out point shape assignment.
+- id: BT-19
+  title: Routing-Gated State Mutation in Lifecycle BT Sequences
+  kind: pattern
+  specs:
+  - id: BT-19-001
+    priority: MUST
+    statement: >-
+      A BT Sequence that performs a protocol state-machine transition (EM, RM,
+      or CS) and then routes an outbound activity MUST resolve all routing
+      prerequisites (e.g., Case Manager actor ID, outbox availability) in a
+      read-only guard node placed BEFORE the state-mutation node. The
+      Sequence MUST fail at the guard with no state change when routing
+      prerequisites are absent.
+    rationale: >-
+      Committing a state transition to the DataLayer before verifying that the
+      resulting outbound activity can be constructed and queued creates a
+      divergence window: local state reflects the new state (e.g., EM=EXITED)
+      while peers still hold the prior state (e.g., EM=ACTIVE) because the
+      broadcast was never sent. Moving the routing guard before the mutation
+      eliminates the most common divergence cause (missing Case Manager,
+      missing factory) without requiring full transactional rollback. The
+      outbox is the reliability boundary: once the activity is written to the
+      outbox, delivery and retry are the outbox's responsibility; residual
+      mid-send failures (activity construction or outbox-write errors after
+      state mutation) are recoverable via ledger-sync catch-up (SYNC-10).
+    relationships:
+    - rel_type: refines
+      spec_id: BT-14-001
+      note: >-
+        Routing-gated mutation is the pre-condition counterpart to BT-14-001's
+        fail-fast-on-broadcast-failure rule: guard before mutation addresses
+        the common prerequisite-missing case; BT-14-001 addresses the
+        post-mutation delivery failure case.
+    - rel_type: refines
+      spec_id: BT-06-001
+      note: >-
+        Protocol state transitions are protocol-significant behavior; their
+        ordering relative to routing checks is part of the tree's auditable
+        contract.
+    verification: >-
+      For any embargo lifecycle BT Sequence that includes both a
+      state-mutation node and a send/dispatch node: confirm via code review
+      and test that a simulated missing Case Manager (empty
+      `actor_participant_index`, no `CVDRole.CASE_MANAGER` entry) causes the
+      tree to return FAILURE with zero DataLayer state change.
+  - id: BT-19-002
+    priority: MUST
+    statement: >-
+      A shared BT factory function MUST be used for all paths that trigger the
+      same protocol lifecycle transition (e.g., embargo termination).
+      Duplicate monolithic BT nodes that inline both state mutation and
+      activity dispatch in a single `update()` method MUST NOT exist alongside
+      a canonical factory-composed equivalent.
+    rationale: >-
+      Duplicated implementations drift independently: the canonical trigger-side
+      BT may correctly separate routing guards from state mutation while the
+      automatic-cascade BT retains the old ordering or the old inline EMAdapter
+      pattern, re-introducing the divergence bug in one pathway only. A single
+      shared factory guarantees consistent semantics and the correct guard
+      ordering across all call sites. Issue #1054 observed this exact drift
+      between `TerminateEmbargoNode` (monolith, inline EMAdapter) and
+      `terminate_embargo_trigger_bt` (factory-composed).
+    rationale_detail: >-
+      `TerminateEmbargoNode` (used by `PublicDisclosureBranchNode`) and
+      `TerminateEmbargoLifecycleNode` + `sender_side_bt` (used by
+      `SvcTerminateEmbargoUseCase`) represent the same protocol operation with
+      divergent implementations. Only the factory-composed path applied the
+      correct routing-guard ordering (BT-19-001); the monolith committed state
+      before verifying Case Manager availability.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-14-002
+      note: >-
+        BT-14-002 requires shared helpers for broadcast fan-out; BT-19-002
+        extends this to the full lifecycle-plus-routing sequence.
+    - rel_type: implements
+      spec_id: BT-19-001
+      note: >-
+        Shared factory composition is the mechanism that enforces consistent
+        BT-19-001 guard ordering across all call sites.
+    verification: >-
+      For each protocol lifecycle operation with more than one call site
+      (trigger path and automatic-cascade path), confirm that all call sites
+      use the same BT factory function and that no standalone monolithic node
+      class exists that inlines both state mutation and dispatch in a single
+      `update()` method for the same operation.
