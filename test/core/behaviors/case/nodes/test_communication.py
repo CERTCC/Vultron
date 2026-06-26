@@ -16,20 +16,25 @@
 """
 Tests for communication behavior tree nodes.
 
-Covers SendOfferCaseManagerRoleNode.
+Covers SendOfferCaseManagerRoleNode and EmitRejectCaseManagerRoleNode.
 
-Per DEMOMA-08-002, DEMOMA-08-003; Issue #469.
+Per DEMOMA-08-002, DEMOMA-08-003; Issue #469, Issue #1067.
 """
+
+import logging
+from unittest.mock import MagicMock
 
 import py_trees
 import pytest
 
 from vultron.core.behaviors.case.nodes import (
+    AutoAcceptCaseManagerRoleNode,
     CollectCaseAddresseesNode,
     CreateAndPersistCaseActivityNode,
     CreateOfferCaseManagerActivityNode,
     CreateCaseActorNode,
     EmitCreateCaseActivity,
+    EmitRejectCaseManagerRoleNode,
     ResolveCaseManagerOfferContextNode,
     SendOfferCaseManagerRoleNode,
 )
@@ -218,3 +223,214 @@ class TestSendOfferCaseManagerRoleNode:
             # case_actor_id intentionally omitted
         )
         assert result.status == py_trees.common.Status.FAILURE
+
+
+# ---------------------------------------------------------------------------
+# TestEmitRejectCaseManagerRoleNode
+# ---------------------------------------------------------------------------
+
+
+class TestEmitRejectCaseManagerRoleNode:
+    """EmitRejectCaseManagerRoleNode sends Reject(Offer(CaseManagerRole))."""
+
+    _OFFER_ID = "https://example.org/activities/offer-cm-001"
+    _CASE_ID = "https://example.org/cases/case-cm-001"
+    _PARTICIPANT_ID = (
+        "https://example.org/participants/urn:uuid:case-actor-cm-001"
+    )
+    _VENDOR_ID = "https://example.org/actors/vendor-cm"
+    _CASE_ACTOR_ID = "https://example.org/actors/case-actor-cm"
+
+    def _make_node(self) -> EmitRejectCaseManagerRoleNode:
+        return EmitRejectCaseManagerRoleNode(
+            offer_id=self._OFFER_ID,
+            case_id=self._CASE_ID,
+            participant_id=self._PARTICIPANT_ID,
+            vendor_id=self._VENDOR_ID,
+        )
+
+    def _seed_dl(self, bt_scenario: BTTestScenario) -> None:
+        """Seed the DataLayer with case and participant objects."""
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        case = VulnerabilityCase(id_=self._CASE_ID, name="CM-TEST")
+        participant = CaseParticipant(
+            id_=self._PARTICIPANT_ID,
+            attributed_to=self._CASE_ACTOR_ID,
+            context=self._CASE_ID,
+        )
+        bt_scenario.dl.create(case)
+        bt_scenario.dl.create(participant)
+
+    def test_succeeds_and_records_outbox_item(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """Returns SUCCESS and records reject activity ID in actor's outbox."""
+        self._seed_dl(bt_scenario)
+
+        result = bt_scenario.run(
+            self._make_node(),
+            actor_id=self._CASE_ACTOR_ID,
+        )
+        bt_scenario.assert_success(result)
+
+    def test_reject_activity_persisted_to_datalayer(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """The Reject activity is stored in the DataLayer after SUCCESS."""
+        self._seed_dl(bt_scenario)
+
+        bt_scenario.run(
+            self._make_node(),
+            actor_id=self._CASE_ACTOR_ID,
+        )
+
+        # TriggerActivityAdapter.reject_case_manager_role persists the activity
+        stored_rejects = bt_scenario.dl.list_objects("Reject")
+        assert len(stored_rejects) >= 1
+
+    def test_fails_when_trigger_factory_is_none(self) -> None:
+        """Returns FAILURE when trigger_activity_factory is not available."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.behaviors.bridge import BTBridge
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        bridge = BTBridge(
+            datalayer=dl,
+            is_leader=lambda: True,
+            trigger_activity=None,
+        )
+        py_trees.blackboard.Blackboard.storage.clear()
+        result = bridge.execute_with_setup(
+            tree=self._make_node(),
+            actor_id=self._CASE_ACTOR_ID,
+        )
+        assert result.status == py_trees.common.Status.FAILURE
+
+    def test_logs_warning_when_trigger_factory_is_none(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Logs a warning at WARNING level when factory is unavailable."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.behaviors.bridge import BTBridge
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        bridge = BTBridge(
+            datalayer=dl,
+            is_leader=lambda: True,
+            trigger_activity=None,
+        )
+        py_trees.blackboard.Blackboard.storage.clear()
+        with caplog.at_level(logging.WARNING):
+            bridge.execute_with_setup(
+                tree=self._make_node(),
+                actor_id=self._CASE_ACTOR_ID,
+            )
+        assert any(
+            "trigger_activity_factory" in r.message.lower()
+            or "cannot emit reject" in r.message.lower()
+            for r in caplog.records
+        )
+
+    def test_accept_or_reject_selector_in_received_tree(self) -> None:
+        """AcceptOrReject Selector wraps AutoAccept + EmitReject in the tree."""
+        from vultron.core.behaviors.case.offer_case_manager_role_received_tree import (
+            create_offer_case_manager_role_received_tree,
+        )
+
+        tree = create_offer_case_manager_role_received_tree(
+            offer_id=self._OFFER_ID,
+            offer_obj=None,
+            case_id=self._CASE_ID,
+            participant_id=self._PARTICIPANT_ID,
+            vendor_id=self._VENDOR_ID,
+        )
+
+        # The last effect node should be AcceptOrReject Selector
+        # Tree structure: Sequence → [..., StoreActivityNode, AcceptOrReject]
+        last_child = tree.children[-1]
+        assert isinstance(last_child, py_trees.composites.Selector)
+        assert last_child.name == "AcceptOrReject"
+        assert len(last_child.children) == 2
+        assert isinstance(
+            last_child.children[0], AutoAcceptCaseManagerRoleNode
+        )
+        assert isinstance(
+            last_child.children[1], EmitRejectCaseManagerRoleNode
+        )
+
+    def test_reject_emitted_when_accept_fails(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """When AutoAccept fails, EmitReject fires via AcceptOrReject Selector."""
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.behaviors.case.offer_case_manager_role_received_tree import (
+            create_offer_case_manager_role_received_tree,
+        )
+        from vultron.wire.as2.factories.case import (
+            offer_case_manager_role_activity,
+        )
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        # Seed DL so EmitReject can reconstruct the offer
+        self._seed_dl(bt_scenario)
+
+        # Build a real offer object so StoreActivityNode can persist it
+        case = VulnerabilityCase(id_=self._CASE_ID, name="CM-TEST")
+        participant = CaseParticipant(
+            id_=self._PARTICIPANT_ID,
+            attributed_to=self._CASE_ACTOR_ID,
+            context=self._CASE_ID,
+        )
+        offer = offer_case_manager_role_activity(
+            case, target=participant, actor=self._VENDOR_ID
+        )
+
+        # Mock factory: accept raises, reject succeeds
+        reject_id = "https://example.org/activities/reject-cm-001"
+        mock_factory = MagicMock()
+        mock_factory.accept_case_manager_role.side_effect = RuntimeError(
+            "accept unavailable"
+        )
+        mock_factory.reject_case_manager_role.return_value = reject_id
+
+        dl = bt_scenario.dl
+        bridge = BTBridge(
+            datalayer=dl,
+            is_leader=lambda: True,
+            trigger_activity=mock_factory,
+        )
+
+        tree = create_offer_case_manager_role_received_tree(
+            offer_id=offer.id_,
+            offer_obj=offer,
+            case_id=self._CASE_ID,
+            participant_id=self._PARTICIPANT_ID,
+            vendor_id=self._VENDOR_ID,
+        )
+        py_trees.blackboard.Blackboard.storage.clear()
+        result = bridge.execute_with_setup(
+            tree=tree,
+            actor_id=self._CASE_ACTOR_ID,
+        )
+
+        # EmitReject took over — Selector succeeded, Sequence succeeded
+        assert result.status == py_trees.common.Status.SUCCESS
+        mock_factory.reject_case_manager_role.assert_called_once_with(
+            offer_id=offer.id_,
+            case_id=self._CASE_ID,
+            participant_id=self._PARTICIPANT_ID,
+            vendor_id=self._VENDOR_ID,
+            actor=self._CASE_ACTOR_ID,
+            to=[self._VENDOR_ID],
+        )

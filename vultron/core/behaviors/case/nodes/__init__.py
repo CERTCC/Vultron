@@ -59,10 +59,13 @@ from vultron.core.behaviors.case.nodes.case_setup import (
     SetCaseAttributedTo,
 )
 from vultron.core.behaviors.case.nodes.communication import (
-    AutoAcceptCaseManagerRoleNode,
     CollectCaseAddresseesNode,
     CreateAndPersistCaseActivityNode,
+)
+from vultron.core.behaviors.case.nodes.delegation import (
+    AutoAcceptCaseManagerRoleNode,
     CreateOfferCaseManagerActivityNode,
+    EmitRejectCaseManagerRoleNode,
     ResolveCaseManagerOfferContextNode,
 )
 from vultron.core.behaviors.case.nodes.conditions import (
@@ -134,6 +137,7 @@ __all__ = [
     "CollectCaseAddresseesNode",
     "CreateAndPersistCaseActivityNode",
     "CreateOfferCaseManagerActivityNode",
+    "EmitRejectCaseManagerRoleNode",
     "ResolveCaseManagerOfferContextNode",
     # communication_tree (composite subtrees — lazy via __getattr__)
     "EmitCreateCaseActivity",

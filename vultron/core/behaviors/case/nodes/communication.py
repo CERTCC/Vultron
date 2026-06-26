@@ -16,18 +16,21 @@
 """
 Communication action nodes for case behavior trees.
 
-Provides action nodes that emit outbound activities related to case creation,
-case-manager role offers, and case-manager role auto-acceptance.
+Provides action nodes that emit outbound activities related to case creation.
 
 Composite subtrees assembling these leaf nodes are defined in the sibling
 ``communication_tree.py`` module at the process-area root per BTND-07-003:
 
 - ``EmitCreateCaseActivity``
-- ``SendOfferCaseManagerRoleNode``
+
+Delegation-related nodes (``ResolveCaseManagerOfferContextNode``,
+``CreateOfferCaseManagerActivityNode``, ``AutoAcceptCaseManagerRoleNode``,
+``EmitRejectCaseManagerRoleNode``) live in the sibling ``delegation.py``
+module.
 """
 
 import logging
-from typing import Any, cast
+from typing import Any
 
 import py_trees
 from py_trees.common import Status
@@ -35,7 +38,6 @@ from py_trees.common import Status
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.protocols import is_case_model
 from vultron.core.models.vultron_types import VultronCreateCaseActivity
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
 
 logger = logging.getLogger(__name__)
 
@@ -184,244 +186,3 @@ class CreateAndPersistCaseActivityNode(DataLayerAction):
 
         self.blackboard.activity_id = activity.id_
         return Status.SUCCESS
-
-
-class ResolveCaseManagerOfferContextNode(DataLayerAction):
-    """Validate blackboard context and stage Offer recipients."""
-
-    def __init__(self, name: str | None = None):
-        super().__init__(name=name or self.__class__.__name__)
-
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="case_actor_id", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="case_actor_participant_id",
-            access=py_trees.common.Access.READ,
-        )
-        self.blackboard.register_key(
-            key="offer_case_manager_to", access=py_trees.common.Access.WRITE
-        )
-
-    def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                f"{self.name}: DataLayer or actor_id not available"
-            )
-            return Status.FAILURE
-
-        case_id = self.blackboard.get("case_id")
-        case_actor_id = self.blackboard.get("case_actor_id")
-        participant_id = self.blackboard.get("case_actor_participant_id")
-        if (
-            not isinstance(case_id, str)
-            or not isinstance(case_actor_id, str)
-            or not isinstance(participant_id, str)
-        ):
-            self.logger.error(
-                f"{self.name}: case_id, case_actor_id, or"
-                " case_actor_participant_id missing from blackboard"
-            )
-            return Status.FAILURE
-
-        self.blackboard.offer_case_manager_to = [case_actor_id]
-        return Status.SUCCESS
-
-
-class CreateOfferCaseManagerActivityNode(DataLayerAction):
-    """Create Offer(CaseManagerRole) via trigger_activity_factory."""
-
-    def __init__(
-        self,
-        captured: dict | None = None,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self._captured = captured
-
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="case_actor_id", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="case_actor_participant_id",
-            access=py_trees.common.Access.READ,
-        )
-        self.blackboard.register_key(
-            key="offer_case_manager_to", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="activity_id", access=py_trees.common.Access.WRITE
-        )
-
-    def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                f"{self.name}: DataLayer or actor_id not available"
-            )
-            return Status.FAILURE
-
-        if self.trigger_activity_factory is None:
-            self.logger.error(
-                f"{self.name}: trigger_activity_factory not available"
-            )
-            return Status.FAILURE
-
-        case_id = self.blackboard.get("case_id")
-        case_actor_id = self.blackboard.get("case_actor_id")
-        participant_id = self.blackboard.get("case_actor_participant_id")
-        recipients = self.blackboard.get("offer_case_manager_to")
-
-        if (
-            not isinstance(case_id, str)
-            or not isinstance(case_actor_id, str)
-            or not isinstance(participant_id, str)
-            or not isinstance(recipients, list)
-        ):
-            self.logger.error(
-                f"{self.name}: case_id, case_actor_id, or"
-                " case_actor_participant_id missing from blackboard"
-            )
-            return Status.FAILURE
-
-        try:
-            activity_id = (
-                self.trigger_activity_factory.offer_case_manager_role(
-                    case_id=case_id,
-                    participant_id=participant_id,
-                    actor=case_actor_id,
-                    to=recipients,
-                )
-            )
-            self.blackboard.activity_id = activity_id
-            if self._captured is not None:
-                activity_obj = self.datalayer.read(activity_id)
-                if activity_obj is not None and hasattr(
-                    activity_obj, "model_dump"
-                ):
-                    self._captured["activity"] = activity_obj.model_dump(
-                        mode="json",
-                        by_alias=True,
-                        serialize_as_any=True,
-                        exclude_none=True,
-                    )
-            self.logger.info(
-                "%s: Queued Offer(CaseManagerRole) '%s' to Case Actor '%s'"
-                " for case '%s'",
-                self.name,
-                activity_id,
-                case_actor_id,
-                case_id,
-            )
-            return Status.SUCCESS
-
-        except Exception as e:
-            self.logger.error(
-                f"{self.name}: Error sending Offer(CaseManagerRole): {e}"
-            )
-            return Status.FAILURE
-
-
-class AutoAcceptCaseManagerRoleNode(DataLayerAction):
-    """Auto-accept a CASE_MANAGER role delegation offer on behalf of the local actor.
-
-    When the local actor (the Case Actor entity) receives an
-    ``Offer(CaseManagerRole)`` it MUST auto-accept so the offering Vendor
-    receives confirmation.  This node creates the ``Accept`` activity via
-    ``trigger_activity_factory`` and queues it in the local actor's outbox.
-
-    Returns ``FAILURE`` when ``trigger_activity_factory`` is not available
-    so that the enclosing Sequence propagates the failure rather than
-    silently continuing.  Callers that want the guarded-commit subtree to
-    run regardless of auto-accept status should wrap this node in a
-    ``Selector`` with a ``Success`` fallback.
-
-    See DEMOMA-08-002, DEMOMA-08-003; Issue #469, Issue #1021.
-    """
-
-    def __init__(
-        self,
-        offer_id: str,
-        case_id: str,
-        participant_id: str,
-        vendor_id: str,
-        name: str | None = None,
-    ) -> None:
-        """Initialise the node.
-
-        Args:
-            offer_id: ID of the ``Offer(CaseManagerRole)`` activity.
-            case_id: ID of the VulnerabilityCase referenced by the offer.
-            participant_id: ID of the CaseParticipant being offered the role.
-            vendor_id: Actor ID of the offering Vendor (recipient of Accept).
-            name: Optional custom node name.
-        """
-        super().__init__(name=name or self.__class__.__name__)
-        self.offer_id = offer_id
-        self.case_id = case_id
-        self.participant_id = participant_id
-        self.vendor_id = vendor_id
-
-    def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                "%s: DataLayer or actor_id not available", self.name
-            )
-            return Status.FAILURE
-
-        if self.trigger_activity_factory is None:
-            self.logger.warning(
-                "%s: trigger_activity_factory not available"
-                " — cannot auto-accept offer '%s'",
-                self.name,
-                self.offer_id,
-            )
-            return Status.FAILURE
-
-        if not self.case_id or not self.participant_id:
-            self.logger.warning(
-                "%s: missing case_id or participant_id for offer '%s'"
-                " — skipping auto-accept",
-                self.name,
-                self.offer_id,
-            )
-            return Status.FAILURE
-
-        try:
-            accept_id = self.trigger_activity_factory.accept_case_manager_role(
-                offer_id=self.offer_id,
-                case_id=self.case_id,
-                participant_id=self.participant_id,
-                vendor_id=self.vendor_id,
-                actor=self.actor_id,
-                to=[self.vendor_id],
-            )
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, accept_id
-            )
-            self.logger.info(
-                "%s: auto-accepted offer '%s' as actor '%s';"
-                " queued Accept '%s' to outbox",
-                self.name,
-                self.offer_id,
-                self.actor_id,
-                accept_id,
-            )
-            return Status.SUCCESS
-        except Exception as exc:
-            self.logger.error(
-                "%s: error auto-accepting offer '%s': %s",
-                self.name,
-                self.offer_id,
-                exc,
-            )
-            return Status.FAILURE
