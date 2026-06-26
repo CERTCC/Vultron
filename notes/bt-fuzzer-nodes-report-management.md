@@ -265,7 +265,7 @@ to a validated report.
   this check
 - **Automation potential**: **High** — scope rules for well-defined ID spaces (e.g., CVE CNA rules) can be encoded as a policy check and automated; may require human review for ambiguous cases.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.assign_vul_id.InScope`
-- **Call-out point shape**: Sentinel — binary policy check against CNA scope rules or a product/component registry; returns SUCCESS if the vulnerability falls within the applicable ID namespace, FAILURE otherwise, with no output keys.
+- **Call-out point shape**: Evaluator — evaluates whether the vulnerability falls within the applicable ID namespace by comparing vulnerability attributes against CNA scope rules or a product/component registry; returns a policy judgment (in-scope or out-of-scope), not a binary monitor.
 
 ### `IsIDAssignmentAuthority`
 
@@ -299,7 +299,7 @@ to a validated report.
   authoritative CNA for this specific product
 - **Automation potential**: **High** — CNA-scope and product-to-CNA mapping checks are automatable via the CVE Services API or a local policy registry.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.assign_vul_id.IdAssignable`
-- **Call-out point shape**: Sentinel — binary CNA-scope check against CNA rules and product-to-CNA mappings; returns SUCCESS if this participant has assignment authority for this specific vulnerability, FAILURE otherwise, with no output keys.
+- **Call-out point shape**: Evaluator — evaluates whether this CNA has assignment authority for this specific vulnerability by matching vulnerability attributes against CNA scope rules and product-to-CNA mappings; a scope-matching evaluation, not a binary condition monitor.
 
 ### `RequestId`
 
@@ -462,7 +462,7 @@ the process of deploying a developed fix or mitigation to affected systems.
   evaluation
 - **Automation potential**: **High** — policy rule evaluation against case context (severity, asset class, environment); fully automatable as a policy engine check.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.deploy_fix.MonitoringRequirement`
-- **Call-out point shape**: Sentinel — binary policy-rule evaluation against case context (severity, asset class, environment); returns SUCCESS if organizational policy requires post-deployment monitoring for this case, FAILURE otherwise, with no output keys.
+- **Call-out point shape**: Evaluator — evaluates whether organizational policy requires post-deployment monitoring for this case by applying policy rules against case context (severity, asset class, environment); a policy judgment call, not a binary condition monitor.
 
 ### `MonitorDeployment`
 
@@ -802,9 +802,9 @@ preparing them, and executing publication.
   `PrioritizePublicationIntents`; case policy
 - **Notes**: Succeeds (no exploit publication) in most cases, reflecting
   that exploit publication is not always required or desired
-- **Automation potential**: **High** — read the exploit publication intent flag from the case record; fully automatable.
+- **Automation potential**: **TerminalPlaceholder** — BT bypass fallback leaf; no decision logic required.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.NoPublishExploit`
-- **Call-out point shape**: Sentinel — binary publication-intent flag check against the record set by PrioritizePublicationIntents; returns SUCCESS if the exploit is not intended for publication, FAILURE otherwise, with no output keys.
+- **Call-out point shape**: ProtocolInternal — bypass fallback leaf that succeeds when the exploit is not intended for publication; exists purely so the BT succeeds gracefully on the no-op path; no external input, output, or monitoring seam. Analogous to `NoThreatsFound`.
 
 ### `ExploitReady`
 
@@ -863,9 +863,9 @@ preparing them, and executing publication.
 - **Input dependency**: Publication intent record; case policy
 - **Notes**: Fails most of the time because fix publication is the standard
   expected outcome of CVD
-- **Automation potential**: **High** — read the fix publication intent flag from the case record; fully automatable.
+- **Automation potential**: **TerminalPlaceholder** — BT bypass fallback leaf; no decision logic required.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.NoPublishFix`
-- **Call-out point shape**: Sentinel — binary publication-intent flag check against the record set by PrioritizePublicationIntents; returns SUCCESS if the fix is not intended for publication, FAILURE otherwise, with no output keys.
+- **Call-out point shape**: ProtocolInternal — bypass fallback leaf that succeeds when the fix is not intended for publication; exists purely so the BT succeeds gracefully on the no-op path; no external input, output, or monitoring seam. Analogous to `NoThreatsFound`.
 
 ### `PrepareFix`
 
@@ -909,9 +909,9 @@ preparing them, and executing publication.
 - **Input dependency**: Publication intent record; case policy
 - **Notes**: Fails most of the time because report publication is standard
   CVD outcome
-- **Automation potential**: **High** — read the report publication intent flag from the case record; fully automatable.
+- **Automation potential**: **TerminalPlaceholder** — BT bypass fallback leaf; no decision logic required.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.NoPublishReport`
-- **Call-out point shape**: Sentinel — binary publication-intent flag check against the record set by PrioritizePublicationIntents; returns SUCCESS if the vulnerability report is not intended for publication, FAILURE otherwise, with no output keys.
+- **Call-out point shape**: ProtocolInternal — bypass fallback leaf that succeeds when the vulnerability report is not intended for publication; exists purely so the BT succeeds gracefully on the no-op path; no external input, output, or monitoring seam. Analogous to `NoThreatsFound`.
 
 ### `PrepareReport`
 
@@ -967,7 +967,7 @@ coordinated disclosure.
   not a dynamic decision
 - **Automation potential**: **High** — static capability and role configuration check; fully automatable as a metadata lookup.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.HaveReportToOthersCapability`
-- **Call-out point shape**: Sentinel — binary role/capability configuration check against participant metadata and organizational policy; returns SUCCESS if this participant has the capability and mandate to notify other parties, FAILURE otherwise, with no output keys.
+- **Call-out point shape**: TBD — role/eligibility check: "does this participant have the capability and mandate to notify other parties?" In the evolving architecture this may devolve to a `CVDRole.CASE_MANAGER` membership check (internal BT condition check, not a call-out point), or remain an Evaluator if notification-obligation reasoning beyond role membership is required. Revisit after the invite-participant-to-case protocol is finalized (see #1199, #1200).
 
 ### `AllPartiesKnown`
 
@@ -1096,7 +1096,7 @@ coordinated disclosure.
   reasonable limits on notification attempts
 - **Automation potential**: **High** — effort counter check against a configurable policy threshold; fully automatable once the threshold policy is defined.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.RecipientEffortExceeded`
-- **Call-out point shape**: Sentinel — binary effort-threshold check against the per-recipient attempt counter and a configurable policy threshold; returns SUCCESS if the notification-attempt budget for this recipient has been exhausted, FAILURE otherwise, with no output keys.
+- **Call-out point shape**: Evaluator — evaluates whether the notification-attempt budget for this recipient has been exhausted by comparing the per-recipient attempt counter against a configurable policy threshold; a process-gate judgment about whether continued effort is warranted.
 
 ### `TotalEffortLimitMet`
 
@@ -1112,7 +1112,7 @@ coordinated disclosure.
   condition to prevent unbounded notification effort
 - **Automation potential**: **High** — aggregate effort counter check against a configurable policy ceiling; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.TotalEffortLimitMet`
-- **Call-out point shape**: Sentinel — binary aggregate effort-limit check against the total notification-effort counter and a configurable policy ceiling; returns SUCCESS if the global notification budget has been exhausted, FAILURE otherwise, with no output keys.
+- **Call-out point shape**: Evaluator — evaluates whether the global notification budget has been exhausted by comparing the total effort counter against a configurable policy ceiling; a process-gate judgment about whether any further notification attempts are warranted across all recipients.
 
 ### `PolicyCompatible`
 
