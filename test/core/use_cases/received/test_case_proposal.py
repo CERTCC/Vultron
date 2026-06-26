@@ -23,6 +23,8 @@ Spec: specs/case-proposal.yaml CP-05 through CP-07.
 
 import logging
 
+import pytest
+
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
@@ -252,6 +254,7 @@ class TestCreateCaseProposalIdempotency:
         _run_create_proposal(dl, proposal, make_payload)
         first_accepts = list(dl.list_objects("Accept"))
         assert first_accepts, "First proposal must produce an Accept"
+        first_accept_ids = {a.id_ for a in first_accepts}
         first_case_id = list(dl.list_objects("VulnerabilityCase"))[0].id_
 
         # Resend with the same proposal
@@ -263,26 +266,34 @@ class TestCreateCaseProposalIdempotency:
             len(all_accepts) >= 2
         ), "Duplicate proposal should produce a second Accept (AC-2)"
 
-        # The new Create(VulnerabilityCase) must reference the existing case.
-        # object_ may be a str or an object with id_ after DataLayer round-trip.
-        all_creates = list(dl.list_objects("Create"))
-        case_ids_referenced = set()
-        for cr in all_creates:
-            obj = dl.read(cr.id_)
-            obj_val = getattr(obj, "object_", None)
-            if obj_val is None:
-                continue
-            if isinstance(obj_val, str):
-                case_ids_referenced.add(obj_val)
-            else:
-                id_val = getattr(obj_val, "id_", None) or (
-                    obj_val.get("id") if isinstance(obj_val, dict) else None
-                )
-                if id_val:
-                    case_ids_referenced.add(id_val)
-        assert first_case_id in case_ids_referenced, (
-            f"Duplicate proposal should reference existing case '{first_case_id}'"
-            f" in Create(VulnerabilityCase); found {case_ids_referenced!r} (AC-2)"
+        # Find the Accept added for the duplicate proposal
+        duplicate_accepts = [
+            a for a in all_accepts if a.id_ not in first_accept_ids
+        ]
+        assert (
+            duplicate_accepts
+        ), "Must have at least one new Accept for the duplicate proposal (AC-2)"
+
+        # The duplicate Accept must reference the existing case via result field.
+        dup_accept_obj = dl.read(duplicate_accepts[0].id_)
+        raw_result = getattr(dup_accept_obj, "result", None) or (
+            dup_accept_obj.get("result")
+            if isinstance(dup_accept_obj, dict)
+            else None
+        )
+        # After DataLayer round-trip the result field may be deserialized to a
+        # full domain object; extract the id_ in that case.
+        if isinstance(raw_result, str):
+            result_val = raw_result
+        elif hasattr(raw_result, "id_"):
+            result_val = raw_result.id_
+        elif isinstance(raw_result, dict):
+            result_val = raw_result.get("id_") or raw_result.get("id")
+        else:
+            result_val = None
+        assert result_val == first_case_id, (
+            f"Duplicate Accept.result should be existing case '{first_case_id}'"
+            f", got {result_val!r} (AC-2, CP-05-006)"
         )
 
     def test_in_flight_proposal_is_no_op(self, make_payload):
@@ -315,6 +326,59 @@ class TestCreateCaseProposalIdempotency:
         assert len(after_creates) == len(
             first_creates
         ), "No new Create should be sent when marker is present (AC-3)"
+
+
+class TestCreateCaseProposalIdempotencyIntegration:
+    """Integration tests for CP-05-006 duplicate-proposal idempotency (AC-4).
+
+    These tests use a file-backed SQLite DataLayer to verify that the
+    idempotency behaviour holds across real persistence boundaries.
+    """
+
+    @pytest.mark.integration
+    def test_duplicate_proposal_no_second_case_file_backend(
+        self, make_payload, tmp_path
+    ):
+        """AC-4: No second VulnerabilityCase is created on retry (file-backed DL).
+
+        Uses a real SQLite file to ensure the idempotency guard works with
+        a persistent backend, not just an in-memory one.
+        """
+        db_url = f"sqlite:///{tmp_path / 'test_idempotency.db'}"
+        dl = SqliteDataLayer(db_url)
+        proposal = _make_proposal()
+
+        _run_create_proposal(dl, proposal, make_payload)
+        cases_after_first = [
+            obj
+            for obj in dl.list_objects("VulnerabilityCase")
+            if is_case_model(obj)
+        ]
+        assert (
+            len(cases_after_first) == 1
+        ), "First proposal must create one case"
+        first_case_id = cases_after_first[0].id_
+
+        # Resend the same proposal (network-retry scenario)
+        _run_create_proposal(dl, proposal, make_payload)
+
+        all_cases = [
+            obj
+            for obj in dl.list_objects("VulnerabilityCase")
+            if is_case_model(obj)
+        ]
+        assert (
+            len(all_cases) == 1
+        ), "Duplicate proposal must not create a second VulnerabilityCase (AC-4)"
+        assert (
+            all_cases[0].id_ == first_case_id
+        ), "The surviving case must be the original one (AC-4)"
+
+        all_accepts = list(dl.list_objects("Accept"))
+        assert (
+            len(all_accepts) >= 2
+        ), "Duplicate proposal should produce a second Accept (AC-4)"
+        dl.close()
 
 
 class TestAcceptCaseProposalReceivedUseCase:

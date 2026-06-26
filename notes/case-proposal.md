@@ -237,3 +237,42 @@ Using the stored payload (not a freshly constructed activity) preserves
 the original ``id_``, which is essential: the retry runner's outbox
 idempotency check looks for that specific ``id_``.  A fresh ``id_``
 would bypass the check and cause a duplicate delivery after crash/restart.
+
+---
+
+## Duplicate-Proposal Handling (CP-05-006)
+
+At-least-once delivery and network retries mean the same
+`Create(as_CaseProposal)` can arrive multiple times. The idempotency
+tree (`create_case_proposal_received_tree`) has two guards:
+
+**AC-3 guard** (`_CheckMarkerExistsNode`): if a
+`PendingCreateCaseActivity` marker exists, `Accept` was already sent and
+`Create(VulnerabilityCase)` delivery is still pending. The retry runner
+owns recovery; the duplicate is silently dropped.
+
+**AC-1 / AC-2 flow** (`_LoadExistingCaseNode` → `_EmitAcceptCaseProposalNode`):
+if no in-flight marker exists but a `VulnerabilityCase` already exists for
+the same report, the tree reuses the existing case (AC-1). It then sends a
+new `Accept(as_CaseProposal)` (AC-2) with:
+
+- `object_` = inline `as_CaseProposal` (CP-05-003)
+- **`result` = URI of the existing `VulnerabilityCase`** (CP-05-006 AC-2)
+
+The `result` field is where the duplicate Accept carries the existing-case
+reference so the vendor can correlate it to the already-created case without
+waiting for a second `Create(VulnerabilityCase)`.
+
+For first-time proposals, `_EmitAcceptCaseProposalNode` also sets
+`result=case_id` (the newly-created case URI). This is consistent: the
+`result` of an Accept always names the `VulnerabilityCase` the proposal
+produced (or reused), regardless of whether the proposal is a first send or a
+retry.
+
+### Implementation: `VultronAccept.result`
+
+`vultron.core.models.activity.VultronAccept` carries a `result: str | None`
+field. `_EmitAcceptCaseProposalNode` reads `case_id` from the py\_trees
+blackboard (written earlier by `_LoadExistingCaseNode` or
+`_CreateCaseFromProposalNode`) and sets `result=case_id` on the activity
+before persisting it to the DataLayer and outbox.

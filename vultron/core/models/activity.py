@@ -83,12 +83,25 @@ class VultronAccept(VultronActivity):
 
     Mirrors the essential fields of ``as_Accept``.
     ``type_`` is ``"Accept"`` to match the wire value.
+
+    ``result`` carries the URI of the ``VulnerabilityCase`` this Accept
+    refers to.  For a duplicate-proposal response (CP-05-006 AC-2), it is
+    the URI of the *existing* case so the vendor can correlate the
+    acceptance to the already-created case.  For a first-time acceptance
+    it is the URI of the newly-created case.
     """
 
     type_: Literal["Accept"] = Field(
         default="Accept",
         validation_alias="type",
         serialization_alias="type",
+    )
+    result: str | None = Field(
+        default=None,
+        description=(
+            "URI of the VulnerabilityCase this Accept produced or refers to "
+            "(CP-05-006 AC-2)."
+        ),
     )
 
 

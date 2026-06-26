@@ -197,6 +197,13 @@ class _EmitAcceptCaseProposalNode(DataLayerAction):
     ``_EmitCreateVulnerabilityCaseNode`` can set the causal ``context``
     link (CP-05-003).
 
+    Reads ``case_id`` from the blackboard (written by either
+    ``_LoadExistingCaseNode`` or ``_CreateCaseFromProposalNode``) and
+    sets ``result`` on the ``Accept`` activity to that URI.  For a
+    duplicate proposal, this carries the existing-case reference required
+    by CP-05-006 AC-2.  For a first-time proposal, it ties the Accept to
+    the newly-created case.
+
     Failure here returns FAILURE so the Sequence aborts before the
     Create(VulnerabilityCase) is sent — the vendor should not receive an
     unacknowledged case (BT-14-001).
@@ -223,16 +230,25 @@ class _EmitAcceptCaseProposalNode(DataLayerAction):
         self.blackboard.register_key(
             key="accept_activity_id", access=py_trees.common.Access.WRITE
         )
+        self.blackboard.register_key(
+            key="case_id", access=py_trees.common.Access.READ
+        )
 
     def update(self) -> Status:
         if self.datalayer is None or self.actor_id is None:
             self.feedback_message = "DataLayer or actor_id not available"
             return Status.FAILURE
 
+        try:
+            case_id: str | None = self.blackboard.get("case_id")
+        except KeyError:
+            case_id = None
+
         activity = VultronAccept(
             actor=self.actor_id,
             object_=self._object,
             to=[self._vendor_uri],
+            result=case_id,
         )
 
         try:
