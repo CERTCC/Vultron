@@ -10,7 +10,22 @@ A durable ``PendingCreateCaseActivity`` marker is written to the DataLayer
 after step 1 and cleared on successful completion of step 2 so that a retry
 runner (#1139) can recover the obligation if delivery of step 2 fails.
 
-Spec: ``specs/case-proposal.yaml`` CP-05-001 through CP-05-005.
+Idempotency (CP-05-006):
+
+The top-level tree is a Selector with two branches:
+
+* **AC-3 guard** — ``_CheckMarkerExistsNode``: if a
+  ``PendingCreateCaseActivity`` marker already exists for this proposal_id,
+  Accept was already sent and Create delivery is still pending; the retry
+  runner owns recovery, so return SUCCESS immediately (no re-send).
+
+* **Normal / duplicate flow** — a Sequence whose first step is itself a
+  Selector between ``_LoadExistingCaseNode`` (AC-1/AC-2: finds and reuses
+  an existing ``VulnerabilityCase`` for the same report) and
+  ``_CreateCaseFromProposalNode`` (normal path: creates a new case).  The
+  remaining four steps are unchanged.
+
+Spec: ``specs/case-proposal.yaml`` CP-05-001 through CP-05-006.
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -44,6 +59,89 @@ from vultron.core.models.pending_create_case_activity import (
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 
 logger = logging.getLogger(__name__)
+
+
+class _CheckMarkerExistsNode(DataLayerAction):
+    """Return SUCCESS if a ``PendingCreateCaseActivity`` marker already exists.
+
+    AC-3 guard (CP-05-006): if the marker is present, ``Accept(CaseProposal)``
+    was already sent for this proposal and a ``Create(VulnerabilityCase)``
+    delivery is still pending.  The retry runner (#1139) owns recovery; the
+    current delivery should be a no-op to avoid duplicate Accepts on the
+    vendor side.
+
+    Returns FAILURE when no marker is found, allowing the outer Selector to
+    proceed to the normal / duplicate flow.
+    """
+
+    def __init__(self, proposal_id: str, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._proposal_id = proposal_id
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            return Status.FAILURE
+
+        marker_id = PendingCreateCaseActivity.build_id(self._proposal_id)
+        existing = self.datalayer.read(marker_id)
+        if isinstance(existing, PendingCreateCaseActivity):
+            logger.info(
+                "%s: PendingCreateCaseActivity marker found for proposal '%s'"
+                " — Accept already sent; skipping re-send (CP-05-006 AC-3)",
+                self.name,
+                self._proposal_id,
+            )
+            return Status.SUCCESS
+
+        return Status.FAILURE
+
+
+class _LoadExistingCaseNode(DataLayerAction):
+    """Find an existing ``VulnerabilityCase`` for *report_id* and load it.
+
+    AC-1 / AC-2 (CP-05-006): detects a duplicate ``Create(as_CaseProposal)``
+    for a report that already has a case.  Writes the existing ``case_id`` to
+    the blackboard so ``_EmitAcceptCaseProposalNode`` and
+    ``_WriteCreateCaseMarkerNode`` can reference it, then returns SUCCESS.
+
+    Returns FAILURE when no existing case is found, allowing the outer
+    Selector to fall through to ``_CreateCaseFromProposalNode`` (normal path).
+    """
+
+    def __init__(
+        self,
+        report_id: str | None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._report_id = report_id
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="case_id", access=py_trees.common.Access.WRITE
+        )
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            return Status.FAILURE
+
+        if self._report_id is None:
+            return Status.FAILURE
+
+        existing = self.datalayer.find_case_by_report_id(self._report_id)
+        if existing is None:
+            return Status.FAILURE
+
+        self.blackboard.case_id = existing.id_
+        logger.info(
+            "%s: Found existing VulnerabilityCase '%s' for report '%s'"
+            " — reusing for duplicate proposal (CP-05-006 AC-1/AC-2)",
+            self.name,
+            existing.id_,
+            self._report_id,
+        )
+        return Status.SUCCESS
 
 
 class _CreateCaseFromProposalNode(DataLayerAction):
@@ -99,6 +197,13 @@ class _EmitAcceptCaseProposalNode(DataLayerAction):
     ``_EmitCreateVulnerabilityCaseNode`` can set the causal ``context``
     link (CP-05-003).
 
+    Reads ``case_id`` from the blackboard (written by either
+    ``_LoadExistingCaseNode`` or ``_CreateCaseFromProposalNode``) and
+    sets ``result`` on the ``Accept`` activity to that URI.  For a
+    duplicate proposal, this carries the existing-case reference required
+    by CP-05-006 AC-2.  For a first-time proposal, it ties the Accept to
+    the newly-created case.
+
     Failure here returns FAILURE so the Sequence aborts before the
     Create(VulnerabilityCase) is sent — the vendor should not receive an
     unacknowledged case (BT-14-001).
@@ -125,16 +230,25 @@ class _EmitAcceptCaseProposalNode(DataLayerAction):
         self.blackboard.register_key(
             key="accept_activity_id", access=py_trees.common.Access.WRITE
         )
+        self.blackboard.register_key(
+            key="case_id", access=py_trees.common.Access.READ
+        )
 
     def update(self) -> Status:
         if self.datalayer is None or self.actor_id is None:
             self.feedback_message = "DataLayer or actor_id not available"
             return Status.FAILURE
 
+        try:
+            case_id: str | None = self.blackboard.get("case_id")
+        except KeyError:
+            case_id = None
+
         activity = VultronAccept(
             actor=self.actor_id,
             object_=self._object,
             to=[self._vendor_uri],
+            result=case_id,
         )
 
         try:
@@ -392,19 +506,38 @@ def create_case_proposal_received_tree(
 ) -> py_trees.behaviour.Behaviour:
     """Return the received-side BT for processing a ``Create(as_CaseProposal)``.
 
-    The tree is a Sequence of five leaf nodes:
+    The tree is a two-branch Selector implementing CP-05-006 idempotency:
 
-    1. ``_CreateCaseFromProposalNode`` — creates VulnerabilityCase
-    2. ``_EmitAcceptCaseProposalNode`` — emits Accept(as_CaseProposal)
-    3. ``_WriteCreateCaseMarkerNode`` — writes durable retry marker (CP-05-005)
-    4. ``_EmitCreateVulnerabilityCaseNode`` — emits Create(VulnerabilityCase)
-    5. ``_ClearCreateCaseMarkerNode`` — removes marker on success (CP-05-005)
+    **Branch 1 — AC-3 guard** (``_CheckMarkerExistsNode``):
+      If a ``PendingCreateCaseActivity`` marker already exists for this
+      proposal_id, ``Accept(CaseProposal)`` was already sent and
+      ``Create(VulnerabilityCase)`` delivery is still pending.  Return SUCCESS
+      immediately — the retry runner owns recovery; do not re-send Accept.
 
-    If node 4 fails the marker written in node 3 remains in the DataLayer so
+    **Branch 2 — normal / duplicate flow** (Sequence of five nodes):
+      First, a sub-Selector resolves which ``VulnerabilityCase`` to use:
+
+      * ``_LoadExistingCaseNode`` (AC-1/AC-2): if a case already exists for
+        *report_id*, write its ID to the blackboard and succeed — the vendor is
+        resending the proposal; reuse the existing case rather than creating a
+        second one.
+      * ``_CreateCaseFromProposalNode`` (normal path): create a new case.
+
+      Then the remaining four nodes proceed as for the original happy path:
+
+      3. ``_EmitAcceptCaseProposalNode`` — emits Accept(as_CaseProposal)
+      4. ``_WriteCreateCaseMarkerNode`` — writes durable retry marker
+         (CP-05-005)
+      5. ``_EmitCreateVulnerabilityCaseNode`` — emits
+         Create(VulnerabilityCase)
+      6. ``_ClearCreateCaseMarkerNode`` — removes marker on success
+         (CP-05-005)
+
+    If node 5 fails, the marker written in node 4 remains in the DataLayer so
     that a retry runner (#1139) can complete the ``Create(VulnerabilityCase)``
     delivery independently.
 
-    Spec: CP-05-001 through CP-05-005.
+    Spec: CP-05-001 through CP-05-006.
 
     Args:
         report_id: URI of the VulnerabilityReport embedded in the proposal
@@ -418,13 +551,24 @@ def create_case_proposal_received_tree(
             to bare URI when ``None``.
 
     Returns:
-        A py_trees Sequence behaviour ready for ``BTBridge.execute_with_setup``.
+        A py_trees Selector behaviour ready for ``BTBridge.execute_with_setup``.
     """
-    return py_trees.composites.Sequence(
+    # Sub-Selector: reuse existing case (duplicate) OR create new (normal path)
+    case_resolution = py_trees.composites.Selector(
+        name="ResolveCaseIdSelector",
+        memory=False,
+        children=[
+            _LoadExistingCaseNode(report_id=report_id),
+            _CreateCaseFromProposalNode(report_id=report_id),
+        ],
+    )
+
+    # Main flow: resolve case → emit Accept → write marker → emit Create → clear
+    main_flow = py_trees.composites.Sequence(
         name="CreateCaseProposalReceivedBT",
         memory=False,
         children=[
-            _CreateCaseFromProposalNode(report_id=report_id),
+            case_resolution,
             _EmitAcceptCaseProposalNode(
                 proposal_id=proposal_id,
                 vendor_uri=vendor_uri,
@@ -439,5 +583,14 @@ def create_case_proposal_received_tree(
                 vendor_uri=vendor_uri,
             ),
             _ClearCreateCaseMarkerNode(proposal_id=proposal_id),
+        ],
+    )
+
+    return py_trees.composites.Selector(
+        name="CreateCaseProposalIdempotencySelector",
+        memory=False,
+        children=[
+            _CheckMarkerExistsNode(proposal_id=proposal_id),
+            main_flow,
         ],
     )
