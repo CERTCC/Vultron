@@ -687,12 +687,11 @@ groups:
       shared factory guarantees consistent semantics and the correct guard
       ordering across all call sites. Issue #1054 observed this exact drift
       between `TerminateEmbargoNode` (monolith, inline EMAdapter) and
-      `terminate_embargo_trigger_bt` (factory-composed).
-    rationale_detail: >-
+      `terminate_embargo_trigger_bt` (factory-composed). Concretely:
       `TerminateEmbargoNode` (used by `PublicDisclosureBranchNode`) and
       `TerminateEmbargoLifecycleNode` + `sender_side_bt` (used by
       `SvcTerminateEmbargoUseCase`) represent the same protocol operation with
-      divergent implementations. Only the factory-composed path applied the
+      divergent implementations — only the factory-composed path applied the
       correct routing-guard ordering (BT-19-001); the monolith committed state
       before verifying Case Manager availability.
     relationships:
