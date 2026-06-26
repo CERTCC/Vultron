@@ -762,6 +762,19 @@ Short entries are reproduced here; longer ones are referenced below.
   falls through to DEFERRED, and the test may pass for the wrong reason. Any
   test that exercises BT operations in a received-side use case MUST pass a
   `receiving_actor_id`. See `specs/behavior-tree-integration.yaml` BT-17-005.
+- **Automation Potential and Call-Out Point Shape Are Orthogonal** — When
+  classifying a fuzzer node, the `automation potential` and `call-out point
+  shape` fields are **independent**. A node with High automation potential may
+  still require a Retriever, Sentinel, Evaluator, or Composer seam — "can be
+  automated" does not mean "no external seam exists." Assign shape using
+  **only** the ADR-0024 seam-structure decision tree: Who/what provides the
+  input? What does the node output? Does it monitor a condition, retrieve
+  facts, evaluate a situation, or compose content? The answers determine the
+  shape regardless of whether the implementation will be automated or
+  human-driven. `ProtocolInternal` is reserved exclusively for terminal
+  placeholders and structural composites that have **no** external input,
+  output, or monitoring seam. See `specs/behavior-tree-integration.yaml`
+  BT-18-005 and `docs/adr/0024-coordination-agent-taxonomy.md`.
 
 ## Skill Interaction Rules
 

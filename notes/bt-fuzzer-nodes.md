@@ -57,13 +57,18 @@ Each fuzzer node entry in the sub-files has these fields:
 - **Semantic function**: What this node represents in the CVD process
 - **Input dependency**: The kind of real-world input needed to replace it
 - **Notes**: Any implementation guidance from the source code comments
-- **Automation potential**: High / Medium / Low / N/A (see below)
+- **Automation potential**: High / Medium / Low / TerminalPlaceholder (see below)
 - **New-arch cross-ref**: The corresponding `vultron.demo.fuzzer.*` class
   in the py_trees-based prototype (added in FUZZ-08a / PR #1179); N/A for
   simulation-only nodes not ported to the new architecture
 - **Call-out point shape**: Evaluator, Retriever, Sentinel, Composer, or
-  N/A — per the agent shape taxonomy in
-  `docs/adr/0024-coordination-agent-taxonomy.md` (added in FUZZ-08a / PR #1179)
+  ProtocolInternal — per the agent shape taxonomy in
+  `docs/adr/0024-coordination-agent-taxonomy.md` (added in FUZZ-08a / PR
+  #1179; reclassified in issue #1188). Use `ProtocolInternal` only for
+  nodes that are terminal placeholders or structural composites with no
+  external input or output seam. See BT-18-005: shape MUST be determined
+  by the ADR-0024 seam-structure decision tree, independently of automation
+  potential.
 - **Factory-fn placement**: The module-qualified `vultron.core.behaviors.*`
   factory function that hosts (or should host) this call-out point node in
   the prototype BT, with ordering hints indicating where in the tree the node
@@ -81,7 +86,25 @@ Each fuzzer node entry in the sub-files has these fields:
   but human oversight or judgment still needed for edge cases
 - **Low** — inherently human-driven; automation limited to notifications
   or task triggers
-- **N/A** — terminal placeholder nodes with no real decision logic
+- **TerminalPlaceholder** — terminal placeholder node with no real decision
+  logic (e.g., `AlwaysSucceed` fallback leaf); no external dependency exists
+
+**Call-out point shape values (per ADR-0024):**
+
+- **Sentinel** — binary condition monitor; no output keys; signals
+  `SUCCESS`/`FAILURE` only
+- **Evaluator** — reads situation context; writes a structured
+  recommendation; `SUCCESS` = recommendation available
+- **Retriever** — reads a query; writes structured facts from an external
+  source; `SUCCESS` = facts retrieved
+- **Composer** — reads composition context; writes a generated artifact;
+  `SUCCESS` = artifact ready
+- **ProtocolInternal** — node resolves entirely within the protocol
+  implementation; no external input, output, or monitoring seam exists.
+  Use this value only for terminal placeholders and structural composites
+  that have no call-out point. Do NOT use `ProtocolInternal` because a
+  node's automation potential is High — those nodes have an external seam
+  and belong to one of the four shapes above (BT-18-005).
 
 ### Fuzzer Base Types (Quick Reference)
 
