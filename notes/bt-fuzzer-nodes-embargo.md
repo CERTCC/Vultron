@@ -116,7 +116,7 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
   production this is a simple timestamp comparison
 - **Automation potential**: **High** — simple system-clock comparison against the recorded embargo expiry timestamp; fully automatable with no human involvement.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.EmbargoTimerExpired`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Sentinel — binary timer-expiry condition; compares current time against the recorded embargo deadline and returns SUCCESS/FAILURE with no output keys; fully resolved by system-clock comparison against case-state data.
 
 ### `OnEmbargoExit`
 
@@ -133,7 +133,7 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
   must ensure idempotent execution
 - **Automation potential**: **High** — integration hook (notifications, state updates, downstream triggers); can be fully automated via API calls to notification and case-management systems.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.OnEmbargoExit`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Composer — generates and dispatches outbound notifications, state-update calls, and downstream trigger messages when an active embargo exits; the produced artifacts are the emitted notifications and integration-hook invocations.
 
 ### `StopProposingEmbargo`
 
@@ -248,7 +248,7 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Notes**: Always succeeds in simulation; must be idempotent in production
 - **Automation potential**: **High** — notification dispatch, timer initialization, and state-update actions are all integration-automatable via APIs.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.OnEmbargoAccept`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Composer — generates outbound notifications, initializes embargo timer services, and writes acceptance records to case management when an embargo proposal is accepted; the produced artifacts are the emitted stakeholder notifications and timer-service invocations.
 
 ### `OnEmbargoReject`
 
@@ -264,7 +264,7 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Notes**: Always succeeds in simulation; must be idempotent in production
 - **Automation potential**: **High** — notification dispatch and logging actions are fully automatable via APIs.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.OnEmbargoReject`
-- **Call-out point shape**: N/A
+- **Call-out point shape**: Composer — generates outbound notifications and writes rejection-rationale records to case management when an embargo proposal is rejected; the produced artifacts are the emitted stakeholder notifications and case log entries.
 
 ### `CurrentEmbargoAcceptable`
 

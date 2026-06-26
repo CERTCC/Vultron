@@ -99,7 +99,7 @@ is essentially the "output" of the discovery process.
   input needed once we confirm discovery came up empty
 - **Notes**: Ensures the discovery branch always succeeds so the top-level
   sequence can continue to other work
-- **Automation potential**: **N/A** — terminal success placeholder; no real decision logic required.
+- **Automation potential**: **TerminalPlaceholder** — terminal success placeholder; no real decision logic required.
 - **New-arch cross-ref**: N/A — simulation-only BT not ported to new architecture
 - **Call-out point shape**: N/A
 
