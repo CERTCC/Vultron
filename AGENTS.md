@@ -762,6 +762,21 @@ Short entries are reproduced here; longer ones are referenced below.
   falls through to DEFERRED, and the test may pass for the wrong reason. Any
   test that exercises BT operations in a received-side use case MUST pass a
   `receiving_actor_id`. See `specs/behavior-tree-integration.yaml` BT-17-005.
+- **Routing Prerequisites Must Be Resolved Before State Mutation in Lifecycle BT
+  Sequences** — A BT Sequence that performs a protocol state-machine transition
+  (EM, RM, or CS) and then routes an outbound activity MUST resolve all routing
+  prerequisites (e.g., Case Manager actor ID) in a read-only guard node placed
+  BEFORE the state-mutation node. Committing a transition to the DataLayer before
+  verifying routing is available creates a divergence window: local state reflects
+  the new state (e.g., `EM=EXITED`) while peers still hold the prior state
+  (e.g., `EM=ACTIVE`) because the broadcast was never sent. The Sequence MUST fail
+  at the guard with zero DataLayer state change when routing prerequisites are
+  absent. Duplicated monolithic nodes that inline both mutation and dispatch in a
+  single `update()` MUST be replaced by a shared BT factory function used across
+  all call sites (trigger path and automatic-cascade path) to prevent per-path
+  drift back to the unsafe ordering. See `specs/behavior-tree-integration.yaml`
+  BT-19-001, BT-19-002 and [notes/bt-integration.md](notes/bt-integration.md)
+  § "Routing-Gated State Mutation".
 - **Automation Potential and Call-Out Point Shape Are Orthogonal** — When
   classifying a fuzzer node, the `automation potential` and `call-out point
   shape` fields are **independent**. A node with High automation potential may
