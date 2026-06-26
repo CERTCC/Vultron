@@ -298,6 +298,58 @@ class TestCaseManagerRoleDelegationUseCases:
             to=[self._VENDOR_URI],
         )
 
+    def test_offer_case_manager_role_outbox_failure_does_not_emit_reject(
+        self, make_payload
+    ):
+        """Outbox failure after Accept is persisted must NOT trigger Reject.
+
+        Regression for the broad-exception anti-pattern: when
+        accept_case_manager_role() succeeds (Accept written to DataLayer) but
+        record_outbox_item() then fails, the exception must propagate through
+        py_trees (bypassing the AcceptOrReject Selector fallback) so that
+        BTBridge fails the tree hard without emitting a contradictory Reject.
+        """
+        from unittest.mock import MagicMock, patch
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case = VulnerabilityCase(id_=self._CASE_URI, name="OUTBOX-FAIL-TEST")
+        participant = CaseParticipant(
+            id_=self._PARTICIPANT_URI,
+            attributed_to=self._CASE_ACTOR_URI,
+            context=self._CASE_URI,
+        )
+        dl.create(case)
+        dl.create(participant)
+
+        offer = self._make_offer()
+        event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
+
+        trigger = MagicMock()
+        trigger.accept_case_manager_role.return_value = (
+            "https://example.org/activities/accept-outbox-fail"
+        )
+
+        # Accept creation succeeds, but outbox enqueue fails.
+        with patch.object(
+            dl,
+            "record_outbox_item",
+            side_effect=RuntimeError("outbox unavailable"),
+        ):
+            # BTBridge swallows the exception; execute() must not raise.
+            OfferCaseManagerRoleReceivedUseCase(
+                dl, event, trigger_activity=trigger
+            ).execute()
+
+        # The Reject must NOT have been emitted — Accept was already persisted.
+        trigger.reject_case_manager_role.assert_not_called()
+
     def test_offer_case_manager_role_reject_uses_adapter_when_accept_fails(
         self, make_payload
     ):

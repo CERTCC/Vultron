@@ -249,6 +249,10 @@ class AutoAcceptCaseManagerRoleNode(DataLayerAction):
             )
             return Status.FAILURE
 
+        # Step 1: create and persist the Accept activity.
+        # Nothing has been written yet; any exception here is safe to
+        # convert to FAILURE so the AcceptOrReject Selector can fall back
+        # to EmitRejectCaseManagerRoleNode.
         try:
             accept_id = self.trigger_activity_factory.accept_case_manager_role(
                 offer_id=self.offer_id,
@@ -258,26 +262,35 @@ class AutoAcceptCaseManagerRoleNode(DataLayerAction):
                 actor=self.actor_id,
                 to=[self.vendor_id],
             )
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, accept_id
-            )
-            self.logger.info(
-                "%s: auto-accepted offer '%s' as actor '%s';"
-                " queued Accept '%s' to outbox",
-                self.name,
-                self.offer_id,
-                self.actor_id,
-                accept_id,
-            )
-            return Status.SUCCESS
         except Exception as exc:
             self.logger.error(
-                "%s: error auto-accepting offer '%s': %s",
+                "%s: error creating Accept activity for offer '%s': %s",
                 self.name,
                 self.offer_id,
                 exc,
             )
             return Status.FAILURE
+
+        # Step 2: enqueue the Accept activity to the outbox.
+        # The Accept is now persisted in the DataLayer.  If outbox enqueue
+        # fails here, we MUST NOT return FAILURE — the AcceptOrReject
+        # Selector would then fall through to EmitRejectCaseManagerRoleNode,
+        # producing contradictory protocol state (Accept stored, Reject sent).
+        # Let the exception propagate so BTBridge fails the tree hard,
+        # preserving the persisted Accept without triggering a spurious Reject.
+        cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
+            self.actor_id, accept_id
+        )
+
+        self.logger.info(
+            "%s: auto-accepted offer '%s' as actor '%s';"
+            " queued Accept '%s' to outbox",
+            self.name,
+            self.offer_id,
+            self.actor_id,
+            accept_id,
+        )
+        return Status.SUCCESS
 
 
 class EmitRejectCaseManagerRoleNode(DataLayerAction):

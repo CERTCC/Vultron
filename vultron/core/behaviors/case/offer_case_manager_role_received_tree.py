@@ -53,11 +53,19 @@ def create_offer_case_manager_role_received_tree(
 
     Finally, the tree attempts to auto-accept the offer by emitting
     ``Accept(Offer(CaseManagerRole))`` to the offering Vendor.  If the
-    auto-accept node fails (e.g. ``trigger_activity_factory`` unavailable
-    or a business error), the ``AcceptOrReject`` Selector falls back to
-    :class:`~vultron.core.behaviors.case.nodes.communication.EmitRejectCaseManagerRoleNode`
+    Accept activity *creation* fails (e.g. ``trigger_activity_factory``
+    unavailable or a factory-level error) before any state is written, the
+    ``AcceptOrReject`` Selector falls back to
+    :class:`~vultron.core.behaviors.case.nodes.delegation.EmitRejectCaseManagerRoleNode`
     which sends an explicit ``Reject`` so the Vendor is informed rather
     than receiving silence.
+
+    Outbox-enqueue failures that occur *after* the Accept activity has been
+    persisted are **not** converted to Reject: the exception propagates from
+    the node so BTBridge fails the tree hard, preserving the persisted
+    Accept without emitting a contradictory Reject.  This distinction is
+    enforced by :class:`~vultron.core.behaviors.case.nodes.delegation.AutoAcceptCaseManagerRoleNode`
+    which splits the two operations into separate error paths.
 
     Structure::
 
