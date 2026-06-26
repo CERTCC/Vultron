@@ -518,11 +518,16 @@ groups:
       automation potential: High (fully automatable via API or policy rule),
       Medium (partially automatable with human oversight required), Low
       (inherently human-driven; automation limited to notifications or task
-      triggers), or N/A (terminal placeholder with no real decision logic).
+      triggers), or TerminalPlaceholder (terminal placeholder node with no real
+      decision logic — an AlwaysSucceed or AlwaysFail fallback leaf with no
+      external dependency).
     rationale: >-
       Automation-potential categorization guides future implementers toward the
       correct integration pattern when replacing stubs with production logic,
-      supporting the future real-integration roadmap.
+      supporting the future real-integration roadmap. The TerminalPlaceholder
+      value replaces the former ambiguous "N/A" label to make the meaning
+      explicit and prevent it from being conflated with "not applicable due to
+      high automation potential."
 - id: BT-18
   title: Call-Out Point Abstraction Layer
   kind: pattern
@@ -592,3 +597,32 @@ groups:
       note: >-
         Factory-based injection for call-out points is an application of the
         existing factory pattern required for all BT construction.
+  - id: BT-18-005
+    priority: MUST
+    statement: >-
+      The call-out point shape of a fuzzer node MUST be determined solely by
+      the ADR-0024 seam-structure decision tree (how external input enters and
+      output exits the call-out point). Automation potential MUST NOT be used
+      as a criterion for assigning shape = ProtocolInternal. A node whose
+      automation potential is High but whose inputs arrive from an external
+      source or whose outputs affect an external system is a Retriever,
+      Sentinel, Evaluator, or Composer — not ProtocolInternal — regardless of
+      how automated the implementation may be.
+    rationale: >-
+      Automation potential and call-out point shape are orthogonal dimensions.
+      Automation potential describes whether the call-out point logic can be
+      executed without human involvement; shape describes the structural pattern
+      of the seam (what flows in, what flows out, and in what direction).
+      A Retriever backed by a REST API is still a Retriever; the automation
+      just means the Retriever implementation does not require human action.
+      Conflating the two dimensions caused the FUZZ-08a misclassification
+      tracked in issue #1188, where ~38 nodes with High automation potential
+      were incorrectly assigned ProtocolInternal shape, causing downstream
+      work (FUZZ-08a-bis, FUZZ-08d through FUZZ-08g) to build wrong seams.
+    relationships:
+    - rel_type: implements
+      spec_id: BT-16-005
+      note: >-
+        BT-16-005 defines automation potential categories; BT-18-005 clarifies
+        that those categories govern the automation-potential field only and
+        have no bearing on call-out point shape assignment.
