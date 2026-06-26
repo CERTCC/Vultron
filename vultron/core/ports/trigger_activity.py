@@ -385,6 +385,26 @@ class TriggerActivityPort(Protocol):
         """
         ...
 
+    def reject_case_manager_role(
+        self,
+        offer_id: str,
+        case_id: str,
+        participant_id: str,
+        vendor_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> str:
+        """Create and persist a ``Reject(_OfferCaseManagerRoleActivity)``.
+
+        Ephemerally reconstructs the original Offer (using ``offer_id``,
+        ``case_id``, ``participant_id``, and ``vendor_id``) before building
+        the Reject so that ``Reject.object_`` is a typed
+        ``_OfferCaseManagerRoleActivity``, not a bare string IRI.
+
+        Returns the activity ID.
+        """
+        ...
+
     # -----------------------------------------------------------------------
     # Embargo
     # -----------------------------------------------------------------------

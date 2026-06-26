@@ -40,6 +40,8 @@ import py_trees
 from vultron.core.behaviors.case.nodes.communication import (
     CollectCaseAddresseesNode,
     CreateAndPersistCaseActivityNode,
+)
+from vultron.core.behaviors.case.nodes.delegation import (
     CreateOfferCaseManagerActivityNode,
     ResolveCaseManagerOfferContextNode,
 )

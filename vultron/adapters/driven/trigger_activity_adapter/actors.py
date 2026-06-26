@@ -37,6 +37,7 @@ from vultron.wire.as2.factories import (
 from vultron.wire.as2.factories.case import (
     accept_case_manager_role_activity,
     offer_case_manager_role_activity,
+    reject_case_manager_role_activity,
 )
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
@@ -305,6 +306,42 @@ class _ActorsMixin:
         except ValueError:
             logger.warning(
                 "accept_case_manager_role: activity '%s' already exists"
+                " — skipping",
+                activity.id_,
+            )
+        return activity.id_
+
+    def reject_case_manager_role(
+        self,
+        offer_id: str,
+        case_id: str,
+        participant_id: str,
+        vendor_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> str:
+        """Create and persist a ``Reject(_OfferCaseManagerRoleActivity)``.
+
+        Ephemerally reconstructs the original Offer from ``offer_id``,
+        ``case_id``, ``participant_id``, and ``vendor_id`` so that
+        ``Reject.object_`` is a typed ``_OfferCaseManagerRoleActivity``.
+        """
+        case = cast(VulnerabilityCase, self._dl.read(case_id))
+        participant = cast(CaseParticipant, self._dl.read(participant_id))
+        offer = offer_case_manager_role_activity(
+            case=case,
+            target=participant,
+            id_=offer_id,
+            actor=vendor_id,
+        )
+        activity = reject_case_manager_role_activity(
+            offer=offer, actor=actor, to=to
+        )
+        try:
+            self._dl.create(activity)
+        except ValueError:
+            logger.warning(
+                "reject_case_manager_role: activity '%s' already exists"
                 " — skipping",
                 activity.id_,
             )

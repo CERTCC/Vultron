@@ -23,8 +23,9 @@ from typing import Any
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes.communication import (
+from vultron.core.behaviors.case.nodes.delegation import (
     AutoAcceptCaseManagerRoleNode,
+    EmitRejectCaseManagerRoleNode,
 )
 from vultron.core.behaviors.case.nodes.lifecycle import (
     create_receive_activity_tree,
@@ -50,11 +51,13 @@ def create_offer_case_manager_role_received_tree(
     auto-accept so the canonical ledger entry for the Offer exists before
     the ``Accept`` is sent to the offering Vendor.
 
-    Finally, the tree auto-accepts the offer by emitting
-    ``Accept(Offer(CaseManagerRole))`` to the offering Vendor.  If
-    ``trigger_activity_factory`` is unavailable the auto-accept node returns
-    ``FAILURE``, which propagates through the Sequence so the caller can log
-    the failure.  A protocol-level Reject path is tracked in GitHub.
+    Finally, the tree attempts to auto-accept the offer by emitting
+    ``Accept(Offer(CaseManagerRole))`` to the offering Vendor.  If the
+    auto-accept node fails (e.g. ``trigger_activity_factory`` unavailable
+    or a business error), the ``AcceptOrReject`` Selector falls back to
+    :class:`~vultron.core.behaviors.case.nodes.communication.EmitRejectCaseManagerRoleNode`
+    which sends an explicit ``Reject`` so the Vendor is informed rather
+    than receiving silence.
 
     Structure::
 
@@ -65,18 +68,38 @@ def create_offer_case_manager_role_received_tree(
         │   │   └── CommitCaseLedgerEntryNode
         │   └── Success("CommitSkippedNotCaseManager")
         ├── StoreActivityNode("OfferCaseManagerRole")
-        └── AutoAcceptCaseManagerRoleNode
+        └── AcceptOrReject (Selector)
+            ├── AutoAcceptCaseManagerRoleNode
+            └── EmitRejectCaseManagerRoleNode
 
     Args:
         offer_id: ID of the ``Offer(CaseManagerRole)`` activity.
         offer_obj: The wire activity object to persist idempotently.
         case_id: ID of the VulnerabilityCase referenced by the offer.
         participant_id: ID of the CaseParticipant being offered the role.
-        vendor_id: Actor ID of the offering Vendor (recipient of Accept).
+        vendor_id: Actor ID of the offering Vendor (recipient of Accept/Reject).
 
     Returns:
         Root ``OfferCaseManagerRoleReceivedBT`` Sequence node.
     """
+    accept_or_reject = py_trees.composites.Selector(
+        name="AcceptOrReject",
+        memory=False,
+        children=[
+            AutoAcceptCaseManagerRoleNode(
+                offer_id=offer_id,
+                case_id=case_id,
+                participant_id=participant_id,
+                vendor_id=vendor_id,
+            ),
+            EmitRejectCaseManagerRoleNode(
+                offer_id=offer_id,
+                case_id=case_id,
+                participant_id=participant_id,
+                vendor_id=vendor_id,
+            ),
+        ],
+    )
     return create_receive_activity_tree(
         name="OfferCaseManagerRoleReceivedBT",
         case_id=case_id if case_id else None,
@@ -87,11 +110,6 @@ def create_offer_case_manager_role_received_tree(
                 activity_obj=offer_obj,
                 label="OfferCaseManagerRole",
             ),
-            AutoAcceptCaseManagerRoleNode(
-                offer_id=offer_id,
-                case_id=case_id,
-                participant_id=participant_id,
-                vendor_id=vendor_id,
-            ),
+            accept_or_reject,
         ],
     )
