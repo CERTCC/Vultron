@@ -1,4 +1,7 @@
-FROM mcr.microsoft.com/devcontainers/base:debian
+FROM mcr.microsoft.com/devcontainers/python:3.13-bookworm
+
+# Install uv (matches docker/Dockerfile)
+RUN pip install --upgrade pip uv
 
 # Install custom CA certs first so all subsequent network calls trust them
 COPY ./certs /usr/local/share/ca-certificates/custom/
