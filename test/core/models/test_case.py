@@ -252,6 +252,29 @@ class TestVulnerabilityCaseRecordActivity:
         assert len(case.case_activity) == 2
 
 
+class TestWireVulnerabilityCaseFieldParity:
+    """Wire VulnerabilityCase must not have fields absent from core VulnerabilityCase.
+
+    Enforces ARCH-14-001 / ARCH-09-001: core domain models MUST be as rich as
+    or richer than wire counterparts (core >= wire).  Wire-only fields are a
+    violation; extra core-only fields are permitted and expected.
+    """
+
+    def test_wire_vulnerability_case_field_names_match_core(self):
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase as WireVC,
+        )
+
+        core_fields = set(VulnerabilityCase.model_fields.keys())
+        wire_fields = set(WireVC.model_fields.keys())
+
+        wire_only = wire_fields - core_fields
+        assert not wire_only, (
+            f"Wire VulnerabilityCase has fields not in core VulnerabilityCase "
+            f"(ARCH-09-001 violation): {sorted(wire_only)}"
+        )
+
+
 class TestVulnerabilityCaseWireRoundTrip:
     """Wire VulnerabilityCase.to_core preserves domain data."""
 
