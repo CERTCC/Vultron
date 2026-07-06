@@ -59,7 +59,7 @@ fi
 
 # First create: build image, create container, run setup scripts
 echo "Building image '$IMAGE_NAME'..."
-docker build -t "$IMAGE_NAME" "$SCRIPT_DIR/.devcontainer"
+docker build -t "$IMAGE_NAME" -f "$SCRIPT_DIR/docker/Dockerfile" --target dev "$SCRIPT_DIR"
 
 echo ""
 echo "Creating container '$CONTAINER_NAME'..."
