@@ -1,14 +1,65 @@
 ---
 title: Future Demo Ideas
-status: draft
+status: active
 description: >
-  Speculative future demo scenarios and multi-actor workflow ideas for the
-  Vultron prototype.
+  Future demo scenarios and multi-actor workflow ideas for the Vultron
+  prototype. Scenario planning tracked in GitHub Issues under epic #1093.
 relevant_packages:
   - vultron/demo
+related_notes:
+  - notes/event-driven-control-flow.md
 ---
 
 # Future Demo Ideas
+
+## Scenario naming convention
+
+Scenarios are named by the sequence of actor roles involved:
+
+- **F** = Finder, **V** = Vendor, **C** = Coordinator, **D** = Deployer
+- Numbers distinguish multiple actors of the same role (V1, V2, C1, C2)
+
+## Implemented scenarios
+
+| Scenario | File | Description |
+|----------|------|-------------|
+| FV | `scenario/two_actor_demo.py` | Finder + Vendor; simple coordination |
+| FCV | `scenario/three_actor_demo.py` | Finder + Coordinator + Vendor |
+| FVCV (handoff) | `scenario/multi_vendor_demo.py` | V1 transfers ownership to C, C invites V2 |
+
+## Planned scenarios (from #1131 planning, 2026-07-06)
+
+### Core multi-party scenarios
+
+| Scenario | Issue | Description | Blocked by |
+|----------|-------|-------------|------------|
+| FVV | #1211 | F→V1→V2, no coordinator | — |
+| FVCV-extension | #1212 | V1 retains ownership; C is participant; C suggests V2 | — |
+| FVCV-handoff | #1214 | V1 transfers ownership to C; C invites V2 | #1212 |
+| FCCV-extension | #1215 | C1 retains case; C2 is participant; C2 asks C1 to invite V | — |
+| FCCV-handoff | #1216 | C1 transfers to C2; C2 invites V | #1215 |
+| FCVCV | #1217 | F+C1+V1+C2+V2 (5 actors) | #1212, #1215 |
+
+### Role-expansion scenarios
+
+| Scenario | Issue | Description |
+|----------|-------|-------------|
+| Deployer role | #1227 | V develops fix; D deploys in their environment |
+| Case split/merge | #1229 | Parent/child/sibling case relationships |
+| Multi-reporter | #1231 | Two Finders, one C consolidates into one case |
+
+### Cross-cutting variations (composable with any scenario)
+
+| Variation | Issue | Description |
+|-----------|-------|-------------|
+| Invitation rejection | #1218 | Invited actor transitions RM:R→I→C |
+| Tentative rejection | #1221 | Invited actor transitions RM:R→I→V (reconsiders) |
+| Embargo variations | #1222 | Negotiation, collapse, deliberate delay |
+| CVD recipe injects | #1223 | Twists from the CERT Guide to CVD cvd_recipes |
+
+See also: #1079 (multi-coordinator motivation from FIRSTCON 2026)
+
+---
 
 ## Two-Actor Demo: Finder, Vendor coordinate in separate containers
 
@@ -64,3 +115,8 @@ managing the case state and enforcing the rules around who can do what within
 the case.
 CaseActor is probably also a "spin up on demand" container that gets
 instantiated when a case is created.
+
+> **Note (2026-07-06)**: These sketch descriptions are superseded by the
+> structured scenario table above. The Two-Actor scenario is implemented.
+> Three-Actor (FCV) is implemented. MultiParty corresponds to FVCV-handoff
+> (#1214). See epic #1093 for the full planned scenario set.
