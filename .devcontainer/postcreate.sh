@@ -15,10 +15,10 @@ if [ ! -d "$HOME/.zsh/pure" ]; then
     git clone https://github.com/sindresorhus/pure.git "$HOME/.zsh/pure"
 fi
 if ! grep -q 'pure' "$HOME/.zshrc" 2>/dev/null; then
-    sed -i "s|^ZSH_THEME=.*|ZSH_THEME=\"\"\n\nFPATH=\$HOME/.zsh/pure:\$FPATH|" "$HOME/.zshrc" 2>/dev/null || true
     cat >> "$HOME/.zshrc" <<'EOF'
 
 # Pure prompt
+FPATH=$HOME/.zsh/pure:$FPATH
 autoload -U promptinit; promptinit
 prompt pure
 EOF
