@@ -23,9 +23,18 @@ Scenarios are named by the sequence of actor roles involved:
 
 | Scenario | File | Description |
 |----------|------|-------------|
-| FV | `scenario/two_actor_demo.py` | Finder + Vendor; simple coordination |
-| FCV | `scenario/three_actor_demo.py` | Finder + Coordinator + Vendor |
-| FVCV (handoff) | `scenario/multi_vendor_demo.py` | V1 transfers ownership to C, C invites V2 |
+| FV | `vultron/demo/scenario/two_actor_demo.py` | Finder + Vendor; simple coordination |
+| FCV | `vultron/demo/scenario/three_actor_demo.py` | Finder + Coordinator + Vendor |
+
+## Deprecated / idea-mine only
+
+The following files exist but are based on much older code and no longer work.
+They may be useful as reference for future scenario development but should not
+be treated as working implementations.
+
+| Scenario | File | Notes |
+|----------|------|-------|
+| FVCV (handoff) | `vultron/demo/scenario/multi_vendor_demo.py` | Obsolete; see #1214 for the planned replacement |
 
 ## Planned scenarios (from #1131 planning, 2026-07-06)
 
