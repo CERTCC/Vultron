@@ -606,8 +606,8 @@ groups:
       as a criterion for assigning shape = ProtocolInternal. A node whose
       automation potential is High but whose inputs arrive from an external
       source or whose outputs affect an external system is a Retriever,
-      Sentinel, Evaluator, or Composer — not ProtocolInternal — regardless of
-      how automated the implementation may be.
+      Sentinel, Evaluator, Composer, or Actuator — not ProtocolInternal —
+      regardless of how automated the implementation may be.
     rationale: >-
       Automation potential and call-out point shape are orthogonal dimensions.
       Automation potential describes whether the call-out point logic can be
@@ -619,6 +619,10 @@ groups:
       tracked in issue #1188, where ~38 nodes with High automation potential
       were incorrectly assigned ProtocolInternal shape, causing downstream
       work (FUZZ-08a-bis, FUZZ-08d through FUZZ-08g) to build wrong seams.
+      The five canonical shapes are: Sentinel, Evaluator, Retriever, Composer,
+      and Actuator (added in issue #1239). Nodes that invoke external systems
+      to cause side effects without producing a content artifact MUST be
+      classified as Actuator, not Composer.
     relationships:
     - rel_type: implements
       spec_id: BT-16-005
