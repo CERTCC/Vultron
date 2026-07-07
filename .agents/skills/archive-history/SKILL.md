@@ -46,7 +46,7 @@ cat <<'ENDOFENTRY' | uv run append-history <TYPE> \
 <Full entry body — include PR URL, impl issue links, and outcome summary>
 
 ENDOFENTRY
-```text
+```
 
 The tool writes `plan/history/YYMM/<type>/<source>.md` and regenerates
 `plan/history/YYMM/README.md` locally (the README is gitignored).
@@ -56,7 +56,7 @@ The tool writes `plan/history/YYMM/<type>/<source>.md` and regenerates
 ```bash
 markdownlint-cli2 --fix --config .markdownlint-cli2.yaml \
   "plan/history/$(date +%y%m)/**/*.md"
-```text
+```
 
 Fix any lint errors in the generated files before continuing.
 
@@ -64,7 +64,7 @@ Fix any lint errors in the generated files before continuing.
 
 ```bash
 git add plan/history/
-```text
+```
 
 ### Step 4 — Commit
 
@@ -72,13 +72,13 @@ git add plan/history/
 uv run git commit -m "history: archive <TYPE> <SOURCE> — <TITLE>
 
 Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
-```text
+```
 
 ### Step 5 — Push
 
 ```bash
 git push "https://x-access-token:$(gh auth token)@github.com/CERTCC/Vultron.git" HEAD
-```text
+```
 
 ---
 
@@ -125,7 +125,7 @@ TYPE    = implementation
 TITLE   = <short task title>
 SOURCE  = ISSUE-<N>   (or full GitHub URL)
 BODY    = "## Issue #<N> — <title>\n\n<completion summary, PR link>"
-```text
+```
 
 ### update-priorities
 
@@ -134,7 +134,7 @@ TYPE    = priority
 TITLE   = <priority group title>
 SOURCE  = PRIORITY-<number>
 BODY    = <priority summary and completion notes>
-```text
+```
 
 ---
 
