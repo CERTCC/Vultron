@@ -24,7 +24,6 @@ Scenarios are named by the sequence of actor roles involved:
 | Scenario | File | Description |
 |----------|------|-------------|
 | FV | `vultron/demo/scenario/two_actor_demo.py` | Finder + Vendor; simple coordination |
-| FCV | `vultron/demo/scenario/three_actor_demo.py` | Finder + Coordinator + Vendor |
 
 ## Deprecated / idea-mine only
 
@@ -34,6 +33,7 @@ be treated as working implementations.
 
 | Scenario | File | Notes |
 |----------|------|-------|
+| FCV | `vultron/demo/scenario/three_actor_demo.py` | Obsolete; see planned scenarios below |
 | FVCV (handoff) | `vultron/demo/scenario/multi_vendor_demo.py` | Obsolete; see #1214 for the planned replacement |
 
 ## Planned scenarios (from #1131 planning, 2026-07-06)
