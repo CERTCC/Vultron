@@ -54,7 +54,8 @@ The tool writes `plan/history/YYMM/<type>/<source>.md` and regenerates
 ### Step 2 — Lint the new history files
 
 ```bash
-npx markdownlint-cli2 "plan/history/$(date +%y%m)/**/*.md"
+markdownlint-cli2 --fix --config .markdownlint-cli2.yaml \
+  "plan/history/$(date +%y%m)/**/*.md"
 ```text
 
 Fix any lint errors in the generated files before continuing.
@@ -68,15 +69,15 @@ git add plan/history/
 ### Step 4 — Commit
 
 ```bash
-git commit -m "history: archive <TYPE> <SOURCE> — <TITLE>
+uv run git commit -m "history: archive <TYPE> <SOURCE> — <TITLE>
 
-Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 ```text
 
 ### Step 5 — Push
 
 ```bash
-git push
+git push "https://x-access-token:$(gh auth token)@github.com/CERTCC/Vultron.git" HEAD
 ```text
 
 ---

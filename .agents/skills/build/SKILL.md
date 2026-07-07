@@ -153,6 +153,11 @@ Invoke the `code-review` agent against the current branch diff vs `main`.
 Findings are tagged `[BLOCKING]` (fix before continuing) or `[ADVISORY]`
 (log in PR comment after opening).
 
+Because this phase runs before the final commit, `git diff main...HEAD` may
+be empty if changes are unstaged. Stage all changed files first (`git add`),
+then pass `git diff --cached` as the diff source for the review, or do a
+draft commit and use `git diff main...HEAD` normally.
+
 ### Phase 8 — Open PR and Finalize
 
 1. Compute diff size: ≤50 lines → `size:S`; 51–300 → `size:M`; 301+ → `size:L`.
@@ -163,8 +168,11 @@ Findings are tagged `[BLOCKING]` (fix before continuing) or `[ADVISORY]`
 
    ```bash
    git fetch origin main && git rebase origin/main
-   git push -u origin task/<N>-<slug>
+   uv run git push "https://x-access-token:$(gh auth token)@github.com/CERTCC/Vultron.git" \
+     task/<N>-<slug>
    gh pr create --repo CERTCC/Vultron \
+     --head task/<N>-<slug> \
+     --base main \
      --title "<short title>" \
      --body "- Closes #<N>
 
