@@ -74,9 +74,9 @@ from vultron.wire.as2.factories import (
 )
 
 warnings.warn(
-    "vultron.demo.scenario.three_actor_demo is deprecated and will be removed"
-    " in a future version. A replacement multi-actor scenario is under"
-    " development.",
+    "three_actor_demo.py is based on older code and no longer works. "
+    "It is preserved for idea-mining only. "
+    "See GitHub issue #1234 for the planned replacement.",
     DeprecationWarning,
     stacklevel=1,
 )
