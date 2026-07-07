@@ -42,6 +42,7 @@ be treated as working implementations.
 
 | Scenario | Issue | Description | Blocked by |
 |----------|-------|-------------|------------|
+| FCV | #1234 | F reports to C; C invites V; three-actor coordination | — |
 | FVV | #1211 | F→V1→V2, no coordinator | — |
 | FVCV-extension | #1212 | V1 retains ownership; C is participant; C suggests V2 | — |
 | FVCV-handoff | #1214 | V1 transfers ownership to C; C invites V2 | #1212 |
@@ -127,5 +128,6 @@ instantiated when a case is created.
 
 > **Note (2026-07-06)**: These sketch descriptions are superseded by the
 > structured scenario table above. The Two-Actor scenario is implemented.
-> Three-Actor (FCV) is implemented. MultiParty corresponds to FVCV-handoff
-> (#1214). See epic #1093 for the full planned scenario set.
+> Three-Actor (FCV) is planned for re-implementation in #1234 (the existing
+> file is deprecated). MultiParty corresponds to FVCV-handoff (#1214).
+> See epic #1093 for the full planned scenario set.
