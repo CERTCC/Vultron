@@ -98,5 +98,5 @@ RUN groupadd --gid 1000 vscode \
 # Claude Code CLI (installed as vscode user so it lands in ~/.local)
 RUN su - vscode -c "curl -fsSL https://claude.ai/install.sh | bash"
 
-WORKDIR /workspaces/pinky
+WORKDIR /workspaces
 USER vscode
