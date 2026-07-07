@@ -74,6 +74,9 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
+# markdownlint-cli2
+RUN npm install -g markdownlint-cli2
+
 # AWS CLI v2
 RUN curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip" -o /tmp/awscliv2.zip \
     && unzip -q /tmp/awscliv2.zip -d /tmp \
@@ -98,5 +101,5 @@ RUN groupadd --gid 1000 vscode \
 # Claude Code CLI (installed as vscode user so it lands in ~/.local)
 RUN su - vscode -c "curl -fsSL https://claude.ai/install.sh | bash"
 
-WORKDIR /workspaces/pinky
+WORKDIR /workspaces
 USER vscode

@@ -1,20 +1,46 @@
 #!/bin/bash
-# Start (or attach to) the Claude Code CLI devcontainer from the Mac terminal.
-# Usage: ./start.sh [--rebuild]
+# Start (or attach to) a slot-based Claude Code devcontainer from the Mac terminal.
+# Usage: ./start.sh <slot> [--rebuild] [--reset]
+#   slot       Name for this dev slot (e.g. inky, pinky, main). You pick the name.
+#              "main" is special: attaches to the main checkout with no worktree.
+#   --rebuild  Remove and rebuild the Docker image from scratch.
+#   --reset    Delete the slot's worktree and recreate it from main (also removes container).
 set -euo pipefail
 
+SLOT=""
 REBUILD=false
+RESET=false
+
 for arg in "$@"; do
     case "$arg" in
         --rebuild) REBUILD=true ;;
-        *) echo "Unknown option: $arg"; exit 1 ;;
+        --reset)   RESET=true ;;
+        --*)       echo "Unknown option: $arg"; exit 1 ;;
+        *)
+            if [ -n "$SLOT" ]; then
+                echo "Unexpected argument: $arg"; exit 1
+            fi
+            SLOT="$arg"
+            ;;
     esac
 done
 
+if [ -z "$SLOT" ]; then
+    echo "Usage: ./start.sh <slot> [--rebuild] [--reset]"
+    echo ""
+    echo "  slot       Name for this dev slot (e.g. inky, pinky, main)."
+    echo "             'main' attaches to the main checkout; all others create a worktree."
+    echo "  --rebuild  Remove and rebuild the Docker image from scratch."
+    echo "  --reset    Delete the slot's worktree and recreate it from main."
+    exit 1
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-CONTAINER_NAME="$(basename "$SCRIPT_DIR")"
-IMAGE_NAME="${CONTAINER_NAME}-image"
-WORKSPACE="/workspaces/$CONTAINER_NAME"
+MAIN_DIR="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
+PARENT_DIR="$(dirname "$MAIN_DIR")"
+MAIN_NAME="$(basename "$MAIN_DIR")"
+IMAGE_NAME="${MAIN_NAME}-image"
+DATA_VOLUME="${MAIN_NAME}-data"
 ENV_FILE="$SCRIPT_DIR/.devcontainer/devcontainer.env"
 
 # First-run: collect credentials
@@ -22,11 +48,40 @@ if [ ! -f "$ENV_FILE" ]; then
     bash "$SCRIPT_DIR/.devcontainer/setup.sh"
 fi
 
-# --rebuild: remove existing container and image so everything is recreated fresh
+if [ "$SLOT" = "main" ]; then
+    CONTAINER_NAME="${MAIN_NAME}_main"
+    WORKSPACE="/workspaces/${MAIN_NAME}"
+    WORKTREE_PATH="$MAIN_DIR"
+else
+    CONTAINER_NAME="${MAIN_NAME}_${SLOT}"
+    WORKSPACE="/workspaces/${MAIN_NAME}_${SLOT}"
+    WORKTREE_PATH="${PARENT_DIR}/${MAIN_NAME}_${SLOT}"
+fi
+
+# --rebuild or --reset: remove existing container first
+if [ "$REBUILD" = true ] || [ "$RESET" = true ]; then
+    if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+        echo "Removing container '$CONTAINER_NAME'..."
+        docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
+    fi
+fi
+
+# --rebuild: also remove the image
 if [ "$REBUILD" = true ]; then
-    echo "Rebuilding: removing container '$CONTAINER_NAME' and image '$IMAGE_NAME'..."
-    docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
+    echo "Removing image '$IMAGE_NAME'..."
     docker rmi -f "$IMAGE_NAME" >/dev/null 2>&1 || true
+fi
+
+# Worktree management (non-main slots only)
+if [ "$SLOT" != "main" ]; then
+    if [ "$RESET" = true ] && [ -d "$WORKTREE_PATH" ]; then
+        echo "Resetting worktree at '$WORKTREE_PATH'..."
+        git -C "$MAIN_DIR" worktree remove --force "$WORKTREE_PATH"
+    fi
+    if [ ! -d "$WORKTREE_PATH" ]; then
+        echo "Creating worktree at '$WORKTREE_PATH'..."
+        git -C "$MAIN_DIR" worktree add --detach "$WORKTREE_PATH"
+    fi
 fi
 
 _exec_shell() {
@@ -57,7 +112,7 @@ if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
     exit 0
 fi
 
-# First create: build image, create container, run setup scripts
+# First create: build image (cached layers reused if unchanged), create container, run setup
 echo "Building image '$IMAGE_NAME'..."
 docker build -t "$IMAGE_NAME" -f "$SCRIPT_DIR/docker/Dockerfile" --target dev "$SCRIPT_DIR"
 
@@ -70,20 +125,22 @@ DOCKER_ARGS=(
     -e LANG=C.UTF-8
     -e LC_ALL=C.UTF-8
     -e TERM=xterm-256color
-    -v "${CONTAINER_NAME}-data:/home/vscode/.data"
-    -v "$SCRIPT_DIR:$WORKSPACE"
+    -e VULTRON_MAIN_NAME="$MAIN_NAME"
+    -v "${DATA_VOLUME}:/home/vscode/.data"
+    -v "$MAIN_DIR:/workspaces/${MAIN_NAME}"
     -w "$WORKSPACE"
 )
 
-# If this is a git worktree, the .git file points to a path on the host.
-# Mount the parent .git directory at the same absolute path inside the container
-# so git can resolve the worktree reference.
-if [ -f "$SCRIPT_DIR/.git" ]; then
-    GITDIR_REF=$(grep '^gitdir:' "$SCRIPT_DIR/.git" | sed 's/^gitdir: //')
-    PARENT_GIT=$(echo "$GITDIR_REF" | sed 's|/\.git/worktrees/.*|/.git|')
-    if [ -d "$PARENT_GIT" ]; then
-        DOCKER_ARGS+=(-v "$PARENT_GIT:$PARENT_GIT")
-    fi
+# Mount slot worktree and parent .git for worktree ref resolution (non-main slots only)
+if [ "$SLOT" != "main" ]; then
+    DOCKER_ARGS+=(-v "$WORKTREE_PATH:$WORKSPACE")
+    # Mount parent .git at its absolute host path so worktree gitdir references resolve inside container
+    DOCKER_ARGS+=(-v "$MAIN_DIR/.git:$MAIN_DIR/.git")
+fi
+
+# Mount user-level skills read-only if present on the host
+if [ -d "$HOME/.agents/skills" ]; then
+    DOCKER_ARGS+=(-v "$HOME/.agents/skills:/home/vscode/.agents/skills:ro")
 fi
 
 # Forward SSH agent if available (Docker Desktop on Mac)
@@ -100,10 +157,10 @@ trap _cleanup EXIT
 echo ""
 echo "Running post-create setup (first time only)..."
 docker exec -u vscode -w "$WORKSPACE" "$CONTAINER_NAME" \
-    bash -l .devcontainer/postcreate.sh
+    bash -l "/workspaces/${MAIN_NAME}/.devcontainer/postcreate.sh"
 
 echo ""
 docker exec -u vscode -w "$WORKSPACE" "$CONTAINER_NAME" \
-    bash -l .devcontainer/poststart.sh
+    bash -l "/workspaces/${MAIN_NAME}/.devcontainer/poststart.sh"
 
 _exec_shell
