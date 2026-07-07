@@ -69,9 +69,7 @@ git add plan/history/
 ### Step 4 — Commit
 
 ```bash
-uv run git commit -m "history: archive <TYPE> <SOURCE> — <TITLE>
-
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
+uv run git commit -m "history: archive <TYPE> <SOURCE> — <TITLE>"
 ```
 
 ### Step 5 — Push
