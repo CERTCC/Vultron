@@ -4,7 +4,7 @@ description: >
   Load the always-required baseline context before any implementation,
   planning, or documentation work. Reads the glossary, loads all specs,
   reads AGENTS.md, notes/README.md, and docs/adr/index.md, reads
-  BUILD_LEARNINGS.md, and queries Project #24 for Schedule=Now items.
+  plan/incoming/learnings/, and queries Project #24 for Schedule=Now items.
   Run this at the start of every workflow skill before selecting or
   reading a specific issue. Replaces study-project-docs Phase A.
 ---
@@ -22,7 +22,7 @@ Read `docs/reference/glossary.md` first to establish domain vocabulary.
 
 ### Step 2 — Load specs
 
-Run `uv run spec-dump`. Capture the JSON output. Do **not** read raw
+Run `uv run spec-dump 2>&1`. Capture the output. Do **not** read raw
 `specs/*.yaml` files directly.
 
 ### Step 3 — Read agent rules, active notes index, and ADR index

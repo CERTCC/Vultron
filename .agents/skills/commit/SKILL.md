@@ -35,18 +35,15 @@ unless every change in the working tree belongs to this commit.
 ### Step 3 — Commit
 
 ```bash
-git commit -m "<subject line>
+uv run git commit -m "<subject line>
 
-<body: what changed and why, as bullet points>
-
-Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
+<body: what changed and why, as bullet points>"
 ```
 
 Commit message conventions:
 
 - Subject line: imperative mood, ≤72 characters, no trailing period
 - Body: bullet points describing what changed and why
-- Always include the `Co-authored-by` trailer as the last line
 
 ## Constraints
 
