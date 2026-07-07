@@ -68,7 +68,8 @@ Each fuzzer node entry in the sub-files has these fields:
   nodes that are terminal placeholders or structural composites with no
   external input or output seam. See BT-18-005: shape MUST be determined
   by the ADR-0024 seam-structure decision tree, independently of automation
-  potential.
+  potential. See BT-18-006: synchronous binary external queries are
+  Retrievers, not Sentinels.
 - **Factory-fn placement**: The module-qualified `vultron.core.behaviors.*`
   factory function that hosts (or should host) this call-out point node in
   the prototype BT, with ordering hints indicating where in the tree the node
@@ -96,7 +97,9 @@ Each fuzzer node entry in the sub-files has these fields:
 - **Evaluator** — reads situation context; writes a structured
   recommendation; `SUCCESS` = recommendation available
 - **Retriever** — reads a query; writes structured facts from an external
-  source; `SUCCESS` = facts retrieved
+  source; `SUCCESS` = facts retrieved. For binary-result Retrievers (boolean
+  queries), the fact is expressed as `SUCCESS`/`FAILURE` with an empty
+  blackboard output-key set (see BT-18-006)
 - **Composer** — reads composition context; writes a generated artifact;
   `SUCCESS` = artifact ready
 - **ProtocolInternal** — node resolves entirely within the protocol

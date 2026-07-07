@@ -249,7 +249,7 @@ to a validated report.
   the main workflow; in production this is a simple metadata check
 - **Automation potential**: **High** — simple query against case metadata or a vulnerability registry; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.assign_vul_id.IdAssigned`
-- **Call-out point shape**: Sentinel — binary status check against case metadata or an external vulnerability registry; returns SUCCESS if an identifier has already been assigned to this vulnerability, FAILURE otherwise, with no output keys.
+- **Call-out point shape**: Retriever — synchronous on-demand query to case metadata or an external vulnerability registry (e.g., CVE database); returns SUCCESS if an identifier has already been assigned to this vulnerability, FAILURE otherwise. A boolean is the simplest structured fact (ADR-0024); the on-demand query pattern makes this a Retriever, not a Sentinel (see BT-18-006).
 
 ### `InScope`
 
@@ -414,7 +414,7 @@ the process of deploying a developed fix or mitigation to affected systems.
   deployment is modeled as the active goal
 - **Automation potential**: **High** — query to patch management system or case-state flag; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.deploy_fix.MitigationDeployed`
-- **Call-out point shape**: Sentinel — binary status query against an asset/patch management system or case-state flag; returns SUCCESS if a mitigation has been deployed, FAILURE otherwise, with no output keys.
+- **Call-out point shape**: Retriever — synchronous on-demand query to an asset/patch management system or case-state flag; returns SUCCESS if a mitigation has been deployed, FAILURE otherwise. A boolean is the simplest structured fact (ADR-0024); the on-demand query pattern makes this a Retriever, not a Sentinel.
 
 ### `MitigationAvailable`
 
@@ -430,7 +430,7 @@ the process of deploying a developed fix or mitigation to affected systems.
   development cycle has progressed
 - **Automation potential**: **High** — patch or advisory feed query; fully automatable once the feed integration is in place.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.deploy_fix.MitigationAvailable`
-- **Call-out point shape**: Sentinel — binary availability query against a patch/advisory feed or internal mitigation catalog; returns SUCCESS if a mitigation is currently available, FAILURE otherwise, with no output keys.
+- **Call-out point shape**: Retriever — synchronous on-demand query to a patch/advisory feed or internal mitigation catalog; returns SUCCESS if a mitigation is currently available, FAILURE otherwise. A boolean is the simplest structured fact (ADR-0024); the on-demand query pattern makes this a Retriever, not a Sentinel.
 
 ### `DeployMitigation`
 
@@ -519,7 +519,7 @@ vulnerability, typically to support impact assessment or testing.
   modeled goal
 - **Automation potential**: **High** — query against an internal exploit repository or threat-intelligence platform; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.acquire_exploit.HaveExploit`
-- **Call-out point shape**: Sentinel — binary query against an internal exploit repository or threat-intelligence platform; returns SUCCESS if a working exploit is already available for this vulnerability, FAILURE otherwise, with no output keys.
+- **Call-out point shape**: Retriever — synchronous on-demand query to an internal exploit repository or threat-intelligence platform; returns SUCCESS if a working exploit is already available for this vulnerability, FAILURE otherwise. A boolean is the simplest structured fact (ADR-0024); the on-demand query pattern makes this a Retriever, not a Sentinel.
 
 ### `ExploitPrioritySet`
 
@@ -660,7 +660,7 @@ exploited in the wild. Threat detection can trigger embargo termination via
   in-the-wild attacks during active coordination
 - **Automation potential**: **High** — SIEM queries, IDS/IPS alert feeds, and threat-intelligence platform APIs can fully automate in-the-wild attack detection.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.monitor_threats.MonitorAttacks`
-- **Call-out point shape**: Sentinel
+- **Call-out point shape**: Retriever — synchronous per-tick query to threat-intelligence feeds or SIEM/IDS telemetry; returns SUCCESS if active attacks are detected, FAILURE otherwise. The BT invokes this node on-demand each tick; it does not run independently or fire a trigger endpoint (see BT-18-006).
 
 ### `MonitorExploits`
 
@@ -678,7 +678,7 @@ exploited in the wild. Threat detection can trigger embargo termination via
   disclosure, not during the coordination phase
 - **Automation potential**: **High** — exploit database feeds, CVE enrichment APIs, and threat-intel platforms can fully automate exploit publication monitoring.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.monitor_threats.MonitorExploits`
-- **Call-out point shape**: Sentinel
+- **Call-out point shape**: Retriever — synchronous per-tick query to exploit database feeds or threat-intelligence platforms; returns SUCCESS if a newly published exploit is found, FAILURE otherwise. The BT invokes this node on-demand each tick; it does not run independently or fire a trigger endpoint (see BT-18-006).
 
 ### `MonitorPublicReports`
 
@@ -696,7 +696,7 @@ exploited in the wild. Threat detection can trigger embargo termination via
   confirmed attacks
 - **Automation potential**: **High** — RSS/news feed monitoring, OSINT tools, and social-media tracking APIs can automate public disclosure detection with high coverage.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.monitor_threats.MonitorPublicReports`
-- **Call-out point shape**: Sentinel
+- **Call-out point shape**: Retriever — synchronous per-tick query to OSINT feeds, news/RSS sources, or social-media tracking APIs; returns SUCCESS if public disclosure evidence is found, FAILURE otherwise. The BT invokes this node on-demand each tick; it does not run independently or fire a trigger endpoint (see BT-18-006).
 
 ### `NoThreatsFound`
 

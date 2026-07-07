@@ -630,6 +630,39 @@ groups:
         BT-16-005 defines automation potential categories; BT-18-005 clarifies
         that those categories govern the automation-potential field only and
         have no bearing on call-out point shape assignment.
+  - id: BT-18-006
+    priority: MUST
+    statement: >-
+      A node that queries an external system synchronously and returns only a
+      binary (SUCCESS/FAILURE) result MUST be classified as a Retriever, not
+      a Sentinel. A boolean is the simplest possible structured fact; the
+      defining criterion for Retriever shape is the synchronous on-demand query
+      pattern, not the richness of the returned data. Such a binary-result
+      Retriever has an empty blackboard output-key set: the structured fact is
+      expressed as the BT return value (SUCCESS/FAILURE), not as a blackboard
+      write. BT-18-001 through BT-18-003 apply: the empty output-key set MUST
+      be declared in the node docstring. A Sentinel, by contrast, monitors a
+      condition continuously (or is triggered by an external event) and calls a
+      trigger endpoint when the condition becomes true; the flow direction is
+      Sentinel → trigger endpoint → protocol, not protocol → query →
+      external system.
+    rationale: >-
+      The Sentinel vs. Retriever ambiguity surfaced with nodes such as
+      MitigationDeployed, MitigationAvailable, and HaveExploit (issue #1240).
+      These nodes appear sentinel-like because they return only SUCCESS/FAILURE,
+      but they are invoked synchronously by the BT (on-demand) and query an
+      external system to determine the current status. That is the Retriever
+      pattern. A true Sentinel is not invoked by the BT; it runs independently
+      and calls a trigger endpoint when a condition fires. Clarifying this
+      distinction prevents future misclassification of on-demand binary-query
+      nodes as Sentinels.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-18-005
+      note: >-
+        BT-18-005 establishes that shape is determined by the seam-structure
+        decision tree; BT-18-006 resolves the specific Sentinel vs. Retriever
+        ambiguity for binary-result external queries.
 - id: BT-19
   title: Routing-Gated State Mutation in Lifecycle BT Sequences
   kind: pattern

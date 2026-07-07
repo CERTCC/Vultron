@@ -789,7 +789,11 @@ Short entries are reproduced here; longer ones are referenced below.
   human-driven. `ProtocolInternal` is reserved exclusively for terminal
   placeholders and structural composites that have **no** external input,
   output, or monitoring seam. See `specs/behavior-tree-integration.yaml`
-  BT-18-005 and `docs/adr/0024-coordination-agent-taxonomy.md`.
+  BT-18-005 and BT-18-006 and `docs/adr/0024-coordination-agent-taxonomy.md`.
+  BT-18-006 resolves the Sentinel vs. Retriever ambiguity for synchronous
+  binary external queries: a node the BT invokes on-demand that queries an
+  external system and returns only SUCCESS/FAILURE is a Retriever, not a
+  Sentinel.
 
 ## Skill Interaction Rules
 
