@@ -208,7 +208,7 @@ models the process of deciding whether to accept (engage with) or defer
 - **Notes**: Always succeeds in simulation; must be idempotent in production
 - **Automation potential**: **High** — stakeholder notifications, follow-up scheduling, and state updates are all automatable via integration APIs.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.prioritize.OnDefer`
-- **Call-out point shape**: Composer — integration hook that generates outbound notifications, schedules follow-up tasks, and writes case-status updates when a report is deferred; the produced artifacts are the emitted stakeholder notifications and workflow records.
+- **Call-out point shape**: Actuator — fires integration hooks on report deferral; invokes notification APIs, task-scheduling services, and case-management state writes. There is no content artifact placed on the blackboard; the side effects in external systems are the seam.
 
 ### `OnAccept`
 
@@ -224,7 +224,7 @@ models the process of deciding whether to accept (engage with) or defer
 - **Notes**: Always succeeds in simulation; must be idempotent in production
 - **Automation potential**: **High** — stakeholder notifications, workflow initialization, and state updates are all automatable via integration APIs.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.prioritize.OnAccept`
-- **Call-out point shape**: Composer — integration hook that generates outbound notifications, initializes the case workflow, and writes case-status updates when a report is accepted; the produced artifacts are the emitted stakeholder notifications and workflow-initialization records.
+- **Call-out point shape**: Actuator — fires integration hooks on report acceptance; invokes notification APIs, workflow-initialization services, and case-management state writes. There is no content artifact placed on the blackboard; the side effects in external systems are the seam.
 
 ---
 
@@ -1079,7 +1079,7 @@ coordinated disclosure.
 - **Notes**: Always succeeds in simulation
 - **Automation potential**: **High** — queue management operation; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.RemoveRecipient`
-- **Call-out point shape**: Composer — writes a queue-removal record to the notification queue in the case management system, dequeuing the current recipient after successful notification or after the per-recipient effort limit is exceeded; the produced artifact is the updated queue state.
+- **Call-out point shape**: Actuator — writes a queue-removal state change to the case management system, dequeuing the current recipient; the side effect in the external system is the seam, not a content artifact placed on the blackboard.
 
 ### `RecipientEffortExceeded`
 
@@ -1178,7 +1178,7 @@ coordinated disclosure.
   a state update
 - **Automation potential**: **High** — RM state write on the case participant record; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.SetRcptQrmR`
-- **Call-out point shape**: Composer — writes a recipient RM-state transition (START → RECEIVED) to the case management system, recording that the recipient has been successfully notified; the produced artifact is the updated participant state record.
+- **Call-out point shape**: Actuator — writes a recipient RM-state transition (START → RECEIVED) to the case management system; the side-effect state write is the seam, not a content artifact placed on the blackboard.
 
 ### `MoreVendors`
 
@@ -1238,10 +1238,13 @@ coordinated disclosure.
 - **Input dependency**: Case management system write; triggered after a
   recipient is successfully notified and agrees to participate
 - **Notes**: Always succeeds in simulation; base class for the three
-  role-specific inject nodes below
+  role-specific inject nodes below. In production, these simulator leaf nodes
+  would be replaced by subtrees that invoke the InviteParticipantToCase
+  protocol; the call-out point lives at the boundary with that protocol, not
+  at this leaf.
 - **Automation potential**: **High** — case management system write; fully automatable once participant details are known.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.InjectParticipant`
-- **Call-out point shape**: Composer — writes a new participant record to the case management system, registering the notified party as an active case participant; the produced artifact is the participant entry in the case data store.
+- **Call-out point shape**: Actuator — writes a new participant record to the case management system; the side-effect state write is the seam. Production replacement: InviteParticipantToCase protocol subtree (not yet implemented).
 
 ### `InjectVendor`
 
@@ -1253,10 +1256,11 @@ coordinated disclosure.
   in the coordinated disclosure case
 - **Input dependency**: Case management system write; vendor contact and
   acceptance of participation
-- **Notes**: Specialization of `InjectParticipant` for vendor role
+- **Notes**: Specialization of `InjectParticipant` for vendor role. See
+  `InjectParticipant` for production-replacement note.
 - **Automation potential**: **High** — case management system write for vendor role; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.InjectVendor`
-- **Call-out point shape**: Composer — inherits InjectParticipant; writes a vendor-role participant record to the case management system; the produced artifact is the vendor participant entry in the case data store.
+- **Call-out point shape**: Actuator — inherits InjectParticipant; writes a vendor-role participant record to the case management system; the side-effect state write is the seam. Production replacement: InviteParticipantToCase protocol subtree.
 
 ### `InjectCoordinator`
 
@@ -1268,10 +1272,11 @@ coordinated disclosure.
   participant in the coordinated disclosure case
 - **Input dependency**: Case management system write; coordinator contact
   and acceptance of participation
-- **Notes**: Specialization of `InjectParticipant` for coordinator role
+- **Notes**: Specialization of `InjectParticipant` for coordinator role. See
+  `InjectParticipant` for production-replacement note.
 - **Automation potential**: **High** — case management system write for coordinator role; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.InjectCoordinator`
-- **Call-out point shape**: Composer — inherits InjectParticipant; writes a coordinator-role participant record to the case management system; the produced artifact is the coordinator participant entry in the case data store.
+- **Call-out point shape**: Actuator — inherits InjectParticipant; writes a coordinator-role participant record to the case management system; the side-effect state write is the seam. Production replacement: InviteParticipantToCase protocol subtree.
 
 ### `InjectOther`
 
@@ -1283,10 +1288,11 @@ coordinated disclosure.
   participant in the coordinated disclosure case
 - **Input dependency**: Case management system write; stakeholder contact
   and acceptance of participation
-- **Notes**: Specialization of `InjectParticipant` for other-party role
+- **Notes**: Specialization of `InjectParticipant` for other-party role. See
+  `InjectParticipant` for production-replacement note.
 - **Automation potential**: **High** — case management system write for other-party role; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.InjectOther`
-- **Call-out point shape**: Composer — inherits InjectParticipant; writes an other-party participant record to the case management system; the produced artifact is the other-party participant entry in the case data store.
+- **Call-out point shape**: Actuator — inherits InjectParticipant; writes an other-party participant record to the case management system; the side-effect state write is the seam. Production replacement: InviteParticipantToCase protocol subtree.
 
 ---
 
@@ -1330,7 +1336,7 @@ complete (or otherwise concluded).
   multi-step pre-close workflows
 - **Automation potential**: **Medium** — archiving and standard notification steps can be automated; QA review and final approvals typically require human involvement.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.close_report.PreCloseAction`
-- **Call-out point shape**: Composer — triggers pre-close integration hooks including QA pipeline checks, final stakeholder notifications, and case archiving; the produced artifacts are the archive record, final notifications, and any required sign-off records.
+- **Call-out point shape**: Actuator — fires integration hooks before case closure; invokes QA pipeline checks, final notification APIs, and case-archiving services. There is no content artifact placed on the blackboard; the side effects in external systems are the seam.
 
 ---
 

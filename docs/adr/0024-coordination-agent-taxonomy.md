@@ -30,6 +30,36 @@ These are a typology, not exactly four singleton agents. A real coordination
 agent may embody one shape or combine shapes (e.g., a Participant Discovery
 agent composes Retriever + Evaluator).
 
+### Amendment (2026-07-07): Fifth canonical shape — Actuator
+
+During the FUZZ-08a-ter audit (PR #1195, issue #1239), 11 nodes classified
+as `Composer` were found not to generate content artifacts in the ADR-0024
+sense. They are **side-effect executors** — integration hooks that fire when
+a protocol state transition occurs and invoke external systems (notification
+APIs, timer services, case management writes, queue mutations). The Composer
+lifecycle (reads context → dispatches → writes artifact to blackboard) does
+not map to these nodes: there is no content artifact placed on the blackboard.
+Expanding the Composer definition to cover side-effect invocation was
+considered and rejected — it would obscure the seam and complicate the
+abstraction layer design (ADR-0025 / issue #1151), which needs an invocation
+interface for Actuators, not a content-generation interface.
+
+A fifth shape is added:
+
+| Shape | Role |
+| --- | --- |
+| **Actuator** | Receives a trigger and context; invokes an external system to cause a side effect (notification dispatch, state write, queue mutation, API call); returns SUCCESS when the side effect is confirmed, FAILURE otherwise. Does not produce a content artifact. |
+
+The updated five-shape taxonomy:
+
+| Shape | Role |
+| --- | --- |
+| **Sentinel** | Monitors a condition; when met, calls a trigger endpoint |
+| **Evaluator** | Receives a situation and options; returns a structured recommendation |
+| **Retriever** | Receives a query; returns structured facts from an external source |
+| **Composer** | Receives context; generates a new content artifact |
+| **Actuator** | Receives a trigger and context; invokes an external system to cause a side effect |
+
 ### Message-Driven Responses excluded from the taxonomy
 
 An earlier draft included "message-driven responses" as a fifth category of
