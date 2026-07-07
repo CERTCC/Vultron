@@ -113,8 +113,14 @@ if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
 fi
 
 # First create: build image (cached layers reused if unchanged), create container, run setup
+# Use the worktree's Dockerfile for non-main slots so in-progress Dockerfile changes are picked up.
+if [ "$SLOT" = "main" ]; then
+    DOCKERFILE="$SCRIPT_DIR/docker/Dockerfile"
+else
+    DOCKERFILE="$WORKTREE_PATH/docker/Dockerfile"
+fi
 echo "Building image '$IMAGE_NAME'..."
-docker build -t "$IMAGE_NAME" -f "$SCRIPT_DIR/docker/Dockerfile" --target dev "$SCRIPT_DIR"
+docker build -t "$IMAGE_NAME" -f "$DOCKERFILE" --target dev "$SCRIPT_DIR"
 
 echo ""
 echo "Creating container '$CONTAINER_NAME'..."
@@ -141,6 +147,11 @@ fi
 # Mount user-level skills read-only if present on the host
 if [ -d "$HOME/.agents/skills" ]; then
     DOCKER_ARGS+=(-v "$HOME/.agents/skills:/home/vscode/.agents/skills:ro")
+fi
+
+# Mount host .gitconfig so commits use the user's real identity
+if [ -f "$HOME/.gitconfig" ]; then
+    DOCKER_ARGS+=(-v "$HOME/.gitconfig:/home/vscode/.gitconfig:ro")
 fi
 
 # Forward SSH agent if available (Docker Desktop on Mac)
