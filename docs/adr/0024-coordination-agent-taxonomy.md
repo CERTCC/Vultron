@@ -23,7 +23,7 @@ call-*in* surface where external parties invoke the protocol).
 | --- | --- |
 | **Sentinel** | Monitors a condition; when met, calls a trigger endpoint |
 | **Evaluator** | Receives a situation and options; returns a structured recommendation |
-| **Retriever** | Receives a query; returns structured facts from an external source |
+| **Retriever** | Receives a query; returns structured facts from an external source (including boolean/binary results — see below) |
 | **Composer** | Receives context; generates a new content artifact |
 
 These are a typology, not exactly four singleton agents. A real coordination
@@ -56,7 +56,7 @@ The updated five-shape taxonomy:
 | --- | --- |
 | **Sentinel** | Monitors a condition; when met, calls a trigger endpoint |
 | **Evaluator** | Receives a situation and options; returns a structured recommendation |
-| **Retriever** | Receives a query; returns structured facts from an external source |
+| **Retriever** | Receives a query; returns structured facts from an external source (including boolean/binary results — see below) |
 | **Composer** | Receives context; generates a new content artifact |
 | **Actuator** | Receives a trigger and context; invokes an external system to cause a side effect |
 
@@ -75,6 +75,28 @@ sequences other agents toward a bounded goal) is unresolved. No concrete
 multi-agent sequencing requirement exists yet. The question is tracked in
 GitHub issue #1141 and will be revisited when two or more concrete agent
 instances exist and a workflow clearly needs to sequence them.
+
+### Boolean external queries are Retrievers, not Sentinels
+
+A Retriever returns structured facts from an external source in response to
+an on-demand query. A Sentinel monitors a condition over time and fires a
+trigger endpoint when that condition is met.
+
+A node that queries an external system synchronously and returns only a
+binary (yes/no) result is still a **Retriever**: a boolean is the simplest
+possible structured fact. The defining characteristic is the synchronous
+on-demand query pattern, not the richness of the returned data.
+
+Nodes such as `MitigationDeployed`, `MitigationAvailable`, and `HaveExploit`
+fit the Retriever shape: they receive a query (implicitly, "is X the case?"),
+call an external system to retrieve the current status, and return
+SUCCESS/FAILURE based on that status. They do not monitor continuously or fire
+a trigger — they answer a point-in-time question when the BT reaches them.
+
+A **Sentinel**, by contrast, runs continuously (or is invoked by an external
+event) and calls a *trigger endpoint* when a condition becomes true. The
+flow direction is reversed: Sentinel → trigger endpoint → protocol, not
+protocol → query → external system.
 
 ### "Retriever" over "Data Retriever"
 
