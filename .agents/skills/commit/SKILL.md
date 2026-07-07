@@ -44,7 +44,6 @@ Commit message conventions:
 
 - Subject line: imperative mood, ≤72 characters, no trailing period
 - Body: bullet points describing what changed and why
-- Always include the `Co-Authored-By` trailer as the last line
 
 ## Constraints
 
