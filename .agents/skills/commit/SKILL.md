@@ -37,9 +37,7 @@ unless every change in the working tree belongs to this commit.
 ```bash
 uv run git commit -m "<subject line>
 
-<body: what changed and why, as bullet points>
-
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
+<body: what changed and why, as bullet points>"
 ```
 
 Commit message conventions:
