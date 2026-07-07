@@ -54,6 +54,11 @@ if [ -f "$HOME/.zshrc" ] && ! grep -q 'HISTFILE=.*\.data' "$HOME/.zshrc" 2>/dev/
     echo 'export HISTFILE="$HOME/.data/shell-history/.zsh_history"' >> "$HOME/.zshrc"
 fi
 
+# Claude Code installs to ~/.local/bin and registers it in .bashrc, but we use zsh
+if ! grep -q 'local/bin' "$HOME/.zshrc" 2>/dev/null; then
+    echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.zshrc"
+fi
+
 # --- tmux configuration ---
 cat > "$HOME/.tmux.conf" <<'EOF'
 set -g default-terminal "tmux-256color"
