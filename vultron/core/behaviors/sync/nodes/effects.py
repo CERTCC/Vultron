@@ -24,6 +24,9 @@ Currently implemented effects:
   ``add_participant_status_to_participant`` event to the local participant record.
 - :class:`ApplyNoteFromLedgerNode`: applies an ``add_note_to_case`` event to
   the local case replica by attaching the note ID to ``notes``.
+- :class:`ApplyInviteAcceptFromLedgerNode`: applies an
+  ``accept_invite_actor_to_case`` event to the local case replica by creating
+  a stub ``CaseParticipant`` for the new invitee and calling ``add_participant``.
 
 Per specs/multi-actor-demo.yaml DEMOMA-07-003 step 3 and
 specs/sync-ledger-replication.yaml SYNC-02-002.
@@ -38,6 +41,7 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.protocols import is_case_model, is_participant_model
 from vultron.core.use_cases._helpers import _as_id
@@ -273,6 +277,94 @@ class ApplyNoteFromLedgerNode(DataLayerAction):
             "%s: applied ledger note attachment '%s' to case '%s' (SYNC-02-002)",
             self.name,
             note_id,
+            case_id,
+        )
+        return Status.SUCCESS
+
+
+class ApplyInviteAcceptFromLedgerNode(DataLayerAction):
+    """Apply an ``accept_invite_actor_to_case`` ledger entry to the local case replica.
+
+    When a non-CaseActor participant receives ``Announce(CaseLedgerEntry)``
+    and the entry's ``event_type`` is ``accept_invite_actor_to_case``, this
+    node extracts the invitee actor ID from ``payload_snapshot["actor"]``,
+    creates a stub ``CaseParticipant``, and calls ``case.add_participant()``
+    to add the new participant to the local case replica (idempotent).
+
+    This is the mechanism by which existing participants (e.g. the Finder)
+    learn that a new actor (e.g. Vendor2) has joined the case — they MUST NOT
+    update ``case_participants`` directly from ``Accept(Invite)`` messages;
+    only the CaseActor does that. All other participants learn via this ledger
+    entry effect (ADR-0022, SYNC-02-002, DEMOMA-07-003).
+
+    Lenient on missing data: if the case replica is absent, the invitee ID
+    cannot be extracted, or the participant is already present, the node
+    returns SUCCESS to avoid blocking the ``Announce`` processing flow.
+    """
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="activity", access=py_trees.common.Access.READ
+        )
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            self.feedback_message = "DataLayer not available"
+            return Status.FAILURE
+
+        from vultron.core.behaviors.sync.nodes.conditions import (
+            _require_log_entry,
+        )
+
+        entry = _require_log_entry(self.blackboard.activity, self.name)
+        snapshot = entry.payload_snapshot
+        case_id = entry.case_id
+
+        invitee_id = _extract_id_from_field(snapshot.get("actor"))
+        if not invitee_id or not case_id:
+            self.logger.debug(
+                "%s: payload_snapshot missing 'actor' id or case_id"
+                " — skipping invite-accept apply (non-fatal)",
+                self.name,
+            )
+            return Status.SUCCESS
+
+        case = self.datalayer.read(case_id)
+        if not is_case_model(case):
+            self.logger.debug(
+                "%s: case '%s' not found in local DataLayer"
+                " — skipping (non-fatal, partial case view)",
+                self.name,
+                case_id,
+            )
+            return Status.SUCCESS
+
+        if invitee_id in case.actor_participant_index:
+            self.logger.debug(
+                "%s: invitee '%s' already in actor_participant_index"
+                " for case '%s' — idempotent no-op",
+                self.name,
+                invitee_id,
+                case_id,
+            )
+            return Status.SUCCESS
+
+        participant = CaseParticipant(
+            id_=f"{case_id}/participants/{invitee_id.rstrip('/').rsplit('/', 1)[-1]}",
+            attributed_to=invitee_id,
+            context=case_id,
+        )
+        if self.datalayer.read(participant.id_) is None:
+            self.datalayer.create(participant)
+
+        case.add_participant(participant)
+        self.datalayer.save(case)
+        self.logger.info(
+            "%s: applied ledger invite-accept for invitee '%s' to case '%s'"
+            " (SYNC-02-002, DEMOMA-07-003)",
+            self.name,
+            invitee_id,
             case_id,
         )
         return Status.SUCCESS
