@@ -23,6 +23,7 @@ Per specs/behavior-tree-integration.yaml BT-06 and testability.yaml requirements
 """
 
 import pytest
+import py_trees
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -38,6 +39,16 @@ from vultron.core.behaviors.report.validate_tree import (
     create_validate_report_tree,
 )
 from vultron.core.states.rm import RM
+
+
+def _always_succeed_factory(name: str) -> py_trees.behaviour.Behaviour:
+    """Deterministic factory for integration tests: always returns SUCCESS."""
+
+    class _AlwaysSucceed(py_trees.behaviour.Behaviour):
+        def update(self):
+            return py_trees.common.Status.SUCCESS
+
+    return _AlwaysSucceed(name)
 
 
 @pytest.fixture
@@ -259,6 +270,8 @@ def test_tree_execution_success_new_report(
     tree = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
+        credibility_factory=_always_succeed_factory,
+        validity_factory=_always_succeed_factory,
     )
 
     # Act: Execute tree
@@ -291,6 +304,8 @@ def test_tree_execution_does_not_create_case(
     tree = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
+        credibility_factory=_always_succeed_factory,
+        validity_factory=_always_succeed_factory,
     )
     result = bridge.execute_with_setup(
         tree=tree,
@@ -314,6 +329,8 @@ def test_tree_execution_transitions_vendor_to_valid(
     tree = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
+        credibility_factory=_always_succeed_factory,
+        validity_factory=_always_succeed_factory,
     )
 
     result = bridge.execute_with_setup(
@@ -345,6 +362,8 @@ def test_tree_execution_early_exit_already_valid(
     tree = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
+        credibility_factory=_always_succeed_factory,
+        validity_factory=_always_succeed_factory,
     )
 
     # Act: Execute tree
@@ -374,6 +393,8 @@ def test_tree_execution_invalid_state_transitions_to_valid(
     tree = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
+        credibility_factory=_always_succeed_factory,
+        validity_factory=_always_succeed_factory,
     )
 
     # Act: Execute tree
@@ -401,6 +422,8 @@ def test_tree_execution_no_prior_status_succeeds(
     tree = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
+        credibility_factory=_always_succeed_factory,
+        validity_factory=_always_succeed_factory,
     )
 
     # Act: Execute tree
@@ -425,6 +448,8 @@ def test_tree_execution_policy_stubs_always_accept(
     tree = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
+        credibility_factory=_always_succeed_factory,
+        validity_factory=_always_succeed_factory,
     )
 
     # Act: Execute tree
@@ -529,11 +554,15 @@ def test_tree_execution_idempotency(
     tree1 = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
+        credibility_factory=_always_succeed_factory,
+        validity_factory=_always_succeed_factory,
     )
 
     tree2 = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
+        credibility_factory=_always_succeed_factory,
+        validity_factory=_always_succeed_factory,
     )
 
     # Act: Execute tree twice
@@ -573,6 +602,8 @@ def test_tree_execution_actor_isolation(
     tree_a = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
+        credibility_factory=_always_succeed_factory,
+        validity_factory=_always_succeed_factory,
     )
     result_a = bridge.execute_with_setup(
         tree=tree_a,
@@ -584,6 +615,8 @@ def test_tree_execution_actor_isolation(
     tree_b = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
+        credibility_factory=_always_succeed_factory,
+        validity_factory=_always_succeed_factory,
     )
     result_b = bridge.execute_with_setup(
         tree=tree_b,
@@ -625,6 +658,84 @@ def test_ensure_embargo_exists_fails_without_case(
     assert result.status == Status.FAILURE
 
 
+# ============================================================================
+# Factory injection tests (BT-18-004)
+# ============================================================================
+
+
+def test_validate_tree_custom_credibility_factory_used(report, offer):
+    """credibility_factory node appears in the tree when a custom factory is passed."""
+    sentinel = {"called": False}
+
+    def custom_factory(name):
+        import py_trees
+
+        sentinel["called"] = True
+        sentinel["name"] = name
+
+        class _Marker(py_trees.behaviour.Behaviour):
+            def update(self):
+                return py_trees.common.Status.SUCCESS
+
+        return _Marker(name="CustomCredibility")
+
+    tree = create_validate_report_tree(
+        report_id=report.id_,
+        offer_id=offer.id_,
+        credibility_factory=custom_factory,
+    )
+
+    assert sentinel["called"]
+    tree_str = py_trees.display.ascii_tree(tree)
+    assert "CustomCredibility" in tree_str
+
+
+def test_validate_tree_custom_validity_factory_used(report, offer):
+    """validity_factory node appears in the tree when a custom factory is passed."""
+    import py_trees
+
+    def custom_factory(name):
+        class _Marker(py_trees.behaviour.Behaviour):
+            def update(self):
+                return py_trees.common.Status.SUCCESS
+
+        return _Marker(name="CustomValidity")
+
+    tree = create_validate_report_tree(
+        report_id=report.id_,
+        offer_id=offer.id_,
+        validity_factory=custom_factory,
+    )
+
+    tree_str = py_trees.display.ascii_tree(tree)
+    assert "CustomValidity" in tree_str
+
+
+def test_validate_tree_gather_info_factory_signature_accepted(report, offer):
+    """gather_info_factory parameter is accepted without error (Phase 2 hook).
+
+    The factory is NOT called in Phase 1 (not wired into the tree body yet).
+    This test verifies only that the parameter is accepted without raising.
+    """
+
+    def gather_factory(name):
+        import py_trees
+
+        class _Marker(py_trees.behaviour.Behaviour):
+            def update(self):
+                return py_trees.common.Status.SUCCESS
+
+        return _Marker(name="CustomGather")
+
+    # Should not raise; factory is accepted even if not yet wired in Phase 1
+    tree = create_validate_report_tree(
+        report_id=report.id_,
+        offer_id=offer.id_,
+        gather_info_factory=gather_factory,
+    )
+    assert tree is not None
+
+
 def test_validate_report_tree_case_has_active_embargo(
     bridge, datalayer, actor_id, report, offer, actor, reporter_actor, case
 ):
@@ -639,6 +750,8 @@ def test_validate_report_tree_case_has_active_embargo(
     tree = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
+        credibility_factory=_always_succeed_factory,
+        validity_factory=_always_succeed_factory,
     )
     bridge.execute_with_setup(
         tree=tree,

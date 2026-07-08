@@ -51,6 +51,7 @@ from typing import TYPE_CHECKING
 
 import py_trees
 
+from vultron.core.behaviors.call_out_point import CallOutBackendFactory
 from vultron.core.behaviors.case.engage_defer_trigger_tree import (
     defer_case_trigger_bt,
     engage_case_trigger_bt,
@@ -71,6 +72,19 @@ from vultron.core.behaviors.report.nodes import (
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
+
+
+def _default_on_accept_factory(name: str) -> py_trees.behaviour.Behaviour:
+    from vultron.demo.fuzzer.report_management.prioritize import OnAccept
+
+    return OnAccept(name)
+
+
+def _default_on_defer_factory(name: str) -> py_trees.behaviour.Behaviour:
+    from vultron.demo.fuzzer.report_management.prioritize import OnDefer
+
+    return OnDefer(name)
+
 
 logger = logging.getLogger(__name__)
 
@@ -154,6 +168,8 @@ def create_prioritize_subtree(
     case_id: str,
     actor_id: str,
     trigger_activity: "TriggerActivityPort | None" = None,
+    on_accept_factory: CallOutBackendFactory = _default_on_accept_factory,
+    on_defer_factory: CallOutBackendFactory = _default_on_defer_factory,
 ) -> py_trees.behaviour.Behaviour:
     """
     Create behavior tree subtree for case prioritization (engage or defer).
@@ -171,18 +187,21 @@ def create_prioritize_subtree(
         PrioritizeBT (Selector)
         ├─ EngagePath (Sequence)
         │    ├─ EvaluateCasePriority                # stub: SUCCESS = engage
-        │    └─ EngageCaseTriggerBT (Sequence)      # RM → ACCEPTED, emit Join
-        │         ├─ TransitionParticipantRMtoAccepted
-        │         └─ SenderSideBT (Sequence)
-        │              ├─ ResolveCaseManagerNode    # resolve Case Manager actor
-        │              ├─ ConstructActivitiesNode   # build Join(Case) activity
-        │              └─ QueueToOutboxNode
-        └─ DeferCaseTriggerBT (Sequence)            # RM → DEFERRED, emit Ignore
-             ├─ TransitionParticipantRMtoDeferred
-             └─ SenderSideBT (Sequence)
-                  ├─ ResolveCaseManagerNode         # resolve Case Manager actor
-                  ├─ ConstructActivitiesNode        # build Ignore(Case) activity
-                  └─ QueueToOutboxNode
+        │    ├─ EngageCaseTriggerBT (Sequence)      # RM → ACCEPTED, emit Join
+        │    │    ├─ TransitionParticipantRMtoAccepted
+        │    │    └─ SenderSideBT (Sequence)
+        │    │         ├─ ResolveCaseManagerNode
+        │    │         ├─ ConstructActivitiesNode
+        │    │         └─ QueueToOutboxNode
+        │    └─ OnAccept                            # Actuator call-out point
+        └─ DeferPath (Sequence)
+             ├─ DeferCaseTriggerBT (Sequence)       # RM → DEFERRED, emit Ignore
+             │    ├─ TransitionParticipantRMtoDeferred
+             │    └─ SenderSideBT (Sequence)
+             │         ├─ ResolveCaseManagerNode
+             │         ├─ ConstructActivitiesNode
+             │         └─ QueueToOutboxNode
+             └─ OnDefer                             # Actuator call-out point
 
     Per specs/behavior-tree-integration.yaml BT-06-005, BT-06-006.
     Per specs/participant-case-replica.yaml PCR-08-001, PCR-08-002.
@@ -195,6 +214,12 @@ def create_prioritize_subtree(
             When ``None``, the sender-side subtrees will fail at execution
             time with a descriptive error (consistent with the behaviour
             when the blackboard does not carry a factory).
+        on_accept_factory: Factory for the Actuator call-out point that
+            fires integration hooks when the report is accepted.  Defaults
+            to the fuzzer backend (BT-18-004).
+        on_defer_factory: Factory for the Actuator call-out point that
+            fires integration hooks when the report is deferred.  Defaults
+            to the fuzzer backend (BT-18-004).
 
     Returns:
         Root node of the prioritize behavior tree (Selector)
@@ -237,12 +262,20 @@ def create_prioritize_subtree(
                 actor_id=actor_id,
                 activity_builder=_build_engage,
             ),
+            on_accept_factory("OnAccept"),
         ],
     )
-    defer_path = defer_case_trigger_bt(
-        case_id=case_id,
-        actor_id=actor_id,
-        activity_builder=_build_defer,
+    defer_path = py_trees.composites.Sequence(
+        name="DeferPath",
+        memory=False,
+        children=[
+            defer_case_trigger_bt(
+                case_id=case_id,
+                actor_id=actor_id,
+                activity_builder=_build_defer,
+            ),
+            on_defer_factory("OnDefer"),
+        ],
     )
     root = py_trees.composites.Selector(
         name="PrioritizeBT",

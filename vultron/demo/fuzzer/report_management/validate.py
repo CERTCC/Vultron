@@ -38,6 +38,10 @@ from vultron.demo.fuzzer.base import (
     ProbablySucceed,
     UsuallySucceed,
 )
+from vultron.demo.fuzzer.call_out_point import (
+    EvaluatorCallOutPoint,
+    RetrieverCallOutPoint,
+)
 
 
 class NoNewValidationInfo(ProbablySucceed):
@@ -59,7 +63,7 @@ class NoNewValidationInfo(ProbablySucceed):
     """
 
 
-class EvaluateReportCredibility(AlmostAlwaysSucceed):
+class EvaluateReportCredibility(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
     """Assess whether the report's source and content are credible.
 
     Semantic function:
@@ -67,6 +71,10 @@ class EvaluateReportCredibility(AlmostAlwaysSucceed):
         credible (i.e., likely to describe a real vulnerability).
         Credibility criteria may include reporter reputation, technical
         plausibility, and SSVC exploitation status.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — evaluates report context from caller's DataLayer)
+      Output keys: report_credibility_verdict: str  (SUCCESS only)
 
     Input category: Human decision.
 
@@ -78,8 +86,10 @@ class EvaluateReportCredibility(AlmostAlwaysSucceed):
     requires human analyst review.
     """
 
+    output_keys = {"report_credibility_verdict": str}
 
-class EvaluateReportValidity(AlmostAlwaysSucceed):
+
+class EvaluateReportValidity(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
     """Assess whether the report is valid for this organization's scope.
 
     Semantic function:
@@ -87,6 +97,10 @@ class EvaluateReportValidity(AlmostAlwaysSucceed):
         organization's scope (credible AND meeting org-specific
         acceptance criteria).  A report can be credible but out of
         scope; validity is contextual and role-dependent.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — evaluates report context from caller's DataLayer)
+      Output keys: report_validity_verdict: str  (SUCCESS only)
 
     Input category: Human decision.
 
@@ -96,6 +110,8 @@ class EvaluateReportValidity(AlmostAlwaysSucceed):
     CNA/charter rules are automatable; organizational-context validity
     judgment often requires human review.
     """
+
+    output_keys = {"report_validity_verdict": str}
 
 
 class EnoughValidationInfo(UsuallySucceed):
@@ -117,7 +133,7 @@ class EnoughValidationInfo(UsuallySucceed):
     """
 
 
-class GatherValidationInfo(AlmostAlwaysSucceed):
+class GatherValidationInfo(RetrieverCallOutPoint, AlmostAlwaysSucceed):
     """Request or collect additional information needed to validate.
 
     Semantic function:
@@ -125,6 +141,10 @@ class GatherValidationInfo(AlmostAlwaysSucceed):
         validate the report (e.g., reproduction steps, affected
         versions, proof-of-concept).  Succeeds most of the time in
         simulation to keep the workflow progressing.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — queries external source / reporter directly)
+      Output keys: validation_info_gathered: str  (SUCCESS only)
 
     Input category: System integration / Human analyst outreach.
 
@@ -135,3 +155,5 @@ class GatherValidationInfo(AlmostAlwaysSucceed):
     automatable; direct reporter outreach typically requires human
     involvement.
     """
+
+    output_keys = {"validation_info_gathered": str}

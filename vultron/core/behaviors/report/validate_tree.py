@@ -60,12 +60,11 @@ import logging
 
 import py_trees
 
+from vultron.core.behaviors.call_out_point import CallOutBackendFactory
 from vultron.core.behaviors.report.nodes import (
     CheckRMStateReceivedOrInvalid,
     CheckRMStateValid,
     EnsureEmbargoExists,
-    EvaluateReportCredibility,
-    EvaluateReportValidity,
     TransitionRMtoValid,
 )
 from vultron.core.behaviors.report.nodes.emit import EmitValidateReportActivity
@@ -73,9 +72,38 @@ from vultron.core.behaviors.report.nodes.emit import EmitValidateReportActivity
 logger = logging.getLogger(__name__)
 
 
+# Fuzzer defaults are imported lazily inside the default lambda to avoid
+# importing vultron.demo from core at module load time (BT-16-001).
+def _default_credibility_factory(name: str) -> py_trees.behaviour.Behaviour:
+    from vultron.demo.fuzzer.report_management.validate import (
+        EvaluateReportCredibility,
+    )
+
+    return EvaluateReportCredibility(name)
+
+
+def _default_validity_factory(name: str) -> py_trees.behaviour.Behaviour:
+    from vultron.demo.fuzzer.report_management.validate import (
+        EvaluateReportValidity,
+    )
+
+    return EvaluateReportValidity(name)
+
+
+def _default_gather_info_factory(name: str) -> py_trees.behaviour.Behaviour:
+    from vultron.demo.fuzzer.report_management.validate import (
+        GatherValidationInfo,
+    )
+
+    return GatherValidationInfo(name)
+
+
 def create_validate_report_tree(
     report_id: str,
     offer_id: str,
+    credibility_factory: CallOutBackendFactory = _default_credibility_factory,
+    validity_factory: CallOutBackendFactory = _default_validity_factory,
+    gather_info_factory: CallOutBackendFactory = _default_gather_info_factory,
 ) -> py_trees.behaviour.Behaviour:
     """
     Create behavior tree for report validation workflow.
@@ -96,6 +124,15 @@ def create_validate_report_tree(
     Args:
         report_id: ID of VulnerabilityReport to validate
         offer_id: ID of Offer activity containing the report
+        credibility_factory: Factory for the Evaluator call-out point that
+            assesses report credibility.  Defaults to the fuzzer backend
+            (BT-18-004).  The produced node must honour the blackboard
+            contract of ``EvaluateReportCredibility``.
+        validity_factory: Factory for the Evaluator call-out point that
+            assesses report validity.  Defaults to the fuzzer backend.
+        gather_info_factory: Factory for the Retriever call-out point that
+            gathers additional validation information.  Reserved for Phase 2;
+            not wired into the tree in Phase 1.
 
     Returns:
         Root node of the validation behavior tree (Selector)
@@ -117,6 +154,8 @@ def create_validate_report_tree(
     """
     # Phase 1: Match procedural handler logic
     # Future: Add InvalidateReport fallback per simulation BT
+    # Future (Phase 2): wire gather_info_factory into an EnoughInfoOrGather
+    # Selector guarding the info-gathering loop.
 
     # Child sequence: All validation actions (status update + embargo check)
     validation_actions = py_trees.composites.Sequence(
@@ -134,8 +173,8 @@ def create_validate_report_tree(
         memory=False,
         children=[
             CheckRMStateReceivedOrInvalid(report_id=report_id),
-            EvaluateReportCredibility(report_id=report_id),
-            EvaluateReportValidity(report_id=report_id),
+            credibility_factory("EvaluateReportCredibility"),
+            validity_factory("EvaluateReportValidity"),
             validation_actions,
         ],
     )
@@ -177,8 +216,8 @@ def create_validate_report_tree(
                 memory=False,
                 children=[
                     CheckRMStateReceivedOrInvalid(report_id=report_id),
-                    EvaluateReportCredibility(report_id=report_id),
-                    EvaluateReportValidity(report_id=report_id),
+                    credibility_factory("EvaluateReportCredibility"),
+                    validity_factory("EvaluateReportValidity"),
                     py_trees.composites.Sequence(
                         name="ValidationActions",
                         memory=False,

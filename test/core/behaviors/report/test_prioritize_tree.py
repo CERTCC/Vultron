@@ -562,10 +562,10 @@ def test_create_prioritize_subtree_returns_selector(
     assert hasattr(tree, "children")
     assert len(tree.children) == 2
 
-    # Engage path: EvaluateCasePriority → EngageCaseTriggerBT
+    # Engage path: EvaluateCasePriority → EngageCaseTriggerBT → OnAccept
     engage_path = tree.children[0]
     assert engage_path.name == "EngagePath"
-    assert len(engage_path.children) == 2
+    assert len(engage_path.children) == 3
     assert engage_path.children[0].name == "EvaluateCasePriority"
     engage_trigger_bt = engage_path.children[1]
     assert engage_trigger_bt.name == "EngageCaseTriggerBT"
@@ -580,9 +580,13 @@ def test_create_prioritize_subtree_returns_selector(
     assert engage_sender.children[0].name == "ResolveCaseManagerNode"
     assert engage_sender.children[1].name == "ConstructActivitiesNode"
     assert engage_sender.children[2].name == "QueueToOutboxNode"
+    assert engage_path.children[2].name == "OnAccept"
 
-    # Defer path: DeferCaseTriggerBT (directly, no outer DeferPath wrapper)
-    defer_trigger_bt = tree.children[1]
+    # Defer path: DeferPath (Sequence) wrapping DeferCaseTriggerBT → OnDefer
+    defer_path = tree.children[1]
+    assert defer_path.name == "DeferPath"
+    assert len(defer_path.children) == 2
+    defer_trigger_bt = defer_path.children[0]
     assert defer_trigger_bt.name == "DeferCaseTriggerBT"
     assert len(defer_trigger_bt.children) == 2
     assert (
@@ -595,6 +599,7 @@ def test_create_prioritize_subtree_returns_selector(
     assert defer_sender.children[0].name == "ResolveCaseManagerNode"
     assert defer_sender.children[1].name == "ConstructActivitiesNode"
     assert defer_sender.children[2].name == "QueueToOutboxNode"
+    assert defer_path.children[1].name == "OnDefer"
 
 
 def test_prioritize_subtree_engages_by_default(
@@ -633,6 +638,54 @@ def test_prioritize_subtree_engages_by_default(
     assert str(engage_activity.type_) == "Join"
     assert engage_activity.actor == actor_id
     assert engage_activity.object_.id_ == case_with_manager.id_
+
+
+def test_prioritize_subtree_custom_on_accept_factory_used(
+    case_with_participant, actor_id, trigger_activity
+):
+    """on_accept_factory node appears in the engage path when custom factory is passed."""
+    import py_trees
+
+    def custom_on_accept(name):
+        class _Marker(py_trees.behaviour.Behaviour):
+            def update(self):
+                return py_trees.common.Status.SUCCESS
+
+        return _Marker(name="CustomOnAccept")
+
+    tree = create_prioritize_subtree(
+        case_id=case_with_participant.id_,
+        actor_id=actor_id,
+        trigger_activity=trigger_activity,
+        on_accept_factory=custom_on_accept,
+    )
+
+    engage_path = tree.children[0]
+    assert engage_path.children[2].name == "CustomOnAccept"
+
+
+def test_prioritize_subtree_custom_on_defer_factory_used(
+    case_with_participant, actor_id, trigger_activity
+):
+    """on_defer_factory node appears in the defer path when custom factory is passed."""
+    import py_trees
+
+    def custom_on_defer(name):
+        class _Marker(py_trees.behaviour.Behaviour):
+            def update(self):
+                return py_trees.common.Status.SUCCESS
+
+        return _Marker(name="CustomOnDefer")
+
+    tree = create_prioritize_subtree(
+        case_id=case_with_participant.id_,
+        actor_id=actor_id,
+        trigger_activity=trigger_activity,
+        on_defer_factory=custom_on_defer,
+    )
+
+    defer_path = tree.children[1]
+    assert defer_path.children[1].name == "CustomOnDefer"
 
 
 def test_prioritize_subtree_defers_when_engage_path_fails(
