@@ -48,7 +48,7 @@ to be fully automated inside Vultron.
 | Behavior | Reference | Notes |
 |---|---|---|
 | Acquire exploit | `docs/topics/behavior_logic/acquire_exploit_bt.md` | Human-driven; system may record the result as a state transition only |
-| Monitor threats | `docs/topics/behavior_logic/monitor_threats_bt.md` | Ongoing human/external monitoring; system may accept injected notes |
+| Monitor threats | `docs/topics/behavior_logic/monitor_threats_bt.md` | Vultron cannot autonomously detect external events; monitoring nodes (`MonitorAttacks`, `MonitorExploits`, `MonitorPublicReports`) are Retriever call-out points backed by probabilistic stubs in demos. Real detection requires injection via Retriever backends or a Sentinel agent on the call-in surface (#1143, #1161). |
 | Develop fix | `docs/topics/behavior_logic/fix_dev_bt.md` | Out of scope — Vultron coordinates but does not develop fixes; see below |
 | Deploy fix | `docs/topics/behavior_logic/deployment_bt.md` | Out of scope for the same reasons as fix development |
 
