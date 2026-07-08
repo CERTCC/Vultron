@@ -74,6 +74,11 @@ credible and valid for the receiving organization.
   Sentinel (event subscription or polling hook), not at this BT condition check. In production this
   node reads from the BT blackboard or case metadata written by the upstream Sentinel.
   (Category 2 per issue #1199 triage — consumes a flag written by an upstream Sentinel.)
+- **Factory-fn placement**:
+  `vultron.core.behaviors.report.validate_tree.create_validate_report_tree` —
+  ProtocolInternal condition check at the top of `ValidationOrShortcut` Selector;
+  currently stubbed as `CheckRMStateValid` but the change-detection variant
+  belongs here when the full retry loop is implemented (Phase 2)
 
 ### `NewValidationInfoSentinel` *(upstream Sentinel stub)*
 
@@ -98,11 +103,11 @@ credible and valid for the receiving organization.
 - **Call-out point shape**: Sentinel — registers with a case-event source;
   fires a change-detection signal into the BT blackboard when new
   validation-relevant information arrives; no output keys beyond the flag.
-- **Factory-fn placement**:
-  `vultron.core.behaviors.report.validate_tree.create_validate_report_tree` —
-  early-exit Sentinel guard at the top of `ValidationOrShortcut` Selector;
-  currently stubbed as `CheckRMStateValid` but the change-detection variant
-  belongs here when the full retry loop is implemented (Phase 2)
+- **Factory-fn placement**: FUZZ-08f (planned) — upstream agent seam, not
+  placed inside the BT tree; writes a change-detection flag to the blackboard
+  key read by `NoNewValidationInfo` at the top of the
+  `ValidationOrShortcut` Selector in
+  `vultron.core.behaviors.report.validate_tree.create_validate_report_tree`
 
 ### `EvaluateReportCredibility`
 
@@ -215,6 +220,11 @@ models the process of deciding whether to accept (engage with) or defer
   `NewPrioritizationInfoSentinel` agent (see stub entry below). The external agent seam is at the
   Sentinel (event subscription or polling hook), not at this BT condition check.
   (Category 2 per issue #1199 triage — consumes a flag written by an upstream Sentinel.)
+- **Factory-fn placement**:
+  `vultron.core.behaviors.report.prioritize_tree.create_prioritize_subtree` —
+  ProtocolInternal condition check at the top of `PrioritizeBT` Selector; the retry
+  skip-if-no-new-info check belongs here when the full re-prioritization
+  loop is implemented (Phase 2)
 
 ### `NewPrioritizationInfoSentinel` *(upstream Sentinel stub)*
 
@@ -240,11 +250,11 @@ models the process of deciding whether to accept (engage with) or defer
 - **Call-out point shape**: Sentinel — registers with a case-event source;
   fires a change-detection signal into the BT blackboard when new
   prioritization-relevant information arrives; no output keys beyond the flag.
-- **Factory-fn placement**:
-  `vultron.core.behaviors.report.prioritize_tree.create_prioritize_subtree` —
-  early-exit Sentinel guard at the top of `PrioritizeBT` Selector; the retry
-  skip-if-no-new-info check belongs here when the full re-prioritization
-  loop is implemented (Phase 2)
+- **Factory-fn placement**: FUZZ-08f (planned) — upstream agent seam, not
+  placed inside the BT tree; writes a change-detection flag to the blackboard
+  key read by `NoNewPrioritizationInfo` at the top of the
+  `PrioritizeBT` Selector in
+  `vultron.core.behaviors.report.prioritize_tree.create_prioritize_subtree`
 
 ### `EnoughPrioritizationInfo`
 
@@ -401,8 +411,8 @@ to a validated report.
   (Category 2 per issue #1199 triage — reads a flag written by the protocol's own deployment-time setup.)
 - **Factory-fn placement**: FUTURE:
   `vultron.core.behaviors.report.create_assign_vul_id_tree` (issue #1246) —
-  Retriever condition guard in `AssignVulID` Sequence; queries participant
-  role metadata before `IdAssignable` and `AssignId`
+  ProtocolInternal condition check in `AssignVulID` Sequence; evaluates
+  participant role metadata before `IdAssignable` and `AssignId`
 
 ### `IdAssignable`
 
@@ -530,6 +540,9 @@ the process of deploying a developed fix or mitigation to affected systems.
   `NewDeploymentInfoSentinel` agent (see stub entry below). The external agent seam is at the
   Sentinel (event subscription or polling hook), not at this BT condition check.
   (Category 2 per issue #1199 triage — consumes a flag written by an upstream Sentinel.)
+- **Factory-fn placement**: FUTURE:
+  `vultron.core.behaviors.report.create_deploy_fix_tree` (issue #1248) —
+  ProtocolInternal condition check at the top of `Deployment` Fallback Selector
 
 ### `NewDeploymentInfoSentinel` *(upstream Sentinel stub)*
 
@@ -555,9 +568,11 @@ the process of deploying a developed fix or mitigation to affected systems.
 - **Call-out point shape**: Sentinel — registers with a deployment-event
   source; fires a change-detection signal into the BT blackboard when new
   deployment-relevant information arrives; no output keys beyond the flag.
-- **Factory-fn placement**: FUTURE:
-  `vultron.core.behaviors.report.create_deploy_fix_tree` (issue #1248) —
-  early-exit Sentinel guard at the top of `Deployment` Fallback Selector
+- **Factory-fn placement**: FUZZ-08f (planned) — upstream agent seam, not
+  placed inside the BT tree; writes a change-detection flag to the blackboard
+  key read by `NoNewDeploymentInfo` at the top of the `Deployment` Fallback
+  Selector in
+  `vultron.core.behaviors.report.create_deploy_fix_tree` (issue #1248)
 
 ### `PrioritizeDeployment`
 
@@ -750,8 +765,8 @@ vulnerability, typically to support impact assessment or testing.
   (Category 3 per issue #1199 triage — reads a flag written by the protocol's own BT execution.)
 - **Factory-fn placement**: FUTURE:
   `vultron.core.behaviors.report.create_acquire_exploit_strategy_tree`
-  (issue #1249) — early-exit Sentinel after `HaveExploit`; collapses the
-  loop if the priority decision is already on record for this cycle
+  (issue #1249) — ProtocolInternal condition check after `HaveExploit`;
+  collapses the loop if the priority decision is already on record for this cycle
 
 ### `EvaluateExploitPriority`
 
@@ -772,7 +787,7 @@ vulnerability, typically to support impact assessment or testing.
   `vultron.core.behaviors.report.create_acquire_exploit_strategy_tree`
   (issue #1249) — Evaluator action node in the priority-decision Sequence;
   writes the `exploit_priority` decision to the blackboard for downstream
-  Sentinel nodes
+  ProtocolInternal condition nodes (`ExploitDeferred`, `ExploitDesired`)
 
 ### `ExploitDeferred`
 
@@ -794,7 +809,7 @@ vulnerability, typically to support impact assessment or testing.
   (Category 3 per issue #1199 triage — reads a flag written by the protocol's own BT execution.)
 - **Factory-fn placement**: FUTURE:
   `vultron.core.behaviors.report.create_acquire_exploit_strategy_tree`
-  (issue #1249) — Sentinel branch guard after `EvaluateExploitPriority`;
+  (issue #1249) — ProtocolInternal condition check after `EvaluateExploitPriority`;
   early-exits the acquire-exploit Selector when deferral is recorded
 
 ### `ExploitDesired`
@@ -816,7 +831,7 @@ vulnerability, typically to support impact assessment or testing.
   (Category 3 per issue #1199 triage — reads a flag written by the protocol's own BT execution.)
 - **Factory-fn placement**: FUTURE:
   `vultron.core.behaviors.report.create_acquire_exploit_strategy_tree`
-  (issue #1249) — Sentinel precondition guard before the acquisition
+  (issue #1249) — ProtocolInternal condition check before the acquisition
   Fallback (`FindExploit → DevelopExploit → PurchaseExploit`)
 
 ### `FindExploit`
@@ -1006,7 +1021,7 @@ preparing them, and executing publication.
   (Category 3 per issue #1199 triage — reads a flag written by the protocol's own BT execution.)
 - **Factory-fn placement**: FUTURE:
   `vultron.core.behaviors.report.create_publication_tree`
-  (issue #1251) — top-level early-exit Sentinel guard at the root
+  (issue #1251) — top-level early-exit ProtocolInternal condition check at the root
   of the `Publication` Selector; short-circuits the entire subtree once
   all artifacts are published
 
@@ -1031,7 +1046,7 @@ preparing them, and executing publication.
   (Category 3 per issue #1199 triage — reads a flag written by the protocol's own BT execution.)
 - **Factory-fn placement**: FUTURE:
   `vultron.core.behaviors.report.create_publication_tree`
-  (issue #1251) — Sentinel guard before `PrioritizePublicationIntents`;
+  (issue #1251) — ProtocolInternal condition check before `PrioritizePublicationIntents`;
   skips intent-setting if a publication plan is already on record
 
 ### `PrioritizePublicationIntents`
@@ -1115,7 +1130,7 @@ preparing them, and executing publication.
   (Category 3 per issue #1199 triage — reads a flag written by the protocol's own BT execution.)
 - **Factory-fn placement**: FUTURE:
   `vultron.core.behaviors.report.create_publication_tree`
-  (issue #1251) — Sentinel guard before `Publish` in the exploit-arm
+  (issue #1251) — ProtocolInternal condition check before `Publish` in the exploit-arm
   Sequence; succeeds when the exploit artifact is already staged, avoiding
   redundant `PrepareExploit` work
 
@@ -1411,7 +1426,7 @@ coordinated disclosure.
   (Category 3 per issue #1199 triage — reads a flag written by the protocol's own BT execution.)
 - **Factory-fn placement**: FUTURE:
   `vultron.core.behaviors.report.create_report_to_others_tree`
-  (issue #1252) — Sentinel guard at the top of the per-recipient
+  (issue #1252) — ProtocolInternal condition check at the top of the per-recipient
   notification loop; exits the loop once the full notification queue
   is drained
 
@@ -1562,7 +1577,7 @@ coordinated disclosure.
   (Category 3 per issue #1199 triage — reads a flag written by the protocol's own BT execution.)
 - **Factory-fn placement**: FUTURE:
   `vultron.core.behaviors.report.create_report_to_others_tree`
-  (issue #1252) — Sentinel idempotency guard after `FindContact`; skips
+  (issue #1252) — ProtocolInternal idempotency check after `FindContact`; skips
   re-notification if the recipient's RM state is already past START
 
 ### `SetRcptQrmR`
@@ -1606,7 +1621,7 @@ coordinated disclosure.
   (Category 3 per issue #1199 triage — reads from the protocol's own BT blackboard.)
 - **Factory-fn placement**: FUTURE:
   `vultron.core.behaviors.report.create_report_to_others_tree`
-  (issue #1252) — Sentinel guard at the head of the vendor sub-loop;
+  (issue #1252) — ProtocolInternal iteration guard at the head of the vendor sub-loop;
   drives the vendor-notification iteration until the vendor queue is empty
 
 ### `MoreCoordinators`
@@ -1629,7 +1644,7 @@ coordinated disclosure.
   (Category 3 per issue #1199 triage — reads from the protocol's own BT blackboard.)
 - **Factory-fn placement**: FUTURE:
   `vultron.core.behaviors.report.create_report_to_others_tree`
-  (issue #1252) — Sentinel guard at the head of the coordinator sub-loop;
+  (issue #1252) — ProtocolInternal iteration guard at the head of the coordinator sub-loop;
   drives coordinator-notification iteration until the coordinator queue is
   empty
 
@@ -1652,7 +1667,7 @@ coordinated disclosure.
   (Category 3 per issue #1199 triage — reads from the protocol's own BT blackboard.)
 - **Factory-fn placement**: FUTURE:
   `vultron.core.behaviors.report.create_report_to_others_tree`
-  (issue #1252) — Sentinel guard at the head of the other-parties sub-loop;
+  (issue #1252) — ProtocolInternal iteration guard at the head of the other-parties sub-loop;
   drives other-party notification iteration until the other-parties queue
   is empty
 
