@@ -525,13 +525,23 @@ def get_object_by_key():  # or use Union types for specific subclasses
 add more. FastAPI's `response_model` filtering excludes fields not in the base
 class model.
 
-**Solution**: Remove return type annotations from endpoints that return multiple
-types, or use explicit `Union[Type1, Type2, ...]` if types are known.
+**Solution**:
+
+- *For AS2 endpoints*: Return `AS2JSONResponse(obj)` instead of a plain model
+  instance. `AS2JSONResponse` calls `model_dump(mode="json", by_alias=True,
+  exclude_none=True)` and sets `Content-Type: application/activity+json`,
+  bypassing FastAPI's `response_model` filtering entirely. This is the canonical
+  fix for AS2-typed routes (see `specs/http-protocol.yaml` HTTP-09-002,
+  HTTP-09-003).
+- *For non-AS2 endpoints*: Remove return type annotations from endpoints that
+  return multiple types, or use explicit `Union[Type1, Type2, ...]` if types are
+  known. Do **not** apply `AS2JSONResponse` to generic/non-AS2 routes.
 
 **Verification**: Test API serialization completeness, not just database
 storage. Check that all expected fields appear in JSON responses.
 
-See `specs/http-protocol.yaml` HTTP-08-001 for guidance.
+See `specs/http-protocol.yaml` HTTP-08-001 (root cause) and HTTP-09-002,
+HTTP-09-003 (AS2 endpoint fix).
 
 ### Health Check Readiness Gap
 

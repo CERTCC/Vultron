@@ -30,7 +30,6 @@ from fastapi import (
     Depends,
     HTTPException,
     Request,
-    Response,
     status,
 )
 from pydantic import BaseModel, Field
@@ -41,6 +40,7 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
     run_inbox_pipeline,
 )
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
+from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
 from vultron.adapters.utils import make_id, strip_id_prefix
 from vultron.core.models.actor import (
     CoreActor,
@@ -83,7 +83,6 @@ router = APIRouter(prefix="/actors", tags=["Actors"])
 
 @router.get(
     "/",
-    response_model_exclude_none=True,
     description="Returns a list of Actor examples.",
     operation_id="actors_list",
 )
@@ -103,10 +102,12 @@ def get_actors(
         obj = cls.model_validate(rec.get("data_", {}))
         objects.append(obj)
 
-    return [
-        o.model_dump(mode="json", by_alias=True, exclude_none=True)
-        for o in objects
-    ]
+    return AS2JSONResponse(
+        [
+            o.model_dump(mode="json", by_alias=True, exclude_none=True)
+            for o in objects
+        ]
+    )
 
 
 class ActorCreateRequest(BaseModel):
@@ -138,7 +139,6 @@ class ActorCreateRequest(BaseModel):
 
 @router.post(
     "/",
-    response_model_exclude_none=True,
     status_code=status.HTTP_201_CREATED,
     summary="Create Actor",
     description=(
@@ -150,7 +150,6 @@ class ActorCreateRequest(BaseModel):
 )
 def create_actor(
     request: ActorCreateRequest,
-    response: Response,
     datalayer: DataLayer = Depends(get_shared_dl),
 ):
     """Create (or return existing) actor record."""
@@ -159,23 +158,27 @@ def create_actor(
     # Idempotency: return existing record unchanged.
     existing = _find_actor_record(datalayer, actor_id)
     if existing is not None:
-        response.status_code = status.HTTP_200_OK
         cls = _actor_class_for_record(existing)
         data = existing.get("data_", {})
-        return cls.model_validate(data).model_dump(
-            mode="json", by_alias=True, exclude_none=True
+        return AS2JSONResponse(
+            cls.model_validate(data).model_dump(
+                mode="json", by_alias=True, exclude_none=True
+            ),
+            status_code=status.HTTP_200_OK,
         )
 
     actor_cls = _ACTOR_TYPE_MAP.get(request.actor_type, VultronOrganization)
     actor = actor_cls(id_=actor_id, name=request.name)
     datalayer.create(object_to_record(cast(PersistableModel, actor)))
     logger.info("Created actor %s (type=%s)", actor_id, request.actor_type)
-    return actor.model_dump(mode="json", by_alias=True, exclude_none=True)
+    return AS2JSONResponse(
+        actor.model_dump(mode="json", by_alias=True, exclude_none=True),
+        status_code=status.HTTP_201_CREATED,
+    )
 
 
 @router.get(
     "/{actor_id:path}/profile",
-    response_model_exclude_none=True,
     summary="Get Actor Profile",
     description=(
         "Returns an ActivityStreams actor profile including inbox and outbox "
@@ -204,7 +207,9 @@ def get_actor_profile(
     as_actor = cast(
         Any, actor_cls.model_validate(actor_record.get("data_", {}))
     )
-    profile = as_actor.model_dump(by_alias=True, exclude_none=True)
+    profile = as_actor.model_dump(
+        mode="json", by_alias=True, exclude_none=True
+    )
     inbox = getattr(as_actor, "inbox", None)
     outbox = getattr(as_actor, "outbox", None)
     profile["inbox"] = (
@@ -225,7 +230,7 @@ def get_actor_profile(
             else getattr(outbox, "id_", None)
         )
     )
-    return profile
+    return AS2JSONResponse(profile)
 
 
 @router.get(
@@ -284,14 +289,13 @@ def get_action_rules(
 @router.get(
     "/{actor_id:path}/inbox",
     response_model=as_OrderedCollection,
-    response_model_exclude_none=True,
     summary="Get Actor Inbox",
     description="Returns the Actor's Inbox. (stub implementation).",
     operation_id="actors_get_inbox",
 )
 def get_actor_inbox(
     actor_id: str, datalayer: DataLayer = Depends(get_shared_dl)
-) -> as_OrderedCollection:
+) -> AS2JSONResponse:
     """Returns the Actor's Inbox."""
 
     actor_record = datalayer.read(actor_id)
@@ -313,7 +317,7 @@ def get_actor_inbox(
         list[as_Object | as_Link | str | _CoreObject | None],
         list(actor_dl.inbox_list()),
     )
-    return as_OrderedCollection(items=items)
+    return AS2JSONResponse(as_OrderedCollection(items=items))
 
 
 @router.post(
@@ -455,7 +459,6 @@ def post_actor_outbox(
 
 @router.get(
     "/{actor_id:path}",
-    response_model_exclude_none=True,
     description="Returns an Actor by surrogate key or canonical ID.",
     operation_id="actors_get",
 )
@@ -472,6 +475,8 @@ def get_actor(actor_id: str, datalayer: DataLayer = Depends(get_shared_dl)):
 
     cls = _actor_class_for_record(actor)
     data = actor.get("data_", {})
-    return cls.model_validate(data).model_dump(
-        mode="json", by_alias=True, exclude_none=True
+    return AS2JSONResponse(
+        cls.model_validate(data).model_dump(
+            mode="json", by_alias=True, exclude_none=True
+        )
     )
