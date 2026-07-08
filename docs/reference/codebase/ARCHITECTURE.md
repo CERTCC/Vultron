@@ -60,6 +60,7 @@ Evidence-backed flow:
 | Background outbox monitor | `vultron/adapters/driving/fastapi/outbox_monitor.py` | Drain actor outboxes outside request handlers |
 | Local-first delivery fallback | `vultron/adapters/driven/asgi_emitter.py` | Use in-process ASGI for co-located actors and HTTP fallback for remote ones |
 | Domain→wire translation adapters | `vultron/adapters/driven/sync_activity_adapter.py`, `vultron/adapters/driven/trigger_activity_adapter/__init__.py` | Keep wire factory imports out of `core/` |
+| Call-out point abstraction layer | `vultron/core/behaviors/call_out_point.py` (type alias), `vultron/demo/fuzzer/call_out_point.py` (shape mixins) | Decouple BT tree builders from fuzzer/demo implementations; tree builders accept `CallOutBackendFactory` callables (ADR-0025, BT-18-004) |
 
 ### 5) Known Architectural Risks
 
@@ -83,3 +84,6 @@ Evidence-backed flow:
 - `vultron/wire/as2/extractor/_extract.py`
 - `vultron/adapters/driven/asgi_emitter.py`
 - `vultron/adapters/driving/fastapi/outbox_monitor.py`
+- `vultron/core/behaviors/call_out_point.py`
+- `vultron/demo/fuzzer/call_out_point.py`
+- `docs/adr/0025-call-out-point-abstraction-layer.md`

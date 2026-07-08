@@ -1,7 +1,7 @@
 ---
 title: "Integration tests must use deterministic factories when BT default is probabilistic"
 type: learning
-timestamp: 2026-07-08
+timestamp: 2026-07-08T00:00:00+00:00
 source: ISSUE-1151
 ---
 
@@ -33,3 +33,9 @@ def _always_succeed_factory(name: str) -> py_trees.behaviour.Behaviour:
 fuzzer node, update all integration tests that assert SUCCESS to pass an
 explicit deterministic factory.  Tests that check tree structure (names,
 children) or FAILURE paths are unaffected.
+
+**Promoted**: 2026-07-08 — captured in `notes/bt-integration.md`
+§ "Integration Tests Must Use Deterministic Factories When BT Default Is
+Probabilistic", `test/AGENTS.md` § "BT Factory Determinism", and root
+`AGENTS.md` pitfall entry.
+Docs PR: [#1274](https://github.com/CERTCC/Vultron/pull/1274)

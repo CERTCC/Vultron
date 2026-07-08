@@ -35,7 +35,7 @@
 
 | Tool | Purpose | Evidence |
 |------|---------|----------|
-| `black` | Python formatting | `pyproject.toml`, `.pre-commit-config.yaml` |
+| `black` | Python formatting (pre-commit hook runs `--check` only; auto-fix via `make black` or `format-code` skill) | `pyproject.toml`, `.pre-commit-config.yaml` |
 | `flake8` | Python linting | `pyproject.toml`, `.flake8`, `.github/workflows/python-app.yml` |
 | `mypy` | Static type checking | `pyproject.toml`, `.mypy.ini`, `.github/workflows/python-app.yml` |
 | `pyright` | Static type checking | `pyproject.toml`, `pyrightconfig.json`, `.github/workflows/python-app.yml` |

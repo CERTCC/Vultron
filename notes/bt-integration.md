@@ -1424,3 +1424,40 @@ Apply this poll-until-hash pattern after every phase that introduces a new
 ledger tail before a devlog dump. This is the same pattern used in
 `_phase_sync_verification` and ensures dump artifacts are always consistent
 with the replica's committed state.
+
+---
+
+### Integration Tests Must Use Deterministic Factories When BT Default Is Probabilistic
+
+(BT-FACTORY-DETERMINISM, 2026-07-08; learning `ISSUE-1151`)
+
+When a tree builder's default `CallOutBackendFactory` wraps a probabilistic
+fuzzer node (e.g., `AlmostAlwaysSucceed` at 90% success), integration tests
+that assert `result.status == Status.SUCCESS` become flaky. Two such nodes in
+series give ~81% tree success — a failure probability that surfaces within a
+few test runs.
+
+**Pattern that caused this**: Adding factory injection to a tree builder (e.g.,
+`create_validate_report_tree`) where the fuzzer defaults (`EvaluateReportCredibility`,
+`EvaluateReportValidity`) are `AlmostAlwaysSucceed` nodes. Existing integration
+tests called the builder with no factory args and asserted `SUCCESS`.
+
+**Fix**: Add a module-level `_always_succeed_factory` helper to the test file
+and pass it explicitly to all integration tests that require `SUCCESS`:
+
+```python
+def _always_succeed_factory(name: str) -> py_trees.behaviour.Behaviour:
+    class _AlwaysSucceed(py_trees.behaviour.Behaviour):
+        def update(self):
+            return py_trees.common.Status.SUCCESS
+    return _AlwaysSucceed(name)
+```
+
+**Scope**: This applies only to integration tests (those that assert
+`Status.SUCCESS` on the full tree execution). Tree-structure tests (node names,
+child counts) and `FAILURE`-path tests (missing `DataLayer`, missing report)
+are not affected.
+
+**Rule**: Any time a tree builder's default factory wraps a probabilistic fuzzer
+node, update all integration tests that assert `SUCCESS` to pass an explicit
+deterministic factory. See `test/AGENTS.md` § "BT Factory Determinism".

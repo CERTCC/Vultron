@@ -45,6 +45,11 @@ suite with `-m ""`.
   isolated per-app state
 - Common failure mode in tests: shared/actor-scoped `DataLayer` seams and
   py_trees global state can leak behavior if fixtures do not isolate them
+- BT tree builder tests: when a tree builder's default `CallOutBackendFactory`
+  wraps a probabilistic fuzzer node (`AlmostAlwaysSucceed`, `WeightedBehavior`),
+  integration tests that assert `Status.SUCCESS` must pass an explicit
+  deterministic factory; structure tests and FAILURE-path tests are unaffected
+  (learning: `20260708-integration-test-determinism-with-probabilistic-defaults.md`)
 
 ### 5) Coverage and Quality Signals
 

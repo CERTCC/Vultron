@@ -391,6 +391,49 @@ uv run pytest -m "new_mark_name" --collect-only 2>&1 | tail -5
 
 ---
 
+## BT Factory Determinism: Integration Tests Must Use Explicit Factories
+
+(BT-FACTORY-DETERMINISM, 2026-07-08)
+
+When a BT tree builder accepts a `CallOutBackendFactory` parameter whose
+**default** is a probabilistic fuzzer node (`AlmostAlwaysSucceed`, `WeightedBehavior`,
+etc.), integration tests that assert `Status.SUCCESS` on the full tree MUST
+pass an explicit deterministic factory.
+
+A default factory at 90% success + two nodes in series = ~81% tree success
+rate — a failure probability that appears within a few test runs.
+
+**Structure tests** (node names, child counts) and **`FAILURE`-path tests**
+(missing `DataLayer`, missing report) are unaffected and do NOT need the
+deterministic factory.
+
+**Pattern**:
+
+```python
+# Module-level helper in the test file
+def _always_succeed_factory(name: str) -> py_trees.behaviour.Behaviour:
+    class _AlwaysSucceed(py_trees.behaviour.Behaviour):
+        def update(self):
+            return py_trees.common.Status.SUCCESS
+    return _AlwaysSucceed(name)
+
+
+# Passed explicitly to every SUCCESS-asserting integration test
+def test_validate_report_succeeds(dl, report):
+    tree = create_validate_report_tree(
+        report_id=report.id_,
+        credibility_factory=_always_succeed_factory,
+        validity_factory=_always_succeed_factory,
+    )
+    ...
+    assert result.status == Status.SUCCESS
+```
+
+See `notes/bt-integration.md` § "Integration Tests Must Use Deterministic
+Factories When BT Default Is Probabilistic" for full context.
+
+---
+
 ## Genesis-Hash Path Must Be Tested with a Stored Case
 
 (CLP-08-995, 2026-06-18)
