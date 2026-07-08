@@ -68,6 +68,10 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Automation potential**: **Medium** — deployment status check is automatable via patch-management or case-state APIs; the *decision* to exit still requires policy-rule evaluation or human confirmation.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.ExitEmbargoWhenDeployed`
 - **Call-out point shape**: Evaluator
+- **Factory-fn placement**: FUTURE:
+  `vultron.core.behaviors.embargo.create_terminate_embargo_on_condition_tree`
+  (issue #1256) — condition guard in the TerminateEmbargo Selector, checked
+  before delegating to `terminate_embargo_trigger_bt`
 
 ### `ExitEmbargoWhenFixReady`
 
@@ -84,6 +88,10 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Automation potential**: **Medium** — fix-readiness flag is queryable automatically; the exit decision depends on configurable organizational policy that may require human override.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.ExitEmbargoWhenFixReady`
 - **Call-out point shape**: Evaluator
+- **Factory-fn placement**: FUTURE:
+  `vultron.core.behaviors.embargo.create_terminate_embargo_on_condition_tree`
+  (issue #1256) — condition guard in the TerminateEmbargo Selector, checked
+  before delegating to `terminate_embargo_trigger_bt`
 
 ### `ExitEmbargoForOtherReason`
 
@@ -100,6 +108,10 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Automation potential**: **Low** — rare edge case representing extraordinary circumstances; fundamentally requires human judgment that cannot be anticipated by a general policy rule.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.ExitEmbargoForOtherReason`
 - **Call-out point shape**: Evaluator
+- **Factory-fn placement**: FUTURE:
+  `vultron.core.behaviors.embargo.create_terminate_embargo_on_condition_tree`
+  (issue #1256) — rare fallback condition guard in the TerminateEmbargo
+  Selector for extraordinary circumstances
 
 ### `EmbargoTimerExpired`
 
@@ -117,6 +129,10 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Automation potential**: **High** — simple system-clock comparison against the recorded embargo expiry timestamp; fully automatable with no human involvement.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.EmbargoTimerExpired`
 - **Call-out point shape**: Sentinel — binary timer-expiry condition; compares current time against the recorded embargo deadline and returns SUCCESS/FAILURE with no output keys; fully resolved by system-clock comparison against case-state data.
+- **Factory-fn placement**: FUTURE:
+  `vultron.core.behaviors.embargo.create_terminate_embargo_on_condition_tree`
+  (issue #1256) — Sentinel condition guard early in the
+  `_SufficientCauseToTerminateActiveEmbargo` Sequence
 
 ### `OnEmbargoExit`
 
@@ -134,6 +150,11 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Automation potential**: **High** — integration hook (notifications, state updates, downstream triggers); can be fully automated via API calls to notification and case-management systems.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.OnEmbargoExit`
 - **Call-out point shape**: Actuator — fires integration hooks on embargo exit; invokes notification APIs, case-management state-write calls, and downstream trigger endpoints. There is no content artifact placed on the blackboard; the side effects in external systems are the seam.
+- **Factory-fn placement**: FUTURE:
+  `vultron.core.behaviors.embargo.create_terminate_embargo_on_condition_tree`
+  (issue #1256) — Actuator effect node in
+  `_ConsiderTerminatingActiveEmbargo` Sequence, after the condition Selector
+  succeeds and before `terminate_embargo_trigger_bt`
 
 ### `StopProposingEmbargo`
 
@@ -150,6 +171,10 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Automation potential**: **Low** — fundamentally a negotiation-fatigue judgment; depends on relationship context and subjective assessment of negotiation prospects; requires human decision.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.StopProposingEmbargo`
 - **Call-out point shape**: Evaluator
+- **Factory-fn placement**: FUTURE:
+  `vultron.core.behaviors.embargo.create_propose_embargo_decision_tree`
+  (issue #1257) — Evaluator condition guard in
+  `_ConsiderAbandoningProposedEmbargo` Selector
 
 ### `SelectEmbargoOfferTerms`
 
@@ -167,6 +192,10 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Automation potential**: **Medium** — standard terms (duration, conditions) can be drawn from organizational policy templates automatically; atypical situations may need human review.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.SelectEmbargoOfferTerms`
 - **Call-out point shape**: Evaluator
+- **Factory-fn placement**: FUTURE:
+  `vultron.core.behaviors.embargo.create_propose_embargo_decision_tree`
+  (issue #1257) — Evaluator action node in `_ProposeNewEmbargo` and
+  `_ProposeEmbargoRevision` Sequences, before the proposal trigger BT
 
 ### `WantToProposeEmbargo`
 
@@ -183,6 +212,10 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Automation potential**: **Medium** — default policy (always propose) can be automated; exceptions (e.g., already-public vulnerability, no vendor identified) could be rule-encoded, but edge cases may need human override.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.WantToProposeEmbargo`
 - **Call-out point shape**: Evaluator
+- **Factory-fn placement**: FUTURE:
+  `vultron.core.behaviors.embargo.create_propose_embargo_decision_tree`
+  (issue #1257) — Evaluator condition guard in `_ConsiderProposingEmbargo`
+  Sequence (within `_EmNone` Selector)
 
 ### `WillingToCounterEmbargoProposal`
 
@@ -200,6 +233,11 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Automation potential**: **Low** — nuanced negotiation judgment about whether countering is strategically preferable to accepting and revising; best left to human discretion.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.WillingToCounterEmbargoProposal`
 - **Call-out point shape**: Evaluator
+- **Factory-fn placement**: FUTURE:
+  `vultron.core.behaviors.embargo.create_propose_embargo_decision_tree`
+  (issue #1257) — Evaluator condition guard in `_AvoidCounterProposal`
+  Selector; determines whether a counter-proposal is sent instead of
+  accept/reject
 
 ### `ReasonToProposeEmbargoWhenDeployed`
 
@@ -216,6 +254,10 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Automation potential**: **Low** — highly exceptional circumstance; no general rule can anticipate valid reasons, so human judgment is required.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.ReasonToProposeEmbargoWhenDeployed`
 - **Call-out point shape**: Evaluator
+- **Factory-fn placement**: FUTURE:
+  `vultron.core.behaviors.embargo.create_propose_embargo_decision_tree`
+  (issue #1257) — Evaluator condition guard in
+  `_AvoidNewEmbargoesInCsDeployedUnlessReason` Selector
 
 ### `EvaluateEmbargoProposal`
 
@@ -233,6 +275,11 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Automation potential**: **Medium** — basic compatibility check (is proposed duration within policy bounds?) is automatable; final accept/reject for out-of-range proposals typically needs human review.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.EvaluateEmbargoProposal`
 - **Call-out point shape**: Evaluator
+- **Factory-fn placement**: FUTURE:
+  `vultron.core.behaviors.embargo.create_propose_embargo_decision_tree`
+  (issue #1257) — Evaluator condition guard in
+  `_EvaluateAndAcceptProposedEmbargo` Sequence; precedes
+  `accept_embargo_trigger_bt`
 
 ### `OnEmbargoAccept`
 
@@ -249,6 +296,11 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Automation potential**: **High** — notification dispatch, timer initialization, and state-update actions are all integration-automatable via APIs.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.OnEmbargoAccept`
 - **Call-out point shape**: Actuator — fires integration hooks on embargo acceptance; invokes notification APIs, embargo timer-service initialization calls, and case-management state writes. There is no content artifact placed on the blackboard; the side effects in external systems are the seam.
+- **Factory-fn placement**: FUTURE:
+  `vultron.core.behaviors.embargo.create_propose_embargo_decision_tree`
+  (issue #1257) — Actuator effect node in
+  `_EvaluateAndAcceptProposedEmbargo` Sequence, after the Evaluator and
+  `accept_embargo_trigger_bt`
 
 ### `OnEmbargoReject`
 
@@ -265,6 +317,11 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Automation potential**: **High** — notification dispatch and logging actions are fully automatable via APIs.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.OnEmbargoReject`
 - **Call-out point shape**: Actuator — fires integration hooks on embargo rejection; invokes notification APIs and case-management state writes for the rejection rationale. There is no content artifact placed on the blackboard; the side effects in external systems are the seam.
+- **Factory-fn placement**: FUTURE:
+  `vultron.core.behaviors.embargo.create_propose_embargo_decision_tree`
+  (issue #1257) — Actuator effect node in `_RejectProposedEmbargo`
+  Sequence (within `_ChooseEmProposedResponse`), after
+  `reject_embargo_trigger_bt`
 
 ### `CurrentEmbargoAcceptable`
 
@@ -281,5 +338,10 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Automation potential**: **Medium** — automated comparison of current terms against policy preferences is feasible; edge cases and dynamic negotiation contexts may still require human judgment.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.CurrentEmbargoAcceptable`
 - **Call-out point shape**: Evaluator
+- **Factory-fn placement**: FUTURE:
+  `vultron.core.behaviors.embargo.create_propose_embargo_decision_tree`
+  (issue #1257) — Evaluator condition guard in `_ChooseEmActiveResponse`
+  Selector; SUCCESS = no revision needed, FAILURE = revision proposal path
+  taken
 
 ---
