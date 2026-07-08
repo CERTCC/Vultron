@@ -353,3 +353,13 @@ groups:
       `docker compose` command using the existing multi-actor Compose stack; the
       scenario script MUST verify SYNC-2 replica convergence (both Finder and Vendor2
       replicas match the authoritative Vendor1 state) after each major protocol event
+  - id: DEMOMA-09-005
+    priority: MUST
+    statement: >-
+      The PR that introduces the FVV scenario script MUST also add a dedicated parallel
+      CI job to `.github/workflows/demo-integration.yml` that runs the FVV scenario
+      using `DEMO=fvv`; the job MUST run concurrently with (not after) the two-actor
+      job so that total CI wall-clock time does not grow linearly with scenario count
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOCI-03-004
