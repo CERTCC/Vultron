@@ -128,11 +128,16 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
   production this is a simple timestamp comparison
 - **Automation potential**: **High** — simple system-clock comparison against the recorded embargo expiry timestamp; fully automatable with no human involvement.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.EmbargoTimerExpired`
-- **Call-out point shape**: Sentinel — binary timer-expiry condition; compares current time against the recorded embargo deadline and returns SUCCESS/FAILURE with no output keys; fully resolved by system-clock comparison against case-state data.
+- **Call-out point shape**: Retriever — on-demand synchronous check: reads the embargo expiry
+  timestamp from the case DataLayer, compares it to the current system clock, and returns
+  SUCCESS/FAILURE with no output keys. The BT tick drives this node; it does not run
+  independently or fire a trigger endpoint. A timestamp comparison is the simplest kind of
+  structured fact (ADR-0024 BT-18-006: binary on-demand queries are Retrievers, not Sentinels).
 - **Factory-fn placement**: FUTURE:
   `vultron.core.behaviors.embargo.create_terminate_embargo_on_condition_tree`
-  (issue #1256) — Sentinel condition guard early in the
-  `_SufficientCauseToTerminateActiveEmbargo` Sequence
+  (issue #1256) — Retriever condition guard early in the
+  `_SufficientCauseToTerminateActiveEmbargo` Sequence; reads embargo expiry
+  timestamp from DataLayer and compares to system clock
 
 ### `OnEmbargoExit`
 
