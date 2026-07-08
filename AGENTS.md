@@ -802,6 +802,17 @@ Short entries are reproduced here; longer ones are referenced below.
   external system and returns only SUCCESS/FAILURE is a Retriever, not a
   Sentinel.
 
+- **BT Integration Tests Must Use Deterministic Factories When the Default Is
+  Probabilistic** — When a tree builder's default `CallOutBackendFactory` wraps
+  a `WeightedBehavior` or `AlmostAlwaysSucceed` fuzzer node, integration tests
+  that assert `Status.SUCCESS` on the full tree become flaky. Pass an explicit
+  deterministic factory (e.g., a module-level `_always_succeed_factory` helper)
+  to every success-path integration test. Structure tests and `FAILURE`-path
+  tests are unaffected. See `test/AGENTS.md` § "BT Factory Determinism" and
+  [notes/bt-integration.md](notes/bt-integration.md)
+  § "Integration Tests Must Use Deterministic Factories When BT Default Is
+  Probabilistic".
+
 - **`NoNew*` flags imply an upstream Sentinel seam.** When a BT condition
   node of the form `NoNew<X>Info` (or any node whose description says "check
   whether new information has arrived") reads a change-detection flag, that

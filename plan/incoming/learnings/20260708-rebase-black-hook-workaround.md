@@ -29,3 +29,7 @@ reformat (import ordering, line length, etc.).
 removing `--fix` from the `markdownlint-cli2` hook in `.pre-commit-config.yaml`.
 Hooks are now fail-only; auto-fix is done by the `format-code`/`run-linters`
 skills before committing. The `SKIP=black` workaround is no longer needed.
+
+**Promoted**: 2026-07-08 — resolved/superseded; already captured in
+`AGENTS.md` § "Pre-commit Hooks Are Fail-Only". No new doc changes needed.
+Docs PR: (TBD — filled in after PR is opened)

@@ -33,3 +33,9 @@ def _always_succeed_factory(name: str) -> py_trees.behaviour.Behaviour:
 fuzzer node, update all integration tests that assert SUCCESS to pass an
 explicit deterministic factory.  Tests that check tree structure (names,
 children) or FAILURE paths are unaffected.
+
+**Promoted**: 2026-07-08 — captured in `notes/bt-integration.md`
+§ "Integration Tests Must Use Deterministic Factories When BT Default Is
+Probabilistic", `test/AGENTS.md` § "BT Factory Determinism", and root
+`AGENTS.md` pitfall entry.
+Docs PR: (TBD — filled in after PR is opened)
