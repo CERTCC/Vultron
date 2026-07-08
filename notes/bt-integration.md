@@ -1394,9 +1394,10 @@ Sequence
 └── SenderSideBT                    ← routing checked second; fail = divergence
 ```
 
-**Fix**: Extract a shared factory (`terminate_embargo_trigger_bt`) that places
+**Fix**: Extract a shared factory (`terminate_embargo_bt`) that places
 `ResolveCaseManagerNode` before `TerminateEmbargoLifecycleNode`, and replace
-all standalone monolithic nodes with the factory output.
+all standalone monolithic nodes with the factory output. Both trigger and
+cascade call sites use the shared factory directly (BT-19-002, PR #1263).
 
 ---
 

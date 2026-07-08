@@ -236,8 +236,10 @@ creates a new entry file under `plan/history/YYMM/<type>/` — stage it with
 **gitignored**; do **not** stage it. Omitting the entry file is the most
 common cause of history files being left out of PRs.
 
-See each skill's SKILL.md for the exact commands. If the pre-commit hook
-reformats files: `git add -A && git commit -m "Same message"`.
+See each skill's SKILL.md for the exact commands. Pre-commit hooks are
+fail-only (no auto-fix); if a hook fails, run the relevant skill
+(`format-code` for black/markdown, `run-linters` for flake8) to fix and
+re-stage before committing.
 
 **After a PR merges**, if working in a named worktree slot, reset the slot
 so it is ready for the next task:
@@ -777,6 +779,11 @@ Short entries are reproduced here; longer ones are referenced below.
   drift back to the unsafe ordering. See `specs/behavior-tree-integration.yaml`
   BT-19-001, BT-19-002 and [notes/bt-integration.md](notes/bt-integration.md)
   § "Routing-Gated State Mutation".
+- **Pre-commit Hooks Are Fail-Only — Run Skills Before Committing** — The
+  `black` and `markdownlint-cli2` hooks use `--check` (no auto-fix). If a
+  hook fails at commit time, run `format-code` to auto-fix, re-stage, then
+  commit. Hooks that auto-modify files break `git rebase` by leaving a dirty
+  working tree mid-cherry-pick.
 - **Automation Potential and Call-Out Point Shape Are Orthogonal** — When
   classifying a fuzzer node, the `automation potential` and `call-out point
   shape` fields are **independent**. A node with High automation potential may

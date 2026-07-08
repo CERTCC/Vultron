@@ -26,7 +26,7 @@ from typing import Any
 import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.embargo.nodes import TerminateEmbargoNode
+from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
 from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
 from vultron.core.behaviors.status.nodes.broadcast import _find_case_manager_id
 from vultron.core.models.protocols import PersistableModel, is_case_model
@@ -52,10 +52,11 @@ class _PublicDisclosureSkipConditionNode(DataLayerCondition):
     - The new status is NOT public-aware (CS.P not set), OR
     - DataLayer or case_id is unavailable, OR
     - The sender is not a known case participant, OR
-    - The sender does NOT hold the CASE_OWNER role.
+    - The sender does NOT hold the CASE_OWNER role, OR
+    - The case has no active embargo (nothing to terminate).
 
     Returns FAILURE (proceed to teardown) when the sender IS a CASE_OWNER
-    who has sent a public-aware status update.
+    who has sent a public-aware status update AND the case has an active embargo.
     """
 
     def __init__(
@@ -110,7 +111,11 @@ class _PublicDisclosureSkipConditionNode(DataLayerCondition):
         if CVDRole.CASE_OWNER not in roles:
             return Status.SUCCESS
 
-        # Condition met: sender is CASE_OWNER reporting public awareness.
+        if _as_id(case.active_embargo) is None:
+            return Status.SUCCESS
+
+        # Condition met: sender is CASE_OWNER reporting public awareness AND
+        # there is an active embargo to terminate.
         return Status.FAILURE
 
 
@@ -120,20 +125,20 @@ class PublicDisclosureBranchNode(py_trees.composites.Selector):
     Condition: the new ParticipantStatus has CS.P (public-aware) set AND
     the sender holds the CASE_OWNER role.
 
-    When the condition is met, delegates to :class:`TerminateEmbargoNode`.
-    Skips silently if conditions are not met.
+    When the condition is met, delegates to the shared ``terminate_embargo_bt``
+    factory (BT-19-002), which places the routing guard before the EM state
+    mutation.  Skips silently if conditions are not met.
 
     Returns SUCCESS when teardown conditions are not met (skip path) or
     when teardown completes and the broadcast activity is queued.
-    Returns FAILURE when teardown is needed but the outbound
-    ``Terminate(EmbargoEvent)`` activity cannot be dispatched (BT-14-001).
+    Returns FAILURE when teardown is needed but routing prerequisites are
+    absent or the activity cannot be dispatched (BT-14-001, BT-19-001).
 
     Implemented as a ``py_trees.composites.Selector`` (memory=False):
 
-    - Child 1 ``_PublicDisclosureSkipConditionNode``: SUCCESS → skip
-      teardown.
-    - Child 2 ``TerminateEmbargoNode``: SUCCESS on success; FAILURE when
-      dispatch fails (BT-14-001).
+    - Child 1 ``_PublicDisclosureSkipConditionNode``: SUCCESS → skip teardown.
+    - Child 2 ``TerminateEmbargoBT``: SUCCESS on success; FAILURE when routing
+      prerequisites are absent or dispatch fails (BT-14-001).
 
     Per DEMOMA-07-003 step 4.
     """
@@ -146,6 +151,15 @@ class PublicDisclosureBranchNode(py_trees.composites.Selector):
         name: str | None = None,
     ):
         super().__init__(name=name or self.__class__.__name__, memory=False)
+        result_out: dict[str, object] = {}
+        terminate_subtree = (
+            terminate_embargo_bt(
+                case_id=case_id,
+                result_out=result_out,
+            )
+            if case_id is not None
+            else py_trees.behaviours.Success(name="TerminateEmbargoSkipped")
+        )
         self.add_children(
             [
                 _PublicDisclosureSkipConditionNode(
@@ -154,10 +168,7 @@ class PublicDisclosureBranchNode(py_trees.composites.Selector):
                     case_id=case_id,
                     name="SkipCondition",
                 ),
-                TerminateEmbargoNode(
-                    case_id=case_id,
-                    name="TerminateEmbargo",
-                ),
+                terminate_subtree,
             ]
         )
 

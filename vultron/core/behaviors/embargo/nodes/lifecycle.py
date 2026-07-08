@@ -15,36 +15,24 @@
 
 """Embargo state machine and lifecycle transition nodes."""
 
-from typing import Any, cast
-
+import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.protocols import is_case_model
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     EmbargoLifecycleResult,
     TransitionMode,
 )
-from vultron.core.states.em import (
-    EM,
-    EMAdapter,
-    create_em_machine,
-    is_valid_em_transition,
-)
-from vultron.core.use_cases._helpers import (
-    _as_id,
-    _resolve_case_manager_id,
-    reset_case_participant_embargo_consent,
-)
+from vultron.core.states.em import EM, is_valid_em_transition
+from vultron.core.use_cases._helpers import _as_id
 from vultron.core.use_cases.triggers._helpers import add_activity_to_outbox
 from vultron.errors import (
     VultronError,
     VultronInvalidStateTransitionError,
     VultronValidationError,
 )
-from transitions import MachineError
 
 
 class ValidateEmbargoRevisionStateNode(DataLayerAction):
@@ -221,99 +209,73 @@ class TerminateEmbargoLifecycleNode(_EmbargoLifecycleNode):
         )
 
 
-class TerminateEmbargoNode(DataLayerAction):
-    """Trigger-side embargo teardown for a given case.
+class ReadEmbargoIdNode(DataLayerAction):
+    """Read the active embargo ID from the case and write it to the blackboard.
 
-    Applies the ACTIVE/REVISE → EXITED EM state transition via the state
-    machine, clears ``active_embargo``, resets all participant embargo
-    consent states, and queues a ``Terminate(EmbargoEvent)`` activity via
-    ``trigger_activity_factory``.
-
-    Returns SUCCESS when teardown completes and the broadcast activity is
-    queued successfully.
-
-    Returns SUCCESS (no-op) when:
-
-    - ``case_id`` is ``None`` or ``datalayer`` is unavailable
-    - The case is not found in the DataLayer
-    - There is no active embargo on the case
-    - The EM state machine rejects the ``terminate`` transition
-
-    Returns FAILURE (BT-14-001) when the embargo state transition succeeds
-    but the outbound ``Terminate(EmbargoEvent)`` activity cannot be created
-    or queued (missing factory, unresolvable Case Manager, or dispatch
-    exception).
+    Returns FAILURE when the case is not found, has no active embargo, or
+    the DataLayer is unavailable.  Returns SUCCESS and writes ``embargo_id``
+    to the blackboard on success.
     """
 
-    def __init__(self, case_id: str | None, name: str | None = None):
+    def __init__(self, case_id: str, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
+        self._case_id = case_id
+
+    def setup(self, **kwargs: object) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="embargo_id",
+            access=py_trees.common.Access.WRITE,
+        )
 
     def update(self) -> Status:
-        if self.datalayer is None or not self.case_id:
-            return Status.SUCCESS
+        if self.datalayer is None:
+            self.feedback_message = "DataLayer not available"
+            return Status.FAILURE
 
-        case = self.datalayer.read(self.case_id)
+        case = self.datalayer.read(self._case_id)
         if not is_case_model(case):
-            return Status.SUCCESS
+            self.feedback_message = f"Case '{self._case_id}' not found"
+            return Status.FAILURE
 
-        if case.active_embargo is None:
-            self.logger.info(
-                "%s: no active embargo on case '%s' — skipping",
-                self.name,
-                self.case_id,
+        embargo_id = _as_id(case.active_embargo)
+        if embargo_id is None:
+            self.feedback_message = (
+                f"No active embargo on case '{self._case_id}'"
             )
-            return Status.SUCCESS
+            return Status.FAILURE
 
-        em_state = case.current_status.em_state
-        adapter = EMAdapter(em_state)
-        em_machine = create_em_machine()
-        em_machine.add_model(adapter, initial=em_state)
+        self.blackboard.embargo_id = embargo_id
+        return Status.SUCCESS
 
-        try:
-            getattr(adapter, "terminate")()
-        except MachineError:
-            self.logger.warning(
-                "%s: EM %s → EXITED blocked for case '%s'",
-                self.name,
-                em_state,
-                self.case_id,
-            )
-            return Status.SUCCESS
 
-        embargo_id = (
-            case.active_embargo
-            if isinstance(case.active_embargo, str)
-            else getattr(case.active_embargo, "id_", None)
+class SendTerminateEmbargoActivityNode(DataLayerAction):
+    """Build and queue a ``Terminate(EmbargoEvent)`` activity.
+
+    Reads ``embargo_id`` and ``case_manager_id`` from the blackboard and
+    constructs the outbound activity via ``trigger_activity_factory``.
+
+    Returns FAILURE (BT-14-001) when the factory is unavailable, a required
+    blackboard key is missing, or dispatch raises an exception.
+    Returns SUCCESS when the activity is created and queued.
+    """
+
+    def __init__(self, case_id: str, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._case_id = case_id
+
+    def setup(self, **kwargs: object) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="embargo_id",
+            access=py_trees.common.Access.READ,
         )
-        case_manager_id = _resolve_case_manager_id(
-            cast(Any, case), self.datalayer
-        )
-
-        case.current_status.em_state = EM(adapter.state)
-        case.active_embargo = None
-        reset_case_participant_embargo_consent(self.datalayer, case)
-        self.datalayer.save(case)
-
-        self.logger.info(
-            "%s: embargo terminated on case '%s' (EM %s → %s)",
-            self.name,
-            self.case_id,
-            em_state,
-            adapter.state,
+        self.blackboard.register_key(
+            key="case_manager_id",
+            access=py_trees.common.Access.READ,
         )
 
-        return self._dispatch_activity(embargo_id, case_manager_id)
-
-    def _dispatch_activity(
-        self, embargo_id: str | None, case_manager_id: str | None
-    ) -> Status:
-        """Queue a Terminate(EmbargoEvent) activity to the case manager's outbox.
-
-        Returns FAILURE (BT-14-001) when the factory is unavailable, the
-        Case Manager cannot be resolved, or dispatch raises an exception.
-        Returns SUCCESS when the activity is created and queued.
-        """
+    def update(self) -> Status:
         if self.trigger_activity_factory is None:
             self.feedback_message = (
                 "trigger_activity_factory not available"
@@ -322,34 +284,32 @@ class TerminateEmbargoNode(DataLayerAction):
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        if embargo_id is None or self.datalayer is None:
-            self.feedback_message = "embargo_id or datalayer not available"
-            return Status.FAILURE
-
-        if case_manager_id is None:
-            self.feedback_message = (
-                f"no CASE_MANAGER found for case '{self.case_id}'"
-                " — activity dispatch skipped (BT-14-001)"
-            )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
+        if self.datalayer is None or self.actor_id is None:
+            self.feedback_message = "DataLayer or actor_id not available"
             return Status.FAILURE
 
         try:
-            case_id: str = self.case_id  # type: ignore[assignment]  # guarded above
+            embargo_id: str = self.blackboard.embargo_id
+            case_manager_id: str = self.blackboard.case_manager_id
+        except KeyError as exc:
+            self.feedback_message = f"Required blackboard key missing: {exc}"
+            return Status.FAILURE
+
+        try:
             announce_id, _ = self.trigger_activity_factory.terminate_embargo(
                 embargo_id=embargo_id,
-                case_id=case_id,
-                actor=case_manager_id,
+                case_id=self._case_id,
+                actor=self.actor_id,
                 to=[case_manager_id],
             )
             add_activity_to_outbox(
-                case_manager_id,
+                self.actor_id,
                 announce_id,
-                cast(CaseOutboxPersistence, self.datalayer),
+                self.datalayer,  # type: ignore[arg-type]
             )
         except Exception as exc:
             self.feedback_message = (
-                f"activity dispatch failed for case '{self.case_id}': {exc}"
+                f"activity dispatch failed for case '{self._case_id}': {exc}"
             )
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE

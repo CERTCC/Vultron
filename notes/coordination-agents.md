@@ -25,7 +25,7 @@ input before it can continue. Coordination agents are the capabilities that
 answer those call-out points.
 
 See `CONTEXT.md` § Coordination Agents for the canonical definitions of
-*call-out point*, *Sentinel*, *Evaluator*, *Retriever*, and *Composer*.
+*call-out point*, *Sentinel*, *Evaluator*, *Retriever*, *Composer*, and *Actuator*.
 See ADR-0024 for the decisions behind that taxonomy.
 
 ---
@@ -61,8 +61,14 @@ BT node → call-out point → external party → response → BT continues
 This is the **call-out** surface: the protocol drives the agent.
 
 A Sentinel operates exclusively on the call-in surface (it watches and then
-calls a trigger endpoint). An Evaluator, Retriever, and Composer are called
-from the call-out surface.
+calls a trigger endpoint). An Evaluator, Retriever, Composer, and Actuator are
+called from the call-out surface.
+
+> **Key implication**: A Sentinel has **no BT call-out point**. Nodes that
+> perform on-demand binary condition checks when the BT tick reaches them are
+> Retrievers (or ProtocolInternal if they check data the BT already owns) —
+> not Sentinels. See ADR-0024 § "Boolean external queries are Retrievers, not
+> Sentinels" and issue #1266 (FUZZ-08a-quart) for the reclassification audit.
 
 ---
 
@@ -78,13 +84,17 @@ an open question: "What information should actually drive this choice?"
 For each fuzzer node, ask:
 
 1. What decision or fact is actually needed here?
-2. Is the answer deterministic given data already in the case? → Traditional
-   automation (no coordination agent required)
-3. Does it require data from an external system? → **Retriever** call-out point
+2. Is the answer deterministic given data already in the case (no external call)?
+   → ProtocolInternal (no coordination agent required)
+3. Does it require data from an external system (including binary queries)?
+   → **Retriever** call-out point
 4. Does it require judgment/evaluation? → **Evaluator** call-out point
-5. Does it require a condition to be monitored over time? → **Sentinel** on the
-   call-in surface
+5. Does it require a side effect in an external system (notification, queue, API)?
+   → **Actuator** call-out point
 6. Does it require content to be drafted? → **Composer** call-out point
+7. Does it require a condition to be monitored continuously over time, such that
+   the monitoring should trigger a protocol action when fired?
+   → **Sentinel** on the call-in surface (no call-out point; see #1143)
 
 The fuzzer node's `Input category` docstring annotation
 (`Human decision`, `Environmental check`, `System integration`, etc.) and
@@ -103,12 +113,22 @@ A Sentinel runs independently — it is not called by the protocol. It monitors
 a condition (a timestamp, a case flag, an external system state) and, when the
 condition fires, calls a Vultron trigger endpoint.
 
-**BT integration**: None. Sentinels bypass the call-out surface entirely.
+**BT integration**: None. Sentinels bypass the call-out surface entirely. A
+Sentinel has no BT call-out point. If you are looking at a BT node that checks
+a binary condition when the tree reaches it, that is a Retriever (on-demand
+external query) or ProtocolInternal (data the BT already owns) — not a Sentinel.
+
 They need a way to authenticate and call trigger endpoints, and a way to know
 which cases to monitor.
 
-**Open design question**: Should Sentinels register in the DataLayer as
-actors? If so, their protocol actions become attributable and auditable.
+**Open design questions** (tracked in #1143):
+
+- What is the Sentinel's invocation model? (polling interval, event subscription, webhook)
+- How does a Sentinel authenticate to call Vultron trigger endpoints?
+- Can a Sentinel be configured per-case, or is it a global service that monitors all cases?
+- What is the expected failure behavior if the Sentinel cannot reach the trigger endpoint?
+- How does a Sentinel signal that it has fired, for audit/ledger purposes?
+- Should Sentinels register in the DataLayer so they appear as actors?
 
 ### Evaluator
 
@@ -150,6 +170,26 @@ content (unless the Composer signals failure).
 **Human-review gate**: Whether Composer output auto-sends or requires human
 review before dispatch is a per-deployment policy question, not a protocol
 question.
+
+### Actuator
+
+An Actuator is called at a call-out node that needs to cause a side effect in
+an external system — firing a notification API, writing to a case management
+system, mutating a queue, calling a timer service. Unlike Evaluators and
+Retrievers, an Actuator does not return structured data for the BT to reason
+with; unlike Composers, it does not produce a content artifact placed on the
+blackboard. It confirms the side effect was executed.
+
+**BT integration**: The call-out node dispatches to the Actuator and receives
+a simple SUCCESS (side effect confirmed) / FAILURE (side effect failed). No
+output blackboard keys are written. The BT may branch on FAILURE, but the
+Actuator's job is execution, not decision.
+
+**Examples**: `OnEmbargoExit`, `OnEmbargoAccept`, `OnEmbargoReject`,
+`SetRcptQrmR`, `InjectParticipant`, `RemoveRecipient` — all nodes that fire
+integration hooks when protocol state transitions occur.
+
+**Added in**: ADR-0024 amendment, 2026-07-07 (issue #1239, PR #1195).
 
 ---
 
@@ -248,23 +288,29 @@ Blackboard contract requirements are specified in
 
 ### Shape base classes
 
-Each of the four agent shapes (Evaluator, Retriever, Sentinel, Composer)
+Each of the five agent shapes (Evaluator, Retriever, Sentinel, Composer, Actuator)
 defines a **lifecycle pattern** for how the node reads input, dispatches, and
 writes output. Concrete call-out point nodes subclass the appropriate shape
 base class. The shape base class is NOT a generic reusable class; it
 documents the lifecycle pattern and defines the hook points for subclasses.
 
-- **Sentinel**: binary condition; no output keys; backend monitors a state
-  and returns `SUCCESS`/`FAILURE` only
+Note: Sentinel has **no call-out point base class** — it operates exclusively
+on the call-in surface and has no BT node. The base classes below are for the
+four shapes that appear at call-out points.
+
 - **Evaluator**: reads situation context from the blackboard; writes a
   structured recommendation to a declared output key; `SUCCESS` = answer
   available, `FAILURE` = cannot evaluate
 - **Retriever**: reads a query from the blackboard; writes structured facts
-  to a declared output key; `SUCCESS` = facts retrieved, `FAILURE` = not
-  found or unavailable
+  to a declared output key (including boolean/binary results — see ADR-0024
+  § "Boolean external queries are Retrievers, not Sentinels"); `SUCCESS` =
+  facts retrieved, `FAILURE` = not found or unavailable
 - **Composer**: reads composition context from the blackboard; writes a
   generated artifact to a declared output key; `SUCCESS` = artifact ready,
   `FAILURE` = generation failed
+- **Actuator**: reads trigger context from the blackboard; invokes an external
+  system; no output keys written; `SUCCESS` = side effect confirmed, `FAILURE`
+  = side effect failed
 
 ### Implementation chain
 
@@ -295,9 +341,13 @@ documents the lifecycle pattern and defines the hook points for subclasses.
          as call-out points with deterministic (AlwaysSucceed/AlwaysFail)
          backends; add one randomized demo
 
+FUZZ-08a-quart (#1266) — Reclassify remaining 17 Sentinel-labeled nodes
+                           (likely all become Retriever or ProtocolInternal)
+
 FUZZ-08d — All Evaluator-shaped call-out points (cross-domain)
 FUZZ-08e — All Retriever-shaped call-out points (cross-domain)
-FUZZ-08f — All Sentinel-shaped call-out points (cross-domain)
+FUZZ-08f (#1175) — All Sentinel-shaped call-out points (cross-domain)
+                   [scope likely zero after FUZZ-08a-quart]
 FUZZ-08g — All Composer-shaped call-out points (cross-domain)
 (FUZZ-08h covers Actuator per the revised 5-shape taxonomy)
 
