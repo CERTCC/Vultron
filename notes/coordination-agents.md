@@ -316,10 +316,26 @@ four shapes that appear at call-out points.
 
 ```text
 #1150 — Update catalog: add cross-refs (vultron/bt/ → demo/fuzzer/) +
-         agent-shape classification per node
+         agent-shape classification per node [DONE]
 
-#1151 — Design exemplar: one call-out point per shape (provisional)
-         + shape base classes + blackboard contract documentation
+#1151 — Design exemplar: one call-out point per shape [DONE]
+         Delivered:
+         - CallOutBackendFactory type alias (vultron.core.behaviors.call_out_point)
+         - Five shape mixin classes (vultron.demo.fuzzer.call_out_point):
+             EvaluatorCallOutPoint, RetrieverCallOutPoint, ComposerCallOutPoint,
+             ActuatorCallOutPoint, SentinelCallOutPoint
+         - Exemplar nodes (with blackboard contract docstrings + output_keys):
+             EvaluateReportCredibility (Evaluator) — validate.py
+             GatherValidationInfo (Retriever) — validate.py
+             OnAccept / OnDefer (Actuator) — prioritize.py
+             PrepareReport (Composer) — publication.py
+             NewValidationInfoSentinel (Sentinel) — call_out_point.py (illustrative)
+         - Factory injection into:
+             create_validate_report_tree (credibility_factory, validity_factory,
+               gather_info_factory [Phase 2 reserved])
+             create_prioritize_subtree (on_accept_factory, on_defer_factory)
+             create_publication_tree (prepare_report_factory) [new Phase 1 stub]
+         - ADR-0025 advanced from proposed → accepted
 
 #1152 — Wire demo BTs: audit BTs for implicit policy nodes; externalize
          as call-out points with deterministic (AlwaysSucceed/AlwaysFail)
@@ -333,7 +349,7 @@ FUZZ-08e — All Retriever-shaped call-out points (cross-domain)
 FUZZ-08f (#1175) — All Sentinel-shaped call-out points (cross-domain)
                    [scope likely zero after FUZZ-08a-quart]
 FUZZ-08g — All Composer-shaped call-out points (cross-domain)
-FUZZ-08 (new, TBD) — All Actuator-shaped call-out points (cross-domain)
+(FUZZ-08h covers Actuator per the revised 5-shape taxonomy)
 
 Domain sweep audits — verify completeness per domain after shape rollout
 ```
