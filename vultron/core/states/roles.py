@@ -38,6 +38,13 @@ class CVDRole(StrEnum):
             owner.  A CaseManager participant always also holds the COORDINATOR
             role (CBT-01-003).  While the demo uses a Service actor type, any
             Actor type (e.g. Person) may hold this role.
+        CVE_NUMBERING_AUTHORITY: Participant that holds CVE Numbering Authority
+            (CNA) status, granting authority to assign CVE IDs.  A CNA is
+            orthogonal to other CVD roles — a VENDOR, COORDINATOR, or any other
+            participant may independently hold this role.  Used by
+            ``IsIDAssignmentAuthority`` (static capability check) and
+            ``IdAssignable`` (scope-match evaluation) BT nodes to route ID
+            assignment decisions to the correct participant(s).
     """
 
     FINDER = auto()
@@ -48,6 +55,7 @@ class CVDRole(StrEnum):
     OTHER = auto()
     CASE_OWNER = auto()
     CASE_MANAGER = auto()
+    CVE_NUMBERING_AUTHORITY = auto()
 
 
 def serialize_roles(roles: list[CVDRole]) -> list[str]:

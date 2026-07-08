@@ -165,6 +165,23 @@ groups:
     rationale: >-
       Alias names carry the old "finder-specific" framing and mislead readers about the node's
       actual generality.
+  - id: BTND-05-004
+    priority: MUST
+    statement: >-
+      The `CVDRole` enum MUST include a `CVE_NUMBERING_AUTHORITY` value representing a
+      participant that holds CVE Numbering Authority (CNA) status.
+    rationale: >-
+      Multiple participants in an MPCVD case may independently be CNAs (e.g., a vendor CNA and
+      a coordinator CNA). The `IsIDAssignmentAuthority` BT node checks whether a participant
+      holds this role as a static capability check; `IdAssignable` evaluates whether the CNA's
+      scope rules cover the specific vulnerability. Without a `CVE_NUMBERING_AUTHORITY` role in
+      `CVDRole`, the protocol has no way to represent CNA status, route ID-assignment decision
+      nodes to the correct participant(s), or distinguish CNA participants from non-CNA
+      participants in case actor lists. `CVE_NUMBERING_AUTHORITY` is orthogonal to all other
+      CVD roles — a VENDOR, COORDINATOR, or any participant may independently hold it.
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-05-001
 - id: BTND-06
   title: Idiomatic BT Construction Patterns
   kind: language

@@ -16,7 +16,7 @@ from vultron.core.models.case_participant import (
 )
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.rm import RM
-from vultron.core.states.roles import CVDRole
+from vultron.core.states.roles import CVDRole, validate_roles
 
 _ACTOR = "https://example.org/actors/alice"
 _CONTEXT = "https://example.org/cases/case-001"
@@ -271,3 +271,60 @@ class TestAcceptedStatusOnReporterSubclasses:
         p = cls(attributed_to=_ACTOR, context=_CONTEXT)
         assert p.participant_status is not None
         assert p.participant_status.rm_state == RM.START
+
+
+# ---------------------------------------------------------------------------
+# CVE_NUMBERING_AUTHORITY role on participants
+# ---------------------------------------------------------------------------
+
+
+class TestCNARoleOnParticipant:
+    """CVE_NUMBERING_AUTHORITY is recognised in participant role lookups."""
+
+    def test_cna_role_recognized_via_add_role(self):
+        """add_role(CVE_NUMBERING_AUTHORITY) stores the role correctly."""
+        p = _make()
+        p.add_role(CVDRole.CVE_NUMBERING_AUTHORITY)
+        assert CVDRole.CVE_NUMBERING_AUTHORITY in p.case_roles
+
+    def test_has_role_returns_true_for_cna(self):
+        """has_role() returns True when CVE_NUMBERING_AUTHORITY is held."""
+        p = _make(case_roles=[CVDRole.CVE_NUMBERING_AUTHORITY])
+        assert p.has_role(CVDRole.CVE_NUMBERING_AUTHORITY)
+
+    def test_has_role_returns_false_without_cna(self):
+        """has_role() returns False when CVE_NUMBERING_AUTHORITY is not held."""
+        p = _make(case_roles=[CVDRole.VENDOR])
+        assert not p.has_role(CVDRole.CVE_NUMBERING_AUTHORITY)
+
+    def test_cna_role_orthogonal_to_vendor(self):
+        """A participant may hold both CVE_NUMBERING_AUTHORITY and VENDOR."""
+        p = _make(case_roles=[CVDRole.VENDOR, CVDRole.CVE_NUMBERING_AUTHORITY])
+        assert p.has_role(CVDRole.VENDOR)
+        assert p.has_role(CVDRole.CVE_NUMBERING_AUTHORITY)
+
+    def test_cna_role_orthogonal_to_coordinator(self):
+        """A participant may hold both CVE_NUMBERING_AUTHORITY and COORDINATOR."""
+        p = _make(
+            case_roles=[CVDRole.COORDINATOR, CVDRole.CVE_NUMBERING_AUTHORITY]
+        )
+        assert p.has_role(CVDRole.COORDINATOR)
+        assert p.has_role(CVDRole.CVE_NUMBERING_AUTHORITY)
+
+    def test_cna_role_roundtrips_via_serialization(self):
+        """CVE_NUMBERING_AUTHORITY survives a serialize_roles → validate_roles roundtrip."""
+        from vultron.core.states.roles import serialize_roles
+
+        roles = [CVDRole.VENDOR, CVDRole.CVE_NUMBERING_AUTHORITY]
+        serialized = serialize_roles(roles)
+        assert "cve_numbering_authority" in serialized
+        restored = validate_roles(serialized)
+        assert CVDRole.CVE_NUMBERING_AUTHORITY in restored
+
+    def test_cna_role_persists_in_participant_status(self):
+        """CVE_NUMBERING_AUTHORITY assigned to participant is stored in its status.cvd_role."""
+        p = _make(case_roles=[CVDRole.CVE_NUMBERING_AUTHORITY])
+        p.participant_statuses[0].cvd_role = p.case_roles
+        status = p.participant_status
+        assert status is not None
+        assert CVDRole.CVE_NUMBERING_AUTHORITY in status.cvd_role
