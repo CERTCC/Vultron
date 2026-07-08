@@ -126,6 +126,8 @@ nav:
             - Status Updates: 'howto/activitypub/activities/status_updates.md'
             - Acknowledging a Report: 'howto/activitypub/activities/acknowledge.md'
             - Error Handling: 'howto/activitypub/activities/error.md'
+      - Demo How-Tos:
+          - FVV Demo: 'howto/demos/fvv-demo.md'
       - EM and iCalendar: 'howto/em_icalendar.md'
       - General Notes: 'howto/general_implementation.md'
   - Reference:

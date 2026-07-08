@@ -316,6 +316,21 @@ def _phase_sync_verification(
             entry_hash=vendor_tail_hash,
         )
 
+    # Log hash parity is necessary but not sufficient: the actor_participant_index
+    # update (which includes Vendor2) may lag behind ledger delivery. Wait
+    # explicitly for all 4 participants to appear on each replica before
+    # verify_replica_state checks key-set equality.
+    wait_for_case_participants(
+        vendor_client=finder_client,
+        case_id=case.id_,
+        expected_count=4,
+    )
+    wait_for_case_participants(
+        vendor_client=vendor2_client,
+        case_id=case.id_,
+        expected_count=4,
+    )
+
     with demo_check(
         "Finder replica state matches authoritative Vendor1 state"
     ):

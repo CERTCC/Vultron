@@ -24,6 +24,7 @@ Scenarios are named by the sequence of actor roles involved:
 | Scenario | File | Description |
 |----------|------|-------------|
 | FV | `vultron/demo/scenario/two_actor_demo.py` | Finder + Vendor; simple coordination |
+| FVV | `vultron/demo/scenario/fvv_demo.py` | Finder → Vendor1 → Vendor2; no coordinator; independent fix paths (implements #1265) |
 
 ## Deprecated / idea-mine only
 
@@ -43,7 +44,6 @@ be treated as working implementations.
 | Scenario | Issue | Description | Blocked by |
 |----------|-------|-------------|------------|
 | FCV | #1234 | F reports to C; C invites V; three-actor coordination | — |
-| FVV | #1211 | F→V1→V2, no coordinator | — |
 | FVCV-extension | #1212 | V1 retains ownership; C is participant; C suggests V2 | — |
 | FVCV-handoff | #1214 | V1 transfers ownership to C; C invites V2 | #1212 |
 | FCCV-extension | #1215 | C1 retains case; C2 is participant; C2 asks C1 to invite V | — |
