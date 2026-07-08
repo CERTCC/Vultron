@@ -67,6 +67,26 @@ be treated as working implementations.
 | Embargo variations | #1222 | Negotiation, collapse, deliberate delay |
 | CVD recipe injects | #1223 | Twists from the CERT Guide to CVD cvd_recipes |
 
+### Pre-case ACK flow (`auto_create_case=False`)
+
+Issue #1133 introduced `ActorConfig.auto_create_case` (default: `True`). When
+`False`, the receiver stores the inbound report but does **not** auto-create a
+`VulnerabilityCase`, enabling the receiver to send a pre-case
+`Read(Offer(Report))` acknowledgment (`AckReportReceivedUseCase`) before
+deciding to accept or reject.
+
+The **tentative rejection → acceptance** scenario (#1221) is the first planned
+demo to exercise this path:
+
+1. Finder submits report.
+2. Vendor (with `auto_create_case=False`) sends pre-case ACK via trigger.
+3. Vendor invalidates report (RM:R→I) — "tentative rejection".
+4. Vendor later validates (RM:I→V) and engages — "reconsideration".
+
+Once #1221 is implemented, `ack_report` should be wired into
+`EXPECTED_EVENT_TYPES` in `test/ci/test_case_ledger_invariants.py` (currently
+excluded; see the comment at line 413 citing #1133).
+
 See also: #1079 (multi-coordinator motivation from FIRSTCON 2026)
 
 ---

@@ -705,3 +705,25 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: CM-14-001
+- id: CM-15
+  title: Case Creation Policy
+  description: >-
+    Requirements for the configurable auto_create_case policy on ActorConfig.
+    Enables pre-case-ACK protocol flows (ADR-0015 post-decision refinement,
+    issue #1133).
+  specs:
+  - id: CM-15-001
+    priority: MUST
+    statement: >-
+      ActorConfig MUST expose an `auto_create_case` boolean field (default: True).
+      When False, SubmitReportReceivedUseCase MUST store the inbound
+      VulnerabilityReport and Offer(Report) activity but MUST NOT invoke
+      create_receive_report_case_tree.
+    rationale: >-
+      Receivers that follow the Option 3 protocol path (send Read(Offer(Report))
+      before deciding to accept or reject) require the ability to delay case
+      creation. The default (True) preserves the original ADR-0015 Option 4
+      "always create at RM.RECEIVED" behavior for all existing actors and demos.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-12-001
