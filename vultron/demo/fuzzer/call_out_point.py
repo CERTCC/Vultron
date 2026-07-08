@@ -94,7 +94,7 @@ class EvaluatorCallOutPoint:
         if status == Status.SUCCESS and self.output_keys:
             for key, typ in self.output_keys.items():
                 setattr(self._bb_writer, key, typ())
-        return status
+        return Status(status)  # type: ignore[arg-type]
 
 
 class RetrieverCallOutPoint:
@@ -130,7 +130,7 @@ class RetrieverCallOutPoint:
         if status == Status.SUCCESS and self.output_keys:
             for key, typ in self.output_keys.items():
                 setattr(self._bb_writer, key, typ())
-        return status
+        return Status(status)  # type: ignore[arg-type]
 
 
 class ComposerCallOutPoint:
@@ -164,7 +164,7 @@ class ComposerCallOutPoint:
         if status == Status.SUCCESS and self.output_keys:
             for key, typ in self.output_keys.items():
                 setattr(self._bb_writer, key, typ())
-        return status
+        return Status(status)  # type: ignore[arg-type]
 
 
 class ActuatorCallOutPoint:
@@ -187,7 +187,7 @@ class ActuatorCallOutPoint:
         super().setup(**kwargs)  # type: ignore[misc]
 
     def update(self) -> Status:
-        return super().update()  # type: ignore[misc]
+        return Status(super().update())  # type: ignore[misc, arg-type]
 
 
 class SentinelCallOutPoint:
@@ -214,7 +214,7 @@ class SentinelCallOutPoint:
         super().setup(**kwargs)  # type: ignore[misc]
 
     def update(self) -> Status:
-        return super().update()  # type: ignore[misc]
+        return Status(super().update())  # type: ignore[misc, arg-type]
 
 
 # ---------------------------------------------------------------------------

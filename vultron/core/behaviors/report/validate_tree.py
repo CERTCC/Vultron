@@ -74,20 +74,22 @@ logger = logging.getLogger(__name__)
 
 # Fuzzer defaults are imported lazily inside the default lambda to avoid
 # importing vultron.demo from core at module load time (BT-16-001).
+#
+# Phase 1: both policy nodes are deterministic stubs that always succeed.
+# The probabilistic EvaluateReportCredibility / EvaluateReportValidity fuzzer
+# classes exist for simulation scenarios (e.g. random-sampling runs) and can be
+# injected via the factory parameters; they are NOT used as defaults because the
+# ~81% two-node series success rate makes integrate-test workflows non-deterministic.
 def _default_credibility_factory(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.validate import (
-        EvaluateReportCredibility,
-    )
+    from vultron.demo.fuzzer.base import AlwaysSucceed
 
-    return EvaluateReportCredibility(name)
+    return AlwaysSucceed(name)
 
 
 def _default_validity_factory(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.validate import (
-        EvaluateReportValidity,
-    )
+    from vultron.demo.fuzzer.base import AlwaysSucceed
 
-    return EvaluateReportValidity(name)
+    return AlwaysSucceed(name)
 
 
 def _default_gather_info_factory(name: str) -> py_trees.behaviour.Behaviour:
