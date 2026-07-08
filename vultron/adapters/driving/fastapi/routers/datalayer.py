@@ -63,24 +63,32 @@ def get_object(
     return obj
 
 
-@router.get("/Offer/", operation_id="datalayer_get_offer")
+@router.get(
+    "/Offer/",
+    response_model=as_Offer,
+    operation_id="datalayer_get_offer",
+)
 def get_offer(
     object_id: str, datalayer: DataLayer = Depends(get_shared_dl)
-) -> as_Offer:
+) -> AS2JSONResponse:
     obj = datalayer.read(object_id)
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-    return as_Offer.model_validate(obj)
+    return AS2JSONResponse(as_Offer.model_validate(obj))
 
 
-@router.get("/Report/", operation_id="datalayer_get_report")
+@router.get(
+    "/Report/",
+    response_model=VulnerabilityReport,
+    operation_id="datalayer_get_report",
+)
 def get_report(
     id: str, datalayer: DataLayer = Depends(get_shared_dl)
-) -> VulnerabilityReport:
+) -> AS2JSONResponse:
     obj = datalayer.read(id)
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-    return VulnerabilityReport.model_validate(obj)
+    return AS2JSONResponse(VulnerabilityReport.model_validate(obj))
 
 
 @router.get(
@@ -105,12 +113,13 @@ def get_datalayer_contents(
 
 @router.get(
     "/Actors/{actor_id}/Offers/{offer_id}",
+    response_model=as_Offer,
     description="Returns a specific object by actor id and offer id.",
     operation_id="datalayer_get_actor_offer",
 )
 def get_actor_offer(
     actor_id: str, offer_id: str, datalayer: DataLayer = Depends(get_shared_dl)
-) -> as_Offer:
+) -> AS2JSONResponse:
     obj = datalayer.read(offer_id)
 
     if not obj:
@@ -128,7 +137,7 @@ def get_actor_offer(
     if not found:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
-    return offer
+    return AS2JSONResponse(offer)
 
 
 @router.get(
@@ -138,26 +147,37 @@ def get_actor_offer(
 )
 def get_offers(
     datalayer: DataLayer = Depends(get_shared_dl),
-) -> dict[str, as_Offer]:
+) -> AS2JSONResponse:
     results = datalayer.by_type("Offer")
 
-    return {k: as_Offer.model_validate(v) for k, v in results.items()}
+    return AS2JSONResponse(
+        {
+            k: as_Offer.model_validate(v).model_dump(
+                mode="json", by_alias=True, exclude_none=True
+            )
+            for k, v in results.items()
+        }
+    )
 
 
 @router.get(
     "/Reports/",
     description="Returns all VulnerabilityReport objects.",
-    response_model=dict[str, VulnerabilityReport],
     operation_id="datalayer_list_reports",
 )
 def get_reports(
     datalayer: DataLayer = Depends(get_shared_dl),
-) -> dict[str, VulnerabilityReport]:
+) -> AS2JSONResponse:
     results = datalayer.by_type("VulnerabilityReport")
 
-    return {
-        k: VulnerabilityReport.model_validate(v) for k, v in results.items()
-    }
+    return AS2JSONResponse(
+        {
+            k: VulnerabilityReport.model_validate(v).model_dump(
+                mode="json", by_alias=True, exclude_none=True
+            )
+            for k, v in results.items()
+        }
+    )
 
 
 _DATALAYER_ACTOR_TYPE_MAP: dict[str, type[as_Actor]] = {
@@ -206,7 +226,7 @@ def get_actors(
 )
 def get_actor_outbox(
     actor_id: str, datalayer: DataLayer = Depends(get_shared_dl)
-) -> as_OrderedCollection:
+) -> AS2JSONResponse:
     actor_obj = datalayer.read(actor_id)
 
     if not actor_obj:
@@ -226,7 +246,7 @@ def get_actor_outbox(
         if isinstance(item, str) or isinstance(item, as_Object)
     ]
 
-    return outbox
+    return AS2JSONResponse(outbox)
 
 
 @router.get(

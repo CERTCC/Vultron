@@ -30,7 +30,6 @@ from fastapi import (
     Depends,
     HTTPException,
     Request,
-    Response,
     status,
 )
 from pydantic import BaseModel, Field
@@ -153,7 +152,6 @@ class ActorCreateRequest(BaseModel):
 )
 def create_actor(
     request: ActorCreateRequest,
-    response: Response,
     datalayer: DataLayer = Depends(get_shared_dl),
 ):
     """Create (or return existing) actor record."""
@@ -162,7 +160,6 @@ def create_actor(
     # Idempotency: return existing record unchanged.
     existing = _find_actor_record(datalayer, actor_id)
     if existing is not None:
-        response.status_code = status.HTTP_200_OK
         cls = _actor_class_for_record(existing)
         data = existing.get("data_", {})
         return AS2JSONResponse(
@@ -295,14 +292,13 @@ def get_action_rules(
 @router.get(
     "/{actor_id:path}/inbox",
     response_model=as_OrderedCollection,
-    response_model_exclude_none=True,
     summary="Get Actor Inbox",
     description="Returns the Actor's Inbox. (stub implementation).",
     operation_id="actors_get_inbox",
 )
 def get_actor_inbox(
     actor_id: str, datalayer: DataLayer = Depends(get_shared_dl)
-) -> as_OrderedCollection:
+) -> AS2JSONResponse:
     """Returns the Actor's Inbox."""
 
     actor_record = datalayer.read(actor_id)
@@ -324,7 +320,7 @@ def get_actor_inbox(
         list[as_Object | as_Link | str | _CoreObject | None],
         list(actor_dl.inbox_list()),
     )
-    return as_OrderedCollection(items=items)
+    return AS2JSONResponse(as_OrderedCollection(items=items))
 
 
 @router.post(
