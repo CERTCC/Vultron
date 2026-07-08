@@ -109,6 +109,7 @@ target-version = ['py38', 'py39', 'py310', 'py311', 'py312', 'py313' ]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
+pythonpath = ["."]
 # Default run excludes integration tests (demo suite) so the fast unit-test
 # suite stays under ~1 minute.  To run integration tests use one of:
 #
