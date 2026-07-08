@@ -23,9 +23,16 @@ from vultron.core.behaviors.embargo.nodes import (
     AcceptEmbargoLifecycleNode,
     PersistEmbargoEventNode,
     ProposeEmbargoLifecycleNode,
+    ReadEmbargoIdNode,
     RejectEmbargoLifecycleNode,
+    SendTerminateEmbargoActivityNode,
     TerminateEmbargoLifecycleNode,
     ValidateEmbargoRevisionStateNode,
+)
+from vultron.core.behaviors.sender.nodes import (
+    ConstructActivitiesNode,
+    QueueToOutboxNode,
+    ResolveCaseManagerNode,
 )
 from vultron.core.behaviors.sender.send_tree import sender_side_bt
 from vultron.core.models.embargo_event import EmbargoEvent
@@ -131,20 +138,47 @@ def reject_embargo_trigger_bt(
     )
 
 
-def terminate_embargo_trigger_bt(
+def terminate_embargo_bt(
     *,
     case_id: str,
     result_out: dict[str, object],
-    activity_builder: Callable[[str], list[str]],
+    activity_builder: Callable[[str], list[str]] | None = None,
 ) -> py_trees.behaviour.Behaviour:
-    """Build trigger-side BT for terminating the active embargo."""
+    """Shared BT for terminating the active embargo (BT-19-001).
+
+    Satisfies the routing-gated state-mutation ordering:
+
+    1. ``ReadEmbargoIdNode`` — read embargo_id from case; FAILURE if absent.
+    2. ``ResolveCaseManagerNode`` — routing guard; FAILURE = no state change.
+    3. ``TerminateEmbargoLifecycleNode`` — EM state mutation (after guard).
+    4. Activity dispatch:
+       - When ``activity_builder`` is provided: ``ConstructActivitiesNode``
+         + ``QueueToOutboxNode`` (trigger path, builder closes over embargo_id).
+       - When ``activity_builder`` is ``None``: ``SendTerminateEmbargoActivityNode``
+         reads embargo_id and factory from the blackboard at runtime (cascade path).
+
+    Both the trigger path (``SvcTerminateEmbargoUseCase``) and the
+    automatic-cascade path (``PublicDisclosureBranchNode``) MUST use this
+    factory so that routing prerequisites are always verified before the
+    DataLayer state change is committed (BT-19-002).
+    """
+    if activity_builder is not None:
+        dispatch_nodes: list[py_trees.behaviour.Behaviour] = [
+            ConstructActivitiesNode(activity_builder=activity_builder),
+            QueueToOutboxNode(),
+        ]
+    else:
+        dispatch_nodes = [SendTerminateEmbargoActivityNode(case_id=case_id)]
+
     return py_trees.composites.Sequence(
-        name="TerminateEmbargoTriggerBT",
-        memory=False,
+        name="TerminateEmbargoBT",
+        memory=True,
         children=[
+            ReadEmbargoIdNode(case_id=case_id),
+            ResolveCaseManagerNode(case_id=case_id),
             TerminateEmbargoLifecycleNode(
                 case_id=case_id, result_out=result_out
             ),
-            sender_side_bt(case_id=case_id, activity_builder=activity_builder),
+            *dispatch_nodes,
         ],
     )

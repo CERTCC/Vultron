@@ -30,10 +30,11 @@ from vultron.core.behaviors.embargo.nodes.conditions import (
 from vultron.core.behaviors.embargo.nodes.lifecycle import (
     AcceptEmbargoLifecycleNode,
     ProposeEmbargoLifecycleNode,
+    ReadEmbargoIdNode,
     RejectEmbargoLifecycleNode,
+    SendTerminateEmbargoActivityNode,
     SetEmbargoActiveNode,
     TerminateEmbargoLifecycleNode,
-    TerminateEmbargoNode,
     ValidateEmbargoRevisionStateNode,
 )
 from vultron.core.behaviors.embargo.nodes.proposal import (
@@ -68,6 +69,7 @@ __all__ = [
     "AcceptEmbargoLifecycleNode",
     "RejectEmbargoLifecycleNode",
     "TerminateEmbargoLifecycleNode",
-    "TerminateEmbargoNode",
+    "ReadEmbargoIdNode",
+    "SendTerminateEmbargoActivityNode",
     "SetEmbargoActiveNode",
 ]
