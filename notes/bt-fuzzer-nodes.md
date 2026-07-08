@@ -102,12 +102,16 @@ Each fuzzer node entry in the sub-files has these fields:
   blackboard output-key set (see BT-18-006)
 - **Composer** — reads composition context; writes a generated artifact;
   `SUCCESS` = artifact ready
+- **Actuator** — receives a trigger and context; invokes an external system
+  to cause a side effect (notification dispatch, state write, queue mutation,
+  API call); returns `SUCCESS` when the side effect is confirmed, `FAILURE`
+  otherwise. Does not produce a content artifact on the blackboard.
 - **ProtocolInternal** — node resolves entirely within the protocol
   implementation; no external input, output, or monitoring seam exists.
   Use this value only for terminal placeholders and structural composites
   that have no call-out point. Do NOT use `ProtocolInternal` because a
   node's automation potential is High — those nodes have an external seam
-  and belong to one of the four shapes above (BT-18-005).
+  and belong to one of the five shapes above (BT-18-005).
 
 ### Fuzzer Base Types (Quick Reference)
 
