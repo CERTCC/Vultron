@@ -151,12 +151,33 @@ This decision is validated by:
 - Bad, because cases for subsequently-invalidated reports persist in
   storage (acceptable; they are in a terminal state)
 
+## Post-Decision Refinement (issue #1133, 2026-07-08)
+
+The Option 4 "always create case" behavior is now **configurable** via
+`ActorConfig.auto_create_case: bool` (default: `True`).
+
+When `auto_create_case=False`, `SubmitReportReceivedUseCase` stores the
+inbound `VulnerabilityReport` and `Offer(Report)` activity as before, but
+the `create_receive_report_case_tree` BT exits early without creating a
+`VulnerabilityCase`. This enables the **Option 3** path that was evaluated
+and rejected in the original decision: the receiver can send a pre-case
+`Read(Offer(Report))` acknowledgment (via `AckReportReceivedUseCase`) before
+explicitly deciding to accept or reject the report.
+
+The default preserves the original Option 4 behavior for all existing actors
+and scenarios. The `auto_create_case=False` path is intended for scenarios
+that model deliberate pre-case evaluation workflows (see issue #1221 —
+tentative rejection → acceptance — as the first demo to use this flag).
+
+Spec requirement: `specs/case-management.yaml` CM-15-001.
+
 ## More Information
 
 - **Supersedes**: FINDER-PART-1 task in `plan/IMPLEMENTATION_PLAN.md`
 - **Refines**: `notes/case-state-model.md` (proto-case / caterpillar–butterfly
   metaphor)
-- **Updates**: `specs/case-management.yaml` (new CM-12 requirements)
+- **Updates**: `specs/case-management.yaml` (new CM-12 requirements, CM-15-001)
 - **Updates**: `specs/duration.yaml` (DUR-07-002 timing, new DUR-07-004)
 - **Updates**: `notes/protocol-event-cascades.md` (cascade list)
 - **Source idea**: IDEA-260408-01 in `plan/IDEAS.md`
+- **Post-decision refinement**: issue #1133
