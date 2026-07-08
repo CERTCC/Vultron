@@ -19,22 +19,24 @@ Provides a backend API router for basic Vultron data layer operations.
 from copy import deepcopy
 from typing import Any
 
-from fastapi import APIRouter, Depends, status, HTTPException
-from vultron.wire.as2.rehydration import rehydrate
-from vultron.core.ports.datalayer import DataLayer
-from vultron.wire.as2.vocab.base.objects.base import as_Object
+from fastapi import APIRouter, Depends, HTTPException, status
+
 from vultron.adapters.driven.datalayer import get_shared_dl
+from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
+from vultron.core.ports.datalayer import DataLayer
+from vultron.wire.as2.rehydration import rehydrate
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.base.objects.base import as_Object
+from vultron.wire.as2.vocab.base.objects.collections import (
+    as_OrderedCollection,
+)
 from vultron.wire.as2.vocab.objects.vultron_actor import (
     VultronApplication,
     VultronGroup,
     VultronOrganization,
     VultronPerson,
     VultronService,
-)
-from vultron.wire.as2.vocab.base.objects.collections import (
-    as_OrderedCollection,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
@@ -88,15 +90,17 @@ def get_report(
 )
 def get_datalayer_contents(
     datalayer: DataLayer = Depends(get_shared_dl),
-) -> dict[str, dict]:
+) -> AS2JSONResponse:
     data = datalayer.all()
     if not isinstance(data, dict):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    return {
-        k: v.model_dump(exclude_none=True, by_alias=True)
-        for k, v in data.items()
-    }
+    return AS2JSONResponse(
+        {
+            k: v.model_dump(mode="json", exclude_none=True, by_alias=True)
+            for k, v in data.items()
+        }
+    )
 
 
 @router.get(
@@ -184,12 +188,14 @@ def get_actors(
 ):
     results = datalayer.by_type("Actor")
 
-    return {
-        k: _actor_class_for_payload(v)
-        .model_validate(v)
-        .model_dump(mode="json", by_alias=True, exclude_none=True)
-        for k, v in results.items()
-    }
+    return AS2JSONResponse(
+        {
+            k: _actor_class_for_payload(v)
+            .model_validate(v)
+            .model_dump(mode="json", by_alias=True, exclude_none=True)
+            for k, v in results.items()
+        }
+    )
 
 
 @router.get(

@@ -41,6 +41,7 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
     run_inbox_pipeline,
 )
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
+from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
 from vultron.adapters.utils import make_id, strip_id_prefix
 from vultron.core.models.actor import (
     CoreActor,
@@ -103,10 +104,12 @@ def get_actors(
         obj = cls.model_validate(rec.get("data_", {}))
         objects.append(obj)
 
-    return [
-        o.model_dump(mode="json", by_alias=True, exclude_none=True)
-        for o in objects
-    ]
+    return AS2JSONResponse(
+        [
+            o.model_dump(mode="json", by_alias=True, exclude_none=True)
+            for o in objects
+        ]
+    )
 
 
 class ActorCreateRequest(BaseModel):
@@ -162,15 +165,21 @@ def create_actor(
         response.status_code = status.HTTP_200_OK
         cls = _actor_class_for_record(existing)
         data = existing.get("data_", {})
-        return cls.model_validate(data).model_dump(
-            mode="json", by_alias=True, exclude_none=True
+        return AS2JSONResponse(
+            cls.model_validate(data).model_dump(
+                mode="json", by_alias=True, exclude_none=True
+            ),
+            status_code=status.HTTP_200_OK,
         )
 
     actor_cls = _ACTOR_TYPE_MAP.get(request.actor_type, VultronOrganization)
     actor = actor_cls(id_=actor_id, name=request.name)
     datalayer.create(object_to_record(cast(PersistableModel, actor)))
     logger.info("Created actor %s (type=%s)", actor_id, request.actor_type)
-    return actor.model_dump(mode="json", by_alias=True, exclude_none=True)
+    return AS2JSONResponse(
+        actor.model_dump(mode="json", by_alias=True, exclude_none=True),
+        status_code=status.HTTP_201_CREATED,
+    )
 
 
 @router.get(
@@ -204,7 +213,9 @@ def get_actor_profile(
     as_actor = cast(
         Any, actor_cls.model_validate(actor_record.get("data_", {}))
     )
-    profile = as_actor.model_dump(by_alias=True, exclude_none=True)
+    profile = as_actor.model_dump(
+        mode="json", by_alias=True, exclude_none=True
+    )
     inbox = getattr(as_actor, "inbox", None)
     outbox = getattr(as_actor, "outbox", None)
     profile["inbox"] = (
@@ -225,7 +236,7 @@ def get_actor_profile(
             else getattr(outbox, "id_", None)
         )
     )
-    return profile
+    return AS2JSONResponse(profile)
 
 
 @router.get(
@@ -472,6 +483,8 @@ def get_actor(actor_id: str, datalayer: DataLayer = Depends(get_shared_dl)):
 
     cls = _actor_class_for_record(actor)
     data = actor.get("data_", {})
-    return cls.model_validate(data).model_dump(
-        mode="json", by_alias=True, exclude_none=True
+    return AS2JSONResponse(
+        cls.model_validate(data).model_dump(
+            mode="json", by_alias=True, exclude_none=True
+        )
     )
