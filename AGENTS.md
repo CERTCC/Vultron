@@ -777,6 +777,11 @@ Short entries are reproduced here; longer ones are referenced below.
   drift back to the unsafe ordering. See `specs/behavior-tree-integration.yaml`
   BT-19-001, BT-19-002 and [notes/bt-integration.md](notes/bt-integration.md)
   § "Routing-Gated State Mutation".
+- **`SKIP=black` Required When Rebasing in Any `vultron_*` Worktree** — The
+  pre-commit hook runs `black` in-place during cherry-pick, leaving a dirty
+  working tree that blocks `git rebase origin/main` with "Your local changes
+  would be overwritten." Fix: `SKIP=black git rebase origin/main`. Black is
+  still enforced at commit time and CI — nothing is bypassed.
 - **Automation Potential and Call-Out Point Shape Are Orthogonal** — When
   classifying a fuzzer node, the `automation potential` and `call-out point
   shape` fields are **independent**. A node with High automation potential may

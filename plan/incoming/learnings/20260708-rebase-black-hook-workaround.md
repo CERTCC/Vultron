@@ -1,0 +1,28 @@
+---
+title: "SKIP=black needed when rebasing in any vultron_* worktree"
+type: learning
+timestamp: 2026-07-08
+source: ISSUE-1061
+---
+
+When rebasing in any `vultron_*` git worktree, the pre-commit hook runs
+`black` in-place during cherry-pick. Black reformats files after git applies
+the patch but before the cherry-pick completes, leaving a dirty working tree
+that blocks the merge step with "Your local changes to the following files
+would be overwritten."
+
+**Fix**: `SKIP=black git rebase origin/main`
+
+This skips only the black hook for that rebase; black is already enforced at
+commit time and CI, so nothing is bypassed.
+
+**Why it happens**: The `.git/hooks/pre-commit` points to a Python
+interpreter in a sibling worktree's `.venv`, which runs `pre-commit` against
+the current working tree. During rebase cherry-pick, git applies changes then
+runs hooks — if black reformats any of those files, git sees them as newly
+modified and refuses to continue.
+
+**Scope**: Only affects rebases that touch Python files that black would
+reformat (import ordering, line length, etc.). Workaround needed on every
+such rebase in any `vultron_*` worktree until the hook is fixed to use
+`--no-modify` or equivalent.
