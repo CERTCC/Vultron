@@ -157,3 +157,4 @@ devlogs
 # Use `uv run show-history` to view on demand.
 plan/history/*/README.md
 .devcontainer/devcontainer.env
+.claude/settings.local.json
