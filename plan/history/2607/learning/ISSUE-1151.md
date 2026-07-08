@@ -1,7 +1,7 @@
 ---
 title: "Integration tests must use deterministic factories when BT default is probabilistic"
 type: learning
-timestamp: 2026-07-08
+timestamp: 2026-07-08T00:00:00+00:00
 source: ISSUE-1151
 ---
 
@@ -38,4 +38,4 @@ children) or FAILURE paths are unaffected.
 § "Integration Tests Must Use Deterministic Factories When BT Default Is
 Probabilistic", `test/AGENTS.md` § "BT Factory Determinism", and root
 `AGENTS.md` pitfall entry.
-Docs PR: (TBD — filled in after PR is opened)
+Docs PR: [#1274](https://github.com/CERTCC/Vultron/pull/1274)
