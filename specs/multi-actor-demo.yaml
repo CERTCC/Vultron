@@ -324,3 +324,32 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CBT-01-007
+- id: DEMOMA-09
+  title: FVV Scenario (Finder → Vendor1 → Vendor2, no Coordinator)
+  specs:
+  - id: DEMOMA-09-001
+    priority: MUST
+    statement: >-
+      The FVV scenario MUST seed three independent actor containers — Finder, Vendor1, and
+      Vendor2 — with no Coordinator; each container MUST have its own isolated DataLayer
+      and the Case Actor MUST be co-located in the Vendor1 container
+  - id: DEMOMA-09-002
+    priority: MUST
+    statement: >-
+      Vendor1 MUST invite Vendor2 to the case after accepting the report (RM→ACCEPTED),
+      using the standard invite-actor trigger path; Vendor2 MUST accept and become a
+      full SIGNATORY participant before the scenario advances to fix tracking
+  - id: DEMOMA-09-003
+    priority: MUST
+    statement: >-
+      The FVV scenario MUST reach a final state of VFDPxa CS on all three actor replicas
+      (Finder, Vendor1, Vendor2), with EM.EXITED and RM.CLOSED for all participants;
+      both Vendor1 and Vendor2 MUST each have their own Vendor Fix Path tracked
+      independently
+  - id: DEMOMA-09-004
+    priority: MUST
+    statement: >-
+      The FVV scenario MUST run deterministically end-to-end via a single
+      `docker compose` command using the existing multi-actor Compose stack; the
+      scenario script MUST verify SYNC-2 replica convergence (both Finder and Vendor2
+      replicas match the authoritative Vendor1 state) after each major protocol event
