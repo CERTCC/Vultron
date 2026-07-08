@@ -113,20 +113,6 @@ is never imported, its classes are never defined and never registered.
 Dynamic discovery gives one startup guarantee that all vocab modules are
 loaded without requiring each application path to import them manually.
 
-## Migration Path
-
-1. **VOCAB-REG-1.1** (core mechanics): add `enums.py`, rewrite
-   `registry.py`, add `__init_subclass__` to `as_Base`, override
-   `_vocab_ns` on `VultronObject`, and add unit tests.
-2. **VOCAB-REG-1.2** (migration): remove all `@activitystreams_*`
-   decorators, add dynamic discovery to `__init__.py` files, update
-   `find_in_vocabulary()` callers, and add a registration completeness
-   test.
-
-The refactor is backward-compatible for callers that use only
-`find_in_vocabulary(name)`; the `item_type` parameter is removed because
-no callers use it.
-
 ---
 
 ## Vocabulary Override Preservation

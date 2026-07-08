@@ -1,6 +1,6 @@
 ---
 title: Spec Registry Design
-status: active
+status: archived
 related_specs:
   - specs/spec-registry.yaml
   - specs/notes-frontmatter.yaml

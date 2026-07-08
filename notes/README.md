@@ -267,14 +267,6 @@ manually trigger intermediate steps, designing the boundary between automated
 cascades and external decision nodes, or evaluating where UI or LLM agent
 integration fits in the protocol flow.
 
-**`bt-composability.md`**
-Vultron's fractal composability principle for behavior trees: concrete patterns
-for composing behavioural subtrees, the "trunkless branch" model applied at
-the composability layer, and guidance for building reusable BT building blocks.
-Operationalises `specs/bt-composability.yaml` (BTC-01 through BTC-04).
-**Load when**: designing composable BT subtrees, auditing BT compositions for
-violations, or working on BTC spec requirements.
-
 **`bt-design-patterns.md`**
 Idiomatic BT construction patterns from Colledanchise & Ögren applied to the
 Vultron simulation and prototype implementations: factory methods, node
@@ -397,9 +389,9 @@ startup issues, or optimizing image build times.
 **`encryption.md`**
 Encryption design notes: public-key discovery, decryption placement in the
 inbound pipeline, outgoing encryption strategies, key rotation, and
-implementation guidance.
+implementation guidance. Implementation is tracked in issue #1156.
 **Load when**: implementing message encryption/decryption in the ActivityPub
-inbox/outbox pipeline.
+inbox/outbox pipeline (see issue #1156 and its children).
 
 **`demo-future-ideas.md`**
 Extended multi-actor demo scenario sketches: Two-Actor (Finder + Vendor),
@@ -518,12 +510,14 @@ Pydantic model, loader, pre-commit hook, and migration checklist.
 **Load when**: adding frontmatter to a new notes file, modifying the frontmatter
 schema, or debugging `validate-notes-frontmatter` pre-commit failures.
 
-**`spec-registry.md`**
-Design notes for the spec registry: converting `specs/*.md` files to
-structured YAML governed by Pydantic models in `vultron/metadata/specs/`,
-mirroring the `vultron/metadata/notes/` pattern.
-**Load when**: adding a new spec YAML file, modifying the spec registry schema,
-or debugging `spec-dump` output issues.
+**`spec-registry.md`** *(archived — see `archived_notes/`)*
+Implemented — `specs/*.md` fully migrated to YAML; `vultron/metadata/specs/` is in place.
+
+**`demo-ci.md`** *(archived — see `archived_notes/`)*
+Implemented — `demo-integration.yml` workflow exists in `.github/workflows/`.
+
+**`docs-build-workflow.md`** *(archived — see `archived_notes/`)*
+Implemented — `docs-build-check.yml` workflow exists in `.github/workflows/`.
 
 ---
 
