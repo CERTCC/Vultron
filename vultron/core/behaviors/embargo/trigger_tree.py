@@ -157,7 +157,7 @@ def terminate_embargo_bt(
        - When ``activity_builder`` is ``None``: ``SendTerminateEmbargoActivityNode``
          reads embargo_id and factory from the blackboard at runtime (cascade path).
 
-    Both the trigger path (``terminate_embargo_trigger_bt``) and the
+    Both the trigger path (``SvcTerminateEmbargoUseCase``) and the
     automatic-cascade path (``PublicDisclosureBranchNode``) MUST use this
     factory so that routing prerequisites are always verified before the
     DataLayer state change is committed (BT-19-002).
@@ -181,21 +181,4 @@ def terminate_embargo_bt(
             ),
             *dispatch_nodes,
         ],
-    )
-
-
-def terminate_embargo_trigger_bt(
-    *,
-    case_id: str,
-    result_out: dict[str, object],
-    activity_builder: Callable[[str], list[str]],
-) -> py_trees.behaviour.Behaviour:
-    """Build trigger-side BT for terminating the active embargo.
-
-    Delegates to :func:`terminate_embargo_bt` (BT-19-002).
-    """
-    return terminate_embargo_bt(
-        case_id=case_id,
-        result_out=result_out,
-        activity_builder=activity_builder,
     )

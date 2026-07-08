@@ -1396,10 +1396,8 @@ Sequence
 
 **Fix**: Extract a shared factory (`terminate_embargo_bt`) that places
 `ResolveCaseManagerNode` before `TerminateEmbargoLifecycleNode`, and replace
-all standalone monolithic nodes with the factory output.
-`terminate_embargo_trigger_bt` is a thin wrapper that delegates to
-`terminate_embargo_bt`; both trigger and cascade call sites use the shared
-factory (BT-19-002, PR #1263).
+all standalone monolithic nodes with the factory output. Both trigger and
+cascade call sites use the shared factory directly (BT-19-002, PR #1263).
 
 ---
 
