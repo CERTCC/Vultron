@@ -83,7 +83,6 @@ router = APIRouter(prefix="/actors", tags=["Actors"])
 
 @router.get(
     "/",
-    response_model_exclude_none=True,
     description="Returns a list of Actor examples.",
     operation_id="actors_list",
 )
@@ -140,7 +139,6 @@ class ActorCreateRequest(BaseModel):
 
 @router.post(
     "/",
-    response_model_exclude_none=True,
     status_code=status.HTTP_201_CREATED,
     summary="Create Actor",
     description=(
@@ -181,7 +179,6 @@ def create_actor(
 
 @router.get(
     "/{actor_id:path}/profile",
-    response_model_exclude_none=True,
     summary="Get Actor Profile",
     description=(
         "Returns an ActivityStreams actor profile including inbox and outbox "
@@ -462,7 +459,6 @@ def post_actor_outbox(
 
 @router.get(
     "/{actor_id:path}",
-    response_model_exclude_none=True,
     description="Returns an Actor by surrogate key or canonical ID.",
     operation_id="actors_get",
 )
