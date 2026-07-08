@@ -277,12 +277,17 @@ to a validated report.
   itself an ID assignment authority (e.g., a CVE CNA) able to assign
   IDs directly
 - **Input dependency**: Organizational metadata / role configuration;
-  fully automatable as a static capability check
+  fully automatable as a static capability check.  Driven by
+  `CVDRole.CVE_NUMBERING_AUTHORITY` on the participant's `case_roles`
+  list — if the participant holds this role, the check succeeds.
 - **Notes**: In production this is a static configuration check, not a
-  runtime decision
+  runtime decision.  Multiple participants in the same case may
+  independently hold `CVDRole.CVE_NUMBERING_AUTHORITY` (e.g., a vendor
+  CNA and a coordinator CNA); each evaluates this node independently in
+  their own BT context.
 - **Automation potential**: **High** — static organizational configuration; can be fully automated as a capability metadata lookup.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.assign_vul_id.IsIDAssignmentAuthority`
-- **Call-out point shape**: Sentinel — binary organizational capability check against static participant metadata; returns SUCCESS if this participant holds ID-assignment authority, FAILURE otherwise, with no output keys.
+- **Call-out point shape**: Sentinel — binary organizational capability check against static participant metadata; returns SUCCESS if this participant holds `CVDRole.CVE_NUMBERING_AUTHORITY` in their `case_roles`, FAILURE otherwise, with no output keys.
 
 ### `IdAssignable`
 
@@ -294,12 +299,22 @@ to a validated report.
   authority to assign an ID to this specific vulnerability (e.g., is the
   authoritative CNA for the affected product)
 - **Input dependency**: CNA rules lookup, product-to-CNA mapping, or
-  human analyst determination
-- **Notes**: A participant may be an ID authority generally but not the
-  authoritative CNA for this specific product
+  human analyst determination.  Requires that the participant holds
+  `CVDRole.CVE_NUMBERING_AUTHORITY` (necessary precondition, evaluated
+  by `IsIDAssignmentAuthority`); this node then evaluates the CNA's
+  scope rules against the specific vulnerability's affected product/
+  component to determine whether assignment authority applies here.
+- **Notes**: A participant may be an ID authority generally (holds
+  `CVDRole.CVE_NUMBERING_AUTHORITY`) but not the authoritative CNA for
+  this specific product.  The two checks are separate and sequential:
+  `IsIDAssignmentAuthority` first, `IdAssignable` second.
 - **Automation potential**: **High** — CNA-scope and product-to-CNA mapping checks are automatable via the CVE Services API or a local policy registry.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.assign_vul_id.IdAssignable`
-- **Call-out point shape**: Evaluator — evaluates whether this CNA has assignment authority for this specific vulnerability by matching vulnerability attributes against CNA scope rules and product-to-CNA mappings; a scope-matching evaluation, not a binary condition monitor.
+- **Call-out point shape**: Evaluator — evaluates whether this CNA
+  (`CVDRole.CVE_NUMBERING_AUTHORITY` participant) has assignment
+  authority for this specific vulnerability by matching vulnerability
+  attributes against CNA scope rules and product-to-CNA mappings;
+  a scope-matching evaluation, not a binary condition monitor.
 
 ### `RequestId`
 

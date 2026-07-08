@@ -42,6 +42,7 @@ def test_atomic_roles_exist():
         "OTHER",
         "CASE_OWNER",
         "CASE_MANAGER",
+        "CVE_NUMBERING_AUTHORITY",
     }
     actual = {m.name for m in CVDRole}
     assert expected == actual
@@ -51,6 +52,41 @@ def test_case_owner_exists():
     """CVDRole.CASE_OWNER must exist (BTND-05-001)."""
     assert hasattr(CVDRole, "CASE_OWNER")
     assert CVDRole.CASE_OWNER in CVDRole
+
+
+def test_cve_numbering_authority_exists():
+    """CVDRole.CVE_NUMBERING_AUTHORITY must exist."""
+    assert hasattr(CVDRole, "CVE_NUMBERING_AUTHORITY")
+    assert CVDRole.CVE_NUMBERING_AUTHORITY in CVDRole
+
+
+def test_cve_numbering_authority_value():
+    """CVE_NUMBERING_AUTHORITY value is the expected lowercase string."""
+    assert CVDRole.CVE_NUMBERING_AUTHORITY == "cve_numbering_authority"
+
+
+def test_cve_numbering_authority_lookup():
+    """CVE_NUMBERING_AUTHORITY can be looked up by value and name."""
+    assert (
+        CVDRole("cve_numbering_authority") is CVDRole.CVE_NUMBERING_AUTHORITY
+    )
+    assert (
+        CVDRole["CVE_NUMBERING_AUTHORITY"] is CVDRole.CVE_NUMBERING_AUTHORITY
+    )
+
+
+def test_cna_role_is_orthogonal_to_vendor():
+    """A participant may hold both CVE_NUMBERING_AUTHORITY and VENDOR simultaneously."""
+    roles = [CVDRole.VENDOR, CVDRole.CVE_NUMBERING_AUTHORITY]
+    assert CVDRole.VENDOR in roles
+    assert CVDRole.CVE_NUMBERING_AUTHORITY in roles
+
+
+def test_cna_role_is_orthogonal_to_coordinator():
+    """A participant may hold both CVE_NUMBERING_AUTHORITY and COORDINATOR simultaneously."""
+    roles = [CVDRole.COORDINATOR, CVDRole.CVE_NUMBERING_AUTHORITY]
+    assert CVDRole.COORDINATOR in roles
+    assert CVDRole.CVE_NUMBERING_AUTHORITY in roles
 
 
 def test_values_are_lowercase():
