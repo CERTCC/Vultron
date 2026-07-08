@@ -337,20 +337,10 @@ See ADR-0021 for the full decision record.
 
 ---
 
-## Known Implementation Gaps (as of 2026-06-18)
+## Known Implementation Gaps
 
 | Gap | Location | Status |
 |---|---|---|
-| `validate_report` trigger tree: no emit to CaseActor | `behaviors/report/validate_tree.py` | Open — tracked in #1026 impl issues |
-| `ack_report` received UC: no guarded commit | `received/report.py` | Open — tracked in #1026 impl issues |
-| `close_case` received UC: no guarded commit | `received/case/lifecycle.py` | Open — tracked in #1026 impl issues |
-| `note.py` guarded commit: uses foreign actor ID | `received/note.py` | Open — tracked in #1026 impl issues |
-| `embargo.py` guarded commit: uses foreign actor ID | `received/embargo.py` | Open — tracked in #1026 impl issues |
 | Notes trigger sends to all participants | `triggers/note.py:102` | Open |
 | Embargo triggers send to all participants | `triggers/embargo.py` | Open |
 | Engage/defer-case triggers send to all participants | `triggers/case.py:84,132` | Open |
-| Invite sent from case owner (not Case Actor); Accept routed to owner | `triggers/actor.py`, `received/actor.py` | Open — tracked in #893/#894 |
-| Guarded commit dispatched as a second, separately-gated `execute_with_setup()` call (9 use cases, 6 modules: `embargo.py` x3, `report.py` x2, `note.py`, `status.py`, `case/lifecycle.py`, `actor/case_manager_role.py`) | `received/*.py` | Open — ADR-0022, CLP-10-005, tracked under #1036 impl issues |
-
-See GitHub issues under parent concern #593, epic #788, and concern #1036
-(ADR-0022).

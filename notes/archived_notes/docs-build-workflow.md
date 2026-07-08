@@ -1,6 +1,6 @@
 ---
 title: Docs Build and Link Check Workflow
-status: active
+status: archived
 ---
 
 # Docs Build and Link Check Workflow
