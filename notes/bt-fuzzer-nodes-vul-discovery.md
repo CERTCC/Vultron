@@ -70,6 +70,8 @@ is essentially the "output" of the discovery process.
 - **Automation potential**: **High** — static role/capability configuration check; can be fully automated as a lookup against the participant's role metadata or organizational task queue.
 - **New-arch cross-ref**: N/A — simulation-only BT not ported to new architecture
 - **Call-out point shape**: N/A
+- **Factory-fn placement**: N/A — simulation-only; `DiscoverVulnerabilityBt` is not
+  ported to the prototype architecture
 
 ### `DiscoverVulnerability`
 
@@ -86,6 +88,8 @@ is essentially the "output" of the discovery process.
 - **Automation potential**: **Low** — inherently a human or tool-driven research activity (fuzzing, code audit, pentesting); results must be fed in from an external research pipeline.
 - **New-arch cross-ref**: N/A — simulation-only BT not ported to new architecture
 - **Call-out point shape**: N/A
+- **Factory-fn placement**: N/A — simulation-only; `DiscoverVulnerabilityBt` is not
+  ported to the prototype architecture
 
 ### `NoVulFound`
 
@@ -102,5 +106,7 @@ is essentially the "output" of the discovery process.
 - **Automation potential**: **TerminalPlaceholder** — terminal success placeholder; no real decision logic required.
 - **New-arch cross-ref**: N/A — simulation-only BT not ported to new architecture
 - **Call-out point shape**: N/A
+- **Factory-fn placement**: N/A — simulation-only; `DiscoverVulnerabilityBt` is not
+  ported to the prototype architecture
 
 ---

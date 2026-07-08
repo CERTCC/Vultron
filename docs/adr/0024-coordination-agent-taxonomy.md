@@ -2,9 +2,10 @@
 
 Vultron's Behavior Trees contain **call-out points** — locations where the
 protocol cannot determine the correct next action autonomously and must request
-input from an external party. We established a canonical taxonomy of four agent
+input from an external party. We established a canonical taxonomy of agent
 shapes that answer those call-out points, and chose "call-out point" as the
-term for those locations.
+term for those locations. The taxonomy began with four shapes and was extended
+to five by the Actuator amendment (2026-07-07).
 
 ## Decisions
 
@@ -17,7 +18,7 @@ explicit (protocol → external party → protocol), implies the workflow pauses
 and waits for a response, and cleanly contrasts with *trigger endpoint* (the
 call-*in* surface where external parties invoke the protocol).
 
-### Four canonical agent shapes
+### Canonical agent shapes
 
 | Shape | Role |
 | --- | --- |
@@ -26,7 +27,7 @@ call-*in* surface where external parties invoke the protocol).
 | **Retriever** | Receives a query; returns structured facts from an external source (including boolean/binary results — see below) |
 | **Composer** | Receives context; generates a new content artifact |
 
-These are a typology, not exactly four singleton agents. A real coordination
+These are a typology, not exactly singleton agents. A real coordination
 agent may embody one shape or combine shapes (e.g., a Participant Discovery
 agent composes Retriever + Evaluator).
 
@@ -62,7 +63,7 @@ The updated five-shape taxonomy:
 
 ### Message-Driven Responses excluded from the taxonomy
 
-An earlier draft included "message-driven responses" as a fifth category of
+An earlier draft included "message-driven responses" as an additional category of
 agent touchpoint. This was rejected: receiving a protocol message is handled
 by the protocol's inbox BT, not by a coordination agent. The relevant
 call-out point — if any — is the evaluation or decision node that fires
@@ -70,7 +71,7 @@ call-out point — if any — is the evaluation or decision node that fires
 
 ### Orchestrator deferred
 
-Whether **Orchestrator** constitutes a fifth agent shape (an agent that
+Whether **Orchestrator** constitutes an additional agent shape (an agent that
 sequences other agents toward a bounded goal) is unresolved. No concrete
 multi-agent sequencing requirement exists yet. The question is tracked in
 GitHub issue #1141 and will be revisited when two or more concrete agent
