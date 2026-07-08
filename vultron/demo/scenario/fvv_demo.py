@@ -39,6 +39,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_TransitiveActivity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
@@ -85,6 +86,7 @@ from vultron.demo.helpers.seeding import (
     reset_containers as _reset_containers,
     seed_containers_fvv,
 )
+from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.helpers.sync import (
     _get_log_entries_for_case,
     verify_replica_state,
@@ -352,6 +354,49 @@ def _phase_sync_verification(
     logger.info(
         "✓ M2: Finder and Vendor2 DataLayers synchronized (SYNC-2 verified)"
     )
+
+
+def _phase_notes_exchange(
+    finder_client: DataLayerClient,
+    vendor_client: DataLayerClient,
+    finder_in_finder: as_Actor,
+    vendor_in_vendor: as_Actor,
+    case: VulnerabilityCase,
+) -> tuple[as_Note, as_Note]:
+    """Run a question-and-reply note exchange between Finder and Vendor1."""
+    logger.info("─" * 80)
+    logger.info("Phase 3: Notes exchange")
+    logger.info("─" * 80)
+
+    question_note = participant_adds_note_to_case(
+        posting_client=finder_client,
+        watching_client=vendor_client,
+        poster=finder_in_finder,
+        case=case,
+        note_name="Question from Finder",
+        note_content=(
+            "Is there a workaround available while waiting for the patch? "
+            "Our security team needs to provide interim guidance to users."
+        ),
+    )
+
+    reply_note = participant_adds_note_to_case(
+        posting_client=vendor_client,
+        watching_client=vendor_client,
+        poster=vendor_in_vendor,
+        case=case,
+        note_name="Vendor1 Response",
+        note_content=(
+            "Yes, disabling the affected component is an effective workaround. "
+            "A patched version is expected within 30 days."
+        ),
+        in_reply_to=question_note.id_,
+    )
+
+    logger.info(
+        "✓ Notes exchange complete (question + reply committed to case ledger)"
+    )
+    return question_note, reply_note
 
 
 def _phase_fix_lifecycle(
@@ -684,6 +729,13 @@ def run_fvv_demo(
         finder,
         vendor2,
         case,
+    )
+    _phase_notes_exchange(
+        finder_client=finder_client,
+        vendor_client=vendor_client,
+        finder_in_finder=finder_in_finder,
+        vendor_in_vendor=vendor_in_vendor,
+        case=case,
     )
     _phase_fix_lifecycle(
         finder_client,

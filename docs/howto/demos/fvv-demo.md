@@ -57,9 +57,9 @@ use the cache.
 
 ---
 
-## What happens: the six phases
+## What happens: the seven phases
 
-The FVV demo progresses through **six phases**, verified by milestones M1–M7.
+The FVV demo progresses through **seven phases**, verified by milestones M1–M7.
 
 ### Sequence diagram
 
@@ -86,6 +86,15 @@ sequenceDiagram
     V1-->>F: ledger tail replicated (SYNC-2)
     V1-->>V2: ledger tail replicated (SYNC-2)
     note over F,V2: ✓ M2 — Finder and Vendor2 DataLayers synchronized (SYNC-2 verified)
+
+    note over F,V2: Phase 3 — Notes Exchange
+
+    F->>V1: Add(Note) — question from Finder
+    note right of V1: note committed to case ledger
+    V1-->>F: ledger entry replicated (add_note_to_case)
+    V1-->>V2: ledger entry replicated (add_note_to_case)
+    V1->>F: Add(Note) — Vendor1 reply
+    note right of V1: reply note committed to case ledger
 
     note over F,V2: Phase 4 — Fix Lifecycle (both vendors, independent paths)
 
@@ -134,6 +143,13 @@ and log tail hash all match the authoritative Vendor1 state.
 **M2 verified when:**
 Both Finder and Vendor2 DataLayers are synchronized with Vendor1.
 
+### Phase 3 — Notes exchange
+
+The Finder adds a question note to the case; Vendor1 replies.
+Each note generates an `add_note_to_case` event committed to the case ledger
+and fanned out to all participants (Finder, Vendor2) via
+`Announce(CaseLedgerEntry)`.
+
 ### Phase 4 — Fix lifecycle (M4–M5)
 
 Vendor1 reports fix-ready and fix-deployed.
@@ -169,6 +185,7 @@ The Case Actor auto-closes when all participants are closed.
 |:-------|:--------------|
 | `✅ M1:` | ≥4 participants, EM.ACTIVE, Finder and Vendor2 have replicas |
 | `✓ M2:` | Finder and Vendor2 DataLayers synchronized (SYNC-2 verified) |
+| `✓ Phase 3:` | Notes exchange complete (question + reply committed to case ledger) |
 | `✅ M4:` | All replicas: both vendors CS includes F (fix ready) |
 | `✅ M5:` | All replicas: both vendors CS includes D (fix deployed) |
 | `✅ M6:` | All replicas: CS.VFDPxa and EM.EXITED |
