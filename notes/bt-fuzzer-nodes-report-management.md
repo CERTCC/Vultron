@@ -689,11 +689,17 @@ the process of deploying a developed fix or mitigation to affected systems.
   deployment coverage metrics
 - **Automation potential**: **High** — integration with deployment verification tools, patch compliance dashboards, or asset management platforms; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.deploy_fix.MonitorDeployment`
-- **Call-out point shape**: Sentinel
+- **Call-out point shape**: Actuator — initiates external deployment-monitoring as a side-effect;
+  invokes patch-compliance dashboard, deployment-verification API, or asset-management platform
+  to start ongoing coverage tracking. There is no content artifact placed on the blackboard;
+  the side effect in the external monitoring system is the seam. This is a fire-and-confirm
+  action node, not a continuous monitor running outside the BT — the BT tick reaches this node
+  once per `MonitoringRequirement` pass and asks the external system to begin tracking.
 - **Factory-fn placement**: FUTURE:
   `vultron.core.behaviors.report.create_deploy_fix_tree` (issue #1248) —
-  Sentinel action node in the monitoring-initiation Sequence, after
-  `MonitoringRequirement` succeeds; monitors deployment coverage metrics
+  Actuator action node in the monitoring-initiation Sequence, after
+  `MonitoringRequirement` succeeds; fires the external monitoring registration
+  call and confirms activation
 
 ### `DeployFix`
 
