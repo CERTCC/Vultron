@@ -69,7 +69,35 @@ credible and valid for the receiving organization.
   re-evaluation loops
 - **Automation potential**: **High** — event subscription on the case record or metadata timestamp comparison; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.validate.NoNewValidationInfo`
-- **Call-out point shape**: Sentinel — binary change-detection condition; monitors the case record for new validation-relevant events via a metadata timestamp or event subscription; returns SUCCESS/FAILURE with no output keys.
+- **Call-out point shape**: ProtocolInternal — reads a change-detection flag written by the upstream
+  `NewValidationInfoSentinel` agent (see stub entry below). The external agent seam is at the
+  Sentinel (event subscription or polling hook), not at this BT condition check. In production this
+  node reads from the BT blackboard or case metadata written by the upstream Sentinel.
+  (Category 2 per issue #1199 triage — consumes a flag written by an upstream Sentinel.)
+
+### `NewValidationInfoSentinel` *(upstream Sentinel stub)*
+
+- **Node name**: `NewValidationInfoSentinel`
+- **btz type**: *(not a BT node — upstream agent seam)*
+- **Source file**: *(to be determined)*
+- **Parent tree**: *(runs independently, outside the BT tick loop)*
+- **Semantic function**: Sentinel — monitors the case record for new
+  validation-relevant events (e.g., reporter follow-up, credibility update,
+  new threat intelligence) and writes a change-detection flag that
+  `NoNewValidationInfo` consumes.
+- **Input dependency**: Case management system event stream; metadata
+  timestamp comparison or event subscription on validation-relevant case
+  fields.
+- **Notes**: This is the real call-out point implied by `NoNewValidationInfo`.
+  The upstream Sentinel registers with an external event source and writes
+  a flag to the BT blackboard / local DataLayer; `NoNewValidationInfo` then
+  reads that flag each BT tick. Implementation tracked in FUZZ-08f.
+- **Automation potential**: **High** — event subscription on the case record
+  or metadata timestamp comparison; fully automatable.
+- **New-arch cross-ref**: *(to be implemented — see FUZZ-08f)*
+- **Call-out point shape**: Sentinel — registers with a case-event source;
+  fires a change-detection signal into the BT blackboard when new
+  validation-relevant information arrives; no output keys beyond the flag.
 
 ### `EvaluateReportCredibility`
 
@@ -160,7 +188,35 @@ models the process of deciding whether to accept (engage with) or defer
 - **Notes**: Succeeds more often than not to avoid redundant re-evaluation
 - **Automation potential**: **High** — metadata timestamp or case-update event check; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.prioritize.NoNewPrioritizationInfo`
-- **Call-out point shape**: Sentinel — binary change-detection condition; monitors the case record for new prioritization-relevant events via a metadata timestamp or event subscription; returns SUCCESS/FAILURE with no output keys.
+- **Call-out point shape**: ProtocolInternal — reads a change-detection flag written by the upstream
+  `NewPrioritizationInfoSentinel` agent (see stub entry below). The external agent seam is at the
+  Sentinel (event subscription or polling hook), not at this BT condition check.
+  (Category 2 per issue #1199 triage — consumes a flag written by an upstream Sentinel.)
+
+### `NewPrioritizationInfoSentinel` *(upstream Sentinel stub)*
+
+- **Node name**: `NewPrioritizationInfoSentinel`
+- **btz type**: *(not a BT node — upstream agent seam)*
+- **Source file**: *(to be determined)*
+- **Parent tree**: *(runs independently, outside the BT tick loop)*
+- **Semantic function**: Sentinel — monitors the case record for new
+  prioritization-relevant events (e.g., updated SSVC scoring data, new
+  threat intelligence, CVSS score update) and writes a change-detection
+  flag that `NoNewPrioritizationInfo` consumes.
+- **Input dependency**: Case management system event stream; metadata
+  timestamp comparison or event subscription on prioritization-relevant
+  case fields (e.g., SSVC decision points, CVSS scores).
+- **Notes**: This is the real call-out point implied by
+  `NoNewPrioritizationInfo`. The upstream Sentinel registers with an
+  external event source and writes a flag to the BT blackboard / local
+  DataLayer; `NoNewPrioritizationInfo` reads that flag each BT tick.
+  Implementation tracked in FUZZ-08f.
+- **Automation potential**: **High** — event subscription on the case record
+  or metadata timestamp comparison; fully automatable.
+- **New-arch cross-ref**: *(to be implemented — see FUZZ-08f)*
+- **Call-out point shape**: Sentinel — registers with a case-event source;
+  fires a change-detection signal into the BT blackboard when new
+  prioritization-relevant information arrives; no output keys beyond the flag.
 
 ### `EnoughPrioritizationInfo`
 
@@ -287,7 +343,8 @@ to a validated report.
   their own BT context.
 - **Automation potential**: **High** — static organizational configuration; can be fully automated as a capability metadata lookup.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.assign_vul_id.IsIDAssignmentAuthority`
-- **Call-out point shape**: Retriever — synchronous on-demand query to the participant's static role metadata; returns SUCCESS if this participant holds `CVDRole.CVE_NUMBERING_AUTHORITY` in their `case_roles`, FAILURE otherwise. A boolean is the simplest structured fact (ADR-0024); the on-demand query pattern makes this a Retriever, not a Sentinel (see BT-18-006).
+- **Call-out point shape**: ProtocolInternal — reads a deployment-time configuration constant (`CVDRole.CVE_NUMBERING_AUTHORITY` on this participant's `case_roles`); the value is set at participant registration, not queried from an external system at runtime. There is no agent seam here: the check resolves entirely within the protocol's own DataLayer.
+  (Category 2 per issue #1199 triage — reads a flag written by the protocol's own deployment-time setup.)
 
 ### `IdAssignable`
 
@@ -396,7 +453,35 @@ the process of deploying a developed fix or mitigation to affected systems.
   without update
 - **Automation potential**: **High** — metadata timestamp or deployment-event subscription check; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.deploy_fix.NoNewDeploymentInfo`
-- **Call-out point shape**: Sentinel — binary change-detection condition; monitors the case/deployment record for new deployment-relevant events via a metadata timestamp or event subscription; returns SUCCESS/FAILURE with no output keys.
+- **Call-out point shape**: ProtocolInternal — reads a change-detection flag written by the upstream
+  `NewDeploymentInfoSentinel` agent (see stub entry below). The external agent seam is at the
+  Sentinel (event subscription or polling hook), not at this BT condition check.
+  (Category 2 per issue #1199 triage — consumes a flag written by an upstream Sentinel.)
+
+### `NewDeploymentInfoSentinel` *(upstream Sentinel stub)*
+
+- **Node name**: `NewDeploymentInfoSentinel`
+- **btz type**: *(not a BT node — upstream agent seam)*
+- **Source file**: *(to be determined)*
+- **Parent tree**: *(runs independently, outside the BT tick loop)*
+- **Semantic function**: Sentinel — monitors deployment-relevant data sources
+  (e.g., patch management system, CI/CD pipeline, asset inventory) for new
+  deployment-related events and writes a change-detection flag that
+  `NoNewDeploymentInfo` consumes.
+- **Input dependency**: Patch management system event stream, CI/CD pipeline
+  notifications, or asset-inventory change feed; metadata timestamp
+  comparison or event subscription on deployment-relevant case fields.
+- **Notes**: This is the real call-out point implied by
+  `NoNewDeploymentInfo`. The upstream Sentinel registers with an external
+  event source and writes a flag to the BT blackboard / local DataLayer;
+  `NoNewDeploymentInfo` reads that flag each BT tick.
+  Implementation tracked in FUZZ-08f.
+- **Automation potential**: **High** — event subscription on the patch
+  management system or CI/CD pipeline; fully automatable.
+- **New-arch cross-ref**: *(to be implemented — see FUZZ-08f)*
+- **Call-out point shape**: Sentinel — registers with a deployment-event
+  source; fires a change-detection signal into the BT blackboard when new
+  deployment-relevant information arrives; no output keys beyond the flag.
 
 ### `PrioritizeDeployment`
 
@@ -550,7 +635,10 @@ vulnerability, typically to support impact assessment or testing.
   prerequisite step that runs early
 - **Automation potential**: **High** — metadata flag check on the case record; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.acquire_exploit.ExploitPrioritySet`
-- **Call-out point shape**: Sentinel — binary case-metadata flag check; returns SUCCESS if a priority decision for exploit acquisition has already been recorded for this case, FAILURE otherwise, with no output keys.
+- **Call-out point shape**: ProtocolInternal — reads a flag written by `EvaluateExploitPriority`
+  during the same BT execution cycle; the flag lives on the BT blackboard (per-actor in-process).
+  No external agent seam — the flag never crosses an actor boundary.
+  (Category 3 per issue #1199 triage — reads a flag written by the protocol's own BT execution.)
 
 ### `EvaluateExploitPriority`
 
@@ -582,7 +670,10 @@ vulnerability, typically to support impact assessment or testing.
   exploit acquisition is not always the highest priority
 - **Automation potential**: **High** — read the outcome of the priority evaluation from case metadata; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.acquire_exploit.ExploitDeferred`
-- **Call-out point shape**: Sentinel — binary case-metadata flag check against the outcome written by EvaluateExploitPriority; returns SUCCESS if the decision was to defer exploit acquisition, FAILURE otherwise, with no output keys.
+- **Call-out point shape**: ProtocolInternal — reads a flag written by `EvaluateExploitPriority`
+  during the same BT execution cycle; the flag lives on the BT blackboard (per-actor in-process).
+  No external agent seam — the flag never crosses an actor boundary.
+  (Category 3 per issue #1199 triage — reads a flag written by the protocol's own BT execution.)
 
 ### `ExploitDesired`
 
@@ -597,7 +688,10 @@ vulnerability, typically to support impact assessment or testing.
 - **Notes**: Complements `ExploitDeferred`; fails more often than it succeeds
 - **Automation potential**: **High** — read the outcome of the priority evaluation from case metadata; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.acquire_exploit.ExploitDesired`
-- **Call-out point shape**: Sentinel — binary case-metadata flag check against the outcome written by EvaluateExploitPriority; returns SUCCESS if the decision was to acquire an exploit, FAILURE otherwise, with no output keys.
+- **Call-out point shape**: ProtocolInternal — reads a flag written by `EvaluateExploitPriority`
+  during the same BT execution cycle; the flag lives on the BT blackboard (per-actor in-process).
+  No external agent seam — the flag never crosses an actor boundary.
+  (Category 3 per issue #1199 triage — reads a flag written by the protocol's own BT execution.)
 
 ### `FindExploit`
 
@@ -752,7 +846,10 @@ preparing them, and executing publication.
   is an active goal being worked toward
 - **Automation potential**: **High** — publication status flag on the case record; fully automatable as a metadata check.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.AllPublished`
-- **Call-out point shape**: Sentinel — binary publication-status check against a case-record flag; returns SUCCESS if all intended publication artifacts have been published, FAILURE otherwise, with no output keys.
+- **Call-out point shape**: ProtocolInternal — reads a publication-completion flag maintained in the
+  local DataLayer / BT blackboard by the protocol's own BT execution (written by `Publish` nodes).
+  No external agent seam — the flag is local and actor-scoped.
+  (Category 3 per issue #1199 triage — reads a flag written by the protocol's own BT execution.)
 
 ### `PublicationIntentsSet`
 
@@ -769,7 +866,10 @@ preparing them, and executing publication.
   is an early workflow step being modeled
 - **Automation potential**: **High** — publication intent flags on the case record; fully automatable as a metadata check.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.PublicationIntentsSet`
-- **Call-out point shape**: Sentinel — binary case-metadata flag check; returns SUCCESS if publication intentions have already been established for this case, FAILURE otherwise, with no output keys.
+- **Call-out point shape**: ProtocolInternal — reads a flag written by `PrioritizePublicationIntents`
+  during the same BT execution cycle; the flag lives on the local DataLayer / BT blackboard.
+  No external agent seam — the flag is local and actor-scoped.
+  (Category 3 per issue #1199 triage — reads a flag written by the protocol's own BT execution.)
 
 ### `PrioritizePublicationIntents`
 
@@ -833,7 +933,10 @@ preparing them, and executing publication.
 - **Notes**: Ready more often than not once preparation has started
 - **Automation potential**: **High** — artifact staging-status check in the publishing pipeline; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.ExploitReady`
-- **Call-out point shape**: Sentinel — binary artifact-staging status check against the publishing pipeline; returns SUCCESS if the exploit artifact is staged and ready for publication, FAILURE otherwise, with no output keys.
+- **Call-out point shape**: ProtocolInternal — reads a staging-readiness flag written by
+  `PrepareExploit` during the same BT execution cycle; the flag lives on the local DataLayer /
+  BT blackboard. No external agent seam — the flag is local and actor-scoped.
+  (Category 3 per issue #1199 triage — reads a flag written by the protocol's own BT execution.)
 
 ### `PrepareExploit`
 
@@ -1064,7 +1167,10 @@ coordinated disclosure.
   against a notification queue
 - **Automation potential**: **High** — notification status tracking against the identified-parties queue; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.NotificationsComplete`
-- **Call-out point shape**: Sentinel — binary status check against notification tracking metadata; returns SUCCESS if all identified parties have been successfully notified, FAILURE otherwise, with no output keys.
+- **Call-out point shape**: ProtocolInternal — reads notification-completion flags maintained in the
+  local DataLayer / BT blackboard by the protocol's own `SetRcptQrmR` Actuator nodes (per-actor
+  in-process). No external agent seam — the flag is local and actor-scoped.
+  (Category 3 per issue #1199 triage — reads a flag written by the protocol's own BT execution.)
 
 ### `ChooseRecipient`
 
@@ -1177,7 +1283,10 @@ coordinated disclosure.
 - **Notes**: Succeeds almost always; guards against duplicate notifications
 - **Automation potential**: **High** — RM state query against the case participant record; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.RcptNotInQrmS`
-- **Call-out point shape**: Sentinel — binary RM-state check against the recipient's participant record in the case; returns SUCCESS if the recipient's RM state is still START (not yet notified), FAILURE otherwise, with no output keys.
+- **Call-out point shape**: ProtocolInternal — reads a per-recipient RM-state flag maintained in the
+  local DataLayer / BT blackboard; the flag is written by `SetRcptQrmR` (protocol-internal Actuator)
+  after each notification. No external agent seam — the flag is local and actor-scoped.
+  (Category 3 per issue #1199 triage — reads a flag written by the protocol's own BT execution.)
 
 ### `SetRcptQrmR`
 
@@ -1209,7 +1318,10 @@ coordinated disclosure.
   is usually short
 - **Automation potential**: **High** — query against the vendor notification queue; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.MoreVendors`
-- **Call-out point shape**: Sentinel — binary queue-status check against the vendor notification queue; returns SUCCESS if additional vendors are pending notification, FAILURE otherwise, with no output keys.
+- **Call-out point shape**: ProtocolInternal — checks the local `bb.case.potential_participants`
+  vendor sub-list (BT blackboard, per-actor in-process); this is a BT for-loop iteration guard,
+  not an external query. No external agent seam — the list is local and actor-scoped.
+  (Category 3 per issue #1199 triage — reads from the protocol's own BT blackboard.)
 
 ### `MoreCoordinators`
 
@@ -1225,7 +1337,10 @@ coordinated disclosure.
   short (often zero or one)
 - **Automation potential**: **High** — query against the coordinator notification queue; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.MoreCoordinators`
-- **Call-out point shape**: Sentinel — binary queue-status check against the coordinator notification queue; returns SUCCESS if additional coordinators are pending notification, FAILURE otherwise, with no output keys.
+- **Call-out point shape**: ProtocolInternal — checks the local `bb.case.potential_participants`
+  coordinator sub-list (BT blackboard, per-actor in-process); this is a BT for-loop iteration guard,
+  not an external query. No external agent seam — the list is local and actor-scoped.
+  (Category 3 per issue #1199 triage — reads from the protocol's own BT blackboard.)
 
 ### `MoreOthers`
 
@@ -1240,7 +1355,10 @@ coordinated disclosure.
 - **Notes**: Fails almost always; catch-all category is usually empty
 - **Automation potential**: **High** — query against the other-parties notification queue; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.MoreOthers`
-- **Call-out point shape**: Sentinel — binary queue-status check against the other-parties notification queue; returns SUCCESS if additional other parties are pending notification, FAILURE otherwise, with no output keys.
+- **Call-out point shape**: ProtocolInternal — checks the local `bb.case.potential_participants`
+  other-parties sub-list (BT blackboard, per-actor in-process); this is a BT for-loop iteration guard,
+  not an external query. No external agent seam — the list is local and actor-scoped.
+  (Category 3 per issue #1199 triage — reads from the protocol's own BT blackboard.)
 
 ### `InjectParticipant`
 

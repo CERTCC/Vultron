@@ -795,6 +795,23 @@ Short entries are reproduced here; longer ones are referenced below.
   external system and returns only SUCCESS/FAILURE is a Retriever, not a
   Sentinel.
 
+- **`NoNew*` flags imply an upstream Sentinel seam.** When a BT condition
+  node of the form `NoNew<X>Info` (or any node whose description says "check
+  whether new information has arrived") reads a change-detection flag, that
+  flag must have been written by someone. If the flag is written by the
+  **protocol's own BT execution** (e.g., a prior BT tick or an Actuator in
+  the same tree), the consuming node is `ProtocolInternal`. But if the flag
+  is written by an **external event monitor** — an agent that watches an
+  outside data source and fires into the blackboard when something changes —
+  then there is an upstream **Sentinel** agent whose call-out point must be
+  documented separately in the catalog. The consuming `NoNew*` node itself
+  is `ProtocolInternal` (it reads a local flag), but failing to document the
+  upstream Sentinel leaves the real external seam invisible. Always trace
+  the flag back to its writer and record a Sentinel stub entry for it. See
+  `notes/bt-fuzzer-nodes-report-management.md` for `NewValidationInfoSentinel`,
+  `NewPrioritizationInfoSentinel`, and `NewDeploymentInfoSentinel` as worked
+  examples. (Established in issue #1199.)
+
 ## Skill Interaction Rules
 
 When a skill requires user input or asks the user a question:
