@@ -22,7 +22,10 @@ the current working tree. During rebase cherry-pick, git applies changes then
 runs hooks — if black reformats any of those files, git sees them as newly
 modified and refuses to continue.
 
-**Scope**: Only affects rebases that touch Python files that black would
-reformat (import ordering, line length, etc.). Workaround needed on every
-such rebase in any `vultron_*` worktree until the hook is fixed to use
-`--no-modify` or equivalent.
+**Scope**: Only affected rebases that touched Python files that black would
+reformat (import ordering, line length, etc.).
+
+**Resolved**: Fixed in #1260 by adding `--check` to the `black` hook and
+removing `--fix` from the `markdownlint-cli2` hook in `.pre-commit-config.yaml`.
+Hooks are now fail-only; auto-fix is done by the `format-code`/`run-linters`
+skills before committing. The `SKIP=black` workaround is no longer needed.

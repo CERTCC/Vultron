@@ -4,7 +4,7 @@ repos:
     hooks:
       - id: black
         language_version: py313
-        args: ["."]
+        args: ["--check", "."]
 
   - repo: local
     hooks:
@@ -13,7 +13,7 @@ repos:
         entry: markdownlint-cli2
         # Use the system language so pre-commit resolves the executable via PATH
         language: system
-        args: ["--fix", "--config", ".markdownlint-cli2.yaml", "**/*.md"]
+        args: ["--config", ".markdownlint-cli2.yaml", "**/*.md"]
         files: \.(md|markdown)$
 
       - id: validate-notes-frontmatter
