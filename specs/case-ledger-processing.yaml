@@ -362,7 +362,12 @@ groups:
       Every protocol-significant trigger tree MUST emit at least one outbound
       activity addressed to `case_manager_id` (the CaseActor's actor ID) so that
       the CaseActor's inbox receives the activity and can author a canonical
-      ledger entry
+      ledger entry. This requirement applies to ALL participants — the CaseActor
+      is a participant with extra duties; it is not excluded from CLP-10-001.
+      When the CaseActor itself originates an activity (e.g., `invite_actor_to_case`),
+      it MUST include its own actor ID in the outbound activity's `cc:` field so
+      that ASGI self-delivery triggers the CaseActor's received-side use case and
+      the `GuardedCommitCaseLedgerEntryBT` fires in the correct inbox context.
     rationale: >-
       Before ADR-0021, several trigger trees (e.g., `validate_report`,
       `ack_report`, `close_case`) emitted no activity addressed to the CaseActor.
@@ -371,6 +376,14 @@ groups:
       mechanism already handles routing when the target actor ID is the
       CaseActor sub-actor for the same container; the missing piece was the
       emit node itself.
+      The self-routing requirement also applies when the CaseActor is the
+      originator: `invite_actor_to_case_trigger_bt` emitted an `Invite` addressed
+      only to the invitee — the CaseActor never received its own activity and the
+      canonical ledger had no `invite_actor_to_case` entry. Using `cc:` rather
+      than `to:` for the self-copy preserves the semantics that the invitee is the
+      primary recipient while still routing the activity through the CaseActor's
+      inbox for archival. See OX-08-004 for the updated addressing policy and
+      ADR-0021 for the full end-to-end path.
     verification: >-
       For each entry in `EXPECTED_EVENT_TYPES`, a test verifies that the
       CaseActor's canonical ledger contains at least one entry with that
