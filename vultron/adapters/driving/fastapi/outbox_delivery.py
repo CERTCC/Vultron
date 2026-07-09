@@ -113,9 +113,15 @@ def _warn_secondary_addressing(
     activity_id: str,
     activity_type: str,
 ) -> None:
+    actor_id = getattr(outbound_activity, "actor", None)
     for addr_field in ("cc", "bto", "bcc"):
         value = getattr(outbound_activity, addr_field, None)
         if value is None or value == []:
+            continue
+        # CLP-10-001: purposeful self-copy — CaseActor adds its own URI to
+        # cc: so ASGI self-delivery routes a copy to its own inbox for ledger
+        # archival.  This is intentional; suppress the OX-08-004 warning.
+        if addr_field == "cc" and actor_id and value == [actor_id]:
             continue
         logger.warning(
             "Outbound %s activity '%s' has `%s:` set."

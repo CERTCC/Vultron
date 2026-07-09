@@ -9,6 +9,9 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.accept_invite_tree import (
     create_accept_invite_actor_to_case_tree,
 )
+from vultron.core.behaviors.case.invite_actor_to_case_received_tree import (
+    create_invite_actor_to_case_received_tree,
+)
 from vultron.core.models.events.actor import (
     AcceptInviteActorToCaseReceivedEvent,
     InviteActorToCaseReceivedEvent,
@@ -31,31 +34,94 @@ logger = logging.getLogger(__name__)
 
 
 class InviteActorToCaseReceivedUseCase:
+    """Handle an incoming Invite(Actor, Case) activity.
+
+    Two delivery paths use this use case (CLP-10-001, ADR-0021):
+
+    1. **Invitee inbox** — ``receiving_actor_id`` is absent (``None``).
+       The invited actor stores the Invite idempotently and logs the case-stub
+       ID per MV-10-004.  No ledger commit occurs; that is reserved for the
+       CaseActor.
+
+    2. **CaseActor inbox** (self-delivered ``cc:`` copy) — ``receiving_actor_id``
+       is set by the inbox adapter to the CaseActor's URI.  The BT runs via
+       BTBridge; ``GuardedCommitCaseLedgerEntryBT`` inside
+       ``InviteActorToCaseReceivedBT`` commits the canonical
+       ``CaseLedgerEntry`` only when the receiving actor holds
+       ``CVDRole.CASE_MANAGER`` (CLP-10-006).  ``StoreActivityNode`` in the
+       BT's effect nodes handles idempotent storage for this path.
+
+    Note: when the trigger had no CaseActor record (``_find_case_actor_id``
+    returned ``None``), the outbound Invite is sent without a ``cc:`` field and
+    no self-delivery occurs.  No ledger entry is committed in that case — this
+    is by design; without a CaseActor there is no canonical ledger (ADR-0021).
+
+    The ``sync_port`` kwarg is injected when ``INVITE_ACTOR_TO_CASE`` is in
+    ``_SYNC_PORT_SEMANTICS`` so ``CommitCaseLedgerEntryNode`` can fan out
+    via ``sync_port`` (SYNC-02-002).
+    """
+
     def __init__(
-        self, dl: CasePersistence, request: InviteActorToCaseReceivedEvent
+        self,
+        dl: CaseOutboxPersistence,
+        request: InviteActorToCaseReceivedEvent,
+        sync_port: SyncActivityPort | None = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: InviteActorToCaseReceivedEvent = request
+        self._sync_port = sync_port
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> None:
         request = self._request
-        _idempotent_create(
-            self._dl,
-            request.activity_type,
-            request.activity_id,
-            request.activity,
-            "InviteActorToCase",
-            request.activity_id,
+        receiving_actor_id = request.receiving_actor_id
+
+        if receiving_actor_id is None:
+            # Invitee path: store idempotently and log the case-stub reference.
+            _idempotent_create(
+                self._dl,
+                request.activity_type,
+                request.activity_id,
+                request.activity,
+                "InviteActorToCase",
+                request.activity_id,
+            )
+            # MV-10-004: do NOT create a case from the stub target.  Full case
+            # details arrive later in an AnnounceVulnerabilityCase (MV-10-003).
+            case_stub_id = request.target_id
+            if case_stub_id:
+                logger.info(
+                    "InviteActorToCase: received invite with case stub '%s'."
+                    " Awaiting AnnounceVulnerabilityCase before creating case.",
+                    case_stub_id,
+                )
+            return
+
+        # CaseActor self-delivery path (CLP-10-001): the BT handles idempotent
+        # storage via StoreActivityNode and commits the canonical CaseLedgerEntry
+        # via GuardedCommitCaseLedgerEntryBT (CLP-10-006).
+        case_id = request.target_id or ""
+        tree = create_invite_actor_to_case_received_tree(
+            invite_id=request.activity_id,
+            invite_obj=request.activity,
+            case_id=case_id,
         )
-        # MV-10-004: do NOT create a case from the stub target.  The stub
-        # carries only {id, type} for identification; the full case details
-        # arrive later in an AnnounceVulnerabilityCase activity (MV-10-003).
-        case_stub_id = request.target_id
-        if case_stub_id:
-            logger.info(
-                "InviteActorToCase: received invite with case stub '%s'."
-                " Awaiting AnnounceVulnerabilityCase before creating case.",
-                case_stub_id,
+        result = BTBridge(
+            datalayer=self._dl,
+            trigger_activity=self._trigger_activity,
+        ).execute_with_setup(
+            tree=tree,
+            actor_id=receiving_actor_id,
+            activity=request,
+            sync_port=self._sync_port,
+        )
+        if result.status != Status.SUCCESS:
+            logger.debug(
+                "InviteActorToCaseReceivedUseCase: BT did not fully succeed"
+                " for invite '%s': %s",
+                request.activity_id,
+                BTBridge.get_failure_reason(tree) or result.feedback_message,
             )
 
 

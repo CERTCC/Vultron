@@ -64,15 +64,19 @@ class _ActorsMixin:
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        cc: list[str] | None = None,
         id_: str | None = None,
         attributed_to: str | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist an ``Invite(Actor, Case)`` activity.
 
         ``actor`` SHOULD be the Case Actor ID (PCR-08-007); ``attributed_to``
-        MAY carry the case owner's ID for attribution.
+        MAY carry the case owner's ID for attribution.  ``cc`` MAY carry the
+        Case Actor's own ID for self-archival (CLP-10-001).
         """
         extra: dict[str, Any] = {"actor": actor, "to": to}
+        if cc is not None:
+            extra["cc"] = cc
         if id_ is not None:
             extra["id_"] = id_
         if attributed_to is not None:

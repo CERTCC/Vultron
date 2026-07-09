@@ -43,16 +43,19 @@ class EmitInviteActorToCaseNode(DataLayerAction):
     """Create Invite(Actor, Case) and queue in the Case Actor's outbox.
 
     Uses ``trigger_activity_factory.invite_actor_to_case()`` with
-    ``actor=self.actor_id`` (expected to be the Case Actor URI) and
-    ``to=[invitee_id]``.  An optional ``attributed_to`` carries the
-    original requesting actor when the invite is sent from the Case
-    Actor identity (PCR-08-007).
+    ``actor=self.actor_id`` (expected to be the Case Actor URI),
+    ``to=[invitee_id]``, and ``cc=[case_actor_id]`` when ``case_actor_id``
+    is provided so ASGI self-delivery routes the Invite to the CaseActor's
+    own inbox for canonical ledger archival (CLP-10-001).  An optional
+    ``attributed_to`` carries the original requesting actor when the invite
+    is sent from the Case Actor identity (PCR-08-007).
     """
 
     def __init__(
         self,
         invitee_id: str,
         case_id: str,
+        case_actor_id: str | None = None,
         attributed_to: str | None = None,
         captured: dict | None = None,
         name: str | None = None,
@@ -60,6 +63,7 @@ class EmitInviteActorToCaseNode(DataLayerAction):
         super().__init__(name=name or self.__class__.__name__)
         self.invitee_id = invitee_id
         self.case_id = case_id
+        self.case_actor_id = case_actor_id
         self.attributed_to = attributed_to
         self._captured = captured
 
@@ -76,12 +80,17 @@ class EmitInviteActorToCaseNode(DataLayerAction):
             self.logger.error(self.feedback_message)
             return Status.FAILURE
 
+        # Add case_actor_id to cc: so ASGI self-delivery routes the Invite
+        # to the CaseActor's inbox for canonical ledger archival (CLP-10-001).
+        cc = [self.case_actor_id] if self.case_actor_id else None
+
         try:
             activity_id, activity_dict = factory.invite_actor_to_case(
                 invitee_id=self.invitee_id,
                 case_id=self.case_id,
                 actor=self.actor_id,
                 to=[self.invitee_id],
+                cc=cc,
                 attributed_to=self.attributed_to,
             )
             cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(

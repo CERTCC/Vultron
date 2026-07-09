@@ -69,6 +69,7 @@ def suggest_actor_to_case_trigger_bt(
 def invite_actor_to_case_trigger_bt(
     invitee_id: str,
     case_id: str,
+    case_actor_id: str | None = None,
     attributed_to: str | None = None,
     captured: dict | None = None,
 ) -> py_trees.behaviour.Behaviour:
@@ -76,11 +77,15 @@ def invite_actor_to_case_trigger_bt(
 
     Emits Invite(Actor, Case) from the Case Actor's identity directly to
     the invitee (no Case Manager resolution needed — the Case Actor IS the
-    routing endpoint here per PCR-08-007).
+    routing endpoint here per PCR-08-007).  When ``case_actor_id`` is
+    provided it is added to ``cc:`` so ASGI self-delivery routes a copy to
+    the CaseActor's own inbox for canonical ledger archival (CLP-10-001).
 
     Args:
         invitee_id: Actor URI of the participant being invited.
         case_id: ID of the VulnerabilityCase.
+        case_actor_id: Optional Case Actor URI added to ``cc:`` for
+            self-archival (CLP-10-001).
         attributed_to: Optional original requesting actor URI.
         captured: Optional dict; ``captured["activity"]`` is set on success.
 
@@ -94,6 +99,7 @@ def invite_actor_to_case_trigger_bt(
             EmitInviteActorToCaseNode(
                 invitee_id=invitee_id,
                 case_id=case_id,
+                case_actor_id=case_actor_id,
                 attributed_to=attributed_to,
                 captured=captured,
             ),
