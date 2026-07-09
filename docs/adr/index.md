@@ -88,6 +88,8 @@ General information about architectural decision records is available at <https:
   `process_payload` Seam](0020-inbox-bt-orchestration.md)
 - [ADR-0025 Call-Out Point Abstraction Layer: Factory-Based Injection with
   Typed Backends](0025-call-out-point-abstraction-layer.md)
+- [ADR-0026 CaseActor-Routed Actor Suggestion and Invitation
+  Flow](0026-caseactor-routed-actor-suggestion.md)
 
 ## Rejected ADRs
 
