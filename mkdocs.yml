@@ -232,6 +232,7 @@ nav:
       - Use Factory Pattern for BT nodes: 'adr/0004-use-factory-methods-for-common-bt-node-types.md'
       - Use ActivityStreams Vocabulary as Message Format: 'adr/0005-activitystreams-vocabulary-as-vultron-message-format.md'
       - Use CalVer for Versioning: 'adr/0006-use-calver-for-project-versioning.md'
+      - CaseActor-Routed Actor Suggestion: 'adr/0026-caseactor-routed-actor-suggestion.md'
   - About:
     - Contributing: 'about/contributing.md'
     - FAQ: 'about/faq.md'

@@ -266,6 +266,18 @@ the GitHub Issue-based coordination model and
 - Treat anything under `/security`, `/auth`, or equivalent paths as sensitive
 - Do not generate secrets, credentials, or real tokens
 - Flag ambiguous requirements instead of guessing
+- **NEVER run `git worktree prune` (or `git gc` / any pruning command) in this
+  repo.** The `.git` common directory is **shared across multiple environments**
+  (host macOS checkouts *and* dev-container checkouts) via mounts. `prune` deletes
+  the admin metadata (`gitdir`/`commondir`/`HEAD`/`index`) for every worktree
+  whose checkout path is not resolvable *from the current environment* — which
+  silently destroys live worktrees belonging to other containers/the host, not
+  just stale ones. A worktree registered under a path the current environment
+  can't see always looks "prunable" but usually is not. If `git worktree list`
+  shows `prunable` entries, **leave them**; verify with the human before removing
+  any worktree. Recovery after an erroneous prune is possible (refs/objects
+  survive) but requires hand-rebuilding each admin dir — see
+  [`notes/parallel-development.md`](notes/parallel-development.md).
 
 ---
 

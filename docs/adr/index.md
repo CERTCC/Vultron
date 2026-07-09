@@ -88,6 +88,8 @@ General information about architectural decision records is available at <https:
 
 - [ADR-0020 Move Inbox Orchestration into a Core BT Module with a Typed
   `process_payload` Seam](0020-inbox-bt-orchestration.md)
+- [ADR-0026 CaseActor-Routed Actor Suggestion and Invitation
+  Flow](0026-caseactor-routed-actor-suggestion.md)
 
 ## Rejected ADRs
 
