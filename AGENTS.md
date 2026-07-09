@@ -902,6 +902,13 @@ completed work.
 
 Issues live in GitHub Issues; external PRs are not a triage surface. See `docs/agents/issue-tracker.md`.
 
+**Never use `gh issue create`** — it cannot set issue types, parent/child
+relationships, or blocker/blocked-by links. Always use the
+`manage-github-issue` helper script (`.agents/skills/manage-github-issue/manage_github_issue.sh`)
+or the `createIssue` GraphQL mutation directly (with `issueTypeId`,
+`parentIssueId` inline). Issue type IDs and relationship mutation names are in
+`.agents/skills/manage-github-issue/REFERENCE.md`.
+
 ### Triage labels
 
 Default label vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
