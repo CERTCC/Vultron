@@ -87,6 +87,7 @@ Load additional files only when the task touches the relevant area. See the
 | Embargo default semantics | `embargo-policy.yaml`, `notes/embargo-default-semantics.md` |
 | Configuration | `configuration.yaml` |
 | Demo / CLI | `demo-cli.yaml`, `multi-actor-demo.yaml` |
+| Demo scenario report tool | `demo-report.yaml` |
 | Event-driven control flow / cascade model | `event-driven-control-flow.yaml`, `notes/event-driven-control-flow.md` |
 | Observability | `observability.yaml` |
 | Security / CI | `ci-security.yaml`, `encryption.yaml` |
@@ -291,6 +292,11 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   workflow trigger and path-filter rules, Dependabot skip condition, Docker layer caching,
   log artifact on failure, extensibility pattern for future scenarios
   (DEMOCI-01 through DEMOCI-03)
+- **`demo-report.yaml`** - Read-only tool that parses demo-run JSONL case-ledger
+  files into a human-readable report: input discovery, the distilled
+  `CaseTimelineEvent` model, markdown and self-contained HTML rendering, the
+  per-actor replica-presence matrix, friendly (non-URI) naming, and test
+  requirements (DRPT-01 through DRPT-05)
 
 ### Actor Profiles and Policies
 
@@ -441,6 +447,7 @@ is reserved for `testability.yaml`).
 | `CS` | `code-style.yaml` |
 | `DC` | `demo-cli.yaml` |
 | `DEMOMA` | `multi-actor-demo.yaml` |
+| `DRPT` | `demo-report.yaml` |
 | `DF` | `diataxis-requirements.yaml` |
 | `DL` | `datalayer.md` |
 | `EH` | `error-handling.yaml` |
