@@ -357,3 +357,104 @@ class TestAnnounceLogEntryAppliesNoteAttachment:
         updated = datalayer.read(CASE_ID)
         assert updated is not None
         assert updated.notes == []
+
+
+INVITEE_ACTOR_ID = "https://example.org/actors/vendor2"
+
+
+def _make_accept_invite_entry(
+    log_index: int, prev_hash: str = _ZERO_HASH
+) -> VultronCaseLedgerEntry:
+    """Create a ledger entry with event_type='accept_invite_actor_to_case'."""
+    return _to_persistable_entry(
+        HashChainLedgerRecord(
+            case_id=CASE_ID,
+            log_index=log_index,
+            object_id=f"https://example.org/activities/accept-invite-{log_index}",
+            event_type="accept_invite_actor_to_case",
+            payload_snapshot={
+                "type": "Accept",
+                "actor": INVITEE_ACTOR_ID,
+                "object": {
+                    "type": "Invite",
+                    "id": "https://example.org/invites/1",
+                },
+                "context": CASE_ID,
+            },
+            prev_log_hash=prev_hash,
+        )
+    )
+
+
+class TestAnnounceLogEntryAppliesInviteAccept:
+    """Participant receiving accept_invite_actor_to_case ledger entry adds invitee."""
+
+    def test_participant_adds_invitee_on_accept_invite_entry(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        """BT adds new participant to case replica when entry is accept_invite_actor_to_case.
+
+        Existing participants (e.g. Finder) must learn about new invitees
+        exclusively via Announce(CaseLedgerEntry) fan-out (SYNC-02-002).
+        """
+        entry = _make_accept_invite_entry(0, case_obj.genesis_hash)
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = bridge.execute_with_setup(
+            tree=create_announce_log_entry_tree(),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
+
+        assert result.status == Status.SUCCESS
+        updated = datalayer.read(CASE_ID)
+        assert updated is not None
+        assert INVITEE_ACTOR_ID in updated.actor_participant_index
+
+    def test_invite_accept_add_is_idempotent(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        """Running BT twice with same accept-invite entry adds participant exactly once."""
+        entry = _make_accept_invite_entry(0, case_obj.genesis_hash)
+        # Pre-store entry so second run takes the already-stored path.
+        datalayer.save(entry)
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = bridge.execute_with_setup(
+            tree=create_announce_log_entry_tree(),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
+
+        assert result.status == Status.SUCCESS
+        updated = datalayer.read(CASE_ID)
+        assert updated is not None
+        assert (
+            list(updated.actor_participant_index.keys()).count(
+                INVITEE_ACTOR_ID
+            )
+            == 1
+        )
+
+    def test_invite_accept_not_applied_for_other_event_types(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        """InviteAcceptEffects Selector short-circuits for unrelated event types."""
+        entry = _make_entry(
+            0, case_obj.genesis_hash
+        )  # event_type="test_event"
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = bridge.execute_with_setup(
+            tree=create_announce_log_entry_tree(),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
+
+        assert result.status == Status.SUCCESS
+        updated = datalayer.read(CASE_ID)
+        assert updated is not None
+        assert INVITEE_ACTOR_ID not in updated.actor_participant_index

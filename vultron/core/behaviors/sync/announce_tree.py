@@ -5,6 +5,7 @@ import py_trees
 
 from vultron.core.behaviors.embargo.nodes import ApplyEmbargoTeardownNode
 from vultron.core.behaviors.sync.nodes import (
+    ApplyInviteAcceptFromLedgerNode,
     ApplyNoteFromLedgerNode,
     ApplyParticipantStatusFromLedgerNode,
     CheckHashOrRejectOnMismatchNode,
@@ -12,6 +13,7 @@ from vultron.core.behaviors.sync.nodes import (
     CheckIsNotOwnCaseActorNode,
     CheckLedgerEntryAlreadyStoredNode,
     IsNotAddNoteEventNode,
+    IsNotInviteAcceptEventNode,
     IsNotParticipantStatusEventNode,
     IsNotRemoveEmbargoEventNode,
     LogDeliveryConfirmationNode,
@@ -84,6 +86,16 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
                 children=[
                     IsNotAddNoteEventNode(name="IsNotAddNoteEvent"),
                     ApplyNoteFromLedgerNode(name="ApplyNoteFromLedger"),
+                ],
+            ),
+            py_trees.composites.Selector(
+                name="InviteAcceptEffects",
+                memory=False,
+                children=[
+                    IsNotInviteAcceptEventNode(name="IsNotInviteAcceptEvent"),
+                    ApplyInviteAcceptFromLedgerNode(
+                        name="ApplyInviteAcceptFromLedger"
+                    ),
                 ],
             ),
         ],

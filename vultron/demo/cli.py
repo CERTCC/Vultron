@@ -44,6 +44,7 @@ import vultron.demo.exchange.manage_participants_demo as manage_participants_dem
 import vultron.demo.exchange.receive_report_demo as receive_report_demo
 import vultron.demo.exchange.status_updates_demo as status_updates_demo
 import vultron.demo.exchange.suggest_actor_demo as suggest_actor_demo
+import vultron.demo.scenario.fvv_demo as fvv_demo
 import vultron.demo.scenario.multi_vendor_demo as multi_vendor_demo
 import vultron.demo.scenario.three_actor_demo as three_actor_demo
 import vultron.demo.exchange.transfer_ownership_demo as transfer_ownership_demo
@@ -554,6 +555,94 @@ def multi_vendor(
         vendor_id=vendor_id,
         coordinator_id=coordinator_id,
         case_actor_id=case_actor_id,
+        vendor2_id=vendor2_id,
+    )
+
+
+# ---------------------------------------------------------------------------
+# FVV sub-command — Finder + Vendor1 + Vendor2, no coordinator (D5-5)
+# ---------------------------------------------------------------------------
+
+
+@main.command(name="fvv")
+@click.option(
+    "--finder-url",
+    envvar="VULTRON_FINDER_BASE_URL",
+    default=fvv_demo.FINDER_BASE_URL,
+    show_default=True,
+    help="Base URL of the Finder container API "
+    "(env: VULTRON_FINDER_BASE_URL).",
+)
+@click.option(
+    "--vendor-url",
+    envvar="VULTRON_VENDOR_BASE_URL",
+    default=fvv_demo.VENDOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the Vendor1 container API "
+    "(env: VULTRON_VENDOR_BASE_URL).",
+)
+@click.option(
+    "--vendor2-url",
+    envvar="VULTRON_VENDOR2_BASE_URL",
+    default=fvv_demo.VENDOR2_BASE_URL,
+    show_default=True,
+    help="Base URL of the Vendor2 container API "
+    "(env: VULTRON_VENDOR2_BASE_URL).",
+)
+@click.option(
+    "--finder-id",
+    default=None,
+    help="Deterministic full URI for the Finder actor (optional).",
+)
+@click.option(
+    "--vendor-id",
+    default=None,
+    help="Deterministic full URI for the Vendor1 actor (optional).",
+)
+@click.option(
+    "--vendor2-id",
+    default=None,
+    help="Deterministic full URI for the Vendor2 actor (optional).",
+)
+@click.option(
+    "--skip-health-check",
+    is_flag=True,
+    default=False,
+    help="Skip container availability checks.",
+)
+def fvv(
+    finder_url: str,
+    vendor_url: str,
+    vendor2_url: str,
+    finder_id: str | None,
+    vendor_id: str | None,
+    vendor2_id: str | None,
+    skip_health_check: bool,
+) -> None:
+    """Run the FVV (Finder + Vendor1 + Vendor2) multi-container CVD demo (D5-5).
+
+    Orchestrates a complete CVD workflow across three separate API server
+    containers with no coordinator.  Vendor1 creates the case and invites both
+    Finder and Vendor2; each vendor maintains an independent fix path.
+
+    \b
+    Workflow:
+      1. Seed all three containers (actor records + peer registration).
+      2. Finder submits a vulnerability report to Vendor1's inbox.
+      3. Vendor1 validates the report and engages the case.
+      4. Vendor1 invites Vendor2; Vendor2 accepts.
+      5. Verify SYNC-2 replication on Finder and Vendor2.
+      6. Both vendors independently advance through fix-ready → fix-deployed.
+      7. All participants report publication; embargo terminates.
+      8. All participants close the case.
+    """
+    fvv_demo.main(
+        skip_health_check=skip_health_check,
+        finder_url=finder_url,
+        vendor_url=vendor_url,
+        vendor2_url=vendor2_url,
+        finder_id=finder_id,
+        vendor_id=vendor_id,
         vendor2_id=vendor2_id,
     )
 
