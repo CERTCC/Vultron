@@ -31,12 +31,12 @@ Vultron activities are direct messages and MUST have a non-empty `to:` field.
 
 | Question | Decision | Rationale |
 |---|---|---|
-| Which addressing fields are valid? | `to:` only | All Vultron exchanges are DMs; `cc`/`bto`/`bcc` unsupported |
+| Which addressing fields are valid? | `to:` required; one `cc:` exception | All Vultron exchanges are DMs; `cc`/`bto`/`bcc` unsupported except for the CaseActor purposeful self-copy (see OX-08-004) |
 | Where to enforce? | `handle_outbox_item` in `outbox_handler.py` | Already has the full activity; consistent with existing `VultronOutboxObjectIntegrityError` pattern |
 | Exception class? | New `VultronOutboxToFieldMissingError` | Matches project exception naming convention; distinct from object-integrity errors |
 | Scope? | All outbox activities, no exceptions | Every outbound activity must be addressed |
 | What counts as valid `to:`? | Non-empty list (or scalar) of URI strings | Empty list is as bad as `None`; format validation out of scope |
-| `cc`/`bto`/`bcc` presence? | Log WARNING, do not reject | Surfaces bugs without breaking delivery in edge cases |
+| `cc`/`bto`/`bcc` presence? | Log WARNING, except for CaseActor purposeful self-copy | OX-08-004: purposeful `cc:` self-copy (originating actor's own ID only) MUST NOT trigger the WARNING; all other uses SHOULD warn |
 
 ---
 
@@ -86,17 +86,26 @@ if _to_empty:
         activity_type=activity_type,
     )
 
-# Warn if cc/bto/bcc are set (OX-08-004)
+# Warn if cc/bto/bcc are set (OX-08-004), except for purposeful CaseActor
+# self-copy: a cc: list consisting solely of the originating actor's own ID
+# is the only valid non-to: addressing in the protocol (CLP-10-001).
+_actor_id = getattr(outbound_activity, "actor", None)
 for _addr_field in ("cc", "bto", "bcc"):
     _val = getattr(outbound_activity, _addr_field, None)
     if _val is not None and _val != []:
-        logger.warning(
-            "Outbound %s activity '%s' has `%s:` set."
-            " Vultron only uses `to:` for addressing (OX-08-004).",
-            activity_type,
-            activity_id,
-            _addr_field,
+        _is_self_copy = (
+            _addr_field == "cc"
+            and isinstance(_val, list)
+            and _val == [_actor_id]
         )
+        if not _is_self_copy:
+            logger.warning(
+                "Outbound %s activity '%s' has `%s:` set."
+                " Vultron only uses `to:` for addressing (OX-08-004).",
+                activity_type,
+                activity_id,
+                _addr_field,
+            )
 ```
 
 ### 3. Import the new exception
@@ -137,14 +146,25 @@ activity = make_test_activity(to=[])
 activity = make_test_activity(to=None, cc=["https://example.org/alice"])
 ...
 
-# Test: to: present with cc: logs WARNING but delivers
+# Test: to: present with cc: pointing to a *third party* logs WARNING
 activity = make_test_activity(
     to=["https://example.org/alice"],
-    cc=["https://example.org/bob"],
+    cc=["https://example.org/bob"],  # bob ≠ sender → WARNING fires
 )
 with caplog.at_level(logging.WARNING):
     await handle_outbox_item(actor_id, activity.id_, dl, emitter)
 assert any("cc" in r.message for r in caplog.records)
+emitter.emit.assert_called_once()
+
+# Test: purposeful CaseActor self-copy (cc: = own ID) does NOT log WARNING
+activity = make_test_activity(
+    actor=actor_id,
+    to=["https://example.org/invitee"],
+    cc=[actor_id],  # self-copy: actor's own ID only → no WARNING
+)
+with caplog.at_level(logging.WARNING):
+    await handle_outbox_item(actor_id, activity.id_, dl, emitter)
+assert not any("cc" in r.message for r in caplog.records)
 emitter.emit.assert_called_once()
 ```
 
@@ -187,7 +207,8 @@ When modifying `outbox_handler.py`, add or update tests for these scenarios:
 
 3. **Activity Validation** (`handle_outbox_item`)
    - Test: reject missing or empty `to:` field (OX-08-001, OX-08-002)
-   - Test: warn on `cc`/`bto`/`bcc` presence (OX-08-004)
+   - Test: warn on `cc`/`bto`/`bcc` presence for third-party addresses (OX-08-004)
+   - Test: no WARNING for purposeful CaseActor self-copy (`cc:` = own actor ID)
    - Test: enforce `VultronOutboxObjectIntegrityError` for malformed activities
    - Location: `test/adapters/driving/fastapi/test_outbox.py`
 
