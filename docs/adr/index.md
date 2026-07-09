@@ -81,13 +81,13 @@ General information about architectural decision records is available at <https:
 - [ADR-0023 Introduce `CaseProposal` for Distributed Case Actor
   Initialization](0023-case-proposal-protocol.md)
 - [ADR-0024 Coordination Agent Taxonomy](0024-coordination-agent-taxonomy.md)
+- [ADR-0025 Call-Out Point Abstraction Layer: Factory-Based Injection with
+  Typed Backends](0025-call-out-point-abstraction-layer.md)
 
 ## Proposed ADRs
 
 - [ADR-0020 Move Inbox Orchestration into a Core BT Module with a Typed
   `process_payload` Seam](0020-inbox-bt-orchestration.md)
-- [ADR-0025 Call-Out Point Abstraction Layer: Factory-Based Injection with
-  Typed Backends](0025-call-out-point-abstraction-layer.md)
 - [ADR-0026 CaseActor-Routed Actor Suggestion and Invitation
   Flow](0026-caseactor-routed-actor-suggestion.md)
 

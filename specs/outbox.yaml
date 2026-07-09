@@ -118,8 +118,18 @@ groups:
   - id: OX-08-004
     priority: SHOULD
     statement: >-
-      If an outbound activity carries non-empty `cc:`, `bto:`, or `bcc:` fields, the outbox
+      If an outbound activity carries non-empty `cc:`, `bto:`, or `bcc:` fields
+      AND the `cc:`/`bto:`/`bcc:` list is not solely the originating actor's own
+      ID (i.e., a purposeful self-copy for canonical-ledger archival), the outbox
       handler SHOULD log a WARNING
+    rationale: >-
+      Vultron direct messages use `to:` for primary recipients. The `cc:`/`bto:`/`bcc:`
+      fields are reserved for a single exception: a CaseActor-originated activity
+      that adds the CaseActor's own ID to `cc:` so ASGI self-delivery routes the
+      activity through the CaseActor's received-side use case and the
+      `GuardedCommitCaseLedgerEntryBT` fires in the correct inbox context
+      (CLP-10-001). This purposeful self-copy MUST NOT trigger the WARNING. Any
+      other use of `cc:`/`bto:`/`bcc:` is suspect and SHOULD be logged.
 - id: OX-09
   title: Outbox Monitor Efficiency
   rationale: >-

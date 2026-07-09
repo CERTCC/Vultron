@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-06-25
 deciders: [adh]
 ---
@@ -178,8 +178,10 @@ The concrete form:
 
 ## Validation
 
-- #1151 implements one exemplar per agent shape; each exemplar must
-  demonstrate the factory-based swap (fuzzer default → real backend).
+- #1151 implemented one exemplar per agent shape (PR closed).  The factory
+  injection pattern, shape mixin classes, and blackboard contract approach
+  proved sound across all five ADR-0024 shapes.  ADR status advanced from
+  `proposed` to `accepted`.
 - Shape-based implementation issues (FUZZ-08d through FUZZ-08g) apply the
   pattern to all 93 nodes. If the exemplar pattern requires revision for any
   shape, this ADR must be updated before the corresponding shape issue

@@ -43,6 +43,7 @@
 | `vultron/metadata/` | Spec, notes, and history tooling | Runtime protocol orchestration |
 | `vultron/demo/` | Demo orchestration, seeding, verification helpers | Authoritative domain interfaces |
 | `vultron/bt/` | Legacy/experimental BT package retained alongside core behaviors | New adapter wiring or primary runtime entrypoints |
+| `vultron/demo/fuzzer/` | Fuzzer/simulation call-out point implementations and shape mixin classes; depends on `vultron/core/behaviors/call_out_point.py` for `CallOutBackendFactory` type | Core domain logic; tree builders default to fuzzer factories but must not import `vultron.demo` (BT-16-001) |
 | `test/` | Mirrored tests and fixtures | Production runtime code |
 
 ### 4) Naming and Organization Rules

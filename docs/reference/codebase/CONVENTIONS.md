@@ -18,6 +18,9 @@
 - Formatter: `black` with `line-length = 79` in `pyproject.toml`
 - Linter: `flake8` via `.flake8`; static analysis also uses `mypy` and
   `pyright`; markdown is checked by `markdownlint-cli2`
+- Pre-commit hooks are **fail-only** (no auto-fix during commit): `black` runs
+  with `--check`, `markdownlint-cli2` does not apply fixes. Auto-format before
+  committing via the `format-code` and `run-linters` skills or `make black`.
 - Most relevant enforced rules: flake8 ignores `E203` and `E501`,
   `__init__.py` may ignore `F401`, mypy checks packages `vultron` and `test`,
   and markdownlint disables `MD013`, `MD033`, `MD041`, `MD046`, `MD051`, and

@@ -8,6 +8,9 @@ description: >
 
 # Encryption implementation notes
 
+> **Tracked by**: issue #1156 and its children. This file is the design seed
+> for that implementation work.
+
 ## Overview
 
 - ActivityPub supports public-key distribution via actor profiles.

@@ -359,11 +359,13 @@ def _phase_sync_verification(
 def _phase_notes_exchange(
     finder_client: DataLayerClient,
     vendor_client: DataLayerClient,
+    vendor2_client: DataLayerClient,
     finder_in_finder: as_Actor,
     vendor_in_vendor: as_Actor,
+    vendor2_in_vendor2: as_Actor,
     case: VulnerabilityCase,
-) -> tuple[as_Note, as_Note]:
-    """Run a question-and-reply note exchange between Finder and Vendor1."""
+) -> tuple[as_Note, as_Note, as_Note]:
+    """Run a three-way note exchange among Finder, Vendor1, and Vendor2."""
     logger.info("─" * 80)
     logger.info("Phase 3: Notes exchange")
     logger.info("─" * 80)
@@ -393,10 +395,23 @@ def _phase_notes_exchange(
         in_reply_to=question_note.id_,
     )
 
-    logger.info(
-        "✓ Notes exchange complete (question + reply committed to case ledger)"
+    vendor2_note = participant_adds_note_to_case(
+        posting_client=vendor2_client,
+        watching_client=vendor_client,
+        poster=vendor2_in_vendor2,
+        case=case,
+        note_name="Vendor2 Status Update",
+        note_content=(
+            "Vendor2 can confirm the issue affects our component. "
+            "We will coordinate our fix timeline with Vendor1."
+        ),
+        in_reply_to=reply_note.id_,
     )
-    return question_note, reply_note
+
+    logger.info(
+        "✓ Notes exchange complete (question + two replies committed to case ledger)"
+    )
+    return question_note, reply_note, vendor2_note
 
 
 def _phase_fix_lifecycle(
@@ -733,8 +748,10 @@ def run_fvv_demo(
     _phase_notes_exchange(
         finder_client=finder_client,
         vendor_client=vendor_client,
+        vendor2_client=vendor2_client,
         finder_in_finder=finder_in_finder,
         vendor_in_vendor=vendor_in_vendor,
+        vendor2_in_vendor2=vendor2_in_vendor2,
         case=case,
     )
     _phase_fix_lifecycle(

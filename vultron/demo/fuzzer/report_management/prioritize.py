@@ -39,6 +39,7 @@ from vultron.demo.fuzzer.base import (
     ProbablySucceed,
     UsuallySucceed,
 )
+from vultron.demo.fuzzer.call_out_point import ActuatorCallOutPoint
 
 
 class NoNewPrioritizationInfo(ProbablySucceed):
@@ -99,13 +100,17 @@ class GatherPrioritizationInfo(AlmostAlwaysSucceed):
     """
 
 
-class OnAccept(AlwaysSucceed):
+class OnAccept(ActuatorCallOutPoint, AlwaysSucceed):
     """Execute site-specific tasks when a report is accepted.
 
     Semantic function:
         Action integration hook — trigger notifications, initialize the
         case workflow, assign to a team, and update case status when the
         report is accepted.  Must be idempotent in production.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — trigger only; case context from construction time)
+      Output keys: (none — side effect: notify stakeholders, initialize workflow)
 
     Input category: System integration.
 
@@ -117,13 +122,17 @@ class OnAccept(AlwaysSucceed):
     """
 
 
-class OnDefer(AlwaysSucceed):
+class OnDefer(ActuatorCallOutPoint, AlwaysSucceed):
     """Execute site-specific tasks when a report is deferred.
 
     Semantic function:
         Action integration hook — notify stakeholders, schedule a
         follow-up, and update the case status when the report is
         deferred.  Must be idempotent in production.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — trigger only; case context from construction time)
+      Output keys: (none — side effect: notify stakeholders, schedule follow-up)
 
     Input category: System integration.
 

@@ -147,9 +147,51 @@ satisfied without corrupting the ledger.
 - A grep-based test (CLP-09-002) asserts that no bare, unguarded commit
   invocation exists outside the guarded-commit factory.
 
+## Clarification: CaseActor-Originated Activities (Issue #1287)
+
+The canonical path above applies symmetrically when the **CaseActor** is
+the originator, not just when it is a relay target. The CaseActor is a
+participant with extra duties; it is not exempt from CLP-10-001.
+
+When the CaseActor originates an activity (e.g., `invite_actor_to_case`),
+the activity is addressed to the external recipient(s) via `to:`. To
+ensure the CaseActor's own inbox receives the activity for archival, the
+CaseActor MUST add its own actor ID to the `cc:` field of the outbound
+activity. ASGI self-delivery then routes the `cc:` copy to the CaseActor's
+received-side use case, where the `GuardedCommitCaseLedgerEntryBT` fires
+under the correct `actor_id = case_actor_id` identity.
+
+**Why `cc:` instead of adding `case_actor_id` to `to:`:**
+The primary recipient of an `Invite(VulnerabilityCase)` is the invitee.
+The CaseActor's copy is an archival side-channel, not a primary delivery.
+Using `to:` for both would misrepresent the CaseActor as a co-primary
+recipient of its own outbound message. `cc:` preserves the correct
+semantic: the invitee is in `to:`, the self-archival copy is in `cc:`.
+OX-08-004 narrows its WARNING scope to exclude this purposeful self-copy
+pattern (the only valid use of `cc:` in the protocol).
+
+**The working precedent** for this pattern is `offer_case_manager_role`:
+its `ResolveCaseManagerOfferContextNode` sets
+`blackboard.offer_case_manager_to = [case_actor_id]` and the Offer is
+addressed to the CaseActor's own ID in `to:` (a special case where the
+CaseActor is genuinely the primary recipient). The `invite_actor_to_case`
+fix follows the same principle but uses `cc:` because the invitee is the
+primary recipient.
+
+**Distinguishing self-delivery from external delivery in received-side
+use cases:** The CaseActor's received-side `InviteActorToCaseReceivedUseCase`
+does not need to special-case "did I send this myself?" — the
+`GuardedCommitCaseLedgerEntryBT`'s `CheckIsCaseManagerNode` role gate is
+the only pre-flight guard needed. If the executing actor is the CaseActor,
+the commit fires; if not, it is skipped. The `cc:` addressing is
+transparent to the received-side use case.
+
 ## More Information
 
-- Issue #1026 — root-cause analysis and fix plan.
+- Issue #1026 — root-cause analysis and fix plan for the broader ADR-0021
+  routing gap.
+- Issue #1287 — `invite_actor_to_case` trigger BT gap: CaseActor-originated
+  activities also need to route through the CaseActor's inbox.
 - ADR-0018 — single-writer canonical ledger established.
 - ADR-0019 — content boundary of the canonical ledger established.
 - `notes/case-communication-model.md` — canonical communication flow,
@@ -158,3 +200,5 @@ satisfied without corrupting the ledger.
   coverage requirements that this ADR extends.
 - `specs/case-ledger-processing.yaml` CLP-10 — normative requirements
   generated from this ADR.
+- `specs/outbox.yaml` OX-08-004 — purposeful self-copy exception to the
+  `cc:`/`bcc:`/`bto:` WARNING.

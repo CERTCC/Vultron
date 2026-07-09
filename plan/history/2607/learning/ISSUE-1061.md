@@ -1,7 +1,7 @@
 ---
 title: "SKIP=black needed when rebasing in any vultron_* worktree"
 type: learning
-timestamp: 2026-07-08
+timestamp: 2026-07-08T00:00:00+00:00
 source: ISSUE-1061
 ---
 
@@ -29,3 +29,7 @@ reformat (import ordering, line length, etc.).
 removing `--fix` from the `markdownlint-cli2` hook in `.pre-commit-config.yaml`.
 Hooks are now fail-only; auto-fix is done by the `format-code`/`run-linters`
 skills before committing. The `SKIP=black` workaround is no longer needed.
+
+**Promoted**: 2026-07-08 — resolved/superseded; already captured in
+`AGENTS.md` § "Pre-commit Hooks Are Fail-Only". No new doc changes needed.
+Docs PR: [#1274](https://github.com/CERTCC/Vultron/pull/1274)

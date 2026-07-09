@@ -41,6 +41,7 @@ from vultron.demo.fuzzer.base import (
     UsuallyFail,
     UsuallySucceed,
 )
+from vultron.demo.fuzzer.call_out_point import ComposerCallOutPoint
 
 
 class AllPublished(AlmostAlwaysFail):
@@ -278,7 +279,7 @@ class NoPublishReport(AlmostAlwaysFail):
     """
 
 
-class PrepareReport(AlmostAlwaysSucceed):
+class PrepareReport(ComposerCallOutPoint, AlmostAlwaysSucceed):
     """Create, review, and stage the vulnerability advisory for publication.
 
     Semantic function:
@@ -288,6 +289,10 @@ class PrepareReport(AlmostAlwaysSucceed):
         staging in the advisory publishing pipeline.  The fuzzer succeeds
         almost always, allowing the rest of the workflow to be exercised.
 
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — reads case context from caller's DataLayer)
+      Output keys: prepared_report_artifact: str  (SUCCESS only)
+
     Input category: Human decision.
 
     Success probability: 0.90 (``AlmostAlwaysSucceed``).
@@ -296,6 +301,8 @@ class PrepareReport(AlmostAlwaysSucceed):
     expertise and editorial judgment; review and approval workflow also
     typically involves human stakeholders.
     """
+
+    output_keys = {"prepared_report_artifact": str}
 
 
 class ReprioritizeReport(AlwaysSucceed):

@@ -1,6 +1,6 @@
 ---
 title: Demo CI — GitHub Actions Demo Integration Workflow
-status: active
+status: archived
 ---
 
 # Demo CI — GitHub Actions Demo Integration Workflow

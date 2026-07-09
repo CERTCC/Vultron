@@ -357,3 +357,49 @@ groups:
     verification: >-
       For each BT-bearing area, scan `nodes/` modules and fail compliance when any leaf
       module exceeds 500 lines.
+- id: BTND-08
+  title: Positive-Precondition Condition Node Naming
+  kind: pattern
+  specs:
+  - id: BTND-08-001
+    priority: SHOULD
+    statement: >-
+      Condition nodes used as type-dispatch guards in a
+      `Selector(Sequence(Condition, Action), AlwaysSuccess)` composite MUST use
+      positive names (e.g., `IsFooEventNode`) that return SUCCESS when the
+      condition IS true and FAILURE otherwise.  Negative-guard names
+      (e.g., `IsNotFooEventNode`) that return SUCCESS to *skip* an effect and
+      FAILURE to *trigger* it are a readability anti-pattern and MUST NOT be
+      introduced in new code.
+    rationale: >-
+      The `Selector(IsNotFoo, ApplyFoo)` pattern requires readers to mentally
+      invert the condition to understand when the effect fires, and the
+      `IsNotFoo` naming implies a guard against `Foo` when the intent is to
+      *apply* `Foo`.  Positive-precondition Sequences make intent immediately
+      readable: "if this IS a remove-embargo entry, apply embargo teardown;
+      otherwise skip".
+    relationships:
+    - rel_type: refines
+      spec_id: BT-06-004
+    verification: >-
+      Search `vultron/core/behaviors/` for `IsNot*Node` class definitions used
+      as the first child of a `Selector` composite; flag any found.
+  - id: BTND-08-002
+    priority: SHOULD
+    statement: >-
+      The `AlwaysSuccess` fallback in a `Selector(Sequence(IsFoo, ApplyFoo),
+      AlwaysSuccess)` composite MUST be given a descriptive `name` of the form
+      `"<Effect>Skipped"` (e.g., `"EmbargoEffectsSkipped"`) so the no-op path
+      is identifiable in BT visualizations and logs.
+    rationale: >-
+      An unnamed or generically-named `AlwaysSuccess` node is invisible in tree
+      dumps and log output, making it harder to trace which effect was skipped
+      and why.  A descriptive `<Effect>Skipped` name makes the no-op path
+      explicit and consistent with the existing codebase convention
+      (e.g., `"AutoCloseSkippedNotCaseManager"`, `"ValidationSkipped"`).
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-08-001
+    verification: >-
+      In each `Selector(Sequence(IsFoo, ApplyFoo), AlwaysSuccess)` composite,
+      confirm the `AlwaysSuccess` node's `name` ends with `"Skipped"`.

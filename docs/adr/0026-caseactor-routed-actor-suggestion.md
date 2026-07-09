@@ -141,7 +141,7 @@ Three distinct states must be distinguished when a second `Offer(Actor X)` arriv
 - A new received-side BT must handle `Accept(Offer(CaseParticipant))` from the
   Case Owner at the CaseActor and trigger `Invite(CaseStub+embargo)` to the
   invitee.
-- Spec requirements CM-15 and CM-16 (in `specs/case-management.yaml`) capture
+- Spec requirements CM-16 and CM-17 (in `specs/case-management.yaml`) capture
   the normative requirements derived from this decision.
 
 ## More Information
@@ -154,4 +154,4 @@ Three distinct states must be distinguished when a second `Offer(Actor X)` arriv
 - Issue #1292 — invite/embargo consent completeness epic
 - Issue #1295 — tracking issue for this ADR + spec additions PR
 
-Generated spec requirements: `case-management.yaml` CM-15, CM-16.
+Generated spec requirements: `case-management.yaml` CM-16, CM-17.
