@@ -262,28 +262,6 @@ def _phase_report_submission(
         expected_count=4,
     )
 
-    # Finder and Vendor2 accept the active embargo — both become SIGNATORY.
-    # The embargo was auto-initialized when Vendor1 processed the report;
-    # Vendor1 (case owner) is already SIGNATORY.  The case-actor is co-located
-    # on the vendor container, so accept-embargo is posted there regardless of
-    # which actor is accepting.
-    finder_in_finder = get_actor_by_id(finder_client, finder.id_)
-    with demo_step("Finder accepts the active embargo (becomes SIGNATORY)"):
-        post_to_trigger(
-            client=vendor_client,
-            actor_id=finder_in_finder.id_,
-            behavior="accept-embargo",
-            body={"case_id": case.id_},
-        )
-
-    with demo_step("Vendor2 accepts the active embargo (becomes SIGNATORY)"):
-        post_to_trigger(
-            client=vendor_client,
-            actor_id=vendor2_in_vendor2.id_,
-            behavior="accept-embargo",
-            body={"case_id": case.id_},
-        )
-
     with demo_check(
         "M1: required participants (≥4), EM.ACTIVE, finder + vendor2 have replicas"
     ):
