@@ -260,6 +260,7 @@ class TriggerActivityPort(Protocol):
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        cc: list[str] | None = None,
         id_: str | None = None,
         attributed_to: str | None = None,
     ) -> tuple[str, dict[str, Any]]:
@@ -267,6 +268,7 @@ class TriggerActivityPort(Protocol):
 
         ``actor`` SHOULD be the Case Actor ID (PCR-08-007); ``attributed_to``
         MAY carry the case owner's ID for attribution.
+        ``cc`` MAY carry the Case Actor's own ID for self-archival (CLP-10-001).
         ``id_`` allows callers to supply a deterministic ID for idempotency.
         Returns ``(activity_id, activity_dict)``.
         """

@@ -72,6 +72,7 @@ _DEVLOGS_DIR: Path = _REPO_ROOT / "devlogs"
 #:   itself (CLP-10-004); it is excluded from EXPECTED_EVENT_TYPES.
 EXPECTED_EVENT_TYPES: frozenset[str] = frozenset(
     {
+        "invite_actor_to_case",
         "validate_report",
         "add_participant_status_to_participant",
         "close_case",

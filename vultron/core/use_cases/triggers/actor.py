@@ -116,12 +116,18 @@ class SvcInviteActorToCaseUseCase(SvcBTTriggerBase):
 
         case_actor_id = _find_case_actor_id(self._dl, self._case.id_)
         self._actor_id = case_actor_id if case_actor_id else owner_id
+        # When case_actor_id is None (no dedicated CaseActor), the Invite is
+        # sent without cc: so no self-delivery occurs and no CaseLedgerEntry
+        # is committed — by design (ADR-0021: no CaseActor → no canonical
+        # ledger).
+        self._case_actor_id = case_actor_id
         self._attributed_to = owner_id if case_actor_id else None
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         return invite_actor_to_case_trigger_bt(
             invitee_id=self._invitee_id,
             case_id=self._case.id_,
+            case_actor_id=self._case_actor_id,
             attributed_to=self._attributed_to,
             captured=self._captured,
         )
