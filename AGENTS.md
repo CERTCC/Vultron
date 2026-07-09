@@ -523,6 +523,13 @@ Short entries are reproduced here; longer ones are referenced below.
   NOT use `record_event()` or any canonical commit path as a generic "log
   this thing" sink. See ADR-0019, `specs/case-ledger-processing.yaml` CLP-07,
   and `notes/case-ledger-authority.md` § "Canonical Entry Criteria".
+- **Negative-Guard Condition Nodes Are a Readability Anti-Pattern** — Do NOT
+  create condition nodes named `IsNotFoo` that return SUCCESS to *skip* an
+  effect and FAILURE to *trigger* it.  The backwards semantics force readers to
+  mentally invert the condition.  Use positive-precondition Sequences instead:
+  `Selector(Sequence(IsFooLedgerEntryNode, ApplyFooNode), Success("FooSkipped"))`.
+  See `specs/behavior-tree-node-design.yaml` BTND-08-001, BTND-08-002 and
+  `notes/bt-design-patterns.md` § "Idiom Family Selection Guide".
 - **Adding a New Pitfall: Check the Routing Policy First** — see
   [notes/agents-md-structure.md](notes/agents-md-structure.md)
 - **`as_VulnerabilityCase` (wire) vs `VulnerabilityCase` (core) — Always Check
@@ -801,6 +808,17 @@ Short entries are reproduced here; longer ones are referenced below.
   binary external queries: a node the BT invokes on-demand that queries an
   external system and returns only SUCCESS/FAILURE is a Retriever, not a
   Sentinel.
+
+- **BT Integration Tests Must Use Deterministic Factories When the Default Is
+  Probabilistic** — When a tree builder's default `CallOutBackendFactory` wraps
+  a `WeightedBehavior` or `AlmostAlwaysSucceed` fuzzer node, integration tests
+  that assert `Status.SUCCESS` on the full tree become flaky. Pass an explicit
+  deterministic factory (e.g., a module-level `_always_succeed_factory` helper)
+  to every success-path integration test. Structure tests and `FAILURE`-path
+  tests are unaffected. See `test/AGENTS.md` § "BT Factory Determinism" and
+  [notes/bt-integration.md](notes/bt-integration.md)
+  § "Integration Tests Must Use Deterministic Factories When BT Default Is
+  Probabilistic".
 
 - **`NoNew*` flags imply an upstream Sentinel seam.** When a BT condition
   node of the form `NoNew<X>Info` (or any node whose description says "check
