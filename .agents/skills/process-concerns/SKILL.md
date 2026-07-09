@@ -23,6 +23,7 @@ before creating anything.
 REPO           = CERTCC/Vultron
 REPO_NODE_ID   = R_kgDOIn77fA
 CONCERN_TYPE   = IT_kwDOAjf0s84B_2VT
+TASK_TYPE      = IT_kwDOAjf0s84AcFLo
 ```
 
 ---
@@ -183,15 +184,25 @@ user's response:
   create a `type:Task` issue and add to Project #24 with Schedule=Someday:
 
   ```bash
-  RESULT=$(gh issue create \
-    --repo CERTCC/Vultron \
-    --title "${TITLE}" \
-    --body "${BODY}" \
-    --json number,id)
+  TITLE_JSON=$(printf '%s' "${TITLE}" \
+    | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
+  BODY_JSON=$(printf '%s' "${BODY}" \
+    | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
+  RESULT=$(gh api graphql -f query="
+  mutation {
+    createIssue(input: {
+      repositoryId: \"${REPO_NODE_ID}\"
+      title: ${TITLE_JSON}
+      body: ${BODY_JSON}
+      issueTypeId: \"${TASK_TYPE}\"
+    }) {
+      issue { number id url }
+    }
+  }")
   TASK_NUMBER=$(echo "${RESULT}" | python3 -c \
-    "import json,sys; print(json.load(sys.stdin)['number'])")
+    "import json,sys; print(json.load(sys.stdin)['data']['createIssue']['issue']['number'])")
   TASK_NODE_ID=$(echo "${RESULT}" | python3 -c \
-    "import json,sys; print(json.load(sys.stdin)['id'])")
+    "import json,sys; print(json.load(sys.stdin)['data']['createIssue']['issue']['id'])")
   # Then add to project with Schedule=Someday (same snippet as above)
   ```
 
