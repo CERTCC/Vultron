@@ -742,7 +742,7 @@ groups:
       roles for the suggested actor (defaulting to `[CVDRole.VENDOR]`) via an Evaluator
       BT node that can be overridden by configuration or by the Case Owner at accept time.
     note: >-
-      The Evaluator node is a call-out point (ADR-0024 shape: Evaluator) that MAY be
+      The Evaluator node is a call-out point (ADR-0025 abstraction; ADR-0024 shape: Evaluator) that MAY be
       replaced by a more sophisticated role-inference implementation in future. The
       default of VENDOR is the most conservative choice for an unknown actor.
   - id: CM-15-004
