@@ -10,13 +10,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Tests for actor suggestion received use cases (ADR-0026 CaseActor-routed).
-
-Covers:
-- OfferActorToCaseReceivedUseCase (new CaseActor-inbox path, CM-16)
-- Legacy stub use cases: SuggestActorToCaseReceivedUseCase (drop + warn),
-  AcceptSuggestActorToCaseReceivedUseCase, RejectSuggestActorToCaseReceivedUseCase
-"""
+"""Tests for actor suggestion received use cases (ADR-0026 CaseActor-routed)."""
 
 import logging
 from unittest.mock import MagicMock
@@ -28,17 +22,9 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.core.use_cases.received.actor.suggest import (
-    AcceptSuggestActorToCaseReceivedUseCase,
     OfferActorToCaseReceivedUseCase,
-    RejectSuggestActorToCaseReceivedUseCase,
-    SuggestActorToCaseReceivedUseCase,
 )
-from vultron.wire.as2.factories import (
-    accept_actor_recommendation_activity,
-    offer_case_participant_activity,
-    recommend_actor_activity,
-    reject_actor_recommendation_activity,
-)
+from vultron.wire.as2.factories import recommend_actor_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
@@ -86,8 +72,8 @@ class TestOfferActorToCaseReceivedUseCase:
         recommended_id = "https://example.org/actors/vendor-new"
         recommended = as_Actor(id_=recommended_id)
 
-        # Build Offer(CaseParticipant) — the wire activity matched by OFFER_ACTOR_TO_CASE
-        activity = offer_case_participant_activity(
+        # Build Offer(Actor, Case) — the wire activity matched by OFFER_ACTOR_TO_CASE
+        activity = recommend_actor_activity(
             recommended,
             target=case_id,
             actor=recommender_id,
@@ -147,112 +133,3 @@ class TestOfferActorToCaseReceivedUseCase:
             OfferActorToCaseReceivedUseCase(dl, mock_event).execute()
 
         assert any("missing" in r.message.lower() for r in caplog.records)
-
-
-class TestLegacySuggestActorUseCases:
-    """Tests for legacy pre-ADR-0026 stub use cases — all drop and warn."""
-
-    def test_suggest_actor_to_case_logs_warning(self, make_payload, caplog):
-        """SuggestActorToCaseReceivedUseCase (legacy) drops activity with warning."""
-        coordinator = as_Actor(id_="https://example.org/users/coordinator")
-        case = VulnerabilityCase(
-            id_="https://example.org/cases/case_sa1",
-            name="SA Case 1",
-        )
-        activity = recommend_actor_activity(
-            coordinator,
-            target=case,
-            actor="https://example.org/users/finder",
-        )
-        event = make_payload(activity)
-
-        with caplog.at_level(logging.WARNING):
-            SuggestActorToCaseReceivedUseCase(MagicMock(), event).execute()
-
-        assert any(
-            "legacy" in r.message.lower() or "dropped" in r.message.lower()
-            for r in caplog.records
-        )
-
-    def test_suggest_actor_to_case_no_outbox(self, make_payload):
-        """SuggestActorToCaseReceivedUseCase (legacy) does not write to outbox."""
-        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-
-        dl = SqliteDataLayer("sqlite:///:memory:")
-        coordinator = as_Actor(id_="https://example.org/users/coordinator")
-        case = VulnerabilityCase(
-            id_="https://example.org/cases/case_sa2",
-            name="SA Case 2",
-        )
-        activity = recommend_actor_activity(
-            coordinator,
-            target=case,
-            actor="https://example.org/users/finder",
-        )
-        event = make_payload(activity)
-
-        SuggestActorToCaseReceivedUseCase(dl, event).execute()
-
-        assert len(dl.outbox_list()) == 0
-
-    def test_accept_suggest_actor_to_case_logs_warning(
-        self, make_payload, caplog
-    ):
-        """AcceptSuggestActorToCaseReceivedUseCase (legacy) drops with warning."""
-        coordinator = as_Actor(id_="https://example.org/users/coordinator")
-        case = VulnerabilityCase(
-            id_="https://example.org/cases/case_sa3",
-            name="SA Case 3",
-        )
-        recommendation = recommend_actor_activity(
-            coordinator,
-            target=case,
-            actor="https://example.org/users/finder",
-        )
-        activity = accept_actor_recommendation_activity(
-            recommendation,
-            target=case,
-            actor="https://example.org/users/vendor",
-        )
-        event = make_payload(activity)
-
-        with caplog.at_level(logging.WARNING):
-            AcceptSuggestActorToCaseReceivedUseCase(
-                MagicMock(), event
-            ).execute()
-
-        assert any(
-            "legacy" in r.message.lower() or "dropped" in r.message.lower()
-            for r in caplog.records
-        )
-
-    def test_reject_suggest_actor_to_case_logs_warning(
-        self, make_payload, caplog
-    ):
-        """RejectSuggestActorToCaseReceivedUseCase (legacy) drops with warning."""
-        coordinator = as_Actor(id_="https://example.org/users/coordinator")
-        case = VulnerabilityCase(
-            id_="https://example.org/cases/case_sa4",
-            name="SA Case 4",
-        )
-        recommendation = recommend_actor_activity(
-            coordinator,
-            target=case,
-            actor="https://example.org/users/finder",
-        )
-        activity = reject_actor_recommendation_activity(
-            recommendation,
-            target=case,
-            actor="https://example.org/users/vendor",
-        )
-        event = make_payload(activity)
-
-        with caplog.at_level(logging.WARNING):
-            RejectSuggestActorToCaseReceivedUseCase(
-                MagicMock(), event
-            ).execute()
-
-        assert any(
-            "legacy" in r.message.lower() or "dropped" in r.message.lower()
-            for r in caplog.records
-        )

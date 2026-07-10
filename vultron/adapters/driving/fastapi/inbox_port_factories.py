@@ -92,7 +92,6 @@ _SYNC_PORT_SEMANTICS = frozenset(
 _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
     {
         MessageSemantics.ACCEPT_CASE_MANAGER_ROLE,
-        MessageSemantics.SUGGEST_ACTOR_TO_CASE,
         MessageSemantics.OFFER_ACTOR_TO_CASE,
         MessageSemantics.ACCEPT_ACTOR_RECOMMENDATION,
         MessageSemantics.REJECT_ACTOR_RECOMMENDATION,

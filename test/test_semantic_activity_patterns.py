@@ -716,7 +716,6 @@ def test_accept_case_proposal_not_confused_with_other_accept_semantics():
         MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER,
         MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
         MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
-        MessageSemantics.ACCEPT_SUGGEST_ACTOR_TO_CASE,
         MessageSemantics.UNKNOWN,
     }, f"Accept(CaseProposal) misrouted as {result}"
 

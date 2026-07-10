@@ -1,10 +1,4 @@
-"""Use cases for CaseActor-routed actor-suggestion activities (ADR-0026).
-
-Also provides stub/no-op use cases for the legacy pre-ADR-0026 semantics
-(SUGGEST_ACTOR_TO_CASE / ACCEPT_SUGGEST_ACTOR_TO_CASE /
-REJECT_SUGGEST_ACTOR_TO_CASE) which are now superseded by the CaseActor-
-routed flow but may still arrive from older protocol participants.
-"""
+"""Use cases for CaseActor-routed actor-suggestion activities (ADR-0026)."""
 
 import logging
 from typing import TYPE_CHECKING
@@ -17,11 +11,8 @@ from vultron.core.behaviors.case.suggest_actor_tree import (
 )
 from vultron.core.models.events.actor import (
     AcceptActorRecommendationReceivedEvent,
-    AcceptSuggestActorToCaseReceivedEvent,
     OfferActorToCaseReceivedEvent,
     RejectActorRecommendationReceivedEvent,
-    RejectSuggestActorToCaseReceivedEvent,
-    SuggestActorToCaseReceivedEvent,
 )
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.use_cases.received.sync import _find_local_actor_id
@@ -228,78 +219,4 @@ class RejectActorRecommendationReceivedUseCase:
         )
         bridge.execute_with_setup(
             tree, actor_id=local_actor_id, activity=request
-        )
-
-
-# ---------------------------------------------------------------------------
-# Legacy stub use cases for pre-ADR-0026 semantics
-# ---------------------------------------------------------------------------
-
-
-class SuggestActorToCaseReceivedUseCase:
-    """Legacy stub: Offer(Actor, Case) delivered directly to Case Owner inbox.
-
-    Superseded by :class:`OfferActorToCaseReceivedUseCase` (ADR-0026).
-    Messages arriving with this semantic are from pre-ADR-0026 participants
-    and cannot be processed via the CaseActor ledger flow; logged and dropped.
-    """
-
-    def __init__(
-        self,
-        dl: CasePersistence,
-        request: SuggestActorToCaseReceivedEvent,
-        trigger_activity: "TriggerActivityPort | None" = None,
-    ) -> None:
-        self._request = request
-
-    def execute(self) -> None:
-        logger.warning(
-            "SuggestActorToCaseReceived (legacy pre-ADR-0026 semantic):"
-            " activity '%s' dropped — route Offer(Actor) to the CaseActor"
-            " inbox instead (ADR-0026/CM-16-001)",
-            self._request.activity_id,
-        )
-
-
-class AcceptSuggestActorToCaseReceivedUseCase:
-    """Legacy stub: Accept(Offer(Actor)) delivered to Case Owner inbox.
-
-    Superseded by :class:`AcceptActorRecommendationReceivedUseCase` (ADR-0026).
-    """
-
-    def __init__(
-        self,
-        dl: CasePersistence,
-        request: AcceptSuggestActorToCaseReceivedEvent,
-        trigger_activity: "TriggerActivityPort | None" = None,
-    ) -> None:
-        self._request = request
-
-    def execute(self) -> None:
-        logger.warning(
-            "AcceptSuggestActorToCaseReceived (legacy pre-ADR-0026 semantic):"
-            " activity '%s' dropped",
-            self._request.activity_id,
-        )
-
-
-class RejectSuggestActorToCaseReceivedUseCase:
-    """Legacy stub: Reject(Offer(Actor)) delivered to Case Owner inbox.
-
-    Superseded by :class:`RejectActorRecommendationReceivedUseCase` (ADR-0026).
-    """
-
-    def __init__(
-        self,
-        dl: CasePersistence,
-        request: RejectSuggestActorToCaseReceivedEvent,
-        trigger_activity: "TriggerActivityPort | None" = None,
-    ) -> None:
-        self._request = request
-
-    def execute(self) -> None:
-        logger.warning(
-            "RejectSuggestActorToCaseReceived (legacy pre-ADR-0026 semantic):"
-            " activity '%s' dropped",
-            self._request.activity_id,
         )
