@@ -19,7 +19,7 @@ Covers:
 - create_recommend_actor_to_case_received_tree
 - create_accept_actor_recommendation_received_tree
 - create_reject_actor_recommendation_received_tree
-- EvaluateDefaultRolesNode (AC-1 through AC-3, CM-16-003)
+- EvaluateDefaultRolesNode (AC-1 through AC-4, CM-16-003)
 
 Per specs/behavior-tree-integration.yaml BT-15-001, BTND-02-001 (memory=False),
 ADR-0026/CM-16.
@@ -56,12 +56,14 @@ class TestEvaluateDefaultRolesNode:
         self.node = EvaluateDefaultRolesNode(
             suggested_actor_id=_RECOMMENDED,
             case_id=_CASE_ID,
+            recommendation_id=_REC_ID,
         )
         self.node.setup()
         self.node.initialise()
 
     def teardown_method(self):
         py_trees.blackboard.Blackboard.disable_activity_stream()
+        py_trees.blackboard.Blackboard.storage.clear()
 
     def test_node_exists(self):
         """AC-1: EvaluateDefaultRolesNode exists in the BT node library."""
@@ -76,26 +78,67 @@ class TestEvaluateDefaultRolesNode:
     def test_node_stores_case_id(self):
         assert self.node.case_id == _CASE_ID
 
+    def test_node_stores_recommendation_id(self):
+        """AC-1: EvaluateDefaultRolesNode accepts recommendation_id."""
+        assert self.node.recommendation_id == _REC_ID
+
     def test_returns_success_unconditionally(self):
-        """AC-3: returns SUCCESS unconditionally in the prototype."""
+        """returns SUCCESS unconditionally in the prototype."""
         result = self.node.update()
         assert result == Status.SUCCESS
 
-    def test_writes_vendor_role_to_blackboard(self):
-        """AC-2: writes suggested_roles = [CVDRole.VENDOR] to blackboard."""
+    def test_writes_vendor_role_to_namespaced_blackboard_key(self):
+        """AC-2: writes suggested_roles_{segment} = [CVDRole.VENDOR] to blackboard."""
         self.node.update()
-        raw = py_trees.blackboard.Blackboard.storage.get("/suggested_roles")
+        expected_key = f"/suggested_roles_{_REC_ID.split('/')[-1]}"
+        raw = py_trees.blackboard.Blackboard.storage.get(expected_key)
         assert raw == [
             CVDRole.VENDOR
-        ], f"Expected [CVDRole.VENDOR] in suggested_roles, got {raw!r}"
+        ], f"Expected [CVDRole.VENDOR] at '{expected_key}', got {raw!r}"
+
+    def test_does_not_write_global_suggested_roles_key(self):
+        """AC-4: raw /suggested_roles key must not be written."""
+        self.node.update()
+        raw = py_trees.blackboard.Blackboard.storage.get("/suggested_roles")
+        assert (
+            raw is None
+        ), f"Expected no /suggested_roles key, but found {raw!r}"
 
     def test_custom_name_accepted(self):
         node = EvaluateDefaultRolesNode(
             suggested_actor_id=_RECOMMENDED,
             case_id=_CASE_ID,
+            recommendation_id=_REC_ID,
             name="MyCustomName",
         )
         assert node.name == "MyCustomName"
+
+    def test_two_instances_write_different_keys(self):
+        """AC-3: two tree instances with different recommendation_ids write to different keys."""
+        rec_id_2 = "https://example.org/recommendations/rec-2"
+        node2 = EvaluateDefaultRolesNode(
+            suggested_actor_id=_RECOMMENDED,
+            case_id=_CASE_ID,
+            recommendation_id=rec_id_2,
+        )
+        node2.setup()
+        node2.initialise()
+
+        self.node.update()
+        node2.update()
+
+        key1 = f"/suggested_roles_{_REC_ID.split('/')[-1]}"
+        key2 = f"/suggested_roles_{rec_id_2.split('/')[-1]}"
+
+        assert (
+            key1 != key2
+        ), "Keys must differ for different recommendation_ids"
+        assert py_trees.blackboard.Blackboard.storage.get(key1) == [
+            CVDRole.VENDOR
+        ]
+        assert py_trees.blackboard.Blackboard.storage.get(key2) == [
+            CVDRole.VENDOR
+        ]
 
 
 class TestRecommendActorToCaseReceivedTree:

@@ -65,8 +65,9 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerAction):
     The original offer ID is carried in the ``origin`` field so the Case Owner
     can trace the causal chain (CM-16-004).
 
-    Reads ``suggested_roles`` from the blackboard; falls back to
-    ``[CVDRole.VENDOR]`` when the key is absent.
+    Reads ``suggested_roles_{recommendation_id_segment}`` from the blackboard
+    (namespaced per BTND-03-004); falls back to ``[CVDRole.VENDOR]`` when the
+    key is absent.
 
     Returns SUCCESS on success, FAILURE if any required dependency is missing.
     """
@@ -87,13 +88,15 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerAction):
 
     def setup(self, **kwargs) -> None:
         super().setup(**kwargs)
+        id_segment = self.recommendation_id.split("/")[-1]
+        self.blackboard_key = f"suggested_roles_{id_segment}"
         self.blackboard.register_key(
-            key="suggested_roles", access=py_trees.common.Access.READ
+            key=self.blackboard_key, access=py_trees.common.Access.READ
         )
 
     def _read_suggested_roles(self) -> list[CVDRole]:
         try:
-            roles = self.blackboard.get("suggested_roles")
+            roles = self.blackboard.get(self.blackboard_key)
             if isinstance(roles, list) and roles:
                 return roles
         except KeyError:
@@ -335,6 +338,7 @@ def create_recommend_actor_to_case_received_tree(
             EvaluateDefaultRolesNode(
                 suggested_actor_id=recommended_id,
                 case_id=case_id,
+                recommendation_id=recommendation_id,
             ),
             EmitOfferCaseParticipantToOwnerNode(
                 recommendation_id=recommendation_id,
