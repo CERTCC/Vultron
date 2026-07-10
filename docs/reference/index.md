@@ -5,11 +5,11 @@
     The [Reference](index.md) section assumes that you have
 
     - specific questions about or a desire for a detailed understanding of the Vultron Protocol
-    - familiarity with the [Understanding Vultron](../topics/index.md) section
+    - familiarity with the [Explanation](../topics/index.md) section
     - familiarity with the CVD process in general
      
-    If you are unfamiliar with the Vultron Protocol, we recommend that you start with [Understanding Vultron](../topics/index.md).
-    If you are familiar enough with the Vultron Protocol that you're interested in implementing it, see [Implementing Vultron](../howto/index.md).
+    If you are unfamiliar with the Vultron Protocol, we recommend that you start with [Explanation](../topics/index.md).
+    If you are familiar enough with the Vultron Protocol that you're interested in implementing it, see [How-to Guides](../howto/index.md).
     And finally, if you're just trying to understand the CVD process, we recommend that you start with the [CERT Guide to Coordinated Vulnerability Disclosure](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"}.
 
 The Vultron Protocol Reference includes the formal Vultron Protocol specification, and crosswalks the
