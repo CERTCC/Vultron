@@ -221,7 +221,30 @@ nav:
       - Use Factory Pattern for BT nodes: 'adr/0004-use-factory-methods-for-common-bt-node-types.md'
       - Use ActivityStreams Vocabulary as Message Format: 'adr/0005-activitystreams-vocabulary-as-vultron-message-format.md'
       - Use CalVer for Versioning: 'adr/0006-use-calver-for-project-versioning.md'
+      - Introduce a Behavior Dispatcher: 'adr/0007-use-behavior-dispatcher.md'
+      - Use py_trees for Handler BTs: 'adr/0008-use-py-trees-for-handler-bt-integration.md'
+      - Hexagonal Architecture: 'adr/0009-hexagonal-architecture.md'
+      - Standardize Object IDs: 'adr/0010-standardize-object-ids.md'
+      - Remove API v1: 'adr/0011-remove-api-v1.md'
+      - Per-Actor DataLayer Isolation: 'adr/0012-per-actor-datalayer-isolation.md'
+      - Unify RM State Tracking: 'adr/0013-unify-rm-state-tracking.md'
+      - Pin GitHub Actions to SHAs: 'adr/0014-sha-pin-github-actions.md'
+      - Create Case at Report Receipt: 'adr/0015-create-case-at-report-receipt.md'
+      - SQLModel/SQLite DataLayer: 'adr/0016-sqlmodel-sqlite-datalayer.md'
+      - Domain/Wire Object Separation: 'adr/0017-domain-wire-object-separation.md'
+      - Canonical Case History Convergence: 'adr/0018-canonical-case-history-convergence.md'
+      - Separate Case Ledger from Process Log: 'adr/0019-separate-case-ledger-from-process-log.md'
+      - Inbox BT Orchestration: 'adr/0020-inbox-bt-orchestration.md'
+      - CaseActor Inbox Routing: 'adr/0021-caseactor-inbox-routing-canonical-ledger.md'
+      - Single BT Execution Per Inbox Delivery: 'adr/0022-single-bt-execution-for-received-side-case-actor-routing.md'
+      - CaseProposal Protocol: 'adr/0023-case-proposal-protocol.md'
+      - Coordination Agent Taxonomy: 'adr/0024-coordination-agent-taxonomy.md'
+      - Call-Out Point Abstraction Layer: 'adr/0025-call-out-point-abstraction-layer.md'
       - CaseActor-Routed Actor Suggestion: 'adr/0026-caseactor-routed-actor-suggestion.md'
+      - Exploit-Strategy Subtree Collapse: 'adr/0027-exploit-strategy-bt-collapse.md'
+      - Publication-Intent Subtree Collapse: 'adr/0028-publication-intent-bt-collapse.md'
+      - Notification Loop Collapse: 'adr/0029-notification-loop-suggest-actor.md'
+      - Publish Leaf Draft-Review-Submit Pipeline: 'adr/0030-publish-leaf-draft-review-submit-pipeline.md'
   - About:
     - Contributing: 'about/contributing.md'
     - FAQ: 'about/faq.md'
@@ -235,6 +258,17 @@ not_in_nav: |
   *diagram*.md
   *table*.md
   *.ttl
+  # Maintainer/agent-facing pages intentionally excluded from the published nav
+  agents/*.md
+  developer/**/*.md
+  reference/inbox_handler.md
+  reference/code/hexagonal_architecture.md
+validation:
+  nav:
+    # Emit a warning when a page exists but is missing from the nav and is not
+    # declared in not_in_nav above. Surfaces future un-navved pages (e.g. new
+    # ADRs) and fails any --strict build (see mkdocs-build-strict.sh). #1304.
+    omitted_files: warn
 exclude_docs: |
   # Maintainer-focused docs are available in local/dev builds via mkdocs.dev.yml
   docs/developer/
