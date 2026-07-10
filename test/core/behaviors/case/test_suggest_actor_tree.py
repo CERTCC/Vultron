@@ -19,7 +19,7 @@ Covers:
 - create_recommend_actor_to_case_received_tree
 - create_accept_actor_recommendation_received_tree
 - create_reject_actor_recommendation_received_tree
-- EvaluateDefaultRolesNode (AC-1 through AC-3, CM-16-003)
+- EvaluateDefaultRolesNode (AC-1 through AC-4, CM-16-003)
 
 Per specs/behavior-tree-integration.yaml BT-15-001, BTND-02-001 (memory=False),
 ADR-0026/CM-16.
