@@ -6,7 +6,7 @@ Our goal in this section is to formulate a way to rank our
 undifferentiated desiderata $\mathbb{D}$ from
 [On the Desirability of Possible Histories](./desirable_histories.md) in order to develop the concept of CVD
 skill and its measurement in [Discriminating Skill and Luck](discriminating_skill_and_luck.md).
-This will provide a baseline expectation about [CS events](../process_models/cs/events.md).
+This will provide a baseline expectation about [CS events](../../topics/process_models/cs/events.md).
 
 ## History Frequency Analysis
 

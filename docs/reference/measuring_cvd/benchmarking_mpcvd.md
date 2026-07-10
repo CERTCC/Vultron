@@ -16,7 +16,7 @@ based on a vulnerable design.
 
 ## State Tracking in MPCVD
 
-Applying our [state-based model](../process_models/cs/index.md)
+Applying our [state-based model](../../topics/process_models/cs/index.md)
 to MPCVD requires a forking approach to the state tracking.
 
 !!! example "MPCVD Case State Tracking"
@@ -60,10 +60,10 @@ The above example implies a need to expand our notation.
     and/or product. For example, $\{ {Vfdpxa}_1, {vfdpxa}_2 \}$ would
     represent the state in which vendor 1 has been notified but vendor 2 has
     not. 
-    We have more to say about this in [Model Interactions](../process_models/model_interactions/index.md),
+    We have more to say about this in [Model Interactions](../../topics/process_models/model_interactions/index.md),
     but we'll borrow the diagram from there to illustrate the concept here.
   
-    {% include-markdown "../process_models/model_interactions/_cs_global_local.md" %}
+    {% include-markdown "../../topics/process_models/model_interactions/_cs_global_local.md" %}
 
 State transitions across vendors need not be simultaneous. Very often,
 vendor notification occurs as new products and vendors are identified as
@@ -129,7 +129,7 @@ $\mathbf{D}$ as well.
 
 As a result of the dimensionality problem, coordinators and other
 parties to an MPCVD case need to decide how to apply
-[disclosure policy rules](../process_models/em/principles.md) in cases where different products or vendors
+[disclosure policy rules](../../topics/process_models/em/principles.md) in cases where different products or vendors
 occupy different case states with potentially contradictory recommended
 actions. For example, when four out of five vendors involved in a case
 have reached $VFdpxa$ and are ready to publish, but the fifth is still

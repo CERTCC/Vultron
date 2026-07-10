@@ -2,7 +2,7 @@
 
 {% include-markdown "../../includes/not_normative.md" %}
 
-In [Case State Events](../process_models/cs/events.md), we
+In [Case State Events](../../topics/process_models/cs/events.md), we
 began by identifying a set of events of interest in
 CVD cases. Then we
 constructed a state model describing how the occurrence of these events
@@ -21,13 +21,13 @@ the concept of a sequence of events.
     $|s| \stackrel{\mathsf{def}}{=}n$.
 
     In other words, a sequence $s$ is an
-    input string to the DFA defined in the [CVD Case State Model](../process_models/cs/cs_model.md).
+    input string to the DFA defined in the [CVD Case State Model](../../topics/process_models/cs/cs_model.md).
 
     $$s \stackrel{\mathsf{def}}{=}\left( \sigma_1, \sigma_2, \dots \sigma_n \right)$$
 
 ## Case Histories
 
-{% include-markdown "../process_models/cs/_events_sigma.md" %}
+{% include-markdown "../../topics/process_models/cs/_events_sigma.md" %}
 
 Armed with the definition of a sequence, we can now define a history.
 
@@ -56,12 +56,12 @@ satisfy this definition.
 Given that a history $h$ contains all six events $\Sigma$ in some order,
 there could be at most 720 ($_{6} \mathrm{P}_{6} = 6! = 720$) potential
 histories. However, because of the causal requirements outlined in
-[CS Transitions](../process_models/cs/transitions.md), we know that Vendor
+[CS Transitions](../../topics/process_models/cs/transitions.md), we know that Vendor
 Awareness (**V**) must precede Fix Ready (**F**) and that Fix Ready
 must precede Fix Deployed (**D**).
 
 The DFA developed
-in [CS Process Model](../process_models/cs/model_definition.md) provides
+in [CS Process Model](../../topics/process_models/cs/model_definition.md) provides
 the mechanism to validate histories: a history $h$ is valid if the
 DFA accepts it as a valid input string. Once this constraint is applied,
 only 70 possible histories $h \in \mathcal{H}p$ remain viable.
@@ -69,9 +69,9 @@ We denote the set of all
 such valid histories as $\mathcal{H}$ and have $|\mathcal{H}| = 70$. The
 set of possible histories $\mathcal{H}$ corresponds to the 70 allowable
 paths through $\mathcal{Q}^{CS}$ as can be derived from the CS transition
-function $\delta^{CS}$ in [CS Transitions](../process_models/cs/transitions.md).
+function $\delta^{CS}$ in [CS Transitions](../../topics/process_models/cs/transitions.md).
 and the diagram in
-[Case State Model Definition](../process_models/cs/model_definition.md).
+[Case State Model Definition](../../topics/process_models/cs/model_definition.md).
 
 !!! info "Other Definitions Used in the Table Below"
 
@@ -91,7 +91,7 @@ and the diagram in
 
 Now that we have defined the set of histories $\mathcal{H}$, we can
 summarize the effects of the transition function $\delta$ developed in
-[CS Transitions](../process_models/cs/transitions.md) as a set of patterns it imposes on all
+[CS Transitions](../../topics/process_models/cs/transitions.md) as a set of patterns it imposes on all
 histories $h \in \mathcal{H}$:
 
 1. The causality constraint of the vendor fix path must hold.

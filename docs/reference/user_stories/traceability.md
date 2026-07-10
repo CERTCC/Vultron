@@ -1,6 +1,6 @@
 # User Story Traceability Matrix
 
-This document maps user stories from `docs/topics/user_stories/` to formal
+This document maps user stories from `docs/reference/user_stories/` to formal
 requirements in `specs/`. It is a **traceability reference**, not a
 requirements document. User stories capture stakeholder intent; the
 requirements in `specs/` specify system behaviour.
@@ -9,7 +9,7 @@ Stories are grouped by theme. Each story entry lists the mapped spec
 requirements with a brief traceability note. Stories with no clear mapping
 to an existing requirement are marked *No mapped requirements*.
 
-Source user stories: `docs/topics/user_stories/story_2022_NNN.md`
+Source user stories: `docs/reference/user_stories/story_2022_NNN.md`
 Source specifications: `specs/*.yaml`
 
 ---

@@ -1,6 +1,6 @@
 # Notation
 
-{% include-markdown "../../includes/not_normative.md" %}
+{% include-markdown "../includes/not_normative.md" %}
 
 Defining the Vultron Protocol involves a lot of notation.
 This page provides a reference for the conventions and notation used throughout the documentation.
@@ -72,13 +72,13 @@ We use the following conventions to indicate whether a page contains normative r
 
 !!! info "Recognizing Normative Pages"
 
-    {% include-markdown "../../includes/normative.md" %}
+    {% include-markdown "../includes/normative.md" %}
 
     Pages that contain normative requirements are marked with a banner at or near the top of the page:
 
 !!! info "Recognizing Non-Normative Pages"
 
-    {% include-markdown "../../includes/not_normative.md" %}
+    {% include-markdown "../includes/not_normative.md" %}
 
     Pages that do not contain normative requirements are marked with a banner at or near the top of the page (Like this one).
     This banner may be omitted if the page is clearly non-normative.
@@ -100,7 +100,7 @@ We adopt the following notation:
     | $\in$ | the membership (is-in) relation between an element and the set it belongs to |
     | $\prec$ | the precedes relation on members of an ordered set: $\sigma_i \prec \sigma_j \textrm{ if and only if } \sigma_i,\sigma_j \in s \textrm{ and } i < j$  where $s$ is an ordered set |
     | \|$X$\| | the size of (the number of elements in) a set $X$ |
-    | $\langle X_i \rangle^N_{i=1}$ | a set of $N$ sets $X_i$, indexed by $i$; used in the [Formal Protocol](../../reference/formal_protocol/index.md) in the context of Communicating Finite State Machines, taken from the article [On Communicating Finite State Machines](https://doi.org/10.1145/322374.322380){:target="_blank"} by Brand and Zafiropulo |
+    | $\langle X_i \rangle^N_{i=1}$ | a set of $N$ sets $X_i$, indexed by $i$; used in the [Formal Protocol](formal_protocol/index.md) in the context of Communicating Finite State Machines, taken from the article [On Communicating Finite State Machines](https://doi.org/10.1145/322374.322380){:target="_blank"} by Brand and Zafiropulo |
 
 !!! info "Logic Symbols"
 
@@ -124,7 +124,7 @@ We adopt the following notation:
     | :--- | :--- |
     | $\xrightarrow{}$ | a transition between states, usually labeled with the transition type (e.g., $\xrightarrow{a}$) |
     | $(\mathcal{Q},q_0,\mathcal{F},\Sigma,\delta)$ | specific symbols for individual DFA components that are introduced when needed in Chapters |
-    | $\Big \langle { \langle S_i \rangle }^N_{i=1}, { \langle o_i \rangle }^N_{i=1}, { \langle M_{i,j} \rangle}^N_{i,j=1}, { succ } \Big \rangle$ | formal protocol symbols that are introduced at the beginning of the [Formal Protocol](../../reference/formal_protocol/index.md) |
+    | $\Big \langle { \langle S_i \rangle }^N_{i=1}, { \langle o_i \rangle }^N_{i=1}, { \langle M_{i,j} \rangle}^N_{i,j=1}, { succ } \Big \rangle$ | formal protocol symbols that are introduced at the beginning of the [Formal Protocol](formal_protocol/index.md) |
 
 ## Diagram Notation
 
@@ -175,4 +175,4 @@ classDiagram
 
 ### Behavior Tree Diagrams
 
-We introduce a few additional notation details specific to [Behavior Trees](../behavior_logic/index.md) when needed.
+We introduce a few additional notation details specific to [Behavior Trees](../topics/behavior_logic/index.md) when needed.
