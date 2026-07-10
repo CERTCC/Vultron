@@ -10,10 +10,15 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Tests for actor suggestion received use cases."""
+"""Tests for actor suggestion received use cases (ADR-0026 CaseActor-routed).
+
+Covers:
+- OfferActorToCaseReceivedUseCase (new CaseActor-inbox path, CM-16)
+- Legacy stub use cases: SuggestActorToCaseReceivedUseCase (drop + warn),
+  AcceptSuggestActorToCaseReceivedUseCase, RejectSuggestActorToCaseReceivedUseCase
+"""
 
 import logging
-from typing import Any, cast
 from unittest.mock import MagicMock
 
 import py_trees
@@ -24,32 +29,131 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.core.use_cases.received.actor.suggest import (
     AcceptSuggestActorToCaseReceivedUseCase,
+    OfferActorToCaseReceivedUseCase,
     RejectSuggestActorToCaseReceivedUseCase,
     SuggestActorToCaseReceivedUseCase,
 )
 from vultron.wire.as2.factories import (
     accept_actor_recommendation_activity,
+    offer_case_participant_activity,
     recommend_actor_activity,
     reject_actor_recommendation_activity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    VulnerabilityCase,
-)
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 
-class TestSuggestActorUseCases:
-    """Tests for suggest_actor_to_case, accept/reject suggest_actor use cases."""
+class TestOfferActorToCaseReceivedUseCase:
+    """Tests for the CaseActor-inbox Offer(Actor,Case) use case (CM-16)."""
 
-    def test_suggest_actor_to_case_persists_recommendation(
-        self, monkeypatch, make_payload
-    ):
-        """SuggestActorToCaseReceivedUseCase persists the RecommendActor offer."""
+    @pytest.fixture(autouse=True)
+    def clear_blackboard(self):
+        py_trees.blackboard.Blackboard.storage.clear()
+        yield
+        py_trees.blackboard.Blackboard.storage.clear()
+
+    def _setup_dl(self, owner_is_local: bool = True):
+        """Return DataLayer seeded with a Service actor and a case."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+        from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
         dl = SqliteDataLayer("sqlite:///:memory:")
+        local_actor_id = "https://example.org/actors/case-actor"
+        local_actor = as_Service(id_=local_actor_id)
+        case_id = "https://example.org/cases/offer-actor-test-case"
+        owner_id = (
+            local_actor_id if owner_is_local else "https://other.org/actor"
+        )
+        case = VulnerabilityCase(
+            id_=case_id,
+            name="OfferActorTest",
+            attributed_to=owner_id,
+        )
+        dl.create(local_actor)
+        dl.create(case)
+        return dl, local_actor_id, case_id
 
+    def test_offer_actor_to_case_emits_offer_case_participant(
+        self, make_payload
+    ):
+        """CaseActor receives Offer(Actor, Case) and emits Offer(CaseParticipant) to owner."""
+        from vultron.core.models.events.actor import (
+            OfferActorToCaseReceivedEvent,
+        )
+
+        dl, local_actor_id, case_id = self._setup_dl()
+        recommender_id = "https://example.org/actors/finder"
+        recommended_id = "https://example.org/actors/vendor-new"
+        recommended = as_Actor(id_=recommended_id)
+
+        # Build Offer(CaseParticipant) — the wire activity matched by OFFER_ACTOR_TO_CASE
+        activity = offer_case_participant_activity(
+            recommended,
+            target=case_id,
+            actor=recommender_id,
+            to=[local_actor_id],
+        )
+        event = make_payload(activity)
+        assert isinstance(
+            event, OfferActorToCaseReceivedEvent
+        ), f"Expected OfferActorToCaseReceivedEvent, got {type(event)}"
+
+        OfferActorToCaseReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        outbox = dl.outbox_list_for_actor(local_actor_id)
+        assert (
+            len(outbox) >= 1
+        ), f"Expected at least 1 outbox entry (Offer(CaseParticipant)), got {len(outbox)}"
+
+    def test_offer_actor_to_case_skips_when_no_local_actor(
+        self, make_payload, caplog
+    ):
+        """Skips gracefully when no local actor is found in DataLayer."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        recommended = as_Actor(id_="https://example.org/actors/vendor-new")
+        activity = recommend_actor_activity(
+            recommended,
+            target="https://example.org/cases/no-actor-case",
+            actor="https://example.org/actors/finder",
+            id_="https://example.org/activities/offer-actor-002",
+        )
+        event = make_payload(activity)
+
+        with caplog.at_level(logging.WARNING):
+            OfferActorToCaseReceivedUseCase(dl, event).execute()
+
+        assert any(
+            "no local actor" in r.message.lower() for r in caplog.records
+        )
+
+    def test_offer_actor_to_case_skips_missing_recommended_id(self, caplog):
+        """Skips gracefully when recommended_id is missing from the event."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        # Build an activity with no object (can't in wire layer, so mock the event)
+        mock_event = MagicMock()
+        mock_event.activity_id = "https://example.org/activities/bad-offer"
+        mock_event.actor_id = "https://example.org/actors/finder"
+        mock_event.object_id = None
+        mock_event.target_id = "https://example.org/cases/some-case"
+        mock_event.activity = None
+
+        with caplog.at_level(logging.WARNING):
+            OfferActorToCaseReceivedUseCase(dl, mock_event).execute()
+
+        assert any("missing" in r.message.lower() for r in caplog.records)
+
+
+class TestLegacySuggestActorUseCases:
+    """Tests for legacy pre-ADR-0026 stub use cases — all drop and warn."""
+
+    def test_suggest_actor_to_case_logs_warning(self, make_payload, caplog):
+        """SuggestActorToCaseReceivedUseCase (legacy) drops activity with warning."""
         coordinator = as_Actor(id_="https://example.org/users/coordinator")
         case = VulnerabilityCase(
             id_="https://example.org/cases/case_sa1",
@@ -59,23 +163,22 @@ class TestSuggestActorUseCases:
             coordinator,
             target=case,
             actor="https://example.org/users/finder",
-            to="https://example.org/users/vendor",
         )
-
         event = make_payload(activity)
 
-        SuggestActorToCaseReceivedUseCase(dl, event).execute()
+        with caplog.at_level(logging.WARNING):
+            SuggestActorToCaseReceivedUseCase(MagicMock(), event).execute()
 
-        stored = dl.get(activity.type_.value, activity.id_)
-        assert stored is not None
+        assert any(
+            "legacy" in r.message.lower() or "dropped" in r.message.lower()
+            for r in caplog.records
+        )
 
-    def test_suggest_actor_to_case_idempotent(self, monkeypatch, make_payload):
-        """SuggestActorToCaseReceivedUseCase is idempotent — second call is a no-op."""
+    def test_suggest_actor_to_case_no_outbox(self, make_payload):
+        """SuggestActorToCaseReceivedUseCase (legacy) does not write to outbox."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
         dl = SqliteDataLayer("sqlite:///:memory:")
-
         coordinator = as_Actor(id_="https://example.org/users/coordinator")
         case = VulnerabilityCase(
             id_="https://example.org/cases/case_sa2",
@@ -89,20 +192,13 @@ class TestSuggestActorUseCases:
         event = make_payload(activity)
 
         SuggestActorToCaseReceivedUseCase(dl, event).execute()
-        SuggestActorToCaseReceivedUseCase(dl, event).execute()
 
-        stored = dl.get(activity.type_.value, activity.id_)
-        assert stored is not None
+        assert len(dl.outbox_list()) == 0
 
-    def test_accept_suggest_actor_to_case_persists_acceptance(
-        self, monkeypatch, make_payload
+    def test_accept_suggest_actor_to_case_logs_warning(
+        self, make_payload, caplog
     ):
-        """AcceptSuggestActorToCaseReceivedUseCase persists the AcceptActorRecommendation."""
-        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-
-        dl = SqliteDataLayer("sqlite:///:memory:")
-
+        """AcceptSuggestActorToCaseReceivedUseCase (legacy) drops with warning."""
         coordinator = as_Actor(id_="https://example.org/users/coordinator")
         case = VulnerabilityCase(
             id_="https://example.org/cases/case_sa3",
@@ -120,17 +216,20 @@ class TestSuggestActorUseCases:
         )
         event = make_payload(activity)
 
-        AcceptSuggestActorToCaseReceivedUseCase(dl, event).execute()
+        with caplog.at_level(logging.WARNING):
+            AcceptSuggestActorToCaseReceivedUseCase(
+                MagicMock(), event
+            ).execute()
 
-        stored = dl.get(activity.type_.value, activity.id_)
-        assert stored is not None
+        assert any(
+            "legacy" in r.message.lower() or "dropped" in r.message.lower()
+            for r in caplog.records
+        )
 
-    def test_reject_suggest_actor_to_case_ledgers_rejection(
-        self, monkeypatch, caplog, make_payload
+    def test_reject_suggest_actor_to_case_logs_warning(
+        self, make_payload, caplog
     ):
-        """RejectSuggestActorToCaseReceivedUseCase logs rejection without state change."""
-        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-
+        """RejectSuggestActorToCaseReceivedUseCase (legacy) drops with warning."""
         coordinator = as_Actor(id_="https://example.org/users/coordinator")
         case = VulnerabilityCase(
             id_="https://example.org/cases/case_sa4",
@@ -148,127 +247,12 @@ class TestSuggestActorUseCases:
         )
         event = make_payload(activity)
 
-        with caplog.at_level(logging.INFO):
+        with caplog.at_level(logging.WARNING):
             RejectSuggestActorToCaseReceivedUseCase(
                 MagicMock(), event
             ).execute()
 
-        assert any("rejected" in r.message.lower() for r in caplog.records)
-
-    @pytest.fixture(autouse=True)
-    def clear_blackboard(self):
-        py_trees.blackboard.Blackboard.storage.clear()
-        yield
-        py_trees.blackboard.Blackboard.storage.clear()
-
-    def _setup_dl_with_owner(self):
-        """Return a DataLayer seeded with a local Service actor and a case."""
-        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.base.objects.actors import as_Service
-
-        dl = SqliteDataLayer("sqlite:///:memory:")
-        local_actor_id = "https://example.org/actors/local-coordinator"
-        local_actor = as_Service(id_=local_actor_id)
-        case_id = "https://example.org/cases/suggest-test-case"
-        case = VulnerabilityCase(
-            id_=case_id,
-            name="SUGGEST-TEST",
-            attributed_to=local_actor_id,
-        )
-        dl.create(local_actor)
-        dl.create(case)
-        return dl, local_actor_id, case_id
-
-    def test_suggest_actor_emits_both_activities_when_owner(
-        self, make_payload
-    ):
-        """Owner emits Accept + Invite when receiving a recommendation."""
-        dl, local_actor_id, case_id = self._setup_dl_with_owner()
-        recommender_id = "https://example.org/actors/finder"
-        invitee_id = "https://example.org/actors/vendor"
-        invitee = as_Actor(id_=invitee_id)
-
-        recommendation = recommend_actor_activity(
-            invitee,
-            target=case_id,
-            actor=recommender_id,
-            to=[local_actor_id],
-            id_="https://example.org/activities/rec-001",
-        )
-        event = make_payload(recommendation)
-
-        SuggestActorToCaseReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
-        ).execute()
-
-        outbox = dl.outbox_list()
-        assert (
-            len(outbox) == 2
-        ), f"Expected 2 outbox entries (Accept + Invite), got {len(outbox)}"
-
-    def test_suggest_actor_skips_when_not_case_owner(self, make_payload):
-        """Non-owner silently skips — no outbox entries emitted."""
-        dl, local_actor_id, case_id = self._setup_dl_with_owner()
-        # Override case with a different owner
-        case = dl.read(case_id)
-        other_owner = "https://example.org/actors/other-owner"
-        case = cast(Any, case)
-        case = case.model_copy(update={"attributed_to": other_owner})
-        dl.save(case)
-
-        recommender_id = "https://example.org/actors/finder"
-        invitee_id = "https://example.org/actors/vendor"
-        invitee = as_Actor(id_=invitee_id)
-
-        recommendation = recommend_actor_activity(
-            invitee,
-            target=case_id,
-            actor=recommender_id,
-            to=[local_actor_id],
-            id_="https://example.org/activities/rec-002",
-        )
-        event = make_payload(recommendation)
-
-        SuggestActorToCaseReceivedUseCase(dl, event).execute()
-
-        outbox = dl.outbox_list()
-        assert len(outbox) == 0, (
-            "Expected no outbox entries for non-owner, " f"got {len(outbox)}"
-        )
-
-    def test_suggest_actor_idempotent_when_invite_exists(self, make_payload):
-        """Second execute() adds no new outbox entries."""
-        dl, local_actor_id, case_id = self._setup_dl_with_owner()
-        recommender_id = "https://example.org/actors/finder"
-        invitee_id = "https://example.org/actors/vendor"
-        invitee = as_Actor(id_=invitee_id)
-
-        recommendation = recommend_actor_activity(
-            invitee,
-            target=case_id,
-            actor=recommender_id,
-            to=[local_actor_id],
-            id_="https://example.org/activities/rec-003",
-        )
-        event = make_payload(recommendation)
-
-        # First execution
-        SuggestActorToCaseReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
-        ).execute()
-        outbox_after_first = len(dl.outbox_list())
-
-        # Second execution (should be a no-op)
-        py_trees.blackboard.Blackboard.storage.clear()
-        SuggestActorToCaseReceivedUseCase(
-            dl, event, trigger_activity=TriggerActivityAdapter(dl)
-        ).execute()
-        outbox_after_second = len(dl.outbox_list())
-
-        assert (
-            outbox_after_first == 2
-        ), f"Expected 2 entries after first run, got {outbox_after_first}"
-        assert outbox_after_second == outbox_after_first, (
-            "Expected no new entries on second run (idempotency), "
-            f"got {outbox_after_second - outbox_after_first} extra"
+        assert any(
+            "legacy" in r.message.lower() or "dropped" in r.message.lower()
+            for r in caplog.records
         )

@@ -25,8 +25,11 @@ AF-02-004.
 
 from vultron.wire.as2.factories.actor import (
     accept_actor_recommendation_activity,
+    accept_case_participant_offer_activity,
+    offer_case_participant_activity,
     recommend_actor_activity,
     reject_actor_recommendation_activity,
+    reject_case_participant_offer_activity,
 )
 from vultron.wire.as2.factories.case import (
     accept_case_manager_role_activity,
@@ -89,8 +92,11 @@ __all__ = [
     "VultronActivityConstructionError",
     # actor
     "accept_actor_recommendation_activity",
+    "accept_case_participant_offer_activity",
+    "offer_case_participant_activity",
     "recommend_actor_activity",
     "reject_actor_recommendation_activity",
+    "reject_case_participant_offer_activity",
     # case
     "accept_case_manager_role_activity",
     "accept_case_ownership_transfer_activity",
