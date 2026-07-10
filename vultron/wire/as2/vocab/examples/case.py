@@ -47,7 +47,7 @@ from vultron.wire.as2.factories import (
 
 
 def create_case() -> as_Create:
-    _case = case()
+    _case = case(random_id=True)
     _case.add_report(_REPORT.id_)
     participant = CaseParticipant(
         case_roles=[CVDRole.VENDOR],
