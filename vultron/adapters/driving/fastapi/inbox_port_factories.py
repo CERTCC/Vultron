@@ -26,6 +26,7 @@ to inject adapter ports into use cases at dispatch time.
 import logging
 from typing import TYPE_CHECKING, Any, cast
 
+import yaml
 from pydantic import ValidationError
 
 from vultron.core.models.events import MessageSemantics
@@ -49,7 +50,13 @@ def _resolve_actor_config() -> "ActorConfig | None":
     """
     try:
         return SeedConfig.load().local_actor
-    except (FileNotFoundError, KeyError, ValueError, ValidationError):
+    except (
+        FileNotFoundError,
+        KeyError,
+        ValueError,
+        ValidationError,
+        yaml.YAMLError,
+    ):
         logger.debug(
             "_resolve_actor_config: SeedConfig unavailable — "
             "defaulting to auto_create_case=True",
