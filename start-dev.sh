@@ -1,6 +1,6 @@
 #!/bin/bash
 # Start (or attach to) a slot-based Claude Code devcontainer from the Mac terminal.
-# Usage: ./start.sh <slot> [--rebuild] [--reset]
+# Usage: ./start-dev.sh <slot> [--rebuild] [--reset]
 #   slot       Name for this dev slot (e.g. inky, pinky, main). You pick the name.
 #              "main" is special: attaches to the main checkout with no worktree.
 #   --rebuild  Remove and rebuild the Docker image from scratch.
@@ -26,7 +26,7 @@ for arg in "$@"; do
 done
 
 if [ -z "$SLOT" ]; then
-    echo "Usage: ./start.sh <slot> [--rebuild] [--reset]"
+    echo "Usage: ./start-dev.sh <slot> [--rebuild] [--reset]"
     echo ""
     echo "  slot       Name for this dev slot (e.g. inky, pinky, main)."
     echo "             'main' attaches to the main checkout; all others create a worktree."
@@ -57,6 +57,21 @@ else
     WORKSPACE="/workspaces/${MAIN_NAME}_${SLOT}"
     WORKTREE_PATH="${PARENT_DIR}/${MAIN_NAME}_${SLOT}"
 fi
+
+# Ensure wip_notes/ and wip_outputs/ exist on the host (both gitignored)
+_created_wip=false
+if [ ! -d "$MAIN_DIR/wip_notes" ]; then
+    mkdir -p "$MAIN_DIR/wip_notes"
+    _created_wip=true
+fi
+if [ ! -d "$MAIN_DIR/wip_outputs" ]; then
+    mkdir -p "$MAIN_DIR/wip_outputs"
+    _created_wip=true
+fi
+if [ "$_created_wip" = true ]; then
+    echo "Created wip_notes/ (read-only agent input) and/or wip_outputs/ (agent output files). Both are gitignored."
+fi
+mkdir -p "$MAIN_DIR/wip_outputs/$SLOT"
 
 # --rebuild or --reset: remove existing container first
 if [ "$REBUILD" = true ] || [ "$RESET" = true ]; then
@@ -161,6 +176,14 @@ if [ -S "/run/host-services/ssh-auth.sock" ]; then
         -v /run/host-services/ssh-auth.sock:/run/host-services/ssh-auth.sock
     )
 fi
+
+# Mount wip_notes (read-only) and wip_outputs (read-write, namespaced by slot)
+DOCKER_ARGS+=(
+    -v "$MAIN_DIR/wip_notes:/workspaces/wip_notes:ro"
+    -v "$MAIN_DIR/wip_outputs:/workspaces/wip_outputs"
+    -e WIP_NOTES=/workspaces/wip_notes
+    -e WIP_OUTPUTS=/workspaces/wip_outputs/$SLOT
+)
 
 docker run -d "${DOCKER_ARGS[@]}" "$IMAGE_NAME" sleep infinity
 trap _cleanup EXIT

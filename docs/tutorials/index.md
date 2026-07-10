@@ -19,9 +19,9 @@
 ## Further reading
 
 - If you are unfamiliar with the Vultron Protocol, we recommend that you
-  start with [Understanding Vultron](../topics/index.md).
+  start with [Explanation](../topics/index.md).
 - If you are familiar enough with the Vultron Protocol that you're
-  interested in implementing it, see [Implementing Vultron](../howto/index.md).
+  interested in implementing it, see [How-to Guides](../howto/index.md).
 - For technical reference material, see [Reference](../reference/index.md).
 - And finally, if you're just trying to understand the CVD process, we
   recommend that you start with the

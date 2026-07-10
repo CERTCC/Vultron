@@ -502,6 +502,180 @@ def test_inbox_handler_uses_actor_dl_for_queue_pop_and_shared_dl_for_dispatch(
     ), "dispatch must be called with shared dl, not actor_dl"
 
 
+def test_submit_report_port_factory_injects_actor_config(monkeypatch):
+    """_submit_report_port_factory returns actor_config from SeedConfig.
+
+    When SeedConfig is available, the factory must include an
+    ``actor_config`` key so that ``SubmitReportReceivedUseCase`` can
+    honour the local actor's ``auto_create_case`` policy (CM-15-001,
+    issue #1319).
+    """
+    from vultron.core.models.actor_config import ActorConfig
+    from vultron.demo.seed_config import LocalActorConfig, SeedConfig
+    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
+
+    fake_cfg = SeedConfig(
+        local_actor=LocalActorConfig(
+            name="Vendor",
+            actor_type="Organization",
+            auto_create_case=False,
+        )
+    )
+    monkeypatch.setattr(
+        pf, "_resolve_actor_config", lambda: fake_cfg.local_actor
+    )
+
+    real_dl = SqliteDataLayer("sqlite:///:memory:")
+    kwargs = pf._submit_report_port_factory(real_dl)
+
+    assert "actor_config" in kwargs, "factory must include actor_config"
+    assert isinstance(kwargs["actor_config"], ActorConfig)
+    assert kwargs["actor_config"].auto_create_case is False
+    assert "sync_port" in kwargs
+    assert "trigger_activity" in kwargs
+
+
+def test_submit_report_port_factory_omits_actor_config_when_unavailable(
+    monkeypatch,
+):
+    """_submit_report_port_factory omits actor_config when SeedConfig fails.
+
+    When SeedConfig cannot be loaded (e.g. env vars absent), the factory
+    must still return sync_port + trigger_activity and must NOT include an
+    ``actor_config`` key — so the use case falls back to always-create (CM-15-001).
+    """
+    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
+
+    monkeypatch.setattr(pf, "_resolve_actor_config", lambda: None)
+
+    real_dl = SqliteDataLayer("sqlite:///:memory:")
+    kwargs = pf._submit_report_port_factory(real_dl)
+
+    assert "actor_config" not in kwargs
+    assert "sync_port" in kwargs
+    assert "trigger_activity" in kwargs
+
+
+def test_make_dispatcher_submit_report_uses_actor_config_factory(monkeypatch):
+    """make_dispatcher() must register _submit_report_port_factory for SUBMIT_REPORT.
+
+    SUBMIT_REPORT was moved out of _SYNC_AND_TRIGGER_PORT_SEMANTICS to
+    _SUBMIT_REPORT_SEMANTICS (issue #1319), so it must be wired to the
+    factory that also injects actor_config.
+    """
+    from vultron.adapters.driven.sync_activity_adapter import (
+        SyncActivityAdapter,
+    )
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
+    from vultron.core.models.actor_config import ActorConfig
+    from vultron.demo.seed_config import LocalActorConfig
+    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
+
+    captured: dict = {}
+
+    def fake_get_dispatcher(use_case_map, port_factories=None):
+        captured["port_factories"] = port_factories
+        return Mock()
+
+    monkeypatch.setattr(ih, "get_dispatcher", fake_get_dispatcher)
+    monkeypatch.setattr(
+        pf,
+        "_resolve_actor_config",
+        lambda: LocalActorConfig(
+            name="Vendor", actor_type="Organization", auto_create_case=False
+        ),
+    )
+
+    ih.make_dispatcher()
+
+    sem = MessageSemantics.SUBMIT_REPORT
+    assert (
+        sem in captured["port_factories"]
+    ), "SUBMIT_REPORT must have a factory"
+
+    real_dl = SqliteDataLayer("sqlite:///:memory:")
+    kwargs = captured["port_factories"][sem](real_dl)
+
+    assert isinstance(kwargs.get("sync_port"), SyncActivityAdapter)
+    assert isinstance(kwargs.get("trigger_activity"), TriggerActivityAdapter)
+    assert isinstance(kwargs.get("actor_config"), ActorConfig)
+    assert kwargs["actor_config"].auto_create_case is False
+
+
+def test_make_dispatcher_ac2_auto_create_false_no_case_via_dispatcher(
+    monkeypatch,
+):
+    """AC-2: DirectActivityDispatcher honours auto_create_case=False end-to-end.
+
+    With _resolve_actor_config returning auto_create_case=False,
+    dispatching an inbound Offer(Report) via DirectActivityDispatcher must
+    store the report and Offer activity but must NOT create a
+    VulnerabilityCase and must leave the actor's outbox empty (CM-15-001,
+    issue #1319).
+    """
+    from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+    from vultron.core.models.activity import VultronActivity
+    from vultron.core.models.case_actor import VultronCaseActor
+    from vultron.core.models.events.report import SubmitReportReceivedEvent
+    from vultron.core.models.report import VultronReport
+    from vultron.demo.seed_config import LocalActorConfig
+    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
+
+    VENDOR_ID = "https://example.org/actors/vendor-ac2"
+    FINDER_ID = "https://example.org/users/finder-ac2"
+    REPORT_ID = "https://example.org/reports/r-ac2"
+    OFFER_ID = "https://example.org/activities/offer-ac2"
+
+    # Inject auto_create_case=False via the factory that make_dispatcher uses.
+    monkeypatch.setattr(
+        pf,
+        "_resolve_actor_config",
+        lambda: LocalActorConfig(
+            name="Vendor", actor_type="Organization", auto_create_case=False
+        ),
+    )
+
+    # Build a real dispatcher the same way make_dispatcher() does, but
+    # without the full FastAPI lifespan — call make_dispatcher directly.
+    dispatcher = ih.make_dispatcher()
+
+    dl = SqliteDataLayer("sqlite:///:memory:")
+    dl.save(VultronCaseActor(id_=VENDOR_ID))
+
+    report = VultronReport(id_=REPORT_ID)
+    activity = VultronActivity(
+        id_=OFFER_ID,
+        type_="Offer",
+        actor=FINDER_ID,
+        to=[VENDOR_ID],
+    )
+    event = SubmitReportReceivedEvent(
+        semantic_type=MessageSemantics.SUBMIT_REPORT,
+        activity_id=OFFER_ID,
+        actor_id=FINDER_ID,
+        object_=report,
+        activity=activity,
+        receiving_actor_id=VENDOR_ID,
+    )
+
+    dispatcher.dispatch(event, dl)
+
+    # Report and Offer are persisted.
+    assert dl.read(REPORT_ID) is not None, "VulnerabilityReport must be stored"
+    offer_ids = [row.get("id_") for row in dl.get_all("Offer")]
+    assert OFFER_ID in offer_ids, "Offer activity must be stored"
+    # No case created.
+    assert (
+        dl.get_all("VulnerabilityCase") == []
+    ), "No VulnerabilityCase should be created when auto_create_case=False"
+    # Outbox must remain empty.
+    assert (
+        dl.outbox_list_for_actor(VENDOR_ID) == []
+    ), "Outbox must be empty when auto_create_case=False"
+
+
 def test_pending_case_queue_expiry_emits_question(monkeypatch):
     """AC-7: A replay Question is appended to the actor outbox on expiry.
 

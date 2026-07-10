@@ -2,13 +2,13 @@
 
 !!! tip inline end "Prerequisites"
 
-    The [Understanding Vultron](index.md) section assumes that you have:
+    The [Explanation](../index.md) section assumes that you have:
     
     - an interest in learning about the Vultron Protocol
     - familiarity with the CVD process in general
 
     If you are already familiar with the Vultron Protocol, and are looking for implementation advice, 
-    see [Implementing Vultron](../../howto/index.md).
+    see [How-to Guides](../../howto/index.md).
     For technical reference, see [Reference](../../reference/index.md).
     If you're just trying to understand the CVD process, we recommend that you start with the [CERT Guide to Coordinated Vulnerability Disclosure](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"}.
 
