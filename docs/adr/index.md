@@ -83,6 +83,8 @@ General information about architectural decision records is available at <https:
 - [ADR-0024 Coordination Agent Taxonomy](0024-coordination-agent-taxonomy.md)
 - [ADR-0025 Call-Out Point Abstraction Layer: Factory-Based Injection with
   Typed Backends](0025-call-out-point-abstraction-layer.md)
+- [ADR-0031 Introduce `vultron/enums/` as a Bottom-of-Stack Neutral Layer for
+  Cross-Cutting Enumerations](0031-vultron-enums-neutral-layer.md)
 
 ## Proposed ADRs
 
