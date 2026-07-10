@@ -19,6 +19,9 @@ Provides leaf action nodes that emit outbound activities for actor
 invitation and invite-acceptance workflows, and for applying received
 ownership-transfer decisions to the case record.
 
+Also provides :class:`EvaluateDefaultRolesNode`, the ADR-0024 Evaluator
+call-out point that assigns default roles for a suggested actor (CM-16-003).
+
 Composite subtrees assembling these leaf nodes are defined in the sibling
 ``actor_trigger_trees.py`` and ``ownership_transfer_tree.py`` modules at
 the process-area root per BTND-07-003:
@@ -28,12 +31,14 @@ the process-area root per BTND-07-003:
 - ``create_accept_ownership_transfer_tree``
 """
 
+import logging
 from typing import Any, cast
 
 import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.states.roles import CVDRole
 from vultron.core.models.protocols import is_case_model
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import _as_id
@@ -362,5 +367,61 @@ class ProposeCaseToActorNode(DataLayerAction):
             activity_id,
             case_actor_id,
             case_id,
+        )
+        return Status.SUCCESS
+
+
+class EvaluateDefaultRolesNode(py_trees.behaviour.Behaviour):
+    """Assign default CVD roles for a suggested actor (CM-16-003).
+
+    **ADR-0024 shape: Evaluator** — receives a bounded input (actor + case
+    context via constructor) and writes a bounded recommendation
+    (``suggested_roles``) to the blackboard.
+
+    Prototype behaviour: always writes ``[CVDRole.VENDOR]`` and returns
+    ``SUCCESS``.  Future implementations can inspect actor metadata, prior
+    case history, or external configuration to choose more specific roles.
+
+    Args:
+        suggested_actor_id: The actor URI being suggested to the case.
+        case_id: The case URI, provided as context for future policy logic.
+        name: Optional display name for the node.
+
+    Blackboard outputs (WRITE):
+        - ``suggested_roles`` (list[CVDRole]): always non-empty; defaults to
+          ``[CVDRole.VENDOR]``.
+
+    Returns ``SUCCESS`` unconditionally in the prototype implementation.
+    """
+
+    logger: logging.Logger  # type: ignore[assignment]
+
+    def __init__(
+        self,
+        suggested_actor_id: str,
+        case_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.suggested_actor_id = suggested_actor_id
+        self.case_id = case_id
+        self.logger = logging.getLogger(  # type: ignore[assignment]
+            f"{self.__class__.__module__}.{self.__class__.__name__}"
+        )
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard = self.attach_blackboard_client(name=self.name)
+        self.blackboard.register_key(
+            key="suggested_roles", access=py_trees.common.Access.WRITE
+        )
+
+    def update(self) -> Status:
+        self.blackboard.suggested_roles = [CVDRole.VENDOR]
+        self.logger.debug(
+            "%s: assigned default roles [VENDOR] for actor '%s' in case '%s'",
+            self.name,
+            self.suggested_actor_id,
+            self.case_id,
         )
         return Status.SUCCESS

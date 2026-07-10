@@ -168,11 +168,13 @@ class _ActorsMixin:
         origin: str | None = None,
         to: list[str] | None = None,
         id_: str | None = None,
+        roles: list | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist an Offer(CaseParticipant{actor, roles}, Case).
 
         Transforms the original Offer(Actor, Case) from a recommending
         participant into an Offer(CaseParticipant) addressed to the Case Owner.
+        ``roles`` defaults to ``[CVDRole.VENDOR]`` when ``None`` (CM-16-003).
         ``origin`` carries the original Offer ID for causal traceability
         (CM-16-004).
         """
@@ -184,6 +186,7 @@ class _ActorsMixin:
         activity = offer_case_participant_activity(
             recommended=CoreActor(id_=recommended_id),
             target=case_id,
+            roles=roles,
             **extra,
         )
         try:
