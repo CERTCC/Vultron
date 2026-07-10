@@ -586,6 +586,7 @@ def reject_case_ownership_transfer_activity(
 def rm_invite_to_case_activity(
     invitee: CoreActor | as_Actor,
     target: VulnerabilityCaseStub | str | None = None,
+    roles: list[str] | None = None,
     **kwargs,
 ) -> as_Invite:
     """Build an Invite(Actor, target=VulnerabilityCase) — the RS message.
@@ -596,7 +597,11 @@ def rm_invite_to_case_activity(
 
     Args:
         invitee: The ``as_Actor`` (or actor URI) being invited.
-        target: The ``VulnerabilityCase`` (or its URI) to join.
+        target: The ``VulnerabilityCase`` stub (or its URI) to join.
+        roles: Optional list of intended CVD role strings for the invitee
+            (CM-17-003).  When provided the Invite carries the intended
+            participant roles so ``CreateInviteeParticipantAtAcceptedNode``
+            can set them on the new ``VultronParticipant``.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor`` for the inviting party).
 
@@ -606,6 +611,8 @@ def rm_invite_to_case_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
+    if roles is not None:
+        kwargs["roles"] = roles
     try:
         return _RmInviteToCaseActivity(
             object_=invitee, target=target, **kwargs

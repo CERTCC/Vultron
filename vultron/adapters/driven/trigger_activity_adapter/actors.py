@@ -23,7 +23,9 @@ import logging
 from typing import Any, cast
 
 from vultron.core.models.actor import CoreActor
+from vultron.core.models.protocols import is_case_model
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.states.em import EM
 from vultron.core.use_cases._helpers import _as_id
 from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.wire.as2.factories import (
@@ -42,7 +44,11 @@ from vultron.wire.as2.factories.case import (
     reject_case_manager_role_activity,
 )
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
+from vultron.wire.as2.vocab.objects.case_status import (
+    CaseStatus,
+    ParticipantStatus,
+)
+from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     VulnerabilityCase,
     VulnerabilityCaseStub,
@@ -60,6 +66,49 @@ class _ActorsMixin:
 
     _dl: CaseOutboxPersistence
 
+    def _build_enriched_case_stub(self, case_id: str) -> VulnerabilityCaseStub:
+        """Build a ``VulnerabilityCaseStub`` enriched with embargo context.
+
+        When ``em_state == EM.ACTIVE`` and an active embargo exists, the stub
+        carries ``active_embargo`` (ID + ``end_time``) and ``case_status``
+        (with ``em_state``) so the invitee can give informed consent
+        (CM-17-002).  Falls back to a minimal stub when the case is not
+        found, has no embargo, or the embargo is not active.
+        """
+        case = self._dl.read(case_id)
+        if not is_case_model(case):
+            return VulnerabilityCaseStub(id_=case_id)
+        try:
+            current_status = case.current_status
+        except (ValueError, AttributeError):
+            return VulnerabilityCaseStub(id_=case_id)
+        em_state = getattr(current_status, "em_state", None)
+        active_embargo = getattr(case, "active_embargo", None)
+        if em_state != EM.ACTIVE or active_embargo is None:
+            return VulnerabilityCaseStub(id_=case_id)
+        wire_status = CaseStatus(em_state=em_state)
+        embargo_ref: str | EmbargoEvent | None = None
+        if isinstance(active_embargo, str):
+            embargo_ref = active_embargo
+        else:
+            embargo_id = _as_id(active_embargo)
+            if embargo_id:
+                end_time = getattr(active_embargo, "end_time", None)
+                if end_time is not None:
+                    try:
+                        embargo_ref = EmbargoEvent(
+                            id_=embargo_id, end_time=end_time
+                        )
+                    except Exception:
+                        embargo_ref = embargo_id
+                else:
+                    embargo_ref = embargo_id
+        return VulnerabilityCaseStub(
+            id_=case_id,
+            active_embargo=embargo_ref,
+            case_status=wire_status,
+        )
+
     def invite_actor_to_case(
         self,
         invitee_id: str,
@@ -69,12 +118,19 @@ class _ActorsMixin:
         cc: list[str] | None = None,
         id_: str | None = None,
         attributed_to: str | None = None,
+        roles: list[str] | None = None,
+        case_stub: VulnerabilityCaseStub | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist an ``Invite(Actor, Case)`` activity.
 
         ``actor`` SHOULD be the Case Actor ID (PCR-08-007); ``attributed_to``
         MAY carry the case owner's ID for attribution.  ``cc`` MAY carry the
         Case Actor's own ID for self-archival (CLP-10-001).
+
+        ``roles`` carries the intended CVD roles for the invitee (CM-17-003).
+        When ``case_stub`` is ``None``, :meth:`_build_enriched_case_stub` is
+        called to auto-enrich with embargo context when ``em_state == EM.ACTIVE``
+        (CM-17-002).  Pass an explicit ``case_stub`` to override.
         """
         extra: dict[str, Any] = {"actor": actor, "to": to}
         if cc is not None:
@@ -83,9 +139,15 @@ class _ActorsMixin:
             extra["id_"] = id_
         if attributed_to is not None:
             extra["attributed_to"] = attributed_to
+        target = (
+            case_stub
+            if case_stub is not None
+            else self._build_enriched_case_stub(case_id)
+        )
         activity = rm_invite_to_case_activity(
             invitee=CoreActor(id_=invitee_id),
-            target=VulnerabilityCaseStub(id_=case_id),
+            target=target,
+            roles=roles,
             **extra,
         )
         try:

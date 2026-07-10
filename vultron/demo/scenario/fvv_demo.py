@@ -227,6 +227,7 @@ def _phase_report_submission(
             body={
                 "case_id": case.id_,
                 "invitee_id": vendor2.id_,
+                "roles": ["vendor"],
             },
         )
     invite = as_TransitiveActivity.model_validate(invite_result["activity"])
