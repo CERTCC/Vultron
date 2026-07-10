@@ -167,4 +167,4 @@ diagrams above.
 
 !!! tip "Worked Example"
 
-    A [worked example](../../topics/formal_protocol/worked_example.md) of the protocol in action is available.
+    A [worked example](worked_example.md) of the protocol in action is available.

@@ -13,7 +13,7 @@ public ($\mathbf{D} \prec \mathbf{X}$) or attacks occur
 !!! info "Deriving Preferences over Histories"
 
     This page formalizes the desiderata for CVD histories that we introduced
-    in [CVD Success Criteria](../background/cvd_success.md).
+    in [CVD Success Criteria](../../topics/background/cvd_success.md).
 
 In pursuit of a way to reason about our preferences for some histories
 over others, we define the following preference criteria:
@@ -134,7 +134,7 @@ desired orderings $\mathbb{D}$ as follows:
     the interval between transitions may be of more interest than merely the
     order of those transitions, as a rapid tempo of transitions can alter
     the options available to stakeholders in their response. We discuss this
-    limitation further in [Limitations](../future_work/cs_model_limitations.md) however,
+    limitation further in [Limitations](../../topics/future_work/cs_model_limitations.md) however,
     the following model posits event sequence timing on a human-oriented timescale 
     measured in minutes to weeks.
 

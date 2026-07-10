@@ -25,8 +25,8 @@ the opportunities for expanding the model include
 ## State Explosion
 
 Although our discussion of MPCVD in
-[Possible Histories](../measuring_cvd/possible_histories.md) and
-[Benchmarking](../measuring_cvd/benchmarking.md) highlights one area in which the number
+[Possible Histories](../../reference/measuring_cvd/possible_histories.md) and
+[Benchmarking](../../reference/measuring_cvd/benchmarking.md) highlights one area in which the number
 of states to track can increase dramatically, an even larger problem
 could arise in the context of VM efforts even within normal
 CVD cases. Our
@@ -86,7 +86,7 @@ MPCVD) practices.
 
 ## The Model Does Not Achieve a Total Order Over Histories
 
-As described in [Reasoning Over Histories](../measuring_cvd/reasoning_over_histories.md),
+As described in [Reasoning Over Histories](../../reference/measuring_cvd/reasoning_over_histories.md),
 some ambiguity remains regarding
 preferences for elements of $\mathbb{D}$. These preferences would need
 to be addressed before the model can achieve a total order over
@@ -167,7 +167,7 @@ they arise.
 
 ## Gather Data About CVD
 
-[Benchmarking](../measuring_cvd/benchmarking.md)
+[Benchmarking](../../reference/measuring_cvd/benchmarking.md)
 discusses how different benchmarks and "reasonable baseline
 expectations" might change the results of a skill assessment. It also
 proposes how to use observations of the actions a certain team or team
@@ -191,7 +191,7 @@ past observations.
 
 While there is a modeling choice about using the uniformity assumption
 versus observations from past CVD (see
-[Benchmarking](../measuring_cvd/benchmarking.md)), the model does not depend on whether the
+[Benchmarking](../../reference/measuring_cvd/benchmarking.md)), the model does not depend on whether the
 uniformity assumption actually holds. We have provided a means to
 calculate from observations a deviation from the desired "reasonable
 baseline," whether this is based on the i.i.d. assumption or not.
@@ -206,7 +206,7 @@ Not all events $\sigma \in \Sigma$, and therefore not all desiderata
 $d \in \mathbb{D}$, will be observable by all interested parties. But in
 many cases at least some are, which can still help to infer reasonable
 limits on the others, as shown in
-[Observing Skill](../measuring_cvd/observing_skill.md).
+[Observing Skill](../../reference/measuring_cvd/observing_skill.md).
 
 Vendors are in a good position to observe most of the events in each
 case. This is even more so if they have good sources of threat
@@ -236,7 +236,7 @@ lead, we offer them as a mechanism to generate CVD checklists:
 ## MPCVD Criteria Do Not Account for Equitable Resilience
 
 The proposed criteria for MPCVD in
-[Benchmarking](../measuring_cvd/benchmarking.md) fail to account for either user
+[Benchmarking](../../reference/measuring_cvd/benchmarking.md) fail to account for either user
 populations or their relative importance. For example, suppose an
 MPCVD case had a
 total of 15 vendors, with 5 vendors representing 95% of the total

@@ -105,8 +105,7 @@ enum files: `vultron/bt/report_management/states.py` (RM),
 
 ### Process Models
 
-`docs/topics/background/overview.md` provides a high-level overview. Detailed
-process model documentation is in `docs/topics/process_models/`:
+Detailed process model documentation is in `docs/topics/process_models/`:
 
 - `rm/` — Report Management state machine
 - `em/` — Embargo Management state machine

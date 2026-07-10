@@ -63,7 +63,7 @@ The *Start* state is a simple placeholder state for reports that have
 yet to be received. It is, in effect, a null state that no
 CVD Participant would be expected to reflect in their report tracking system. We include
 it here because it is useful when modeling coordination
-that spans multiple Participants in the [formal protocol](../../formal_protocol/index.md).
+that spans multiple Participants in the [formal protocol](../../../reference/formal_protocol/index.md).
 Otherwise, the discussion until then will mostly ignore it.
 
 ```mermaid

@@ -60,7 +60,7 @@ from each subsequent state.
 
 !!! example "More implications for initial state probabilities"
 
-    For example, in the [CS Model Transitions](../process_models/cs/transitions.md), we 
+    For example, in the [CS Model Transitions](../../topics/process_models/cs/transitions.md), we 
     established that 
 
     - any $h$ starting with $(\mathbf{P})$ must start with $(\mathbf{P},\mathbf{V})$
@@ -80,7 +80,7 @@ to ever reflect such a sad state of affairs (because CVD *is* happening after al
 
 !!! tip "State Transition Diagram"
 
-    For convenience, we've reproduced the [CS model](../process_models/cs/model_definition.md) state transition diagram
+    For convenience, we've reproduced the [CS model](../../topics/process_models/cs/model_definition.md) state transition diagram
     here.
     The diagram below shows the allowed transitions between states in the
     CS model. The diagram is a directed graph with states as nodes and
@@ -89,7 +89,7 @@ to ever reflect such a sad state of affairs (because CVD *is* happening after al
     
 
 
-    {% include-markdown "../process_models/cs/vfdpxa_diagram.md" %}
+    {% include-markdown "../../topics/process_models/cs/vfdpxa_diagram.md" %}
 
 !!! info "Allowed State Transitions, their Probabilities, and PageRank"
 
