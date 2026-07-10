@@ -12,10 +12,10 @@ from vultron.core.behaviors.sync.nodes import (
     CheckIsOwnCaseActorNode,
     CheckIsNotOwnCaseActorNode,
     CheckLedgerEntryAlreadyStoredNode,
-    IsNotAddNoteEventNode,
-    IsNotInviteAcceptEventNode,
-    IsNotParticipantStatusEventNode,
-    IsNotRemoveEmbargoEventNode,
+    IsAddNoteEventNode,
+    IsInviteAcceptEventNode,
+    IsParticipantStatusEventNode,
+    IsRemoveEmbargoEventNode,
     LogDeliveryConfirmationNode,
     PersistReceivedLogEntryNode,
     ReconstructChainTailNode,
@@ -62,21 +62,39 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
                 name="EmbargoEffects",
                 memory=False,
                 children=[
-                    IsNotRemoveEmbargoEventNode(
-                        name="IsNotRemoveEmbargoEvent"
+                    py_trees.composites.Sequence(
+                        name="ApplyEmbargoEffectsSeq",
+                        memory=False,
+                        children=[
+                            IsRemoveEmbargoEventNode(
+                                name="IsRemoveEmbargoEvent"
+                            ),
+                            ApplyEmbargoTeardownNode(
+                                name="ApplyEmbargoTeardown"
+                            ),
+                        ],
                     ),
-                    ApplyEmbargoTeardownNode(name="ApplyEmbargoTeardown"),
+                    py_trees.behaviours.Success(name="EmbargoEffectsSkipped"),
                 ],
             ),
             py_trees.composites.Selector(
                 name="ParticipantStatusEffects",
                 memory=False,
                 children=[
-                    IsNotParticipantStatusEventNode(
-                        name="IsNotParticipantStatusEvent"
+                    py_trees.composites.Sequence(
+                        name="ApplyParticipantStatusEffectsSeq",
+                        memory=False,
+                        children=[
+                            IsParticipantStatusEventNode(
+                                name="IsParticipantStatusEvent"
+                            ),
+                            ApplyParticipantStatusFromLedgerNode(
+                                name="ApplyParticipantStatusFromLedger"
+                            ),
+                        ],
                     ),
-                    ApplyParticipantStatusFromLedgerNode(
-                        name="ApplyParticipantStatusFromLedger"
+                    py_trees.behaviours.Success(
+                        name="ParticipantStatusEffectsSkipped"
                     ),
                 ],
             ),
@@ -84,17 +102,37 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
                 name="NoteEffects",
                 memory=False,
                 children=[
-                    IsNotAddNoteEventNode(name="IsNotAddNoteEvent"),
-                    ApplyNoteFromLedgerNode(name="ApplyNoteFromLedger"),
+                    py_trees.composites.Sequence(
+                        name="ApplyNoteEffectsSeq",
+                        memory=False,
+                        children=[
+                            IsAddNoteEventNode(name="IsAddNoteEvent"),
+                            ApplyNoteFromLedgerNode(
+                                name="ApplyNoteFromLedger"
+                            ),
+                        ],
+                    ),
+                    py_trees.behaviours.Success(name="NoteEffectsSkipped"),
                 ],
             ),
             py_trees.composites.Selector(
                 name="InviteAcceptEffects",
                 memory=False,
                 children=[
-                    IsNotInviteAcceptEventNode(name="IsNotInviteAcceptEvent"),
-                    ApplyInviteAcceptFromLedgerNode(
-                        name="ApplyInviteAcceptFromLedger"
+                    py_trees.composites.Sequence(
+                        name="ApplyInviteAcceptEffectsSeq",
+                        memory=False,
+                        children=[
+                            IsInviteAcceptEventNode(
+                                name="IsInviteAcceptEvent"
+                            ),
+                            ApplyInviteAcceptFromLedgerNode(
+                                name="ApplyInviteAcceptFromLedger"
+                            ),
+                        ],
+                    ),
+                    py_trees.behaviours.Success(
+                        name="InviteAcceptEffectsSkipped"
                     ),
                 ],
             ),
