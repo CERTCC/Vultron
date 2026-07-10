@@ -939,6 +939,27 @@ or the `createIssue` GraphQL mutation directly (with `issueTypeId`,
 `parentIssueId` inline). Issue type IDs and relationship mutation names are in
 `.agents/skills/manage-github-issue/REFERENCE.md`.
 
+**Never pass backtick-containing markdown in a double-quoted `--body` string.**
+Backticks inside `"..."` are shell-interpreted and appear as `\`` in GitHub.
+Always use a single-quoted heredoc so the shell passes the body verbatim:
+
+```bash
+gh issue comment <N> --repo CERTCC/Vultron --body "$(cat <<'EOF'
+Use `code` freely here — no escaping needed.
+EOF
+)"
+
+gh pr create --body "$(cat <<'EOF'
+- Closes #N
+## Summary
+Run `/plan-issue` to fix `needs-decomposition` Epics.
+EOF
+)"
+```
+
+The same rule applies to `gh issue edit --body`, `gh issue comment`, and any
+other CLI command that accepts a markdown body argument.
+
 ### Triage labels
 
 Default label vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.

@@ -69,13 +69,48 @@ Invoke the `orient-agent` skill.
 
 3. Pick the highest-priority candidate.
 
-4. Fail-fast blocker gate on the selected issue (auto-selected or explicit):
+4. **Empty-Epic gate** — applies to both auto-selected and explicit issues:
+
+   Query the selected issue's type and sub-issue count:
+
+   ```bash
+   gh api graphql -f query='{
+     repository(owner:"CERTCC", name:"Vultron") {
+       issue(number: <ISSUE_NUMBER>) {
+         issueType { name }
+         subIssues(first: 1) { totalCount }
+         labels(first: 20) { nodes { name } }
+       }
+     }
+   }'
+   ```
+
+   If `issueType.name == "Epic"` and `subIssues.totalCount == 0`:
+
+   1. Apply `needs-decomposition` label if not already present:
+
+      ```bash
+      gh issue edit <ISSUE_NUMBER> --repo CERTCC/Vultron \
+        --add-label "needs-decomposition"
+      ```
+
+   2. Post an actionable comment on the Epic:
+
+      ```bash
+      gh issue comment <ISSUE_NUMBER> --repo CERTCC/Vultron \
+        --body "No implementable sub-issues found. Run \`/plan-issue <ISSUE_NUMBER>\` to decompose this Epic into Tasks before building."
+      ```
+
+   3. Tell the user: "Epic #N has no sub-issues and cannot be built yet. Run `/plan-issue N` to decompose it into Tasks first."
+   4. **Stop.** Do not claim, branch, or proceed.
+
+5. Fail-fast blocker gate on the selected issue (auto-selected or explicit):
 
    - Query `blockedBy` for the issue and filter to `state=OPEN`.
    - If any OPEN blockers exist, print blocker numbers/titles and stop.
    - Do not claim, branch, or deepen context when blocked.
 
-5. **Claim the Issue**:
+6. **Claim the Issue**:
 
    ```bash
    bash .agents/skills/shared/claim-issue.sh <N> task <slug>
@@ -83,7 +118,7 @@ Invoke the `orient-agent` skill.
 
    Abort immediately if this exits non-zero.
 
-6. Fetch the issue body and comments. Use the content as implementation
+7. Fetch the issue body and comments. Use the content as implementation
    context throughout Phases 3–5.
 
 ### Phase 3 — Deepen Context
