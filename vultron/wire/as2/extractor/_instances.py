@@ -201,9 +201,11 @@ RejectSuggestActorToCasePattern = ActivityPattern(
 # CaseActor-routed ADR-0026 patterns (CM-16)
 OfferActorToCasePattern = ActivityPattern(
     description=(
-        "CaseActor received Offer(CaseParticipant{actor,roles}, Case) "
-        "from a recommending participant. Routed through CaseActor inbox "
-        "per ADR-0026/CM-16-001. Identified by object being CASE_PARTICIPANT."
+        "Offer(CaseParticipant{actor,roles}, Case) sent by the CaseActor "
+        "to the Case Owner (CM-16-003/CM-16-004, ADR-0026). Used as the "
+        "nested sub-pattern inside AcceptActorRecommendationPattern and "
+        "RejectActorRecommendationPattern. Identified by object being "
+        "CASE_PARTICIPANT."
     ),
     activity_=TAtype.OFFER,
     object_=VOtype.CASE_PARTICIPANT,

@@ -284,8 +284,6 @@ def create_recommend_actor_to_case_received_tree(
 
 
 def create_accept_actor_recommendation_received_tree(
-    accept_id: str,
-    accept_obj: object,
     recommendation_id: str,
     recommender_id: str,
     invitee_id: str,
@@ -299,8 +297,6 @@ def create_accept_actor_recommendation_received_tree(
     invitee (CM-16-006 step 4, CM-17).
 
     Args:
-        accept_id: ID of the incoming ``Accept(Offer(CaseParticipant))`` activity.
-        accept_obj: The wire activity object to persist idempotently.
         recommendation_id: ID of the original ``Offer(Actor, Case)`` from the
             recommender (carried in the ``origin`` field of the transformed Offer).
         recommender_id: Actor ID of the original recommender.
@@ -331,8 +327,6 @@ def create_accept_actor_recommendation_received_tree(
 
 
 def create_reject_actor_recommendation_received_tree(
-    reject_id: str,
-    reject_obj: object,
     recommendation_id: str,
     recommender_id: str,
     recommended_id: str,
@@ -345,8 +339,6 @@ def create_reject_actor_recommendation_received_tree(
     (CM-16-007 step 3).
 
     Args:
-        reject_id: ID of the incoming ``Reject(Offer(CaseParticipant))`` activity.
-        reject_obj: The wire activity object to persist idempotently.
         recommendation_id: ID of the original ``Offer(Actor, Case)`` from the
             recommender (carried in the ``origin`` field of the transformed Offer).
         recommender_id: Actor ID of the original recommender.

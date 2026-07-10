@@ -46,13 +46,8 @@ class OfferActorToCaseReceivedUseCase:
         activity_id = request.activity_id
         recommender_id = request.actor_id
         case_id = request.target_id
-        # The event's object is a CaseParticipant; extract the actual actor ID
-        # from its attributed_to field (object_id has the #participant suffix).
-        participant_obj = getattr(request.activity, "object_", None)
-        raw_recommended = getattr(participant_obj, "attributed_to", None)
-        recommended_id = (
-            getattr(raw_recommended, "id_", None) or request.object_id
-        )
+        # Offer(Actor, Case): object_ is an as_Actor; object_id is the actor URI directly.
+        recommended_id = request.object_id
 
         if not recommended_id or not case_id:
             logger.warning(
@@ -140,8 +135,6 @@ class AcceptActorRecommendationReceivedUseCase:
             return
 
         tree = create_accept_actor_recommendation_received_tree(
-            accept_id=activity_id,
-            accept_obj=request.activity,
             recommendation_id=recommendation_id or "",
             recommender_id=recommender_id or "",
             invitee_id=invitee_id,
@@ -207,8 +200,6 @@ class RejectActorRecommendationReceivedUseCase:
             return
 
         tree = create_reject_actor_recommendation_received_tree(
-            reject_id=activity_id,
-            reject_obj=request.activity,
             recommendation_id=recommendation_id or "",
             recommender_id=recommender_id or "",
             recommended_id=recommended_id or "",

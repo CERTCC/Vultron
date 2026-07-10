@@ -40,8 +40,6 @@ _REC_ID = "https://example.org/recommendations/rec-1"
 _RECOMMENDER = "https://example.org/actors/recommender"
 _RECOMMENDED = "https://example.org/actors/recommended"
 _CASE_ID = "https://example.org/cases/case-1"
-_ACCEPT_ID = "https://example.org/accepts/acc-1"
-_REJECT_ID = "https://example.org/rejects/rej-1"
 
 
 class TestRecommendActorToCaseReceivedTree:
@@ -102,8 +100,6 @@ class TestAcceptActorRecommendationReceivedTree:
 
     def setup_method(self):
         self.tree = create_accept_actor_recommendation_received_tree(
-            accept_id=_ACCEPT_ID,
-            accept_obj=object(),
             recommendation_id=_REC_ID,
             recommender_id=_RECOMMENDER,
             invitee_id=_RECOMMENDED,
@@ -153,8 +149,6 @@ class TestRejectActorRecommendationReceivedTree:
 
     def setup_method(self):
         self.tree = create_reject_actor_recommendation_received_tree(
-            reject_id=_REJECT_ID,
-            reject_obj=object(),
             recommendation_id=_REC_ID,
             recommender_id=_RECOMMENDER,
             recommended_id=_RECOMMENDED,
