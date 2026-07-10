@@ -66,7 +66,6 @@ class TestVocabCaseObjectExamples(unittest.TestCase):
         create_case = examples.create_case()
         self.assertIsInstance(create_case, as_Activity)
         vendor = examples.vendor()
-        case = examples.case()
         report = examples.gen_report()
 
         self.assertIsInstance(create_case, as_Create)
@@ -74,7 +73,9 @@ class TestVocabCaseObjectExamples(unittest.TestCase):
         self.assertEqual(create_case.actor, vendor.id_)
 
         case_from_activity = cast(VulnerabilityCase, create_case.object_)
-        self.assertEqual(case_from_activity.id_, case.id_)
+        # Each call to create_case() uses a fresh random-ID case, so we assert
+        # the id is non-empty rather than equal to the shared singleton.
+        self.assertTrue(case_from_activity.id_)
         self.assertEqual(
             case_from_activity.vulnerability_reports[0], report.id_
         )
@@ -82,6 +83,15 @@ class TestVocabCaseObjectExamples(unittest.TestCase):
             CaseParticipant, case_from_activity.case_participants[0]
         )
         self.assertEqual(participant.attributed_to, vendor.id_)
+
+    def test_create_case_multiple_calls_do_not_raise(self):
+        # Regression: create_case() must not raise VultronValidationError when
+        # called more than once in the same process (issue #1328 — shared
+        # _CASE singleton was mutated, causing add_participant to fail on the
+        # second call).
+        examples.create_case()
+        examples.create_case()
+        examples.create_case()
 
     def test_add_report_to_case(self):
         add_report_to_case = examples.add_report_to_case()
