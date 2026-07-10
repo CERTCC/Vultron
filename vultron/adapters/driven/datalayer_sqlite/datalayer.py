@@ -410,30 +410,48 @@ class SqliteDataLayer:
     ) -> ProtocolPair:
         """Return the open/closed state of a request/reply protocol pair.
 
-        Iterates all ``CaseLedgerEntry`` objects for *case_id*, locates the
-        request entry whose ``event_type == request_event_type`` and
-        ``log_object_id == object_id``, then searches for any reply entry
-        whose ``event_type`` is in *reply_event_types* in the same case.
+        Two-pass scan of ``CaseLedgerEntry`` objects scoped to *case_id*:
+
+        1. Locate the request entry whose ``event_type == request_event_type``
+           **and** ``log_object_id == object_id``.
+        2. Search for a reply entry whose ``event_type`` is in
+           *reply_event_types*.
 
         Returns a :class:`~vultron.core.models.protocol_pair.ProtocolPair`
         with ``reply_object_id`` / ``reply_event_type`` populated when a reply
         is found (``is_closed()``), or ``None`` fields when not (``is_open()``).
-        """
-        reply_object_id: str | None = None
-        reply_event_type: str | None = None
+        If no request entry is found, returns an open pair.
 
-        for entry in self.list_objects("CaseLedgerEntry"):
-            entry_case_id = getattr(entry, "case_id", None)
-            if entry_case_id != case_id:
-                continue
-            entry_event_type = getattr(entry, "event_type", None)
-            entry_log_object_id = getattr(entry, "log_object_id", None)
-            if (
-                reply_object_id is None
-                and entry_event_type in reply_event_types
-            ):
-                reply_object_id = entry_log_object_id
-                reply_event_type = entry_event_type
+        .. note::
+           ``CaseLedgerEntry`` has no structural field linking a reply to the
+           specific request that triggered it (``in_reply_to`` chain-following
+           is YAGNI per CLP-11-004).  This method is therefore most reliable
+           when at most one open offer of a given ``request_event_type`` exists
+           per case at a time, which is the expected protocol usage
+           (ADR-0026/CM-16).
+        """
+        case_entries = [
+            e
+            for e in self.list_objects("CaseLedgerEntry")
+            if getattr(e, "case_id", None) == case_id
+        ]
+
+        request_found = any(
+            getattr(e, "event_type", None) == request_event_type
+            and getattr(e, "log_object_id", None) == object_id
+            for e in case_entries
+        )
+
+        reply_object_id: str | None = None
+        reply_event_type_found: str | None = None
+
+        if request_found:
+            for entry in case_entries:
+                entry_event_type = getattr(entry, "event_type", None)
+                if entry_event_type in reply_event_types:
+                    reply_object_id = getattr(entry, "log_object_id", None)
+                    reply_event_type_found = entry_event_type
+                    break
 
         return ProtocolPair(
             case_id=case_id,
@@ -441,7 +459,7 @@ class SqliteDataLayer:
             object_id=object_id,
             reply_event_types=reply_event_types,
             reply_object_id=reply_object_id,
-            reply_event_type=reply_event_type,
+            reply_event_type=reply_event_type_found,
         )
 
     def find_actor_by_short_id(self, short_id: str) -> PersistableModel | None:
