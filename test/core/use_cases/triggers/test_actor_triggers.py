@@ -391,9 +391,13 @@ class TestInviteRolesAndEmbargoEnrichment:
 
         activity_data = result["activity"]
         target = activity_data.get("target", {})
+        active_embargo = target.get("activeEmbargo")
         assert (
-            target.get("activeEmbargo") is not None
+            active_embargo is not None
         ), "activeEmbargo must be present when em_state==ACTIVE"
+        assert (
+            isinstance(active_embargo, dict) and "endTime" in active_embargo
+        ), "activeEmbargo must be a full embargo object with endTime (CM-17-002)"
         case_status = target.get("caseStatus", {})
         assert case_status.get("emState") in (
             "active",

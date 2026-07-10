@@ -264,6 +264,7 @@ class TriggerActivityPort(Protocol):
         id_: str | None = None,
         attributed_to: str | None = None,
         roles: list[str] | None = None,
+        target: Any = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist an ``Invite(Actor, Case)`` activity.
 
@@ -272,8 +273,10 @@ class TriggerActivityPort(Protocol):
         ``cc`` MAY carry the Case Actor's own ID for self-archival (CLP-10-001).
         ``id_`` allows callers to supply a deterministic ID for idempotency.
         ``roles`` carries the intended CVD roles for the invitee (CM-17-003).
-        Adapters SHOULD auto-enrich the case stub with embargo context when
-        ``em_state == EM.ACTIVE`` (CM-17-002).
+        ``target`` may be a core ``VulnerabilityCase`` (the adapter projects it
+        to an enriched stub including ``end_time`` when ``em_state == EM.ACTIVE``),
+        a pre-built stub, or a bare URI string.  When ``None``, the adapter reads
+        the case from the DataLayer by ``case_id`` (CM-17-002).
         Returns ``(activity_id, activity_dict)``.
         """
         ...

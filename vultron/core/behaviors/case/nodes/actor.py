@@ -59,10 +59,11 @@ class EmitInviteActorToCaseNode(DataLayerAction):
     ``EvaluateDefaultRolesNode`` or the Case Owner's Accept response) and
     embeds the roles in the Invite (CM-17-003).
 
-    Embargo enrichment (CM-17-002) is delegated to the adapter implementation
-    of ``TriggerActivityPort.invite_actor_to_case()`` — the adapter reads the
-    case from the DataLayer, checks ``em_state``, and builds the enriched stub
-    without violating the core→wire import boundary (ARCH-01-001).
+    Reads the ``VulnerabilityCase`` from the DataLayer and passes it as
+    ``target`` to ``TriggerActivityPort.invite_actor_to_case()``.  The adapter
+    and factory project it to an enriched ``VulnerabilityCaseStub`` — including
+    ``end_time`` when ``em_state == EM.ACTIVE`` — without violating the
+    core→wire import boundary (ARCH-01-001, CM-17-002).
     """
 
     def __init__(
@@ -116,6 +117,10 @@ class EmitInviteActorToCaseNode(DataLayerAction):
         # CM-17-003: read intended roles for the invitee.
         roles = self._read_suggested_roles()
 
+        # CM-17-002: pass the full case object so the adapter+factory can
+        # project it to an enriched stub (with end_time) when em_state==ACTIVE.
+        case = self.datalayer.read(self.case_id)
+
         try:
             activity_id, activity_dict = factory.invite_actor_to_case(
                 invitee_id=self.invitee_id,
@@ -125,6 +130,7 @@ class EmitInviteActorToCaseNode(DataLayerAction):
                 cc=cc,
                 attributed_to=self.attributed_to,
                 roles=roles,
+                target=case if is_case_model(case) else None,
             )
             cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
                 self.actor_id, activity_id

@@ -133,7 +133,7 @@ class SvcInviteActorToCaseUseCase(SvcBTTriggerBase):
             captured=self._captured,
         )
 
-    def _extra_execute_kwargs(self) -> dict:
+    def _extra_execute_kwargs(self) -> dict[str, Any]:
         kwargs = super()._extra_execute_kwargs()
         if self._suggested_roles is not None:
             kwargs["suggested_roles"] = self._suggested_roles
