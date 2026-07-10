@@ -406,6 +406,18 @@ Short entries are reproduced here; longer ones are referenced below.
 - **ASGIEmitter Path Construction: Use Scheme+Netloc Only as `httpx` Base URL** — see [vultron/adapters/driven/AGENTS.md](vultron/adapters/driven/AGENTS.md)
 - **`create_app()` MUST NOT Mutate Module-Level Singletons** — see [vultron/adapters/driven/AGENTS.md](vultron/adapters/driven/AGENTS.md)
 - **Bootstrap Activities Must Embed Nested Objects Inline, Not as URI Strings** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
+- **Factory Parameters MUST Be Core Objects, Not Pre-Built Wire Stubs** — When a factory
+  function takes a parameter that represents a domain entity (e.g. `target: VulnerabilityCase`
+  for an invite), the caller MUST pass the core object and let the factory project it to a
+  wire type. Adapters and BT nodes MUST NOT pre-build a partial wire stub
+  (e.g. `VulnerabilityCaseStub`) to hand to the factory — that moves projection logic out
+  of the factory and into a layer that should be a thin pass-through. The typical failure
+  mode: the adapter only has a URI string for a related entity (e.g. `case.active_embargo:
+  str | None`) and can't include nested fields (e.g. `end_time`) without an extra DataLayer
+  read that it never makes. The factory, holding the full domain object, can project
+  everything correctly. See `specs/activity-factories.yaml` AF-01-005 and
+  [notes/activity-factories.md](notes/activity-factories.md)
+  § "Anti-pattern: Projection Logic in the Adapter".
 - **BT Failure Reason: Use `get_failure_reason()`, Not Generic Error Logs** — see [notes/bt-integration.md](notes/bt-integration.md)
 - **Dead-Letter vs. No-Pattern: Two Distinct UNKNOWN Failure Modes** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
 - **Accept.object_ Must Be the Invite Activity, Not the Case Object** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)

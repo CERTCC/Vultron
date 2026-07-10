@@ -35,6 +35,24 @@ groups:
     statement: >-
       Factory functions SHOULD accept `**kwargs` for optional AS2 fields that are not protocol-significant,
       forwarding them to the underlying AS2 constructor
+  - id: AF-01-005
+    priority: MUST
+    statement: >-
+      When a factory parameter represents a domain entity whose fields determine how the wire object
+      is enriched (e.g. a `VulnerabilityCase` whose `em_state` determines whether `activeEmbargo`
+      appears in the stub), the factory MUST accept the core domain object and perform the
+      core→wire projection internally. Adapters and BT nodes MUST NOT pre-build partial wire
+      objects (e.g. a `VulnerabilityCaseStub`) to pass as factory arguments — doing so moves
+      projection logic out of the factory and into a layer that should be a thin pass-through,
+      and risks omitting fields that the factory would have included (e.g. `end_time` on
+      `EmbargoEvent`).
+    rationale: >-
+      Wire objects are projections of core objects. The factory layer is the single sanctioned
+      location for core→wire projection; it already imports both core and wire types. Pushing
+      projection into adapters splits the invariant across two layers, making it easy for
+      enrichment to be incomplete (issue #1300: `active_embargo` stored as `str | None` in
+      core meant a bare URI reached the wire instead of an `EmbargoEvent` with `end_time`
+      because the adapter never read the embargo entity from the DataLayer).
 - id: AF-02
   title: Module Structure
   specs:

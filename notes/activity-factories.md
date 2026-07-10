@@ -321,6 +321,63 @@ def test_no_direct_activity_class_imports():
     assert not violations
 ```
 
+## Anti-pattern: Projection Logic in the Adapter
+
+**Problem:** An adapter method builds a partial wire object (e.g. `VulnerabilityCaseStub`)
+and passes it to a factory function, rather than passing the core domain object and letting
+the factory project it.
+
+This pattern appeared in PR #1346, where `_ActorsMixin._build_enriched_case_stub()` was
+added to the adapter layer to construct an enriched `VulnerabilityCaseStub` before calling
+`rm_invite_to_case_activity()`. The stated reason was that building wire types
+(`VulnerabilityCaseStub`, `EmbargoEvent`, `CaseStatus`) in core would violate ARCH-01-001.
+That reasoning is wrong — the *factory* is the correct home for this projection, and
+factories are already allowed to import both core and wire types.
+
+The concrete bug this caused: `VulnerabilityCase.active_embargo` is `str | None` in the
+core model (it stores only the embargo's URI). The adapter read the string, set
+`embargo_ref = active_embargo`, and never fetched the `EmbargoEvent` entity from the
+DataLayer. The `else` branch that would have built a full `EmbargoEvent(id_=..., end_time=...)`
+was unreachable. CM-17-002 requires "ID + `end_time`" in the stub, but only the bare URI
+reached the wire. The factory, given a full `VulnerabilityCase`, would naturally call
+`self._dl.read(case.active_embargo)` to obtain the entity and extract `end_time` — or the
+factory could accept `VulnerabilityCase` + `EmbargoEvent` directly.
+
+**Correct pattern:**
+
+```python
+# WRONG — adapter pre-builds partial wire stub
+class _ActorsMixin:
+    def _build_enriched_case_stub(self, case_id: str) -> VulnerabilityCaseStub:
+        case = self._dl.read(case_id)
+        ...  # projection logic here, risks being incomplete
+        return VulnerabilityCaseStub(id_=case_id, active_embargo=embargo_ref, ...)
+
+    def invite_actor_to_case(self, ..., case_id: str, ...) -> ...:
+        target = self._build_enriched_case_stub(case_id)   # ← passes wire stub to factory
+        activity = rm_invite_to_case_activity(target=target, ...)
+
+# CORRECT — adapter passes core object; factory projects
+class _ActorsMixin:
+    def invite_actor_to_case(self, ..., case_id: str, ...) -> ...:
+        case = self._dl.read(case_id)                       # ← core object
+        activity = rm_invite_to_case_activity(target=case, ...)  # factory projects
+
+# In factories/case.py:
+def rm_invite_to_case_activity(
+    invitee: CoreActor | as_Actor,
+    target: VulnerabilityCase | VulnerabilityCaseStub | str | None = None,
+    ...
+) -> as_Invite:
+    if isinstance(target, VulnerabilityCase):
+        target = _project_case_stub(target)   # projection lives here
+    ...
+```
+
+**Rule (AF-01-005):** When a factory parameter represents a domain entity whose fields
+determine how the wire object is enriched, the factory MUST accept the core domain object
+and project it internally. See `specs/activity-factories.yaml` AF-01-005.
+
 ## Layer and Import Summary
 
 ```text
