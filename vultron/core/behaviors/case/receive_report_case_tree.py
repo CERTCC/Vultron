@@ -31,19 +31,21 @@ The tree is structurally similar to the ValidationActions subsequence of
 
 Structure (CM-14 canonical order):
 
-    ReceiveReportCaseBT (Selector)
-    ├─ CheckCaseExistsForReport          # Early exit if case already created
-    └─ ReceiveReportCaseFlow (Sequence)
-       ├─ CreateCaseNode                 # Create VulnerabilityCase; write case_id
-       ├─ CreateCaseOwnerParticipant     # Receiver participant (RM.RECEIVED)
-       ├─ InitializeDefaultEmbargoNode   # Create default embargo; seed owner SIGNATORY
-       ├─ CreateCaseActivity             # Queue Create(Case) BEFORE reporter add
-       ├─ UpdateActorOutbox              # Flush Create(Case) to outbox
-       ├─ CreateCaseParticipantNode      # Reporter participant (RM.ACCEPTED); seed SIGNATORY
-       ├─ CreateCaseActorNode            # Spawn Case Actor; write case_actor_id
-       ├─ ProposeCaseToActorNode         # Send Create(as_CaseProposal) to Case Actor
-       ├─ SendOfferCaseManagerRoleNode   # Offer CASE_MANAGER role to Case Actor
-       └─ UpdateActorOutbox (Offer)      # Flush Offer+Proposal to outbox
+    ReceiveReportCaseBT (Sequence)
+    ├─ CheckAutoCaseCreationEnabledNode  # Gate on auto_create_case policy
+    └─ ReceiveReportCaseSelector (Selector)
+       ├─ CheckCaseExistsForReport          # Early exit if case already created
+       └─ ReceiveReportCaseFlow (Sequence)
+          ├─ CreateCaseNode                 # Create VulnerabilityCase; write case_id
+          ├─ CreateCaseOwnerParticipant     # Receiver participant (RM.RECEIVED)
+          ├─ InitializeDefaultEmbargoNode   # Create default embargo; seed owner SIGNATORY
+          ├─ CreateCaseActivity             # Queue Create(Case) BEFORE reporter add
+          ├─ UpdateActorOutbox              # Flush Create(Case) to outbox
+          ├─ CreateCaseParticipantNode      # Reporter participant (RM.ACCEPTED); seed SIGNATORY
+          ├─ CreateCaseActorNode            # Spawn Case Actor; write case_actor_id
+          ├─ ProposeCaseToActorNode         # Send Create(as_CaseProposal) to Case Actor
+          ├─ SendOfferCaseManagerRoleNode   # Offer CASE_MANAGER role to Case Actor
+          └─ UpdateActorOutbox (Offer)      # Flush Offer+Proposal to outbox
 
 Note: No canonical ledger commit happens here.  The vendor actor is not the
 CaseActor and MUST NOT commit canonical case-ledger entries.  The CaseActor
@@ -87,6 +89,7 @@ from vultron.core.behaviors.case.embargo_tree import (
     InitializeDefaultEmbargoNode,
 )
 from vultron.core.behaviors.case.nodes import (
+    CheckAutoCaseCreationEnabledNode,
     CheckCaseExistsForReport,
     ProposeCaseToActorNode,
     UpdateActorOutbox,
@@ -195,12 +198,27 @@ def create_receive_report_case_tree(
         ],
     )
 
-    root = py_trees.composites.Selector(
-        name="ReceiveReportCaseBT",
+    case_creation_selector = py_trees.composites.Selector(
+        name="ReceiveReportCaseSelector",
         memory=False,
         children=[
             CheckCaseExistsForReport(report_id=report_id),
             receive_report_case_flow,
+        ],
+    )
+
+    # Gate the whole case-creation subtree on the actor's auto_create_case
+    # policy (CM-15-001).  The gate is placed in a Sequence (not the idempotency
+    # Selector) so that a genuine case-creation FAILURE still propagates as
+    # FAILURE — a policy-driven skip returns FAILURE at the gate before any
+    # DataLayer write, while the success path leaves the Selector's status
+    # untouched.
+    root = py_trees.composites.Sequence(
+        name="ReceiveReportCaseBT",
+        memory=False,
+        children=[
+            CheckAutoCaseCreationEnabledNode(actor_config=actor_config),
+            case_creation_selector,
         ],
     )
 

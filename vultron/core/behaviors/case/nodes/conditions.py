@@ -27,14 +27,71 @@ constructing the tree would raise ``AttributeError`` before any BT node runs,
 making a runtime validation node unreachable and redundant.
 """
 
+import logging
 from typing import Any
 
 import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerCondition
+from vultron.core.models.actor_config import ActorConfig
 from vultron.core.models.protocols import is_case_model
 from vultron.core.use_cases._helpers import _resolve_case_manager_id
+
+
+class CheckAutoCaseCreationEnabledNode(py_trees.behaviour.Behaviour):
+    """Gate case creation on the actor's ``auto_create_case`` policy.
+
+    Returns ``SUCCESS`` when the local actor's :class:`ActorConfig` has
+    ``auto_create_case`` set (the ADR-0015 Option 4 default), allowing the
+    downstream case-creation subtree to run.  Returns ``FAILURE`` when
+    ``auto_create_case`` is ``False``, so the enclosing ``Sequence`` exits
+    without creating a ``VulnerabilityCase`` — enabling the pre-case ACK
+    (``Read(Offer(Report))``) protocol path (CM-15-001, ADR-0015 Option 3).
+
+    The policy is supplied as a constructor argument rather than read from
+    the blackboard so it travels with the tree the same way
+    ``default_case_roles`` does (see ``CreateCaseOwnerParticipant``).  When no
+    ``ActorConfig`` is supplied the node defaults to enabled, preserving the
+    historical always-create behavior for callers that predate the flag.
+
+    Per specs/case-management.yaml CM-15-001.
+    """
+
+    # Declare the managed logger type so subclass log calls are type-checked
+    # against the stdlib logging.Logger API (not py_trees.logging.Logger).
+    logger: logging.Logger  # type: ignore[assignment]
+
+    def __init__(
+        self,
+        actor_config: ActorConfig | None = None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.logger = logging.getLogger(  # type: ignore[assignment]
+            f"{self.__class__.__module__}.{self.__class__.__name__}"
+        )
+        self.actor_config = actor_config
+
+    def update(self) -> Status:
+        auto_create = (
+            self.actor_config.auto_create_case
+            if self.actor_config is not None
+            else True
+        )
+        if auto_create:
+            self.logger.debug(
+                "%s: auto_create_case enabled — proceeding with case creation",
+                self.name,
+            )
+            return Status.SUCCESS
+
+        self.logger.info(
+            "%s: auto_create_case disabled — deferring case creation "
+            "(pre-case ACK path)",
+            self.name,
+        )
+        return Status.FAILURE
 
 
 class CheckCaseAlreadyExists(DataLayerCondition):

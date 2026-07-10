@@ -718,14 +718,25 @@ groups:
     priority: MUST
     statement: >-
       ActorConfig MUST expose an `auto_create_case` boolean field (default: True).
-      When False, SubmitReportReceivedUseCase MUST store the inbound
-      VulnerabilityReport and Offer(Report) activity but MUST NOT invoke
-      create_receive_report_case_tree.
+      When a receiver's auto_create_case is False, processing an inbound
+      Offer(Report) MUST store the VulnerabilityReport and the Offer(Report)
+      activity but MUST NOT create a VulnerabilityCase and MUST leave the
+      receiver's outbox unchanged. The gate MAY be enforced either as a
+      routing-level short-circuit in SubmitReportReceivedUseCase or as an
+      in-tree condition node at the root of create_receive_report_case_tree;
+      the observable outcome (no case, no outbound activities) is what is
+      normative, not the enforcement location.
     rationale: >-
       Receivers that follow the Option 3 protocol path (send Read(Offer(Report))
       before deciding to accept or reject) require the ability to delay case
       creation. The default (True) preserves the original ADR-0015 Option 4
       "always create at RM.RECEIVED" behavior for all existing actors and demos.
+      Case creation is protocol-significant behavior (BT-15-001), so the
+      canonical gate lives in the behavior tree as a condition node; the
+      use-case short-circuit is an equivalent optimization that avoids invoking
+      the BT for a decision already known at dispatch time. Either placement
+      yields the same observable outcome, so the requirement is specified in
+      terms of behavior rather than call path.
     relationships:
     - rel_type: refines
       spec_id: CM-12-001

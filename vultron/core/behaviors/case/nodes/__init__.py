@@ -69,6 +69,7 @@ from vultron.core.behaviors.case.nodes.delegation import (
     ResolveCaseManagerOfferContextNode,
 )
 from vultron.core.behaviors.case.nodes.conditions import (
+    CheckAutoCaseCreationEnabledNode,
     CheckCaseAlreadyExists,
     CheckCaseExistsForReport,
     CheckIsCaseManagerNode,
@@ -105,6 +106,7 @@ __all__ = [
     "EmitAcceptCaseInviteNode",
     "ProposeCaseToActorNode",
     # conditions
+    "CheckAutoCaseCreationEnabledNode",
     "CheckCaseAlreadyExists",
     "CheckCaseExistsForReport",
     "CheckIsCaseManagerNode",

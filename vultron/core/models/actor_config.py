@@ -38,9 +38,23 @@ class ActorConfig(BaseModel):
             creates or receives ownership of a ``VulnerabilityCase``.
             Defaults to an empty list; ``CVDRole.CASE_OWNER`` is always
             appended at participant-creation time (BTND-05-002).
+        auto_create_case: When ``True`` (default), create a
+            ``VulnerabilityCase`` immediately on ``Offer(Report)`` receipt
+            per ADR-0015 (Option 4).  When ``False``, defer case creation so
+            the receiver can send a pre-case ACK (``Read(Offer(Report))``)
+            before deciding to accept or reject (ADR-0015 Option 3;
+            CM-15-001, issue #1133).
     """
 
     default_case_roles: list[CVDRole] = Field(default_factory=list)
+    auto_create_case: bool = Field(
+        default=True,
+        description=(
+            "When True (default), create a VulnerabilityCase immediately on "
+            "Offer(Report) receipt per ADR-0015. When False, defer case "
+            "creation to allow a pre-case ACK (Read(Offer(Report))) first."
+        ),
+    )
 
     @field_serializer("default_case_roles")
     def _serialize_default_case_roles(self, value: list[CVDRole]) -> list[str]:

@@ -37,6 +37,7 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.case.nodes import (
+    CheckAutoCaseCreationEnabledNode,
     CheckCaseExistsForReport,
     CreateCaseOwnerParticipant,
     InitializeDefaultEmbargoNode,
@@ -57,10 +58,10 @@ from vultron.core.states.roles import CVDRole
 class TestTreeStructure:
     """Structure assertions: root node type, children count, and node types."""
 
-    def test_create_receive_report_case_tree_returns_selector(
+    def test_create_receive_report_case_tree_returns_sequence(
         self, report, offer, reporter_actor_id
     ):
-        """Tree factory returns a Selector root node."""
+        """Tree factory returns a Sequence root gating on auto_create_case."""
         tree = create_receive_report_case_tree(
             report_id=report.id_,
             offer_id=offer.id_,
@@ -68,31 +69,58 @@ class TestTreeStructure:
         )
         assert tree is not None
         assert tree.name == "ReceiveReportCaseBT"
+        assert isinstance(tree, py_trees.composites.Sequence)
         assert hasattr(tree, "children")
         assert len(tree.children) == 2
 
-    def test_tree_first_child_is_idempotency_check(
+    def test_tree_first_child_is_auto_create_gate(
         self, report, offer, reporter_actor_id
     ):
-        """First child is CheckCaseExistsForReport (idempotency guard)."""
+        """First child is CheckAutoCaseCreationEnabledNode (policy gate)."""
         tree = create_receive_report_case_tree(
             report_id=report.id_,
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        assert isinstance(tree.children[0], CheckCaseExistsForReport)
+        assert isinstance(tree.children[0], CheckAutoCaseCreationEnabledNode)
 
-    def test_tree_second_child_is_sequence(
+    def test_tree_second_child_is_case_creation_selector(
         self, report, offer, reporter_actor_id
     ):
-        """Second child is a Sequence (ReceiveReportCaseFlow)."""
+        """Second child is the idempotency Selector (ReceiveReportCaseSelector)."""
         tree = create_receive_report_case_tree(
             report_id=report.id_,
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        assert isinstance(tree.children[1], py_trees.composites.Sequence)
-        assert tree.children[1].name == "ReceiveReportCaseFlow"
+        selector = tree.children[1]
+        assert isinstance(selector, py_trees.composites.Selector)
+        assert selector.name == "ReceiveReportCaseSelector"
+
+    def test_selector_first_child_is_idempotency_check(
+        self, report, offer, reporter_actor_id
+    ):
+        """Selector's first child is CheckCaseExistsForReport (idempotency guard)."""
+        tree = create_receive_report_case_tree(
+            report_id=report.id_,
+            offer_id=offer.id_,
+            reporter_actor_id=reporter_actor_id,
+        )
+        selector = tree.children[1]
+        assert isinstance(selector.children[0], CheckCaseExistsForReport)
+
+    def test_selector_second_child_is_flow_sequence(
+        self, report, offer, reporter_actor_id
+    ):
+        """Selector's second child is the ReceiveReportCaseFlow Sequence."""
+        tree = create_receive_report_case_tree(
+            report_id=report.id_,
+            offer_id=offer.id_,
+            reporter_actor_id=reporter_actor_id,
+        )
+        flow = tree.children[1].children[1]
+        assert isinstance(flow, py_trees.composites.Sequence)
+        assert flow.name == "ReceiveReportCaseFlow"
 
     def test_tree_flow_has_ten_children(
         self, report, offer, reporter_actor_id
@@ -103,7 +131,7 @@ class TestTreeStructure:
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        flow = tree.children[1]
+        flow = tree.children[1].children[1]
         assert len(flow.children) == 10
 
     def test_propose_case_to_actor_node_is_wired(
@@ -122,7 +150,7 @@ class TestTreeStructure:
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        flow = tree.children[1]
+        flow = tree.children[1].children[1]
         node_types = [type(c) for c in flow.children]
         assert ProposeCaseToActorNode in node_types
         propose_idx = node_types.index(ProposeCaseToActorNode)
@@ -135,6 +163,87 @@ class TestTreeStructure:
             "ProposeCaseToActorNode must appear immediately after "
             "CreateCaseActorNode"
         )
+
+
+# ============================================================================
+# auto_create_case policy gate tests (CM-15-001)
+# ============================================================================
+
+
+class TestAutoCreateCasePolicyGate:
+    """The auto_create_case gate controls whether the tree creates a case."""
+
+    def test_gate_wired_with_actor_config(
+        self, report, offer, reporter_actor_id
+    ):
+        """The root gate receives the supplied ActorConfig (CM-15-001)."""
+        from vultron.core.models.actor_config import ActorConfig
+
+        cfg = ActorConfig(auto_create_case=False)
+        tree = create_receive_report_case_tree(
+            report_id=report.id_,
+            offer_id=offer.id_,
+            reporter_actor_id=reporter_actor_id,
+            actor_config=cfg,
+        )
+        gate = tree.children[0]
+        assert isinstance(gate, CheckAutoCaseCreationEnabledNode)
+        assert gate.actor_config is cfg
+
+    def test_tree_creates_case_when_auto_create_enabled(
+        self,
+        datalayer,
+        actor,
+        reporter_actor,
+        reporter_actor_id,
+        report,
+        offer,
+        bridge,
+        reporter_accepted_status,
+        vendor_received_status,
+    ):
+        """auto_create_case=True (default) still creates the case (AC-1)."""
+        from vultron.core.models.actor_config import ActorConfig
+
+        tree = create_receive_report_case_tree(
+            report_id=report.id_,
+            offer_id=offer.id_,
+            reporter_actor_id=reporter_actor_id,
+            actor_config=ActorConfig(auto_create_case=True),
+        )
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=actor.id_, activity=offer
+        )
+        assert result.status == Status.SUCCESS
+        assert datalayer.find_case_by_report_id(report.id_) is not None
+
+    def test_tree_skips_case_when_auto_create_disabled(
+        self,
+        datalayer,
+        actor,
+        reporter_actor,
+        reporter_actor_id,
+        report,
+        offer,
+        bridge,
+        reporter_accepted_status,
+        vendor_received_status,
+    ):
+        """auto_create_case=False makes the tree exit without a case (AC-2)."""
+        from vultron.core.models.actor_config import ActorConfig
+
+        tree = create_receive_report_case_tree(
+            report_id=report.id_,
+            offer_id=offer.id_,
+            reporter_actor_id=reporter_actor_id,
+            actor_config=ActorConfig(auto_create_case=False),
+        )
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=actor.id_, activity=offer
+        )
+        # Outer Sequence fails at the gate before any DataLayer write.
+        assert result.status == Status.FAILURE
+        assert datalayer.find_case_by_report_id(report.id_) is None
 
 
 # ============================================================================
@@ -727,7 +836,7 @@ class TestEmbargoInitialization:
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
-        flow = tree.children[1]
+        flow = tree.children[1].children[1]
         node_types = [type(child) for child in flow.children]
 
         owner_idx = None

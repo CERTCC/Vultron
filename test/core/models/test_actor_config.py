@@ -38,6 +38,25 @@ def test_actor_config_default_roles_empty():
     assert config.default_case_roles == []
 
 
+def test_actor_config_auto_create_case_defaults_true():
+    """ActorConfig.auto_create_case defaults to True (CM-15-001, ADR-0015)."""
+    config = ActorConfig()
+    assert config.auto_create_case is True
+
+
+def test_actor_config_auto_create_case_can_be_disabled():
+    """ActorConfig.auto_create_case can be set to False (CM-15-001)."""
+    config = ActorConfig(auto_create_case=False)
+    assert config.auto_create_case is False
+
+
+def test_actor_config_auto_create_case_roundtrip():
+    """auto_create_case round-trips through model_dump / model_validate."""
+    config = ActorConfig(auto_create_case=False)
+    restored = ActorConfig.model_validate(config.model_dump())
+    assert restored.auto_create_case is False
+
+
 def test_actor_config_accepts_cvd_roles():
     """ActorConfig.default_case_roles accepts CVDRoles enum values."""
     config = ActorConfig(default_case_roles=[CVDRole.VENDOR])
