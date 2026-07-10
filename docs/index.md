@@ -15,9 +15,9 @@ anyone seeking interoperability in the CVD ecosystem.
     We are currently working on the documentation of the Vultron CVD Protocol.
     Our focus so far is on
 
-    - [Understanding Vultron](topics/background/index.md), which describes the
+    - [Explanation](topics/index.md), which describes the
       protocol in detail
-    - [Implementing Vultron](howto/index.md), which provides guidance for
+    - [How-to Guides](howto/index.md), which provides guidance for
       potential implementations of Vultron
     - [Reference](reference/formal_protocol/index.md), which provides the formal
       protocol specification
@@ -85,51 +85,80 @@ We are using the [Diátaxis Framework](https://diataxis.fr/){:target="_blank"} t
 organize our documentation into four main categories, oriented around the different
 ways that people might need to learn about and use the Vultron Protocol.
 
-Our current focus is on the [Understanding Vultron](topics/background/index.md)
+Our current focus is on the [Explanation](topics/index.md)
 section, which describes the protocol in detail.
 
 <div class="grid cards" markdown>
 
-- :material-school:{ .lg .middle } **Learning About Vultron**
+- :material-school:{ .lg .middle } **Tutorials**
 
     ---
 
-    The [Learning Vultron](tutorials/index.md) section is intended to eventually include tutorials and other
-    information about the Vultron Protocol that is oriented towards novice users and getting started with the protocol.
-    However, because we are still in the early stages of the project, this section is just a placeholder for now.
+    Step-by-step guided lessons for getting started with Vultron. Run the
+    demos and see the protocol in action.
 
-    [:octicons-arrow-right-24: Learning Vultron](tutorials/index.md)
+    [:octicons-arrow-right-24: Tutorials](tutorials/index.md)
 
-- :fontawesome-solid-book-open:{ .lg .middle } **Understanding Vultron**
-
-    ---
-
-    The [Understanding Vultron](topics/background/index.md) section includes background information about Vultron,
-    including the motivation for the project, the problem space that we are trying to address, and the design principles
-    that we are using to guide our work. It also includes a detailed description of the Vultron Protocol, including
-    the state machines and behavior logic that we use to model the behavior of the protocol.
-
-    [:octicons-arrow-right-24: Understanding Vultron](topics/background/index.md)
-
-- :fontawesome-solid-code:{ .lg .middle } **Implementing Vultron**
+- :fontawesome-solid-book-open:{ .lg .middle } **Explanation**
 
     ---
 
-    The [Implementing Vultron](howto/index.md) section includes guidance for potential implementations of Vultron.
-    In the future, we plan to include how-to guides to help you use Vultron, but for now it is focused on guidance for
-    potential implementers of Vultron.
+    Background, concepts, process models, and formal protocol description.
+    Builds understanding of how and why Vultron works.
 
-    [:octicons-arrow-right-24: Implementing Vultron](howto/index.md)
+    [:octicons-arrow-right-24: Explanation](topics/index.md)
+
+- :fontawesome-solid-wrench:{ .lg .middle } **How-to Guides**
+
+    ---
+
+    Goal-oriented guidance for implementers. Data models, ActivityPub
+    integration, and protocol implementation advice.
+
+    [:octicons-arrow-right-24: How-to Guides](howto/index.md)
 
 - :material-bookshelf:{ .lg .middle } **Reference**
 
     ---
 
-    The [Reference](reference/index.md) section includes the formal Vultron Protocol specification, crosswalks the
-    protocol with other related standards and protocols, etc.
-    In the future, we plan to include other reference information about Vultron, including code documentation.
+    Formal protocol specification, case state listings, code documentation,
+    ontologies, and ISO crosswalks.
 
     [:octicons-arrow-right-24: Reference](reference/index.md)
+
+</div>
+
+## Who is this documentation for?
+
+<div class="grid cards" markdown>
+
+- :material-shield-search:{ .lg .middle } **CVD Practitioner**
+
+    ---
+
+    You coordinate vulnerability disclosures, work at a CERT/CSIRT, or manage
+    vulnerability response for your organization. You want to understand how
+    Vultron models the CVD process and whether it fits your workflow.
+
+    [:octicons-arrow-right-24: Start with Explanation](topics/index.md)
+
+- :fontawesome-solid-code:{ .lg .middle } **Software Developer**
+
+    ---
+
+    You are building a vulnerability tracking system, CVD tool, or
+    interoperability layer and want to implement the Vultron Protocol.
+
+    [:octicons-arrow-right-24: Start with How-to Guides](howto/index.md)
+
+- :material-source-pull:{ .lg .middle } **Vultron Contributor**
+
+    ---
+
+    You are working on the Vultron reference implementation and want to
+    understand the codebase, run the demos, or contribute to the project.
+
+    [:octicons-arrow-right-24: Start with Tutorials](tutorials/index.md)
 
 </div>
 

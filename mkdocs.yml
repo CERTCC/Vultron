@@ -5,13 +5,13 @@ site_author: 'CERT Coordination Center'
 nav:
   - Home: 'https://certcc.github.io/'
   - Vultron: 'index.md'
-  - Learning Vultron:
+  - Tutorials:
     - 'tutorials/index.md'
     - Run the Receive-Report Demo: 'tutorials/receive_report_demo.md'
     - Running the Other Demos: 'tutorials/other_demos.md'
     - Running the Multi-Actor Container Demos: 'tutorials/container_demos.md'
     - Run the Two-Actor Demo: 'tutorials/two-actor-demo.md'
-  - Understanding Vultron:
+  - Explanation:
     - 'topics/index.md'
     - Background:
         - 'topics/background/index.md'
@@ -104,7 +104,7 @@ nav:
         - Reward Functions: 'topics/future_work/reward_functions.md'
         - Ontology: 'topics/future_work/ontology.md'
         - Modeling and Simulation: 'topics/future_work/mod_sim.md'
-  - Implementing Vultron:
+  - How-to Guides:
       - 'howto/index.md'
       - A Case Object: 'howto/case_object.md'
       - Process Implementation: 'howto/process_implementation.md'
