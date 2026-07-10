@@ -39,9 +39,8 @@ This draft-sharing process could be built into the [*prepare publication*](../to
 ### Embargo Management and Calendaring
 
 In terms of the proposal, acceptance, rejection, etc., the EM process is strikingly parallel to the process of
-scheduling a meeting in a calendaring system.
-In [EM and iCalendar](em_icalendar.md), we suggest a potential mapping of many of the concepts from the EM process
-onto [`iCalendar`](https://en.wikipedia.org/wiki/ICalendar){:target="_blank"} protocol semantics.
+scheduling a meeting in a calendaring system, and could be mapped onto
+[`iCalendar`](https://en.wikipedia.org/wiki/ICalendar){:target="_blank"} protocol semantics.
 
 ### Embargo Management Does Not Deliver Synchronized Publication
 

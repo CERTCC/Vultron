@@ -33,8 +33,6 @@ In this section, you will find:
 other processes
 - :simple-activitypub: An in-depth exploration of applying the [ActivityPub](activitypub/index.md) protocol as an underlying foundation to
   the Vultron Protocol.
-- :material-calendar-month: A few thoughts on the [Embargo Management Process](em_icalendar.md) and how it might be implemented using the `iCalendar` protocol.
-- :material-format-list-bulleted: [General notes](general_implementation.md) on future implementations.
 
 </div>
 
