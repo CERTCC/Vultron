@@ -14,9 +14,9 @@ nav:
   - Explanation:
     - 'topics/index.md'
     - Background:
-        - 'topics/background/index.md'
-        - Interoperability: 'topics/background/interoperability.md'
-        - Defining CVD Success: 'topics/background/cvd_success.md'
+      - 'topics/background/index.md'
+      - Interoperability: 'topics/background/interoperability.md'
+      - Defining CVD Success: 'topics/background/cvd_success.md'
     - Process Models:
       - 'topics/process_models/index.md'
       - Report Management:
@@ -70,20 +70,20 @@ nav:
         - Receive CS Messages: 'topics/behavior_logic/msg_cs_bt.md'
         - Receive Other Messages: 'topics/behavior_logic/msg_other_bt.md'
     - Other Uses of Vultron:
-        - 'topics/other_uses/index.md'
-        - Stakeholder Roles: 'topics/other_uses/roles_influence.md'
-        - Defining Zero Days: 'topics/other_uses/zero_day.md'
-        - Policy Formalization: 'topics/other_uses/policy_formalization.md'
-        - Situation Awareness: 'topics/other_uses/situation_awareness.md'
-        - VEP: 'topics/other_uses/vep.md'
-        - CVD Action Rules: 'topics/other_uses/action_rules.md'
+      - 'topics/other_uses/index.md'
+      - Stakeholder Roles: 'topics/other_uses/roles_influence.md'
+      - Defining Zero Days: 'topics/other_uses/zero_day.md'
+      - Policy Formalization: 'topics/other_uses/policy_formalization.md'
+      - Situation Awareness: 'topics/other_uses/situation_awareness.md'
+      - VEP: 'topics/other_uses/vep.md'
+      - CVD Action Rules: 'topics/other_uses/action_rules.md'
     - Future Work:
-        - 'topics/future_work/index.md'
-        - CS Model Limitations: 'topics/future_work/cs_model_limitations.md'
-        - CVD Directory: 'topics/future_work/cvd_directory.md'
-        - Reward Functions: 'topics/future_work/reward_functions.md'
-        - Ontology: 'topics/future_work/ontology.md'
-        - Modeling and Simulation: 'topics/future_work/mod_sim.md'
+      - 'topics/future_work/index.md'
+      - CS Model Limitations: 'topics/future_work/cs_model_limitations.md'
+      - CVD Directory: 'topics/future_work/cvd_directory.md'
+      - Reward Functions: 'topics/future_work/reward_functions.md'
+      - Ontology: 'topics/future_work/ontology.md'
+      - Modeling and Simulation: 'topics/future_work/mod_sim.md'
   - How-to Guides:
       - 'howto/index.md'
       - A Case Object: 'howto/case_object.md'
