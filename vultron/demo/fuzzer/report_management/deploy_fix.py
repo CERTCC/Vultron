@@ -41,6 +41,7 @@ from vultron.demo.fuzzer.base import (
     UsuallyFail,
     UsuallySucceed,
 )
+from vultron.demo.fuzzer.call_out_point import EvaluatorCallOutPoint
 
 
 class NoNewDeploymentInfo(UsuallySucceed):
@@ -64,7 +65,7 @@ class NoNewDeploymentInfo(UsuallySucceed):
     """
 
 
-class PrioritizeDeployment(AlmostAlwaysSucceed):
+class PrioritizeDeployment(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
     """Assign priority to deploying the available fix or mitigation.
 
     Semantic function:
@@ -74,6 +75,10 @@ class PrioritizeDeployment(AlmostAlwaysSucceed):
         or SSVC-based prioritization workflow.  The fuzzer models the
         overwhelmingly common case where prioritization succeeds.
 
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — evaluates case context from caller's DataLayer)
+      Output keys: deployment_priority_verdict: str  (SUCCESS only)
+
     Input category: Human decision.
 
     Success probability: 0.90 (``AlmostAlwaysSucceed``).
@@ -82,6 +87,8 @@ class PrioritizeDeployment(AlmostAlwaysSucceed):
     environmental scoring can drive an automated priority recommendation;
     final approval for high-impact changes typically requires human sign-off.
     """
+
+    output_keys = {"deployment_priority_verdict": str}
 
 
 class MitigationDeployed(UsuallyFail):
@@ -124,7 +131,7 @@ class MitigationAvailable(OftenSucceed):
     """
 
 
-class DeployMitigation(UsuallySucceed):
+class DeployMitigation(EvaluatorCallOutPoint, UsuallySucceed):
     """Deploy the available mitigation for the vulnerability.
 
     Semantic function:
@@ -134,6 +141,10 @@ class DeployMitigation(UsuallySucceed):
         (e.g., applying a firewall rule via an API).  Succeeds most of
         the time to model the common case where mitigation deployment
         proceeds without issues.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — evaluates mitigation context from caller's DataLayer)
+      Output keys: deploy_mitigation_verdict: str  (SUCCESS only)
 
     Input category: System integration / Human decision.
 
@@ -145,8 +156,10 @@ class DeployMitigation(UsuallySucceed):
         mitigations typically require human coordination.
     """
 
+    output_keys = {"deploy_mitigation_verdict": str}
 
-class MonitoringRequirement(OftenSucceed):
+
+class MonitoringRequirement(EvaluatorCallOutPoint, OftenSucceed):
     """Determine whether deployment monitoring is required by policy.
 
     Semantic function:
@@ -156,6 +169,10 @@ class MonitoringRequirement(OftenSucceed):
         configuration check.  Succeeds about 70 % of the time to reflect
         that monitoring is commonly required but not universal.
 
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — evaluates case and policy context from caller's DataLayer)
+      Output keys: monitoring_requirement_verdict: str  (SUCCESS only)
+
     Input category: Environmental check / Policy.
 
     Success probability: 0.70 (``OftenSucceed``).
@@ -164,6 +181,8 @@ class MonitoringRequirement(OftenSucceed):
     all critical-severity deployments") are fully automatable; rule-based
     policy engines can evaluate this condition without human input.
     """
+
+    output_keys = {"monitoring_requirement_verdict": str}
 
 
 class MonitorDeployment(AlwaysSucceed):
@@ -187,7 +206,7 @@ class MonitorDeployment(AlwaysSucceed):
     """
 
 
-class DeployFix(AlmostAlwaysFail):
+class DeployFix(EvaluatorCallOutPoint, AlmostAlwaysFail):
     """Deploy the vendor fix to the affected environment.
 
     Semantic function:
@@ -198,6 +217,10 @@ class DeployFix(AlmostAlwaysFail):
         mitigation or monitoring paths.  Infrequent successes allow the
         rest of the post-deployment workflow to be exercised.
 
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — evaluates deployment context from caller's DataLayer)
+      Output keys: deploy_fix_verdict: str  (SUCCESS only)
+
     Input category: System integration / Human decision.
 
     Success probability: 0.10 (``AlmostAlwaysFail``).
@@ -207,3 +230,5 @@ class DeployFix(AlmostAlwaysFail):
     types; complex or high-risk changes in regulated environments typically
     require human approval and change-management controls.
     """
+
+    output_keys = {"deploy_fix_verdict": str}

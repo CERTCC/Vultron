@@ -43,13 +43,14 @@ from vultron.demo.fuzzer.base import (
     UsuallyFail,
     UsuallySucceed,
 )
+from vultron.demo.fuzzer.call_out_point import EvaluatorCallOutPoint
 
 # ---------------------------------------------------------------------------
 # Embargo termination nodes
 # ---------------------------------------------------------------------------
 
 
-class ExitEmbargoWhenDeployed(ProbablyFail):
+class ExitEmbargoWhenDeployed(EvaluatorCallOutPoint, ProbablyFail):
     """Decide whether to exit an active embargo when the fix is deployed.
 
     Semantic function:
@@ -58,6 +59,10 @@ class ExitEmbargoWhenDeployed(ProbablyFail):
         case where deployment alone is *not* a sufficient trigger (e.g.,
         partial rollout, emergency deployment, or pending coordinated
         announcement).
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — evaluates deployment state from caller's DataLayer)
+      Output keys: exit_embargo_when_deployed_verdict: str  (SUCCESS only)
 
     Input category: Human decision / policy judgment.
 
@@ -68,8 +73,10 @@ class ExitEmbargoWhenDeployed(ProbablyFail):
     requires policy-rule evaluation or human confirmation.
     """
 
+    output_keys = {"exit_embargo_when_deployed_verdict": str}
 
-class ExitEmbargoWhenFixReady(UsuallyFail):
+
+class ExitEmbargoWhenFixReady(EvaluatorCallOutPoint, UsuallyFail):
     """Decide whether to exit an active embargo when the fix is ready.
 
     Semantic function:
@@ -77,6 +84,10 @@ class ExitEmbargoWhenFixReady(UsuallyFail):
         deployment) is sufficient reason to terminate the embargo.
         Vendors may prefer to coordinate simultaneous deployment across
         the affected population before ending the embargo.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — evaluates fix-readiness state from caller's DataLayer)
+      Output keys: exit_embargo_when_fix_ready_verdict: str  (SUCCESS only)
 
     Input category: Human decision / policy judgment.
 
@@ -87,8 +98,10 @@ class ExitEmbargoWhenFixReady(UsuallyFail):
     policy that may require human override.
     """
 
+    output_keys = {"exit_embargo_when_fix_ready_verdict": str}
 
-class ExitEmbargoForOtherReason(OneInTwoHundred):
+
+class ExitEmbargoForOtherReason(EvaluatorCallOutPoint, OneInTwoHundred):
     """Decide whether to exit an embargo for an uncommon or exceptional reason.
 
     Semantic function:
@@ -96,6 +109,10 @@ class ExitEmbargoForOtherReason(OneInTwoHundred):
         fix readiness, deployment, timer expiry, public awareness, known
         exploits, or observed attacks.  Represents extraordinary
         circumstances that are rare in practice.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — evaluates case context from caller's DataLayer)
+      Output keys: exit_embargo_other_reason_verdict: str  (SUCCESS only)
 
     Input category: Human decision.
 
@@ -105,6 +122,8 @@ class ExitEmbargoForOtherReason(OneInTwoHundred):
     extraordinary circumstances; fundamentally requires human judgment that
     cannot be anticipated by a general policy rule.
     """
+
+    output_keys = {"exit_embargo_other_reason_verdict": str}
 
 
 class EmbargoTimerExpired(OneInOneHundred):
@@ -148,7 +167,7 @@ class OnEmbargoExit(AlwaysSucceed):
 # ---------------------------------------------------------------------------
 
 
-class StopProposingEmbargo(UsuallyFail):
+class StopProposingEmbargo(EvaluatorCallOutPoint, UsuallyFail):
     """Decide whether to abandon an ongoing embargo negotiation.
 
     Semantic function:
@@ -156,6 +175,10 @@ class StopProposingEmbargo(UsuallyFail):
         embargo (e.g., too many counter-proposals, time pressure).
         Modeled as uncommon; parties are usually willing to keep
         negotiating.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — evaluates negotiation context from caller's DataLayer)
+      Output keys: stop_proposing_embargo_verdict: str  (SUCCESS only)
 
     Input category: Human decision.
 
@@ -166,14 +189,20 @@ class StopProposingEmbargo(UsuallyFail):
     prospects; requires human decision.
     """
 
+    output_keys = {"stop_proposing_embargo_verdict": str}
 
-class SelectEmbargoOfferTerms(AlwaysSucceed):
+
+class SelectEmbargoOfferTerms(EvaluatorCallOutPoint, AlwaysSucceed):
     """Select the specific terms to include in an embargo proposal.
 
     Semantic function:
         Action — choose duration, conditions, and other terms for a new
         embargo proposal or counter-proposal.  In production may involve
         negotiation-support tooling or organizational policy lookup.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — selects terms based on case context from DataLayer)
+      Output keys: selected_embargo_terms_verdict: str  (SUCCESS only)
 
     Input category: Human decision.
 
@@ -184,8 +213,10 @@ class SelectEmbargoOfferTerms(AlwaysSucceed):
     need human review.
     """
 
+    output_keys = {"selected_embargo_terms_verdict": str}
 
-class WantToProposeEmbargo(RandomSucceedFail):
+
+class WantToProposeEmbargo(EvaluatorCallOutPoint, RandomSucceedFail):
     """Decide whether to initiate an embargo negotiation.
 
     Semantic function:
@@ -193,6 +224,10 @@ class WantToProposeEmbargo(RandomSucceedFail):
         embargo?  Depends on case context, role, and organizational
         policy.  The fuzzer exercises both paths equally; in production
         the recommended default is to propose an embargo.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — evaluates case and role context from caller's DataLayer)
+      Output keys: want_to_propose_embargo_verdict: str  (SUCCESS only)
 
     Input category: Human decision.
 
@@ -204,8 +239,10 @@ class WantToProposeEmbargo(RandomSucceedFail):
     override.
     """
 
+    output_keys = {"want_to_propose_embargo_verdict": str}
 
-class WillingToCounterEmbargoProposal(UsuallyFail):
+
+class WillingToCounterEmbargoProposal(EvaluatorCallOutPoint, UsuallyFail):
     """Decide whether to counter an incoming embargo proposal.
 
     Semantic function:
@@ -215,6 +252,10 @@ class WillingToCounterEmbargoProposal(UsuallyFail):
         current proposal and negotiate revisions separately; countering is
         intentionally modeled as uncommon.
 
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — evaluates proposal context from caller's DataLayer)
+      Output keys: willing_to_counter_verdict: str  (SUCCESS only)
+
     Input category: Human decision.
 
     Success probability: 0.25 (``UsuallyFail``).
@@ -223,6 +264,8 @@ class WillingToCounterEmbargoProposal(UsuallyFail):
     whether countering is strategically preferable to accepting and
     revising; best left to human discretion.
     """
+
+    output_keys = {"willing_to_counter_verdict": str}
 
 
 class AvoidEmbargoCounterProposal(UsuallySucceed):
@@ -246,13 +289,19 @@ class AvoidEmbargoCounterProposal(UsuallySucceed):
     """
 
 
-class ReasonToProposeEmbargoWhenDeployed(AlmostCertainlyFail):
+class ReasonToProposeEmbargoWhenDeployed(
+    EvaluatorCallOutPoint, AlmostCertainlyFail
+):
     """Decide whether to start a new embargo after the fix is already deployed.
 
     Semantic function:
         Condition — is there an unusual reason to propose an embargo even
         though the fix has already been deployed?  Post-deployment embargo
         proposals are exceptional and very rare.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — evaluates case context from caller's DataLayer)
+      Output keys: reason_to_propose_when_deployed_verdict: str  (SUCCESS only)
 
     Input category: Human decision.
 
@@ -263,13 +312,15 @@ class ReasonToProposeEmbargoWhenDeployed(AlmostCertainlyFail):
     required.
     """
 
+    output_keys = {"reason_to_propose_when_deployed_verdict": str}
+
 
 # ---------------------------------------------------------------------------
 # Embargo proposal evaluation nodes
 # ---------------------------------------------------------------------------
 
 
-class EvaluateEmbargoProposal(UsuallySucceed):
+class EvaluateEmbargoProposal(EvaluatorCallOutPoint, UsuallySucceed):
     """Assess an incoming embargo proposal and decide whether to accept it.
 
     Semantic function:
@@ -277,6 +328,10 @@ class EvaluateEmbargoProposal(UsuallySucceed):
         they are acceptable.  In production may involve automated policy
         compatibility checks or structured human analyst review.  Modeled
         as usually succeeding (acceptance is the common outcome).
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — evaluates incoming proposal from caller's DataLayer)
+      Output keys: evaluate_embargo_proposal_verdict: str  (SUCCESS only)
 
     Input category: Human decision.
 
@@ -286,6 +341,8 @@ class EvaluateEmbargoProposal(UsuallySucceed):
     proposed duration within policy bounds?) is automatable; final
     accept/reject for out-of-range proposals typically needs human review.
     """
+
+    output_keys = {"evaluate_embargo_proposal_verdict": str}
 
 
 class OnEmbargoAccept(AlwaysSucceed):
@@ -328,13 +385,17 @@ class OnEmbargoReject(AlwaysSucceed):
 # ---------------------------------------------------------------------------
 
 
-class CurrentEmbargoAcceptable(AlmostAlwaysSucceed):
+class CurrentEmbargoAcceptable(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
     """Decide whether the current active embargo terms remain acceptable.
 
     Semantic function:
         Condition — is the participant satisfied with the current active
         embargo, or do they wish to propose a revision?  Modeled as
         usually acceptable; revision proposals are relatively uncommon.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — evaluates active embargo terms from caller's DataLayer)
+      Output keys: current_embargo_acceptable_verdict: str  (SUCCESS only)
 
     Input category: Human decision.
 
@@ -344,3 +405,5 @@ class CurrentEmbargoAcceptable(AlmostAlwaysSucceed):
     terms against policy preferences is feasible; edge cases and dynamic
     negotiation contexts may still require human judgment.
     """
+
+    output_keys = {"current_embargo_acceptable_verdict": str}

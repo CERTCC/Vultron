@@ -87,6 +87,7 @@ _NODE_NAMES = [cls.__name__ for cls, _ in _ALL_NODES]
 def _run_trials(node_cls: Type[WeightedBehavior], n: int = _TRIALS) -> float:
     """Return empirical success rate over *n* independent ticks."""
     node = node_cls()
+    node.setup()
     successes = sum(1 for _ in range(n) if node.update() == Status.SUCCESS)
     return successes / n
 
@@ -197,6 +198,7 @@ class TestUpdateReturnsValidStatus:
         self, cls: Type[WeightedBehavior], _rate: float
     ) -> None:
         node = cls()
+        node.setup()
         result = node.update()
         assert result in (
             Status.SUCCESS,
@@ -208,6 +210,7 @@ class TestUpdateReturnsValidStatus:
         self, cls: Type[WeightedBehavior], _rate: float
     ) -> None:
         node = cls()
+        node.setup()
         results = {node.update() for _ in range(50)}
         assert (
             Status.RUNNING not in results
@@ -217,18 +220,22 @@ class TestUpdateReturnsValidStatus:
 class TestDeterministicExtremes:
     def test_on_embargo_exit_always_succeeds(self) -> None:
         node = OnEmbargoExit()
+        node.setup()
         assert all(node.update() == Status.SUCCESS for _ in range(100))
 
     def test_select_embargo_offer_terms_always_succeeds(self) -> None:
         node = SelectEmbargoOfferTerms()
+        node.setup()
         assert all(node.update() == Status.SUCCESS for _ in range(100))
 
     def test_on_embargo_accept_always_succeeds(self) -> None:
         node = OnEmbargoAccept()
+        node.setup()
         assert all(node.update() == Status.SUCCESS for _ in range(100))
 
     def test_on_embargo_reject_always_succeeds(self) -> None:
         node = OnEmbargoReject()
+        node.setup()
         assert all(node.update() == Status.SUCCESS for _ in range(100))
 
 
@@ -258,6 +265,7 @@ class TestEmpiricalDistributions:
         """Same seed → same sequence for a representative node."""
         random.seed(42)
         node = EvaluateEmbargoProposal()
+        node.setup()
         seq_a = [node.update() for _ in range(20)]
         random.seed(42)
         seq_b = [node.update() for _ in range(20)]
