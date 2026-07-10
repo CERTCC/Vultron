@@ -778,7 +778,7 @@ groups:
       boolean flags that are unnecessary in production. Collapsing to one
       Evaluator reduces the number of external seams and makes the decision
       boundary explicit. See `notes/bt-fuzzer-nodes-report-management.md`
-      § "Production Collapse 1: Exploit-strategy subtree" and ADR-0026.
+      § "Production Collapse 1: Exploit-strategy subtree" and ADR-0027.
     tracking_issue: "#1200 (planning); implementation issue TBD (blocked by #1200)"
   - id: BT-20-002
     priority: SHOULD
@@ -796,7 +796,7 @@ groups:
       they do not represent real call-out points. In production the
       `PrioritizePublicationIntents` Evaluator output drives arm execution
       directly. See `notes/bt-fuzzer-nodes-report-management.md`
-      § "Production Collapse 2: Publication-intent subtree" and ADR-0027.
+      § "Production Collapse 2: Publication-intent subtree" and ADR-0028.
     tracking_issue: "#1200 (planning); implementation issue TBD (blocked by #1200)"
   - id: BT-20-003
     priority: SHOULD
@@ -816,7 +816,7 @@ groups:
       cascade) replaces it. The outer loop remains because the BT must still
       ask "should we notify additional parties?" and iterate through identified
       candidates. See `notes/bt-fuzzer-nodes-report-management.md`
-      § "Production Collapse 3: Notification loop" and ADR-0028.
+      § "Production Collapse 3: Notification loop" and ADR-0029.
     tracking_issue: >-
       #1200 (planning); implementation issue TBD (blocked by #1200 and #1298
       suggest-actor redesign)
@@ -837,7 +837,7 @@ groups:
       submission are distinct operations with separate external seams. The
       Actuator shape for submission is confirmed by ADR-0024 (Actuator
       amendment, 2026-07-07). See `notes/bt-fuzzer-nodes-report-management.md`
-      § "Production Collapse 4: Publish leaf" and ADR-0029.
+      § "Production Collapse 4: Publish leaf" and ADR-0030.
     tracking_issue: >-
       #1200 (planning); implementation issue TBD (blocked by #1200 and
       implementation issue for BT-20-002)
