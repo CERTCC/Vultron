@@ -18,6 +18,7 @@ from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import VultronValidationError
 
 if TYPE_CHECKING:
+    from vultron.core.models.actor_config import ActorConfig
     from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
@@ -96,6 +97,7 @@ def _run_submit_report_case_creation(
     report_id: str,
     trigger_activity: "TriggerActivityPort | None" = None,
     sync_port: "SyncActivityPort | None" = None,
+    actor_config: "ActorConfig | None" = None,
 ) -> None:
     from py_trees.common import Status
 
@@ -119,6 +121,7 @@ def _run_submit_report_case_creation(
         report_id=report_id,
         offer_id=request.activity_id,
         reporter_actor_id=request.actor_id,
+        actor_config=actor_config,
     )
     result = bridge.execute_with_setup(
         tree,
@@ -189,14 +192,20 @@ class SubmitReportReceivedUseCase:
         request: SubmitReportReceivedEvent,
         trigger_activity: "TriggerActivityPort | None" = None,
         sync_port: "SyncActivityPort | None" = None,
+        actor_config: "ActorConfig | None" = None,
     ) -> None:
         self._dl = dl
         self._request: SubmitReportReceivedEvent = request
         self._trigger_activity = trigger_activity
         self._sync_port = sync_port
+        self._actor_config = actor_config
 
     def execute(self) -> None:
         request = self._request
+        # The report and Offer(Report) activity are stored unconditionally so
+        # that a receiver with auto_create_case=False still retains the data
+        # needed for a subsequent pre-case ACK (Read(Offer(Report))) or an
+        # explicit accept/reject decision (CM-15-001).
         _store_submit_report_dependencies(self._dl, request)
         if not request.report_id:
             return
@@ -215,6 +224,26 @@ class SubmitReportReceivedUseCase:
         ):
             return
 
+        # Routing-level policy short-circuit: when the receiver opts out of
+        # automatic case creation, do not even invoke the case-creation BT.
+        # This is a dispatch decision (like the recipient checks above), so a
+        # deliberate policy skip is logged at INFO rather than surfacing as a
+        # case-creation FAILURE.  The BT also carries an in-tree
+        # CheckAutoCaseCreationEnabledNode gate for any caller that invokes the
+        # tree directly (CM-15-001, ADR-0015 Option 3).
+        if (
+            self._actor_config is not None
+            and not self._actor_config.auto_create_case
+        ):
+            logger.info(
+                "SubmitReportReceivedUseCase: auto_create_case disabled for "
+                "actor '%s' — stored report '%s' and Offer without creating a "
+                "case (pre-case ACK path)",
+                receiving_actor_id,
+                request.report_id,
+            )
+            return
+
         _run_submit_report_case_creation(
             self._dl,
             request,
@@ -222,6 +251,7 @@ class SubmitReportReceivedUseCase:
             request.report_id,
             trigger_activity=self._trigger_activity,
             sync_port=self._sync_port,
+            actor_config=self._actor_config,
         )
 
 

@@ -29,9 +29,11 @@ from py_trees.common import Status
 from pydantic import ValidationError
 
 from vultron.core.behaviors.case.nodes.conditions import (
+    CheckAutoCaseCreationEnabledNode,
     CheckCaseAlreadyExists,
     CheckCaseExistsForReport,
 )
+from vultron.core.models.actor_config import ActorConfig
 from vultron.core.models.vultron_types import (
     VultronCase,
     VultronCaseActor,
@@ -224,3 +226,34 @@ class TestVultronCaseIdContract:
     def test_auto_generated_id_is_nonempty(self) -> None:
         case = VultronCase()
         assert case.id_ and case.id_.strip()
+
+
+class TestCheckAutoCaseCreationEnabledNode:
+    """CheckAutoCaseCreationEnabledNode gates case creation on the policy.
+
+    Per specs/case-management.yaml CM-15-001. The node reads the policy from
+    its constructor argument (not the blackboard), so it can be exercised by
+    direct ticking without any DataLayer setup.
+    """
+
+    def test_success_when_auto_create_enabled(self) -> None:
+        node = CheckAutoCaseCreationEnabledNode(
+            actor_config=ActorConfig(auto_create_case=True)
+        )
+        assert node.update() == Status.SUCCESS
+
+    def test_failure_when_auto_create_disabled(self) -> None:
+        node = CheckAutoCaseCreationEnabledNode(
+            actor_config=ActorConfig(auto_create_case=False)
+        )
+        assert node.update() == Status.FAILURE
+
+    def test_defaults_to_success_when_no_config(self) -> None:
+        """No ActorConfig supplied → default enabled (ADR-0015 Option 4)."""
+        node = CheckAutoCaseCreationEnabledNode(actor_config=None)
+        assert node.update() == Status.SUCCESS
+
+    def test_defaults_to_success_with_default_actor_config(self) -> None:
+        """A default ActorConfig has auto_create_case=True."""
+        node = CheckAutoCaseCreationEnabledNode(actor_config=ActorConfig())
+        assert node.update() == Status.SUCCESS

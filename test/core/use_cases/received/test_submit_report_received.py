@@ -236,6 +236,95 @@ class TestSubmitReportCreatesCase:
         ), "Expected no VulnerabilityCase when receiving actor not in to"
 
 
+class TestSubmitReportAutoCreateCasePolicy:
+    """auto_create_case policy gating of SubmitReportReceivedUseCase (CM-15-001)."""
+
+    VENDOR_ID = "https://example.org/actors/vendor"
+    FINDER_ID = "https://example.org/users/finder"
+    REPORT_ID = "https://example.org/reports/r-policy-1"
+    OFFER_ID = "https://example.org/activities/offer-policy-1"
+
+    def _make_event_and_dl(self):
+        from vultron.core.models.case_actor import VultronCaseActor
+
+        report = VultronReport(id_=self.REPORT_ID)
+        activity = VultronActivity(
+            id_=self.OFFER_ID,
+            type_="Offer",
+            actor=self.FINDER_ID,
+            to=[self.VENDOR_ID],
+        )
+        event = SubmitReportReceivedEvent(
+            semantic_type=MessageSemantics.SUBMIT_REPORT,
+            activity_id=self.OFFER_ID,
+            actor_id=self.FINDER_ID,
+            object_=report,
+            activity=activity,
+            receiving_actor_id=self.VENDOR_ID,
+        )
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl.save(VultronCaseActor(id_=self.VENDOR_ID))
+        return event, dl
+
+    def test_auto_create_disabled_stores_report_and_offer_no_case(self):
+        """AC-2: auto_create_case=False stores report + Offer but no case."""
+        from vultron.core.models.actor_config import ActorConfig
+
+        event, dl = self._make_event_and_dl()
+        SubmitReportReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            actor_config=ActorConfig(auto_create_case=False),
+        ).execute()
+
+        # Report and Offer(Report) activity are persisted.
+        assert dl.read(self.REPORT_ID) is not None
+        offer_ids = [row.get("id_") for row in dl.get_all("Offer")]
+        assert self.OFFER_ID in offer_ids
+        # No VulnerabilityCase is created.
+        assert dl.get_all("VulnerabilityCase") == []
+
+    def test_auto_create_disabled_leaves_outbox_empty(self):
+        """AC-2: auto_create_case=False leaves the receiver's outbox empty."""
+        from vultron.core.models.actor_config import ActorConfig
+
+        event, dl = self._make_event_and_dl()
+        SubmitReportReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            actor_config=ActorConfig(auto_create_case=False),
+        ).execute()
+
+        assert dl.outbox_list() == []
+
+    def test_auto_create_enabled_creates_case(self):
+        """AC-1: auto_create_case=True (explicit) still creates the case."""
+        from vultron.core.models.actor_config import ActorConfig
+
+        event, dl = self._make_event_and_dl()
+        dl.save(VultronReport(id_=self.REPORT_ID))
+        SubmitReportReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            actor_config=ActorConfig(auto_create_case=True),
+        ).execute()
+
+        assert len(dl.get_all("VulnerabilityCase")) >= 1
+
+    def test_no_actor_config_creates_case(self):
+        """AC-1: absent ActorConfig preserves always-create behavior."""
+        event, dl = self._make_event_and_dl()
+        dl.save(VultronReport(id_=self.REPORT_ID))
+        SubmitReportReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        assert len(dl.get_all("VulnerabilityCase")) >= 1
+
+
 class TestOfferAddressingSemantics:
     """Tests for HP-09-001 / HP-09-002: Offer(Report) to/cc addressing semantics."""
 
