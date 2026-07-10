@@ -28,7 +28,7 @@ from typing import Any, cast
 from pydantic import ValidationError
 
 from vultron.core.models.actor import CoreActor
-from vultron.core.models.case import VulnerabilityCase as CoreVulnerabilityCase
+from vultron.core.models.protocols import is_case_model
 from vultron.core.states.em import EM
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.base.objects.activities.intransitive import (
@@ -645,16 +645,16 @@ def rm_invite_to_case_activity(
 
     Args:
         invitee: The ``as_Actor`` (or actor URI) being invited.
-        target: The case to join — either a core ``VulnerabilityCase`` (which
-            will be projected to an enriched ``VulnerabilityCaseStub`` via
+        target: The case to join — either a ``VulnerabilityCase`` (core or wire;
+            projected to an enriched ``VulnerabilityCaseStub`` via
             :func:`_project_case_to_stub`), a pre-built ``VulnerabilityCaseStub``,
             or a bare URI string.
         roles: Optional list of intended CVD role strings for the invitee
             (CM-17-003).  When provided the Invite carries the intended
             participant roles so ``CreateInviteeParticipantAtAcceptedNode``
             can set them on the new ``VultronParticipant``.
-        embargo_obj: The fetched core ``EmbargoEvent`` for the case, used when
-            *target* is a ``CoreVulnerabilityCase`` and ``em_state == EM.ACTIVE``
+        embargo_obj: The fetched ``EmbargoEvent`` for the case, used when
+            *target* is a ``VulnerabilityCase`` and ``em_state == EM.ACTIVE``
             to include ``end_time`` in the stub (CM-17-002).
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor`` for the inviting party).
@@ -665,7 +665,7 @@ def rm_invite_to_case_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    if isinstance(target, CoreVulnerabilityCase):
+    if is_case_model(target):
         target = _project_case_to_stub(target, embargo_obj)
     if roles is not None:
         kwargs["roles"] = roles

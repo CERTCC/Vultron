@@ -38,7 +38,6 @@ from vultron.wire.as2.factories import (
     rm_invite_to_case_activity,
 )
 from vultron.wire.as2.factories.case import (
-    _project_case_to_stub,
     accept_case_manager_role_activity,
     offer_case_manager_role_activity,
     reject_case_manager_role_activity,
@@ -92,26 +91,23 @@ class _ActorsMixin:
         if attributed_to is not None:
             extra["attributed_to"] = attributed_to
 
-        # If target is a case model (core or wire VulnerabilityCase), project
-        # it to an enriched stub via the factory helper (CM-17-002).
+        # Read case and embargo from DataLayer; factory handles projection.
         if target is None:
             target = self._dl.read(case_id)
             if not is_case_model(target):
                 target = case_id
 
+        embargo_obj = None
         if is_case_model(target):
             active_embargo_uri = getattr(target, "active_embargo", None)
-            embargo_obj = (
-                self._dl.read(active_embargo_uri)
-                if active_embargo_uri
-                else None
-            )
-            target = _project_case_to_stub(target, embargo_obj)
+            if active_embargo_uri:
+                embargo_obj = self._dl.read(active_embargo_uri)
 
         activity = rm_invite_to_case_activity(
             invitee=CoreActor(id_=invitee_id),
             target=target,
             roles=roles,
+            embargo_obj=embargo_obj,
             **extra,
         )
         try:
