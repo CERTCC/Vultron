@@ -37,6 +37,51 @@ from vultron.demo.fuzzer.call_out_point import (
 )
 from vultron.demo.fuzzer.report_management.prioritize import OnAccept, OnDefer
 from vultron.demo.fuzzer.report_management.publication import PrepareReport
+from vultron.demo.fuzzer.embargo import (
+    CurrentEmbargoAcceptable,
+    EvaluateEmbargoProposal,
+    ExitEmbargoForOtherReason,
+    ExitEmbargoWhenDeployed,
+    ExitEmbargoWhenFixReady,
+    ReasonToProposeEmbargoWhenDeployed,
+    SelectEmbargoOfferTerms,
+    StopProposingEmbargo,
+    WantToProposeEmbargo,
+    WillingToCounterEmbargoProposal,
+)
+from vultron.demo.fuzzer.report_management.acquire_exploit import (
+    EvaluateExploitPriority,
+    PurchaseExploit,
+)
+from vultron.demo.fuzzer.report_management.assign_vul_id import (
+    IdAssignable,
+    InScope,
+)
+from vultron.demo.fuzzer.report_management.close_report import (
+    OtherCloseCriteriaMet,
+)
+from vultron.demo.fuzzer.report_management.deploy_fix import (
+    DeployFix,
+    DeployMitigation,
+    MonitoringRequirement,
+    PrioritizeDeployment,
+)
+from vultron.demo.fuzzer.report_management.prioritize import (
+    EnoughPrioritizationInfo,
+    GatherPrioritizationInfo,
+)
+from vultron.demo.fuzzer.report_management.publication import (
+    PrioritizePublicationIntents,
+    ReprioritizeExploit,
+    ReprioritizeFix,
+    ReprioritizeReport,
+)
+from vultron.demo.fuzzer.report_management.report_to_others import (
+    AllPartiesKnown,
+    PolicyCompatible,
+    RecipientEffortExceeded,
+    TotalEffortLimitMet,
+)
 from vultron.demo.fuzzer.report_management.validate import (
     EvaluateReportCredibility,
     EvaluateReportValidity,
@@ -275,3 +320,96 @@ def test_prepare_report_writes_blackboard_on_success():
     )
     val = py_trees.blackboard.Blackboard.storage["/prepared_report_artifact"]
     assert isinstance(val, str)
+
+
+# ---------------------------------------------------------------------------
+# AC5 — Blackboard contract for all 29 FUZZ-08d call-out-point nodes
+# (BT-18-001): each subclasses the correct shape mixin and declares its
+# output key with the right type annotation.
+# ---------------------------------------------------------------------------
+
+_EMBARGO_EVALUATOR_NODES = [
+    (ExitEmbargoWhenDeployed, "exit_embargo_when_deployed_verdict"),
+    (ExitEmbargoWhenFixReady, "exit_embargo_when_fix_ready_verdict"),
+    (ExitEmbargoForOtherReason, "exit_embargo_other_reason_verdict"),
+    (StopProposingEmbargo, "stop_proposing_embargo_verdict"),
+    (SelectEmbargoOfferTerms, "selected_embargo_terms_verdict"),
+    (WantToProposeEmbargo, "want_to_propose_embargo_verdict"),
+    (WillingToCounterEmbargoProposal, "willing_to_counter_verdict"),
+    (
+        ReasonToProposeEmbargoWhenDeployed,
+        "reason_to_propose_when_deployed_verdict",
+    ),
+    (EvaluateEmbargoProposal, "evaluate_embargo_proposal_verdict"),
+    (CurrentEmbargoAcceptable, "current_embargo_acceptable_verdict"),
+]
+
+_RM_EVALUATOR_NODES = [
+    (EnoughPrioritizationInfo, "enough_prioritization_info_verdict"),
+    (EvaluateExploitPriority, "exploit_priority_verdict"),
+    (PurchaseExploit, "purchase_exploit_verdict"),
+    (IdAssignable, "id_assignable_verdict"),
+    (InScope, "in_scope_verdict"),
+    (OtherCloseCriteriaMet, "other_close_criteria_met_verdict"),
+    (PrioritizeDeployment, "deployment_priority_verdict"),
+    (DeployMitigation, "deploy_mitigation_verdict"),
+    (MonitoringRequirement, "monitoring_requirement_verdict"),
+    (DeployFix, "deploy_fix_verdict"),
+    (PrioritizePublicationIntents, "publication_intents_verdict"),
+    (ReprioritizeExploit, "reprioritize_exploit_verdict"),
+    (ReprioritizeFix, "reprioritize_fix_verdict"),
+    (ReprioritizeReport, "reprioritize_report_verdict"),
+    (AllPartiesKnown, "all_parties_known_verdict"),
+    (RecipientEffortExceeded, "recipient_effort_exceeded_verdict"),
+    (PolicyCompatible, "policy_compatible_verdict"),
+    (TotalEffortLimitMet, "total_effort_limit_met_verdict"),
+]
+
+_RM_RETRIEVER_NODES = [
+    (GatherPrioritizationInfo, "prioritization_info_gathered"),
+]
+
+
+@pytest.mark.parametrize("node_cls, output_key", _EMBARGO_EVALUATOR_NODES)
+def test_embargo_node_subclasses_evaluator(node_cls, output_key):
+    assert issubclass(node_cls, EvaluatorCallOutPoint)
+
+
+@pytest.mark.parametrize("node_cls, output_key", _EMBARGO_EVALUATOR_NODES)
+def test_embargo_node_output_key_declared(node_cls, output_key):
+    assert output_key in node_cls.output_keys
+
+
+@pytest.mark.parametrize("node_cls, output_key", _EMBARGO_EVALUATOR_NODES)
+def test_embargo_node_output_key_type_is_str(node_cls, output_key):
+    assert node_cls.output_keys[output_key] is str
+
+
+@pytest.mark.parametrize("node_cls, output_key", _RM_EVALUATOR_NODES)
+def test_rm_evaluator_node_subclasses_evaluator(node_cls, output_key):
+    assert issubclass(node_cls, EvaluatorCallOutPoint)
+
+
+@pytest.mark.parametrize("node_cls, output_key", _RM_EVALUATOR_NODES)
+def test_rm_evaluator_node_output_key_declared(node_cls, output_key):
+    assert output_key in node_cls.output_keys
+
+
+@pytest.mark.parametrize("node_cls, output_key", _RM_EVALUATOR_NODES)
+def test_rm_evaluator_node_output_key_type_is_str(node_cls, output_key):
+    assert node_cls.output_keys[output_key] is str
+
+
+@pytest.mark.parametrize("node_cls, output_key", _RM_RETRIEVER_NODES)
+def test_rm_retriever_node_subclasses_retriever(node_cls, output_key):
+    assert issubclass(node_cls, RetrieverCallOutPoint)
+
+
+@pytest.mark.parametrize("node_cls, output_key", _RM_RETRIEVER_NODES)
+def test_rm_retriever_node_output_key_declared(node_cls, output_key):
+    assert output_key in node_cls.output_keys
+
+
+@pytest.mark.parametrize("node_cls, output_key", _RM_RETRIEVER_NODES)
+def test_rm_retriever_node_output_key_type_is_str(node_cls, output_key):
+    assert node_cls.output_keys[output_key] is str
