@@ -22,7 +22,7 @@ uv run mkdocs build --strict 2>&1 | tee "$TEMP_OUTPUT" || true
 TOTAL=$(grep -c "^WARNING -" "$TEMP_OUTPUT" || echo 0)
 
 # Count false-positive warnings (known decorator/keyword names)
-FALSE=$(grep "^WARNING -  Inline reference to unknown key" "$TEMP_OUTPUT" | grep -cE "(petterogren7535|main|v4|dataclass|prefix|base)" || echo 0)
+FALSE=$(grep "^WARNING -  Inline reference to unknown key" "$TEMP_OUTPUT" | grep -cE "(petterogren7535|main|v4|dataclass|prefix|base|context|pytest)" || echo 0)
 
 # Count print-site warnings (version-specific false positive)
 PRINT=$(grep -c "^WARNING -  \[mkdocs-print-site\]" "$TEMP_OUTPUT" || echo 0)
