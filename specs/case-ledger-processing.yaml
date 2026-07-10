@@ -532,3 +532,51 @@ groups:
       (i.e., any node whose class name does not match the known
       precondition-guard allowlist). The test fails if any receive-side tree
       violates commit-first ordering.
+- id: CLP-11
+  title: Protocol Request/Reply State Detection
+  description: >-
+    Requirements for querying whether a protocol-level request/reply pair
+    (e.g., Offer(CaseParticipant) → Accept/Reject) is still open or has been
+    closed. These rules establish the canonical pattern for duplicate-emission
+    suppression and CaseActor decision-gate checks.
+  specs:
+  - id: CLP-11-001
+    priority: MUST
+    statement: >-
+      Open/closed state for a protocol request/reply pair (e.g.,
+      `Offer(CaseParticipant)` awaiting `Accept` or `Reject`) MUST be
+      determined by querying the case ledger via
+      `CasePersistence.find_protocol_pair()`, not by inspecting the outbox.
+    rationale: >-
+      The outbox is a delivery queue: entries are removed when the activity is
+      sent and MUST NOT be used to infer protocol state. The case ledger is the
+      canonical append-only protocol history and survives actor restarts. Any
+      code that reads the outbox to determine whether a request is still
+      in-flight is architecturally incorrect and MUST be replaced.
+  - id: CLP-11-002
+    priority: MUST_NOT
+    statement: >-
+      `find_protocol_pair()` (durable, DataLayer-backed) and
+      `PendingAssertionStore` (ephemeral, in-memory suppression) MUST NOT be
+      unified. They serve distinct purposes: `find_protocol_pair` determines
+      canonical open/closed state from the ledger; `PendingAssertionStore`
+      suppresses duplicate near-term re-emits while waiting for the
+      `CaseLedgerEntry` round-trip. Merging them would conflate durable
+      protocol state with short-lived emit-suppression state.
+  - id: CLP-11-003
+    priority: MUST
+    statement: >-
+      `ProtocolPair` MUST be the shared value type for both
+      `find_protocol_pair()` and `PendingAssertionStore`. Named reply-type
+      constants (`OFFER_CASE_PARTICIPANT_REPLY_TYPES`,
+      `INVITE_ACTOR_TO_CASE_REPLY_TYPES`) MUST be used when constructing or
+      querying a `ProtocolPair` to avoid hard-coding reply event-type strings
+      at call sites.
+  - id: CLP-11-004
+    priority: SHOULD
+    statement: >-
+      When searching for a reply entry in `find_protocol_pair()`, the
+      implementation SHOULD use the `event_type` field of `CaseLedgerEntry`
+      (derived from `MessageSemantics.value`) as the primary key, scoped to
+      `case_id`. `in_reply_to` chain-following is an internal implementation
+      detail and MUST NOT be exposed as a public port primitive.

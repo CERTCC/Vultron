@@ -272,6 +272,30 @@ class EmitRejectActorRecommendationNode(DataLayerAction):
 # ---------------------------------------------------------------------------
 
 
+def create_receive_offer_case_participant_tree(
+    case_id: str,
+) -> py_trees.composites.Sequence:
+    """Received-side BT for Offer(CaseParticipant) on the Case Owner inbox.
+
+    Commits a canonical ``CaseLedgerEntry`` for the received
+    ``Offer(CaseParticipant)`` (CM-16-003/CM-16-004, ADR-0026). No effect
+    nodes are added here — the Case Owner's decision to Accept or Reject is
+    a separate outbound activity.
+
+    Args:
+        case_id: ID of the VulnerabilityCase.
+
+    Returns:
+        Root ``ReceiveOfferCaseParticipantBT`` Sequence node.
+    """
+    return create_receive_activity_tree(
+        name="ReceiveOfferCaseParticipantBT",
+        case_id=case_id,
+        precondition_guards=[],
+        effect_nodes=[],
+    )
+
+
 def create_recommend_actor_to_case_received_tree(
     recommendation_id: str,
     recommender_id: str,
@@ -406,6 +430,7 @@ __all__ = [
     "EmitOfferCaseParticipantToOwnerNode",
     "EmitAcceptActorRecommendationNode",
     "EmitRejectActorRecommendationNode",
+    "create_receive_offer_case_participant_tree",
     "create_recommend_actor_to_case_received_tree",
     "create_accept_actor_recommendation_received_tree",
     "create_reject_actor_recommendation_received_tree",

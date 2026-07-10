@@ -46,6 +46,7 @@ from typing import Any, Protocol
 
 from pydantic import BaseModel
 
+from vultron.core.models.protocol_pair import ProtocolPair
 from vultron.core.models.protocols import PersistableModel
 
 
@@ -125,6 +126,14 @@ class DataLayer(Protocol):
     ) -> PersistableModel | None: ...
 
     def list_objects(self, type_key: str) -> Iterable[PersistableModel]: ...
+
+    def find_protocol_pair(
+        self,
+        case_id: str,
+        request_event_type: str,
+        object_id: str,
+        reply_event_types: frozenset[str],
+    ) -> ProtocolPair: ...
 
     def clone_for_actor(self, actor_id: str) -> "ActorScopedDataLayer": ...
 

@@ -28,37 +28,6 @@ class OfferActorToCaseReceivedEvent(VultronEvent):
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
 
 
-class AcceptActorRecommendationReceivedEvent(VultronEvent):
-    """CaseActor received Accept(Offer(CaseParticipant)) from the Case Owner.
-
-    Routed to the CaseActor inbox per ADR-0026/CM-16-006.
-    """
-
-    semantic_type: Literal[MessageSemantics.ACCEPT_ACTOR_RECOMMENDATION] = (
-        MessageSemantics.ACCEPT_ACTOR_RECOMMENDATION
-    )
-    activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
-
-
-class RejectActorRecommendationReceivedEvent(VultronEvent):
-    """CaseActor received Reject(Offer(CaseParticipant)) from the Case Owner.
-
-    Routed to the CaseActor inbox per ADR-0026/CM-16-007.
-    """
-
-    semantic_type: Literal[MessageSemantics.REJECT_ACTOR_RECOMMENDATION] = (
-        MessageSemantics.REJECT_ACTOR_RECOMMENDATION
-    )
-
-    @property
-    def offer_id(self) -> str | None:
-        return self.object_id
-
-    @property
-    def offer(self) -> "VultronActivity | None":
-        return cast("VultronActivity | None", self.object_)
-
-
 class OfferCaseManagerRoleReceivedEvent(VultronEvent):
     """Vendor offered the CASE_MANAGER role to a Case Actor participant.
 
@@ -200,5 +169,45 @@ class AnnounceVulnerabilityCaseReceivedEvent(VultronEvent):
 
     semantic_type: Literal[MessageSemantics.ANNOUNCE_VULNERABILITY_CASE] = (
         MessageSemantics.ANNOUNCE_VULNERABILITY_CASE
+    )
+    activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
+
+
+class OfferCaseParticipantReceivedEvent(VultronEvent):
+    """Case Owner received Offer(CaseParticipant) from the CaseActor.
+
+    Sent by the CaseActor to the Case Owner's inbox after transforming
+    Offer(Actor, Case) into Offer(CaseParticipant{actor, roles}, Case)
+    (CM-16-003, CM-16-004, ADR-0026).
+    """
+
+    semantic_type: Literal[MessageSemantics.OFFER_CASE_PARTICIPANT] = (
+        MessageSemantics.OFFER_CASE_PARTICIPANT
+    )
+    activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
+
+
+class AcceptOfferCaseParticipantReceivedEvent(VultronEvent):
+    """CaseActor received Accept(Offer(CaseParticipant)) from the Case Owner.
+
+    Supersedes the earlier ACCEPT_ACTOR_RECOMMENDATION semantic with a name
+    anchored to the wire activity being accepted (CM-16-006, ADR-0026).
+    """
+
+    semantic_type: Literal[MessageSemantics.ACCEPT_OFFER_CASE_PARTICIPANT] = (
+        MessageSemantics.ACCEPT_OFFER_CASE_PARTICIPANT
+    )
+    activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
+
+
+class RejectOfferCaseParticipantReceivedEvent(VultronEvent):
+    """CaseActor received Reject(Offer(CaseParticipant)) from the Case Owner.
+
+    Supersedes the earlier REJECT_ACTOR_RECOMMENDATION semantic with a name
+    anchored to the wire activity being rejected (CM-16-007, ADR-0026).
+    """
+
+    semantic_type: Literal[MessageSemantics.REJECT_OFFER_CASE_PARTICIPANT] = (
+        MessageSemantics.REJECT_OFFER_CASE_PARTICIPANT
     )
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]

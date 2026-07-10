@@ -27,6 +27,7 @@ from vultron.adapters.driven.db_record import (
     _AS_OBJECT_REF_FIELDS,
     record_to_object,
 )
+from vultron.core.models.protocol_pair import ProtocolPair
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import StorableRecord
 from vultron.semantic_registry import (
@@ -399,6 +400,49 @@ class SqliteDataLayer:
     def list_objects(self, type_key: str) -> list[PersistableModel]:
         """Return fully rehydrated domain objects of the given type."""
         return queries.list_objects(self, type_key)
+
+    def find_protocol_pair(
+        self,
+        case_id: str,
+        request_event_type: str,
+        object_id: str,
+        reply_event_types: frozenset[str],
+    ) -> ProtocolPair:
+        """Return the open/closed state of a request/reply protocol pair.
+
+        Iterates all ``CaseLedgerEntry`` objects for *case_id*, locates the
+        request entry whose ``event_type == request_event_type`` and
+        ``log_object_id == object_id``, then searches for any reply entry
+        whose ``event_type`` is in *reply_event_types* in the same case.
+
+        Returns a :class:`~vultron.core.models.protocol_pair.ProtocolPair`
+        with ``reply_object_id`` / ``reply_event_type`` populated when a reply
+        is found (``is_closed()``), or ``None`` fields when not (``is_open()``).
+        """
+        reply_object_id: str | None = None
+        reply_event_type: str | None = None
+
+        for entry in self.list_objects("CaseLedgerEntry"):
+            entry_case_id = getattr(entry, "case_id", None)
+            if entry_case_id != case_id:
+                continue
+            entry_event_type = getattr(entry, "event_type", None)
+            entry_log_object_id = getattr(entry, "log_object_id", None)
+            if (
+                reply_object_id is None
+                and entry_event_type in reply_event_types
+            ):
+                reply_object_id = entry_log_object_id
+                reply_event_type = entry_event_type
+
+        return ProtocolPair(
+            case_id=case_id,
+            request_event_type=request_event_type,
+            object_id=object_id,
+            reply_event_types=reply_event_types,
+            reply_object_id=reply_object_id,
+            reply_event_type=reply_event_type,
+        )
 
     def find_actor_by_short_id(self, short_id: str) -> PersistableModel | None:
         """Find an actor by the last path segment of its URI."""
