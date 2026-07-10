@@ -39,6 +39,7 @@ from vultron.demo.fuzzer.base import (
     UsuallyFail,
     UsuallySucceed,
 )
+from vultron.demo.fuzzer.call_out_point import EvaluatorCallOutPoint
 
 
 class IdAssigned(UsuallyFail):
@@ -62,7 +63,7 @@ class IdAssigned(UsuallyFail):
     """
 
 
-class IdAssignable(ProbablySucceed):
+class IdAssignable(EvaluatorCallOutPoint, ProbablySucceed):
     """Check whether the vulnerability qualifies for an ID assignment.
 
     Semantic function:
@@ -74,6 +75,10 @@ class IdAssignable(ProbablySucceed):
         may be in scope for an ID space yet not assignable by the current
         party.
 
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — evaluates vulnerability attributes from caller's DataLayer)
+      Output keys: id_assignable_verdict: str  (SUCCESS only)
+
     Input category: Environmental check.
 
     Success probability: 0.6667 (``ProbablySucceed``).
@@ -83,6 +88,8 @@ class IdAssignable(ProbablySucceed):
     organizational metadata; edge cases or out-of-scope products may still
     require human review.
     """
+
+    output_keys = {"id_assignable_verdict": str}
 
 
 class IsIDAssignmentAuthority(OftenSucceed):
@@ -145,7 +152,7 @@ class AssignId(AlwaysSucceed):
     """
 
 
-class InScope(UsuallySucceed):
+class InScope(EvaluatorCallOutPoint, UsuallySucceed):
     """Check whether the vulnerability is within scope for an ID assignment.
 
     Semantic function:
@@ -156,6 +163,10 @@ class InScope(UsuallySucceed):
         rapid assignment may have a very broad scope requiring little or no
         explicit scope checking.
 
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — evaluates vulnerability attributes from caller's DataLayer)
+      Output keys: in_scope_verdict: str  (SUCCESS only)
+
     Input category: Environmental check / policy.
 
     Success probability: 0.75 (``UsuallySucceed``).
@@ -165,3 +176,5 @@ class InScope(UsuallySucceed):
     automatically; novel or ambiguous scope boundaries may still require human
     judgment.
     """
+
+    output_keys = {"in_scope_verdict": str}

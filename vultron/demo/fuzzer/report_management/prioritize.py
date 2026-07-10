@@ -39,7 +39,11 @@ from vultron.demo.fuzzer.base import (
     ProbablySucceed,
     UsuallySucceed,
 )
-from vultron.demo.fuzzer.call_out_point import ActuatorCallOutPoint
+from vultron.demo.fuzzer.call_out_point import (
+    ActuatorCallOutPoint,
+    EvaluatorCallOutPoint,
+    RetrieverCallOutPoint,
+)
 
 
 class NoNewPrioritizationInfo(ProbablySucceed):
@@ -60,7 +64,7 @@ class NoNewPrioritizationInfo(ProbablySucceed):
     """
 
 
-class EnoughPrioritizationInfo(UsuallySucceed):
+class EnoughPrioritizationInfo(EvaluatorCallOutPoint, UsuallySucceed):
     """Determine whether sufficient context exists to make an accept/defer
     decision.
 
@@ -68,6 +72,10 @@ class EnoughPrioritizationInfo(UsuallySucceed):
         Condition — determine whether there is enough context to make an
         accept/defer decision.  Insufficient info triggers a gathering
         phase.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — evaluates available context from caller's DataLayer)
+      Output keys: enough_prioritization_info_verdict: str  (SUCCESS only)
 
     Input category: Human decision / Environmental check.
 
@@ -79,8 +87,10 @@ class EnoughPrioritizationInfo(UsuallySucceed):
     involves human analyst review.
     """
 
+    output_keys = {"enough_prioritization_info_verdict": str}
 
-class GatherPrioritizationInfo(AlmostAlwaysSucceed):
+
+class GatherPrioritizationInfo(RetrieverCallOutPoint, AlmostAlwaysSucceed):
     """Collect additional context needed to support a prioritization decision.
 
     Semantic function:
@@ -88,6 +98,10 @@ class GatherPrioritizationInfo(AlmostAlwaysSucceed):
         prioritization decision (e.g., severity scores, asset inventory,
         threat landscape data).  Succeeds almost always in simulation to
         keep the workflow progressing.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — queries external sources directly)
+      Output keys: prioritization_info_gathered: str  (SUCCESS only)
 
     Input category: System integration / Human analyst research.
 
@@ -98,6 +112,8 @@ class GatherPrioritizationInfo(AlmostAlwaysSucceed):
     analyst interpretation and gap-filling still requires human
     involvement.
     """
+
+    output_keys = {"prioritization_info_gathered": str}
 
 
 class OnAccept(ActuatorCallOutPoint, AlwaysSucceed):

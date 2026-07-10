@@ -49,6 +49,7 @@ from vultron.demo.fuzzer.base import (
     UsuallyFail,
     UsuallySucceed,
 )
+from vultron.demo.fuzzer.call_out_point import EvaluatorCallOutPoint
 
 
 class HaveReportToOthersCapability(UsuallySucceed):
@@ -69,7 +70,7 @@ class HaveReportToOthersCapability(UsuallySucceed):
     """
 
 
-class AllPartiesKnown(UniformSucceedFail):
+class AllPartiesKnown(EvaluatorCallOutPoint, UniformSucceedFail):
     """Check whether all relevant parties for notification have been identified.
 
     Semantic function:
@@ -77,6 +78,10 @@ class AllPartiesKnown(UniformSucceedFail):
         notification have been identified.  Modeled as a coin flip in
         simulation because identification completeness is inherently
         uncertain.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — evaluates party-identification state from caller's DataLayer)
+      Output keys: all_parties_known_verdict: str  (SUCCESS only)
 
     Input category: Human decision / Environmental check.
 
@@ -86,6 +91,8 @@ class AllPartiesKnown(UniformSucceedFail):
     judgment about stakeholder completeness in a specific vulnerability
     context; hard to automate reliably.
     """
+
+    output_keys = {"all_parties_known_verdict": str}
 
 
 class IdentifyVendors(SuccessOrRunning):
@@ -198,7 +205,7 @@ class RemoveRecipient(AlwaysSucceed):
     """
 
 
-class RecipientEffortExceeded(AlmostCertainlyFail):
+class RecipientEffortExceeded(EvaluatorCallOutPoint, AlmostCertainlyFail):
     """Check whether notification effort for a recipient has exceeded a limit.
 
     Semantic function:
@@ -207,6 +214,10 @@ class RecipientEffortExceeded(AlmostCertainlyFail):
         (e.g., 3 contact attempts, 1 hour of effort).  Rarely triggers
         in simulation; in production enforces reasonable limits on
         notification attempts.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — evaluates per-recipient effort counter from caller's DataLayer)
+      Output keys: recipient_effort_exceeded_verdict: str  (SUCCESS only)
 
     Input category: Environmental check / Human decision.
 
@@ -217,8 +228,10 @@ class RecipientEffortExceeded(AlmostCertainlyFail):
     policy is defined.
     """
 
+    output_keys = {"recipient_effort_exceeded_verdict": str}
 
-class PolicyCompatible(ProbablySucceed):
+
+class PolicyCompatible(EvaluatorCallOutPoint, ProbablySucceed):
     """Check whether the recipient's disclosure policy is compatible with the case.
 
     Semantic function:
@@ -226,6 +239,10 @@ class PolicyCompatible(ProbablySucceed):
         disclosure/embargo policy is compatible with the case's current
         embargo expectations before notifying them.  In production may
         involve structured policy comparison tooling.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — evaluates recipient and case policy from caller's DataLayer)
+      Output keys: policy_compatible_verdict: str  (SUCCESS only)
 
     Input category: Environmental check / Human decision.
 
@@ -236,6 +253,8 @@ class PolicyCompatible(ProbablySucceed):
     machine-readable policies (e.g., OpenVEX, structured security.txt);
     human review needed for ambiguous or informal policies.
     """
+
+    output_keys = {"policy_compatible_verdict": str}
 
 
 class FindContact(UsuallySucceed):
@@ -293,7 +312,7 @@ class SetRcptQrmR(AlwaysSucceed):
     """
 
 
-class TotalEffortLimitMet(AlmostAlwaysFail):
+class TotalEffortLimitMet(EvaluatorCallOutPoint, AlmostAlwaysFail):
     """Check whether the total notification effort ceiling has been reached.
 
     Semantic function:
@@ -302,6 +321,10 @@ class TotalEffortLimitMet(AlmostAlwaysFail):
         total).  Rarely triggers in simulation; provides a global stop
         condition to prevent unbounded notification effort.
 
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — evaluates total effort counter from caller's DataLayer)
+      Output keys: total_effort_limit_met_verdict: str  (SUCCESS only)
+
     Input category: Environmental check / Human decision.
 
     Success probability: 0.10 (``AlmostAlwaysFail``).
@@ -309,6 +332,8 @@ class TotalEffortLimitMet(AlmostAlwaysFail):
     Automation potential: **High** — aggregate effort counter check
     against a configurable policy ceiling; fully automatable.
     """
+
+    output_keys = {"total_effort_limit_met_verdict": str}
 
 
 class MoreVendors(UsuallyFail):

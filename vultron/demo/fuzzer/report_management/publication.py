@@ -41,7 +41,10 @@ from vultron.demo.fuzzer.base import (
     UsuallyFail,
     UsuallySucceed,
 )
-from vultron.demo.fuzzer.call_out_point import ComposerCallOutPoint
+from vultron.demo.fuzzer.call_out_point import (
+    ComposerCallOutPoint,
+    EvaluatorCallOutPoint,
+)
 
 
 class AllPublished(AlmostAlwaysFail):
@@ -83,7 +86,7 @@ class PublicationIntentsSet(UsuallyFail):
     """
 
 
-class PrioritizePublicationIntents(AlwaysSucceed):
+class PrioritizePublicationIntents(EvaluatorCallOutPoint, AlwaysSucceed):
     """Establish and record publication intentions for the case.
 
     Semantic function:
@@ -93,6 +96,10 @@ class PrioritizePublicationIntents(AlwaysSucceed):
         decisions, potentially with human analyst input.  The fuzzer
         always succeeds to keep the workflow progressing.
 
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — evaluates case context from caller's DataLayer)
+      Output keys: publication_intents_verdict: str  (SUCCESS only)
+
     Input category: Human decision.
 
     Success probability: 1.00 (``AlwaysSucceed``).
@@ -101,6 +108,8 @@ class PrioritizePublicationIntents(AlwaysSucceed):
     priorities (e.g., always publish report and fix) can be automated;
     editorial or legal exceptions require human judgment.
     """
+
+    output_keys = {"publication_intents_verdict": str}
 
 
 class Publish(AlmostAlwaysSucceed):
@@ -182,7 +191,7 @@ class PrepareExploit(AlmostAlwaysSucceed):
     """
 
 
-class ReprioritizeExploit(AlwaysSucceed):
+class ReprioritizeExploit(EvaluatorCallOutPoint, AlwaysSucceed):
     """Update the priority of the exploit artifact in the publication queue.
 
     Semantic function:
@@ -192,6 +201,10 @@ class ReprioritizeExploit(AlwaysSucceed):
         human analyst decision or an automated policy trigger.  The
         fuzzer always succeeds.
 
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — evaluates exploit publication context from caller's DataLayer)
+      Output keys: reprioritize_exploit_verdict: str  (SUCCESS only)
+
     Input category: Human decision.
 
     Success probability: 1.00 (``AlwaysSucceed``).
@@ -200,6 +213,8 @@ class ReprioritizeExploit(AlwaysSucceed):
     threat-level updates can trigger automated reprioritization rules;
     human override may be needed for unusual cases.
     """
+
+    output_keys = {"reprioritize_exploit_verdict": str}
 
 
 class NoPublishFix(AlmostAlwaysFail):
@@ -241,7 +256,7 @@ class PrepareFix(AlmostAlwaysSucceed):
     """
 
 
-class ReprioritizeFix(AlwaysSucceed):
+class ReprioritizeFix(EvaluatorCallOutPoint, AlwaysSucceed):
     """Update the priority of the fix artifact in the publication queue.
 
     Semantic function:
@@ -249,6 +264,10 @@ class ReprioritizeFix(AlwaysSucceed):
         publication queue.  In production this is a human analyst
         decision or an automated policy trigger.  The fuzzer always
         succeeds.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — evaluates fix publication context from caller's DataLayer)
+      Output keys: reprioritize_fix_verdict: str  (SUCCESS only)
 
     Input category: Human decision.
 
@@ -258,6 +277,8 @@ class ReprioritizeFix(AlwaysSucceed):
     threat-level updates can trigger automated reprioritization rules;
     human override may be needed.
     """
+
+    output_keys = {"reprioritize_fix_verdict": str}
 
 
 class NoPublishReport(AlmostAlwaysFail):
@@ -305,7 +326,7 @@ class PrepareReport(ComposerCallOutPoint, AlmostAlwaysSucceed):
     output_keys = {"prepared_report_artifact": str}
 
 
-class ReprioritizeReport(AlwaysSucceed):
+class ReprioritizeReport(EvaluatorCallOutPoint, AlwaysSucceed):
     """Update the priority of the report artifact in the publication queue.
 
     Semantic function:
@@ -313,6 +334,10 @@ class ReprioritizeReport(AlwaysSucceed):
         publication queue.  In production this is a human analyst
         decision or an automated policy trigger (e.g., on embargo exit or
         threat escalation).  The fuzzer always succeeds.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — evaluates report publication context from caller's DataLayer)
+      Output keys: reprioritize_report_verdict: str  (SUCCESS only)
 
     Input category: Human decision.
 
@@ -322,3 +347,5 @@ class ReprioritizeReport(AlwaysSucceed):
     (e.g., on embargo exit or threat escalation) is automatable; complex
     editorial decisions require human oversight.
     """
+
+    output_keys = {"reprioritize_report_verdict": str}

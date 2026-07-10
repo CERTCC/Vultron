@@ -75,6 +75,7 @@ _ALL_NODES = [spec[0] for spec in _NODE_SPECS]
 def _run_trials(node_cls: "Type[WeightedBehavior]", n: int = _TRIALS) -> float:
     """Return empirical success rate over *n* independent ticks."""
     node = node_cls()
+    node.setup()
     successes = sum(1 for _ in range(n) if node.update() == Status.SUCCESS)
     return successes / n
 
@@ -170,6 +171,7 @@ class TestSuccessRates:
         self, node_cls: Type[WeightedBehavior]
     ) -> None:
         node = node_cls()
+        node.setup()
         result = node.update()
         assert result in (Status.SUCCESS, Status.FAILURE)
 
@@ -178,6 +180,7 @@ class TestSuccessRates:
         self, node_cls: Type[WeightedBehavior]
     ) -> None:
         node = node_cls()
+        node.setup()
         results = {node.update() for _ in range(50)}
         assert Status.RUNNING not in results
 
@@ -191,6 +194,7 @@ class TestSuccessRates:
         # AlwaysSucceed and AlwaysFail are deterministic — skip statistical check
         if expected_rate in (0.0, 1.0):
             node = node_cls()
+            node.setup()
             expected_status = (
                 Status.SUCCESS if expected_rate == 1.0 else Status.FAILURE
             )

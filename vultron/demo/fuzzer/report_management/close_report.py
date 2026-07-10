@@ -33,9 +33,10 @@ References
 from __future__ import annotations
 
 from vultron.demo.fuzzer.base import AlwaysSucceed, UsuallyFail
+from vultron.demo.fuzzer.call_out_point import EvaluatorCallOutPoint
 
 
-class OtherCloseCriteriaMet(UsuallyFail):
+class OtherCloseCriteriaMet(EvaluatorCallOutPoint, UsuallyFail):
     """Check whether site-specific closure criteria have been satisfied.
 
     Semantic function:
@@ -48,6 +49,10 @@ class OtherCloseCriteriaMet(UsuallyFail):
         additional criteria are satisfied, reflecting that extra criteria are
         not routinely met.
 
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — evaluates case-specific criteria from caller's DataLayer)
+      Output keys: other_close_criteria_met_verdict: str  (SUCCESS only)
+
     Input category: Human decision / policy.
 
     Success probability: 0.25 (``UsuallyFail``).
@@ -57,6 +62,8 @@ class OtherCloseCriteriaMet(UsuallyFail):
     possible criteria as a general policy rule is impractical, and the
     final closure decision usually benefits from human confirmation.
     """
+
+    output_keys = {"other_close_criteria_met_verdict": str}
 
 
 class PreCloseAction(AlwaysSucceed):

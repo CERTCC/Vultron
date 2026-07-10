@@ -53,6 +53,7 @@ _ALL_NODES: list[tuple[Type[WeightedBehavior], float]] = [
 def _run_trials(node_cls: Type[WeightedBehavior], n: int = _TRIALS) -> float:
     """Return empirical success rate over *n* independent ticks."""
     node = node_cls()
+    node.setup()
     successes = sum(1 for _ in range(n) if node.update() == Status.SUCCESS)
     return successes / n
 
@@ -146,6 +147,7 @@ class TestUpdateReturnsValidStatus:
         self, cls: Type[WeightedBehavior], _rate: float
     ) -> None:
         node = cls()
+        node.setup()
         result = node.update()
         assert result in (Status.SUCCESS, Status.FAILURE)
 
@@ -154,6 +156,7 @@ class TestUpdateReturnsValidStatus:
         self, cls: Type[WeightedBehavior], _rate: float
     ) -> None:
         node = cls()
+        node.setup()
         results = {node.update() for _ in range(50)}
         assert Status.RUNNING not in results
 
@@ -161,6 +164,7 @@ class TestUpdateReturnsValidStatus:
 class TestDeterministicExtremes:
     def test_pre_close_action_always_succeeds(self) -> None:
         node = PreCloseAction()
+        node.setup()
         assert all(node.update() == Status.SUCCESS for _ in range(100))
 
 
