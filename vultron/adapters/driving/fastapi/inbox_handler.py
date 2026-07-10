@@ -50,9 +50,11 @@ from vultron.adapters.driving.fastapi.inbox_port_factories import (  # noqa: F40
     _sync_port_factory,
     _trigger_activity_port_factory,
     _sync_and_trigger_port_factory,
+    _submit_report_port_factory,
     _SYNC_PORT_SEMANTICS,
     _TRIGGER_ACTIVITY_PORT_SEMANTICS,
     _SYNC_AND_TRIGGER_PORT_SEMANTICS,
+    _SUBMIT_REPORT_SEMANTICS,
 )
 
 # Re-export pending-queue helpers so existing callers and tests that
@@ -95,13 +97,14 @@ def make_dispatcher() -> ActivityDispatcher:
     :func:`init_dispatcher` so the global is set for backward-compatible
     callers such as the CLI.
     """
-    # Guard: the three semantics sets must be mutually disjoint.  An overlap
+    # Guard: all semantics sets must be mutually disjoint.  An overlap
     # would cause a silent dict.update() overwrite — exactly the class of bug
     # that #628 introduced — so fail fast with an actionable message.
     _all_sets = (
         _SYNC_PORT_SEMANTICS,
         _TRIGGER_ACTIVITY_PORT_SEMANTICS,
         _SYNC_AND_TRIGGER_PORT_SEMANTICS,
+        _SUBMIT_REPORT_SEMANTICS,
     )
     for i, left in enumerate(_all_sets):
         for right in _all_sets[i + 1 :]:
@@ -109,8 +112,10 @@ def make_dispatcher() -> ActivityDispatcher:
             if overlap:
                 raise AssertionError(
                     f"Port-semantics sets overlap: {overlap!r}. "
-                    "Add the semantic to _SYNC_AND_TRIGGER_PORT_SEMANTICS "
-                    "and remove it from both individual sets."
+                    "Each semantic must appear in exactly one set. "
+                    "For sync+trigger semantics use _SYNC_AND_TRIGGER_PORT_SEMANTICS; "
+                    "for semantics that also need extra ports (e.g. actor_config) "
+                    "create a dedicated set+factory pair like _SUBMIT_REPORT_SEMANTICS."
                 )
 
     port_factories: dict = {
@@ -127,6 +132,9 @@ def make_dispatcher() -> ActivityDispatcher:
             sem: _sync_and_trigger_port_factory
             for sem in _SYNC_AND_TRIGGER_PORT_SEMANTICS
         }
+    )
+    port_factories.update(
+        {sem: _submit_report_port_factory for sem in _SUBMIT_REPORT_SEMANTICS}
     )
     d = get_dispatcher(
         use_case_map=_use_case_map(),
