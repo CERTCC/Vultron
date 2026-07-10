@@ -9,6 +9,12 @@ routed flow but may still arrive from older protocol participants.
 import logging
 from typing import TYPE_CHECKING
 
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.suggest_actor_tree import (
+    create_accept_actor_recommendation_received_tree,
+    create_recommend_actor_to_case_received_tree,
+    create_reject_actor_recommendation_received_tree,
+)
 from vultron.core.models.events.actor import (
     AcceptActorRecommendationReceivedEvent,
     AcceptSuggestActorToCaseReceivedEvent,
@@ -18,6 +24,7 @@ from vultron.core.models.events.actor import (
     SuggestActorToCaseReceivedEvent,
 )
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.use_cases.received.sync import _find_local_actor_id
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -63,12 +70,6 @@ class OfferActorToCaseReceivedUseCase:
                 activity_id,
             )
             return
-
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.case.suggest_actor_tree import (
-            create_recommend_actor_to_case_received_tree,
-        )
-        from vultron.core.use_cases.received.sync import _find_local_actor_id
 
         local_actor_id = _find_local_actor_id(self._dl)
         if local_actor_id is None:
@@ -138,12 +139,6 @@ class AcceptActorRecommendationReceivedUseCase:
             )
             return
 
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.case.suggest_actor_tree import (
-            create_accept_actor_recommendation_received_tree,
-        )
-        from vultron.core.use_cases.received.sync import _find_local_actor_id
-
         local_actor_id = _find_local_actor_id(self._dl)
         if local_actor_id is None:
             logger.warning(
@@ -210,12 +205,6 @@ class RejectActorRecommendationReceivedUseCase:
                 activity_id,
             )
             return
-
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.case.suggest_actor_tree import (
-            create_reject_actor_recommendation_received_tree,
-        )
-        from vultron.core.use_cases.received.sync import _find_local_actor_id
 
         local_actor_id = _find_local_actor_id(self._dl)
         if local_actor_id is None:

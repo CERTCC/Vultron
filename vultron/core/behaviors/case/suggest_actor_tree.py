@@ -36,6 +36,7 @@ from typing import cast
 import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.case.nodes.actor import EmitInviteActorToCaseNode
 from vultron.core.behaviors.case.nodes.lifecycle import (
     create_receive_activity_tree,
 )
@@ -309,10 +310,6 @@ def create_accept_actor_recommendation_received_tree(
     Returns:
         Root ``AcceptActorRecommendationBT`` Sequence node.
     """
-    from vultron.core.behaviors.case.nodes.actor import (
-        EmitInviteActorToCaseNode,
-    )
-
     return create_receive_activity_tree(
         name="AcceptActorRecommendationBT",
         case_id=case_id,
