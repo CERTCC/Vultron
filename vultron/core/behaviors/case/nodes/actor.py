@@ -376,7 +376,11 @@ class EvaluateDefaultRolesNode(py_trees.behaviour.Behaviour):
 
     **ADR-0024 shape: Evaluator** — receives a bounded input (actor + case
     context via constructor) and writes a bounded recommendation
-    (``suggested_roles``) to the blackboard.
+    (``suggested_roles_{recommendation_id_segment}``) to the blackboard.
+
+    The blackboard key is namespaced by ``recommendation_id`` to avoid
+    collisions when two ``RecommendActorToCaseBT`` trees execute concurrently
+    (BTND-03-004).
 
     Prototype behaviour: always writes ``[CVDRole.VENDOR]`` and returns
     ``SUCCESS``.  Future implementations can inspect actor metadata, prior
@@ -385,11 +389,14 @@ class EvaluateDefaultRolesNode(py_trees.behaviour.Behaviour):
     Args:
         suggested_actor_id: The actor URI being suggested to the case.
         case_id: The case URI, provided as context for future policy logic.
+        recommendation_id: ID of the incoming ``Offer(Actor, Case)`` activity;
+            used to derive the namespaced blackboard key.
         name: Optional display name for the node.
 
     Blackboard outputs (WRITE):
-        - ``suggested_roles`` (list[CVDRole]): always non-empty; defaults to
-          ``[CVDRole.VENDOR]``.
+        - ``suggested_roles_{id_segment}`` (list[CVDRole]): always non-empty;
+          defaults to ``[CVDRole.VENDOR]``.  ``id_segment`` is the last
+          ``/``-delimited segment of ``recommendation_id``.
 
     Returns ``SUCCESS`` unconditionally in the prototype implementation.
     """
@@ -400,11 +407,13 @@ class EvaluateDefaultRolesNode(py_trees.behaviour.Behaviour):
         self,
         suggested_actor_id: str,
         case_id: str,
+        recommendation_id: str,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.suggested_actor_id = suggested_actor_id
         self.case_id = case_id
+        self.recommendation_id = recommendation_id
         self.logger = logging.getLogger(  # type: ignore[assignment]
             f"{self.__class__.__module__}.{self.__class__.__name__}"
         )
@@ -412,12 +421,14 @@ class EvaluateDefaultRolesNode(py_trees.behaviour.Behaviour):
     def setup(self, **kwargs: Any) -> None:
         super().setup(**kwargs)
         self.blackboard = self.attach_blackboard_client(name=self.name)
+        id_segment = self.recommendation_id.split("/")[-1]
+        self.blackboard_key = f"suggested_roles_{id_segment}"
         self.blackboard.register_key(
-            key="suggested_roles", access=py_trees.common.Access.WRITE
+            key=self.blackboard_key, access=py_trees.common.Access.WRITE
         )
 
     def update(self) -> Status:
-        self.blackboard.suggested_roles = [CVDRole.VENDOR]
+        setattr(self.blackboard, self.blackboard_key, [CVDRole.VENDOR])
         self.logger.debug(
             "%s: assigned default roles [VENDOR] for actor '%s' in case '%s'",
             self.name,
