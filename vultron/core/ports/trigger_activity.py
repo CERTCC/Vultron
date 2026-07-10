@@ -316,7 +316,7 @@ class TriggerActivityPort(Protocol):
         Transforms the original ``Offer(Actor, Case)`` into an
         ``Offer(CaseParticipant{actor, roles}, Case)`` addressed to the
         Case Owner.  ``roles`` defaults to ``[CVDRole.VENDOR]`` when
-        ``None`` (CM-15-003).  ``origin`` carries the original recommender
+        ``None`` (CM-16-003).  ``origin`` carries the original recommender
         Offer ID so the Case Owner can trace the causal chain (CM-16-004).
         Returns ``(activity_id, activity_dict)``.
         """

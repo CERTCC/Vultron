@@ -174,7 +174,7 @@ class _ActorsMixin:
 
         Transforms the original Offer(Actor, Case) from a recommending
         participant into an Offer(CaseParticipant) addressed to the Case Owner.
-        ``roles`` defaults to ``[CVDRole.VENDOR]`` when ``None`` (CM-15-003).
+        ``roles`` defaults to ``[CVDRole.VENDOR]`` when ``None`` (CM-16-003).
         ``origin`` carries the original Offer ID for causal traceability
         (CM-16-004).
         """

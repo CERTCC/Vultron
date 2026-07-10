@@ -19,7 +19,7 @@ Covers:
 - create_recommend_actor_to_case_received_tree
 - create_accept_actor_recommendation_received_tree
 - create_reject_actor_recommendation_received_tree
-- EvaluateDefaultRolesNode (AC-1 through AC-3, CM-15-003)
+- EvaluateDefaultRolesNode (AC-1 through AC-3, CM-16-003)
 
 Per specs/behavior-tree-integration.yaml BT-15-001, BTND-02-001 (memory=False),
 ADR-0026/CM-16.
@@ -49,7 +49,7 @@ _CASE_ID = "https://example.org/cases/case-1"
 
 
 class TestEvaluateDefaultRolesNode:
-    """Unit tests for EvaluateDefaultRolesNode (AC-1, AC-2, AC-3, CM-15-003)."""
+    """Unit tests for EvaluateDefaultRolesNode (AC-1, AC-2, AC-3, CM-16-003)."""
 
     def setup_method(self):
         py_trees.blackboard.Blackboard.enable_activity_stream()

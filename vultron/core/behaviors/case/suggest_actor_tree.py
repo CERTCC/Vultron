@@ -282,7 +282,7 @@ def create_recommend_actor_to_case_received_tree(
 
     Commits a canonical ``CaseLedgerEntry`` for the received Offer
     (CM-16-002), evaluates default roles for the suggested actor
-    (CM-15-003), then transforms the offer to
+    (CM-16-003), then transforms the offer to
     ``Offer(CaseParticipant{actor, roles}, Case)`` with
     ``origin=recommendation_id`` and DMs it to the Case Owner
     (CM-16-003, CM-16-004).
@@ -291,7 +291,7 @@ def create_recommend_actor_to_case_received_tree(
 
         RecommendActorToCaseBT (Sequence, memory=False)
         ├── GuardedCommitCaseLedgerEntryBT   — record receipt (CLP-10-006)
-        ├── EvaluateDefaultRolesNode          — assign roles (CM-15-003)
+        ├── EvaluateDefaultRolesNode          — assign roles (CM-16-003)
         └── EmitOfferCaseParticipantToOwnerNode — transform + DM owner
 
     Args:

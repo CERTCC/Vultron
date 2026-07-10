@@ -345,6 +345,12 @@ FUZZ-08a-quart (#1266) — Reclassify remaining 17 Sentinel-labeled nodes
                            (likely all become Retriever or ProtocolInternal)
 
 FUZZ-08d — All Evaluator-shaped call-out points (cross-domain)
+         Prototype instance landed in #1330 (issue #1299):
+           EvaluateDefaultRolesNode (Evaluator, CM-16-003) —
+             vultron/core/behaviors/case/nodes/actor.py
+             Writes suggested_roles=[CVDRole.VENDOR] to blackboard;
+             call-out point for actor role assignment in the
+             Offer(Actor, Case) received-side BT.
 FUZZ-08e — All Retriever-shaped call-out points (cross-domain)
 FUZZ-08f (#1175) — All Sentinel-shaped call-out points (cross-domain)
                    [scope likely zero after FUZZ-08a-quart]

@@ -20,7 +20,7 @@ invitation and invite-acceptance workflows, and for applying received
 ownership-transfer decisions to the case record.
 
 Also provides :class:`EvaluateDefaultRolesNode`, the ADR-0024 Evaluator
-call-out point that assigns default roles for a suggested actor (CM-15-003).
+call-out point that assigns default roles for a suggested actor (CM-16-003).
 
 Composite subtrees assembling these leaf nodes are defined in the sibling
 ``actor_trigger_trees.py`` and ``ownership_transfer_tree.py`` modules at
@@ -372,7 +372,7 @@ class ProposeCaseToActorNode(DataLayerAction):
 
 
 class EvaluateDefaultRolesNode(py_trees.behaviour.Behaviour):
-    """Assign default CVD roles for a suggested actor (CM-15-003).
+    """Assign default CVD roles for a suggested actor (CM-16-003).
 
     **ADR-0024 shape: Evaluator** — receives a bounded input (actor + case
     context via constructor) and writes a bounded recommendation
