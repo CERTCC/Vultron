@@ -186,17 +186,19 @@ _ADD_NOTE_TO_CASE_EVENT = "add_note_to_case"
 _ACCEPT_INVITE_ACTOR_TO_CASE_EVENT = "accept_invite_actor_to_case"
 
 
-class IsNotRemoveEmbargoEventNode(DataLayerCondition):
-    """Guard: return SUCCESS when this log entry is *not* a remove-embargo event.
+class IsRemoveEmbargoEventNode(DataLayerCondition):
+    """Precondition: return SUCCESS when this log entry IS a remove-embargo event.
 
-    Used as the first child of the ``LogEntryEventEffects`` Selector in
-    ``AnnounceLogEntryReceivedBT``.  When the event type does *not* require
-    any side-effects (i.e. it is not ``remove_embargo_event_from_case``), the
-    Selector short-circuits to SUCCESS without running the teardown branch.
-    When the event *is* a remove-embargo event, FAILURE is returned so the
-    Selector proceeds to ``ApplyEmbargoTeardownNode``.
+    Used as the precondition in the ``EmbargoEffects`` Selector's inner
+    Sequence in ``AnnounceLogEntryReceivedBT``::
 
-    Per specs/behavior-tree-integration.yaml BT-06-001.
+        Selector(EmbargoEffects)
+          Sequence
+            IsRemoveEmbargoEventNode   ← SUCCESS iff event_type matches
+            ApplyEmbargoTeardownNode
+          AlwaysSuccess("EmbargoEffectsSkipped")
+
+    Per BTND-08-001, BTND-08-002, BT-06-001.
     """
 
     def setup(self, **kwargs: Any) -> None:
@@ -207,22 +209,24 @@ class IsNotRemoveEmbargoEventNode(DataLayerCondition):
 
     def update(self) -> Status:
         entry = _require_log_entry(self.blackboard.activity, self.name)
-        if entry.event_type != _REMOVE_EMBARGO_EVENT:
+        if entry.event_type == _REMOVE_EMBARGO_EVENT:
             return Status.SUCCESS
         return Status.FAILURE
 
 
-class IsNotParticipantStatusEventNode(DataLayerCondition):
-    """Guard: return SUCCESS when this log entry is *not* a participant-status event.
+class IsParticipantStatusEventNode(DataLayerCondition):
+    """Precondition: return SUCCESS when this log entry IS a participant-status event.
 
-    Used as the first child of the ``ParticipantStatusEffects`` Selector in
-    ``AnnounceLogEntryReceivedBT``.  When the event type is not
-    ``add_participant_status_to_participant``, the Selector short-circuits to
-    SUCCESS without running the status-apply branch.  When the event *is* a
-    participant-status event, FAILURE is returned so the Selector proceeds to
-    :class:`~vultron.core.behaviors.sync.nodes.effects.ApplyParticipantStatusFromLedgerNode`.
+    Used as the precondition in the ``ParticipantStatusEffects`` Selector's
+    inner Sequence in ``AnnounceLogEntryReceivedBT``::
 
-    Per specs/multi-actor-demo.yaml DEMOMA-07-003 step 3.
+        Selector(ParticipantStatusEffects)
+          Sequence
+            IsParticipantStatusEventNode   ← SUCCESS iff event_type matches
+            ApplyParticipantStatusFromLedgerNode
+          AlwaysSuccess("ParticipantStatusEffectsSkipped")
+
+    Per BTND-08-001, BTND-08-002, DEMOMA-07-003 step 3.
     """
 
     def setup(self, **kwargs: Any) -> None:
@@ -233,22 +237,24 @@ class IsNotParticipantStatusEventNode(DataLayerCondition):
 
     def update(self) -> Status:
         entry = _require_log_entry(self.blackboard.activity, self.name)
-        if entry.event_type != _ADD_PARTICIPANT_STATUS_EVENT:
+        if entry.event_type == _ADD_PARTICIPANT_STATUS_EVENT:
             return Status.SUCCESS
         return Status.FAILURE
 
 
-class IsNotAddNoteEventNode(DataLayerCondition):
-    """Guard: return SUCCESS when this log entry is *not* an add-note event.
+class IsAddNoteEventNode(DataLayerCondition):
+    """Precondition: return SUCCESS when this log entry IS an add-note event.
 
-    Used as the first child of the ``NoteEffects`` Selector in
-    ``AnnounceLogEntryReceivedBT``.  When the event type is not
-    ``add_note_to_case``, the Selector short-circuits to SUCCESS without
-    running the note-attachment branch.  When the event *is* an add-note
-    event, FAILURE is returned so the Selector proceeds to
-    :class:`~vultron.core.behaviors.sync.nodes.effects.ApplyNoteFromLedgerNode`.
+    Used as the precondition in the ``NoteEffects`` Selector's inner
+    Sequence in ``AnnounceLogEntryReceivedBT``::
 
-    Per SYNC-02-002.
+        Selector(NoteEffects)
+          Sequence
+            IsAddNoteEventNode   ← SUCCESS iff event_type matches
+            ApplyNoteFromLedgerNode
+          AlwaysSuccess("NoteEffectsSkipped")
+
+    Per BTND-08-001, BTND-08-002, SYNC-02-002.
     """
 
     def setup(self, **kwargs: Any) -> None:
@@ -259,22 +265,24 @@ class IsNotAddNoteEventNode(DataLayerCondition):
 
     def update(self) -> Status:
         entry = _require_log_entry(self.blackboard.activity, self.name)
-        if entry.event_type != _ADD_NOTE_TO_CASE_EVENT:
+        if entry.event_type == _ADD_NOTE_TO_CASE_EVENT:
             return Status.SUCCESS
         return Status.FAILURE
 
 
-class IsNotInviteAcceptEventNode(DataLayerCondition):
-    """Guard: return SUCCESS when this log entry is *not* an accept-invite event.
+class IsInviteAcceptEventNode(DataLayerCondition):
+    """Precondition: return SUCCESS when this log entry IS an accept-invite event.
 
-    Used as the first child of the ``InviteAcceptEffects`` Selector in
-    ``AnnounceLogEntryReceivedBT``.  When the event type is not
-    ``accept_invite_actor_to_case``, the Selector short-circuits to SUCCESS
-    without running the participant-add branch.  When the event *is* an
-    accept-invite event, FAILURE is returned so the Selector proceeds to
-    :class:`~vultron.core.behaviors.sync.nodes.effects.ApplyInviteAcceptFromLedgerNode`.
+    Used as the precondition in the ``InviteAcceptEffects`` Selector's inner
+    Sequence in ``AnnounceLogEntryReceivedBT``::
 
-    Per SYNC-02-002, DEMOMA-07-003.
+        Selector(InviteAcceptEffects)
+          Sequence
+            IsInviteAcceptEventNode   ← SUCCESS iff event_type matches
+            ApplyInviteAcceptFromLedgerNode
+          AlwaysSuccess("InviteAcceptEffectsSkipped")
+
+    Per BTND-08-001, BTND-08-002, SYNC-02-002, DEMOMA-07-003.
     """
 
     def setup(self, **kwargs: Any) -> None:
@@ -285,7 +293,7 @@ class IsNotInviteAcceptEventNode(DataLayerCondition):
 
     def update(self) -> Status:
         entry = _require_log_entry(self.blackboard.activity, self.name)
-        if entry.event_type != _ACCEPT_INVITE_ACTOR_TO_CASE_EVENT:
+        if entry.event_type == _ACCEPT_INVITE_ACTOR_TO_CASE_EVENT:
             return Status.SUCCESS
         return Status.FAILURE
 
