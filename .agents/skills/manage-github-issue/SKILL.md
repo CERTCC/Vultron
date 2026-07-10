@@ -70,6 +70,19 @@ Outputs: issue number on **stdout**; progress messages on **stderr**.
   `blockedBy { nodes { number } }` via GraphQL — do not parse issue body text.
 - `--blocks` and `--blocked-by` are inverses: `--blocks 50` on issue 42 is
   equivalent to `--blocked-by 42` on issue 50.
+- **Never pass backtick-containing markdown in a double-quoted `--body` string.**
+  Backticks inside `"..."` are shell-interpreted and render as `\`` on GitHub.
+  Always pass bodies via a single-quoted heredoc:
+
+  ```bash
+  --body "$(cat <<'EOF'
+  Use `code` freely here — no escaping needed.
+  EOF
+  )"
+  ```
+
+  This applies to `--body` on `gh issue comment`, `gh pr create`,
+  `gh issue edit`, and any other CLI command accepting markdown.
 
 ## Reference
 
