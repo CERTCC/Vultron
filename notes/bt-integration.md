@@ -1461,3 +1461,66 @@ are not affected.
 **Rule**: Any time a tree builder's default factory wraps a probabilistic fuzzer
 node, update all integration tests that assert `SUCCESS` to pass an explicit
 deterministic factory. See `test/AGENTS.md` § "BT Factory Determinism".
+
+---
+
+### Namespaced Inter-Node Handoff Keys
+
+(CONCERN-1335, 2026-07-10; see `specs/behavior-tree-node-design.yaml` BTND-03-004)
+
+The py_trees blackboard is **process-global**. When a tree factory function is
+called for two concurrent incoming messages of the same type (e.g., two
+simultaneous `Offer(Actor, Case)` deliveries), both tree instances write to the
+same flat blackboard namespace. A node in instance A that writes `suggested_roles`
+will have that value overwritten by instance B before instance A's downstream
+consumer reads it — causing silent data corruption.
+
+**Pattern**: Any BT node that writes an inter-node handoff key (a value written
+by one node and consumed by a downstream sibling in the same tree) MUST include
+the execution-scoped correlation ID in the key name:
+
+```python
+# ❌ WRONG — flat key, collides across concurrent tree instances
+self.blackboard.register_key("suggested_roles", access=Access.WRITE)
+self.blackboard.suggested_roles = [CVDRole.VENDOR]
+
+# ✅ CORRECT — namespaced by execution-scoped ID
+id_segment = self.recommendation_id.split("/")[-1]
+self.blackboard_key = f"suggested_roles_{id_segment}"
+self.blackboard.register_key(self.blackboard_key, access=Access.WRITE)
+setattr(self.blackboard, self.blackboard_key, [CVDRole.VENDOR])
+```
+
+The consumer node derives the same key from the same correlation ID:
+
+```python
+# In setup():
+id_segment = self.recommendation_id.split("/")[-1]
+self.blackboard_key = f"suggested_roles_{id_segment}"
+self.blackboard.register_key(self.blackboard_key, access=Access.READ)
+
+# In update():
+try:
+    roles = self.blackboard.get(self.blackboard_key)
+except KeyError:
+    roles = [CVDRole.VENDOR]  # safe default if key not set
+```
+
+**Key derivation convention**: `{noun}_{id_segment}` where `id_segment` is
+`correlation_id.split("/")[-1]` for HTTP URIs (same as `helpers.py` line 352),
+or the last colon-delimited segment for URN IDs. This matches the existing
+`object_{id_segment}` pattern used by `WriteObjectToBBNode` /
+`ReadObjectFromBBNode` in `helpers.py`.
+
+**When this applies**: Any inter-node handoff key in a tree factory that may
+realistically be called with multiple concurrent executions — i.e., where the
+factory is called per-incoming-message for a message type that can arrive in
+bursts (offer/accept/reject workflows in particular). Keys that are always
+cleaned up and rewritten before being read (e.g., within a single Sequence with
+`memory=False`) are safe, but namespacing eliminates the risk entirely and
+is cheap to implement.
+
+**First concrete instance**: `suggested_roles` in
+`create_recommend_actor_to_case_received_tree` — discovered in CONCERN-1335.
+Renamed to `suggested_roles_{recommendation_id_segment}` in issue #1335's
+implementation task.
