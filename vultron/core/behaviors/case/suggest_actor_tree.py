@@ -36,12 +36,16 @@ from typing import cast
 import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.case.nodes.actor import EmitInviteActorToCaseNode
+from vultron.core.behaviors.case.nodes.actor import (
+    EmitInviteActorToCaseNode,
+    EvaluateDefaultRolesNode,
+)
 from vultron.core.behaviors.case.nodes.lifecycle import (
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.states.roles import CVDRole
 
 logger = logging.getLogger(__name__)
 
@@ -55,9 +59,14 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerAction):
     """Transform Offer(Actor, Case) → Offer(CaseParticipant) and DM Case Owner.
 
     Uses ``trigger_activity_factory.offer_actor_to_case()`` with the
-    recommender_id, recommended_id, default roles, case_id, and case owner id.
+    recommender_id, recommended_id, roles from the blackboard (written by
+    :class:`~vultron.core.behaviors.case.nodes.actor.EvaluateDefaultRolesNode`),
+    case_id, and case owner id.
     The original offer ID is carried in the ``origin`` field so the Case Owner
     can trace the causal chain (CM-16-004).
+
+    Reads ``suggested_roles`` from the blackboard; falls back to
+    ``[CVDRole.VENDOR]`` when the key is absent.
 
     Returns SUCCESS on success, FAILURE if any required dependency is missing.
     """
@@ -76,6 +85,21 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerAction):
         self.recommended_id = recommended_id
         self.case_id = case_id
 
+    def setup(self, **kwargs) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="suggested_roles", access=py_trees.common.Access.READ
+        )
+
+    def _read_suggested_roles(self) -> list[CVDRole]:
+        try:
+            roles = self.blackboard.get("suggested_roles")
+            if isinstance(roles, list) and roles:
+                return roles
+        except KeyError:
+            pass
+        return [CVDRole.VENDOR]
+
     def update(self) -> Status:
         if self.datalayer is None or self.actor_id is None:
             self.feedback_message = "DataLayer or actor_id not available"
@@ -89,6 +113,7 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerAction):
             self.logger.error(self.feedback_message)
             return Status.FAILURE
 
+        roles = self._read_suggested_roles()
         try:
             case_obj = self.datalayer.read(self.case_id)
             raw_owner = getattr(case_obj, "attributed_to", None)
@@ -100,6 +125,7 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerAction):
                 actor=self.actor_id,
                 origin=self.recommendation_id,
                 to=[owner_id],
+                roles=roles,
             )
             cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
                 self.actor_id, activity_id
@@ -255,9 +281,18 @@ def create_recommend_actor_to_case_received_tree(
     """Received-side BT for Offer(Actor, Case) on the CaseActor inbox.
 
     Commits a canonical ``CaseLedgerEntry`` for the received Offer
-    (CM-16-002), then transforms it to ``Offer(CaseParticipant{actor,
-    roles=[VENDOR]}, Case)`` with ``origin=recommendation_id`` and DMs
-    it to the Case Owner (CM-16-003, CM-16-004).
+    (CM-16-002), evaluates default roles for the suggested actor
+    (CM-15-003), then transforms the offer to
+    ``Offer(CaseParticipant{actor, roles}, Case)`` with
+    ``origin=recommendation_id`` and DMs it to the Case Owner
+    (CM-16-003, CM-16-004).
+
+    Tree structure::
+
+        RecommendActorToCaseBT (Sequence, memory=False)
+        ├── GuardedCommitCaseLedgerEntryBT   — record receipt (CLP-10-006)
+        ├── EvaluateDefaultRolesNode          — assign roles (CM-15-003)
+        └── EmitOfferCaseParticipantToOwnerNode — transform + DM owner
 
     Args:
         recommendation_id: ID of the incoming ``Offer(Actor, Case)`` activity.
@@ -273,6 +308,10 @@ def create_recommend_actor_to_case_received_tree(
         case_id=case_id,
         precondition_guards=[],
         effect_nodes=[
+            EvaluateDefaultRolesNode(
+                suggested_actor_id=recommended_id,
+                case_id=case_id,
+            ),
             EmitOfferCaseParticipantToOwnerNode(
                 recommendation_id=recommendation_id,
                 recommender_id=recommender_id,

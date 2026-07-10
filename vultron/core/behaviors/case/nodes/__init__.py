@@ -50,6 +50,7 @@ from typing import TYPE_CHECKING
 from vultron.core.behaviors.case.nodes.actor import (
     EmitAcceptCaseInviteNode,
     EmitInviteActorToCaseNode,
+    EvaluateDefaultRolesNode,
     ProposeCaseToActorNode,
 )
 from vultron.core.behaviors.case.nodes.case_setup import (
@@ -104,6 +105,7 @@ __all__ = [
     # actor (leaf nodes)
     "EmitInviteActorToCaseNode",
     "EmitAcceptCaseInviteNode",
+    "EvaluateDefaultRolesNode",
     "ProposeCaseToActorNode",
     # conditions
     "CheckAutoCaseCreationEnabledNode",

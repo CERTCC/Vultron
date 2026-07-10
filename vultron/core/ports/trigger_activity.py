@@ -309,13 +309,15 @@ class TriggerActivityPort(Protocol):
         origin: str | None = None,
         to: list[str] | None = None,
         id_: str | None = None,
+        roles: list[Any] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist an ``Offer(CaseParticipant, Case)`` activity.
 
         Transforms the original ``Offer(Actor, Case)`` into an
-        ``Offer(CaseParticipant{actor, roles=[VENDOR]}, Case)`` addressed to
-        the Case Owner.  ``origin`` carries the original recommender Offer ID
-        so the Case Owner can trace the causal chain (CM-16-004).
+        ``Offer(CaseParticipant{actor, roles}, Case)`` addressed to the
+        Case Owner.  ``roles`` defaults to ``[CVDRole.VENDOR]`` when
+        ``None`` (CM-15-003).  ``origin`` carries the original recommender
+        Offer ID so the Case Owner can trace the causal chain (CM-16-004).
         Returns ``(activity_id, activity_dict)``.
         """
         ...
