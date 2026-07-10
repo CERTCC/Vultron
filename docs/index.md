@@ -1,34 +1,92 @@
 # The Vultron Coordinated Vulnerability Disclosure Protocol
 
-!!! warning inline end "Work in progress"
+The Vultron Protocol is a research project to develop a federated, decentralized,
+and open-source protocol for coordinated vulnerability disclosure (CVD).
+Built on CERT/CC's decades of experience coordinating global software vulnerability
+response, Vultron aims to serve as a *lingua franca* for sharing CVD case
+coordination data across independent organizations, tools, and policies.
+It targets security researchers, vulnerability coordinators, tool builders, and
+anyone seeking interoperability in the CVD ecosystem.
 
+!!! note "Work in progress"
+
+    Vultron is a collection of ideas, models, code, and work in progress, and is
+    **not yet ready for production use**.
     We are currently working on the documentation of the Vultron CVD Protocol.
-    This documentation is a work in progress and is not yet complete.
     Our focus so far is on
-    
-    - [Understanding Vultron](topics/background/index.md), which describes the protocol in detail
-    - [Implementing Vultron](howto/index.md), which provides guidance for potential implementations of Vultron
-    - [Reference](reference/formal_protocol/index.md), which provides the formal protocol specification
 
-The Vultron Protocol is a research project to explore the creation of a federated, decentralized, and open source protocol for
-coordinated vulnerability disclosure (CVD).
-It has grown out of the CERT/CC's decades of experience in coordinating global response to software vulnerabilities.
-Our goal is to create a protocol that can be used by any organization to coordinate the disclosure of vulnerabilities in
-information processing systems (software, hardware, services, etc.), and to build a community of interoperability across
-independent organizations, processes, and policies that can work together to coordinate appropriate responses to vulnerabilities.
-
-The Vultron Protocol is a collection of ideas, models, code, and work in progress, and is not yet ready for production use.
+    - [Understanding Vultron](topics/background/index.md), which describes the
+      protocol in detail
+    - [Implementing Vultron](howto/index.md), which provides guidance for
+      potential implementations of Vultron
+    - [Reference](reference/formal_protocol/index.md), which provides the formal
+      protocol specification
 
 {% include-markdown "./includes/curr_ver.md" %}
 
+## So what *is* Vultron?
+
+Vultron is:
+
+- A set of high-level processes representing the steps involved in coordinated
+  vulnerability disclosure
+- A formal protocol describing the interactions of those processes
+- A set of behavior logic that can be implemented as either procedures for humans
+  to follow or (in many cases) code that can perform actions in response to state
+  changes in a case with minimal human input
+- A minimal data model for what information is necessary to track participant
+  status and the overall case status through the course of handling a CVD case
+
+The above were all initially described in the
+[Designing Vultron: A Protocol for Multi-Party Coordinated Vulnerability Disclosure
+(MPCVD)](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=887198){:target="_blank"}
+report.
+In this repository, we are taking the first steps towards implementing the protocol
+and behavior logic described in that report.
+The current work focuses on mapping the formal protocol onto the syntax and
+semantics of the [ActivityPub](https://www.w3.org/TR/activitypub/){:target="_blank"}
+protocol.
+
+## What is Vultron *not*?
+
+Vultron is **not** a drop-in replacement for any particular
+
+- *tracking system*&mdash;e.g.,
+  [Bugzilla](https://www.bugzilla.org/){:target="_blank"},
+  [Jira](https://www.atlassian.com/software/jira){:target="_blank"}
+- *CVD or threat coordination tool*&mdash;e.g.,
+  [VINCE](https://github.com/CERTCC/VINCE){:target="_blank"},
+  [MISP](https://www.misp-project.org/){:target="_blank"}
+- *Vulnerability disclosure program*&mdash;e.g.,
+  [DC3 VDP](https://www.dc3.mil/Missions/Vulnerability-Disclosure/Vulnerability-Disclosure-Program-VDP/){:target="_blank"}
+- *Vulnerability disclosure platform or service*&mdash;e.g.,
+  [HackerOne](https://hackerone.com/){:target="_blank"},
+  [Bugcrowd](https://www.bugcrowd.com/){:target="_blank"},
+  [Synack](https://www.synack.com/){:target="_blank"}
+
+Instead, it is our hope that Vultron could serve as a *lingua franca* for the
+exchange of vulnerability case coordination information between those systems and
+services.
+
+Vultron is not a vulnerability prioritization tool, although it is intended to be
+compatible with common prioritization schemes like
+[SSVC](https://github.com/CERTCC/SSVC){:target="_blank"} and
+[CVSS](https://www.first.org/cvss/){:target="_blank"}.
+
+Vultron is not intended to be a product; rather, it is meant to be a feature set
+that can be implemented in a variety of CVD-related products and services to enable
+interoperability between them.
+
 ## How this documentation is organized
 
-We are in the process of documenting the Vultron CVD Protocol as we work towards a prototype implementation.
-We are using the [Diátaxis Framework](https://diataxis.fr/){:target="_blank"} to organize our documentation into four main categories,
-oriented around the different ways that people might need to learn about and use the Vultron Protocol.
+We are in the process of documenting the Vultron CVD Protocol as we work towards
+a prototype implementation.
+We are using the [Diátaxis Framework](https://diataxis.fr/){:target="_blank"} to
+organize our documentation into four main categories, oriented around the different
+ways that people might need to learn about and use the Vultron Protocol.
 
-Our current focus is on the [Understanding Vultron](topics/background/index.md) section, which describes the protocol
-in detail.
+Our current focus is on the [Understanding Vultron](topics/background/index.md)
+section, which describes the protocol in detail.
 
 <div class="grid cards" markdown>
 
@@ -51,8 +109,6 @@ in detail.
     that we are using to guide our work. It also includes a detailed description of the Vultron Protocol, including
     the state machines and behavior logic that we use to model the behavior of the protocol.
 
-    Focus on your content and generate a responsive and searchable static site
-
     [:octicons-arrow-right-24: Understanding Vultron](topics/background/index.md)
 
 - :fontawesome-solid-code:{ .lg .middle } **Implementing Vultron**
@@ -62,8 +118,6 @@ in detail.
     The [Implementing Vultron](howto/index.md) section includes guidance for potential implementations of Vultron.
     In the future, we plan to include how-to guides to help you use Vultron, but for now it is focused on guidance for
     potential implementers of Vultron.
-
-    Change the colors, fonts, language, icons, logo and more with a few lines
 
     [:octicons-arrow-right-24: Implementing Vultron](howto/index.md)
 
