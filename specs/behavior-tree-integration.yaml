@@ -748,3 +748,96 @@ groups:
       use the same BT factory function and that no standalone monolithic node
       class exists that inlines both state mutation and dispatch in a single
       `update()` method for the same operation.
+
+- id: BT-20
+  title: Production BT Collapse Patterns
+  kind: pattern
+  description: >-
+    PROVISIONAL (subject to revision at implementation time — see issue #1200
+    and per-requirement tracking issues). Requirements for production BT subtrees
+    that replace groups of simulator fuzzer nodes. Each collapse candidate
+    reduces multiple granular simulator leaves to a smaller set of production
+    call-out points with cleaner seam structure.
+  specs:
+  - id: BT-20-001
+    priority: SHOULD
+    statement: >-
+      The production `create_acquire_exploit_strategy_tree` factory SHOULD
+      provide a single `EvaluateExploitStrategy` Evaluator call-out point in
+      place of the five simulator nodes (`HaveExploit`, `ExploitPrioritySet`,
+      `EvaluateExploitPriority`, `ExploitDeferred`, `ExploitDesired`). The
+      Evaluator SHOULD receive case context (vulnerability state, org policy,
+      threat landscape) and return a structured decision record containing at
+      minimum the acquire decision and rationale. Whether a separate
+      `HaveExploit` Retriever feeds into the Evaluator's context is an open
+      design question (lean: yes — keep as a separate seam for independent
+      swapability).
+    rationale: >-
+      PROVISIONAL. The five-node simulator sequence encodes a single
+      policy-driven decision ("should we acquire an exploit?") in granular
+      boolean flags that are unnecessary in production. Collapsing to one
+      Evaluator reduces the number of external seams and makes the decision
+      boundary explicit. See `notes/bt-fuzzer-nodes-report-management.md`
+      § "Production Collapse 1: Exploit-strategy subtree" and ADR-0027.
+    tracking_issue: "#1200 (planning); implementation issue TBD (blocked by #1200)"
+  - id: BT-20-002
+    priority: SHOULD
+    statement: >-
+      The production `create_publication_tree` factory SHOULD use
+      `PrioritizePublicationIntents` (Evaluator) output to gate per-artifact
+      arms directly, without separate `NoPublish*` bypass leaves or a
+      `PublicationIntentsSet` flag check. The intent record SHOULD drive which
+      of three named arms (exploit, fix, report) execute. Each arm SHOULD
+      consist of a Composer (prepare artifact) followed by a Publish pipeline
+      (see BT-20-004).
+    rationale: >-
+      PROVISIONAL. The `NoPublish*` bypass leaves and `PublicationIntentsSet`
+      flag check are structural artifacts of the simulator BT representation;
+      they do not represent real call-out points. In production the
+      `PrioritizePublicationIntents` Evaluator output drives arm execution
+      directly. See `notes/bt-fuzzer-nodes-report-management.md`
+      § "Production Collapse 2: Publication-intent subtree" and ADR-0028.
+    tracking_issue: "#1200 (planning); implementation issue TBD (blocked by #1200)"
+  - id: BT-20-003
+    priority: SHOULD
+    statement: >-
+      The production `create_report_to_others_tree` factory SHOULD retain the
+      outer loop structure (party identification Retrievers, effort-gate
+      Evaluators, typed vendor/coordinator/other sub-loops), and SHOULD invoke
+      the `suggest-actor-to-case` trigger in place of `InjectParticipant`
+      family nodes. The `suggest-actor-to-case` trigger MUST be called with
+      an explicit role parameter (`CVDRole.VENDOR`, `CVDRole.COORDINATOR`, or
+      `CVDRole.OTHER`) matching the sub-loop type; the current assumption that
+      all suggestions use `CVDRole.VENDOR` MUST be generalized.
+    rationale: >-
+      PROVISIONAL. The `InjectParticipant` family is a direct case-management
+      write that bypasses the protocol's invite/accept handshake. In production
+      the `suggest-actor-to-case` protocol (Offer → Invite → Accept → Record
+      cascade) replaces it. The outer loop remains because the BT must still
+      ask "should we notify additional parties?" and iterate through identified
+      candidates. See `notes/bt-fuzzer-nodes-report-management.md`
+      § "Production Collapse 3: Notification loop" and ADR-0029.
+    tracking_issue: >-
+      #1200 (planning); implementation issue TBD (blocked by #1200 and #1298
+      suggest-actor redesign)
+  - id: BT-20-004
+    priority: SHOULD
+    statement: >-
+      The production `create_publish_artifact_tree` factory SHOULD implement
+      a multi-step pipeline replacing the single `Publish` Actuator leaf: at
+      minimum (1) a Composer node drafts the advisory artifact from case data,
+      (2) an Evaluator node reviews and approves the draft, and (3) an Actuator
+      node submits the finalized artifact to the external advisory platform.
+      An optional revision Composer MAY be included between the Evaluator and
+      Actuator. Whether the review phase includes a broadcast-for-participant-comment
+      step is an open design question to be resolved at implementation time.
+    rationale: >-
+      PROVISIONAL. The single `Publish` simulator leaf stands in for a full
+      advisory publication workflow. In production, drafting, review, and
+      submission are distinct operations with separate external seams. The
+      Actuator shape for submission is confirmed by ADR-0024 (Actuator
+      amendment, 2026-07-07). See `notes/bt-fuzzer-nodes-report-management.md`
+      § "Production Collapse 4: Publish leaf" and ADR-0030.
+    tracking_issue: >-
+      #1200 (planning); implementation issue TBD (blocked by #1200 and
+      implementation issue for BT-20-002)

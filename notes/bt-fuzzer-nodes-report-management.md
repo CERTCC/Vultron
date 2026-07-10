@@ -5,12 +5,14 @@ description: >
   Catalog of fuzzer (stub) BT nodes for Report Management workflows in
   the Vultron BT simulation, covering validation, prioritization, ID assignment,
   fix development and deployment, exploit/threat tracking, publication,
-  reporting to other parties, and report closure.
+  reporting to other parties, and report closure. Includes provisional
+  production-collapse designs for four simulator subtree groups (issue #1200).
 related_specs:
   - specs/behavior-tree-integration.yaml
 related_notes:
   - notes/bt-integration.md
   - notes/bt-fuzzer-nodes.md
+  - notes/coordination-agents.md
 relevant_packages:
   - vultron/bt/report_management
 ---
@@ -749,7 +751,7 @@ vulnerability, typically to support impact assessment or testing.
   `vultron.core.behaviors.report.create_acquire_exploit_strategy_tree`
   (issue #1249) — early-exit Retriever guard at the top of
   `AcquireExploit` Selector; may collapse into `EvaluateExploitStrategy`
-  input context per production redesign (#1200)
+  input context per production redesign (see Production Collapse 1 below)
 
 ### `ExploitPrioritySet`
 
@@ -772,7 +774,8 @@ vulnerability, typically to support impact assessment or testing.
 - **Factory-fn placement**: FUTURE:
   `vultron.core.behaviors.report.create_acquire_exploit_strategy_tree`
   (issue #1249) — ProtocolInternal condition check after `HaveExploit`;
-  collapses the loop if the priority decision is already on record for this cycle
+  collapses the loop if the priority decision is already on record for this cycle.
+  See Production Collapse 1 below.
 
 ### `EvaluateExploitPriority`
 
@@ -793,7 +796,8 @@ vulnerability, typically to support impact assessment or testing.
   `vultron.core.behaviors.report.create_acquire_exploit_strategy_tree`
   (issue #1249) — Evaluator action node in the priority-decision Sequence;
   writes the `exploit_priority` decision to the blackboard for downstream
-  ProtocolInternal condition nodes (`ExploitDeferred`, `ExploitDesired`)
+  ProtocolInternal condition nodes (`ExploitDeferred`, `ExploitDesired`).
+  See Production Collapse 1 below — this is the core Evaluator that survives.
 
 ### `ExploitDeferred`
 
@@ -816,7 +820,8 @@ vulnerability, typically to support impact assessment or testing.
 - **Factory-fn placement**: FUTURE:
   `vultron.core.behaviors.report.create_acquire_exploit_strategy_tree`
   (issue #1249) — ProtocolInternal condition check after `EvaluateExploitPriority`;
-  early-exits the acquire-exploit Selector when deferral is recorded
+  early-exits the acquire-exploit Selector when deferral is recorded.
+  See Production Collapse 1 below.
 
 ### `ExploitDesired`
 
@@ -838,7 +843,8 @@ vulnerability, typically to support impact assessment or testing.
 - **Factory-fn placement**: FUTURE:
   `vultron.core.behaviors.report.create_acquire_exploit_strategy_tree`
   (issue #1249) — ProtocolInternal condition check before the acquisition
-  Fallback (`FindExploit → DevelopExploit → PurchaseExploit`)
+  Fallback (`FindExploit → DevelopExploit → PurchaseExploit`).
+  See Production Collapse 1 below.
 
 ### `FindExploit`
 
@@ -1053,7 +1059,8 @@ preparing them, and executing publication.
 - **Factory-fn placement**: FUTURE:
   `vultron.core.behaviors.report.create_publication_tree`
   (issue #1251) — ProtocolInternal condition check before `PrioritizePublicationIntents`;
-  skips intent-setting if a publication plan is already on record
+  skips intent-setting if a publication plan is already on record.
+  See Production Collapse 2 below — this flag check disappears in production.
 
 ### `PrioritizePublicationIntents`
 
@@ -1076,7 +1083,8 @@ preparing them, and executing publication.
   `vultron.core.behaviors.report.create_publication_tree`
   (issue #1251) — Evaluator action node that runs when
   `PublicationIntentsSet` fails; writes the publication plan (artifacts,
-  priority order, timing) to case metadata
+  priority order, timing) to case metadata.
+  See Production Collapse 2 below — this is the core Evaluator that survives.
 
 ### `Publish`
 
@@ -1097,7 +1105,9 @@ preparing them, and executing publication.
   `vultron.core.behaviors.report.create_publication_tree`
   (issue #1251) — terminal Actuator action node at the end of each
   per-artifact Sequence (`ExploitReady → Publish`, `PrepareFix → Publish`,
-  `PrepareReport → Publish`)
+  `PrepareReport → Publish`).
+  See Production Collapse 4 below — this single leaf expands into a
+  draft-review-submit pipeline in production.
 
 ### `NoPublishExploit`
 
@@ -1698,8 +1708,8 @@ coordinated disclosure.
 - **Factory-fn placement**: FUTURE:
   `vultron.core.behaviors.report.create_report_to_others_tree`
   (issue #1252) — base Actuator node; production replacement is the
-  InviteParticipantToCase protocol subtree (#1199); the call-out point
-  seam lives here at the case-management write boundary
+  `suggest-actor-to-case` trigger (see Production Collapse 3 below);
+  the call-out point seam lives here at the case-management write boundary
 
 ### `InjectVendor`
 
@@ -1719,8 +1729,8 @@ coordinated disclosure.
 - **Factory-fn placement**: FUTURE:
   `vultron.core.behaviors.report.create_report_to_others_tree`
   (issue #1252) — Actuator node in the vendor sub-loop, after `MoreVendors`
-  succeeds and the notification Sequence completes; invokes vendor-role
-  InviteParticipantToCase protocol subtree (#1199) once ready
+  succeeds and the notification Sequence completes; replaced by
+  `suggest-actor-to-case` with `CVDRole.VENDOR` (see Production Collapse 3)
 
 ### `InjectCoordinator`
 
@@ -1741,7 +1751,8 @@ coordinated disclosure.
   `vultron.core.behaviors.report.create_report_to_others_tree`
   (issue #1252) — Actuator node in the coordinator sub-loop, after
   `MoreCoordinators` succeeds and the notification Sequence completes;
-  invokes coordinator-role InviteParticipantToCase protocol subtree (#1199)
+  replaced by `suggest-actor-to-case` with `CVDRole.COORDINATOR`
+  (see Production Collapse 3)
 
 ### `InjectOther`
 
@@ -1761,8 +1772,9 @@ coordinated disclosure.
 - **Factory-fn placement**: FUTURE:
   `vultron.core.behaviors.report.create_report_to_others_tree`
   (issue #1252) — Actuator node in the other-parties sub-loop, after
-  `MoreOthers` succeeds and the notification Sequence completes; invokes
-  other-party-role InviteParticipantToCase protocol subtree (#1199)
+  `MoreOthers` succeeds and the notification Sequence completes;
+  replaced by `suggest-actor-to-case` with `CVDRole.OTHER`
+  (see Production Collapse 3)
 
 ---
 
@@ -1848,5 +1860,226 @@ accepted vulnerability report outside of the more specific sub-trees.
   (issue #1255) — primary Evaluator leaf of `RMDoWorkBt`; the main
   extensibility seam for organization-specific in-flight case work
   not covered by more specific sub-trees
+
+---
+
+## Production Collapse Designs
+
+The sections below document how groups of simulator fuzzer nodes are expected
+to **collapse** in the production BT architecture. Each group of simulator
+leaves maps to a smaller set of production call-out points. These designs are
+**provisional** — they represent the best understanding at planning time
+(issue #1200) and are subject to revision when the corresponding
+implementation issues are worked.
+
+Cross-references: each affected simulator-node entry above has a
+"see Production Collapse" note pointing here. The implementation issues listed
+in each section are what to work when it is time to build the production
+subtrees.
+
+---
+
+### Production Collapse 1: Exploit-strategy subtree → EvaluateExploitStrategy
+
+**Simulator nodes involved**: `HaveExploit`, `ExploitPrioritySet`,
+`EvaluateExploitPriority`, `ExploitDeferred`, `ExploitDesired`
+(see Exploit Acquisition section above)
+
+**Tracked by**: implementation issue for collapse candidate 1 (blocked by #1200)
+
+#### Production shape
+
+A single **Evaluator** call-out point — `EvaluateExploitStrategy` — replaces
+the five-node simulator sequence. The Evaluator receives case context
+(vulnerability state, org policy, threat landscape, and optionally the result
+of a prior `HaveExploit` Retriever query) and returns a structured decision
+record.
+
+The five simulator nodes collapse to:
+
+1. One Evaluator call-out point: `EvaluateExploitStrategy`
+2. ProtocolInternal BT condition checks reading its structured output (no
+   external seam — these are internal decision reads, not new call-out points)
+
+**Open design question**: Does `HaveExploit` survive as a separate Retriever
+node that feeds context into the Evaluator (lean: yes), or does the Evaluator
+query the exploit repo internally as part of its evaluation? Both approaches
+are valid; the Retriever-feeds-Evaluator pattern is preferred because it keeps
+the exploit-repo query seam independently swappable.
+
+**Provisional output schema** (subject to revision — lean: Pydantic BaseModel):
+
+```python
+class ExploitStrategyDecision(BaseModel):
+    have_exploit: bool       # whether a working exploit is already available
+    acquire: bool            # decision: pursue exploit acquisition
+    rationale: str           # reasoning for the decision
+```
+
+**Target factory function**:
+`vultron.core.behaviors.report.create_acquire_exploit_strategy_tree`
+
+**Spec requirements**: BT-20-001 (provisional — see
+`specs/behavior-tree-integration.yaml`)
+
+---
+
+### Production Collapse 2: Publication-intent subtree → Evaluator + per-artifact arms
+
+**Simulator nodes involved**: `PublicationIntentsSet`, `PrioritizePublicationIntents`,
+`NoPublishExploit`, `ExploitReady`, `PrepareExploit`, `ReprioritizeExploit`,
+`NoPublishFix`, `PrepareFix`, `ReprioritizeFix`, `NoPublishReport`,
+`PrepareReport`, `ReprioritizeReport`
+(see Publication section above)
+
+**Tracked by**: implementation issue for collapse candidate 2 (blocked by #1200)
+
+#### Production shape
+
+The `PublicationIntentsSet` flag check and `NoPublish*` bypass leaves are
+**ProtocolInternal structural artifacts** of the simulator representation —
+they do not survive as call-out points. In production:
+
+1. **`PrioritizePublicationIntents`** (already an Evaluator) returns a
+   structured intent record: `{publish_exploit: bool, publish_fix: bool,
+   publish_report: bool}`. The `PublicationIntentsSet` flag check disappears —
+   the BT queries the intent record directly.
+
+2. For each intended artifact: one **Composer** subtree
+   (`PrepareExploit` / `PrepareFix` / `PrepareReport`) drafts and stages the
+   artifact.
+
+3. For each prepared artifact: one **Actuator** (`Publish`) submits to the
+   external advisory platform.
+
+The `NoPublish*` bypass leaves and `ReprioritizeX` Evaluators become
+ProtocolInternal no-ops or disappear — the intent record from step 1 drives
+which arms execute.
+
+**BT structure** (lean: three named arms — exploit arm, fix arm, report arm —
+rather than a unified loop; subject to revision at implementation time):
+
+```text
+PublicationBT (Sequence)
+├── PrioritizePublicationIntents (Evaluator)       — sets intent record
+├── ExploitPublicationArm (Selector, if intended)  — PrepareExploit → Publish
+├── FixPublicationArm (Selector, if intended)      — PrepareFix → Publish
+└── ReportPublicationArm (Selector, if intended)   — PrepareReport → Publish
+```
+
+**Target factory function**:
+`vultron.core.behaviors.report.create_publication_tree` (issue #1251)
+
+**Spec requirements**: BT-20-002 (provisional — see
+`specs/behavior-tree-integration.yaml`)
+
+---
+
+### Production Collapse 3: Notification loop → InviteParticipantToCase protocol
+
+**Simulator nodes involved**: `HaveReportToOthersCapability`, `AllPartiesKnown`,
+`IdentifyVendors`, `IdentifyCoordinators`, `IdentifyOthers`,
+`NotificationsComplete`, `ChooseRecipient`, `RemoveRecipient`,
+`RecipientEffortExceeded`, `TotalEffortLimitMet`, `PolicyCompatible`,
+`FindContact`, `RcptNotInQrmS`, `SetRcptQrmR`, `MoreVendors`,
+`MoreCoordinators`, `MoreOthers`, `InjectParticipant`, `InjectVendor`,
+`InjectCoordinator`, `InjectOther`
+(see Reporting to Other Parties section above)
+
+**Tracked by**: implementation issue for collapse candidate 3 (blocked by #1200 and #1298 suggest-actor redesign)
+
+#### Production shape
+
+The **outer loop structure survives** — `MaybeReportToOthers` remains a BT
+subtree that asks "should we notify additional parties?" and iterates through
+identified parties. What changes is **what happens at the end of each
+iteration**: instead of `InjectParticipant` (a direct case-management write),
+the BT calls the `suggest-actor-to-case` trigger, which initiates the full
+`RecommendActor → Invite → Accept → Record` cascade automatically.
+
+**Nodes that survive** (as call-out points or ProtocolInternal guards):
+
+- `HaveReportToOthersCapability` — TBD shape; likely resolves to a
+  `CVDRole.CASE_MANAGER` membership check (ProtocolInternal) once the
+  invite-participant-to-case protocol is finalized
+- `AllPartiesKnown` — Evaluator (unchanged)
+- `IdentifyVendors`, `IdentifyCoordinators`, `IdentifyOthers` — Retrievers
+  (unchanged)
+- `NotificationsComplete` — ProtocolInternal (unchanged)
+- `ChooseRecipient`, `FindContact` — Retrievers (unchanged; feed context into
+  the suggest-actor call)
+- `RecipientEffortExceeded`, `TotalEffortLimitMet` — Evaluators (unchanged)
+- `PolicyCompatible` — Evaluator (unchanged)
+- `RcptNotInQrmS` — ProtocolInternal idempotency check (unchanged)
+- `MoreVendors`, `MoreCoordinators`, `MoreOthers` — ProtocolInternal
+  iteration guards (unchanged; three typed sub-loops survive)
+
+**Nodes that collapse**:
+
+- `SetRcptQrmR` — the RM-state write is now handled by the `AcceptInviteToCase`
+  cascade; no standalone Actuator needed at this layer
+- `InjectParticipant`, `InjectVendor`, `InjectCoordinator`, `InjectOther` —
+  replaced by a call to the `suggest-actor-to-case` trigger endpoint (or
+  equivalently, emitting an `Offer(Actor)` to the CaseActor). The full
+  `RecommendActor → Invite → Accept → Record` cascade follows automatically.
+
+**Key design note**: `suggest-actor-to-case` currently assumes
+`CVDRole.VENDOR` for the invited party. Collapse candidate 3 implementation
+**MUST** extend `suggest-actor-to-case` to accept an explicit role parameter
+(VENDOR / COORDINATOR / OTHER), since the three typed sub-loops each map to
+a different CVD role.
+
+**Target factory function**:
+`vultron.core.behaviors.report.create_report_to_others_tree` (issue #1252)
+
+**Spec requirements**: BT-20-003 (provisional — see
+`specs/behavior-tree-integration.yaml`)
+
+---
+
+### Production Collapse 4: Publish leaf → draft-review-submit pipeline
+
+**Simulator nodes involved**: `Publish`
+(see Publication section above; also see Production Collapse 2 for the
+per-artifact preparation context)
+
+**Tracked by**: implementation issue for collapse candidate 4 (blocked by #1200 and collapse candidate 2 impl issue)
+
+#### Production shape
+
+The single `Publish` simulator leaf expands into a **multi-step pipeline**
+with its own call-out points. This acknowledges that advisory publication in
+production involves drafting, review/approval, and submission — not a single
+atomic action.
+
+**Core pipeline** (lean: Composer → Evaluator → Actuator):
+
+```text
+PublishArtifactBT (Sequence)
+├── DraftAdvisoryArtifact (Composer)    — draft CSAF/CVE JSON/advisory from case data
+├── ReviewAdvisoryDraft (Evaluator)     — review/approve the draft (human or automated QA)
+├── [optional] ReviseAdvisoryDraft (Composer) — revise based on review feedback
+└── SubmitAdvisoryArtifact (Actuator)   — submit finalized artifact to advisory platform
+```
+
+**Open design question**: Should the review phase include a
+"broadcast draft to case participants for comment" step before the Evaluator
+runs? This would involve emitting an outbound Activity (a protocol-visible
+action) and optionally waiting for participant responses — resembling the
+`Accept/Reject` question pattern used elsewhere in the protocol. This is
+captured here as an open question; the implementation issue should design
+the review-phase protocol before wiring the BT.
+
+**Impact on existing `Publish` Actuator nodes**: Each per-artifact arm in
+Production Collapse 2 (`ExploitReady → Publish`, `PrepareFix → Publish`,
+`PrepareReport → Publish`) has its own `Publish` Actuator. In production,
+those Actuators are each replaced by this full `PublishArtifactBT` subtree.
+
+**Target factory function**:
+`vultron.core.behaviors.report.create_publish_artifact_tree` (new; called
+from within `create_publication_tree`)
+
+**Spec requirements**: BT-20-004 (provisional — see
+`specs/behavior-tree-integration.yaml`)
 
 ---
