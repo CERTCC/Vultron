@@ -17,10 +17,6 @@ nav:
         - 'topics/background/index.md'
         - Interoperability: 'topics/background/interoperability.md'
         - Defining CVD Success: 'topics/background/cvd_success.md'
-        - Documentation Overview: 'topics/background/overview.md'
-        - Terms and Definitions: 'topics/background/terms.md'
-        - Notation: 'topics/background/notation.md'
-        - Versioning: 'topics/background/versioning.md'
     - Process Models:
       - 'topics/process_models/index.md'
       - Report Management:
@@ -44,9 +40,6 @@ nav:
         - 'topics/process_models/model_interactions/index.md'
         - RM and EM Interactions: 'topics/process_models/model_interactions/rm_em.md'
         - RM, EM, CS Interactions: 'topics/process_models/model_interactions/rm_em_cs.md'
-    - The Vultron Protocol:
-        - 'topics/formal_protocol/index.md'
-        - Worked Example: 'topics/formal_protocol/worked_example.md'
     - Behavior Logic:
       - 'topics/behavior_logic/index.md'
       - CVD Behaviors: 'topics/behavior_logic/cvd_bt.md'
@@ -76,16 +69,6 @@ nav:
         - Receive EM Messages: 'topics/behavior_logic/msg_em_bt.md'
         - Receive CS Messages: 'topics/behavior_logic/msg_cs_bt.md'
         - Receive Other Messages: 'topics/behavior_logic/msg_other_bt.md'
-    - Measuring CVD:
-        - 'topics/measuring_cvd/index.md'
-        - Possible Histories: 'topics/measuring_cvd/possible_histories.md'
-        - Desirable Histories: 'topics/measuring_cvd/desirable_histories.md'
-        - Random Walks: 'topics/measuring_cvd/random_walk.md'
-        - Reasoning Over Histories: 'topics/measuring_cvd/reasoning_over_histories.md'
-        - Discriminating Skill from Luck: 'topics/measuring_cvd/discriminating_skill_and_luck.md'
-        - Observing Skill: 'topics/measuring_cvd/observing_skill.md'
-        - Benchmarking CVD: 'topics/measuring_cvd/benchmarking.md'
-        - Benchmarking MPCVD: 'topics/measuring_cvd/benchmarking_mpcvd.md'
     - Other Uses of Vultron:
         - 'topics/other_uses/index.md'
         - Stakeholder Roles: 'topics/other_uses/roles_influence.md'
@@ -94,9 +77,6 @@ nav:
         - Situation Awareness: 'topics/other_uses/situation_awareness.md'
         - VEP: 'topics/other_uses/vep.md'
         - CVD Action Rules: 'topics/other_uses/action_rules.md'
-    - User Stories:
-        - 'topics/user_stories/index.md'
-        - Traceability Matrix: 'topics/user_stories/traceability.md'
     - Future Work:
         - 'topics/future_work/index.md'
         - CS Model Limitations: 'topics/future_work/cs_model_limitations.md'
@@ -131,12 +111,16 @@ nav:
   - Reference:
     - 'reference/index.md'
     - Ubiquitous Language: 'reference/glossary.md'
+    - Terms and Definitions: 'reference/terms.md'
+    - Notation: 'reference/notation.md'
+    - Versioning: 'reference/versioning.md'
     - Formal Protocol:
       - 'reference/formal_protocol/index.md'
       - States: 'reference/formal_protocol/states.md'
       - Messages: 'reference/formal_protocol/messages.md'
       - Transitions: 'reference/formal_protocol/transitions.md'
       - Protocol Summary: 'reference/formal_protocol/conclusion.md'
+      - Worked Example: 'reference/formal_protocol/worked_example.md'
     - Case States:
       - 'reference/case_states/index.md'
       - vfdpxa: 'reference/case_states/state_vfdpxa.md'
@@ -210,6 +194,19 @@ nav:
       - ISO 30111: 'reference/iso_crosswalks/iso_30111_2019.md'
       - ISO 29147: 'reference/iso_crosswalks/iso_29147_2018.md'
       - ISO 5895: 'reference/iso_crosswalks/iso_5895_2022.md'
+    - Measuring CVD:
+      - 'reference/measuring_cvd/index.md'
+      - Possible Histories: 'reference/measuring_cvd/possible_histories.md'
+      - Desirable Histories: 'reference/measuring_cvd/desirable_histories.md'
+      - Random Walks: 'reference/measuring_cvd/random_walk.md'
+      - Reasoning Over Histories: 'reference/measuring_cvd/reasoning_over_histories.md'
+      - Discriminating Skill from Luck: 'reference/measuring_cvd/discriminating_skill_and_luck.md'
+      - Observing Skill: 'reference/measuring_cvd/observing_skill.md'
+      - Benchmarking CVD: 'reference/measuring_cvd/benchmarking.md'
+      - Benchmarking MPCVD: 'reference/measuring_cvd/benchmarking_mpcvd.md'
+    - User Stories:
+      - 'reference/user_stories/index.md'
+      - Traceability Matrix: 'reference/user_stories/traceability.md'
     - Two-Actor Demo Protocol: 'reference/two-actor-demo-protocol.md'
     - SSVC Crosswalk: 'reference/ssvc_crosswalk.md'
     - Decision Records:
@@ -254,7 +251,7 @@ not_in_nav: |
   _*.md
   _*/**/*.md
   includes/*
-  topics/user_stories/story_*.md
+  reference/user_stories/story_*.md
   *diagram*.md
   *table*.md
   *.ttl

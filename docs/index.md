@@ -158,6 +158,6 @@ Our recent work in this area includes:
 abridged form as [Are We Skillful or Just Lucky? Interpreting the Possible Histories of Vulnerability Disclosures](https://doi.org/10.1145/3477431){:target="_blank"} in the
 ACM Journal Digital Threats: Research and Practice
 - A collection of [Coordinated Vulnerability Disclosure User Stories](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=886543){:target="_blank"} derived from both our process modeling work and from the experience of building VINCE.
-  These user stories are collected in the [User Stories](topics/user_stories/index.md) section of this documentation.
+  These user stories are collected in the [User Stories](reference/user_stories/index.md) section of this documentation.
 - [Designing Vultron: A Protocol for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=887198){:target="_blank"} (MPCVD),
   which serves as the basis for the work contained here.

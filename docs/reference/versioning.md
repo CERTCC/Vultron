@@ -5,7 +5,7 @@
     The versioning scheme described here applies _only_ to the Vultron Protocol itself.
     Implementations of the Vultron Protocol are expected to have their own versioning schemes.
 
-{% include-markdown "../../includes/curr_ver.md" %}
+{% include-markdown "../includes/curr_ver.md" %}
 
 Vultron Protocol versions follow [Calendar Versioning (CalVer)](https://calver.org/)
 using the format `YYYY.M.Patch`, where:

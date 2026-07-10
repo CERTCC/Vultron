@@ -28,7 +28,7 @@ to cover the **A** transition.
 Different stakeholders might want different things, although most
 benevolent parties will likely seek some subset of $\mathbb{D}$. Because
 $\mathcal{H}$ is the same for all stakeholders, the expected frequencies
-shown in [Event Order Frequency](../measuring_cvd/reasoning_over_histories.md)
+shown in [Event Order Frequency](../../reference/measuring_cvd/reasoning_over_histories.md)
 will be consistent across any such variations in desiderata.
 
 A discussion of some stakeholder preferences is given below, while a
@@ -77,7 +77,7 @@ summary can be found in the following table.
     5. System owners might be indifferent to **F** $\prec$ **P**
     and **D** $\prec$ **X** depending on their risk tolerance.
 
-In [Desirable Histories](../measuring_cvd/desirable_histories.md),
+In [Desirable Histories](../../reference/measuring_cvd/desirable_histories.md),
 we defined a preference ordering between
 every possible pairing of events, therefore $\mathbb{D}$ is the largest
 possible set of desiderata. We thus expect the desiderata of benevolent
@@ -299,4 +299,4 @@ desiderata from the lower left triangle of the ordered pairs table (reproduced b
 While defining such adversarial desiderata ($\mathbb{D}_a$) is out of scope for our purposes, we leave the
 topic with our expectation that $\mathbb{D}_a \not\subseteq \mathbb{D}$.
 
-{% include-markdown "../measuring_cvd/_ordered_pairs_events.md" %}
+{% include-markdown "../../reference/measuring_cvd/_ordered_pairs_events.md" %}
