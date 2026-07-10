@@ -1,6 +1,6 @@
 # Dev Container Setup
 
-This project uses a custom Docker-based dev environment driven by `start.sh`.
+This project uses a custom Docker-based dev environment driven by `start-dev.sh`.
 There is no VS Code devcontainer.json — the script handles everything.
 
 ## Prerequisites
@@ -14,7 +14,7 @@ There is no VS Code devcontainer.json — the script handles everything.
 From the repo root, run:
 
 ```sh
-./start.sh <slot>
+./start-dev.sh <slot>
 ```
 
 Replace `<slot>` with any name you like — it's personal to you and not stored in the repo.
@@ -45,19 +45,19 @@ it lives on your filesystem — no hardcoded paths.
 
 ```sh
 # Start (or attach to) a named slot
-./start.sh <slot>
+./start-dev.sh <slot>
 
 # Attach to the main checkout (no worktree)
-./start.sh main
+./start-dev.sh main
 
 # Nuke the slot's worktree and recreate it from main, then start
-./start.sh <slot> --reset
+./start-dev.sh <slot> --reset
 
 # Rebuild the Docker image from scratch, then start
-./start.sh <slot> --rebuild
+./start-dev.sh <slot> --rebuild
 
 # Combine: full clean slate
-./start.sh <slot> --reset --rebuild
+./start-dev.sh <slot> --reset --rebuild
 ```
 
 ## What persists
@@ -70,6 +70,19 @@ container removal. It holds:
 
 Running `--reset` or `--rebuild` removes the container but never the volume.
 Your Claude sessions and shell history survive.
+
+## WIP notes and outputs
+
+Two gitignored directories at the repo root are mounted into every container:
+
+| Dir | Mount in container | Access | Purpose |
+|---|---|---|---|
+| `wip_notes/` | `$WIP_NOTES` (`/workspaces/wip_notes`) | read-only | Drop reference notes and context files here on the host; agents can read them during sessions |
+| `wip_outputs/` | `$WIP_OUTPUTS` (`/workspaces/wip_outputs/<slot>`) | read-write | Agents write ad-hoc reports here; each slot writes to its own subdirectory to avoid conflicts |
+
+`start-dev.sh` creates both directories automatically if they don't exist.
+Files written by the container are owned by uid 1000 (`vscode`) on the host.
+Under Docker Desktop on macOS this is transparent and requires no extra configuration.
 
 ## Skills
 

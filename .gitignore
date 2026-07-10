@@ -149,6 +149,7 @@ mydb.json
 /ontology/*.properties
 catalog-*.xml
 /wip_notes/
+/wip_outputs/
 devlogs
 .codebase-scan.txt
 /demologs/
