@@ -70,7 +70,7 @@ set -g default-shell /bin/zsh
 EOF
 
 # --- User-level skills ---
-# Point ~/.claude/skills at the Mac host user skills mounted by start.sh.
+# Point ~/.claude/skills at the Mac host user skills mounted by start-dev.sh.
 # Project skills (.claude/skills/ in the working tree) are auto-discovered by Claude Code separately.
 if [ -d "$HOME/.agents/skills" ]; then
     ln -sfn "$HOME/.agents/skills" "$HOME/.data/claude/skills"
