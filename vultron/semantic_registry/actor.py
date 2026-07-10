@@ -18,35 +18,37 @@ invite/accept/reject to case, and vulnerability case announcements.
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from vultron.core.models.events.actor import (
-    AcceptActorRecommendationReceivedEvent,
     AcceptCaseManagerRoleReceivedEvent,
     AcceptCaseOwnershipTransferReceivedEvent,
     AcceptInviteActorToCaseReceivedEvent,
+    AcceptOfferCaseParticipantReceivedEvent,
     AnnounceVulnerabilityCaseReceivedEvent,
     InviteActorToCaseReceivedEvent,
     OfferActorToCaseReceivedEvent,
     OfferCaseManagerRoleReceivedEvent,
     OfferCaseOwnershipTransferReceivedEvent,
-    RejectActorRecommendationReceivedEvent,
+    OfferCaseParticipantReceivedEvent,
     RejectCaseManagerRoleReceivedEvent,
     RejectCaseOwnershipTransferReceivedEvent,
     RejectInviteActorToCaseReceivedEvent,
+    RejectOfferCaseParticipantReceivedEvent,
 )
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.use_cases.received.actor import (
-    AcceptActorRecommendationReceivedUseCase,
     AcceptCaseManagerRoleReceivedUseCase,
     AcceptCaseOwnershipTransferReceivedUseCase,
     AcceptInviteActorToCaseReceivedUseCase,
+    AcceptOfferCaseParticipantReceivedUseCase,
     AnnounceVulnerabilityCaseReceivedUseCase,
     InviteActorToCaseReceivedUseCase,
     OfferActorToCaseReceivedUseCase,
     OfferCaseManagerRoleReceivedUseCase,
     OfferCaseOwnershipTransferReceivedUseCase,
-    RejectActorRecommendationReceivedUseCase,
+    OfferCaseParticipantReceivedUseCase,
     RejectCaseManagerRoleReceivedUseCase,
     RejectCaseOwnershipTransferReceivedUseCase,
     RejectInviteActorToCaseReceivedUseCase,
+    RejectOfferCaseParticipantReceivedUseCase,
 )
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.wire.as2.extractor import (
@@ -56,6 +58,7 @@ from vultron.wire.as2.extractor import (
     AcceptInviteActorToCasePattern,
     AnnounceVulnerabilityCasePattern,
     InviteActorToCasePattern,
+    OfferActorToCasePattern,
     OfferCaseManagerRolePattern,
     OfferCaseOwnershipTransferActivityPattern,
     RejectActorRecommendationPattern,
@@ -66,6 +69,7 @@ from vultron.wire.as2.extractor import (
 from vultron.wire.as2.extractor._instances import SuggestActorToCasePattern
 from vultron.wire.as2.vocab.activities.actor import (
     _AcceptCaseParticipantOfferActivity,
+    _OfferCaseParticipantActivity,
     _RecommendActorActivity,
     _RejectCaseParticipantOfferActivity,
 )
@@ -92,19 +96,29 @@ ENTRIES: list[SemanticEntry] = [
         wire_activity_class=_RecommendActorActivity,
         include_activity=True,
     ),
+    # Case Owner inbox: CaseActor's Offer(CaseParticipant) arrives here (CM-16-003/CM-16-004)
     SemanticEntry(
-        semantics=MessageSemantics.ACCEPT_ACTOR_RECOMMENDATION,
+        semantics=MessageSemantics.OFFER_CASE_PARTICIPANT,
+        pattern=OfferActorToCasePattern,
+        event_class=OfferCaseParticipantReceivedEvent,
+        use_case_class=OfferCaseParticipantReceivedUseCase,
+        wire_activity_class=_OfferCaseParticipantActivity,
+        include_activity=True,
+    ),
+    # CaseActor inbox: Case Owner's Accept/Reject(Offer(CaseParticipant)) arrives here
+    SemanticEntry(
+        semantics=MessageSemantics.ACCEPT_OFFER_CASE_PARTICIPANT,
         pattern=AcceptActorRecommendationPattern,
-        event_class=AcceptActorRecommendationReceivedEvent,
-        use_case_class=AcceptActorRecommendationReceivedUseCase,
+        event_class=AcceptOfferCaseParticipantReceivedEvent,
+        use_case_class=AcceptOfferCaseParticipantReceivedUseCase,
         wire_activity_class=_AcceptCaseParticipantOfferActivity,
         include_activity=True,
     ),
     SemanticEntry(
-        semantics=MessageSemantics.REJECT_ACTOR_RECOMMENDATION,
+        semantics=MessageSemantics.REJECT_OFFER_CASE_PARTICIPANT,
         pattern=RejectActorRecommendationPattern,
-        event_class=RejectActorRecommendationReceivedEvent,
-        use_case_class=RejectActorRecommendationReceivedUseCase,
+        event_class=RejectOfferCaseParticipantReceivedEvent,
+        use_case_class=RejectOfferCaseParticipantReceivedUseCase,
         wire_activity_class=_RejectCaseParticipantOfferActivity,
         include_activity=True,
     ),

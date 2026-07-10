@@ -141,8 +141,9 @@ _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
     {
         MessageSemantics.ACCEPT_CASE_MANAGER_ROLE,
         MessageSemantics.OFFER_ACTOR_TO_CASE,
-        MessageSemantics.ACCEPT_ACTOR_RECOMMENDATION,
-        MessageSemantics.REJECT_ACTOR_RECOMMENDATION,
+        MessageSemantics.OFFER_CASE_PARTICIPANT,
+        MessageSemantics.ACCEPT_OFFER_CASE_PARTICIPANT,
+        MessageSemantics.REJECT_OFFER_CASE_PARTICIPANT,
         MessageSemantics.VALIDATE_REPORT,
     }
 )
