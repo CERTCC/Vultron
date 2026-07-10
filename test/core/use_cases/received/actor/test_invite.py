@@ -903,3 +903,56 @@ class TestInviteActorUseCases:
         state = cast(Any, dl.read(state_id))
         assert state is not None
         assert state.join_backfill_complete is True
+
+    def test_accept_invite_sets_roles_from_invite(
+        self, monkeypatch, make_payload
+    ):
+        """CM-16-003: roles embedded in Invite wire object are set on created participant."""
+        from unittest.mock import MagicMock
+
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.states.roles import CVDRole
+        from vultron.wire.as2.vocab.base.objects.actors import as_Organization
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        invitee_id = "https://example.org/users/roles-test-coordinator"
+        invitee = as_Organization(id_=invitee_id)
+        case = VulnerabilityCase(
+            id_="https://example.org/cases/caseRoles001",
+            name="TEST-ACCEPT-INVITE-ROLES",
+        )
+        invite = rm_invite_to_case_activity(
+            invitee,
+            target=VulnerabilityCaseStub(id_=case.id_),
+            actor="https://example.org/users/owner",
+            id_="https://example.org/cases/caseRoles001/invitations/1",
+            roles=[str(CVDRole.COORDINATOR), str(CVDRole.FINDER)],
+        )
+        dl.create(invitee)
+        dl.create(case)
+        dl.create(invite)
+
+        accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
+        event = make_payload(accept)
+
+        AcceptInviteActorToCaseReceivedUseCase(
+            dl, event, sync_port=MagicMock()
+        ).execute()
+
+        updated_case = cast(Any, dl.read(case.id_))
+        participant_id = updated_case.actor_participant_index.get(invitee_id)
+        assert participant_id is not None
+        participant_obj = cast(Any, dl.get(id_=participant_id))
+        assert participant_obj is not None
+        participant_roles = list(participant_obj.case_roles)
+        assert (
+            CVDRole.COORDINATOR in participant_roles
+            or str(CVDRole.COORDINATOR) in participant_roles
+        )
+        assert (
+            CVDRole.FINDER in participant_roles
+            or str(CVDRole.FINDER) in participant_roles
+        )

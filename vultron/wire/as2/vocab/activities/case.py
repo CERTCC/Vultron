@@ -275,12 +275,14 @@ class _RmInviteToCaseActivity(as_Invite):
     See also _RmSubmitReportActivity for the scenario when a case does not exist yet.
     object_: the Actor being invited
     target: VulnerabilityCase
+    roles: intended CVD roles for the invitee (CM-16-003)
     """
 
     object_: CoreActor | as_Actor = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseStub | str | None = None
+    roles: list[str] | None = None
 
 
 class _RmAcceptInviteToCaseActivity(as_Accept):

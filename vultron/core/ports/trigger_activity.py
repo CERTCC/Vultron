@@ -263,6 +263,10 @@ class TriggerActivityPort(Protocol):
         cc: list[str] | None = None,
         id_: str | None = None,
         attributed_to: str | None = None,
+        roles: list | None = None,
+        active_embargo_id: str | None = None,
+        em_state: str | None = None,
+        embargo_end_time: Any | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist an ``Invite(Actor, Case)`` activity.
 
@@ -270,6 +274,9 @@ class TriggerActivityPort(Protocol):
         MAY carry the case owner's ID for attribution.
         ``cc`` MAY carry the Case Actor's own ID for self-archival (CLP-10-001).
         ``id_`` allows callers to supply a deterministic ID for idempotency.
+        ``roles`` carries the intended CVD roles for the invitee (CM-16-003).
+        ``active_embargo_id``, ``em_state``, and ``embargo_end_time`` enrich
+        the case stub when an embargo is active (CM-16-002).
         Returns ``(activity_id, activity_dict)``.
         """
         ...

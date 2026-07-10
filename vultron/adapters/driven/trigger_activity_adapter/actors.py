@@ -20,6 +20,7 @@ Case Actor / CASE_MANAGER delegation activities.
 """
 
 import logging
+from datetime import datetime
 from typing import Any, cast
 
 from vultron.core.models.actor import CoreActor
@@ -41,8 +42,13 @@ from vultron.wire.as2.factories.case import (
     offer_case_manager_role_activity,
     reject_case_manager_role_activity,
 )
+from vultron.core.states.em import EM
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
+from vultron.wire.as2.vocab.objects.case_status import (
+    CaseStatus,
+    ParticipantStatus,
+)
+from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     VulnerabilityCase,
     VulnerabilityCaseStub,
@@ -69,12 +75,22 @@ class _ActorsMixin:
         cc: list[str] | None = None,
         id_: str | None = None,
         attributed_to: str | None = None,
+        roles: list | None = None,
+        active_embargo_id: str | None = None,
+        em_state: str | None = None,
+        embargo_end_time: datetime | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist an ``Invite(Actor, Case)`` activity.
 
         ``actor`` SHOULD be the Case Actor ID (PCR-08-007); ``attributed_to``
         MAY carry the case owner's ID for attribution.  ``cc`` MAY carry the
         Case Actor's own ID for self-archival (CLP-10-001).
+
+        When ``active_embargo_id`` and ``em_state`` are provided and the
+        embargo is active, an enriched ``VulnerabilityCaseStub`` is built
+        with ``active_embargo`` and ``case_status`` so the invitee can check
+        embargo terms before accepting (CM-16-002).  ``roles`` is embedded in
+        the Invite activity (CM-16-003).
         """
         extra: dict[str, Any] = {"actor": actor, "to": to}
         if cc is not None:
@@ -83,9 +99,23 @@ class _ActorsMixin:
             extra["id_"] = id_
         if attributed_to is not None:
             extra["attributed_to"] = attributed_to
+        if roles is not None:
+            extra["roles"] = [str(r) for r in roles]
+
+        stub_kwargs: dict[str, Any] = {}
+        if (
+            active_embargo_id
+            and em_state == "ACTIVE"
+            and embargo_end_time is not None
+        ):
+            stub_kwargs["active_embargo"] = EmbargoEvent(
+                id_=active_embargo_id, end_time=embargo_end_time
+            )
+            stub_kwargs["case_status"] = CaseStatus(em_state=EM.ACTIVE)
+
         activity = rm_invite_to_case_activity(
             invitee=CoreActor(id_=invitee_id),
-            target=VulnerabilityCaseStub(id_=case_id),
+            target=VulnerabilityCaseStub(id_=case_id, **stub_kwargs),
             **extra,
         )
         try:

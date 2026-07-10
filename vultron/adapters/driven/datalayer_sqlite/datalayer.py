@@ -169,7 +169,7 @@ class SqliteDataLayer:
         if obj is None:
             return None
         obj = self._rehydrate_fields(obj)
-        return self._coerce_to_semantic_class(obj)
+        return self._coerce_to_semantic_class(obj, raw_data=rec.data_)
 
     def _rehydrate_fields(self, obj: PersistableModel) -> PersistableModel:
         """Expand dehydrated object-reference fields back to typed objects.
@@ -257,7 +257,9 @@ class SqliteDataLayer:
         return obj
 
     def _coerce_to_semantic_class(
-        self, obj: PersistableModel
+        self,
+        obj: PersistableModel,
+        raw_data: dict[str, Any] | None = None,
     ) -> PersistableModel:
         """Coerce a base-vocabulary activity to its semantic subtype.
 
@@ -268,6 +270,12 @@ class SqliteDataLayer:
         coerces via ``model_validate``.
         Coercion failures are logged as warnings and the original object is
         returned unchanged.
+
+        ``raw_data`` (if supplied) is the original stored record dict
+        (Python-style field names).  It is overlaid onto the by-alias dump so
+        that fields present in the semantic subclass but absent from the base
+        vocabulary class (e.g. ``roles`` on ``_RmInviteToCaseActivity``) are
+        preserved through coercion.
         """
         if not isinstance(obj, as_Activity):
             return obj
@@ -283,11 +291,18 @@ class SqliteDataLayer:
             return obj
 
         try:
+            coerce_dict = obj.model_dump(by_alias=True, serialize_as_any=True)
+            if raw_data:
+                # raw_data (Python-style keys) supplies semantic-subclass-only
+                # fields absent from the base vocabulary class (e.g. `roles`).
+                # Rehydrated by-alias values must win for any collision so that
+                # typed objects (e.g. a rehydrated VulnerabilityCaseStub for
+                # `target`) are not overwritten by the dehydrated string stored
+                # in raw_data.
+                coerce_dict = {**raw_data, **coerce_dict}
             return cast(
                 PersistableModel,
-                activity_cls.model_validate(
-                    obj.model_dump(by_alias=True, serialize_as_any=True)
-                ),
+                activity_cls.model_validate(coerce_dict),
             )
         except (ValidationError, TypeError) as exc:
             logger.warning(

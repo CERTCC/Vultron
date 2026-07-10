@@ -260,6 +260,11 @@ class CreateInviteeParticipantAtAcceptedNode(DataLayerAction):
     CaseActor records RM.ACCEPTED directly in its own DataLayer rather
     than running an engage-case BT as the invitee.
 
+    Reads ``roles`` from the original ``Invite`` wire object (stored in the
+    DataLayer) and sets ``participant.case_roles`` when present (CM-16-003).
+    The invite ID is derived from ``event.object_id`` on the blackboard
+    ``activity`` (the ``AcceptInviteActorToCaseReceivedEvent``).
+
     Writes ``new_invite_participant`` to the blackboard.
     """
 
@@ -284,6 +289,29 @@ class CreateInviteeParticipantAtAcceptedNode(DataLayerAction):
             key="new_invite_participant",
             access=py_trees.common.Access.WRITE,
         )
+        self.blackboard.register_key(
+            key="activity", access=py_trees.common.Access.READ
+        )
+
+    def _read_invite_roles(self) -> list:
+        """Read roles from the original Invite wire object via the DataLayer.
+
+        Returns the roles list when the Invite has one, else empty list.
+        """
+        if self.datalayer is None:
+            return []
+        try:
+            event = self.blackboard.get("activity")
+            invite_id = getattr(event, "object_id", None)
+            if not invite_id:
+                return []
+            invite = self.datalayer.read(invite_id)
+            roles = getattr(invite, "roles", None)
+            if isinstance(roles, list) and roles:
+                return roles
+        except (KeyError, AttributeError):
+            pass
+        return []
 
     def update(self) -> Status:
         if self.datalayer is None:
@@ -325,11 +353,14 @@ class CreateInviteeParticipantAtAcceptedNode(DataLayerAction):
             )
             return Status.SUCCESS
 
+        roles = self._read_invite_roles()
         participant = VultronParticipant(
             id_=f"{self.case_id}/participants/{self.invitee_id.split('/')[-1]}",
             attributed_to=self.invitee_id,
             context=self.case_id,
+            case_roles=list(roles) if roles else [],
         )
+
         # PCR-08-010: Accept(Invite) IS the engage signal; record all three
         # RM transitions on behalf of the invitee in the CaseActor's DataLayer.
         participant.append_rm_state(

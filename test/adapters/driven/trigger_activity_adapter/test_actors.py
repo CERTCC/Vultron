@@ -17,8 +17,11 @@ Covers invitations, recommendations, participant management, and
 CASE_MANAGER delegation.
 """
 
+from datetime import datetime, timezone
+
 import pytest
 
+from vultron.core.states.roles import CVDRole
 from vultron.errors import VultronValidationError
 from vultron.wire.as2.factories import rm_invite_to_case_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
@@ -81,6 +84,65 @@ class TestInviteActorToCase:
         )
 
         assert activity_dict.get("attributedTo") == owner
+
+    def test_roles_embedded_in_invite(self, adapter, dl):
+        """roles list is serialised into the Invite activity (CM-16-003)."""
+        roles = [CVDRole.VENDOR, CVDRole.COORDINATOR]
+        dl.create(as_Service(id_=_INVITEE))
+        activity_id, activity_dict = adapter.invite_actor_to_case(
+            invitee_id=_INVITEE,
+            case_id=_CASE_ID,
+            actor=_ACTOR,
+            roles=roles,
+        )
+
+        assert activity_dict.get("roles") == [str(r) for r in roles]
+        persisted = dl.read(activity_id)
+        assert getattr(persisted, "roles", None) == [str(r) for r in roles]
+
+    def test_embargo_stub_embedded_when_active(self, adapter, dl):
+        """When embargo is ACTIVE, VulnerabilityCaseStub carries embargo fields (CM-16-002)."""
+        embargo_id = "https://example.org/embargoes/emb-001"
+        end_time = datetime(2026, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
+        _, activity_dict = adapter.invite_actor_to_case(
+            invitee_id=_INVITEE,
+            case_id=_CASE_ID,
+            actor=_ACTOR,
+            active_embargo_id=embargo_id,
+            em_state="ACTIVE",
+            embargo_end_time=end_time,
+        )
+
+        target = activity_dict.get("target") or {}
+        assert target.get("activeEmbargo") is not None
+        assert target.get("caseStatus") is not None
+
+    def test_no_embargo_stub_when_em_state_not_active(self, adapter):
+        """When em_state is not ACTIVE, case stub has no embargo enrichment."""
+        _, activity_dict = adapter.invite_actor_to_case(
+            invitee_id=_INVITEE,
+            case_id=_CASE_ID,
+            actor=_ACTOR,
+            active_embargo_id="https://example.org/embargoes/emb-001",
+            em_state="NO_EMBARGO",
+        )
+
+        target = activity_dict.get("target") or {}
+        assert target.get("activeEmbargo") is None
+
+    def test_no_embargo_stub_when_end_time_missing(self, adapter):
+        """When embargo_end_time is None, case stub has no embargo enrichment."""
+        _, activity_dict = adapter.invite_actor_to_case(
+            invitee_id=_INVITEE,
+            case_id=_CASE_ID,
+            actor=_ACTOR,
+            active_embargo_id="https://example.org/embargoes/emb-001",
+            em_state="ACTIVE",
+            embargo_end_time=None,
+        )
+
+        target = activity_dict.get("target") or {}
+        assert target.get("activeEmbargo") is None
 
 
 class TestAcceptCaseInvite:

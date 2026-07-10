@@ -271,6 +271,51 @@ class TestSvcInviteActorToCaseUseCase:
         case_actor_outbox = dl.clone_for_actor(case_actor.id_).outbox_list()
         assert activity_data["id"] in case_actor_outbox
 
+    def test_invite_embeds_roles_from_request(self):
+        """AC-6/CM-16-003: roles from InviteActorToCaseTriggerRequest appear in Invite."""
+        actor, dl = _make_actor_dl("Coordinator")
+        invitee, _ = _make_actor_dl("Finder")
+        dl.create(invitee)
+        case = VulnerabilityCase(
+            attributed_to=actor.id_, name="Test Case", content="Content"
+        )
+        dl.create(case)
+        roles = [CVDRole.FINDER, CVDRole.REPORTER]
+        request = InviteActorToCaseTriggerRequest(
+            actor_id=actor.id_,
+            case_id=case.id_,
+            invitee_id=invitee.id_,
+            roles=roles,
+        )
+        result = SvcInviteActorToCaseUseCase(
+            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        activity_data = result["activity"]
+        assert activity_data.get("roles") == [str(r) for r in roles]
+
+    def test_invite_defaults_to_vendor_role_when_roles_none(self):
+        """When request.roles is None, EvaluateDefaultRolesNode provides VENDOR."""
+        actor, dl = _make_actor_dl("Coordinator")
+        invitee, _ = _make_actor_dl("Vendor")
+        dl.create(invitee)
+        case = VulnerabilityCase(
+            attributed_to=actor.id_, name="Test Case", content="Content"
+        )
+        dl.create(case)
+        request = InviteActorToCaseTriggerRequest(
+            actor_id=actor.id_,
+            case_id=case.id_,
+            invitee_id=invitee.id_,
+            # roles intentionally omitted
+        )
+        result = SvcInviteActorToCaseUseCase(
+            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        activity_data = result["activity"]
+        assert CVDRole.VENDOR in (activity_data.get("roles") or [])
+
 
 class TestSvcSuggestActorToCaseUseCase:
     """Tests for the suggest-actor-to-case trigger use case."""

@@ -100,6 +100,11 @@ class SvcInviteActorToCaseUseCase(SvcBTTriggerBase):
     Emits RmInviteToCaseActivity from the Case Actor's identity
     (PCR-08-007).  ``self._actor_id`` is set to the Case Actor URI in
     ``_prepare()`` so the BT queues the invite in the Case Actor's outbox.
+
+    When ``request.roles`` is provided, it is pre-populated into the
+    ``suggested_roles`` blackboard key so ``EmitInviteActorToCaseNode`` picks
+    it up (CM-16-003).  Otherwise ``EvaluateDefaultRolesNode`` (when present
+    in the tree) writes ``[CVDRole.VENDOR]`` as the default.
     """
 
     def _prepare(self) -> None:
@@ -113,6 +118,7 @@ class SvcInviteActorToCaseUseCase(SvcBTTriggerBase):
             raise VultronNotFoundError("Actor", request.invitee_id)
 
         self._invitee_id = request.invitee_id
+        self._roles = request.roles
 
         case_actor_id = _find_case_actor_id(self._dl, self._case.id_)
         self._actor_id = case_actor_id if case_actor_id else owner_id
@@ -131,6 +137,11 @@ class SvcInviteActorToCaseUseCase(SvcBTTriggerBase):
             attributed_to=self._attributed_to,
             captured=self._captured,
         )
+
+    def _extra_execute_kwargs(self) -> dict:
+        return {
+            "suggested_roles": self._roles if self._roles is not None else None
+        }
 
     def _handle_result(self) -> None:
         logger.info(

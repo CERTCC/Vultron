@@ -32,12 +32,14 @@ the process-area root per BTND-07-003:
 """
 
 import logging
+from datetime import datetime
 from typing import Any, cast
 
 import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.states.em import EM
 from vultron.core.states.roles import CVDRole
 from vultron.core.models.protocols import is_case_model
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
@@ -54,6 +56,15 @@ class EmitInviteActorToCaseNode(DataLayerAction):
     own inbox for canonical ledger archival (CLP-10-001).  An optional
     ``attributed_to`` carries the original requesting actor when the invite
     is sent from the Case Actor identity (PCR-08-007).
+
+    Reads ``suggested_roles`` from the blackboard (written by
+    :class:`EvaluateDefaultRolesNode`) and embeds them in the Invite activity
+    as the intended CVD roles for the invitee (CM-16-003).
+
+    When the case has an active embargo (``em_state == EM.ACTIVE``), embeds
+    ``active_embargo.end_time`` and the embargo state in ``Invite.target``
+    (the ``VulnerabilityCaseStub``) so the invitee can check terms before
+    accepting (CM-16-002).
     """
 
     def __init__(
@@ -72,6 +83,44 @@ class EmitInviteActorToCaseNode(DataLayerAction):
         self.attributed_to = attributed_to
         self._captured = captured
 
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="suggested_roles", access=py_trees.common.Access.READ
+        )
+
+    def _read_suggested_roles(self) -> list[CVDRole]:
+        try:
+            roles = self.blackboard.get("suggested_roles")
+            if isinstance(roles, list) and roles:
+                return roles
+        except KeyError:
+            pass
+        return [CVDRole.VENDOR]
+
+    def _get_embargo_details(
+        self,
+    ) -> tuple[str | None, str | None, datetime | None]:
+        """Return (active_embargo_id, em_state_str, embargo_end_time) for CM-16-002."""
+        assert self.datalayer is not None
+        case = self.datalayer.read(self.case_id)
+        if not is_case_model(case):
+            return None, None, None
+        try:
+            status = case.current_status
+            if status.em_state != EM.ACTIVE:
+                return None, None, None
+            raw_embargo = case.active_embargo
+            embargo_id = _as_id(raw_embargo) if raw_embargo else None
+            end_time = getattr(raw_embargo, "end_time", None)
+            return (
+                embargo_id,
+                "ACTIVE",
+                end_time if isinstance(end_time, datetime) else None,
+            )
+        except (AttributeError, ValueError):
+            return None, None, None
+
     def update(self) -> Status:
         if self.datalayer is None or self.actor_id is None:
             self.feedback_message = "DataLayer or actor_id not available"
@@ -88,6 +137,10 @@ class EmitInviteActorToCaseNode(DataLayerAction):
         # Add case_actor_id to cc: so ASGI self-delivery routes the Invite
         # to the CaseActor's inbox for canonical ledger archival (CLP-10-001).
         cc = [self.case_actor_id] if self.case_actor_id else None
+        roles = self._read_suggested_roles()
+        active_embargo_id, em_state_str, embargo_end_time = (
+            self._get_embargo_details()
+        )
 
         try:
             activity_id, activity_dict = factory.invite_actor_to_case(
@@ -97,6 +150,10 @@ class EmitInviteActorToCaseNode(DataLayerAction):
                 to=[self.invitee_id],
                 cc=cc,
                 attributed_to=self.attributed_to,
+                roles=roles,
+                active_embargo_id=active_embargo_id,
+                em_state=em_state_str,
+                embargo_end_time=embargo_end_time,
             )
             cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
                 self.actor_id, activity_id

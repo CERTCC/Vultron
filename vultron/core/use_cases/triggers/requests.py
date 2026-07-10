@@ -19,6 +19,7 @@ from pydantic import BaseModel, ConfigDict, field_validator
 from vultron.core.models.base import NonEmptyString, UriString
 from vultron.core.states.cs import CS_vfd, CS_pxa
 from vultron.core.states.rm import RM
+from vultron.core.states.roles import CVDRole
 
 
 class TriggerRequest(BaseModel):
@@ -196,10 +197,13 @@ class InviteActorToCaseTriggerRequest(CaseTriggerRequest):
     """Trigger request for the case owner to directly invite an actor.
 
     Emits an RmInviteToCaseActivity addressed to the invitee, queued in the
-    actor's outbox for delivery.
+    actor's outbox for delivery.  ``roles`` carries the intended CVD roles
+    for the invitee (CM-16-003); when ``None`` the BT falls back to
+    ``[CVDRole.VENDOR]`` via ``EvaluateDefaultRolesNode``.
     """
 
     invitee_id: NonEmptyString
+    roles: list[CVDRole] | None = None
 
 
 class AddParticipantStatusTriggerRequest(CaseTriggerRequest):
