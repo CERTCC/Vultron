@@ -107,6 +107,27 @@ groups:
     statement: >-
       A BT node's docstring SHOULD document all blackboard keys it reads and writes, including
       the expected type and the node that produces the value for each READ key.
+  - id: BTND-03-004
+    priority: MUST
+    statement: >-
+      A BT node that writes an inter-node handoff key (a blackboard key written by one node
+      and consumed by a downstream sibling within the same tree) MUST namespace the key by
+      the execution-scoped correlation ID of the tree instance, using the `{noun}_{id_segment}`
+      convention (`id_segment` = `recommendation_id.split('/')[-1]` for HTTP URIs, or the
+      last colon-delimited segment for URN IDs). The same namespaced key MUST be used
+      consistently by all nodes in the tree that read or write that value.
+    rationale: >-
+      The py_trees blackboard is process-global. When a tree factory is called concurrently
+      (e.g., two `Offer(Actor, Case)` messages arriving in parallel futures), two tree
+      instances share the same blackboard namespace. A flat key like `suggested_roles` written
+      by the first instance is silently overwritten by the second before the first instance
+      reads it — causing the wrong role list to be emitted to the Case Owner. Namespacing by
+      the execution-scoped ID (e.g., `suggested_roles_abc123`) guarantees collision-free
+      per-execution storage. See `notes/bt-integration.md` §
+      "Namespaced Inter-Node Handoff Keys". Discovered in CONCERN-1335.
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-03-001
 - id: BTND-04
   title: Module Ownership
   kind: implementation
