@@ -16,31 +16,28 @@
 """
 Demonstrates the workflow for suggesting an actor for a case via the Vultron API.
 
-This demo script showcases two suggestion paths:
+This demo script showcases two suggestion paths per ADR-0026 (CaseActor-routed):
 
-1. Accept path: finder suggests coordinator → vendor (case owner) accepts →
-   vendor sends invitation to coordinator
-2. Reject path: finder suggests coordinator → vendor (case owner) rejects →
-   no invitation is sent
+1. Accept path:
+   - Finder → CaseActor inbox: Offer(Actor, Case)
+   - CaseActor → Case Owner inbox: Offer(CaseParticipant{actor, roles}, Case)
+   - Case Owner → CaseActor inbox: Accept(Offer(CaseParticipant))
+   - CaseActor → Finder inbox: AcceptActorRecommendation
+   - CaseActor → Coordinator inbox: Invite(CaseStub+embargo+roles)
+
+2. Reject path:
+   - Finder → CaseActor inbox: Offer(Actor, Case)
+   - CaseActor → Case Owner inbox: Offer(CaseParticipant{actor, roles}, Case)
+   - Case Owner → CaseActor inbox: Reject(Offer(CaseParticipant))
+   - CaseActor → Finder inbox: RejectActorRecommendation
+
+In this single-process prototype, vendor acts as both Case Owner and
+CaseActor so the recommendation routes through vendor's inbox in both roles.
+A full multi-process deployment would have a distinct CaseActor service URI.
 
 Each demo starts from an initialized case (report submitted and validated,
 case created, finder participant added) so that the suggestion workflow can
 be demonstrated in isolation.
-
-This corresponds to the workflow documented in:
-    docs/howto/activitypub/activities/suggest_actor.md
-
-When run as a script, this module will:
-1. Check if the API server is available
-2. Reset the data layer to a clean state
-3. Discover actors (finder, vendor, coordinator) via the API
-4. Run both demo workflows (accept and reject)
-5. Verify side effects in the data layer
-
-Note on direct inbox communication:
-This demo uses direct inbox-to-inbox communication between actors, per the
-Vultron prototype design. Actors post activities directly to each other's
-inboxes.
 """
 
 # Standard library imports
@@ -74,12 +71,13 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     setup_demo_logging,
 )
 from vultron.wire.as2.factories import (
-    accept_actor_recommendation_activity,
+    accept_case_participant_offer_activity,
     add_participant_to_case_activity,
     add_report_to_case_activity,
     create_case_activity,
+    offer_case_participant_activity,
     recommend_actor_activity,
-    reject_actor_recommendation_activity,
+    reject_case_participant_offer_activity,
     rm_submit_report_activity,
     rm_validate_report_activity,
 )
@@ -160,26 +158,29 @@ def demo_suggest_actor_accept(
     vendor: as_Actor,
     coordinator: as_Actor,
 ) -> None:
-    """
-    Demonstrates the accept path of the suggest-actor-to-case workflow.
+    """Demonstrates the accept path of the suggest-actor-to-case workflow.
 
-    Steps:
-    1. Setup: initialize case (report submitted + validated, case created,
-       finder participant added)
-    2. Finder recommends coordinator to vendor (RecommendActor → vendor inbox)
-    3. Vendor accepts recommendation (AcceptActorRecommendation → finder inbox)
-    4. Verify the acceptance was persisted
+    ADR-0026 CaseActor-routed protocol:
 
-    This follows the accept branch in
-    docs/howto/activitypub/activities/suggest_actor.md.
+    1. Setup: initialize case
+    2. Finder → CaseActor inbox: Offer(Actor, Case)
+    3. CaseActor → Case Owner inbox: Offer(CaseParticipant{actor,roles}, Case)
+    4. Case Owner → CaseActor inbox: Accept(Offer(CaseParticipant))
+    5. Verify acceptance persisted
+
+    In this single-process prototype vendor acts as CaseActor.
     """
     logger.info("=" * 80)
-    logger.info("DEMO: Suggest Actor — Accept Path")
+    logger.info("DEMO: Suggest Actor — Accept Path (ADR-0026)")
     logger.info("=" * 80)
 
     case = _setup_initialized_case(client, finder, vendor)
 
-    with demo_step("Step 2: Finder recommends coordinator to vendor"):
+    with demo_step(
+        "Step 2: Finder sends Offer(Actor, Case) to CaseActor inbox"
+    ):
+        # Per ADR-0026/CM-16-001: recommendation routes to CaseActor inbox.
+        # In this prototype vendor.id_ is the CaseActor identity.
         recommendation = recommend_actor_activity(
             coordinator,
             actor=finder.id_,
@@ -190,31 +191,57 @@ def demo_suggest_actor_accept(
                 f"{case.name}."
             ),
         )
-        logger.info(f"Sending recommendation: {logfmt(recommendation)}")
+        logger.info(f"Sending Offer(Actor,Case): {logfmt(recommendation)}")
         post_to_inbox_and_wait(client, vendor.id_, recommendation)
-        with demo_check("Recommendation stored in data layer"):
+        with demo_check("Offer(Actor,Case) stored in data layer"):
             verify_object_stored(client, recommendation.id_)
 
-    with demo_step("Step 3: Vendor accepts recommendation"):
-        accept = accept_actor_recommendation_activity(
-            recommendation,
+    with demo_step(
+        "Step 3: CaseActor transforms to Offer(CaseParticipant) → Case Owner"
+    ):
+        # Per ADR-0026/CM-16-004: CaseActor transforms and forwards with
+        # origin=original-offer-id.
+        cp_offer = offer_case_participant_activity(
+            coordinator,
+            target=case.id_,
             actor=vendor.id_,
-            to=[finder.id_],
+            to=[vendor.id_],
+            origin=recommendation.id_,
             content=(
-                f"Accepting your suggestion to invite "
+                f"Recommending {coordinator.id_} for case participation "
+                f"(roles: VENDOR). Origin: {recommendation.id_}"
+            ),
+        )
+        logger.info(f"Sending Offer(CaseParticipant): {logfmt(cp_offer)}")
+        post_to_inbox_and_wait(client, vendor.id_, cp_offer)
+        with demo_check("Offer(CaseParticipant) stored in data layer"):
+            verify_object_stored(client, cp_offer.id_)
+
+    with demo_step(
+        "Step 4: Case Owner sends Accept(Offer(CaseParticipant)) to CaseActor"
+    ):
+        # Per ADR-0026/CM-16-006: Accept routes to CaseActor inbox.
+        accept = accept_case_participant_offer_activity(
+            cp_offer,
+            actor=vendor.id_,
+            to=[vendor.id_],
+            content=(
+                f"Accepting recommendation to add "
                 f"{coordinator.id_} to {case.name}."
             ),
         )
-        logger.info(f"Sending accept: {logfmt(accept)}")
-        post_to_inbox_and_wait(client, finder.id_, accept)
-        with demo_check("Acceptance stored in data layer"):
+        logger.info(
+            f"Sending Accept(Offer(CaseParticipant)): {logfmt(accept)}"
+        )
+        post_to_inbox_and_wait(client, vendor.id_, accept)
+        with demo_check("Accept stored in data layer"):
             verify_object_stored(client, accept.id_)
         with demo_check("Case state after accept"):
             log_case_state(client, case.id_, "after accept")
 
     logger.info(
-        "✅ DEMO COMPLETE (accept path): Recommendation accepted. "
-        "Vendor should now invite the coordinator."
+        "✅ DEMO COMPLETE (accept path): CaseActor should now send "
+        "AcceptActorRecommendation to finder and Invite to coordinator."
     )
 
 
@@ -224,21 +251,18 @@ def demo_suggest_actor_reject(
     vendor: as_Actor,
     coordinator: as_Actor,
 ) -> None:
-    """
-    Demonstrates the reject path of the suggest-actor-to-case workflow.
+    """Demonstrates the reject path of the suggest-actor-to-case workflow.
 
-    Steps:
-    1. Setup: initialize case (report submitted + validated, case created,
-       finder participant added)
-    2. Finder recommends coordinator to vendor (RecommendActor → vendor inbox)
-    3. Vendor rejects recommendation (RejectActorRecommendation → finder inbox)
-    4. Verify no new participant was added
+    ADR-0026 CaseActor-routed protocol:
 
-    This follows the reject branch in
-    docs/howto/activitypub/activities/suggest_actor.md.
+    1. Setup: initialize case
+    2. Finder → CaseActor inbox: Offer(Actor, Case)
+    3. CaseActor → Case Owner inbox: Offer(CaseParticipant{actor,roles}, Case)
+    4. Case Owner → CaseActor inbox: Reject(Offer(CaseParticipant))
+    5. Verify no new participant was added
     """
     logger.info("=" * 80)
-    logger.info("DEMO: Suggest Actor — Reject Path")
+    logger.info("DEMO: Suggest Actor — Reject Path (ADR-0026)")
     logger.info("=" * 80)
 
     case = _setup_initialized_case(client, finder, vendor)
@@ -246,7 +270,9 @@ def demo_suggest_actor_reject(
     initial_case = log_case_state(client, case.id_, "initial")
     initial_count = len(initial_case.case_participants) if initial_case else 0
 
-    with demo_step("Step 2: Finder recommends coordinator to vendor"):
+    with demo_step(
+        "Step 2: Finder sends Offer(Actor, Case) to CaseActor inbox"
+    ):
         recommendation = recommend_actor_activity(
             coordinator,
             actor=finder.id_,
@@ -257,25 +283,48 @@ def demo_suggest_actor_reject(
                 f"{case.name}."
             ),
         )
-        logger.info(f"Sending recommendation: {logfmt(recommendation)}")
+        logger.info(f"Sending Offer(Actor,Case): {logfmt(recommendation)}")
         post_to_inbox_and_wait(client, vendor.id_, recommendation)
-        with demo_check("Recommendation stored in data layer"):
+        with demo_check("Offer(Actor,Case) stored in data layer"):
             verify_object_stored(client, recommendation.id_)
 
-    with demo_step("Step 3: Vendor rejects recommendation"):
-        reject = reject_actor_recommendation_activity(
-            recommendation,
+    with demo_step(
+        "Step 3: CaseActor transforms to Offer(CaseParticipant) → Case Owner"
+    ):
+        cp_offer = offer_case_participant_activity(
+            coordinator,
+            target=case.id_,
             actor=vendor.id_,
-            to=[finder.id_],
+            to=[vendor.id_],
+            origin=recommendation.id_,
             content=(
-                f"Declining your suggestion to invite "
+                f"Recommending {coordinator.id_} for case participation "
+                f"(roles: VENDOR). Origin: {recommendation.id_}"
+            ),
+        )
+        logger.info(f"Sending Offer(CaseParticipant): {logfmt(cp_offer)}")
+        post_to_inbox_and_wait(client, vendor.id_, cp_offer)
+        with demo_check("Offer(CaseParticipant) stored in data layer"):
+            verify_object_stored(client, cp_offer.id_)
+
+    with demo_step(
+        "Step 4: Case Owner sends Reject(Offer(CaseParticipant)) to CaseActor"
+    ):
+        reject = reject_case_participant_offer_activity(
+            cp_offer,
+            actor=vendor.id_,
+            to=[vendor.id_],
+            content=(
+                f"Declining recommendation to add "
                 f"{coordinator.id_} to {case.name}."
             ),
         )
-        logger.info(f"Sending reject: {logfmt(reject)}")
-        post_to_inbox_and_wait(client, finder.id_, reject)
+        logger.info(
+            f"Sending Reject(Offer(CaseParticipant)): {logfmt(reject)}"
+        )
+        post_to_inbox_and_wait(client, vendor.id_, reject)
 
-    with demo_step("Step 4: Verify coordinator not added as participant"):
+    with demo_step("Step 5: Verify coordinator not added as participant"):
         with demo_check("Participant count unchanged after reject"):
             final_case = log_case_state(client, case.id_, "after reject")
             if final_case is None:

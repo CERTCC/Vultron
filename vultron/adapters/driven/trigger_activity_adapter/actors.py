@@ -30,7 +30,9 @@ from vultron.wire.as2.factories import (
     accept_actor_recommendation_activity,
     add_participant_to_case_activity,
     add_status_to_participant_activity,
+    offer_case_participant_activity,
     recommend_actor_activity,
+    reject_actor_recommendation_activity,
     rm_accept_invite_to_case_activity,
     rm_invite_to_case_activity,
 )
@@ -153,6 +155,116 @@ class _ActorsMixin:
             logger.warning(
                 "suggest_actor_to_case: activity '%s' already exists"
                 " — skipping",
+                activity.id_,
+            )
+        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+
+    def offer_actor_to_case(
+        self,
+        recommender_id: str,
+        recommended_id: str,
+        case_id: str,
+        actor: str,
+        origin: str | None = None,
+        to: list[str] | None = None,
+        id_: str | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist an Offer(CaseParticipant{actor, roles}, Case).
+
+        Transforms the original Offer(Actor, Case) from a recommending
+        participant into an Offer(CaseParticipant) addressed to the Case Owner.
+        ``origin`` carries the original Offer ID for causal traceability
+        (CM-16-004).
+        """
+        extra: dict[str, Any] = {"actor": actor, "to": to}
+        if id_ is not None:
+            extra["id_"] = id_
+        if origin is not None:
+            extra["origin"] = origin
+        activity = offer_case_participant_activity(
+            recommended=CoreActor(id_=recommended_id),
+            target=case_id,
+            **extra,
+        )
+        try:
+            self._dl.create(activity)
+        except ValueError:
+            logger.warning(
+                "offer_actor_to_case: activity '%s' already exists — skipping",
+                activity.id_,
+            )
+        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+
+    def emit_accept_actor_recommendation(
+        self,
+        recommender_id: str,
+        recommendation_id: str,
+        recommended_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+        id_: str | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist an AcceptActorRecommendation activity.
+
+        Sent by the CaseActor to the recommender after the Case Owner accepts
+        the Offer(CaseParticipant) (CM-16-006 step 3).
+        """
+        recommendation = recommend_actor_activity(
+            recommended=CoreActor(id_=recommended_id),
+            target=case_id,
+            id_=recommendation_id,
+            actor=recommender_id,
+        )
+        extra: dict[str, Any] = {"actor": actor, "to": to or [recommender_id]}
+        if id_ is not None:
+            extra["id_"] = id_
+        activity = accept_actor_recommendation_activity(
+            offer=recommendation, target=case_id, **extra
+        )
+        try:
+            self._dl.create(activity)
+        except ValueError:
+            logger.warning(
+                "emit_accept_actor_recommendation: activity '%s' already"
+                " exists — skipping",
+                activity.id_,
+            )
+        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+
+    def emit_reject_actor_recommendation(
+        self,
+        recommender_id: str,
+        recommendation_id: str,
+        recommended_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+        id_: str | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist a RejectActorRecommendation activity.
+
+        Sent by the CaseActor to the recommender after the Case Owner rejects
+        the Offer(CaseParticipant) (CM-16-007 step 3).
+        """
+        recommendation = recommend_actor_activity(
+            recommended=CoreActor(id_=recommended_id),
+            target=case_id,
+            id_=recommendation_id,
+            actor=recommender_id,
+        )
+        extra: dict[str, Any] = {"actor": actor, "to": to or [recommender_id]}
+        if id_ is not None:
+            extra["id_"] = id_
+        activity = reject_actor_recommendation_activity(
+            offer=recommendation, target=case_id, **extra
+        )
+        try:
+            self._dl.create(activity)
+        except ValueError:
+            logger.warning(
+                "emit_reject_actor_recommendation: activity '%s' already"
+                " exists — skipping",
                 activity.id_,
             )
         return activity.id_, activity.model_dump(**_DUMP_KWARGS)

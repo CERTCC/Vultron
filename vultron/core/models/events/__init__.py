@@ -12,13 +12,10 @@ Public surface:
 from vultron.core.models.events.actor import (
     AcceptCaseOwnershipTransferReceivedEvent,
     AcceptInviteActorToCaseReceivedEvent,
-    AcceptSuggestActorToCaseReceivedEvent,
     InviteActorToCaseReceivedEvent,
     OfferCaseOwnershipTransferReceivedEvent,
     RejectCaseOwnershipTransferReceivedEvent,
     RejectInviteActorToCaseReceivedEvent,
-    RejectSuggestActorToCaseReceivedEvent,
-    SuggestActorToCaseReceivedEvent,
 )
 from vultron.core.models.events.base import (
     MessageSemantics,
@@ -89,9 +86,6 @@ __all__ = [
     "AddReportToCaseReceivedEvent",
     "CloseCaseReceivedEvent",
     # actor
-    "SuggestActorToCaseReceivedEvent",
-    "AcceptSuggestActorToCaseReceivedEvent",
-    "RejectSuggestActorToCaseReceivedEvent",
     "OfferCaseOwnershipTransferReceivedEvent",
     "AcceptCaseOwnershipTransferReceivedEvent",
     "RejectCaseOwnershipTransferReceivedEvent",

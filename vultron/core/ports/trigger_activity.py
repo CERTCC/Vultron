@@ -300,6 +300,62 @@ class TriggerActivityPort(Protocol):
         """
         ...
 
+    def offer_actor_to_case(
+        self,
+        recommender_id: str,
+        recommended_id: str,
+        case_id: str,
+        actor: str,
+        origin: str | None = None,
+        to: list[str] | None = None,
+        id_: str | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist an ``Offer(CaseParticipant, Case)`` activity.
+
+        Transforms the original ``Offer(Actor, Case)`` into an
+        ``Offer(CaseParticipant{actor, roles=[VENDOR]}, Case)`` addressed to
+        the Case Owner.  ``origin`` carries the original recommender Offer ID
+        so the Case Owner can trace the causal chain (CM-16-004).
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def emit_accept_actor_recommendation(
+        self,
+        recommender_id: str,
+        recommendation_id: str,
+        recommended_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+        id_: str | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist an ``AcceptActorRecommendation`` activity.
+
+        Sent by the CaseActor to the original recommender after the Case Owner
+        accepts the Offer(CaseParticipant) (CM-16-006 step 3).
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def emit_reject_actor_recommendation(
+        self,
+        recommender_id: str,
+        recommendation_id: str,
+        recommended_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+        id_: str | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist a ``RejectActorRecommendation`` activity.
+
+        Sent by the CaseActor to the original recommender after the Case Owner
+        rejects the Offer(CaseParticipant) (CM-16-007 step 3).
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
     def accept_actor_recommendation(
         self,
         recommended_id: str,

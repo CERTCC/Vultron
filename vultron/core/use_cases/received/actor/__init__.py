@@ -20,7 +20,7 @@ from vultron.core.use_cases.received.actor.ownership import (
     RejectCaseOwnershipTransferReceivedUseCase,
 )
 from vultron.core.use_cases.received.actor.suggest import (
-    AcceptSuggestActorToCaseReceivedUseCase,
-    RejectSuggestActorToCaseReceivedUseCase,
-    SuggestActorToCaseReceivedUseCase,
+    AcceptActorRecommendationReceivedUseCase,
+    OfferActorToCaseReceivedUseCase,
+    RejectActorRecommendationReceivedUseCase,
 )

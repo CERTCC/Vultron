@@ -24,6 +24,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Reject,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     VulnerabilityCaseRef,
 )
@@ -60,6 +61,45 @@ class _RejectActorRecommendationActivity(as_Reject):
     """
 
     object_: _RecommendActorActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+    target: VulnerabilityCaseRef = None
+
+
+class _OfferCaseParticipantActivity(as_Offer):
+    """CaseActor offers a CaseParticipant (with roles) to the Case Owner.
+
+    Transforms the original ``Offer(Actor, Case)`` from a recommending
+    participant into this ``Offer(CaseParticipant{actor, roles}, Case)``
+    with ``origin`` carrying the original Offer ID for causal traceability
+    (CM-16-004, ADR-0026).
+    """
+
+    object_: CaseParticipant = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+    target: VulnerabilityCaseRef = None
+
+
+class _AcceptCaseParticipantOfferActivity(as_Accept):
+    """Case Owner accepts Offer(CaseParticipant) from the CaseActor.
+
+    Routed to the CaseActor inbox (CM-16-006).
+    """
+
+    object_: _OfferCaseParticipantActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+    target: VulnerabilityCaseRef = None
+
+
+class _RejectCaseParticipantOfferActivity(as_Reject):
+    """Case Owner rejects Offer(CaseParticipant) from the CaseActor.
+
+    Routed to the CaseActor inbox (CM-16-007).
+    """
+
+    object_: _OfferCaseParticipantActivity = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None

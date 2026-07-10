@@ -16,38 +16,47 @@ else:
     VultronCase = object
 
 
-class SuggestActorToCaseReceivedEvent(VultronEvent):
-    """Actor offered another actor as a participant in a VulnerabilityCase."""
+class OfferActorToCaseReceivedEvent(VultronEvent):
+    """CaseActor received Offer(Actor, Case) from a recommending participant.
 
-    semantic_type: Literal[MessageSemantics.SUGGEST_ACTOR_TO_CASE] = (
-        MessageSemantics.SUGGEST_ACTOR_TO_CASE
+    Routed to the CaseActor inbox per ADR-0026/CM-16-001.
+    """
+
+    semantic_type: Literal[MessageSemantics.OFFER_ACTOR_TO_CASE] = (
+        MessageSemantics.OFFER_ACTOR_TO_CASE
     )
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
 
 
-class AcceptSuggestActorToCaseReceivedEvent(VultronEvent):
-    """Actor accepted a suggestion to add another actor to a VulnerabilityCase."""
+class AcceptActorRecommendationReceivedEvent(VultronEvent):
+    """CaseActor received Accept(Offer(CaseParticipant)) from the Case Owner.
 
-    semantic_type: Literal[MessageSemantics.ACCEPT_SUGGEST_ACTOR_TO_CASE] = (
-        MessageSemantics.ACCEPT_SUGGEST_ACTOR_TO_CASE
+    Routed to the CaseActor inbox per ADR-0026/CM-16-006.
+    """
+
+    semantic_type: Literal[MessageSemantics.ACCEPT_ACTOR_RECOMMENDATION] = (
+        MessageSemantics.ACCEPT_ACTOR_RECOMMENDATION
     )
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
 
 
-class RejectSuggestActorToCaseReceivedEvent(VultronEvent):
-    """Actor rejected a suggestion to add another actor to a VulnerabilityCase."""
+class RejectActorRecommendationReceivedEvent(VultronEvent):
+    """CaseActor received Reject(Offer(CaseParticipant)) from the Case Owner.
 
-    semantic_type: Literal[MessageSemantics.REJECT_SUGGEST_ACTOR_TO_CASE] = (
-        MessageSemantics.REJECT_SUGGEST_ACTOR_TO_CASE
+    Routed to the CaseActor inbox per ADR-0026/CM-16-007.
+    """
+
+    semantic_type: Literal[MessageSemantics.REJECT_ACTOR_RECOMMENDATION] = (
+        MessageSemantics.REJECT_ACTOR_RECOMMENDATION
     )
 
     @property
-    def suggested_actor_id(self) -> str | None:
+    def offer_id(self) -> str | None:
         return self.object_id
 
     @property
-    def suggested_actor(self) -> "VultronObject | None":
-        return cast("VultronObject | None", self.object_)
+    def offer(self) -> "VultronActivity | None":
+        return cast("VultronActivity | None", self.object_)
 
 
 class OfferCaseManagerRoleReceivedEvent(VultronEvent):

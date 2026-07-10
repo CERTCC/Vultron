@@ -29,9 +29,9 @@ class MessageSemantics(StrEnum):
     DEFER_CASE = auto()
     ADD_REPORT_TO_CASE = auto()
 
-    SUGGEST_ACTOR_TO_CASE = auto()
-    ACCEPT_SUGGEST_ACTOR_TO_CASE = auto()
-    REJECT_SUGGEST_ACTOR_TO_CASE = auto()
+    OFFER_ACTOR_TO_CASE = auto()
+    ACCEPT_ACTOR_RECOMMENDATION = auto()
+    REJECT_ACTOR_RECOMMENDATION = auto()
     OFFER_CASE_MANAGER_ROLE = auto()
     ACCEPT_CASE_MANAGER_ROLE = auto()
     REJECT_CASE_MANAGER_ROLE = auto()

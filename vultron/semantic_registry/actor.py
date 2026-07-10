@@ -18,56 +18,56 @@ invite/accept/reject to case, and vulnerability case announcements.
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from vultron.core.models.events.actor import (
+    AcceptActorRecommendationReceivedEvent,
     AcceptCaseManagerRoleReceivedEvent,
     AcceptCaseOwnershipTransferReceivedEvent,
     AcceptInviteActorToCaseReceivedEvent,
-    AcceptSuggestActorToCaseReceivedEvent,
     AnnounceVulnerabilityCaseReceivedEvent,
     InviteActorToCaseReceivedEvent,
+    OfferActorToCaseReceivedEvent,
     OfferCaseManagerRoleReceivedEvent,
     OfferCaseOwnershipTransferReceivedEvent,
+    RejectActorRecommendationReceivedEvent,
     RejectCaseManagerRoleReceivedEvent,
     RejectCaseOwnershipTransferReceivedEvent,
     RejectInviteActorToCaseReceivedEvent,
-    RejectSuggestActorToCaseReceivedEvent,
-    SuggestActorToCaseReceivedEvent,
 )
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.use_cases.received.actor import (
+    AcceptActorRecommendationReceivedUseCase,
     AcceptCaseManagerRoleReceivedUseCase,
     AcceptCaseOwnershipTransferReceivedUseCase,
     AcceptInviteActorToCaseReceivedUseCase,
-    AcceptSuggestActorToCaseReceivedUseCase,
     AnnounceVulnerabilityCaseReceivedUseCase,
     InviteActorToCaseReceivedUseCase,
+    OfferActorToCaseReceivedUseCase,
     OfferCaseManagerRoleReceivedUseCase,
     OfferCaseOwnershipTransferReceivedUseCase,
+    RejectActorRecommendationReceivedUseCase,
     RejectCaseManagerRoleReceivedUseCase,
     RejectCaseOwnershipTransferReceivedUseCase,
     RejectInviteActorToCaseReceivedUseCase,
-    RejectSuggestActorToCaseReceivedUseCase,
-    SuggestActorToCaseReceivedUseCase,
 )
 from vultron.semantic_registry._entry import SemanticEntry
 from vultron.wire.as2.extractor import (
+    AcceptActorRecommendationPattern,
     AcceptCaseManagerRolePattern,
     AcceptCaseOwnershipTransferActivityPattern,
     AcceptInviteActorToCasePattern,
-    AcceptSuggestActorToCasePattern,
     AnnounceVulnerabilityCasePattern,
     InviteActorToCasePattern,
     OfferCaseManagerRolePattern,
     OfferCaseOwnershipTransferActivityPattern,
+    RejectActorRecommendationPattern,
     RejectCaseManagerRolePattern,
     RejectCaseOwnershipTransferActivityPattern,
     RejectInviteActorToCasePattern,
-    RejectSuggestActorToCasePattern,
-    SuggestActorToCasePattern,
 )
+from vultron.wire.as2.extractor._instances import SuggestActorToCasePattern
 from vultron.wire.as2.vocab.activities.actor import (
-    _AcceptActorRecommendationActivity,
+    _AcceptCaseParticipantOfferActivity,
     _RecommendActorActivity,
-    _RejectActorRecommendationActivity,
+    _RejectCaseParticipantOfferActivity,
 )
 from vultron.wire.as2.vocab.activities.case import (
     _AcceptCaseManagerRoleActivity,
@@ -83,28 +83,30 @@ from vultron.wire.as2.vocab.activities.case import (
 )
 
 ENTRIES: list[SemanticEntry] = [
+    # CaseActor-routed ADR-0026 flow (CM-16)
     SemanticEntry(
-        semantics=MessageSemantics.SUGGEST_ACTOR_TO_CASE,
+        semantics=MessageSemantics.OFFER_ACTOR_TO_CASE,
         pattern=SuggestActorToCasePattern,
-        event_class=SuggestActorToCaseReceivedEvent,
-        use_case_class=SuggestActorToCaseReceivedUseCase,
+        event_class=OfferActorToCaseReceivedEvent,
+        use_case_class=OfferActorToCaseReceivedUseCase,
         wire_activity_class=_RecommendActorActivity,
         include_activity=True,
     ),
     SemanticEntry(
-        semantics=MessageSemantics.ACCEPT_SUGGEST_ACTOR_TO_CASE,
-        pattern=AcceptSuggestActorToCasePattern,
-        event_class=AcceptSuggestActorToCaseReceivedEvent,
-        use_case_class=AcceptSuggestActorToCaseReceivedUseCase,
-        wire_activity_class=_AcceptActorRecommendationActivity,
+        semantics=MessageSemantics.ACCEPT_ACTOR_RECOMMENDATION,
+        pattern=AcceptActorRecommendationPattern,
+        event_class=AcceptActorRecommendationReceivedEvent,
+        use_case_class=AcceptActorRecommendationReceivedUseCase,
+        wire_activity_class=_AcceptCaseParticipantOfferActivity,
         include_activity=True,
     ),
     SemanticEntry(
-        semantics=MessageSemantics.REJECT_SUGGEST_ACTOR_TO_CASE,
-        pattern=RejectSuggestActorToCasePattern,
-        event_class=RejectSuggestActorToCaseReceivedEvent,
-        use_case_class=RejectSuggestActorToCaseReceivedUseCase,
-        wire_activity_class=_RejectActorRecommendationActivity,
+        semantics=MessageSemantics.REJECT_ACTOR_RECOMMENDATION,
+        pattern=RejectActorRecommendationPattern,
+        event_class=RejectActorRecommendationReceivedEvent,
+        use_case_class=RejectActorRecommendationReceivedUseCase,
+        wire_activity_class=_RejectCaseParticipantOfferActivity,
+        include_activity=True,
     ),
     SemanticEntry(
         semantics=MessageSemantics.OFFER_CASE_MANAGER_ROLE,
