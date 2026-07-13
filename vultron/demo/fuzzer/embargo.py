@@ -43,7 +43,10 @@ from vultron.demo.fuzzer.base import (
     UsuallyFail,
     UsuallySucceed,
 )
-from vultron.demo.fuzzer.call_out_point import EvaluatorCallOutPoint
+from vultron.demo.fuzzer.call_out_point import (
+    EvaluatorCallOutPoint,
+    RetrieverCallOutPoint,
+)
 
 # ---------------------------------------------------------------------------
 # Embargo termination nodes
@@ -126,7 +129,7 @@ class ExitEmbargoForOtherReason(EvaluatorCallOutPoint, OneInTwoHundred):
     output_keys = {"exit_embargo_other_reason_verdict": str}
 
 
-class EmbargoTimerExpired(OneInOneHundred):
+class EmbargoTimerExpired(RetrieverCallOutPoint, OneInOneHundred):
     """Check whether the embargo's agreed-upon deadline has passed.
 
     Semantic function:
@@ -134,6 +137,10 @@ class EmbargoTimerExpired(OneInOneHundred):
         the embargo expiry timestamp recorded in the case.  In simulation
         this fires rarely; in production it is a simple timestamp
         comparison.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — queries embargo expiry timestamp from case record)
+      Output keys: (none — binary result only, per BT-18-006)
 
     Input category: Environmental check.
 

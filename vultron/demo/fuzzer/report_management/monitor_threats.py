@@ -38,9 +38,10 @@ from vultron.demo.fuzzer.base import (
     AlwaysSucceed,
     UsuallyFail,
 )
+from vultron.demo.fuzzer.call_out_point import RetrieverCallOutPoint
 
 
-class MonitorAttacks(AlmostAlwaysFail):
+class MonitorAttacks(RetrieverCallOutPoint, AlmostAlwaysFail):
     """Monitor threat-intelligence feeds for active attacks on the vulnerability.
 
     Semantic function:
@@ -49,6 +50,10 @@ class MonitorAttacks(AlmostAlwaysFail):
         has been observed in the wild.  Fails almost always to reflect the
         realistic low prior probability that an attack against a specific
         vulnerability will be detected during a routine coordination cycle.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — queries TI feeds and SIEM for attack signals)
+      Output keys: (none — binary result only, per BT-18-006)
 
     Input category: System integration.
 
@@ -61,7 +66,7 @@ class MonitorAttacks(AlmostAlwaysFail):
     """
 
 
-class MonitorExploits(AlmostAlwaysFail):
+class MonitorExploits(RetrieverCallOutPoint, AlmostAlwaysFail):
     """Monitor threat-intelligence feeds for public exploits of the vulnerability.
 
     Semantic function:
@@ -70,6 +75,10 @@ class MonitorExploits(AlmostAlwaysFail):
         the vulnerability has been published or is circulating.  Fails almost
         always to reflect the realistic low prior probability that a public
         exploit will be detected during a routine coordination cycle.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — queries exploit databases and TI platforms)
+      Output keys: (none — binary result only, per BT-18-006)
 
     Input category: System integration.
 
@@ -81,7 +90,7 @@ class MonitorExploits(AlmostAlwaysFail):
     """
 
 
-class MonitorPublicReports(UsuallyFail):
+class MonitorPublicReports(RetrieverCallOutPoint, UsuallyFail):
     """Monitor public sources for disclosure of the vulnerability.
 
     Semantic function:
@@ -90,6 +99,10 @@ class MonitorPublicReports(UsuallyFail):
         disclosed or publicly discussed before the coordinated embargo
         expires.  Fails most of the time to reflect that premature public
         disclosure is the uncommon case during active coordination.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — scans public news feeds, mailing lists, social media)
+      Output keys: (none — binary result only, per BT-18-006)
 
     Input category: System integration.
 

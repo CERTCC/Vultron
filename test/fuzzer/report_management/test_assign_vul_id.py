@@ -229,6 +229,7 @@ class TestEmpiricalDistributions:
         """Same seed → same sequence for a representative node."""
         random.seed(42)
         node = RequestId()
+        node.setup()
         seq_a = [node.update() for _ in range(20)]
         random.seed(42)
         seq_b = [node.update() for _ in range(20)]
