@@ -8,7 +8,7 @@ description: >-
   agentic-readiness.yaml (AR), which covers making the Vultron protocol code
   itself integrable with external agentic tools.
 version: 1.0.0
-kind: pattern
+kind: dev-process
 scope:
   - prototype
   - production

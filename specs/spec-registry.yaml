@@ -84,7 +84,7 @@ groups:
       `refines`, `derives_from`, `verifies`, `part_of`, `constrains`.'
   - id: SR-02-005
     priority: MUST
-    statement: '`SpecKind` MUST include all five portability tiers: `general`, `pattern`, `domain`, `language`, `implementation`.'
+    statement: '`SpecKind` MUST include all six portability tiers: `general`, `pattern`, `domain`, `language`, `implementation`, `dev-process`.'
   - id: SR-02-006
     priority: MUST
     statement: '`Scope` MUST include: `prototype`, `production`.'
