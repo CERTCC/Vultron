@@ -7,6 +7,7 @@ description: >
 related_notes:
   - vultron/core/ports/AGENTS.md
   - notes/architecture-adapters.md
+  - notes/domain-validation.md
 relevant_packages:
   - vultron/core
   - vultron/wire/as2

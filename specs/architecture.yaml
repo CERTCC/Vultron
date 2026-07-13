@@ -289,7 +289,9 @@ groups:
     construction time, ARCH-15 governs relational invariants enforced at runtime
     entry points: use-case execute(), BT node update(), and helper functions that
     require non-None resolved values. See notes/domain-validation.md for the
-    strict/loose distinction and canonical patterns.
+    strict/loose distinction and canonical patterns, and ADR-0032
+    (docs/adr/0032-validate-at-edge-promote-to-core.md) for the architectural
+    decision that motivates this group.
   specs:
   - id: ARCH-15-001
     priority: MUST
@@ -302,7 +304,11 @@ groups:
       Status.SUCCESS on a missing required input causes the BT sequence to
       continue as if the node succeeded, masking the failure and producing
       ledger gaps, dropped broadcasts, and mis-routed activities.
-      See notes/domain-validation.md.
+      See notes/domain-validation.md and ADR-0032.
+    relationships:
+      - rel_type: refines
+        spec_id: ARCH-10-001
+        note: Extends construction-time fail-fast to runtime BT node entry points.
   - id: ARCH-15-002
     priority: MUST
     statement: >
@@ -314,7 +320,11 @@ groups:
       Returning None from a helper that conceptually requires a valid ID moves
       the error from the point of failure to the point of use, making stack
       traces and logs point to the wrong location.
-      See notes/domain-validation.md.
+      See notes/domain-validation.md and ADR-0032.
+    relationships:
+      - rel_type: refines
+        spec_id: ARCH-10-001
+        note: Extends construction-time fail-fast to helper function entry points.
   - id: ARCH-15-003
     priority: MUST
     statement: >
@@ -325,7 +335,11 @@ groups:
       A silently dropped activity produces an invisible gap in the canonical
       case ledger and leaves no audit trail. The dispatcher caller must make
       an explicit decision about how to handle unroutable activities.
-      See notes/domain-validation.md.
+      See notes/domain-validation.md and ADR-0032.
+    relationships:
+      - rel_type: refines
+        spec_id: ARCH-10-001
+        note: Extends construction-time fail-fast to dispatcher routing entry points.
   - id: ARCH-15-004
     priority: MUST
     statement: >
@@ -338,7 +352,11 @@ groups:
       _as_id() in use_cases/_helpers.py and services/embargo_lifecycle.py had
       already diverged in docstring accuracy. Three copies of the case-manager
       lookup produced inconsistent None-handling behavior across callers.
-      See notes/domain-validation.md.
+      See notes/domain-validation.md and ADR-0032.
+    relationships:
+      - rel_type: refines
+        spec_id: ARCH-10-001
+        note: Canonical-copy discipline is a prerequisite for consistent fail-fast enforcement.
 - id: ARCH-11
   title: Port Inbound/Outbound Discrimination
   specs:
