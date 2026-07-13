@@ -25,6 +25,18 @@ validate-at-edge / promote-to-core rule (ADR-0032).
 **Load when**: orienting to architecture boundaries, reviewing layering
 violations, or validating core/wire separation.
 
+**`domain-validation.md`**
+Strict vs. loose domain object boundary contract: where objects transition from
+loose (wire-deserialized, possibly-None fields) to strict (all required fields
+resolved), fail-fast patterns at use-case, BT node, and helper boundaries,
+canonical helper locations (`use_cases/_helpers.py`), and the named
+silent-failure sites from CONCERN-1360 with before/after behavior.
+Normative requirements: `specs/architecture.yaml` ARCH-15-001 through
+ARCH-15-004.
+**Load when**: implementing or reviewing error handling in use cases or BT nodes,
+auditing helpers that return `None` on failure, or designing new domain helpers
+that require non-None inputs.
+
 **`vultron/core/ports/AGENTS.md`**
 Port-focused architecture guidance for `vultron/core/ports/`: inbound vs
 outbound port taxonomy, dispatch-vs-emit terminology,

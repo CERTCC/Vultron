@@ -282,6 +282,63 @@ groups:
       required invariants are not satisfied
     rationale: Late validation masks missing data and makes debugging harder; fail-fast ensures errors surface at the point
       of construction
+- id: ARCH-15
+  title: Fail-Fast at Domain Operation Boundaries
+  description: >
+    Extends ARCH-10-001. While ARCH-10 covers structural validation at Pydantic
+    construction time, ARCH-15 governs relational invariants enforced at runtime
+    entry points: use-case execute(), BT node update(), and helper functions that
+    require non-None resolved values. See notes/domain-validation.md for the
+    strict/loose distinction and canonical patterns.
+  specs:
+  - id: ARCH-15-001
+    priority: MUST
+    statement: >
+      A BT node's update() MUST return Status.FAILURE when a required blackboard
+      key is absent or resolves to None. It MUST NOT return Status.SUCCESS in
+      this case, as doing so misleads the enclosing BT sequence and silently
+      drops protocol behavior (e.g., ledger entries not written).
+    rationale: >
+      Status.SUCCESS on a missing required input causes the BT sequence to
+      continue as if the node succeeded, masking the failure and producing
+      ledger gaps, dropped broadcasts, and mis-routed activities.
+      See notes/domain-validation.md.
+  - id: ARCH-15-002
+    priority: MUST
+    statement: >
+      A helper function that requires a non-None ID MUST check the result
+      and raise VultronValidationError (or UnroutableActivityError for routing
+      failures) immediately. The strict guarantee lives in the caller or the
+      helper itself — never deferred silently to downstream code.
+    rationale: >
+      Returning None from a helper that conceptually requires a valid ID moves
+      the error from the point of failure to the point of use, making stack
+      traces and logs point to the wrong location.
+      See notes/domain-validation.md.
+  - id: ARCH-15-003
+    priority: MUST
+    statement: >
+      The dispatcher MUST raise UnroutableActivityError when no case_id can
+      be extracted from an inbound event. It MUST NOT return None and silently
+      drop the activity from ledger indexing.
+    rationale: >
+      A silently dropped activity produces an invisible gap in the canonical
+      case ledger and leaves no audit trail. The dispatcher caller must make
+      an explicit decision about how to handle unroutable activities.
+      See notes/domain-validation.md.
+  - id: ARCH-15-004
+    priority: MUST
+    statement: >
+      Each domain helper function MUST have exactly one canonical copy.
+      Duplicate implementations of the same logic (e.g., multiple copies of
+      _as_id() or case-manager lookup functions) MUST be removed; all callers
+      MUST import from the canonical location in vultron/core/use_cases/_helpers.py.
+    rationale: >
+      Duplicate helper copies diverge silently over time. Two copies of
+      _as_id() in use_cases/_helpers.py and services/embargo_lifecycle.py had
+      already diverged in docstring accuracy. Three copies of the case-manager
+      lookup produced inconsistent None-handling behavior across callers.
+      See notes/domain-validation.md.
 - id: ARCH-11
   title: Port Inbound/Outbound Discrimination
   specs:
