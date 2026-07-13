@@ -1,14 +1,14 @@
 # Worked Example
 
-{% include-markdown "../../includes/not_normative.md" %}
+{% include-markdown "../includes/not_normative.md" %}
 
-Here we give a brief worked example showing a few usage scenarios of the [protocol](index.md).
+Here we give a brief worked example showing a few usage scenarios of the [protocol](../reference/formal_protocol/index.md).
 We use UML Sequence Diagrams to show the interaction between Participant roles.
 
 ## A Finder Becomes a Reporter
 
 As mentioned in
-[RM Interactions](../../topics/process_models/rm/rm_interactions.md#the-secret-lives-of-finders), Finders have a few hidden state
+[RM Interactions](../topics/process_models/rm/rm_interactions.md#the-secret-lives-of-finders), Finders have a few hidden state
 transitions before the CVD process really begins. An example of this
 is shown in the figure below. The Finder must discover, validate, and
 prioritize their finding before initiating the CVD process.
@@ -131,7 +131,7 @@ immediately follows up with a revision proposal of their own.
 The difference is that by initially accepting the proposal, the Vendor ensures that they are in an active embargo state
 before attempting to renegotiate.
 The sequence shown here is intended to be consistent with the previous discussion surrounding [default embargo
-strategies](../../topics/process_models/em/defaults.md).
+strategies](../topics/process_models/em/defaults.md).
 One might think of this as the "Yes-And" rule for embargo negotiations.
 
 ```mermaid
@@ -313,7 +313,7 @@ sequenceDiagram
     Once the embargo has been exited, *any* Participant may publish at any time.
     Participants might choose to coordinate publication schedules more closely, but there is nothing in the protocol to require it.
     With the recognition that more concise publication scheduling might be needed in some situations, we revisit this 
-    concern in [Process Implementation Notes](../../howto/process_implementation.md).
+    concern in [Process Implementation Notes](process_implementation.md).
 
 ### Publishing After Embargo Teardown
 
