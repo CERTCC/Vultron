@@ -805,10 +805,10 @@ groups:
       or by the Case Owner at accept time when the Case Owner selects different
       roles for the suggested participant.
     rationale: >-
-      The Evaluator is a prototype stub (CM-16-003); its output is a starting
-      point, not a binding decision. Configuration-driven overrides allow
-      operators to tune defaults without replacing the Evaluator node. Case Owner
-      overrides preserve human authority over final role assignments.
+      The Case Owner has ultimate authority over who participates in their case
+      and in what role. The Evaluator's output is a suggested starting point to
+      reduce friction, not a binding decision. The Case Owner can always update
+      role assignments to whatever they determine is appropriate.
   - id: CM-16-004
     priority: MUST
     statement: >-
