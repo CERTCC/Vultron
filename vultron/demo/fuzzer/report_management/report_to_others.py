@@ -49,7 +49,10 @@ from vultron.demo.fuzzer.base import (
     UsuallyFail,
     UsuallySucceed,
 )
-from vultron.demo.fuzzer.call_out_point import EvaluatorCallOutPoint
+from vultron.demo.fuzzer.call_out_point import (
+    EvaluatorCallOutPoint,
+    RetrieverCallOutPoint,
+)
 
 
 class HaveReportToOthersCapability(UsuallySucceed):
@@ -95,7 +98,7 @@ class AllPartiesKnown(EvaluatorCallOutPoint, UniformSucceedFail):
     output_keys = {"all_parties_known_verdict": str}
 
 
-class IdentifyVendors(SuccessOrRunning):
+class IdentifyVendors(RetrieverCallOutPoint, SuccessOrRunning):
     """Identify the software vendors responsible for the affected product(s).
 
     Semantic function:
@@ -103,6 +106,10 @@ class IdentifyVendors(SuccessOrRunning):
         affected product(s) so they can be notified.  Uses
         ``SuccessOrRunning`` to model that vendor identification may be
         an ongoing (multi-tick) process; never hard-fails.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — queries CPE/product databases and SBOM data)
+      Output keys: identified_vendors: str  (SUCCESS only)
 
     Input category: Human decision / System integration.
 
@@ -115,8 +122,10 @@ class IdentifyVendors(SuccessOrRunning):
     benefit from human review.
     """
 
+    output_keys = {"identified_vendors": str}
 
-class IdentifyCoordinators(SuccessOrRunning):
+
+class IdentifyCoordinators(RetrieverCallOutPoint, SuccessOrRunning):
     """Identify coordinator organizations that should be involved.
 
     Semantic function:
@@ -124,6 +133,10 @@ class IdentifyCoordinators(SuccessOrRunning):
         national CSIRTs) that should be involved in the disclosure.  Uses
         ``SuccessOrRunning`` to model an ongoing identification process;
         never hard-fails.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — queries FIRST member directory and CSIRT registries)
+      Output keys: identified_coordinators: str  (SUCCESS only)
 
     Input category: Human decision / System integration.
 
@@ -134,6 +147,8 @@ class IdentifyCoordinators(SuccessOrRunning):
     CSIRT registry lookups are automatable; routing policy (when to involve
     a coordinator) may require human judgment.
     """
+
+    output_keys = {"identified_coordinators": str}
 
 
 class IdentifyOthers(AlwaysSucceed):
@@ -171,13 +186,17 @@ class NotificationsComplete(UniformSucceedFail):
     """
 
 
-class ChooseRecipient(AlwaysSucceed):
+class ChooseRecipient(RetrieverCallOutPoint, AlwaysSucceed):
     """Select the next recipient from the identified-parties list.
 
     Semantic function:
         Action — select the next recipient from the identified-parties
         list for notification.  Could be fully automated; always succeeds
         in simulation.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — reads pending notification queue from DataLayer)
+      Output keys: chosen_recipient: str  (SUCCESS only)
 
     Input category: System integration.
 
@@ -186,6 +205,8 @@ class ChooseRecipient(AlwaysSucceed):
     Automation potential: **High** — deterministic queue selection from
     the identified-parties list; fully automatable.
     """
+
+    output_keys = {"chosen_recipient": str}
 
 
 class RemoveRecipient(AlwaysSucceed):
@@ -257,7 +278,7 @@ class PolicyCompatible(EvaluatorCallOutPoint, ProbablySucceed):
     output_keys = {"policy_compatible_verdict": str}
 
 
-class FindContact(UsuallySucceed):
+class FindContact(RetrieverCallOutPoint, UsuallySucceed):
     """Look up contact information for the chosen recipient.
 
     Semantic function:
@@ -265,6 +286,10 @@ class FindContact(UsuallySucceed):
         (security email, bug bounty platform, disclosure portal).
         Succeeds most of the time; may fail for lesser-known vendors
         with no published security contact.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — queries security.txt, PSIRT directory, FIRST DB)
+      Output keys: recipient_contact: str  (SUCCESS only)
 
     Input category: System integration.
 
@@ -275,6 +300,8 @@ class FindContact(UsuallySucceed):
     automatable for well-known organizations; obscure vendors may require
     manual research.
     """
+
+    output_keys = {"recipient_contact": str}
 
 
 class RcptNotInQrmS(AlmostAlwaysSucceed):

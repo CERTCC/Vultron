@@ -39,6 +39,7 @@ from vultron.demo.fuzzer.report_management.prioritize import OnAccept, OnDefer
 from vultron.demo.fuzzer.report_management.publication import PrepareReport
 from vultron.demo.fuzzer.embargo import (
     CurrentEmbargoAcceptable,
+    EmbargoTimerExpired,
     EvaluateEmbargoProposal,
     ExitEmbargoForOtherReason,
     ExitEmbargoWhenDeployed,
@@ -51,11 +52,15 @@ from vultron.demo.fuzzer.embargo import (
 )
 from vultron.demo.fuzzer.report_management.acquire_exploit import (
     EvaluateExploitPriority,
+    FindExploit,
+    HaveExploit,
     PurchaseExploit,
 )
 from vultron.demo.fuzzer.report_management.assign_vul_id import (
     IdAssignable,
+    IdAssigned,
     InScope,
+    RequestId,
 )
 from vultron.demo.fuzzer.report_management.close_report import (
     OtherCloseCriteriaMet,
@@ -63,8 +68,15 @@ from vultron.demo.fuzzer.report_management.close_report import (
 from vultron.demo.fuzzer.report_management.deploy_fix import (
     DeployFix,
     DeployMitigation,
+    MitigationAvailable,
+    MitigationDeployed,
     MonitoringRequirement,
     PrioritizeDeployment,
+)
+from vultron.demo.fuzzer.report_management.monitor_threats import (
+    MonitorAttacks,
+    MonitorExploits,
+    MonitorPublicReports,
 )
 from vultron.demo.fuzzer.report_management.prioritize import (
     EnoughPrioritizationInfo,
@@ -78,6 +90,10 @@ from vultron.demo.fuzzer.report_management.publication import (
 )
 from vultron.demo.fuzzer.report_management.report_to_others import (
     AllPartiesKnown,
+    ChooseRecipient,
+    FindContact,
+    IdentifyCoordinators,
+    IdentifyVendors,
     PolicyCompatible,
     RecipientEffortExceeded,
     TotalEffortLimitMet,
@@ -367,6 +383,26 @@ _RM_EVALUATOR_NODES = [
 
 _RM_RETRIEVER_NODES = [
     (GatherPrioritizationInfo, "prioritization_info_gathered"),
+    (RequestId, "assigned_id"),
+    (IdentifyVendors, "identified_vendors"),
+    (IdentifyCoordinators, "identified_coordinators"),
+    (FindContact, "recipient_contact"),
+    (ChooseRecipient, "chosen_recipient"),
+]
+
+_RM_BINARY_RETRIEVER_NODES = [
+    IdAssigned,
+    MitigationDeployed,
+    MitigationAvailable,
+    HaveExploit,
+    FindExploit,
+    MonitorAttacks,
+    MonitorExploits,
+    MonitorPublicReports,
+]
+
+_EMBARGO_BINARY_RETRIEVER_NODES = [
+    EmbargoTimerExpired,
 ]
 
 
@@ -413,3 +449,48 @@ def test_rm_retriever_node_output_key_declared(node_cls, output_key):
 @pytest.mark.parametrize("node_cls, output_key", _RM_RETRIEVER_NODES)
 def test_rm_retriever_node_output_key_type_is_str(node_cls, output_key):
     assert node_cls.output_keys[output_key] is str
+
+
+@pytest.mark.parametrize("node_cls, output_key", _RM_RETRIEVER_NODES)
+def test_rm_retriever_node_has_blackboard_contract_docstring(
+    node_cls, output_key
+):
+    assert node_cls.__doc__ and "Blackboard contract" in node_cls.__doc__
+
+
+# ---------------------------------------------------------------------------
+# Binary Retriever nodes — subclass RetrieverCallOutPoint, empty output_keys
+# (BT-18-006)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("node_cls", _RM_BINARY_RETRIEVER_NODES)
+def test_rm_binary_retriever_node_subclasses_retriever(node_cls):
+    assert issubclass(node_cls, RetrieverCallOutPoint)
+
+
+@pytest.mark.parametrize("node_cls", _RM_BINARY_RETRIEVER_NODES)
+def test_rm_binary_retriever_node_output_keys_empty(node_cls):
+    assert node_cls.output_keys == {}
+
+
+@pytest.mark.parametrize("node_cls", _RM_BINARY_RETRIEVER_NODES)
+def test_rm_binary_retriever_node_has_blackboard_contract_docstring(node_cls):
+    assert node_cls.__doc__ and "Blackboard contract" in node_cls.__doc__
+
+
+@pytest.mark.parametrize("node_cls", _EMBARGO_BINARY_RETRIEVER_NODES)
+def test_embargo_binary_retriever_node_subclasses_retriever(node_cls):
+    assert issubclass(node_cls, RetrieverCallOutPoint)
+
+
+@pytest.mark.parametrize("node_cls", _EMBARGO_BINARY_RETRIEVER_NODES)
+def test_embargo_binary_retriever_node_output_keys_empty(node_cls):
+    assert node_cls.output_keys == {}
+
+
+@pytest.mark.parametrize("node_cls", _EMBARGO_BINARY_RETRIEVER_NODES)
+def test_embargo_binary_retriever_node_has_blackboard_contract_docstring(
+    node_cls,
+):
+    assert node_cls.__doc__ and "Blackboard contract" in node_cls.__doc__

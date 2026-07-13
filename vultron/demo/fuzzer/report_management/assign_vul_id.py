@@ -39,10 +39,13 @@ from vultron.demo.fuzzer.base import (
     UsuallyFail,
     UsuallySucceed,
 )
-from vultron.demo.fuzzer.call_out_point import EvaluatorCallOutPoint
+from vultron.demo.fuzzer.call_out_point import (
+    EvaluatorCallOutPoint,
+    RetrieverCallOutPoint,
+)
 
 
-class IdAssigned(UsuallyFail):
+class IdAssigned(RetrieverCallOutPoint, UsuallyFail):
     """Check whether the vulnerability has already been assigned an identity.
 
     Semantic function:
@@ -52,6 +55,10 @@ class IdAssigned(UsuallyFail):
         models the common case where the workflow has not yet assigned an ID
         (i.e., the condition fails most of the time), so that subsequent
         ID-assignment steps are exercised.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — queries case record or external ID registry)
+      Output keys: (none — binary result only, per BT-18-006)
 
     Input category: Environmental check.
 
@@ -112,7 +119,7 @@ class IsIDAssignmentAuthority(OftenSucceed):
     """
 
 
-class RequestId(UsuallySucceed):
+class RequestId(RetrieverCallOutPoint, UsuallySucceed):
     """Request a Vulnerability ID assignment from an external authority.
 
     Semantic function:
@@ -122,6 +129,10 @@ class RequestId(UsuallySucceed):
         call, or may involve prompting a human operator to file the request
         manually.
 
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — submits request to external ID authority)
+      Output keys: assigned_id: str  (SUCCESS only)
+
     Input category: System integration.
 
     Success probability: 0.75 (``UsuallySucceed``).
@@ -130,6 +141,8 @@ class RequestId(UsuallySucceed):
     automated CVE ID reservation; a production implementation could submit the
     request without human intervention in most cases.
     """
+
+    output_keys = {"assigned_id": str}
 
 
 class AssignId(AlwaysSucceed):

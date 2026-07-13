@@ -41,7 +41,10 @@ from vultron.demo.fuzzer.base import (
     UsuallyFail,
     UsuallySucceed,
 )
-from vultron.demo.fuzzer.call_out_point import EvaluatorCallOutPoint
+from vultron.demo.fuzzer.call_out_point import (
+    EvaluatorCallOutPoint,
+    RetrieverCallOutPoint,
+)
 
 
 class NoNewDeploymentInfo(UsuallySucceed):
@@ -91,7 +94,7 @@ class PrioritizeDeployment(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
     output_keys = {"deployment_priority_verdict": str}
 
 
-class MitigationDeployed(UsuallyFail):
+class MitigationDeployed(RetrieverCallOutPoint, UsuallyFail):
     """Check whether a mitigation has already been deployed.
 
     Semantic function:
@@ -101,6 +104,10 @@ class MitigationDeployed(UsuallyFail):
         the case record or a configuration-management database.  Fails most
         of the time to reflect that mitigations are not yet deployed in the
         typical workflow step.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — queries case record or CMDB for mitigation status)
+      Output keys: (none — binary result only, per BT-18-006)
 
     Input category: Environmental check.
 
@@ -112,7 +119,7 @@ class MitigationDeployed(UsuallyFail):
     """
 
 
-class MitigationAvailable(OftenSucceed):
+class MitigationAvailable(RetrieverCallOutPoint, OftenSucceed):
     """Check whether a mitigation option is available to deploy.
 
     Semantic function:
@@ -120,6 +127,10 @@ class MitigationAvailable(OftenSucceed):
         firewall rule, or configuration change) has been identified and is
         ready to be applied.  Succeeds more often than not to reflect that
         mitigations are typically available when this node is reached.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — queries case record or mitigation catalogue)
+      Output keys: (none — binary result only, per BT-18-006)
 
     Input category: Environmental check.
 
