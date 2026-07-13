@@ -211,6 +211,72 @@ class TestFindProtocolPairClosedState:
         assert pair.reply_event_types == OFFER_CASE_PARTICIPANT_REPLY_TYPES
 
 
+class TestFindProtocolPairRequestFound:
+    """Tests for the request_found field added for AC-6/AC-7 duplicate detection."""
+
+    def test_request_found_true_when_request_entry_exists(self, dl):
+        _seed_ledger_entry(dl, CASE_ID, OBJECT_ID_A, REQUEST_TYPE, ACTOR_ID)
+
+        pair = dl.find_protocol_pair(
+            case_id=CASE_ID,
+            request_event_type=REQUEST_TYPE,
+            object_id=OBJECT_ID_A,
+            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
+        )
+
+        assert pair.request_found is True
+
+    def test_request_found_false_when_no_request_entry(self, dl):
+        pair = dl.find_protocol_pair(
+            case_id=CASE_ID,
+            request_event_type=REQUEST_TYPE,
+            object_id=OBJECT_ID_A,
+            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
+        )
+
+        assert pair.request_found is False
+
+    def test_is_pending_true_when_request_found_and_no_reply(self, dl):
+        _seed_ledger_entry(dl, CASE_ID, OBJECT_ID_A, REQUEST_TYPE, ACTOR_ID)
+
+        pair = dl.find_protocol_pair(
+            case_id=CASE_ID,
+            request_event_type=REQUEST_TYPE,
+            object_id=OBJECT_ID_A,
+            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
+        )
+
+        assert pair.is_pending() is True
+        assert pair.is_open() is True
+
+    def test_is_pending_false_when_no_prior_request(self, dl):
+        pair = dl.find_protocol_pair(
+            case_id=CASE_ID,
+            request_event_type=REQUEST_TYPE,
+            object_id=OBJECT_ID_A,
+            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
+        )
+
+        assert pair.is_pending() is False
+        assert pair.is_open() is True  # is_open() still True for fresh pair
+
+    def test_is_pending_false_when_reply_found(self, dl):
+        _seed_ledger_entry(dl, CASE_ID, OBJECT_ID_A, REQUEST_TYPE, ACTOR_ID)
+        _seed_ledger_entry(
+            dl, CASE_ID, REPLY_ID_A, "accept_offer_case_participant", ACTOR_ID
+        )
+
+        pair = dl.find_protocol_pair(
+            case_id=CASE_ID,
+            request_event_type=REQUEST_TYPE,
+            object_id=OBJECT_ID_A,
+            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
+        )
+
+        assert pair.is_pending() is False
+        assert pair.is_closed() is True
+
+
 class TestFindProtocolPairIsolation:
     def test_open_pair_distinct_from_closed_pair_in_same_case(self, dl):
         """Open pair is correctly identified even when another reply exists in the same case.

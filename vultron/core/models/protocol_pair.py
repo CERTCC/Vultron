@@ -73,6 +73,10 @@ class ProtocolPair:
         reply_object_id: Full URI of the reply activity; ``None`` if no reply
             has been found yet.
         reply_event_type: Which reply type was received; ``None`` if open.
+        request_found: ``True`` when the ledger contains a matching request
+            entry for ``(case_id, request_event_type, object_id)``.  ``False``
+            when no prior request exists (fresh case).  Use :meth:`is_pending`
+            rather than :meth:`is_open` when detecting duplicates.
     """
 
     case_id: str
@@ -81,6 +85,7 @@ class ProtocolPair:
     reply_event_types: frozenset[str] = field(default_factory=frozenset)
     reply_object_id: str | None = None
     reply_event_type: str | None = None
+    request_found: bool = False
 
     def is_open(self) -> bool:
         """Return ``True`` if no matching reply has been recorded yet."""
@@ -89,6 +94,15 @@ class ProtocolPair:
     def is_closed(self) -> bool:
         """Return ``True`` if a matching reply has been recorded."""
         return self.reply_object_id is not None
+
+    def is_pending(self) -> bool:
+        """Return ``True`` if the request was found but no reply recorded yet.
+
+        Distinguishes "pending" (request found, awaiting reply) from "fresh"
+        (no prior request in the ledger at all).  Use this instead of
+        ``is_open()`` when testing for a duplicate-recommendation scenario.
+        """
+        return self.request_found and self.reply_object_id is None
 
 
 __all__ = [

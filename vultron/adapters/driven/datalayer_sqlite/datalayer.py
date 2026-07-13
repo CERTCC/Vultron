@@ -460,6 +460,7 @@ class SqliteDataLayer:
             reply_event_types=reply_event_types,
             reply_object_id=reply_object_id,
             reply_event_type=reply_event_type_found,
+            request_found=request_found,
         )
 
     def find_actor_by_short_id(self, short_id: str) -> PersistableModel | None:
