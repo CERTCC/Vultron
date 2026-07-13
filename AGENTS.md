@@ -882,6 +882,15 @@ Short entries are reproduced here; longer ones are referenced below.
   `notes/bt-fuzzer-nodes-report-management.md` for `NewValidationInfoSentinel`,
   `NewPrioritizationInfoSentinel`, and `NewDeploymentInfoSentinel` as worked
   examples. (Established in issue #1199.)
+- **Silent `None` Returns and Fake `SUCCESS` Are the Same Bug** —
+  Returning `None` from a helper when a required ID is absent, or
+  returning `Status.SUCCESS` from a BT node when a required blackboard
+  key is missing, both silently drop protocol behavior (ledger entries,
+  broadcasts, routing decisions). The correct pattern: check at the
+  conversion point and raise `VultronValidationError` (helpers) or
+  return `Status.FAILURE` (BT nodes) immediately.
+  See [notes/domain-validation.md](notes/domain-validation.md) and
+  `specs/architecture.yaml` ARCH-15-001 through ARCH-15-004.
 
 ## Skill Interaction Rules
 
