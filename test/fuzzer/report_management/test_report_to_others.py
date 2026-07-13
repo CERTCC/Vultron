@@ -17,7 +17,6 @@ from vultron.demo.fuzzer.base import (
 from vultron.demo.fuzzer.report_management.report_to_others import (
     AllPartiesKnown,
     ChooseRecipient,
-    FindContact,
     HaveReportToOthersCapability,
     IdentifyCoordinators,
     IdentifyOthers,
@@ -49,7 +48,6 @@ _ALL_NODES = [
     RemoveRecipient,
     RecipientEffortExceeded,
     PolicyCompatible,
-    FindContact,
     RcptNotInQrmS,
     SetRcptQrmR,
     TotalEffortLimitMet,
@@ -146,10 +144,6 @@ def test_policy_compatible_base_type():
     assert issubclass(PolicyCompatible, ProbablySucceed)
 
 
-def test_find_contact_base_type():
-    assert issubclass(FindContact, UsuallySucceed)
-
-
 def test_rcpt_not_in_qrm_s_base_type():
     assert issubclass(RcptNotInQrmS, AlmostAlwaysSucceed)
 
@@ -223,10 +217,6 @@ def test_recipient_effort_exceeded_success_rate():
 
 def test_policy_compatible_success_rate():
     assert PolicyCompatible.success_rate == pytest.approx(2 / 3)
-
-
-def test_find_contact_success_rate():
-    assert FindContact.success_rate == pytest.approx(0.75)
 
 
 def test_rcpt_not_in_qrm_s_success_rate():

@@ -86,7 +86,6 @@ from vultron.demo.fuzzer.report_management.other_work import OtherWork
 from vultron.demo.fuzzer.report_management.report_to_others import (
     AllPartiesKnown,
     ChooseRecipient,
-    FindContact,
     HaveReportToOthersCapability,
     IdentifyCoordinators,
     IdentifyOthers,
@@ -184,7 +183,6 @@ __all__ = [
     "RemoveRecipient",
     "RecipientEffortExceeded",
     "PolicyCompatible",
-    "FindContact",
     "RcptNotInQrmS",
     "SetRcptQrmR",
     "TotalEffortLimitMet",

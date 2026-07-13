@@ -91,7 +91,6 @@ from vultron.demo.fuzzer.report_management.publication import (
 from vultron.demo.fuzzer.report_management.report_to_others import (
     AllPartiesKnown,
     ChooseRecipient,
-    FindContact,
     IdentifyCoordinators,
     IdentifyVendors,
     PolicyCompatible,
@@ -386,7 +385,6 @@ _RM_RETRIEVER_NODES = [
     (RequestId, "assigned_id"),
     (IdentifyVendors, "identified_vendors"),
     (IdentifyCoordinators, "identified_coordinators"),
-    (FindContact, "recipient_contact"),
     (ChooseRecipient, "chosen_recipient"),
 ]
 

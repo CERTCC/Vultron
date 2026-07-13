@@ -109,7 +109,7 @@ class IdentifyVendors(RetrieverCallOutPoint, SuccessOrRunning):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — queries CPE/product databases and SBOM data)
-      Output keys: identified_vendors: str  (SUCCESS only)
+      Output keys: identified_vendors: list  (SUCCESS only)
 
     Input category: Human decision / System integration.
 
@@ -122,7 +122,7 @@ class IdentifyVendors(RetrieverCallOutPoint, SuccessOrRunning):
     benefit from human review.
     """
 
-    output_keys = {"identified_vendors": str}
+    output_keys = {"identified_vendors": list}
 
 
 class IdentifyCoordinators(RetrieverCallOutPoint, SuccessOrRunning):
@@ -136,7 +136,7 @@ class IdentifyCoordinators(RetrieverCallOutPoint, SuccessOrRunning):
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — queries FIRST member directory and CSIRT registries)
-      Output keys: identified_coordinators: str  (SUCCESS only)
+      Output keys: identified_coordinators: list  (SUCCESS only)
 
     Input category: Human decision / System integration.
 
@@ -148,7 +148,7 @@ class IdentifyCoordinators(RetrieverCallOutPoint, SuccessOrRunning):
     a coordinator) may require human judgment.
     """
 
-    output_keys = {"identified_coordinators": str}
+    output_keys = {"identified_coordinators": list}
 
 
 class IdentifyOthers(AlwaysSucceed):
@@ -276,32 +276,6 @@ class PolicyCompatible(EvaluatorCallOutPoint, ProbablySucceed):
     """
 
     output_keys = {"policy_compatible_verdict": str}
-
-
-class FindContact(RetrieverCallOutPoint, UsuallySucceed):
-    """Look up contact information for the chosen recipient.
-
-    Semantic function:
-        Action — look up contact information for the chosen recipient
-        (security email, bug bounty platform, disclosure portal).
-        Succeeds most of the time; may fail for lesser-known vendors
-        with no published security contact.
-
-    Blackboard contract (BT-18-001):
-      Input keys:  (none — queries security.txt, PSIRT directory, FIRST DB)
-      Output keys: recipient_contact: str  (SUCCESS only)
-
-    Input category: System integration.
-
-    Success probability: 0.75 (``UsuallySucceed``).
-
-    Automation potential: **High** — security.txt lookup, PSIRT directory
-    queries, FIRST member database, and NVD contact data are all
-    automatable for well-known organizations; obscure vendors may require
-    manual research.
-    """
-
-    output_keys = {"recipient_contact": str}
 
 
 class RcptNotInQrmS(AlmostAlwaysSucceed):
