@@ -42,8 +42,8 @@ from vultron.core.models.report import VultronReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
+from vultron.core.use_cases._helpers import outbox_ids
 from vultron.core.use_cases.triggers._helpers import (
-    outbox_ids,
     resolve_actor,
 )
 from vultron.core.use_cases.triggers.requests import (

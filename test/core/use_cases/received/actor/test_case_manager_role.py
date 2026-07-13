@@ -218,9 +218,7 @@ class TestCaseManagerRoleDelegationUseCases:
             {},
         )
 
-        with patch(
-            "vultron.core.use_cases.triggers._helpers.add_activity_to_outbox"
-        ):
+        with patch("vultron.core.use_cases._helpers.add_activity_to_outbox"):
             AcceptCaseManagerRoleReceivedUseCase(
                 dl, event, trigger_activity=trigger
             ).execute()

@@ -35,7 +35,7 @@ import logging
 
 from vultron.core.models.protocols import LogEntryModel
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.use_cases.triggers._helpers import add_activity_to_outbox
+from vultron.core.use_cases._helpers import add_activity_to_outbox
 from vultron.wire.as2.factories import (
     announce_log_entry_activity,
     reject_log_entry_activity,
@@ -98,7 +98,7 @@ class SyncActivityAdapter:
         """Build and queue an ``Announce(CaseLedgerEntry)`` activity.
 
         Uses actor-aware outbox queueing via
-        :func:`~vultron.core.use_cases.triggers._helpers.add_activity_to_outbox`.
+        :func:`~vultron.core.use_cases._helpers.add_activity_to_outbox`.
 
         Spec: SYNC-02-002, SYNC-03-002.
         """
