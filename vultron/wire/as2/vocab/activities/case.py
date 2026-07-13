@@ -275,6 +275,7 @@ class _RmInviteToCaseActivity(as_Invite):
     See also _RmSubmitReportActivity for the scenario when a case does not exist yet.
     object_: the Actor being invited
     target: VulnerabilityCase
+    roles: inherited from as_Invite (CM-17-003)
     """
 
     object_: CoreActor | as_Actor = Field(

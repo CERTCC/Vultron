@@ -113,6 +113,7 @@ class SvcInviteActorToCaseUseCase(SvcBTTriggerBase):
             raise VultronNotFoundError("Actor", request.invitee_id)
 
         self._invitee_id = request.invitee_id
+        self._suggested_roles = request.roles
 
         case_actor_id = _find_case_actor_id(self._dl, self._case.id_)
         self._actor_id = case_actor_id if case_actor_id else owner_id
@@ -131,6 +132,12 @@ class SvcInviteActorToCaseUseCase(SvcBTTriggerBase):
             attributed_to=self._attributed_to,
             captured=self._captured,
         )
+
+    def _extra_execute_kwargs(self) -> dict[str, Any]:
+        kwargs = super()._extra_execute_kwargs()
+        if self._suggested_roles is not None:
+            kwargs["suggested_roles"] = self._suggested_roles
+        return kwargs
 
     def _handle_result(self) -> None:
         logger.info(

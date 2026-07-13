@@ -417,22 +417,27 @@ def test_vulnerability_case_stub_with_summary():
     assert dumped["summary"] == "Heap overflow in libfoo"
 
 
-def test_rm_invite_rejects_full_vulnerability_case_as_target():
-    """RmInviteToCaseActivity must reject a full VulnerabilityCase in target.
+def test_rm_invite_projects_full_vulnerability_case_to_stub():
+    """rm_invite_to_case_activity projects a full VulnerabilityCase to a stub.
 
-    DR-10 / MV-10-001: only VulnerabilityCaseStub (or a bare URI string) is
-    accepted so that full case details are never sent to uninvited parties.
+    DR-10 / MV-10-001: the factory accepts a full VulnerabilityCase as target
+    for projection (CM-17-002 enrichment path) but the resulting wire activity's
+    target is always a VulnerabilityCaseStub — full case details never reach
+    uninvited parties on the wire.
     """
     actor = as_Actor(id_="https://example.org/actors/alice")
     full_case = VulnerabilityCase(
         id_="https://example.org/cases/c1", name="Full"
     )
-    with pytest.raises(VultronActivityConstructionError):
-        rm_invite_to_case_activity(
-            actor,
-            target=cast(Any, full_case),
-            actor=actor.id_,
-        )
+    activity = rm_invite_to_case_activity(
+        actor,
+        target=cast(Any, full_case),
+        actor=actor.id_,
+    )
+    assert isinstance(
+        activity.target, VulnerabilityCaseStub
+    ), "DR-10: wire activity target must be VulnerabilityCaseStub, not full VulnerabilityCase"
+    assert activity.target.id_ == full_case.id_
 
 
 # ---------------------------------------------------------------------------

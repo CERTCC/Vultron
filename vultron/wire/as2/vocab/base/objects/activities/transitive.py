@@ -119,6 +119,7 @@ class as_Invite(as_Offer):
         validation_alias="type",
         serialization_alias="type",
     )
+    roles: list[str] | None = None
 
 
 class as_Flag(as_TransitiveActivity):

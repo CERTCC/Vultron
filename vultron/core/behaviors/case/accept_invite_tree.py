@@ -63,6 +63,7 @@ from vultron.core.states.participant_embargo_consent import (
     apply_pec_trigger,
 )
 from vultron.core.states.rm import RM
+from vultron.core.states.roles import validate_roles
 from vultron.core.use_cases._helpers import _as_id
 
 logger = logging.getLogger(__name__)
@@ -284,6 +285,39 @@ class CreateInviteeParticipantAtAcceptedNode(DataLayerAction):
             key="new_invite_participant",
             access=py_trees.common.Access.WRITE,
         )
+        self.blackboard.register_key(
+            key="activity",
+            access=py_trees.common.Access.READ,
+        )
+
+    def _read_invite_roles(self) -> list:
+        """Read roles from the Invite stored in DataLayer (CM-17-003).
+
+        Resolves invite_id via the ``activity`` blackboard key, reads the
+        stored Invite, and coerces any ``roles`` strings to ``CVDRole``.
+        Returns an empty list when the invite carries no roles or cannot
+        be read.
+        """
+        try:
+            event = self.blackboard.get("activity")
+        except (AttributeError, KeyError):
+            return []
+        invite_id = getattr(event, "object_id", None)
+        if not invite_id or self.datalayer is None:
+            return []
+        invite = self.datalayer.read(invite_id)
+        raw_roles = getattr(invite, "roles", None)
+        if not raw_roles:
+            return []
+        try:
+            return validate_roles(raw_roles)
+        except (ValueError, KeyError):
+            self.logger.warning(
+                "%s: could not coerce invite roles %r — ignoring",
+                self.name,
+                raw_roles,
+            )
+            return []
 
     def update(self) -> Status:
         if self.datalayer is None:
@@ -325,10 +359,12 @@ class CreateInviteeParticipantAtAcceptedNode(DataLayerAction):
             )
             return Status.SUCCESS
 
+        roles = self._read_invite_roles()
         participant = VultronParticipant(
             id_=f"{self.case_id}/participants/{self.invitee_id.split('/')[-1]}",
             attributed_to=self.invitee_id,
             context=self.case_id,
+            case_roles=roles if roles else [],
         )
         # PCR-08-010: Accept(Invite) IS the engage signal; record all three
         # RM transitions on behalf of the invitee in the CaseActor's DataLayer.
@@ -341,6 +377,14 @@ class CreateInviteeParticipantAtAcceptedNode(DataLayerAction):
         participant.append_rm_state(
             RM.ACCEPTED, actor=self.invitee_id, context=self.case_id
         )
+        if roles:
+            self.logger.info(
+                "%s: set case_roles %s on participant '%s' from invite"
+                " (CM-17-003)",
+                self.name,
+                roles,
+                self.invitee_id,
+            )
         self.blackboard.new_invite_participant = participant
         self.logger.info(
             "%s: created participant object for invitee '%s' at RM.ACCEPTED"

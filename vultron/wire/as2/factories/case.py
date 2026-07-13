@@ -23,11 +23,13 @@ Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
 import logging
-from typing import cast
+from typing import Any, cast
 
 from pydantic import ValidationError
 
 from vultron.core.models.actor import CoreActor
+from vultron.core.models.protocols import is_case_model
+from vultron.core.states.em import EM
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.base.objects.activities.intransitive import (
     as_Question,
@@ -70,6 +72,9 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Actor, as_ActorRef
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import CaseStatus
+from vultron.wire.as2.vocab.objects.embargo_event import (
+    EmbargoEvent as WireEmbargoEvent,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     VulnerabilityCase,
     VulnerabilityCaseRef,
@@ -81,6 +86,53 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _project_case_to_stub(
+    case: Any,
+    embargo_obj: Any,
+) -> VulnerabilityCaseStub:
+    """Project a ``VulnerabilityCase`` (core or wire) to a ``VulnerabilityCaseStub``.
+
+    When ``em_state == EM.ACTIVE`` and *embargo_obj* is provided, the stub
+    carries ``active_embargo`` (ID + ``end_time``) and ``case_status``
+    (with ``em_state``) so the invitee can give informed consent (CM-17-002).
+    Falls back to a minimal stub when the case has no active embargo.
+
+    Args:
+        case: A core or wire ``VulnerabilityCase`` to project.
+        embargo_obj: The fetched ``EmbargoEvent`` (core or wire), or ``None``.
+    """
+    case_id = case.id_
+    try:
+        current_status = case.current_status
+    except (ValueError, AttributeError):
+        return VulnerabilityCaseStub(id_=case_id)
+    em_state = getattr(current_status, "em_state", None)
+    active_embargo_uri = getattr(case, "active_embargo", None)
+    if em_state != EM.ACTIVE or active_embargo_uri is None:
+        return VulnerabilityCaseStub(id_=case_id)
+    wire_status = CaseStatus(em_state=em_state)
+    embargo_ref: WireEmbargoEvent | str = active_embargo_uri
+    if embargo_obj is not None:
+        end_time = getattr(embargo_obj, "end_time", None)
+        if end_time is not None:
+            try:
+                embargo_ref = WireEmbargoEvent(
+                    id_=active_embargo_uri, end_time=end_time
+                )
+            except ValidationError as exc:
+                logger.warning(
+                    "_project_case_to_stub: could not build WireEmbargoEvent"
+                    " for %r — falling back to bare URI: %s",
+                    active_embargo_uri,
+                    exc,
+                )
+    return VulnerabilityCaseStub(
+        id_=case_id,
+        active_embargo=embargo_ref,
+        case_status=wire_status,
+    )
 
 
 def add_report_to_case_activity(
@@ -585,7 +637,9 @@ def reject_case_ownership_transfer_activity(
 
 def rm_invite_to_case_activity(
     invitee: CoreActor | as_Actor,
-    target: VulnerabilityCaseStub | str | None = None,
+    target: Any = None,
+    roles: list[str] | None = None,
+    embargo_obj: Any = None,
     **kwargs,
 ) -> as_Invite:
     """Build an Invite(Actor, target=VulnerabilityCase) — the RS message.
@@ -596,7 +650,17 @@ def rm_invite_to_case_activity(
 
     Args:
         invitee: The ``as_Actor`` (or actor URI) being invited.
-        target: The ``VulnerabilityCase`` (or its URI) to join.
+        target: The case to join — either a ``VulnerabilityCase`` (core or wire;
+            projected to an enriched ``VulnerabilityCaseStub`` via
+            :func:`_project_case_to_stub`), a pre-built ``VulnerabilityCaseStub``,
+            or a bare URI string.
+        roles: Optional list of intended CVD role strings for the invitee
+            (CM-17-003).  When provided the Invite carries the intended
+            participant roles so ``CreateInviteeParticipantAtAcceptedNode``
+            can set them on the new ``VultronParticipant``.
+        embargo_obj: The fetched ``EmbargoEvent`` for the case, used when
+            *target* is a ``VulnerabilityCase`` and ``em_state == EM.ACTIVE``
+            to include ``end_time`` in the stub (CM-17-002).
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor`` for the inviting party).
 
@@ -606,6 +670,10 @@ def rm_invite_to_case_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
+    if is_case_model(target):
+        target = _project_case_to_stub(target, embargo_obj)
+    if roles is not None:
+        kwargs["roles"] = roles
     try:
         return _RmInviteToCaseActivity(
             object_=invitee, target=target, **kwargs

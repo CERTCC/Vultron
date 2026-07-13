@@ -142,6 +142,7 @@ def trigger_invite_actor_to_case(
             actor_id=actor_id,
             case_id=body.case_id,
             invitee_id=body.invitee_id,
+            roles=body.roles,
         )
     background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
     return result
