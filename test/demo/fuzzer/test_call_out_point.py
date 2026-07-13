@@ -388,6 +388,19 @@ _RM_RETRIEVER_NODES = [
     (ChooseRecipient, "chosen_recipient"),
 ]
 
+# Nodes whose output_keys declare str values
+_RM_RETRIEVER_STR_NODES = [
+    (GatherPrioritizationInfo, "prioritization_info_gathered"),
+    (RequestId, "assigned_id"),
+    (ChooseRecipient, "chosen_recipient"),
+]
+
+# Nodes whose output_keys declare list values (multi-actor ID collections)
+_RM_RETRIEVER_LIST_NODES = [
+    (IdentifyVendors, "identified_vendors"),
+    (IdentifyCoordinators, "identified_coordinators"),
+]
+
 _RM_BINARY_RETRIEVER_NODES = [
     IdAssigned,
     MitigationDeployed,
@@ -444,9 +457,14 @@ def test_rm_retriever_node_output_key_declared(node_cls, output_key):
     assert output_key in node_cls.output_keys
 
 
-@pytest.mark.parametrize("node_cls, output_key", _RM_RETRIEVER_NODES)
+@pytest.mark.parametrize("node_cls, output_key", _RM_RETRIEVER_STR_NODES)
 def test_rm_retriever_node_output_key_type_is_str(node_cls, output_key):
     assert node_cls.output_keys[output_key] is str
+
+
+@pytest.mark.parametrize("node_cls, output_key", _RM_RETRIEVER_LIST_NODES)
+def test_rm_retriever_node_output_key_type_is_list(node_cls, output_key):
+    assert node_cls.output_keys[output_key] is list
 
 
 @pytest.mark.parametrize("node_cls, output_key", _RM_RETRIEVER_NODES)
