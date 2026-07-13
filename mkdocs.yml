@@ -242,6 +242,8 @@ nav:
       - Publication-Intent Subtree Collapse: 'adr/0028-publication-intent-bt-collapse.md'
       - Notification Loop Collapse: 'adr/0029-notification-loop-suggest-actor.md'
       - Publish Leaf Draft-Review-Submit Pipeline: 'adr/0030-publish-leaf-draft-review-submit-pipeline.md'
+      - vultron/enums/ Neutral Layer: 'adr/0031-vultron-enums-neutral-layer.md'
+      - Validate at Edge, Promote to Core: 'adr/0032-validate-at-edge-promote-to-core.md'
   - About:
     - Contributing: 'about/contributing.md'
     - FAQ: 'about/faq.md'

@@ -112,6 +112,21 @@ Do NOT introduce alternative frameworks or package managers without approval.
   Fields that are required for a specific event subtype MUST NOT be typed
   as `X | None` in that subtype. Subclasses SHOULD narrow optional parent
   fields to required. See `specs/architecture.yaml` ARCH-10-001.
+- **Validate at the edge, promote to the core (ADR-0032)**: Wire-layer and
+  adapter objects may have `Optional` fields. Before passing data to core
+  logic, validate that required fields are present and raise a descriptive
+  exception if not. What core functions receive should be a type that makes
+  required fields non-optional — no `if x is None` guards needed inside core.
+- **Collection defaults**: collection-typed fields and parameters default to
+  the empty collection (`[]`, `{}`, `set()`), not `None`. Use
+  `field(default_factory=list)` etc. `None` is only correct when absence is
+  semantically distinct from empty (e.g. AS2 fields where `None` omits the
+  key from the wire payload, or deliberate sentinels like
+  `BTExecutionResult.errors`).
+- **Core helpers raise, never return `None`**: core domain helpers and BT node
+  helpers raise a descriptive exception on failure. In BT nodes, `update()` is
+  the sole `try/except` handler; helper methods are clean typed functions that
+  either succeed or raise. See `notes/bt-integration.md` § "BT-HELPER-01".
 - **Optional string fields MUST follow "if present, then non-empty"**:
   `Optional[str]` fields MUST reject empty strings. Use the shared
   `NonEmptyString` or `OptionalNonEmptyString` type alias from
