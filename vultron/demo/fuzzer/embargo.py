@@ -44,6 +44,7 @@ from vultron.demo.fuzzer.base import (
     UsuallySucceed,
 )
 from vultron.demo.fuzzer.call_out_point import (
+    ActuatorCallOutPoint,
     EvaluatorCallOutPoint,
     RetrieverCallOutPoint,
 )
@@ -152,13 +153,17 @@ class EmbargoTimerExpired(RetrieverCallOutPoint, OneInOneHundred):
     """
 
 
-class OnEmbargoExit(AlwaysSucceed):
+class OnEmbargoExit(ActuatorCallOutPoint, AlwaysSucceed):
     """Execute site-specific tasks when leaving an active embargo.
 
     Semantic function:
         Action integration hook — trigger notifications, logging, and
         downstream system updates required when the embargo exits.  Must
         be idempotent in production.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — trigger only; embargo context from construction time)
+      Output keys: (none — side effect: notify stakeholders, update downstream systems)
 
     Input category: System integration.
 
@@ -352,13 +357,17 @@ class EvaluateEmbargoProposal(EvaluatorCallOutPoint, UsuallySucceed):
     output_keys = {"evaluate_embargo_proposal_verdict": str}
 
 
-class OnEmbargoAccept(AlwaysSucceed):
+class OnEmbargoAccept(ActuatorCallOutPoint, AlwaysSucceed):
     """Execute site-specific tasks when an embargo proposal is accepted.
 
     Semantic function:
         Action integration hook — notify stakeholders, record the
         agreement, and start the embargo timer when the proposal is
         accepted.  Must be idempotent in production.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — trigger only; proposal context from construction time)
+      Output keys: (none — side effect: notify stakeholders, initialize embargo timer)
 
     Input category: System integration.
 
@@ -370,13 +379,17 @@ class OnEmbargoAccept(AlwaysSucceed):
     """
 
 
-class OnEmbargoReject(AlwaysSucceed):
+class OnEmbargoReject(ActuatorCallOutPoint, AlwaysSucceed):
     """Execute site-specific tasks when an embargo proposal is rejected.
 
     Semantic function:
         Action integration hook — notify stakeholders and log the
         rejection rationale when the proposal is not accepted.  Must be
         idempotent in production.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — trigger only; proposal context from construction time)
+      Output keys: (none — side effect: notify stakeholders, log rejection)
 
     Input category: System integration.
 

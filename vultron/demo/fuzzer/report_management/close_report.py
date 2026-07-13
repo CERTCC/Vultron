@@ -33,7 +33,10 @@ References
 from __future__ import annotations
 
 from vultron.demo.fuzzer.base import AlwaysSucceed, UsuallyFail
-from vultron.demo.fuzzer.call_out_point import EvaluatorCallOutPoint
+from vultron.demo.fuzzer.call_out_point import (
+    ActuatorCallOutPoint,
+    EvaluatorCallOutPoint,
+)
 
 
 class OtherCloseCriteriaMet(EvaluatorCallOutPoint, UsuallyFail):
@@ -66,7 +69,7 @@ class OtherCloseCriteriaMet(EvaluatorCallOutPoint, UsuallyFail):
     output_keys = {"other_close_criteria_met_verdict": str}
 
 
-class PreCloseAction(AlwaysSucceed):
+class PreCloseAction(ActuatorCallOutPoint, AlwaysSucceed):
     """Perform required actions immediately before closing the report.
 
     Semantic function:
@@ -74,6 +77,10 @@ class PreCloseAction(AlwaysSucceed):
         as quality-assurance checks, notification dispatches, or bookkeeping
         updates that must be completed before the report transitions to the
         Closed state.  Must be idempotent in production to support safe retries.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — trigger only; case context from construction time)
+      Output keys: (none — side effect: archive artifacts, send closure notifications)
 
     Input category: System integration.
 

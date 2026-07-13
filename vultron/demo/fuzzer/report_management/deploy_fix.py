@@ -42,6 +42,7 @@ from vultron.demo.fuzzer.base import (
     UsuallySucceed,
 )
 from vultron.demo.fuzzer.call_out_point import (
+    ActuatorCallOutPoint,
     EvaluatorCallOutPoint,
     RetrieverCallOutPoint,
 )
@@ -196,7 +197,7 @@ class MonitoringRequirement(EvaluatorCallOutPoint, OftenSucceed):
     output_keys = {"monitoring_requirement_verdict": str}
 
 
-class MonitorDeployment(AlwaysSucceed):
+class MonitorDeployment(ActuatorCallOutPoint, AlwaysSucceed):
     """Monitor the ongoing deployment of the fix or mitigation.
 
     Semantic function:
@@ -206,6 +207,10 @@ class MonitorDeployment(AlwaysSucceed):
         human operator or an automated monitoring hook (e.g., a deployment
         pipeline status poll).  Always succeeds in simulation to model the
         assumption that monitoring itself does not fail.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — trigger only; deployment context from construction time)
+      Output keys: (none — side effect: trigger monitoring hooks, alert on anomalies)
 
     Input category: System integration.
 
