@@ -68,7 +68,9 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Automation potential**: **Medium** — deployment status check is automatable via patch-management or case-state APIs; the *decision* to exit still requires policy-rule evaluation or human confirmation.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.ExitEmbargoWhenDeployed`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: FUTURE:
+- **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
+  `vultron.core.behaviors.embargo.manage_embargo_tree.create_manage_embargo_tree`
+  (`exit_embargo_when_deployed_factory` param). FUTURE full placement:
   `vultron.core.behaviors.embargo.create_terminate_embargo_on_condition_tree`
   (issue #1256) — condition guard in the TerminateEmbargo Selector, checked
   before delegating to `terminate_embargo_trigger_bt`
@@ -88,7 +90,9 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Automation potential**: **Medium** — fix-readiness flag is queryable automatically; the exit decision depends on configurable organizational policy that may require human override.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.ExitEmbargoWhenFixReady`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: FUTURE:
+- **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
+  `vultron.core.behaviors.embargo.manage_embargo_tree.create_manage_embargo_tree`
+  (`exit_embargo_when_fix_ready_factory` param). FUTURE full placement:
   `vultron.core.behaviors.embargo.create_terminate_embargo_on_condition_tree`
   (issue #1256) — condition guard in the TerminateEmbargo Selector, checked
   before delegating to `terminate_embargo_trigger_bt`
@@ -108,7 +112,9 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Automation potential**: **Low** — rare edge case representing extraordinary circumstances; fundamentally requires human judgment that cannot be anticipated by a general policy rule.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.ExitEmbargoForOtherReason`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: FUTURE:
+- **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
+  `vultron.core.behaviors.embargo.manage_embargo_tree.create_manage_embargo_tree`
+  (`exit_embargo_for_other_reason_factory` param). FUTURE full placement:
   `vultron.core.behaviors.embargo.create_terminate_embargo_on_condition_tree`
   (issue #1256) — rare fallback condition guard in the TerminateEmbargo
   Selector for extraordinary circumstances
@@ -176,7 +182,9 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Automation potential**: **Low** — fundamentally a negotiation-fatigue judgment; depends on relationship context and subjective assessment of negotiation prospects; requires human decision.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.StopProposingEmbargo`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: FUTURE:
+- **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
+  `vultron.core.behaviors.embargo.manage_embargo_tree.create_manage_embargo_tree`
+  (`stop_proposing_embargo_factory` param). FUTURE full placement:
   `vultron.core.behaviors.embargo.create_propose_embargo_decision_tree`
   (issue #1257) — Evaluator condition guard in
   `_ConsiderAbandoningProposedEmbargo` Selector
@@ -197,7 +205,9 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Automation potential**: **Medium** — standard terms (duration, conditions) can be drawn from organizational policy templates automatically; atypical situations may need human review.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.SelectEmbargoOfferTerms`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: FUTURE:
+- **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
+  `vultron.core.behaviors.embargo.manage_embargo_tree.create_manage_embargo_tree`
+  (`select_embargo_offer_terms_factory` param). FUTURE full placement:
   `vultron.core.behaviors.embargo.create_propose_embargo_decision_tree`
   (issue #1257) — Evaluator action node in `_ProposeNewEmbargo` and
   `_ProposeEmbargoRevision` Sequences, before the proposal trigger BT
@@ -217,7 +227,9 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Automation potential**: **Medium** — default policy (always propose) can be automated; exceptions (e.g., already-public vulnerability, no vendor identified) could be rule-encoded, but edge cases may need human override.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.WantToProposeEmbargo`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: FUTURE:
+- **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
+  `vultron.core.behaviors.embargo.manage_embargo_tree.create_manage_embargo_tree`
+  (`want_to_propose_embargo_factory` param). FUTURE full placement:
   `vultron.core.behaviors.embargo.create_propose_embargo_decision_tree`
   (issue #1257) — Evaluator condition guard in `_ConsiderProposingEmbargo`
   Sequence (within `_EmNone` Selector)
@@ -238,7 +250,9 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Automation potential**: **Low** — nuanced negotiation judgment about whether countering is strategically preferable to accepting and revising; best left to human discretion.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.WillingToCounterEmbargoProposal`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: FUTURE:
+- **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
+  `vultron.core.behaviors.embargo.manage_embargo_tree.create_manage_embargo_tree`
+  (`willing_to_counter_factory` param). FUTURE full placement:
   `vultron.core.behaviors.embargo.create_propose_embargo_decision_tree`
   (issue #1257) — Evaluator condition guard in `_AvoidCounterProposal`
   Selector; determines whether a counter-proposal is sent instead of
@@ -259,7 +273,9 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Automation potential**: **Low** — highly exceptional circumstance; no general rule can anticipate valid reasons, so human judgment is required.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.ReasonToProposeEmbargoWhenDeployed`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: FUTURE:
+- **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
+  `vultron.core.behaviors.embargo.manage_embargo_tree.create_manage_embargo_tree`
+  (`reason_to_propose_when_deployed_factory` param). FUTURE full placement:
   `vultron.core.behaviors.embargo.create_propose_embargo_decision_tree`
   (issue #1257) — Evaluator condition guard in
   `_AvoidNewEmbargoesInCsDeployedUnlessReason` Selector
@@ -280,7 +296,9 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Automation potential**: **Medium** — basic compatibility check (is proposed duration within policy bounds?) is automatable; final accept/reject for out-of-range proposals typically needs human review.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.EvaluateEmbargoProposal`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: FUTURE:
+- **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
+  `vultron.core.behaviors.embargo.manage_embargo_tree.create_manage_embargo_tree`
+  (`evaluate_embargo_proposal_factory` param). FUTURE full placement:
   `vultron.core.behaviors.embargo.create_propose_embargo_decision_tree`
   (issue #1257) — Evaluator condition guard in
   `_EvaluateAndAcceptProposedEmbargo` Sequence; precedes
@@ -343,7 +361,9 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Automation potential**: **Medium** — automated comparison of current terms against policy preferences is feasible; edge cases and dynamic negotiation contexts may still require human judgment.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.CurrentEmbargoAcceptable`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: FUTURE:
+- **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
+  `vultron.core.behaviors.embargo.manage_embargo_tree.create_manage_embargo_tree`
+  (`current_embargo_acceptable_factory` param). FUTURE full placement:
   `vultron.core.behaviors.embargo.create_propose_embargo_decision_tree`
   (issue #1257) — Evaluator condition guard in `_ChooseEmActiveResponse`
   Selector; SUCCESS = no revision needed, FAILURE = revision proposal path
