@@ -45,8 +45,11 @@ from vultron.wire.as2.vocab.examples._base import (  # noqa: F401
 )
 from vultron.wire.as2.vocab.examples.actor import (  # noqa: F401
     accept_actor_recommendation,
+    accept_case_participant_offer,
+    offer_case_participant,
     recommend_actor,
     reject_actor_recommendation,
+    reject_case_participant_offer,
 )
 from vultron.wire.as2.vocab.examples.case import (  # noqa: F401
     accept_case_ownership_transfer,

@@ -24,8 +24,11 @@ from vultron.wire.as2.vocab.examples._base import (
 )
 from vultron.wire.as2.factories import (
     accept_actor_recommendation_activity,
+    accept_case_participant_offer_activity,
+    offer_case_participant_activity,
     recommend_actor_activity,
     reject_actor_recommendation_activity,
+    reject_case_participant_offer_activity,
 )
 
 
@@ -76,5 +79,64 @@ def reject_actor_recommendation() -> as_Reject:
         target=_case.id_,
         to=_finder.id_,
         content=f"We're declining your recommendation to add {_coordinator.name} to the case. Thanks anyway.",
+    )
+    return _activity
+
+
+def offer_case_participant() -> as_Offer:
+    """CaseActor transforms Offer(Actor) → Offer(CaseParticipant) for Case Owner."""
+    _vendor = vendor()
+    _coordinator = _COORDINATOR
+    _case = case()
+    _recommendation = recommend_actor()
+    _activity = offer_case_participant_activity(
+        _coordinator,
+        target=_case.id_,
+        actor=_vendor.id_,
+        to=[_vendor.id_],
+        context=_case.id_,
+        origin=_recommendation.id_,
+        content=(
+            f"Recommending {_coordinator.name} for case participation "
+            f"(roles: VENDOR). Origin: {_recommendation.id_}"
+        ),
+    )
+    return _activity
+
+
+def accept_case_participant_offer() -> as_Accept:
+    """Case Owner accepts Offer(CaseParticipant) and sends to CaseActor."""
+    _vendor = vendor()
+    _coordinator = _COORDINATOR
+    _case = case()
+    _cp_offer = offer_case_participant()
+    _activity = accept_case_participant_offer_activity(
+        _cp_offer,
+        target=_case.id_,
+        actor=_vendor.id_,
+        to=[_vendor.id_],
+        context=_case.id_,
+        content=(
+            f"Accepting recommendation to add {_coordinator.name} to the case."
+        ),
+    )
+    return _activity
+
+
+def reject_case_participant_offer() -> as_Reject:
+    """Case Owner rejects Offer(CaseParticipant) and sends to CaseActor."""
+    _vendor = vendor()
+    _coordinator = _COORDINATOR
+    _case = case()
+    _cp_offer = offer_case_participant()
+    _activity = reject_case_participant_offer_activity(
+        _cp_offer,
+        target=_case.id_,
+        actor=_vendor.id_,
+        to=[_vendor.id_],
+        context=_case.id_,
+        content=(
+            f"Declining recommendation to add {_coordinator.name} to the case."
+        ),
     )
     return _activity

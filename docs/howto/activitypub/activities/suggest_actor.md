@@ -44,36 +44,39 @@ is easier to read.
 
 ```mermaid
 ---
-title: Suggesting an Actor for a Case
+title: Suggesting an Actor for a Case (ADR-0026 CaseActor-routed)
 ---
 sequenceDiagram
-    actor A as Participant
-    participant C as Case
+    actor A as Recommender
+    participant CA as CaseActor
     actor B as Case Owner
-    actor D as Actor 
+    actor D as Invitee
     Note over A: Recognize that Actor should be invited
-    A ->> C: Offer(object=Actor, target=Case)
-    activate A
-    C -->+ B: Observe suggestion
+    A ->> CA: Offer(object=Actor, target=Case)
+    activate CA
+    Note over CA: Record in ledger, assign default roles
+    CA ->> B: Offer(object=CaseParticipant{actor,roles}, target=Case, origin=Offer.id)
+    activate B
     alt Accept Suggestion
-        B -->> C: Accept(object=Offer)
-        B ->>+ D: Invite(actor=CaseOwner, object=Actor, target=Case)
+        B ->> CA: Accept(object=Offer(CaseParticipant))
+        CA ->> A: AcceptActorRecommendation
+        CA ->>+ D: Invite(CaseStub + embargo + roles)
+        note over D: Respond to invitation (not shown)
+        deactivate D
     else Reject Suggestion
-        B -->> C: Reject(object=Offer)
+        B ->> CA: Reject(object=Offer(CaseParticipant))
+        CA ->> A: RejectActorRecommendation
     end
     deactivate B
-    C --> A: Observe response
-    deactivate A
-    note over D: Respond to invitation (not shown)
-    deactivate D
+    deactivate CA
 ```
 
 ## Recommend Actor
 
-An actor can recommend that another actor be invited to participate in a case by sending an `Offer` activity
-with the `object` property set to the actor that is being recommended. The `target` property of the `Offer` activity
-is set to the `case` object. Implementations should then prompt the case owner to accept or reject the
-recommendation.
+A participant recommends another actor to the **CaseActor** by sending an `Offer` activity with the
+`object` property set to the actor being recommended and the `target` set to the case.
+The CaseActor records the recommendation in the canonical ledger, assigns default roles, and
+forwards a transformed offer to the Case Owner.
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import recommend_actor, json2md
@@ -81,30 +84,39 @@ from vultron.wire.as2.vocab.examples.vocab_examples import recommend_actor, json
 print(json2md(recommend_actor()))
 ```
 
-## Accept Actor Recommendation
+## CaseActor Forwards Offer to Case Owner
 
-The case owner can accept the recommendation by sending an `Accept` activity.
-We show this as an actor accepting the actor `object` from the recommendation [above](#recommend-actor),
-rather than accepting the `Offer` activity itself. Note the `target` property of the `Accept` activity is set to the
-`case` object.
-
-This should be followed by the case owner [inviting the actor to the case](#invite-to-case).
+The CaseActor transforms the `Offer(Actor, Case)` into `Offer(CaseParticipant{actor, roles}, Case)`
+and sends it to the Case Owner's inbox. The `origin` field carries the ID of the original recommendation
+so the Case Owner can trace the causal chain.
 
 ```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import accept_actor_recommendation, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import offer_case_participant, json2md
 
-print(json2md(accept_actor_recommendation()))
+print(json2md(offer_case_participant()))
 ```
 
-## Reject Actor Recommendation
+## Case Owner Accepts Recommendation
 
-The case owner can reject the recommendation by sending a `RejectActorRecommendation` activity.
-The structure of this activity is similar to the `Accept` activity [above](#accept-actor-recommendation).
+The Case Owner accepts the recommendation by sending `Accept(Offer(CaseParticipant))` to the
+**CaseActor** (not directly to the recommender). The CaseActor records the decision, notifies the
+original recommender, and sends an `Invite` to the proposed participant.
 
 ```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import reject_actor_recommendation, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import accept_case_participant_offer, json2md
 
-print(json2md(reject_actor_recommendation()))
+print(json2md(accept_case_participant_offer()))
+```
+
+## Case Owner Rejects Recommendation
+
+The Case Owner rejects the recommendation by sending `Reject(Offer(CaseParticipant))` to the
+**CaseActor**. The CaseActor records the decision and notifies the original recommender.
+
+```python exec="true" idprefix=""
+from vultron.wire.as2.vocab.examples.vocab_examples import reject_case_participant_offer, json2md
+
+print(json2md(reject_case_participant_offer()))
 ```
 
 {% include-markdown "./_invite_to_case.md" heading-offset=1 %}
