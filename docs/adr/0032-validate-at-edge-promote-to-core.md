@@ -171,3 +171,5 @@ Related:
   (the precedent this ADR generalises)
 - `notes/domain-model-separation.md` — wire/domain/persistence separation
   and the `FooActivity` → `FooEvent` promotion pattern
+
+Generated spec requirements: architecture.yaml ARCH-10-001
