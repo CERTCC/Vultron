@@ -1559,7 +1559,13 @@ cleaned up and rewritten before being read (e.g., within a single Sequence with
 `memory=False`) are safe, but namespacing eliminates the risk entirely and
 is cheap to implement.
 
-**First concrete instance**: `suggested_roles` in
-`create_recommend_actor_to_case_received_tree` — discovered in CONCERN-1335.
-Renamed to `suggested_roles_{recommendation_id_segment}` in issue #1335's
-implementation task.
+**Known instances** (catalogue for conformance audits):
+
+| Key(s) | Tree factory | Correlation ID | Discovered |
+|---|---|---|---|
+| `suggested_roles` | `create_recommend_actor_to_case_received_tree` | `recommendation_id` | CONCERN-1335 |
+| `new_case_participant`, `participant_case`, `new_participant_id` | `create_receive_report_case_tree` / `create_case_tree` | `report_id` | CONCERN-1349 |
+
+When auditing for compliance, grep for flat blackboard key registrations in
+tree factories called per-incoming-message and verify each inter-node handoff
+key includes the execution-scoped correlation ID segment.
