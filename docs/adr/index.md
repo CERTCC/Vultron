@@ -85,6 +85,8 @@ General information about architectural decision records is available at <https:
   Typed Backends](0025-call-out-point-abstraction-layer.md)
 - [ADR-0031 Introduce `vultron/enums/` as a Bottom-of-Stack Neutral Layer for
   Cross-Cutting Enumerations](0031-vultron-enums-neutral-layer.md)
+- [ADR-0032 Validate at the Edge, Promote to Strict Core
+  Types](0032-validate-at-edge-promote-to-core.md)
 
 ## Proposed ADRs
 

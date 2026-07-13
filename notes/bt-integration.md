@@ -1050,6 +1050,45 @@ an unhandled exception that bypasses normal failure-path handling.
 
 ---
 
+### BT-HELPER-01 — Helpers Raise; `update()` Catches
+
+(ADR-0032, 2026-07-13)
+
+BT node helper methods (private methods called from `update()`) MUST either
+complete successfully or raise a domain exception (e.g.
+`BtNodePreconditionError`). They MUST NOT return `None` as a failure signal.
+
+`update()` is the single `try/except` handler:
+
+```python
+def _read_case_obj(self, case_id: str) -> VulnerabilityCase:
+    try:
+        obj = self.blackboard[case_id]
+    except KeyError:
+        raise BtNodePreconditionError(f"case {case_id!r} not in blackboard")
+    if not is_case_model(obj):
+        raise BtNodePreconditionError(
+            f"blackboard entry {case_id!r} is not a VulnerabilityCase"
+        )
+    return obj
+
+def update(self, ...) -> Status:
+    try:
+        case_obj = self._read_case_obj(case_id)
+        ...
+    except BtNodePreconditionError as e:
+        self.feedback_message = str(e)
+        return Status.FAILURE
+```
+
+This eliminates the class of bug where a helper returns `None` silently with
+no `self.feedback_message` set (see
+`core/behaviors/case/nodes/communication.py` `_read_case_obj()` for the
+canonical pre-ADR-0032 anti-pattern). Helpers are clean typed functions;
+`update()` owns the failure-to-`Status` translation. See ADR-0032.
+
+---
+
 ### Embargo Subtree Idempotency with Blackboard Flag
 
 (ISSUE-750, 2026-06-08)

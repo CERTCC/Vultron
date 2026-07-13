@@ -19,8 +19,9 @@ decide what to pull for your task. In most cases you need only 1–3 files.
 
 **`architecture-hexagonal.md`**
 Hexagonal architecture overview: layer model (core / wire / adapters), inbound
-and outbound pipelines, The Hexagon diagram, file layout, Rules 1–9, design
-constraints/invariants, and review checklist.
+and outbound pipelines, The Hexagon diagram, file layout, Rules 1–10, design
+constraints/invariants, and review checklist. Includes the
+validate-at-edge / promote-to-core rule (ADR-0032).
 **Load when**: orienting to architecture boundaries, reviewing layering
 violations, or validating core/wire separation.
 
