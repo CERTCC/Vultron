@@ -12,6 +12,7 @@ description: >
 
 ## Quick Start
 
+0. Sync the worktree to `origin/main` before loading any context.
 1. Invoke `orient-agent` to load baseline context.
 2. Select a single target issue (auto or explicit) and fail fast on blockers.
 3. Claim the issue.
@@ -19,6 +20,19 @@ description: >
 5. Implement, validate, code-review, open PR, archive.
 
 ## Workflow
+
+### Phase 0 — Sync
+
+Move the worktree HEAD to `origin/main` before loading any context. Do **not**
+use `git checkout main` — that branch may be checked out in another worktree.
+
+```bash
+git fetch origin main && git reset --hard origin/main
+```
+
+If this fails, stop and investigate before proceeding. On success, `orient-agent`
+reads fresh specs/ADRs/notes, and the task branch created by `claim-issue.sh` in
+Phase 2 will be rooted at the latest `origin/main` commit.
 
 ### Phase 1 — Orient
 
