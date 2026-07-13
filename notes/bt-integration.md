@@ -1564,7 +1564,7 @@ is cheap to implement.
 | Key(s) | Tree factory | Correlation ID | Discovered |
 |---|---|---|---|
 | `suggested_roles` | `create_recommend_actor_to_case_received_tree` | `recommendation_id` | CONCERN-1335 |
-| `new_case_participant`, `participant_case`, `new_participant_id` | `create_receive_report_case_tree` / `create_case_tree` | `report_id` | CONCERN-1349 |
+| `new_case_participant`, `participant_case`, `new_participant_id` | `create_receive_report_case_tree` | `report_id` | CONCERN-1349 |
 
 When auditing for compliance, grep for flat blackboard key registrations in
 tree factories called per-incoming-message and verify each inter-node handoff
