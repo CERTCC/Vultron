@@ -771,13 +771,26 @@ groups:
   - id: CM-16-003
     priority: MUST
     statement: >-
-      After recording the received `Offer(Actor)`, the CaseActor MUST assign default
-      roles for the suggested actor (defaulting to `[CVDRole.VENDOR]`) via an Evaluator
-      BT node that can be overridden by configuration or by the Case Owner at accept time.
+      After recording the received `Offer(Actor)`, the CaseActor MUST assign a
+      non-empty default role list for the suggested actor via an Evaluator BT node
+      (ADR-0024 shape: Evaluator). The Evaluator MUST return FAILURE if it cannot
+      produce a non-empty role list, preventing a silent substitution of an
+      unintended default by the downstream consumer node (see CONCERN-1336).
+      The default role SHOULD be `[CVDRole.VENDOR]` for actors whose type cannot
+      be determined from context. The default MAY be `[CVDRole.OTHER]` when the
+      Evaluator can determine that the actor does not fit any known CVD role but
+      still requires case membership (e.g., a security researcher with no vendor
+      affiliation). The Evaluator output MAY be overridden by configuration or by
+      the Case Owner at accept time.
     note: >-
       The Evaluator node is a call-out point (ADR-0025 abstraction; ADR-0024 shape: Evaluator) that MAY be
-      replaced by a more sophisticated role-inference implementation in future. The
-      default of VENDOR is the most conservative choice for an unknown actor.
+      replaced by a more sophisticated role-inference implementation in future.
+      The non-empty invariant MUST be enforced at write time (ADR-0032 BT-HELPER-01):
+      the Evaluator node returns FAILURE rather than writing an empty list,
+      so the downstream consumer never needs to treat empty as a sentinel.
+      The VENDOR default is the most conservative useful starting point for an
+      unknown actor; OTHER is the correct signal when actor type is genuinely
+      unclassifiable.
   - id: CM-16-004
     priority: MUST
     statement: >-
