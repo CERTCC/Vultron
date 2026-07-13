@@ -384,7 +384,9 @@ to a validated report.
 - **Automation potential**: **High** — scope rules for well-defined ID spaces (e.g., CVE CNA rules) can be encoded as a policy check and automated; may require human review for ambiguous cases.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.assign_vul_id.InScope`
 - **Call-out point shape**: Evaluator — evaluates whether the vulnerability falls within the applicable ID namespace by comparing vulnerability attributes against CNA scope rules or a product/component registry; returns a policy judgment (in-scope or out-of-scope), not a binary monitor.
-- **Factory-fn placement**: FUTURE:
+- **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
+  `vultron.core.behaviors.report.assign_vul_id_tree.create_assign_vul_id_tree`
+  (`in_scope_factory` param). FUTURE full placement:
   `vultron.core.behaviors.report.create_assign_vul_id_tree` (issue #1246) —
   Evaluator condition guard early in `AssignVulID` Sequence, before the
   authority-check nodes
@@ -442,7 +444,9 @@ to a validated report.
   authority for this specific vulnerability by matching vulnerability
   attributes against CNA scope rules and product-to-CNA mappings;
   a scope-matching evaluation, not a binary condition monitor.
-- **Factory-fn placement**: FUTURE:
+- **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
+  `vultron.core.behaviors.report.assign_vul_id_tree.create_assign_vul_id_tree`
+  (`id_assignable_factory` param). FUTURE full placement:
   `vultron.core.behaviors.report.create_assign_vul_id_tree` (issue #1246) —
   Evaluator condition guard in the assign-direct path Sequence, after
   `IsIDAssignmentAuthority` succeeds
@@ -542,9 +546,12 @@ the process of deploying a developed fix or mitigation to affected systems.
   `NewDeploymentInfoSentinel` agent (see stub entry below). The external agent seam is at the
   Sentinel (event subscription or polling hook), not at this BT condition check.
   (Category 2 per issue #1199 triage — consumes a flag written by an upstream Sentinel.)
-- **Factory-fn placement**: FUTURE:
+- **Factory-fn placement**: FUTURE (not wired in Phase 1 stub):
   `vultron.core.behaviors.report.create_deploy_fix_tree` (issue #1248) —
-  ProtocolInternal condition check at the top of `Deployment` Fallback Selector
+  ProtocolInternal condition check at the top of `Deployment` Fallback Selector.
+  Note: Phase 1 stub exists as of PR #1357 in
+  `vultron.core.behaviors.report.deploy_fix_tree.create_deploy_fix_tree`
+  but this ProtocolInternal node is not among the 4 factory params exposed.
 
 ### `NewDeploymentInfoSentinel` *(upstream Sentinel stub)*
 
@@ -592,7 +599,9 @@ the process of deploying a developed fix or mitigation to affected systems.
 - **Automation potential**: **Medium** — CVSS environmental scores, EPSS, and asset criticality data are automatable inputs; final prioritization decision may require human approval, especially for production systems.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.deploy_fix.PrioritizeDeployment`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: FUTURE:
+- **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
+  `vultron.core.behaviors.report.deploy_fix_tree.create_deploy_fix_tree`
+  (`prioritize_deployment_factory` param). FUTURE full placement:
   `vultron.core.behaviors.report.create_deploy_fix_tree` (issue #1248) —
   Evaluator action node in the `Deployment` Sequence, setting deployment
   priority before the mitigation/fix-deploy paths
@@ -612,10 +621,12 @@ the process of deploying a developed fix or mitigation to affected systems.
 - **Automation potential**: **High** — query to patch management system or case-state flag; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.deploy_fix.MitigationDeployed`
 - **Call-out point shape**: Retriever — synchronous on-demand query to an asset/patch management system or case-state flag; returns SUCCESS if a mitigation has been deployed, FAILURE otherwise. A boolean is the simplest structured fact (ADR-0024); the on-demand query pattern makes this a Retriever, not a Sentinel.
-- **Factory-fn placement**: FUTURE:
+- **Factory-fn placement**: FUTURE (not wired in Phase 1 stub):
   `vultron.core.behaviors.report.create_deploy_fix_tree` (issue #1248) —
   early-exit Retriever guard in `Deployment` Selector; short-circuits when
-  mitigation is already deployed
+  mitigation is already deployed.
+  Note: Phase 1 stub exists as of PR #1357 but this Retriever is not
+  among the 4 factory params exposed.
 
 ### `MitigationAvailable`
 
@@ -632,10 +643,12 @@ the process of deploying a developed fix or mitigation to affected systems.
 - **Automation potential**: **High** — patch or advisory feed query; fully automatable once the feed integration is in place.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.deploy_fix.MitigationAvailable`
 - **Call-out point shape**: Retriever — synchronous on-demand query to a patch/advisory feed or internal mitigation catalog; returns SUCCESS if a mitigation is currently available, FAILURE otherwise. A boolean is the simplest structured fact (ADR-0024); the on-demand query pattern makes this a Retriever, not a Sentinel.
-- **Factory-fn placement**: FUTURE:
+- **Factory-fn placement**: FUTURE (not wired in Phase 1 stub):
   `vultron.core.behaviors.report.create_deploy_fix_tree` (issue #1248) —
   Retriever condition guard in the mitigation-deploy Sequence, before
-  `DeployMitigation`; queries availability before attempting deployment
+  `DeployMitigation`; queries availability before attempting deployment.
+  Note: Phase 1 stub exists as of PR #1357 but this Retriever is not
+  among the 4 factory params exposed.
 
 ### `DeployMitigation`
 
@@ -652,7 +665,9 @@ the process of deploying a developed fix or mitigation to affected systems.
 - **Automation potential**: **Medium** — automated deployment is feasible for some environments (configuration management, cloud); human approval is typically required for production system changes.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.deploy_fix.DeployMitigation`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: FUTURE:
+- **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
+  `vultron.core.behaviors.report.deploy_fix_tree.create_deploy_fix_tree`
+  (`deploy_mitigation_factory` param). FUTURE full placement:
   `vultron.core.behaviors.report.create_deploy_fix_tree` (issue #1248) —
   Evaluator action node in the mitigation-deploy Sequence, after
   `MitigationAvailable` succeeds
@@ -672,7 +687,9 @@ the process of deploying a developed fix or mitigation to affected systems.
 - **Automation potential**: **High** — policy rule evaluation against case context (severity, asset class, environment); fully automatable as a policy engine check.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.deploy_fix.MonitoringRequirement`
 - **Call-out point shape**: Evaluator — evaluates whether organizational policy requires post-deployment monitoring for this case by applying policy rules against case context (severity, asset class, environment); a policy judgment call, not a binary condition monitor.
-- **Factory-fn placement**: FUTURE:
+- **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
+  `vultron.core.behaviors.report.deploy_fix_tree.create_deploy_fix_tree`
+  (`monitoring_requirement_factory` param). FUTURE full placement:
   `vultron.core.behaviors.report.create_deploy_fix_tree` (issue #1248) —
   Evaluator condition guard in the monitoring-initiation Sequence; SUCCESS
   proceeds to `MonitorDeployment`
@@ -697,11 +714,13 @@ the process of deploying a developed fix or mitigation to affected systems.
   the side effect in the external monitoring system is the seam. This is a fire-and-confirm
   action node, not a continuous monitor running outside the BT — the BT tick reaches this node
   once per `MonitoringRequirement` pass and asks the external system to begin tracking.
-- **Factory-fn placement**: FUTURE:
+- **Factory-fn placement**: FUTURE (not wired in Phase 1 stub):
   `vultron.core.behaviors.report.create_deploy_fix_tree` (issue #1248) —
   Actuator action node in the monitoring-initiation Sequence, after
   `MonitoringRequirement` succeeds; fires the external monitoring registration
-  call and confirms activation
+  call and confirms activation.
+  Note: Phase 1 stub exists as of PR #1357 but this Actuator is not
+  among the 4 factory params exposed.
 
 ### `DeployFix`
 
@@ -718,7 +737,9 @@ the process of deploying a developed fix or mitigation to affected systems.
 - **Automation potential**: **Medium** — release pipeline and patch distribution can be automated (CI/CD, package repositories); human approval gate is commonly required for production releases.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.deploy_fix.DeployFix`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: FUTURE:
+- **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
+  `vultron.core.behaviors.report.deploy_fix_tree.create_deploy_fix_tree`
+  (`deploy_fix_factory` param). FUTURE full placement:
   `vultron.core.behaviors.report.create_deploy_fix_tree` (issue #1248) —
   Evaluator action node in the full-fix-deploy Sequence; the primary patch
   deployment step (distinct from mitigation deployment)
@@ -792,7 +813,9 @@ vulnerability, typically to support impact assessment or testing.
 - **Automation potential**: **Medium** — SSVC/CVSS scoring inputs are automatable; the final exploit-acquisition priority decision often requires human analyst judgment given organizational and legal context.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.acquire_exploit.EvaluateExploitPriority`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: FUTURE:
+- **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
+  `vultron.core.behaviors.report.acquire_exploit_tree.create_acquire_exploit_tree`
+  (`evaluate_exploit_priority_factory` param). FUTURE full placement:
   `vultron.core.behaviors.report.create_acquire_exploit_strategy_tree`
   (issue #1249) — Evaluator action node in the priority-decision Sequence;
   writes the `exploit_priority` decision to the blackboard for downstream
@@ -903,7 +926,9 @@ vulnerability, typically to support impact assessment or testing.
 - **Automation potential**: **Low** — procurement and legal authorization require human decision-making; cannot be automated.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.acquire_exploit.PurchaseExploit`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: FUTURE:
+- **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
+  `vultron.core.behaviors.report.acquire_exploit_tree.create_acquire_exploit_tree`
+  (`purchase_exploit_factory` param). FUTURE full placement:
   `vultron.core.behaviors.report.create_acquire_exploit_strategy_tree`
   (issue #1249) — third (last-resort) Evaluator child in the acquisition
   Fallback; tried only after `FindExploit` and `DevelopExploit` both fail
@@ -1352,7 +1377,9 @@ coordinated disclosure.
 - **Automation potential**: **Low** — inherently requires human expert judgment about stakeholder completeness in a specific vulnerability context; hard to automate reliably.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.AllPartiesKnown`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: FUTURE:
+- **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
+  `vultron.core.behaviors.report.report_to_others_tree.create_report_to_others_tree`
+  (`all_parties_known_factory` param). FUTURE full placement:
   `vultron.core.behaviors.report.create_report_to_others_tree`
   (issue #1252) — Evaluator Sentinel after `HaveReportToOthersCapability`;
   exits the outer party-identification loop once all parties are known
@@ -1502,7 +1529,9 @@ coordinated disclosure.
 - **Automation potential**: **High** — effort counter check against a configurable policy threshold; fully automatable once the threshold policy is defined.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.RecipientEffortExceeded`
 - **Call-out point shape**: Evaluator — evaluates whether the notification-attempt budget for this recipient has been exhausted by comparing the per-recipient attempt counter against a configurable policy threshold; a process-gate judgment about whether continued effort is warranted.
-- **Factory-fn placement**: FUTURE:
+- **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
+  `vultron.core.behaviors.report.report_to_others_tree.create_report_to_others_tree`
+  (`recipient_effort_exceeded_factory` param). FUTURE full placement:
   `vultron.core.behaviors.report.create_report_to_others_tree`
   (issue #1252) — Evaluator guard in the per-recipient effort-limit
   Sequence; triggers `RemoveRecipient` when the per-recipient attempt
@@ -1523,7 +1552,9 @@ coordinated disclosure.
 - **Automation potential**: **High** — aggregate effort counter check against a configurable policy ceiling; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.TotalEffortLimitMet`
 - **Call-out point shape**: Evaluator — evaluates whether the global notification budget has been exhausted by comparing the total effort counter against a configurable policy ceiling; a process-gate judgment about whether any further notification attempts are warranted across all recipients.
-- **Factory-fn placement**: FUTURE:
+- **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
+  `vultron.core.behaviors.report.report_to_others_tree.create_report_to_others_tree`
+  (`total_effort_limit_factory` param). FUTURE full placement:
   `vultron.core.behaviors.report.create_report_to_others_tree`
   (issue #1252) — Evaluator guard checked at the outer loop level;
   terminates all further notification attempts when the global effort
@@ -1545,7 +1576,9 @@ coordinated disclosure.
 - **Automation potential**: **Medium** — comparison between the recipient's published CVD policy and the case embargo terms is automatable for machine-readable policies (e.g., OpenVEX, structured security.txt); human review needed for ambiguous or informal policies.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.PolicyCompatible`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: FUTURE:
+- **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
+  `vultron.core.behaviors.report.report_to_others_tree.create_report_to_others_tree`
+  (`policy_compatible_factory` param). FUTURE full placement:
   `vultron.core.behaviors.report.create_report_to_others_tree`
   (issue #1252) — Evaluator precondition guard before `FindContact` and
   `RcptNotInQrmS`; gates notification on policy compatibility check
@@ -1802,7 +1835,9 @@ complete (or otherwise concluded).
 - **Automation potential**: **Low** — site-specific; closure criteria vary widely by organization and case context; typically requires human policy evaluation or explicit sign-off.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.close_report.OtherCloseCriteriaMet`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: FUTURE:
+- **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
+  `vultron.core.behaviors.report.close_report_tree.create_close_report_tree`
+  (`other_close_criteria_factory` param). FUTURE full placement:
   `vultron.core.behaviors.report.create_close_report_tree`
   (issue #1253) — Evaluator precondition guard in the `RMCloseBt` Sequence;
   evaluated before `PreCloseAction`; blocks closure until site-specific
