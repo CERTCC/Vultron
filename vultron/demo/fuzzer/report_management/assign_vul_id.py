@@ -40,6 +40,7 @@ from vultron.demo.fuzzer.base import (
     UsuallySucceed,
 )
 from vultron.demo.fuzzer.call_out_point import (
+    ComposerCallOutPoint,
     EvaluatorCallOutPoint,
     RetrieverCallOutPoint,
 )
@@ -145,7 +146,7 @@ class RequestId(RetrieverCallOutPoint, UsuallySucceed):
     output_keys = {"assigned_id": str}
 
 
-class AssignId(AlwaysSucceed):
+class AssignId(ComposerCallOutPoint, AlwaysSucceed):
     """Assign a Vulnerability ID directly to the vulnerability.
 
     Semantic function:
@@ -155,6 +156,10 @@ class AssignId(AlwaysSucceed):
         automated internal allocation from a pre-reserved ID pool or an API
         call to the local ID management system.
 
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — reads case context from caller's DataLayer)
+      Output keys: assigned_vul_id: str  (SUCCESS only)
+
     Input category: System integration.
 
     Success probability: 1.00 (``AlwaysSucceed``).
@@ -163,6 +168,8 @@ class AssignId(AlwaysSucceed):
     internal tracking system is fully automatable; no human involvement is
     required once the allocation decision is made.
     """
+
+    output_keys = {"assigned_vul_id": str}
 
 
 class InScope(EvaluatorCallOutPoint, UsuallySucceed):

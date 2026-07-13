@@ -50,13 +50,16 @@ from vultron.demo.fuzzer.embargo import (
     WantToProposeEmbargo,
     WillingToCounterEmbargoProposal,
 )
+from vultron.demo.fuzzer.messaging import FollowUpOnErrorMessage
 from vultron.demo.fuzzer.report_management.acquire_exploit import (
+    DevelopExploit,
     EvaluateExploitPriority,
     FindExploit,
     HaveExploit,
     PurchaseExploit,
 )
 from vultron.demo.fuzzer.report_management.assign_vul_id import (
+    AssignId,
     IdAssignable,
     IdAssigned,
     InScope,
@@ -73,6 +76,7 @@ from vultron.demo.fuzzer.report_management.deploy_fix import (
     MonitoringRequirement,
     PrioritizeDeployment,
 )
+from vultron.demo.fuzzer.report_management.develop_fix import CreateFix
 from vultron.demo.fuzzer.report_management.monitor_threats import (
     MonitorAttacks,
     MonitorExploits,
@@ -83,6 +87,8 @@ from vultron.demo.fuzzer.report_management.prioritize import (
     GatherPrioritizationInfo,
 )
 from vultron.demo.fuzzer.report_management.publication import (
+    PrepareExploit,
+    PrepareFix,
     PrioritizePublicationIntents,
     ReprioritizeExploit,
     ReprioritizeFix,
@@ -510,3 +516,58 @@ def test_embargo_binary_retriever_node_has_blackboard_contract_docstring(
     node_cls,
 ):
     assert node_cls.__doc__ and "Blackboard contract" in node_cls.__doc__
+
+
+# ---------------------------------------------------------------------------
+# Composer nodes (FUZZ-08g) — subclass ComposerCallOutPoint, declare
+# output_keys, and write artifact to blackboard on SUCCESS (BT-18-001/02/03)
+# ---------------------------------------------------------------------------
+
+_RM_COMPOSER_NODES = [
+    (AssignId, "assigned_vul_id"),
+    (CreateFix, "fix_artifact"),
+    (DevelopExploit, "developed_exploit_artifact"),
+    (PrepareExploit, "prepared_exploit_artifact"),
+    (PrepareFix, "prepared_fix_artifact"),
+    (PrepareReport, "prepared_report_artifact"),
+    (FollowUpOnErrorMessage, "followup_message_artifact"),
+]
+
+
+@pytest.mark.parametrize("node_cls, output_key", _RM_COMPOSER_NODES)
+def test_rm_composer_node_subclasses_composer(node_cls, output_key):
+    assert issubclass(node_cls, ComposerCallOutPoint)
+
+
+@pytest.mark.parametrize("node_cls, output_key", _RM_COMPOSER_NODES)
+def test_rm_composer_node_output_key_declared(node_cls, output_key):
+    assert output_key in node_cls.output_keys
+
+
+@pytest.mark.parametrize("node_cls, output_key", _RM_COMPOSER_NODES)
+def test_rm_composer_node_output_key_type_is_str(node_cls, output_key):
+    assert node_cls.output_keys[output_key] is str
+
+
+@pytest.mark.parametrize("node_cls, output_key", _RM_COMPOSER_NODES)
+def test_rm_composer_node_has_blackboard_contract_docstring(
+    node_cls, output_key
+):
+    assert node_cls.__doc__ and "Blackboard contract" in node_cls.__doc__
+
+
+def test_rm_composer_node_writes_blackboard_on_success():
+    """A Composer node writes its output key to the blackboard on SUCCESS."""
+    from vultron.demo.fuzzer.base import AlwaysSucceed
+
+    class _AlwaysSucceedComposer(ComposerCallOutPoint, AlwaysSucceed):
+        output_keys = {"assigned_vul_id": str}
+
+    node = _AlwaysSucceedComposer("TestAssignId")
+    node.setup()
+    status = node.update()
+
+    assert status == Status.SUCCESS
+    assert "/assigned_vul_id" in py_trees.blackboard.Blackboard.storage
+    val = py_trees.blackboard.Blackboard.storage["/assigned_vul_id"]
+    assert isinstance(val, str)

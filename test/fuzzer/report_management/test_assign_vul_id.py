@@ -31,6 +31,7 @@ import pytest
 from py_trees.common import Status
 
 from vultron.demo.fuzzer.base import WeightedBehavior
+from vultron.demo.fuzzer.call_out_point import ComposerCallOutPoint
 from vultron.demo.fuzzer.report_management.assign_vul_id import (
     AssignId,
     IdAssignable,
@@ -234,3 +235,22 @@ class TestEmpiricalDistributions:
         random.seed(42)
         seq_b = [node.update() for _ in range(20)]
         assert seq_a == seq_b
+
+
+# ---------------------------------------------------------------------------
+# ComposerCallOutPoint — AssignId (BT-18-001/02/03)
+# ---------------------------------------------------------------------------
+
+
+class TestAssignIdIsComposer:
+    def test_subclasses_composer_call_out_point(self) -> None:
+        assert issubclass(AssignId, ComposerCallOutPoint)
+
+    def test_output_keys_declared(self) -> None:
+        assert "assigned_vul_id" in AssignId.output_keys
+
+    def test_output_key_type_is_str(self) -> None:
+        assert AssignId.output_keys["assigned_vul_id"] is str
+
+    def test_docstring_has_blackboard_contract(self) -> None:
+        assert AssignId.__doc__ and "Blackboard contract" in AssignId.__doc__

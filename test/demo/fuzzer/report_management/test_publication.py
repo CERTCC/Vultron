@@ -3,6 +3,7 @@
 import pytest
 import py_trees
 
+from vultron.demo.fuzzer.call_out_point import ComposerCallOutPoint
 from vultron.demo.fuzzer.base import (
     AlmostAlwaysFail,
     AlmostAlwaysSucceed,
@@ -117,6 +118,25 @@ def test_prepare_exploit_base_type():
     assert issubclass(PrepareExploit, AlmostAlwaysSucceed)
 
 
+def test_prepare_exploit_is_composer():
+    assert issubclass(PrepareExploit, ComposerCallOutPoint)
+
+
+def test_prepare_exploit_output_keys_declared():
+    assert "prepared_exploit_artifact" in PrepareExploit.output_keys
+
+
+def test_prepare_exploit_output_key_type_is_str():
+    assert PrepareExploit.output_keys["prepared_exploit_artifact"] is str
+
+
+def test_prepare_exploit_docstring_has_blackboard_contract():
+    assert (
+        PrepareExploit.__doc__
+        and "Blackboard contract" in PrepareExploit.__doc__
+    )
+
+
 def test_reprioritize_exploit_base_type():
     assert issubclass(ReprioritizeExploit, AlwaysSucceed)
 
@@ -127,6 +147,22 @@ def test_no_publish_fix_base_type():
 
 def test_prepare_fix_base_type():
     assert issubclass(PrepareFix, AlmostAlwaysSucceed)
+
+
+def test_prepare_fix_is_composer():
+    assert issubclass(PrepareFix, ComposerCallOutPoint)
+
+
+def test_prepare_fix_output_keys_declared():
+    assert "prepared_fix_artifact" in PrepareFix.output_keys
+
+
+def test_prepare_fix_output_key_type_is_str():
+    assert PrepareFix.output_keys["prepared_fix_artifact"] is str
+
+
+def test_prepare_fix_docstring_has_blackboard_contract():
+    assert PrepareFix.__doc__ and "Blackboard contract" in PrepareFix.__doc__
 
 
 def test_reprioritize_fix_base_type():
