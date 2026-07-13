@@ -781,19 +781,22 @@ groups:
       The Evaluator node is a call-out point (ADR-0025 abstraction; ADR-0024 shape:
       Evaluator) that MAY be replaced by a more sophisticated role-inference
       implementation in future. The non-empty invariant is enforced at write time so
-      the downstream consumer never needs to treat empty as a sentinel.
+      the downstream consumer never needs to treat an empty list as a sentinel.
+      See CM-16-011 and CM-16-012 for the recommended and permitted default values.
   - id: CM-16-011
     priority: SHOULD
     statement: >-
       The default role list SHOULD be `[CVDRole.VENDOR]` for actors whose type cannot
-      be determined from context. VENDOR is the most conservative useful starting point
-      for an unknown actor.
+      be determined from context, because in CVD cases the most likely role for a
+      newly added participant is Vendor.
   - id: CM-16-012
     priority: MAY
     statement: >-
       The default role list MAY be `[CVDRole.OTHER]` when the Evaluator can determine
       that the suggested actor does not fit any known CVD role but still requires case
       membership (e.g., a security researcher with no vendor affiliation).
+      `CVDRole.OTHER` is the most conservative choice because it makes no assumption
+      about the actor's function in the CVD process.
       The Evaluator output MAY be overridden by configuration or by the Case Owner at
       accept time.
   - id: CM-16-004
