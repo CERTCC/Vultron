@@ -492,8 +492,11 @@ back into the behaviors layer, a circular import results.
 `vultron/core/use_cases/_helpers.py` (the neutral package-top-level module).
 This module is importable from both the `behaviors/` layer and the
 `triggers/` sub-package without loading the `triggers` package at all.
-`triggers/_helpers.py` can re-export from `_helpers.py` for callers already
-inside the `triggers` package.
+
+**Migration complete** (PR #1361): `_log_label`, `outbox_ids`, and
+`add_activity_to_outbox` have been moved from `triggers/_helpers.py` to
+`use_cases/_helpers.py`. All callers import from `use_cases._helpers` directly.
+The `triggers/_helpers.py` re-export bridge is no longer needed or present.
 
 **Corollary**: Core domain model classes (e.g., `VultronCase`) should
 implement the same interface methods as their wire-layer counterparts so that

@@ -24,6 +24,7 @@ from vultron.core.states.roles import CVDRole
 from vultron.core.use_cases._helpers import (
     _as_id,
     _idempotent_create,
+    add_activity_to_outbox,
 )
 
 if TYPE_CHECKING:
@@ -123,7 +124,6 @@ class AcceptCaseManagerRoleReceivedUseCase:
 
     def execute(self) -> None:
         from vultron.core.use_cases.received.sync import _find_local_actor_id
-        from vultron.core.use_cases._helpers import add_activity_to_outbox
 
         request = self._request
         _idempotent_create(
