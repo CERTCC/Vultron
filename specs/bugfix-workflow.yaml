@@ -5,7 +5,7 @@ description: >-
   of discovered issues, and lifecycle archiving of completed bug fixes. IDEA-26042202 (bug
   archiving)
 version: 1.0.0
-kind: general
+kind: dev-process
 scope:
 - prototype
 - production

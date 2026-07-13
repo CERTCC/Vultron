@@ -100,6 +100,7 @@ class SpecKind(StrEnum):
     DOMAIN         = "domain"          # Vultron / CVD: language-agnostic
     LANGUAGE       = "language"        # Python ecosystem: any Python project
     IMPLEMENTATION = "implementation"  # this specific codebase
+    DEV_PROCESS    = "dev-process"     # this project's development and maintenance process
 
 class Scope(StrEnum):
     PROTOTYPE  = "prototype"
@@ -158,14 +159,16 @@ languages. Each tier answers a different "which specs do I need?" question:
 | `domain` | Vultron / CVD protocol: language-agnostic | embargo lifecycle, AS2 semantics |
 | `language` | Python ecosystem: any Python project | pydantic, py_trees API, pytest |
 | `implementation` | This specific codebase: paths, class names, tooling | `vultron/core/` layout, notes schema |
+| `dev-process` | This project's development and maintenance process | skill workflows, history management, spec conventions |
 
 **Portability use cases:**
 
-- Implementing Vultron in Python → all five tiers
+- Implementing Vultron in Python → `general` + `pattern` + `domain` + `language` + `implementation`
 - Implementing Vultron in another language → `general` + `pattern` + `domain`
 - Different domain, same Python / BT / hexagonal stack → `general` + `pattern` + `language`
 - BT / hexagonal wisdom, any language → `general` + `pattern`
 - Universal wisdom only → `general`
+- Contributing to this project → all six tiers (include `dev-process`)
 
 `kind` is inheritable: required at `SpecFile` level, optional override at
 `SpecGroup` and individual spec level. Effective kind resolves as

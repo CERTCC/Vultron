@@ -52,7 +52,7 @@ class RelationType(StrEnum):
 class SpecKind(StrEnum):
     """Portability tier for a spec requirement (SR-02-005).
 
-    The five tiers form a portability hierarchy.  Use them to filter which
+    The six tiers form a portability hierarchy.  Use them to filter which
     specs apply to your project:
 
     - ``general``        — Universal: any project, any language.
@@ -61,7 +61,7 @@ class SpecKind(StrEnum):
     - ``pattern``        — Architectural / framework approach: language-agnostic
                            and not CVD-specific.
                            Examples: hexagonal architecture, BT composability,
-                           event-driven dispatch, structured logging format.
+                           event-driven dispatch.
     - ``domain``         — Vultron / CVD protocol: language-agnostic.
                            Examples: embargo lifecycle, case management, AS2
                            semantics, MPCVD state machines.
@@ -71,14 +71,18 @@ class SpecKind(StrEnum):
     - ``implementation`` — This specific codebase.
                            Examples: file paths under ``vultron/``, class names
                            in ``vultron/core/``, notes frontmatter schema.
+    - ``dev-process``    — This project's development and maintenance process.
+                           Examples: skill workflows, history management,
+                           spec authoring conventions, parallel agentic dev.
 
     Portability use cases
     ~~~~~~~~~~~~~~~~~~~~~
-    - Implementing Vultron in Python          → all five tiers
+    - Implementing Vultron in Python          → general + pattern + domain + language + implementation
     - Implementing Vultron in another language → general + pattern + domain
     - Different domain, Python/BT/hex stack   → general + pattern + language
     - BT / hexagonal wisdom, any language      → general + pattern
     - Universal wisdom only                    → general
+    - Contributing to this project            → all six tiers (include dev-process)
     """
 
     GENERAL = "general"
@@ -86,6 +90,7 @@ class SpecKind(StrEnum):
     DOMAIN = "domain"
     LANGUAGE = "language"
     IMPLEMENTATION = "implementation"
+    DEV_PROCESS = "dev-process"
 
 
 class Scope(StrEnum):

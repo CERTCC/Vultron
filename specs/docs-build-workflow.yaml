@@ -8,7 +8,7 @@ description: >
   `.github/workflows/demo-integration.yml` (demo container integration tests,
   specified in `specs/demo-ci.yaml`).
 version: 1.0.0
-kind: general
+kind: implementation
 scope:
   - prototype
   - production

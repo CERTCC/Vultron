@@ -13,7 +13,7 @@ description: >-
   queue, what must not go there, file naming and format, how `learn`
   processes and archives entries, and the `learning` history entry type.
 version: 2.0.0
-kind: pattern
+kind: dev-process
 scope:
   - prototype
   - production
