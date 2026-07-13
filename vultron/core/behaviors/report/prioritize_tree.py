@@ -86,6 +86,22 @@ def _default_on_defer_factory(name: str) -> py_trees.behaviour.Behaviour:
     return OnDefer(name)
 
 
+def _default_enough_info_factory(name: str) -> py_trees.behaviour.Behaviour:
+    from vultron.demo.fuzzer.report_management.prioritize import (
+        EnoughPrioritizationInfo,
+    )
+
+    return EnoughPrioritizationInfo(name)
+
+
+def _default_gather_info_factory(name: str) -> py_trees.behaviour.Behaviour:
+    from vultron.demo.fuzzer.report_management.prioritize import (
+        GatherPrioritizationInfo,
+    )
+
+    return GatherPrioritizationInfo(name)
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -170,6 +186,8 @@ def create_prioritize_subtree(
     trigger_activity: "TriggerActivityPort | None" = None,
     on_accept_factory: CallOutBackendFactory = _default_on_accept_factory,
     on_defer_factory: CallOutBackendFactory = _default_on_defer_factory,
+    enough_info_factory: CallOutBackendFactory = _default_enough_info_factory,
+    gather_info_factory: CallOutBackendFactory = _default_gather_info_factory,
 ) -> py_trees.behaviour.Behaviour:
     """
     Create behavior tree subtree for case prioritization (engage or defer).
@@ -220,10 +238,21 @@ def create_prioritize_subtree(
         on_defer_factory: Factory for the Actuator call-out point that
             fires integration hooks when the report is deferred.  Defaults
             to the fuzzer backend (BT-18-004).
+        enough_info_factory: Factory for the Evaluator call-out point that
+            checks whether sufficient prioritization information is available.
+            Reserved for Phase 2 info-gathering loop; accepted but not yet
+            wired into the Phase 1 tree body (BT-18-004).
+        gather_info_factory: Factory for the Retriever call-out point that
+            collects additional prioritization information.  Reserved for
+            Phase 2 info-gathering loop; accepted but not yet wired into
+            the Phase 1 tree body (BT-18-004).
 
     Returns:
         Root node of the prioritize behavior tree (Selector)
     """
+    # Phase 2: enough_info_factory and gather_info_factory are reserved for
+    # the prioritization info-gathering loop and are not wired into the Phase 1
+    # tree body.  Accepting them here satisfies BT-18-004 without breaking callers.
     factory = trigger_activity
 
     def _build_engage(case_manager_id: str) -> list[str]:
