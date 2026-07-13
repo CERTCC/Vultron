@@ -27,7 +27,7 @@ from vultron.core.services.embargo_lifecycle import (
 )
 from vultron.core.states.em import EM, is_valid_em_transition
 from vultron.core.use_cases._helpers import _as_id
-from vultron.core.use_cases.triggers._helpers import add_activity_to_outbox
+from vultron.core.use_cases._helpers import add_activity_to_outbox
 from vultron.errors import (
     VultronError,
     VultronInvalidStateTransitionError,

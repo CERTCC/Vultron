@@ -123,9 +123,7 @@ class AcceptCaseManagerRoleReceivedUseCase:
 
     def execute(self) -> None:
         from vultron.core.use_cases.received.sync import _find_local_actor_id
-        from vultron.core.use_cases.triggers._helpers import (
-            add_activity_to_outbox,
-        )
+        from vultron.core.use_cases._helpers import add_activity_to_outbox
 
         request = self._request
         _idempotent_create(

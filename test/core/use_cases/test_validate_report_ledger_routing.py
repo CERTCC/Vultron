@@ -183,7 +183,7 @@ class TestTriggerEmitsToCaseActorOutbox:
         Per CLP-10-001: the trigger tree MUST emit to the CaseActor so the
         CaseActor can execute the guarded commit.
         """
-        from vultron.core.use_cases.triggers._helpers import outbox_ids
+        from vultron.core.use_cases._helpers import outbox_ids
 
         dl, _case, offer, case_actor_id = self._setup()
 
@@ -216,7 +216,7 @@ class TestTriggerEmitsToCaseActorOutbox:
         ``_compute_report_addressees`` excludes the sending actor to prevent
         self-delivery.
         """
-        from vultron.core.use_cases.triggers._helpers import outbox_ids
+        from vultron.core.use_cases._helpers import outbox_ids
 
         dl, _case, offer, _case_actor_id = self._setup()
 
@@ -457,7 +457,7 @@ class TestFullValidateReportLedgerChain:
     def test_case_actor_ledger_contains_validate_report_after_trigger(self):
         """CaseActor ledger has 'validate_report' after vendor triggers validate."""
         from vultron.core.models.case_actor import VultronCaseActor
-        from vultron.core.use_cases.triggers._helpers import outbox_ids
+        from vultron.core.use_cases._helpers import outbox_ids
 
         # ── Step 1: vendor_dl — case at RM.RECEIVED ──────────────────────────
         vendor_dl = _make_dl()

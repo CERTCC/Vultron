@@ -4,6 +4,7 @@ Module-level helpers used across multiple use-case modules.
 All helpers are private to the use-cases package (prefix ``_``).
 """
 
+import hashlib
 import logging
 import uuid
 from typing import Any
@@ -14,7 +15,10 @@ from vultron.core.models.protocols import (
     is_participant_model,
 )
 from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.ports.case_persistence import (
+    CasePersistence,
+    CaseOutboxPersistence,
+)
 from vultron.core.states.participant_embargo_consent import (
     PEC,
     PEC_Trigger,
@@ -468,3 +472,55 @@ def case_addressees(case: CaseModel, excluding_actor_id: str) -> list[str]:
         for actor_id in case.actor_participant_index.keys()
         if actor_id != excluding_actor_id
     ]
+
+
+def _log_label(uri: str) -> str:
+    """Return a deterministic redacted label for IDs used in log messages.
+
+    Do not log raw actor/activity identifiers (or URI segments) because they
+    may be sensitive.  Instead, emit a short non-reversible hash token that
+    still allows correlation across log lines.
+    """
+    digest = hashlib.sha256(uri.encode("utf-8")).hexdigest()[:12]
+    return f"id:{digest}"
+
+
+def outbox_ids(actor_id: str, dl: CaseOutboxPersistence) -> set[str]:
+    """Return the set of string activity IDs in the actor's outbox queue.
+
+    Uses ``outbox_list_for_actor`` when available (explicit actor scope),
+    otherwise falls back to the actor-scoped ``outbox_list()``.
+
+    Args:
+        actor_id: The actor whose outbox should be queried.
+        dl: The DataLayer to use for persistence.
+
+    Returns:
+        Set of activity IDs queued for delivery.
+    """
+    if hasattr(dl, "outbox_list_for_actor"):
+        items: list[str] = dl.outbox_list_for_actor(actor_id)  # type: ignore[attr-defined]
+        return set(items)
+    return set(dl.outbox_list())
+
+
+def add_activity_to_outbox(
+    actor_id: str, activity_id: str, dl: CaseOutboxPersistence
+) -> None:
+    """Append an activity ID to an actor's outbox and queue it for delivery.
+
+    Uses ``record_outbox_item`` to explicitly enqueue against *actor_id*,
+    bypassing any actor-scope on *dl* itself.  This ensures correct delivery
+    even when *dl* is a shared (unscoped) DataLayer instance.
+
+    Args:
+        actor_id: The actor whose outbox should receive the activity.
+        activity_id: The ID of the activity to queue for delivery.
+        dl: The DataLayer to use for persistence.
+    """
+    dl.record_outbox_item(actor_id, activity_id)
+    logger.debug(
+        "Queued activity '%s' in delivery queue for actor '%s'",
+        _log_label(activity_id),
+        _log_label(actor_id),
+    )
