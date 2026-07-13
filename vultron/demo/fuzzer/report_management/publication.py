@@ -171,7 +171,7 @@ class ExploitReady(OftenSucceed):
     """
 
 
-class PrepareExploit(AlmostAlwaysSucceed):
+class PrepareExploit(ComposerCallOutPoint, AlmostAlwaysSucceed):
     """Create, document, and stage the exploit artifact for publication.
 
     Semantic function:
@@ -181,6 +181,10 @@ class PrepareExploit(AlmostAlwaysSucceed):
         human security researcher to package and document the
         proof-of-concept.  The fuzzer succeeds almost always.
 
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — reads case context from caller's DataLayer)
+      Output keys: prepared_exploit_artifact: str  (SUCCESS only)
+
     Input category: Human decision.
 
     Success probability: 0.90 (``AlmostAlwaysSucceed``).
@@ -189,6 +193,8 @@ class PrepareExploit(AlmostAlwaysSucceed):
     packaging require human security researcher expertise; not
     automatable in the general case.
     """
+
+    output_keys = {"prepared_exploit_artifact": str}
 
 
 class ReprioritizeExploit(EvaluatorCallOutPoint, AlwaysSucceed):
@@ -236,7 +242,7 @@ class NoPublishFix(AlmostAlwaysFail):
     """
 
 
-class PrepareFix(AlmostAlwaysSucceed):
+class PrepareFix(ComposerCallOutPoint, AlmostAlwaysSucceed):
     """Create, document, and stage the fix artifact for publication.
 
     Semantic function:
@@ -246,6 +252,10 @@ class PrepareFix(AlmostAlwaysSucceed):
         pipeline and content-authoring workflow.  The fuzzer succeeds
         almost always, allowing the rest of the workflow to be exercised.
 
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — reads case context from caller's DataLayer)
+      Output keys: prepared_fix_artifact: str  (SUCCESS only)
+
     Input category: System integration.
 
     Success probability: 0.90 (``AlmostAlwaysSucceed``).
@@ -254,6 +264,8 @@ class PrepareFix(AlmostAlwaysSucceed):
     patch build and packaging; advisory text and release notes typically
     require human authoring and review.
     """
+
+    output_keys = {"prepared_fix_artifact": str}
 
 
 class ReprioritizeFix(EvaluatorCallOutPoint, AlwaysSucceed):

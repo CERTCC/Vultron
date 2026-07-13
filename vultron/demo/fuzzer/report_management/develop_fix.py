@@ -33,9 +33,10 @@ References
 from __future__ import annotations
 
 from vultron.demo.fuzzer.base import AlmostAlwaysSucceed
+from vultron.demo.fuzzer.call_out_point import ComposerCallOutPoint
 
 
-class CreateFix(AlmostAlwaysSucceed):
+class CreateFix(ComposerCallOutPoint, AlmostAlwaysSucceed):
     """Initiate the process of creating a fix for the vulnerability.
 
     Semantic function:
@@ -45,6 +46,10 @@ class CreateFix(AlmostAlwaysSucceed):
         team, or initiating an automated patch-generation workflow.  The fuzzer
         models the overwhelmingly common case where the fix development
         handoff succeeds, allowing the rest of the workflow to be exercised.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — reads case context from caller's DataLayer)
+      Output keys: fix_artifact: str  (SUCCESS only)
 
     Input category: System integration.
 
@@ -56,3 +61,5 @@ class CreateFix(AlmostAlwaysSucceed):
     establishing acceptance criteria may require human review for non-trivial
     vulnerabilities.
     """
+
+    output_keys = {"fix_artifact": str}

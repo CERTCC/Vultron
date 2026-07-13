@@ -24,6 +24,7 @@ import pytest
 from py_trees.common import Status
 
 from vultron.demo.fuzzer.base import WeightedBehavior
+from vultron.demo.fuzzer.call_out_point import ComposerCallOutPoint
 from vultron.demo.fuzzer.report_management.develop_fix import CreateFix
 
 # ---------------------------------------------------------------------------
@@ -44,6 +45,7 @@ _ALL_NODES = [(CreateFix, 9.0 / 10.0)]
 def _run_trials(node_cls: type, n: int = _TRIALS) -> float:
     """Return empirical success rate over *n* independent ticks."""
     node = node_cls()
+    node.setup()
     successes = sum(1 for _ in range(n) if node.update() == Status.SUCCESS)
     return successes / n
 
@@ -56,6 +58,18 @@ def _run_trials(node_cls: type, n: int = _TRIALS) -> float:
 class TestCreateFixIsWeightedBehavior:
     def test_is_weighted_behavior_subclass(self) -> None:
         assert issubclass(CreateFix, WeightedBehavior)
+
+    def test_is_composer_call_out_point(self) -> None:
+        assert issubclass(CreateFix, ComposerCallOutPoint)
+
+    def test_output_keys_declared(self) -> None:
+        assert "fix_artifact" in CreateFix.output_keys
+
+    def test_output_key_type_is_str(self) -> None:
+        assert CreateFix.output_keys["fix_artifact"] is str
+
+    def test_docstring_has_blackboard_contract(self) -> None:
+        assert CreateFix.__doc__ and "Blackboard contract" in CreateFix.__doc__
 
     def test_is_py_trees_behaviour(self) -> None:
         assert isinstance(CreateFix(), py_trees.behaviour.Behaviour)
@@ -104,11 +118,13 @@ class TestSuccessRate:
 
     def test_update_returns_success_or_failure(self) -> None:
         node = CreateFix()
+        node.setup()
         result = node.update()
         assert result in (Status.SUCCESS, Status.FAILURE)
 
     def test_update_never_returns_running(self) -> None:
         node = CreateFix()
+        node.setup()
         results = {node.update() for _ in range(50)}
         assert Status.RUNNING not in results
 

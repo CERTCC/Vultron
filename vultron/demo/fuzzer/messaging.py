@@ -33,9 +33,10 @@ References
 from __future__ import annotations
 
 from vultron.demo.fuzzer.base import UniformSucceedFail
+from vultron.demo.fuzzer.call_out_point import ComposerCallOutPoint
 
 
-class FollowUpOnErrorMessage(UniformSucceedFail):
+class FollowUpOnErrorMessage(ComposerCallOutPoint, UniformSucceedFail):
     """Attempt to send a follow-up inquiry when an error message is received.
 
     Semantic function:
@@ -46,6 +47,10 @@ class FollowUpOnErrorMessage(UniformSucceedFail):
         ``EmitGI`` action; the net effect is stochastic success at
         p=0.50.
 
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — reads message context from caller's DataLayer)
+      Output keys: followup_message_artifact: str  (SUCCESS only)
+
     Input category: System integration / Human analyst.
 
     Success probability: 0.50 (``UniformSucceedFail``).
@@ -54,3 +59,5 @@ class FollowUpOnErrorMessage(UniformSucceedFail):
     message dispatch in response to error conditions; can be fully
     automated once the follow-up policy is defined.
     """
+
+    output_keys = {"followup_message_artifact": str}
