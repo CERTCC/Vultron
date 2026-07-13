@@ -797,8 +797,18 @@ groups:
       membership (e.g., a security researcher with no vendor affiliation).
       `CVDRole.OTHER` is the most conservative choice because it makes no assumption
       about the actor's function in the CVD process.
-      The Evaluator output MAY be overridden by configuration or by the Case Owner at
-      accept time.
+  - id: CM-16-013
+    priority: MAY
+    statement: >-
+      The Evaluator's default role assignment MAY be overridden by actor-level
+      configuration (e.g., a policy that maps known actor URIs to specific roles)
+      or by the Case Owner at accept time when the Case Owner selects different
+      roles for the suggested participant.
+    rationale: >-
+      The Evaluator is a prototype stub (CM-16-003); its output is a starting
+      point, not a binding decision. Configuration-driven overrides allow
+      operators to tune defaults without replacing the Evaluator node. Case Owner
+      overrides preserve human authority over final role assignments.
   - id: CM-16-004
     priority: MUST
     statement: >-
