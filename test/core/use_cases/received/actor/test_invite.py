@@ -903,3 +903,90 @@ class TestInviteActorUseCases:
         state = cast(Any, dl.read(state_id))
         assert state is not None
         assert state.join_backfill_complete is True
+
+
+class TestAcceptInviteRolesAC4:
+    """AC-4: CreateInviteeParticipantAtAcceptedNode reads roles from Invite."""
+
+    def test_roles_from_invite_set_on_participant(self, make_payload):
+        """AC-4: Accept(Invite) causes new participant to inherit roles from Invite."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.states.roles import CVDRole
+        from vultron.wire.as2.vocab.base.objects.actors import as_Organization
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        invitee_id = "https://example.org/users/vendor2"
+        invitee = as_Organization(id_=invitee_id)
+        case = VulnerabilityCase(
+            id_="https://example.org/cases/ac4-test",
+            name="AC-4 roles test",
+        )
+        invite = rm_invite_to_case_activity(
+            invitee,
+            target=VulnerabilityCaseStub(id_=case.id_),
+            actor="https://example.org/users/owner",
+            id_="https://example.org/cases/ac4-test/invitations/1",
+            roles=["vendor"],
+        )
+        dl.create(invitee)
+        dl.create(case)
+        dl.create(invite)
+
+        accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
+        event = make_payload(accept)
+        AcceptInviteActorToCaseReceivedUseCase(
+            dl, event, sync_port=MagicMock()
+        ).execute()
+
+        reloaded_case = cast(Any, dl.read(case.id_))
+        participant_id = reloaded_case.actor_participant_index.get(invitee_id)
+        assert (
+            participant_id is not None
+        ), "invitee must be registered as participant"
+        participant = cast(Any, dl.get(id_=participant_id))
+        assert participant is not None
+        assert (
+            CVDRole.VENDOR in participant.case_roles
+        ), "AC-4: participant case_roles must include VENDOR from Invite"
+
+    def test_no_roles_invite_gives_empty_case_roles(self, make_payload):
+        """AC-4 negative: Invite without roles gives participant case_roles=[]."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.wire.as2.vocab.base.objects.actors import as_Organization
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        invitee_id = "https://example.org/users/vendor3"
+        invitee = as_Organization(id_=invitee_id)
+        case = VulnerabilityCase(
+            id_="https://example.org/cases/ac4-neg",
+            name="AC-4 negative",
+        )
+        invite = rm_invite_to_case_activity(
+            invitee,
+            target=VulnerabilityCaseStub(id_=case.id_),
+            actor="https://example.org/users/owner",
+            id_="https://example.org/cases/ac4-neg/invitations/1",
+        )
+        dl.create(invitee)
+        dl.create(case)
+        dl.create(invite)
+
+        accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
+        event = make_payload(accept)
+        AcceptInviteActorToCaseReceivedUseCase(
+            dl, event, sync_port=MagicMock()
+        ).execute()
+
+        reloaded_case = cast(Any, dl.read(case.id_))
+        participant_id = reloaded_case.actor_participant_index.get(invitee_id)
+        participant = cast(Any, dl.get(id_=participant_id))
+        assert participant is not None
+        assert (
+            participant.case_roles == []
+        ), "Participant with no-roles invite must have empty case_roles"

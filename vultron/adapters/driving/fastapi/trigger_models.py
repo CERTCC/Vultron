@@ -33,6 +33,7 @@ from datetime import datetime, timezone
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from vultron.core.models.base import NonEmptyString, UriString
+from vultron.core.states.roles import CVDRole
 
 logger = logging.getLogger(__name__)
 
@@ -325,6 +326,7 @@ class InviteActorToCaseRequest(BaseModel):
 
     case_id: UriString
     invitee_id: UriString
+    roles: list[CVDRole] | None = None
 
 
 class OfferCaseManagerRoleRequest(BaseModel):

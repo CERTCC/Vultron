@@ -38,9 +38,9 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
-from vultron.core.states.roles import CVDRole
 from vultron.core.models.protocols import is_case_model
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.states.roles import CVDRole, serialize_roles
 from vultron.core.use_cases._helpers import _as_id
 
 
@@ -54,6 +54,16 @@ class EmitInviteActorToCaseNode(DataLayerAction):
     own inbox for canonical ledger archival (CLP-10-001).  An optional
     ``attributed_to`` carries the original requesting actor when the invite
     is sent from the Case Actor identity (PCR-08-007).
+
+    Reads ``suggested_roles`` from the blackboard (written by
+    ``EvaluateDefaultRolesNode`` or the Case Owner's Accept response) and
+    embeds the roles in the Invite (CM-17-003).
+
+    Reads the ``VulnerabilityCase`` from the DataLayer and passes it as
+    ``target`` to ``TriggerActivityPort.invite_actor_to_case()``.  The adapter
+    and factory project it to an enriched ``VulnerabilityCaseStub`` — including
+    ``end_time`` when ``em_state == EM.ACTIVE`` — without violating the
+    core→wire import boundary (ARCH-01-001, CM-17-002).
     """
 
     def __init__(
@@ -72,6 +82,21 @@ class EmitInviteActorToCaseNode(DataLayerAction):
         self.attributed_to = attributed_to
         self._captured = captured
 
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="suggested_roles", access=py_trees.common.Access.READ
+        )
+
+    def _read_suggested_roles(self) -> list[str] | None:
+        try:
+            roles = self.blackboard.get("suggested_roles")
+            if isinstance(roles, list):
+                return serialize_roles(roles)
+        except KeyError:
+            pass
+        return None
+
     def update(self) -> Status:
         if self.datalayer is None or self.actor_id is None:
             self.feedback_message = "DataLayer or actor_id not available"
@@ -89,6 +114,13 @@ class EmitInviteActorToCaseNode(DataLayerAction):
         # to the CaseActor's inbox for canonical ledger archival (CLP-10-001).
         cc = [self.case_actor_id] if self.case_actor_id else None
 
+        # CM-17-003: read intended roles for the invitee.
+        roles = self._read_suggested_roles()
+
+        # CM-17-002: pass the full case object so the adapter+factory can
+        # project it to an enriched stub (with end_time) when em_state==ACTIVE.
+        case = self.datalayer.read(self.case_id)
+
         try:
             activity_id, activity_dict = factory.invite_actor_to_case(
                 invitee_id=self.invitee_id,
@@ -97,6 +129,8 @@ class EmitInviteActorToCaseNode(DataLayerAction):
                 to=[self.invitee_id],
                 cc=cc,
                 attributed_to=self.attributed_to,
+                roles=roles,
+                target=case if is_case_model(case) else None,
             )
             cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
                 self.actor_id, activity_id

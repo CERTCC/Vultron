@@ -23,6 +23,7 @@ import logging
 from typing import Any, cast
 
 from vultron.core.models.actor import CoreActor
+from vultron.core.models.protocols import CaseModel, is_case_model
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import _as_id
 from vultron.errors import VultronNotFoundError, VultronValidationError
@@ -43,10 +44,7 @@ from vultron.wire.as2.factories.case import (
 )
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    VulnerabilityCase,
-    VulnerabilityCaseStub,
-)
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 from ._base import _DUMP_KWARGS
 
@@ -69,12 +67,21 @@ class _ActorsMixin:
         cc: list[str] | None = None,
         id_: str | None = None,
         attributed_to: str | None = None,
+        roles: list[str] | None = None,
+        target: CaseModel | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist an ``Invite(Actor, Case)`` activity.
 
         ``actor`` SHOULD be the Case Actor ID (PCR-08-007); ``attributed_to``
         MAY carry the case owner's ID for attribution.  ``cc`` MAY carry the
         Case Actor's own ID for self-archival (CLP-10-001).
+
+        ``roles`` carries the intended CVD roles for the invitee (CM-17-003).
+        ``target`` may be a core ``VulnerabilityCase`` (projected to an enriched
+        stub by the factory), a pre-built ``VulnerabilityCaseStub``, or a bare
+        URI string.  When ``None``, the case is read from the DataLayer by
+        ``case_id`` and passed to the factory with any active embargo entity for
+        CM-17-002 enrichment.
         """
         extra: dict[str, Any] = {"actor": actor, "to": to}
         if cc is not None:
@@ -83,9 +90,25 @@ class _ActorsMixin:
             extra["id_"] = id_
         if attributed_to is not None:
             extra["attributed_to"] = attributed_to
+
+        # Read case and embargo from DataLayer; factory handles projection.
+        resolved: Any = target
+        if resolved is None:
+            resolved = self._dl.read(case_id)
+            if not is_case_model(resolved):
+                resolved = case_id
+
+        embargo_obj = None
+        if is_case_model(resolved):
+            active_embargo_uri = getattr(resolved, "active_embargo", None)
+            if active_embargo_uri:
+                embargo_obj = self._dl.read(active_embargo_uri)
+
         activity = rm_invite_to_case_activity(
             invitee=CoreActor(id_=invitee_id),
-            target=VulnerabilityCaseStub(id_=case_id),
+            target=resolved,
+            roles=roles,
+            embargo_obj=embargo_obj,
             **extra,
         )
         try:

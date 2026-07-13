@@ -442,12 +442,14 @@ class TriggerService:
         actor_id: str,
         case_id: str,
         invitee_id: str,
+        roles: list | None = None,
     ) -> dict[str, Any]:
         """Directly invite an actor to a case."""
         req = InviteActorToCaseTriggerRequest(
             actor_id=actor_id,
             case_id=case_id,
             invitee_id=invitee_id,
+            roles=roles,
         )
         return SvcInviteActorToCaseUseCase(
             self._dl, req, trigger_activity=self._trigger_activity

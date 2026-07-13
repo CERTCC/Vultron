@@ -272,6 +272,160 @@ class TestSvcInviteActorToCaseUseCase:
         assert activity_data["id"] in case_actor_outbox
 
 
+class TestInviteRolesAndEmbargoEnrichment:
+    """AC-1 through AC-6: roles + embargo enrichment on Invite (CM-17-002/003)."""
+
+    def setup_method(self):
+        import py_trees
+
+        py_trees.blackboard.Blackboard.enable_activity_stream()
+
+    def teardown_method(self):
+        import py_trees
+
+        py_trees.blackboard.Blackboard.clear()
+        py_trees.blackboard.Blackboard.disable_activity_stream()
+
+    def _setup_invite(self, with_embargo=False, with_active_embargo=False):
+        """Create actor, invitee, case; optionally add active embargo."""
+        from vultron.core.states.em import EM
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+
+        actor, dl = _make_actor_dl("CaseOwner")
+        invitee, _ = _make_actor_dl("Invitee")
+        dl.create(invitee)
+        case = VulnerabilityCase(
+            attributed_to=actor.id_, name="Test Case", content="Content"
+        )
+        dl.create(case)
+        if with_active_embargo:
+            embargo = EmbargoEvent(
+                id_=f"{case.id_}/embargo/e1",
+                content="Active embargo",
+            )
+            dl.create(embargo)
+            case.active_embargo = embargo.id_
+            case.current_status.em_state = EM.ACTIVE
+            dl.save(case)
+        elif with_embargo:
+            case.active_embargo = f"{case.id_}/embargo/e1"
+            dl.save(case)
+        return actor, invitee, dl, case
+
+    def test_ac6_roles_field_accepted_in_request(self):
+        """AC-6: InviteActorToCaseTriggerRequest accepts optional roles field."""
+        actor, invitee, dl, case = self._setup_invite()
+        request = InviteActorToCaseTriggerRequest(
+            actor_id=actor.id_,
+            case_id=case.id_,
+            invitee_id=invitee.id_,
+            roles=[CVDRole.VENDOR],
+        )
+        assert request.roles == [CVDRole.VENDOR]
+
+    def test_ac3_roles_carried_in_invite_activity(self):
+        """AC-3: Invite wire object carries roles field with intended CVD roles."""
+        actor, invitee, dl, case = self._setup_invite()
+        request = InviteActorToCaseTriggerRequest(
+            actor_id=actor.id_,
+            case_id=case.id_,
+            invitee_id=invitee.id_,
+            roles=[CVDRole.VENDOR],
+        )
+        result = SvcInviteActorToCaseUseCase(
+            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        activity_data = result["activity"]
+        assert "roles" in activity_data
+        assert activity_data["roles"] == ["vendor"]
+
+        invite_id = activity_data["id"]
+        stored = dl.read(invite_id)
+        assert isinstance(stored, as_Invite)
+        assert stored.roles == ["vendor"]
+
+    def test_ac3_no_roles_when_not_specified(self):
+        """AC-3 negative: Invite carries no roles when none requested."""
+        actor, invitee, dl, case = self._setup_invite()
+        request = InviteActorToCaseTriggerRequest(
+            actor_id=actor.id_,
+            case_id=case.id_,
+            invitee_id=invitee.id_,
+        )
+        result = SvcInviteActorToCaseUseCase(
+            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        activity_data = result["activity"]
+        assert activity_data.get("roles") is None
+
+    def test_ac1_active_embargo_enriches_case_stub(self):
+        """AC-1: Invite.target stub carries activeEmbargo.endTime and emState=ACTIVE."""
+        from datetime import datetime, timezone
+
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+
+        actor, invitee, dl, case = self._setup_invite()
+        end_time = datetime(2030, 1, 1, tzinfo=timezone.utc)
+        embargo = EmbargoEvent(
+            id_=f"{case.id_}/embargo/e1",
+            content="Active embargo",
+            end_time=end_time,
+        )
+        dl.create(embargo)
+        from vultron.core.states.em import EM
+
+        case.active_embargo = embargo.id_
+        case.current_status.em_state = EM.ACTIVE
+        dl.save(case)
+
+        request = InviteActorToCaseTriggerRequest(
+            actor_id=actor.id_,
+            case_id=case.id_,
+            invitee_id=invitee.id_,
+        )
+        result = SvcInviteActorToCaseUseCase(
+            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        activity_data = result["activity"]
+        target = activity_data.get("target", {})
+        active_embargo = target.get("activeEmbargo")
+        assert (
+            active_embargo is not None
+        ), "activeEmbargo must be present when em_state==ACTIVE"
+        assert (
+            isinstance(active_embargo, dict) and "endTime" in active_embargo
+        ), "activeEmbargo must be a full embargo object with endTime (CM-17-002)"
+        case_status = target.get("caseStatus", {})
+        assert case_status.get("emState") in (
+            "active",
+            "ACTIVE",
+        ), "caseStatus.emState must be present when em_state==ACTIVE"
+
+    def test_ac2_no_embargo_fields_when_not_active(self):
+        """AC-2: Invite.target stub has no embargo fields when em_state != ACTIVE."""
+        actor, invitee, dl, case = self._setup_invite()
+        request = InviteActorToCaseTriggerRequest(
+            actor_id=actor.id_,
+            case_id=case.id_,
+            invitee_id=invitee.id_,
+        )
+        result = SvcInviteActorToCaseUseCase(
+            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        activity_data = result["activity"]
+        target = activity_data.get("target", {})
+        assert (
+            target.get("activeEmbargo") is None
+        ), "activeEmbargo must not be present when em_state != ACTIVE"
+        assert (
+            target.get("caseStatus") is None
+        ), "caseStatus must not be present when em_state != ACTIVE"
+
+
 class TestSvcSuggestActorToCaseUseCase:
     """Tests for the suggest-actor-to-case trigger use case."""
 
