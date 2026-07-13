@@ -43,6 +43,8 @@ See also:
 
 from typing import Any, Protocol
 
+from vultron.core.models.protocols import CaseModel
+
 
 class TriggerActivityPort(Protocol):
     """Driven port for trigger-related outbound wire activity construction.
@@ -264,7 +266,7 @@ class TriggerActivityPort(Protocol):
         id_: str | None = None,
         attributed_to: str | None = None,
         roles: list[str] | None = None,
-        target: Any = None,
+        target: CaseModel | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist an ``Invite(Actor, Case)`` activity.
 

@@ -121,8 +121,13 @@ def _project_case_to_stub(
                 embargo_ref = WireEmbargoEvent(
                     id_=active_embargo_uri, end_time=end_time
                 )
-            except Exception:
-                pass
+            except ValidationError as exc:
+                logger.warning(
+                    "_project_case_to_stub: could not build WireEmbargoEvent"
+                    " for %r — falling back to bare URI: %s",
+                    active_embargo_uri,
+                    exc,
+                )
     return VulnerabilityCaseStub(
         id_=case_id,
         active_embargo=embargo_ref,

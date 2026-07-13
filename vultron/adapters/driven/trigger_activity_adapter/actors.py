@@ -23,7 +23,7 @@ import logging
 from typing import Any, cast
 
 from vultron.core.models.actor import CoreActor
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.protocols import CaseModel, is_case_model
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import _as_id
 from vultron.errors import VultronNotFoundError, VultronValidationError
@@ -68,7 +68,7 @@ class _ActorsMixin:
         id_: str | None = None,
         attributed_to: str | None = None,
         roles: list[str] | None = None,
-        target: Any = None,
+        target: CaseModel | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist an ``Invite(Actor, Case)`` activity.
 
@@ -92,20 +92,21 @@ class _ActorsMixin:
             extra["attributed_to"] = attributed_to
 
         # Read case and embargo from DataLayer; factory handles projection.
-        if target is None:
-            target = self._dl.read(case_id)
-            if not is_case_model(target):
-                target = case_id
+        resolved: Any = target
+        if resolved is None:
+            resolved = self._dl.read(case_id)
+            if not is_case_model(resolved):
+                resolved = case_id
 
         embargo_obj = None
-        if is_case_model(target):
-            active_embargo_uri = getattr(target, "active_embargo", None)
+        if is_case_model(resolved):
+            active_embargo_uri = getattr(resolved, "active_embargo", None)
             if active_embargo_uri:
                 embargo_obj = self._dl.read(active_embargo_uri)
 
         activity = rm_invite_to_case_activity(
             invitee=CoreActor(id_=invitee_id),
-            target=target,
+            target=resolved,
             roles=roles,
             embargo_obj=embargo_obj,
             **extra,
