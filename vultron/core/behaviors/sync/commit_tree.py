@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Behavior tree factory for committing and fanning out case ledger entries."""
 
-from typing import Any
+from typing import Any, Literal
 
 import py_trees
 
@@ -19,6 +19,7 @@ def create_commit_log_entry_tree(
     event_type: str,
     *,
     payload_snapshot: dict[str, Any] | None = None,
+    disposition: Literal["recorded", "rejected"] = "recorded",
 ) -> py_trees.behaviour.Behaviour:
     return py_trees.composites.Sequence(
         name="CommitLogEntryBT",
@@ -32,6 +33,7 @@ def create_commit_log_entry_tree(
                 object_id=object_id,
                 event_type=event_type,
                 payload_snapshot=payload_snapshot,
+                disposition=disposition,
                 name="CreateLogEntry",
             ),
             PersistLogEntryNode(name="PersistLogEntry"),
