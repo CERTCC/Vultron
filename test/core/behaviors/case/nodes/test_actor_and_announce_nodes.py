@@ -13,10 +13,12 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Tests for AcceptCaseOwnershipTransferNode and SeedAnnouncedCaseNode."""
+"""Tests for AcceptCaseOwnershipTransferNode, SeedAnnouncedCaseNode,
+and EmitInviteActorToCaseNode._read_suggested_roles."""
 
 from typing import Any, cast
 
+import py_trees
 import pytest
 from py_trees.common import Status
 
@@ -24,6 +26,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.actor import (
     AcceptCaseOwnershipTransferNode,
+    EmitInviteActorToCaseNode,
 )
 from vultron.core.behaviors.case.nodes.announce import SeedAnnouncedCaseNode
 from vultron.core.models.events import MessageSemantics
@@ -155,3 +158,34 @@ class TestSeedAnnouncedCaseNode:
         )
         assert result.status == Status.SUCCESS
         assert dl.read(CASE_ID2) is not None
+
+
+# ---------------------------------------------------------------------------
+# EmitInviteActorToCaseNode._read_suggested_roles (AC-3, Issue-1405)
+# ---------------------------------------------------------------------------
+
+INVITEE_ID = "https://example.org/actors/invitee-ac3"
+AC3_CASE_ID = "https://example.org/cases/ac3-case"
+
+
+class TestEmitInviteActorToCaseNodeReadSuggestedRoles:
+    """AC-3: _read_suggested_roles() returns None when suggested_roles absent."""
+
+    def setup_method(self):
+        py_trees.blackboard.Blackboard.enable_activity_stream()
+        self.node = EmitInviteActorToCaseNode(
+            invitee_id=INVITEE_ID,
+            case_id=AC3_CASE_ID,
+        )
+        self.node.setup()
+
+    def teardown_method(self):
+        py_trees.blackboard.Blackboard.disable_activity_stream()
+        py_trees.blackboard.Blackboard.clear()
+
+    def test_returns_none_when_key_absent(self):
+        """AC-3: _read_suggested_roles() returns None on KeyError (key not set)."""
+        result = self.node._read_suggested_roles()
+        assert (
+            result is None
+        ), f"AC-3: expected None when suggested_roles absent, got {result!r}"

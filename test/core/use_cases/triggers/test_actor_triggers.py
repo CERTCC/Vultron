@@ -426,6 +426,128 @@ class TestInviteRolesAndEmbargoEnrichment:
         ), "caseStatus must not be present when em_state != ACTIVE"
 
 
+class TestRolesThreadingIntegration:
+    """AC-1 / AC-2: full roles-threading round-trip end-to-end (Issue-1405).
+
+    InviteActorToCaseTriggerRequest.roles flows through the BT blackboard
+    (suggested_roles) → Invite wire object → Accept(Invite) BT →
+    VultronParticipant.case_roles.
+    """
+
+    def setup_method(self):
+        import py_trees
+
+        py_trees.blackboard.Blackboard.enable_activity_stream()
+
+    def teardown_method(self):
+        import py_trees
+
+        py_trees.blackboard.Blackboard.clear()
+        py_trees.blackboard.Blackboard.disable_activity_stream()
+
+    def _run_round_trip(self, roles, make_payload):
+        """Trigger Invite then Accept(Invite); return the new VultronParticipant."""
+        from typing import Any, cast
+        from unittest.mock import MagicMock
+
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.use_cases.received.actor.invite import (
+            AcceptInviteActorToCaseReceivedUseCase,
+        )
+        from vultron.wire.as2.factories import (
+            rm_accept_invite_to_case_activity,
+        )
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+            as_Invite,
+        )
+        from vultron.wire.as2.vocab.base.objects.actors import (
+            as_Organization,
+            as_Service,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        # Shared DataLayer: both trigger and receive sides use it so the
+        # persisted Invite is visible when Accept is processed.
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        _CREATED_DLS.append(dl)
+
+        owner = as_Service(name="CaseOwner")
+        dl.create(owner)
+        invitee_id = "https://example.org/actors/invitee-roundtrip"
+        invitee = as_Organization(id_=invitee_id)
+        dl.create(invitee)
+        case = VulnerabilityCase(
+            attributed_to=owner.id_, name="Roles Round-Trip Test"
+        )
+        dl.create(case)
+
+        from vultron.adapters.driven.datalayer_sqlite import reset_datalayer
+
+        reset_datalayer(owner.id_)
+        owner_dl = SqliteDataLayer("sqlite:///:memory:", actor_id=owner.id_)
+        _CREATED_DLS.append(owner_dl)
+        owner_dl.create(owner)
+        owner_dl.create(invitee)
+        owner_dl.create(case)
+
+        request = InviteActorToCaseTriggerRequest(
+            actor_id=owner.id_,
+            case_id=case.id_,
+            invitee_id=invitee_id,
+            roles=roles,
+        )
+        result = SvcInviteActorToCaseUseCase(
+            owner_dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(owner_dl),
+        ).execute()
+
+        invite_id = result["activity"]["id"]
+        invite_obj = owner_dl.read(invite_id)
+        assert isinstance(invite_obj, as_Invite)
+        dl.create(invite_obj)
+
+        accept = rm_accept_invite_to_case_activity(
+            invite_obj, actor=invitee_id
+        )
+        event = make_payload(accept)
+
+        AcceptInviteActorToCaseReceivedUseCase(
+            dl, event, sync_port=MagicMock()
+        ).execute()
+
+        updated_case = cast(Any, dl.read(case.id_))
+        participant_id = updated_case.actor_participant_index.get(invitee_id)
+        assert (
+            participant_id is not None
+        ), "invitee must be registered after Accept"
+        return cast(Any, dl.get(id_=participant_id))
+
+    def test_ac1_roles_vendor_reaches_participant_case_roles(
+        self, make_payload
+    ):
+        """AC-1 (CM-17-003/004): roles=[CVDRole.VENDOR] in request results in
+        VultronParticipant.case_roles=[CVDRole.VENDOR] after Accept(Invite)."""
+        participant = self._run_round_trip(
+            roles=[CVDRole.VENDOR], make_payload=make_payload
+        )
+        assert (
+            CVDRole.VENDOR in participant.case_roles
+        ), f"AC-1: expected CVDRole.VENDOR in case_roles, got {participant.case_roles!r}"
+
+    def test_ac2_none_roles_gives_empty_case_roles(self, make_payload):
+        """AC-2 (CM-17-003/004): roles=None in request results in
+        VultronParticipant.case_roles=[] after Accept(Invite)."""
+        participant = self._run_round_trip(
+            roles=None, make_payload=make_payload
+        )
+        assert (
+            participant.case_roles == []
+        ), f"AC-2: expected empty case_roles, got {participant.case_roles!r}"
+
+
 class TestSvcSuggestActorToCaseUseCase:
     """Tests for the suggest-actor-to-case trigger use case."""
 
