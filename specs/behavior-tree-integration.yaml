@@ -858,3 +858,35 @@ groups:
     tracking_issue: >-
       #1200 (planning); implementation issue TBD (blocked by #1200 and
       implementation issue for BT-20-002)
+- id: BT-21
+  title: Fuzzer Node Replacement Lifecycle
+  kind: dev-process
+  specs:
+  - id: BT-21-001
+    priority: MUST
+    statement: >-
+      Each fuzzer (simulator) BT node targeted for replacement by a production implementation
+      MUST have a corresponding tracking issue that captures: the fuzzer node name, the
+      production replacement design (as a BT-20 entry or equivalent), and the blocking
+      dependencies. The tracking issue MUST be linked from the relevant BT-20 `tracking_issue`
+      field.
+    rationale: >-
+      Without a tracking issue per fuzzer node, the replacement backlog is invisible in
+      the project board. The BT-20 entries document the design; this entry mandates the
+      process artefact (issue) that makes the work schedulable.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-20-001
+  - id: BT-21-002
+    priority: MUST
+    statement: >-
+      When a fuzzer node is replaced by its production equivalent, the corresponding
+      BT-20 `PROVISIONAL` rationale note MUST be updated to remove the `PROVISIONAL`
+      marker and the BT-21-001 tracking issue MUST be closed in the same PR.
+    rationale: >-
+      Provisional notes that survive after the production replacement is merged become
+      misleading documentation. The two-step close (update spec + close issue) ensures
+      the spec and the project board remain consistent.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-21-001

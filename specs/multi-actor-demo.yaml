@@ -146,6 +146,25 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-00-001
+  - id: DEMOMA-05-003
+    priority: MAY
+    statement: >-
+      Exchange demos located under `vultron/demo/exchange/` MAY use direct inbox injection
+      (constructing and posting raw ActivityStreams JSON) to simulate the receipt of a
+      specific wire message. Scenario demos under `vultron/demo/scenarios/` MUST NOT use
+      direct inbox injection (DEMOMA-05-001 and DEMOMA-05-002 apply without exception to
+      scenario demos).
+    rationale: >-
+      Exchange demos are low-level wire-format verification scripts that intentionally
+      exercise the inbox parsing path directly. Scenario demos must exercise the full
+      actor behavior including trigger dispatch; direct inbox injection in a scenario demo
+      bypasses the triggering actor's BT execution and produces a scenario that does not
+      test the protocol from end to end. This carve-out resolves the apparent contradiction
+      between DEMOMA-05-001 (which would prohibit exchange demos) and the existing
+      `vultron/demo/exchange/` code.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-05-001
 - id: DEMOMA-06
   title: Two-Actor Scenario Workflow
   specs:

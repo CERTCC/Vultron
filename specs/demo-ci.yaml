@@ -67,6 +67,26 @@ groups:
             spec_id: EH-01-001
             note: error-handling.yaml
 
+      - id: DEMOCI-01-006
+        priority: MUST
+        statement: >-
+          Every scenario entry-point function MUST call `reset_demo_failures()`
+          as its first action and MUST call `assert_demo_success()` as its final
+          action before returning. These two calls form the bookend contract that
+          initialises the failure accumulator and converts accumulated failures
+          into a `DemoFailureError` for CI detection.
+        rationale: >-
+          DEMOCI-01-003 and DEMOCI-01-004 specify the accumulation mechanism, but
+          do not specify where the accumulator is initialised or where the final
+          assertion is made. Without explicit bookends, a scenario may inherit
+          failure state from a previous run (if not reset) or exit without
+          surfacing accumulated failures (if `assert_demo_success()` is not called).
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-01-003
+          - rel_type: refines
+            spec_id: DEMOCI-01-004
+
   - id: DEMOCI-02
     title: GitHub Actions Demo Workflow
     specs:
