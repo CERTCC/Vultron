@@ -17,7 +17,7 @@ from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM, is_rm_at_least
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.core.use_cases._helpers import _as_id
 
 logger = logging.getLogger(__name__)

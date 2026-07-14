@@ -174,7 +174,7 @@ def test_rehydration_does_not_mutate_stored_record(dl):
 
 def test_hydrate_expands_list_ref_field(dl):
     """hydrate() resolves case_participants string IDs to stored objects."""
-    from vultron.core.states.roles import CVDRole
+    from vultron.enums.roles import CVDRole
     from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
         VulnerabilityCase,
@@ -207,7 +207,7 @@ def test_hydrate_expands_list_ref_field(dl):
 
 def test_hydrate_leaves_already_expanded_participants_unchanged(dl):
     """hydrate() leaves non-string participants unchanged."""
-    from vultron.core.states.roles import CVDRole
+    from vultron.enums.roles import CVDRole
     from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
         VulnerabilityCase,

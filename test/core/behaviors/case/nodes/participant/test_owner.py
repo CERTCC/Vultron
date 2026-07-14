@@ -30,10 +30,10 @@ from vultron.core.behaviors.case.nodes.participant import (
     ResolveOwnerInitialStatusNode,
     ShouldAdvanceOwnerToAcceptedNode,
 )
-from vultron.core.models.actor_config import ActorConfig
+from vultron.config.actor import ActorConfig
 from vultron.core.models.vultron_types import VultronCase, VultronCaseActor
 from vultron.core.states.rm import RM
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from test.core.behaviors.bt_harness import BTTestScenario
 
 

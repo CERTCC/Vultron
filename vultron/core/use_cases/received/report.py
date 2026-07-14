@@ -18,7 +18,7 @@ from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import VultronValidationError
 
 if TYPE_CHECKING:
-    from vultron.core.models.actor_config import ActorConfig
+    from vultron.config.actor import ActorConfig
     from vultron.core.ports.sync_activity import SyncActivityPort
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 

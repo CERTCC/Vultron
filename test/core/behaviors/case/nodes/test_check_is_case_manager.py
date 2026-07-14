@@ -22,7 +22,7 @@ from vultron.core.behaviors.case.nodes.conditions import (
     CheckIsCaseManagerNode,
 )
 from vultron.core.models.vultron_types import VultronCase, VultronParticipant
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from test.core.behaviors.bt_harness import BTTestScenario
 
 CASE_ID = "https://example.org/cases/case-001"

@@ -5,7 +5,7 @@ import logging
 import pytest
 
 from vultron.core.models.participant import VultronParticipant
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 
 # ---------------------------------------------------------------------------
 # Helpers

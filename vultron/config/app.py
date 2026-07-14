@@ -13,29 +13,12 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Unified application configuration for Vultron.
+"""Application configuration — server, database, and top-level settings.
 
-Provides :class:`AppConfig` (a ``pydantic-settings`` ``BaseSettings`` subclass)
-backed by a YAML config file and environment variables.  All Vultron code that
-needs runtime settings MUST read them through :func:`get_config` rather than
-calling ``os.environ.get()`` directly.
+Per ``specs/configuration.yaml`` CFG-01 through CFG-06, CFG-07-005.
 
-Per specs/configuration.yaml CFG-01 through CFG-06.
-
-Environment variables
----------------------
-``VULTRON_CONFIG``
-    Path to the YAML configuration file.  Defaults to ``config.yaml`` in the
-    working directory.  If set and the file does not exist, startup raises
-    :class:`FileNotFoundError`.
-``VULTRON_SERVER__BASE_URL``
-    Override :attr:`ServerConfig.base_url`.
-``VULTRON_SERVER__LOG_LEVEL``
-    Override :attr:`ServerConfig.log_level`.
-``VULTRON_DATABASE__DB_URL``
-    Override :attr:`DatabaseConfig.db_url`.
-``VULTRON_MODE``
-    Override :attr:`AppConfig.mode` (``prototype`` or ``prod``).
+This module is part of the neutral ``vultron/config/`` sub-package. It MUST
+NOT import from ``vultron.adapters`` or ``vultron.core``.
 """
 
 from __future__ import annotations
@@ -54,6 +37,8 @@ from pydantic_settings import (
     PydanticBaseSettingsSource,
     SettingsConfigDict,
 )
+
+from vultron.config.actor import ActorConfig
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +83,7 @@ class YamlConfigSource(PydanticBaseSettingsSource):
     def get_field_value(
         self, field: FieldInfo, field_name: str
     ) -> tuple[Any, str, bool]:
+        # pydantic-settings 2.x dispatches via __call__(); this satisfies the ABC.
         data = self._yaml_data()
         return data.get(field_name), field_name, False
 
@@ -160,6 +146,7 @@ class AppConfig(BaseSettings):
     Attributes:
         server: HTTP server settings.
         database: Database connection settings.
+        actor: Actor policy settings (default CVD roles, case creation policy).
         mode: Operational mode (``prototype`` or ``prod``).
         pre_bootstrap_queue_timeout_seconds: How long (in seconds) a
             pre-bootstrap inbox queue is held before it expires.  When the
@@ -172,6 +159,7 @@ class AppConfig(BaseSettings):
 
     server: ServerConfig = ServerConfig()
     database: DatabaseConfig = DatabaseConfig()
+    actor: ActorConfig = ActorConfig()
     mode: RunMode = RunMode.PROTOTYPE
     pre_bootstrap_queue_timeout_seconds: int = 300
 

@@ -285,7 +285,7 @@ class TestParticipantStatusLogEntryCascade:
     """CaseLedgerEntry cascade for AddParticipantStatusToParticipantReceivedUseCase."""
 
     def _make_dl(self, case_id: str, actor_id: str) -> tuple:
-        from vultron.core.states.roles import CVDRole
+        from vultron.enums.roles import CVDRole
 
         dl = SqliteDataLayer("sqlite:///:memory:")
         case_actor_id = f"{case_id}/actor"

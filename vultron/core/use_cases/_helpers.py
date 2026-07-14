@@ -25,7 +25,7 @@ from vultron.core.states.participant_embargo_consent import (
     apply_pec_trigger,
 )
 from vultron.core.states.rm import RM
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)

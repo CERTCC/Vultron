@@ -28,7 +28,7 @@ from typing import cast
 from pydantic import ValidationError
 
 from vultron.core.models.actor import CoreActor
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.actor import (
     _AcceptActorRecommendationActivity,

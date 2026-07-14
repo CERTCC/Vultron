@@ -30,7 +30,7 @@ from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.report import AckReportReceivedEvent
 from vultron.core.models.report import VultronReport
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.core.use_cases.received.report import AckReportReceivedUseCase
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant

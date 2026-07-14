@@ -48,7 +48,7 @@ import logging
 
 import py_trees
 
-from vultron.core.models.actor_config import ActorConfig
+from vultron.config.actor import ActorConfig
 from vultron.core.models.vultron_types import VultronCase
 from vultron.core.behaviors.case.case_setup_tree import (
     CreateCaseActorNode,

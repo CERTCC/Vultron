@@ -20,6 +20,7 @@ Per specs/configuration.yaml CFG-06-001 through CFG-06-005.
 
 import pytest
 
+from vultron.enums.roles import CVDRole
 from vultron.config import (
     RunMode,
     ServerConfig,
@@ -45,6 +46,8 @@ def reset_config(monkeypatch, tmp_path):
         "VULTRON_SERVER__LOG_LEVEL",
         "VULTRON_DATABASE__DB_URL",
         "VULTRON_MODE",
+        "VULTRON_ACTOR__AUTO_CREATE_CASE",
+        "VULTRON_ACTOR__DEFAULT_CASE_ROLES",
     ):
         monkeypatch.delenv(var, raising=False)
     reload_config()
@@ -52,7 +55,7 @@ def reset_config(monkeypatch, tmp_path):
     # Clear cache after teardown; guard against FileNotFoundError when
     # VULTRON_CONFIG still points to a missing file set by the test body
     # (monkeypatch reverts env vars only after this fixture's teardown).
-    import vultron.config as _cfg_module
+    import vultron.config.app as _cfg_module
 
     _cfg_module._config_cache = None
 
@@ -239,3 +242,40 @@ def test_run_mode_prototype_value():
 
 def test_run_mode_prod_value():
     assert RunMode.PROD == "prod"
+
+
+# ---------------------------------------------------------------------------
+# CFG-07-005: AppConfig.actor field defaults and env-var overrides
+# ---------------------------------------------------------------------------
+
+
+def test_defaults_actor_auto_create_case():
+    cfg = get_config()
+    assert cfg.actor.auto_create_case is True
+
+
+def test_defaults_actor_default_case_roles_empty():
+    cfg = get_config()
+    assert cfg.actor.default_case_roles == []
+
+
+def test_env_override_actor_auto_create_case(monkeypatch):
+    monkeypatch.setenv("VULTRON_ACTOR__AUTO_CREATE_CASE", "false")
+    reload_config()
+    assert get_config().actor.auto_create_case is False
+
+
+def test_yaml_file_sets_actor_auto_create_case(tmp_path, monkeypatch):
+    cfg_file = tmp_path / "config.yaml"
+    cfg_file.write_text("actor:\n  auto_create_case: false\n")
+    monkeypatch.setenv("VULTRON_CONFIG", str(cfg_file))
+    reload_config()
+    assert get_config().actor.auto_create_case is False
+
+
+def test_yaml_file_sets_actor_default_case_roles(tmp_path, monkeypatch):
+    cfg_file = tmp_path / "config.yaml"
+    cfg_file.write_text("actor:\n  default_case_roles:\n    - coordinator\n")
+    monkeypatch.setenv("VULTRON_CONFIG", str(cfg_file))
+    reload_config()
+    assert CVDRole.COORDINATOR in get_config().actor.default_case_roles

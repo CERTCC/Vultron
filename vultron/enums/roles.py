@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+
 #  Copyright (c) 2023-2026 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -11,7 +12,19 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Provides CVD Role states."""
+
+"""CVD Role enumeration — bottom-of-stack neutral layer.
+
+``CVDRole`` is a cross-cutting primitive used by ``vultron/core/``,
+``vultron/config/``, and ``vultron/adapters/``.  It lives here so that all
+three layers can import it without creating circular dependencies.
+
+This module MUST NOT import from ``vultron.core``, ``vultron.config``, or
+``vultron.adapters``.
+
+Per ``docs/adr/0031-vultron-enums-neutral-layer.md`` and
+``specs/configuration.yaml`` CFG-07-006.
+"""
 
 from enum import StrEnum, auto
 
@@ -67,10 +80,16 @@ def validate_roles(value: object) -> list[CVDRole]:
     """Coerce a list of strings or CVDRole members to ``list[CVDRole]``.
 
     Accepts either a list of ``CVDRole`` enum members (pass-through) or a
-    list of string values (e.g. from JSON deserialization).
+    list of string values (e.g. from JSON deserialization).  ``None`` is
+    treated as an empty list (field omitted).  Any other non-list type raises
+    ``ValueError`` so misconfigured scalar values are caught early.
     """
-    if not isinstance(value, list):
+    if value is None:
         return []
+    if not isinstance(value, list):
+        raise ValueError(
+            f"default_case_roles must be a list of CVDRole strings, got {type(value).__name__!r}: {value!r}"
+        )
     result: list[CVDRole] = []
     for item in value:
         if isinstance(item, CVDRole):

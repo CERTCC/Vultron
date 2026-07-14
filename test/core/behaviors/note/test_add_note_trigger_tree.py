@@ -31,7 +31,7 @@ from vultron.core.behaviors.note.nodes import (
     AttachNoteFromResultNode,
     CreateNoteNode,
 )
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
     FinderParticipant,

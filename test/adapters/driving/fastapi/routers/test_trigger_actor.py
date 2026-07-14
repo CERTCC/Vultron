@@ -32,7 +32,7 @@ from vultron.adapters.driving.fastapi.deps import (
     get_trigger_dl,
     get_trigger_service,
 )
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.core.use_cases.triggers.service import TriggerService
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,

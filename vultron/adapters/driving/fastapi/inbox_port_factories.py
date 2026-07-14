@@ -35,7 +35,7 @@ from vultron.core.ports.datalayer import DataLayer
 from vultron.demo.seed_config import SeedConfig
 
 if TYPE_CHECKING:
-    from vultron.core.models.actor_config import ActorConfig
+    from vultron.config.actor import ActorConfig
 
 logger = logging.getLogger(__name__)
 

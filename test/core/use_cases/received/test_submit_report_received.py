@@ -268,7 +268,7 @@ class TestSubmitReportAutoCreateCasePolicy:
 
     def test_auto_create_disabled_stores_report_and_offer_no_case(self):
         """AC-2: auto_create_case=False stores report + Offer but no case."""
-        from vultron.core.models.actor_config import ActorConfig
+        from vultron.config.actor import ActorConfig
 
         event, dl = self._make_event_and_dl()
         SubmitReportReceivedUseCase(
@@ -287,7 +287,7 @@ class TestSubmitReportAutoCreateCasePolicy:
 
     def test_auto_create_disabled_leaves_outbox_empty(self):
         """AC-2: auto_create_case=False leaves the receiver's outbox empty."""
-        from vultron.core.models.actor_config import ActorConfig
+        from vultron.config.actor import ActorConfig
 
         event, dl = self._make_event_and_dl()
         SubmitReportReceivedUseCase(
@@ -301,7 +301,7 @@ class TestSubmitReportAutoCreateCasePolicy:
 
     def test_auto_create_enabled_creates_case(self):
         """AC-1: auto_create_case=True (explicit) still creates the case."""
-        from vultron.core.models.actor_config import ActorConfig
+        from vultron.config.actor import ActorConfig
 
         event, dl = self._make_event_and_dl()
         dl.save(VultronReport(id_=self.REPORT_ID))

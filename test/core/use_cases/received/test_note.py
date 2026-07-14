@@ -140,7 +140,7 @@ class TestNoteUseCases:
         self, dl: "SqliteDataLayer", case_id: str, case_actor_id: str
     ) -> "VulnerabilityCase":
         """Create a VulnerabilityCase with a CaseActor holding CASE_MANAGER."""
-        from vultron.core.states.roles import CVDRole
+        from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.case_participant import (
             CaseParticipant,
         )
@@ -359,7 +359,7 @@ class TestNoteUseCases:
             "https://example.org/participants/p-le1-finder"
         )
         dl.create(case)
-        from vultron.core.states.roles import CVDRole
+        from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.case_participant import (
             CaseParticipant,
         )
@@ -436,7 +436,7 @@ class TestNoteUseCases:
             "https://example.org/participants/p-le2-finder"
         )
         dl.create(case)
-        from vultron.core.states.roles import CVDRole
+        from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.case_participant import (
             CaseParticipant,
         )

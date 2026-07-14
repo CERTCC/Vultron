@@ -26,7 +26,7 @@ import httpx2 as httpx
 from vultron.core.states.cs import CS_pxa, CS_vfd
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.demo.helpers.seeding import _dl_key
 from vultron.demo.utils import DataLayerClient, ref_id
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant

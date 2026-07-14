@@ -31,7 +31,7 @@ from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.core.states.cs import CS_pxa, CS_vfd
 from vultron.core.states.participant_embargo_consent import PEC
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.core.models.base import NonEmptyString
 from vultron.core.models.enums import VultronObjectType as VO_type
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef, as_Link

@@ -29,7 +29,7 @@ import pytest
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.cs import CS_vfd
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.core.use_cases.received.case.create import (
     CreateCaseReceivedUseCase,
 )

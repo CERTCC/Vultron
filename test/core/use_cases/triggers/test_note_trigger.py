@@ -39,7 +39,7 @@ from vultron.core.models.pending_assertion import (
     _reset_stores,
     get_pending_assertion_store,
 )
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.core.use_cases.triggers.note import SvcAddNoteToCaseUseCase
 from vultron.core.use_cases.triggers.requests import (
     AddNoteToCaseTriggerRequest,

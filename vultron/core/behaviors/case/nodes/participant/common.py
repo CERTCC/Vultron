@@ -33,7 +33,7 @@ from vultron.core.ports.case_persistence import (
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.cs import CS_vfd
 from vultron.core.states.rm import RM
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.core.use_cases._helpers import _report_phase_status_id
 
 if TYPE_CHECKING:
