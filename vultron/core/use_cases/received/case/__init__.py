@@ -1,5 +1,4 @@
 from vultron.core.use_cases.received.case._helpers import (
-    _find_case_actor_id_from_participants,
     _find_report_case_link,
     _check_participant_embargo_acceptance,
     _store_embedded_participants,
@@ -27,7 +26,6 @@ from vultron.core.use_cases.received.case.validate import (
 )
 
 __all__ = [
-    "_find_case_actor_id_from_participants",
     "_find_report_case_link",
     "_check_participant_embargo_acceptance",
     "_store_embedded_participants",

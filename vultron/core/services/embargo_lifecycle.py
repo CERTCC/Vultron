@@ -54,31 +54,13 @@ from vultron.core.states.participant_embargo_consent import (
     PEC_Trigger,
     apply_pec_trigger,
 )
+from vultron.core.use_cases._helpers import _as_id
 from vultron.errors import (
     VultronInvalidStateTransitionError,
     VultronNotFoundError,
 )
 
 logger = logging.getLogger(__name__)
-
-
-# ---------------------------------------------------------------------------
-# Private utility
-# ---------------------------------------------------------------------------
-
-
-def _as_id(obj: Any) -> str | None:
-    """Return the string ID of *obj*, whether it is a str or an AS2 object.
-
-    Mirrors the same utility in ``vultron.core.use_cases._helpers``.
-    TODO: move both copies to a neutral ``vultron.core.utils`` module (#538).
-    """
-    if obj is None:
-        return None
-    id_ = getattr(obj, "id_", None)
-    if isinstance(id_, str):
-        return id_
-    return str(obj)
 
 
 # ---------------------------------------------------------------------------

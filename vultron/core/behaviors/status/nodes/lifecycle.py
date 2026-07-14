@@ -28,7 +28,7 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
 from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
-from vultron.core.behaviors.status.nodes.broadcast import _find_case_manager_id
+from vultron.core.use_cases._helpers import _resolve_case_manager_id
 from vultron.core.models.protocols import PersistableModel, is_case_model
 from vultron.core.states.rm import RM
 from vultron.core.states.roles import CVDRole
@@ -247,7 +247,7 @@ class AutoCloseBranchNode(DataLayerAction):
                 return Status.SUCCESS
             _auto_close_triggered.add(self.case_id)
 
-        case_manager_id = _find_case_manager_id(self.datalayer, case)
+        case_manager_id = _resolve_case_manager_id(case, self.datalayer)
         if case_manager_id is None:
             self.logger.warning(
                 "AutoCloseBranch: no Case Manager found"

@@ -22,9 +22,8 @@ without modification.
 
 Submodules:
 - ``conditions``: Participant verification condition nodes
-- ``broadcast``: Case-manager lookup helper (_find_case_manager_id) used
-  internally by the lifecycle nodes; the raw peer re-broadcast step was
-  removed per DEMOMA-07-005
+- ``broadcast``: (removed — case-manager lookup consolidated into
+  ``_resolve_case_manager_id`` in ``vultron.core.use_cases._helpers``)
 - ``append``: Load, validate RM transition, and append action nodes
   (SkipIfIdempotentNode, LoadParticipantNode,
   CheckStatusNotAlreadyAppendedNode, ResolveAndPersistStatusObjectNode,
