@@ -636,10 +636,15 @@ groups:
     priority: MUST
     statement: >-
       The outbox worker MUST record the delivery outcome (success, transient failure, or
-      permanent failure) in the case ledger so that the case history reflects the true
-      delivery state, not just the emission event.
+      permanent failure) in the per-actor process log (Python `logging`) at the level
+      prescribed in `specs/structured-logging.yaml`. Delivery outcomes MUST NOT be
+      written to the canonical case ledger; the case ledger is exclusively for
+      CaseActor-authored protocol-significant assertions (ADR-0019).
+    rationale: >-
+      ADR-0019 establishes strict separation: the canonical case ledger contains only
+      CaseActor-authored protocol assertions; per-actor transport observability goes to
+      the process log. Delivery outcomes (whether a network call succeeded) are
+      operational diagnostics, not protocol-significant assertions.
     relationships:
     - rel_type: refines
       spec_id: ARCH-19-001
-    - rel_type: implements
-      spec_id: VP-18-001
