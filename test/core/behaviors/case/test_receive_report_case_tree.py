@@ -45,10 +45,17 @@ from vultron.core.behaviors.case.nodes import (
 from vultron.core.behaviors.case.receive_report_case_tree import (
     create_receive_report_case_tree,
 )
+from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.vultron_types import VultronCaseActor
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
 from vultron.core.states.roles import CVDRole
+from vultron.core.use_cases._helpers import _report_phase_status_id
+from vultron.wire.as2.factories import rm_submit_report_activity
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    VulnerabilityReport,
+)
 
 # ============================================================================
 # Tree structure tests
@@ -990,3 +997,129 @@ class TestEmbargoInitialization:
             found_reporter = True
 
         assert found_reporter, "No reporter participant found in case"
+
+
+# ============================================================================
+# Concurrent execution tests (BTND-03-004)
+# ============================================================================
+
+
+class TestConcurrentExecution:
+    """Two concurrent tree instances with distinct report_ids must not corrupt
+    each other's in-flight blackboard data (BTND-03-004).
+    """
+
+    def _setup_for_report(
+        self,
+        datalayer,
+        bridge,
+        actor_id: str,
+        report_id: str,
+        reporter_actor_id: str,
+    ):
+        """Pre-seed the DataLayer as the use-case layer would before tree runs."""
+        reporter_actor = VultronCaseActor(
+            id_=reporter_actor_id, name="Reporter"
+        )
+        if datalayer.read(reporter_actor_id) is None:
+            datalayer.create(reporter_actor)
+
+        report = VulnerabilityReport(
+            id_=report_id,
+            name=f"Report {report_id}",
+            content="test vuln",
+        )
+        datalayer.create(report)
+
+        offer = rm_submit_report_activity(
+            report=report,
+            actor=reporter_actor_id,
+            to=actor_id,
+        )
+        datalayer.create(offer)
+
+        for rm_val in (RM.ACCEPTED, RM.RECEIVED):
+            actor_to_seed = (
+                reporter_actor_id if rm_val == RM.ACCEPTED else actor_id
+            )
+            status = ParticipantStatus(
+                id_=_report_phase_status_id(
+                    actor_to_seed, report_id, rm_val.value
+                ),
+                context=report_id,
+                attributed_to=actor_to_seed,
+                rm_state=rm_val,
+            )
+            datalayer.create(status)
+
+        return offer
+
+    def test_two_concurrent_executions_do_not_corrupt_each_other(
+        self,
+        datalayer,
+        actor,
+        actor_id,
+        bridge,
+    ) -> None:
+        """Two trees with different report_ids write to separate namespaced keys.
+
+        Simulates concurrency by running both trees sequentially against the
+        same DataLayer and verifying that each case receives its own
+        participants with correct state — i.e., tree-A's blackboard writes do
+        not overwrite tree-B's (BTND-03-004).
+        """
+        report_id_a = "https://example.org/reports/rpt-a"
+        report_id_b = "https://example.org/reports/rpt-b"
+        reporter_a_id = "https://example.org/actors/reporter-a"
+        reporter_b_id = "https://example.org/actors/reporter-b"
+
+        offer_a = self._setup_for_report(
+            datalayer, bridge, actor_id, report_id_a, reporter_a_id
+        )
+        offer_b = self._setup_for_report(
+            datalayer, bridge, actor_id, report_id_b, reporter_b_id
+        )
+
+        tree_a = create_receive_report_case_tree(
+            report_id=report_id_a,
+            offer_id=offer_a.id_,
+            reporter_actor_id=reporter_a_id,
+        )
+        tree_b = create_receive_report_case_tree(
+            report_id=report_id_b,
+            offer_id=offer_b.id_,
+            reporter_actor_id=reporter_b_id,
+        )
+
+        result_a = bridge.execute_with_setup(
+            tree=tree_a, actor_id=actor_id, activity=offer_a
+        )
+        result_b = bridge.execute_with_setup(
+            tree=tree_b, actor_id=actor_id, activity=offer_b
+        )
+
+        assert (
+            result_a.status == Status.SUCCESS
+        ), f"Tree A failed: {result_a.status}"
+        assert (
+            result_b.status == Status.SUCCESS
+        ), f"Tree B failed: {result_b.status}"
+
+        case_a = datalayer.find_case_by_report_id(report_id_a)
+        case_b = datalayer.find_case_by_report_id(report_id_b)
+        assert case_a is not None, "Case A not created"
+        assert case_b is not None, "Case B not created"
+        assert case_a.id_ != case_b.id_, "Both reports mapped to the same case"
+
+        assert (
+            reporter_a_id in case_a.actor_participant_index
+        ), "Reporter A not found in case A's participant index"
+        assert (
+            reporter_b_id in case_b.actor_participant_index
+        ), "Reporter B not found in case B's participant index"
+        assert (
+            reporter_b_id not in case_a.actor_participant_index
+        ), "Reporter B leaked into case A (blackboard key collision)"
+        assert (
+            reporter_a_id not in case_b.actor_participant_index
+        ), "Reporter A leaked into case B (blackboard key collision)"
