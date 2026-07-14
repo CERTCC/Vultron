@@ -278,3 +278,278 @@ def test_identify_coordinators_never_fails():
     for _ in range(50):
         status = node.update()
         assert status != py_trees.common.Status.FAILURE
+
+
+# --- Exhaustion-based loop: MoreVendors / MoreCoordinators ---
+
+
+@pytest.fixture(autouse=True)
+def clear_blackboard():
+    """Clear py_trees global blackboard state between tests."""
+    py_trees.blackboard.Blackboard.storage.clear()
+    yield
+    py_trees.blackboard.Blackboard.storage.clear()
+
+
+def test_more_vendors_succeeds_when_list_non_empty():
+    """MoreVendors returns SUCCESS when identified_vendors is non-empty."""
+    node = MoreVendors()
+    node.setup()
+    py_trees.blackboard.Blackboard.storage["/identified_vendors"] = ["VendorA"]
+    status = node.update()
+    assert status == py_trees.common.Status.SUCCESS
+
+
+def test_more_vendors_falls_back_when_list_empty():
+    """MoreVendors falls back to probabilistic when identified_vendors is empty."""
+    node = MoreVendors()
+    node.setup()
+    py_trees.blackboard.Blackboard.storage["/identified_vendors"] = []
+    # With an empty list the node falls back to UsuallyFail (25% success rate).
+    # Run 200 times; at least one FAILURE is virtually certain.
+    results = set()
+    for _ in range(200):
+        results.add(node.update())
+    assert py_trees.common.Status.FAILURE in results
+
+
+def test_more_vendors_falls_back_when_key_absent():
+    """MoreVendors falls back to probabilistic when identified_vendors key is absent."""
+    node = MoreVendors()
+    node.setup()
+    # key not written — should still return a valid status without raising
+    status = node.update()
+    assert status in (
+        py_trees.common.Status.SUCCESS,
+        py_trees.common.Status.FAILURE,
+    )
+
+
+def test_more_coordinators_succeeds_when_list_non_empty():
+    """MoreCoordinators returns SUCCESS when identified_coordinators is non-empty."""
+    node = MoreCoordinators()
+    node.setup()
+    py_trees.blackboard.Blackboard.storage["/identified_coordinators"] = [
+        "CoordA"
+    ]
+    status = node.update()
+    assert status == py_trees.common.Status.SUCCESS
+
+
+def test_more_coordinators_falls_back_when_list_empty():
+    """MoreCoordinators falls back to probabilistic when identified_coordinators is empty."""
+    node = MoreCoordinators()
+    node.setup()
+    py_trees.blackboard.Blackboard.storage["/identified_coordinators"] = []
+    results = set()
+    for _ in range(200):
+        results.add(node.update())
+    assert py_trees.common.Status.FAILURE in results
+
+
+def test_more_coordinators_falls_back_when_key_absent():
+    """MoreCoordinators falls back to probabilistic when key is absent."""
+    node = MoreCoordinators()
+    node.setup()
+    status = node.update()
+    assert status in (
+        py_trees.common.Status.SUCCESS,
+        py_trees.common.Status.FAILURE,
+    )
+
+
+# --- InjectVendor / InjectCoordinator blackboard writes ---
+
+
+def test_inject_vendor_pops_from_identified_vendors():
+    """InjectVendor pops the first entry from identified_vendors."""
+    node = InjectVendor()
+    node.setup()
+    py_trees.blackboard.Blackboard.storage["/identified_vendors"] = [
+        "VendorA",
+        "VendorB",
+    ]
+    py_trees.blackboard.Blackboard.storage["/potential_participants"] = []
+    status = node.update()
+    assert status == py_trees.common.Status.SUCCESS
+    remaining = py_trees.blackboard.Blackboard.storage["/identified_vendors"]
+    assert remaining == ["VendorB"]
+    participants = py_trees.blackboard.Blackboard.storage[
+        "/potential_participants"
+    ]
+    assert "VendorA" in participants
+
+
+def test_inject_vendor_appends_to_potential_participants():
+    """InjectVendor appends the popped vendor to potential_participants."""
+    node = InjectVendor()
+    node.setup()
+    py_trees.blackboard.Blackboard.storage["/identified_vendors"] = ["VendorX"]
+    py_trees.blackboard.Blackboard.storage["/potential_participants"] = [
+        "ExistingParty"
+    ]
+    node.update()
+    participants = py_trees.blackboard.Blackboard.storage[
+        "/potential_participants"
+    ]
+    assert participants == ["ExistingParty", "VendorX"]
+
+
+def test_inject_vendor_succeeds_when_list_empty():
+    """InjectVendor still succeeds (no-op) when identified_vendors is empty."""
+    node = InjectVendor()
+    node.setup()
+    py_trees.blackboard.Blackboard.storage["/identified_vendors"] = []
+    status = node.update()
+    assert status == py_trees.common.Status.SUCCESS
+
+
+def test_inject_vendor_succeeds_when_key_absent():
+    """InjectVendor still succeeds (no-op) when identified_vendors key is absent."""
+    node = InjectVendor()
+    node.setup()
+    status = node.update()
+    assert status == py_trees.common.Status.SUCCESS
+
+
+def test_inject_vendor_creates_potential_participants_if_absent():
+    """InjectVendor creates potential_participants list if key was absent."""
+    node = InjectVendor()
+    node.setup()
+    py_trees.blackboard.Blackboard.storage["/identified_vendors"] = [
+        "NewVendor"
+    ]
+    node.update()
+    assert "/potential_participants" in py_trees.blackboard.Blackboard.storage
+    assert (
+        "NewVendor"
+        in py_trees.blackboard.Blackboard.storage["/potential_participants"]
+    )
+
+
+def test_inject_coordinator_pops_from_identified_coordinators():
+    """InjectCoordinator pops the first entry from identified_coordinators."""
+    node = InjectCoordinator()
+    node.setup()
+    py_trees.blackboard.Blackboard.storage["/identified_coordinators"] = [
+        "CoordA",
+        "CoordB",
+    ]
+    py_trees.blackboard.Blackboard.storage["/potential_participants"] = []
+    status = node.update()
+    assert status == py_trees.common.Status.SUCCESS
+    remaining = py_trees.blackboard.Blackboard.storage[
+        "/identified_coordinators"
+    ]
+    assert remaining == ["CoordB"]
+    participants = py_trees.blackboard.Blackboard.storage[
+        "/potential_participants"
+    ]
+    assert "CoordA" in participants
+
+
+def test_inject_coordinator_appends_to_potential_participants():
+    """InjectCoordinator appends the popped coordinator to potential_participants."""
+    node = InjectCoordinator()
+    node.setup()
+    py_trees.blackboard.Blackboard.storage["/identified_coordinators"] = [
+        "CoordX"
+    ]
+    py_trees.blackboard.Blackboard.storage["/potential_participants"] = [
+        "ExistingParty"
+    ]
+    node.update()
+    participants = py_trees.blackboard.Blackboard.storage[
+        "/potential_participants"
+    ]
+    assert participants == ["ExistingParty", "CoordX"]
+
+
+def test_inject_coordinator_succeeds_when_list_empty():
+    """InjectCoordinator still succeeds (no-op) when identified_coordinators is empty."""
+    node = InjectCoordinator()
+    node.setup()
+    py_trees.blackboard.Blackboard.storage["/identified_coordinators"] = []
+    status = node.update()
+    assert status == py_trees.common.Status.SUCCESS
+
+
+def test_inject_coordinator_succeeds_when_key_absent():
+    """InjectCoordinator still succeeds (no-op) when key is absent."""
+    node = InjectCoordinator()
+    node.setup()
+    status = node.update()
+    assert status == py_trees.common.Status.SUCCESS
+
+
+def test_inject_coordinator_creates_potential_participants_if_absent():
+    """InjectCoordinator creates potential_participants list if key was absent."""
+    node = InjectCoordinator()
+    node.setup()
+    py_trees.blackboard.Blackboard.storage["/identified_coordinators"] = [
+        "NewCoord"
+    ]
+    node.update()
+    assert "/potential_participants" in py_trees.blackboard.Blackboard.storage
+    assert (
+        "NewCoord"
+        in py_trees.blackboard.Blackboard.storage["/potential_participants"]
+    )
+
+
+# --- Full exhaustion loop simulation ---
+
+
+def test_more_vendors_inject_vendor_exhausts_list():
+    """MoreVendors+InjectVendor sequence fully drains identified_vendors into potential_participants."""
+    vendors = ["VendorA", "VendorB", "VendorC"]
+    py_trees.blackboard.Blackboard.storage["/identified_vendors"] = list(
+        vendors
+    )
+    py_trees.blackboard.Blackboard.storage["/potential_participants"] = []
+
+    more = MoreVendors()
+    inject = InjectVendor()
+    more.setup()
+    inject.setup()
+
+    injected = []
+    for _ in range(10):  # more iterations than the list length
+        if more.update() != py_trees.common.Status.SUCCESS:
+            break
+        inject.update()
+        injected = list(
+            py_trees.blackboard.Blackboard.storage["/potential_participants"]
+        )
+
+    assert injected == vendors
+    assert py_trees.blackboard.Blackboard.storage["/identified_vendors"] == []
+
+
+def test_more_coordinators_inject_coordinator_exhausts_list():
+    """MoreCoordinators+InjectCoordinator sequence fully drains identified_coordinators."""
+    coords = ["CoordA", "CoordB"]
+    py_trees.blackboard.Blackboard.storage["/identified_coordinators"] = list(
+        coords
+    )
+    py_trees.blackboard.Blackboard.storage["/potential_participants"] = []
+
+    more = MoreCoordinators()
+    inject = InjectCoordinator()
+    more.setup()
+    inject.setup()
+
+    injected = []
+    for _ in range(10):
+        if more.update() != py_trees.common.Status.SUCCESS:
+            break
+        inject.update()
+        injected = list(
+            py_trees.blackboard.Blackboard.storage["/potential_participants"]
+        )
+
+    assert injected == coords
+    assert (
+        py_trees.blackboard.Blackboard.storage["/identified_coordinators"]
+        == []
+    )

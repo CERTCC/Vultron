@@ -38,6 +38,8 @@ References
 
 from __future__ import annotations
 
+from py_trees.common import Access, Status
+
 from vultron.demo.fuzzer.base import (
     AlmostAlwaysFail,
     AlmostAlwaysSucceed,
@@ -338,37 +340,83 @@ class TotalEffortLimitMet(EvaluatorCallOutPoint, AlmostAlwaysFail):
 
 
 class MoreVendors(UsuallyFail):
-    """Check whether there are more vendors in the notification queue.
+    """Check whether there are more vendors in the identified queue.
 
     Semantic function:
-        Condition — check whether there are more vendor parties in the
-        identified-but-not-yet-notified queue.  Fails most of the time
-        in simulation because the vendor list is usually short.
+        Condition — return SUCCESS iff the ``identified_vendors``
+        blackboard list is non-empty.  When the key is absent or empty
+        (i.e., ``IdentifyVendors`` has not run yet or produced nothing),
+        falls back to probabilistic behaviour (``UsuallyFail``, 25%).
+        This drives exhaustion-based loop iteration: the inner Sequence
+        ``[MoreVendors, InjectVendor]`` ticks until the list is drained.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  identified_vendors: list  (READ; key may be absent)
+      Output keys: (none)
 
     Input category: Environmental check.
 
-    Success probability: 0.25 (``UsuallyFail``).
+    Success probability: 0.25 (``UsuallyFail``) when blackboard key is
+    absent or empty; 1.0 when ``identified_vendors`` is non-empty.
 
-    Automation potential: **High** — query against the vendor
-    notification queue; fully automatable.
+    Automation potential: **High** — queue-emptiness check; fully
+    automatable.
     """
+
+    def setup(self, **kwargs) -> None:
+        super().setup(**kwargs)
+        self._bb = self.attach_blackboard_client(
+            name=f"{self.__class__.__name__}_reader"
+        )
+        self._bb.register_key("identified_vendors", Access.READ)
+
+    def update(self) -> Status:
+        try:
+            vendors = self._bb.identified_vendors
+        except KeyError:
+            return super().update()
+        if vendors:
+            return Status.SUCCESS
+        return super().update()
 
 
 class MoreCoordinators(AlmostAlwaysFail):
-    """Check whether there are more coordinators pending notification.
+    """Check whether there are more coordinators in the identified queue.
 
     Semantic function:
-        Condition — check whether there are more coordinator parties
-        pending notification.  Fails almost always because the coordinator
-        list is typically short (often zero or one).
+        Condition — return SUCCESS iff the ``identified_coordinators``
+        blackboard list is non-empty.  When the key is absent or empty
+        falls back to probabilistic behaviour (``AlmostAlwaysFail``,
+        10%).  Mirrors ``MoreVendors`` for the coordinator sub-list.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  identified_coordinators: list  (READ; key may be absent)
+      Output keys: (none)
 
     Input category: Environmental check.
 
-    Success probability: 0.10 (``AlmostAlwaysFail``).
+    Success probability: 0.10 (``AlmostAlwaysFail``) when blackboard key
+    is absent or empty; 1.0 when ``identified_coordinators`` is non-empty.
 
-    Automation potential: **High** — query against the coordinator
-    notification queue; fully automatable.
+    Automation potential: **High** — queue-emptiness check; fully
+    automatable.
     """
+
+    def setup(self, **kwargs) -> None:
+        super().setup(**kwargs)
+        self._bb = self.attach_blackboard_client(
+            name=f"{self.__class__.__name__}_reader"
+        )
+        self._bb.register_key("identified_coordinators", Access.READ)
+
+    def update(self) -> Status:
+        try:
+            coordinators = self._bb.identified_coordinators
+        except KeyError:
+            return super().update()
+        if coordinators:
+            return Status.SUCCESS
+        return super().update()
 
 
 class MoreOthers(AlmostAlwaysFail):
@@ -392,11 +440,17 @@ class InjectParticipant(AlwaysSucceed):
     """Add a new participant to the case (generic form).
 
     Semantic function:
-        Action — add a new participant to the case.  This is the generic
-        base node; specialized by ``InjectVendor``,
-        ``InjectCoordinator``, and ``InjectOther`` for role-specific
-        injection.  Always succeeds in simulation; in production
-        performs a case management system write.
+        Action — pop the first entry from the blackboard list named by
+        ``source_key`` and append it to ``potential_participants``.
+        When the source key is absent or the list is empty the node
+        succeeds as a no-op; the ``More*`` guard upstream prevents this
+        node from running when the list is already exhausted.
+        Specialized by ``InjectVendor`` and ``InjectCoordinator`` for
+        role-specific injection.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  <source_key>: list  (READ/WRITE; key may be absent)
+      Output keys: potential_participants: list  (WRITE; key may be absent)
 
     Input category: System integration.
 
@@ -406,16 +460,51 @@ class InjectParticipant(AlwaysSucceed):
     automatable once participant details are known.
     """
 
+    source_key: str = ""
+
+    def setup(self, **kwargs) -> None:
+        super().setup(**kwargs)
+        if self.source_key:
+            self._bb = self.attach_blackboard_client(
+                name=f"{self.__class__.__name__}_rw"
+            )
+            self._bb.register_key(self.source_key, Access.WRITE)
+            self._bb.register_key("potential_participants", Access.WRITE)
+
+    def update(self) -> Status:
+        if not self.source_key:
+            return Status.SUCCESS
+        try:
+            source = getattr(self._bb, self.source_key)
+        except KeyError:
+            return Status.SUCCESS
+        if not source:
+            return Status.SUCCESS
+        participant = source.pop(0)
+        setattr(self._bb, self.source_key, source)
+        try:
+            participants = self._bb.potential_participants
+        except KeyError:
+            participants = []
+        participants.append(participant)
+        self._bb.potential_participants = participants
+        return Status.SUCCESS
+
 
 class InjectVendor(InjectParticipant):
-    """Add an identified vendor as a participant in the disclosure case.
+    """Pop one identified vendor from the queue and inject into the case.
 
     Semantic function:
-        Action — add an identified vendor as a participant in the
-        coordinated disclosure case.  Specialization of
-        ``InjectParticipant`` for the vendor role.  Always succeeds in
-        simulation; in production performs a case management system write
-        with vendor role attribution.
+        Action — pop the first entry from the ``identified_vendors``
+        blackboard list and append it to ``potential_participants``,
+        recording that the vendor has been queued for notification.
+        When ``identified_vendors`` is absent or empty the node still
+        succeeds (no-op); the ``MoreVendors`` guard upstream prevents
+        this node from running when the list is already exhausted.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  identified_vendors: list  (READ/WRITE; key may be absent)
+      Output keys: potential_participants: list  (WRITE; key may be absent)
 
     Input category: System integration.
 
@@ -425,16 +514,24 @@ class InjectVendor(InjectParticipant):
     vendor role; fully automatable.
     """
 
+    source_key = "identified_vendors"
+
 
 class InjectCoordinator(InjectParticipant):
-    """Add an identified coordinator as a participant in the disclosure case.
+    """Pop one identified coordinator from the queue and inject into the case.
 
     Semantic function:
-        Action — add an identified coordinator as a participant in the
-        coordinated disclosure case.  Specialization of
-        ``InjectParticipant`` for the coordinator role.  Always succeeds
-        in simulation; in production performs a case management system
-        write with coordinator role attribution.
+        Action — pop the first entry from the ``identified_coordinators``
+        blackboard list and append it to ``potential_participants``,
+        recording that the coordinator has been queued for notification.
+        When ``identified_coordinators`` is absent or empty the node
+        still succeeds (no-op); the ``MoreCoordinators`` guard upstream
+        prevents this node from running when the list is already
+        exhausted.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  identified_coordinators: list  (READ/WRITE; key may be absent)
+      Output keys: potential_participants: list  (WRITE; key may be absent)
 
     Input category: System integration.
 
@@ -443,6 +540,8 @@ class InjectCoordinator(InjectParticipant):
     Automation potential: **High** — case management system write for
     coordinator role; fully automatable.
     """
+
+    source_key = "identified_coordinators"
 
 
 class InjectOther(InjectParticipant):
