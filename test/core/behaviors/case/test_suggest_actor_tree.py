@@ -25,13 +25,19 @@ Per specs/behavior-tree-integration.yaml BT-15-001, BTND-02-001 (memory=False),
 ADR-0026/CM-16.
 """
 
+from unittest.mock import MagicMock
+
 import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.case.suggest_actor_tree import (
+    ActorAlreadyParticipantNode,
     EmitAcceptActorRecommendationNode,
+    EmitNoteDuplicateRecommendationToOwnerNode,
     EmitOfferCaseParticipantToOwnerNode,
     EmitRejectActorRecommendationNode,
+    InviteInFlightNode,
+    PendingOfferCaseParticipantNode,
     create_accept_actor_recommendation_received_tree,
     create_recommend_actor_to_case_received_tree,
     create_reject_actor_recommendation_received_tree,
@@ -39,6 +45,11 @@ from vultron.core.behaviors.case.suggest_actor_tree import (
 from vultron.core.behaviors.case.nodes.actor import (
     EmitInviteActorToCaseNode,
     EvaluateDefaultRolesNode,
+)
+from vultron.core.models.protocol_pair import (
+    INVITE_ACTOR_TO_CASE_REPLY_TYPES,
+    OFFER_CASE_PARTICIPANT_REPLY_TYPES,
+    ProtocolPair,
 )
 from vultron.core.states.roles import CVDRole
 
@@ -321,3 +332,377 @@ class TestRejectActorRecommendationReceivedTree:
         assert node.recommendation_id == _REC_ID
         assert node.recommended_id == _RECOMMENDED
         assert node.case_id == _CASE_ID
+
+
+# ---------------------------------------------------------------------------
+# Duplicate-detection precondition node tests (CM-16-008, CM-16-009)
+# ---------------------------------------------------------------------------
+
+
+_ACTOR_ID = "https://example.org/actors/case-actor"
+
+
+def _make_node_with_datalayer(node, dl, actor_id=_ACTOR_ID):
+    """Wire a datalayer mock onto a DataLayerAction node via the blackboard."""
+    # Populate the blackboard storage so initialise() can read datalayer/actor_id.
+    writer = py_trees.blackboard.Client(name="test-setup-writer")
+    writer.register_key(key="datalayer", access=py_trees.common.Access.WRITE)
+    writer.register_key(key="actor_id", access=py_trees.common.Access.WRITE)
+    writer.datalayer = dl
+    writer.actor_id = actor_id
+    node.setup()
+    node.initialise()
+    return node
+
+
+class TestActorAlreadyParticipantNode:
+    """Unit tests for ActorAlreadyParticipantNode (AC-7b, CM-16-009)."""
+
+    def setup_method(self):
+        py_trees.blackboard.Blackboard.enable_activity_stream()
+
+    def teardown_method(self):
+        py_trees.blackboard.Blackboard.disable_activity_stream()
+        py_trees.blackboard.Blackboard.storage.clear()
+
+    def _node(self, participant_index=None):
+        dl = MagicMock()
+        case_obj = MagicMock()
+        case_obj.actor_participant_index = participant_index or {}
+        dl.read.return_value = case_obj
+        node = ActorAlreadyParticipantNode(
+            recommended_id=_RECOMMENDED,
+            case_id=_CASE_ID,
+        )
+        return _make_node_with_datalayer(node, dl)
+
+    def test_returns_success_when_actor_in_index(self):
+        node = self._node(
+            participant_index={
+                _RECOMMENDED: "https://example.org/participants/p1"
+            }
+        )
+        assert node.update() == Status.SUCCESS
+
+    def test_returns_failure_when_actor_not_in_index(self):
+        node = self._node(participant_index={})
+        assert node.update() == Status.FAILURE
+
+    def test_returns_failure_when_datalayer_not_available(self):
+        node = ActorAlreadyParticipantNode(
+            recommended_id=_RECOMMENDED, case_id=_CASE_ID
+        )
+        # node.datalayer is None by default — no setup/initialise needed
+        assert node.update() == Status.FAILURE
+
+    def test_name_defaults_to_class_name(self):
+        node = ActorAlreadyParticipantNode(
+            recommended_id=_RECOMMENDED, case_id=_CASE_ID
+        )
+        assert node.name == "ActorAlreadyParticipantNode"
+
+    def test_custom_name_accepted(self):
+        node = ActorAlreadyParticipantNode(
+            recommended_id=_RECOMMENDED, case_id=_CASE_ID, name="MyName"
+        )
+        assert node.name == "MyName"
+
+
+class TestInviteInFlightNode:
+    """Unit tests for InviteInFlightNode (AC-7a, CM-16-009)."""
+
+    def setup_method(self):
+        py_trees.blackboard.Blackboard.enable_activity_stream()
+
+    def teardown_method(self):
+        py_trees.blackboard.Blackboard.disable_activity_stream()
+        py_trees.blackboard.Blackboard.storage.clear()
+
+    def _node(self, pair):
+        dl = MagicMock()
+        dl.find_protocol_pair.return_value = pair
+        node = InviteInFlightNode(
+            recommended_id=_RECOMMENDED,
+            case_id=_CASE_ID,
+        )
+        return _make_node_with_datalayer(node, dl)
+
+    def _pending_pair(self):
+        return ProtocolPair(
+            case_id=_CASE_ID,
+            request_event_type="invite_actor_to_case",
+            object_id=_RECOMMENDED,
+            reply_event_types=INVITE_ACTOR_TO_CASE_REPLY_TYPES,
+            request_found=True,
+        )
+
+    def _fresh_pair(self):
+        return ProtocolPair(
+            case_id=_CASE_ID,
+            request_event_type="invite_actor_to_case",
+            object_id=_RECOMMENDED,
+            reply_event_types=INVITE_ACTOR_TO_CASE_REPLY_TYPES,
+            request_found=False,
+        )
+
+    def _closed_pair(self):
+        return ProtocolPair(
+            case_id=_CASE_ID,
+            request_event_type="invite_actor_to_case",
+            object_id=_RECOMMENDED,
+            reply_event_types=INVITE_ACTOR_TO_CASE_REPLY_TYPES,
+            request_found=True,
+            reply_object_id="https://example.org/activities/accept-1",
+            reply_event_type="accept_invite_actor_to_case",
+        )
+
+    def test_returns_success_when_invite_in_flight(self):
+        node = self._node(self._pending_pair())
+        assert node.update() == Status.SUCCESS
+
+    def test_returns_failure_when_no_prior_invite(self):
+        node = self._node(self._fresh_pair())
+        assert node.update() == Status.FAILURE
+
+    def test_returns_failure_when_invite_closed(self):
+        node = self._node(self._closed_pair())
+        assert node.update() == Status.FAILURE
+
+    def test_queries_correct_event_type(self):
+        dl = MagicMock()
+        dl.find_protocol_pair.return_value = self._fresh_pair()
+        node = InviteInFlightNode(
+            recommended_id=_RECOMMENDED, case_id=_CASE_ID
+        )
+        _make_node_with_datalayer(node, dl)
+        node.update()
+        dl.find_protocol_pair.assert_called_once_with(
+            case_id=_CASE_ID,
+            request_event_type="invite_actor_to_case",
+            object_id=_RECOMMENDED,
+            reply_event_types=INVITE_ACTOR_TO_CASE_REPLY_TYPES,
+        )
+
+    def test_returns_failure_when_datalayer_not_available(self):
+        node = InviteInFlightNode(
+            recommended_id=_RECOMMENDED, case_id=_CASE_ID
+        )
+        assert node.update() == Status.FAILURE
+
+
+class TestPendingOfferCaseParticipantNode:
+    """Unit tests for PendingOfferCaseParticipantNode (AC-6, CM-16-008)."""
+
+    def setup_method(self):
+        py_trees.blackboard.Blackboard.enable_activity_stream()
+
+    def teardown_method(self):
+        py_trees.blackboard.Blackboard.disable_activity_stream()
+        py_trees.blackboard.Blackboard.storage.clear()
+
+    def _node(self, pair):
+        dl = MagicMock()
+        dl.find_protocol_pair.return_value = pair
+        node = PendingOfferCaseParticipantNode(
+            recommended_id=_RECOMMENDED,
+            case_id=_CASE_ID,
+        )
+        return _make_node_with_datalayer(node, dl)
+
+    def _pending_pair(self):
+        return ProtocolPair(
+            case_id=_CASE_ID,
+            request_event_type="offer_case_participant",
+            object_id=_RECOMMENDED,
+            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
+            request_found=True,
+        )
+
+    def _fresh_pair(self):
+        return ProtocolPair(
+            case_id=_CASE_ID,
+            request_event_type="offer_case_participant",
+            object_id=_RECOMMENDED,
+            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
+            request_found=False,
+        )
+
+    def _closed_pair(self):
+        return ProtocolPair(
+            case_id=_CASE_ID,
+            request_event_type="offer_case_participant",
+            object_id=_RECOMMENDED,
+            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
+            request_found=True,
+            reply_object_id="https://example.org/activities/accept-1",
+            reply_event_type="accept_offer_case_participant",
+        )
+
+    def test_returns_success_when_offer_pending(self):
+        node = self._node(self._pending_pair())
+        assert node.update() == Status.SUCCESS
+
+    def test_returns_failure_when_no_prior_offer(self):
+        node = self._node(self._fresh_pair())
+        assert node.update() == Status.FAILURE
+
+    def test_returns_failure_when_offer_closed(self):
+        node = self._node(self._closed_pair())
+        assert node.update() == Status.FAILURE
+
+    def test_queries_correct_event_type(self):
+        dl = MagicMock()
+        dl.find_protocol_pair.return_value = self._fresh_pair()
+        node = PendingOfferCaseParticipantNode(
+            recommended_id=_RECOMMENDED, case_id=_CASE_ID
+        )
+        _make_node_with_datalayer(node, dl)
+        node.update()
+        dl.find_protocol_pair.assert_called_once_with(
+            case_id=_CASE_ID,
+            request_event_type="offer_case_participant",
+            object_id=_RECOMMENDED,
+            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
+        )
+
+    def test_returns_failure_when_datalayer_not_available(self):
+        node = PendingOfferCaseParticipantNode(
+            recommended_id=_RECOMMENDED, case_id=_CASE_ID
+        )
+        assert node.update() == Status.FAILURE
+
+
+class TestDuplicateDetectionTreeStructure:
+    """Structural tests for duplicate-detection arms in create_recommend_actor_to_case_received_tree.
+
+    CM-16-008, CM-16-009, ADR-0026 Duplicate Recommendation Handling table.
+    """
+
+    def setup_method(self):
+        self.tree = create_recommend_actor_to_case_received_tree(
+            recommendation_id=_REC_ID,
+            recommender_id=_RECOMMENDER,
+            recommended_id=_RECOMMENDED,
+            case_id=_CASE_ID,
+        )
+        self.all_nodes = list(self.tree.iterate())
+        self.all_types = [type(n) for n in self.all_nodes]
+
+    def test_has_actor_already_participant_node(self):
+        assert ActorAlreadyParticipantNode in self.all_types
+
+    def test_has_invite_in_flight_node(self):
+        assert InviteInFlightNode in self.all_types
+
+    def test_has_pending_offer_case_participant_node(self):
+        assert PendingOfferCaseParticipantNode in self.all_types
+
+    def test_has_emit_note_duplicate_node(self):
+        assert EmitNoteDuplicateRecommendationToOwnerNode in self.all_types
+
+    def test_has_emit_accept_actor_recommendation_node(self):
+        assert EmitAcceptActorRecommendationNode in self.all_types
+
+    def _duplicate_selector(self):
+        """Find the DuplicateOrFreshSelector by name."""
+        return next(
+            n
+            for n in self.all_nodes
+            if isinstance(n, py_trees.composites.Selector)
+            and n.name == "DuplicateOrFreshSelector"
+        )
+
+    def test_has_selector_for_duplicate_or_fresh(self):
+        assert (
+            self._duplicate_selector() is not None
+        ), "DuplicateOrFreshSelector must exist in the tree"
+
+    def test_selector_has_four_children(self):
+        assert len(self._duplicate_selector().children) == 4
+
+    def test_ac7b_sequence_structure(self):
+        """AC-7b arm: Sequence(ActorAlreadyParticipantNode, EmitAcceptActorRecommendationNode)."""
+        ac7b = self._duplicate_selector().children[0]
+        assert isinstance(ac7b, py_trees.composites.Sequence)
+        child_types = [type(c) for c in ac7b.children]
+        assert ActorAlreadyParticipantNode in child_types
+        assert EmitAcceptActorRecommendationNode in child_types
+
+    def test_ac7a_sequence_structure(self):
+        """AC-7a arm: Sequence(InviteInFlightNode, EmitAcceptActorRecommendationNode)."""
+        ac7a = self._duplicate_selector().children[1]
+        assert isinstance(ac7a, py_trees.composites.Sequence)
+        child_types = [type(c) for c in ac7a.children]
+        assert InviteInFlightNode in child_types
+        assert EmitAcceptActorRecommendationNode in child_types
+
+    def test_ac6_sequence_structure(self):
+        """AC-6 arm: Sequence(PendingOfferCaseParticipantNode, EmitNoteDuplicateRecommendationToOwnerNode)."""
+        ac6 = self._duplicate_selector().children[2]
+        assert isinstance(ac6, py_trees.composites.Sequence)
+        child_types = [type(c) for c in ac6.children]
+        assert PendingOfferCaseParticipantNode in child_types
+        assert EmitNoteDuplicateRecommendationToOwnerNode in child_types
+
+    def test_fresh_path_structure(self):
+        """Fresh path arm: Sequence(EvaluateDefaultRolesNode, EmitOfferCaseParticipantToOwnerNode)."""
+        fresh = self._duplicate_selector().children[3]
+        assert isinstance(fresh, py_trees.composites.Sequence)
+        child_types = [type(c) for c in fresh.children]
+        assert EvaluateDefaultRolesNode in child_types
+        assert EmitOfferCaseParticipantToOwnerNode in child_types
+
+    def test_selector_memory_false(self):
+        assert self._duplicate_selector().memory is False
+
+
+class TestProtocolPairIsPending:
+    """Unit tests for ProtocolPair.is_pending() (added for AC-6/AC-7)."""
+
+    def test_is_pending_true_when_request_found_and_no_reply(self):
+        pair = ProtocolPair(
+            case_id=_CASE_ID,
+            request_event_type="offer_case_participant",
+            object_id=_RECOMMENDED,
+            request_found=True,
+        )
+        assert pair.is_pending() is True
+
+    def test_is_pending_false_when_request_not_found(self):
+        pair = ProtocolPair(
+            case_id=_CASE_ID,
+            request_event_type="offer_case_participant",
+            object_id=_RECOMMENDED,
+            request_found=False,
+        )
+        assert pair.is_pending() is False
+
+    def test_is_pending_false_when_reply_found(self):
+        pair = ProtocolPair(
+            case_id=_CASE_ID,
+            request_event_type="offer_case_participant",
+            object_id=_RECOMMENDED,
+            request_found=True,
+            reply_object_id="https://example.org/activities/reply",
+            reply_event_type="accept_offer_case_participant",
+        )
+        assert pair.is_pending() is False
+
+    def test_is_open_still_true_for_fresh_pair(self):
+        """is_open() returns True for fresh pair (no request found). is_pending() should not."""
+        pair = ProtocolPair(
+            case_id=_CASE_ID,
+            request_event_type="offer_case_participant",
+            object_id=_RECOMMENDED,
+            request_found=False,
+        )
+        assert pair.is_open() is True
+        assert pair.is_pending() is False
+
+    def test_request_found_defaults_to_false(self):
+        pair = ProtocolPair(
+            case_id=_CASE_ID,
+            request_event_type="offer_case_participant",
+            object_id=_RECOMMENDED,
+        )
+        assert pair.request_found is False

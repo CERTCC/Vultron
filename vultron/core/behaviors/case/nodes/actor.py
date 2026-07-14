@@ -37,7 +37,11 @@ from typing import Any, cast
 import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.sync.commit_tree import (
+    create_commit_log_entry_tree,
+)
 from vultron.core.models.protocols import is_case_model
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.states.roles import CVDRole, serialize_roles
@@ -132,6 +136,27 @@ class EmitInviteActorToCaseNode(DataLayerAction):
                 roles=roles,
                 target=case if is_case_model(case) else None,
             )
+            # Commit a local correlation marker first so duplicate checks work
+            # on retry even if the outbox write below fails (CM-16-009/AC-7a).
+            # disposition="rejected" bypasses canonical-payload validation since
+            # Invite(Actor, Case) is not a canonical ledger event type.
+            commit_tree = create_commit_log_entry_tree(
+                case_id=self.case_id,
+                object_id=self.invitee_id,
+                event_type="invite_actor_to_case",
+                disposition="rejected",
+            )
+            result = BTBridge(
+                datalayer=cast(CaseOutboxPersistence, self.datalayer)
+            ).execute_with_setup(
+                tree=commit_tree,
+                actor_id=self.actor_id,
+            )
+            if result.status != Status.SUCCESS:
+                raise RuntimeError(
+                    f"ledger correlation commit failed for "
+                    f"invite_actor_to_case/{self.invitee_id}"
+                )
             cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
                 self.actor_id, activity_id
             )
