@@ -401,38 +401,47 @@ groups:
       narrowed with an explicit exclusion list where the fixture intentionally
       covers a subset.
 - id: CS-21
-  title: Collection-Typed Parameter Defaults
+  title: Collection-Typed Pydantic Field Defaults
   kind: language
   specs:
   - id: CS-21-001
     priority: MUST_NOT
     statement: >-
-      Function and method parameters whose type is a collection (`dict`, `set`,
-      `list`, or any generic alias thereof) MUST NOT use `None` as their default
-      value when the intent is "empty collection if not provided". Use the
-      appropriate empty-collection literal (`{}` for dicts, `set()` for sets,
-      `[]` for lists) or `Field(default_factory=...)` for Pydantic model fields.
-      `None` is only acceptable as a default when it is an intentional sentinel
-      meaning "absent" (as distinct from "empty"), and that distinction must be
-      observable in the caller's behaviour.
+      Pydantic model fields whose type is a collection (`dict`, `set`, `list`,
+      or any generic alias thereof) MUST NOT use `None` as their default value
+      when the intent is "empty collection if not provided". Use
+      `Field(default_factory=list)`, `Field(default_factory=dict)`, or
+      `Field(default_factory=set)` as appropriate. `None` is only acceptable
+      as a field default when it is an intentional sentinel meaning "absent"
+      (as distinct from "empty"), and that distinction must be observable in
+      the model's behaviour or serialisation.
+      Plain function and method parameters are out of scope for this rule:
+      `param: set[str] | None = None` with an `x or set()` guard in the body
+      is the correct idiom for optional collection parameters, as it avoids
+      the Python mutable-default-argument hazard (`= set()` shares a single
+      object across all calls that omit the argument).
     rationale: >-
-      Using `None` as the default for a collection-typed parameter forces every
-      call site that reads the value to write a defensive `x or {}` / `x or
-      set()` guard. The `or` idiom silently coerces any falsy non-None value
-      (including an explicitly passed empty collection) and spreads type-unsafe
-      boilerplate across the codebase. Issue #1359 identified four affected sites
-      in `core/models/case_ledger.py`, `core/behaviors/sync/nodes/chain.py`,
-      `core/behaviors/sync/commit_tree.py`, and
-      `core/behaviors/case/update_support.py`.
+      Pydantic v2 does not copy mutable class-level defaults — a field declared
+      as `roles: list[str] = []` on a BaseModel gives every instance a
+      reference to the same list. `Field(default_factory=list)` ensures each
+      instance gets its own fresh collection. Plain function parameters are
+      different: the conventional `None` sentinel with an inline `x or set()`
+      guard is safe and idiomatic Python, and avoids the mutable-default
+      aliasing hazard that `= set()` introduces. Issue #1359 identified the
+      Pydantic-field pattern; issue #1371 initially over-applied the rule to
+      plain function parameters — corrected by PR #1410.
     verification: >-
-      Grep `vultron/` for `| None = None` on lines that also contain `dict[`,
-      `set[`, or `list[`; review each hit to determine whether `None` is a
-      genuine sentinel. Any hit where the function body contains an `x or {}`
-      / `x or set()` guard is a violation.
+      Grep `vultron/` for Pydantic `BaseModel` subclass field declarations
+      that use a bare mutable literal as a default (e.g., `field: list[str] = []`,
+      `field: dict[str, Any] = {}`). Each such hit is a violation; replace
+      with `Field(default_factory=list)` etc. Plain function/method parameter
+      defaults (`param: set[str] | None = None`) are exempt from this check.
     exceptions:
       - >-
-        `None` is permitted when it is a genuine sentinel distinguishing "not
-        provided" from "empty", provided the distinction is observable in
-        caller behaviour (e.g., `BTExecutionResult.errors: list[str] | None`
-        where `None` means "no error list was collected" vs `[]` meaning
-        "errors were collected but none occurred").
+        `None` is permitted as a Pydantic field default when it is a genuine
+        sentinel distinguishing "not provided" from "empty", provided the
+        distinction is observable in the model's behaviour or serialisation
+        (e.g., `BTExecutionResult.errors: list[str] | None` where `None` means
+        "no error list was collected" vs `[]` meaning "errors were collected
+        but none occurred"). AS2 wire-layer fields that use `None` to omit
+        keys from the serialised payload are a common example.

@@ -12,6 +12,7 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
+from vultron.core.behaviors.sync.nodes import CreateLogEntryNode
 from vultron.core.models.case import VultronCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.ports.sync_activity import SyncActivityPort
@@ -184,3 +185,17 @@ def test_commit_tree_reuses_equivalent_entry(bridge, datalayer, case_obj):
         if entry.case_id == CASE_ID
     ]
     assert len(entries) == 1
+
+
+def test_create_commit_log_entry_tree_default_payload_snapshot_is_empty_dict():
+    """Omitting payload_snapshot passes an empty dict through to CreateLogEntryNode."""
+    tree = create_commit_log_entry_tree(
+        case_id=CASE_ID,
+        object_id="https://example.org/activities/act-cs21",
+        event_type="case_created",
+    )
+    create_node = next(
+        c for c in tree.children if isinstance(c, CreateLogEntryNode)
+    )
+    assert create_node.payload_snapshot == {}
+    assert create_node.payload_snapshot is not None

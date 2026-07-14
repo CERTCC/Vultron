@@ -74,6 +74,17 @@ def test_create_log_entry_node_writes_log_entry_to_blackboard(bridge):
     assert blackboard.log_entry.log_index == 0
 
 
+def test_create_log_entry_node_default_payload_snapshot_is_empty_dict():
+    """Omitting payload_snapshot gives an empty dict on the node instance."""
+    node = CreateLogEntryNode(
+        case_id=CASE_ID,
+        object_id="https://example.org/activities/act-2",
+        event_type="note_added",
+    )
+    assert node.payload_snapshot == {}
+    assert node.payload_snapshot is not None
+
+
 def test_validate_canonical_entry_rejects_empty_snapshot():
     with pytest.raises(VultronCanonicalEntryError):
         _validate_canonical_entry(
