@@ -124,8 +124,8 @@ def test_node_instantiates_without_case_id():
 # ---------------------------------------------------------------------------
 
 
-def test_no_case_id_returns_success_without_building_inner_tree(bridge):
-    """Node returns SUCCESS silently when no case_id is available (no-op)."""
+def test_no_case_id_returns_failure_without_building_inner_tree(bridge):
+    """Node returns FAILURE when no case_id is available (ARCH-15-001)."""
     node = CommitCaseLedgerEntryNode()
     with patch(_FACTORY_PATH) as mock_factory, patch(
         _INNER_BRIDGE_PATH
@@ -133,7 +133,7 @@ def test_no_case_id_returns_success_without_building_inner_tree(bridge):
         result = bridge.execute_with_setup(
             tree=node, actor_id=ACTOR_ID, activity=None
         )
-    assert result.status == Status.SUCCESS
+    assert result.status == Status.FAILURE
     mock_factory.assert_not_called()
     mock_bridge.assert_not_called()
 

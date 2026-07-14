@@ -136,6 +136,10 @@ class CreateAndPersistCaseActivityNode(DataLayerAction):
         try:
             return self.blackboard.get("create_case_obj")
         except KeyError:
+            self.feedback_message = (
+                f"{self.name}: 'create_case_obj' not on blackboard"
+            )
+            self.logger.error(self.feedback_message)
             return None
 
     def _read_addressees(self) -> list[str] | None:
@@ -162,13 +166,16 @@ class CreateAndPersistCaseActivityNode(DataLayerAction):
             return Status.FAILURE
 
         case_obj = self._read_case_obj()
+        if case_obj is None:
+            return Status.FAILURE
+
         addressees = self._read_addressees()
         if addressees is None:
             return Status.FAILURE
 
         activity = VultronCreateCaseActivity(
             actor=self.actor_id,
-            object_=case_obj if case_obj is not None else case_id,
+            object_=case_obj,
             context=case_id,
             to=addressees if addressees else None,
         )

@@ -141,7 +141,7 @@ if case_id is None:
 | `_as_id()` in `embargo_lifecycle.py` | Duplicate copy | Removed; callers import from `use_cases._helpers` |
 | `_find_case_manager_*` (3 copies) | 3 independent copies returning `None` | 1 canonical function in `use_cases/_helpers`; others removed |
 | `_extract_case_id()` in dispatcher | Returns `None`; activity silently not indexed | Raises `UnroutableActivityError` |
-| `AppendCaseLedgerEntryNode.update()` | Returns `Status.SUCCESS` on missing `case_id` | Returns `Status.FAILURE` |
+| `CommitCaseLedgerEntryNode.update()` | Returns `Status.SUCCESS` on missing `case_id` | Returns `Status.FAILURE` |
 | `_read_case_obj()` in communication.py | Swallows `KeyError`; no diagnostic | Sets `feedback_message`; caller returns `Status.FAILURE` |
 
 See `specs/architecture.yaml` ARCH-15-001 through ARCH-15-004 for
