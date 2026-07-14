@@ -899,13 +899,24 @@ groups:
     priority: MUST
     statement: >-
       The `Invite` activity MUST embed the intended `case_roles: list[CVDRole]` for the
-      invitee. These roles come from the Case Owner's Accept response (CM-16-006) or
-      from the CaseActor's default role assignment (CM-16-003) if the Case Owner did not
-      override them.
+      invitee. Roles reach `EmitInviteActorToCaseNode` via the blackboard key
+      ``suggested_roles`` (flat, unnamespaced). There are two distinct source paths:
+      (1) **Direct-trigger path** — the Case Owner explicitly calls
+      `invite-actor-to-case` with a `roles` list; `SvcInviteActorToCaseUseCase`
+      writes that list to ``suggested_roles`` via `_extra_execute_kwargs()` before
+      BT execution. (2) **Suggest-actor received path** — the CaseActor receives
+      `Accept(Offer(CaseParticipant))`; `AcceptOfferCaseParticipantReceivedUseCase`
+      does NOT write ``suggested_roles``; the `Invite` is emitted with `roles=None`
+      and the invitee's `CaseParticipant.case_roles` is populated on
+      `Accept(Invite)` by reading roles from the persisted Invite wire object
+      (CM-17-004). In the suggest-actor path, roles originate from the Case Owner's
+      Accept response (CM-16-006) or the CaseActor's default role assignment
+      (CM-16-003).
     rationale: >-
-      All invited participants getting `caseRoles=[]` is a protocol defect (issue #1288).
-      The participant record created on Accept(Invite) MUST reflect the roles the Case
-      Owner intended.
+      All invited participants getting `caseRoles=[]` is a protocol defect (issue
+      #1288). The participant record created on `Accept(Invite)` MUST reflect the
+      roles the Case Owner intended, whether those roles arrived via a direct trigger
+      request or via the suggest-actor round-trip.
   - id: CM-17-004
     priority: MUST
     statement: >-
