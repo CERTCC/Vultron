@@ -95,10 +95,10 @@ def broadcast_case_update(
     dl: CasePersistence,
     case_id: str,
     case: Any,
-    excluded_actor_ids: set[str] = set(),
+    excluded_actor_ids: set[str] | None = None,
 ) -> None:
     """Create and queue an Announce(activity) for a case update."""
-    excluded = excluded_actor_ids
+    excluded = excluded_actor_ids or set()
     case_actor_id = resolve_case_actor_id(case_id, dl)
     if case_actor_id is None:
         logger.debug(

@@ -75,7 +75,7 @@ def test_create_log_entry_node_writes_log_entry_to_blackboard(bridge):
 
 
 def test_create_log_entry_node_default_payload_snapshot_is_empty_dict():
-    """CS-21-001: omitting payload_snapshot gives {} not None."""
+    """Omitting payload_snapshot gives an empty dict on the node instance."""
     node = CreateLogEntryNode(
         case_id=CASE_ID,
         object_id="https://example.org/activities/act-2",

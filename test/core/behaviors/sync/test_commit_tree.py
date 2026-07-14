@@ -188,7 +188,7 @@ def test_commit_tree_reuses_equivalent_entry(bridge, datalayer, case_obj):
 
 
 def test_create_commit_log_entry_tree_default_payload_snapshot_is_empty_dict():
-    """CS-21-001: omitting payload_snapshot passes {} to CreateLogEntryNode."""
+    """Omitting payload_snapshot passes an empty dict through to CreateLogEntryNode."""
     tree = create_commit_log_entry_tree(
         case_id=CASE_ID,
         object_id="https://example.org/activities/act-cs21",

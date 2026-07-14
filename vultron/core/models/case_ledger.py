@@ -396,7 +396,7 @@ class CaseLedger:
         object_id: str,
         event_type: str,
         disposition: LogDisposition = "recorded",
-        payload_snapshot: dict[str, Any] = {},
+        payload_snapshot: dict[str, Any] | None = None,
         term: int | None = None,
         reason_code: str | None = None,
         reason_detail: str | None = None,
@@ -435,7 +435,7 @@ class CaseLedger:
             term=term,
             object_id=object_id,
             event_type=event_type,
-            payload_snapshot=payload_snapshot,
+            payload_snapshot=payload_snapshot or {},
             prev_log_hash=self.tail_hash,
             reason_code=reason_code,
             reason_detail=reason_detail,
@@ -451,7 +451,7 @@ class CaseLedger:
         logger.debug(
             "Ledger entry detail: entry_hash=%.16s… payload_snapshot=%s",
             entry.entry_hash,
-            payload_snapshot,
+            payload_snapshot or {},
         )
         return entry
 

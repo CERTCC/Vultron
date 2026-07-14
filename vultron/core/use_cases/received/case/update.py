@@ -55,7 +55,7 @@ class UpdateCaseReceivedUseCase:
         self,
         case_id: str,
         case: CaseModel,
-        excluded_actor_ids: set[str] = set(),
+        excluded_actor_ids: set[str] | None = None,
     ) -> None:
         """Broadcast an Announce activity for the updated case to participants.
 
