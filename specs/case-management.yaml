@@ -977,19 +977,29 @@ groups:
   - id: CM-18-003
     priority: MUST
     statement: >-
-      The `NO_EMBARGO → INVITED`, `INVITED → SIGNATORY`, `INVITED → DECLINED`, and
-      `INVITED → LAPSED` transitions are the only valid PEC state changes. Any other
-      transition MUST be rejected as a protocol error.
+      The valid PEC state transitions are: `NO_EMBARGO | LAPSED | DECLINED → INVITED`
+      (INVITE trigger); `INVITED | LAPSED → SIGNATORY` (ACCEPT trigger); `INVITED | LAPSED
+      → DECLINED` (DECLINE trigger); `SIGNATORY → LAPSED` (REVISE trigger); and
+      `* → NO_EMBARGO` (RESET trigger, embargo terminated). Any other transition MUST be
+      rejected as a protocol error.
+    rationale: >-
+      The `LAPSED` and `DECLINED` states are not terminal: a participant who lapsed or
+      declined can be re-invited (e.g., when embargo terms change). `SIGNATORY → LAPSED`
+      occurs when the embargo enters REVISE and the participant's prior consent no longer
+      covers the revised terms. See `vultron/core/states/participant_embargo_consent.py`.
     relationships:
     - rel_type: refines
       spec_id: CM-18-001
   - id: CM-18-004
     priority: MUST_NOT
     statement: >-
-      A participant's PEC state MUST NOT move from `SIGNATORY` or `DECLINED` or `LAPSED`
-      to `INVITED`. Once consent has been resolved (in either direction) it MUST NOT be
-      restarted. A new embargo proposal requires a new PEC record, not mutation of the
-      existing one.
+      A participant's PEC state MUST NOT move from `SIGNATORY` to `INVITED` directly
+      (bypassing `LAPSED`). The only path back to `INVITED` from resolved states is via
+      `LAPSED → INVITED` (after a REVISE trigger) or `DECLINED → INVITED` (re-invite
+      after explicit decline). `SIGNATORY → INVITED` is not a valid transition.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-18-003
 - id: CM-19
   title: Participant Index Discipline
   kind: domain
