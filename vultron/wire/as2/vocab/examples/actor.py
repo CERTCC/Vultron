@@ -17,6 +17,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Reject,
 )
 from vultron.wire.as2.vocab.examples._base import (
+    _CASE_ACTOR,
     _COORDINATOR,
     case,
     finder,
@@ -92,7 +93,7 @@ def offer_case_participant() -> as_Offer:
     _activity = offer_case_participant_activity(
         _coordinator,
         target=_case.id_,
-        actor=_vendor.id_,
+        actor=_CASE_ACTOR.id_,
         to=[_vendor.id_],
         context=_case.id_,
         origin=_recommendation.id_,
@@ -114,7 +115,7 @@ def accept_case_participant_offer() -> as_Accept:
         _cp_offer,
         target=_case.id_,
         actor=_vendor.id_,
-        to=[_vendor.id_],
+        to=[_CASE_ACTOR.id_],
         context=_case.id_,
         content=(
             f"Accepting recommendation to add {_coordinator.name} to the case."
@@ -133,7 +134,7 @@ def reject_case_participant_offer() -> as_Reject:
         _cp_offer,
         target=_case.id_,
         actor=_vendor.id_,
-        to=[_vendor.id_],
+        to=[_CASE_ACTOR.id_],
         context=_case.id_,
         content=(
             f"Declining recommendation to add {_coordinator.name} to the case."

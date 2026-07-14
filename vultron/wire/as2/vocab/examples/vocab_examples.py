@@ -35,8 +35,10 @@ from vultron.wire.as2.vocab.examples.status import *  # noqa: F401, F403
 
 from vultron.wire.as2.vocab.examples._base import (  # noqa: F401
     ACTOR_FUNCS,
+    _CASE_ACTOR,
     _COORDINATOR,
     case,
+    case_actor,
     coordinator,
     finder,
     gen_report,
