@@ -151,6 +151,36 @@ class TestEvaluateDefaultRolesNode:
             CVDRole.VENDOR
         ]
 
+    def test_returns_failure_when_compute_roles_returns_empty(self):
+        """AC-4: returns FAILURE when _compute_roles() returns empty list (CM-16-003).
+
+        Guards future Evaluator overrides that substitute a custom evaluator
+        returning [] — the empty list must be rejected at write time per
+        ADR-0032 / BT-HELPER-01, not silently overridden by the consumer.
+        """
+
+        class _EmptyRolesNode(EvaluateDefaultRolesNode):
+            def _compute_roles(self):
+                return []
+
+        node = _EmptyRolesNode(
+            suggested_actor_id=_RECOMMENDED,
+            case_id=_CASE_ID,
+            recommendation_id=_REC_ID,
+        )
+        node.setup()
+        node.initialise()
+        result = node.update()
+        assert result == Status.FAILURE
+        assert node.feedback_message, "feedback_message must be set on FAILURE"
+        # blackboard key must not be written
+        expected_key = f"/suggested_roles_{_REC_ID.split('/')[-1]}"
+        raw = py_trees.blackboard.Blackboard.storage.get(expected_key)
+        assert raw is None, (
+            f"Blackboard key '{expected_key}' must not be written when "
+            f"_compute_roles() returns empty list, got {raw!r}"
+        )
+
 
 class TestRecommendActorToCaseReceivedTree:
     """Structural tests for create_recommend_actor_to_case_received_tree."""
@@ -247,6 +277,64 @@ class TestRecommendActorToCaseReceivedTree:
         assert node.recommender_id == _RECOMMENDER
         assert node.recommended_id == _RECOMMENDED
         assert node.case_id == _CASE_ID
+
+
+class TestEmitOfferCaseParticipantToOwnerNodeEmptyRoles:
+    """Unit tests for the empty-roles guard in EmitOfferCaseParticipantToOwnerNode."""
+
+    def _node(self):
+        dl = MagicMock()
+        factory = MagicMock()
+        node = EmitOfferCaseParticipantToOwnerNode(
+            recommendation_id=_REC_ID,
+            recommender_id=_RECOMMENDER,
+            recommended_id=_RECOMMENDED,
+            case_id=_CASE_ID,
+        )
+        # Wire datalayer and actor_id via the standard helper.
+        writer = py_trees.blackboard.Client(name="test-emit-setup-writer")
+        writer.register_key(
+            key="datalayer", access=py_trees.common.Access.WRITE
+        )
+        writer.register_key(
+            key="actor_id", access=py_trees.common.Access.WRITE
+        )
+        writer.register_key(
+            key="trigger_activity_factory",
+            access=py_trees.common.Access.WRITE,
+        )
+        writer.datalayer = dl
+        writer.actor_id = _ACTOR_ID
+        writer.trigger_activity_factory = factory
+        node.setup()
+        node.initialise()
+        # Simulate a pathological writer that bypasses EvaluateDefaultRolesNode's
+        # non-empty invariant by writing [] to the namespaced blackboard key.
+        id_segment = _REC_ID.split("/")[-1]
+        py_trees.blackboard.Blackboard.storage[
+            f"/suggested_roles_{id_segment}"
+        ] = []
+        return node, factory
+
+    def setup_method(self):
+        py_trees.blackboard.Blackboard.enable_activity_stream()
+
+    def teardown_method(self):
+        py_trees.blackboard.Blackboard.disable_activity_stream()
+        py_trees.blackboard.Blackboard.storage.clear()
+
+    def test_returns_failure_when_roles_empty(self):
+        """update() must return FAILURE when suggested_roles is [] (CM-16-003)."""
+        node, _ = self._node()
+        result = node.update()
+        assert result == Status.FAILURE
+        assert node.feedback_message, "feedback_message must be set on FAILURE"
+
+    def test_factory_not_called_when_roles_empty(self):
+        """factory.offer_actor_to_case must not be called with empty roles."""
+        node, factory = self._node()
+        node.update()
+        factory.offer_actor_to_case.assert_not_called()
 
 
 class TestAcceptActorRecommendationReceivedTree:
