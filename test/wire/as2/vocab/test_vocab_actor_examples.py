@@ -24,7 +24,10 @@ Each test asserts:
 import unittest
 from typing import cast
 
-from vultron.wire.as2.vocab.activities.actor import _RecommendActorActivity
+from vultron.wire.as2.vocab.activities.actor import (
+    _OfferCaseParticipantActivity,
+    _RecommendActorActivity,
+)
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Offer,
@@ -168,8 +171,10 @@ class TestAcceptCaseParticipantOffer(unittest.TestCase):
     def test_to_is_case_actor(self):
         self.assertEqual(self.activity.to, [self.case_actor.id_])
 
-    def test_object_is_offer(self):
-        self.assertIsInstance(self.activity.object_, as_Offer)
+    def test_object_is_case_participant_offer(self):
+        self.assertIsInstance(
+            self.activity.object_, _OfferCaseParticipantActivity
+        )
 
     def test_target_is_case(self):
         self.assertEqual(self.activity.target, self.case.id_)
@@ -191,8 +196,10 @@ class TestRejectCaseParticipantOffer(unittest.TestCase):
     def test_to_is_case_actor(self):
         self.assertEqual(self.activity.to, [self.case_actor.id_])
 
-    def test_object_is_offer(self):
-        self.assertIsInstance(self.activity.object_, as_Offer)
+    def test_object_is_case_participant_offer(self):
+        self.assertIsInstance(
+            self.activity.object_, _OfferCaseParticipantActivity
+        )
 
     def test_target_is_case(self):
         self.assertEqual(self.activity.target, self.case.id_)
