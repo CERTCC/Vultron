@@ -19,8 +19,9 @@ This module provides:
   swappable backends into tree builder functions (ADR-0025, BT-18-004).
 - Five shape mixin classes (one per ADR-0024 agent shape) that document the
   lifecycle pattern and blackboard contract for each call-out point shape.
-- An illustrative Sentinel subclass used to document the shape interface;
-  full Sentinel implementation is tracked in issue #1175 (FUZZ-08f).
+- Three illustrative Sentinel subclasses (validation, prioritization,
+  deployment) that document the shape interface; full Sentinel
+  implementation is tracked in issue #1175 (FUZZ-08f).
 
 References
 ----------
@@ -46,6 +47,8 @@ __all__ = [
     "ActuatorCallOutPoint",
     "SentinelCallOutPoint",
     "NewValidationInfoSentinel",
+    "NewPrioritizationInfoSentinel",
+    "NewDeploymentInfoSentinel",
 ]
 
 
@@ -218,7 +221,7 @@ class SentinelCallOutPoint:
 
 
 # ---------------------------------------------------------------------------
-# Illustrative Sentinel subclass
+# Illustrative Sentinel subclasses
 # ---------------------------------------------------------------------------
 
 
@@ -250,6 +253,70 @@ class NewValidationInfoSentinel(SentinelCallOutPoint, WeightedBehavior):
         production a Sentinel runs outside the BT tick loop and calls a trigger
         endpoint when its monitored condition fires; it is not placed inside a
         tree builder function.
+    """
+
+    success_rate = 0.10
+
+
+class NewPrioritizationInfoSentinel(SentinelCallOutPoint, WeightedBehavior):
+    """Monitors the case record for new prioritization-relevant events.
+
+    Semantic function:
+        Sentinel — registers with a case-event source and fires a
+        change-detection signal into the BT blackboard when new
+        prioritization-relevant information arrives (e.g., updated SSVC
+        scoring data, new threat intelligence, CVSS score update).  The flag
+        is consumed by ``NoNewPrioritizationInfo`` at the top of the
+        ``PrioritizeBT`` Selector in
+        ``create_prioritize_subtree``.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (monitors external case-event source; no blackboard reads)
+      Output keys: (none — fires trigger endpoint; no content artifact)
+
+    Input category: System integration (case management event subscription).
+
+    Success probability: 0.10 (``AlmostAlwaysFail``).
+
+    Automation potential: **High** — event subscription on the case record
+    or metadata timestamp comparison (SSVC decision-point availability,
+    CVSS score updates); fully automatable.
+
+    Note:
+        In production a Sentinel runs outside the BT tick loop and calls a
+        trigger endpoint when its monitored condition fires; it is not placed
+        inside a tree builder function.
+    """
+
+    success_rate = 0.10
+
+
+class NewDeploymentInfoSentinel(SentinelCallOutPoint, WeightedBehavior):
+    """Monitors deployment-relevant data sources for new events.
+
+    Semantic function:
+        Sentinel — registers with deployment-relevant data sources (e.g.,
+        patch management system, CI/CD pipeline, asset inventory) and fires
+        a change-detection signal into the BT blackboard when new
+        deployment-related events arrive.  The flag is consumed by
+        ``NoNewDeploymentInfo`` at the top of the ``Deployment`` Fallback
+        Selector in ``create_deploy_fix_tree``.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (monitors external deployment-event source; no blackboard reads)
+      Output keys: (none — fires trigger endpoint; no content artifact)
+
+    Input category: System integration (patch management / CI/CD event subscription).
+
+    Success probability: 0.10 (``AlmostAlwaysFail``).
+
+    Automation potential: **High** — event subscription on the patch
+    management system or CI/CD pipeline; fully automatable.
+
+    Note:
+        In production a Sentinel runs outside the BT tick loop and calls a
+        trigger endpoint when its monitored condition fires; it is not placed
+        inside a tree builder function.
     """
 
     success_rate = 0.10
