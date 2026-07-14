@@ -389,6 +389,14 @@ class TestCaseLedgerAppend:
         )
         assert entry.disposition == "rejected"
 
+    def test_omitting_payload_snapshot_gives_empty_dict(
+        self, empty_log: CaseLedger
+    ):
+        """CS-21-001: omitting payload_snapshot yields {} not None."""
+        entry = empty_log.append(object_id=OBJECT_ID, event_type="test")
+        assert entry.payload_snapshot == {}
+        assert entry.payload_snapshot is not None
+
 
 # ---------------------------------------------------------------------------
 # CaseLedger — append-only enforcement

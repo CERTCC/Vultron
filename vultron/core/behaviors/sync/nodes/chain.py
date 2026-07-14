@@ -350,7 +350,7 @@ class CreateLogEntryNode(DataLayerAction):
         object_id: str,
         event_type: str,
         *,
-        payload_snapshot: dict[str, Any] | None = None,
+        payload_snapshot: dict[str, Any] = {},
         term: int | None = None,
         reason_code: str | None = None,
         reason_detail: str | None = None,
@@ -361,7 +361,7 @@ class CreateLogEntryNode(DataLayerAction):
         self.case_id = case_id
         self.object_id = object_id
         self.event_type = event_type
-        self.payload_snapshot = payload_snapshot or {}
+        self.payload_snapshot = dict(payload_snapshot)
         self.term = term
         self.reason_code = reason_code
         self.reason_detail = reason_detail

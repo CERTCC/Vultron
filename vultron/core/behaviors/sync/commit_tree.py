@@ -18,7 +18,7 @@ def create_commit_log_entry_tree(
     object_id: str,
     event_type: str,
     *,
-    payload_snapshot: dict[str, Any] | None = None,
+    payload_snapshot: dict[str, Any] = {},
     disposition: Literal["recorded", "rejected"] = "recorded",
 ) -> py_trees.behaviour.Behaviour:
     return py_trees.composites.Sequence(

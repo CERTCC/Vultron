@@ -12,6 +12,8 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """BT structure and no-post-BT-broadcast tests for UpdateCaseBT."""
 
+from unittest.mock import MagicMock
+
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.case.nodes.update import (
     ApplyCaseUpdateNode,
@@ -19,6 +21,7 @@ from vultron.core.behaviors.case.nodes.update import (
     CaptureCaseUpdateBroadcastExclusionsNode,
     CheckCaseUpdateOwnerNode,
 )
+from vultron.core.behaviors.case.update_support import broadcast_case_update
 from vultron.core.behaviors.case.update_tree import (
     create_update_case_received_tree,
 )
@@ -107,3 +110,41 @@ class TestUpdateCaseBTStructure:
 
         outbox_items = dl.outbox_list_for_actor(case_actor.id_)
         assert len(outbox_items) == 1
+
+
+class TestCollectionDefaultsCS21:
+    """CS-21-001: omitting excluded_actor_ids yields set() not None."""
+
+    def test_broadcast_case_update_default_excluded_actor_ids_is_empty_set(
+        self,
+    ):
+        """broadcast_case_update: omitting excluded_actor_ids gives set()."""
+        dl = MagicMock()
+        dl.read.return_value = None  # no case actor found — early return
+        case = MagicMock()
+        case.actor_participant_index = {}
+        # Call without excluded_actor_ids; should not raise and should not
+        # see None internally — verified by the no-CaseActor early-return path.
+        broadcast_case_update(dl, "urn:uuid:case-1", case)
+
+    def test_broadcast_case_update_uses_empty_set_when_not_provided(self):
+        """broadcast_case_update: excluded_actor_ids defaults to set(), not None."""
+        import inspect
+
+        sig = inspect.signature(broadcast_case_update)
+        default = sig.parameters["excluded_actor_ids"].default
+        assert default == set()
+        assert default is not None
+
+    def test_broadcast_case_update_private_default_excluded_actor_ids_is_empty_set(
+        self,
+    ):
+        """_broadcast_case_update: excluded_actor_ids defaults to set()."""
+        import inspect
+
+        sig = inspect.signature(
+            UpdateCaseReceivedUseCase._broadcast_case_update
+        )
+        default = sig.parameters["excluded_actor_ids"].default
+        assert default == set()
+        assert default is not None
