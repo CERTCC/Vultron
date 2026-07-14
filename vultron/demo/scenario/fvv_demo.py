@@ -77,8 +77,8 @@ from vultron.demo.helpers.polling import (
     wait_for_case_em_terminated,
     wait_for_case_on_container,
     wait_for_case_participants,
+    wait_for_contiguous_ledger_coverage,
     wait_for_finder_case,
-    wait_for_finder_log_entry,
     wait_for_participant_vfd_state,
 )
 from vultron.demo.helpers.seeding import (
@@ -297,26 +297,27 @@ def _phase_sync_verification(
     vendor_entries = _get_log_entries_for_case(vendor_client, case.id_)
     if vendor_entries:
         vendor_tail = max(vendor_entries, key=lambda e: e["log_index"])
+        vendor_tail_index: int = vendor_tail["log_index"]
         vendor_tail_hash: str = vendor_tail["entry_hash"]
         logger.info(
             "Waiting for Finder to replicate Vendor1 tail (hash=%s… index=%d)",
             vendor_tail_hash[:16],
-            vendor_tail["log_index"],
+            vendor_tail_index,
         )
-        wait_for_finder_log_entry(
-            finder_client=finder_client,
+        wait_for_contiguous_ledger_coverage(
+            client=finder_client,
             case_id=case.id_,
-            entry_hash=vendor_tail_hash,
+            expected_tail_index=vendor_tail_index,
         )
         logger.info(
             "Waiting for Vendor2 to replicate Vendor1 tail (hash=%s… index=%d)",
             vendor_tail_hash[:16],
-            vendor_tail["log_index"],
+            vendor_tail_index,
         )
-        wait_for_finder_log_entry(
-            finder_client=vendor2_client,
+        wait_for_contiguous_ledger_coverage(
+            client=vendor2_client,
             case_id=case.id_,
-            entry_hash=vendor_tail_hash,
+            expected_tail_index=vendor_tail_index,
         )
 
     wait_for_case_participants(
@@ -612,26 +613,31 @@ def _phase_case_closure(
             case_id=case.id_,
         )
 
-    # Wait for all replicas to receive the canonical close_case ledger entry.
+    # Wait for all replicas to receive every canonical ledger entry including
+    # the close_case tail.  Waiting only for the tail hash is insufficient:
+    # Announce(CaseLedgerEntry) activities are delivered independently and an
+    # intermediate entry can arrive after the tail (issue #1363).  We therefore
+    # verify full contiguous coverage (0…tail_index) before dumping logs.
     vendor_entries = _get_log_entries_for_case(vendor_client, case.id_)
     if vendor_entries:
         vendor_tail = max(vendor_entries, key=lambda e: e["log_index"])
+        vendor_tail_index: int = vendor_tail["log_index"]
         vendor_tail_hash: str = vendor_tail["entry_hash"]
         logger.info(
             "Waiting for replicas to receive vendor1 tail after closure"
             " (hash=%s… index=%d)",
             vendor_tail_hash[:16],
-            vendor_tail["log_index"],
+            vendor_tail_index,
         )
-        wait_for_finder_log_entry(
-            finder_client=finder_client,
+        wait_for_contiguous_ledger_coverage(
+            client=finder_client,
             case_id=case.id_,
-            entry_hash=vendor_tail_hash,
+            expected_tail_index=vendor_tail_index,
         )
-        wait_for_finder_log_entry(
-            finder_client=vendor2_client,
+        wait_for_contiguous_ledger_coverage(
+            client=vendor2_client,
             case_id=case.id_,
-            entry_hash=vendor_tail_hash,
+            expected_tail_index=vendor_tail_index,
         )
 
 
