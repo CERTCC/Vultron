@@ -23,40 +23,6 @@ from vultron.core.use_cases._helpers import _as_id
 logger = logging.getLogger(__name__)
 
 
-def _find_case_actor_id_from_participants(
-    case_obj: CaseModel, dl: CasePersistence
-) -> str | None:
-    """Find the CaseActor ID from the CASE_MANAGER participant in the case.
-
-    Uses duck-typing on ``case_roles`` to avoid importing wire-layer types.
-    Returns the ``attributed_to`` URI of the first participant holding
-    ``CVDRole.CASE_MANAGER`` (CBT-01-003).
-
-    Handles both inline objects and ID-only references stored in
-    ``case_participants``.
-    """
-    for participant_ref in case_obj.case_participants:
-        # Try inline object first (participant embedded in snapshot)
-        if not isinstance(participant_ref, str):
-            roles = getattr(participant_ref, "case_roles", [])
-            if CVDRole.CASE_MANAGER in roles:
-                attributed = getattr(participant_ref, "attributed_to", None)
-                if attributed:
-                    return str(attributed)
-            continue
-
-        # ID-only reference — look up from DataLayer
-        participant = dl.read(participant_ref)
-        if participant is None:
-            continue
-        roles = getattr(participant, "case_roles", [])
-        if CVDRole.CASE_MANAGER in roles:
-            attributed = getattr(participant, "attributed_to", None)
-            if attributed:
-                return str(attributed)
-    return None
-
-
 def _find_report_case_link(
     creator_id: str, dl: CasePersistence
 ) -> VultronReportCaseLink | None:

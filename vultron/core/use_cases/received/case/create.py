@@ -11,8 +11,9 @@ from vultron.core.models.protocols import CaseModel, is_case_model
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.ports.case_persistence import CasePersistence
 
+from vultron.core.use_cases._helpers import _resolve_case_manager_id
+
 from ._helpers import (
-    _find_case_actor_id_from_participants,
     _find_report_case_link,
     _store_embedded_participants,
 )
@@ -106,9 +107,7 @@ class CreateCaseReceivedUseCase:
             )
 
         # CBT-01-003: extract CaseActor from CASE_MANAGER participant
-        case_actor_id = _find_case_actor_id_from_participants(
-            case_obj, self._dl
-        )
+        case_actor_id = _resolve_case_manager_id(case_obj, self._dl)
         if case_actor_id is None:
             logger.warning(
                 "create_case_received: no CASE_MANAGER participant found in "

@@ -104,9 +104,10 @@ Helpers that extract IDs or look up participants belong in
 `vultron/core/use_cases/_helpers.py` — the neutral module importable
 from both `behaviors/` and `use_cases/` layers without circular imports.
 
-Duplicate copies in other modules (e.g., `services/embargo_lifecycle.py`,
-`behaviors/status/nodes/broadcast.py`) MUST import from
-`use_cases/_helpers` and not maintain their own copies.
+Duplicate copies in other modules (e.g., `services/embargo_lifecycle.py`)
+MUST import from `use_cases/_helpers` and not maintain their own copies.
+`behaviors/status/nodes/broadcast.py` was deleted in #1378 after its only
+content (`_find_case_manager_id`) was consolidated into `_resolve_case_manager_id`.
 
 ---
 
