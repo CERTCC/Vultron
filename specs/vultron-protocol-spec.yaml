@@ -986,3 +986,44 @@ groups:
     statement: >-
       Case or vulnerability identifiers SHOULD NOT carry any information that reveals potentially
       sensitive details about the vulnerability
+- id: VP-17
+  title: CaseActor Write Authority
+  kind: domain
+  specs:
+  - id: VP-17-001
+    priority: MUST
+    statement: >-
+      `CaseActor` is the ONLY entity authorized to mutate shared case state (CS axes EM and
+      PXA, the embargo record, and the case ledger). No participant or use-case handler MUST
+      write to shared case state directly; all mutations MUST route through a `CaseActor`
+      method or use-case.
+    rationale: >-
+      This single-writer axiom prevents concurrent-write races and ensures that all shared
+      state changes flow through the actor's consistency checks and persistence layer.
+      The CS participant-specific axes (RM, VFD) are owned by each participant's
+      `CaseParticipant` record and are intentionally excluded from this restriction.
+    relationships:
+    - rel_type: refines
+      spec_id: VP-02-001
+    - rel_type: constrains
+      spec_id: SM-10-002
+- id: VP-18
+  title: Routing Topology
+  kind: domain
+  specs:
+  - id: VP-18-001
+    priority: MUST
+    statement: >-
+      Outbound messages from a participant MUST follow the routing path:
+      `participant → CaseActor → CaseLedgerEntry → broadcast → participants`.
+      A participant MUST NOT deliver messages directly to another participant's inbox;
+      delivery MUST be mediated by the `CaseActor` and recorded in the case ledger
+      before being fanned out.
+    rationale: >-
+      The ledger record provides the audit trail and ordering guarantees for all case
+      activity. Direct peer-to-peer delivery bypasses the ledger and the broadcast
+      idempotency controls.
+    relationships:
+    - rel_type: refines
+      spec_id: PCR-08-001
+      note: participant-case-relationships.yaml — PCR-08 covers ledger-based broadcast
