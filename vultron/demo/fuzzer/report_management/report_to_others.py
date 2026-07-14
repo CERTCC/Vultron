@@ -440,11 +440,17 @@ class InjectParticipant(AlwaysSucceed):
     """Add a new participant to the case (generic form).
 
     Semantic function:
-        Action — add a new participant to the case.  This is the generic
-        base node; specialized by ``InjectVendor``,
-        ``InjectCoordinator``, and ``InjectOther`` for role-specific
-        injection.  Always succeeds in simulation; in production
-        performs a case management system write.
+        Action — pop the first entry from the blackboard list named by
+        ``source_key`` and append it to ``potential_participants``.
+        When the source key is absent or the list is empty the node
+        succeeds as a no-op; the ``More*`` guard upstream prevents this
+        node from running when the list is already exhausted.
+        Specialized by ``InjectVendor`` and ``InjectCoordinator`` for
+        role-specific injection.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  <source_key>: list  (READ/WRITE; key may be absent)
+      Output keys: potential_participants: list  (WRITE; key may be absent)
 
     Input category: System integration.
 
@@ -453,6 +459,36 @@ class InjectParticipant(AlwaysSucceed):
     Automation potential: **High** — case management system write; fully
     automatable once participant details are known.
     """
+
+    source_key: str = ""
+
+    def setup(self, **kwargs) -> None:
+        super().setup(**kwargs)
+        if self.source_key:
+            self._bb = self.attach_blackboard_client(
+                name=f"{self.__class__.__name__}_rw"
+            )
+            self._bb.register_key(self.source_key, Access.WRITE)
+            self._bb.register_key("potential_participants", Access.WRITE)
+
+    def update(self) -> Status:
+        if not self.source_key:
+            return Status.SUCCESS
+        try:
+            source = getattr(self._bb, self.source_key)
+        except KeyError:
+            return Status.SUCCESS
+        if not source:
+            return Status.SUCCESS
+        participant = source.pop(0)
+        setattr(self._bb, self.source_key, source)
+        try:
+            participants = self._bb.potential_participants
+        except KeyError:
+            participants = []
+        participants.append(participant)
+        self._bb.potential_participants = participants
+        return Status.SUCCESS
 
 
 class InjectVendor(InjectParticipant):
@@ -478,30 +514,7 @@ class InjectVendor(InjectParticipant):
     vendor role; fully automatable.
     """
 
-    def setup(self, **kwargs) -> None:
-        super().setup(**kwargs)
-        self._bb = self.attach_blackboard_client(
-            name=f"{self.__class__.__name__}_rw"
-        )
-        self._bb.register_key("identified_vendors", Access.WRITE)
-        self._bb.register_key("potential_participants", Access.WRITE)
-
-    def update(self) -> Status:
-        try:
-            vendors = self._bb.identified_vendors
-        except KeyError:
-            return Status.SUCCESS
-        if not vendors:
-            return Status.SUCCESS
-        participant = vendors.pop(0)
-        self._bb.identified_vendors = vendors
-        try:
-            participants = self._bb.potential_participants
-        except KeyError:
-            participants = []
-        participants.append(participant)
-        self._bb.potential_participants = participants
-        return Status.SUCCESS
+    source_key = "identified_vendors"
 
 
 class InjectCoordinator(InjectParticipant):
@@ -528,30 +541,7 @@ class InjectCoordinator(InjectParticipant):
     coordinator role; fully automatable.
     """
 
-    def setup(self, **kwargs) -> None:
-        super().setup(**kwargs)
-        self._bb = self.attach_blackboard_client(
-            name=f"{self.__class__.__name__}_rw"
-        )
-        self._bb.register_key("identified_coordinators", Access.WRITE)
-        self._bb.register_key("potential_participants", Access.WRITE)
-
-    def update(self) -> Status:
-        try:
-            coordinators = self._bb.identified_coordinators
-        except KeyError:
-            return Status.SUCCESS
-        if not coordinators:
-            return Status.SUCCESS
-        participant = coordinators.pop(0)
-        self._bb.identified_coordinators = coordinators
-        try:
-            participants = self._bb.potential_participants
-        except KeyError:
-            participants = []
-        participants.append(participant)
-        self._bb.potential_participants = participants
-        return Status.SUCCESS
+    source_key = "identified_coordinators"
 
 
 class InjectOther(InjectParticipant):

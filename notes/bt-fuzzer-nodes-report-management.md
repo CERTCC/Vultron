@@ -1656,17 +1656,24 @@ coordinated disclosure.
 - **btz type**: `UsuallyFail` (p=0.25)
 - **Source file**: `report_management/fuzzer/report_to_others.py`
 - **Parent tree**: `MaybeReportToOthers`
-- **Semantic function**: Condition — check whether there are more vendor
-  parties in the identified-but-not-yet-notified queue
-- **Input dependency**: Query to the vendor notification queue; automatable
-  against the identified-parties list
-- **Notes**: Fails most of the time in simulation because the vendor list
-  is usually short
-- **Automation potential**: **High** — query against the vendor notification queue; fully automatable.
+- **Semantic function**: Condition — return SUCCESS iff the
+  `identified_vendors` blackboard list is non-empty; falls back to
+  probabilistic behaviour (`UsuallyFail`, p=0.25) when the key is absent
+  or the list is empty.  Drives exhaustion-based loop iteration.
+- **Blackboard contract**: Input keys: `identified_vendors: list`
+  (READ; key may be absent). Output keys: none.
+  Implemented via `setup()`/`update()` overrides that call
+  `attach_blackboard_client()` with `Access.READ`.
+- **Input dependency**: Query to the `identified_vendors` blackboard key;
+  written by `IdentifyVendors` upstream.
+- **Notes**: Returns SUCCESS deterministically when `identified_vendors`
+  is non-empty; falls back to `UsuallyFail` (25%) when absent or empty.
+- **Automation potential**: **High** — queue-emptiness check; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.MoreVendors`
-- **Call-out point shape**: ProtocolInternal — checks the local `bb.case.potential_participants`
-  vendor sub-list (BT blackboard, per-actor in-process); this is a BT for-loop iteration guard,
-  not an external query. No external agent seam — the list is local and actor-scoped.
+- **Call-out point shape**: ProtocolInternal — checks the local `identified_vendors`
+  blackboard list (BT blackboard, per-actor in-process); this is a BT for-loop
+  iteration guard, not an external query. No external agent seam — the list is
+  local and actor-scoped.
   (Category 3 per issue #1199 triage — reads from the protocol's own BT blackboard.)
 - **Factory-fn placement**: FUTURE:
   `vultron.core.behaviors.report.create_report_to_others_tree`
@@ -1679,16 +1686,24 @@ coordinated disclosure.
 - **btz type**: `AlmostAlwaysFail` (p=0.10)
 - **Source file**: `report_management/fuzzer/report_to_others.py`
 - **Parent tree**: `MaybeReportToOthers`
-- **Semantic function**: Condition — check whether there are more coordinator
-  parties pending notification
-- **Input dependency**: Query to the coordinator notification queue;
-  automatable
-- **Notes**: Fails almost always because the coordinator list is typically
-  short (often zero or one)
-- **Automation potential**: **High** — query against the coordinator notification queue; fully automatable.
+- **Semantic function**: Condition — return SUCCESS iff the
+  `identified_coordinators` blackboard list is non-empty; falls back to
+  probabilistic behaviour (`AlmostAlwaysFail`, p=0.10) when the key is
+  absent or the list is empty.  Mirrors `MoreVendors` for the coordinator
+  sub-list.
+- **Blackboard contract**: Input keys: `identified_coordinators: list`
+  (READ; key may be absent). Output keys: none.
+  Implemented via `setup()`/`update()` overrides that call
+  `attach_blackboard_client()` with `Access.READ`.
+- **Input dependency**: Query to the `identified_coordinators` blackboard
+  key; written by `IdentifyCoordinators` upstream.
+- **Notes**: Returns SUCCESS deterministically when
+  `identified_coordinators` is non-empty; falls back to `AlmostAlwaysFail`
+  (10%) when absent or empty.
+- **Automation potential**: **High** — queue-emptiness check; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.MoreCoordinators`
-- **Call-out point shape**: ProtocolInternal — checks the local `bb.case.potential_participants`
-  coordinator sub-list (BT blackboard, per-actor in-process); this is a BT for-loop iteration guard,
+- **Call-out point shape**: ProtocolInternal — checks the local `identified_coordinators`
+  blackboard list (BT blackboard, per-actor in-process); this is a BT for-loop iteration guard,
   not an external query. No external agent seam — the list is local and actor-scoped.
   (Category 3 per issue #1199 triage — reads from the protocol's own BT blackboard.)
 - **Factory-fn placement**: FUTURE:
@@ -1750,15 +1765,26 @@ coordinated disclosure.
 - **btz type**: `InjectParticipant` (AlwaysSucceed, p=1.00)
 - **Source file**: `report_management/fuzzer/report_to_others.py`
 - **Parent tree**: `MaybeReportToOthers`
-- **Semantic function**: Action — add an identified vendor as a participant
-  in the coordinated disclosure case
-- **Input dependency**: Case management system write; vendor contact and
-  acceptance of participation
+- **Semantic function**: Action — pop the first entry from the
+  `identified_vendors` blackboard list and append it to
+  `potential_participants`.  When the list is absent or empty, succeeds
+  as a no-op.  Specialization of `InjectParticipant` via `source_key =
+  "identified_vendors"`.
+- **Blackboard contract**: Input keys: `identified_vendors: list`
+  (READ/WRITE; key may be absent). Output keys: `potential_participants:
+  list` (WRITE; key may be absent).
+  Implemented through the shared `InjectParticipant.setup()`/`update()`
+  logic keyed by `source_key`; uses `attach_blackboard_client()` with
+  `Access.WRITE`.
+- **Input dependency**: Reads `identified_vendors` written by
+  `IdentifyVendors`; writes to `potential_participants`.
 - **Notes**: Specialization of `InjectParticipant` for vendor role. See
   `InjectParticipant` for production-replacement note.
 - **Automation potential**: **High** — case management system write for vendor role; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.InjectVendor`
-- **Call-out point shape**: Actuator — inherits InjectParticipant; writes a vendor-role participant record to the case management system; the side-effect state write is the seam. Production replacement: InviteParticipantToCase protocol subtree.
+- **Call-out point shape**: Actuator — pops from `identified_vendors` and appends to
+  `potential_participants`; the side-effect state write is the seam. Production
+  replacement: InviteParticipantToCase protocol subtree.
 - **Factory-fn placement**: FUTURE:
   `vultron.core.behaviors.report.create_report_to_others_tree`
   (issue #1252) — Actuator node in the vendor sub-loop, after `MoreVendors`
@@ -1771,15 +1797,26 @@ coordinated disclosure.
 - **btz type**: `InjectParticipant` (AlwaysSucceed, p=1.00)
 - **Source file**: `report_management/fuzzer/report_to_others.py`
 - **Parent tree**: `MaybeReportToOthers`
-- **Semantic function**: Action — add an identified coordinator as a
-  participant in the coordinated disclosure case
-- **Input dependency**: Case management system write; coordinator contact
-  and acceptance of participation
+- **Semantic function**: Action — pop the first entry from the
+  `identified_coordinators` blackboard list and append it to
+  `potential_participants`.  When the list is absent or empty, succeeds
+  as a no-op.  Specialization of `InjectParticipant` via `source_key =
+  "identified_coordinators"`.
+- **Blackboard contract**: Input keys: `identified_coordinators: list`
+  (READ/WRITE; key may be absent). Output keys: `potential_participants:
+  list` (WRITE; key may be absent).
+  Implemented through the shared `InjectParticipant.setup()`/`update()`
+  logic keyed by `source_key`; uses `attach_blackboard_client()` with
+  `Access.WRITE`.
+- **Input dependency**: Reads `identified_coordinators` written by
+  `IdentifyCoordinators`; writes to `potential_participants`.
 - **Notes**: Specialization of `InjectParticipant` for coordinator role. See
   `InjectParticipant` for production-replacement note.
 - **Automation potential**: **High** — case management system write for coordinator role; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.InjectCoordinator`
-- **Call-out point shape**: Actuator — inherits InjectParticipant; writes a coordinator-role participant record to the case management system; the side-effect state write is the seam. Production replacement: InviteParticipantToCase protocol subtree.
+- **Call-out point shape**: Actuator — pops from `identified_coordinators` and appends to
+  `potential_participants`; the side-effect state write is the seam. Production
+  replacement: InviteParticipantToCase protocol subtree.
 - **Factory-fn placement**: FUTURE:
   `vultron.core.behaviors.report.create_report_to_others_tree`
   (issue #1252) — Actuator node in the coordinator sub-loop, after
