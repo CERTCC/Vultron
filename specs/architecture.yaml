@@ -49,6 +49,20 @@ groups:
         note: >-
           ARCH-01-001 is the general constraint; ARCH-01-004 requires that
           all violations be systematically remediated via driven ports.
+  - id: ARCH-01-005
+    priority: MUST_NOT
+    statement: >-
+      Production adapters (HTTP routes, CLI commands, MCP server, background workers)
+      MUST NOT import from `vultron/demo/`. Demo-layer modules are not part of the
+      production dependency graph and MUST be treated as test-only code for runtime
+      purposes.
+    rationale: >-
+      The demo layer contains simplified, non-production implementations of actors and
+      data handling. Importing it in production adapters silently pulls in demo behaviour
+      and dummy data, and couples production code to a layer with no stability guarantees.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-01-001
 - id: ARCH-02
   title: SemanticIntent Enum
   kind: domain
@@ -130,6 +144,23 @@ groups:
     priority: MUST
     statement: Driving adapters (HTTP inbox, CLI, MCP server) MUST invoke the wire pipeline before calling into the core
     rationale: Any driving adapter that needs to ingest AS2 can reuse the wire pipeline; there is no duplication
+  - id: ARCH-08-002
+    priority: MUST
+    statement: >-
+      A driving adapter MUST promote an incoming wire object to its most-specific domain
+      type at the adapter boundary, before passing the object into the core. The core
+      MUST NOT receive a bare `BaseObject` or generic `BaseModel` when a more specific
+      type is determinable from the wire payload.
+    rationale: >-
+      Promoting at the boundary ("validate at edge") ensures that core handlers receive
+      fully typed objects and never need to downcast or call `isinstance()` to recover
+      type information that was present on the wire. Deferring promotion into the core
+      violates the hexagonal principle that adapters adapt, cores compute.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-08-001
+    - rel_type: implements
+      spec_id: CS-10-001
 - id: ARCH-12
   title: Shared-Base Object Hierarchy
   kind: implementation
@@ -479,3 +510,136 @@ groups:
       An explicit Protocol type converts a convention-only rule into a
       compile-time-enforced boundary, making violations visible without running
       the code.
+- id: ARCH-16
+  title: App State Isolation
+  kind: pattern
+  specs:
+  - id: ARCH-16-001
+    priority: MUST_NOT
+    statement: >-
+      `create_app()` (or any equivalent application factory) MUST NOT mutate module-level
+      singletons, global registries, or process-wide shared state. All per-application
+      state MUST be scoped to the returned app instance or its lifespan context.
+    rationale: >-
+      Mutating module-level singletons in `create_app()` makes test isolation impossible:
+      the second call to `create_app()` in the same process inherits mutations from the
+      first. This applies to vocabulary registries, DataLayer factories, BT bridges,
+      actor caches, and any other mutable global. Discovered as a demo-layer issue
+      (DEMOMA-01-004) but applies equally to all application factories.
+    relationships:
+    - rel_type: implements
+      spec_id: ARCH-04-001
+- id: ARCH-17
+  title: ASGIEmitter Base URL
+  kind: implementation
+  specs:
+  - id: ARCH-17-001
+    priority: MUST
+    statement: >-
+      The `ASGIEmitter` base URL MUST contain only the scheme and netloc components
+      (e.g., `https://example.org`). It MUST NOT include a path prefix, trailing slash,
+      or mount-point segment. The emitter strips the mount prefix from request paths before
+      constructing outbound URLs; a base URL that includes a prefix causes double-application.
+    rationale: >-
+      A base URL of `https://example.org/api` combined with a request path `/api/actors/…`
+      produces `https://example.org/api/api/actors/…`. Root cause of bugs #557 and #558.
+  - id: ARCH-17-002
+    priority: MUST
+    statement: >-
+      `ASGIEmitter` MUST use a `contextvars.ContextVar[int]` reentrancy guard, not a
+      `threading.Lock` or boolean flag, to detect and prevent re-entrant emission
+      (an emitter call triggered by a handler that was itself invoked by an earlier
+      emission). Re-entrant emission MUST raise `EmitterReentrancyError`.
+    rationale: >-
+      A `threading.Lock` guard would deadlock when the re-entrant call happens on the
+      same thread (common in async/ASGI contexts). A `ContextVar` is task-local and
+      correctly tracks reentrancy per async task without thread-lock semantics.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-17-001
+- id: ARCH-18
+  title: Architecture Ratchet Discipline
+  kind: dev-process
+  specs:
+  - id: ARCH-18-001
+    priority: MUST
+    statement: >-
+      Architecture boundary tests that enforce a `KNOWN_VIOLATIONS` allowlist MUST use
+      a bidirectional equality assertion: `assert actual_violations == KNOWN_VIOLATIONS`.
+      One-directional subset assertions (`assert actual ⊆ KNOWN`) are prohibited because
+      they allow the violation count to grow silently.
+    rationale: >-
+      A subset assertion says "we have at most these violations" but allows new ones
+      to be added without failing the test. Bidirectional equality says "we have exactly
+      these violations" — any addition fails immediately, and any removal must be reflected
+      in the allowlist.
+    relationships:
+    - rel_type: implements
+      spec_id: ARCH-10-001
+  - id: ARCH-18-002
+    priority: MUST
+    statement: >-
+      When a known architectural violation is resolved (the file or import is removed or
+      refactored), the corresponding entry MUST be removed from the `KNOWN_VIOLATIONS`
+      allowlist in the same commit that resolves the violation. Stale allowlist entries
+      that no longer correspond to real violations MUST NOT be retained.
+    rationale: >-
+      Stale entries mask the true state of the architecture boundary. A "fixed" violation
+      that remains in `KNOWN_VIOLATIONS` makes the ratchet appear tighter than it is
+      and hides regression when a new violation with the same name is later introduced.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-18-001
+- id: ARCH-19
+  title: Outbound Delivery Pipeline
+  kind: domain
+  specs:
+  - id: ARCH-19-001
+    priority: MUST
+    statement: >-
+      Outbound delivery MUST be modelled as a three-stage pipeline: (1) **Emission** —
+      the use-case or handler writes the activity to the outbox; (2) **Transport delivery**
+      — the outbox worker retrieves the activity and delivers it to the recipient's inbox
+      endpoint; (3) **Recipient acceptance** — the recipient's adapter processes the
+      delivered activity. Each stage has distinct error semantics and MUST NOT be conflated.
+    rationale: >-
+      Conflating stages (e.g., treating a transport timeout as a recipient rejection) leads
+      to incorrect retry logic and protocol-state divergence. The three-stage model is the
+      foundation for correct at-least-once delivery. Source: `notes/architecture-adapters.md`.
+  - id: ARCH-19-002
+    priority: MUST
+    statement: >-
+      Emission (stage 1) MUST be idempotent with respect to the outbox: writing the same
+      activity ID twice MUST NOT create a duplicate outbox entry.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-19-001
+  - id: ARCH-19-003
+    priority: MUST
+    statement: >-
+      Transport delivery (stage 2) MUST be retried on transient network failures. The retry
+      mechanism MUST be implemented in the outbox worker, not in the use-case or handler.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-19-001
+  - id: ARCH-19-004
+    priority: MUST_NOT
+    statement: >-
+      A transport delivery failure (stage 2 error) MUST NOT be interpreted as recipient
+      rejection (stage 3 semantics). Delivery failure means the activity did not reach
+      the recipient; it carries no information about whether the recipient would accept
+      or reject the activity.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-19-001
+  - id: ARCH-19-005
+    priority: MUST
+    statement: >-
+      The outbox worker MUST record the delivery outcome (success, transient failure, or
+      permanent failure) in the case ledger so that the case history reflects the true
+      delivery state, not just the emission event.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-19-001
+    - rel_type: implements
+      spec_id: VP-18-001
