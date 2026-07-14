@@ -109,6 +109,7 @@ groups:
       A flaky test MUST be fixed or removed; it MUST NOT be left in the suite.
   - id: TB-06-007
     priority: MUST
+    kind: implementation
     statement: >-
       Integration tests that exercise multi-actor message flows MUST give each simulated
       actor its own isolated `DataLayer` instance. Tests that share a single `DataLayer`
@@ -124,6 +125,7 @@ groups:
       spec_id: TB-06-001
   - id: TB-06-008
     priority: MUST
+    kind: language
     statement: >-
       BT factories that have probabilistic defaults (e.g., always-succeed or always-fail
       stubs for nodes backed by configurable policies) MUST expose a module-level
@@ -205,7 +207,7 @@ groups:
         infrastructure correctness
 - id: TB-10
   title: Architecture Boundary Tests
-  kind: pattern
+  kind: dev-process
   specs:
   - id: TB-10-001
     priority: SHOULD
@@ -232,7 +234,7 @@ groups:
       spec_id: ARCH-18-001
 - id: TB-12
   title: BT Test Harness
-  kind: pattern
+  kind: language
   specs:
   - id: TB-12-001
     priority: MUST

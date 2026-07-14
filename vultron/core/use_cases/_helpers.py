@@ -352,16 +352,45 @@ def _resolve_case_manager_id(
 ) -> str | None:
     """Return the actor ID of the Case Manager (CVDRole.CASE_MANAGER).
 
-    Iterates over all participants in the case's ``actor_participant_index``
-    and returns the ``attributed_to`` actor ID of the first participant that
-    holds ``CVDRole.CASE_MANAGER``.  Returns ``None`` when no Case Manager
-    participant is found.
+    Checks two participant sources in order:
+
+    1. ``actor_participant_index`` — the fast lookup used after bootstrap
+       (this is the primary path for trigger use cases).
+    2. ``case_participants`` — the canonical list used during bootstrap,
+       where inline participant objects may not yet be indexed.  This path
+       also handles ID-only references that are absent from the index.
+
+    Returns the ``attributed_to`` actor ID of the first participant holding
+    ``CVDRole.CASE_MANAGER``, or ``None`` when none is found.
 
     This is the correct recipient for all participant-originated outbound
     activities after case creation (PCR-08-001, PCR-08-002).
     """
+    # Primary path: fast index lookup (normal post-bootstrap operation).
     for p_id in case.actor_participant_index.values():
         p = dl.read(p_id)
+        if p is None:
+            continue
+        roles = getattr(p, "case_roles", [])
+        if CVDRole.CASE_MANAGER in roles:
+            manager_actor_id = getattr(p, "attributed_to", None)
+            return _as_id(manager_actor_id)
+
+    # Fallback: iterate case_participants for inline objects or IDs not yet
+    # in the index (bootstrap path, CBT-01-003).
+    indexed_participant_ids = set(case.actor_participant_index.values())
+    for participant_ref in case.case_participants:
+        if not isinstance(participant_ref, str):
+            # Inline participant object — no DataLayer read needed.
+            roles = getattr(participant_ref, "case_roles", [])
+            if CVDRole.CASE_MANAGER in roles:
+                attributed = getattr(participant_ref, "attributed_to", None)
+                return _as_id(attributed)
+            continue
+        if participant_ref in indexed_participant_ids:
+            # Already checked via the index; skip to avoid duplicates.
+            continue
+        p = dl.read(participant_ref)
         if p is None:
             continue
         roles = getattr(p, "case_roles", [])

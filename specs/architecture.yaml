@@ -51,6 +51,7 @@ groups:
           all violations be systematically remediated via driven ports.
   - id: ARCH-01-005
     priority: MUST_NOT
+    kind: implementation
     statement: >-
       Production adapters (HTTP routes, CLI commands, MCP server, background workers)
       MUST NOT import from `vultron/demo/`. Demo-layer modules are not part of the
@@ -512,7 +513,7 @@ groups:
       the code.
 - id: ARCH-16
   title: App State Isolation
-  kind: pattern
+  kind: language
   specs:
   - id: ARCH-16-001
     priority: MUST_NOT
@@ -592,7 +593,7 @@ groups:
       spec_id: ARCH-18-001
 - id: ARCH-19
   title: Outbound Delivery Pipeline
-  kind: domain
+  kind: pattern
   specs:
   - id: ARCH-19-001
     priority: MUST

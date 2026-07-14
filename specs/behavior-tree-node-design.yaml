@@ -504,7 +504,7 @@ groups:
       confirm the `AlwaysSuccess` node's `name` ends with `"Skipped"`.
 - id: BTND-09
   title: BT Error Handling Contract
-  kind: pattern
+  kind: language
   specs:
   - id: BTND-09-001
     priority: MUST

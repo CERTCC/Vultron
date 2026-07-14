@@ -168,7 +168,7 @@ groups:
       and MUST NOT be conflated with factory function migration
 - id: AF-09
   title: Activity Translator Port
-  kind: pattern
+  kind: implementation
   specs:
   - id: AF-09-001
     priority: MUST

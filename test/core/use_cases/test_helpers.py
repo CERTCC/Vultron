@@ -36,6 +36,8 @@ Reference: AGENTS.md § "Case Participant Lookup Must Fail Fast on Surface
 Divergence", issue #822, issue #825.
 """
 
+from typing import cast
+
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -44,6 +46,7 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.protocols import CaseModel, is_case_model
 from vultron.core.states.roles import CVDRole
 from vultron.core.use_cases._helpers import (
+    _resolve_case_manager_id,
     resolve_case_participant_id_for_actor,
 )
 from vultron.errors import VultronValidationError
@@ -218,3 +221,150 @@ class TestResolveCaseParticipantIdForActor:
             VultronValidationError, match="multiple participants"
         ):
             resolve_case_participant_id_for_actor(stored, _ACTOR_ID, dl)
+
+
+# ---------------------------------------------------------------------------
+# Tests for _resolve_case_manager_id (consolidated canonical function)
+# ---------------------------------------------------------------------------
+
+_CM_ACTOR_ID = "https://example.org/actors/case-manager-001"
+_CM_CASE_ID = "https://example.org/cases/cm-case-001"
+_CM_PARTICIPANT_ID = f"{_CM_CASE_ID}/participants/case-manager-001"
+_VENDOR_ACTOR_ID = "https://example.org/actors/vendor-002"
+_VENDOR_PARTICIPANT_ID = f"{_CM_CASE_ID}/participants/vendor-002"
+
+
+@pytest.fixture()
+def cm_dl() -> SqliteDataLayer:
+    return SqliteDataLayer("sqlite:///:memory:")
+
+
+@pytest.fixture()
+def cm_participant() -> CaseParticipant:
+    return CaseParticipant(
+        id_=_CM_PARTICIPANT_ID,
+        attributed_to=_CM_ACTOR_ID,
+        context=_CM_CASE_ID,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+
+
+@pytest.fixture()
+def vendor_participant() -> CaseParticipant:
+    return CaseParticipant(
+        id_=_VENDOR_PARTICIPANT_ID,
+        attributed_to=_VENDOR_ACTOR_ID,
+        context=_CM_CASE_ID,
+        case_roles=[CVDRole.VENDOR],
+    )
+
+
+class TestResolveCaseManagerId:
+    """Contract tests for _resolve_case_manager_id (consolidated helper).
+
+    Verifies that the canonical implementation handles:
+    - ID-only participants stored in the DataLayer
+    - Inline participant objects (bootstrap path)
+    - No CASE_MANAGER participant → None
+    - Multiple participants where only one is CASE_MANAGER
+    """
+
+    def test_dl_participant_returns_actor_id(
+        self,
+        cm_dl: SqliteDataLayer,
+        cm_participant: CaseParticipant,
+    ) -> None:
+        """ID-only participant stored in DL: returns attributed_to actor ID."""
+        cm_dl.create(cm_participant)
+        case = VulnerabilityCase(id_=_CM_CASE_ID, name="CM Test")
+        case.case_participants.append(_CM_PARTICIPANT_ID)
+        cm_dl.create(case)
+        stored = cm_dl.read(_CM_CASE_ID)
+        assert is_case_model(stored)
+        result = _resolve_case_manager_id(stored, cm_dl)
+        assert result == _CM_ACTOR_ID
+
+    def test_inline_participant_returns_actor_id(
+        self,
+        cm_dl: SqliteDataLayer,
+        cm_participant: CaseParticipant,
+    ) -> None:
+        """Inline participant object (bootstrap path): returns attributed_to."""
+        case = VulnerabilityCase(id_=_CM_CASE_ID, name="CM Inline Test")
+        case.case_participants.append(cm_participant)  # type: ignore[arg-type]
+        result = _resolve_case_manager_id(cast(CaseModel, case), cm_dl)
+        assert result == _CM_ACTOR_ID
+
+    def test_no_case_manager_returns_none(
+        self,
+        cm_dl: SqliteDataLayer,
+        vendor_participant: CaseParticipant,
+    ) -> None:
+        """No CASE_MANAGER participant: returns None."""
+        cm_dl.create(vendor_participant)
+        case = VulnerabilityCase(id_=_CM_CASE_ID, name="No CM Test")
+        case.case_participants.append(_VENDOR_PARTICIPANT_ID)
+        cm_dl.create(case)
+        stored = cm_dl.read(_CM_CASE_ID)
+        assert is_case_model(stored)
+        result = _resolve_case_manager_id(stored, cm_dl)
+        assert result is None
+
+    def test_empty_case_participants_returns_none(
+        self,
+        cm_dl: SqliteDataLayer,
+    ) -> None:
+        """Empty case_participants: returns None."""
+        case = VulnerabilityCase(id_=_CM_CASE_ID, name="Empty Test")
+        cm_dl.create(case)
+        stored = cm_dl.read(_CM_CASE_ID)
+        assert is_case_model(stored)
+        result = _resolve_case_manager_id(stored, cm_dl)
+        assert result is None
+
+    def test_skips_non_manager_returns_manager(
+        self,
+        cm_dl: SqliteDataLayer,
+        cm_participant: CaseParticipant,
+        vendor_participant: CaseParticipant,
+    ) -> None:
+        """Multiple participants: returns CASE_MANAGER actor ID, skips others."""
+        cm_dl.create(cm_participant)
+        cm_dl.create(vendor_participant)
+        case = VulnerabilityCase(id_=_CM_CASE_ID, name="Multi Test")
+        case.case_participants.append(_VENDOR_PARTICIPANT_ID)
+        case.case_participants.append(_CM_PARTICIPANT_ID)
+        cm_dl.create(case)
+        stored = cm_dl.read(_CM_CASE_ID)
+        assert is_case_model(stored)
+        result = _resolve_case_manager_id(stored, cm_dl)
+        assert result == _CM_ACTOR_ID
+
+    def test_missing_dl_record_skipped(
+        self,
+        cm_dl: SqliteDataLayer,
+    ) -> None:
+        """ID-only reference with no DL record: skipped, returns None."""
+        case = VulnerabilityCase(id_=_CM_CASE_ID, name="Missing DL Test")
+        case.case_participants.append(_CM_PARTICIPANT_ID)  # not in DL
+        cm_dl.create(case)
+        stored = cm_dl.read(_CM_CASE_ID)
+        assert is_case_model(stored)
+        result = _resolve_case_manager_id(stored, cm_dl)
+        assert result is None
+
+    def test_primary_index_path_returns_actor_id(
+        self,
+        cm_dl: SqliteDataLayer,
+        cm_participant: CaseParticipant,
+    ) -> None:
+        """Primary fast-path via actor_participant_index returns actor ID."""
+        cm_dl.create(cm_participant)
+        case = VulnerabilityCase(id_=_CM_CASE_ID, name="Index Fast-Path Test")
+        case.case_participants.append(_CM_PARTICIPANT_ID)
+        case.actor_participant_index[_CM_ACTOR_ID] = _CM_PARTICIPANT_ID
+        cm_dl.create(case)
+        stored = cm_dl.read(_CM_CASE_ID)
+        assert is_case_model(stored)
+        result = _resolve_case_manager_id(stored, cm_dl)
+        assert result == _CM_ACTOR_ID
