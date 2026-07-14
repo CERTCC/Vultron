@@ -38,11 +38,9 @@ from vultron.core.models.participant_status import (
     coerce_cvd_roles,
 )
 from vultron.core.models.protocols import (
-    CaseModel,
     is_case_model,
     is_participant_status_model,
 )
-from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.vultron_types import VultronParticipant
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.roles import CVDRole
@@ -63,11 +61,15 @@ class ResolveParticipantAcceptedStatusNode(DataLayerAction):
         self.participant_actor_id = participant_actor_id
         self.roles = roles
         self.report_id = report_id
+        _seg = report_id.split("/")[-1] if report_id else "default"
+        self._participant_accepted_status_key = (
+            f"participant_accepted_status_{_seg}"
+        )
 
     def setup(self, **kwargs: Any) -> None:
         super().setup(**kwargs)
         self.blackboard.register_key(
-            key="participant_accepted_status",
+            key=self._participant_accepted_status_key,
             access=py_trees.common.Access.WRITE,
         )
 
@@ -76,17 +78,16 @@ class ResolveParticipantAcceptedStatusNode(DataLayerAction):
             self.logger.error("%s: DataLayer not available", self.name)
             return Status.FAILURE
 
-        self.blackboard.participant_accepted_status = (
-            _get_or_create_accepted_status(
-                self.datalayer,
-                self.participant_actor_id,
-                self.report_id,
-                self.name,
-                self.logger,
-                cvd_role=coerce_cvd_roles(self.roles),
-                em_consent_state=PEC.NO_EMBARGO,
-            )
+        result = _get_or_create_accepted_status(
+            self.datalayer,
+            self.participant_actor_id,
+            self.report_id,
+            self.name,
+            self.logger,
+            cvd_role=coerce_cvd_roles(self.roles),
+            em_consent_state=PEC.NO_EMBARGO,
         )
+        setattr(self.blackboard, self._participant_accepted_status_key, result)
         return Status.SUCCESS
 
 
@@ -104,6 +105,9 @@ class CreateParticipantNode(DataLayerAction):
         self.participant_actor_id = participant_actor_id
         self.roles = roles
         _seg = report_id.split("/")[-1] if report_id else "default"
+        self._participant_accepted_status_key = (
+            f"participant_accepted_status_{_seg}"
+        )
         self._new_case_participant_key = f"new_case_participant_{_seg}"
         self._new_participant_id_key = f"new_participant_id_{_seg}"
 
@@ -113,7 +117,7 @@ class CreateParticipantNode(DataLayerAction):
             key="case_id", access=py_trees.common.Access.READ
         )
         self.blackboard.register_key(
-            key="participant_accepted_status",
+            key=self._participant_accepted_status_key,
             access=py_trees.common.Access.READ,
         )
         self.blackboard.register_key(
@@ -131,13 +135,16 @@ class CreateParticipantNode(DataLayerAction):
             self.logger.error("%s: case_id not found in blackboard", self.name)
             return Status.FAILURE
 
-        accepted_status = self.blackboard.get("participant_accepted_status")
+        accepted_status = self.blackboard.get(
+            self._participant_accepted_status_key
+        )
         if accepted_status is not None and not is_participant_status_model(
             accepted_status
         ):
             self.logger.error(
-                "%s: participant_accepted_status has invalid type",
+                "%s: %s has invalid type",
                 self.name,
+                self._participant_accepted_status_key,
             )
             return Status.FAILURE
 
@@ -450,50 +457,4 @@ class QueueAddParticipantNotificationNode(DataLayerAction):
             trigger_activity=self.trigger_activity_factory,
         ):
             return Status.FAILURE
-        return Status.SUCCESS
-
-
-class EnsureReporterParticipantAtAcceptedNode(DataLayerAction):
-    """BT leaf node that seeds or upgrades the reporter participant to RM.ACCEPTED.
-
-    Called from ``CreateCaseReceivedUseCase._handle_bootstrap`` via BTBridge
-    after a ``Create(VulnerabilityCase)`` bootstrap.  When participants arrive
-    as bare string IDs, ``_store_embedded_participants`` cannot create records
-    for them.  This node ensures the reporter's participant record exists at
-    ``RM.ACCEPTED`` — inferred from the fact that they submitted a report (#589,
-    #624).
-
-    Args:
-        link: The ``VultronReportCaseLink`` associating the report to the case.
-        case_obj: The bootstrapped ``VulnerabilityCase`` domain object.
-        case_id: ID of the case (for log context).
-    """
-
-    def __init__(
-        self,
-        link: VultronReportCaseLink,
-        case_obj: CaseModel,
-        case_id: str,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self.link = link
-        self.case_obj = case_obj
-        self.case_id = case_id
-
-    def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
-
-        from vultron.core.use_cases.received.case._helpers import (
-            _ensure_reporter_participant,
-        )
-
-        _ensure_reporter_participant(
-            self.datalayer,
-            self.link,
-            self.case_obj,
-            self.case_id,
-        )
         return Status.SUCCESS

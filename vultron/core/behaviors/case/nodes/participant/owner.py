@@ -103,6 +103,8 @@ class ResolveOwnerInitialStatusNode(DataLayerAction):
         self.report_id = report_id
         self.case_obj = case_obj
         self.initial_rm_state = initial_rm_state
+        _seg = report_id.split("/")[-1] if report_id else "default"
+        self._owner_initial_status_key = f"owner_initial_status_{_seg}"
 
     def setup(self, **kwargs: Any) -> None:
         super().setup(**kwargs)
@@ -110,7 +112,8 @@ class ResolveOwnerInitialStatusNode(DataLayerAction):
             key="case_id", access=py_trees.common.Access.READ
         )
         self.blackboard.register_key(
-            key="owner_initial_status", access=py_trees.common.Access.WRITE
+            key=self._owner_initial_status_key,
+            access=py_trees.common.Access.WRITE,
         )
 
     def update(self) -> Status:
@@ -129,12 +132,16 @@ class ResolveOwnerInitialStatusNode(DataLayerAction):
             self.logger.error("%s: case_id not available", self.name)
             return Status.FAILURE
 
-        self.blackboard.owner_initial_status = _build_owner_initial_status(
-            self.datalayer,
-            self.actor_id,
-            case_id,
-            self.report_id,
-            self.initial_rm_state,
+        setattr(
+            self.blackboard,
+            self._owner_initial_status_key,
+            _build_owner_initial_status(
+                self.datalayer,
+                self.actor_id,
+                case_id,
+                self.report_id,
+                self.initial_rm_state,
+            ),
         )
         return Status.SUCCESS
 
@@ -151,6 +158,7 @@ class CreateOwnerParticipantNode(DataLayerAction):
         super().__init__(name=name or self.__class__.__name__)
         self.actor_config = actor_config
         _seg = report_id.split("/")[-1] if report_id else "default"
+        self._owner_initial_status_key = f"owner_initial_status_{_seg}"
         self._new_case_participant_key = f"new_case_participant_{_seg}"
 
     def setup(self, **kwargs: Any) -> None:
@@ -159,7 +167,8 @@ class CreateOwnerParticipantNode(DataLayerAction):
             key="case_id", access=py_trees.common.Access.READ
         )
         self.blackboard.register_key(
-            key="owner_initial_status", access=py_trees.common.Access.READ
+            key=self._owner_initial_status_key,
+            access=py_trees.common.Access.READ,
         )
         self.blackboard.register_key(
             key=self._new_case_participant_key,
@@ -174,11 +183,12 @@ class CreateOwnerParticipantNode(DataLayerAction):
             case_id_obj = self.blackboard.get("case_id")
         except KeyError:
             case_id_obj = None
-        initial_status = self.blackboard.get("owner_initial_status")
+        initial_status = self.blackboard.get(self._owner_initial_status_key)
         if not isinstance(initial_status, ParticipantStatus):
             self.logger.error(
-                "%s: case_id/owner_initial_status missing in blackboard",
+                "%s: case_id/%s missing in blackboard",
                 self.name,
+                self._owner_initial_status_key,
             )
             return Status.FAILURE
         case_id = case_id_obj
