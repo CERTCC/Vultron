@@ -48,6 +48,10 @@ ENTRYPOINT ["/app/demo-entrypoint.sh"]
 
 FROM dependencies AS dev
 
+# Clear VIRTUAL_ENV so uv resolves the project venv from the workspace path,
+# not /app/.venv (which is valid for app stages but wrong for devcontainer use).
+ENV VIRTUAL_ENV=
+
 # Install dev tooling (git and curl already present from base stage)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     zsh tmux jq unzip sudo ca-certificates \
