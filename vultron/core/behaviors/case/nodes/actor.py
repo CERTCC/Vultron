@@ -120,6 +120,13 @@ class EmitInviteActorToCaseNode(DataLayerAction):
 
         # CM-17-003: read intended roles for the invitee.
         roles = self._read_suggested_roles()
+        if roles is not None and not roles:
+            self.feedback_message = (
+                f"suggested_roles for actor '{self.invitee_id}' is empty "
+                "— cannot emit Invite(Actor, Case) without at least one role"
+            )
+            self.logger.error(self.feedback_message)
+            return Status.FAILURE
 
         # CM-17-002: pass the full case object so the adapter+factory can
         # project it to an enriched stub (with end_time) when em_state==ACTIVE.
@@ -433,31 +440,10 @@ class ProposeCaseToActorNode(DataLayerAction):
 class EvaluateDefaultRolesNode(py_trees.behaviour.Behaviour):
     """Assign default CVD roles for a suggested actor (CM-16-003).
 
-    **ADR-0024 shape: Evaluator** — receives a bounded input (actor + case
-    context via constructor) and writes a bounded recommendation
-    (``suggested_roles_{recommendation_id_segment}``) to the blackboard.
-
-    The blackboard key is namespaced by ``recommendation_id`` to avoid
-    collisions when two ``RecommendActorToCaseBT`` trees execute concurrently
-    (BTND-03-004).
-
-    Prototype behaviour: always writes ``[CVDRole.VENDOR]`` and returns
-    ``SUCCESS``.  Future implementations can inspect actor metadata, prior
-    case history, or external configuration to choose more specific roles.
-
-    Args:
-        suggested_actor_id: The actor URI being suggested to the case.
-        case_id: The case URI, provided as context for future policy logic.
-        recommendation_id: ID of the incoming ``Offer(Actor, Case)`` activity;
-            used to derive the namespaced blackboard key.
-        name: Optional display name for the node.
-
-    Blackboard outputs (WRITE):
-        - ``suggested_roles_{id_segment}`` (list[CVDRole]): always non-empty;
-          defaults to ``[CVDRole.VENDOR]``.  ``id_segment`` is the last
-          ``/``-delimited segment of ``recommendation_id``.
-
-    Returns ``SUCCESS`` unconditionally in the prototype implementation.
+    ADR-0024 Evaluator shape.  Writes ``suggested_roles_{id_segment}``
+    (namespaced by ``recommendation_id``, BTND-03-004) to the blackboard.
+    Prototype writes ``[CVDRole.VENDOR]``.  Subclasses may override
+    ``_compute_roles()``; an empty return produces ``FAILURE`` (AC-1).
     """
 
     logger: logging.Logger  # type: ignore[assignment]
@@ -486,11 +472,24 @@ class EvaluateDefaultRolesNode(py_trees.behaviour.Behaviour):
             key=self.blackboard_key, access=py_trees.common.Access.WRITE
         )
 
+    def _compute_roles(self) -> list[CVDRole]:
+        """Return roles for the suggested actor; override for custom policy."""
+        return [CVDRole.VENDOR]
+
     def update(self) -> Status:
-        setattr(self.blackboard, self.blackboard_key, [CVDRole.VENDOR])
+        roles = self._compute_roles()
+        if not roles:
+            self.feedback_message = (
+                f"{self.name}: _compute_roles() returned an empty list "
+                f"for actor '{self.suggested_actor_id}' — cannot assign roles"
+            )
+            self.logger.error(self.feedback_message)
+            return Status.FAILURE
+        setattr(self.blackboard, self.blackboard_key, roles)
         self.logger.debug(
-            "%s: assigned default roles [VENDOR] for actor '%s' in case '%s'",
+            "%s: assigned roles %s for actor '%s' in case '%s'",
             self.name,
+            roles,
             self.suggested_actor_id,
             self.case_id,
         )

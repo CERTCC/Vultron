@@ -105,7 +105,7 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerAction):
     def _read_suggested_roles(self) -> list[CVDRole]:
         try:
             roles = self.blackboard.get(self.blackboard_key)
-            if isinstance(roles, list) and roles:
+            if isinstance(roles, list):
                 return roles
         except KeyError:
             pass
@@ -125,6 +125,13 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerAction):
             return Status.FAILURE
 
         roles = self._read_suggested_roles()
+        if not roles:
+            self.feedback_message = (
+                f"suggested_roles for actor '{self.recommended_id}' is empty "
+                "— cannot emit Offer(CaseParticipant) without at least one role"
+            )
+            self.logger.error(self.feedback_message)
+            return Status.FAILURE
         try:
             case_obj = self.datalayer.read(self.case_id)
             raw_owner = getattr(case_obj, "attributed_to", None)
