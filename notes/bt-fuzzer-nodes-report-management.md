@@ -248,7 +248,7 @@ models the process of deciding whether to accept (engage with) or defer
   Implementation tracked in FUZZ-08f.
 - **Automation potential**: **High** — event subscription on the case record
   or metadata timestamp comparison; fully automatable.
-- **New-arch cross-ref**: *(to be implemented — see FUZZ-08f)*
+- **New-arch cross-ref**: `vultron.demo.fuzzer.call_out_point.NewPrioritizationInfoSentinel`
 - **Call-out point shape**: Sentinel — registers with a case-event source;
   fires a change-detection signal into the BT blackboard when new
   prioritization-relevant information arrives; no output keys beyond the flag.
@@ -573,7 +573,7 @@ the process of deploying a developed fix or mitigation to affected systems.
   Implementation tracked in FUZZ-08f.
 - **Automation potential**: **High** — event subscription on the patch
   management system or CI/CD pipeline; fully automatable.
-- **New-arch cross-ref**: *(to be implemented — see FUZZ-08f)*
+- **New-arch cross-ref**: `vultron.demo.fuzzer.call_out_point.NewDeploymentInfoSentinel`
 - **Call-out point shape**: Sentinel — registers with a deployment-event
   source; fires a change-detection signal into the BT blackboard when new
   deployment-relevant information arrives; no output keys beyond the flag.

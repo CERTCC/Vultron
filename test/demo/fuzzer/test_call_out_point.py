@@ -31,6 +31,8 @@ from vultron.demo.fuzzer.call_out_point import (
     ActuatorCallOutPoint,
     ComposerCallOutPoint,
     EvaluatorCallOutPoint,
+    NewDeploymentInfoSentinel,
+    NewPrioritizationInfoSentinel,
     NewValidationInfoSentinel,
     RetrieverCallOutPoint,
     SentinelCallOutPoint,
@@ -208,6 +210,14 @@ def test_new_validation_info_sentinel_is_sentinel():
     assert issubclass(NewValidationInfoSentinel, SentinelCallOutPoint)
 
 
+def test_new_prioritization_info_sentinel_is_sentinel():
+    assert issubclass(NewPrioritizationInfoSentinel, SentinelCallOutPoint)
+
+
+def test_new_deployment_info_sentinel_is_sentinel():
+    assert issubclass(NewDeploymentInfoSentinel, SentinelCallOutPoint)
+
+
 # ---------------------------------------------------------------------------
 # All exemplar nodes are py_trees Behaviours
 # ---------------------------------------------------------------------------
@@ -221,6 +231,8 @@ _ALL_EXEMPLARS = [
     OnDefer,
     PrepareReport,
     NewValidationInfoSentinel,
+    NewPrioritizationInfoSentinel,
+    NewDeploymentInfoSentinel,
 ]
 
 
@@ -247,6 +259,22 @@ def test_new_validation_info_sentinel_success_rate():
 
 def test_new_validation_info_sentinel_output_keys_empty():
     assert NewValidationInfoSentinel.output_keys == {}
+
+
+def test_new_prioritization_info_sentinel_success_rate():
+    assert NewPrioritizationInfoSentinel.success_rate == pytest.approx(0.10)
+
+
+def test_new_prioritization_info_sentinel_output_keys_empty():
+    assert NewPrioritizationInfoSentinel.output_keys == {}
+
+
+def test_new_deployment_info_sentinel_success_rate():
+    assert NewDeploymentInfoSentinel.success_rate == pytest.approx(0.10)
+
+
+def test_new_deployment_info_sentinel_output_keys_empty():
+    assert NewDeploymentInfoSentinel.output_keys == {}
 
 
 # ---------------------------------------------------------------------------
