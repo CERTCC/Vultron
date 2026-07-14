@@ -22,6 +22,7 @@ from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.objects.actors import (
     as_Organization,
     as_Person,
+    as_Service,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
@@ -50,6 +51,12 @@ _VENDOR = as_Organization(
 )
 _COORDINATOR = as_Organization(
     name="Coordinator LLC", id_=f"{organization_base_url}/coordinator"
+)
+
+case_actor_base_url = f"{base_url}/case-actors"
+_CASE_ACTOR = as_Service(
+    name="VendorCo Case Actor",
+    id_=f"{case_actor_base_url}/vendorco-case-actor",
 )
 
 _REPORT = VulnerabilityReport(
@@ -93,6 +100,15 @@ def coordinator() -> as_Organization:
     return _COORDINATOR
 
 
+def case_actor() -> as_Service:
+    """
+    Create a CaseActor (Service) object representing the automated case-management service actor.
+    Returns:
+        an as_Service object
+    """
+    return _CASE_ACTOR
+
+
 def case(random_id=False) -> VulnerabilityCase:
     if random_id:
         _case_number = random.randint(10000000, 99999999)
@@ -115,7 +131,7 @@ def gen_report() -> VulnerabilityReport:
 
 
 def initialize_examples(datalayer: DataLayer) -> None:
-    for obj in [_FINDER, _VENDOR, _COORDINATOR, _REPORT]:
+    for obj in [_FINDER, _VENDOR, _COORDINATOR, _CASE_ACTOR, _REPORT]:
         if obj.type_ is None:
             raise ValueError(f"Example object missing type_: {obj}")
         datalayer.create(object_to_record(cast(PersistableModel, obj)))
@@ -179,4 +195,4 @@ def print_obj(obj: as_Base) -> None:
     print(obj.to_json(indent=2))
 
 
-ACTOR_FUNCS = [finder, vendor, coordinator]
+ACTOR_FUNCS = [finder, vendor, coordinator, case_actor]

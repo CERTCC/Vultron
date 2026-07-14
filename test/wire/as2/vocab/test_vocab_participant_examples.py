@@ -25,6 +25,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Reject,
     as_Remove,
 )
+from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import (
@@ -231,6 +232,74 @@ class TestVocabParticipantExamples(unittest.TestCase):
         self.assertIsInstance(activity.object_, _RecommendActorActivity)
         self.assertEqual(activity.target, case.id_)
         self.assertEqual(activity.to, finder.id_)
+
+    def test_case_actor(self):
+        ca = examples.case_actor()
+        self.assertIsInstance(ca, as_Service)
+        self.assertIsNotNone(ca.id_)
+        self.assertIsNotNone(ca.name)
+
+    def test_offer_case_participant(self):
+        activity = examples.offer_case_participant()
+        self.assertIsInstance(activity, as_Activity)
+        ca = examples.case_actor()
+        v = examples.vendor()
+        coordinator = examples.coordinator()
+        c = examples.case()
+
+        self.assertIsInstance(activity, as_Offer)
+        self.assertEqual(activity.type_, "Offer")
+
+        # CaseActor sends the transformed offer to the Case Owner
+        self.assertEqual(activity.actor, ca.id_)
+        self.assertEqual(activity.to, [v.id_])
+
+        participant = cast(CaseParticipant, activity.object_)
+        self.assertIsInstance(participant, CaseParticipant)
+        attr = participant.attributed_to
+        attr_id = getattr(attr, "id_", None) or attr
+        self.assertEqual(attr_id, coordinator.id_)
+        self.assertEqual(activity.target, c.id_)
+        self.assertEqual(activity.context, c.id_)
+        self.assertIsNotNone(activity.origin)
+
+    def test_accept_case_participant_offer(self):
+        activity = examples.accept_case_participant_offer()
+        self.assertIsInstance(activity, as_Activity)
+        ca = examples.case_actor()
+        v = examples.vendor()
+        c = examples.case()
+
+        self.assertIsInstance(activity, as_Accept)
+        self.assertEqual(activity.type_, "Accept")
+
+        # Case Owner accepts and sends back to CaseActor
+        self.assertEqual(activity.actor, v.id_)
+        self.assertEqual(activity.to, [ca.id_])
+        self.assertEqual(activity.target, c.id_)
+        self.assertEqual(activity.context, c.id_)
+
+        offer = cast(as_Offer, activity.object_)
+        self.assertIsInstance(offer, as_Offer)
+
+    def test_reject_case_participant_offer(self):
+        activity = examples.reject_case_participant_offer()
+        self.assertIsInstance(activity, as_Activity)
+        ca = examples.case_actor()
+        v = examples.vendor()
+        c = examples.case()
+
+        self.assertIsInstance(activity, as_Reject)
+        self.assertEqual(activity.type_, "Reject")
+
+        # Case Owner rejects and sends back to CaseActor
+        self.assertEqual(activity.actor, v.id_)
+        self.assertEqual(activity.to, [ca.id_])
+        self.assertEqual(activity.target, c.id_)
+        self.assertEqual(activity.context, c.id_)
+
+        offer = cast(as_Offer, activity.object_)
+        self.assertIsInstance(offer, as_Offer)
 
     def test_remove_participant_from_case(self):
         activity = examples.remove_participant_from_case()
