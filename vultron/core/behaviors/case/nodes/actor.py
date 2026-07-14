@@ -120,6 +120,13 @@ class EmitInviteActorToCaseNode(DataLayerAction):
 
         # CM-17-003: read intended roles for the invitee.
         roles = self._read_suggested_roles()
+        if roles is not None and not roles:
+            self.feedback_message = (
+                f"suggested_roles for actor '{self.invitee_id}' is empty "
+                "— cannot emit Invite(Actor, Case) without at least one role"
+            )
+            self.logger.error(self.feedback_message)
+            return Status.FAILURE
 
         # CM-17-002: pass the full case object so the adapter+factory can
         # project it to an enriched stub (with end_time) when em_state==ACTIVE.

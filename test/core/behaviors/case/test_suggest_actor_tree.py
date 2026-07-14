@@ -337,6 +337,63 @@ class TestEmitOfferCaseParticipantToOwnerNodeEmptyRoles:
         factory.offer_actor_to_case.assert_not_called()
 
 
+class TestEmitInviteActorToCaseNodeEmptyRoles:
+    """Unit tests for the empty-roles guard in EmitInviteActorToCaseNode (CM-17-003)."""
+
+    _CASE_ID_INVITE = "https://example.org/cases/case-invite-1"
+    _INVITEE_ID = "https://example.org/actors/invitee"
+
+    def _node(self):
+        dl = MagicMock()
+        factory = MagicMock()
+        node = EmitInviteActorToCaseNode(
+            invitee_id=self._INVITEE_ID,
+            case_id=self._CASE_ID_INVITE,
+        )
+        writer = py_trees.blackboard.Client(
+            name="test-invite-empty-roles-writer"
+        )
+        writer.register_key(
+            key="datalayer", access=py_trees.common.Access.WRITE
+        )
+        writer.register_key(
+            key="actor_id", access=py_trees.common.Access.WRITE
+        )
+        writer.register_key(
+            key="trigger_activity_factory",
+            access=py_trees.common.Access.WRITE,
+        )
+        writer.datalayer = dl
+        writer.actor_id = _ACTOR_ID
+        writer.trigger_activity_factory = factory
+        node.setup()
+        node.initialise()
+        # Write empty roles list to simulate a caller passing roles=[] via
+        # InviteActorToCaseTriggerRequest.roles=[] → kwargs["suggested_roles"]=[]
+        py_trees.blackboard.Blackboard.storage["/suggested_roles"] = []
+        return node, factory
+
+    def setup_method(self):
+        py_trees.blackboard.Blackboard.enable_activity_stream()
+
+    def teardown_method(self):
+        py_trees.blackboard.Blackboard.disable_activity_stream()
+        py_trees.blackboard.Blackboard.storage.clear()
+
+    def test_returns_failure_when_roles_empty(self):
+        """update() must return FAILURE when suggested_roles is [] (CM-17-003)."""
+        node, _ = self._node()
+        result = node.update()
+        assert result == Status.FAILURE
+        assert node.feedback_message, "feedback_message must be set on FAILURE"
+
+    def test_factory_not_called_when_roles_empty(self):
+        """factory.invite_actor_to_case must not be called with empty roles."""
+        node, factory = self._node()
+        node.update()
+        factory.invite_actor_to_case.assert_not_called()
+
+
 class TestAcceptActorRecommendationReceivedTree:
     """Structural tests for create_accept_actor_recommendation_received_tree."""
 
