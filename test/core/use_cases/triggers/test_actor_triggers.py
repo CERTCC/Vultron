@@ -523,7 +523,11 @@ class TestRolesThreadingIntegration:
         assert (
             participant_id is not None
         ), "invitee must be registered after Accept"
-        return cast(Any, dl.get(id_=participant_id))
+        participant = cast(Any, dl.read(participant_id))
+        assert (
+            participant is not None
+        ), "participant object not found in DataLayer"
+        return participant
 
     def test_ac1_roles_vendor_reaches_participant_case_roles(
         self, make_payload
