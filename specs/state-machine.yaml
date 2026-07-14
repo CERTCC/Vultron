@@ -191,13 +191,16 @@ groups:
     priority: MUST_NOT
     statement: >-
       The CS state machine MUST NOT allow states in the `vF*` pattern (fix-ready,
-      vendor-unaware) or `*fD*` pattern (fix-deployed, fix-not-ready). These 24 states
+      vendor-unaware) or `*fD*` pattern (fix-deployed, fix-not-ready). These 32 states
       are structurally impossible and MUST be rejected at validation time.
     rationale: >-
       A vendor cannot have deployed a fix (`D`) without first having one ready (`F`);
       a fix cannot be ready (`F`) if the vendor is unaware (`v`) of the vulnerability.
       Together, SM-09-001 and this rule reduce the theoretical 64-state CS space to
-      the 40 reachable states: 8 valid VFD combinations × 5 PXA combinations.
+      the 32 reachable CS states: 4 valid VFD combinations (vfd, Vfd, VFd, VFD) ×
+      8 PXA combinations. See `docs/reference/formal_protocol/states.md` for the
+      formal derivation. Note: the "40-state" figure in the formal protocol paper
+      refers to the global case state space (`8 PXA × 5 EM`), not to CS alone.
     relationships:
     - rel_type: refines
       spec_id: SM-09-001
