@@ -1,0 +1,188 @@
+id: CSB
+title: CVD Case State Behavioral Requirements
+description: >-
+  Event-Condition-Action behavioral requirements for CVD Case State (CS)
+  transitions. Each group is triggered by either a received CS message or a
+  local CS state transition. Items are BehavioralSpec entries with typed
+  preconditions and ordered steps where sequencing is normatively required.
+  **Sources**: docs/reference/formal_protocol/transitions.md (CS tables),
+  specs/vultron-protocol-spec.yaml (VP-09, VP-12, VP-14),
+  docs/topics/behavior_logic/msg_cs_bt.md, monitor_threats_bt.md,
+  em_terminate_bt.md.
+  See also: notes/behavioral-conformance-specs.md for design rationale.
+  Note: CSB and EMB (em-behavior.yaml) are developed together because CS
+  cascade chains (e.g. enter-cs-p -> embargo teardown) reference EM behavior
+  directly — separating them would create dangling satisfies relationships.
+version: 0.1.0
+kind: domain
+scope:
+- prototype
+- production
+groups:
+- id: CSB-01
+  title: Receive CV (Vendor Aware)
+  trigger:
+    type: message_received
+    value: CV
+  specs:
+  - id: CSB-01-001
+    priority: MUST
+    statement: >-
+      Placeholder — content to be filled in PR for issue #1425.
+    testable: true
+
+- id: CSB-02
+  title: Receive CF (Fix Ready)
+  trigger:
+    type: message_received
+    value: CF
+  specs:
+  - id: CSB-02-001
+    priority: MUST
+    statement: >-
+      Placeholder — content to be filled in PR for issue #1425.
+    testable: true
+
+- id: CSB-03
+  title: Receive CD (Fix Deployed)
+  trigger:
+    type: message_received
+    value: CD
+  specs:
+  - id: CSB-03-001
+    priority: MUST
+    statement: >-
+      Placeholder — content to be filled in PR for issue #1425.
+    testable: true
+
+- id: CSB-04
+  title: Receive CP (Public Aware)
+  trigger:
+    type: message_received
+    value: CP
+  specs:
+  - id: CSB-04-001
+    priority: MUST
+    statement: >-
+      Placeholder — content to be filled in PR for issue #1425.
+    testable: true
+
+- id: CSB-05
+  title: Receive CX (Exploit Public)
+  trigger:
+    type: message_received
+    value: CX
+  specs:
+  - id: CSB-05-001
+    priority: MUST
+    statement: >-
+      Placeholder — content to be filled in PR for issue #1425.
+    testable: true
+
+- id: CSB-06
+  title: Receive CA (Attacks Observed)
+  trigger:
+    type: message_received
+    value: CA
+  specs:
+  - id: CSB-06-001
+    priority: MUST
+    statement: >-
+      Placeholder — content to be filled in PR for issue #1425.
+    testable: true
+
+- id: CSB-07
+  title: Receive CE (CS Error)
+  trigger:
+    type: message_received
+    value: CE
+  specs:
+  - id: CSB-07-001
+    priority: MUST
+    statement: >-
+      Placeholder — content to be filled in PR for issue #1425.
+    testable: true
+
+- id: CSB-08
+  title: Receive CK (CS Acknowledgment)
+  trigger:
+    type: message_received
+    value: CK
+  specs:
+  - id: CSB-08-001
+    priority: MAY
+    statement: >-
+      Placeholder — content to be filled in PR for issue #1425.
+    testable: true
+
+- id: CSB-09
+  title: Enter CS Vendor Aware (V)
+  trigger:
+    type: state_entered
+    value: CS.V
+  specs:
+  - id: CSB-09-001
+    priority: MUST
+    statement: >-
+      Placeholder — content to be filled in PR for issue #1425.
+    testable: true
+
+- id: CSB-10
+  title: Enter CS Fix Ready (F)
+  trigger:
+    type: state_entered
+    value: CS.F
+  specs:
+  - id: CSB-10-001
+    priority: MUST
+    statement: >-
+      Placeholder — content to be filled in PR for issue #1425.
+    testable: true
+
+- id: CSB-11
+  title: Enter CS Fix Deployed (D)
+  trigger:
+    type: state_entered
+    value: CS.D
+  specs:
+  - id: CSB-11-001
+    priority: MUST
+    statement: >-
+      Placeholder — content to be filled in PR for issue #1425.
+    testable: true
+
+- id: CSB-12
+  title: Enter CS Public Aware (P)
+  trigger:
+    type: state_entered
+    value: CS.P
+  specs:
+  - id: CSB-12-001
+    priority: MUST
+    statement: >-
+      Placeholder — content to be filled in PR for issue #1425.
+    testable: true
+
+- id: CSB-13
+  title: Enter CS Exploit Public (X)
+  trigger:
+    type: state_entered
+    value: CS.X
+  specs:
+  - id: CSB-13-001
+    priority: MUST
+    statement: >-
+      Placeholder — content to be filled in PR for issue #1425.
+    testable: true
+
+- id: CSB-14
+  title: Enter CS Attacks Observed (A)
+  trigger:
+    type: state_entered
+    value: CS.A
+  specs:
+  - id: CSB-14-001
+    priority: MUST
+    statement: >-
+      Placeholder — content to be filled in PR for issue #1425.
+    testable: true

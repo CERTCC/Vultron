@@ -17,6 +17,9 @@ from typing import Annotated, Union
 from pydantic import BaseModel, StringConstraints, field_validator
 
 from vultron.metadata.base import NonEmptyStr
+from vultron.core.states.em import EM
+from vultron.core.states.rm import RM
+from vultron.core.states.roles import CVDRole
 
 SpecIdStr = Annotated[
     str,
@@ -47,6 +50,31 @@ class RelationType(StrEnum):
     VERIFIES = "verifies"
     PART_OF = "part_of"
     CONSTRAINS = "constrains"
+    SATISFIES = "satisfies"
+
+
+class TriggerType(StrEnum):
+    """Enumeration of known behavioral trigger kinds (SR-02-017).
+
+    Enumerating trigger kinds allows a third kind (e.g. ``timer_expired``) to
+    be added explicitly rather than via free text, and lets conformance tooling
+    classify groups without parsing prose.
+    """
+
+    MESSAGE_RECEIVED = "message_received"
+    STATE_ENTERED = "state_entered"
+
+
+class Trigger(BaseModel):
+    """A typed trigger that activates a behavioral spec group (SR-02-018).
+
+    ``type`` identifies the category of trigger; ``value`` names the specific
+    message (e.g. ``"EP"``) or state (e.g. ``"RM.VALID"``) within that
+    category.
+    """
+
+    type: TriggerType
+    value: str
 
 
 class SpecKind(StrEnum):
@@ -183,9 +211,19 @@ class StatementSpec(BaseModel):
 
 
 class Precondition(BaseModel):
-    """A precondition for a behavioral spec."""
+    """A precondition for a behavioral spec (SR-02-019).
 
-    description: str
+    Typed fields reference the stable protocol state-machine enums directly so
+    conformance tooling can evaluate preconditions without parsing prose.
+    At least one field must be provided; ``description`` is a prose fallback
+    for conditions that don't map cleanly to the typed fields.
+    """
+
+    rm_state: list[RM] | None = None
+    em_state: list[EM] | None = None
+    cs_pattern: str | None = None
+    role: list[CVDRole] | None = None
+    description: str | None = None
 
 
 class BehaviorStep(BaseModel):
@@ -227,6 +265,10 @@ class SpecGroup(BaseModel):
 
     ``kind`` and ``scope`` are optional overrides; when absent, values are
     inherited from the containing :class:`SpecFile`.
+
+    ``trigger`` annotates behavioral groups with the event that activates them,
+    enabling conformance tooling to classify groups by trigger kind without
+    parsing prose titles.
     """
 
     id: SpecIdStr
@@ -234,6 +276,7 @@ class SpecGroup(BaseModel):
     description: NonEmptyStr | None = None
     kind: SpecKind | None = None
     scope: list[Scope] | None = None
+    trigger: Trigger | None = None
     specs: list[Spec]
 
     @field_validator("scope")

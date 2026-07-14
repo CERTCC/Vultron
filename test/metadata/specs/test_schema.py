@@ -9,6 +9,9 @@ import pytest
 from pydantic import ValidationError
 
 from vultron.metadata.specs.registry import load_registry
+from vultron.core.states.em import EM
+from vultron.core.states.rm import RM
+from vultron.core.states.roles import CVDRole
 from vultron.metadata.specs.schema import (
     BehavioralSpec,
     BehaviorStep,
@@ -24,6 +27,8 @@ from vultron.metadata.specs.schema import (
     SpecKind,
     SpecTag,
     StatementSpec,
+    Trigger,
+    TriggerType,
 )
 
 # ---------------------------------------------------------------------------
@@ -573,3 +578,227 @@ def test_effective_kind_group_override(tmp_path):
     (tmp_path / "test.yaml").write_text(yaml.dump(data))
     registry = load_registry(tmp_path)
     assert registry.get_effective_kind("TST-01-001") == SpecKind.IMPLEMENTATION
+
+
+# ---------------------------------------------------------------------------
+# RelationType.SATISFIES
+# ---------------------------------------------------------------------------
+
+
+def test_relation_type_satisfies_exists():
+    assert RelationType.SATISFIES == "satisfies"
+
+
+def test_relationship_with_satisfies():
+    rel = Relationship(rel_type=RelationType.SATISFIES, spec_id="VP-02-001")
+    assert rel.rel_type == RelationType.SATISFIES
+    assert rel.spec_id == "VP-02-001"
+
+
+# ---------------------------------------------------------------------------
+# TriggerType and Trigger
+# ---------------------------------------------------------------------------
+
+
+def test_trigger_type_values():
+    assert TriggerType.MESSAGE_RECEIVED == "message_received"
+    assert TriggerType.STATE_ENTERED == "state_entered"
+
+
+def test_trigger_message_received():
+    t = Trigger(type=TriggerType.MESSAGE_RECEIVED, value="EP")
+    assert t.type == TriggerType.MESSAGE_RECEIVED
+    assert t.value == "EP"
+
+
+def test_trigger_state_entered():
+    t = Trigger(type=TriggerType.STATE_ENTERED, value="RM.VALID")
+    assert t.type == TriggerType.STATE_ENTERED
+    assert t.value == "RM.VALID"
+
+
+# ---------------------------------------------------------------------------
+# Precondition typed fields
+# ---------------------------------------------------------------------------
+
+
+def test_precondition_all_typed_fields():
+    p = Precondition(
+        rm_state=[RM.VALID, RM.ACCEPTED],
+        em_state=[EM.NONE],
+        cs_pattern="...pxa",
+        role=[CVDRole.VENDOR],
+        description="Vendor in RM Valid/Accepted, no embargo",
+    )
+    assert p.rm_state == [RM.VALID, RM.ACCEPTED]
+    assert p.em_state == [EM.NONE]
+    assert p.cs_pattern == "...pxa"
+    assert p.role == [CVDRole.VENDOR]
+    assert p.description == "Vendor in RM Valid/Accepted, no embargo"
+
+
+def test_precondition_all_none():
+    p = Precondition()
+    assert p.rm_state is None
+    assert p.em_state is None
+    assert p.cs_pattern is None
+    assert p.role is None
+    assert p.description is None
+
+
+def test_precondition_description_only():
+    p = Precondition(description="CS pattern matches ...pxa")
+    assert p.description == "CS pattern matches ...pxa"
+    assert p.rm_state is None
+
+
+# ---------------------------------------------------------------------------
+# SpecGroup.trigger
+# ---------------------------------------------------------------------------
+
+
+def test_spec_group_with_trigger():
+    group = SpecGroup(
+        id="AB-01",
+        title="Receive EP",
+        trigger=Trigger(type=TriggerType.MESSAGE_RECEIVED, value="EP"),
+        specs=[
+            StatementSpec(
+                id="AB-01-001",
+                priority=RFC2119Priority.MUST,
+                statement="AB-01-001 MUST transition EM to Proposed",
+            )
+        ],
+    )
+    assert group.trigger is not None
+    assert group.trigger.type == TriggerType.MESSAGE_RECEIVED
+    assert group.trigger.value == "EP"
+
+
+def test_spec_group_without_trigger():
+    group = SpecGroup(
+        id="AB-01",
+        title="Some Group",
+        specs=[
+            StatementSpec(
+                id="AB-01-001",
+                priority=RFC2119Priority.MUST,
+                statement="AB-01-001 MUST exist",
+            )
+        ],
+    )
+    assert group.trigger is None
+
+
+# ---------------------------------------------------------------------------
+# BehavioralSpec with all new fields end-to-end
+# ---------------------------------------------------------------------------
+
+
+def test_behavioral_spec_full_new_fields():
+    spec = BehavioralSpec(
+        id="AB-01-001",
+        priority=RFC2119Priority.MUST,
+        statement="On receiving EP while EM is NONE, MUST transition EM to PROPOSED",
+        preconditions=[
+            Precondition(
+                em_state=[EM.NONE],
+                cs_pattern="...pxa",
+                description="Embargo not yet started; CS not yet public",
+            )
+        ],
+        steps=[
+            BehaviorStep(
+                order=1,
+                actor="participant",
+                action="transition EM NONE -> PROPOSED",
+                expected="EM state is PROPOSED",
+            ),
+            BehaviorStep(
+                order=2,
+                actor="participant",
+                action="emit EK",
+                expected="EK queued to sender",
+            ),
+        ],
+        postconditions=[
+            Postcondition(description="EM state is PROPOSED; EK queued")
+        ],
+        relationships=[
+            Relationship(
+                rel_type=RelationType.SATISFIES,
+                spec_id="VP-04-001",
+                note="behavioral detail of embargo proposal receipt",
+            )
+        ],
+    )
+    assert spec.preconditions is not None
+    assert spec.preconditions[0].em_state == [EM.NONE]
+    assert spec.steps is not None and len(spec.steps) == 2
+    assert spec.postconditions is not None
+    assert spec.relationships is not None
+    assert spec.relationships[0].rel_type == RelationType.SATISFIES
+
+
+def test_behavioral_spec_round_trips_through_yaml(tmp_path):
+    data = {
+        "id": "BTB",
+        "title": "Behavioral Test Spec",
+        "description": "Tests BehavioralSpec fields round-trip through YAML",
+        "version": "0.1",
+        "kind": "domain",
+        "scope": ["prototype", "production"],
+        "groups": [
+            {
+                "id": "BTB-01",
+                "title": "Receive EP",
+                "trigger": {
+                    "type": "message_received",
+                    "value": "EP",
+                },
+                "specs": [
+                    {
+                        "id": "BTB-01-001",
+                        "priority": "MUST",
+                        "statement": "MUST transition EM to PROPOSED on EP",
+                        "preconditions": [
+                            {
+                                "em_state": ["NONE"],
+                                "cs_pattern": "...pxa",
+                            }
+                        ],
+                        "steps": [
+                            {
+                                "order": 1,
+                                "actor": "participant",
+                                "action": "transition EM NONE -> PROPOSED",
+                                "expected": "EM is PROPOSED",
+                            }
+                        ],
+                        "postconditions": [
+                            {"description": "EM state is PROPOSED"}
+                        ],
+                        "relationships": [
+                            {
+                                "rel_type": "satisfies",
+                                "spec_id": "VP-04-001",
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+    (tmp_path / "btb.yaml").write_text(yaml.dump(data))
+    registry = load_registry(tmp_path)
+    spec = registry.get("BTB-01-001")
+    assert isinstance(spec, BehavioralSpec)
+    assert spec.preconditions is not None
+    assert spec.preconditions[0].cs_pattern == "...pxa"
+    assert spec.steps is not None and spec.steps[0].order == 1
+    assert spec.relationships is not None
+    assert spec.relationships[0].rel_type == RelationType.SATISFIES
+    group = registry.all_groups["BTB-01"]
+    assert group.trigger is not None
+    assert group.trigger.type == TriggerType.MESSAGE_RECEIVED
+    assert group.trigger.value == "EP"

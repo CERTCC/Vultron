@@ -1,0 +1,187 @@
+id: RMB
+title: Report Management Behavioral Requirements
+description: >-
+  Event-Condition-Action behavioral requirements for Report Management (RM).
+  Each group is triggered by either a received RM message or a local RM state
+  transition. Items are BehavioralSpec entries with typed preconditions and
+  ordered steps where sequencing is normatively required.
+  **Sources**: docs/reference/formal_protocol/transitions.md (RM tables),
+  specs/vultron-protocol-spec.yaml (VP-02, VP-03, VP-13),
+  docs/topics/behavior_logic/rm_bt.md, msg_rm_bt.md, rm_validation_bt.md,
+  rm_prioritization_bt.md, rm_closure_bt.md.
+  See also: notes/behavioral-conformance-specs.md for design rationale.
+version: 0.1.0
+kind: domain
+scope:
+- prototype
+- production
+groups:
+- id: RMB-01
+  title: Receive RS (Report Submission)
+  trigger:
+    type: message_received
+    value: RS
+  specs:
+  - id: RMB-01-001
+    priority: MUST
+    statement: >-
+      A participant receiving RS while in RM Start MUST transition their RM
+      state from Start to Received (q^rm S -> R).
+    rationale: Placeholder — content to be filled in PR for issue #1424.
+    testable: true
+
+- id: RMB-02
+  title: Receive RI (Report Invalid)
+  trigger:
+    type: message_received
+    value: RI
+  specs:
+  - id: RMB-02-001
+    priority: MUST
+    statement: >-
+      Placeholder — content to be filled in PR for issue #1424.
+    testable: true
+
+- id: RMB-03
+  title: Receive RV (Report Valid)
+  trigger:
+    type: message_received
+    value: RV
+  specs:
+  - id: RMB-03-001
+    priority: MUST
+    statement: >-
+      Placeholder — content to be filled in PR for issue #1424.
+    testable: true
+
+- id: RMB-04
+  title: Receive RD (Report Deferred)
+  trigger:
+    type: message_received
+    value: RD
+  specs:
+  - id: RMB-04-001
+    priority: MUST
+    statement: >-
+      Placeholder — content to be filled in PR for issue #1424.
+    testable: true
+
+- id: RMB-05
+  title: Receive RA (Report Accepted)
+  trigger:
+    type: message_received
+    value: RA
+  specs:
+  - id: RMB-05-001
+    priority: MUST
+    statement: >-
+      Placeholder — content to be filled in PR for issue #1424.
+    testable: true
+
+- id: RMB-06
+  title: Receive RC (Report Closed)
+  trigger:
+    type: message_received
+    value: RC
+  specs:
+  - id: RMB-06-001
+    priority: MUST
+    statement: >-
+      Placeholder — content to be filled in PR for issue #1424.
+    testable: true
+
+- id: RMB-07
+  title: Receive RE (Report Error)
+  trigger:
+    type: message_received
+    value: RE
+  specs:
+  - id: RMB-07-001
+    priority: MUST
+    statement: >-
+      Placeholder — content to be filled in PR for issue #1424.
+    testable: true
+
+- id: RMB-08
+  title: Receive RK (Report Acknowledgment)
+  trigger:
+    type: message_received
+    value: RK
+  specs:
+  - id: RMB-08-001
+    priority: MAY
+    statement: >-
+      Placeholder — content to be filled in PR for issue #1424.
+    testable: true
+
+- id: RMB-09
+  title: Enter RM Received
+  trigger:
+    type: state_entered
+    value: RM.RECEIVED
+  specs:
+  - id: RMB-09-001
+    priority: MUST
+    statement: >-
+      Placeholder — content to be filled in PR for issue #1424.
+    testable: true
+
+- id: RMB-10
+  title: Enter RM Valid
+  trigger:
+    type: state_entered
+    value: RM.VALID
+  specs:
+  - id: RMB-10-001
+    priority: MUST
+    statement: >-
+      Placeholder — content to be filled in PR for issue #1424.
+    testable: true
+
+- id: RMB-11
+  title: Enter RM Invalid
+  trigger:
+    type: state_entered
+    value: RM.INVALID
+  specs:
+  - id: RMB-11-001
+    priority: MUST
+    statement: >-
+      Placeholder — content to be filled in PR for issue #1424.
+    testable: true
+
+- id: RMB-12
+  title: Enter RM Deferred
+  trigger:
+    type: state_entered
+    value: RM.DEFERRED
+  specs:
+  - id: RMB-12-001
+    priority: MUST
+    statement: >-
+      Placeholder — content to be filled in PR for issue #1424.
+    testable: true
+
+- id: RMB-13
+  title: Enter RM Accepted
+  trigger:
+    type: state_entered
+    value: RM.ACCEPTED
+  specs:
+  - id: RMB-13-001
+    priority: MUST
+    statement: >-
+      Placeholder — content to be filled in PR for issue #1424.
+    testable: true
+
+- id: RMB-14
+  title: Enter RM Closed
+  trigger:
+    type: state_entered
+    value: RM.CLOSED
+  specs:
+  - id: RMB-14-001
+    priority: MAY
+    statement: >-
+      Placeholder — content to be filled in PR for issue #1424.
+    testable: true

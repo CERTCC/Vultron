@@ -153,6 +153,19 @@ evaluating the relay/journal delivery architecture.
 
 ---
 
+## Protocol Conformance and Behavioral Specs
+
+**`behavioral-conformance-specs.md`**
+Design rationale and implementation plan for the behavioral conformance spec
+layer (RMB, EMB, CSB): ECA rules, schema extensions (`TriggerType`, `Trigger`,
+typed `Precondition`), conformance level framing (L1–L4), PR sequence, and
+primary sources for spec content.
+**Load when**: implementing or reviewing `specs/rm-behavior.yaml`,
+`specs/em-behavior.yaml`, or `specs/cs-behavior.yaml`; extending the spec
+schema for behavioral specs; or drafting docs updates for behavior logic.
+
+---
+
 ## Protocol Semantics and Behavior Trees
 
 **`activitystreams-semantics.md`**
