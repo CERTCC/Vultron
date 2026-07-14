@@ -105,6 +105,9 @@ templates and escalation patterns.
 
 ## Phase 3 — Implement
 
+See `.claude/skills/shared/completeness-doctrine.md` for the project standard
+on what "done" means — loaded by `orient-agent` in Phase 1.
+
 Once shared understanding is confirmed, invoke `deepen-context` with
 focus hints from Phase 2 (e.g., `"wire layer"`, `"BT integration"`), then:
 
@@ -112,10 +115,18 @@ focus hints from Phase 2 (e.g., `"wire layer"`, `"BT integration"`), then:
    bug exists as understood. Do not assume; confirm via code search.
 
 2. **Reproduce with a Failing Test** — Add or modify a test that fails due to
-   the bug. Confirm the test fails before implementing the fix.
+   the bug. Confirm the test fails before implementing the fix. A bug fix
+   without a regression test is not a bug fix.
 
-3. **Implement the Fix** — Modify only the code required to resolve the bug.
-   Follow all project conventions.
+   **Regression test exception**: if test infrastructure cost is genuinely
+   disproportionate (requires long-running infrastructure or complex setup far
+   exceeding the fix's scope), skip the test but create a follow-up GitHub Bug
+   issue explaining the specific reason. Do not silently omit the test.
+
+3. **Fix the Root Cause** — Fix what actually caused the bug, not just the
+   symptom. If the root cause is provably out of scope, fix the symptom anyway
+   but create a Bug issue for the root cause before closing this one. Never
+   ship a symptom-only fix without documenting the underlying cause.
 
 4. **Iterate** — Invoke `format-code`, `run-linters`, `run-tests`; refine
    until all relevant tests pass.

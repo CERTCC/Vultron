@@ -162,11 +162,29 @@ Invoke `deepen-context` with focus hints derived from the issue body
 
 ### Phase 5 — Implement
 
-1. Implement only the selected task.
-2. Follow project conventions; keep the change focused.
-3. Add or update tests for new or changed behavior.
+See `.claude/skills/shared/completeness-doctrine.md` for the project standard
+on what "done" means — loaded by `orient-agent` in Phase 1.
+
+1. Implement the full intent of the selected task, not just the happy path.
+   Edge cases, error handling, and type correctness are part of the task, not
+   optional add-ons.
+2. Follow project conventions. "Keep the change focused" means do not expand
+   into adjacent unscoped work — it does not mean implement less than the task
+   requires.
+3. Add or update tests for every new or changed behavior. A behavior with no
+   test is not done.
 4. Reuse existing helpers and keep the implementation DRY.
 5. Sub-agents may help, but main-agent validation is mandatory.
+
+**Scope expansion judgment:** If implementing this task reveals adjacent work
+that clearly belongs with it, apply the following:
+
+- Would it require a new GitHub issue, a design decision, or an irreversible
+  change? → Ask the user if present. If unattended, make the best-judgment
+  call, record the rationale as a learning file in `plan/incoming/learnings/`,
+  and continue.
+- Trivially additive (clearly-missing test, obvious type annotation fix)?
+  → Just do it.
 
 ### Phase 6 — Validate
 
@@ -199,8 +217,20 @@ Invoke `deepen-context` with focus hints derived from the issue body
 ### Phase 7 — Pre-PR Code Review
 
 Invoke the `code-review` agent against the current branch diff vs `main`.
-Findings are tagged `[BLOCKING]` (fix before continuing) or `[ADVISORY]`
-(log in PR comment after opening).
+
+Findings use the three-category system from
+`.claude/skills/shared/completeness-doctrine.md`:
+
+- **FAIL** — broken, spec violated, changed behavior untested → fix before
+  the PR opens
+- **IMPROVE** — correct but incomplete → fix in this session, document in the
+  PR body
+- **DEFER** — genuinely out of scope → requires creating a follow-up GitHub
+  issue immediately; surface to the user for acknowledgment; do not defer
+  unilaterally
+
+There is no "ADVISORY" category that can be logged and forgotten. Every
+finding is either fixed here or gated via DEFER.
 
 Because this phase runs before the final commit, `git diff main...HEAD` may
 be empty if changes are unstaged. Stage all changed files first (`git add`),
