@@ -970,10 +970,18 @@ groups:
   - id: CM-18-002
     priority: MUST
     statement: >-
-      The `INVITED → LAPSED` transition MUST be driven by a timer expiry, not by a
-      participant action. The timer period MUST be derived from the embargo's `end_time`
-      (or a configured grace period). The pocket veto materialises only when the timer
-      fires without a prior `INVITED → SIGNATORY` or `INVITED → DECLINED` transition.
+      The `INVITED → DECLINED` and `LAPSED → DECLINED` transitions MAY be driven by a
+      timer expiry (pocket veto) rather than requiring an explicit participant action.
+      The timer period SHOULD be a configurable policy window (default: 7 days). The
+      pocket veto materialises when the timer fires without a prior acceptance; the
+      system records the transition to `DECLINED` as if the participant had declined.
+      The `SIGNATORY → LAPSED` transition is NOT timer-based: it fires when the embargo
+      enters the `REVISE` state, invalidating prior consent for the new terms.
+    rationale: >-
+      Per `notes/participant-embargo-consent.md`: `LAPSED` means "embargo terms changed;
+      prior consent no longer applies." `DECLINED` includes both explicit refusals and
+      timeout-based implicit refusals. Confusing `LAPSED` with the timer path is a
+      known documentation pitfall.
   - id: CM-18-003
     priority: MUST
     statement: >-
