@@ -145,6 +145,21 @@ groups:
       spec_id: VP-11-004
     - rel_type: implements
       spec_id: VP-11-005
+  - id: RF-08-002
+    priority: MUST
+    statement: >-
+      The `inReplyTo` field requirement MUST be enforced at the Pydantic model level via a
+      `model_validator` on `Accept`, `Reject`, and other response activity classes, not by
+      call-site convention. The validator MUST reject a response object that has a `None` or
+      missing `inReplyTo` at construction time.
+    rationale: >-
+      Call-site convention (setting `inReplyTo` manually at every factory call site) is
+      fragile: new factory paths can forget it, and there is no compile-time or model-validation
+      enforcement. A `model_validator` makes the invariant intrinsic to the type and
+      impossible to bypass silently.
+    relationships:
+    - rel_type: refines
+      spec_id: RF-08-001
 - id: RF-09
   title: Idempotent Responses
   specs:
