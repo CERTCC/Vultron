@@ -240,6 +240,23 @@ groups:
     statement: Future optimizations MAY introduce resource-level locking
     scope:
     - production
+  - id: BT-11-004
+    priority: MUST
+    statement: >-
+      `BTBridge` MUST acquire a `threading.RLock` (re-entrant lock), not a plain
+      `threading.Lock`, when serializing BT execution. Any code path in which
+      `execute_with_setup()` calls back into `BTBridge` (directly or transitively)
+      will deadlock with a plain `Lock` because the same thread attempts to acquire
+      a non-reentrant lock it already holds.
+    rationale: >-
+      `BTBridge.execute_with_setup()` invokes user-supplied setup and teardown hooks.
+      In integration and demo scenarios these hooks may trigger secondary BT executions
+      via the same bridge instance. A plain `Lock` would deadlock on the second
+      acquisition from the same thread. An `RLock` allows re-entry by the owning thread
+      while still blocking other threads.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-11-001
 - id: BT-13
   title: BT Failure Diagnosis
   kind: implementation
