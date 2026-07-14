@@ -151,7 +151,7 @@ groups:
     statement: >-
       Exchange demos located under `vultron/demo/exchange/` MAY use direct inbox injection
       (constructing and posting raw ActivityStreams JSON) to simulate the receipt of a
-      specific wire message. Scenario demos under `vultron/demo/scenarios/` MUST NOT use
+      specific wire message. Scenario demos under `vultron/demo/scenario/` MUST NOT use
       direct inbox injection (DEMOMA-05-001 and DEMOMA-05-002 apply without exception to
       scenario demos).
     rationale: >-
