@@ -110,7 +110,12 @@ def create_create_case_tree(
             PersistCase(case_obj=case_obj),
             RecordCaseCreationEvents(case_obj=case_obj),
             CreateCaseOwnerParticipant(
-                case_obj=case_obj, actor_config=actor_config
+                case_obj=case_obj,
+                actor_config=actor_config,
+                # No report_id in this flow; use case ID as the namespace
+                # segment so concurrent create-case executions don't share
+                # blackboard keys (BTND-03-004).
+                report_id=case_obj.id_,
             ),
             CreateCaseActorNode(case_id=case_id),
             ProposeCaseToActorNode(),

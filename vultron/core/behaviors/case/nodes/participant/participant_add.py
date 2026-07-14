@@ -97,11 +97,15 @@ class CreateParticipantNode(DataLayerAction):
         self,
         participant_actor_id: str,
         roles: list[CVDRole],
+        report_id: str | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.participant_actor_id = participant_actor_id
         self.roles = roles
+        _seg = report_id.split("/")[-1] if report_id else "default"
+        self._new_case_participant_key = f"new_case_participant_{_seg}"
+        self._new_participant_id_key = f"new_participant_id_{_seg}"
 
     def setup(self, **kwargs: Any) -> None:
         super().setup(**kwargs)
@@ -113,11 +117,11 @@ class CreateParticipantNode(DataLayerAction):
             access=py_trees.common.Access.READ,
         )
         self.blackboard.register_key(
-            key="new_case_participant",
+            key=self._new_case_participant_key,
             access=py_trees.common.Access.WRITE,
         )
         self.blackboard.register_key(
-            key="new_participant_id",
+            key=self._new_participant_id_key,
             access=py_trees.common.Access.WRITE,
         )
 
@@ -147,17 +151,25 @@ class CreateParticipantNode(DataLayerAction):
                 else []
             ),
         )
-        self.blackboard.new_case_participant = participant
-        self.blackboard.new_participant_id = participant.id_
+        setattr(self.blackboard, self._new_case_participant_key, participant)
+        setattr(self.blackboard, self._new_participant_id_key, participant.id_)
         return Status.SUCCESS
 
 
 class AttachParticipantToCaseNode(DataLayerAction):
     """Attach the participant to case surfaces and persist the participant row."""
 
-    def __init__(self, participant_actor_id: str, name: str | None = None):
+    def __init__(
+        self,
+        participant_actor_id: str,
+        report_id: str | None = None,
+        name: str | None = None,
+    ):
         super().__init__(name=name or self.__class__.__name__)
         self.participant_actor_id = participant_actor_id
+        _seg = report_id.split("/")[-1] if report_id else "default"
+        self._new_case_participant_key = f"new_case_participant_{_seg}"
+        self._participant_case_key = f"participant_case_{_seg}"
 
     def setup(self, **kwargs: Any) -> None:
         super().setup(**kwargs)
@@ -165,11 +177,11 @@ class AttachParticipantToCaseNode(DataLayerAction):
             key="case_id", access=py_trees.common.Access.READ
         )
         self.blackboard.register_key(
-            key="new_case_participant",
+            key=self._new_case_participant_key,
             access=py_trees.common.Access.READ,
         )
         self.blackboard.register_key(
-            key="participant_case",
+            key=self._participant_case_key,
             access=py_trees.common.Access.WRITE,
         )
 
@@ -179,14 +191,15 @@ class AttachParticipantToCaseNode(DataLayerAction):
             return Status.FAILURE
 
         case_id = self.blackboard.get("case_id")
-        participant = self.blackboard.get("new_case_participant")
+        participant = self.blackboard.get(self._new_case_participant_key)
         if not isinstance(case_id, str):
             self.logger.error("%s: case_id not found in blackboard", self.name)
             return Status.FAILURE
         if not isinstance(participant, VultronParticipant):
             self.logger.error(
-                "%s: new_case_participant not found in blackboard",
+                "%s: %s not found in blackboard",
                 self.name,
+                self._new_case_participant_key,
             )
             return Status.FAILURE
 
@@ -205,24 +218,29 @@ class AttachParticipantToCaseNode(DataLayerAction):
             )
             return Status.FAILURE
 
-        self.blackboard.participant_case = stored_case
+        setattr(self.blackboard, self._participant_case_key, stored_case)
         return Status.SUCCESS
 
 
 class RecordParticipantAddedEventNode(DataLayerAction):
     """Record participant_added event and persist case updates."""
 
-    def __init__(self, name: str | None = None) -> None:
+    def __init__(
+        self, report_id: str | None = None, name: str | None = None
+    ) -> None:
         super().__init__(name=name or self.__class__.__name__)
+        _seg = report_id.split("/")[-1] if report_id else "default"
+        self._participant_case_key = f"participant_case_{_seg}"
+        self._new_participant_id_key = f"new_participant_id_{_seg}"
 
     def setup(self, **kwargs: Any) -> None:
         super().setup(**kwargs)
         self.blackboard.register_key(
-            key="participant_case",
+            key=self._participant_case_key,
             access=py_trees.common.Access.READ,
         )
         self.blackboard.register_key(
-            key="new_participant_id",
+            key=self._new_participant_id_key,
             access=py_trees.common.Access.READ,
         )
 
@@ -231,14 +249,16 @@ class RecordParticipantAddedEventNode(DataLayerAction):
             self.logger.error("%s: DataLayer not available", self.name)
             return Status.FAILURE
 
-        stored_case = self.blackboard.get("participant_case")
-        participant_id = self.blackboard.get("new_participant_id")
+        stored_case = self.blackboard.get(self._participant_case_key)
+        participant_id = self.blackboard.get(self._new_participant_id_key)
         if not is_case_model(stored_case) or not isinstance(
             participant_id, str
         ):
             self.logger.error(
-                "%s: participant_case/new_participant_id missing in blackboard",
+                "%s: %s/%s missing in blackboard",
                 self.name,
+                self._participant_case_key,
+                self._new_participant_id_key,
             )
             return Status.FAILURE
 
@@ -249,21 +269,27 @@ class RecordParticipantAddedEventNode(DataLayerAction):
 class CaseHasActiveEmbargoNode(DataLayerAction):
     """Condition node: SUCCESS when the case has an active embargo."""
 
-    def __init__(self, name: str | None = None) -> None:
+    def __init__(
+        self, report_id: str | None = None, name: str | None = None
+    ) -> None:
         super().__init__(name=name or self.__class__.__name__)
+        _seg = report_id.split("/")[-1] if report_id else "default"
+        self._participant_case_key = f"participant_case_{_seg}"
 
     def setup(self, **kwargs: Any) -> None:
         super().setup(**kwargs)
         self.blackboard.register_key(
-            key="participant_case",
+            key=self._participant_case_key,
             access=py_trees.common.Access.READ,
         )
 
     def update(self) -> Status:
-        stored_case = self.blackboard.get("participant_case")
+        stored_case = self.blackboard.get(self._participant_case_key)
         if not is_case_model(stored_case):
             self.logger.error(
-                "%s: participant_case missing in blackboard", self.name
+                "%s: %s missing in blackboard",
+                self.name,
+                self._participant_case_key,
             )
             return Status.FAILURE
         return (
@@ -276,21 +302,27 @@ class CaseHasActiveEmbargoNode(DataLayerAction):
 class CaseHasNoActiveEmbargoNode(DataLayerAction):
     """Condition node: SUCCESS when no active embargo exists for this case."""
 
-    def __init__(self, name: str | None = None) -> None:
+    def __init__(
+        self, report_id: str | None = None, name: str | None = None
+    ) -> None:
         super().__init__(name=name or self.__class__.__name__)
+        _seg = report_id.split("/")[-1] if report_id else "default"
+        self._participant_case_key = f"participant_case_{_seg}"
 
     def setup(self, **kwargs: Any) -> None:
         super().setup(**kwargs)
         self.blackboard.register_key(
-            key="participant_case",
+            key=self._participant_case_key,
             access=py_trees.common.Access.READ,
         )
 
     def update(self) -> Status:
-        stored_case = self.blackboard.get("participant_case")
+        stored_case = self.blackboard.get(self._participant_case_key)
         if not is_case_model(stored_case):
             self.logger.error(
-                "%s: participant_case missing in blackboard", self.name
+                "%s: %s missing in blackboard",
+                self.name,
+                self._participant_case_key,
             )
             return Status.FAILURE
         return (
@@ -303,18 +335,26 @@ class CaseHasNoActiveEmbargoNode(DataLayerAction):
 class SeedParticipantAsSignatoryNode(DataLayerAction):
     """Seed the new participant as SIGNATORY when an embargo is active."""
 
-    def __init__(self, participant_actor_id: str, name: str | None = None):
+    def __init__(
+        self,
+        participant_actor_id: str,
+        report_id: str | None = None,
+        name: str | None = None,
+    ):
         super().__init__(name=name or self.__class__.__name__)
         self.participant_actor_id = participant_actor_id
+        _seg = report_id.split("/")[-1] if report_id else "default"
+        self._participant_case_key = f"participant_case_{_seg}"
+        self._new_case_participant_key = f"new_case_participant_{_seg}"
 
     def setup(self, **kwargs: Any) -> None:
         super().setup(**kwargs)
         self.blackboard.register_key(
-            key="participant_case",
+            key=self._participant_case_key,
             access=py_trees.common.Access.READ,
         )
         self.blackboard.register_key(
-            key="new_case_participant",
+            key=self._new_case_participant_key,
             access=py_trees.common.Access.READ,
         )
 
@@ -323,14 +363,16 @@ class SeedParticipantAsSignatoryNode(DataLayerAction):
             self.logger.error("%s: DataLayer not available", self.name)
             return Status.FAILURE
 
-        stored_case = self.blackboard.get("participant_case")
-        participant = self.blackboard.get("new_case_participant")
+        stored_case = self.blackboard.get(self._participant_case_key)
+        participant = self.blackboard.get(self._new_case_participant_key)
         if not is_case_model(stored_case) or not isinstance(
             participant, VultronParticipant
         ):
             self.logger.error(
-                "%s: participant_case/new_case_participant missing in blackboard",
+                "%s: %s/%s missing in blackboard",
                 self.name,
+                self._participant_case_key,
+                self._new_case_participant_key,
             )
             return Status.FAILURE
 
@@ -359,9 +401,16 @@ class SeedParticipantAsSignatoryNode(DataLayerAction):
 class QueueAddParticipantNotificationNode(DataLayerAction):
     """Queue Add(CaseParticipant) outbox notification for the sender actor."""
 
-    def __init__(self, participant_actor_id: str, name: str | None = None):
+    def __init__(
+        self,
+        participant_actor_id: str,
+        report_id: str | None = None,
+        name: str | None = None,
+    ):
         super().__init__(name=name or self.__class__.__name__)
         self.participant_actor_id = participant_actor_id
+        _seg = report_id.split("/")[-1] if report_id else "default"
+        self._new_participant_id_key = f"new_participant_id_{_seg}"
 
     def setup(self, **kwargs: Any) -> None:
         super().setup(**kwargs)
@@ -369,7 +418,7 @@ class QueueAddParticipantNotificationNode(DataLayerAction):
             key="case_id", access=py_trees.common.Access.READ
         )
         self.blackboard.register_key(
-            key="new_participant_id",
+            key=self._new_participant_id_key,
             access=py_trees.common.Access.READ,
         )
 
@@ -381,11 +430,12 @@ class QueueAddParticipantNotificationNode(DataLayerAction):
             return Status.FAILURE
 
         case_id = self.blackboard.get("case_id")
-        participant_id = self.blackboard.get("new_participant_id")
+        participant_id = self.blackboard.get(self._new_participant_id_key)
         if not isinstance(case_id, str) or not isinstance(participant_id, str):
             self.logger.error(
-                "%s: case_id/new_participant_id not found in blackboard",
+                "%s: case_id/%s not found in blackboard",
                 self.name,
+                self._new_participant_id_key,
             )
             return Status.FAILURE
 
