@@ -62,3 +62,37 @@ def test_create_publication_tree_node_name_is_prepare_report():
     """Default node name is 'PrepareReport'."""
     tree = create_publication_tree(case_id=CASE_ID)
     assert tree.name == "PrepareReport"
+
+
+def test_publish_factory_accepted():
+    """publish_factory is accepted (Phase 2 reserved, BT-18-004)."""
+    tree = create_publication_tree(case_id=CASE_ID)
+    assert tree is not None
+
+
+def test_publish_default_factory_produces_correct_node():
+    """Default publish_factory produces a Publish node."""
+    from vultron.core.behaviors.report.publication_tree import (
+        _default_publish_factory,
+    )
+    from vultron.demo.fuzzer.report_management.publication import Publish
+
+    node = _default_publish_factory("Publish")
+    assert isinstance(node, Publish)
+
+
+def test_publish_custom_factory_accepted():
+    """A custom publish_factory is accepted without error."""
+
+    def custom_factory(name):
+        class _Marker(py_trees.behaviour.Behaviour):
+            def update(self):
+                return py_trees.common.Status.SUCCESS
+
+        return _Marker(name="CustomPublish")
+
+    tree = create_publication_tree(
+        case_id=CASE_ID,
+        publish_factory=custom_factory,
+    )
+    assert tree is not None

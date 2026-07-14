@@ -63,3 +63,39 @@ def test_custom_factory_used():
     assert sentinel["called"]
     assert tree.name == "CustomOtherClose"
     assert not isinstance(tree, OtherCloseCriteriaMet)
+
+
+def test_pre_close_action_factory_accepted():
+    """pre_close_action_factory is accepted (Phase 2 reserved, BT-18-004)."""
+    tree = create_close_report_tree(case_id=CASE_ID)
+    assert tree is not None
+
+
+def test_pre_close_action_default_factory_produces_correct_node():
+    """Default pre_close_action_factory produces a PreCloseAction node."""
+    from vultron.core.behaviors.report.close_report_tree import (
+        _default_pre_close_action_factory,
+    )
+    from vultron.demo.fuzzer.report_management.close_report import (
+        PreCloseAction,
+    )
+
+    node = _default_pre_close_action_factory("PreCloseAction")
+    assert isinstance(node, PreCloseAction)
+
+
+def test_pre_close_action_custom_factory_accepted():
+    """A custom pre_close_action_factory is accepted without error."""
+
+    def custom_factory(name):
+        class _Marker(py_trees.behaviour.Behaviour):
+            def update(self):
+                return py_trees.common.Status.SUCCESS
+
+        return _Marker(name="CustomPreClose")
+
+    tree = create_close_report_tree(
+        case_id=CASE_ID,
+        pre_close_action_factory=custom_factory,
+    )
+    assert tree is not None

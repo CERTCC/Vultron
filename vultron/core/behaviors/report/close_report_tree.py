@@ -14,10 +14,16 @@
 """Report closure behavior tree composition (Phase 1 stub).
 
 This module provides :func:`create_close_report_tree`, which hosts the
-``OtherCloseCriteriaMet`` call-out point wired per ADR-0025 / BT-18-004.
+close-report call-out points wired per ADR-0025 / BT-18-004:
 
-Phase 1 contains only the injectable call-out point as a stub tree.
-The full close-report workflow (deployed/deferred/invalid short-circuit
+Evaluator node:
+- ``OtherCloseCriteriaMet``
+
+Actuator node (reserved for Phase 2 — accepted but not yet wired):
+- ``PreCloseAction``
+
+Phase 1 contains only the ``OtherCloseCriteriaMet`` Evaluator as a stub
+tree.  The full close-report workflow (deployed/deferred/invalid short-circuit
 arms, pre-close actions) is deferred to a future issue.
 
 References
@@ -45,26 +51,45 @@ def _default_other_close_criteria_factory(
     return OtherCloseCriteriaMet(name)
 
 
+def _default_pre_close_action_factory(
+    name: str,
+) -> py_trees.behaviour.Behaviour:
+    from vultron.demo.fuzzer.report_management.close_report import (
+        PreCloseAction,
+    )
+
+    return PreCloseAction(name)
+
+
 def create_close_report_tree(
     case_id: str,
     other_close_criteria_factory: CallOutBackendFactory = _default_other_close_criteria_factory,
+    pre_close_action_factory: CallOutBackendFactory = _default_pre_close_action_factory,
 ) -> py_trees.behaviour.Behaviour:
     """Create behavior tree for the report closure workflow (Phase 1 stub).
 
     Phase 1 exposes the ``OtherCloseCriteriaMet`` Evaluator call-out point
-    as a stub root node.  The full workflow (deployed/deferred/invalid
-    short-circuit arms, pre-close actions, RM state transition) is deferred
-    to a future issue.
+    as a stub root node.  The ``pre_close_action_factory`` Actuator parameter
+    is accepted for BT-18-004 compliance but reserved for Phase 2 when the
+    full pre-close sequence is built.  The full workflow (deployed/deferred/
+    invalid short-circuit arms, pre-close actions, RM state transition) is
+    deferred to a future issue.
 
     Args:
         case_id: ID of VulnerabilityCase being processed.
         other_close_criteria_factory: Factory for the Evaluator call-out point
             that checks whether site-specific closure criteria have been met.
             Defaults to the fuzzer backend (BT-18-004).
+        pre_close_action_factory: Factory for the Actuator call-out point that
+            performs required actions before closing the report.  Reserved for
+            Phase 2; accepted but not yet wired into the Phase 1 tree body
+            (BT-18-004).
 
     Returns:
         Root node of the close-report behavior tree (Phase 1 stub).
     """
+    # Phase 2: pre_close_action_factory is reserved for the full pre-close
+    # sequence.  Accepting it here satisfies BT-18-004 without breaking callers.
     root = other_close_criteria_factory("OtherCloseCriteriaMet")
     logger.info(f"Created CloseReportBT (Phase 1 stub) for case={case_id}")
     return root

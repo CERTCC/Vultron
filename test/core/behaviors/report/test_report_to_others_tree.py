@@ -103,3 +103,61 @@ def test_all_factories_replaceable():
     tree_str = py_trees.display.ascii_tree(tree)
     for label in ("APK", "REE", "PC", "TEL"):
         assert label in tree_str
+
+
+# ---------------------------------------------------------------------------
+# Actuator factory params — Phase 2 reserved (BT-18-004)
+# ---------------------------------------------------------------------------
+
+
+def test_actuator_factories_accepted():
+    """All three Actuator factory params are accepted (Phase 2 reserved)."""
+    tree = create_report_to_others_tree(case_id=CASE_ID)
+    assert tree is not None
+
+
+def test_remove_recipient_default_factory_produces_correct_node():
+    from vultron.core.behaviors.report.report_to_others_tree import (
+        _default_remove_recipient_factory,
+    )
+    from vultron.demo.fuzzer.report_management.report_to_others import (
+        RemoveRecipient,
+    )
+
+    node = _default_remove_recipient_factory("RemoveRecipient")
+    assert isinstance(node, RemoveRecipient)
+
+
+def test_set_rcpt_qrm_r_default_factory_produces_correct_node():
+    from vultron.core.behaviors.report.report_to_others_tree import (
+        _default_set_rcpt_qrm_r_factory,
+    )
+    from vultron.demo.fuzzer.report_management.report_to_others import (
+        SetRcptQrmR,
+    )
+
+    node = _default_set_rcpt_qrm_r_factory("SetRcptQrmR")
+    assert isinstance(node, SetRcptQrmR)
+
+
+def test_inject_participant_default_factory_produces_correct_node():
+    from vultron.core.behaviors.report.report_to_others_tree import (
+        _default_inject_participant_factory,
+    )
+    from vultron.demo.fuzzer.report_management.report_to_others import (
+        InjectParticipant,
+    )
+
+    node = _default_inject_participant_factory("InjectParticipant")
+    assert isinstance(node, InjectParticipant)
+
+
+def test_actuator_custom_factories_accepted():
+    """Custom Actuator factories are accepted without error."""
+    tree = create_report_to_others_tree(
+        case_id=CASE_ID,
+        remove_recipient_factory=_marker_factory("RR"),
+        set_rcpt_qrm_r_factory=_marker_factory("SRQR"),
+        inject_participant_factory=_marker_factory("IP"),
+    )
+    assert tree is not None

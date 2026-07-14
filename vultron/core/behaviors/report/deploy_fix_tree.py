@@ -13,9 +13,17 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Fix deployment behavior tree composition (Phase 1 stub).
 
-This module provides :func:`create_deploy_fix_tree`, which hosts the four
-fix-deployment call-out points (``PrioritizeDeployment``, ``DeployMitigation``,
-``MonitoringRequirement``, ``DeployFix``) wired per ADR-0025 / BT-18-004.
+This module provides :func:`create_deploy_fix_tree`, which hosts five
+fix-deployment call-out points wired per ADR-0025 / BT-18-004:
+
+Evaluator nodes:
+- ``PrioritizeDeployment``
+- ``DeployMitigation``
+- ``MonitoringRequirement``
+- ``DeployFix``
+
+Actuator node:
+- ``MonitorDeployment``
 
 Phase 1 contains only the injectable call-out points as a stub Sequence.
 The full deployment workflow (no-new-info early exit, mitigation arm,
@@ -72,18 +80,30 @@ def _default_deploy_fix_factory(name: str) -> py_trees.behaviour.Behaviour:
     return DeployFix(name)
 
 
+def _default_monitor_deployment_factory(
+    name: str,
+) -> py_trees.behaviour.Behaviour:
+    from vultron.demo.fuzzer.report_management.deploy_fix import (
+        MonitorDeployment,
+    )
+
+    return MonitorDeployment(name)
+
+
 def create_deploy_fix_tree(
     case_id: str,
     prioritize_deployment_factory: CallOutBackendFactory = _default_prioritize_deployment_factory,
     deploy_mitigation_factory: CallOutBackendFactory = _default_deploy_mitigation_factory,
     monitoring_requirement_factory: CallOutBackendFactory = _default_monitoring_requirement_factory,
     deploy_fix_factory: CallOutBackendFactory = _default_deploy_fix_factory,
+    monitor_deployment_factory: CallOutBackendFactory = _default_monitor_deployment_factory,
 ) -> py_trees.behaviour.Behaviour:
     """Create behavior tree for the fix deployment workflow (Phase 1 stub).
 
-    Phase 1 exposes the four Evaluator call-out points as a stub Sequence.
-    The full workflow (no-new-info early exit, mitigation arm, monitoring
-    arm, fix deployment arm) is deferred to a future issue.
+    Phase 1 exposes the four Evaluator call-out points and the MonitorDeployment
+    Actuator as a stub Sequence.  The full workflow (no-new-info early exit,
+    mitigation arm, monitoring arm, fix deployment arm) is deferred to a
+    future issue.
 
     Args:
         case_id: ID of VulnerabilityCase being processed.
@@ -99,6 +119,9 @@ def create_deploy_fix_tree(
         deploy_fix_factory: Factory for the Evaluator call-out point that
             applies the vendor-provided fix.  Defaults to the fuzzer backend
             (BT-18-004).
+        monitor_deployment_factory: Factory for the Actuator call-out point
+            that performs active deployment monitoring.  Defaults to the fuzzer
+            backend (BT-18-004).
 
     Returns:
         Root node of the deploy-fix behavior tree (Phase 1 stub Sequence).
@@ -111,6 +134,7 @@ def create_deploy_fix_tree(
             deploy_mitigation_factory("DeployMitigation"),
             monitoring_requirement_factory("MonitoringRequirement"),
             deploy_fix_factory("DeployFix"),
+            monitor_deployment_factory("MonitorDeployment"),
         ],
     )
     logger.info(f"Created DeployFixBT (Phase 1 stub) for case={case_id}")
