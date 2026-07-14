@@ -71,8 +71,8 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
     2. ``case_id`` key in the py_trees blackboard (written by a prior node
        such as :class:`CreateCaseNode` or :class:`PersistCase`).
 
-    If ``case_id`` cannot be resolved, the node returns ``SUCCESS`` silently
-    (no-op for trees that run in a non-case context).
+    If ``case_id`` cannot be resolved, the node returns ``FAILURE`` so the
+    enclosing BT sequence propagates the error (ARCH-15-001).
 
     ``event_type`` and ``object_id`` are derived from the ``activity``
     blackboard key (the inbound :class:`~vultron.core.models.events.base.VultronEvent`
@@ -155,10 +155,11 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
 
         case_id = self._resolve_case_id()
         if not case_id:
-            self.logger.warning(
-                f"{self.name}: no case_id available — skipping log entry"
+            self.logger.error(
+                f"{self.name}: no case_id available — cannot commit ledger"
+                " entry"
             )
-            return Status.SUCCESS
+            return Status.FAILURE
 
         activity = self._resolve_activity()
         if activity is None:
