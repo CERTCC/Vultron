@@ -12,6 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """BT structure and no-post-BT-broadcast tests for UpdateCaseBT."""
 
+import inspect
 from unittest.mock import MagicMock
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -129,8 +130,6 @@ class TestCollectionDefaultsCS21:
 
     def test_broadcast_case_update_uses_empty_set_when_not_provided(self):
         """broadcast_case_update: excluded_actor_ids defaults to set(), not None."""
-        import inspect
-
         sig = inspect.signature(broadcast_case_update)
         default = sig.parameters["excluded_actor_ids"].default
         assert default == set()
@@ -140,8 +139,6 @@ class TestCollectionDefaultsCS21:
         self,
     ):
         """_broadcast_case_update: excluded_actor_ids defaults to set()."""
-        import inspect
-
         sig = inspect.signature(
             UpdateCaseReceivedUseCase._broadcast_case_update
         )

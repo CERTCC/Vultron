@@ -451,7 +451,7 @@ class CaseLedger:
         logger.debug(
             "Ledger entry detail: entry_hash=%.16s… payload_snapshot=%s",
             entry.entry_hash,
-            payload_snapshot or {},
+            payload_snapshot,
         )
         return entry
 

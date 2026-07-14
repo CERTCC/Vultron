@@ -12,6 +12,7 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
+from vultron.core.behaviors.sync.nodes import CreateLogEntryNode
 from vultron.core.models.case import VultronCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.ports.sync_activity import SyncActivityPort
@@ -193,8 +194,6 @@ def test_create_commit_log_entry_tree_default_payload_snapshot_is_empty_dict():
         object_id="https://example.org/activities/act-cs21",
         event_type="case_created",
     )
-    from vultron.core.behaviors.sync.nodes import CreateLogEntryNode
-
     create_node = next(
         c for c in tree.children if isinstance(c, CreateLogEntryNode)
     )
