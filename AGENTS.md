@@ -314,6 +314,23 @@ If instructions are ambiguous:
 
 ---
 
+## Quality Standard
+
+Every workflow skill reads `.claude/skills/shared/completeness-doctrine.md`
+via `orient-agent`. The full doctrine is there; this is the summary:
+
+- **"Done" requires**: all changed behaviors tested, edge cases handled,
+  types/docs current, linters clean.
+- **Depth within scope is non-negotiable**: happy-path-only is not done; a
+  behavior with no test is not done.
+- **Scope expansion**: ask if user is present; make best-judgment call if not,
+  record rationale as a learning file.
+- **Finding severity**: **FAIL** (broken) → fix before PR opens. **IMPROVE**
+  (correct but incomplete) → fix in this session. **DEFER** (out of scope) →
+  create follow-up issue + get user acknowledgment. No WARN-and-defer.
+
+---
+
 ## Common Pitfalls (Lessons Learned)
 
 Key pitfall write-ups are in the `notes/` files.

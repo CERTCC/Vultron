@@ -114,6 +114,9 @@ that the cost of a full scan is justified on every invocation.
 
 ### Phase 2 — Analyze Gaps
 
+See `.claude/skills/shared/completeness-doctrine.md` for the project standard
+on what constitutes a complete lesson — loaded by `orient-agent` in Phase 1.
+
 Identify what the build process and codebase scan have surfaced that is not
 yet captured in durable docs. Consider both incoming learning files and
 open GitHub Concern issues:
@@ -128,6 +131,12 @@ open GitHub Concern issues:
 6. Recent completed-task insights — when needed, run `uv run show-history
    --month YYMM` to identify which history entries contain architectural
    lessons, then open those entry files.
+
+A lesson is not complete until it has been promoted to `specs/`, `notes/`, or
+`AGENTS.md`. An incoming learning file that is archived without producing a
+durable output is a wasted lesson. If a learning entry clearly warrants a spec
+or notes update but one cannot be written in this session, document why and
+create a Concern issue — do not silently archive the entry without promotion.
 
 ### Phase 3 — Interview with Grill-Me
 

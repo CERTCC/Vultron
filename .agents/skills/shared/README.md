@@ -1,7 +1,15 @@
-# Shared Skill Scripts
+# Shared Skill Resources
 
-Reusable shell scripts referenced by multiple skills. Each script is
-self-contained and executable.
+Shared scripts and reference documents referenced by multiple skills.
+
+## Reference Documents
+
+| File | Purpose | Loaded by |
+|---|---|---|
+| `completeness-doctrine.md` | Project quality standard: what "done" means, finding severity taxonomy (FAIL/IMPROVE/DEFER), scope expansion rules | `orient-agent` Step 3 — in context for every workflow |
+| `pr-body-guide.md` | PR body templates and formatting rules | `build`, `bugfix`, `plan-issue` |
+
+## Scripts
 
 | Script | Purpose | Usage |
 |---|---|---|

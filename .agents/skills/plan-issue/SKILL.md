@@ -127,7 +127,11 @@ via `ask_user`, providing a recommendation for each.
 
 1. **Scope** — What is in scope? What is explicitly out of scope?
 2. **Acceptance criteria** — How do we verify this is fully addressed?
-   Drive one GitHub issue per distinct AC cluster.
+   Drive one GitHub issue per distinct AC cluster. Be exhaustive: if an
+   acceptance criterion is clearly needed but missing from the issue, add
+   it here. Do not produce a plan that leaves obvious ACs out simply
+   because the issue didn't spell them out. Deferring a clearly-needed AC
+   requires explicit user acknowledgment.
 3. **ADR determination** — Apply the `notes/specs-vs-adrs.md` decision tree
    (MS-11-001 through MS-11-006). Form a recommendation with reasoning.
    Present for approval before proceeding.

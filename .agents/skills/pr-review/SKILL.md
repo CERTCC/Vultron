@@ -5,12 +5,32 @@ description: >
   a PR addresses its originating GitHub issue(s), conforms to Vultron specs
   and notes, follows AGENTS.md coding rules and naming conventions, has
   adequate test coverage, and passes linting requirements. Produces a
-  structured PASS/WARN/FAIL report and optionally posts it as a GitHub PR
-  review comment. Use when the user asks to review a PR, validate a PR
-  before merge, or audit a PR against project standards.
+  structured PASS/FAIL/IMPROVE/DEFER report, attempts fixes for FAIL and
+  IMPROVE findings, and posts results as a GitHub PR review comment. Use
+  when the user asks to review a PR, validate a PR before merge, or audit
+  a PR against project standards.
 ---
 
 # Skill: PR Review
+
+## Finding Severity
+
+This skill uses the three-category system from
+`.claude/skills/shared/completeness-doctrine.md` (loaded by `orient-agent`).
+There is no WARN category — every finding is resolved here or explicitly gated.
+
+| Verdict | Meaning | Required action |
+|---|---|---|
+| **FAIL** | Broken: won't work correctly, spec violated, changed behavior untested | Fix before the PR merges |
+| **IMPROVE** | Works but incomplete: missing adjacent test, stale doc, extractable helper, obvious gap in scope | Fix in this session; document in a follow-up commit and PR comment |
+| **DEFER** | Genuinely out of scope | Create a follow-up GitHub issue immediately; surface to user for acknowledgment; do not defer unilaterally |
+
+For FAIL and IMPROVE findings that are within reach: attempt the fix in the
+same session, then commit the changes and note them in a PR comment so the
+history is clear. Do not just flag and stop.
+
+DEFER is a high gate — use it only when fixing would require touching code
+substantially outside the files already changed in this PR.
 
 ## Quick Start
 
@@ -74,7 +94,8 @@ checklist. Pay particular attention to:
 2. For each signal, consult `notes/specs-vs-adrs.md` (MS-11-001–MS-11-006)
    to determine if an ADR was warranted.
 3. Check `docs/adr/index.md` for a relevant existing ADR:
-   - If the PR *should have* an ADR and none is referenced: **WARN**.
+   - If the PR *should have* an ADR and none is referenced: **IMPROVE** — draft
+     the ADR stub or add it to the PR before merging.
    - If an existing ADR is contradicted by the change without amendment: **FAIL**.
    - If a new ADR was added: verify it follows `docs/adr/_adr-template.md`.
 
@@ -92,8 +113,8 @@ against the branch diff to surface bugs, logic errors, and security issues.
 
 1. **Notes currency**: Identify `notes/*.md` files that cover any domain
    touched by the PR (cross-reference domain hints from Phase 4). If an
-   active note exists for a changed domain and was NOT updated: **WARN** —
-   the note may now contain stale guidance.
+   active note exists for a changed domain and was NOT updated: **IMPROVE** —
+   update the note before merging; stale guidance is a real cost.
 2. **Notes frontmatter**: For any `notes/*.md` file modified in the PR,
    validate YAML frontmatter per NF-06-001/NF-06-002:
    - Required fields: `title`, `status`
@@ -117,11 +138,22 @@ against the branch diff to surface bugs, logic errors, and security issues.
 2. If CI is failing, summarize which checks fail.
 3. If CI is not yet run, note that lint/type verification is pending.
 
-### Phase 12 — Report and (Optional) Post
+### Phase 12 — Fix, Report, and Post
 
-1. Produce a structured report grouped by phase, with **PASS / WARN / FAIL**
-   for each area. See [REFERENCE.md](REFERENCE.md) § "Report Format".
-2. Ask the user whether to post the report as a GitHub PR review comment:
+1. For all **FAIL** and **IMPROVE** findings that are within reach: attempt the
+   fix now, before generating the report. Commit the changes. The PR history
+   must show that the review finding was addressed, not just noted.
+
+2. For **DEFER** findings: create the follow-up GitHub issue immediately, then
+   surface each deferred item to the user for acknowledgment before posting the
+   review.
+
+3. Produce a structured report grouped by phase, with **PASS / FAIL / IMPROVE /
+   DEFER** for each area. See [REFERENCE.md](REFERENCE.md) § "Report Format".
+   For any finding that was fixed in step 1, mark it as `FIXED` in the report
+   with the commit reference.
+
+4. Ask the user whether to post the report as a GitHub PR review comment:
    - If yes: `gh pr review <number> --comment --body "<report>"`
    - If yes + approve: `gh pr review <number> --approve --body "<report>"`
    - If yes + request changes: `gh pr review <number> --request-changes --body "<report>"`
