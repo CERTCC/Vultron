@@ -42,6 +42,7 @@ from vultron.demo.fuzzer.base import (
     UsuallySucceed,
 )
 from vultron.demo.fuzzer.call_out_point import (
+    ActuatorCallOutPoint,
     ComposerCallOutPoint,
     EvaluatorCallOutPoint,
 )
@@ -112,7 +113,7 @@ class PrioritizePublicationIntents(EvaluatorCallOutPoint, AlwaysSucceed):
     output_keys = {"publication_intents_verdict": str}
 
 
-class Publish(AlmostAlwaysSucceed):
+class Publish(ActuatorCallOutPoint, AlmostAlwaysSucceed):
     """Execute the publication of a prepared artifact to the intended audience.
 
     Semantic function:
@@ -122,6 +123,10 @@ class Publish(AlmostAlwaysSucceed):
         package repository) or a prompt for a human to complete the
         publication step.  The fuzzer succeeds almost always, allowing
         the rest of the workflow to be exercised.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — trigger only; artifact context from construction time)
+      Output keys: (none — side effect: publish artifact to intended audience)
 
     Input category: System integration.
 

@@ -130,3 +130,55 @@ def test_all_factories_replaceable():
     tree_str = py_trees.display.ascii_tree(tree)
     for i in range(10):
         assert f"M{i}" in tree_str
+
+
+# ---------------------------------------------------------------------------
+# Actuator factory params — Phase 2 reserved (BT-18-004)
+# ---------------------------------------------------------------------------
+
+
+def test_actuator_factories_accepted():
+    """All three Actuator factory params are accepted (Phase 2 reserved)."""
+    tree = create_manage_embargo_tree(case_id=CASE_ID)
+    assert tree is not None
+
+
+def test_on_embargo_exit_default_factory_produces_correct_node():
+    from vultron.core.behaviors.embargo.manage_embargo_tree import (
+        _default_on_embargo_exit_factory,
+    )
+    from vultron.demo.fuzzer.embargo import OnEmbargoExit
+
+    node = _default_on_embargo_exit_factory("OnEmbargoExit")
+    assert isinstance(node, OnEmbargoExit)
+
+
+def test_on_embargo_accept_default_factory_produces_correct_node():
+    from vultron.core.behaviors.embargo.manage_embargo_tree import (
+        _default_on_embargo_accept_factory,
+    )
+    from vultron.demo.fuzzer.embargo import OnEmbargoAccept
+
+    node = _default_on_embargo_accept_factory("OnEmbargoAccept")
+    assert isinstance(node, OnEmbargoAccept)
+
+
+def test_on_embargo_reject_default_factory_produces_correct_node():
+    from vultron.core.behaviors.embargo.manage_embargo_tree import (
+        _default_on_embargo_reject_factory,
+    )
+    from vultron.demo.fuzzer.embargo import OnEmbargoReject
+
+    node = _default_on_embargo_reject_factory("OnEmbargoReject")
+    assert isinstance(node, OnEmbargoReject)
+
+
+def test_actuator_custom_factories_accepted():
+    """Custom Actuator factories are accepted without error."""
+    tree = create_manage_embargo_tree(
+        case_id=CASE_ID,
+        on_embargo_exit_factory=_marker_factory("OEE"),
+        on_embargo_accept_factory=_marker_factory("OEA"),
+        on_embargo_reject_factory=_marker_factory("OER"),
+    )
+    assert tree is not None

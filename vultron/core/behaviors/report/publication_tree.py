@@ -14,8 +14,19 @@
 """Publication behavior tree composition (Phase 1 stub).
 
 This module provides a minimal :func:`create_publication_tree` factory that
-hosts the Composer-shaped ``PrepareReport`` call-out point exemplar, wired
-per ADR-0025 / BT-18-004.
+hosts the publication call-out points wired per ADR-0025 / BT-18-004:
+
+Composer node:
+- ``PrepareReport``
+
+Evaluator nodes (reserved for Phase 2 — accepted but not yet wired):
+- ``PrioritizePublicationIntents``
+- ``ReprioritizeExploit``
+- ``ReprioritizeFix``
+- ``ReprioritizeReport``
+
+Actuator node (reserved for Phase 2 — accepted but not yet wired):
+- ``Publish``
 
 Phase 1 contains only the ``PrepareReport`` Composer node.  The full
 publication workflow (advisory sequencing, fix/exploit publication arms,
@@ -83,6 +94,12 @@ def _default_reprioritize_report_factory(
     return ReprioritizeReport(name)
 
 
+def _default_publish_factory(name: str) -> py_trees.behaviour.Behaviour:
+    from vultron.demo.fuzzer.report_management.publication import Publish
+
+    return Publish(name)
+
+
 def create_publication_tree(
     case_id: str,
     prepare_report_factory: CallOutBackendFactory = _default_prepare_report_factory,
@@ -90,6 +107,7 @@ def create_publication_tree(
     reprioritize_exploit_factory: CallOutBackendFactory = _default_reprioritize_exploit_factory,
     reprioritize_fix_factory: CallOutBackendFactory = _default_reprioritize_fix_factory,
     reprioritize_report_factory: CallOutBackendFactory = _default_reprioritize_report_factory,
+    publish_factory: CallOutBackendFactory = _default_publish_factory,
 ) -> py_trees.behaviour.Behaviour:
     """Create behavior tree for the publication workflow (Phase 1 stub).
 
@@ -115,12 +133,14 @@ def create_publication_tree(
         reprioritize_report_factory: Factory for the Evaluator call-out point
             that re-scores report publication priority.  Reserved for Phase 2;
             not wired in Phase 1 (BT-18-004).
+        publish_factory: Factory for the Actuator call-out point that publishes
+            a prepared artifact to the intended audience.  Reserved for Phase 2;
+            accepted but not yet wired into the Phase 1 tree body (BT-18-004).
 
     Returns:
         Root node of the publication behavior tree.
     """
-    # Phase 2: prioritize_publication_intents_factory, reprioritize_exploit_factory,
-    # reprioritize_fix_factory, and reprioritize_report_factory are reserved for the
+    # Phase 2: all factories except prepare_report_factory are reserved for the
     # full multi-arm publication workflow tracked in issue #1251.  Accepting them
     # here satisfies BT-18-004 without breaking callers.
     root = prepare_report_factory("PrepareReport")

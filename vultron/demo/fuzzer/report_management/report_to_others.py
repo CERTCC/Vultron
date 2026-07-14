@@ -52,6 +52,7 @@ from vultron.demo.fuzzer.base import (
     UsuallySucceed,
 )
 from vultron.demo.fuzzer.call_out_point import (
+    ActuatorCallOutPoint,
     EvaluatorCallOutPoint,
     RetrieverCallOutPoint,
 )
@@ -211,13 +212,17 @@ class ChooseRecipient(RetrieverCallOutPoint, AlwaysSucceed):
     output_keys = {"chosen_recipient": str}
 
 
-class RemoveRecipient(AlwaysSucceed):
+class RemoveRecipient(ActuatorCallOutPoint, AlwaysSucceed):
     """Remove a recipient from the pending notification queue.
 
     Semantic function:
         Action — remove a recipient from the pending notification queue
         (after successful notification or after effort limits are
         exceeded).  Always succeeds in simulation.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — trigger only; recipient context from construction time)
+      Output keys: (none — side effect: remove recipient from notification queue)
 
     Input category: System integration.
 
@@ -298,13 +303,17 @@ class RcptNotInQrmS(AlmostAlwaysSucceed):
     """
 
 
-class SetRcptQrmR(AlwaysSucceed):
+class SetRcptQrmR(ActuatorCallOutPoint, AlwaysSucceed):
     """Record notification by transitioning recipient's RM state to RECEIVED.
 
     Semantic function:
         Action — record that the recipient has been notified by
         transitioning their RM state from START to RECEIVED.  Always
         succeeds in simulation; in production performs a state update.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — trigger only; recipient context from construction time)
+      Output keys: (none — side effect: transition recipient RM state to RECEIVED)
 
     Input category: System integration.
 
@@ -436,7 +445,7 @@ class MoreOthers(AlmostAlwaysFail):
     """
 
 
-class InjectParticipant(AlwaysSucceed):
+class InjectParticipant(ActuatorCallOutPoint, AlwaysSucceed):
     """Add a new participant to the case (generic form).
 
     Semantic function:
@@ -451,6 +460,10 @@ class InjectParticipant(AlwaysSucceed):
     Blackboard contract (BT-18-001):
       Input keys:  <source_key>: list  (READ/WRITE; key may be absent)
       Output keys: potential_participants: list  (WRITE; key may be absent)
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — trigger only; participant context from construction time)
+      Output keys: (none — side effect: add participant to case management system)
 
     Input category: System integration.
 
@@ -506,6 +519,10 @@ class InjectVendor(InjectParticipant):
       Input keys:  identified_vendors: list  (READ/WRITE; key may be absent)
       Output keys: potential_participants: list  (WRITE; key may be absent)
 
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — trigger only; vendor context from construction time)
+      Output keys: (none — side effect: add vendor participant to case management system)
+
     Input category: System integration.
 
     Success probability: 1.00 (``InjectParticipant`` / ``AlwaysSucceed``).
@@ -533,6 +550,10 @@ class InjectCoordinator(InjectParticipant):
       Input keys:  identified_coordinators: list  (READ/WRITE; key may be absent)
       Output keys: potential_participants: list  (WRITE; key may be absent)
 
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — trigger only; coordinator context from construction time)
+      Output keys: (none — side effect: add coordinator participant to case management system)
+
     Input category: System integration.
 
     Success probability: 1.00 (``InjectParticipant`` / ``AlwaysSucceed``).
@@ -553,6 +574,10 @@ class InjectOther(InjectParticipant):
         ``InjectParticipant`` for the other-party role.  Always succeeds
         in simulation; in production performs a case management system
         write with other-party role attribution.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — trigger only; other-party context from construction time)
+      Output keys: (none — side effect: add other-party participant to case management system)
 
     Input category: System integration.
 

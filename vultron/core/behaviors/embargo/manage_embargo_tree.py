@@ -13,28 +13,33 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Embargo management behavior tree composition (Phase 1 stub).
 
-This module provides :func:`create_manage_embargo_tree`, which hosts the ten
+This module provides :func:`create_manage_embargo_tree`, which hosts the
 embargo management call-out points wired per ADR-0025 / BT-18-004:
 
-Termination nodes:
+Termination nodes (Evaluator):
 - ``ExitEmbargoWhenDeployed``
 - ``ExitEmbargoWhenFixReady``
 - ``ExitEmbargoForOtherReason``
 
-Negotiation / proposal nodes:
+Negotiation / proposal nodes (Evaluator):
 - ``StopProposingEmbargo``
 - ``SelectEmbargoOfferTerms``
 - ``WantToProposeEmbargo``
 - ``WillingToCounterEmbargoProposal``
 - ``ReasonToProposeEmbargoWhenDeployed``
 
-Proposal evaluation node:
+Proposal evaluation node (Evaluator):
 - ``EvaluateEmbargoProposal``
 
-Active embargo evaluation node:
+Active embargo evaluation node (Evaluator):
 - ``CurrentEmbargoAcceptable``
 
-Phase 1 contains only the injectable call-out points in a stub Sequence.
+Actuator nodes (reserved for Phase 2 — accepted but not yet wired):
+- ``OnEmbargoExit``
+- ``OnEmbargoAccept``
+- ``OnEmbargoReject``
+
+Phase 1 contains only the Evaluator call-out points in a stub Sequence.
 The full embargo management lifecycle (termination arm, proposal arm,
 counter-proposal arm, active-embargo review loop) is deferred to a future
 issue.
@@ -155,6 +160,35 @@ def _default_current_embargo_acceptable_factory(
 
 
 # ---------------------------------------------------------------------------
+# Actuator default factories (Phase 2 reserved)
+# ---------------------------------------------------------------------------
+
+
+def _default_on_embargo_exit_factory(
+    name: str,
+) -> py_trees.behaviour.Behaviour:
+    from vultron.demo.fuzzer.embargo import OnEmbargoExit
+
+    return OnEmbargoExit(name)
+
+
+def _default_on_embargo_accept_factory(
+    name: str,
+) -> py_trees.behaviour.Behaviour:
+    from vultron.demo.fuzzer.embargo import OnEmbargoAccept
+
+    return OnEmbargoAccept(name)
+
+
+def _default_on_embargo_reject_factory(
+    name: str,
+) -> py_trees.behaviour.Behaviour:
+    from vultron.demo.fuzzer.embargo import OnEmbargoReject
+
+    return OnEmbargoReject(name)
+
+
+# ---------------------------------------------------------------------------
 # Tree builder
 # ---------------------------------------------------------------------------
 
@@ -171,13 +205,19 @@ def create_manage_embargo_tree(
     reason_to_propose_when_deployed_factory: CallOutBackendFactory = _default_reason_to_propose_when_deployed_factory,
     evaluate_embargo_proposal_factory: CallOutBackendFactory = _default_evaluate_embargo_proposal_factory,
     current_embargo_acceptable_factory: CallOutBackendFactory = _default_current_embargo_acceptable_factory,
+    on_embargo_exit_factory: CallOutBackendFactory = _default_on_embargo_exit_factory,
+    on_embargo_accept_factory: CallOutBackendFactory = _default_on_embargo_accept_factory,
+    on_embargo_reject_factory: CallOutBackendFactory = _default_on_embargo_reject_factory,
 ) -> py_trees.behaviour.Behaviour:
     """Create behavior tree for the embargo management workflow (Phase 1 stub).
 
     Phase 1 exposes all ten Evaluator call-out points as a stub Sequence.
-    The full embargo management lifecycle (termination arm, proposal arm,
-    counter-proposal arm, active-embargo review loop) is deferred to a
-    future issue.
+    The three Actuator factories (on_embargo_exit_factory,
+    on_embargo_accept_factory, on_embargo_reject_factory) are accepted for
+    BT-18-004 compliance but reserved for Phase 2 when the full termination,
+    acceptance, and rejection arms are built.  The full embargo management
+    lifecycle (termination arm, proposal arm, counter-proposal arm,
+    active-embargo review loop) is deferred to a future issue.
 
     Args:
         case_id: ID of VulnerabilityCase whose embargo is being managed.
@@ -211,10 +251,23 @@ def create_manage_embargo_tree(
         current_embargo_acceptable_factory: Factory for the Evaluator that
             decides whether the active embargo terms remain acceptable.
             Defaults to the fuzzer backend (BT-18-004).
+        on_embargo_exit_factory: Factory for the Actuator that executes
+            site-specific tasks on embargo exit.  Reserved for Phase 2;
+            accepted but not yet wired into the Phase 1 tree body (BT-18-004).
+        on_embargo_accept_factory: Factory for the Actuator that executes
+            site-specific tasks when a proposal is accepted.  Reserved for
+            Phase 2; accepted but not yet wired (BT-18-004).
+        on_embargo_reject_factory: Factory for the Actuator that executes
+            site-specific tasks when a proposal is rejected.  Reserved for
+            Phase 2; accepted but not yet wired (BT-18-004).
 
     Returns:
         Root node of the manage-embargo behavior tree (Phase 1 stub Sequence).
     """
+    # Phase 2: on_embargo_exit_factory, on_embargo_accept_factory, and
+    # on_embargo_reject_factory are reserved for the full termination,
+    # acceptance, and rejection workflow arms.  Accepting them here satisfies
+    # BT-18-004 without breaking callers.
     root = py_trees.composites.Sequence(
         name="ManageEmbargoBT",
         memory=False,

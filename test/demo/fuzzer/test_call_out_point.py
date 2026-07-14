@@ -44,6 +44,9 @@ from vultron.demo.fuzzer.embargo import (
     ExitEmbargoForOtherReason,
     ExitEmbargoWhenDeployed,
     ExitEmbargoWhenFixReady,
+    OnEmbargoAccept,
+    OnEmbargoExit,
+    OnEmbargoReject,
     ReasonToProposeEmbargoWhenDeployed,
     SelectEmbargoOfferTerms,
     StopProposingEmbargo,
@@ -67,12 +70,14 @@ from vultron.demo.fuzzer.report_management.assign_vul_id import (
 )
 from vultron.demo.fuzzer.report_management.close_report import (
     OtherCloseCriteriaMet,
+    PreCloseAction,
 )
 from vultron.demo.fuzzer.report_management.deploy_fix import (
     DeployFix,
     DeployMitigation,
     MitigationAvailable,
     MitigationDeployed,
+    MonitorDeployment,
     MonitoringRequirement,
     PrioritizeDeployment,
 )
@@ -90,6 +95,7 @@ from vultron.demo.fuzzer.report_management.publication import (
     PrepareExploit,
     PrepareFix,
     PrioritizePublicationIntents,
+    Publish,
     ReprioritizeExploit,
     ReprioritizeFix,
     ReprioritizeReport,
@@ -99,8 +105,14 @@ from vultron.demo.fuzzer.report_management.report_to_others import (
     ChooseRecipient,
     IdentifyCoordinators,
     IdentifyVendors,
+    InjectCoordinator,
+    InjectOther,
+    InjectParticipant,
+    InjectVendor,
     PolicyCompatible,
     RecipientEffortExceeded,
+    RemoveRecipient,
+    SetRcptQrmR,
     TotalEffortLimitMet,
 )
 from vultron.demo.fuzzer.report_management.validate import (
@@ -571,3 +583,73 @@ def test_rm_composer_node_writes_blackboard_on_success():
     assert "/assigned_vul_id" in py_trees.blackboard.Blackboard.storage
     val = py_trees.blackboard.Blackboard.storage["/assigned_vul_id"]
     assert isinstance(val, str)
+
+
+# ---------------------------------------------------------------------------
+# Actuator nodes (FUZZ-08h) — subclass ActuatorCallOutPoint, no output_keys,
+# blackboard contract documented (BT-18-001/02/03)
+# ---------------------------------------------------------------------------
+
+_EMBARGO_ACTUATOR_NODES = [
+    OnEmbargoExit,
+    OnEmbargoAccept,
+    OnEmbargoReject,
+]
+
+_RM_ACTUATOR_NODES = [
+    OnAccept,
+    OnDefer,
+    PreCloseAction,
+    MonitorDeployment,
+    Publish,
+    RemoveRecipient,
+    SetRcptQrmR,
+    InjectParticipant,
+    InjectVendor,
+    InjectCoordinator,
+    InjectOther,
+]
+
+_ALL_ACTUATOR_NODES = _EMBARGO_ACTUATOR_NODES + _RM_ACTUATOR_NODES
+
+
+@pytest.mark.parametrize("node_cls", _ALL_ACTUATOR_NODES)
+def test_actuator_node_subclasses_actuator(node_cls):
+    assert issubclass(node_cls, ActuatorCallOutPoint)
+
+
+@pytest.mark.parametrize("node_cls", _ALL_ACTUATOR_NODES)
+def test_actuator_node_output_keys_empty(node_cls):
+    assert node_cls.output_keys == {}
+
+
+@pytest.mark.parametrize("node_cls", _ALL_ACTUATOR_NODES)
+def test_actuator_node_has_blackboard_contract_docstring(node_cls):
+    assert node_cls.__doc__ and "Blackboard contract" in node_cls.__doc__
+
+
+@pytest.mark.parametrize("node_cls", _ALL_ACTUATOR_NODES)
+def test_actuator_node_is_behaviour(node_cls):
+    node = node_cls()
+    assert isinstance(node, py_trees.behaviour.Behaviour)
+
+
+def test_actuator_node_does_not_write_blackboard_on_success():
+    """An Actuator node does not write output_keys to the blackboard on SUCCESS.
+
+    Uses a fixture that declares an output_key but inherits ActuatorCallOutPoint
+    (which does not write keys) to confirm the key is absent after update().
+    Contrast with Composer/Evaluator/Retriever nodes, which DO write their keys.
+    """
+    from vultron.demo.fuzzer.base import AlwaysSucceed
+
+    class _AlwaysSucceedActuator(ActuatorCallOutPoint, AlwaysSucceed):
+        output_keys = {"actuator_test_key": str}
+
+    py_trees.blackboard.Blackboard.storage.clear()
+    node = _AlwaysSucceedActuator("TestActuator")
+    node.setup()
+    status = node.update()
+
+    assert status == Status.SUCCESS
+    assert "/actuator_test_key" not in py_trees.blackboard.Blackboard.storage

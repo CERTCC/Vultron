@@ -26,6 +26,7 @@ from vultron.core.behaviors.report.deploy_fix_tree import (
 from vultron.demo.fuzzer.report_management.deploy_fix import (
     DeployFix,
     DeployMitigation,
+    MonitorDeployment,
     MonitoringRequirement,
     PrioritizeDeployment,
 )
@@ -56,11 +57,12 @@ def test_create_deploy_fix_tree_root_name():
 
 def test_default_children_are_fuzzer_nodes():
     tree = create_deploy_fix_tree(case_id=CASE_ID)
-    assert len(tree.children) == 4
+    assert len(tree.children) == 5
     assert isinstance(tree.children[0], PrioritizeDeployment)
     assert isinstance(tree.children[1], DeployMitigation)
     assert isinstance(tree.children[2], MonitoringRequirement)
     assert isinstance(tree.children[3], DeployFix)
+    assert isinstance(tree.children[4], MonitorDeployment)
 
 
 @pytest.mark.parametrize(
@@ -70,6 +72,7 @@ def test_default_children_are_fuzzer_nodes():
         ("deploy_mitigation_factory", "DM", 1),
         ("monitoring_requirement_factory", "MR", 2),
         ("deploy_fix_factory", "DF", 3),
+        ("monitor_deployment_factory", "MD", 4),
     ],
 )
 def test_each_factory_is_wired(param, label, index):
@@ -97,7 +100,8 @@ def test_all_factories_replaceable():
         deploy_mitigation_factory=_marker_factory("DM"),
         monitoring_requirement_factory=_marker_factory("MR"),
         deploy_fix_factory=_marker_factory("DF"),
+        monitor_deployment_factory=_marker_factory("MD"),
     )
     tree_str = py_trees.display.ascii_tree(tree)
-    for label in ("PD", "DM", "MR", "DF"):
+    for label in ("PD", "DM", "MR", "DF", "MD"):
         assert label in tree_str
