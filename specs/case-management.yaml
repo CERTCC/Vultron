@@ -952,3 +952,93 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: CLP-10-006
+- id: CM-18
+  title: Participant Embargo Consent State Machine
+  kind: domain
+  specs:
+  - id: CM-18-001
+    priority: MUST
+    statement: >-
+      Each participant's embargo consent MUST be tracked as a `ParticipantEmbargoConsent`
+      (PEC) value with five possible states: `NO_EMBARGO` (initial), `INVITED` (invite sent,
+      awaiting response), `SIGNATORY` (accepted), `LAPSED` (timer expired with no response),
+      and `DECLINED` (explicitly refused).
+    rationale: >-
+      The five-state PEC machine formalizes the "pocket veto" mechanism: a participant who
+      is invited but never responds causes the embargo to lapse rather than block progress.
+      Source: `notes/participant-embargo-consent.md`.
+  - id: CM-18-002
+    priority: MUST
+    statement: >-
+      The `INVITED → DECLINED` and `LAPSED → DECLINED` transitions MAY be driven by a
+      timer expiry (pocket veto) rather than requiring an explicit participant action.
+      The timer period SHOULD be a configurable policy window (default: 7 days). The
+      pocket veto materialises when the timer fires without a prior acceptance; the
+      system records the transition to `DECLINED` as if the participant had declined.
+      The `SIGNATORY → LAPSED` transition is NOT timer-based: it fires when the embargo
+      enters the `REVISE` state, invalidating prior consent for the new terms.
+    rationale: >-
+      Per `notes/participant-embargo-consent.md`: `LAPSED` means "embargo terms changed;
+      prior consent no longer applies." `DECLINED` includes both explicit refusals and
+      timeout-based implicit refusals. Confusing `LAPSED` with the timer path is a
+      known documentation pitfall.
+  - id: CM-18-003
+    priority: MUST
+    statement: >-
+      The valid PEC state transitions are: `NO_EMBARGO | LAPSED | DECLINED → INVITED`
+      (INVITE trigger); `INVITED | LAPSED → SIGNATORY` (ACCEPT trigger); `INVITED | LAPSED
+      → DECLINED` (DECLINE trigger); `SIGNATORY → LAPSED` (REVISE trigger); and
+      `* → NO_EMBARGO` (RESET trigger, embargo terminated). Any other transition MUST be
+      rejected as a protocol error.
+    rationale: >-
+      The `LAPSED` and `DECLINED` states are not terminal: a participant who lapsed or
+      declined can be re-invited (e.g., when embargo terms change). `SIGNATORY → LAPSED`
+      occurs when the embargo enters REVISE and the participant's prior consent no longer
+      covers the revised terms. See `vultron/core/states/participant_embargo_consent.py`.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-18-001
+  - id: CM-18-004
+    priority: MUST_NOT
+    statement: >-
+      A participant's PEC state MUST NOT move from `SIGNATORY` to `INVITED` directly
+      (bypassing `LAPSED`). The only path back to `INVITED` from resolved states is via
+      `LAPSED → INVITED` (after a REVISE trigger) or `DECLINED → INVITED` (re-invite
+      after explicit decline). `SIGNATORY → INVITED` is not a valid transition.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-18-003
+- id: CM-19
+  title: Participant Index Discipline
+  kind: domain
+  specs:
+  - id: CM-19-001
+    priority: MUST
+    statement: >-
+      `case_participants` (the persisted set of `CaseParticipant` records) is the
+      authoritative source of participant membership. `actor_participant_index`
+      (the in-memory dict mapping actor IDs to participants) is a cache derived from
+      it. Divergence between these two structures is a hard error, not a recoverable
+      state.
+    rationale: >-
+      A divergence means the cache has entries the authority doesn't know about (or
+      vice versa), producing silently incorrect routing and access-control decisions.
+  - id: CM-19-002
+    priority: MUST
+    statement: >-
+      Any code path that modifies `case_participants` (add, remove, update) MUST also
+      update `actor_participant_index` atomically within the same transaction or
+      method call. The index MUST NOT be allowed to lag the authority.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-19-001
+  - id: CM-19-003
+    priority: MUST
+    statement: >-
+      Code that needs a participant by actor ID MUST read from `actor_participant_index`
+      (the cache). Code that needs the canonical participant set (e.g., for broadcast or
+      audit) MUST read from `case_participants`. Using the cache for canonical iteration
+      is prohibited because cache population order is undefined.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-19-001

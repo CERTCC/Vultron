@@ -166,3 +166,34 @@ groups:
       Migration of `from_core()` call sites in `vultron/core/use_cases/` to use driven adapter
       translation instead of calling wire-layer methods directly is a **separate tracked task**
       and MUST NOT be conflated with factory function migration
+- id: AF-09
+  title: Activity Translator Port
+  kind: pattern
+  specs:
+  - id: AF-09-001
+    priority: MUST
+    statement: >-
+      The correct replacement for `from_core()` calls in `vultron/core/use_cases/` is a
+      driven-adapter port: a `Protocol` interface defined in `vultron/core/` that accepts
+      domain objects and returns wire activities, implemented by an adapter in the wire layer.
+      Core use-cases MUST NOT import from `vultron/wire/` directly; they MUST call through
+      the port.
+    rationale: >-
+      `from_core()` is a wire-layer method. Calling it directly from core use-cases inverts
+      the hexagonal architecture dependency direction: core→wire. The Activity Translator port
+      pattern maintains the correct direction (core defines the port; wire implements it) while
+      providing the same functional capability. See AF-08-002 for migration scope.
+    relationships:
+    - rel_type: implements
+      spec_id: ARCH-04-001
+    - rel_type: refines
+      spec_id: AF-08-002
+  - id: AF-09-002
+    priority: MUST
+    statement: >-
+      The Activity Translator port MUST be injected into use-cases via dependency injection
+      (constructor parameter or factory argument). Use-cases MUST NOT instantiate the wire-layer
+      translator directly.
+    relationships:
+    - rel_type: refines
+      spec_id: AF-09-001

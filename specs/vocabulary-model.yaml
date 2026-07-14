@@ -160,6 +160,21 @@ groups:
       If a rehydrated object's `as_type` is not found in the vocabulary registry, rehydration
       MUST raise `KeyError` or `ValueError` rather than returning a partially constructed
       object
+  - id: VM-06-006
+    priority: MUST
+    statement: >-
+      A vocabulary override (replacing the default `VultronVocabulary` with a custom one)
+      MUST preserve at least one registration from each base module that the production
+      codebase depends on. An override that silently clears all base registrations is
+      equivalent to a blank vocabulary and will cause rehydration failures for all standard
+      Vultron activity types.
+    rationale: >-
+      The vocabulary registry is global. Test or demo code that installs a minimal override
+      without re-registering base types causes downstream rehydration to raise `KeyError`
+      for every standard type. The invariant ensures overrides are additive-by-default.
+    relationships:
+    - rel_type: refines
+      spec_id: VM-06-001
 - id: VM-07
   title: Serialization Rules
   specs:
@@ -177,6 +192,24 @@ groups:
     priority: MUST_NOT
     statement: >-
       `object_to_record()` MUST NOT be called on an object whose `as_type` starts with `"as_"`
+  - id: VM-07-004
+    priority: MUST
+    statement: >-
+      `serialize_as_any=True` MUST be declared on any Pydantic model field that holds an
+      object whose concrete runtime type is a subtype of the field's declared type, at
+      **both** the persistence serialization boundary and the wire delivery serialization
+      boundary. Omitting `serialize_as_any=True` at either boundary causes the serializer
+      to use the declared (base) type's schema, silently dropping all subtype-specific fields.
+    rationale: >-
+      Pydantic v2 uses the declared field type for serialization by default. A field typed
+      as `VulnerabilityCase` but holding a `VulnerabilityCaseStub` at runtime will serialize
+      using `VulnerabilityCase`'s schema, dropping `stub_*` fields entirely with no error.
+      Root causes of BUG-26042201 and BUG-26051902. Both persistence and delivery boundaries
+      are required because a correct write-path can still produce incorrect wire output if
+      the delivery serializer also lacks this flag.
+    relationships:
+    - rel_type: refines
+      spec_id: VM-07-001
 - id: VM-08
   title: Static Object Integrity
   specs:

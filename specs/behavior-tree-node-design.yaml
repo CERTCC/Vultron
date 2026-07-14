@@ -128,6 +128,52 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: BTND-03-001
+  - id: BTND-03-005
+    priority: MUST
+    statement: >-
+      Blackboard keys MUST NOT contain forward-slash characters. Keys MUST follow the
+      `{noun}_{id_segment}` naming convention where the noun names the value and `id_segment`
+      is the execution-scoped correlation ID (last path or colon-delimited segment). Flat,
+      unscoped keys (e.g., `result`, `status`) are only permitted for top-level handoff keys
+      that are consumed in the same tick cycle and cannot collide.
+    rationale: >-
+      py_trees parses forward-slashes as namespacing separators; a key containing `/`
+      silently creates a sub-namespace and will not be found by flat-key readers. The
+      `{noun}_{id_segment}` convention generalizes BTND-03-004 to all keys, not just
+      inter-node handoffs.
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-03-004
+  - id: BTND-03-006
+    priority: MUST
+    statement: >-
+      A decomposed BT leaf node that encounters a domain-layer error MUST write the error
+      to the `result_out["error"]` blackboard key before returning `FAILURE`, and MUST
+      re-raise the original exception in `execute()` after the write so that the bridge
+      layer can translate it into an appropriate HTTP or protocol response.
+    rationale: >-
+      Without a written error key the bridge layer sees only `FAILURE` with no diagnostic
+      context; the error is silently swallowed. Writing to `result_out["error"]` ensures
+      the error propagates to the caller via the result channel even when the BT stops
+      traversal at the failing leaf.
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-03-001
+  - id: BTND-03-007
+    priority: MUST
+    statement: >-
+      A decomposed BT leaf node MUST convert `KeyError` (missing blackboard key) to a
+      `FAILURE` status and MUST NOT allow the `KeyError` to propagate uncaught to the
+      bridge layer. The leaf is responsible for catching `KeyError` in its `update()`
+      method and returning `FAILURE` with an appropriate diagnostic message.
+    rationale: >-
+      A `KeyError` propagating to the bridge results in an unhandled 500-level error for
+      the caller. At the leaf level the semantics of "key not present" are known —
+      this is a precondition failure, not an unexpected crash, so `FAILURE` is the
+      correct BT response.
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-03-001
 - id: BTND-04
   title: Module Ownership
   kind: implementation
@@ -151,6 +197,22 @@ groups:
       BT nodes MUST NOT import from `vultron/demo/` or any other demo-layer module. Demo-specific
       context (step descriptions, demo loggers, demo flags) belongs in demo scripts, not in
       BT nodes.
+  - id: BTND-04-003
+    priority: MUST_NOT
+    statement: >-
+      `behaviors/` modules MUST NOT import from `use_cases/` modules. The import direction
+      is one-way: use-cases drive BT trees; BT nodes MUST NOT import use-case classes or
+      functions. Shared logic needed by both MUST be extracted to a common helper in
+      `vultron/core/` or `vultron/core/behaviors/helpers.py`.
+    rationale: >-
+      Importing use-cases from behaviors inverts the composition hierarchy (behaviors are
+      the implementation layer of use-cases, not their consumers) and introduces circular
+      imports when use-cases inject behaviors via factories.
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-04-001
+    - rel_type: refines
+      spec_id: ARCH-04-001
 - id: BTND-05
   title: Actor Configuration for Participant Nodes
   kind: domain
@@ -287,6 +349,22 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: BT-06-004
+  - id: BTND-06-008
+    priority: MUST
+    statement: >-
+      Code that writes to a `memory=False` py_trees Sequence MUST be written assuming that
+      any child's writes to the blackboard are immediately visible to subsequent children
+      but are NOT rolled back if a later child returns `FAILURE`. A `memory=False` Sequence
+      is non-transactional: partial side-effects from earlier children survive the composite's
+      final `FAILURE` status.
+    rationale: >-
+      The py_trees `memory=False` Sequence restarts from the first child on each tick, but it
+      does NOT undo blackboard writes made by children in previous ticks or earlier in the same
+      tick. This surprises developers who expect Sequence failure to be atomic. The correct
+      pattern for atomic multi-write operations is a single leaf node that performs all writes.
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-06-001
 - id: BTND-07
   title: BT Node Module Organization
   kind: pattern
@@ -424,3 +502,24 @@ groups:
     verification: >-
       In each `Selector(Sequence(IsFoo, ApplyFoo), AlwaysSuccess)` composite,
       confirm the `AlwaysSuccess` node's `name` ends with `"Skipped"`.
+- id: BTND-09
+  title: BT Error Handling Contract
+  kind: pattern
+  specs:
+  - id: BTND-09-001
+    priority: MUST
+    statement: >-
+      BT helper functions MUST raise exceptions on error — they MUST NOT catch exceptions
+      and return a sentinel value. The `update()` method of the owning leaf node is the
+      sole try/except boundary: it calls helpers, catches any exceptions they raise,
+      writes to the error result channel (BTND-03-006), and returns `FAILURE`.
+    rationale: >-
+      If helpers catch their own errors and return sentinels (e.g., `None`, `False`), the
+      leaf's `update()` method cannot distinguish a legitimate `None` return from a hidden
+      failure. All error information travels via Python's exception mechanism so that
+      the single boundary point (`update()`) has complete diagnostic context.
+    relationships:
+    - rel_type: implements
+      spec_id: BTND-03-006
+    - rel_type: implements
+      spec_id: EH-02-001
