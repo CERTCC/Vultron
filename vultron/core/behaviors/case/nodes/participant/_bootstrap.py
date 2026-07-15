@@ -22,6 +22,9 @@ bootstrap flows, not during normal report-receive flows.
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.case.nodes.participant.common import (
+    _ensure_reporter_participant,
+)
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.protocols import CaseModel
 from vultron.core.models.report_case_link import VultronReportCaseLink
@@ -59,10 +62,6 @@ class EnsureReporterParticipantAtAcceptedNode(DataLayerAction):
         if self.datalayer is None:
             self.logger.error("%s: DataLayer not available", self.name)
             return Status.FAILURE
-
-        from vultron.core.use_cases.received.case._helpers import (
-            _ensure_reporter_participant,
-        )
 
         _ensure_reporter_participant(
             self.datalayer,

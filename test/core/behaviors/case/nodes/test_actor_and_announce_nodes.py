@@ -189,3 +189,64 @@ class TestEmitInviteActorToCaseNodeReadSuggestedRoles:
         assert (
             result is None
         ), f"AC-3: expected None when suggested_roles absent, got {result!r}"
+
+
+class TestEmitInviteActorToCaseNodePassesRolesNoneToFactory:
+    """AC-2 (ISSUE-1406): factory.invite_actor_to_case() called with roles=None.
+
+    When ``suggested_roles`` is absent from the blackboard (as in the
+    ``create_accept_actor_recommendation_received_tree`` path), the node
+    must pass ``roles=None`` to the factory — no silent default substitution
+    (ADR-0032, BT-HELPER-01).
+    """
+
+    @pytest.fixture(autouse=True)
+    def clear_blackboard(self):
+        py_trees.blackboard.Blackboard.storage.clear()
+        yield
+        py_trees.blackboard.Blackboard.storage.clear()
+
+    def test_invite_actor_to_case_called_with_roles_none(self, dl):
+        """AC-2: roles=None passed to factory when suggested_roles absent."""
+        from unittest.mock import MagicMock
+
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        # attributed_to triggers genesis_hash computation so the internal
+        # commit_log_entry_tree inside EmitInviteActorToCaseNode can bootstrap.
+        case = VulnerabilityCase(
+            id_=AC3_CASE_ID,
+            name="AC2 test case",
+            attributed_to=ACTOR_ID,
+        )
+        dl.create(case)
+
+        mock_factory = MagicMock(spec=TriggerActivityAdapter)
+        mock_factory.invite_actor_to_case.return_value = (
+            "urn:uuid:ac2-invite-001",
+            {"id_": "urn:uuid:ac2-invite-001"},
+        )
+
+        bridge = BTBridge(datalayer=dl, trigger_activity=mock_factory)
+        node = EmitInviteActorToCaseNode(
+            invitee_id=INVITEE_ID,
+            case_id=AC3_CASE_ID,
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+
+        assert result.status == Status.SUCCESS
+        mock_factory.invite_actor_to_case.assert_called_once()
+        call_kwargs = mock_factory.invite_actor_to_case.call_args
+        actual_roles = call_kwargs.kwargs.get(
+            "roles",
+            call_kwargs.args[3] if len(call_kwargs.args) > 3 else "MISSING",
+        )
+        assert actual_roles is None, (
+            f"AC-2: invite_actor_to_case must be called with roles=None "
+            f"when suggested_roles is absent, got {actual_roles!r}"
+        )
