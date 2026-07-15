@@ -16,3 +16,6 @@ format, not the format the handler emits outbound.
 OfferActorToCasePattern is still needed in `_instances.py` as a nested-object
 template for AcceptActorRecommendationPattern and
 RejectActorRecommendationPattern (which wrap Offer(CaseParticipant)).
+
+**Promoted**: 2026-07-15 — captured in notes/activitystreams-semantics.md.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1458>8>8>8>8>.

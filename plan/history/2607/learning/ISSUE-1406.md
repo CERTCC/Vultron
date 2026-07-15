@@ -1,7 +1,7 @@
 ---
 title: suggest-actor Accept path does not thread CaseParticipant roles into Invite
 type: learning
-timestamp: 2026-07-14
+timestamp: '2026-07-14T00:00:00Z'
 source: ISSUE-1406
 ---
 
@@ -26,3 +26,6 @@ end up on a participant, check which sub-tree is under test. Only the
 `invite_actor_to_case_trigger_bt` path (or a manually-constructed tree with
 `EvaluateDefaultRolesNode`) will produce a non-empty `case_roles`. The
 `AcceptOfferCaseParticipant` use case always produces `roles=None` in the Invite.
+
+**Promoted**: 2026-07-15 — captured in notes/bt-integration.md.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1458>8>8>8>8>.

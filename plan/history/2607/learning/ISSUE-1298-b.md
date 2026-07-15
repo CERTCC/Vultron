@@ -2,7 +2,7 @@
 title: "outbox_list() uses dl._actor_id; tests must use clone_for_actor or outbox_list_for_actor"
 type: learning
 timestamp: 2026-07-10T14:00:00Z
-source: ISSUE-1298
+source: ISSUE-1298-b
 ---
 
 `SqliteDataLayer.outbox_list()` reads the outbox for `dl._actor_id`, which is
@@ -16,3 +16,6 @@ was constructed via `clone_for_actor(actor_id)`.
 - Use `dl.outbox_list_for_actor(local_actor_id)` to read by explicit actor ID.
 - Or use `dl.clone_for_actor(actor_id).outbox_list()` (the pattern used in BT tests).
 - `dl.outbox_list()` always returns `[]` unless `dl._actor_id` is set.
+
+**Promoted**: 2026-07-15 — captured in notes/datalayer-design.md.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1458>8>8>8>8>.

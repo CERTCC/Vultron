@@ -26,3 +26,6 @@ to the same slot.
 case the write-back is the only thing that persists the new list.
 
 Verified by live py_trees test in session ISSUE-1374 build.
+
+**Promoted**: 2026-07-15 — captured in notes/bt-integration.md.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1458>8>8>8>8>.

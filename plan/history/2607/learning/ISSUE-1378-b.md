@@ -1,8 +1,8 @@
 ---
 title: "Consolidating dual-path helpers: primary path requires its own test"
 type: learning
-timestamp: 2026-07-14
-source: ISSUE-1378
+timestamp: '2026-07-14T00:00:00Z'
+source: ISSUE-1378-b
 ---
 
 When consolidating two helpers that each cover a different lookup path into one
@@ -16,3 +16,6 @@ entirely untested. The gap was caught by code review and a 7th test
 **Pattern to apply:** when a consolidated helper has N distinct lookup paths,
 ensure at least one test per path where that path is the sole source of truth
 (i.e. the other paths are left empty or unpopulated).
+
+**Promoted**: 2026-07-15 — captured in notes/bt-integration.md, AGENTS.md.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1458>8>8>8>8>.

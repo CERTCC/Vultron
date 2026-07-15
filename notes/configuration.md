@@ -364,6 +364,40 @@ also available from the YAML `actor:` section or `VULTRON_ACTOR__*` env vars.
 
 ---
 
+## Key-Presence Check Required Before `model_validate`
+
+(ISSUE-1343, 2026-07-15; see `specs/configuration.yaml` CFG-07-008)
+
+Any YAML sub-block loader MUST check whether the target key is present in the
+raw dict **before** calling `model_validate`:
+
+```python
+# ❌ WRONG — model_validate({}) succeeds silently on an all-defaults model
+raw = yaml.safe_load(fh) or {}
+return ActorConfig.model_validate(raw.get("local_actor", {}))
+
+# ✅ CORRECT — return None when key is absent so caller falls through
+raw = yaml.safe_load(fh) or {}
+if "local_actor" not in raw:
+    return None
+return ActorConfig.model_validate(raw["local_actor"])
+```
+
+**Why `model_validate({})` is wrong**: Pydantic's `model_validate` on a
+model where every field has a default does not distinguish "field absent from
+source" from "field explicitly set to default". A dict with no keys validates
+successfully and returns an all-defaults instance. If the loader returns that
+instance, `load_actor_config()` exits early — silently ignoring
+`VULTRON_ACTOR__*` env vars and violating the YAML → env → defaults
+resolution order.
+
+**Pattern**: Whenever a loader reads a YAML sub-block and is supposed to fall
+back to a secondary source, check for key *presence* (not just type), then
+validate. This applies to all config loaders that have a "key absent means
+skip this source" contract.
+
+---
+
 ## SeedConfig Refactoring
 
 `SeedConfig` in `vultron/demo/seed_config.py` MUST be migrated to

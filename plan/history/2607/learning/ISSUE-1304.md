@@ -1,7 +1,7 @@
 ---
 title: Enabling mkdocs nav.omitted_files requires declaring intentional omissions first
 type: learning
-timestamp: 2026-07-10
+timestamp: '2026-07-10T00:00:00Z'
 source: ISSUE-1304
 ---
 
@@ -30,3 +30,6 @@ false-positive warnings (griffe decorator/bib misreads: `dataclass`, `prefix`,
 warnings (`markdown_exec` code-block execution errors, `context`/`pytest` bib
 keys) make it exit non-zero even on clean `main`, so don't treat a red strict
 wrapper as a regression without a clean-base comparison.
+
+**Promoted**: 2026-07-15 — captured in AGENTS.md.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1458>8>8>8>8>.

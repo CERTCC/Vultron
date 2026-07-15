@@ -1572,3 +1572,175 @@ is cheap to implement.
 When auditing for compliance, grep for flat blackboard key registrations in
 tree factories called per-incoming-message and verify each inter-node handoff
 key includes the execution-scoped correlation ID segment.
+
+---
+
+### Blackboard List Mutation: Write-Back Is Redundant (But Needed for New Lists)
+
+(ISSUE-1374, 2026-07-13)
+
+py_trees stores blackboard values by reference. Mutating a list retrieved from
+the blackboard (e.g., `list.pop(0)`, `list.append(x)`) updates the stored value
+in place — any subsequent reader sees the change without a write-back.
+
+```python
+# ❌ REDUNDANT — write-back is a no-op; same object is already updated
+lst = self._bb.my_key
+lst.pop(0)
+self._bb.my_key = lst   # same reference; no effect
+
+# ✅ CORRECT — omit the write-back for mutation of an existing list
+lst = self._bb.my_key
+lst.pop(0)
+```
+
+**Exception**: the write-back IS required when the list was created fresh in
+an `except KeyError` branch. A brand-new `[]` is not yet stored on the
+blackboard; the write-back is the only thing that persists it:
+
+```python
+try:
+    lst = self._bb.my_key
+except KeyError:
+    lst = []
+    self._bb.my_key = lst  # ← required: new list, not yet in blackboard
+lst.pop(0)
+```
+
+---
+
+### Always Check `BTBridge.execute_with_setup` Return Value
+
+(ISSUE-1325, 2026-07-13)
+
+`BTBridge.execute_with_setup` never raises — it catches all exceptions from
+the inner BT tick and returns `BTExecutionResult(status=FAILURE, ...)`. If the
+caller ignores the return value and falls through to `return Status.SUCCESS`,
+the node silently reports success even when the subtree failed.
+
+```python
+# ❌ WRONG — subtree failure is silently swallowed
+BTBridge(...).execute_with_setup(tree=commit_tree, actor_id=self.actor_id)
+return Status.SUCCESS
+
+# ✅ CORRECT — raise on failure so the outer node propagates FAILURE
+result = BTBridge(...).execute_with_setup(
+    tree=commit_tree, actor_id=self.actor_id
+)
+if result.status != Status.SUCCESS:
+    raise RuntimeError(f"subtree failed: {result.feedback_message}")
+```
+
+Raising inside the outer `except Exception` handler in `update()` ensures the
+calling node returns `FAILURE` rather than `SUCCESS`.
+
+---
+
+### Ledger Commit Must Precede Outbox Write
+
+(ISSUE-1325, 2026-07-13)
+
+When a BT subtree both commits a ledger correlation marker and records an
+outbox item, the ledger commit MUST happen first.
+
+If the outbox write happens first and the ledger commit subsequently fails,
+the outbox item is orphaned: an activity queued for delivery with no
+corresponding ledger entry. On the next invocation, the duplicate-detection
+guard finds no pending entry and takes the "fresh" path, triggering a
+duplicate offer or invite.
+
+Correct ordering in a tree or composite node:
+
+1. Build activity via factory (creates the object in the DataLayer)
+2. Commit ledger correlation marker (fail-fast if anything is wrong)
+3. Record outbox item (reached only if ledger commit succeeded)
+
+This invariant is enforced by CLP-10-006 in `specs/case-ledger-processing.yaml`.
+
+---
+
+### Use `disposition="rejected"` for Local-Only Ledger Correlation Markers
+
+(ISSUE-1325, 2026-07-13)
+
+When a BT node needs a local ledger entry that does NOT correspond to a
+canonical AS2 activity (e.g., tracking an outbound
+`offer_case_participant` for duplicate detection), use
+`disposition="rejected"` in `create_commit_log_entry_tree`.
+
+`_validate_canonical_entry` returns early for non-`"recorded"` dispositions,
+bypassing the `_CANONICAL_PAYLOAD_SIGNATURES` allowlist check.  The entry is
+still persisted and `find_protocol_pair` does not filter on disposition, so
+the correlation marker remains visible to duplicate-detection nodes.
+
+The `_find_equivalent_recorded_entry` idempotency check also filters on
+`disposition == "recorded"`, so repeated calls each create a new marker —
+which is fine when the BT guarantees at-most-once execution per receipt (e.g.,
+via `GuardedCommit` in `create_receive_activity_tree`).
+
+---
+
+### suggest-actor Accept Path Does Not Thread Roles Into Invite
+
+(ISSUE-1406, 2026-07-14)
+
+`create_accept_actor_recommendation_received_tree` (CaseActor receives
+`Accept(Offer(CaseParticipant))` from Case Owner) never writes the
+`suggested_roles` blackboard key. `EmitInviteActorToCaseNode` reads this key
+via `_read_suggested_roles()`, gets a `KeyError`, and passes `roles=None` to
+`factory.invite_actor_to_case()`. The resulting `Invite` carries `roles=None`,
+so after `Accept(Invite)` the new `VultronParticipant.case_roles` is `[]`.
+
+This is documented behavior (ADR-0032, BT-HELPER-01: no silent default
+substitution), not a bug.
+
+**Test implication**: Only the `invite_actor_to_case_trigger_bt` path (or a
+tree with `EvaluateDefaultRolesNode`) produces a non-empty `case_roles`. The
+`AcceptOfferCaseParticipant` received-side use case always produces
+`roles=None` in the Invite. Tests that verify roles end up on a participant
+MUST exercise the trigger path, not the received path.
+
+**Blackboard key contrast**:
+
+| Tree factory | Key written | Namespaced? |
+|---|---|---|
+| `create_recommend_actor_to_case_received_tree` | `suggested_roles_{id_segment}` | ✅ |
+| `create_accept_actor_recommendation_received_tree` | *(never written)* | N/A |
+
+---
+
+### BTND-03-004 Audit Scope: All Keys in the Subtree
+
+(ISSUE-1397, 2026-07-14)
+
+When namespacing blackboard keys per BTND-03-004, audit ALL
+`register_key` calls within the affected composite subtree — not just the
+keys named in the issue body. Code review on ISSUE-1397 caught two more
+flat keys (`participant_accepted_status`, `owner_initial_status`) that were
+intra-Sequence only (currently low-risk) but still violate BTND-03-004.
+
+**How to audit**: grep for `register_key` across the affected module, list
+every key, then check whether each one crosses a concurrent-execution
+boundary. Keys that are always cleaned up and rewritten before being read
+within a single `Sequence(memory=False)` are low-risk, but namespacing
+eliminates the risk entirely and is cheap.
+
+---
+
+### Dual-Path Consolidation Test Gap
+
+(ISSUE-1378, 2026-07-14)
+
+When consolidating two helpers with different lookup paths into one unified
+function, the new test suite MUST exercise each distinct path in isolation.
+
+In ISSUE-1378, `_resolve_case_manager_id` was consolidated from two helpers:
+a primary `actor_participant_index` path and a fallback `case_participants`
+path. All 6 initial tests only populated `case_participants`, leaving the
+primary index path entirely untested. Code review caught the gap; a 7th test
+(`test_primary_index_path_returns_actor_id`) was added before the PR merged.
+
+**Pattern**: For a helper with N distinct lookup paths, write at least one
+test per path where that path is the *sole* source of truth — all other paths
+are left empty or unpopulated. "One test exercises both paths" means neither
+path is verified independently.

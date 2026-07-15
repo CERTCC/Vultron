@@ -9,6 +9,7 @@ description: >-
 version: 1.0.0
 kind: implementation
 scope:
+
 - prototype
 - production
 groups:
@@ -265,3 +266,21 @@ groups:
       startup while policy is read at dispatch time from `AppConfig.actor`.  Decoupling the
       two models reflects this distinct lifecycle and prevents demo scaffolding from leaking
       policy concerns into production paths.
+  - id: CFG-07-008
+    priority: MUST
+    statement: >-
+      A YAML sub-block loader (e.g., `_actor_config_from_seed_yaml()`) MUST check for the
+      presence of the target key in the raw YAML dict before calling `model_validate`.
+      If the key is absent, the loader MUST return `None` so the caller falls through to
+      the next source in the resolution order (env vars, then defaults).
+    rationale: >-
+      `pydantic.model_validate({})` on a model whose every field has a default succeeds
+      silently and returns an all-defaults instance.  This makes it impossible to distinguish
+      "key absent from YAML" from "key explicitly set to defaults", causing `load_actor_config()`
+      to return early and skip `VULTRON_ACTOR__*` env vars — violating the documented
+      YAML → env → defaults resolution order (CFG-03-001).  The fix is a key-presence check
+      before `model_validate`, not a post-validate comparison.
+    relationships:
+    - rel_type: refines
+      spec_id: CFG-03-001
+      note: resolution-order guarantee requires key-presence check, not value comparison

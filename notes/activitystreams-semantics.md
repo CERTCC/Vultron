@@ -628,3 +628,52 @@ are retained. See also "Base-Typed Activity Serialization Can Drop Inline
 Subtype Fields" in this file.
 
 **Formal requirement**: `specs/case-bootstrap-trust.yaml` CBT-01-007.
+
+---
+
+## Semantic Registry Patterns Must Match Inbound Wire Format
+
+(ISSUE-1298, 2026-07-10)
+
+A semantic registry pattern maps an incoming AS2 activity shape to a
+`MessageSemantics` value. The pattern MUST match the **inbound** wire format
+— the shape that arrives in an actor's inbox from a peer — NOT the outbound
+format that this actor emits.
+
+`OFFER_ACTOR_TO_CASE` was initially mapped to `OfferActorToCasePattern`
+(`Offer(CaseParticipant, Case)`) — the format that CaseActor sends to Case
+Owner — instead of `SuggestActorToCasePattern` (`Offer(Actor, Case)`) — the
+format that Finder sends to CaseActor's inbox.
+
+`OfferActorToCasePattern` is still needed in `_instances.py` as a nested
+template for `AcceptActorRecommendationPattern` and
+`RejectActorRecommendationPattern` (which wrap `Offer(CaseParticipant)`).
+Keep it in `_instances.py` but do NOT register it as a top-level registry
+entry for `OFFER_ACTOR_TO_CASE`.
+
+**Rule**: when adding a new registry entry, trace the message flow and
+ask "who sends this, and what does the recipient's inbox receive?" The
+registry matches the *receiver*'s perspective.
+
+---
+
+## `offer_case_participant_activity`: `event.object_id` Has `#participant` Suffix
+
+(ISSUE-1298, 2026-07-10)
+
+`offer_case_participant_activity(recommended, ...)` builds a `CaseParticipant`
+with `id_=f"{recommended.id_}#participant"`. When extracted via
+`extract_event()`, the event's `object_id` is the `CaseParticipant` URI
+(e.g., `https://example.org/actors/vendor#participant`), not the actor URI.
+
+Use cases that need the actor ID must extract it from the `CaseParticipant`'s
+`attributed_to` field:
+
+```python
+participant_obj = getattr(request.activity, "object_", None)
+raw_actor = getattr(participant_obj, "attributed_to", None)
+actor_id = getattr(raw_actor, "id_", None) or request.object_id
+```
+
+The fallback `request.object_id` retains the `#participant` suffix and should
+only be used as a last resort — log a warning if it is reached.
