@@ -452,6 +452,10 @@ class EmitNoteDuplicateRecommendationToOwnerNode(DataLayerAction):
     Accept/Reject decision (AC-6, CM-16-008).  Sends a
     ``Create(Note)`` + ``Add(Note, Case)`` to the Case Owner without
     issuing a second ``Offer(CaseParticipant)``.
+
+    When ``offer_content`` is provided (non-None, non-empty), it is appended
+    to the Note body per CM-16-008's requirement to forward the incoming
+    Offer's ``content`` field to the Case Owner.
     """
 
     def __init__(
@@ -460,6 +464,7 @@ class EmitNoteDuplicateRecommendationToOwnerNode(DataLayerAction):
         recommender_id: str,
         recommended_id: str,
         case_id: str,
+        offer_content: str | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
@@ -467,6 +472,9 @@ class EmitNoteDuplicateRecommendationToOwnerNode(DataLayerAction):
         self.recommender_id = recommender_id
         self.recommended_id = recommended_id
         self.case_id = case_id
+        self.offer_content = (
+            (offer_content.strip() or None) if offer_content else None
+        )
 
     def update(self) -> Status:
         if self.datalayer is None or self.actor_id is None:
@@ -500,6 +508,10 @@ class EmitNoteDuplicateRecommendationToOwnerNode(DataLayerAction):
                 f"'{self.case_id}'.  An Offer(CaseParticipant) is already "
                 f"pending your decision (no second offer sent)."
             )
+            if self.offer_content:
+                content = (
+                    f"{content}\n\nRecommender note: {self.offer_content}"
+                )
             note_id, _ = factory.create_note(
                 name=f"Duplicate recommendation — {actor_segment}",
                 content=content,
@@ -566,6 +578,7 @@ def create_recommend_actor_to_case_received_tree(
     recommender_id: str,
     recommended_id: str,
     case_id: str,
+    offer_content: str | None = None,
 ) -> py_trees.composites.Sequence:
     """Received-side BT for Offer(Actor, Case) on the CaseActor inbox.
 
@@ -598,6 +611,9 @@ def create_recommend_actor_to_case_received_tree(
         recommender_id: Actor ID of the recommending participant.
         recommended_id: Actor ID of the suggested new participant.
         case_id: ID of the VulnerabilityCase.
+        offer_content: Optional ``content`` field from the inbound Offer
+            activity; forwarded to the duplicate-recommendation Note per
+            CM-16-008.
 
     Returns:
         Root ``RecommendActorToCaseBT`` Sequence node.
@@ -649,6 +665,7 @@ def create_recommend_actor_to_case_received_tree(
                 recommender_id=recommender_id,
                 recommended_id=recommended_id,
                 case_id=case_id,
+                offer_content=offer_content,
             ),
         ],
     )

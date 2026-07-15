@@ -62,11 +62,24 @@ class OfferActorToCaseReceivedUseCase:
             )
             return
 
+        offer_content = getattr(request.activity, "content", None)
+        if offer_content is not None and not isinstance(offer_content, str):
+            logger.warning(
+                "OfferActorToCaseReceived: activity '%s' has non-string content"
+                " type %s — ignoring",
+                activity_id,
+                type(offer_content).__name__,
+            )
+            offer_content = None
+        elif not isinstance(offer_content, str) or not offer_content.strip():
+            offer_content = None
+
         tree = create_recommend_actor_to_case_received_tree(
             recommendation_id=activity_id,
             recommender_id=recommender_id,
             recommended_id=recommended_id,
             case_id=case_id,
+            offer_content=offer_content,
         )
         bridge = BTBridge(
             datalayer=self._dl, trigger_activity=self._trigger_activity
