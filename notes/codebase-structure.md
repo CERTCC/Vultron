@@ -46,7 +46,9 @@ Enums are currently organized across multiple locations in the codebase:
 - `vultron/core/models/events.py` — `MessageSemantics` (domain enum)
 - `vultron/wire/as2/enums.py` — AS2 structural enums (`as_ObjectType`,
   `as_TransitiveActivityType`, etc.)
-- `vultron/enums.py` — backward-compat re-exports only
+- `vultron/enums/` — bottom-of-stack neutral enumeration layer (`CVDRole`,
+  `serialize_roles`, `validate_roles`; MUST NOT import from `vultron/core/`
+  or `vultron/config/`); see `docs/adr/0031-vultron-enums-neutral-layer.md`
 - `vultron/case_states/enums/` — case state enums, split into submodules:
   - `cvss_31.py`
   - `embargo.py`

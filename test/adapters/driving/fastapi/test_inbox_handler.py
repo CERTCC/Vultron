@@ -510,7 +510,7 @@ def test_submit_report_port_factory_injects_actor_config(monkeypatch):
     honour the local actor's ``auto_create_case`` policy (CM-15-001,
     issue #1319).
     """
-    from vultron.core.models.actor_config import ActorConfig
+    from vultron.config.actor import ActorConfig
     from vultron.demo.seed_config import LocalActorConfig, SeedConfig
     import vultron.adapters.driving.fastapi.inbox_port_factories as pf
 
@@ -569,7 +569,7 @@ def test_make_dispatcher_submit_report_uses_actor_config_factory(monkeypatch):
     from vultron.adapters.driven.trigger_activity_adapter import (
         TriggerActivityAdapter,
     )
-    from vultron.core.models.actor_config import ActorConfig
+    from vultron.config.actor import ActorConfig
     from vultron.demo.seed_config import LocalActorConfig
     import vultron.adapters.driving.fastapi.inbox_port_factories as pf
 

@@ -184,7 +184,7 @@ class TestCaseManagerRoleDelegationUseCases:
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.base.objects.actors import as_Organization
         from vultron.core.models.vultron_types import VultronParticipant
-        from vultron.core.states.roles import CVDRole
+        from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )

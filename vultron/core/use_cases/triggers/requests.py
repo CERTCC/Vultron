@@ -19,7 +19,7 @@ from pydantic import BaseModel, ConfigDict, field_validator
 from vultron.core.models.base import NonEmptyString, UriString
 from vultron.core.states.cs import CS_vfd, CS_pxa
 from vultron.core.states.rm import RM
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 
 
 class TriggerRequest(BaseModel):

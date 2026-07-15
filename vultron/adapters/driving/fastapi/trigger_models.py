@@ -33,7 +33,7 @@ from datetime import datetime, timezone
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from vultron.core.models.base import NonEmptyString, UriString
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
 

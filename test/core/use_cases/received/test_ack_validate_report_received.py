@@ -365,7 +365,7 @@ class TestValidateReportReceivedGuardedCommit:
         )
         case.vulnerability_reports.append(self.REPORT_ID)
         # Register case actor as CASE_MANAGER
-        from vultron.core.states.roles import CVDRole
+        from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.case_participant import (
             CaseParticipant,
         )
@@ -413,7 +413,7 @@ class TestValidateReportReceivedGuardedCommit:
         """
         import vultron.core.behaviors.report.received_report_trees as rrt_module
         from vultron.core.models.report_case_link import VultronReportCaseLink
-        from vultron.core.states.roles import CVDRole
+        from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.case_participant import (
             CaseParticipant,
         )

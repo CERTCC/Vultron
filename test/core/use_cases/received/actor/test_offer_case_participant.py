@@ -328,7 +328,7 @@ class TestAcceptOfferCaseParticipantRolesThreading:
     def _build_accept_offer_event(
         self,
     ) -> AcceptOfferCaseParticipantReceivedEvent:
-        from vultron.core.states.roles import CVDRole
+        from vultron.enums.roles import CVDRole
 
         recommended = as_Actor(id_=AC1_INVITEE_ID)
         offer = offer_case_participant_activity(

@@ -32,7 +32,7 @@ from vultron.wire.as2.vocab.examples._base import (
     vendor,
 )
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     accept_case_ownership_transfer_activity,
     add_report_to_case_activity,

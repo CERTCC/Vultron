@@ -22,7 +22,7 @@ from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.protocols import is_case_model
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.core.use_cases._helpers import (
     _idempotent_create,
     _report_phase_status_id,

@@ -20,7 +20,7 @@ from vultron.core.ports.case_persistence import (
     CasePersistence,
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.core.use_cases._helpers import (
     _as_id,
     _idempotent_create,

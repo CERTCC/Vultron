@@ -34,7 +34,7 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerCondition
-from vultron.core.models.actor_config import ActorConfig
+from vultron.config.actor import ActorConfig
 from vultron.core.models.protocols import is_case_model
 from vultron.core.use_cases._helpers import _resolve_case_manager_id
 

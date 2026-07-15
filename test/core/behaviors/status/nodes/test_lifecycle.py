@@ -31,7 +31,7 @@ from vultron.core.behaviors.status.nodes.lifecycle import (
     AutoCloseBranchNode,
     PublicDisclosureBranchNode,
 )
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase

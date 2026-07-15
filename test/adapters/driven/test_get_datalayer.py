@@ -27,7 +27,7 @@ from vultron.adapters.driven.datalayer_sqlite import (
 @pytest.fixture(autouse=True)
 def reset_singleton():
     """Ensure the datalayer singletons and config cache are reset each test."""
-    import vultron.config as _cfg_module
+    import vultron.config.app as _cfg_module
 
     reset_datalayer()
     yield

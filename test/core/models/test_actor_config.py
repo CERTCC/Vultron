@@ -24,8 +24,8 @@ Spec coverage:
 
 import pytest
 
-from vultron.core.models.actor_config import ActorConfig
-from vultron.core.states.roles import CVDRole
+from vultron.config.actor import ActorConfig
+from vultron.enums.roles import CVDRole
 
 # ============================================================================
 # Basic model tests (CFG-07-001, CFG-07-002)
@@ -85,6 +85,12 @@ def test_actor_config_rejects_invalid_role_name():
     """ActorConfig raises ValueError for unknown role names."""
     with pytest.raises((ValueError, KeyError)):
         ActorConfig.model_validate({"default_case_roles": ["NOT_A_ROLE"]})
+
+
+def test_actor_config_rejects_scalar_default_case_roles():
+    """ActorConfig raises ValueError when default_case_roles is a scalar string."""
+    with pytest.raises((ValueError, KeyError)):
+        ActorConfig.model_validate({"default_case_roles": "coordinator"})
 
 
 def test_actor_config_serializes_roles_as_names():

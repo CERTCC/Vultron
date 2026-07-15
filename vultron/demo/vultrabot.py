@@ -76,9 +76,14 @@ def main(args) -> None:
     _print_sim_result()
 
 
-def _run_simulation():
-    """Run the CVD protocol behaviour-tree simulation for up to 1000 ticks."""
+def _run_simulation() -> bool:
+    """Run the CVD protocol behaviour-tree simulation for up to 1000 ticks.
+
+    Returns True if the simulation reached closure within the tick limit,
+    False if it exhausted the limit without closing (issue #1414).
+    """
     tick = 0
+    closed = False
     with CvdProtocolBt() as tree:
         protocol_tree = cast(CvdProtocolBt, tree)
         tree.bb.CVD_role = (
@@ -99,14 +104,20 @@ def _run_simulation():
                 # do one last snapshot
                 assert protocol_tree.root is not None
                 protocol_tree.root.children[0].tick()
+                closed = True
                 break
-    logger.info(f"Closed in {tick} ticks")
+    if closed:
+        logger.info(f"Closed in {tick} ticks")
+    else:
+        logger.warning(f"Did not close within {tick} ticks")
 
     for k, v in tree.bb.model_dump().items():
         if "history" in k:
             logger.info(f"### {k} ###")
             for i, row in enumerate(v, start=1):
                 logger.info(f"  {i} {row}")
+
+    return closed
 
 
 def _shorten_names(y):

@@ -533,10 +533,9 @@ bb.set("https://example.org/cases/abc123", case_obj)
 The local actor's default CVD roles MUST be sourced from `ActorConfig`
 rather than hardcoded in BT nodes.
 
-`ActorConfig` is a neutral Pydantic model in `vultron/core/models/` (or
-`vultron/config.py`) — **not** inside `vultron/demo/`. This ensures BT
-nodes can import it without violating the no-demo-layer-imports rule
-(BTND-04-002, CFG-07-001).
+`ActorConfig` is a neutral Pydantic model in `vultron/config/actor.py` —
+**not** inside `vultron/demo/`. This ensures BT nodes can import it without
+violating the no-demo-layer-imports rule (BTND-04-002, CFG-07-001).
 
 See also: `specs/behavior-tree-node-design.yaml` BTND-05-001 through
 BTND-05-003, `specs/configuration.yaml` CFG-07-001 through CFG-07-004.

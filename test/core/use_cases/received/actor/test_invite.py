@@ -313,7 +313,7 @@ class TestInviteActorUseCases:
         )
         from vultron.core.models.vultron_types import VultronParticipant
         from vultron.core.states.rm import RM
-        from vultron.core.states.roles import CVDRole
+        from vultron.enums.roles import CVDRole
 
         dl = SqliteDataLayer("sqlite:///:memory:")
         invitee_id = "https://example.org/users/coordinator_rm2"
@@ -417,7 +417,7 @@ class TestInviteActorUseCases:
         )
         dl.create(invitee)
         dl.create(case)
-        from vultron.core.states.roles import CVDRole
+        from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.case_participant import (
             CaseParticipant,
         )
@@ -494,7 +494,7 @@ class TestInviteActorUseCases:
         dl.create(invitee)
         dl.create(case_actor)
         dl.create(case)
-        from vultron.core.states.roles import CVDRole
+        from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.case_participant import (
             CaseParticipant,
         )
@@ -603,7 +603,7 @@ class TestInviteActorUseCases:
         dl.create(invitee)
         dl.create(case_actor)
         dl.create(case)
-        from vultron.core.states.roles import CVDRole
+        from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.case_participant import (
             CaseParticipant,
         )
@@ -734,7 +734,7 @@ class TestInviteActorUseCases:
             attributed_to=invitee_id,
             context=case.id_,
         )
-        from vultron.core.states.roles import CVDRole
+        from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.case_participant import (
             CaseParticipant,
         )
@@ -842,7 +842,7 @@ class TestInviteActorUseCases:
         dl.create(invitee)
         dl.create(case_actor)
         dl.create(case)
-        from vultron.core.states.roles import CVDRole
+        from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.case_participant import (
             CaseParticipant,
         )
@@ -911,7 +911,7 @@ class TestAcceptInviteRolesAC4:
     def test_roles_from_invite_set_on_participant(self, make_payload):
         """AC-4: Accept(Invite) causes new participant to inherit roles from Invite."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.core.states.roles import CVDRole
+        from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.base.objects.actors import as_Organization
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,

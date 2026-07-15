@@ -23,7 +23,7 @@ from enum import StrEnum
 
 import pytest
 
-from vultron.core.states.roles import CVDRole, serialize_roles, validate_roles
+from vultron.enums.roles import CVDRole, serialize_roles, validate_roles
 
 
 def test_cvdrole_is_str_enum():
@@ -183,10 +183,15 @@ def test_validate_roles_empty():
     assert validate_roles([]) == []
 
 
-def test_validate_roles_non_list():
-    """validate_roles returns [] for non-list input."""
+def test_validate_roles_none_returns_empty():
+    """validate_roles returns [] for None (field omitted)."""
     assert validate_roles(None) == []  # type: ignore[arg-type]
-    assert validate_roles("finder") == []  # type: ignore[arg-type]
+
+
+def test_validate_roles_non_list_raises():
+    """validate_roles raises ValueError for non-list, non-None input."""
+    with pytest.raises(ValueError, match="must be a list"):
+        validate_roles("finder")  # type: ignore[arg-type]
 
 
 def test_validate_roles_invalid_value():

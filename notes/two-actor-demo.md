@@ -68,7 +68,7 @@ inbox). The **role** it holds within the case is `CASE_MANAGER` (a
 `CVDRole` enum value). This disambiguates entity from role. `CASE_ACTOR` as a
 role name is retired.
 
-See `vultron/core/states/roles.py` (`CVDRole.CASE_MANAGER`) and
+See `vultron/enums/roles.py` (`CVDRole.CASE_MANAGER`) and
 `notes/participant-role-management.md`.
 
 ---

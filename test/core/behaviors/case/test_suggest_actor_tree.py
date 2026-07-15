@@ -51,7 +51,7 @@ from vultron.core.models.protocol_pair import (
     OFFER_CASE_PARTICIPANT_REPLY_TYPES,
     ProtocolPair,
 )
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 
 _REC_ID = "https://example.org/recommendations/rec-1"
 _RECOMMENDER = "https://example.org/actors/recommender"

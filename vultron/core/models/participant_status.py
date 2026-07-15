@@ -23,7 +23,7 @@ from pydantic.alias_generators import to_camel
 from vultron.core.states.rm import RM
 from vultron.core.states.cs import CS_vfd
 from vultron.core.states.participant_embargo_consent import PEC
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.core.models.case_status import CaseStatus
 

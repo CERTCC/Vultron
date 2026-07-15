@@ -25,7 +25,7 @@ from enum import Flag, auto
 class CVDRolesFlag(Flag):
     """Bitmask CVD role flags for the vultron.bt simulator.
 
-    Use ``CVDRole`` (``vultron.core.states.roles``) for new code.
+    Use ``CVDRole`` (``vultron.enums.roles``) for new code.
     This class exists solely to keep the legacy ``vultron.bt`` simulator
     working without modification.
     """

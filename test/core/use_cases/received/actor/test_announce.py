@@ -24,7 +24,7 @@ from vultron.core.use_cases.received.actor.announce import (
 from vultron.wire.as2.factories import announce_vulnerability_case_activity
 from vultron.wire.as2.vocab.objects.case_actor import CaseActor
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 _OWNER_ID = "https://example.org/actors/owner"

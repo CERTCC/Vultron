@@ -36,7 +36,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.core.states.rm import RM
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.errors import VultronValidationError
 from vultron.core.use_cases.triggers.case import (
     DeferCaseTriggerRequest,

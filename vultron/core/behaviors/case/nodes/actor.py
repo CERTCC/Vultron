@@ -44,7 +44,7 @@ from vultron.core.behaviors.sync.commit_tree import (
 )
 from vultron.core.models.protocols import is_case_model
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.states.roles import CVDRole, serialize_roles
+from vultron.enums.roles import CVDRole, serialize_roles
 from vultron.core.use_cases._helpers import _as_id
 
 

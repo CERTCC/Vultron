@@ -29,7 +29,7 @@ from vultron.core.behaviors.embargo.nodes.lifecycle import (
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 

@@ -53,7 +53,7 @@ from vultron.core.models.protocol_pair import (
     OFFER_CASE_PARTICIPANT_REPLY_TYPES,
 )
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
 
