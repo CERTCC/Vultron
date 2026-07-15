@@ -44,6 +44,7 @@ from vultron.core.use_cases.triggers.requests import (
     SubmitReportTriggerRequest,
     ValidateReportTriggerRequest,
 )
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
@@ -156,8 +157,8 @@ class TestSvcValidateReportUseCase:
     @pytest.fixture(autouse=True)
     def setup(self):
         self.vendor, self.dl = _make_actor_dl("Vendor Co")
-        self.finder, _ = _make_actor_dl("Finder Co")
-        self.case_actor, _ = _make_actor_dl("Case Actor")
+        self.finder, self.finder_dl = _make_actor_dl("Finder Co")
+        self.case_actor, self.case_actor_dl = _make_actor_dl("Case Actor")
 
         self.report = VulnerabilityReport(
             name="CVE-TEST",
@@ -183,6 +184,10 @@ class TestSvcValidateReportUseCase:
         yield
         self.dl.clear_all()
         self.dl.close()
+        self.finder_dl.clear_all()
+        self.finder_dl.close()
+        self.case_actor_dl.clear_all()
+        self.case_actor_dl.close()
         reset_datalayer(self.vendor.id_)
         reset_datalayer(self.finder.id_)
         reset_datalayer(self.case_actor.id_)
@@ -280,6 +285,9 @@ class TestSvcValidateReportUseCase:
         )
         assert self.case_actor.id_ in to_ids
         assert self.vendor.id_ not in to_ids
+        # PCR-08-001 requires exclusive routing to Case Actor only.
+        assert self.finder.id_ not in to_ids
+        assert len(to_ids) == 1, f"Expected exactly 1 recipient, got {to_ids}"
 
     # --- AC-3: failure modes -----------------------------------------------
 
@@ -389,10 +397,12 @@ class TestSvcSubmitReportUseCase:
     @pytest.fixture(autouse=True)
     def setup(self):
         self.finder, self.dl = _make_actor_dl("Finder Co")
-        self.vendor, _ = _make_actor_dl("Vendor Co")
+        self.vendor, self.vendor_dl = _make_actor_dl("Vendor Co")
         yield
         self.dl.clear_all()
         self.dl.close()
+        self.vendor_dl.clear_all()
+        self.vendor_dl.close()
         reset_datalayer(self.finder.id_)
         reset_datalayer(self.vendor.id_)
 
@@ -421,6 +431,30 @@ class TestSvcSubmitReportUseCase:
         assert stored is not None, "VulnerabilityReport not found in DataLayer"
         assert isinstance(stored, VulnerabilityReport)
         assert stored.name == "CVE-TEST"
+
+    def test_submit_report_persists_report_case_link(self):
+        """execute() stores a VultronReportCaseLink keyed by report ID."""
+        request = SubmitReportTriggerRequest(
+            actor_id=self.finder.id_,
+            report_name="CVE-TEST",
+            report_content="Vulnerability details",
+            recipient_id=self.vendor.id_,
+        )
+        result = SvcSubmitReportUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+        ).execute()
+
+        offer_dict = result.get("offer") or {}
+        report_id = (offer_dict.get("object") or {}).get("id")
+        assert report_id is not None
+        link_id = VultronReportCaseLink.build_id(report_id)
+        link = self.dl.read(link_id)
+        assert link is not None, "VultronReportCaseLink not found in DataLayer"
+        assert isinstance(link, VultronReportCaseLink)
+        assert link.report_id == report_id
+        assert link.trusted_case_creator_id == self.vendor.id_
 
     def test_submit_report_returns_offer_dict(self):
         """execute() returns {'offer': <offer_dict>} with a non-None offer."""
