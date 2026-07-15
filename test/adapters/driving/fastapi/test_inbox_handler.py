@@ -502,28 +502,72 @@ def test_inbox_handler_uses_actor_dl_for_queue_pop_and_shared_dl_for_dispatch(
     ), "dispatch must be called with shared dl, not actor_dl"
 
 
-def test_submit_report_port_factory_injects_actor_config(monkeypatch):
-    """_submit_report_port_factory returns actor_config from SeedConfig.
+def test_inbox_port_factories_has_no_demo_import():
+    """inbox_port_factories.py must not import from vultron.demo (AC-2, CFG-07-005)."""
+    import ast
+    import pathlib
 
-    When SeedConfig is available, the factory must include an
+    src = (
+        pathlib.Path(__file__).parents[4]
+        / "vultron"
+        / "adapters"
+        / "driving"
+        / "fastapi"
+        / "inbox_port_factories.py"
+    ).read_text()
+    tree = ast.parse(src)
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            module = ""
+            if isinstance(node, ast.ImportFrom) and node.module:
+                module = node.module
+            elif isinstance(node, ast.Import):
+                module = ",".join(alias.name for alias in node.names)
+            assert "vultron.demo" not in module, (
+                f"inbox_port_factories.py must not import from vultron.demo; "
+                f"found: {module!r}"
+            )
+
+
+def test_resolve_actor_config_delegates_to_load_actor_config(monkeypatch):
+    """_resolve_actor_config() must call load_actor_config() (AC-2, CFG-07-005).
+
+    The production adapter must not import SeedConfig; instead it delegates
+    to load_actor_config() from vultron.config.
+    """
+    from vultron.config.actor import ActorConfig
+    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
+    import vultron.config.actor as actor_mod
+
+    called = []
+
+    def fake_load_actor_config():
+        called.append(True)
+        return ActorConfig(auto_create_case=False)
+
+    monkeypatch.setattr(actor_mod, "load_actor_config", fake_load_actor_config)
+    # Reload pf so it picks up the patched module reference
+    monkeypatch.setattr(pf, "load_actor_config", fake_load_actor_config)
+
+    result = pf._resolve_actor_config()
+    assert called, "load_actor_config must have been called"
+    assert isinstance(result, ActorConfig)
+    assert result.auto_create_case is False
+
+
+def test_submit_report_port_factory_injects_actor_config(monkeypatch):
+    """_submit_report_port_factory returns actor_config from load_actor_config.
+
+    When load_actor_config() is available, the factory must include an
     ``actor_config`` key so that ``SubmitReportReceivedUseCase`` can
     honour the local actor's ``auto_create_case`` policy (CM-15-001,
     issue #1319).
     """
     from vultron.config.actor import ActorConfig
-    from vultron.demo.seed_config import LocalActorConfig, SeedConfig
     import vultron.adapters.driving.fastapi.inbox_port_factories as pf
 
-    fake_cfg = SeedConfig(
-        local_actor=LocalActorConfig(
-            name="Vendor",
-            actor_type="Organization",
-            auto_create_case=False,
-        )
-    )
-    monkeypatch.setattr(
-        pf, "_resolve_actor_config", lambda: fake_cfg.local_actor
-    )
+    fake_actor_config = ActorConfig(auto_create_case=False)
+    monkeypatch.setattr(pf, "_resolve_actor_config", lambda: fake_actor_config)
 
     real_dl = SqliteDataLayer("sqlite:///:memory:")
     kwargs = pf._submit_report_port_factory(real_dl)
@@ -570,7 +614,6 @@ def test_make_dispatcher_submit_report_uses_actor_config_factory(monkeypatch):
         TriggerActivityAdapter,
     )
     from vultron.config.actor import ActorConfig
-    from vultron.demo.seed_config import LocalActorConfig
     import vultron.adapters.driving.fastapi.inbox_port_factories as pf
 
     captured: dict = {}
@@ -583,9 +626,7 @@ def test_make_dispatcher_submit_report_uses_actor_config_factory(monkeypatch):
     monkeypatch.setattr(
         pf,
         "_resolve_actor_config",
-        lambda: LocalActorConfig(
-            name="Vendor", actor_type="Organization", auto_create_case=False
-        ),
+        lambda: ActorConfig(auto_create_case=False),
     )
 
     ih.make_dispatcher()
@@ -616,11 +657,11 @@ def test_make_dispatcher_ac2_auto_create_false_no_case_via_dispatcher(
     issue #1319).
     """
     from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+    from vultron.config.actor import ActorConfig
     from vultron.core.models.activity import VultronActivity
     from vultron.core.models.case_actor import VultronCaseActor
     from vultron.core.models.events.report import SubmitReportReceivedEvent
     from vultron.core.models.report import VultronReport
-    from vultron.demo.seed_config import LocalActorConfig
     import vultron.adapters.driving.fastapi.inbox_port_factories as pf
 
     VENDOR_ID = "https://example.org/actors/vendor-ac2"
@@ -632,9 +673,7 @@ def test_make_dispatcher_ac2_auto_create_false_no_case_via_dispatcher(
     monkeypatch.setattr(
         pf,
         "_resolve_actor_config",
-        lambda: LocalActorConfig(
-            name="Vendor", actor_type="Organization", auto_create_case=False
-        ),
+        lambda: ActorConfig(auto_create_case=False),
     )
 
     # Build a real dispatcher the same way make_dispatcher() does, but

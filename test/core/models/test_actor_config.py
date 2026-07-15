@@ -14,17 +14,20 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 """
-Tests for ActorConfig neutral model.
+Tests for ActorConfig neutral model and load_actor_config().
 
 Spec coverage:
 - CFG-07-001: ActorConfig MUST be defined outside the demo layer.
 - CFG-07-002: ActorConfig MUST include a default_case_roles field
               (list[CVDRole], default empty list).
+- CFG-07-005: load_actor_config() must exist in vultron/config/.
+- CFG-07-007: LocalActorConfig must not extend ActorConfig.
 """
 
+import yaml
 import pytest
 
-from vultron.config.actor import ActorConfig
+from vultron.config.actor import ActorConfig, load_actor_config
 from vultron.enums.roles import CVDRole
 
 # ============================================================================
@@ -120,33 +123,162 @@ def test_actor_config_does_not_mutate_between_uses():
 
 
 # ============================================================================
-# LocalActorConfig composition (CFG-07-003)
+# LocalActorConfig decoupling from ActorConfig (CFG-07-007)
 # ============================================================================
 
 
-def test_local_actor_config_inherits_actor_config():
-    """LocalActorConfig MUST inherit from ActorConfig (CFG-07-003)."""
+def test_local_actor_config_is_plain_base_model():
+    """LocalActorConfig MUST be a plain BaseModel, not a subclass of ActorConfig
+    (CFG-07-007).
+    """
+    from pydantic import BaseModel
+
     from vultron.demo.seed_config import LocalActorConfig
 
-    assert issubclass(LocalActorConfig, ActorConfig)
+    assert issubclass(LocalActorConfig, BaseModel)
+    assert not issubclass(LocalActorConfig, ActorConfig)
 
 
-def test_local_actor_config_has_default_case_roles():
-    """LocalActorConfig exposes default_case_roles from ActorConfig."""
+def test_local_actor_config_has_no_policy_fields():
+    """LocalActorConfig must NOT have auto_create_case or default_case_roles
+    (CFG-07-007).
+    """
     from vultron.demo.seed_config import LocalActorConfig
 
     cfg = LocalActorConfig(name="Test Actor")
-    assert hasattr(cfg, "default_case_roles")
-    assert cfg.default_case_roles == []
+    assert not hasattr(cfg, "auto_create_case")
+    assert not hasattr(cfg, "default_case_roles")
 
 
-def test_local_actor_config_with_roles():
-    """LocalActorConfig accepts default_case_roles alongside actor fields."""
+def test_local_actor_config_identity_fields_only():
+    """LocalActorConfig carries only name, actor_type, and id_ (CFG-07-007)."""
     from vultron.demo.seed_config import LocalActorConfig
 
     cfg = LocalActorConfig(
         name="Coordinator",
-        default_case_roles=[CVDRole.COORDINATOR],
+        actor_type="Service",
+        id="http://coordinator:7999/api/v2/actors/coordinator",
     )
-    assert CVDRole.COORDINATOR in cfg.default_case_roles
     assert cfg.name == "Coordinator"
+    assert cfg.actor_type == "Service"
+    assert cfg.id_ == "http://coordinator:7999/api/v2/actors/coordinator"
+
+
+# ============================================================================
+# load_actor_config() (CFG-07-005)
+# ============================================================================
+
+
+def test_load_actor_config_returns_actor_config():
+    """load_actor_config() MUST return an ActorConfig instance (CFG-07-005)."""
+    cfg = load_actor_config()
+    assert isinstance(cfg, ActorConfig)
+
+
+def test_load_actor_config_defaults(monkeypatch):
+    """load_actor_config() returns defaults when no env vars or file set."""
+    monkeypatch.delenv("VULTRON_SEED_CONFIG", raising=False)
+    monkeypatch.delenv("VULTRON_ACTOR__AUTO_CREATE_CASE", raising=False)
+    monkeypatch.delenv("VULTRON_ACTOR__DEFAULT_CASE_ROLES", raising=False)
+    cfg = load_actor_config()
+    assert cfg.auto_create_case is True
+    assert cfg.default_case_roles == []
+
+
+def test_load_actor_config_reads_auto_create_case_from_env(monkeypatch):
+    """load_actor_config() reads VULTRON_ACTOR__AUTO_CREATE_CASE env var."""
+    monkeypatch.delenv("VULTRON_SEED_CONFIG", raising=False)
+    monkeypatch.setenv("VULTRON_ACTOR__AUTO_CREATE_CASE", "false")
+    monkeypatch.delenv("VULTRON_ACTOR__DEFAULT_CASE_ROLES", raising=False)
+    cfg = load_actor_config()
+    assert cfg.auto_create_case is False
+
+
+def test_load_actor_config_reads_default_case_roles_from_env(monkeypatch):
+    """load_actor_config() reads VULTRON_ACTOR__DEFAULT_CASE_ROLES env var."""
+    monkeypatch.delenv("VULTRON_SEED_CONFIG", raising=False)
+    monkeypatch.delenv("VULTRON_ACTOR__AUTO_CREATE_CASE", raising=False)
+    monkeypatch.setenv("VULTRON_ACTOR__DEFAULT_CASE_ROLES", '["coordinator"]')
+    cfg = load_actor_config()
+    assert CVDRole.COORDINATOR in cfg.default_case_roles
+
+
+def test_load_actor_config_reads_policy_from_seed_yaml(tmp_path, monkeypatch):
+    """load_actor_config() extracts policy fields from VULTRON_SEED_CONFIG YAML."""
+    seed_file = tmp_path / "seed.yaml"
+    data = {
+        "local_actor": {
+            "name": "Vendor",
+            "actor_type": "Organization",
+            "id": "http://vendor:7999/api/v2/actors/vendor",
+            "auto_create_case": False,
+            "default_case_roles": ["coordinator"],
+        }
+    }
+    seed_file.write_text(yaml.dump(data))
+    monkeypatch.setenv("VULTRON_SEED_CONFIG", str(seed_file))
+    monkeypatch.delenv("VULTRON_ACTOR__AUTO_CREATE_CASE", raising=False)
+    monkeypatch.delenv("VULTRON_ACTOR__DEFAULT_CASE_ROLES", raising=False)
+    cfg = load_actor_config()
+    assert cfg.auto_create_case is False
+    assert CVDRole.COORDINATOR in cfg.default_case_roles
+
+
+def test_load_actor_config_ignores_bootstrap_fields_from_yaml(
+    tmp_path, monkeypatch
+):
+    """load_actor_config() ignores name/actor_type/id from YAML (extra=ignore)."""
+    seed_file = tmp_path / "seed.yaml"
+    data = {
+        "local_actor": {
+            "name": "Vendor",
+            "actor_type": "Organization",
+            "id": "http://vendor:7999/api/v2/actors/vendor",
+        }
+    }
+    seed_file.write_text(yaml.dump(data))
+    monkeypatch.setenv("VULTRON_SEED_CONFIG", str(seed_file))
+    monkeypatch.delenv("VULTRON_ACTOR__AUTO_CREATE_CASE", raising=False)
+    monkeypatch.delenv("VULTRON_ACTOR__DEFAULT_CASE_ROLES", raising=False)
+    cfg = load_actor_config()
+    # Bootstrap fields are ignored; policy defaults apply
+    assert cfg.auto_create_case is True
+    assert cfg.default_case_roles == []
+    assert not hasattr(cfg, "name")
+
+
+def test_load_actor_config_falls_back_to_env_when_seed_yaml_missing(
+    tmp_path, monkeypatch
+):
+    """load_actor_config() falls back to env vars when VULTRON_SEED_CONFIG file
+    is missing.
+    """
+    monkeypatch.setenv(
+        "VULTRON_SEED_CONFIG", str(tmp_path / "nonexistent.yaml")
+    )
+    monkeypatch.setenv("VULTRON_ACTOR__AUTO_CREATE_CASE", "false")
+    monkeypatch.delenv("VULTRON_ACTOR__DEFAULT_CASE_ROLES", raising=False)
+    cfg = load_actor_config()
+    assert cfg.auto_create_case is False
+
+
+def test_load_actor_config_falls_back_to_env_when_yaml_has_no_local_actor(
+    tmp_path, monkeypatch
+):
+    """load_actor_config() falls back to env vars when VULTRON_SEED_CONFIG YAML
+    exists but contains no local_actor key (CFG-07-005 resolution order).
+    """
+    seed_file = tmp_path / "seed.yaml"
+    seed_file.write_text(yaml.dump({"peers": []}))
+    monkeypatch.setenv("VULTRON_SEED_CONFIG", str(seed_file))
+    monkeypatch.setenv("VULTRON_ACTOR__AUTO_CREATE_CASE", "false")
+    monkeypatch.delenv("VULTRON_ACTOR__DEFAULT_CASE_ROLES", raising=False)
+    cfg = load_actor_config()
+    assert cfg.auto_create_case is False
+
+
+def test_load_actor_config_exported_from_config_package():
+    """load_actor_config MUST be importable from vultron.config (CFG-07-005)."""
+    from vultron.config import load_actor_config as lac
+
+    assert callable(lac)

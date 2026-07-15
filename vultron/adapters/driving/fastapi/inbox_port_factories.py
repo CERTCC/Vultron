@@ -24,41 +24,29 @@ to inject adapter ports into use cases at dispatch time.
 #  in the U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any, cast
 
-import yaml
-from pydantic import ValidationError
-
+from vultron.config.actor import ActorConfig, load_actor_config
 from vultron.core.models.events import MessageSemantics
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.ports.datalayer import DataLayer
-from vultron.demo.seed_config import SeedConfig
-
-if TYPE_CHECKING:
-    from vultron.config.actor import ActorConfig
 
 logger = logging.getLogger(__name__)
 
 
-def _resolve_actor_config() -> "ActorConfig | None":
-    """Load the local actor's ``ActorConfig`` from ``SeedConfig``.
+def _resolve_actor_config() -> ActorConfig | None:
+    """Load the local actor's ``ActorConfig`` via :func:`load_actor_config`.
 
-    Reads ``VULTRON_SEED_CONFIG`` (path) or the individual
-    ``VULTRON_ACTOR_*`` env vars via :func:`~vultron.demo.seed_config.SeedConfig.load`.
-    Returns ``None`` on any load error so callers fall through to the
-    always-create default (CM-15-001).
+    Reads actor policy from ``VULTRON_SEED_CONFIG`` YAML or
+    ``VULTRON_ACTOR__*`` env vars (CFG-07-005).  Returns ``None`` on any
+    load error so callers fall through to the always-create default
+    (CM-15-001).
     """
     try:
-        return SeedConfig.load().local_actor
-    except (
-        FileNotFoundError,
-        KeyError,
-        ValueError,
-        ValidationError,
-        yaml.YAMLError,
-    ):
+        return load_actor_config()
+    except Exception:
         logger.debug(
-            "_resolve_actor_config: SeedConfig unavailable — "
+            "_resolve_actor_config: load_actor_config failed — "
             "defaulting to auto_create_case=True",
             exc_info=True,
         )

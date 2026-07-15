@@ -38,7 +38,7 @@ Environment variables
     Override :attr:`AppConfig.mode` (``prototype`` or ``prod``).
 """
 
-from vultron.config.actor import ActorConfig
+from vultron.config.actor import ActorConfig, load_actor_config
 from vultron.config.app import (
     AppConfig,
     DatabaseConfig,
@@ -57,5 +57,6 @@ __all__ = [
     "ServerConfig",
     "YamlConfigSource",
     "get_config",
+    "load_actor_config",
     "reload_config",
 ]
