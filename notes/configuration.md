@@ -20,8 +20,10 @@ relevant_packages:
 IDEA-260402-01 (design session 2026-04-23) established that Vultron config
 files MUST use YAML for readability and MUST be loaded into Pydantic-backed
 structured objects for type safety. This note captures the design decisions
-and implementation guidance for `vultron/config.py` and the aligned
-`SeedConfig` refactor.
+and implementation guidance for the `vultron/config/` sub-package and the
+aligned `SeedConfig` refactor. The `vultron/config.py` flat module shown in
+the historical sections below was replaced by the sub-package in issue #1342;
+see § "Current Architecture" for the live layout.
 
 See `specs/configuration.yaml` for the formal requirements (CFG-01 through
 CFG-06).
@@ -45,7 +47,11 @@ CFG-06).
 
 ---
 
-## Module Structure
+## Module Structure (historical — superseded by issue #1342)
+
+> **Note**: The layout below was the pre-migration design. The flat
+> `vultron/config.py` no longer exists. See § "Current Architecture" below
+> for the live sub-package layout.
 
 ```text
 vultron/
@@ -55,9 +61,10 @@ vultron/
     seed_config.py   ← SeedConfig (separate; refactored to BaseSettings)
 ```
 
-`vultron/config.py` is a **neutral module** — it MUST NOT import from
-`vultron/adapters/` or `vultron/wire/` or FastAPI. It sits alongside
-`vultron/errors.py` and `vultron/enums.py` as a shared-access layer.
+`vultron/config.py` was a **neutral module** — it MUST NOT import from
+`vultron/adapters/` or `vultron/wire/` or FastAPI. It sat alongside
+`vultron/errors.py` as a shared-access layer. This constraint still applies
+to the `vultron/config/` sub-package.
 
 ---
 
