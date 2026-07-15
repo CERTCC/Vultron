@@ -108,31 +108,11 @@ class FastAPIIngressAdapter:
         return activity
 
     def rehydrate(self, activity: as_Activity) -> as_Activity:
-        """Resolve nested object references via the DataLayer.
-
-        Passes the in-memory activity object directly to ``rehydrate()``
-        instead of re-reading it by ID.  This preserves any fully-typed
-        inline ``object_`` (e.g. a ``CaseLedgerEntry``) that
-        ``_store_nested_inbox_object`` wrote back onto the activity at
-        parse time — a DataLayer round-trip would dehydrate the inline
-        object to a bare string ID and lose domain-specific fields.
-
-        After wire-layer rehydration, ``dl.hydrate()`` is called on the
-        nested ``object_`` (if present) to expand shallow string-reference
-        fields such as ``target`` that the wire rehydrator does not recurse
-        into.  This reproduces the depth-2 expansion that the old DataLayer
-        read path performed via ``_rehydrate_fields``.
-        """
-        result = rehydrate(activity, dl=self._dl)
-        if not isinstance(result, as_Activity):
-            result = activity
-        # Expand shallow string-reference fields (target, origin, …) on the
-        # nested object_ that wire rehydrate() does not recurse into.
-        nested = getattr(result, "object_", None)
-        if nested is not None and not isinstance(nested, str):
-            hydrated_nested = self._dl.hydrate(cast(Any, nested))
-            cast(Any, result).object_ = hydrated_nested
-        return result
+        """Resolve nested object references via the DataLayer."""
+        result = rehydrate(activity.id_, dl=self._dl)
+        if isinstance(result, as_Activity):
+            return result
+        return activity
 
 
 class StoredActivityIngressAdapter:

@@ -151,12 +151,6 @@ def _store_nested_inbox_object(
     less specific pattern (e.g. ``announce_vulnerability_case`` instead of
     ``announce_case_ledger_entry``).
 
-    The re-parsed object is also written back to ``activity.object_`` so that
-    the in-memory activity already carries the fully-typed nested object.
-    This lets ``FastAPIIngressAdapter.rehydrate()`` pass the activity object
-    directly to ``rehydrate()`` without a DataLayer round-trip, preserving
-    domain-specific fields that would otherwise be lost via dehydration.
-
     Args:
         dl: The shared DataLayer for storing the nested object.
         activity: The parsed AS2 activity whose ``object_`` to store.
@@ -180,24 +174,6 @@ def _store_nested_inbox_object(
         if isinstance(raw_obj, dict)
         else cast(PersistableModel, nested)
     )
-
-    # Write the specifically-typed object back onto the in-memory activity so
-    # that FastAPIIngressAdapter.rehydrate() can operate on the already-typed
-    # object without going through a DataLayer round-trip (which would
-    # dehydrate the inline object to a string ID and lose domain fields).
-    cast(Any, activity).object_ = typed_nested
-
-    # CaseLedgerEntry objects must NOT be stored here: they are stored
-    # canonically by PersistReceivedLogEntryNode after effects are applied
-    # (SYNC-12-001/SYNC-12-003).  Pre-storing them would cause
-    # CheckLedgerEntryAlreadyStoredNode to skip effects on first delivery.
-    if getattr(typed_nested, "type_", None) == "CaseLedgerEntry":
-        logger.debug(
-            "Skipping parse-time store of inline CaseLedgerEntry '%s' "
-            "(deferred to PersistReceivedLogEntryNode).",
-            getattr(typed_nested, "id_", "?"),
-        )
-        return
 
     try:
         dl.create(object_to_record(typed_nested))
