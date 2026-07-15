@@ -9,6 +9,7 @@ related_specs:
   - specs/vultron-protocol-spec.yaml
   - specs/meta-specifications.yaml
   - specs/spec-registry.yaml
+  - specs/message-semantics-mapping.yaml
 related_notes:
   - notes/specs-vs-adrs.md
   - notes/bt-integration.md
@@ -195,6 +196,29 @@ When drafting spec item content, use these sources in priority order:
 
 Do NOT use `vultron/bt/` (legacy simulator) as a source. Focus exclusively on
 the `vultron/core/behaviors/` py_trees layer.
+
+## Protocol Shorthand → MessageSemantics → VAM Traceability
+
+RMB/EMB/CSB `trigger.value` fields use protocol shorthand labels (RS, EP, EA,
+CV, CP, etc.). An independent implementor needs a normative document that
+bridges these shorthands to the implementation:
+
+1. **Shorthand label** (e.g., `EP`) — used in behavioral spec trigger values
+   and VP spec prose
+2. **`MessageSemantics` enum value** (e.g., `INVITE_TO_EMBARGO_ON_CASE`) — the
+   domain-layer semantic intent used for dispatch
+3. **VAM spec item ID** (e.g., `VAM-05-005`) — the wire-format mapping
+
+This three-hop chain is now captured normatively in
+`specs/message-semantics-mapping.yaml` (MSM prefix). Each MSM item provides
+one row in the flat table: shorthand → MessageSemantics → VAM ID.
+
+**Authoring rule for behavioral specs**: when writing a `trigger.value` field
+with a protocol shorthand label, always cross-reference the corresponding MSM
+spec item in the group or item description. The extractor code
+(`vultron/wire/as2/extractor/_instances.py`) is the authoritative source if
+the shorthand→MessageSemantics mapping differs between the code, legacy
+ontology, and docs.
 
 ## PR Sequence
 
