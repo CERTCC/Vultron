@@ -10,7 +10,7 @@ from vultron.adapters.driven.datalayer_sqlite import (
 )
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Invite
 from vultron.wire.as2.vocab.base.objects.actors import as_Service

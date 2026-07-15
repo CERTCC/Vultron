@@ -27,7 +27,7 @@ from vultron.adapters.driven.datalayer_sqlite import (
     reset_datalayer,
 )
 from vultron.core.states.em import EM
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.errors import VultronValidationError
 from vultron.core.use_cases.triggers.case import (
     SvcAddParticipantStatusUseCase,

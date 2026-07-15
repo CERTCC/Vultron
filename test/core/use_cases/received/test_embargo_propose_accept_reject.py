@@ -422,7 +422,7 @@ class TestEmbargoProposalLifecycle:
 
         # Add a Case Manager participant so routing proceeds to the
         # EM-state validation check (the test's actual assertion target).
-        from vultron.core.states.roles import CVDRole
+        from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.case_participant import (
             CaseParticipant as CP,
         )

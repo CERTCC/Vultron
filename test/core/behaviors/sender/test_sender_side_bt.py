@@ -30,7 +30,7 @@ from vultron.core.behaviors.sender.nodes import (
     ResolveCaseManagerNode,
 )
 from vultron.core.behaviors.sender.send_tree import sender_side_bt
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
     FinderParticipant,

@@ -48,7 +48,7 @@ from pathlib import Path
 import pytest
 
 from vultron.core.states.participant_embargo_consent import PEC
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 
 # ---------------------------------------------------------------------------
 # Constants

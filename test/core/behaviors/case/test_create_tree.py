@@ -264,7 +264,7 @@ def test_create_case_tree_creates_case_owner_participant(
     datalayer, actor, case_obj, create_case_activity, bridge
 ):
     """A case-owner participant SHOULD be created and added to case_participants (CM-02-008)."""
-    from vultron.core.states.roles import CVDRole
+    from vultron.enums.roles import CVDRole
 
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
     bridge.execute_with_setup(
@@ -301,8 +301,8 @@ def test_create_case_tree_case_owner_participant_includes_config_roles(
     datalayer, actor, case_obj, create_case_activity, bridge
 ):
     """CreateCaseOwnerParticipant includes config roles + CASE_OWNER (CFG-07-004)."""
-    from vultron.core.models.actor_config import ActorConfig
-    from vultron.core.states.roles import CVDRole
+    from vultron.config.actor import ActorConfig
+    from vultron.enums.roles import CVDRole
 
     config = ActorConfig(default_case_roles=[CVDRole.COORDINATOR])
     tree = create_create_case_tree(

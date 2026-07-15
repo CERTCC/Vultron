@@ -124,7 +124,7 @@ The Case Actor is the participant with `CVDRole.CASE_MANAGER`. To resolve
 its actor ID from a known case:
 
 ```python
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 
 def _resolve_case_manager_id(case, dl) -> str | None:
     for p_id in case.actor_participant_index.values():

@@ -11,7 +11,7 @@ from pydantic import ValidationError
 from vultron.metadata.specs.registry import load_registry
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.metadata.specs.schema import (
     BehavioralSpec,
     BehaviorStep,

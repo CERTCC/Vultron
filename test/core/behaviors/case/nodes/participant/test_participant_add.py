@@ -43,7 +43,7 @@ from vultron.core.models.vultron_types import (
 )
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Add
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.core.use_cases._helpers import _report_phase_status_id

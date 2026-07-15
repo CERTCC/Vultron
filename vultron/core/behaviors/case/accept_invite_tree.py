@@ -63,7 +63,7 @@ from vultron.core.states.participant_embargo_consent import (
     apply_pec_trigger,
 )
 from vultron.core.states.rm import RM
-from vultron.core.states.roles import validate_roles
+from vultron.enums.roles import validate_roles
 from vultron.core.use_cases._helpers import _as_id
 
 logger = logging.getLogger(__name__)

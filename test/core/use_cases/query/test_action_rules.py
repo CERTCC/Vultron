@@ -23,7 +23,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.core.states.cs import CS_pxa, CS_vfd
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.core.use_cases.query.action_rules import (
     ActionRulesRequest,
     GetActionRulesUseCase,

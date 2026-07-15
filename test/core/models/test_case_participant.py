@@ -16,7 +16,7 @@ from vultron.core.models.case_participant import (
 )
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.rm import RM
-from vultron.core.states.roles import CVDRole, validate_roles
+from vultron.enums.roles import CVDRole, validate_roles
 
 _ACTOR = "https://example.org/actors/alice"
 _CONTEXT = "https://example.org/cases/case-001"
@@ -313,7 +313,7 @@ class TestCNARoleOnParticipant:
 
     def test_cna_role_roundtrips_via_serialization(self):
         """CVE_NUMBERING_AUTHORITY survives a serialize_roles → validate_roles roundtrip."""
-        from vultron.core.states.roles import serialize_roles
+        from vultron.enums.roles import serialize_roles
 
         roles = [CVDRole.VENDOR, CVDRole.CVE_NUMBERING_AUTHORITY]
         serialized = serialize_roles(roles)

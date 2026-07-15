@@ -13,17 +13,21 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Neutral actor configuration model for BT nodes and adapters.
+"""Actor policy configuration model.
 
 Provides :class:`ActorConfig`: a minimal Pydantic model that carries CVD-role
 defaults for the local actor without importing from the demo or adapter layers.
 
-Per specs/configuration.yaml CFG-07-001 and CFG-07-002.
+``ActorConfig`` imports ``CVDRole`` from ``vultron.enums.roles`` (not from
+``vultron.core``) to satisfy the neutral-module constraint on
+``vultron/config/``.
+
+Per ``specs/configuration.yaml`` CFG-07-001, CFG-07-002, CFG-07-005, CFG-07-006.
 """
 
 from pydantic import BaseModel, Field, field_serializer, field_validator
 
-from vultron.core.states.roles import CVDRole, serialize_roles, validate_roles
+from vultron.enums.roles import CVDRole, serialize_roles, validate_roles
 
 
 class ActorConfig(BaseModel):

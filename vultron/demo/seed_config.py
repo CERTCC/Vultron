@@ -40,7 +40,7 @@ from typing import Literal, cast
 import yaml
 from pydantic import BaseModel, Field
 
-from vultron.core.models.actor_config import ActorConfig
+from vultron.config.actor import ActorConfig
 
 #: Valid ActivityStreams actor type strings accepted by the seed command.
 ActorType = Literal[

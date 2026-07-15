@@ -50,7 +50,7 @@ from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import (
     CaseParticipant,
 )
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.wire.as2.vocab.objects.case_status import (
     CaseStatus,

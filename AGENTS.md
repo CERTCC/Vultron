@@ -339,9 +339,9 @@ Short entries are reproduced here; longer ones are referenced below.
 - **Production Adapters MUST NOT Import from `vultron/demo/` for Config** —
   `vultron/demo/` is scaffolding; its modules MUST NOT be imported by
   production adapter code.  Actor policy configuration (`auto_create_case`,
-  `default_case_roles`) belongs in `AppConfig.actor` (loaded via
-  `load_actor_config()` from `vultron/config/`), not in `SeedConfig`.
-  See [notes/configuration.md](notes/configuration.md) § "Target Architecture"
+  `default_case_roles`) belongs in `AppConfig.actor` (read via
+  `get_config().actor` from `vultron/config/`), not in `SeedConfig`.
+  See [notes/configuration.md](notes/configuration.md) § "Current Architecture"
   and specs CFG-07-005 through CFG-07-007.
 - **Idempotency Responsibility Chain** — see
   [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md)

@@ -98,9 +98,9 @@ from vultron.core.behaviors.report.nodes import (
     CreateCaseActivity,
     CreateCaseNode,
 )
-from vultron.core.models.actor_config import ActorConfig
+from vultron.config.actor import ActorConfig
 from vultron.core.states.rm import RM
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
 

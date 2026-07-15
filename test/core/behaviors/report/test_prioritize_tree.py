@@ -46,7 +46,7 @@ from vultron.core.behaviors.report.prioritize_tree import (
     create_prioritize_subtree,
 )
 from vultron.core.states.rm import RM
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 
 
 def _make_participant_in_valid_state(

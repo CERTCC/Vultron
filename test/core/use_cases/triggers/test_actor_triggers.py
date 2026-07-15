@@ -27,7 +27,7 @@ from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.core.use_cases.triggers.actor import (
     SvcAcceptCaseInviteUseCase,
     SvcInviteActorToCaseUseCase,

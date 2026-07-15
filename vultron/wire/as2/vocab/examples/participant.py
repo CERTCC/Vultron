@@ -29,7 +29,7 @@ from vultron.wire.as2.vocab.examples.status import (
 )
 from vultron.core.states.cs import CS_vfd
 from vultron.core.states.rm import RM
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
 from vultron.wire.as2.factories import (

@@ -50,7 +50,7 @@ from vultron.core.models.vultron_types import VultronCaseActor
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.core.use_cases._helpers import _report_phase_status_id
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
@@ -184,7 +184,7 @@ class TestAutoCreateCasePolicyGate:
         self, report, offer, reporter_actor_id
     ):
         """The root gate receives the supplied ActorConfig (CM-15-001)."""
-        from vultron.core.models.actor_config import ActorConfig
+        from vultron.config.actor import ActorConfig
 
         cfg = ActorConfig(auto_create_case=False)
         tree = create_receive_report_case_tree(
@@ -210,7 +210,7 @@ class TestAutoCreateCasePolicyGate:
         vendor_received_status,
     ):
         """auto_create_case=True (default) still creates the case (AC-1)."""
-        from vultron.core.models.actor_config import ActorConfig
+        from vultron.config.actor import ActorConfig
 
         tree = create_receive_report_case_tree(
             report_id=report.id_,
@@ -237,7 +237,7 @@ class TestAutoCreateCasePolicyGate:
         vendor_received_status,
     ):
         """auto_create_case=False makes the tree exit without a case (AC-2)."""
-        from vultron.core.models.actor_config import ActorConfig
+        from vultron.config.actor import ActorConfig
 
         tree = create_receive_report_case_tree(
             report_id=report.id_,

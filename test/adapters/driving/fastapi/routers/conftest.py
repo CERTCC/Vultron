@@ -37,7 +37,7 @@ from vultron.adapters.driving.fastapi.routers import (
 )
 from vultron.core.models.actor import CoreActor
 from vultron.core.states.em import EM
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.core.use_cases.triggers.service import TriggerService
 from vultron.adapters.utils import make_id
 from vultron.wire.as2.factories import em_propose_embargo_activity

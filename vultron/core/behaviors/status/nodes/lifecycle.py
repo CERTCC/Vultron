@@ -31,7 +31,7 @@ from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
 from vultron.core.use_cases._helpers import _resolve_case_manager_id
 from vultron.core.models.protocols import PersistableModel, is_case_model
 from vultron.core.states.rm import RM
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.core.use_cases._helpers import _as_id
 
 logger = logging.getLogger(__name__)

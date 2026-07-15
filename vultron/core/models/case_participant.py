@@ -46,7 +46,7 @@ from vultron.core.models.participant_status import (
 )
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM, is_valid_rm_transition
-from vultron.core.states.roles import CVDRole, serialize_roles, validate_roles
+from vultron.enums.roles import CVDRole, serialize_roles, validate_roles
 
 logger = logging.getLogger(__name__)
 

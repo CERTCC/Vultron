@@ -49,7 +49,7 @@ def _make_embargo_case_with_actor(
     Also creates ``CaseParticipant`` objects so actor → participant lookups
     in the embargo handlers succeed.
     """
-    from vultron.core.states.roles import CVDRole
+    from vultron.enums.roles import CVDRole
     from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 
     dl = SqliteDataLayer("sqlite:///:memory:")

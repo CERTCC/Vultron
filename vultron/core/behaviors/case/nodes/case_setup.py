@@ -40,7 +40,7 @@ from vultron.core.models.vultron_types import (
     VultronCaseActor,
     VultronParticipant,
 )
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.core.use_cases._helpers import _as_id
 
 
