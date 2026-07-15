@@ -151,6 +151,14 @@ def _store_nested_inbox_object(
     less specific pattern (e.g. ``announce_vulnerability_case`` instead of
     ``announce_case_ledger_entry``).
 
+    Ledger entries are exempt: per SYNC-13-002 a ``CaseLedgerEntry`` MUST NOT
+    be written to the DataLayer by ingress/adapter code — only a participant's
+    core ``PersistReceivedLogEntry`` step (or the CaseActor's authoritative
+    append) may do so, because entry presence is the SYNC-12 evidence that the
+    entry's domain effects were applied.  ``FastAPIIngressAdapter.rehydrate``
+    carries the typed inline entry forward in-memory (SYNC-13-003), so no
+    pre-store is needed for routing.
+
     Args:
         dl: The shared DataLayer for storing the nested object.
         activity: The parsed AS2 activity whose ``object_`` to store.
@@ -166,6 +174,15 @@ def _store_nested_inbox_object(
         and nested.type_ is not None
         and not nested.type_.startswith("as_")
     ):
+        return
+    # SYNC-13-002: never persist a CaseLedgerEntry from ingress. The ledger is
+    # core-owned; PersistReceivedLogEntry is the sole writer of replica entries.
+    if nested.type_ == "CaseLedgerEntry":
+        logger.debug(
+            "Not pre-storing inline CaseLedgerEntry %s from ingress"
+            " (SYNC-13-002); core PersistReceivedLogEntry owns the write.",
+            getattr(nested, "id_", "<no id>"),
+        )
         return
 
     raw_obj = body.get("object") if body is not None else None
