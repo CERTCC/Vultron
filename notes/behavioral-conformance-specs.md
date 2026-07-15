@@ -112,8 +112,28 @@ class Precondition(BaseModel):
     em_state: list[EMState] | None = None      # e.g. [EM.ACTIVE]
     cs_pattern: str | None = None              # 6-char vfdpxa regex, e.g. "...pxa"
     role: list[CVDRole] | None = None          # e.g. [CVDRole.VENDOR]
-    description: str | None = None            # prose for anything unstructured
+    description: str                           # required: prose summary of all typed fields
 ```
+
+`description` is **required** (not `Optional[str]`). It MUST be a non-empty
+prose summary of the complete precondition, derived from all typed fields
+present.  Use a consistent "mad lib" pattern synthesised from each typed
+field that is set:
+
+- `rm_state: [X]` → `"Participant is in RM X"`
+- `rm_state: [R,I,V,D,A]` → `"Participant is in an active RM state (Received/Invalid/Valid/Deferred/Accepted)"`
+- `em_state: [X]` → `"EM state is X"`
+- `em_state: [X, Y]` → `"EM state is X or Y"`
+- `role: [X]` → `"Participant holds the X role"`
+- `cs_pattern: "abc..."` → `"CS matches pattern abc..."`
+
+Combine multiple clauses with `"; "` separator, in field order:
+`rm_state` → `em_state` → `role` → `cs_pattern`.
+
+> **Field order in `Precondition`**: the class declares fields in the order
+> `rm_state`, `em_state`, `role`, `cs_pattern`, `description`. The prose
+> clauses MUST follow the same order so machine-generated and hand-authored
+> descriptions are consistent.
 
 The RM/EM/CS enums are stable (unchanged for several years); coupling
 `Precondition` to them is safe. `cs_pattern` uses the same 6-char regex

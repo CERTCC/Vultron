@@ -637,13 +637,20 @@ def test_precondition_all_typed_fields():
     assert p.description == "Vendor in RM Valid/Accepted, no embargo"
 
 
-def test_precondition_all_none():
-    p = Precondition()
+def test_precondition_description_required():
+    """Precondition requires description; omitting it raises ValidationError."""
+    with pytest.raises(ValidationError):
+        Precondition()  # pyright: ignore[reportCallIssue]
+
+
+def test_precondition_description_only_typed_fields_optional():
+    """All typed fields are optional; only description is required."""
+    p = Precondition(description="No additional constraints")
     assert p.rm_state is None
     assert p.em_state is None
     assert p.cs_pattern is None
     assert p.role is None
-    assert p.description is None
+    assert p.description == "No additional constraints"
 
 
 def test_precondition_description_only():
@@ -765,6 +772,7 @@ def test_behavioral_spec_round_trips_through_yaml(tmp_path):
                             {
                                 "em_state": ["NONE"],
                                 "cs_pattern": "...pxa",
+                                "description": "EM state is None; CS matches pattern ...pxa",
                             }
                         ],
                         "steps": [

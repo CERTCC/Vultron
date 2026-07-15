@@ -43,6 +43,7 @@ groups:
     - em_state:
         - NONE
       cs_pattern: "...pxa"
+      description: EM state is None; CS matches pattern ...pxa
     steps:
     - order: 1
       actor: receiver
@@ -77,8 +78,11 @@ groups:
     testable: true
     preconditions:
     - cs_pattern: "...P.."
+      description: CS matches pattern ...P..
     - cs_pattern: "....X."
+      description: CS matches pattern ....X.
     - cs_pattern: ".....A"
+      description: CS matches pattern .....A
     steps:
     - order: 1
       actor: receiver
@@ -117,6 +121,7 @@ groups:
     - em_state:
         - PROPOSED
       cs_pattern: "...pxa"
+      description: EM state is Proposed; CS matches pattern ...pxa
     steps:
     - order: 1
       actor: receiver
@@ -147,6 +152,7 @@ groups:
     preconditions:
     - rm_state:
         - INVALID
+      description: Participant is in RM Invalid
     lint_suppress:
     - testable_without_steps
     relationships:
@@ -173,6 +179,7 @@ groups:
     - rm_state:
         - DEFERRED
         - CLOSED
+      description: Participant is in RM Deferred/Closed
     lint_suppress:
     - testable_without_steps
     relationships:
@@ -206,6 +213,7 @@ groups:
     - em_state:
         - PROPOSED
       cs_pattern: "...pxa"
+      description: EM state is Proposed; CS matches pattern ...pxa
     steps:
     - order: 1
       actor: receiver
@@ -242,8 +250,11 @@ groups:
     testable: true
     preconditions:
     - cs_pattern: "...P.."
+      description: CS matches pattern ...P..
     - cs_pattern: "....X."
+      description: CS matches pattern ....X.
     - cs_pattern: ".....A"
+      description: CS matches pattern .....A
     steps:
     - order: 1
       actor: receiver
@@ -276,6 +287,7 @@ groups:
     - rm_state:
         - INVALID
         - CLOSED
+      description: Participant is in RM Invalid/Closed
     lint_suppress:
     - testable_without_steps
     relationships:
@@ -312,6 +324,7 @@ groups:
     - em_state:
         - ACTIVE
       cs_pattern: "...pxa"
+      description: EM state is Active; CS matches pattern ...pxa
     steps:
     - order: 1
       actor: receiver
@@ -352,6 +365,7 @@ groups:
     - em_state:
         - REVISE
       cs_pattern: "...pxa"
+      description: EM state is Revise; CS matches pattern ...pxa
     steps:
     - order: 1
       actor: receiver
@@ -384,14 +398,17 @@ groups:
         - ACTIVE
         - REVISE
       cs_pattern: "...P.."
+      description: EM state is Active or Revise; CS matches pattern ...P..
     - em_state:
         - ACTIVE
         - REVISE
       cs_pattern: "....X."
+      description: EM state is Active or Revise; CS matches pattern ....X.
     - em_state:
         - ACTIVE
         - REVISE
       cs_pattern: ".....A"
+      description: EM state is Active or Revise; CS matches pattern .....A
     steps:
     - order: 1
       actor: receiver
@@ -431,6 +448,7 @@ groups:
     - em_state:
         - REVISE
       cs_pattern: "...pxa"
+      description: EM state is Revise; CS matches pattern ...pxa
     steps:
     - order: 1
       actor: receiver
@@ -465,12 +483,15 @@ groups:
     - em_state:
         - REVISE
       cs_pattern: "...P.."
+      description: EM state is Revise; CS matches pattern ...P..
     - em_state:
         - REVISE
       cs_pattern: "....X."
+      description: EM state is Revise; CS matches pattern ....X.
     - em_state:
         - REVISE
       cs_pattern: ".....A"
+      description: EM state is Revise; CS matches pattern .....A
     steps:
     - order: 1
       actor: receiver
@@ -509,6 +530,7 @@ groups:
     - em_state:
         - REVISE
       cs_pattern: "...pxa"
+      description: EM state is Revise; CS matches pattern ...pxa
     steps:
     - order: 1
       actor: receiver
@@ -545,12 +567,15 @@ groups:
     - em_state:
         - REVISE
       cs_pattern: "...P.."
+      description: EM state is Revise; CS matches pattern ...P..
     - em_state:
         - REVISE
       cs_pattern: "....X."
+      description: EM state is Revise; CS matches pattern ....X.
     - em_state:
         - REVISE
       cs_pattern: ".....A"
+      description: EM state is Revise; CS matches pattern .....A
     steps:
     - order: 1
       actor: receiver
@@ -587,6 +612,7 @@ groups:
     preconditions:
     - em_state:
         - PROPOSED
+      description: EM state is Proposed
     steps:
     - order: 1
       actor: receiver
@@ -629,6 +655,7 @@ groups:
     preconditions:
     - em_state:
         - ACTIVE
+      description: EM state is Active
     steps:
     - order: 1
       actor: receiver
@@ -660,6 +687,7 @@ groups:
     preconditions:
     - em_state:
         - REVISE
+      description: EM state is Revise
     steps:
     - order: 1
       actor: receiver
@@ -692,6 +720,7 @@ groups:
     preconditions:
     - em_state:
         - EXITED
+      description: EM state is Exited
     steps:
     - order: 1
       actor: receiver
@@ -799,6 +828,7 @@ groups:
     preconditions:
     - em_state:
         - PROPOSED
+      description: EM state is Proposed
     relationships:
     - rel_type: satisfies
       spec_id: VP-04-004
@@ -826,6 +856,7 @@ groups:
         - INVALID
         - DEFERRED
         - CLOSED
+      description: Participant is in RM Invalid/Deferred/Closed
     lint_suppress:
     - testable_without_steps
     relationships:
@@ -856,6 +887,7 @@ groups:
     preconditions:
     - em_state:
         - ACTIVE
+      description: EM state is Active
     lint_suppress:
     - testable_without_steps
     relationships:
@@ -881,6 +913,7 @@ groups:
     preconditions:
     - em_state:
         - ACTIVE
+      description: EM state is Active
     relationships:
     - rel_type: satisfies
       spec_id: VP-05-014
@@ -904,6 +937,7 @@ groups:
       rm_state:
         - CLOSED
         - DEFERRED
+      description: Participant is in RM Closed/Deferred; EM state is Active
     lint_suppress:
     - testable_without_steps
     relationships:
@@ -931,6 +965,7 @@ groups:
       rm_state:
         - DEFERRED
         - INVALID
+      description: Participant is in RM Deferred/Invalid; EM state is Active or Revise
     lint_suppress:
     - testable_without_steps
     relationships:
@@ -953,6 +988,7 @@ groups:
     preconditions:
     - em_state:
         - ACTIVE
+      description: EM state is Active
     relationships:
     - rel_type: satisfies
       spec_id: VP-13-008
@@ -980,6 +1016,7 @@ groups:
     preconditions:
     - em_state:
         - REVISE
+      description: EM state is Revise
     relationships:
     - rel_type: satisfies
       spec_id: VP-04-005
@@ -1002,6 +1039,7 @@ groups:
       rm_state:
         - CLOSED
         - DEFERRED
+      description: Participant is in RM Closed/Deferred; EM state is Revise
     lint_suppress:
     - testable_without_steps
     relationships:
@@ -1026,6 +1064,7 @@ groups:
     preconditions:
     - em_state:
         - REVISE
+      description: EM state is Revise
     relationships:
     - rel_type: satisfies
       spec_id: VP-13-008
@@ -1050,6 +1089,7 @@ groups:
     preconditions:
     - em_state:
         - EXITED
+      description: EM state is Exited
     steps:
     - order: 1
       actor: participant
@@ -1080,12 +1120,15 @@ groups:
     - em_state:
         - EXITED
       cs_pattern: "...P.."
+      description: EM state is Exited; CS matches pattern ...P..
     - em_state:
         - EXITED
       cs_pattern: "....X."
+      description: EM state is Exited; CS matches pattern ....X.
     - em_state:
         - EXITED
       cs_pattern: ".....A"
+      description: EM state is Exited; CS matches pattern .....A
     lint_suppress:
     - testable_without_steps
     relationships:

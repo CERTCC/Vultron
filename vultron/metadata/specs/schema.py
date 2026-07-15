@@ -215,15 +215,17 @@ class Precondition(BaseModel):
 
     Typed fields reference the stable protocol state-machine enums directly so
     conformance tooling can evaluate preconditions without parsing prose.
-    At least one field must be provided; ``description`` is a prose fallback
-    for conditions that don't map cleanly to the typed fields.
+    ``description`` is required and provides a human-readable prose summary of
+    the full precondition, synthesised from all typed fields present.  Typed
+    fields that don't map to ``rm_state``, ``em_state``, ``cs_pattern``, or
+    ``role`` MUST be described here as a prose fallback.
     """
 
     rm_state: list[RM] | None = None
     em_state: list[EM] | None = None
-    cs_pattern: str | None = None
     role: list[CVDRole] | None = None
-    description: str | None = None
+    cs_pattern: str | None = None
+    description: NonEmptyStr
 
 
 class BehaviorStep(BaseModel):
@@ -238,7 +240,7 @@ class BehaviorStep(BaseModel):
 class Postcondition(BaseModel):
     """A postcondition for a behavioral spec."""
 
-    description: str
+    description: NonEmptyStr
 
 
 class BehavioralSpec(StatementSpec):
