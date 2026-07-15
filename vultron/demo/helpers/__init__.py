@@ -61,6 +61,7 @@ from vultron.demo.helpers.polling import (  # noqa: F401
     wait_for_case_em_terminated,
     wait_for_case_on_container,
     wait_for_case_participants,
+    wait_for_contiguous_ledger_coverage,
     wait_for_finder_case,
     wait_for_finder_log_entry,
     wait_for_note_in_case,
