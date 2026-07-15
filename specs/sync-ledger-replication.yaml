@@ -237,3 +237,25 @@ groups:
       A pending assertion that exceeds its configured timeout window SHOULD be marked
       timed-out and SHOULD no longer suppress future re-emits, allowing operator retry or
       the catch-up gate to resubmit the assertion
+- id: SYNC-12
+  title: Effects-Before-Persist Invariant
+  specs:
+  - id: SYNC-12-001
+    priority: MUST
+    statement: >-
+      A participant MUST apply all domain effects derived from a CaseLedgerEntry (embargo
+      teardown, participant-status update, note attachment, invite-accept) BEFORE persisting
+      the entry to its local ledger; if any effect fails, the entry MUST NOT be persisted
+  - id: SYNC-12-002
+    priority: MUST
+    statement: >-
+      The presence of a CaseLedgerEntry in a participant's local ledger MUST imply that all
+      domain effects for that entry were successfully applied; a persisted entry with
+      unapplied effects is a protocol violation
+  - id: SYNC-12-003
+    priority: MUST
+    statement: >-
+      When a participant receives a CaseLedgerEntry that is already present in its local
+      ledger, the participant MUST skip both effects and persist (treat as already-done);
+      re-applying effects to a stored entry is not permitted because the entry's effects
+      were applied exactly once before the initial persist

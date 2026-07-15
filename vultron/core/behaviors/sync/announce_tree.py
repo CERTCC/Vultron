@@ -33,27 +33,13 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
             LogDeliveryConfirmationNode(name="LogDeliveryConfirmation"),
         ],
     )
-    validate_and_persist = py_trees.composites.Sequence(
-        name="ValidateAndPersistFlow",
-        memory=False,
-        children=[
-            ReconstructChainTailNode(name="ReconstructChainTail"),
-            CheckHashOrRejectOnMismatchNode(
-                name="CheckHashOrRejectOnMismatch"
-            ),
-            PersistReceivedLogEntryNode(name="PersistReceivedLogEntry"),
-        ],
-    )
-    participant_flow = py_trees.composites.Selector(
-        name="ParticipantSubtree",
-        memory=False,
-        children=[
-            CheckLedgerEntryAlreadyStoredNode(
-                name="CheckLogEntryAlreadyStored"
-            ),
-            validate_and_persist,
-        ],
-    )
+    # Each effect slot uses Selector(Seq(IsX, ApplyX), Inverter(IsX)) instead
+    # of Selector(Seq(IsX, ApplyX), Success("Skipped")).
+    #
+    # The Inverter fires SUCCESS only when the condition does NOT match (routing
+    # no-op for the wrong event type).  When the condition matches but ApplyX
+    # fails, both branches of the Selector fail, so the FAILURE propagates to
+    # LogEntryEventEffects and blocks PersistReceivedLogEntry (SYNC-12-001).
     log_entry_event_effects = py_trees.composites.Sequence(
         name="LogEntryEventEffects",
         memory=False,
@@ -74,7 +60,12 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
                             ),
                         ],
                     ),
-                    py_trees.behaviours.Success(name="EmbargoEffectsSkipped"),
+                    py_trees.decorators.Inverter(
+                        name="SkipIfNotEmbargoEvent",
+                        child=IsRemoveEmbargoEventNode(
+                            name="CheckNotEmbargoEvent"
+                        ),
+                    ),
                 ],
             ),
             py_trees.composites.Selector(
@@ -93,8 +84,11 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
                             ),
                         ],
                     ),
-                    py_trees.behaviours.Success(
-                        name="ParticipantStatusEffectsSkipped"
+                    py_trees.decorators.Inverter(
+                        name="SkipIfNotParticipantStatusEvent",
+                        child=IsParticipantStatusEventNode(
+                            name="CheckNotParticipantStatusEvent"
+                        ),
                     ),
                 ],
             ),
@@ -112,7 +106,10 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
                             ),
                         ],
                     ),
-                    py_trees.behaviours.Success(name="NoteEffectsSkipped"),
+                    py_trees.decorators.Inverter(
+                        name="SkipIfNotNoteEvent",
+                        child=IsAddNoteEventNode(name="CheckNotNoteEvent"),
+                    ),
                 ],
             ),
             py_trees.composites.Selector(
@@ -131,11 +128,36 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
                             ),
                         ],
                     ),
-                    py_trees.behaviours.Success(
-                        name="InviteAcceptEffectsSkipped"
+                    py_trees.decorators.Inverter(
+                        name="SkipIfNotInviteAcceptEvent",
+                        child=IsInviteAcceptEventNode(
+                            name="CheckNotInviteAcceptEvent"
+                        ),
                     ),
                 ],
             ),
+        ],
+    )
+    process_and_store = py_trees.composites.Sequence(
+        name="ProcessAndStore",
+        memory=False,
+        children=[
+            ReconstructChainTailNode(name="ReconstructChainTail"),
+            CheckHashOrRejectOnMismatchNode(
+                name="CheckHashOrRejectOnMismatch"
+            ),
+            log_entry_event_effects,
+            PersistReceivedLogEntryNode(name="PersistReceivedLogEntry"),
+        ],
+    )
+    entry_processing = py_trees.composites.Selector(
+        name="EntryProcessing",
+        memory=False,
+        children=[
+            CheckLedgerEntryAlreadyStoredNode(
+                name="CheckLogEntryAlreadyStored"
+            ),
+            process_and_store,
         ],
     )
     participant_subtree = py_trees.composites.Sequence(
@@ -143,8 +165,7 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
         memory=False,
         children=[
             CheckIsNotOwnCaseActorNode(name="CheckIsNotOwnCaseActor"),
-            participant_flow,
-            log_entry_event_effects,
+            entry_processing,
         ],
     )
     return py_trees.composites.Selector(
