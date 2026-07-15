@@ -46,6 +46,7 @@ groups:
         - VALID
         - DEFERRED
         - ACCEPTED
+      description: Participant is in an active RM state (Received/Invalid/Valid/Deferred/Accepted)
     steps:
     - order: 1
       actor: receiver
@@ -90,6 +91,7 @@ groups:
         - VALID
         - DEFERRED
         - ACCEPTED
+      description: Participant is in an active RM state (Received/Invalid/Valid/Deferred/Accepted)
     steps:
     - order: 1
       actor: receiver
@@ -134,6 +136,7 @@ groups:
         - VALID
         - DEFERRED
         - ACCEPTED
+      description: Participant is in an active RM state (Received/Invalid/Valid/Deferred/Accepted)
     steps:
     - order: 1
       actor: receiver
@@ -178,6 +181,7 @@ groups:
       em_state:
         - NONE
         - EXITED
+      description: EM state is None or Exited; CS matches pattern ...p..
     steps:
     - order: 1
       actor: receiver
@@ -209,6 +213,7 @@ groups:
     - cs_pattern: "...p.."
       em_state:
         - PROPOSED
+      description: EM state is Proposed; CS matches pattern ...p..
     steps:
     - order: 1
       actor: receiver
@@ -250,6 +255,7 @@ groups:
       em_state:
         - ACTIVE
         - REVISE
+      description: EM state is Active or Revise; CS matches pattern ...p..
     steps:
     - order: 1
       actor: receiver
@@ -296,6 +302,7 @@ groups:
     testable: true
     preconditions:
     - cs_pattern: "...P.."
+      description: CS matches pattern ...P..
     steps:
     - order: 1
       actor: receiver
@@ -335,6 +342,7 @@ groups:
       em_state:
         - NONE
         - EXITED
+      description: EM state is None or Exited; CS matches pattern ...px.
     steps:
     - order: 1
       actor: receiver
@@ -366,6 +374,7 @@ groups:
     - cs_pattern: "...px."
       em_state:
         - PROPOSED
+      description: EM state is Proposed; CS matches pattern ...px.
     steps:
     - order: 1
       actor: receiver
@@ -408,6 +417,7 @@ groups:
       em_state:
         - ACTIVE
         - REVISE
+      description: EM state is Active or Revise; CS matches pattern ...px.
     steps:
     - order: 1
       actor: receiver
@@ -447,6 +457,7 @@ groups:
     testable: true
     preconditions:
     - cs_pattern: "...Px."
+      description: CS matches pattern ...Px.
     steps:
     - order: 1
       actor: receiver
@@ -475,6 +486,7 @@ groups:
     testable: true
     preconditions:
     - cs_pattern: "...PX."
+      description: CS matches pattern ...PX.
     steps:
     - order: 1
       actor: receiver
@@ -513,6 +525,7 @@ groups:
       em_state:
         - NONE
         - EXITED
+      description: EM state is None or Exited; CS matches pattern ...p.a
     steps:
     - order: 1
       actor: receiver
@@ -545,6 +558,7 @@ groups:
     - cs_pattern: "...p.a"
       em_state:
         - PROPOSED
+      description: EM state is Proposed; CS matches pattern ...p.a
     steps:
     - order: 1
       actor: receiver
@@ -588,6 +602,7 @@ groups:
       em_state:
         - ACTIVE
         - REVISE
+      description: EM state is Active or Revise; CS matches pattern ...p.a
     steps:
     - order: 1
       actor: receiver
@@ -629,6 +644,7 @@ groups:
     testable: true
     preconditions:
     - cs_pattern: "...P.a"
+      description: CS matches pattern ...P.a
     steps:
     - order: 1
       actor: receiver
@@ -657,6 +673,7 @@ groups:
     testable: true
     preconditions:
     - cs_pattern: "...P.A"
+      description: CS matches pattern ...P.A
     steps:
     - order: 1
       actor: receiver
@@ -696,6 +713,7 @@ groups:
         - VALID
         - DEFERRED
         - ACCEPTED
+      description: Participant is in an active RM state (Received/Invalid/Valid/Deferred/Accepted)
     steps:
     - order: 1
       actor: receiver
@@ -761,6 +779,7 @@ groups:
         - NONE
       role:
         - vendor
+      description: EM state is None; Participant holds the Vendor role; CS matches pattern Vfd...
     lint_suppress:
     - testable_without_steps
     relationships:
@@ -782,6 +801,7 @@ groups:
     testable: true
     preconditions:
     - cs_pattern: "Vfd..."
+      description: CS matches pattern Vfd...
     steps:
     - order: 1
       actor: participant
@@ -815,6 +835,7 @@ groups:
     testable: false
     preconditions:
     - cs_pattern: "VFd..."
+      description: CS matches pattern VFd...
     lint_suppress:
     - testable_without_steps
     relationships:
@@ -836,6 +857,7 @@ groups:
     testable: true
     preconditions:
     - cs_pattern: "VFd..."
+      description: CS matches pattern VFd...
     steps:
     - order: 1
       actor: participant
@@ -865,6 +887,7 @@ groups:
       em_state:
         - ACTIVE
         - REVISE
+      description: EM state is Active or Revise; CS matches pattern VFD...
     steps:
     - order: 1
       actor: participant
@@ -891,6 +914,7 @@ groups:
     testable: true
     preconditions:
     - cs_pattern: "VFD..."
+      description: CS matches pattern VFD...
     steps:
     - order: 1
       actor: participant
@@ -924,6 +948,7 @@ groups:
       em_state:
         - ACTIVE
         - REVISE
+      description: EM state is Active or Revise; CS matches pattern ...P..
     steps:
     - order: 1
       actor: participant
@@ -956,6 +981,7 @@ groups:
     testable: false
     preconditions:
     - cs_pattern: "...P.."
+      description: CS matches pattern ...P..
     lint_suppress:
     - testable_without_steps
     relationships:
@@ -978,6 +1004,7 @@ groups:
     testable: true
     preconditions:
     - cs_pattern: "...P.."
+      description: CS matches pattern ...P..
     steps:
     - order: 1
       actor: participant
@@ -1009,6 +1036,7 @@ groups:
     testable: true
     preconditions:
     - cs_pattern: "...pX."
+      description: CS matches pattern ...pX.
     steps:
     - order: 1
       actor: participant
@@ -1044,6 +1072,7 @@ groups:
       em_state:
         - ACTIVE
         - REVISE
+      description: EM state is Active or Revise; CS matches pattern ...PX.
     steps:
     - order: 1
       actor: participant
@@ -1077,6 +1106,7 @@ groups:
     testable: false
     preconditions:
     - cs_pattern: "....X."
+      description: CS matches pattern ....X.
     lint_suppress:
     - testable_without_steps
     relationships:
@@ -1107,6 +1137,7 @@ groups:
       em_state:
         - ACTIVE
         - REVISE
+      description: EM state is Active or Revise; CS matches pattern .....A
     steps:
     - order: 1
       actor: participant
@@ -1145,6 +1176,7 @@ groups:
     testable: true
     preconditions:
     - cs_pattern: "...p.A"
+      description: CS matches pattern ...p.A
     steps:
     - order: 1
       actor: participant
@@ -1171,6 +1203,7 @@ groups:
     testable: false
     preconditions:
     - cs_pattern: ".....A"
+      description: CS matches pattern .....A
     lint_suppress:
     - testable_without_steps
     relationships:
@@ -1191,6 +1224,7 @@ groups:
     testable: true
     preconditions:
     - cs_pattern: ".....A"
+      description: CS matches pattern .....A
     steps:
     - order: 1
       actor: participant

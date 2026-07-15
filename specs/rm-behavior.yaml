@@ -35,6 +35,7 @@ groups:
     preconditions:
     - rm_state:
         - START
+      description: Participant is in RM Start
     steps:
     - order: 1
       actor: receiver
@@ -72,6 +73,7 @@ groups:
       role:
         - vendor
       cs_pattern: vfd...
+      description: Participant is in RM Start; Participant holds the Vendor role; CS matches pattern vfd...
     steps:
     - order: 1
       actor: receiver
@@ -124,6 +126,7 @@ groups:
       role:
         - vendor
       cs_pattern: vfd...
+      description: Participant is in an active RM state (Received/Invalid/Valid/Deferred/Accepted); Participant holds the Vendor role; CS matches pattern vfd...
     steps:
     - order: 1
       actor: receiver
@@ -167,6 +170,7 @@ groups:
         - VALID
         - DEFERRED
         - ACCEPTED
+      description: Participant is in an active RM state (Received/Invalid/Valid/Deferred/Accepted)
     steps:
     - order: 1
       actor: receiver
@@ -196,6 +200,7 @@ groups:
     preconditions:
     - rm_state:
         - CLOSED
+      description: Participant is in RM Closed
     relationships:
     - rel_type: satisfies
       spec_id: VP-03-013
@@ -229,6 +234,7 @@ groups:
         - VALID
         - DEFERRED
         - ACCEPTED
+      description: Participant is in an active RM state (Received/Invalid/Valid/Deferred/Accepted)
     steps:
     - order: 1
       actor: receiver
@@ -267,6 +273,7 @@ groups:
     preconditions:
     - rm_state:
         - START
+      description: Participant is in RM Start
     steps:
     - order: 1
       actor: receiver
@@ -314,6 +321,7 @@ groups:
         - VALID
         - DEFERRED
         - ACCEPTED
+      description: Participant is in an active RM state (Received/Invalid/Valid/Deferred/Accepted)
     steps:
     - order: 1
       actor: receiver
@@ -352,6 +360,7 @@ groups:
     preconditions:
     - rm_state:
         - START
+      description: Participant is in RM Start
     steps:
     - order: 1
       actor: receiver
@@ -399,6 +408,7 @@ groups:
         - VALID
         - DEFERRED
         - ACCEPTED
+      description: Participant is in an active RM state (Received/Invalid/Valid/Deferred/Accepted)
     steps:
     - order: 1
       actor: receiver
@@ -436,6 +446,7 @@ groups:
     preconditions:
     - rm_state:
         - START
+      description: Participant is in RM Start
     steps:
     - order: 1
       actor: receiver
@@ -484,6 +495,7 @@ groups:
         - VALID
         - DEFERRED
         - ACCEPTED
+      description: Participant is in an active RM state (Received/Invalid/Valid/Deferred/Accepted)
     steps:
     - order: 1
       actor: receiver
@@ -522,6 +534,7 @@ groups:
     preconditions:
     - rm_state:
         - START
+      description: Participant is in RM Start
     steps:
     - order: 1
       actor: receiver
@@ -570,6 +583,7 @@ groups:
         - VALID
         - DEFERRED
         - ACCEPTED
+      description: Participant is in an active RM state (Received/Invalid/Valid/Deferred/Accepted)
     steps:
     - order: 1
       actor: receiver
@@ -612,6 +626,7 @@ groups:
         - INVALID
         - DEFERRED
         - ACCEPTED
+      description: Participant is in RM Received/Invalid/Deferred/Accepted
     relationships:
     - rel_type: satisfies
       spec_id: VP-02-035
@@ -633,6 +648,7 @@ groups:
     preconditions:
     - rm_state:
         - START
+      description: Participant is in RM Start
     steps:
     - order: 1
       actor: receiver
@@ -684,6 +700,7 @@ groups:
         - VALID
         - DEFERRED
         - ACCEPTED
+      description: Participant is in an active RM state (Received/Invalid/Valid/Deferred/Accepted)
     steps:
     - order: 1
       actor: receiver
@@ -719,6 +736,7 @@ groups:
     preconditions:
     - rm_state:
         - START
+      description: Participant is in RM Start
     steps:
     - order: 1
       actor: receiver
@@ -769,6 +787,7 @@ groups:
         - VALID
         - DEFERRED
         - ACCEPTED
+      description: Participant is in an active RM state (Received/Invalid/Valid/Deferred/Accepted)
     relationships:
     - rel_type: satisfies
       spec_id: VP-03-009
@@ -792,6 +811,7 @@ groups:
     preconditions:
     - rm_state:
         - START
+      description: Participant is in RM Start
     steps:
     - order: 1
       actor: receiver
@@ -834,6 +854,7 @@ groups:
     preconditions:
     - rm_state:
         - RECEIVED
+      description: Participant is in RM Received
     steps:
     - order: 1
       actor: participant
@@ -872,6 +893,7 @@ groups:
     preconditions:
     - rm_state:
         - RECEIVED
+      description: Participant is in RM Received
     relationships:
     - rel_type: satisfies
       spec_id: VP-02-012
@@ -899,6 +921,7 @@ groups:
     preconditions:
     - rm_state:
         - VALID
+      description: Participant is in RM Valid
     steps:
     - order: 1
       actor: participant
@@ -928,6 +951,7 @@ groups:
     preconditions:
     - rm_state:
         - VALID
+      description: Participant is in RM Valid
     lint_suppress:
     - testable_without_steps
     relationships:
@@ -948,6 +972,7 @@ groups:
     preconditions:
     - rm_state:
         - VALID
+      description: Participant is in RM Valid
     steps:
     - order: 1
       actor: participant
@@ -976,6 +1001,7 @@ groups:
     preconditions:
     - rm_state:
         - VALID
+      description: Participant is in RM Valid
     lint_suppress:
     - testable_without_steps
     relationships:
@@ -1005,6 +1031,7 @@ groups:
     preconditions:
     - rm_state:
         - INVALID
+      description: Participant is in RM Invalid
     steps:
     - order: 1
       actor: participant
@@ -1032,6 +1059,7 @@ groups:
     preconditions:
     - rm_state:
         - INVALID
+      description: Participant is in RM Invalid
     lint_suppress:
     - testable_without_steps
     relationships:
@@ -1058,6 +1086,7 @@ groups:
     preconditions:
     - rm_state:
         - INVALID
+      description: Participant is in RM Invalid
     relationships:
     - rel_type: satisfies
       spec_id: VP-02-033
@@ -1080,6 +1109,7 @@ groups:
     preconditions:
     - rm_state:
         - INVALID
+      description: Participant is in RM Invalid
     relationships:
     - rel_type: satisfies
       spec_id: VP-02-035
@@ -1107,6 +1137,7 @@ groups:
     preconditions:
     - rm_state:
         - DEFERRED
+      description: Participant is in RM Deferred
     steps:
     - order: 1
       actor: participant
@@ -1138,6 +1169,7 @@ groups:
     preconditions:
     - rm_state:
         - DEFERRED
+      description: Participant is in RM Deferred
     lint_suppress:
     - testable_without_steps
     relationships:
@@ -1160,6 +1192,7 @@ groups:
     preconditions:
     - rm_state:
         - DEFERRED
+      description: Participant is in RM Deferred
     relationships:
     - rel_type: satisfies
       spec_id: VP-02-031
@@ -1185,6 +1218,7 @@ groups:
     preconditions:
     - rm_state:
         - ACCEPTED
+      description: Participant is in RM Accepted
     lint_suppress:
     - testable_without_steps
     relationships:
@@ -1208,6 +1242,7 @@ groups:
     preconditions:
     - rm_state:
         - ACCEPTED
+      description: Participant is in RM Accepted
     steps:
     - order: 1
       actor: participant
@@ -1240,6 +1275,7 @@ groups:
     preconditions:
     - rm_state:
         - ACCEPTED
+      description: Participant is in RM Accepted
     lint_suppress:
     - testable_without_steps
     relationships:
@@ -1266,6 +1302,7 @@ groups:
     preconditions:
     - rm_state:
         - CLOSED
+      description: Participant is in RM Closed
     steps:
     - order: 1
       actor: participant
@@ -1295,6 +1332,7 @@ groups:
     preconditions:
     - rm_state:
         - CLOSED
+      description: Participant is in RM Closed
     relationships:
     - rel_type: satisfies
       spec_id: VP-03-013
@@ -1319,6 +1357,7 @@ groups:
       em_state:
         - ACTIVE
         - REVISE
+      description: Participant is in RM Invalid/Deferred/Accepted; EM state is Active or Revise
     lint_suppress:
     - testable_without_steps
     relationships:
