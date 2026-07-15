@@ -189,10 +189,10 @@ def test_dehydrate_data_dehydrates_all_object_ref_fields():
 def test_object_to_record_stores_nested_object_as_id_reference():
     """An activity with a nested object stores only the nested object's ID."""
     from vultron.wire.as2.vocab.objects.vulnerability_report import (
-        VulnerabilityReport,
+        as_VulnerabilityReport,
     )
 
-    report = VulnerabilityReport(
+    report = as_VulnerabilityReport(
         name="Test CVE",
         content="Details of the vulnerability",
         attributed_to="https://example.org/finder",
@@ -214,10 +214,10 @@ def test_object_to_record_stores_nested_object_as_id_reference():
 def test_object_to_record_nested_report_not_duplicated_in_offer_data():
     """The stored offer data must not contain a full copy of the nested report."""
     from vultron.wire.as2.vocab.objects.vulnerability_report import (
-        VulnerabilityReport,
+        as_VulnerabilityReport,
     )
 
-    report = VulnerabilityReport(
+    report = as_VulnerabilityReport(
         name="Another CVE",
         content="More vulnerability details",
         attributed_to="https://example.org/finder",

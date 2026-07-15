@@ -13,8 +13,10 @@ from vultron.core.use_cases.triggers.requests import (
     TerminateEmbargoTriggerRequest,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 from .conftest import _build_active_embargo_case, _persist_actor
 
@@ -38,8 +40,10 @@ def test_terminate_embargo_transitions_case_to_exited_via_bt_path(
     ).execute()
 
     assert "activity" in result
-    updated_case = cast(VulnerabilityCase, finder_dl.read(case.id_))
-    updated_participant = cast(CaseParticipant, finder_dl.read(participant_id))
+    updated_case = cast(as_VulnerabilityCase, finder_dl.read(case.id_))
+    updated_participant = cast(
+        as_CaseParticipant, finder_dl.read(participant_id)
+    )
     assert updated_case.current_status.em_state == EM.EXITED
     assert updated_case.active_embargo is None
     assert updated_participant.embargo_consent_state == PEC.NO_EMBARGO.value

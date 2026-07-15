@@ -26,7 +26,9 @@ from vultron.core.use_cases.received.actor.suggest import (
 )
 from vultron.wire.as2.factories import recommend_actor_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 
 class TestOfferActorToCaseReceivedUseCase:
@@ -50,7 +52,7 @@ class TestOfferActorToCaseReceivedUseCase:
         owner_id = (
             local_actor_id if owner_is_local else "https://other.org/actor"
         )
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_=case_id,
             name="OfferActorTest",
             attributed_to=owner_id,

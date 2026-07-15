@@ -32,18 +32,18 @@ class TestCaseParticipantUseCases:
             as_Remove,
         )
         from vultron.wire.as2.vocab.objects.case_participant import (
-            CaseParticipant,
+            as_CaseParticipant,
         )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         dl = SqliteDataLayer("sqlite:///:memory:")
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/case2",
             name="TEST-REMOVE",
         )
-        participant = CaseParticipant(
+        participant = as_CaseParticipant(
             id_="https://example.org/cases/case2/participants/coord",
             attributed_to="https://example.org/users/coordinator",
             context=case.id_,
@@ -62,7 +62,7 @@ class TestCaseParticipantUseCases:
 
         RemoveCaseParticipantFromCaseReceivedUseCase(dl, event).execute()
 
-        case = cast(VulnerabilityCase, dl.read(case.id_))
+        case = cast(as_VulnerabilityCase, dl.read(case.id_))
         assert case is not None
         assert participant.id_ not in [
             getattr(p, "id_", p) for p in case.case_participants
@@ -77,19 +77,19 @@ class TestCaseParticipantUseCases:
             as_Remove,
         )
         from vultron.wire.as2.vocab.objects.case_participant import (
-            CaseParticipant,
+            as_CaseParticipant,
         )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         dl = SqliteDataLayer("sqlite:///:memory:")
 
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/case3",
             name="TEST-REMOVE-IDEMPOTENT",
         )
-        participant = CaseParticipant(
+        participant = as_CaseParticipant(
             id_="https://example.org/cases/case3/participants/coord",
             attributed_to="https://example.org/users/coordinator",
             context=case.id_,
@@ -120,19 +120,19 @@ class TestCaseParticipantUseCases:
             as_Add,
         )
         from vultron.wire.as2.vocab.objects.case_participant import (
-            CaseParticipant,
+            as_CaseParticipant,
         )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         dl = SqliteDataLayer("sqlite:///:memory:")
         actor_id = "https://example.org/users/coordinator"
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/caseAP1",
             name="TEST-ADD-INDEX",
         )
-        participant = CaseParticipant(
+        participant = as_CaseParticipant(
             id_="https://example.org/cases/caseAP1/participants/coord",
             attributed_to=actor_id,
             context=case.id_,
@@ -150,7 +150,7 @@ class TestCaseParticipantUseCases:
 
         AddCaseParticipantToCaseReceivedUseCase(dl, event).execute()
 
-        case = cast(VulnerabilityCase, dl.read(case.id_))
+        case = cast(as_VulnerabilityCase, dl.read(case.id_))
         assert case is not None
         assert actor_id in case.actor_participant_index
         assert case.actor_participant_index[actor_id] == participant.id_
@@ -164,19 +164,19 @@ class TestCaseParticipantUseCases:
             as_Remove,
         )
         from vultron.wire.as2.vocab.objects.case_participant import (
-            CaseParticipant,
+            as_CaseParticipant,
         )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         dl = SqliteDataLayer("sqlite:///:memory:")
         actor_id = "https://example.org/users/coordinator"
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/caseRM1",
             name="TEST-REMOVE-INDEX",
         )
-        participant = CaseParticipant(
+        participant = as_CaseParticipant(
             id_="https://example.org/cases/caseRM1/participants/coord",
             attributed_to=actor_id,
             context=case.id_,
@@ -197,6 +197,6 @@ class TestCaseParticipantUseCases:
 
         RemoveCaseParticipantFromCaseReceivedUseCase(dl, event).execute()
 
-        case = cast(VulnerabilityCase, dl.read(case.id_))
+        case = cast(as_VulnerabilityCase, dl.read(case.id_))
         assert case is not None
         assert actor_id not in case.actor_participant_index

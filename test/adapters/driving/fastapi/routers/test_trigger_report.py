@@ -42,10 +42,12 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
@@ -97,7 +99,7 @@ def client_triggers(dl):
 
 @pytest.fixture
 def report(dl, actor):
-    report_obj = VulnerabilityReport(
+    report_obj = as_VulnerabilityReport(
         name="Test Vulnerability",
         content="Test content",
     )
@@ -125,7 +127,7 @@ def offer(dl, report, actor, reporter):
 
 @pytest.fixture
 def received_report(dl, actor, reporter, report, offer):
-    """Pre-create a VulnerabilityCase for the report at RM.RECEIVED.
+    """Pre-create a as_VulnerabilityCase for the report at RM.RECEIVED.
 
     Per ADR-0015, the case is created at report receipt.  The validate_report
     BT's EnsureEmbargoExists node requires a case to exist.
@@ -143,10 +145,10 @@ def received_report(dl, actor, reporter, report, offer):
     )
     bridge.execute_with_setup(tree, actor_id=actor.id_)
     case_obj = dl.find_case_by_report_id(report.id_)
-    assert isinstance(case_obj, VulnerabilityCase)
+    assert isinstance(case_obj, as_VulnerabilityCase)
     case_actor = as_Service(name=f"Case Actor for {case_obj.name}")
     dl.create(case_actor)
-    case_manager_participant = CaseParticipant(
+    case_manager_participant = as_CaseParticipant(
         attributed_to=case_actor.id_,
         context=case_obj.id_,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -187,10 +189,10 @@ def closed_report(dl, report, actor):
 
 @pytest.fixture
 def non_report_object(dl):
-    """An EmbargoEvent stored in the datalayer — not an Offer."""
-    from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+    """An as_EmbargoEvent stored in the datalayer — not an Offer."""
+    from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
-    obj = EmbargoEvent(context="urn:uuid:some-case")
+    obj = as_EmbargoEvent(context="urn:uuid:some-case")
     dl.create(obj)
     return obj
 
@@ -741,7 +743,7 @@ def test_trigger_submit_report_returns_202(client_triggers, actor):
 def test_trigger_submit_report_creates_report_in_datalayer(
     client_triggers, actor, dl
 ):
-    """submit-report trigger persists a VulnerabilityReport in the DataLayer."""
+    """submit-report trigger persists a as_VulnerabilityReport in the DataLayer."""
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/submit-report",
         json={

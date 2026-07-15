@@ -108,7 +108,7 @@ class TestCaseReferenceWireRoundTrip:
 
     def test_from_core_preserves_url(self):
         from vultron.wire.as2.vocab.objects.case_reference import (
-            CaseReference as WireCaseReference,
+            as_CaseReference as WireCaseReference,
         )
 
         core_ref = CaseReference(
@@ -123,7 +123,7 @@ class TestCaseReferenceWireRoundTrip:
 
     def test_to_core_produces_core_reference(self):
         from vultron.wire.as2.vocab.objects.case_reference import (
-            CaseReference as WireCaseReference,
+            as_CaseReference as WireCaseReference,
         )
 
         wire_ref = WireCaseReference(url=_URL, tags=["vendor-advisory"])
@@ -134,7 +134,7 @@ class TestCaseReferenceWireRoundTrip:
 
     def test_round_trip_preserves_id(self):
         from vultron.wire.as2.vocab.objects.case_reference import (
-            CaseReference as WireCaseReference,
+            as_CaseReference as WireCaseReference,
         )
 
         core_ref = CaseReference(

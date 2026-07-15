@@ -43,19 +43,21 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 
 def _route_key(object_id: str) -> str:
     return strip_id_prefix(object_id)
 
 
-def _add_case_manager(case: VulnerabilityCase, dl) -> as_Service:
+def _add_case_manager(case: as_VulnerabilityCase, dl) -> as_Service:
     """Add a CASE_MANAGER participant to *case* and return the case actor."""
     case_actor = as_Service(name=f"Case Actor for {case.name}")
     dl.create(case_actor)
-    cm_participant = CaseParticipant(
+    cm_participant = as_CaseParticipant(
         attributed_to=case_actor.id_,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -151,9 +153,9 @@ def client_trigger_only(dl):
 
 @pytest.fixture
 def case_with_actor(dl, actor):
-    """Create a VulnerabilityCase listing the actor as a participant."""
-    case_obj = VulnerabilityCase(name="TEST-DEMO-CASE-001")
-    participant = CaseParticipant(
+    """Create a as_VulnerabilityCase listing the actor as a participant."""
+    case_obj = as_VulnerabilityCase(name="TEST-DEMO-CASE-001")
+    participant = as_CaseParticipant(
         attributed_to=actor.id_,
         context=case_obj.id_,
     )
@@ -331,10 +333,10 @@ class TestDemoGetCaseLedger:
     ):
         """Entries from other cases are not included in the response."""
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
-        other_case = VulnerabilityCase(name="OTHER-CASE")
+        other_case = as_VulnerabilityCase(name="OTHER-CASE")
         dl.create(other_case)
         _make_log_entry(dl, case_with_actor.id_, log_index=0)
         _make_log_entry(dl, other_case.id_, log_index=0)
@@ -396,7 +398,7 @@ class TestDemoGetCaseLedger:
     ):
         """Resolves HTTP URL case IDs through their surrogate key."""
         http_case_id = "https://example.org/cases/demo/123"
-        case = VulnerabilityCase(id_=http_case_id, name="HTTP Case")
+        case = as_VulnerabilityCase(id_=http_case_id, name="HTTP Case")
         dl.create(case)
         _make_log_entry(dl, http_case_id, log_index=0)
         _make_log_entry(dl, http_case_id, log_index=1)
@@ -461,7 +463,7 @@ class TestDemoGetCaseLedgerEntry:
     ):
         """Resolves HTTP URL case IDs through their surrogate key."""
         http_case_id = "https://example.org/cases/demo/456"
-        case = VulnerabilityCase(id_=http_case_id, name="HTTP Case")
+        case = as_VulnerabilityCase(id_=http_case_id, name="HTTP Case")
         dl.create(case)
         _make_log_entry(dl, http_case_id, log_index=0)
 

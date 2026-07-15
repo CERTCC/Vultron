@@ -21,13 +21,15 @@ from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import (
-    CaseStatus,
-    ParticipantStatus,
+    as_CaseStatus,
+    as_ParticipantStatus,
 )
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 _ACTOR_ID = "https://example.org/actors/alice"
 
@@ -148,14 +150,14 @@ def test_get_actors_does_not_log_raw_records_at_info_level(
 
 
 def _seed_action_rules_data(dl):
-    """Insert a minimal valid VulnerabilityCase / CaseParticipant pair."""
-    participant = CaseParticipant(
+    """Insert a minimal valid as_VulnerabilityCase / as_CaseParticipant pair."""
+    participant = as_CaseParticipant(
         id_=_URN_PARTICIPANT_ID,
         attributed_to=_URN_ACTOR_ID,
         context=_URN_CASE_ID,
         case_roles=[CVDRole.VENDOR],
         participant_statuses=[
-            ParticipantStatus(
+            as_ParticipantStatus(
                 context=_URN_CASE_ID,
                 rm_state=RM.ACCEPTED,
                 vfd_state=CS_vfd.VFd,
@@ -164,10 +166,12 @@ def _seed_action_rules_data(dl):
     )
     dl.create(participant)
 
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         id_=_URN_CASE_ID,
         name="Test Case",
-        case_statuses=[CaseStatus(em_state=EM.ACTIVE, pxa_state=CS_pxa.Pxa)],
+        case_statuses=[
+            as_CaseStatus(em_state=EM.ACTIVE, pxa_state=CS_pxa.Pxa)
+        ],
     )
     case.add_participant(participant)
     dl.create(case)

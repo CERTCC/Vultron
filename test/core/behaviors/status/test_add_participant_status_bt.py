@@ -50,9 +50,11 @@ from vultron.core.behaviors.status.nodes import (
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import add_status_to_participant_activity
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -90,7 +92,7 @@ def bridge(dl):
 
 @pytest.fixture
 def status_obj():
-    return ParticipantStatus(
+    return as_ParticipantStatus(
         id_=STATUS_ID,
         context=CASE_ID,
     )
@@ -98,7 +100,7 @@ def status_obj():
 
 @pytest.fixture
 def participant():
-    return CaseParticipant(
+    return as_CaseParticipant(
         id_=PARTICIPANT_ID,
         context=CASE_ID,
         attributed_to=ACTOR_ID,
@@ -108,7 +110,7 @@ def participant():
 
 @pytest.fixture
 def case_manager_participant():
-    return CaseParticipant(
+    return as_CaseParticipant(
         id_=CM_PARTICIPANT_ID,
         context=CASE_ID,
         attributed_to=CASE_MANAGER_ID,
@@ -118,8 +120,8 @@ def case_manager_participant():
 
 @pytest.fixture
 def case(participant, case_manager_participant):
-    """VulnerabilityCase with vendor and Case Manager participants."""
-    obj = VulnerabilityCase(id_=CASE_ID, name="Test Case")
+    """as_VulnerabilityCase with vendor and Case Manager participants."""
+    obj = as_VulnerabilityCase(id_=CASE_ID, name="Test Case")
     obj.add_participant(participant)
     obj.add_participant(case_manager_participant)
     return obj
@@ -343,7 +345,7 @@ class TestValidateRMTransitionNode:
     ):
         """Backwards RM transition (CLOSED → RECEIVED) is rejected."""
         p = populated_dl.read(PARTICIPANT_ID)
-        closed_status = ParticipantStatus(
+        closed_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/closed",
             context=CASE_ID,
             rm_state=RM.CLOSED,
@@ -352,7 +354,7 @@ class TestValidateRMTransitionNode:
         populated_dl.save(p)
         populated_dl.create(closed_status)
 
-        regressed_status = ParticipantStatus(
+        regressed_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/regressed",
             context=CASE_ID,
             rm_state=RM.RECEIVED,
@@ -381,7 +383,7 @@ class TestValidateRMTransitionNode:
     ):
         """RM.CLOSED is terminal; CLOSED -> CLOSED rewrites are rejected."""
         p = populated_dl.read(PARTICIPANT_ID)
-        closed_status = ParticipantStatus(
+        closed_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/closed",
             context=CASE_ID,
             rm_state=RM.CLOSED,
@@ -390,7 +392,7 @@ class TestValidateRMTransitionNode:
         populated_dl.save(p)
         populated_dl.create(closed_status)
 
-        duplicate_closed_status = ParticipantStatus(
+        duplicate_closed_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/closed-dup",
             context=CASE_ID,
             rm_state=RM.CLOSED,
@@ -417,7 +419,7 @@ class TestValidateRMTransitionNode:
     def test_accepts_forward_jump(self, populated_dl, populated_bridge):
         """Non-adjacent forward RM jump is accepted (sender authoritative)."""
         p = populated_dl.read(PARTICIPANT_ID)
-        received_status = ParticipantStatus(
+        received_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/received",
             context=CASE_ID,
             rm_state=RM.RECEIVED,
@@ -426,7 +428,7 @@ class TestValidateRMTransitionNode:
         populated_dl.save(p)
         populated_dl.create(received_status)
 
-        accepted_status = ParticipantStatus(
+        accepted_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/accepted",
             context=CASE_ID,
             rm_state=RM.ACCEPTED,
@@ -542,7 +544,7 @@ class TestAppendParticipantStatusSubtree:
         self, populated_dl, populated_bridge, participant
     ):
         """A backwards RM transition (CLOSED → RECEIVED) is rejected."""
-        closed_status = ParticipantStatus(
+        closed_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/prev",
             context=CASE_ID,
             rm_state=RM.CLOSED,
@@ -551,7 +553,7 @@ class TestAppendParticipantStatusSubtree:
         populated_dl.save(participant)
         populated_dl.create(closed_status)
 
-        regressed_status = ParticipantStatus(
+        regressed_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/regressed",
             context=CASE_ID,
             rm_state=RM.RECEIVED,
@@ -572,7 +574,7 @@ class TestAppendParticipantStatusSubtree:
         self, populated_dl, populated_bridge, participant
     ):
         """Repeated CLOSED updates are rejected and do not append new status."""
-        closed_status = ParticipantStatus(
+        closed_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/prev",
             context=CASE_ID,
             rm_state=RM.CLOSED,
@@ -581,7 +583,7 @@ class TestAppendParticipantStatusSubtree:
         populated_dl.save(participant)
         populated_dl.create(closed_status)
 
-        duplicate_closed = ParticipantStatus(
+        duplicate_closed = as_ParticipantStatus(
             id_=f"{STATUS_ID}/closed-dup",
             context=CASE_ID,
             rm_state=RM.CLOSED,
@@ -607,7 +609,7 @@ class TestAppendParticipantStatusSubtree:
         self, populated_dl, populated_bridge, participant
     ):
         """A non-adjacent but forward RM jump is accepted (sender authoritative)."""
-        received_status = ParticipantStatus(
+        received_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/received",
             context=CASE_ID,
             rm_state=RM.RECEIVED,
@@ -616,7 +618,7 @@ class TestAppendParticipantStatusSubtree:
         populated_dl.save(participant)
         populated_dl.create(received_status)
 
-        accepted_status = ParticipantStatus(
+        accepted_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/accepted",
             context=CASE_ID,
             rm_state=RM.ACCEPTED,
@@ -668,9 +670,9 @@ class TestPublicDisclosureBranchNode:
     ):
         """CASE_MANAGER sender (not CASE_OWNER) → skips teardown, SUCCESS."""
         from vultron.core.states.cs import CS_pxa
-        from vultron.wire.as2.vocab.objects.case_status import CaseStatus
+        from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 
-        cs = CaseStatus()
+        cs = as_CaseStatus()
         cs.pxa_state = CS_pxa.Pxa  # public-aware
         status_obj.case_status = cs
         populated_dl.save(status_obj)
@@ -696,11 +698,13 @@ class TestPublicDisclosureBranchNode:
         """
         from vultron.core.states.cs import CS_pxa
         from vultron.core.states.em import EM
-        from vultron.wire.as2.vocab.objects.case_status import CaseStatus
-        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
+        from vultron.wire.as2.vocab.objects.embargo_event import (
+            as_EmbargoEvent,
+        )
 
         # Give the case an active embargo in ACTIVE state
-        embargo = EmbargoEvent(
+        embargo = as_EmbargoEvent(
             id_=f"{CASE_ID}/embargo_events/e1", context=CASE_ID
         )
         case.active_embargo = embargo.id_
@@ -708,7 +712,7 @@ class TestPublicDisclosureBranchNode:
         populated_dl.create(embargo)
         populated_dl.save(case)
 
-        cs = CaseStatus()
+        cs = as_CaseStatus()
         cs.pxa_state = CS_pxa.Pxa  # public-aware
         status_obj.case_status = cs
         populated_dl.save(status_obj)
@@ -728,11 +732,11 @@ class TestPublicDisclosureBranchNode:
         from typing import cast as c
 
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         # State was still applied before the broadcast attempt
-        updated = c(VulnerabilityCase, populated_dl.read(CASE_ID))
+        updated = c(as_VulnerabilityCase, populated_dl.read(CASE_ID))
         assert updated.current_status.em_state == EM.EXITED
         assert updated.active_embargo is None
 
@@ -758,7 +762,7 @@ class TestAutoCloseBranchNode:
         case_manager_participant,
     ):
         """When all CVD participants have RM.CLOSED, auto-close branch logs it."""
-        closed_status = ParticipantStatus(
+        closed_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/closed",
             context=CASE_ID,
             rm_state=RM.CLOSED,
@@ -792,12 +796,12 @@ class TestAddParticipantStatusTree:
     ):
         """End-to-end: known sender → all five steps succeed."""
         activity = add_status_to_participant_activity(
-            status=ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
-            target=CaseParticipant(
+            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
+            target=as_CaseParticipant(
                 id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
             ),
             actor=ACTOR_ID,
-            context=VulnerabilityCase(id_=CASE_ID, name="Test"),
+            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
         )
         event = make_payload(activity)
         bridge = BTBridge(datalayer=populated_dl)
@@ -817,12 +821,12 @@ class TestAddParticipantStatusTree:
     ):
         """Unknown sender → VerifySenderIsParticipantNode fails, tree halts."""
         activity = add_status_to_participant_activity(
-            status=ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
-            target=CaseParticipant(
+            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
+            target=as_CaseParticipant(
                 id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=OUTSIDER_ID
             ),
             actor=OUTSIDER_ID,
-            context=VulnerabilityCase(id_=CASE_ID, name="Test"),
+            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
         )
         event = make_payload(activity)
         bridge = BTBridge(datalayer=populated_dl)

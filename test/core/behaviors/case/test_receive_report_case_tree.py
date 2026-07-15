@@ -54,7 +54,7 @@ from vultron.enums.roles import CVDRole
 from vultron.core.use_cases._helpers import _report_phase_status_id
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 # ============================================================================
@@ -1024,7 +1024,7 @@ class TestConcurrentExecution:
         if datalayer.read(reporter_actor_id) is None:
             datalayer.create(reporter_actor)
 
-        report = VulnerabilityReport(
+        report = as_VulnerabilityReport(
             id_=report_id,
             name=f"Report {report_id}",
             content="test vuln",

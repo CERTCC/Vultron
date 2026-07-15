@@ -25,41 +25,47 @@ Fixtures (dl) come from conftest.
 
 def test_find_case_by_short_id_with_http_url_case_id(dl):
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
-        VulnerabilityCase,
+        as_VulnerabilityCase,
     )
 
-    case = VulnerabilityCase(id_="https://example.org/api/v2/cases/demo-123")
+    case = as_VulnerabilityCase(
+        id_="https://example.org/api/v2/cases/demo-123"
+    )
     dl.save(case)
 
     result = dl.find_case_by_short_id("demo-123")
     assert result is not None
-    assert isinstance(result, VulnerabilityCase)
+    assert isinstance(result, as_VulnerabilityCase)
     assert result.id_ == case.id_
 
 
 def test_find_case_by_short_id_with_urn_case_id(dl):
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
-        VulnerabilityCase,
+        as_VulnerabilityCase,
     )
 
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         id_="urn:uuid:11111111-2222-3333-4444-555555555555"
     )
     dl.save(case)
 
     result = dl.find_case_by_short_id("11111111-2222-3333-4444-555555555555")
     assert result is not None
-    assert isinstance(result, VulnerabilityCase)
+    assert isinstance(result, as_VulnerabilityCase)
     assert result.id_ == case.id_
 
 
 def test_find_case_by_short_id_returns_none_when_ambiguous(dl):
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
-        VulnerabilityCase,
+        as_VulnerabilityCase,
     )
 
-    case1 = VulnerabilityCase(id_="https://org1.example/api/v2/cases/shared")
-    case2 = VulnerabilityCase(id_="https://org2.example/api/v2/cases/shared")
+    case1 = as_VulnerabilityCase(
+        id_="https://org1.example/api/v2/cases/shared"
+    )
+    case2 = as_VulnerabilityCase(
+        id_="https://org2.example/api/v2/cases/shared"
+    )
     dl.save(case1)
     dl.save(case2)
 
@@ -73,18 +79,18 @@ def test_find_case_by_short_id_returns_none_when_ambiguous(dl):
 
 def test_find_case_by_report_id_returns_case_when_report_stored_as_string(dl):
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
-        VulnerabilityCase,
+        as_VulnerabilityCase,
     )
     from vultron.wire.as2.vocab.objects.vulnerability_report import (
-        VulnerabilityReport,
+        as_VulnerabilityReport,
     )
 
-    report = VulnerabilityReport(
+    report = as_VulnerabilityReport(
         name="CVE-2025-001",
         content="Test vulnerability",
         attributed_to="https://example.org/finder",
     )
-    case = VulnerabilityCase()
+    case = as_VulnerabilityCase()
     case.vulnerability_reports.append(report.id_)
 
     dl.create(report)
@@ -92,24 +98,24 @@ def test_find_case_by_report_id_returns_case_when_report_stored_as_string(dl):
 
     result = dl.find_case_by_report_id(report.id_)
     assert result is not None
-    assert isinstance(result, VulnerabilityCase)
+    assert isinstance(result, as_VulnerabilityCase)
     assert result.id_ == case.id_
 
 
 def test_find_case_by_report_id_returns_case_when_report_stored_as_object(dl):
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
-        VulnerabilityCase,
+        as_VulnerabilityCase,
     )
     from vultron.wire.as2.vocab.objects.vulnerability_report import (
-        VulnerabilityReport,
+        as_VulnerabilityReport,
     )
 
-    report = VulnerabilityReport(
+    report = as_VulnerabilityReport(
         name="CVE-2025-002",
         content="Another vulnerability",
         attributed_to="https://example.org/finder",
     )
-    case = VulnerabilityCase()
+    case = as_VulnerabilityCase()
     case.vulnerability_reports.append(report)
 
     dl.create(report)
@@ -117,24 +123,24 @@ def test_find_case_by_report_id_returns_case_when_report_stored_as_object(dl):
 
     result = dl.find_case_by_report_id(report.id_)
     assert result is not None
-    assert isinstance(result, VulnerabilityCase)
+    assert isinstance(result, as_VulnerabilityCase)
     assert result.id_ == case.id_
 
 
 def test_find_case_by_report_id_returns_none_when_not_found(dl):
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
-        VulnerabilityCase,
+        as_VulnerabilityCase,
     )
     from vultron.wire.as2.vocab.objects.vulnerability_report import (
-        VulnerabilityReport,
+        as_VulnerabilityReport,
     )
 
-    report = VulnerabilityReport(
+    report = as_VulnerabilityReport(
         name="CVE-2025-003",
         content="Unlinked vulnerability",
         attributed_to="https://example.org/finder",
     )
-    case = VulnerabilityCase()
+    case = as_VulnerabilityCase()
 
     dl.create(report)
     dl.save(case)
@@ -150,23 +156,23 @@ def test_find_case_by_report_id_returns_none_when_no_cases(dl):
 
 def test_find_case_by_report_id_returns_none_for_unknown_id(dl):
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
-        VulnerabilityCase,
+        as_VulnerabilityCase,
     )
     from vultron.wire.as2.vocab.objects.vulnerability_report import (
-        VulnerabilityReport,
+        as_VulnerabilityReport,
     )
 
-    report = VulnerabilityReport(
+    report = as_VulnerabilityReport(
         name="CVE-2025-004",
         content="Linked vulnerability",
         attributed_to="https://example.org/finder",
     )
-    other_report = VulnerabilityReport(
+    other_report = as_VulnerabilityReport(
         name="CVE-2025-005",
         content="Unlinked vulnerability",
         attributed_to="https://example.org/finder",
     )
-    case = VulnerabilityCase()
+    case = as_VulnerabilityCase()
     case.vulnerability_reports.append(report.id_)
 
     dl.create(report)
@@ -180,18 +186,18 @@ def test_find_case_by_report_id_returns_none_for_unknown_id(dl):
 def test_find_case_by_report_id_returns_case_via_report_case_link(dl):
     from vultron.core.models.report_case_link import VultronReportCaseLink
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
-        VulnerabilityCase,
+        as_VulnerabilityCase,
     )
     from vultron.wire.as2.vocab.objects.vulnerability_report import (
-        VulnerabilityReport,
+        as_VulnerabilityReport,
     )
 
-    report = VulnerabilityReport(
+    report = as_VulnerabilityReport(
         name="CVE-2025-006",
         content="Linked through ReportCaseLink",
         attributed_to="https://example.org/finder",
     )
-    case = VulnerabilityCase()
+    case = as_VulnerabilityCase()
 
     dl.create(report)
     dl.save(case)
@@ -200,5 +206,5 @@ def test_find_case_by_report_id_returns_case_via_report_case_link(dl):
     result = dl.find_case_by_report_id(report.id_)
 
     assert result is not None
-    assert isinstance(result, VulnerabilityCase)
+    assert isinstance(result, as_VulnerabilityCase)
     assert result.id_ == case.id_

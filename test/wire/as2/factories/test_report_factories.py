@@ -46,7 +46,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.base.objects.actors import as_Person
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 _ACTOR_URI = "https://example.org/actors/alice"
@@ -58,8 +58,8 @@ _RECIPIENT_URI = "https://example.org/actors/vendor"
 
 
 @pytest.fixture
-def sample_report() -> VulnerabilityReport:
-    return VulnerabilityReport(name="Test CVE report")
+def sample_report() -> as_VulnerabilityReport:
+    return as_VulnerabilityReport(name="Test CVE report")
 
 
 @pytest.fixture
@@ -234,7 +234,7 @@ def test_rm_validate_report_kwargs_actor_forwarded(sample_offer, sample_actor):
 def test_rm_validate_report_plain_offer_with_report_succeeds(
     sample_report, sample_actor
 ):
-    """A plain as_Offer carrying a VulnerabilityReport is coerced and accepted."""
+    """A plain as_Offer carrying a as_VulnerabilityReport is coerced and accepted."""
     plain_offer = as_Offer(actor=None, object_=sample_report)
     result = rm_validate_report_activity(offer=plain_offer, actor=sample_actor)
     assert isinstance(result, as_Accept)
@@ -242,7 +242,7 @@ def test_rm_validate_report_plain_offer_with_report_succeeds(
 
 @pytest.mark.spec("AF-04-001")
 def test_rm_validate_report_malformed_offer_raises(sample_actor):
-    """An offer whose object_ is not a VulnerabilityReport must still fail."""
+    """An offer whose object_ is not a as_VulnerabilityReport must still fail."""
     malformed_offer = as_Offer(
         actor=None, object_=as_Note(name="not a report")
     )
@@ -287,7 +287,7 @@ def test_rm_invalidate_report_kwargs_actor_forwarded(
 def test_rm_invalidate_report_plain_offer_with_report_succeeds(
     sample_report, sample_actor
 ):
-    """A plain as_Offer carrying a VulnerabilityReport is coerced and accepted."""
+    """A plain as_Offer carrying a as_VulnerabilityReport is coerced and accepted."""
     plain_offer = as_Offer(actor=None, object_=sample_report)
     result = rm_invalidate_report_activity(
         offer=plain_offer, actor=sample_actor
@@ -297,7 +297,7 @@ def test_rm_invalidate_report_plain_offer_with_report_succeeds(
 
 @pytest.mark.spec("AF-04-001")
 def test_rm_invalidate_report_malformed_offer_raises(sample_actor):
-    """An offer whose object_ is not a VulnerabilityReport must still fail."""
+    """An offer whose object_ is not a as_VulnerabilityReport must still fail."""
     malformed_offer = as_Offer(
         actor=None, object_=as_Note(name="not a report")
     )
@@ -334,7 +334,7 @@ def test_rm_close_report_kwargs_actor_forwarded(sample_offer, sample_actor):
 def test_rm_close_report_plain_offer_with_report_succeeds(
     sample_report, sample_actor
 ):
-    """A plain as_Offer carrying a VulnerabilityReport is coerced and accepted."""
+    """A plain as_Offer carrying a as_VulnerabilityReport is coerced and accepted."""
     plain_offer = as_Offer(actor=None, object_=sample_report)
     result = rm_close_report_activity(offer=plain_offer, actor=sample_actor)
     assert isinstance(result, as_Reject)
@@ -342,7 +342,7 @@ def test_rm_close_report_plain_offer_with_report_succeeds(
 
 @pytest.mark.spec("AF-04-001")
 def test_rm_close_report_malformed_offer_raises(sample_actor):
-    """An offer whose object_ is not a VulnerabilityReport must still fail."""
+    """An offer whose object_ is not a as_VulnerabilityReport must still fail."""
     malformed_offer = as_Offer(
         actor=None, object_=as_Note(name="not a report")
     )
@@ -364,7 +364,7 @@ def test_parse_submit_report_offer_from_dict(sample_report, sample_actor):
     )
     offer_dict = offer.model_dump(by_alias=True)
     report_out, offer_out = parse_submit_report_offer(offer_dict)
-    assert isinstance(report_out, VulnerabilityReport)
+    assert isinstance(report_out, as_VulnerabilityReport)
     assert report_out.id_ == sample_report.id_
 
 
@@ -375,7 +375,7 @@ def test_parse_submit_report_offer_from_plain_offer(
     """parse_submit_report_offer coerces a plain as_Offer correctly."""
     plain_offer = as_Offer(actor=None, object_=sample_report)
     report_out, offer_out = parse_submit_report_offer(plain_offer)
-    assert isinstance(report_out, VulnerabilityReport)
+    assert isinstance(report_out, as_VulnerabilityReport)
     assert report_out.id_ == sample_report.id_
 
 

@@ -37,7 +37,7 @@ from vultron.wire.as2.vocab.objects.base import (
 )
 
 
-class EmbargoPolicy(VultronAS2Object):
+class as_EmbargoPolicy(VultronAS2Object):
     """Wire projection of the core EmbargoPolicy domain object.
 
     Represents an Actor's stated embargo preferences for AS2 wire exchange.
@@ -108,21 +108,21 @@ class EmbargoPolicy(VultronAS2Object):
         return cast(str, isodate.duration_isoformat(value))
 
     @classmethod
-    def from_core(cls, core_obj: CoreEmbargoPolicy) -> "EmbargoPolicy":
+    def from_core(cls, core_obj: CoreEmbargoPolicy) -> "as_EmbargoPolicy":
         data = core_obj.model_dump(mode="json")
         _strip_core_context(data)
-        return cast("EmbargoPolicy", cls.model_validate(data))
+        return cast("as_EmbargoPolicy", cls.model_validate(data))
 
     def to_core(self) -> CoreEmbargoPolicy:
         data = self._to_core_data()
         return CoreEmbargoPolicy.model_validate(data)
 
 
-EmbargoPolicyRef: TypeAlias = ActivityStreamRef[EmbargoPolicy]
+as_EmbargoPolicyRef: TypeAlias = ActivityStreamRef[as_EmbargoPolicy]
 
 
 def main():
-    obj = EmbargoPolicy(
+    obj = as_EmbargoPolicy(
         actor_id="https://example.org/actors/vendor",
         inbox="https://example.org/actors/vendor/inbox",
         preferred_duration=timedelta(days=90),

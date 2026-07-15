@@ -42,9 +42,11 @@ from vultron.wire.as2.factories.case import (
     offer_case_manager_role_activity,
     reject_case_manager_role_activity,
 )
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 from ._base import _DUMP_KWARGS
 
@@ -77,7 +79,7 @@ class _ActorsMixin:
         Case Actor's own ID for self-archival (CLP-10-001).
 
         ``roles`` carries the intended CVD roles for the invitee (CM-17-003).
-        ``target`` may be a core ``VulnerabilityCase`` (projected to an enriched
+        ``target`` may be a core ``as_VulnerabilityCase`` (projected to an enriched
         stub by the factory), a pre-built ``VulnerabilityCaseStub``, or a bare
         URI string.  When ``None``, the case is read from the DataLayer by
         ``case_id`` and passed to the factory with any active embargo entity for
@@ -193,10 +195,10 @@ class _ActorsMixin:
         id_: str | None = None,
         roles: list | None = None,
     ) -> tuple[str, dict[str, Any]]:
-        """Create and persist an Offer(CaseParticipant{actor, roles}, Case).
+        """Create and persist an Offer(as_CaseParticipant{actor, roles}, Case).
 
         Transforms the original Offer(Actor, Case) from a recommending
-        participant into an Offer(CaseParticipant) addressed to the Case Owner.
+        participant into an Offer(as_CaseParticipant) addressed to the Case Owner.
         ``roles`` defaults to ``[CVDRole.VENDOR]`` when ``None`` (CM-16-003).
         ``origin`` carries the original Offer ID for causal traceability
         (CM-16-004).
@@ -234,7 +236,7 @@ class _ActorsMixin:
         """Create and persist an AcceptActorRecommendation activity.
 
         Sent by the CaseActor to the recommender after the Case Owner accepts
-        the Offer(CaseParticipant) (CM-16-006 step 3).
+        the Offer(as_CaseParticipant) (CM-16-006 step 3).
         """
         recommendation = recommend_actor_activity(
             recommended=CoreActor(id_=recommended_id),
@@ -271,7 +273,7 @@ class _ActorsMixin:
         """Create and persist a RejectActorRecommendation activity.
 
         Sent by the CaseActor to the recommender after the Case Owner rejects
-        the Offer(CaseParticipant) (CM-16-007 step 3).
+        the Offer(as_CaseParticipant) (CM-16-007 step 3).
         """
         recommendation = recommend_actor_activity(
             recommended=CoreActor(id_=recommended_id),
@@ -340,8 +342,8 @@ class _ActorsMixin:
         actor: str,
         to: list[str] | None = None,
     ) -> str:
-        """Create and persist an ``Add(CaseParticipant, Case)`` activity."""
-        participant = cast(CaseParticipant, self._dl.read(participant_id))
+        """Create and persist an ``Add(as_CaseParticipant, Case)`` activity."""
+        participant = cast(as_CaseParticipant, self._dl.read(participant_id))
         activity = add_participant_to_case_activity(
             participant=participant, target=case_id, actor=actor, to=to
         )
@@ -362,23 +364,25 @@ class _ActorsMixin:
         actor: str,
         to: list[str] | None = None,
     ) -> str:
-        """Create and persist an ``Add(ParticipantStatus, CaseParticipant)`` activity."""
+        """Create and persist an ``Add(as_ParticipantStatus, as_CaseParticipant)`` activity."""
         raw = self._dl.read(status_id)
         if raw is None:
             raise VultronNotFoundError(
                 "ParticipantStatus",
                 f"status '{status_id}' not found",
             )
-        # Convert from core ParticipantStatus to wire ParticipantStatus
+        # Convert from core as_ParticipantStatus to wire as_ParticipantStatus
         # so that nested fields (case_status, pxa_state) survive the boundary.
         from vultron.core.models.participant_status import (
             ParticipantStatus as CorePS,
         )
 
         if isinstance(raw, CorePS):
-            wire_status: ParticipantStatus = ParticipantStatus.from_core(raw)
+            wire_status: as_ParticipantStatus = as_ParticipantStatus.from_core(
+                raw
+            )
         else:
-            wire_status = cast(ParticipantStatus, raw)
+            wire_status = cast(as_ParticipantStatus, raw)
         activity = add_status_to_participant_activity(
             status=wire_status, target=participant_id, actor=actor, to=to
         )
@@ -399,11 +403,11 @@ class _ActorsMixin:
         actor: str,
         to: list[str] | None = None,
     ) -> str:
-        """Create and persist an ``Offer(VulnerabilityCase, target=CaseParticipant)``
+        """Create and persist an ``Offer(as_VulnerabilityCase, target=as_CaseParticipant)``
         CASE_MANAGER delegation activity.
         """
-        case = cast(VulnerabilityCase, self._dl.read(case_id))
-        participant = cast(CaseParticipant, self._dl.read(participant_id))
+        case = cast(as_VulnerabilityCase, self._dl.read(case_id))
+        participant = cast(as_CaseParticipant, self._dl.read(participant_id))
         activity = offer_case_manager_role_activity(
             case=case, target=participant, actor=actor, to=to
         )
@@ -432,8 +436,8 @@ class _ActorsMixin:
         ``case_id``, ``participant_id``, and ``vendor_id`` so that
         ``Accept.object_`` is a typed ``_OfferCaseManagerRoleActivity``.
         """
-        case = cast(VulnerabilityCase, self._dl.read(case_id))
-        participant = cast(CaseParticipant, self._dl.read(participant_id))
+        case = cast(as_VulnerabilityCase, self._dl.read(case_id))
+        participant = cast(as_CaseParticipant, self._dl.read(participant_id))
         offer = offer_case_manager_role_activity(
             case=case,
             target=participant,
@@ -468,8 +472,8 @@ class _ActorsMixin:
         ``case_id``, ``participant_id``, and ``vendor_id`` so that
         ``Reject.object_`` is a typed ``_OfferCaseManagerRoleActivity``.
         """
-        case = cast(VulnerabilityCase, self._dl.read(case_id))
-        participant = cast(CaseParticipant, self._dl.read(participant_id))
+        case = cast(as_VulnerabilityCase, self._dl.read(case_id))
+        participant = cast(as_CaseParticipant, self._dl.read(participant_id))
         offer = offer_case_manager_role_activity(
             case=case,
             target=participant,

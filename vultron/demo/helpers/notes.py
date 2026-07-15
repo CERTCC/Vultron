@@ -31,7 +31,9 @@ from vultron.demo.utils import (
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +42,7 @@ def participant_adds_note_to_case(
     posting_client: DataLayerClient,
     watching_client: DataLayerClient,
     poster: as_Actor,
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
     note_name: str,
     note_content: str,
     in_reply_to: Optional[str] = None,
@@ -57,7 +59,7 @@ def participant_adds_note_to_case(
         watching_client: Client connected to the container where note delivery
             should be verified (typically the case host or coordinator).
         poster: The ``as_Actor`` adding the note.
-        case: The ``VulnerabilityCase`` the note belongs to.
+        case: The ``as_VulnerabilityCase`` the note belongs to.
         note_name: Short name / subject for the note.
         note_content: Full text content of the note.
         in_reply_to: Optional ID of the note being replied to.

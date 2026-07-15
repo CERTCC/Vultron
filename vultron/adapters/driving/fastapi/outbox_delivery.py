@@ -43,7 +43,9 @@ from vultron.errors import (
 )
 from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +55,7 @@ logger = logging.getLogger(__name__)
 # .model_validate() round-trip.
 _STUB_OBJECT_MODEL_MAP: dict[str, type[BaseModel]] = {
     "CaseProposal": as_CaseProposal,
-    "VulnerabilityCase": VulnerabilityCase,
+    "VulnerabilityCase": as_VulnerabilityCase,
 }
 
 _INLINE_OBJECT_ACTIVITY_TYPES: frozenset[str] = frozenset(

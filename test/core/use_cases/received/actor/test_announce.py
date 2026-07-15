@@ -22,10 +22,12 @@ from vultron.core.use_cases.received.actor.announce import (
     AnnounceVulnerabilityCaseReceivedUseCase,
 )
 from vultron.wire.as2.factories import announce_vulnerability_case_activity
-from vultron.wire.as2.vocab.objects.case_actor import CaseActor
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+from vultron.wire.as2.vocab.objects.case_actor import as_CaseActor
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.enums.roles import CVDRole
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 _OWNER_ID = "https://example.org/actors/owner"
 _CASE_ACTOR_ID = "https://example.org/actors/case-actor"
@@ -45,12 +47,12 @@ def dl():
 
 @pytest.fixture()
 def case():
-    return VulnerabilityCase(id_=_CASE_ID, name="DR-10 Announce Case")
+    return as_VulnerabilityCase(id_=_CASE_ID, name="DR-10 Announce Case")
 
 
 @pytest.fixture()
 def case_actor():
-    return CaseActor(
+    return as_CaseActor(
         id_=_CASE_ACTOR_ID,
         attributed_to=_OWNER_ID,
         context=_CASE_ID,
@@ -78,7 +80,7 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
     def test_creates_case_when_absent(self, dl, event, case):
         """MV-10-003: Announce seeding creates the case in the invitee's DL."""
         dl.create(
-            CaseActor(
+            as_CaseActor(
                 id_=_CASE_ACTOR_ID,
                 attributed_to=_OWNER_ID,
                 context=_CASE_ID,
@@ -103,7 +105,7 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
     def test_creates_case_when_case_actor_not_yet_known_locally(
         self, dl, event, case
     ):
-        """First-time replica seeding succeeds before the CaseActor is stored."""
+        """First-time replica seeding succeeds before the as_CaseActor is stored."""
         AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
         result = dl.read(_CASE_ID)
@@ -157,25 +159,25 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         assert dl.read(_CASE_ID) is None
 
     def test_non_case_object_skips_gracefully(self, dl, make_payload):
-        """No-op when the activity object_ is not a VulnerabilityCase."""
+        """No-op when the activity object_ is not a as_VulnerabilityCase."""
         from vultron.wire.as2.factories import (
             announce_vulnerability_case_activity,
         )
         from vultron.wire.as2.vocab.objects.vulnerability_report import (
-            VulnerabilityReport,
+            as_VulnerabilityReport,
         )
 
         # Build an Announce that wraps a non-case object; we can't use the typed
-        # factory here because it requires VulnerabilityCase,
+        # factory here because it requires as_VulnerabilityCase,
         # so we inject via model_copy to simulate a malformed incoming payload.
-        good_case = VulnerabilityCase(id_=_CASE_ID2, name="Placeholder")
+        good_case = as_VulnerabilityCase(id_=_CASE_ID2, name="Placeholder")
         announce = announce_vulnerability_case_activity(
             good_case, actor=_OWNER_ID
         )
         event = make_payload(announce)
 
         # Replace the object_ on the raw activity with a non-case
-        report = VulnerabilityReport(name="Not a case")
+        report = as_VulnerabilityReport(name="Not a case")
         patched_activity = announce.model_copy(update={"object_": report})
         event = event.model_copy(update={"activity": patched_activity})
 
@@ -186,9 +188,9 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
     def test_rejects_announce_from_non_case_actor(
         self, dl, case, make_payload
     ):
-        """PCR-07-003: non-CaseActor senders cannot seed a case replica."""
+        """PCR-07-003: non-as_CaseActor senders cannot seed a case replica."""
         dl.create(
-            CaseActor(
+            as_CaseActor(
                 id_=_CASE_ACTOR_ID,
                 attributed_to=_OWNER_ID,
                 context=_CASE_ID,
@@ -213,30 +215,30 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
 
 
 class TestAnnounceStoresEmbeddedParticipants:
-    """Announce(VulnerabilityCase) seeding must store embedded participants.
+    """Announce(as_VulnerabilityCase) seeding must store embedded participants.
 
     Regression tests for #566: ``AnnounceVulnerabilityCaseReceivedUseCase``
     was not calling ``_store_embedded_participants`` after saving the case,
-    so late-joiner replicas never had independent ``CaseParticipant`` records.
+    so late-joiner replicas never had independent ``as_CaseParticipant`` records.
     BT nodes (``CheckParticipantExists``, ``AppendParticipantStatusNode``)
     would then fail with participant-not-found on the Announce path.
     """
 
     @pytest.fixture()
     def case_with_participants(self):
-        """VulnerabilityCase with two embedded participants (inline objects)."""
-        case_actor_p = CaseParticipant(
+        """as_VulnerabilityCase with two embedded participants (inline objects)."""
+        case_actor_p = as_CaseParticipant(
             case_roles=[CVDRole.CASE_MANAGER],
             id_=_CASE_ACTOR_PARTICIPANT_ID,
             attributed_to=_CASE_ACTOR_ID,
             context=_CASE_ID,
         )
-        vendor_p = CaseParticipant(
+        vendor_p = as_CaseParticipant(
             id_=_VENDOR_PARTICIPANT_ID,
             attributed_to=_VENDOR_ID,
             context=_CASE_ID,
         )
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_=_CASE_ID,
             name="DR-10 Announce Case with Participants",
             case_participants=[
@@ -280,7 +282,7 @@ class TestAnnounceStoresEmbeddedParticipants:
     def test_embedded_vendor_participant_stored_after_announce(
         self, dl, announce_with_participants_event
     ):
-        """Vendor CaseParticipant embedded in Announce payload is stored
+        """Vendor as_CaseParticipant embedded in Announce payload is stored
         independently — BT nodes can then look it up by UUID (#566)."""
         AnnounceVulnerabilityCaseReceivedUseCase(
             dl, announce_with_participants_event
@@ -288,7 +290,7 @@ class TestAnnounceStoresEmbeddedParticipants:
 
         stored = dl.read(_VENDOR_PARTICIPANT_ID)
         assert stored is not None, (
-            "Vendor CaseParticipant must be stored as an independent DataLayer "
+            "Vendor as_CaseParticipant must be stored as an independent DataLayer "
             "record after Announce seeding (#566)"
         )
 
@@ -300,7 +302,7 @@ class TestAnnounceStoresEmbeddedParticipants:
         Only inline participant objects are stored; bare ID strings are left
         as-is (they reference objects the receiver doesn't have locally).
         """
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_=_CASE_ID,
             name="Announce with string participants",
             case_participants=[_VENDOR_PARTICIPANT_ID],  # bare string ref
@@ -346,6 +348,6 @@ class TestAnnounceStoresEmbeddedParticipants:
             "exists (idempotent early-return path, #566)"
         )
         assert stored_vendor is not None, (
-            "Vendor CaseParticipant must be stored even when the case already "
+            "Vendor as_CaseParticipant must be stored even when the case already "
             "exists (idempotent early-return path, #566)"
         )

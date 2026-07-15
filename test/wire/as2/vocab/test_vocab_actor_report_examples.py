@@ -29,7 +29,7 @@ from vultron.wire.as2.vocab.base.objects.actors import (
 )
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 
@@ -56,7 +56,7 @@ class TestVocabReportExamples(unittest.TestCase):
     def test_report(self):
         report = examples.gen_report()
         self.assertIsInstance(report, as_Object)
-        self.assertIsInstance(report, VulnerabilityReport)
+        self.assertIsInstance(report, as_VulnerabilityReport)
 
         self.assertTrue(hasattr(report, "to_json"))
         json = report.to_json()
@@ -110,7 +110,7 @@ class TestVocabReportExamples(unittest.TestCase):
         self.assertEqual(offer.type_, "Offer")
         self.assertEqual(offer.actor, finder)
 
-        report_ = cast(VulnerabilityReport, offer.object_)
+        report_ = cast(as_VulnerabilityReport, offer.object_)
         self.assertEqual(report, report_)
 
     def test_invalidate_report(self):
@@ -128,7 +128,7 @@ class TestVocabReportExamples(unittest.TestCase):
         self.assertEqual(offer.type_, "Offer")
         self.assertEqual(offer.actor, finder)
 
-        report_ = cast(VulnerabilityReport, offer.object_)
+        report_ = cast(as_VulnerabilityReport, offer.object_)
         self.assertEqual(report, report_)
 
     def test_close_report(self):
@@ -146,7 +146,7 @@ class TestVocabReportExamples(unittest.TestCase):
         self.assertEqual(offer.type_, "Offer")
         self.assertEqual(offer.actor, finder)
 
-        report_ = cast(VulnerabilityReport, offer.object_)
+        report_ = cast(as_VulnerabilityReport, offer.object_)
         self.assertEqual(report, report_)
 
 

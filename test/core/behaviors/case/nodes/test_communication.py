@@ -252,14 +252,14 @@ class TestEmitRejectCaseManagerRoleNode:
     def _seed_dl(self, bt_scenario: BTTestScenario) -> None:
         """Seed the DataLayer with case and participant objects."""
         from vultron.wire.as2.vocab.objects.case_participant import (
-            CaseParticipant,
+            as_CaseParticipant,
         )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
-        case = VulnerabilityCase(id_=self._CASE_ID, name="CM-TEST")
-        participant = CaseParticipant(
+        case = as_VulnerabilityCase(id_=self._CASE_ID, name="CM-TEST")
+        participant = as_CaseParticipant(
             id_=self._PARTICIPANT_ID,
             attributed_to=self._CASE_ACTOR_ID,
             context=self._CASE_ID,
@@ -376,18 +376,18 @@ class TestEmitRejectCaseManagerRoleNode:
             offer_case_manager_role_activity,
         )
         from vultron.wire.as2.vocab.objects.case_participant import (
-            CaseParticipant,
+            as_CaseParticipant,
         )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         # Seed DL so EmitReject can reconstruct the offer
         self._seed_dl(bt_scenario)
 
         # Build a real offer object so StoreActivityNode can persist it
-        case = VulnerabilityCase(id_=self._CASE_ID, name="CM-TEST")
-        participant = CaseParticipant(
+        case = as_VulnerabilityCase(id_=self._CASE_ID, name="CM-TEST")
+        participant = as_CaseParticipant(
             id_=self._PARTICIPANT_ID,
             attributed_to=self._CASE_ACTOR_ID,
             context=self._CASE_ID,

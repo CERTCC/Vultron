@@ -36,7 +36,7 @@ from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.objects.base import ActivityStreamRequiredRef
 from vultron.wire.as2.vocab.objects.base import VultronAS2Object
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 
@@ -58,7 +58,7 @@ class as_CaseProposal(VultronAS2Object):
         type_: Always ``"CaseProposal"``; registered in ``VultronObjectType``.
         attributed_to: Required URI of the vendor actor that originated
             the proposal (CP-01-003).
-        object_: Required inline ``VulnerabilityReport`` around which the
+        object_: Required inline ``as_VulnerabilityReport`` around which the
             case is to be created.  URI-only references are not permitted
             (CP-01-004, AKM-03-001).
         target: Required URI of the prospective case-actor service to
@@ -79,14 +79,14 @@ class as_CaseProposal(VultronAS2Object):
         description="URI of the vendor actor that originated the proposal.",
     )
 
-    # CP-01-004: fully inline VulnerabilityReport; URI references not permitted
+    # CP-01-004: fully inline as_VulnerabilityReport; URI references not permitted
     # at the wire boundary.  ActivityStreamRequiredRef allows the DataLayer to
     # store/restore the dehydrated string ID; _rehydrate_fields expands it back.
-    object_: ActivityStreamRequiredRef[VulnerabilityReport] = Field(
+    object_: ActivityStreamRequiredRef[as_VulnerabilityReport] = Field(
         ...,
         validation_alias="object",
         serialization_alias="object",
-        description="Inline VulnerabilityReport; URI-only refs not permitted (AKM-03-001).",
+        description="Inline as_VulnerabilityReport; URI-only refs not permitted (AKM-03-001).",
     )
 
     # CP-01-005: URI of the prospective case-actor service.

@@ -30,8 +30,10 @@ from vultron.enums.roles import CVDRole
 from vultron.core.use_cases.received.note import AddNoteToCaseReceivedUseCase
 from vultron.wire.as2.factories import add_note_to_case_activity
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -68,11 +70,11 @@ def _make_case_actor_dl() -> SqliteDataLayer:
     ca_svc = VultronCaseActor(id_=CASE_ACTOR_ID, context=CASE_ID)
     dl.save(ca_svc)
 
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         id_=CASE_ID, name="AddNote Routing Test", attributed_to=CASE_ACTOR_ID
     )
 
-    cm_participant = CaseParticipant(
+    cm_participant = as_CaseParticipant(
         attributed_to=CASE_ACTOR_ID,
         context=CASE_ID,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -119,7 +121,7 @@ class TestAddNoteToCaseLedgerRouting:
         dl = _make_case_actor_dl()
 
         case = dl.read(CASE_ID)
-        assert isinstance(case, VulnerabilityCase)
+        assert isinstance(case, as_VulnerabilityCase)
         note = as_Note(id_=NOTE_ID, content="Test note content")
         activity = add_note_to_case_activity(
             note=note,
@@ -149,7 +151,7 @@ class TestAddNoteToCaseLedgerRouting:
         dl = _make_case_actor_dl()
 
         case = dl.read(CASE_ID)
-        assert isinstance(case, VulnerabilityCase)
+        assert isinstance(case, as_VulnerabilityCase)
         note = as_Note(id_=NOTE_ID, content="Test note content")
         activity = add_note_to_case_activity(
             note=note,
@@ -181,7 +183,7 @@ class TestAddNoteToCaseLedgerRouting:
         dl = _make_case_actor_dl()
 
         case = dl.read(CASE_ID)
-        assert isinstance(case, VulnerabilityCase)
+        assert isinstance(case, as_VulnerabilityCase)
         note = as_Note(id_=NOTE_ID, content="Test note content")
         activity = add_note_to_case_activity(
             note=note,

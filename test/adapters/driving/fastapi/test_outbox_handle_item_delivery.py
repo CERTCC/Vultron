@@ -17,7 +17,7 @@
 Unit tests for handle_outbox_item — delivery, logging, and regression cases.
 
 Covers: basic delivery flow, skip conditions, log content requirements,
-DR-01 typed-target dehydration regression, and Announce(CaseLedgerEntry)
+DR-01 typed-target dehydration regression, and Announce(as_CaseLedgerEntry)
 inline field preservation.
 
 Module under test: ``vultron/adapters/driving/fastapi/outbox_handler.py``
@@ -276,17 +276,17 @@ def test_handle_outbox_item_converts_typed_activity_with_full_target():
 
 
 # ---------------------------------------------------------------------------
-# handle_outbox_item — Announce(CaseLedgerEntry) inline field preservation
+# handle_outbox_item — Announce(as_CaseLedgerEntry) inline field preservation
 # ---------------------------------------------------------------------------
 
 
 def test_handle_outbox_item_preserves_inline_case_ledger_entry_fields():
-    """Announce(CaseLedgerEntry) delivery keeps full inline log-entry fields."""
+    """Announce(as_CaseLedgerEntry) delivery keeps full inline log-entry fields."""
     from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
     from vultron.core.models.case_ledger import HashChainLedgerRecord
     from vultron.wire.as2.factories import announce_log_entry_activity
     from vultron.wire.as2.vocab.objects.case_ledger_entry import (
-        CaseLedgerEntry as WireCaseLedgerEntry,
+        as_CaseLedgerEntry as WireCaseLedgerEntry,
     )
 
     recipient = "https://example.org/actors/participant"

@@ -37,11 +37,11 @@ class TestListMethod:
     def test_list_returns_saved_objects(self, dl):
         """list() returns all objects of the requested type."""
         from vultron.wire.as2.vocab.objects.vulnerability_report import (
-            VulnerabilityReport,
+            as_VulnerabilityReport,
         )
 
-        r1 = VulnerabilityReport(name="CVE-1", content="Body 1")
-        r2 = VulnerabilityReport(name="CVE-2", content="Body 2")
+        r1 = as_VulnerabilityReport(name="CVE-1", content="Body 1")
+        r2 = as_VulnerabilityReport(name="CVE-2", content="Body 2")
         dl.save(r1)
         dl.save(r2)
 
@@ -56,10 +56,10 @@ class TestListMethod:
         """list() only returns objects of the requested type, not others."""
         from vultron.wire.as2.vocab.base.objects.object_types import as_Note
         from vultron.wire.as2.vocab.objects.vulnerability_report import (
-            VulnerabilityReport,
+            as_VulnerabilityReport,
         )
 
-        report = VulnerabilityReport(name="CVE-FILTER", content="Body")
+        report = as_VulnerabilityReport(name="CVE-FILTER", content="Body")
         note = as_Note(content="Unrelated note")
         dl.save(report)
         dl.save(note)
@@ -75,16 +75,16 @@ class TestListMethod:
     def test_list_returns_typed_objects_not_dicts(self, dl):
         """list() returns domain model instances, not raw dict records."""
         from vultron.wire.as2.vocab.objects.vulnerability_report import (
-            VulnerabilityReport,
+            as_VulnerabilityReport,
         )
 
-        report = VulnerabilityReport(name="CVE-TYPED", content="Body")
+        report = as_VulnerabilityReport(name="CVE-TYPED", content="Body")
         dl.save(report)
 
         results = dl.list_objects("VulnerabilityReport")
 
         assert len(results) == 1
-        assert isinstance(results[0], VulnerabilityReport)
+        assert isinstance(results[0], as_VulnerabilityReport)
 
     def test_list_returns_semantic_class_for_activities(self, dl):
         """list() applies semantic coercion so activities get their subtype."""

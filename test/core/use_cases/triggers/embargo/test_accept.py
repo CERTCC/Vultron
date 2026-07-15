@@ -16,8 +16,10 @@ from vultron.core.use_cases.triggers.requests import (
     AcceptEmbargoTriggerRequest,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 from .conftest import (
     _build_active_embargo_case,
@@ -53,8 +55,8 @@ def test_non_owner_accept_embargo_on_active_case_updates_participant_only(
 
     assert updated_case is not None
     assert updated_participant is not None
-    updated_case = cast(VulnerabilityCase, updated_case)
-    updated_participant = cast(CaseParticipant, updated_participant)
+    updated_case = cast(as_VulnerabilityCase, updated_case)
+    updated_participant = cast(as_CaseParticipant, updated_participant)
     assert updated_case.current_status.em_state == EM.ACTIVE
     assert updated_case.active_embargo == case.active_embargo
     assert updated_participant.embargo_consent_state == PEC.SIGNATORY.value
@@ -67,7 +69,7 @@ def test_is_case_owner_fail_closed_when_attributed_to_is_none() -> None:
     This prevents any actor from being granted owner privileges on a case with
     missing owner attribution. The function must be fail-closed, not fail-open.
     """
-    case = VulnerabilityCase(name="Orphan case")
+    case = as_VulnerabilityCase(name="Orphan case")
     assert case.attributed_to is None
 
     assert _is_case_owner(case, "https://example.org/alice") is False
@@ -111,8 +113,8 @@ def test_accept_embargo_when_attributed_to_is_none_does_not_activate_em(
 
     assert updated_case is not None
     assert updated_participant is not None
-    updated_case = cast(VulnerabilityCase, updated_case)
-    updated_participant = cast(CaseParticipant, updated_participant)
+    updated_case = cast(as_VulnerabilityCase, updated_case)
+    updated_participant = cast(as_CaseParticipant, updated_participant)
 
     assert updated_case.current_status.em_state == EM.PROPOSED
     assert updated_participant.embargo_consent_state == PEC.SIGNATORY.value

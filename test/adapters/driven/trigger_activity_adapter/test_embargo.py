@@ -13,15 +13,15 @@
 
 """Unit tests for TriggerActivityAdapter embargo-domain methods."""
 
-from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 _ACTOR = "https://example.org/actors/coordinator"
 _PEER = "https://example.org/actors/vendor"
 _CASE_ID = "https://example.org/cases/case-001"
 
 
-def _make_embargo(dl) -> EmbargoEvent:
-    embargo = EmbargoEvent()
+def _make_embargo(dl) -> as_EmbargoEvent:
+    embargo = as_EmbargoEvent()
     dl.create(embargo)
     return embargo
 

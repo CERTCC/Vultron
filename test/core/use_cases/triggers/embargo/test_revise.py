@@ -18,8 +18,10 @@ from vultron.core.use_cases.triggers.requests import (
 )
 from vultron.errors import VultronInvalidStateTransitionError
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 from .conftest import (
     _build_active_embargo_case_with_case_manager,
@@ -45,7 +47,7 @@ def test_propose_embargo_revision_transitions_em_to_revise(
     ).execute()
 
     assert "activity" in result
-    updated_case = cast(VulnerabilityCase, dl.read(case.id_))
+    updated_case = cast(as_VulnerabilityCase, dl.read(case.id_))
     assert updated_case.current_status.em_state == EM.REVISE
     assert len(updated_case.proposed_embargoes) == 2
 
@@ -132,7 +134,7 @@ def test_propose_embargo_revision_in_revise_state_succeeds(
     dl.save(case)
 
     participant_id = case.actor_participant_index[actor.id_]
-    participant_before = cast(CaseParticipant, dl.read(participant_id))
+    participant_before = cast(as_CaseParticipant, dl.read(participant_id))
     pec_before = participant_before.embargo_consent_state
 
     request = ProposeEmbargoRevisionTriggerRequest(
@@ -146,9 +148,9 @@ def test_propose_embargo_revision_in_revise_state_succeeds(
     ).execute()
 
     assert "activity" in result
-    updated_case = cast(VulnerabilityCase, dl.read(case.id_))
+    updated_case = cast(as_VulnerabilityCase, dl.read(case.id_))
     assert updated_case.current_status.em_state == EM.REVISE
     assert len(updated_case.proposed_embargoes) == 2
 
-    participant_after = cast(CaseParticipant, dl.read(participant_id))
+    participant_after = cast(as_CaseParticipant, dl.read(participant_id))
     assert participant_after.embargo_consent_state == pec_before

@@ -35,9 +35,11 @@ from vultron.core.states.cs import CS_vfd
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
@@ -177,7 +179,7 @@ def finder_submits_report(
     finder: as_Actor,
     vendor: as_Actor,
     finder_client: Optional[DataLayerClient] = None,
-) -> Tuple[VulnerabilityReport, as_Offer]:
+) -> Tuple[as_VulnerabilityReport, as_Offer]:
     """Scenario alias for :func:`~vultron.demo.helpers.workflow.reporter_submits_report`.
 
     Maintained for backward compatibility; prefer ``reporter_submits_report``
@@ -230,7 +232,7 @@ def finder_asks_question(
     finder_client: DataLayerClient,
     vendor: as_Actor,
     finder: as_Actor,
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
 ) -> as_Note:
     """Scenario alias: finder adds a question note to the case.
 
@@ -256,7 +258,7 @@ def vendor_replies_to_question(
     finder_client: DataLayerClient,
     vendor: as_Actor,
     finder: as_Actor,
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
     question_note: as_Note,
 ) -> as_Note:
     """Scenario alias: vendor adds a reply note to the case.
@@ -288,7 +290,7 @@ def verify_vendor_case_state(
     reporter_actor_id: str,
     question_note_id: Optional[str] = None,
     reply_note_id: Optional[str] = None,
-) -> VulnerabilityCase:
+) -> as_VulnerabilityCase:
     """Scenario alias for :func:`~vultron.demo.helpers.verification.verify_receiver_case_state`.
 
     Maintained for backward compatibility; prefer
@@ -399,9 +401,9 @@ def _phase_report_submission(
     as_Actor,
     as_Actor,
     as_Actor,
-    VulnerabilityReport,
+    as_VulnerabilityReport,
     as_Offer,
-    VulnerabilityCase,
+    as_VulnerabilityCase,
 ]:
     """Run reset, seeding, report submission, validation, and M1 verification."""
     logger.info("─" * 80)
@@ -435,11 +437,11 @@ def _phase_report_submission(
         offer_id=offer.id_,
     )
 
-    with demo_check("VulnerabilityCase exists in Vendor's DataLayer"):
+    with demo_check("as_VulnerabilityCase exists in Vendor's DataLayer"):
         case = find_case_for_offer(vendor_client, offer.id_)
         if case is None:
             raise AssertionError(
-                "Expected VulnerabilityCase to be created after validate-report"
+                "Expected as_VulnerabilityCase to be created after validate-report"
             )
         logger.info("Case created: %s", case.id_)
 
@@ -481,7 +483,7 @@ def _phase_report_submission(
             reporter_actor_id=finder.id_,
         )
 
-    case = VulnerabilityCase.model_validate(
+    case = as_VulnerabilityCase.model_validate(
         vendor_client.get(f"/datalayer/{case.id_}")
     )
     return finder, vendor, vendor_in_vendor, report, offer, case
@@ -493,9 +495,9 @@ def _phase_notes_exchange(
     finder: as_Actor,
     vendor: as_Actor,
     vendor_in_vendor: as_Actor,
-    case: VulnerabilityCase,
-    report: VulnerabilityReport,
-) -> tuple[as_Note, as_Note, VulnerabilityCase, as_Actor]:
+    case: as_VulnerabilityCase,
+    report: as_VulnerabilityReport,
+) -> tuple[as_Note, as_Note, as_VulnerabilityCase, as_Actor]:
     """Run the question-and-reply note exchange and verify M3 state."""
     logger.info("─" * 80)
     logger.info("Phase 3: Notes exchange")
@@ -540,7 +542,7 @@ def _phase_sync_verification(
     vendor_client: DataLayerClient,
     vendor: as_Actor,
     finder: as_Actor,
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
     case_actor_client: DataLayerClient | None,
 ) -> None:
     """Verify SYNC-2 replication and confirm the dedicated case actor is unused."""
@@ -602,7 +604,7 @@ def _phase_fix_lifecycle(
     vendor_client: DataLayerClient,
     vendor: as_Actor,
     vendor_in_vendor: as_Actor,
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
 ) -> None:
     """Advance the case through fix-ready and fix-deployed milestones."""
     logger.info("─" * 80)
@@ -667,7 +669,7 @@ def _phase_publication(
     vendor_in_vendor: as_Actor,
     finder: as_Actor,
     finder_in_finder: as_Actor,
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
 ) -> None:
     """Run publication notifications and verify public disclosure state."""
     logger.info("─" * 80)
@@ -719,7 +721,7 @@ def _phase_case_closure(
     vendor_in_vendor: as_Actor,
     finder: as_Actor,
     finder_in_finder: as_Actor,
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
 ) -> None:
     """Close the case from both participants and verify terminal state."""
     logger.info("─" * 80)
@@ -782,7 +784,7 @@ def _phase_dump_case_ledgers(
     vendor_client: DataLayerClient,
     finder: as_Actor,
     vendor: as_Actor,
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
     case_actor_client: DataLayerClient | None = None,
     demo_name: str = "two-actor",
 ) -> None:
@@ -804,7 +806,7 @@ def _phase_dump_case_ledgers(
         vendor_client: DataLayerClient for the Vendor container.
         finder: Finder actor object (used to derive the actor object ID).
         vendor: Vendor actor object (used to derive the actor object ID).
-        case: The VulnerabilityCase whose log entries are to be exported.
+        case: The as_VulnerabilityCase whose log entries are to be exported.
         case_actor_client: Optional DataLayerClient for the CaseActor container.
         demo_name: Sub-directory name under the output root (default
             ``"two-actor"``).

@@ -23,12 +23,14 @@ from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import announce_log_entry_activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
-    CaseLedgerEntry as WireCaseLedgerEntry,
+    as_CaseLedgerEntry as WireCaseLedgerEntry,
 )
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 # Populate vocabulary registry as side-effect.
-_ = VulnerabilityCase
+_ = as_VulnerabilityCase
 
 OWNER_ACTOR_ID = "https://example.org/actors/vendor"
 PARTICIPANT_ACTOR_ID = "https://example.org/actors/reporter"
@@ -67,7 +69,7 @@ def case_actor(datalayer):
 
 @pytest.fixture
 def case_obj(datalayer):
-    case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+    case = as_VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
     datalayer.save(case)
     return case
 
@@ -190,8 +192,10 @@ def _make_remove_embargo_entry(
     )
 
 
-def _make_case_with_em_active(datalayer: SqliteDataLayer) -> VulnerabilityCase:
-    case = VulnerabilityCase(
+def _make_case_with_em_active(
+    datalayer: SqliteDataLayer,
+) -> as_VulnerabilityCase:
+    case = as_VulnerabilityCase(
         id_=CASE_ID, name="Test Case", attributed_to=OWNER_ACTOR_ID
     )
     case.current_status.em_state = EM.ACTIVE
@@ -247,7 +251,7 @@ class TestAnnounceLogEntryAppliesEmbargoTeardown:
 
     def test_em_exited_is_idempotent(self, bridge, datalayer, case_actor):
         """Running BT when case is already EM.EXITED must succeed silently."""
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_=CASE_ID, name="Test Case", attributed_to=OWNER_ACTOR_ID
         )
         case.current_status.em_state = EM.EXITED
@@ -296,7 +300,7 @@ class TestAnnounceLogEntryAppliesNoteAttachment:
         """BT attaches note ID to case replica when entry is add_note_to_case.
 
         A non-CaseActor participant must learn about note additions exclusively
-        via Announce(CaseLedgerEntry) fan-out (SYNC-02-002, ADR-0022).
+        via Announce(as_CaseLedgerEntry) fan-out (SYNC-02-002, ADR-0022).
         """
         entry = _make_add_note_entry(0, case_obj.genesis_hash)
         event = _make_event(entry, actor_id=case_actor.id_)
@@ -395,7 +399,7 @@ class TestAnnounceLogEntryAppliesInviteAccept:
         """BT adds new participant to case replica when entry is accept_invite_actor_to_case.
 
         Existing participants (e.g. Finder) must learn about new invitees
-        exclusively via Announce(CaseLedgerEntry) fan-out (SYNC-02-002).
+        exclusively via Announce(as_CaseLedgerEntry) fan-out (SYNC-02-002).
         """
         entry = _make_accept_invite_entry(0, case_obj.genesis_hash)
         event = _make_event(entry, actor_id=case_actor.id_)

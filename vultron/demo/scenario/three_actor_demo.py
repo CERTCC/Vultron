@@ -64,10 +64,12 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_TransitiveActivity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 from vultron.wire.as2.factories import (
     rm_submit_report_activity,
@@ -201,9 +203,9 @@ def finder_submits_report_to_coordinator(
     coordinator_client: DataLayerClient,
     finder: as_Actor,
     coordinator: as_Actor,
-) -> tuple[VulnerabilityReport, as_Offer]:
+) -> tuple[as_VulnerabilityReport, as_Offer]:
     """Finder submits a report to the Coordinator container."""
-    report = VulnerabilityReport(
+    report = as_VulnerabilityReport(
         attributed_to=finder.id_,
         name="Coordinated disclosure for dependency parser RCE",
         content=(
@@ -231,8 +233,8 @@ def coordinator_creates_case_on_case_actor(
     case_actor_client: DataLayerClient,
     case_actor: as_Actor,
     coordinator: as_Actor,
-    report: VulnerabilityReport,
-) -> VulnerabilityCase:
+    report: as_VulnerabilityReport,
+) -> as_VulnerabilityCase:
     """Create the authoritative case on the dedicated CaseActor container."""
     with demo_step("Coordinator creates the case via trigger"):
         result = post_to_trigger(
@@ -249,7 +251,7 @@ def coordinator_creates_case_on_case_actor(
             },
         )
     create_case = as_Create.model_validate(result["activity"])
-    case = VulnerabilityCase.model_validate(
+    case = as_VulnerabilityCase.model_validate(
         create_case.object_.model_dump(by_alias=True)  # type: ignore[union-attr]
     )
     with demo_step("Delivering CreateCase activity to CaseActor"):
@@ -265,8 +267,8 @@ def coordinator_adds_report_to_case(
     case_actor_client: DataLayerClient,
     case_actor: as_Actor,
     coordinator: as_Actor,
-    case: VulnerabilityCase,
-    report: VulnerabilityReport,
+    case: as_VulnerabilityCase,
+    report: as_VulnerabilityReport,
 ) -> None:
     """Link the submitted report to the authoritative case."""
     with demo_step(
@@ -293,7 +295,7 @@ def coordinator_invites_actor(
     recipient_client: DataLayerClient,
     actor: as_Actor,
     recipient: as_Actor,
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
     case_actor_client: DataLayerClient | None = None,
     case_actor: as_Actor | None = None,
 ) -> as_Activity:
@@ -357,7 +359,7 @@ def actor_accepts_case_invite(
 def coordinator_proposes_embargo(
     case_actor_client: DataLayerClient,
     coordinator: as_Actor,
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
 ) -> tuple[as_Activity, str]:
     """Propose an embargo on the authoritative case."""
     end_time = datetime.now(tz=timezone.utc) + timedelta(days=30)
@@ -405,7 +407,7 @@ def deliver_embargo_proposal(
 def actor_accepts_embargo(
     case_actor_client: DataLayerClient,
     actor: as_Actor,
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
     proposal: as_Activity,
 ) -> None:
     """Accept the active embargo proposal on the authoritative case."""
@@ -422,14 +424,14 @@ def actor_accepts_embargo(
     logger.info("Embargo accepted by %s", actor.name)
 
 
-def _three_actor_report_ids(case: VulnerabilityCase) -> list[str]:
+def _three_actor_report_ids(case: as_VulnerabilityCase) -> list[str]:
     return [
         ref_id(report) or str(report) for report in case.vulnerability_reports
     ]
 
 
 def _assert_three_actor_active_embargo(
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
     embargo_id: str,
 ) -> None:
     if case.current_status.em_state != EM.ACTIVE:
@@ -444,7 +446,7 @@ def _assert_three_actor_active_embargo(
 
 def _assert_three_actor_embargo_acceptance(
     case_actor_client: DataLayerClient,
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
     actor_ids: tuple[str, ...],
     embargo_id: str,
 ) -> None:
@@ -456,7 +458,7 @@ def _assert_three_actor_embargo_acceptance(
             raise AssertionError(
                 f"Participant record {participant_id} not found in CaseActor DataLayer"
             )
-        participant = CaseParticipant(**participant_data)
+        participant = as_CaseParticipant(**participant_data)
         if embargo_id not in participant.accepted_embargo_ids:
             raise AssertionError(
                 f"Participant {participant_id} did not record acceptance of "
@@ -473,9 +475,9 @@ def verify_case_actor_case_state(
     reporter_actor_id: str,
     vendor_actor_id: str,
     embargo_id: str,
-) -> VulnerabilityCase:
+) -> as_VulnerabilityCase:
     """Assert the authoritative final case state on the CaseActor container."""
-    final_case = VulnerabilityCase(
+    final_case = as_VulnerabilityCase(
         **case_actor_client.get(f"/datalayer/{case_id}")
     )
     actor_ids = (coordinator_actor_id, reporter_actor_id, vendor_actor_id)

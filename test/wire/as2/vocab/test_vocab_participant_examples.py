@@ -27,10 +27,10 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.base.objects.base import as_Object
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import (
-    CaseStatus,
-    ParticipantStatus,
+    as_CaseStatus,
+    as_ParticipantStatus,
 )
 from vultron.core.states.cs import CS_pxa, CS_vfd
 from vultron.core.states.em import EM
@@ -41,7 +41,7 @@ class TestVocabParticipantExamples(unittest.TestCase):
     def test_case_participant(self):
         obj = examples.case_participant()
         self.assertIsInstance(obj, as_Object)
-        self.assertIsInstance(obj, CaseParticipant)
+        self.assertIsInstance(obj, as_CaseParticipant)
 
         self.assertIsNotNone(obj.id_)
         self.assertIsNotNone(obj.name)
@@ -51,7 +51,7 @@ class TestVocabParticipantExamples(unittest.TestCase):
         self.assertIsInstance(obj.participant_statuses, Sequence)
         self.assertGreaterEqual(len(obj.participant_statuses), 1)
         for status in obj.participant_statuses:
-            self.assertIsInstance(status, ParticipantStatus)
+            self.assertIsInstance(status, as_ParticipantStatus)
 
     def test_create_participant(self):
         activity = examples.create_participant()
@@ -65,7 +65,7 @@ class TestVocabParticipantExamples(unittest.TestCase):
 
         self.assertEqual(activity.actor, vendor.id_)
         self.assertEqual(activity.context, case.id_)
-        participant = cast(CaseParticipant, activity.object_)
+        participant = cast(as_CaseParticipant, activity.object_)
         self.assertEqual(participant.attributed_to, coordinator.id_)
         self.assertEqual(participant.context, case.id_)
         self.assertEqual(participant.name, coordinator.name)
@@ -73,7 +73,7 @@ class TestVocabParticipantExamples(unittest.TestCase):
     def test_participant_status(self):
         obj = examples.participant_status()
         self.assertIsInstance(obj, as_Object)
-        self.assertIsInstance(obj, ParticipantStatus)
+        self.assertIsInstance(obj, as_ParticipantStatus)
 
         self.assertIsNotNone(obj.attributed_to)
         self.assertIsNotNone(obj.context)
@@ -82,7 +82,7 @@ class TestVocabParticipantExamples(unittest.TestCase):
         self.assertIn(obj.vfd_state, CS_vfd)
 
         if obj.case_status is not None:
-            self.assertIsInstance(obj.case_status, CaseStatus)
+            self.assertIsInstance(obj.case_status, as_CaseStatus)
             self.assertIn(obj.case_status.em_state, EM)
             self.assertIn(obj.case_status.pxa_state, CS_pxa)
 
@@ -95,7 +95,7 @@ class TestVocabParticipantExamples(unittest.TestCase):
         self.assertEqual(activity.type_, "Create")
 
         self.assertEqual(activity.actor, vendor.id_)
-        self.assertIsInstance(activity.object_, ParticipantStatus)
+        self.assertIsInstance(activity.object_, as_ParticipantStatus)
 
     def test_add_status_to_participant(self):
         activity = examples.add_status_to_participant()
@@ -254,8 +254,8 @@ class TestVocabParticipantExamples(unittest.TestCase):
         self.assertEqual(activity.actor, ca.id_)
         self.assertEqual(activity.to, [v.id_])
 
-        participant = cast(CaseParticipant, activity.object_)
-        self.assertIsInstance(participant, CaseParticipant)
+        participant = cast(as_CaseParticipant, activity.object_)
+        self.assertIsInstance(participant, as_CaseParticipant)
         attr = participant.attributed_to
         attr_id = getattr(attr, "id_", None) or attr
         self.assertEqual(attr_id, coordinator.id_)
@@ -312,7 +312,7 @@ class TestVocabParticipantExamples(unittest.TestCase):
         self.assertEqual(activity.type_, "Remove")
 
         self.assertEqual(activity.actor, vendor.id_)
-        participant = cast(CaseParticipant, activity.object_)
+        participant = cast(as_CaseParticipant, activity.object_)
         self.assertEqual(participant.attributed_to, coord_p.attributed_to)
         self.assertEqual(participant.name, coord_p.name)
         self.assertEqual(participant.context, case.id_)

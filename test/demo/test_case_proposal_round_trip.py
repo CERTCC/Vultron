@@ -78,7 +78,7 @@ from test.demo._helpers import make_testclient_call
 from test.demo.conftest import _TestASGIRouter, create_isolated_actor_app
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 # ---------------------------------------------------------------------------
@@ -221,7 +221,7 @@ class TestCaseProposalRoundTrip:
             vendor_tc, reporter_base_api, _REPORTER_SLUG, "Reporter CP"
         )
 
-        report = VulnerabilityReport(
+        report = as_VulnerabilityReport(
             attributed_to=reporter_actor_id,
             name="CP-07-003 round-trip report",
             content=(
@@ -270,7 +270,7 @@ class TestCaseProposalRoundTrip:
             vendor_tc, reporter_base_api, _REPORTER_SLUG, "Reporter CP"
         )
 
-        report = VulnerabilityReport(
+        report = as_VulnerabilityReport(
             attributed_to=reporter_actor_id,
             name="CP-07-003 accept round-trip report",
             content=(

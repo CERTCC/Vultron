@@ -67,7 +67,9 @@ from vultron.core.use_cases.received.report import (
     CreateReportReceivedUseCase,
     InvalidateReportReceivedUseCase,
 )
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -114,8 +116,8 @@ def _setup_case_with_participant(
     report_id: str = REPORT_ID,
     actor_id: str = ACTOR_ID,
     initial_rm: RM = RM.RECEIVED,
-) -> tuple[VulnerabilityCase, VultronParticipant]:
-    """Create and persist a VulnerabilityCase linked to a report.
+) -> tuple[as_VulnerabilityCase, VultronParticipant]:
+    """Create and persist a as_VulnerabilityCase linked to a report.
 
     Adds a CaseParticipant for *actor_id* so RM transition nodes can find
     the participant record.
@@ -138,7 +140,7 @@ def _setup_case_with_participant(
             )
         ],
     )
-    case = VulnerabilityCase(id_=CASE_ID, name="BT Test Case")
+    case = as_VulnerabilityCase(id_=CASE_ID, name="BT Test Case")
     case.vulnerability_reports.append(report_id)
     case.case_participants.append(participant.id_)
     case.actor_participant_index[actor_id] = participant.id_
@@ -277,7 +279,7 @@ class TestTransitionCaseParticipantRMtoClosed:
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
 
         assert result.status == Status.SUCCESS
-        updated_case = cast(VulnerabilityCase, dl.read(CASE_ID))
+        updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
         participant = cast(VultronParticipant, dl.read(p_id))
         assert participant.participant_statuses[-1].rm_state == RM.CLOSED
@@ -320,7 +322,7 @@ class TestTransitionCaseParticipantRMtoInvalid:
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
 
         assert result.status == Status.SUCCESS
-        updated_case = cast(VulnerabilityCase, dl.read(CASE_ID))
+        updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
         participant = cast(VultronParticipant, dl.read(p_id))
         assert participant.participant_statuses[-1].rm_state == RM.INVALID
@@ -532,7 +534,7 @@ class TestCloseReportReceivedTree:
         assert result.status == Status.SUCCESS
         assert _activity_stored(dl, ACTIVITY_ID)
 
-        updated_case = cast(VulnerabilityCase, dl.read(CASE_ID))
+        updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
         participant = cast(VultronParticipant, dl.read(p_id))
         assert participant.participant_statuses[-1].rm_state == RM.CLOSED
@@ -577,7 +579,7 @@ class TestCloseReportReceivedUseCase:
         CloseReportReceivedUseCase(dl, event).execute()
 
         assert _activity_stored(dl, ACTIVITY_ID)
-        updated_case = cast(VulnerabilityCase, dl.read(CASE_ID))
+        updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
         participant = cast(VultronParticipant, dl.read(p_id))
         assert participant.participant_statuses[-1].rm_state == RM.CLOSED
@@ -615,7 +617,7 @@ class TestInvalidateReportReceivedTree:
         assert result.status == Status.SUCCESS
         assert _activity_stored(dl, ACTIVITY_ID)
 
-        updated_case = cast(VulnerabilityCase, dl.read(CASE_ID))
+        updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
         participant = cast(VultronParticipant, dl.read(p_id))
         assert participant.participant_statuses[-1].rm_state == RM.INVALID
@@ -660,7 +662,7 @@ class TestInvalidateReportReceivedUseCase:
         InvalidateReportReceivedUseCase(dl, event).execute()
 
         assert _activity_stored(dl, ACTIVITY_ID)
-        updated_case = cast(VulnerabilityCase, dl.read(CASE_ID))
+        updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
         participant = cast(VultronParticipant, dl.read(p_id))
         assert participant.participant_statuses[-1].rm_state == RM.INVALID

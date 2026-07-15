@@ -35,7 +35,9 @@ import vultron.demo.scenario.two_actor_demo as demo
 from test.demo._helpers import make_client, make_testclient_call
 from vultron.adapters.utils import strip_id_prefix
 from vultron.demo.cli import main
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -283,7 +285,7 @@ class TestVendorValidatesReport:
         case = demo.find_case_for_offer(vendor_client, offer.id_)
         assert (
             case is not None
-        ), "Expected VulnerabilityCase to exist after validate-report"
+        ), "Expected as_VulnerabilityCase to exist after validate-report"
         assert case.id_ is not None
 
 
@@ -327,7 +329,7 @@ class TestFinderAsksQuestion:
         )
 
         case_data = vendor_client.get(f"/datalayer/{case.id_}")
-        case = VulnerabilityCase(**case_data)
+        case = as_VulnerabilityCase(**case_data)
         return finder_client, vendor_client, case, finder, vendor
 
     def test_question_note_stored_in_vendor(
@@ -852,7 +854,7 @@ class TestWaitForAllParticipantsRmClosed:
             client=finder_client, actor=finder, case_id=case.id_
         )
         case_data = vendor_client.get(f"/datalayer/{case.id_}")
-        refreshed_case = VulnerabilityCase.model_validate(case_data)
+        refreshed_case = as_VulnerabilityCase.model_validate(case_data)
         result = demo._all_fetchable_participants_rm_closed(
             vendor_client, refreshed_case
         )
@@ -875,7 +877,7 @@ class TestWaitForAllParticipantsRmClosed:
             _setup_case_with_3_participants(base)
         )
         case_data = vendor_client.get(f"/datalayer/{case.id_}")
-        fetched_case = VulnerabilityCase.model_validate(case_data)
+        fetched_case = as_VulnerabilityCase.model_validate(case_data)
         url_based_ids = [
             p_id
             for p_id in fetched_case.actor_participant_index.values()
@@ -993,7 +995,7 @@ class TestDumpCaseLogs:
         finder_client.get_list.return_value = [{"logIndex": 0}]
         vendor_client.get_list.return_value = [{"logIndex": 0}]
 
-        case = demo.VulnerabilityCase(
+        case = demo.as_VulnerabilityCase(
             id_="https://example.org/cases/case-dump-fallback",
             actor_participant_index={
                 "https://example.org/actors/vendor": (
@@ -1062,7 +1064,7 @@ class TestDumpCaseLogs:
         vendor_client.get_list.return_value = [{"logIndex": 0}]
         case_actor_client.get_list.return_value = [{"logIndex": 0}]
 
-        case = demo.VulnerabilityCase(
+        case = demo.as_VulnerabilityCase(
             id_="https://example.org/cases/case-dump-dedicated"
         )
         finder = demo.as_Actor(
@@ -1096,7 +1098,7 @@ class TestDumpCaseLogs:
         vendor_client.get_list.return_value = [{"logIndex": 0}]
         case_actor_client.get_list.return_value = []
 
-        case = demo.VulnerabilityCase(
+        case = demo.as_VulnerabilityCase(
             id_="https://example.org/cases/case-dump-empty-dedicated",
             actor_participant_index={
                 "https://example.org/actors/case-actor-fallback": (
@@ -1251,7 +1253,7 @@ class TestDeliveryIsolation:
         )
         assert resp.status_code in (200, 201)
 
-        # Finder's DataLayer should have no VulnerabilityCase records.
+        # Finder's DataLayer should have no as_VulnerabilityCase records.
         cases = finder_isolated.dl.get_all("VulnerabilityCase")
         assert cases == [], (
             f"Expected no cases in Finder's isolated DataLayer before"
@@ -1366,7 +1368,7 @@ class TestDeliveryIsolation:
         assert offer.id_ is not None
 
         # Vendor validates the report — this triggers BT nodes that create a
-        # VulnerabilityCase and add participants (including Finder).
+        # as_VulnerabilityCase and add participants (including Finder).
         vendor_actor_fresh = demo.get_actor_by_id(vendor_dc, vendor_id)
         demo.vendor_validates_report(
             vendor_client=vendor_dc,
@@ -1374,18 +1376,18 @@ class TestDeliveryIsolation:
             offer_id=offer.id_,
         )
 
-        # A VulnerabilityCase must now exist in Vendor's DataLayer.
+        # A as_VulnerabilityCase must now exist in Vendor's DataLayer.
         case = demo.find_case_for_offer(vendor_dc, offer.id_)
         assert (
             case is not None
-        ), "Expected VulnerabilityCase on Vendor after validate-report"
+        ), "Expected as_VulnerabilityCase on Vendor after validate-report"
 
         # The case announcement should have been delivered to Finder's inbox
         # via the outbox→_TestASGIRouter→inbox chain.  Finder's isolated
         # DataLayer must contain the case.
         finder_case = finder_isolated.dl.read(case.id_)
         assert finder_case is not None, (
-            f"Expected VulnerabilityCase '{case.id_}' to be delivered to"
+            f"Expected as_VulnerabilityCase '{case.id_}' to be delivered to"
             f" Finder's isolated DataLayer via the outbox→inbox path,"
             f" but Finder's DataLayer has no record of it.  This indicates"
             f" the delivery path is broken or the DataLayers are incorrectly"
@@ -1435,7 +1437,7 @@ def _participant_id_and_rm(
 
 def _fetch_case_log(
     client: demo.DataLayerClient,
-    case: demo.VulnerabilityCase,
+    case: demo.as_VulnerabilityCase,
 ) -> list[dict]:
     """Return case ledger entries from the demo DataLayer API endpoint.
 
@@ -1472,7 +1474,7 @@ def _fetch_case_log(
 @pytest.fixture(scope="class")
 def completed_workflow(
     client: TestClient, base: str
-) -> tuple[demo.DataLayerClient, demo.VulnerabilityCase]:
+) -> tuple[demo.DataLayerClient, demo.as_VulnerabilityCase]:
     """Run the full two-actor workflow and return (vendor_client, case).
 
     Uses deterministic actor IDs (``finder-ledger-inv`` /
@@ -1505,7 +1507,7 @@ def completed_workflow(
     )
 
     case = demo.find_case_for_offer(vendor_client, offer.id_)
-    assert case is not None, "Expected VulnerabilityCase after validation"
+    assert case is not None, "Expected as_VulnerabilityCase after validation"
 
     demo.wait_for_case_participants(
         vendor_client=vendor_client,
@@ -1514,7 +1516,7 @@ def completed_workflow(
     )
     # Refresh case to get actor_participant_index populated.
     case_data = vendor_client.get(f"/datalayer/{case.id_}")
-    case = VulnerabilityCase(**case_data)
+    case = as_VulnerabilityCase(**case_data)
 
     # Fix lifecycle.
     demo.actor_notifies_fix_ready(
@@ -1538,7 +1540,7 @@ def completed_workflow(
 
     # Final refresh to pick up any post-closure case-actor state.
     case_data = vendor_client.get(f"/datalayer/{case.id_}")
-    case = VulnerabilityCase(**case_data)
+    case = as_VulnerabilityCase(**case_data)
 
     return vendor_client, case
 
@@ -1572,7 +1574,7 @@ class TestCaseLedgerInvariants:
     def test_add_participant_status_entries_present(
         self,
         completed_workflow: tuple[
-            demo.DataLayerClient, demo.VulnerabilityCase
+            demo.DataLayerClient, demo.as_VulnerabilityCase
         ],
     ) -> None:
         """Combined case log contains at least one add_participant_status entry.
@@ -1601,7 +1603,7 @@ class TestCaseLedgerInvariants:
     def test_all_participants_rm_closed_at_scenario_end(
         self,
         completed_workflow: tuple[
-            demo.DataLayerClient, demo.VulnerabilityCase
+            demo.DataLayerClient, demo.as_VulnerabilityCase
         ],
     ) -> None:
         """All tracked participants end in RM=CLOSED at scenario completion.
@@ -1644,7 +1646,7 @@ class TestCaseLedgerInvariants:
     def test_required_event_types_present_in_case_actor_log(
         self,
         completed_workflow: tuple[
-            demo.DataLayerClient, demo.VulnerabilityCase
+            demo.DataLayerClient, demo.as_VulnerabilityCase
         ],
     ) -> None:
         """Combined case log contains the required baseline event types.

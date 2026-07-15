@@ -20,9 +20,9 @@ from vultron.errors import VultronValidationError
 from vultron.wire.as2.factories import (
     em_propose_embargo_activity,
 )
-from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    VulnerabilityCase,
+    as_VulnerabilityCase,
     VulnerabilityCaseStub,
 )
 
@@ -77,7 +77,7 @@ def test_dispatcher_blocks_gated_semantic_without_contiguous_genesis_prefix():
     )
 
     actor_id = "https://example.org/users/late-joiner"
-    case = VulnerabilityCase(id_="https://example.org/cases/case-gate")
+    case = as_VulnerabilityCase(id_="https://example.org/cases/case-gate")
     event = AddNoteToCaseReceivedEvent(
         activity_id="act-gate-1",
         actor_id=actor_id,
@@ -118,7 +118,7 @@ def test_dispatcher_allows_gated_semantic_with_contiguous_prefix_but_tip_lag():
     )
 
     actor_id = "https://example.org/users/late-joiner"
-    case = VulnerabilityCase(id_="https://example.org/cases/case-gate-ok")
+    case = as_VulnerabilityCase(id_="https://example.org/cases/case-gate-ok")
     event = AddNoteToCaseReceivedEvent(
         activity_id="act-gate-2",
         actor_id=actor_id,
@@ -153,7 +153,9 @@ def test_dispatcher_allows_gated_semantic_without_replication_state():
     )
 
     actor_id = "https://example.org/users/case-owner"
-    case = VulnerabilityCase(id_="https://example.org/cases/case-gate-owner")
+    case = as_VulnerabilityCase(
+        id_="https://example.org/cases/case-gate-owner"
+    )
     event = AddNoteToCaseReceivedEvent(
         activity_id="act-gate-owner",
         actor_id=actor_id,
@@ -179,7 +181,7 @@ def test_dispatcher_blocks_when_case_ledger_prefix_has_gaps():
     )
 
     actor_id = "https://example.org/users/late-joiner-gap"
-    case = VulnerabilityCase(id_="https://example.org/cases/case-gate-gap")
+    case = as_VulnerabilityCase(id_="https://example.org/cases/case-gate-gap")
     event = AddNoteToCaseReceivedEvent(
         activity_id="act-gate-gap",
         actor_id=actor_id,
@@ -268,7 +270,7 @@ def test_dispatcher_resolves_case_for_reject_embargo_invite_gate():
     actor_id = "https://example.org/users/late-joiner"
     case_id = "https://example.org/cases/case-gate-embargo"
     invite = em_propose_embargo_activity(
-        embargo=EmbargoEvent(
+        embargo=as_EmbargoEvent(
             id_=f"{case_id}/embargo_events/e1", content="Embargo proposal"
         ),
         context=case_id,

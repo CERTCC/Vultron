@@ -27,14 +27,14 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_TentativeReject,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 
 class _RmCreateReportActivity(as_Create):
     """The actor is creating a report."""
 
-    object_: VulnerabilityReport = Field(
+    object_: as_VulnerabilityReport = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
 
@@ -43,10 +43,10 @@ class _RmSubmitReportActivity(as_Offer):
     """The actor is submitting a report to another actor
     This corresponds to the Vultron RS message type when no case exists.
     See also _RmInviteToCaseActivity for the scenario when a case already exists.
-    object_: VulnerabilityReport
+    object_: as_VulnerabilityReport
     """
 
-    object_: VulnerabilityReport = Field(
+    object_: as_VulnerabilityReport = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
 
@@ -54,10 +54,10 @@ class _RmSubmitReportActivity(as_Offer):
 class _RmReadReportActivity(as_Read):
     """The actor has read a report.
     This corresponds to the Vultron Message Type RK when no case exists.
-    object_: VulnerabilityReport
+    object_: as_VulnerabilityReport
     """
 
-    object_: VulnerabilityReport = Field(
+    object_: as_VulnerabilityReport = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
 
@@ -67,7 +67,7 @@ class _RmValidateReportActivity(as_Accept):
     Corresponds to the Vultron Message Type RV when no case exists.
     This should be followed by a Create(VulnerabilityCase) activity.
 
-    object_: the _RmSubmitReportActivity offer wrapping the VulnerabilityReport
+    object_: the _RmSubmitReportActivity offer wrapping the as_VulnerabilityReport
         (inline typed object required — bare string IDs are rejected at
         construction time)
     """
@@ -82,7 +82,7 @@ class _RmInvalidateReportActivity(as_TentativeReject):
     Corresponds to the Vultron Message Type RI when no case exists.
     See also _RmRejectInviteToCaseActivity for the scenario when a case already exists.
 
-    object_: the _RmSubmitReportActivity offer wrapping the VulnerabilityReport
+    object_: the _RmSubmitReportActivity offer wrapping the as_VulnerabilityReport
         (inline typed object required — bare string IDs are rejected at
         construction time)
     """
@@ -98,7 +98,7 @@ class _RmCloseReportActivity(as_Reject):
     It can only be emitted when the report is in the RM.INVALID state, because anything past that will
     have an associated VulnerabilityCase object, and closure of the case falls to the _RmCloseCaseActivity activity.
 
-    object_: the _RmSubmitReportActivity offer wrapping the VulnerabilityReport
+    object_: the _RmSubmitReportActivity offer wrapping the as_VulnerabilityReport
         (inline typed object required — bare string IDs are rejected at
         construction time)
     """

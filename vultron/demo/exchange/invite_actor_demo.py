@@ -52,12 +52,14 @@ from typing import Callable, Optional, Sequence, Tuple
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_participant import (
-    CaseParticipant,
+    as_CaseParticipant,
 )
 from vultron.enums.roles import CVDRole
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
@@ -107,14 +109,14 @@ def _setup_initialized_case(
     client: DataLayerClient,
     finder: as_Actor,
     vendor: as_Actor,
-) -> VulnerabilityCase:
+) -> as_VulnerabilityCase:
     """
     Set up an initialized case as a precondition for the invite workflow.
 
     Mirrors demo_initialize_case from initialize_case_demo but returns the
-    VulnerabilityCase so subsequent steps can reference it.
+    as_VulnerabilityCase so subsequent steps can reference it.
     """
-    report = VulnerabilityReport(
+    report = as_VulnerabilityReport(
         attributed_to=finder.id_,
         content="A remote code execution vulnerability in the web framework.",
         name="Remote Code Execution Vulnerability",
@@ -133,7 +135,7 @@ def _setup_initialized_case(
     )
     post_to_inbox_and_wait(client, vendor.id_, validate_activity)
 
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         attributed_to=vendor.id_,
         name="RCE Case — Web Framework",
         content="Tracking the RCE vulnerability in the web framework.",
@@ -147,7 +149,7 @@ def _setup_initialized_case(
     )
     post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
 
-    participant = CaseParticipant(
+    participant = as_CaseParticipant(
         case_roles=[CVDRole.FINDER, CVDRole.REPORTER],
         attributed_to=finder.id_,
         context=case.id_,

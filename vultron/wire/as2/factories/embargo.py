@@ -16,7 +16,7 @@
 Factory functions for outbound Vultron embargo-management activities.
 
 These are the sole public construction API for activities involving
-``EmbargoEvent`` objects. Internal activity subclasses are
+``as_EmbargoEvent`` objects. Internal activity subclasses are
 imported here and MUST NOT be imported by callers.
 
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
@@ -50,27 +50,27 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Remove,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import (
-    EmbargoEvent,
-    EmbargoEventRef,
+    as_EmbargoEvent,
+    as_EmbargoEventRef,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    VulnerabilityCaseRef,
+    as_VulnerabilityCaseRef,
 )
 
 logger = logging.getLogger(__name__)
 
 
 def em_propose_embargo_activity(
-    embargo: EmbargoEvent,
-    context: VulnerabilityCaseRef | None = None,
+    embargo: as_EmbargoEvent,
+    context: as_VulnerabilityCaseRef | None = None,
     **kwargs,
 ) -> as_Invite:
-    """Build an Invite(EmbargoEvent) — the EP/EV message.
+    """Build an Invite(as_EmbargoEvent) — the EP/EV message.
 
     Proposes a new embargo for the case.
 
     Args:
-        embargo: The ``EmbargoEvent`` being proposed.
+        embargo: The ``as_EmbargoEvent`` being proposed.
         context: The ``VulnerabilityCase`` (or its URI) for which the
             embargo is being proposed.
         **kwargs: Optional AS2 fields forwarded to the constructor
@@ -97,13 +97,13 @@ def em_propose_embargo_activity(
 
 def em_accept_embargo_activity(
     proposal: as_Invite,
-    context: VulnerabilityCaseRef | None = None,
+    context: as_VulnerabilityCaseRef | None = None,
     **kwargs,
 ) -> as_Accept:
     """Build an Accept(_EmProposeEmbargoActivity) — the EA/EC message.
 
     Per ActivityStreams convention the actor accepts the proposal
-    activity itself, not the ``EmbargoEvent`` being proposed.
+    activity itself, not the ``as_EmbargoEvent`` being proposed.
     The ``proposal`` MUST be the value returned by
     :func:`em_propose_embargo_activity`; a plain ``as_Invite`` will
     fail validation.
@@ -138,13 +138,13 @@ def em_accept_embargo_activity(
 
 def em_reject_embargo_activity(
     proposal: as_Invite,
-    context: VulnerabilityCaseRef | None = None,
+    context: as_VulnerabilityCaseRef | None = None,
     **kwargs,
 ) -> as_Reject:
     """Build a Reject(_EmProposeEmbargoActivity) — the ER/EJ message.
 
     Per ActivityStreams convention the actor rejects the proposal
-    activity itself, not the ``EmbargoEvent`` being proposed.
+    activity itself, not the ``as_EmbargoEvent`` being proposed.
     The ``proposal`` MUST be the value returned by
     :func:`em_propose_embargo_activity`; a plain ``as_Invite`` will
     fail validation.
@@ -178,8 +178,8 @@ def em_reject_embargo_activity(
 
 
 def choose_preferred_embargo_activity(
-    any_of: Sequence[EmbargoEventRef] | None = None,
-    one_of: Sequence[EmbargoEventRef] | None = None,
+    any_of: Sequence[as_EmbargoEventRef] | None = None,
+    one_of: Sequence[as_EmbargoEventRef] | None = None,
     **kwargs,
 ) -> as_Question:
     """Build a Question asking participants to indicate embargo preferences.
@@ -190,9 +190,9 @@ def choose_preferred_embargo_activity(
     specified but not both.
 
     Args:
-        any_of: Sequence of ``EmbargoEventRef`` items — participants
+        any_of: Sequence of ``as_EmbargoEventRef`` items — participants
             may select any subset.
-        one_of: Sequence of ``EmbargoEventRef`` items — participants
+        one_of: Sequence of ``as_EmbargoEventRef`` items — participants
             must select exactly one.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``, ``to``).
@@ -218,19 +218,19 @@ def choose_preferred_embargo_activity(
 
 
 def activate_embargo_activity(
-    embargo: EmbargoEvent,
-    target: VulnerabilityCaseRef | None = None,
+    embargo: as_EmbargoEvent,
+    target: as_VulnerabilityCaseRef | None = None,
     in_reply_to: _EmProposeEmbargoActivity | str | None = None,
     **kwargs,
 ) -> as_Add:
-    """Build an Add(EmbargoEvent) — activates the embargo on the case.
+    """Build an Add(as_EmbargoEvent) — activates the embargo on the case.
 
     Corresponds to the EA/EC message at the case level.  Use this when
     the case owner is activating an embargo in response to a previous
     :func:`em_propose_embargo_activity`.
 
     Args:
-        embargo: The ``EmbargoEvent`` being activated.
+        embargo: The ``as_EmbargoEvent`` being activated.
         target: The ``VulnerabilityCase`` (or its URI) for which the
             embargo is activated.
         in_reply_to: The ``_EmProposeEmbargoActivity`` (or its URI)
@@ -259,18 +259,18 @@ def activate_embargo_activity(
 
 
 def add_embargo_to_case_activity(
-    embargo: EmbargoEvent,
-    target: VulnerabilityCaseRef | None = None,
+    embargo: as_EmbargoEvent,
+    target: as_VulnerabilityCaseRef | None = None,
     **kwargs,
 ) -> as_Add:
-    """Build an Add(EmbargoEvent, target=VulnerabilityCase).
+    """Build an Add(as_EmbargoEvent, target=VulnerabilityCase).
 
     Use when the case owner is adding an embargo without a prior
     proposal.  When activating in response to a prior proposal, prefer
     :func:`activate_embargo_activity` which carries ``in_reply_to``.
 
     Args:
-        embargo: The ``EmbargoEvent`` to add.
+        embargo: The ``as_EmbargoEvent`` to add.
         target: The ``VulnerabilityCase`` (or its URI) to which the
             embargo is being added.
         **kwargs: Optional AS2 fields forwarded to the constructor
@@ -296,14 +296,14 @@ def add_embargo_to_case_activity(
 
 
 def announce_embargo_activity(
-    embargo: EmbargoEvent,
-    context: VulnerabilityCaseRef | None = None,
+    embargo: as_EmbargoEvent,
+    context: as_VulnerabilityCaseRef | None = None,
     **kwargs,
 ) -> as_Announce:
-    """Build an Announce(EmbargoEvent) — announces an active embargo.
+    """Build an Announce(as_EmbargoEvent) — announces an active embargo.
 
     Args:
-        embargo: The ``EmbargoEvent`` being announced.
+        embargo: The ``as_EmbargoEvent`` being announced.
         context: The ``VulnerabilityCase`` (or its URI) for which the
             embargo is active.
         **kwargs: Optional AS2 fields forwarded to the constructor
@@ -327,20 +327,20 @@ def announce_embargo_activity(
 
 
 def remove_embargo_from_case_activity(
-    embargo: EmbargoEvent,
-    origin: VulnerabilityCaseRef | None = None,
+    embargo: as_EmbargoEvent,
+    origin: as_VulnerabilityCaseRef | None = None,
     **kwargs,
 ) -> as_Remove:
-    """Build a Remove(EmbargoEvent, origin=VulnerabilityCase).
+    """Build a Remove(as_EmbargoEvent, origin=VulnerabilityCase).
 
-    Removes an ``EmbargoEvent`` from the ``proposedEmbargoes`` of a
+    Removes an ``as_EmbargoEvent`` from the ``proposedEmbargoes`` of a
     case. This MUST only be performed by the case owner.
 
     Note: this activity uses ``origin`` (not ``target``) for the case
     reference, following the ActivityStreams convention for Remove.
 
     Args:
-        embargo: The ``EmbargoEvent`` to remove.
+        embargo: The ``as_EmbargoEvent`` to remove.
         origin: The ``VulnerabilityCase`` (or its URI) from which
             the embargo is removed.
         **kwargs: Optional AS2 fields forwarded to the constructor

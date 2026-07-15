@@ -44,9 +44,11 @@ from typing import Callable, Optional, Sequence, Tuple
 
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 from vultron.demo.utils import (
     DataLayerClient,
@@ -78,12 +80,12 @@ def _submit_report(
     vendor: as_Actor,
     name: str,
     content: str,
-) -> Tuple[VulnerabilityReport, as_Offer]:
+) -> Tuple[as_VulnerabilityReport, as_Offer]:
     """Finder submits a vulnerability report to the vendor's inbox.
 
     Returns the ``(report, offer)`` pair after verifying both are stored.
     """
-    report = VulnerabilityReport(
+    report = as_VulnerabilityReport(
         attributed_to=finder.id_,
         name=name,
         content=content,
@@ -98,8 +100,8 @@ def _submit_report(
 
 def _find_case_for_report(
     client: DataLayerClient, report_id: str
-) -> Optional[VulnerabilityCase]:
-    """Return the first VulnerabilityCase referencing *report_id*, or None."""
+) -> Optional[as_VulnerabilityCase]:
+    """Return the first as_VulnerabilityCase referencing *report_id*, or None."""
     cases = client.get("/datalayer/VulnerabilityCases/")
     if not cases:
         return None
@@ -107,12 +109,12 @@ def _find_case_for_report(
         if isinstance(item, str):
             try:
                 data = client.get(f"/datalayer/{item}")
-                case = VulnerabilityCase(**data)
+                case = as_VulnerabilityCase(**data)
             except Exception as exc:
                 logger.warning("Could not fetch case %s: %s", item, exc)
                 continue
         else:
-            case = VulnerabilityCase(**item)
+            case = as_VulnerabilityCase(**item)
         report_ids = [
             r if isinstance(r, str) else getattr(r, "id_", str(r))
             for r in (case.vulnerability_reports or [])
@@ -177,7 +179,7 @@ def demo_validate_and_engage(
         with demo_check("Case created by validate-report BT"):
             assert (
                 case is not None
-            ), f"No VulnerabilityCase found for report {report.id_}"
+            ), f"No as_VulnerabilityCase found for report {report.id_}"
             logger.info("Found case: %s", case.id_)
 
         response = post_to_trigger(

@@ -35,7 +35,9 @@ from vultron.core.models.events.actor import (
 )
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import announce_vulnerability_case_activity
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 ACTOR_ID = "https://example.org/actors/owner"
 NEW_OWNER_ID = "https://example.org/actors/coordinator"
@@ -63,7 +65,7 @@ class TestAcceptCaseOwnershipTransferNode:
 
     def test_transfers_ownership(self, bridge, dl) -> None:
         """Happy path: case.attributed_to updated to new_owner_id."""
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_=CASE_ID,
             name="OT Node Test",
             attributed_to=ACTOR_ID,
@@ -86,7 +88,7 @@ class TestAcceptCaseOwnershipTransferNode:
 
     def test_idempotent_when_already_owned(self, bridge, dl) -> None:
         """SUCCESS without mutation when case already has the new owner."""
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_=CASE_ID,
             name="OT Node Idempotent",
             attributed_to=NEW_OWNER_ID,
@@ -115,7 +117,7 @@ class TestAcceptCaseOwnershipTransferNode:
 
 @pytest.fixture
 def case():
-    return VulnerabilityCase(id_=CASE_ID2, name="Seed Announce Test")
+    return as_VulnerabilityCase(id_=CASE_ID2, name="Seed Announce Test")
 
 
 @pytest.fixture
@@ -214,12 +216,12 @@ class TestEmitInviteActorToCaseNodePassesRolesNoneToFactory:
             TriggerActivityAdapter,
         )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         # attributed_to triggers genesis_hash computation so the internal
         # commit_log_entry_tree inside EmitInviteActorToCaseNode can bootstrap.
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_=AC3_CASE_ID,
             name="AC2 test case",
             attributed_to=ACTOR_ID,

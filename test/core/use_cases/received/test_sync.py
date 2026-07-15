@@ -36,7 +36,7 @@ from vultron.semantic_registry import extract_event
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.factories import announce_log_entry_activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
-    CaseLedgerEntry as WireCaseLedgerEntry,
+    as_CaseLedgerEntry as WireCaseLedgerEntry,
 )
 
 ACTOR_URI = "https://example.org/actors/case-actor"
@@ -166,10 +166,10 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         return cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
 
     def test_inline_case_ledger_entry_round_trip(self, first_entry):
-        """parse_activity must preserve inline CaseLedgerEntry fields (BUG-26041501).
+        """parse_activity must preserve inline as_CaseLedgerEntry fields (BUG-26041501).
 
         Simulates the Finder receiving an Announce activity with a full inline
-        CaseLedgerEntry dict via HTTP, and verifies the event's log_entry has all
+        as_CaseLedgerEntry dict via HTTP, and verifies the event's log_entry has all
         domain fields intact after the parse → extract pipeline.
         """
         body = {

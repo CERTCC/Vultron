@@ -35,7 +35,9 @@ from vultron.wire.as2.vocab.objects.case_participant import (
     FinderParticipant,
     VendorParticipant,
 )
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 ACTOR_ID = "https://example.org/actors/finder"
 CASE_ACTOR_ID = "https://example.org/actors/case-actor"
@@ -62,8 +64,8 @@ def _make_case_with_case_manager(
     store: SqliteDataLayer,
     actor_id: str,
     case_actor_id: str,
-) -> tuple[VulnerabilityCase, VendorParticipant]:
-    case = VulnerabilityCase(name="Test Case")
+) -> tuple[as_VulnerabilityCase, VendorParticipant]:
+    case = as_VulnerabilityCase(name="Test Case")
     finder_participant = FinderParticipant(
         attributed_to=actor_id,
         context=case.id_,
@@ -114,7 +116,7 @@ class TestResolveCaseManagerNode:
 
     def test_failure_when_no_case_manager(self, dl, bridge):
         store, actor = dl
-        case = VulnerabilityCase(name="No Manager Case")
+        case = as_VulnerabilityCase(name="No Manager Case")
         participant = FinderParticipant(
             attributed_to=actor.id_,
             context=case.id_,

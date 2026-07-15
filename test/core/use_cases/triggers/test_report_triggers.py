@@ -19,7 +19,7 @@ SvcSubmitReportUseCase.
 
 Per notes/triggers-test-coverage.md: each test exercises the use case's
 execute() path against a real in-memory DataLayer and asserts:
-  1. the RM state mutation (ParticipantStatus / CaseParticipant transition);
+  1. the RM state mutation (as_ParticipantStatus / as_CaseParticipant transition);
   2. the outbox effect (activity queued, addressed correctly per PCR-08-001);
   3. the documented failure modes the use case is documented to raise.
 """
@@ -50,16 +50,18 @@ from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
-    CaseParticipant,
+    as_CaseParticipant,
     FinderParticipant,
 )
 from vultron.wire.as2.vocab.objects.case_status import (
-    ParticipantStatus as WireParticipantStatus,
+    as_ParticipantStatus as WireParticipantStatus,
 )
-from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 # ---------------------------------------------------------------------------
@@ -79,7 +81,7 @@ def _make_actor_dl(actor_name: str) -> tuple[as_Service, SqliteDataLayer]:
 
 def _make_offer(
     dl: SqliteDataLayer,
-    report: VulnerabilityReport,
+    report: as_VulnerabilityReport,
     recipient_id: str,
     actor_id: str,
 ) -> as_Offer:
@@ -98,17 +100,17 @@ def _make_case_with_embargo(
     finder_id: str,
     case_actor_id: str,
     report_id: str,
-) -> VulnerabilityCase:
-    """Build a VulnerabilityCase with finder, vendor, CASE_MANAGER participants,
+) -> as_VulnerabilityCase:
+    """Build a as_VulnerabilityCase with finder, vendor, CASE_MANAGER participants,
     an active embargo, and the report linked via vulnerability_reports."""
-    embargo = EmbargoEvent(context="urn:placeholder")
+    embargo = as_EmbargoEvent(context="urn:placeholder")
     dl.create(embargo)
 
-    case = VulnerabilityCase(name="Test Case")
+    case = as_VulnerabilityCase(name="Test Case")
     case.set_embargo(embargo.id_)
     case.vulnerability_reports.append(report_id)
 
-    vendor_participant = CaseParticipant(
+    vendor_participant = as_CaseParticipant(
         attributed_to=vendor_id,
         context=case.id_,
         case_roles=[CVDRole.VENDOR],
@@ -121,7 +123,7 @@ def _make_case_with_embargo(
         attributed_to=finder_id,
         context=case.id_,
     )
-    case_manager_participant = CaseParticipant(
+    case_manager_participant = as_CaseParticipant(
         attributed_to=case_actor_id,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -160,7 +162,7 @@ class TestSvcValidateReportUseCase:
         self.finder, self.finder_dl = _make_actor_dl("Finder Co")
         self.case_actor, self.case_actor_dl = _make_actor_dl("Case Actor")
 
-        self.report = VulnerabilityReport(
+        self.report = as_VulnerabilityReport(
             name="CVE-TEST",
             content="Vulnerability report content",
             attributed_to=self.finder.id_,
@@ -195,7 +197,7 @@ class TestSvcValidateReportUseCase:
     # --- AC-1: RM state transition -----------------------------------------
 
     def test_validate_report_creates_rm_valid_status_record(self):
-        """execute() creates a ParticipantStatus record for RM.VALID."""
+        """execute() creates a as_ParticipantStatus record for RM.VALID."""
         request = ValidateReportTriggerRequest(
             actor_id=self.vendor.id_,
             offer_id=self.offer.id_,
@@ -213,7 +215,7 @@ class TestSvcValidateReportUseCase:
         assert status_record is not None
 
     def test_validate_report_updates_case_participant_rm_state(self):
-        """execute() advances the CaseParticipant.participant_statuses to RM.VALID."""
+        """execute() advances the as_CaseParticipant.participant_statuses to RM.VALID."""
         request = ValidateReportTriggerRequest(
             actor_id=self.vendor.id_,
             offer_id=self.offer.id_,
@@ -229,7 +231,7 @@ class TestSvcValidateReportUseCase:
         ]
         updated = self.dl.read(vendor_participant_id)
         assert updated is not None
-        assert isinstance(updated, CaseParticipant)
+        assert isinstance(updated, as_CaseParticipant)
         assert updated.participant_statuses
         assert updated.participant_statuses[-1].rm_state == RM.VALID
 
@@ -319,8 +321,8 @@ class TestSvcValidateReportUseCase:
 
     def test_validate_report_raises_when_offer_is_wrong_type(self):
         """VultronValidationError raised when offer_id resolves to wrong type."""
-        # Store a plain VulnerabilityReport (not an Offer) as the offer_id.
-        non_offer = VulnerabilityReport(
+        # Store a plain as_VulnerabilityReport (not an Offer) as the offer_id.
+        non_offer = as_VulnerabilityReport(
             name="Not an offer",
             content="wrong type object",
             attributed_to=self.vendor.id_,
@@ -366,7 +368,7 @@ class TestSvcValidateReportUseCase:
             self.vendor.id_
         ]
         p1 = self.dl.read(vendor_participant_id)
-        assert isinstance(p1, CaseParticipant)
+        assert isinstance(p1, as_CaseParticipant)
         statuses_after_first = list(p1.participant_statuses)
 
         # Second call: CheckRMStateValid short-circuits before TransitionRMtoValid;
@@ -376,7 +378,7 @@ class TestSvcValidateReportUseCase:
         ).execute()
 
         p2 = self.dl.read(vendor_participant_id)
-        assert isinstance(p2, CaseParticipant)
+        assert isinstance(p2, as_CaseParticipant)
         assert len(p2.participant_statuses) == len(
             statuses_after_first
         ), "Second validate re-appended a duplicate RM status entry"
@@ -409,7 +411,7 @@ class TestSvcSubmitReportUseCase:
     # --- AC-2: RM state / persistence mutations ----------------------------
 
     def test_submit_report_persists_vulnerability_report(self):
-        """execute() stores a VulnerabilityReport in the actor's DataLayer."""
+        """execute() stores a as_VulnerabilityReport in the actor's DataLayer."""
         request = SubmitReportTriggerRequest(
             actor_id=self.finder.id_,
             report_name="CVE-TEST",
@@ -428,8 +430,10 @@ class TestSvcSubmitReportUseCase:
         report_id = report_obj.get("id")
         assert report_id is not None, "offer['object']['id'] is missing"
         stored = self.dl.read(report_id)
-        assert stored is not None, "VulnerabilityReport not found in DataLayer"
-        assert isinstance(stored, VulnerabilityReport)
+        assert (
+            stored is not None
+        ), "as_VulnerabilityReport not found in DataLayer"
+        assert isinstance(stored, as_VulnerabilityReport)
         assert stored.name == "CVE-TEST"
 
     def test_submit_report_persists_report_case_link(self):

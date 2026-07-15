@@ -28,10 +28,10 @@ from vultron.wire.as2.factories import rm_submit_report_activity
 def test_activity_with_nested_object_stores_id_reference_not_inline_copy(dl):
     """Storing an activity with a nested object writes only the nested ID."""
     from vultron.wire.as2.vocab.objects.vulnerability_report import (
-        VulnerabilityReport,
+        as_VulnerabilityReport,
     )
 
-    report = VulnerabilityReport(
+    report = as_VulnerabilityReport(
         name="Test CVE",
         content="A critical vulnerability",
         attributed_to="https://example.org/finder",
@@ -56,10 +56,10 @@ def test_activity_with_nested_object_stores_id_reference_not_inline_copy(dl):
 
 def test_activity_nested_object_retrievable_separately_after_dehydration(dl):
     from vultron.wire.as2.vocab.objects.vulnerability_report import (
-        VulnerabilityReport,
+        as_VulnerabilityReport,
     )
 
-    report = VulnerabilityReport(
+    report = as_VulnerabilityReport(
         name="Test CVE 2",
         content="Another vulnerability",
         attributed_to="https://example.org/finder",
@@ -85,10 +85,10 @@ def test_reading_activity_back_yields_expanded_nested_object(dl):
     field; after the rehydration pipeline the full typed object is returned.
     """
     from vultron.wire.as2.vocab.objects.vulnerability_report import (
-        VulnerabilityReport,
+        as_VulnerabilityReport,
     )
 
-    report = VulnerabilityReport(
+    report = as_VulnerabilityReport(
         name="Test CVE 3",
         content="Yet another vulnerability",
         attributed_to="https://example.org/finder",
@@ -104,17 +104,17 @@ def test_reading_activity_back_yields_expanded_nested_object(dl):
 
     retrieved_offer = dl.read(offer.id_)
     assert retrieved_offer is not None
-    assert isinstance(retrieved_offer.object_, VulnerabilityReport)  # type: ignore[union-attr]
+    assert isinstance(retrieved_offer.object_, as_VulnerabilityReport)  # type: ignore[union-attr]
     assert retrieved_offer.object_.id_ == report.id_  # type: ignore[union-attr]
 
 
 def test_rehydration_restores_nested_object_from_datalayer(dl):
     from vultron.wire.as2.rehydration import rehydrate
     from vultron.wire.as2.vocab.objects.vulnerability_report import (
-        VulnerabilityReport,
+        as_VulnerabilityReport,
     )
 
-    report = VulnerabilityReport(
+    report = as_VulnerabilityReport(
         name="Test CVE 4",
         content="One more vulnerability",
         attributed_to="https://example.org/finder",
@@ -139,10 +139,10 @@ def test_rehydration_restores_nested_object_from_datalayer(dl):
 def test_rehydration_does_not_mutate_stored_record(dl):
     from vultron.wire.as2.rehydration import rehydrate
     from vultron.wire.as2.vocab.objects.vulnerability_report import (
-        VulnerabilityReport,
+        as_VulnerabilityReport,
     )
 
-    report = VulnerabilityReport(
+    report = as_VulnerabilityReport(
         name="Test CVE 5",
         content="Final vulnerability",
         attributed_to="https://example.org/finder",
@@ -175,15 +175,17 @@ def test_rehydration_does_not_mutate_stored_record(dl):
 def test_hydrate_expands_list_ref_field(dl):
     """hydrate() resolves case_participants string IDs to stored objects."""
     from vultron.enums.roles import CVDRole
-    from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+    from vultron.wire.as2.vocab.objects.case_participant import (
+        as_CaseParticipant,
+    )
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
-        VulnerabilityCase,
+        as_VulnerabilityCase,
     )
 
     case_actor_id = "https://example.org/actors/case-actor-hydrate"
-    case = VulnerabilityCase()
+    case = as_VulnerabilityCase()
 
-    participant = CaseParticipant(
+    participant = as_CaseParticipant(
         case_roles=[CVDRole.CASE_MANAGER],
         attributed_to=case_actor_id,
         context=case.id_,
@@ -201,21 +203,23 @@ def test_hydrate_expands_list_ref_field(dl):
     hydrated = dl.hydrate(stored_case)
     assert hydrated is not stored_case
     assert len(hydrated.case_participants) == 1
-    assert isinstance(hydrated.case_participants[0], CaseParticipant)
+    assert isinstance(hydrated.case_participants[0], as_CaseParticipant)
     assert hydrated.case_participants[0].id_ == participant.id_
 
 
 def test_hydrate_leaves_already_expanded_participants_unchanged(dl):
     """hydrate() leaves non-string participants unchanged."""
     from vultron.enums.roles import CVDRole
-    from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+    from vultron.wire.as2.vocab.objects.case_participant import (
+        as_CaseParticipant,
+    )
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
-        VulnerabilityCase,
+        as_VulnerabilityCase,
     )
 
     case_actor_id = "https://example.org/actors/case-actor-noop"
-    case = VulnerabilityCase()
-    participant = CaseParticipant(
+    case = as_VulnerabilityCase()
+    participant = as_CaseParticipant(
         case_roles=[CVDRole.CASE_MANAGER],
         attributed_to=case_actor_id,
         context=case.id_,
@@ -233,11 +237,11 @@ def test_hydrate_leaves_already_expanded_participants_unchanged(dl):
 def test_hydrate_keeps_unresolvable_string_ids(dl):
     """hydrate() keeps participant IDs that don't exist in the DataLayer."""
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
-        VulnerabilityCase,
+        as_VulnerabilityCase,
     )
 
     missing_id = "urn:uuid:00000000-0000-0000-0000-000000000000"
-    case = VulnerabilityCase()
+    case = as_VulnerabilityCase()
     case.case_participants = [missing_id]
     dl.save(case)
 
@@ -251,11 +255,11 @@ def test_hydrate_warns_for_unresolvable_string_ids(dl, caplog):
     import logging
 
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
-        VulnerabilityCase,
+        as_VulnerabilityCase,
     )
 
     missing_id = "urn:uuid:00000000-0000-0000-0000-000000000001"
-    case = VulnerabilityCase()
+    case = as_VulnerabilityCase()
     case.case_participants = [missing_id]
     dl.save(case)
 

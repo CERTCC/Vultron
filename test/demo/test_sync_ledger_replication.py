@@ -11,7 +11,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""SYNC integration tests for single-peer CaseLedgerEntry replication (#901)."""
+"""SYNC integration tests for single-peer as_CaseLedgerEntry replication (#901)."""
 
 from __future__ import annotations
 
@@ -51,11 +51,13 @@ from vultron.wire.as2.factories import (
     reject_log_entry_activity,
 )
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
-    CaseLedgerEntry as WireCaseLedgerEntry,
+    as_CaseLedgerEntry as WireCaseLedgerEntry,
 )
-from vultron.wire.as2.vocab.objects.case_actor import CaseActor
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.case_actor import as_CaseActor
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 _CASE_ACTOR_BASE = "http://case-actor-sync-901.test"
 _PEER_BASE = "http://peer-sync-901.test"
@@ -123,7 +125,7 @@ def two_app_setup() -> Iterator[tuple]:
 @pytest.mark.spec("SYNC-07-002")
 @pytest.mark.spec("SYNC-02-003")
 def test_sync_single_peer_happy_path_replication(two_app_setup) -> None:
-    """CaseActor commit should replicate one CaseLedgerEntry to a peer replica."""
+    """as_CaseActor commit should replicate one as_CaseLedgerEntry to a peer replica."""
     case_actor_iso, peer_iso, case_actor_tc, peer_tc = two_app_setup
 
     case_actor_base_api = f"{case_actor_iso.base_url}/api/v2"
@@ -135,22 +137,22 @@ def test_sync_single_peer_happy_path_replication(two_app_setup) -> None:
     peer_actor_id = _create_actor(
         peer_tc, peer_base_api, "peer-sync-901", "Organization"
     )
-    # CaseActor must know peer recipient for outbox routing.
+    # as_CaseActor must know peer recipient for outbox routing.
     _create_actor(
         case_actor_tc, peer_base_api, "peer-sync-901", "Organization"
     )
 
-    case = VulnerabilityCase(name="SYNC-901 integration case")
+    case = as_VulnerabilityCase(name="SYNC-901 integration case")
     case.genesis_hash = compute_genesis_hash(
         case_id=case.id_,
         created_at=datetime.now(timezone.utc),
         case_actor_id=case_actor_id,
     )
-    case_actor_participant = CaseParticipant(
+    case_actor_participant = as_CaseParticipant(
         attributed_to=case_actor_id,
         context=case.id_,
     )
-    peer_participant = CaseParticipant(
+    peer_participant = as_CaseParticipant(
         attributed_to=peer_actor_id,
         context=case.id_,
     )
@@ -178,7 +180,7 @@ def test_sync_single_peer_happy_path_replication(two_app_setup) -> None:
     peer_entry = peer_iso.dl.read(entry_id)
     assert (
         peer_entry is not None
-    ), "Expected peer replica to contain the announced CaseLedgerEntry."
+    ), "Expected peer replica to contain the announced as_CaseLedgerEntry."
     assert peer_entry.case_id == case.id_
     assert peer_entry.log_index == payload["log_index"]
     assert peer_entry.entry_hash == payload["entry_hash"]
@@ -214,12 +216,14 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
         peer_tc, case_actor_base_api, "case-actor-sync-902", "Service"
     )
 
-    case = VulnerabilityCase(name="SYNC-902 mismatch/replay integration case")
-    case_actor_participant = CaseParticipant(
+    case = as_VulnerabilityCase(
+        name="SYNC-902 mismatch/replay integration case"
+    )
+    case_actor_participant = as_CaseParticipant(
         attributed_to=case_actor_id,
         context=case.id_,
     )
-    peer_participant = CaseParticipant(
+    peer_participant = as_CaseParticipant(
         attributed_to=peer_actor_id,
         context=case.id_,
     )
@@ -230,7 +234,7 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
     case_actor_iso.dl.save(case_actor_participant)
     case_actor_iso.dl.save(peer_participant)
     case_actor_iso.dl.save(case)
-    case_actor_iso.dl.save(CaseActor(id_=case_actor_id, context=case.id_))
+    case_actor_iso.dl.save(as_CaseActor(id_=case_actor_id, context=case.id_))
 
     entry0 = _make_log_entry(case.id_, 0, case.genesis_hash, "sync_902_base")
     entry1 = _make_log_entry(case.id_, 1, entry0.entry_hash, "sync_902_mid")
@@ -263,7 +267,7 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
         ]
         assert (
             peer_reject_events
-        ), "Expected peer to emit Reject(CaseLedgerEntry)."
+        ), "Expected peer to emit Reject(as_CaseLedgerEntry)."
         emitted_reject_event = peer_reject_events[-1]
         assert emitted_reject_event.actor_id == peer_actor_id
         assert emitted_reject_event.last_accepted_hash == entry0.entry_hash
@@ -323,9 +327,9 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
 def test_sync_duplicate_delivery_idempotency(
     two_app_setup, monkeypatch
 ) -> None:
-    """Duplicate delivery of Announce(CaseLedgerEntry) must produce one replica.
+    """Duplicate delivery of Announce(as_CaseLedgerEntry) must produce one replica.
 
-    Delivers the same ``Announce(CaseLedgerEntry)`` twice to the peer actor
+    Delivers the same ``Announce(as_CaseLedgerEntry)`` twice to the peer actor
     and verifies the peer replica contains exactly one copy of the entry
     (SYNC-03-003: replication MUST be idempotent; repeated delivery MUST NOT
     produce duplicate entries).
@@ -342,7 +346,7 @@ def test_sync_duplicate_delivery_idempotency(
         peer_tc, peer_base_api, "peer-sync-903", "Organization"
     )
 
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         name="SYNC-903 duplicate delivery integration case"
     )
     case.genesis_hash = compute_genesis_hash(
@@ -350,11 +354,11 @@ def test_sync_duplicate_delivery_idempotency(
         created_at=datetime.now(timezone.utc),
         case_actor_id=case_actor_id,
     )
-    case_actor_participant = CaseParticipant(
+    case_actor_participant = as_CaseParticipant(
         attributed_to=case_actor_id,
         context=case.id_,
     )
-    peer_participant = CaseParticipant(
+    peer_participant = as_CaseParticipant(
         attributed_to=peer_actor_id,
         context=case.id_,
     )
@@ -364,7 +368,7 @@ def test_sync_duplicate_delivery_idempotency(
     case.actor_participant_index[peer_actor_id] = peer_participant.id_
 
     # Peer needs the case and participants in its DataLayer to process inbound
-    # Announce(CaseLedgerEntry) as a participant, not as a CaseActor owner.
+    # Announce(as_CaseLedgerEntry) as a participant, not as a as_CaseActor owner.
     peer_iso.dl.save(case_actor_participant)
     peer_iso.dl.save(peer_participant)
     peer_iso.dl.save(case)
@@ -389,7 +393,7 @@ def test_sync_duplicate_delivery_idempotency(
         to=[peer_actor_id],
     )
 
-    # Deliver the same Announce(CaseLedgerEntry) twice.
+    # Deliver the same Announce(as_CaseLedgerEntry) twice.
     for _ in range(2):
         handle_inbox_item(
             actor_id=peer_actor_id,
@@ -408,7 +412,7 @@ def test_sync_duplicate_delivery_idempotency(
     ]
     assert (
         len(stored_entries) == 1
-    ), f"Expected exactly 1 CaseLedgerEntry replica, got {len(stored_entries)}"
+    ), f"Expected exactly 1 as_CaseLedgerEntry replica, got {len(stored_entries)}"
     assert stored_entries[0].id_ == entry.id_
 
     # AC-4 guard: each actor app must use its own isolated DataLayer.

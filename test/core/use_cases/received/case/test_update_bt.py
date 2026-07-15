@@ -30,7 +30,9 @@ from vultron.core.use_cases.received.case.update import (
     UpdateCaseReceivedUseCase,
 )
 from vultron.wire.as2.factories import update_case_activity
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 
 class TestUpdateCaseBTStructure:
@@ -42,7 +44,7 @@ class TestUpdateCaseBTStructure:
         """UpdateCaseBT keeps ownership, embargo, update, and broadcast in-tree."""
         owner_id = "https://example.org/users/owner"
         case_id = "https://example.org/cases/bt1"
-        updated_case = VulnerabilityCase(
+        updated_case = as_VulnerabilityCase(
             id_=case_id, name="Updated", attributed_to=owner_id
         )
         activity = update_case_activity(updated_case, actor=owner_id)
@@ -79,7 +81,7 @@ class TestUpdateCaseBTStructure:
         )
         dl.create(case_actor)
 
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_=case_id,
             name="Original",
             attributed_to=owner_id,
@@ -89,7 +91,7 @@ class TestUpdateCaseBTStructure:
         )
         dl.create(case)
 
-        updated_case = VulnerabilityCase(
+        updated_case = as_VulnerabilityCase(
             id_=case_id,
             name="Updated",
             attributed_to=owner_id,

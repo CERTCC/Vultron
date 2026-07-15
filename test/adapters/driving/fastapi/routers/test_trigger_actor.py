@@ -39,9 +39,9 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.wire.as2.factories import rm_invite_to_case_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    VulnerabilityCase,
+    as_VulnerabilityCase,
     VulnerabilityCaseStub,
 )
 
@@ -74,16 +74,16 @@ def other_actor(dl):
 
 @pytest.fixture
 def case_obj(dl, actor):
-    """Create and persist a VulnerabilityCase with a CASE_MANAGER participant."""
+    """Create and persist a as_VulnerabilityCase with a CASE_MANAGER participant."""
     case_actor = as_Service(name="Case Actor")
     dl.create(case_actor)
-    case = VulnerabilityCase(name="TEST-CASE-001")
-    owner_participant = CaseParticipant(
+    case = as_VulnerabilityCase(name="TEST-CASE-001")
+    owner_participant = as_CaseParticipant(
         attributed_to=actor.id_,
         context=case.id_,
         case_roles=[CVDRole.CASE_OWNER],
     )
-    case_manager_participant = CaseParticipant(
+    case_manager_participant = as_CaseParticipant(
         attributed_to=case_actor.id_,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -107,13 +107,13 @@ def case_obj_with_case_actor(dl, actor):
     """
     case_actor = as_Service(name="Case Actor Service")
     dl.create(case_actor)
-    case = VulnerabilityCase(name="TEST-CASE-OCM")
-    owner_participant = CaseParticipant(
+    case = as_VulnerabilityCase(name="TEST-CASE-OCM")
+    owner_participant = as_CaseParticipant(
         attributed_to=actor.id_,
         context=case.id_,
         case_roles=[CVDRole.CASE_OWNER],
     )
-    case_manager_participant = CaseParticipant(
+    case_manager_participant = as_CaseParticipant(
         attributed_to=case_actor.id_,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],

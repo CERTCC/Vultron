@@ -28,7 +28,7 @@ from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import reject_log_entry_activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
-    CaseLedgerEntry as WireCaseLedgerEntry,
+    as_CaseLedgerEntry as WireCaseLedgerEntry,
 )
 
 _ZERO_HASH: str = "0" * 64  # arbitrary hash for test chains

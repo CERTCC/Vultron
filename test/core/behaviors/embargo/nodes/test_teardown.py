@@ -27,8 +27,10 @@ from vultron.core.behaviors.embargo.nodes.teardown import (
 )
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 from test.core.behaviors.embargo.nodes.conftest import (
     make_case_and_embargo,
@@ -52,7 +54,7 @@ class TestApplyEmbargoTeardownNode:
         bt.tick()
 
         assert node.status == py_trees.common.Status.SUCCESS
-        updated = cast(VulnerabilityCase, dl.read(case.id_))
+        updated = cast(as_VulnerabilityCase, dl.read(case.id_))
         assert updated.current_status.em_state == EM.EXITED
         assert updated.active_embargo is None
 
@@ -69,7 +71,7 @@ class TestApplyEmbargoTeardownNode:
         bt.tick()
 
         assert node.status == py_trees.common.Status.SUCCESS
-        updated = cast(VulnerabilityCase, dl.read(case.id_))
+        updated = cast(as_VulnerabilityCase, dl.read(case.id_))
         assert updated.current_status.em_state == EM.EXITED
 
     def test_idempotent_when_already_exited(self):
@@ -86,7 +88,7 @@ class TestApplyEmbargoTeardownNode:
         bt.tick()
 
         assert node.status == py_trees.common.Status.SUCCESS
-        updated = cast(VulnerabilityCase, dl.read(case.id_))
+        updated = cast(as_VulnerabilityCase, dl.read(case.id_))
         assert updated.current_status.em_state == EM.EXITED
 
     def test_state_sync_override_for_unexpected_em_state(self, caplog):
@@ -105,14 +107,14 @@ class TestApplyEmbargoTeardownNode:
 
         assert node.status == py_trees.common.Status.SUCCESS
         assert any("state-sync override" in r.message for r in caplog.records)
-        updated = cast(VulnerabilityCase, dl.read(case.id_))
+        updated = cast(as_VulnerabilityCase, dl.read(case.id_))
         assert updated.current_status.em_state == EM.EXITED
 
     def test_resets_participant_embargo_consent(self):
         """Node resets participant PEC state to NO_EMBARGO."""
         dl = SqliteDataLayer("sqlite:///:memory:")
         case, _ = make_case_and_embargo("atn5", em_state=EM.ACTIVE)
-        participant = CaseParticipant(
+        participant = as_CaseParticipant(
             id_=f"{case.id_}/participants/p1",
             attributed_to="https://example.org/users/finder",
         )
@@ -128,7 +130,7 @@ class TestApplyEmbargoTeardownNode:
         bt.tick()
 
         assert node.status == py_trees.common.Status.SUCCESS
-        updated_p = cast(CaseParticipant, dl.read(participant.id_))
+        updated_p = cast(as_CaseParticipant, dl.read(participant.id_))
         assert updated_p.embargo_consent_state == PEC.NO_EMBARGO.value
 
     def test_returns_success_when_case_missing(self):
@@ -170,7 +172,7 @@ class TestRemoveFromProposedEmbargoesNode:
         bt.tick()
 
         assert node.status == py_trees.common.Status.SUCCESS
-        updated = cast(VulnerabilityCase, dl.read(case.id_))
+        updated = cast(as_VulnerabilityCase, dl.read(case.id_))
         assert embargo.id_ not in [
             e if isinstance(e, str) else getattr(e, "id_", None)
             for e in updated.proposed_embargoes

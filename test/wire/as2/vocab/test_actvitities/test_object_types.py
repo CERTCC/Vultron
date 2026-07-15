@@ -33,15 +33,17 @@ from vultron.errors import VultronOutboxObjectIntegrityError
 from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import (
-    CaseStatus,
-    ParticipantStatus,
+    as_CaseStatus,
+    as_ParticipantStatus,
 )
-from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 _STR_URI = "https://example.org/objects/123"
@@ -74,8 +76,8 @@ def _assert_accepts_inline(cls, obj):
     assert instance.object_ is obj or instance.object_ == obj
 
 
-def _participant_status() -> ParticipantStatus:
-    return ParticipantStatus(context="https://example.org/cases/c1")
+def _participant_status() -> as_ParticipantStatus:
+    return as_ParticipantStatus(context="https://example.org/cases/c1")
 
 
 # ---------------------------------------------------------------------------
@@ -97,7 +99,7 @@ class TestRmCreateReportActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_report(self):
-        _assert_accepts_inline(self.cls, VulnerabilityReport())
+        _assert_accepts_inline(self.cls, as_VulnerabilityReport())
 
 
 class TestRmSubmitReportActivity:
@@ -114,7 +116,7 @@ class TestRmSubmitReportActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_report(self):
-        _assert_accepts_inline(self.cls, VulnerabilityReport())
+        _assert_accepts_inline(self.cls, as_VulnerabilityReport())
 
 
 class TestRmReadReportActivity:
@@ -129,7 +131,7 @@ class TestRmReadReportActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_report(self):
-        _assert_accepts_inline(self.cls, VulnerabilityReport())
+        _assert_accepts_inline(self.cls, as_VulnerabilityReport())
 
 
 # ---------------------------------------------------------------------------
@@ -149,7 +151,7 @@ class TestAddReportToCaseActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_report(self):
-        _assert_accepts_inline(self.cls, VulnerabilityReport())
+        _assert_accepts_inline(self.cls, as_VulnerabilityReport())
 
 
 class TestAddStatusToCaseActivity:
@@ -164,7 +166,7 @@ class TestAddStatusToCaseActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_case_status(self):
-        _assert_accepts_inline(self.cls, CaseStatus())
+        _assert_accepts_inline(self.cls, as_CaseStatus())
 
 
 class TestCreateCaseActivity:
@@ -179,7 +181,7 @@ class TestCreateCaseActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_case(self):
-        _assert_accepts_inline(self.cls, VulnerabilityCase())
+        _assert_accepts_inline(self.cls, as_VulnerabilityCase())
 
 
 class TestCreateCaseStatusActivity:
@@ -196,7 +198,7 @@ class TestCreateCaseStatusActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_case_status(self):
-        _assert_accepts_inline(self.cls, CaseStatus())
+        _assert_accepts_inline(self.cls, as_CaseStatus())
 
 
 class TestAddNoteToCaseActivity:
@@ -226,7 +228,7 @@ class TestUpdateCaseActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_case(self):
-        _assert_accepts_inline(self.cls, VulnerabilityCase())
+        _assert_accepts_inline(self.cls, as_VulnerabilityCase())
 
 
 class TestRmEngageCaseActivity:
@@ -241,7 +243,7 @@ class TestRmEngageCaseActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_case(self):
-        _assert_accepts_inline(self.cls, VulnerabilityCase())
+        _assert_accepts_inline(self.cls, as_VulnerabilityCase())
 
 
 class TestRmDeferCaseActivity:
@@ -256,7 +258,7 @@ class TestRmDeferCaseActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_case(self):
-        _assert_accepts_inline(self.cls, VulnerabilityCase())
+        _assert_accepts_inline(self.cls, as_VulnerabilityCase())
 
 
 class TestRmCloseCaseActivity:
@@ -271,7 +273,7 @@ class TestRmCloseCaseActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_case(self):
-        _assert_accepts_inline(self.cls, VulnerabilityCase())
+        _assert_accepts_inline(self.cls, as_VulnerabilityCase())
 
 
 class TestRmInviteToCaseActivity:
@@ -308,7 +310,7 @@ class TestEmProposeEmbargoActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_embargo_event(self):
-        _assert_accepts_inline(self.cls, EmbargoEvent())
+        _assert_accepts_inline(self.cls, as_EmbargoEvent())
 
 
 class TestActivateEmbargoActivity:
@@ -325,7 +327,7 @@ class TestActivateEmbargoActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_embargo_event(self):
-        _assert_accepts_inline(self.cls, EmbargoEvent())
+        _assert_accepts_inline(self.cls, as_EmbargoEvent())
 
 
 class TestAddEmbargoToCaseActivity:
@@ -342,7 +344,7 @@ class TestAddEmbargoToCaseActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_embargo_event(self):
-        _assert_accepts_inline(self.cls, EmbargoEvent())
+        _assert_accepts_inline(self.cls, as_EmbargoEvent())
 
 
 class TestAnnounceEmbargoActivity:
@@ -359,7 +361,7 @@ class TestAnnounceEmbargoActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_embargo_event(self):
-        _assert_accepts_inline(self.cls, EmbargoEvent())
+        _assert_accepts_inline(self.cls, as_EmbargoEvent())
 
 
 class TestRemoveEmbargoFromCaseActivity:
@@ -376,7 +378,7 @@ class TestRemoveEmbargoFromCaseActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_embargo_event(self):
-        _assert_accepts_inline(self.cls, EmbargoEvent())
+        _assert_accepts_inline(self.cls, as_EmbargoEvent())
 
 
 # ---------------------------------------------------------------------------
@@ -400,7 +402,7 @@ class TestRecommendActorActivity:
 
 
 # ---------------------------------------------------------------------------
-# CaseParticipant activities (case_participant.py)
+# as_CaseParticipant activities (case_participant.py)
 # ---------------------------------------------------------------------------
 
 
@@ -418,7 +420,7 @@ class TestCreateParticipantActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_participant(self):
-        _assert_accepts_inline(self.cls, CaseParticipant())
+        _assert_accepts_inline(self.cls, as_CaseParticipant())
 
 
 class TestCreateStatusForParticipantActivity:
@@ -469,7 +471,7 @@ class TestAddParticipantToCaseActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_participant(self):
-        _assert_accepts_inline(self.cls, CaseParticipant())
+        _assert_accepts_inline(self.cls, as_CaseParticipant())
 
 
 class TestRemoveParticipantFromCaseActivity:
@@ -486,7 +488,7 @@ class TestRemoveParticipantFromCaseActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_participant(self):
-        _assert_accepts_inline(self.cls, CaseParticipant())
+        _assert_accepts_inline(self.cls, as_CaseParticipant())
 
 
 # ---------------------------------------------------------------------------
@@ -499,7 +501,7 @@ class TestAnnounceLogEntryActivity:
         _AnnounceLogEntryActivity,
     )
     from vultron.wire.as2.vocab.objects.case_ledger_entry import (
-        CaseLedgerEntry,
+        as_CaseLedgerEntry,
     )
 
     cls = _AnnounceLogEntryActivity
@@ -512,12 +514,12 @@ class TestAnnounceLogEntryActivity:
 
     def test_accepts_inline_log_entry(self):
         from vultron.wire.as2.vocab.objects.case_ledger_entry import (
-            CaseLedgerEntry,
+            as_CaseLedgerEntry,
         )
 
         _assert_accepts_inline(
             self.cls,
-            CaseLedgerEntry(
+            as_CaseLedgerEntry(
                 case_id="https://example.org/cases/c1",
                 log_object_id="https://example.org/cases/c1/events/e1",
                 event_type="test_event",

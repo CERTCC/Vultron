@@ -28,7 +28,9 @@ from vultron.core.use_cases.received.report import (
     SubmitReportReceivedUseCase,
     ValidateReportReceivedUseCase,
 )
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 
 class TestAckReportNoStandaloneStatus:
@@ -71,7 +73,7 @@ class TestFullReportFlow:
     """Integration test: Offer(Report) receipt → ValidateReport full flow.
 
     Per IDEA-260408-01-7 and ADR-0015:
-    1. SubmitReportReceivedUseCase creates a VulnerabilityCase at RM.RECEIVED.
+    1. SubmitReportReceivedUseCase creates a as_VulnerabilityCase at RM.RECEIVED.
     2. ValidateReportReceivedUseCase validates without re-creating the case.
     3. Final state: vendor participant at RM.VALID, finder at RM.ACCEPTED.
 
@@ -150,7 +152,7 @@ class TestFullReportFlow:
         SubmitReportReceivedUseCase(dl, self._make_submit_event()).execute()
 
         cases = dl.get_all("VulnerabilityCase")
-        assert len(cases) == 1, "Expected exactly one VulnerabilityCase"
+        assert len(cases) == 1, "Expected exactly one as_VulnerabilityCase"
         case_report_ids = [
             rid
             for c in cases
@@ -160,7 +162,7 @@ class TestFullReportFlow:
         ]
         assert (
             self.REPORT_ID in case_report_ids
-        ), f"VulnerabilityCase must reference report {self.REPORT_ID}"
+        ), f"as_VulnerabilityCase must reference report {self.REPORT_ID}"
 
     def test_full_flow_validate_does_not_recreate_case(self):
         """validate-report does NOT create a new case after Offer(Report) receipt.
@@ -234,7 +236,7 @@ class TestFullReportFlow:
         """Full flow from Offer receipt to validation produces the expected state.
 
         Verifies the combined invariants of ADR-0015:
-        - Exactly one VulnerabilityCase
+        - Exactly one as_VulnerabilityCase
         - Vendor participant has RM.VALID in history after validate-report
         - Finder participant at RM.ACCEPTED (reporter is accepted upon submission)
         """
@@ -247,7 +249,7 @@ class TestFullReportFlow:
         ).execute()
 
         cases = dl.get_all("VulnerabilityCase")
-        assert len(cases) == 1, "Expected exactly one VulnerabilityCase"
+        assert len(cases) == 1, "Expected exactly one as_VulnerabilityCase"
 
         valid_id = _report_phase_status_id(
             self.VENDOR_ID, self.REPORT_ID, RM.VALID.value
@@ -359,7 +361,7 @@ class TestValidateReportReceivedGuardedCommit:
         report = VultronReport(id_=self.REPORT_ID)
         dl.save(report)
 
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/c-guarded",
             name="Guarded Commit Test Case",
         )
@@ -367,10 +369,10 @@ class TestValidateReportReceivedGuardedCommit:
         # Register case actor as CASE_MANAGER
         from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.case_participant import (
-            CaseParticipant,
+            as_CaseParticipant,
         )
 
-        cm_participant = CaseParticipant(
+        cm_participant = as_CaseParticipant(
             attributed_to=self.CASE_ACTOR_ID,
             context=case.id_,
             case_roles=[CVDRole.CASE_MANAGER],
@@ -415,10 +417,10 @@ class TestValidateReportReceivedGuardedCommit:
         from vultron.core.models.report_case_link import VultronReportCaseLink
         from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.case_participant import (
-            CaseParticipant,
+            as_CaseParticipant,
         )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         CASE_ID = "https://example.org/cases/c-commit-positive"
@@ -428,13 +430,13 @@ class TestValidateReportReceivedGuardedCommit:
         report = VultronReport(id_=self.REPORT_ID)
         dl.save(report)
 
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_=CASE_ID,
             name="Guarded Commit Positive Test",
         )
         case.vulnerability_reports.append(self.REPORT_ID)
         # Register the CASE_ACTOR as CASE_MANAGER so CheckIsCaseManagerNode passes
-        cm_participant = CaseParticipant(
+        cm_participant = as_CaseParticipant(
             attributed_to=self.CASE_ACTOR_ID,
             context=CASE_ID,
             case_roles=[CVDRole.CASE_MANAGER],

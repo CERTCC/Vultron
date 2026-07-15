@@ -41,19 +41,21 @@ from vultron.adapters.utils import parse_id
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 
-def _add_case_manager(case: VulnerabilityCase, dl) -> as_Service:
+def _add_case_manager(case: as_VulnerabilityCase, dl) -> as_Service:
     """Add a CASE_MANAGER participant to *case* and return the case actor."""
     case_actor = as_Service(name=f"Case Actor for {case.name}")
     dl.create(case_actor)
-    cm_participant = CaseParticipant(
+    cm_participant = as_CaseParticipant(
         attributed_to=case_actor.id_,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -111,13 +113,13 @@ def client_triggers(dl):
 
 @pytest.fixture
 def case_with_participant(dl, actor):
-    """Create a VulnerabilityCase with the actor as a CaseParticipant.
+    """Create a as_VulnerabilityCase with the actor as a as_CaseParticipant.
 
     The participant is pre-seeded to RM.VALID so that engage/defer triggers
     can apply valid VALID → ACCEPTED / VALID → DEFERRED transitions.
     """
-    case_obj = VulnerabilityCase(name="TEST-CASE-001")
-    participant = CaseParticipant(
+    case_obj = as_VulnerabilityCase(name="TEST-CASE-001")
+    participant = as_CaseParticipant(
         attributed_to=actor.id_,
         context=case_obj.id_,
     )
@@ -136,8 +138,8 @@ def case_with_participant(dl, actor):
 
 @pytest.fixture
 def case_without_participant(dl):
-    """Create a VulnerabilityCase with a Case Manager but no participant for the actor."""
-    case_obj = VulnerabilityCase(name="TEST-CASE-NO-PARTICIPANT")
+    """Create a as_VulnerabilityCase with a Case Manager but no participant for the actor."""
+    case_obj = as_VulnerabilityCase(name="TEST-CASE-NO-PARTICIPANT")
     dl.create(case_obj)
     _add_case_manager(case_obj, dl)
     return case_obj
@@ -248,7 +250,7 @@ def test_trigger_engage_case_adds_activity_to_outbox(
 def test_trigger_engage_case_updates_participant_rm_state(
     client_triggers, dl, actor, case_with_participant
 ):
-    """engage-case transitions actor's CaseParticipant RM state to ACCEPTED."""
+    """engage-case transitions actor's as_CaseParticipant RM state to ACCEPTED."""
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/engage-case",
         json={"case_id": case_with_participant.id_},
@@ -401,7 +403,7 @@ def test_trigger_defer_case_adds_activity_to_outbox(
 def test_trigger_defer_case_updates_participant_rm_state(
     client_triggers, dl, actor, case_with_participant
 ):
-    """defer-case transitions actor's CaseParticipant RM state to DEFERRED."""
+    """defer-case transitions actor's as_CaseParticipant RM state to DEFERRED."""
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/defer-case",
         json={"case_id": case_with_participant.id_},
@@ -561,12 +563,12 @@ class TestTriggerCaseOutboxCanonicalId:
 
 @pytest.fixture
 def report(dl):
-    """Create a persisted VulnerabilityReport for use in tests."""
+    """Create a persisted as_VulnerabilityReport for use in tests."""
     from vultron.wire.as2.vocab.objects.vulnerability_report import (
-        VulnerabilityReport,
+        as_VulnerabilityReport,
     )
 
-    report_obj = VulnerabilityReport(
+    report_obj = as_VulnerabilityReport(
         name="TEST-REPORT-001",
         content="Vulnerability description",
     )

@@ -60,7 +60,7 @@ from vultron.adapters.driving.fastapi.trigger_models import (
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.protocols import is_case_model
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
-    CaseLedgerEntry as WireCaseLedgerEntry,
+    as_CaseLedgerEntry as WireCaseLedgerEntry,
 )
 from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
 from vultron.core.ports.trigger_service import TriggerServicePort

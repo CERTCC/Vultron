@@ -16,7 +16,7 @@ from urllib.parse import quote
 from fastapi import status
 
 from vultron.adapters.driven.db_record import object_to_record
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 
 
 def test_get_offers_returns_empty_dict_when_no_offers(client_datalayer):
@@ -128,7 +128,7 @@ def test_get_by_http_url_key_returns_stored_record(
     Regression: Starlette decodes %2F to / before routing, so single-segment
     /{key} never matched URL-format IDs.  Fix: use /{key:path} as catch-all.
     """
-    participant = CaseParticipant(id_=_HTTP_PARTICIPANT_ID)
+    participant = as_CaseParticipant(id_=_HTTP_PARTICIPANT_ID)
     datalayer.create(object_to_record(participant))
 
     encoded = quote(_HTTP_PARTICIPANT_ID, safe="")

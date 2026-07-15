@@ -43,7 +43,7 @@ from vultron.wire.as2.vocab.objects.base import (
 )
 
 
-class CaseStatus(VultronAS2Object):
+class as_CaseStatus(VultronAS2Object):
     """
     Represents the case-level (global, participant-agnostic) status of a VulnerabilityCase.
     """
@@ -88,10 +88,10 @@ class CaseStatus(VultronAS2Object):
         return self
 
     @classmethod
-    def from_core(cls, core_obj: CoreCaseStatus) -> "CaseStatus":
+    def from_core(cls, core_obj: CoreCaseStatus) -> "as_CaseStatus":
         data = core_obj.model_dump(mode="json")
         _strip_core_context(data)
-        return cast("CaseStatus", cls.model_validate(data))
+        return cast("as_CaseStatus", cls.model_validate(data))
 
     def to_core(self) -> CoreCaseStatus:
         data = self._to_core_data()
@@ -104,10 +104,10 @@ class CaseStatus(VultronAS2Object):
         return CoreCaseStatus.model_validate(data)
 
 
-CaseStatusRef: TypeAlias = ActivityStreamRef[CaseStatus]
+as_CaseStatusRef: TypeAlias = ActivityStreamRef[as_CaseStatus]
 
 
-class ParticipantStatus(VultronAS2Object):
+class as_ParticipantStatus(VultronAS2Object):
     """
     Represents the status of a participant with respect to a VulnerabilityCase (participant-specific).
     """
@@ -136,7 +136,7 @@ class ParticipantStatus(VultronAS2Object):
         serialization_alias="cvdRole",
     )
     tracking_id: NonEmptyString | None = None
-    case_status: CaseStatus | None = None
+    case_status: as_CaseStatus | None = None
 
     @field_serializer("rm_state")
     def serialize_rm_state(self, rm_state: RM) -> str:
@@ -185,19 +185,21 @@ class ParticipantStatus(VultronAS2Object):
         return self
 
     @classmethod
-    def from_core(cls, core_obj: CoreParticipantStatus) -> "ParticipantStatus":
+    def from_core(
+        cls, core_obj: CoreParticipantStatus
+    ) -> "as_ParticipantStatus":
         data = core_obj.model_dump(mode="json")
         _strip_core_context(data)
         case_status = data.get("case_status")
         if isinstance(case_status, str):
             # Legacy: case_status stored as bare ID string
-            data["case_status"] = CaseStatus(
+            data["case_status"] = as_CaseStatus(
                 id_=case_status,
                 context=data.get("context"),
                 attributed_to=data.get("attributed_to"),
             )
         # If case_status is a dict (from CoreCaseStatus serialisation),
-        # cls.model_validate will hydrate it into a CaseStatus instance.
+        # cls.model_validate will hydrate it into a as_CaseStatus instance.
         return cls.model_validate(data)
 
     def to_core(self) -> CoreParticipantStatus:
@@ -209,12 +211,12 @@ class ParticipantStatus(VultronAS2Object):
         # Convert embedded CaseStatus wire object (or its serialised dict) to
         # CoreCaseStatus so pxa_state and em_state cross the boundary.
         wire_case_status = data.get("case_status")
-        if isinstance(wire_case_status, CaseStatus):
+        if isinstance(wire_case_status, as_CaseStatus):
             data["case_status"] = wire_case_status.to_core()
         elif isinstance(wire_case_status, dict):
             # _to_core_data() with round_trip=True serialises nested objects
             # as dicts; re-validate and convert.
-            cs_obj = CaseStatus.model_validate(wire_case_status)
+            cs_obj = as_CaseStatus.model_validate(wire_case_status)
             data["case_status"] = cs_obj.to_core()
         else:
             data["case_status"] = None
@@ -223,18 +225,18 @@ class ParticipantStatus(VultronAS2Object):
         return CoreParticipantStatus.model_validate(data)
 
 
-ParticipantStatusRef: TypeAlias = ActivityStreamRef[ParticipantStatus]
+as_ParticipantStatusRef: TypeAlias = ActivityStreamRef[as_ParticipantStatus]
 
 
 def main():
-    cs = CaseStatus()
+    cs = as_CaseStatus()
     print(f"### {cs.type_} ###")
     print()
     print(cs.to_json(indent=2))
     print()
     print()
 
-    ps = ParticipantStatus(
+    ps = as_ParticipantStatus(
         attributed_to="foo",
         context="bar",
         rm_state=RM.RECEIVED,

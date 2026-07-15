@@ -65,16 +65,18 @@ from vultron.wire.as2.factories import (
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
-    CaseParticipant,
+    as_CaseParticipant,
     FinderParticipant,
 )
-from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 from datetime import datetime, timezone
@@ -104,8 +106,8 @@ def _make_case_with_case_manager(
     actor_id: str,
     finder_id: str,
     case_actor_id: str,
-) -> VulnerabilityCase:
-    """Create a VulnerabilityCase with a Finder participant and a Case Actor
+) -> as_VulnerabilityCase:
+    """Create a as_VulnerabilityCase with a Finder participant and a Case Actor
     (CVDRole.CASE_MANAGER).  Persists all objects in *dl*.
 
     The actor participant is pre-initialized to RM.VALID so that
@@ -113,12 +115,12 @@ def _make_case_with_case_manager(
     """
     from vultron.core.states.rm import RM
     from vultron.wire.as2.vocab.objects.case_status import (
-        ParticipantStatus as WireParticipantStatus,
+        as_ParticipantStatus as WireParticipantStatus,
     )
 
-    case = VulnerabilityCase(name="Test Case")
+    case = as_VulnerabilityCase(name="Test Case")
 
-    actor_participant = CaseParticipant(
+    actor_participant = as_CaseParticipant(
         attributed_to=actor_id,
         context=case.id_,
         case_roles=[CVDRole.VENDOR],
@@ -136,7 +138,7 @@ def _make_case_with_case_manager(
         attributed_to=finder_id,
         context=case.id_,
     )
-    case_manager_participant = CaseParticipant(
+    case_manager_participant = as_CaseParticipant(
         attributed_to=case_actor_id,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -159,8 +161,8 @@ def _make_case_with_case_manager(
 
 def _make_two_actor_case(
     dl, vendor_id: str, finder_id: str
-) -> VulnerabilityCase:
-    """Create a VulnerabilityCase with vendor and finder — no CASE_MANAGER.
+) -> as_VulnerabilityCase:
+    """Create a as_VulnerabilityCase with vendor and finder — no CASE_MANAGER.
 
     Both ``case_participants`` and ``actor_participant_index`` are kept in
     sync via ``add_participant()``.  Participant objects are stored in the
@@ -170,14 +172,14 @@ def _make_two_actor_case(
     Use ``_make_case_with_case_manager`` for tests that need PCR-08-001
     routing or an ``EngageCaseTriggerRequest``/``AddParticipantStatusTriggerRequest``.
     """
-    case = VulnerabilityCase(name="Test Case")
-    vendor_participant = CaseParticipant(
+    case = as_VulnerabilityCase(name="Test Case")
+    vendor_participant = as_CaseParticipant(
         id_=f"{case.id_}/participants/vendor",
         attributed_to=vendor_id,
         context=case.id_,
         case_roles=[CVDRole.VENDOR],
     )
-    finder_participant = CaseParticipant(
+    finder_participant = as_CaseParticipant(
         id_=f"{case.id_}/participants/finder",
         attributed_to=finder_id,
         context=case.id_,
@@ -318,7 +320,7 @@ class TestCaseTriggerToField:
 
     def test_engage_case_raises_when_no_case_manager(self):
         """SvcEngageCaseUseCase raises VultronValidationError when no CASE_MANAGER."""
-        case_solo = VulnerabilityCase(name="Solo Case")
+        case_solo = as_VulnerabilityCase(name="Solo Case")
         case_solo.actor_participant_index[self.vendor.id_] = (
             f"{case_solo.id_}/participants/vendor"
         )
@@ -386,7 +388,7 @@ class TestEmbargoTriggerToField:
 
     def test_evaluate_embargo_to_field_addresses_case_actor_only(self):
         """SvcAcceptEmbargoUseCase queues activity addressed only to Case Actor."""
-        embargo = EmbargoEvent(context=self.case.id_)
+        embargo = as_EmbargoEvent(context=self.case.id_)
         self.dl.create(embargo)
         proposal = em_propose_embargo_activity(
             embargo, context=self.case.id_, actor=self.finder.id_
@@ -418,7 +420,7 @@ class TestEmbargoTriggerToField:
 
     def test_terminate_embargo_to_field_addresses_case_actor_only(self):
         """SvcTerminateEmbargoUseCase queues activity addressed only to Case Actor."""
-        embargo = EmbargoEvent(context=self.case.id_)
+        embargo = as_EmbargoEvent(context=self.case.id_)
         self.dl.create(embargo)
         self.case.set_embargo(embargo.id_)
         self.case.current_status.em_state = EM.ACTIVE
@@ -445,7 +447,7 @@ class TestEmbargoTriggerToField:
 
     def test_reject_embargo_to_field_addresses_case_actor_only(self):
         """SvcRejectEmbargoUseCase queues activity addressed only to Case Actor."""
-        embargo = EmbargoEvent(context=self.case.id_)
+        embargo = as_EmbargoEvent(context=self.case.id_)
         self.dl.create(embargo)
         proposal = em_propose_embargo_activity(
             embargo, context=self.case.id_, actor=self.finder.id_
@@ -476,7 +478,7 @@ class TestEmbargoTriggerToField:
 
     def test_propose_embargo_revision_to_field_addresses_case_actor_only(self):
         """SvcProposeEmbargoRevisionUseCase queues activity to only Case Actor."""
-        embargo = EmbargoEvent(context=self.case.id_)
+        embargo = as_EmbargoEvent(context=self.case.id_)
         self.dl.create(embargo)
         self.case.set_embargo(embargo.id_)
         self.case.current_status.em_state = EM.ACTIVE
@@ -521,7 +523,7 @@ class TestReportTriggerToField:
         self.dl.create(self.finder)
         self.dl.create(self.case_actor)
 
-        self.report = VulnerabilityReport(
+        self.report = as_VulnerabilityReport(
             name="CVE-TEST",
             content="Report content",
             attributed_to=self.finder.id_,

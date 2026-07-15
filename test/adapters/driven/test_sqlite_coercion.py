@@ -43,12 +43,14 @@ class TestRehydrateFields:
     """_rehydrate_fields expands dehydrated string IDs back to typed objects."""
 
     def test_offer_object_field_expanded_to_vulnerability_report(self, dl):
-        """_RmSubmitReportActivity.object_ is a VulnerabilityReport after read."""
+        """_RmSubmitReportActivity.object_ is a as_VulnerabilityReport after read."""
         from vultron.wire.as2.vocab.objects.vulnerability_report import (
-            VulnerabilityReport,
+            as_VulnerabilityReport,
         )
 
-        report = VulnerabilityReport(name="CVE-TEST-001", content="Test body")
+        report = as_VulnerabilityReport(
+            name="CVE-TEST-001", content="Test body"
+        )
         offer = rm_submit_report_activity(
             report,
             "https://alice.example.org",
@@ -60,16 +62,16 @@ class TestRehydrateFields:
         result = dl.read(offer.id_)
 
         assert isinstance(result, as_Offer)
-        assert isinstance(result.object_, VulnerabilityReport)  # type: ignore[union-attr]
+        assert isinstance(result.object_, as_VulnerabilityReport)  # type: ignore[union-attr]
         assert result.object_.name == "CVE-TEST-001"  # type: ignore[union-attr]
 
     def test_missing_nested_object_keeps_string(self, dl):
         """When a referenced object is not in the DB, the string ID is kept."""
         from vultron.wire.as2.vocab.objects.vulnerability_report import (
-            VulnerabilityReport,
+            as_VulnerabilityReport,
         )
 
-        report = VulnerabilityReport(name="CVE-MISSING", content="Body")
+        report = as_VulnerabilityReport(name="CVE-MISSING", content="Body")
         offer = rm_submit_report_activity(
             report,
             "https://alice.example.org",
@@ -96,10 +98,10 @@ class TestCoerceToSemanticClass:
     def test_rm_submit_report_round_trip_returns_specific_class(self, dl):
         """dl.read returns _RmSubmitReportActivity, not generic as_Offer."""
         from vultron.wire.as2.vocab.objects.vulnerability_report import (
-            VulnerabilityReport,
+            as_VulnerabilityReport,
         )
 
-        report = VulnerabilityReport(name="CVE-ROUND-TRIP", content="Body")
+        report = as_VulnerabilityReport(name="CVE-ROUND-TRIP", content="Body")
         offer = rm_submit_report_activity(
             report,
             "https://alice.example.org",
@@ -113,14 +115,16 @@ class TestCoerceToSemanticClass:
         assert type(result).__name__ == "_RmSubmitReportActivity"
 
     def test_em_propose_embargo_round_trip_returns_specific_class(self, dl):
-        """dl.read returns _EmProposeEmbargoActivity with EmbargoEvent object_."""
-        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        """dl.read returns _EmProposeEmbargoActivity with as_EmbargoEvent object_."""
+        from vultron.wire.as2.vocab.objects.embargo_event import (
+            as_EmbargoEvent,
+        )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
-        case = VulnerabilityCase()
-        embargo = EmbargoEvent(context=case.id_)
+        case = as_VulnerabilityCase()
+        embargo = as_EmbargoEvent(context=case.id_)
         proposal = em_propose_embargo_activity(
             embargo,
             context=case.id_,
@@ -133,7 +137,7 @@ class TestCoerceToSemanticClass:
         result = dl.read(proposal.id_)
 
         assert type(result).__name__ == "_EmProposeEmbargoActivity"
-        assert isinstance(result.object_, EmbargoEvent)  # type: ignore[union-attr]
+        assert isinstance(result.object_, as_EmbargoEvent)  # type: ignore[union-attr]
 
     def test_accept_invite_round_trip_returns_specific_class_from_generic_parse(
         self, dl
@@ -190,7 +194,7 @@ class TestCoerceToSemanticClass:
         assert result.in_reply_to == "urn:uuid:invite-roundtrip-1"
 
     def test_announce_log_entry_round_trip_returns_specific_class(self, dl):
-        """dl.read returns AnnounceLogEntryActivity with CaseLedgerEntry object_."""
+        """dl.read returns AnnounceLogEntryActivity with as_CaseLedgerEntry object_."""
         from vultron.core.behaviors.sync.nodes.chain import (
             _to_persistable_entry,
         )
@@ -198,7 +202,7 @@ class TestCoerceToSemanticClass:
             HashChainLedgerRecord,
         )
         from vultron.wire.as2.vocab.objects.case_ledger_entry import (
-            CaseLedgerEntry as WireCaseLedgerEntry,
+            as_CaseLedgerEntry as WireCaseLedgerEntry,
         )
 
         chain_entry = HashChainLedgerRecord(
@@ -225,14 +229,14 @@ class TestCoerceToSemanticClass:
         assert result.object_.log_object_id == entry.log_object_id  # type: ignore[union-attr]
 
     def test_non_activity_object_not_coerced(self, dl):
-        """Non-activity objects (e.g. VulnerabilityReport) are returned as-is."""
+        """Non-activity objects (e.g. as_VulnerabilityReport) are returned as-is."""
         from vultron.wire.as2.vocab.objects.vulnerability_report import (
-            VulnerabilityReport,
+            as_VulnerabilityReport,
         )
 
-        report = VulnerabilityReport(name="CVE-PLAIN", content="Body")
+        report = as_VulnerabilityReport(name="CVE-PLAIN", content="Body")
         dl.save(report)
 
         result = dl.read(report.id_)
 
-        assert isinstance(result, VulnerabilityReport)
+        assert isinstance(result, as_VulnerabilityReport)

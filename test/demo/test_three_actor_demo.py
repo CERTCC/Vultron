@@ -144,7 +144,7 @@ class TestRunThreeActorDemo:
 
         case_records = case_actor_client.get("/datalayer/VulnerabilityCases/")
         final_cases = [
-            demo.VulnerabilityCase(**case_data)
+            demo.as_VulnerabilityCase(**case_data)
             for case_data in case_records.values()
         ]
         matching_cases = [

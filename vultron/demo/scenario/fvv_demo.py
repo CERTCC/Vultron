@@ -40,9 +40,11 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
@@ -148,9 +150,9 @@ def _phase_report_submission(
     as_Actor,
     as_Actor,
     as_Actor,
-    VulnerabilityReport,
+    as_VulnerabilityReport,
     as_Offer,
-    VulnerabilityCase,
+    as_VulnerabilityCase,
 ]:
     """Reset, seed, submit report, validate, engage, invite Vendor2, M1 check."""
     logger.info("─" * 80)
@@ -188,11 +190,11 @@ def _phase_report_submission(
         offer_id=offer.id_,
     )
 
-    with demo_check("VulnerabilityCase exists in Vendor1's DataLayer"):
+    with demo_check("as_VulnerabilityCase exists in Vendor1's DataLayer"):
         case = find_case_for_offer(vendor_client, offer.id_)
         if case is None:
             raise AssertionError(
-                "Expected VulnerabilityCase to be created after validate-report"
+                "Expected as_VulnerabilityCase to be created after validate-report"
             )
         logger.info("Case created: %s", case.id_)
 
@@ -274,7 +276,7 @@ def _phase_report_submission(
             reporter_actor_id=finder.id_,
         )
 
-    case = VulnerabilityCase.model_validate(
+    case = as_VulnerabilityCase.model_validate(
         vendor_client.get(f"/datalayer/{case.id_}")
     )
     return finder, vendor, vendor_in_vendor, vendor2, report, offer, case
@@ -287,7 +289,7 @@ def _phase_sync_verification(
     vendor: as_Actor,
     finder: as_Actor,
     vendor2: as_Actor,
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
 ) -> None:
     """Verify SYNC-2 replication for both Finder and Vendor2 replicas."""
     logger.info("─" * 80)
@@ -365,7 +367,7 @@ def _phase_notes_exchange(
     finder_in_finder: as_Actor,
     vendor_in_vendor: as_Actor,
     vendor2_in_vendor2: as_Actor,
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
 ) -> tuple[as_Note, as_Note, as_Note]:
     """Run a three-way note exchange among Finder, Vendor1, and Vendor2."""
     logger.info("─" * 80)
@@ -424,7 +426,7 @@ def _phase_fix_lifecycle(
     vendor_in_vendor: as_Actor,
     vendor2: as_Actor,
     vendor2_in_vendor2: as_Actor,
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
 ) -> None:
     """Advance both vendors through independent fix-ready and fix-deployed paths."""
     logger.info("─" * 80)
@@ -515,7 +517,7 @@ def _phase_publication(
     vendor2_in_vendor2: as_Actor,
     finder: as_Actor,
     finder_in_finder: as_Actor,
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
 ) -> None:
     """Run publication notifications and verify public disclosure state."""
     logger.info("─" * 80)
@@ -575,7 +577,7 @@ def _phase_case_closure(
     vendor2_in_vendor2: as_Actor,
     finder: as_Actor,
     finder_in_finder: as_Actor,
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
 ) -> None:
     """Close the case from all three participants and verify terminal state."""
     logger.info("─" * 80)
@@ -648,7 +650,7 @@ def _phase_dump_case_ledgers(
     finder: as_Actor,
     vendor: as_Actor,
     vendor2: as_Actor,
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
     demo_name: str = "fvv",
 ) -> None:
     """Dump case ledger entries from each actor container to JSONL files."""

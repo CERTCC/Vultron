@@ -134,13 +134,13 @@ def _seeded_scenario(bt_scenario: BTTestScenario) -> BTTestScenario:
 def test_guarded_commit_tree_entry_has_non_empty_hash(
     _seeded_scenario: BTTestScenario,
 ) -> None:
-    """CaseLedgerEntry committed by CaseActor MUST have a non-empty entry_hash.
+    """as_CaseLedgerEntry committed by CaseActor MUST have a non-empty entry_hash.
 
     The CaseActor identity is MANAGER_ACTOR_ID — explicitly seeded in the
     fixture, with no ID derivation at runtime (CM-02-009, Issue #1021).
     """
     from vultron.wire.as2.vocab.objects.case_ledger_entry import (
-        CaseLedgerEntry as WireCaseLedgerEntry,
+        as_CaseLedgerEntry as WireCaseLedgerEntry,
     )
 
     activity = _FakeActivity()
@@ -164,13 +164,13 @@ def test_guarded_commit_tree_entry_has_non_empty_hash(
 def test_guarded_commit_tree_entry_has_utc_received_at(
     _seeded_scenario: BTTestScenario,
 ) -> None:
-    """CaseLedgerEntry committed by CaseActor MUST have a UTC received_at timestamp.
+    """as_CaseLedgerEntry committed by CaseActor MUST have a UTC received_at timestamp.
 
     The CaseActor identity is MANAGER_ACTOR_ID — explicitly seeded in the
     fixture, with no ID derivation at runtime (CM-02-009, Issue #1021).
     """
     from vultron.wire.as2.vocab.objects.case_ledger_entry import (
-        CaseLedgerEntry as WireCaseLedgerEntry,
+        as_CaseLedgerEntry as WireCaseLedgerEntry,
     )
 
     activity = _FakeActivity()
@@ -195,13 +195,13 @@ def test_guarded_commit_tree_entry_has_utc_received_at(
 def test_guarded_commit_tree_entry_references_correct_case_id(
     _seeded_scenario: BTTestScenario,
 ) -> None:
-    """CaseLedgerEntry committed by CaseActor MUST reference the correct case_id.
+    """as_CaseLedgerEntry committed by CaseActor MUST reference the correct case_id.
 
     The CaseActor identity is MANAGER_ACTOR_ID — explicitly seeded in the
     fixture, with no ID derivation at runtime (CM-02-009, Issue #1021).
     """
     from vultron.wire.as2.vocab.objects.case_ledger_entry import (
-        CaseLedgerEntry as WireCaseLedgerEntry,
+        as_CaseLedgerEntry as WireCaseLedgerEntry,
     )
 
     activity = _FakeActivity()

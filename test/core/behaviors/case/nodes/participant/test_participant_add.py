@@ -45,7 +45,7 @@ from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Add
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.core.use_cases._helpers import _report_phase_status_id
 from test.core.behaviors.bt_harness import BTTestScenario
 
@@ -154,7 +154,7 @@ class TestCreateCaseParticipantNode:
                 add_activities.append(obj)
         assert any(
             act.type_ == "Add"
-            and isinstance(act.object_, CaseParticipant)
+            and isinstance(act.object_, as_CaseParticipant)
             and getattr(act.target, "id_", act.target) == case_obj.id_
             for act in add_activities
         )

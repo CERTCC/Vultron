@@ -41,7 +41,7 @@ from vultron.wire.as2.factories import (
     reject_log_entry_activity,
 )
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
-    CaseLedgerEntry as WireCaseLedgerEntry,
+    as_CaseLedgerEntry as WireCaseLedgerEntry,
 )
 
 logger = logging.getLogger(__name__)

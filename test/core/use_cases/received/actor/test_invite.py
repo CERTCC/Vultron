@@ -147,17 +147,17 @@ class TestInviteActorUseCases:
     def test_accept_invite_actor_to_case_adds_participant(
         self, monkeypatch, make_payload
     ):
-        """AcceptInviteActorToCaseReceivedUseCase creates a CaseParticipant and adds them to the case."""
+        """AcceptInviteActorToCaseReceivedUseCase creates a as_CaseParticipant and adds them to the case."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.base.objects.actors import as_Organization
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         dl = SqliteDataLayer("sqlite:///:memory:")
         invitee_id = "https://example.org/users/coordinator"
         invitee = as_Organization(id_=invitee_id)
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/caseIA1",
             name="TEST-ACCEPT-INVITE",
         )
@@ -184,7 +184,7 @@ class TestInviteActorUseCases:
 
         case = dl.read(case.id_)
         assert case is not None
-        case = cast(VulnerabilityCase, case)
+        case = cast(as_VulnerabilityCase, case)
         assert invitee_id in case.actor_participant_index
 
     def test_accept_invite_actor_to_case_records_active_embargo(
@@ -194,19 +194,21 @@ class TestInviteActorUseCases:
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.states.em import EM
         from vultron.wire.as2.vocab.base.objects.actors import as_Organization
-        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.embargo_event import (
+            as_EmbargoEvent,
+        )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         dl = SqliteDataLayer("sqlite:///:memory:")
         invitee_id = "https://example.org/users/coordinator"
         invitee = as_Organization(id_=invitee_id)
-        embargo = EmbargoEvent(
+        embargo = as_EmbargoEvent(
             id_="https://example.org/cases/caseIA2/embargo_events/e1",
             content="Active embargo",
         )
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/caseIA2",
             name="TEST-ACCEPT-INVITE-EMBARGO",
         )
@@ -236,7 +238,7 @@ class TestInviteActorUseCases:
 
         case = dl.read(case.id_)
         assert case is not None
-        case = cast(VulnerabilityCase, case)
+        case = cast(as_VulnerabilityCase, case)
         participant_id = case.actor_participant_index.get(invitee_id)
         assert participant_id is not None
         participant_obj = dl.get(id_=participant_id)
@@ -259,7 +261,7 @@ class TestInviteActorUseCases:
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.base.objects.actors import as_Organization
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
         from vultron.core.states.rm import RM
 
@@ -267,7 +269,7 @@ class TestInviteActorUseCases:
         invitee_id = "https://example.org/users/coordinator_rm1"
         invitee = as_Organization(id_=invitee_id)
         owner_id = "https://example.org/users/owner"
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/caseRM001",
             name="TEST-RM-LIFECYCLE",
         )
@@ -309,7 +311,7 @@ class TestInviteActorUseCases:
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.base.objects.actors import as_Organization
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
         from vultron.core.models.vultron_types import VultronParticipant
         from vultron.core.states.rm import RM
@@ -329,7 +331,7 @@ class TestInviteActorUseCases:
             name="CaseManager",
             case_roles=[CVDRole.CASE_MANAGER],
         )
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/caseRM002",
             name="TEST-RM-AUTO-ENGAGE",
             case_participants=[case_manager_participant_id],
@@ -384,27 +386,27 @@ class TestInviteActorUseCases:
         self, monkeypatch, make_payload
     ):
         """AcceptInviteActorToCaseReceivedUseCase commits a canonical
-        CaseLedgerEntry with event_type 'accept_invite_actor_to_case'
+        as_CaseLedgerEntry with event_type 'accept_invite_actor_to_case'
         (CM-02-009).
 
         record_event('participant_joined') was removed in #789; the trust
-        guarantee now lives in CaseLedgerEntry.received_at written by
+        guarantee now lives in as_CaseLedgerEntry.received_at written by
         CommitCaseLedgerEntryNode.
         """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.base.objects.actors import as_Organization
         from vultron.wire.as2.vocab.objects.case_ledger_entry import (
-            CaseLedgerEntry as WireCaseLedgerEntry,
+            as_CaseLedgerEntry as WireCaseLedgerEntry,
         )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         dl = SqliteDataLayer("sqlite:///:memory:")
         invitee_id = "https://example.org/users/coordinator"
         case_actor_id = "https://example.org/cases/caseIA3/actor"
         invitee = as_Organization(id_=invitee_id)
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/caseIA3",
             name="TEST-ACCEPT-INVITE-EVENT",
             attributed_to=case_actor_id,
@@ -419,12 +421,12 @@ class TestInviteActorUseCases:
         dl.create(case)
         from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.case_participant import (
-            CaseParticipant,
+            as_CaseParticipant,
         )
         from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
         dl.create(as_Service(id_=case_actor_id, context=case.id_))
-        case_manager_participant = CaseParticipant(
+        case_manager_participant = as_CaseParticipant(
             id_=f"{case.id_}/participants/case-actor-p",
             attributed_to=case_actor_id,
             context=case.id_,
@@ -471,7 +473,7 @@ class TestInviteActorUseCases:
             as_Service,
         )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         dl = SqliteDataLayer("sqlite:///:memory:")
@@ -479,7 +481,7 @@ class TestInviteActorUseCases:
         case_actor_id = "https://example.org/actors/case-actor-lj1"
         invitee = as_Organization(id_=invitee_id)
         case_actor = as_Service(id_=case_actor_id, context="unused")
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/caseLJ1",
             name="TEST-LATE-JOIN-BACKFILL",
             attributed_to=case_actor_id,
@@ -496,10 +498,10 @@ class TestInviteActorUseCases:
         dl.create(case)
         from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.case_participant import (
-            CaseParticipant,
+            as_CaseParticipant,
         )
 
-        case_manager_participant = CaseParticipant(
+        case_manager_participant = as_CaseParticipant(
             id_=f"{case.id_}/participants/case-actor-p",
             attributed_to=case_actor_id,
             context=case.id_,
@@ -580,7 +582,7 @@ class TestInviteActorUseCases:
             as_Service,
         )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         dl = SqliteDataLayer("sqlite:///:memory:")
@@ -588,7 +590,7 @@ class TestInviteActorUseCases:
         case_actor_id = "https://example.org/actors/case-actor-lj2"
         invitee = as_Organization(id_=invitee_id)
         case_actor = as_Service(id_=case_actor_id, context="unused")
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/caseLJ2",
             name="TEST-LATE-JOIN-RESUME",
             attributed_to=case_actor_id,
@@ -605,10 +607,10 @@ class TestInviteActorUseCases:
         dl.create(case)
         from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.case_participant import (
-            CaseParticipant,
+            as_CaseParticipant,
         )
 
-        case_manager_participant = CaseParticipant(
+        case_manager_participant = as_CaseParticipant(
             id_=f"{case.id_}/participants/case-actor-p",
             attributed_to=case_actor_id,
             context=case.id_,
@@ -715,7 +717,7 @@ class TestInviteActorUseCases:
             as_Service,
         )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         dl = SqliteDataLayer("sqlite:///:memory:")
@@ -723,7 +725,7 @@ class TestInviteActorUseCases:
         case_actor_id = "https://example.org/actors/case-actor-lj3"
         invitee = as_Organization(id_=invitee_id)
         case_actor = as_Service(id_=case_actor_id, context="unused")
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/caseLJ3",
             name="TEST-LATE-JOIN-NO-MARKER",
             attributed_to=case_actor_id,
@@ -736,10 +738,10 @@ class TestInviteActorUseCases:
         )
         from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.case_participant import (
-            CaseParticipant,
+            as_CaseParticipant,
         )
 
-        case_manager_participant = CaseParticipant(
+        case_manager_participant = as_CaseParticipant(
             id_=f"{case.id_}/participants/case-actor-p",
             attributed_to=case_actor_id,
             context=case.id_,
@@ -819,7 +821,7 @@ class TestInviteActorUseCases:
             as_Service,
         )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         dl = SqliteDataLayer("sqlite:///:memory:")
@@ -827,7 +829,7 @@ class TestInviteActorUseCases:
         case_actor_id = "https://example.org/actors/case-actor-lj4"
         invitee = as_Organization(id_=invitee_id)
         case_actor = as_Service(id_=case_actor_id, context="unused")
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/caseLJ4",
             name="TEST-LATE-JOIN-NO-ANNOUNCE",
             attributed_to=case_actor_id,
@@ -844,10 +846,10 @@ class TestInviteActorUseCases:
         dl.create(case)
         from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.case_participant import (
-            CaseParticipant,
+            as_CaseParticipant,
         )
 
-        case_manager_participant = CaseParticipant(
+        case_manager_participant = as_CaseParticipant(
             id_=f"{case.id_}/participants/case-actor-p",
             attributed_to=case_actor_id,
             context=case.id_,
@@ -914,13 +916,13 @@ class TestAcceptInviteRolesAC4:
         from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.base.objects.actors import as_Organization
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         dl = SqliteDataLayer("sqlite:///:memory:")
         invitee_id = "https://example.org/users/vendor2"
         invitee = as_Organization(id_=invitee_id)
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/ac4-test",
             name="AC-4 roles test",
         )
@@ -957,13 +959,13 @@ class TestAcceptInviteRolesAC4:
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.base.objects.actors import as_Organization
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         dl = SqliteDataLayer("sqlite:///:memory:")
         invitee_id = "https://example.org/users/vendor3"
         invitee = as_Organization(id_=invitee_id)
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/ac4-neg",
             name="AC-4 negative",
         )
