@@ -83,6 +83,7 @@ from vultron.demo.helpers.polling import (  # noqa: F401
     wait_for_case_on_container,
     wait_for_case_participants,
     wait_for_finder_case,
+    wait_for_contiguous_ledger_coverage,
     wait_for_finder_log_entry,
     wait_for_note_in_case,
     wait_for_participant_vfd_state,
@@ -558,23 +559,22 @@ def _phase_sync_verification(
     # in `vultron.demo.helpers.sync` for tests that need to drive a *real*
     # protocol event and wait for its replica; they are intentionally not
     # called here — EXCEPT for the replica-state check below, where we must
-    # wait for finder to receive the vendor's latest canonical entry before
-    # comparing tail hashes.  The vendor's report-acceptance creates canonical
-    # ledger entries whose Announce(CaseLedgerEntry) fan-out is an async
-    # BackgroundTask; without this wait the tail hashes may diverge.
+    # wait for finder to receive all canonical entries before comparing state.
+    # The vendor's report-acceptance creates canonical ledger entries whose
+    # Announce(CaseLedgerEntry) fan-out is an async BackgroundTask; without
+    # this wait intermediate entries may not have arrived yet (issue #1434).
     vendor_entries = _get_log_entries_for_case(vendor_client, case.id_)
     if vendor_entries:
         vendor_tail = max(vendor_entries, key=lambda e: e["log_index"])
-        vendor_tail_hash: str = vendor_tail["entry_hash"]
+        vendor_tail_index: int = vendor_tail["log_index"]
         logger.info(
-            "Waiting for finder to replicate vendor tail entry (hash=%s… index=%d)",
-            vendor_tail_hash[:16],
-            vendor_tail["log_index"],
+            "Waiting for finder to replicate all vendor entries (0…%d)",
+            vendor_tail_index,
         )
-        wait_for_finder_log_entry(
-            finder_client=finder_client,
+        wait_for_contiguous_ledger_coverage(
+            client=finder_client,
             case_id=case.id_,
-            entry_hash=vendor_tail_hash,
+            expected_tail_index=vendor_tail_index,
         )
 
     logger.info(
@@ -752,25 +752,23 @@ def _phase_case_closure(
             case_id=case.id_,
         )
 
-    # Wait for finder to replicate the canonical close_case ledger entry
-    # before _phase_dump_case_ledgers writes the devlog files.
-    # AutoClose commits the entry on case-actor (vendor-1) and fans it out via
-    # Announce(CaseLedgerEntry) as an async BackgroundTask; finder may not have
-    # it yet when verify_case_closed returns.
+    # Wait for finder to receive all canonical ledger entries (including the
+    # close_case tail) before _phase_dump_case_ledgers writes devlog files.
+    # AutoClose fans out Announce(CaseLedgerEntry) as an async BackgroundTask;
+    # intermediate entries may arrive after the tail (issue #1434).
     vendor_entries = _get_log_entries_for_case(vendor_client, case.id_)
     if vendor_entries:
         vendor_tail = max(vendor_entries, key=lambda e: e["log_index"])
-        vendor_tail_hash: str = vendor_tail["entry_hash"]
+        vendor_tail_index: int = vendor_tail["log_index"]
         logger.info(
-            "Waiting for finder to replicate vendor tail after closure"
-            " (hash=%s… index=%d)",
-            vendor_tail_hash[:16],
-            vendor_tail["log_index"],
+            "Waiting for finder to replicate all vendor entries after closure"
+            " (0…%d)",
+            vendor_tail_index,
         )
-        wait_for_finder_log_entry(
-            finder_client=finder_client,
+        wait_for_contiguous_ledger_coverage(
+            client=finder_client,
             case_id=case.id_,
-            entry_hash=vendor_tail_hash,
+            expected_tail_index=vendor_tail_index,
         )
 
 

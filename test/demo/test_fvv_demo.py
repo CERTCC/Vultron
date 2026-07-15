@@ -32,6 +32,7 @@ from fastapi.testclient import TestClient
 import vultron.demo.scenario.fvv_demo as demo
 from test.demo._helpers import make_client, make_testclient_call
 from vultron.demo.cli import main
+from vultron.demo.helpers.polling import wait_for_contiguous_ledger_coverage
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -205,3 +206,128 @@ class TestFvvCliCommand:
         runner = CliRunner()
         result = runner.invoke(main, ["fvv", "--help"])
         assert "--vendor2-url" in result.output
+
+
+# ---------------------------------------------------------------------------
+# Regression tests: wait_for_contiguous_ledger_coverage (issue #1363)
+# ---------------------------------------------------------------------------
+
+
+class TestWaitForContiguousLedgerCoverage:
+    """Regression tests for the pre-dump ledger coverage gate (issue #1363).
+
+    The bug: _phase_case_closure waited only for the tail entry hash before
+    dumping logs.  Because Announce(CaseLedgerEntry) activities arrive
+    independently, an intermediate entry (e.g. logIndex=17) could arrive after
+    the tail, leaving the JSONL with a gap.
+
+    wait_for_contiguous_ledger_coverage closes this race by verifying that
+    ALL indices 0…expected_tail_index are present before the dump proceeds.
+    """
+
+    def _make_raw_entries(self, case_id: str, indices: list[int]) -> dict:
+        """Build the dict structure returned by GET /datalayer/CaseLedgerEntrys/."""
+        return {
+            f"entry-{i}": {
+                "case_id": case_id,
+                "log_index": i,
+                "entry_hash": f"hash{i:04d}",
+            }
+            for i in indices
+        }
+
+    def test_returns_when_all_indices_present(self):
+        """Returns immediately when indices 0…N are all present (happy path)."""
+        case_id = "https://example.org/cases/test-coverage-1"
+        client = MagicMock()
+        client.get.return_value = self._make_raw_entries(
+            case_id, list(range(5))
+        )
+
+        wait_for_contiguous_ledger_coverage(
+            client=client,
+            case_id=case_id,
+            expected_tail_index=4,
+            timeout_seconds=1.0,
+        )
+        assert client.get.call_count >= 1
+
+    def test_raises_when_intermediate_index_missing(self):
+        """Raises AssertionError when an intermediate entry (the bug) is absent.
+
+        Simulates the race: indices 0…16, 18…20 are present but index 17 is
+        missing, reproducing the exact failure from issue #1363.
+        """
+        case_id = "https://example.org/cases/test-coverage-2"
+        indices_with_gap = list(range(17)) + list(range(18, 21))
+        client = MagicMock()
+        client.get.return_value = self._make_raw_entries(
+            case_id, indices_with_gap
+        )
+
+        with pytest.raises(AssertionError, match="contiguous ledger coverage"):
+            wait_for_contiguous_ledger_coverage(
+                client=client,
+                case_id=case_id,
+                expected_tail_index=20,
+                timeout_seconds=0.1,
+                poll_interval=0.05,
+            )
+
+    def test_raises_when_tail_present_but_early_entries_missing(self):
+        """Raises when the tail arrived but early entries are absent.
+
+        This is the exact race: tail (logIndex=N) arrives first via
+        Announce, but logIndex=17 (or similar) arrives later.
+        wait_for_finder_log_entry would have returned True here, but
+        wait_for_contiguous_ledger_coverage correctly waits.
+        """
+        case_id = "https://example.org/cases/test-coverage-3"
+        # Present: only the tail entry (index=5), missing 0-4
+        client = MagicMock()
+        client.get.return_value = self._make_raw_entries(case_id, [5])
+
+        with pytest.raises(AssertionError, match="contiguous ledger coverage"):
+            wait_for_contiguous_ledger_coverage(
+                client=client,
+                case_id=case_id,
+                expected_tail_index=5,
+                timeout_seconds=0.1,
+                poll_interval=0.05,
+            )
+
+    def test_ignores_entries_for_other_cases(self):
+        """Does not count entries from other cases toward coverage."""
+        case_id = "https://example.org/cases/target-case"
+        other_case_id = "https://example.org/cases/other-case"
+        client = MagicMock()
+        # Indices 0-3 belong to the target case; 4-9 belong to another case
+        target_entries = self._make_raw_entries(case_id, list(range(4)))
+        other_entries = self._make_raw_entries(
+            other_case_id, list(range(4, 10))
+        )
+        client.get.return_value = {**target_entries, **other_entries}
+
+        with pytest.raises(AssertionError, match="contiguous ledger coverage"):
+            wait_for_contiguous_ledger_coverage(
+                client=client,
+                case_id=case_id,
+                expected_tail_index=5,
+                timeout_seconds=0.1,
+                poll_interval=0.05,
+            )
+
+    def test_raises_when_no_entries_present(self):
+        """Raises when the DataLayer returns no entries at all."""
+        case_id = "https://example.org/cases/test-coverage-4"
+        client = MagicMock()
+        client.get.return_value = {}
+
+        with pytest.raises(AssertionError, match="contiguous ledger coverage"):
+            wait_for_contiguous_ledger_coverage(
+                client=client,
+                case_id=case_id,
+                expected_tail_index=3,
+                timeout_seconds=0.1,
+                poll_interval=0.05,
+            )
