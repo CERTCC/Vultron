@@ -216,3 +216,57 @@ Files to investigate:
 - `vultron/adapters/driven/datalayer_sqlite.py`
 - `vultron/wire/as2/rehydration.py`
 - `vultron/wire/as2/vocab/registry.py`
+
+---
+
+## `outbox_list()` Requires `clone_for_actor` in Tests
+
+(ISSUE-1298, 2026-07-10)
+
+`SqliteDataLayer.outbox_list()` reads the outbox for `dl._actor_id`, which is
+`""` on a freshly constructed `SqliteDataLayer("sqlite:///:memory:")`. BT nodes
+call `record_outbox_item(actor_id, activity_id)`, writing to the named actor's
+queue. The two paths do not share the same key unless the DataLayer was obtained
+via `clone_for_actor(actor_id)`.
+
+**In tests that verify outbox contents after use-case execution:**
+
+```python
+# ✅ CORRECT — read by explicit actor ID
+outbox = dl.outbox_list_for_actor(local_actor_id)
+
+# ✅ ALSO CORRECT — clone before reading (matches BT pattern)
+actor_dl = dl.clone_for_actor(actor_id)
+outbox = actor_dl.outbox_list()
+
+# ❌ WRONG — returns [] unless dl._actor_id was set
+outbox = dl.outbox_list()
+```
+
+---
+
+## Happy-Path DL Seeds Must Include Origin Activities for `dl.read()` Calls
+
+(ISSUE-1326, 2026-07-10)
+
+When a use case calls `dl.read(some_id)` to resolve a related entity (e.g.,
+`recommender_id` from the original recommendation offer), the happy-path test
+fixture MUST store that entity in the DataLayer, or the use case silently falls
+back to `""` / `None`.
+
+In `AcceptActorRecommendationReceivedUseCase` and
+`RejectActorRecommendationReceivedUseCase`, the `origin` field of the inner
+`Offer(CaseParticipant)` carries the original recommendation activity ID. The
+use case calls `self._dl.read(recommendation_id)` to look up that activity and
+extract `recommender_id`. If the activity is absent, `recommender_id=""` and the
+recommender-notification branch silently no-ops — but other tree nodes still emit
+to the outbox, so `len(outbox) >= 1` can pass while hiding the broken path.
+
+**Fix pattern**: after building the inner offer with
+`origin=<recommendation_id>`, also call
+`dl.create(recommend_actor_activity(..., id_=<recommendation_id>))` in the
+fixture so `dl.read()` resolves correctly.
+
+**Assertion depth**: the Accept happy path emits both an Accept notification
+and an Invite (2 activities). Assert `len(outbox) >= 2`, not `>= 1`, to catch
+the case where only one of the two required activities was emitted.

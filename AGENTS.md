@@ -908,6 +908,81 @@ Short entries are reproduced here; longer ones are referenced below.
   return `Status.FAILURE` (BT nodes) immediately.
   See [notes/domain-validation.md](notes/domain-validation.md) and
   `specs/architecture.yaml` ARCH-15-001 through ARCH-15-004.
+- **`outbox_list()` Requires `clone_for_actor` in Tests** — `SqliteDataLayer.outbox_list()` reads
+  from `dl._actor_id`, which is `""` on a freshly constructed DataLayer.
+  BT nodes write to the named actor's queue via `record_outbox_item(actor_id, ...)`.
+  The two paths share a key only when the DataLayer was obtained via `clone_for_actor(actor_id)`.
+  Use `dl.outbox_list_for_actor(local_actor_id)` or `dl.clone_for_actor(actor_id).outbox_list()` in tests.
+  See [notes/datalayer-design.md](notes/datalayer-design.md) § "`outbox_list()` Requires `clone_for_actor` in Tests".
+- **Happy-Path DL Seed Must Include `origin` Activities for `dl.read()` Calls** — Use cases that call
+  `dl.read(activity_id)` to resolve a related entity (e.g., `recommender_id`) silently fall back to
+  `""` / `None` when the activity is absent from the fixture. Assert `len(outbox) >= N` where N is
+  the *expected* count, not just `>= 1` — a partial emission can pass a weak assertion while hiding
+  a broken notification branch. See [notes/datalayer-design.md](notes/datalayer-design.md)
+  § "Happy-Path DL Seeds Must Include Origin Activities for `dl.read()` Calls".
+- **`UnroutableActivityError` Must Be Caught Inside `_handle`, Not Above It** — A gate/guard called
+  before the `try/except` in `DispatcherBase._handle` escapes to `_process_inbox_item`, which re-queues
+  the item — creating an infinite retry loop. Wrap gate calls in their own `try/except UnroutableActivityError`
+  inside `_handle` and return (drop the event). General rule: when converting a silent `return None`
+  into a `raise`, trace the full call stack to every re-queue/retry handler above the raise site.
+  See [notes/inbox-pipeline.md](notes/inbox-pipeline.md) § "`UnroutableActivityError` Must Be Caught Inside `_handle`".
+- **Blackboard List Write-Back: Only Needed for New Lists** — Mutating a list object retrieved from
+  the blackboard is in-place; the write-back (`blackboard.set(key, value)`) is a no-op unless `key`
+  was absent (KeyError branch) and you just created the list. Do not add write-backs to mutation
+  paths that already hold a reference — they create noise without effect.
+  See [notes/bt-integration.md](notes/bt-integration.md) § "Blackboard List Mutation: Write-Back Is Redundant".
+- **Always Check `BTBridge.execute_with_setup` Return Value** — `execute_with_setup` never raises;
+  it returns the `Status` enum. A FAILURE return left unchecked looks like SUCCESS. Always do:
+  `if bridge.execute_with_setup(...) == Status.FAILURE: raise VultronBTError(...)`.
+  See [notes/bt-integration.md](notes/bt-integration.md) § "Always Check `BTBridge.execute_with_setup` Return Value".
+- **Ledger Commit Must Precede Outbox Write** — When a use case or BT node both commits a ledger
+  entry and writes to the outbox, the commit MUST happen first. Writing to the outbox before
+  the ledger commit produces a state where outbound activities have been sent but the causal record
+  is absent from the ledger. See [notes/bt-integration.md](notes/bt-integration.md)
+  § "Ledger Commit Must Precede Outbox Write".
+- **`disposition="rejected"` for Local-Only Correlation Markers** — A ledger entry that records a
+  *local* correlation or rejection event (not a canonical CaseActor-accepted assertion) MUST use
+  `disposition="rejected"`. Using the default `"accepted"` disposition for non-canonical markers
+  pollutes the authoritative ledger. See [notes/bt-integration.md](notes/bt-integration.md)
+  § "Use `disposition="rejected"` for Local-Only Ledger Correlation Markers".
+- **Semantic Registry Pattern Must Match Inbound Wire Format** — The semantic registry key for
+  an activity type MUST match the inbound wire format (e.g., `SuggestActorToCasePattern`), NOT
+  the outbound factory output (e.g., `OfferActorToCasePattern`). Registering the outbound pattern
+  means the registry never fires for inbound messages of that type. See
+  [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
+  § "Semantic Registry Patterns Must Match Inbound Wire Format".
+- **`offer_case_participant_activity`: `event.object_id` Has `#participant` Suffix** —
+  `event.object_id` is the CaseParticipant URI (with `#participant` suffix), not the actor URI.
+  Extract `actor_id` from `event.attributed_to`, not `event.object_id`. See
+  [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
+  § "`offer_case_participant_activity`: `event.object_id` Has `#participant` Suffix".
+- **Pre-Build Dedup Sets Before Fallback Loops** — When skipping already-checked IDs inside a loop
+  using membership in `dict.values()`, pre-build `seen = set(d.values())` once before the loop.
+  Each `in d.values()` is O(n); the `set` makes it O(1) per check, reducing O(n×m) to O(n+m).
+- **Consolidated Helper Needs One Test Per Distinct Lookup Path** — When unifying two helpers into
+  one function with N distinct lookup paths (e.g., primary index + fallback scan), each path must
+  have at least one test where it is the sole source of truth (all other paths left empty). Tests
+  that always populate the fallback path leave the primary path untested. See
+  [notes/bt-integration.md](notes/bt-integration.md) § "Dual-Path Consolidation Test Gap".
+- **Domain Sweep Audit: Catalog → Code, Then Factory Injection, Then `register_key`** — For
+  FUZZ-08h-style completeness audits: (1) AST-parse demo/fuzzer classes for a flat inventory,
+  (2) cross-ref catalog `New-arch cross-ref:` lines for gaps, (3) grep `CallOutBackendFactory`
+  in all tree builders, (4) grep `register_key` for naming conflicts. Closed issues referenced by
+  `*(to be implemented — see FUZZ-08x)*` entries must be checked: if the issue is closed but
+  the class is absent, it's a gap. See [notes/bt-fuzzer-nodes-report-management.md](notes/bt-fuzzer-nodes-report-management.md)
+  § "Sentinel Stubs Must Be Synced When the Upstream Issue Closes".
+- **MkDocs `not_in_nav` and `exclude_docs` Are Not the Same** — `exclude_docs` prevents files from
+  appearing in the published build but does NOT satisfy the `validation.nav.omitted_files` guard.
+  Files intentionally excluded from the nav MUST ALSO be listed in `not_in_nav`. Also: when using
+  `INHERIT: mkdocs.yml`, the `not_in_nav` list in the overlay **replaces** (not extends) the base
+  list. The strict local build script `mkdocs-build-strict.sh` is the right gate; CI's
+  `docs-build-check.yml` runs non-strict and does not surface `omitted_files: warn` failures.
+- **Pre-commit Hooks Interfere with `git rebase` in Worktrees** — `git rebase origin/main` in a
+  worktree fails with "local changes would be overwritten" even on a clean tree when pre-commit
+  hooks (black, flake8) modify files during the checkout step. Workaround: use
+  `manage_worktree.sh ensure-synced` (preferred), or abort the rebase and create a fresh branch
+  from `origin/main` directly (`git switch -c <branch> origin/main`). Do NOT run
+  `git rebase` raw in a worktree without confirming pre-commit hooks are hook-only (check-mode).
 
 ## Skill Interaction Rules
 
