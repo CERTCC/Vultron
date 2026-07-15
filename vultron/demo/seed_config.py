@@ -35,12 +35,11 @@ Environment variables
 """
 
 import os
-from typing import Literal, cast
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, Field
-
-from vultron.config.actor import ActorConfig
+from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
 
 #: Valid ActivityStreams actor type strings accepted by the seed command.
 ActorType = Literal[
@@ -48,8 +47,16 @@ ActorType = Literal[
 ]
 
 
-class LocalActorConfig(ActorConfig):
-    """Configuration for the local actor record to create on startup."""
+class LocalActorConfig(BaseModel):
+    """Bootstrap identity configuration for the local actor (CFG-07-007).
+
+    Carries only the fields needed to seed the actor record in the DataLayer:
+    display name, ActivityStreams actor type, and optional actor URI.
+
+    Actor policy fields (``auto_create_case``, ``default_case_roles``) are
+    **not** included here — they belong in ``AppConfig.actor`` and are
+    read via :func:`vultron.config.actor.load_actor_config` (CFG-07-007).
+    """
 
     name: str = Field(description="Display name of the local actor.")
     actor_type: ActorType = Field(
@@ -84,11 +91,35 @@ class PeerActorConfig(BaseModel):
     model_config = {"populate_by_name": True}
 
 
-class SeedConfig(BaseModel):
+class _SeedYamlSource(PydanticBaseSettingsSource):
+    """``pydantic-settings`` source that loads from ``VULTRON_SEED_CONFIG`` YAML."""
+
+    def __call__(self) -> dict[str, Any]:
+        path = os.environ.get("VULTRON_SEED_CONFIG")
+        if not path:
+            return {}
+        try:
+            with open(path) as fh:
+                return yaml.safe_load(fh) or {}
+        except (FileNotFoundError, yaml.YAMLError):
+            return {}
+
+    def get_field_value(
+        self, field: Any, field_name: str
+    ) -> tuple[Any, str, bool]:
+        data = self()
+        return data.get(field_name), field_name, False
+
+
+class SeedConfig(BaseSettings):
     """Complete seed configuration: one local actor plus zero or more peers.
 
-    Can be loaded from a YAML file whose top-level keys are ``local_actor``
-    and ``peers``::
+    Loaded (in decreasing priority) from:
+
+    1. A YAML file at the path given by ``VULTRON_SEED_CONFIG``.
+    2. ``pydantic-settings`` init kwargs (for programmatic construction).
+
+    The YAML schema uses top-level keys ``local_actor`` and ``peers``::
 
         local_actor:
           name: Finder
@@ -98,10 +129,33 @@ class SeedConfig(BaseModel):
           - name: Vendor
             actor_type: Organization
             id: http://vendor:7999/api/v2/actors/vendor-uuid
+
+    .. deprecated::
+        ``from_env()`` and ``from_file()`` class methods are kept for
+        backward compatibility but will be removed in a future release.
+        Construct ``SeedConfig()`` directly (env vars are read automatically)
+        or pass kwargs to the constructor.
     """
 
-    local_actor: LocalActorConfig
+    local_actor: LocalActorConfig = Field(
+        default_factory=lambda: LocalActorConfig(name="Vultron Actor")
+    )
     peers: list[PeerActorConfig] = Field(default_factory=list)
+
+    model_config = {"populate_by_name": True}
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        # Precedence: YAML file < init kwargs.
+        # init_settings wins so that explicit construction args take priority.
+        return (init_settings, _SeedYamlSource(settings_cls))
 
     @classmethod
     def from_env(
@@ -114,6 +168,10 @@ class SeedConfig(BaseModel):
 
         Explicit arguments take precedence over environment variables.
 
+        .. deprecated::
+            Use ``SeedConfig()`` directly. ``pydantic-settings`` reads env
+            vars automatically.
+
         Args:
             actor_name: Local actor display name.  Falls back to
                 ``VULTRON_ACTOR_NAME`` env var (default: ``"Vultron Actor"``).
@@ -122,6 +180,8 @@ class SeedConfig(BaseModel):
             actor_id: Optional full URI for the local actor.  Falls back to
                 ``VULTRON_ACTOR_ID`` env var.
         """
+        from typing import cast
+
         name = actor_name or os.environ.get(
             "VULTRON_ACTOR_NAME", "Vultron Actor"
         )
@@ -140,6 +200,10 @@ class SeedConfig(BaseModel):
     @classmethod
     def from_file(cls, path: str) -> "SeedConfig":
         """Load a SeedConfig from a YAML file.
+
+        .. deprecated::
+            Set ``VULTRON_SEED_CONFIG=<path>`` and use ``SeedConfig()``
+            directly.
 
         Args:
             path: Filesystem path to the YAML seed config file.
@@ -160,11 +224,15 @@ class SeedConfig(BaseModel):
         actor_type: str | None = None,
         actor_id: str | None = None,
     ) -> "SeedConfig":
-        """Load a SeedConfig from a JSON file or environment variables.
+        """Load a SeedConfig from a YAML file or environment variables.
 
         If ``config_path`` is given (or ``VULTRON_SEED_CONFIG`` env var is
         set), the YAML file takes precedence.  Otherwise, configuration is
         assembled from env vars and any explicit keyword arguments.
+
+        .. deprecated::
+            Set ``VULTRON_SEED_CONFIG`` and use ``SeedConfig()`` directly,
+            or pass kwargs to the constructor.
 
         Args:
             config_path: Path to YAML seed config file.

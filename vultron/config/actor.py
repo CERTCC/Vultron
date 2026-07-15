@@ -25,7 +25,12 @@ defaults for the local actor without importing from the demo or adapter layers.
 Per ``specs/configuration.yaml`` CFG-07-001, CFG-07-002, CFG-07-005, CFG-07-006.
 """
 
-from pydantic import BaseModel, Field, field_serializer, field_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    field_serializer,
+    field_validator,
+)
 
 from vultron.enums.roles import CVDRole, serialize_roles, validate_roles
 

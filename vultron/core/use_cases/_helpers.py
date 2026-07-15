@@ -369,10 +369,9 @@ def _resolve_case_manager_id(
     # Primary path: fast index lookup (normal post-bootstrap operation).
     for p_id in case.actor_participant_index.values():
         p = dl.read(p_id)
-        if p is None:
+        if not is_participant_model(p):
             continue
-        roles = getattr(p, "case_roles", [])
-        if CVDRole.CASE_MANAGER in roles:
+        if CVDRole.CASE_MANAGER in p.roles:
             manager_actor_id = getattr(p, "attributed_to", None)
             return _as_id(manager_actor_id)
 
@@ -382,8 +381,10 @@ def _resolve_case_manager_id(
     for participant_ref in case.case_participants:
         if not isinstance(participant_ref, str):
             # Inline participant object — no DataLayer read needed.
-            roles = getattr(participant_ref, "case_roles", [])
-            if CVDRole.CASE_MANAGER in roles:
+            if (
+                is_participant_model(participant_ref)
+                and CVDRole.CASE_MANAGER in participant_ref.roles
+            ):
                 attributed = getattr(participant_ref, "attributed_to", None)
                 return _as_id(attributed)
             continue
@@ -391,10 +392,9 @@ def _resolve_case_manager_id(
             # Already checked via the index; skip to avoid duplicates.
             continue
         p = dl.read(participant_ref)
-        if p is None:
+        if not is_participant_model(p):
             continue
-        roles = getattr(p, "case_roles", [])
-        if CVDRole.CASE_MANAGER in roles:
+        if CVDRole.CASE_MANAGER in p.roles:
             manager_actor_id = getattr(p, "attributed_to", None)
             return _as_id(manager_actor_id)
     return None

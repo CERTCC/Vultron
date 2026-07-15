@@ -229,6 +229,58 @@ class TestCaseManagerRoleDelegationUseCases:
             len(call_kwargs.args) >= 3 and reporter_id in call_kwargs.args
         )
 
+    def test_accept_case_manager_role_bootstrap_via_case_participants_fallback(
+        self, make_payload
+    ):
+        """_find_reporter_id fallback: uses case_participants when index is empty."""
+        from unittest.mock import MagicMock, patch
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.models.vultron_types import VultronParticipant
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        reporter_id = "https://example.org/actors/reporter"
+        reporter_participant_id = f"{self._CASE_URI}/participants/reporter"
+        reporter_participant = VultronParticipant(
+            id_=reporter_participant_id,
+            attributed_to=reporter_id,
+            context=self._CASE_URI,
+            name="Reporter",
+            case_roles=[CVDRole.FINDER, CVDRole.REPORTER],
+        )
+        case = VulnerabilityCase(id_=self._CASE_URI, name="FALLBACK-TEST")
+        # Populate only case_participants; leave actor_participant_index empty
+        # (bootstrap path — index not yet populated).
+        case.case_participants.append(reporter_participant_id)  # type: ignore[arg-type]
+        dl.create(reporter_participant)
+        dl.create(case)
+
+        offer = self._make_offer()
+        accept = accept_case_manager_role_activity(
+            offer, actor=self._CASE_ACTOR_URI
+        )
+        event = make_payload(accept, receiving_actor_id=self._VENDOR_URI)
+
+        trigger = MagicMock()
+        trigger.create_case.return_value = (
+            "https://example.org/activities/create-fallback",
+            {},
+        )
+
+        with patch("vultron.core.use_cases._helpers.add_activity_to_outbox"):
+            AcceptCaseManagerRoleReceivedUseCase(
+                dl, event, trigger_activity=trigger
+            ).execute()
+
+        trigger.create_case.assert_called_once()
+        call_kwargs = trigger.create_case.call_args
+        assert call_kwargs.kwargs.get("to") == [reporter_id] or (
+            len(call_kwargs.args) >= 3 and reporter_id in call_kwargs.args
+        )
+
     def test_accept_case_manager_role_no_bootstrap_without_trigger(
         self, make_payload
     ):

@@ -26,6 +26,7 @@ relevant_packages:
 | Should `CaseParticipant` match the `VultronParticipant` interface? | Yes — full parity | Callers should not need to know which class they hold to manage roles |
 | Should wire-layer `model_validator` role inits use `add_role()`? | Yes | Routes all role mutations through the single invariant-check point |
 | Should an architecture test enforce the no-direct-mutation rule? | Yes, with ≤1 s budget | Machine-checkable enforcement; targeted scan stays fast |
+| Should an architecture test enforce the no-direct-read rule (`getattr(*, "case_roles")`)? | Yes — `test_no_getattr_case_roles_read_in_core()` added in PR #1443 | Complements the mutation ratchet; enforces PRM-01-003 |
 
 ---
 

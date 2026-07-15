@@ -386,7 +386,7 @@ def _upgrade_participant_to_accepted(
         em_consent_state=coerce_em_consent_state(
             getattr(existing, "embargo_consent_state", None)
         ),
-        cvd_role=coerce_cvd_roles(getattr(existing, "case_roles", [])),
+        cvd_role=coerce_cvd_roles(getattr(existing, "roles", [])),
     )
     try:
         dl.create(upgrade_status)
