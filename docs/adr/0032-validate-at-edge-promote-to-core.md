@@ -114,8 +114,8 @@ no `self.feedback_message` set.
 - Good: eliminates `x or []` / `x or {}` boilerplate at call-sites.
 - Good: aligns BT node helpers with the `dl.read()` precedent.
 - Bad: requires migration of existing code; tracked in #1359 and #1360.
-- Bad: BT node helpers need a custom exception class (`BtNodePreconditionError`
-  or similar) before they can adopt the raise pattern.
+- Good: `BtNodePreconditionError` is now defined in `vultron/errors.py` and
+  importable as `from vultron.errors import BtNodePreconditionError`.
 
 ## Validation
 

@@ -169,6 +169,17 @@ class UnroutableActivityError(VultronError):
         super().__init__(f"Activity '{activity_id}' is unroutable: {reason}")
 
 
+class BtNodePreconditionError(VultronError):
+    """Raised by a BT node helper when a required precondition is unmet.
+
+    BT node helper methods (private methods called from ``update()``) MUST
+    raise this exception instead of returning ``None`` when a precondition
+    fails.  ``update()`` is the single ``try/except`` handler that converts
+    the exception to ``Status.FAILURE`` and sets ``self.feedback_message``.
+    See ADR-0032 and ``notes/bt-integration.md`` BT-HELPER-01.
+    """
+
+
 class DemoFailureError(VultronError):
     """Raised when a demo scenario completes with one or more step failures.
 
