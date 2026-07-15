@@ -537,7 +537,7 @@ def test_resolve_actor_config_delegates_to_load_actor_config(monkeypatch):
     """
     from vultron.config.actor import ActorConfig
     import vultron.adapters.driving.fastapi.inbox_port_factories as pf
-    import vultron.config.actor as actor_mod
+    import vultron.config.app as app_mod
 
     called = []
 
@@ -545,8 +545,8 @@ def test_resolve_actor_config_delegates_to_load_actor_config(monkeypatch):
         called.append(True)
         return ActorConfig(auto_create_case=False)
 
-    monkeypatch.setattr(actor_mod, "load_actor_config", fake_load_actor_config)
-    # Reload pf so it picks up the patched module reference
+    monkeypatch.setattr(app_mod, "load_actor_config", fake_load_actor_config)
+    # Patch the name in pf's namespace (imported at module load time)
     monkeypatch.setattr(pf, "load_actor_config", fake_load_actor_config)
 
     result = pf._resolve_actor_config()

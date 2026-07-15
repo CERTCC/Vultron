@@ -26,7 +26,8 @@ to inject adapter ports into use cases at dispatch time.
 import logging
 from typing import Any, cast
 
-from vultron.config.actor import ActorConfig, load_actor_config
+from vultron.config.actor import ActorConfig
+from vultron.config.app import load_actor_config
 from vultron.core.models.events import MessageSemantics
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.ports.datalayer import DataLayer

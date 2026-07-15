@@ -202,6 +202,28 @@ def get_config() -> AppConfig:
     return _config_cache
 
 
+def load_actor_config() -> ActorConfig:
+    """Return the local actor's policy :class:`~vultron.config.actor.ActorConfig`.
+
+    Delegates to :func:`get_config` so actor policy is read from the same
+    unified config as all other application settings (CFG-07-005).
+
+    Configuration sources, in decreasing priority:
+
+    1. ``VULTRON_ACTOR__AUTO_CREATE_CASE`` / ``VULTRON_ACTOR__DEFAULT_CASE_ROLES``
+       environment variables.
+    2. ``actor:`` section in the YAML file at ``VULTRON_CONFIG``
+       (default: ``config.yaml``).
+    3. Hard-coded defaults (``auto_create_case=True``,
+       ``default_case_roles=[]``).
+
+    Returns:
+        The :class:`~vultron.config.actor.ActorConfig` from the active
+        :class:`AppConfig`.
+    """
+    return get_config().actor
+
+
 def reload_config() -> AppConfig:
     """Clear the cached config and return a freshly loaded :class:`AppConfig`.
 
