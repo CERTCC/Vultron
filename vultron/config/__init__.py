@@ -46,6 +46,7 @@ from vultron.config.app import (
     ServerConfig,
     YamlConfigSource,
     get_config,
+    load_actor_config,
     reload_config,
 )
 
@@ -57,5 +58,6 @@ __all__ = [
     "ServerConfig",
     "YamlConfigSource",
     "get_config",
+    "load_actor_config",
     "reload_config",
 ]
