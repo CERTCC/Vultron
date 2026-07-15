@@ -59,6 +59,10 @@ groups:
       expected: CK queued for sender
     postconditions:
     - description: Sender's CS state recorded as Vfd; CK emitted; receiver CS unchanged
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-03-001
+      note: 'CV shorthand wire-type mapping'
 
 - id: CSB-02
   title: Receive CF (Fix Ready)
@@ -99,6 +103,10 @@ groups:
       expected: CK queued for sender
     postconditions:
     - description: Sender's CS state recorded as VFd; CK emitted; receiver CS unchanged
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-03-002
+      note: 'CF shorthand wire-type mapping'
 
 - id: CSB-03
   title: Receive CD (Fix Deployed)
@@ -139,6 +147,10 @@ groups:
       expected: CK queued for sender
     postconditions:
     - description: Sender's CS state recorded as VFD; CK emitted; receiver CS unchanged
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-03-003
+      note: 'CD shorthand wire-type mapping'
 
 - id: CSB-04
   title: Receive CP (Public Aware)
@@ -177,6 +189,10 @@ groups:
       expected: CK queued for sender
     postconditions:
     - description: Receiver CS is public-aware; CK emitted
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-03-004
+      note: 'CP shorthand wire-type mapping'
 
   - id: CSB-04-002
     priority: MUST
@@ -212,6 +228,9 @@ groups:
     - rel_type: satisfies
       spec_id: VP-09-001
       note: Embargoes SHALL terminate immediately when information becomes public
+    - rel_type: satisfies
+      spec_id: MSM-03-004
+      note: 'CP shorthand wire-type mapping'
 
   - id: CSB-04-003
     priority: MUST
@@ -261,6 +280,9 @@ groups:
       note: >-
         SHALL initiate embargo termination upon becoming aware of publicly
         available information
+    - rel_type: satisfies
+      spec_id: MSM-03-004
+      note: 'CP shorthand wire-type mapping'
 
   - id: CSB-04-004
     priority: MUST
@@ -281,6 +303,10 @@ groups:
       expected: CK queued for sender; CS and EM states unchanged
     postconditions:
     - description: CK emitted; no state change
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-03-004
+      note: 'CP shorthand wire-type mapping'
 
 - id: CSB-05
   title: Receive CX (Exploit Public)
@@ -320,6 +346,10 @@ groups:
       expected: CK queued for sender
     postconditions:
     - description: Receiver CS is ···PX·; CK emitted
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-03-005
+      note: 'CX shorthand wire-type mapping'
 
   - id: CSB-05-002
     priority: MUST
@@ -355,6 +385,9 @@ groups:
     - rel_type: satisfies
       spec_id: VP-09-001
       note: Embargoes SHALL terminate immediately when information becomes public
+    - rel_type: satisfies
+      spec_id: MSM-03-005
+      note: 'CX shorthand wire-type mapping'
 
   - id: CSB-05-003
     priority: MUST
@@ -397,6 +430,9 @@ groups:
     - rel_type: satisfies
       spec_id: VP-11-002
       note: SHALL terminate embargo when exploit is public
+    - rel_type: satisfies
+      spec_id: MSM-03-005
+      note: 'CX shorthand wire-type mapping'
 
   - id: CSB-05-004
     priority: MUST
@@ -422,6 +458,10 @@ groups:
       expected: CK queued for sender
     postconditions:
     - description: Receiver CS is ···PX·; CK emitted
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-03-005
+      note: 'CX shorthand wire-type mapping'
 
   - id: CSB-05-005
     priority: MUST
@@ -442,6 +482,10 @@ groups:
       expected: CK queued for sender; CS and EM states unchanged
     postconditions:
     - description: CK emitted; no state change
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-03-005
+      note: 'CX shorthand wire-type mapping'
 
 - id: CSB-06
   title: Receive CA (Attacks Observed)
@@ -481,6 +525,10 @@ groups:
       expected: CK queued for sender
     postconditions:
     - description: Receiver CS is ···P·A; CK emitted
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-03-006
+      note: 'CA shorthand wire-type mapping'
 
   - id: CSB-06-002
     priority: MUST
@@ -517,6 +565,9 @@ groups:
     - rel_type: satisfies
       spec_id: VP-09-001
       note: Embargoes SHALL terminate immediately when information becomes public
+    - rel_type: satisfies
+      spec_id: MSM-03-006
+      note: 'CA shorthand wire-type mapping'
 
   - id: CSB-06-003
     priority: MUST
@@ -561,6 +612,9 @@ groups:
     - rel_type: satisfies
       spec_id: VP-11-006
       note: SHOULD terminate embargo when attacks are known to have occurred
+    - rel_type: satisfies
+      spec_id: MSM-03-006
+      note: 'CA shorthand wire-type mapping'
 
   - id: CSB-06-004
     priority: MUST
@@ -586,6 +640,10 @@ groups:
       expected: CK queued for sender
     postconditions:
     - description: Receiver CS is ···P·A; CK emitted
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-03-006
+      note: 'CA shorthand wire-type mapping'
 
   - id: CSB-06-005
     priority: MUST
@@ -606,6 +664,10 @@ groups:
       expected: CK queued for sender; CS and EM states unchanged
     postconditions:
     - description: CK emitted; no state change
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-03-006
+      note: 'CA shorthand wire-type mapping'
 
 - id: CSB-07
   title: Receive CE (CS Error)
@@ -645,6 +707,10 @@ groups:
       expected: GI queued for sender
     postconditions:
     - description: CK and GI emitted; CS state unchanged
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-03-007
+      note: 'CE shorthand wire-type mapping'
 
 - id: CSB-08
   title: Receive CK (CS Acknowledgment)
@@ -668,6 +734,10 @@ groups:
     lint_suppress:
     - testable_without_steps
     preconditions: []
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-03-008
+      note: 'CK shorthand wire-type mapping'
 
 - id: CSB-09
   title: Enter CS Vendor Aware (V)
