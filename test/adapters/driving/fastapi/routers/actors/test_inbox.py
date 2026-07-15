@@ -216,6 +216,32 @@ def test_store_nested_inbox_object_skips_when_no_body(datalayer):
     _store_nested_inbox_object(datalayer, activity, None)
 
 
+def test_store_nested_inbox_object_skips_case_ledger_entry(datalayer):
+    """CaseLedgerEntry must NOT be stored at parse time (SYNC-12-001/003).
+
+    PersistReceivedLogEntryNode is the only canonical writer.  Pre-storing
+    causes CheckLedgerEntryAlreadyStoredNode to skip effects on first
+    delivery.
+    """
+    from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+
+    entry = CaseLedgerEntry(
+        id_="urn:uuid:test-case/log/0",
+        case_id="urn:uuid:test-case",
+        log_index=0,
+        log_object_id="urn:uuid:some-obj",
+        event_type="offer_case_manager_role",
+    )
+    activity = as_Announce(actor=_ACTOR_URI, object_=entry)
+    raw_body = {
+        "object": entry.model_dump(
+            mode="json", by_alias=True, exclude_none=True
+        )
+    }
+    _store_nested_inbox_object(datalayer, activity, raw_body)
+    assert datalayer.read(entry.id_) is None
+
+
 # ---------------------------------------------------------------------------
 # _record_inbox_receipt
 # ---------------------------------------------------------------------------

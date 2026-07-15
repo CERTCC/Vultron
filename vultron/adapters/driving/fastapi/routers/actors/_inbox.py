@@ -175,6 +175,18 @@ def _store_nested_inbox_object(
         else cast(PersistableModel, nested)
     )
 
+    # CaseLedgerEntry objects must NOT be stored here: they are stored
+    # canonically by PersistReceivedLogEntryNode after effects are applied
+    # (SYNC-12-001/SYNC-12-003).  Pre-storing them would cause
+    # CheckLedgerEntryAlreadyStoredNode to skip effects on first delivery.
+    if getattr(typed_nested, "type_", None) == "CaseLedgerEntry":
+        logger.debug(
+            "Skipping parse-time store of inline CaseLedgerEntry '%s' "
+            "(deferred to PersistReceivedLogEntryNode).",
+            getattr(typed_nested, "id_", "?"),
+        )
+        return
+
     try:
         dl.create(object_to_record(typed_nested))
     except ValueError:
