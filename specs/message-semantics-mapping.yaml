@@ -1,0 +1,319 @@
+id: MSM
+title: Protocol Shorthand to MessageSemantics Mapping
+description: >-
+  Authoritative normative bridge from protocol message shorthand labels
+  (RS, EP, CV, etc.) used in behavioral conformance specs (RMB, EMB, CSB) to
+  their `MessageSemantics` enum values and corresponding AS2 wire-format
+  specifications in `specs/vultron-as2-mapping.yaml` (VAM). Each entry
+  provides one row in the three-hop chain: shorthand → `MessageSemantics`
+  enum value → VAM spec ID. Shorthands with no dedicated `MessageSemantics`
+  dispatch value (protocol-layer error and acknowledgment signals) are
+  explicitly documented as such. **Authoritative source**: the extractor
+  pattern constants in `vultron/wire/as2/extractor/_instances.py` and the
+  semantic registry in `vultron/semantic_registry/` define the mapping; this
+  spec makes it normative at the protocol layer.
+version: 0.1.0
+kind: domain
+scope:
+- prototype
+- production
+groups:
+- id: MSM-01
+  title: RM Protocol Message Shorthands
+  description: >-
+    Normative shorthand-to-semantic mappings for Report Management (RM)
+    protocol messages. These shorthands appear as `trigger.value` fields in
+    `specs/rm-behavior.yaml` (RMB). The mapping source is the report and case
+    entries in `vultron/semantic_registry/report.py` and
+    `vultron/semantic_registry/case.py`.
+  specs:
+  - id: MSM-01-001
+    priority: MUST
+    statement: >-
+      Protocol shorthand `RS` (Report Submission) MUST dispatch as
+      `MessageSemantics.SUBMIT_REPORT`; its AS2 wire form is
+      `Offer(VulnerabilityReport)` per VAM-02-002.
+    relationships:
+    - rel_type: derives_from
+      spec_id: VAM-02-002
+  - id: MSM-01-002
+    priority: MUST
+    statement: >-
+      Protocol shorthand `RI` (Report Invalid) MUST dispatch as
+      `MessageSemantics.INVALIDATE_REPORT`; its AS2 wire form is
+      `TentativeReject(Offer(VulnerabilityReport))` per VAM-02-005.
+    relationships:
+    - rel_type: derives_from
+      spec_id: VAM-02-005
+  - id: MSM-01-003
+    priority: MUST
+    statement: >-
+      Protocol shorthand `RV` (Report Valid) MUST dispatch as
+      `MessageSemantics.VALIDATE_REPORT`; its AS2 wire form is
+      `Accept(Offer(VulnerabilityReport))` per VAM-02-004.
+    relationships:
+    - rel_type: derives_from
+      spec_id: VAM-02-004
+  - id: MSM-01-004
+    priority: MUST
+    statement: >-
+      Protocol shorthand `RD` (Report/Case Deferred) MUST dispatch as
+      `MessageSemantics.DEFER_CASE`; its AS2 wire form is
+      `Ignore(VulnerabilityCase)` per VAM-03-004.
+    rationale: >-
+      A deferred report indicates the receiving actor will not engage with the
+      case at this time. The wire representation uses `Ignore(VulnerabilityCase)`
+      rather than a report-level verb because deferral is a case-participation
+      decision, not a report-validity judgment.
+    relationships:
+    - rel_type: derives_from
+      spec_id: VAM-03-004
+  - id: MSM-01-005
+    priority: MUST
+    statement: >-
+      Protocol shorthand `RA` (Report/Case Accepted) MUST dispatch as
+      `MessageSemantics.ENGAGE_CASE`; its AS2 wire form is
+      `Join(VulnerabilityCase)` per VAM-03-003.
+    rationale: >-
+      Accepting a report means the receiving actor commits to engaging with the
+      vulnerability case. The wire verb `Join` captures the case-participation
+      decision, symmetric with `Ignore` for `RD`.
+    relationships:
+    - rel_type: derives_from
+      spec_id: VAM-03-003
+  - id: MSM-01-006
+    priority: MUST
+    statement: >-
+      Protocol shorthand `RC` (Report Closed) MUST dispatch as
+      `MessageSemantics.CLOSE_REPORT`; its AS2 wire form is
+      `Reject(Offer(VulnerabilityReport))` per VAM-02-006.
+    relationships:
+    - rel_type: derives_from
+      spec_id: VAM-02-006
+  - id: MSM-01-007
+    priority: MUST
+    statement: >-
+      Protocol shorthand `RE` (Report Management Error) has no dedicated
+      `MessageSemantics` dispatch value and no entry in
+      `SEMANTICS_ACTIVITY_PATTERNS`; it is a protocol-layer error signal with
+      no AS2 wire representation in the current semantic registry.
+    testable: false
+    rationale: >-
+      `RE` is a protocol-level acknowledgment of an error condition in report
+      management. The AS2-based semantic dispatch pipeline does not currently
+      define a wire pattern or `MessageSemantics` value for error signals;
+      implementations handling `RE` must do so outside the
+      `find_matching_semantics()` dispatch path.
+  - id: MSM-01-008
+    priority: MUST
+    statement: >-
+      Protocol shorthand `RK` (Report Management Acknowledgment) MUST dispatch
+      as `MessageSemantics.ACK_REPORT`; its AS2 wire form is
+      `Read(Offer(VulnerabilityReport))` per VAM-02-003.
+    relationships:
+    - rel_type: derives_from
+      spec_id: VAM-02-003
+
+- id: MSM-02
+  title: EM Protocol Message Shorthands
+  description: >-
+    Normative shorthand-to-semantic mappings for Embargo Management (EM)
+    protocol messages. These shorthands appear as `trigger.value` fields in
+    `specs/em-behavior.yaml` (EMB). The mapping source is
+    `vultron/semantic_registry/embargo.py`. Note: embargo revision shorthands
+    (EV, EJ, EC) share wire formats with their initial-proposal counterparts
+    (EP, ER, EA); the distinction is contextual (active embargo present),
+    not structural at the AS2 wire level.
+  specs:
+  - id: MSM-02-001
+    priority: MUST
+    statement: >-
+      Protocol shorthand `EP` (Embargo Proposed) MUST dispatch as
+      `MessageSemantics.INVITE_TO_EMBARGO_ON_CASE`; its AS2 wire form is
+      `Invite(Event)[context=VulnerabilityCase]` per VAM-05-005.
+    relationships:
+    - rel_type: derives_from
+      spec_id: VAM-05-005
+  - id: MSM-02-002
+    priority: MUST
+    statement: >-
+      Protocol shorthand `EA` (Embargo Accepted) MUST dispatch as
+      `MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE`; its AS2 wire form
+      is `Accept(Invite(Event)[context=VulnerabilityCase])` per VAM-05-006.
+    relationships:
+    - rel_type: derives_from
+      spec_id: VAM-05-006
+  - id: MSM-02-003
+    priority: MUST
+    statement: >-
+      Protocol shorthand `EV` (Embargo Revision Proposed) MUST dispatch as
+      `MessageSemantics.INVITE_TO_EMBARGO_ON_CASE`; its AS2 wire form is
+      `Invite(Event)[context=VulnerabilityCase]` per VAM-05-005 — identical to
+      `EP`. The revision context is inferred from the presence of an active
+      embargo.
+    rationale: >-
+      EV, EJ, and EC are aliases for EP, ER, and EA at the wire layer
+      (`vultron/bt/messaging/states.py`). The distinction between initial
+      proposal and revision proposal is not encoded in the AS2 activity
+      structure; implementations MUST infer it from local EM state.
+    relationships:
+    - rel_type: derives_from
+      spec_id: VAM-05-005
+  - id: MSM-02-004
+    priority: MUST
+    statement: >-
+      Protocol shorthand `EJ` (Embargo Revision Rejected) MUST dispatch as
+      `MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE`; its AS2 wire form
+      is `Reject(Invite(Event)[context=VulnerabilityCase])` per VAM-05-007 —
+      identical to `ER`.
+    rationale: >-
+      EJ is an alias for ER at the wire layer. See MSM-02-003 rationale.
+    relationships:
+    - rel_type: derives_from
+      spec_id: VAM-05-007
+  - id: MSM-02-005
+    priority: MUST
+    statement: >-
+      Protocol shorthand `EC` (Embargo Revision Accepted) MUST dispatch as
+      `MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE`; its AS2 wire form
+      is `Accept(Invite(Event)[context=VulnerabilityCase])` per VAM-05-006 —
+      identical to `EA`.
+    rationale: >-
+      EC is an alias for EA at the wire layer. See MSM-02-003 rationale.
+    relationships:
+    - rel_type: derives_from
+      spec_id: VAM-05-006
+  - id: MSM-02-006
+    priority: MUST
+    statement: >-
+      Protocol shorthand `ER` (Embargo Rejected) MUST dispatch as
+      `MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE`; its AS2 wire form
+      is `Reject(Invite(Event)[context=VulnerabilityCase])` per VAM-05-007.
+    relationships:
+    - rel_type: derives_from
+      spec_id: VAM-05-007
+  - id: MSM-02-007
+    priority: MUST
+    statement: >-
+      Protocol shorthand `ET` (Embargo Terminated) MUST dispatch as
+      `MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE`; its AS2 wire form is
+      `Remove(Event)` per VAM-05-003.
+    relationships:
+    - rel_type: derives_from
+      spec_id: VAM-05-003
+  - id: MSM-02-008
+    priority: MUST
+    statement: >-
+      Protocol shorthand `EE` (Embargo Management Error) has no dedicated
+      `MessageSemantics` dispatch value and no entry in
+      `SEMANTICS_ACTIVITY_PATTERNS`; it is a protocol-layer error signal with
+      no AS2 wire representation in the current semantic registry.
+    testable: false
+    rationale: >-
+      Symmetric with MSM-01-007 (`RE`): embargo-layer error signals are
+      not modeled as AS2 semantic dispatch entries.
+  - id: MSM-02-009
+    priority: MUST
+    statement: >-
+      Protocol shorthand `EK` (Embargo Management Acknowledgment) has no
+      dedicated `MessageSemantics` dispatch value and no entry in
+      `SEMANTICS_ACTIVITY_PATTERNS`; it is a protocol-layer acknowledgment
+      signal with no AS2 wire representation in the current semantic registry.
+    testable: false
+    rationale: >-
+      Symmetric with MSM-01-007 (`RE`): embargo-layer acknowledgment signals
+      are not modeled as AS2 semantic dispatch entries.
+
+- id: MSM-03
+  title: CS Protocol Message Shorthands
+  description: >-
+    Normative shorthand-to-semantic mappings for CVD Case State (CS)
+    protocol messages. These shorthands appear as `trigger.value` fields in
+    `specs/cs-behavior.yaml` (CSB). The mapping source is
+    `vultron/semantic_registry/status.py`. CS status shorthands (CV, CF, CD,
+    CP, CX, CA) all share the `ADD_CASE_STATUS_TO_CASE` semantic; the
+    specific state transition is encoded in the `CaseStatus` object payload,
+    not in the activity type.
+  specs:
+  - id: MSM-03-001
+    priority: MUST
+    statement: >-
+      Protocol shorthand `CV` (Vendor Aware) MUST dispatch as
+      `MessageSemantics.ADD_CASE_STATUS_TO_CASE`; its AS2 wire form is
+      `Add(CaseStatus)[target=VulnerabilityCase]` per VAM-08-002. The
+      `CaseStatus` payload encodes the `vendor_aware` state flag.
+    relationships:
+    - rel_type: derives_from
+      spec_id: VAM-08-002
+  - id: MSM-03-002
+    priority: MUST
+    statement: >-
+      Protocol shorthand `CF` (Fix Ready) MUST dispatch as
+      `MessageSemantics.ADD_CASE_STATUS_TO_CASE`; its AS2 wire form is
+      `Add(CaseStatus)[target=VulnerabilityCase]` per VAM-08-002. The
+      `CaseStatus` payload encodes the `fix_ready` state flag.
+    relationships:
+    - rel_type: derives_from
+      spec_id: VAM-08-002
+  - id: MSM-03-003
+    priority: MUST
+    statement: >-
+      Protocol shorthand `CD` (Fix Deployed) MUST dispatch as
+      `MessageSemantics.ADD_CASE_STATUS_TO_CASE`; its AS2 wire form is
+      `Add(CaseStatus)[target=VulnerabilityCase]` per VAM-08-002. The
+      `CaseStatus` payload encodes the `fix_deployed` state flag.
+    relationships:
+    - rel_type: derives_from
+      spec_id: VAM-08-002
+  - id: MSM-03-004
+    priority: MUST
+    statement: >-
+      Protocol shorthand `CP` (Public Aware) MUST dispatch as
+      `MessageSemantics.ADD_CASE_STATUS_TO_CASE`; its AS2 wire form is
+      `Add(CaseStatus)[target=VulnerabilityCase]` per VAM-08-002. The
+      `CaseStatus` payload encodes the `public_aware` state flag.
+    relationships:
+    - rel_type: derives_from
+      spec_id: VAM-08-002
+  - id: MSM-03-005
+    priority: MUST
+    statement: >-
+      Protocol shorthand `CX` (Exploit Published) MUST dispatch as
+      `MessageSemantics.ADD_CASE_STATUS_TO_CASE`; its AS2 wire form is
+      `Add(CaseStatus)[target=VulnerabilityCase]` per VAM-08-002. The
+      `CaseStatus` payload encodes the `exploit_published` state flag.
+    relationships:
+    - rel_type: derives_from
+      spec_id: VAM-08-002
+  - id: MSM-03-006
+    priority: MUST
+    statement: >-
+      Protocol shorthand `CA` (Attacks Observed) MUST dispatch as
+      `MessageSemantics.ADD_CASE_STATUS_TO_CASE`; its AS2 wire form is
+      `Add(CaseStatus)[target=VulnerabilityCase]` per VAM-08-002. The
+      `CaseStatus` payload encodes the `attacks_observed` state flag.
+    relationships:
+    - rel_type: derives_from
+      spec_id: VAM-08-002
+  - id: MSM-03-007
+    priority: MUST
+    statement: >-
+      Protocol shorthand `CE` (Case State Error) has no dedicated
+      `MessageSemantics` dispatch value and no entry in
+      `SEMANTICS_ACTIVITY_PATTERNS`; it is a protocol-layer error signal with
+      no AS2 wire representation in the current semantic registry.
+    testable: false
+    rationale: >-
+      Symmetric with MSM-01-007 (`RE`): case-state-layer error signals are
+      not modeled as AS2 semantic dispatch entries.
+  - id: MSM-03-008
+    priority: MUST
+    statement: >-
+      Protocol shorthand `CK` (Case State Acknowledgment) has no dedicated
+      `MessageSemantics` dispatch value and no entry in
+      `SEMANTICS_ACTIVITY_PATTERNS`; it is a protocol-layer acknowledgment
+      signal with no AS2 wire representation in the current semantic registry.
+    testable: false
+    rationale: >-
+      Symmetric with MSM-01-007 (`RE`): case-state-layer acknowledgment
+      signals are not modeled as AS2 semantic dispatch entries.

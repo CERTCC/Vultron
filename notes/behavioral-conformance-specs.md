@@ -9,6 +9,7 @@ related_specs:
   - specs/vultron-protocol-spec.yaml
   - specs/meta-specifications.yaml
   - specs/spec-registry.yaml
+  - specs/message-semantics-mapping.yaml
 related_notes:
   - notes/specs-vs-adrs.md
   - notes/bt-integration.md
@@ -208,9 +209,9 @@ bridges these shorthands to the implementation:
    domain-layer semantic intent used for dispatch
 3. **VAM spec item ID** (e.g., `VAM-05-005`) — the wire-format mapping
 
-This three-hop chain will be captured normatively in
-`specs/message-semantics-mapping.yaml` (MSM prefix, tracked in #1449).
-Each MSM item will provide one row in the flat table:
+This three-hop chain is captured normatively in
+`specs/message-semantics-mapping.yaml` (MSM prefix).
+Each MSM item provides one row in the flat table:
 shorthand → MessageSemantics → VAM ID.
 
 **Authoring rule for behavioral specs**: when writing a `trigger.value` field

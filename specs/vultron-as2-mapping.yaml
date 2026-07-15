@@ -95,19 +95,39 @@ groups:
   - id: VAM-02-002
     priority: MUST
     statement: '`SUBMIT_REPORT` MUST be represented as `Offer(VulnerabilityReport)`'
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-01-001
+      note: RS shorthand → SUBMIT_REPORT → this wire form
   - id: VAM-02-003
     priority: MUST
     statement: '`ACK_REPORT` MUST be represented as `Read(Offer(VulnerabilityReport))`'
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-01-008
+      note: RK shorthand → ACK_REPORT → this wire form
   - id: VAM-02-004
     priority: MUST
     statement: '`VALIDATE_REPORT` MUST be represented as `Accept(Offer(VulnerabilityReport))`'
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-01-003
+      note: RV shorthand → VALIDATE_REPORT → this wire form
   - id: VAM-02-005
     priority: MUST
     statement: >-
       `INVALIDATE_REPORT` MUST be represented as `TentativeReject(Offer(VulnerabilityReport))`
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-01-002
+      note: RI shorthand → INVALIDATE_REPORT → this wire form
   - id: VAM-02-006
     priority: MUST
     statement: '`CLOSE_REPORT` MUST be represented as `Reject(Offer(VulnerabilityReport))`'
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-01-006
+      note: RC shorthand → CLOSE_REPORT → this wire form
 - id: VAM-03
   title: Case Management Messages
   specs:
@@ -120,9 +140,17 @@ groups:
   - id: VAM-03-003
     priority: MUST
     statement: '`ENGAGE_CASE` MUST be represented as `Join(VulnerabilityCase)`'
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-01-005
+      note: RA shorthand → ENGAGE_CASE → this wire form
   - id: VAM-03-004
     priority: MUST
     statement: '`DEFER_CASE` MUST be represented as `Ignore(VulnerabilityCase)`'
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-01-004
+      note: RD shorthand → DEFER_CASE → this wire form
   - id: VAM-03-005
     priority: MUST
     statement: >-
@@ -182,6 +210,10 @@ groups:
   - id: VAM-05-003
     priority: MUST
     statement: '`REMOVE_EMBARGO_EVENT_FROM_CASE` MUST be represented as `Remove(Event)`'
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-02-007
+      note: ET shorthand → REMOVE_EMBARGO_EVENT_FROM_CASE → this wire form
   - id: VAM-05-004
     priority: MUST
     statement: >-
@@ -190,14 +222,35 @@ groups:
     priority: MUST
     statement: >-
       `INVITE_TO_EMBARGO_ON_CASE` MUST be represented as `Invite(Event)[context=VulnerabilityCase]`
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-02-001
+      note: EP shorthand → INVITE_TO_EMBARGO_ON_CASE → this wire form
+    - rel_type: satisfies
+      spec_id: MSM-02-003
+      note: EV shorthand (revision) → same wire form as EP
   - id: VAM-05-006
     priority: MUST
     statement: >-
       `ACCEPT_INVITE_TO_EMBARGO_ON_CASE` MUST be represented as `Accept(Invite(Event)[context=VulnerabilityCase])`
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-02-002
+      note: EA shorthand → ACCEPT_INVITE_TO_EMBARGO_ON_CASE → this wire form
+    - rel_type: satisfies
+      spec_id: MSM-02-005
+      note: EC shorthand (revision accepted) → same wire form as EA
   - id: VAM-05-007
     priority: MUST
     statement: >-
       `REJECT_INVITE_TO_EMBARGO_ON_CASE` MUST be represented as `Reject(Invite(Event)[context=VulnerabilityCase])`
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-02-006
+      note: ER shorthand → REJECT_INVITE_TO_EMBARGO_ON_CASE → this wire form
+    - rel_type: satisfies
+      spec_id: MSM-02-004
+      note: EJ shorthand (revision rejected) → same wire form as ER
 - id: VAM-06
   title: Case Participant Management Messages
   specs:
@@ -237,6 +290,25 @@ groups:
     priority: MUST
     statement: >-
       `ADD_CASE_STATUS_TO_CASE` MUST be represented as `Add(CaseStatus)[target=VulnerabilityCase]`
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-03-001
+      note: CV shorthand → ADD_CASE_STATUS_TO_CASE → this wire form
+    - rel_type: satisfies
+      spec_id: MSM-03-002
+      note: CF shorthand → ADD_CASE_STATUS_TO_CASE → this wire form
+    - rel_type: satisfies
+      spec_id: MSM-03-003
+      note: CD shorthand → ADD_CASE_STATUS_TO_CASE → this wire form
+    - rel_type: satisfies
+      spec_id: MSM-03-004
+      note: CP shorthand → ADD_CASE_STATUS_TO_CASE → this wire form
+    - rel_type: satisfies
+      spec_id: MSM-03-005
+      note: CX shorthand → ADD_CASE_STATUS_TO_CASE → this wire form
+    - rel_type: satisfies
+      spec_id: MSM-03-006
+      note: CA shorthand → ADD_CASE_STATUS_TO_CASE → this wire form
   - id: VAM-08-003
     priority: MUST
     statement: '`CREATE_PARTICIPANT_STATUS` MUST be represented as `Create(ParticipantStatus)`'
