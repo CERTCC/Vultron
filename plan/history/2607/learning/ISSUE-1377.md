@@ -25,3 +25,6 @@ the item is not re-queued.
 raise, trace the full call stack to every exception handler above the raise site. If any
 handler has re-queue / retry semantics, the new exception must be caught below that
 handler — either at the dispatch level or in a dedicated gate wrapper.
+
+**Promoted**: 2026-07-15 — captured in notes/inbox-pipeline.md, AGENTS.md.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1458>8>8>8>8>.

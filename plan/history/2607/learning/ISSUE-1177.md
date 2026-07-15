@@ -1,7 +1,7 @@
 ---
 title: Domain sweep audit verification pattern for call-out point completeness
 type: learning
-timestamp: 2026-07-14
+timestamp: '2026-07-14T00:00:00Z'
 source: ISSUE-1177
 ---
 
@@ -21,3 +21,6 @@ For FUZZ-08h-style completeness audits, the effective verification sequence is:
 
 The audit is cheap once linters and tests are green — the catalog is the ground
 truth; the code is what needs to match it.
+
+**Promoted**: 2026-07-15 — captured in notes/bt-fuzzer-nodes-report-management.md, AGENTS.md.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1458>8>8>8>8>.

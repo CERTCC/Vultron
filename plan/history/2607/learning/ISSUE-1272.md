@@ -1,7 +1,7 @@
 ---
 title: Reconcile spec/issue letter vs. intent when they conflict with architecture
 type: learning
-timestamp: 2026-07-10
+timestamp: '2026-07-10T00:00:00Z'
 source: ISSUE-1272
 ---
 
@@ -42,3 +42,6 @@ Scope boundary captured as follow-up #1319: no production dispatch path
 resolves a per-actor ActorConfig yet, so the flag is reachable only via
 injected config (unit-tested). Runtime resolution + vendor seed-config
 (needed by #1221) tracked there.
+
+**Promoted**: 2026-07-15 — captured in notes/behavioral-conformance-specs.md.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1458>8>8>8>8>.

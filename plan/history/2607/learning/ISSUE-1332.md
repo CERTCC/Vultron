@@ -19,3 +19,6 @@ without triggering the hook interference.
 
 Alternative: `git merge origin/main` also works and auto-resolves most conflicts,
 but produces a merge commit rather than a linear history.
+
+**Promoted**: 2026-07-15 — captured in AGENTS.md.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1458>8>8>8>8>.

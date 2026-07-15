@@ -19,3 +19,6 @@ START-state variant per VP-03-010 (RE+GI+RK). The review found `RMB-07` and
 `RMB-08` missing their START-state items while `RMB-02` through `RMB-06`
 each had one. The pattern should be systematically applied across all R*
 message groups.
+
+**Promoted**: 2026-07-15 — captured in notes/behavioral-conformance-specs.md.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1458>8>8>8>8>.

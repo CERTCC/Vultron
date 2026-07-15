@@ -1,7 +1,7 @@
 ---
 title: "Happy-path DataLayer seeds must include origin activities for use cases that call dl.read()"
 type: learning
-timestamp: "2026-07-10"
+timestamp: '2026-07-10T00:00:00Z'
 source: ISSUE-1326
 ---
 
@@ -26,3 +26,6 @@ the fixture so `dl.read()` resolves correctly.
 **Assertion depth**: the Accept happy path emits both an Accept notification
 and an Invite (2 activities). Assert `len(outbox) >= 2` — not `>= 1` — to
 catch the case where only one of the two required activities was emitted.
+
+**Promoted**: 2026-07-15 — captured in notes/datalayer-design.md.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1458>8>8>8>8>.

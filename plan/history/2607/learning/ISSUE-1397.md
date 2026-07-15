@@ -1,7 +1,7 @@
 ---
 title: "BTND-03-004 partial scope: participant_accepted_status and owner_initial_status still flat"
 type: learning
-timestamp: 2026-07-14
+timestamp: '2026-07-14T00:00:00Z'
 source: ISSUE-1397
 ---
 
@@ -20,3 +20,6 @@ BTND-03-004 and will be addressed in follow-up #1418.
 **Lesson**: When implementing BTND-03-004 fixes, use grep to find ALL `register_key` calls
 within the composite subtree and audit every key for whether it crosses concurrent execution
 boundaries, not just the keys explicitly named in the issue.
+
+**Promoted**: 2026-07-15 — captured in notes/bt-integration.md.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1458>8>8>8>8>.

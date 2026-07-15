@@ -20,3 +20,6 @@ if result.status != Status.SUCCESS:
 
 Raising inside the outer `except Exception` handler ensures the calling node
 returns FAILURE rather than SUCCESS.
+
+**Promoted**: 2026-07-15 — captured in notes/bt-integration.md.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1458>8>8>8>8>.
