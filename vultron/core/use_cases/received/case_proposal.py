@@ -49,8 +49,10 @@ from vultron.core.models.events.case_proposal import (
     CreateCaseProposalReceivedEvent,
     RejectCaseProposalReceivedEvent,
 )
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.case_persistence import (
+    CaseOutboxPersistence,
+    CasePersistence,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -167,7 +169,7 @@ class AcceptCaseProposalReceivedUseCase:
 
     def __init__(
         self,
-        dl: DataLayer,
+        dl: CasePersistence,
         request: AcceptCaseProposalReceivedEvent,
     ) -> None:
         self._dl = dl
@@ -228,7 +230,7 @@ class RejectCaseProposalReceivedUseCase:
 
     def __init__(
         self,
-        dl: DataLayer,
+        dl: CasePersistence,
         request: RejectCaseProposalReceivedEvent,
     ) -> None:
         self._dl = dl
