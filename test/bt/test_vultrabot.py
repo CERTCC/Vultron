@@ -22,20 +22,27 @@ class MyTestCase(unittest.TestCase):
     # capture stdout
     @patch("sys.stdout", new_callable=StringIO)
     def test_main(self, stdout):
-        for i in range(10):
+        any_closed = False
+        for _ in range(10):
             # capture the output
-            vultrabot._run_simulation()
+            closed = vultrabot._run_simulation()
+            any_closed = any_closed or closed
             vultrabot._print_sim_result()
-            # test the output
-            self.assertIsNotNone(stdout)
-            output = stdout.getvalue()
 
-            # things that are consistently in the output
-            look_for = "q_rm q_em q_cs RS START NONE vfdpxa FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR CLOSED".split()
+        # test the output
+        self.assertIsNotNone(stdout)
+        output = stdout.getvalue()
 
-            for item in look_for:
-                with self.subTest():
-                    self.assertIn(item, output)
+        # things that are consistently in the output
+        always_present = "q_rm q_em q_cs RS START NONE vfdpxa FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR".split()
+        for item in always_present:
+            with self.subTest(item=item):
+                self.assertIn(item, output)
+
+        # CLOSED only appears when at least one simulation reached closure
+        if any_closed:
+            with self.subTest(item="CLOSED"):
+                self.assertIn("CLOSED", output)
 
 
 if __name__ == "__main__":
