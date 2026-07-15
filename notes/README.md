@@ -319,6 +319,18 @@ configuration.
 
 ## Case and Data Model
 
+**`lifecycle-staged-types.md`**
+Design guidance for lifecycle-staged domain types (ADR-0033): the field-set
+governing principle (a milestone earns a type only when it changes the
+guaranteed-field set), the three-class analysis (only `VulnerabilityCase` gets
+staged types — `IncomingReport` → `Case` → `EmbargoedCase`; `ParticipantStatus`
+and `CaseStatus` use predicates + state groups), the `model_validate`-at-edge
+read mechanism, the data-as-source-of-truth transition model, the DataLayer
+round-trip constraint, and the per-dimension-status decomposition trailhead.
+**Load when**: designing or reviewing staged domain types, deciding whether a
+lifecycle milestone should be a type vs. a predicate/precondition, or working on
+`specs/lifecycle-staged-types.yaml` (LST) requirements.
+
 **`case-state-model.md`**
 VFD/PXA case state hypercube, potential actions per state, measuring CVD
 quality, participant-specific vs participant-agnostic state, append-only

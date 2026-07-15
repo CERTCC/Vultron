@@ -103,6 +103,8 @@ General information about architectural decision records is available at <https:
 - [ADR-0030 Publish Leaf Expansion: Single Actuator →
   Draft-Review-Submit Pipeline](0030-publish-leaf-draft-review-submit-pipeline.md)
   *(provisional)*
+- [ADR-0033 Lifecycle-Staged Domain Types Anchored on Guaranteed-Field
+  Changes](0033-lifecycle-staged-case-types.md)
 
 ## Rejected ADRs
 
