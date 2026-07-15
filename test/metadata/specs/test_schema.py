@@ -802,3 +802,123 @@ def test_behavioral_spec_round_trips_through_yaml(tmp_path):
     assert group.trigger is not None
     assert group.trigger.type == TriggerType.MESSAGE_RECEIVED
     assert group.trigger.value == "EP"
+
+
+# ---------------------------------------------------------------------------
+# SR-02-005 — SpecKind enum completeness canary
+# ---------------------------------------------------------------------------
+
+
+def test_spec_kind_contains_exactly_six_tiers():
+    # SR-02-005 canary: catches silent removal or misspelling of any tier.
+    expected = {
+        "general",
+        "pattern",
+        "domain",
+        "language",
+        "implementation",
+        "dev-process",
+    }
+    assert set(SpecKind) == expected
+
+
+# ---------------------------------------------------------------------------
+# SpecKind.DEV_PROCESS round-trip through StatementSpec / SpecGroup / SpecFile
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "model_cls,kwargs",
+    [
+        (
+            StatementSpec,
+            {
+                "id": "DP-01-001",
+                "priority": RFC2119Priority.MUST,
+                "statement": "DP-01-001 MUST document the dev process",
+                "kind": SpecKind.DEV_PROCESS,
+            },
+        ),
+        (
+            SpecGroup,
+            {
+                "id": "DP-01",
+                "title": "Dev-process group",
+                "kind": SpecKind.DEV_PROCESS,
+                "specs": [
+                    StatementSpec(
+                        id="DP-01-001",
+                        priority=RFC2119Priority.MUST,
+                        statement="DP-01-001 MUST document the dev process",
+                    )
+                ],
+            },
+        ),
+        (
+            SpecFile,
+            {
+                "id": "DP",
+                "title": "Dev-process spec file",
+                "description": "A spec file with kind dev-process",
+                "version": "0.1",
+                "kind": SpecKind.DEV_PROCESS,
+                "scope": [Scope.PRODUCTION],
+                "groups": [
+                    SpecGroup(
+                        id="DP-01",
+                        title="Dev-process group",
+                        specs=[
+                            StatementSpec(
+                                id="DP-01-001",
+                                priority=RFC2119Priority.MUST,
+                                statement="DP-01-001 MUST document the dev process",
+                            )
+                        ],
+                    )
+                ],
+            },
+        ),
+    ],
+    ids=["StatementSpec", "SpecGroup", "SpecFile"],
+)
+def test_dev_process_kind_round_trip(model_cls, kwargs):
+    """kind: dev-process round-trips through each model layer (AC-1)."""
+    obj = model_cls(**kwargs)
+    assert obj.kind == SpecKind.DEV_PROCESS
+    assert obj.kind == "dev-process"
+
+
+# ---------------------------------------------------------------------------
+# SpecFile with kind: dev-process passes load_registry (AC-3)
+# ---------------------------------------------------------------------------
+
+
+def test_load_registry_dev_process_kind(tmp_path):
+    """kind: dev-process round-trips through load_registry; effective kind and priority are correct (AC-3)."""
+    data = {
+        "id": "DP",
+        "title": "Dev-process spec file",
+        "description": "Spec file for dev-process kind smoke test",
+        "version": "0.1",
+        "kind": "dev-process",
+        "scope": ["production"],
+        "groups": [
+            {
+                "id": "DP-01",
+                "title": "Dev-process group",
+                "specs": [
+                    {
+                        "id": "DP-01-001",
+                        "priority": "MUST",
+                        "statement": "DP-01-001 MUST document the dev process",
+                        "rationale": "Ensures dev-process specs are loadable",
+                    }
+                ],
+            }
+        ],
+    }
+    (tmp_path / "dev_process.yaml").write_text(yaml.dump(data))
+    registry = load_registry(tmp_path)
+    spec = registry.get("DP-01-001")
+    assert registry.get_effective_kind("DP-01-001") == SpecKind.DEV_PROCESS
+    assert spec.priority == RFC2119Priority.MUST
