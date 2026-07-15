@@ -21,6 +21,9 @@ scope:
 groups:
 - id: CSB-01
   title: Receive CV (Vendor Aware)
+  description: >-
+    Wire-type mapping — see MSM-03-001 (CV → ADD_CASE_STATUS_TO_CASE →
+    Add(CaseStatus)[target=VulnerabilityCase]; CaseStatus payload encodes vendor_aware).
   trigger:
     type: message_received
     value: CV
@@ -59,6 +62,9 @@ groups:
 
 - id: CSB-02
   title: Receive CF (Fix Ready)
+  description: >-
+    Wire-type mapping — see MSM-03-002 (CF → ADD_CASE_STATUS_TO_CASE →
+    Add(CaseStatus)[target=VulnerabilityCase]; CaseStatus payload encodes fix_ready).
   trigger:
     type: message_received
     value: CF
@@ -96,6 +102,9 @@ groups:
 
 - id: CSB-03
   title: Receive CD (Fix Deployed)
+  description: >-
+    Wire-type mapping — see MSM-03-003 (CD → ADD_CASE_STATUS_TO_CASE →
+    Add(CaseStatus)[target=VulnerabilityCase]; CaseStatus payload encodes fix_deployed).
   trigger:
     type: message_received
     value: CD
@@ -133,6 +142,9 @@ groups:
 
 - id: CSB-04
   title: Receive CP (Public Aware)
+  description: >-
+    Wire-type mapping — see MSM-03-004 (CP → ADD_CASE_STATUS_TO_CASE →
+    Add(CaseStatus)[target=VulnerabilityCase]; CaseStatus payload encodes public_aware).
   trigger:
     type: message_received
     value: CP
@@ -272,6 +284,9 @@ groups:
 
 - id: CSB-05
   title: Receive CX (Exploit Public)
+  description: >-
+    Wire-type mapping — see MSM-03-005 (CX → ADD_CASE_STATUS_TO_CASE →
+    Add(CaseStatus)[target=VulnerabilityCase]; CaseStatus payload encodes exploit_published).
   trigger:
     type: message_received
     value: CX
@@ -430,6 +445,9 @@ groups:
 
 - id: CSB-06
   title: Receive CA (Attacks Observed)
+  description: >-
+    Wire-type mapping — see MSM-03-006 (CA → ADD_CASE_STATUS_TO_CASE →
+    Add(CaseStatus)[target=VulnerabilityCase]; CaseStatus payload encodes attacks_observed).
   trigger:
     type: message_received
     value: CA
@@ -591,6 +609,9 @@ groups:
 
 - id: CSB-07
   title: Receive CE (CS Error)
+  description: >-
+    Wire-type mapping — see MSM-03-007 (CE has no dedicated MessageSemantics
+    dispatch value and no AS2 wire representation in the current semantic registry).
   trigger:
     type: message_received
     value: CE
@@ -627,6 +648,9 @@ groups:
 
 - id: CSB-08
   title: Receive CK (CS Acknowledgment)
+  description: >-
+    Wire-type mapping — see MSM-03-008 (CK has no dedicated MessageSemantics
+    dispatch value and no AS2 wire representation in the current semantic registry).
   trigger:
     type: message_received
     value: CK

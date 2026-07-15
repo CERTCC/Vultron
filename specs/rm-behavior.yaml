@@ -18,6 +18,7 @@ scope:
 groups:
 - id: RMB-01
   title: Receive RS (Report Submission)
+  description: Wire-type mapping — see MSM-01-001 (RS → SUBMIT_REPORT → Offer(VulnerabilityReport)).
   trigger:
     type: message_received
     value: RS
@@ -190,6 +191,7 @@ groups:
 
 - id: RMB-02
   title: Receive RI (Report Invalid)
+  description: Wire-type mapping — see MSM-01-002 (RI → INVALIDATE_REPORT → TentativeReject(Offer(VulnerabilityReport))).
   trigger:
     type: message_received
     value: RI
@@ -269,6 +271,7 @@ groups:
 
 - id: RMB-03
   title: Receive RV (Report Valid)
+  description: Wire-type mapping — see MSM-01-003 (RV → VALIDATE_REPORT → Accept(Offer(VulnerabilityReport))).
   trigger:
     type: message_received
     value: RV
@@ -347,6 +350,7 @@ groups:
 
 - id: RMB-04
   title: Receive RD (Report Deferred)
+  description: Wire-type mapping — see MSM-01-004 (RD → DEFER_CASE → Ignore(VulnerabilityCase)).
   trigger:
     type: message_received
     value: RD
@@ -424,6 +428,7 @@ groups:
 
 - id: RMB-05
   title: Receive RA (Report Accepted)
+  description: Wire-type mapping — see MSM-01-005 (RA → ENGAGE_CASE → Join(VulnerabilityCase)).
   trigger:
     type: message_received
     value: RA
@@ -503,6 +508,7 @@ groups:
 
 - id: RMB-06
   title: Receive RC (Report Closed)
+  description: Wire-type mapping — see MSM-01-006 (RC → CLOSE_REPORT → Reject(Offer(VulnerabilityReport))).
   trigger:
     type: message_received
     value: RC
@@ -604,6 +610,9 @@ groups:
 
 - id: RMB-07
   title: Receive RE (Report Error)
+  description: >-
+    Wire-type mapping — see MSM-01-007 (RE has no dedicated MessageSemantics
+    dispatch value and no AS2 wire representation in the current semantic registry).
   trigger:
     type: message_received
     value: RE
@@ -681,6 +690,7 @@ groups:
 
 - id: RMB-08
   title: Receive RK (Report Acknowledgment)
+  description: Wire-type mapping — see MSM-01-008 (RK → ACK_REPORT → Read(Offer(VulnerabilityReport))).
   trigger:
     type: message_received
     value: RK

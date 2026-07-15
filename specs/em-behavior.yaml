@@ -21,6 +21,9 @@ scope:
 groups:
 - id: EMB-01
   title: Receive EP (Embargo Proposed)
+  description: >-
+    Wire-type mapping — see MSM-02-001 (EP → INVITE_TO_EMBARGO_ON_CASE →
+    Invite(Event)[context=VulnerabilityCase]).
   trigger:
     type: message_received
     value: EP
@@ -167,6 +170,9 @@ groups:
 
 - id: EMB-02
   title: Receive EA (Embargo Accepted)
+  description: >-
+    Wire-type mapping — see MSM-02-002 (EA → ACCEPT_INVITE_TO_EMBARGO_ON_CASE →
+    Accept(Invite(Event)[context=VulnerabilityCase])).
   trigger:
     type: message_received
     value: EA
@@ -260,6 +266,9 @@ groups:
 
 - id: EMB-03
   title: Receive EV (Embargo Revision Proposed)
+  description: >-
+    Wire-type mapping — see MSM-02-003 (EV → INVITE_TO_EMBARGO_ON_CASE →
+    Invite(Event)[context=VulnerabilityCase]; same wire form as EP).
   trigger:
     type: message_received
     value: EV
@@ -367,6 +376,9 @@ groups:
 
 - id: EMB-04
   title: Receive EJ (Embargo Revision Rejected)
+  description: >-
+    Wire-type mapping — see MSM-02-004 (EJ → REJECT_INVITE_TO_EMBARGO_ON_CASE →
+    Reject(Invite(Event)[context=VulnerabilityCase]); same wire form as ER).
   trigger:
     type: message_received
     value: EJ
@@ -437,6 +449,9 @@ groups:
 
 - id: EMB-05
   title: Receive EC (Embargo Revision Accepted)
+  description: >-
+    Wire-type mapping — see MSM-02-005 (EC → ACCEPT_INVITE_TO_EMBARGO_ON_CASE →
+    Accept(Invite(Event)[context=VulnerabilityCase]); same wire form as EA).
   trigger:
     type: message_received
     value: EC
@@ -508,6 +523,9 @@ groups:
 
 - id: EMB-06
   title: Receive ER (Embargo Rejected)
+  description: >-
+    Wire-type mapping — see MSM-02-006 (ER → REJECT_INVITE_TO_EMBARGO_ON_CASE →
+    Reject(Invite(Event)[context=VulnerabilityCase])).
   trigger:
     type: message_received
     value: ER
@@ -545,6 +563,7 @@ groups:
 
 - id: EMB-07
   title: Receive ET (Embargo Terminated)
+  description: Wire-type mapping — see MSM-02-007 (ET → REMOVE_EMBARGO_EVENT_FROM_CASE → Remove(Event)).
   trigger:
     type: message_received
     value: ET
@@ -633,6 +652,9 @@ groups:
 
 - id: EMB-08
   title: Receive EE (Embargo Error)
+  description: >-
+    Wire-type mapping — see MSM-02-008 (EE has no dedicated MessageSemantics
+    dispatch value and no AS2 wire representation in the current semantic registry).
   trigger:
     type: message_received
     value: EE
@@ -668,6 +690,9 @@ groups:
 
 - id: EMB-09
   title: Receive EK (Embargo Acknowledgment)
+  description: >-
+    Wire-type mapping — see MSM-02-009 (EK has no dedicated MessageSemantics
+    dispatch value and no AS2 wire representation in the current semantic registry).
   trigger:
     type: message_received
     value: EK

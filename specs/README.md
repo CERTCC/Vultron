@@ -76,7 +76,7 @@ Load additional files only when the task touches the relevant area. See the
 | Case / state management | `case-management.yaml`, `state-machine.yaml`, `case-ledger-processing.yaml` |
 | Lifecycle-staged domain types | `lifecycle-staged-types.yaml`, `notes/lifecycle-staged-types.md` |
 | CaseProposal protocol (distributed case actor initialization) | `case-proposal.yaml` |
-| Protocol conformance | `vultron-protocol-spec.yaml`, `vultron-as2-mapping.yaml` |
+| Protocol conformance | `vultron-protocol-spec.yaml`, `vultron-as2-mapping.yaml`, `message-semantics-mapping.yaml` |
 | Wire vocabulary | `vocabulary-model.yaml` |
 | Activity factory functions | `activity-factories.yaml` |
 | Response generation / outbox | `response-format.yaml`, `outbox.yaml` |
@@ -173,11 +173,20 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 
 **Semantic–Wire Mapping**:
 
+- **`message-semantics-mapping.yaml`** - Normative bridge from protocol message
+  shorthand labels (RS, EP, CV, etc.) used in behavioral conformance specs
+  (RMB, EMB, CSB) to their `MessageSemantics` enum values and corresponding AS2
+  wire-format entries in `vultron-as2-mapping.yaml`. Closes the three-hop traceability
+  chain: shorthand → `MessageSemantics` → VAM spec ID. Also explicitly documents
+  shorthands (RE, EE, EK, CE, CK) that have no AS2 semantic dispatch entry.
+  (MSM-01 through MSM-03)
+
 - **`vultron-as2-mapping.yaml`** - Authoritative mapping from each `MessageSemantics`
   enum value to its ActivityStreams 2.0 wire representation: activity type,
   object type, target/context constraints, and nested-pattern conventions
   (VAM-01 through VAM-09). Foundational for hexagonal-architecture wire
-  replaceability (ARCH-07-001).
+  replaceability (ARCH-07-001). VAM items cross-reference MSM items via
+  `satisfies` relationships where protocol shorthands map to this spec.
 
 **Behavior Tree Integration** (optional for complex workflows):
 
@@ -459,6 +468,7 @@ is reserved for `testability.yaml`).
 | `IO` | `inbox-orchestration.yaml` |
 | `IE` | `inbox-endpoint.yaml` |
 | `IMPLTS` | `tech-stack.yaml` |
+| `MSM` | `message-semantics-mapping.yaml` |
 | `MV` | `message-validation.yaml` |
 | `NF` | `notes-frontmatter.yaml` |
 | `SR` | `spec-registry.yaml` |
