@@ -195,25 +195,24 @@ git commit -m "docs: plan issue #${ISSUE_NUMBER} — <short title>
 - <bullet: what was added or changed>
 
 Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
-git push -u origin "plan/${ISSUE_NUMBER}-<slug>"
-
-gh pr create --repo CERTCC/Vultron \
-  --title "docs: plan issue #${ISSUE_NUMBER} — <short title>" \
-  --body "- Closes #${ISSUE_NUMBER}
-
-## Summary
-
-<1–2 sentences: what was planned and what docs/specs were produced>
-
-## Changes
-
-- <bullet: what was added or changed>" \
-  --label "specs-notes"
 ```
 
-> For Ideas and Concerns, `Closes #N` in the PR body closes the issue on
-> merge. For Epics, omit `Closes #N` — the Epic must not be closed by the
-> docs PR.
+Then invoke the `create-pr` skill:
+
+```text
+type:         docs
+title:        docs: plan issue #<N> — <short title>
+body:         <composed per pr-body-guide.md docs template>
+labels:       specs-notes
+issue_number: <N>   (omit for Epics — the Epic must not be closed by the docs PR)
+```
+
+`create-pr` performs the rebase on `origin/main`, runs linters, pushes, and
+returns the PR URL. Use the returned URL in the `archive-history` call (Phase 9).
+
+> For Ideas and Concerns, include `issue_number` so the PR body contains
+> `Closes #N`. For Epics, omit `issue_number` — the Epic must not be closed
+> by the docs PR.
 
 ### Phase 8 — Create Implementation Issues
 

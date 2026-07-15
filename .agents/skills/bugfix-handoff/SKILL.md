@@ -77,7 +77,7 @@ Then confirm to the user:
 ## Constraints
 
 - Do **NOT** attempt further bug resolution after this skill is invoked.
-- Do **NOT** open a PR — the fix is incomplete.
+- Do **NOT** open a PR — the fix is incomplete. Do **NOT** invoke `create-pr`.
 - Do **NOT** run linters or tests unless their output was already
   in-flight and you need to capture it for the handoff notes.
 - Do **NOT** wait for perfect information — document what you have now.
