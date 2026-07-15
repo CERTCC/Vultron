@@ -244,6 +244,7 @@ nav:
       - Publish Leaf Draft-Review-Submit Pipeline: 'adr/0030-publish-leaf-draft-review-submit-pipeline.md'
       - vultron/enums/ Neutral Layer: 'adr/0031-vultron-enums-neutral-layer.md'
       - Validate at Edge, Promote to Core: 'adr/0032-validate-at-edge-promote-to-core.md'
+      - Lifecycle-Staged Domain Types: 'adr/0033-lifecycle-staged-case-types.md'
   - About:
     - Contributing: 'about/contributing.md'
     - FAQ: 'about/faq.md'

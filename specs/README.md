@@ -74,6 +74,7 @@ Load additional files only when the task touches the relevant area. See the
 | Inbox orchestration (core BT module + InboxOutcome seam) | `inbox-orchestration.yaml` |
 | Behavior Trees | `behavior-tree-integration.yaml`, `behavior-tree-node-design.yaml`, `bt-composability.yaml`, `triggerable-behaviors.yaml`, `vultron/core/use_cases/triggers/AGENTS.md` |
 | Case / state management | `case-management.yaml`, `state-machine.yaml`, `case-ledger-processing.yaml` |
+| Lifecycle-staged domain types | `lifecycle-staged-types.yaml`, `notes/lifecycle-staged-types.md` |
 | CaseProposal protocol (distributed case actor initialization) | `case-proposal.yaml` |
 | Protocol conformance | `vultron-protocol-spec.yaml`, `vultron-as2-mapping.yaml` |
 | Wire vocabulary | `vocabulary-model.yaml` |
