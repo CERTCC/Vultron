@@ -948,3 +948,22 @@ class TestEmitNoteDuplicateRecommendationToOwnerNodeContent:
             case_id=_CASE_ID,
         )
         assert node.offer_content is None
+
+    def test_whitespace_only_offer_content_normalized_to_none(self):
+        """Whitespace-only offer_content is normalized to None at construction."""
+        node = EmitNoteDuplicateRecommendationToOwnerNode(
+            recommendation_id=_REC_ID,
+            recommender_id=_RECOMMENDER,
+            recommended_id=_RECOMMENDED,
+            case_id=_CASE_ID,
+            offer_content="   ",
+        )
+        assert node.offer_content is None
+
+    def test_note_body_excludes_content_for_whitespace_only_input(self):
+        """Note body must not contain 'Recommender note:' for whitespace-only offer_content."""
+        node, factory = self._node_with_factory(offer_content="   ")
+        node.update()
+        call_kwargs = factory.create_note.call_args
+        content_arg = call_kwargs.kwargs["content"]
+        assert "Recommender note:" not in content_arg

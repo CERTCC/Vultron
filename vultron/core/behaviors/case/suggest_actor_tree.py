@@ -472,7 +472,9 @@ class EmitNoteDuplicateRecommendationToOwnerNode(DataLayerAction):
         self.recommender_id = recommender_id
         self.recommended_id = recommended_id
         self.case_id = case_id
-        self.offer_content = offer_content
+        self.offer_content = (
+            (offer_content.strip() or None) if offer_content else None
+        )
 
     def update(self) -> Status:
         if self.datalayer is None or self.actor_id is None:

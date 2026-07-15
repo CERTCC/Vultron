@@ -63,7 +63,15 @@ class OfferActorToCaseReceivedUseCase:
             return
 
         offer_content = getattr(request.activity, "content", None)
-        if not isinstance(offer_content, str) or not offer_content.strip():
+        if offer_content is not None and not isinstance(offer_content, str):
+            logger.warning(
+                "OfferActorToCaseReceived: activity '%s' has non-string content"
+                " type %s — ignoring",
+                activity_id,
+                type(offer_content).__name__,
+            )
+            offer_content = None
+        elif not isinstance(offer_content, str) or not offer_content.strip():
             offer_content = None
 
         tree = create_recommend_actor_to_case_received_tree(
