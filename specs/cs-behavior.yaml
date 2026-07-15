@@ -34,6 +34,10 @@ groups:
       Placeholder — content to be filled in PR for issue #1425.
     testable: true
 
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-03-001
+      note: 'CV shorthand wire-type mapping'
 - id: CSB-02
   title: Receive CF (Fix Ready)
   description: >-
@@ -49,6 +53,10 @@ groups:
       Placeholder — content to be filled in PR for issue #1425.
     testable: true
 
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-03-002
+      note: 'CF shorthand wire-type mapping'
 - id: CSB-03
   title: Receive CD (Fix Deployed)
   description: >-
@@ -64,6 +72,10 @@ groups:
       Placeholder — content to be filled in PR for issue #1425.
     testable: true
 
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-03-003
+      note: 'CD shorthand wire-type mapping'
 - id: CSB-04
   title: Receive CP (Public Aware)
   description: >-
@@ -79,6 +91,10 @@ groups:
       Placeholder — content to be filled in PR for issue #1425.
     testable: true
 
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-03-004
+      note: 'CP shorthand wire-type mapping'
 - id: CSB-05
   title: Receive CX (Exploit Public)
   description: >-
@@ -94,6 +110,10 @@ groups:
       Placeholder — content to be filled in PR for issue #1425.
     testable: true
 
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-03-005
+      note: 'CX shorthand wire-type mapping'
 - id: CSB-06
   title: Receive CA (Attacks Observed)
   description: >-
@@ -109,6 +129,10 @@ groups:
       Placeholder — content to be filled in PR for issue #1425.
     testable: true
 
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-03-006
+      note: 'CA shorthand wire-type mapping'
 - id: CSB-07
   title: Receive CE (CS Error)
   description: >-
@@ -124,6 +148,10 @@ groups:
       Placeholder — content to be filled in PR for issue #1425.
     testable: true
 
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-03-007
+      note: 'CE shorthand wire-type mapping'
 - id: CSB-08
   title: Receive CK (CS Acknowledgment)
   description: >-
@@ -139,6 +167,10 @@ groups:
       Placeholder — content to be filled in PR for issue #1425.
     testable: true
 
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-03-008
+      note: 'CK shorthand wire-type mapping'
 - id: CSB-09
   title: Enter CS Vendor Aware (V)
   trigger:

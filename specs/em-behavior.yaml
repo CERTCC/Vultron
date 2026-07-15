@@ -34,6 +34,10 @@ groups:
       Placeholder — content to be filled in PR for issue #1425.
     testable: true
 
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-02-001
+      note: 'EP shorthand wire-type mapping'
 - id: EMB-02
   title: Receive EA (Embargo Accepted)
   description: >-
@@ -49,6 +53,10 @@ groups:
       Placeholder — content to be filled in PR for issue #1425.
     testable: true
 
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-02-002
+      note: 'EA shorthand wire-type mapping'
 - id: EMB-03
   title: Receive EV (Embargo Revision Proposed)
   description: >-
@@ -64,6 +72,10 @@ groups:
       Placeholder — content to be filled in PR for issue #1425.
     testable: true
 
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-02-003
+      note: 'EV shorthand wire-type mapping'
 - id: EMB-04
   title: Receive EJ (Embargo Revision Rejected)
   description: >-
@@ -79,6 +91,10 @@ groups:
       Placeholder — content to be filled in PR for issue #1425.
     testable: true
 
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-02-004
+      note: 'EJ shorthand wire-type mapping'
 - id: EMB-05
   title: Receive EC (Embargo Revision Accepted)
   description: >-
@@ -94,6 +110,10 @@ groups:
       Placeholder — content to be filled in PR for issue #1425.
     testable: true
 
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-02-005
+      note: 'EC shorthand wire-type mapping'
 - id: EMB-06
   title: Receive ER (Embargo Rejected)
   description: >-
@@ -109,6 +129,10 @@ groups:
       Placeholder — content to be filled in PR for issue #1425.
     testable: true
 
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-02-006
+      note: 'ER shorthand wire-type mapping'
 - id: EMB-07
   title: Receive ET (Embargo Terminated)
   description: Wire-type mapping — see MSM-02-007 (ET → REMOVE_EMBARGO_EVENT_FROM_CASE → Remove(Event)).
@@ -122,6 +146,10 @@ groups:
       Placeholder — content to be filled in PR for issue #1425.
     testable: true
 
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-02-007
+      note: 'ET shorthand wire-type mapping'
 - id: EMB-08
   title: Receive EE (Embargo Error)
   description: >-
@@ -137,6 +165,10 @@ groups:
       Placeholder — content to be filled in PR for issue #1425.
     testable: true
 
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-02-008
+      note: 'EE shorthand wire-type mapping'
 - id: EMB-09
   title: Receive EK (Embargo Acknowledgment)
   description: >-
@@ -152,6 +184,10 @@ groups:
       Placeholder — content to be filled in PR for issue #1425.
     testable: true
 
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-02-009
+      note: 'EK shorthand wire-type mapping'
 - id: EMB-10
   title: Enter EM Proposed
   trigger:

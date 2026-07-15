@@ -50,6 +50,9 @@ groups:
     - rel_type: satisfies
       spec_id: VP-03-009
       note: RK acknowledgment of RS
+    - rel_type: satisfies
+      spec_id: MSM-01-001
+      note: 'RS shorthand wire-type mapping'
 
   - id: RMB-01-002
     priority: MUST
@@ -95,6 +98,9 @@ groups:
     - rel_type: satisfies
       spec_id: VP-03-009
       note: RK acknowledgment of RS
+    - rel_type: satisfies
+      spec_id: MSM-01-001
+      note: 'RS shorthand wire-type mapping'
 
   - id: RMB-01-003
     priority: SHOULD
@@ -140,6 +146,9 @@ groups:
     - rel_type: satisfies
       spec_id: VP-03-009
       note: RK acknowledgment of RS
+    - rel_type: satisfies
+      spec_id: MSM-01-001
+      note: 'RS shorthand wire-type mapping'
 
   - id: RMB-01-004
     priority: SHOULD
@@ -169,6 +178,9 @@ groups:
     - rel_type: satisfies
       spec_id: VP-03-009
       note: RK acknowledgment of RS
+    - rel_type: satisfies
+      spec_id: MSM-01-001
+      note: 'RS shorthand wire-type mapping'
 
   - id: RMB-01-005
     priority: MAY
@@ -188,6 +200,9 @@ groups:
     - rel_type: satisfies
       spec_id: VP-03-013
       note: Recipients MAY ignore messages received on Closed cases
+    - rel_type: satisfies
+      spec_id: MSM-01-001
+      note: 'RS shorthand wire-type mapping'
 
 - id: RMB-02
   title: Receive RI (Report Invalid)
@@ -234,6 +249,9 @@ groups:
     - rel_type: satisfies
       spec_id: VP-02-019
       note: Shared awareness of sender RM state change
+    - rel_type: satisfies
+      spec_id: MSM-01-002
+      note: 'RI shorthand wire-type mapping'
 
   - id: RMB-02-002
     priority: SHOULD
@@ -268,6 +286,9 @@ groups:
     - rel_type: satisfies
       spec_id: VP-03-010
       note: RE+GI when R* (other than RS) received while in RM Start
+    - rel_type: satisfies
+      spec_id: MSM-01-002
+      note: 'RI shorthand wire-type mapping'
 
 - id: RMB-03
   title: Receive RV (Report Valid)
@@ -313,6 +334,9 @@ groups:
     - rel_type: satisfies
       spec_id: VP-02-019
       note: Shared awareness of sender RM state change
+    - rel_type: satisfies
+      spec_id: MSM-01-003
+      note: 'RV shorthand wire-type mapping'
 
   - id: RMB-03-002
     priority: SHOULD
@@ -347,6 +371,9 @@ groups:
     - rel_type: satisfies
       spec_id: VP-03-010
       note: RE+GI when R* (other than RS) received while in RM Start
+    - rel_type: satisfies
+      spec_id: MSM-01-003
+      note: 'RV shorthand wire-type mapping'
 
 - id: RMB-04
   title: Receive RD (Report Deferred)
@@ -392,6 +419,9 @@ groups:
     - rel_type: satisfies
       spec_id: VP-02-019
       note: Shared awareness of sender RM state change
+    - rel_type: satisfies
+      spec_id: MSM-01-004
+      note: 'RD shorthand wire-type mapping'
 
   - id: RMB-04-002
     priority: SHOULD
@@ -425,6 +455,9 @@ groups:
     - rel_type: satisfies
       spec_id: VP-03-010
       note: RE+GI when R* (other than RS) received while in RM Start
+    - rel_type: satisfies
+      spec_id: MSM-01-004
+      note: 'RD shorthand wire-type mapping'
 
 - id: RMB-05
   title: Receive RA (Report Accepted)
@@ -471,6 +504,9 @@ groups:
     - rel_type: satisfies
       spec_id: VP-02-019
       note: Shared awareness of sender RM state change
+    - rel_type: satisfies
+      spec_id: MSM-01-005
+      note: 'RA shorthand wire-type mapping'
 
   - id: RMB-05-002
     priority: SHOULD
@@ -505,6 +541,9 @@ groups:
     - rel_type: satisfies
       spec_id: VP-03-010
       note: RE+GI when R* (other than RS) received while in RM Start
+    - rel_type: satisfies
+      spec_id: MSM-01-005
+      note: 'RA shorthand wire-type mapping'
 
 - id: RMB-06
   title: Receive RC (Report Closed)
@@ -551,6 +590,9 @@ groups:
     - rel_type: satisfies
       spec_id: VP-02-019
       note: Shared awareness of sender RM state change
+    - rel_type: satisfies
+      spec_id: MSM-01-006
+      note: 'RC shorthand wire-type mapping'
 
   - id: RMB-06-002
     priority: MAY
@@ -574,6 +616,9 @@ groups:
     - rel_type: satisfies
       spec_id: VP-02-035
       note: Participants MAY close Accepted, Deferred, or Invalid reports
+    - rel_type: satisfies
+      spec_id: MSM-01-006
+      note: 'RC shorthand wire-type mapping'
 
   - id: RMB-06-003
     priority: SHOULD
@@ -607,6 +652,9 @@ groups:
     - rel_type: satisfies
       spec_id: VP-03-010
       note: RE+GI when R* (other than RS) received while in RM Start
+    - rel_type: satisfies
+      spec_id: MSM-01-006
+      note: 'RC shorthand wire-type mapping'
 
 - id: RMB-07
   title: Receive RE (Report Error)
@@ -651,6 +699,9 @@ groups:
     - rel_type: satisfies
       spec_id: VP-03-011
       note: Acknowledge RE and inquire about the error with GI
+    - rel_type: satisfies
+      spec_id: MSM-01-007
+      note: 'RE shorthand wire-type mapping'
 
   - id: RMB-07-002
     priority: SHOULD
@@ -687,6 +738,9 @@ groups:
     - rel_type: satisfies
       spec_id: VP-03-010
       note: RE+GI when R* (other than RS) received while in RM Start
+    - rel_type: satisfies
+      spec_id: MSM-01-007
+      note: 'RE shorthand wire-type mapping'
 
 - id: RMB-08
   title: Receive RK (Report Acknowledgment)
@@ -719,6 +773,9 @@ groups:
     - rel_type: satisfies
       spec_id: VP-03-009
       note: RK itself is never acknowledged with another RK
+    - rel_type: satisfies
+      spec_id: MSM-01-008
+      note: 'RK shorthand wire-type mapping'
 
   - id: RMB-08-002
     priority: SHOULD
@@ -754,6 +811,9 @@ groups:
     - rel_type: satisfies
       spec_id: VP-03-010
       note: RE+GI when R* received while in RM Start
+    - rel_type: satisfies
+      spec_id: MSM-01-008
+      note: 'RK shorthand wire-type mapping'
 
 - id: RMB-09
   title: Enter RM Received
