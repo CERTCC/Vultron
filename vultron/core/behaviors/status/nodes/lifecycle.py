@@ -29,7 +29,11 @@ from py_trees.common import Status
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
 from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
 from vultron.core.use_cases._helpers import _resolve_case_manager_id
-from vultron.core.models.protocols import PersistableModel, is_case_model
+from vultron.core.models.protocols import (
+    PersistableModel,
+    is_case_model,
+    is_participant_model,
+)
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.core.use_cases._helpers import _as_id
@@ -107,7 +111,11 @@ class _PublicDisclosureSkipConditionNode(DataLayerCondition):
             return Status.SUCCESS
 
         sender_participant = self.datalayer.read(sender_participant_id)
-        roles = getattr(sender_participant, "case_roles", [])
+        roles = (
+            sender_participant.roles
+            if is_participant_model(sender_participant)
+            else []
+        )
         if CVDRole.CASE_OWNER not in roles:
             return Status.SUCCESS
 
@@ -205,7 +213,7 @@ class AutoCloseBranchNode(DataLayerAction):
             p = self.datalayer.read(p_id)
             if p is None:
                 return False
-            roles = getattr(p, "case_roles", [])
+            roles = p.roles if is_participant_model(p) else []
             if CVDRole.CASE_MANAGER in roles:
                 continue
             statuses = getattr(p, "participant_statuses", [])

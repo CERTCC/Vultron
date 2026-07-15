@@ -14,7 +14,7 @@ from vultron.core.models.events.actor import (
     OfferCaseManagerRoleReceivedEvent,
     RejectCaseManagerRoleReceivedEvent,
 )
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.protocols import is_case_model, is_participant_model
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
@@ -122,6 +122,40 @@ class AcceptCaseManagerRoleReceivedUseCase:
         self._request: AcceptCaseManagerRoleReceivedEvent = request
         self._trigger_activity = trigger_activity
 
+    def _find_reporter_id(self, case: object) -> str | None:
+        """Return the attributed_to actor ID of the first REPORTER or FINDER participant."""
+        # Primary path: fast index lookup.
+        for p_id in getattr(case, "actor_participant_index", {}).values():
+            p = self._dl.read(p_id)
+            if is_participant_model(p) and (
+                CVDRole.REPORTER in p.roles or CVDRole.FINDER in p.roles
+            ):
+                return _as_id(getattr(p, "attributed_to", None))
+
+        # Fallback: case_participants list (bootstrap path — index may not yet
+        # be populated when Accept(OfferCaseManagerRole) arrives).
+        indexed_ids = set(
+            getattr(case, "actor_participant_index", {}).values()
+        )
+        for participant_ref in getattr(case, "case_participants", []):
+            if not isinstance(participant_ref, str):
+                if is_participant_model(participant_ref) and (
+                    CVDRole.REPORTER in participant_ref.roles
+                    or CVDRole.FINDER in participant_ref.roles
+                ):
+                    return _as_id(
+                        getattr(participant_ref, "attributed_to", None)
+                    )
+                continue
+            if participant_ref in indexed_ids:
+                continue
+            p = self._dl.read(participant_ref)
+            if is_participant_model(p) and (
+                CVDRole.REPORTER in p.roles or CVDRole.FINDER in p.roles
+            ):
+                return _as_id(getattr(p, "attributed_to", None))
+        return None
+
     def execute(self) -> None:
         from vultron.core.use_cases.received.sync import _find_local_actor_id
 
@@ -178,15 +212,7 @@ class AcceptCaseManagerRoleReceivedUseCase:
             )
             return
 
-        # Find the Reporter participant to address the Create(Case) to.
-        reporter_id: str | None = None
-        for p_id in case.actor_participant_index.values():
-            p = self._dl.read(p_id)
-            roles = getattr(p, "case_roles", [])
-            if CVDRole.REPORTER in roles or CVDRole.FINDER in roles:
-                reporter_id = _as_id(getattr(p, "attributed_to", None))
-                break
-
+        reporter_id = self._find_reporter_id(case)
         if not reporter_id:
             logger.warning(
                 "AcceptCaseManagerRoleReceived: no Reporter participant found"
