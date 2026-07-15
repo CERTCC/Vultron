@@ -27,7 +27,7 @@ from vultron.core.models.participant_status import (
     coerce_cvd_roles,
     coerce_em_consent_state,
 )
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.protocols import is_case_model, is_participant_model
 from vultron.core.states.cs import CS_pxa, CS_vfd
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
@@ -102,14 +102,14 @@ class CreateParticipantStatusNode(DataLayerAction):
         )
         participant_obj = dl.read(participant_id)
         participant_roles = (
-            getattr(participant_obj, "case_roles", [])
-            if participant_obj is not None
+            participant_obj.roles
+            if is_participant_model(participant_obj)
             else []
         )
         status_roles = coerce_cvd_roles(participant_roles)
         raw_consent = (
             getattr(participant_obj, "embargo_consent_state", None)
-            if participant_obj is not None
+            if is_participant_model(participant_obj)
             else None
         )
         em_consent_state = coerce_em_consent_state(raw_consent)
