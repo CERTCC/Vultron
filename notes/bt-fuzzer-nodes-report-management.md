@@ -2155,3 +2155,33 @@ from within `create_publication_tree`)
 `specs/behavior-tree-integration.yaml`)
 
 ---
+
+## Sentinel Stubs Must Be Synced When the Upstream Issue Closes
+
+(ISSUE-1177, 2026-07-14)
+
+A catalog entry with `New-arch cross-ref: *(to be implemented — see FUZZ-08x)*`
+where the referenced issue is now **closed** is a gap — the stub was never
+promoted.
+
+When FUZZ-08f (Sentinel shape, issue #1175) closed, three catalog entries
+here carried `*(to be implemented — see FUZZ-08f)*`:
+
+- `NewValidationInfoSentinel` — was implemented; cross-ref updated.
+- `NewPrioritizationInfoSentinel` — left unimplemented.
+- `NewDeploymentInfoSentinel` — left unimplemented.
+
+Only the first was added; the other two remained as unimplemented stubs with
+no matching class in `call_out_point.py`.
+
+**Pattern to apply** during domain-sweep audits (FUZZ-08h style):
+
+1. Grep catalog entries for `*(to be implemented — see FUZZ-08x)*`.
+2. Check if the referenced issue is closed.
+3. If closed but the class is absent from `call_out_point.py`, it is a gap —
+   add the class and update the catalog cross-ref line.
+
+The domain-sweep audit is the right checkpoint for this; catching it there
+prevents gaps from persisting across multiple closed issues.
+
+---

@@ -221,6 +221,90 @@ spec item in the group or item description. The extractor code
 the shorthand→MessageSemantics mapping differs between the code, legacy
 ontology, and docs.
 
+## Authoring Pitfalls
+
+### `state_entered` Trigger vs. Precondition Mismatch
+
+(ISSUE-1424, 2026-07-15)
+
+When writing `BehavioralSpec` items inside a group whose `trigger` is
+`state_entered: RM.X` (or `EM.X`, `CS.X`), the item's `rm_state`
+precondition MUST list the state that was just *entered* — not the
+predecessor state.
+
+```yaml
+# ✅ CORRECT — state_entered: RM.INVALID means we are now IN RM.INVALID
+- id: RMB-11-002
+  preconditions:
+  - rm_state: [RM.INVALID]   # the state just entered
+
+# ❌ WRONG — RM.RECEIVED is the state *before* the transition
+- id: RMB-11-002
+  preconditions:
+  - rm_state: [RM.RECEIVED]  # impossible: we are no longer in RECEIVED
+```
+
+**Why it matters**: A `state_entered: RM.X` group's trigger fires *after*
+the transition, so any precondition must be satisfiable *in* the new state.
+A precondition requiring a predecessor state is structurally unreachable —
+the behavior can never execute.
+
+**Review checklist**: For every `state_entered: RM.X` group, grep all
+items' `rm_state` preconditions and verify each contains `X`.
+
+---
+
+### START-State Variants Required for Message-Receive Groups
+
+(ISSUE-1424, 2026-07-15)
+
+Per VP-03-010, message-receive groups covering "all states" MUST include
+a START-state variant (e.g., `RMB-07` for `R*` messages must have an item
+with `rm_state: [RM.START]`). Code review on `specs/rm-behavior.yaml`
+found `RMB-07` and `RMB-08` missing their START-state items while
+`RMB-02` through `RMB-06` each had one.
+
+**Pattern**: For any `message_received: R*` group, systematically audit
+whether `RM.START` is covered. The same rule applies to `EP` / `EA` /
+`EV` groups for `EM.NONE` and to `C*` message groups for the initial
+case-state pattern.
+
+---
+
+### Intent Over Letter: When Spec Text and Issue Body Conflict
+
+(ISSUE-1272, 2026-07-10)
+
+When a spec entry and its associated GitHub issue body conflict with each
+other, or when either conflicts with established architectural principles,
+implement the **observable intent** — what the system must *do from the
+outside* — then **correct the spec entry** in the same PR rather than
+silently complying with a stale requirement.
+
+Specifically:
+
+- If the spec mechanism (e.g. "MUST NOT invoke `create_receive_report_case_tree`")
+  contradicts the architectural pattern (BT-first, thin use-cases), reword
+  the spec to describe the outcome, not the mechanism.
+- If the issue body contains a factual error about the codebase (e.g., "the
+  BT already has access to ActorConfig through the blackboard" when it actually
+  threads via constructor arg), note the correction in a PR comment and implement
+  the correct path.
+- Use `AskUserQuestion` to surface genuine design forks — divergences where
+  both interpretations are architecturally valid.
+
+Neither specs nor issue text constrain the *right* solution; they steer
+away from bad ones. The spec is authoritative once corrected; the issue
+text is ephemeral.
+
+Also: **BT gate placement matters.** The idempotency idiom
+`Selector(Sequence(guard, work), Success)` **masks** downstream FAILURE.
+When a downstream FAILURE must still propagate (e.g., case creation can
+genuinely fail), use `Sequence[gate, existing_Selector]` instead so the
+gate fails-safe without swallowing real failures.
+
+---
+
 ## PR Sequence
 
 **PR 1**: Schema changes (`schema.py`) + scaffolding (three empty spec files
