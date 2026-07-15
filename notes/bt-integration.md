@@ -1061,6 +1061,9 @@ complete successfully or raise a domain exception (e.g.
 `update()` is the single `try/except` handler:
 
 ```python
+from vultron.errors import BtNodePreconditionError
+
+
 def _read_case_obj(self, case_id: str) -> VulnerabilityCase:
     try:
         obj = self.blackboard[case_id]
