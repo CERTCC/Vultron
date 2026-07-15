@@ -294,7 +294,7 @@ def wait_for_contiguous_ledger_coverage(
         AssertionError: If the replica does not have full contiguous coverage
             within *timeout_seconds*.
 
-    Spec: SYNC-02-003 (all entries must be present before log finalisation).
+    Spec: SYNC-10-004 (catch-up gate must require a contiguous canonical log prefix).
     """
     expected_indices = set(range(expected_tail_index + 1))
 
