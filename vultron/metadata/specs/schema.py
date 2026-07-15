@@ -19,7 +19,7 @@ from pydantic import BaseModel, StringConstraints, field_validator
 from vultron.metadata.base import NonEmptyStr
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 
 SpecIdStr = Annotated[
     str,
