@@ -62,11 +62,16 @@ class OfferActorToCaseReceivedUseCase:
             )
             return
 
+        offer_content = getattr(request.activity, "content", None)
+        if not isinstance(offer_content, str) or not offer_content.strip():
+            offer_content = None
+
         tree = create_recommend_actor_to_case_received_tree(
             recommendation_id=activity_id,
             recommender_id=recommender_id,
             recommended_id=recommended_id,
             case_id=case_id,
+            offer_content=offer_content,
         )
         bridge = BTBridge(
             datalayer=self._dl, trigger_activity=self._trigger_activity

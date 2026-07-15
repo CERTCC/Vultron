@@ -851,3 +851,100 @@ class TestProtocolPairIsPending:
             object_id=_RECOMMENDED,
         )
         assert pair.request_found is False
+
+
+class TestEmitNoteDuplicateRecommendationToOwnerNodeContent:
+    """Unit tests for offer_content forwarding (CM-16-008)."""
+
+    _OWNER_ID = "https://example.org/actors/owner"
+
+    def _node_with_factory(self, offer_content=None):
+        """Build a wired node with a mock DataLayer and factory."""
+        dl = MagicMock()
+        case_obj = MagicMock()
+        case_obj.attributed_to = self._OWNER_ID
+        dl.read.return_value = case_obj
+        factory = MagicMock()
+        factory.create_note.return_value = ("note-id-1", MagicMock())
+        factory.add_note_to_case.return_value = ("activity-id-1", MagicMock())
+        node = EmitNoteDuplicateRecommendationToOwnerNode(
+            recommendation_id=_REC_ID,
+            recommender_id=_RECOMMENDER,
+            recommended_id=_RECOMMENDED,
+            case_id=_CASE_ID,
+            offer_content=offer_content,
+        )
+        writer = py_trees.blackboard.Client(name="test-emit-note-dup-writer")
+        writer.register_key(
+            key="datalayer", access=py_trees.common.Access.WRITE
+        )
+        writer.register_key(
+            key="actor_id", access=py_trees.common.Access.WRITE
+        )
+        writer.register_key(
+            key="trigger_activity_factory",
+            access=py_trees.common.Access.WRITE,
+        )
+        writer.datalayer = dl
+        writer.actor_id = _ACTOR_ID
+        writer.trigger_activity_factory = factory
+        node.setup()
+        node.initialise()
+        return node, factory
+
+    def setup_method(self):
+        py_trees.blackboard.Blackboard.enable_activity_stream()
+
+    def teardown_method(self):
+        py_trees.blackboard.Blackboard.disable_activity_stream()
+        py_trees.blackboard.Blackboard.storage.clear()
+
+    def test_returns_success_without_offer_content(self):
+        """AC-6: node succeeds and sends Note when offer_content is None."""
+        node, factory = self._node_with_factory(offer_content=None)
+        result = node.update()
+        assert result == Status.SUCCESS
+        factory.create_note.assert_called_once()
+
+    def test_note_body_excludes_content_when_absent(self):
+        """Note body must not contain 'Recommender note:' when offer_content is None."""
+        node, factory = self._node_with_factory(offer_content=None)
+        node.update()
+        call_kwargs = factory.create_note.call_args
+        content_arg = call_kwargs.kwargs["content"]
+        assert "Recommender note:" not in content_arg
+
+    def test_returns_success_with_offer_content(self):
+        """AC-6 + CM-16-008: node succeeds and sends Note when offer_content is set."""
+        node, factory = self._node_with_factory(
+            offer_content="Please add this vendor urgently."
+        )
+        result = node.update()
+        assert result == Status.SUCCESS
+        factory.create_note.assert_called_once()
+
+    def test_note_body_includes_offer_content(self):
+        """CM-16-008: Note body must include offer_content when provided."""
+        offer_text = "Please add this vendor urgently."
+        node, factory = self._node_with_factory(offer_content=offer_text)
+        node.update()
+        call_kwargs = factory.create_note.call_args
+        content_arg = call_kwargs.kwargs["content"]
+        assert "Recommender note:" in content_arg
+        assert offer_text in content_arg
+
+    def test_offer_content_stored_on_node(self):
+        """offer_content is stored as an attribute for introspection."""
+        offer_text = "Some notes."
+        node, _ = self._node_with_factory(offer_content=offer_text)
+        assert node.offer_content == offer_text
+
+    def test_offer_content_none_by_default(self):
+        """offer_content defaults to None (backward-compatible constructor)."""
+        node = EmitNoteDuplicateRecommendationToOwnerNode(
+            recommendation_id=_REC_ID,
+            recommender_id=_RECOMMENDER,
+            recommended_id=_RECOMMENDED,
+            case_id=_CASE_ID,
+        )
+        assert node.offer_content is None
