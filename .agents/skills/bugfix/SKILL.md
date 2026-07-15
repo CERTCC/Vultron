@@ -154,29 +154,18 @@ focus hints from Phase 2 (e.g., `"wire layer"`, `"BT integration"`), then:
      `timestamp`, `source`).
    - Compute diff size: ≤50 → `size:S`; 51–300 → `size:M`; 301+ → `size:L`.
      Update the `size:` label.
-   - Push and open PR using the structured body template from
-     `.agents/skills/shared/pr-body-guide.md` (implementation PR shape):
+   - Invoke the `create-pr` skill to push and open the PR:
 
-     ```bash
-     git push -u origin bug/<N>-<slug>
-     gh pr create --repo CERTCC/Vultron \
-       --title "fix: <short title>" \
-       --body "- Fixes #<N>
-
-     ## Summary
-
-     <1–2 sentences: what bug was fixed and how>
-
-     ## Changes
-
-     - \`path/to/file.py\`: <what changed>
-
-     ## Verification
-
-     - All N unit tests pass (M new); regression test added
-     - Black, flake8, mypy, pyright clean" \
-       --label "size:<X>"
+     ```text
+     type:         implementation
+     title:        fix: <short title>
+     body:         <composed per pr-body-guide.md implementation template>
+     labels:       size:<X>
+     issue_number: <N>
      ```
+
+     `create-pr` performs the rebase on `origin/main`, validates, pushes, and
+     returns the PR URL. Use the returned URL in the `archive-history` call.
 
    - Invoke `commit` if any learning files were created in `plan/incoming/learnings/`
      outside the PR branch.

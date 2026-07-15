@@ -250,8 +250,7 @@ Do **not** reference `plan/incoming/learnings/` from durable docs.
    Fix all errors.
 2. If a requirement conflict cannot be resolved, create a learning file in
    `plan/incoming/learnings/` and **stop before committing**.
-3. Stage, commit, push, and open a docs-only PR (branch was created at the
-   end of Phase 3):
+3. Stage and commit (branch was created at the end of Phase 3):
 
    ```bash
    git add specs/<changed-files> notes/<changed-files> AGENTS.md \
@@ -264,25 +263,24 @@ Do **not** reference `plan/incoming/learnings/` from durable docs.
    - Refresh docs/reference/codebase/ via acquire-codebase-knowledge
 
    Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
-   git push -u origin learn/<YYYYMMDD>-<slug>
-
-   gh pr create --repo CERTCC/Vultron \
-     --title "docs: promote learnings — <topic>" \
-     --body "- Closes #<issue if applicable>
-
-   ## Summary
-
-   <what learnings were promoted and to which docs/specs/notes>
-
-   ## Changes
-
-   - <bullet: what was added or changed>" \
-     --label "specs-notes"
-   ```text
+   ```
 
    Use multiple commits for thematically distinct changes (e.g., spec
-   refinements, notes promoted, AGENTS.md updates). This PR carries the
-   `specs-notes` label for reviewer awareness.
+   refinements, notes promoted, AGENTS.md updates).
+
+   Then invoke the `create-pr` skill:
+
+   ```text
+   type:         docs
+   title:        docs: promote learnings — <topic>
+   body:         <composed per pr-body-guide.md docs template>
+   labels:       specs-notes
+   issue_number: <issue if applicable; omit if none>
+   ```
+
+   `create-pr` performs the rebase on `origin/main`, runs linters, pushes, and
+   returns the PR URL. Use the returned URL when filling in the `Docs PR:`
+   field in the archive bodies (Phase 9).
 
 ### Phase 9 — Archive Entries and Close Issues
 

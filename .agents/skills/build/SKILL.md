@@ -242,37 +242,19 @@ draft commit and use `git diff main...HEAD` normally.
 1. Compute diff size: ≤50 lines → `size:S`; 51–300 → `size:M`; 301+ → `size:L`.
    Update the `size:` label on the Issue.
 
-2. Push and open a PR using the structured body template from
-   `.agents/skills/shared/pr-body-guide.md` (implementation PR shape):
+2. Invoke the `create-pr` skill to push and open the PR:
 
-   ```bash
-   git fetch origin main && git rebase origin/main
-   uv run git push "https://x-access-token:$(gh auth token)@github.com/CERTCC/Vultron.git" \
-     task/<N>-<slug>
-   gh pr create --repo CERTCC/Vultron \
-     --head task/<N>-<slug> \
-     --base main \
-     --title "<short title>" \
-     --body "- Closes #<N>
-
-   ## Summary
-
-   <1–2 sentences: what this PR does and why>
-
-   ## Changes
-
-   - \`path/to/file.py\`: <what changed>
-
-   ## Verification
-
-   - All N unit tests pass (M new)
-   - Black, flake8, mypy, pyright clean" \
-     --label "size:<X>"
+   ```text
+   type:         implementation
+   title:        <short title>
+   body:         <composed per pr-body-guide.md implementation template>
+   labels:       size:<X>
+   issue_number: <N>
    ```
 
-   If the rebase reports conflicts, stop, resolve them, and re-run validation
-   before pushing. This check must happen immediately before the push, not
-   earlier in the workflow.
+   `create-pr` performs the rebase on `origin/main`, validates, pushes, and
+   returns the PR URL. Use the returned URL in the `archive-history` call
+   below.
 
 3. Post `[ADVISORY]` findings as a PR comment (if any).
 
@@ -290,14 +272,6 @@ draft commit and use `git diff main...HEAD` normally.
    `timestamp`, `source`). Do not write completion summaries here.
 
 6. Invoke `commit` if any learning files were created in `plan/incoming/learnings/`.
-
-### Phase 9 — Merge Conflict Recovery (if needed)
-
-```bash
-git fetch origin main && git rebase origin/main
-# Success: git push --force-with-lease
-# Failure: post PR comment, add needs-rebase label, stop.
-```
 
 ## Constraints
 
