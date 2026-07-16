@@ -652,6 +652,10 @@ function handleParticipantStatus(
           shadow.rm[laneId] = rmNext
         } else {
           violation = true
+          // Record the illegal jump as a change so a flagged node still renders.
+          // Without this, a status entry whose ONLY content is an illegal RM jump
+          // would hit the `changes.length === 0` early return and be invisible.
+          changes.push({ machine: 'rm', from: src, to: rmNext, trigger: 'illegal' })
           logLines.push(
             `  ↳ PROTOCOL VIOLATION: rm has no path "${src}" → "${rmNext}" (subject=${laneId}); forcing shadow`
           )
@@ -677,6 +681,9 @@ function handleParticipantStatus(
           shadow.vfd[laneId] = vfdNext
         } else {
           violation = true
+          // See the RM branch above: record the illegal jump so the flagged node
+          // renders instead of vanishing via the `changes.length === 0` return.
+          changes.push({ machine: 'vfd', from: src, to: vfdNext, trigger: 'illegal' })
           logLines.push(
             `  ↳ PROTOCOL VIOLATION: vfd has no path "${src}" → "${vfdNext}" (subject=${laneId}); forcing shadow`
           )

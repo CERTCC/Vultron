@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { LANE_HEIGHT, NODE_WIDTH, NODE_WIDTH_HOVER, NODE_HEIGHT, NODE_HEIGHT_HOVER, NODE_WIDTH_COLLAPSED, NODE_HEIGHT_COLLAPSED } from '../constants'
+import { LANE_HEIGHT, NODE_WIDTH, NODE_WIDTH_HOVER, NODE_HEIGHT, NODE_HEIGHT_HOVER, NODE_WIDTH_COLLAPSED, NODE_HEIGHT_COLLAPSED, NODE_ANIMATION_MS } from '../constants'
 
 interface TimelineEvent {
   id: string
@@ -87,7 +87,7 @@ export function AnimatedNode({
             { transform: 'translate(0, 0)', opacity: 1 },
           ],
           {
-            duration: 1500,
+            duration: NODE_ANIMATION_MS,
             easing: 'ease-out',
             fill: 'forwards',
           }

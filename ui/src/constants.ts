@@ -129,3 +129,8 @@ export const PARTICIPANT_ROLES = {
 
 export const INITIAL_X_POSITION = 130
 export const X_INCREMENT = 300
+
+// Duration of a node's slide-in animation (AnimatedNode). Log Replay playback
+// waits at least this long between events so no event starts before the
+// previous one's animation finishes.
+export const NODE_ANIMATION_MS = 1500

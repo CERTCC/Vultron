@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react'
 import type { DemoState } from './types'
 import './App.css'
-import { LANE_HEIGHT, ACTOR_PANEL_WIDTH, NODE_COLORS, NODE_HEIGHT, NODE_WIDTH } from './constants'
+import { LANE_HEIGHT, ACTOR_PANEL_WIDTH, NODE_COLORS, NODE_HEIGHT, NODE_WIDTH, NODE_ANIMATION_MS } from './constants'
 import { ActorPanel, AnimatedNode } from './components'
 import { getActiveLanes } from './state/participantHelpers'
 import {
@@ -18,6 +18,10 @@ import { buildTimelineFromCaseLedger } from './utils/caseLedgerMapper'
 // shared ledger; dedup-by-entryHash (in normalizeLedger) makes loading all safe,
 // so importing one copy is sufficient and avoids redundant bundling.
 import sampleLedgerRaw from '../../devlogs/two-actor/case-actor/urn_uuid_b9e6d36c-8f90-46bc-8bf7-a36446738f39-case-ledger.jsonl?raw'
+// Hand-authored fixture with two deliberate protocol violations (RM re-validate,
+// EM re-terminate) to exercise the red ⚠️ violation flagging. See
+// devlogs/synthetic/README.md for the entry-by-entry expected result.
+import violationLedgerRaw from '../../devlogs/synthetic/violations-case-ledger.jsonl?raw'
 
 function AppLogReplay() {
   const [demoState, setDemoState] = useState<DemoState | null>(null)
@@ -71,26 +75,36 @@ function AppLogReplay() {
     }
   }, [accumulatedEntries, rebuildFromEntries])
 
-  // Load the committed sample case ledger directly (no file picker needed).
-  const handleLoadSample = useCallback(() => {
+  // Load a committed ledger from its raw text (no file picker needed). Shared by
+  // the happy-path sample and the synthetic violation fixture.
+  const loadRawLedger = useCallback((raw: string, label: string) => {
     setLoading(true)
     setError(null)
 
     try {
-      const allEntries = parseCaseLedger(sampleLedgerRaw)
+      const allEntries = parseCaseLedger(raw)
       if (allEntries.length === 0) {
-        throw new Error('Sample ledger was empty — try file upload instead.')
+        throw new Error(`${label} was empty — try file upload instead.`)
       }
       setAccumulatedEntries(allEntries)
       setUploadCount(prev => prev + 1)
       rebuildFromEntries(allEntries)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load sample logs')
-      console.error('Error loading sample logs:', err)
+      setError(err instanceof Error ? err.message : `Failed to load ${label}`)
+      console.error(`Error loading ${label}:`, err)
     } finally {
       setLoading(false)
     }
   }, [rebuildFromEntries])
+
+  const handleLoadSample = useCallback(
+    () => loadRawLedger(sampleLedgerRaw, 'sample logs'),
+    [loadRawLedger]
+  )
+  const handleLoadViolationSample = useCallback(
+    () => loadRawLedger(violationLedgerRaw, 'violation sample'),
+    [loadRawLedger]
+  )
 
   // Reset everything
   const handleReset = useCallback(() => {
@@ -123,7 +137,9 @@ function AppLogReplay() {
         }
         return prev + 1
       })
-    }, 1000) // 1 second per event
+      // Wait for the slide-in animation to finish (plus a small settle margin)
+      // before revealing the next event, so no event starts mid-animation.
+    }, NODE_ANIMATION_MS + 300)
   }, [demoState])
 
   const handlePause = useCallback(() => {
@@ -224,6 +240,30 @@ function AppLogReplay() {
           </button>
           <p style={{ fontSize: '0.8rem', color: '#888', margin: '0 0 0.5rem' }}>
             Loads <code style={{ background: '#fff', padding: '0.125rem 0.375rem', borderRadius: '3px' }}>devlogs/two-actor/</code> — or upload your own below
+          </p>
+
+          {/* Secondary action: load the synthetic fixture that deliberately
+              contains illegal transitions, to demo the violation flagging. */}
+          <button
+            onClick={handleLoadViolationSample}
+            style={{
+              display: 'block',
+              margin: '0.5rem auto 0.5rem',
+              padding: '0.625rem 1.5rem',
+              background: '#c62828',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              fontSize: '0.9rem',
+              width: 'fit-content',
+            }}
+          >
+            ⚠️ Load Violation Sample
+          </button>
+          <p style={{ fontSize: '0.8rem', color: '#888', margin: '0 0 0.5rem' }}>
+            Loads <code style={{ background: '#fff', padding: '0.125rem 0.375rem', borderRadius: '3px' }}>devlogs/synthetic/</code> — two illegal transitions flagged in red
           </p>
 
           <div style={{
@@ -606,6 +646,16 @@ function AppLogReplay() {
               {/* Arrow markers */}
               <defs>
                 <marker
+                  id="arrowhead"
+                  markerWidth="16"
+                  markerHeight="10"
+                  refX="16"
+                  refY="5"
+                  orient="auto"
+                >
+                  <polygon points="0 0, 16 5, 0 10" fill="#666" />
+                </marker>
+                <marker
                   id="arrowhead-blue"
                   markerWidth="16"
                   markerHeight="10"
@@ -693,6 +743,41 @@ function AppLogReplay() {
                   }
                 }
                 return null
+              })}
+
+              {/* Horizontal flow arrows: a black arrow points into each decision
+                  node from the previous node in its OWN lane (matches the other
+                  demos). Only enabling relationships get an arrow:
+                  consequence→decision and decision→decision; a decision→consequence
+                  link is already shown by the vertical (causedBy) arrow. Restricted
+                  to the visible slice so playback reveals arrows step by step. */}
+              {demoState.timelineEvents.slice(0, currentEventIndex + 1).map((event, idx, visible) => {
+                const nextInLane = visible.find(
+                  (e, i) => i > idx && e.lane === event.lane && e.x !== event.x
+                )
+                if (!nextInLane) return null
+
+                const shouldDrawArrow =
+                  (event.type === 'consequence' && nextInLane.type === 'decision') ||
+                  (event.type === 'decision' && nextInLane.type === 'decision')
+                if (!shouldDrawArrow) return null
+
+                const y = event.lane * LANE_HEIGHT + LANE_HEIGHT / 2
+                const startX = event.x + NODE_WIDTH / 2 // edge of this node
+                const endX = nextInLane.x - NODE_WIDTH / 2 // edge of next node
+
+                return (
+                  <line
+                    key={`arrow-horizontal-${event.id}`}
+                    x1={startX}
+                    y1={y}
+                    x2={endX}
+                    y2={y}
+                    stroke="#666"
+                    strokeWidth={3}
+                    markerEnd="url(#arrowhead)"
+                  />
+                )
               })}
 
               {/* Draw timeline event nodes */}
