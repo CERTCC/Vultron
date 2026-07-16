@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { LANE_HEIGHT, NODE_WIDTH, NODE_WIDTH_HOVER, NODE_HEIGHT, NODE_HEIGHT_HOVER, NODE_WIDTH_COLLAPSED, NODE_HEIGHT_COLLAPSED, NODE_ANIMATION_MS } from '../constants'
+import { useEffect, useRef } from 'react'
+import { LANE_HEIGHT, NODE_WIDTH, NODE_WIDTH_HOVER, NODE_HEIGHT, NODE_HEIGHT_HOVER, NODE_HEIGHT_COLLAPSED, NODE_ANIMATION_MS } from '../constants'
 
 interface TimelineEvent {
   id: string
@@ -48,19 +48,15 @@ export function AnimatedNode({
 }: AnimatedNodeProps) {
   const gRef = useRef<SVGGElement>(null)
   const hasAnimatedRef = useRef(false)
-  const [showTooltip, setShowTooltip] = useState(false)
   const isDecision = event.type === 'decision'
   const y = yPosition !== undefined ? yPosition : (event.lane * LANE_HEIGHT + LANE_HEIGHT / 2)
 
-  // Use collapsed dimensions if lane is collapsed, otherwise use normal/hover dimensions
-  let width: number, height: number
-  if (isCollapsed) {
-    width = NODE_WIDTH_COLLAPSED
-    height = NODE_HEIGHT_COLLAPSED
-  } else {
-    width = isHovered ? NODE_WIDTH_HOVER : NODE_WIDTH
-    height = isHovered ? NODE_HEIGHT_HOVER : NODE_HEIGHT
-  }
+  // Collapsing affects HEIGHT ONLY — the node keeps its full width (and label) so
+  // it stays readable when collapsed; only the vertical size shrinks.
+  const width = isHovered ? NODE_WIDTH_HOVER : NODE_WIDTH
+  const height = isCollapsed
+    ? NODE_HEIGHT_COLLAPSED
+    : (isHovered ? NODE_HEIGHT_HOVER : NODE_HEIGHT)
 
   const rectX = event.x - width / 2
   const rectY = y - height / 2
@@ -96,15 +92,6 @@ export function AnimatedNode({
     }
   }, [event.timestamp, isDecision, event.causedBy, allEvents, y, getCauseEventY, animateOnMount])
 
-  const handleMouseEnter = () => {
-    setShowTooltip(true)
-    onMouseEnter()
-  }
-
-  const handleMouseLeave = () => {
-    setShowTooltip(false)
-    onMouseLeave()
-  }
 
   return (
     <g ref={gRef}>
@@ -119,69 +106,41 @@ export function AnimatedNode({
         stroke="none"
         strokeWidth="0"
         style={{ cursor: 'pointer', transition: 'all 0.2s' }}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
       />
-      {/* Only show text when NOT collapsed */}
-      {!isCollapsed && (
-        <foreignObject
-          x={rectX}
-          y={rectY}
-          width={width}
-          height={height}
-          style={{ pointerEvents: 'none' }}
+      {/* Label always shows at the SAME font size whether collapsed or not —
+          collapse only shrinks the box vertically, and the collapsed height fits
+          two lines of this font, so labels wrap cleanly with no ellipsis. */}
+      <foreignObject
+        x={rectX}
+        y={rectY}
+        width={width}
+        height={height}
+        style={{ pointerEvents: 'none' }}
+      >
+        <div
+          style={{
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: isCollapsed ? '4px 8px' : '8px',
+            boxSizing: 'border-box',
+            fontSize: '20px',
+            fontWeight: 'bold',
+            color: isDecision ? 'white' : 'black',
+            textAlign: 'center',
+            lineHeight: '1.2',
+            wordBreak: 'break-word',
+            overflowWrap: 'break-word',
+            userSelect: 'none',
+          }}
         >
-          <div
-            style={{
-              width: '100%',
-              height: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '8px',
-              boxSizing: 'border-box',
-              fontSize: '20px',
-              fontWeight: 'bold',
-              color: isDecision ? 'white' : 'black',
-              textAlign: 'center',
-              lineHeight: '1.2',
-              wordBreak: 'break-word',
-              overflowWrap: 'break-word',
-              userSelect: 'none',
-            }}
-          >
-            {event.label}
-          </div>
-        </foreignObject>
-      )}
-      {/* Tooltip on hover when collapsed */}
-      {isCollapsed && showTooltip && (
-        <foreignObject
-          x={rectX + width + 5}
-          y={rectY - 10}
-          width={250}
-          height={80}
-          style={{ pointerEvents: 'none', overflow: 'visible' }}
-        >
-          <div
-            style={{
-              background: 'white',
-              border: '2px solid #333',
-              borderRadius: '8px',
-              padding: '8px 12px',
-              boxShadow: '0 4px 6px rgba(0,0,0,0.2)',
-              fontSize: '14px',
-              fontWeight: 'bold',
-              color: 'black',
-              whiteSpace: 'normal',
-              wordBreak: 'break-word',
-              zIndex: 1000,
-            }}
-          >
-            {event.label}
-          </div>
-        </foreignObject>
-      )}
+          {event.label}
+        </div>
+      </foreignObject>
     </g>
   )
 }

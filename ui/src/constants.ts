@@ -3,7 +3,9 @@
  */
 
 export const LANE_HEIGHT = 400
-export const LANE_HEIGHT_COLLAPSED = 60
+// Tall enough for the collapsed node (below) plus vertical breathing room, so
+// collapsed labels stay at the full node font size without clipping.
+export const LANE_HEIGHT_COLLAPSED = 72
 export const ACTOR_PANEL_WIDTH = 300
 
 // Node dimensions
@@ -12,9 +14,12 @@ export const NODE_WIDTH_HOVER = 225
 export const NODE_HEIGHT = 100
 export const NODE_HEIGHT_HOVER = 110
 
-// Collapsed node dimensions (much smaller to fit in collapsed lanes)
+// Collapsed node dimensions. Collapse is VERTICAL ONLY — width is unchanged
+// (nodes keep NODE_WIDTH and their full-size labels). The collapsed height fits
+// two lines of the full-size (20px) label so no label needs an ellipsis.
+// NODE_WIDTH_COLLAPSED is retained for reference but no longer used for layout.
 export const NODE_WIDTH_COLLAPSED = 30
-export const NODE_HEIGHT_COLLAPSED = 30
+export const NODE_HEIGHT_COLLAPSED = 56
 
 // Color palette for vendors (cycles through these colors for unlimited vendors)
 const VENDOR_COLOR_PALETTE = [

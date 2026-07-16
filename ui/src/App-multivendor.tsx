@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 import type { DemoState, ParticipantState } from './types'
 import './App.css'
-import { LANE_HEIGHT, LANE_HEIGHT_COLLAPSED, ACTOR_PANEL_WIDTH, PARTICIPANT_COLORS, PARTICIPANT_ROLES, INITIAL_X_POSITION, NODE_COLORS, NODE_WIDTH, NODE_HEIGHT, NODE_WIDTH_COLLAPSED, NODE_HEIGHT_COLLAPSED, getVendorNodeColors } from './constants'
+import { LANE_HEIGHT, LANE_HEIGHT_COLLAPSED, ACTOR_PANEL_WIDTH, PARTICIPANT_COLORS, PARTICIPANT_ROLES, INITIAL_X_POSITION, NODE_COLORS, NODE_WIDTH, NODE_HEIGHT, NODE_HEIGHT_COLLAPSED, getVendorNodeColors } from './constants'
 import { ActorPanel, AnimatedNode } from './components'
 import {
   getActiveLanes,
@@ -826,9 +826,10 @@ function App() {
                   const allParticipants = Array.from(demoState.participants.values())
                   const participant = allParticipants.find(p => p.laneIndex === event.lane)
 
-                  // Use collapsed node width if participant is collapsed
+                  // Nodes keep full width when collapsed (collapse is vertical
+                  // only), so horizontal arrows always meet the full-width edge.
                   const isCollapsed = participant ? collapsedParticipants.has(participant.id) : false
-                  const rectHalfWidth = isCollapsed ? NODE_WIDTH_COLLAPSED / 2 : NODE_WIDTH / 2
+                  const rectHalfWidth = NODE_WIDTH / 2
 
                   const y = getYPositionForLane(event.lane, allParticipants)
                   const startX = event.x + rectHalfWidth // Start from edge of rectangle

@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react'
 import type { DemoState } from './types'
 import './App.css'
-import { LANE_HEIGHT, ACTOR_PANEL_WIDTH, NODE_COLORS, NODE_HEIGHT, NODE_WIDTH, NODE_ANIMATION_MS } from './constants'
+import { LANE_HEIGHT, LANE_HEIGHT_COLLAPSED, ACTOR_PANEL_WIDTH, NODE_COLORS, NODE_HEIGHT, NODE_WIDTH, NODE_HEIGHT_COLLAPSED, NODE_ANIMATION_MS } from './constants'
 import { ActorPanel, AnimatedNode } from './components'
 import { getActiveLanes } from './state/participantHelpers'
 import {
@@ -33,6 +33,7 @@ function AppLogReplay() {
   const [eventLogCollapsed, setEventLogCollapsed] = useState(false)
   const [currentEventIndex, setCurrentEventIndex] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
+  const [collapsedParticipants, setCollapsedParticipants] = useState<Set<string>>(new Set())
   const timelineScrollRef = useRef<HTMLDivElement>(null)
   const sidebarScrollRef = useRef<HTMLDivElement>(null)
   const playIntervalRef = useRef<number | null>(null)
@@ -166,6 +167,16 @@ function AppLogReplay() {
     }
     setIsPlaying(false)
     setCurrentEventIndex(0)
+  }, [])
+
+  // Toggle a participant lane between full and collapsed height.
+  const toggleParticipantCollapse = useCallback((participantId: string) => {
+    setCollapsedParticipants(prev => {
+      const next = new Set(prev)
+      if (next.has(participantId)) next.delete(participantId)
+      else next.add(participantId)
+      return next
+    })
   }, [])
 
   // Sync scrolling between timeline and sidebar
@@ -371,7 +382,33 @@ function AppLogReplay() {
 
   // Render timeline visualization
   const activeLanes = getActiveLanes(demoState)
-  const totalHeight = activeLanes.length * LANE_HEIGHT
+
+  // Collapse-aware vertical layout. Lanes stack in activeLanes order; a collapsed
+  // lane occupies LANE_HEIGHT_COLLAPSED instead of LANE_HEIGHT. Node/arrow/lane Y
+  // positions all derive from these helpers so they follow collapse state (the
+  // old code assumed every lane was a fixed LANE_HEIGHT).
+  const laneHeightOf = (participantId: string) =>
+    collapsedParticipants.has(participantId) ? LANE_HEIGHT_COLLAPSED : LANE_HEIGHT
+  // Top edge of a lane, found by summing the heights of the lanes above it.
+  const laneTopByIndex = (laneIndex: number) => {
+    let top = 0
+    for (const p of activeLanes) {
+      if (p.laneIndex >= laneIndex) continue
+      top += laneHeightOf(p.id)
+    }
+    return top
+  }
+  // Vertical center of a lane (where nodes/arrows sit) by its lane index.
+  const laneCenterByIndex = (laneIndex: number) => {
+    const p = activeLanes.find(l => l.laneIndex === laneIndex)
+    const h = p ? laneHeightOf(p.id) : LANE_HEIGHT
+    return laneTopByIndex(laneIndex) + h / 2
+  }
+  const isLaneIndexCollapsed = (laneIndex: number) => {
+    const p = activeLanes.find(l => l.laneIndex === laneIndex)
+    return p ? collapsedParticipants.has(p.id) : false
+  }
+  const totalHeight = activeLanes.reduce((sum, p) => sum + laneHeightOf(p.id), 0)
   // Content width must cover the rightmost node so the container becomes
   // horizontally scrollable (mirrors App-multivendor). A static width:'100%' +
   // minWidth clamps to the viewport, clipping nodes past it with no scroll.
@@ -587,8 +624,8 @@ function AppLogReplay() {
               pxaState={demoState.pxaState}
               actions={[]} // No actions in replay mode
               onActionClick={() => {}}
-              isCollapsed={false}
-              onToggleCollapse={() => {}}
+              isCollapsed={collapsedParticipants.has(participant.id)}
+              onToggleCollapse={() => toggleParticipantCollapse(participant.id)}
             />
           ))}
         </div>
@@ -622,10 +659,10 @@ function AppLogReplay() {
                 key={`lane-${participant.id}`}
                 style={{
                   position: 'absolute',
-                  top: participant.laneIndex * LANE_HEIGHT,
+                  top: laneTopByIndex(participant.laneIndex),
                   left: 0,
                   right: 0,
-                  height: LANE_HEIGHT,
+                  height: laneHeightOf(participant.id),
                   borderBottom: '1px solid #ddd',
                   background: palerTint(participant.color),
                 }}
@@ -695,17 +732,22 @@ function AppLogReplay() {
                   const causeEvent = demoState.timelineEvents.find((e) => e.id === event.causedBy)
                   if (causeEvent) {
                     const allParticipants = Array.from(demoState.participants.values())
-                    const y1 = causeEvent.lane * LANE_HEIGHT + LANE_HEIGHT / 2
-                    const y2 = event.lane * LANE_HEIGHT + LANE_HEIGHT / 2
+                    const y1 = laneCenterByIndex(causeEvent.lane)
+                    const y2 = laneCenterByIndex(event.lane)
 
-                    const sourceRectHalfHeight = NODE_HEIGHT / 2
-                    const targetRectHalfHeight = NODE_HEIGHT / 2
+                    // Use the collapsed NODE height (not lane height) so the arrow
+                    // meets the smaller node exactly, mirroring App-multivendor.
+                    const sourceCollapsed = isLaneIndexCollapsed(causeEvent.lane)
+                    const targetCollapsed = isLaneIndexCollapsed(event.lane)
+                    const sourceRectHalfHeight = (sourceCollapsed ? NODE_HEIGHT_COLLAPSED : NODE_HEIGHT) / 2
+                    const targetRectHalfHeight = (targetCollapsed ? NODE_HEIGHT_COLLAPSED : NODE_HEIGHT) / 2
 
                     const direction = y2 > y1 ? 1 : -1
                     const adjustedY1 = y1 + (sourceRectHalfHeight * direction)
                     const adjustedY2 = y2 - (targetRectHalfHeight * direction)
 
-                    // Determine arrow color based on target participant
+                    // Determine arrow color based on target participant. No
+                    // arrowhead when the target lane is collapsed (matches multivendor).
                     let arrowColor: string
                     let arrowMarker: string
                     const targetParticipant = allParticipants.find(p => p.laneIndex === event.lane)
@@ -713,13 +755,13 @@ function AppLogReplay() {
                     if (targetParticipant) {
                       if (targetParticipant.id === 'finder') {
                         arrowColor = '#BBDEFB'
-                        arrowMarker = 'url(#arrowhead-blue)'
+                        arrowMarker = targetCollapsed ? '' : 'url(#arrowhead-blue)'
                       } else if (targetParticipant.id === 'vendor-1') {
                         arrowColor = '#E1BEE7'
-                        arrowMarker = 'url(#arrowhead-purple)'
+                        arrowMarker = targetCollapsed ? '' : 'url(#arrowhead-purple)'
                       } else if (targetParticipant.id === 'caseactor') {
                         arrowColor = '#FFE0B2'
-                        arrowMarker = 'url(#arrowhead-orange)'
+                        arrowMarker = targetCollapsed ? '' : 'url(#arrowhead-orange)'
                       } else {
                         arrowColor = '#999'
                         arrowMarker = ''
@@ -729,6 +771,10 @@ function AppLogReplay() {
                       arrowMarker = ''
                     }
 
+                    // Thinner, tighter-dashed line when pointing at a collapsed lane.
+                    const strokeWidth = targetCollapsed ? 1.5 : 3
+                    const strokeDasharray = targetCollapsed ? '3,3' : '6,6'
+
                     return (
                       <line
                         key={`edge-${event.id}`}
@@ -737,8 +783,8 @@ function AppLogReplay() {
                         x2={event.x}
                         y2={adjustedY2}
                         stroke={arrowColor}
-                        strokeWidth={3}
-                        strokeDasharray="6,6"
+                        strokeWidth={strokeWidth}
+                        strokeDasharray={strokeDasharray}
                         markerEnd={arrowMarker}
                       />
                     )
@@ -764,9 +810,15 @@ function AppLogReplay() {
                   (event.type === 'decision' && nextInLane.type === 'decision')
                 if (!shouldDrawArrow) return null
 
-                const y = event.lane * LANE_HEIGHT + LANE_HEIGHT / 2
-                const startX = event.x + NODE_WIDTH / 2 // edge of this node
-                const endX = nextInLane.x - NODE_WIDTH / 2 // edge of next node
+                const y = laneCenterByIndex(event.lane)
+                const collapsed = isLaneIndexCollapsed(event.lane)
+                // Nodes keep full width when collapsed (collapse is vertical only).
+                const halfW = NODE_WIDTH / 2
+                const startX = event.x + halfW // edge of this node
+                const endX = nextInLane.x - halfW // edge of next node
+                // Keep the arrowhead on horizontal arrows even when collapsed;
+                // only thin the stroke (matches App-multivendor).
+                const strokeWidth = collapsed ? 1.5 : 3
 
                 return (
                   <line
@@ -776,7 +828,7 @@ function AppLogReplay() {
                     x2={endX}
                     y2={y}
                     stroke="#666"
-                    strokeWidth={3}
+                    strokeWidth={strokeWidth}
                     markerEnd="url(#arrowhead)"
                   />
                 )
@@ -805,10 +857,14 @@ function AppLogReplay() {
                 : (hoveredEvent === event.id ? participantColors.consequenceHover : participantColors.consequence)
 
               // Center the node on the lane (matches the arrow endpoint math,
-              // which targets lane center). The old (LANE_HEIGHT - NODE_HEIGHT)/2
-              // placed the node's center above the lane center, so downward
-              // arrowheads landed under the node and were hidden.
-              const yPosition = event.lane * LANE_HEIGHT + LANE_HEIGHT / 2
+              // which targets lane center). Uses collapse-aware lane centers so
+              // nodes follow their lane when it collapses.
+              const yPosition = laneCenterByIndex(event.lane)
+              const laneCollapsed = isLaneIndexCollapsed(event.lane)
+              // Match AnimatedNode's dimensions for the violation outline: full
+              // width always (collapse is vertical only), collapsed height when collapsed.
+              const outlineW = NODE_WIDTH
+              const outlineH = laneCollapsed ? NODE_HEIGHT_COLLAPSED : NODE_HEIGHT
 
               return (
                 <g key={event.id}>
@@ -820,10 +876,10 @@ function AppLogReplay() {
                     yPosition={yPosition}
                     getCauseEventY={(eventId) => {
                       const causeEvent = demoState.timelineEvents.find((e) => e.id === eventId)
-                      return causeEvent ? causeEvent.lane * LANE_HEIGHT + LANE_HEIGHT / 2 : 0
+                      return causeEvent ? laneCenterByIndex(causeEvent.lane) : 0
                     }}
                     animateOnMount
-                    isCollapsed={false}
+                    isCollapsed={laneCollapsed}
                     onMouseEnter={() => setHoveredEvent(event.id)}
                     onMouseLeave={() => setHoveredEvent(null)}
                   />
@@ -833,10 +889,10 @@ function AppLogReplay() {
                   {event.violation && (
                     <>
                       <rect
-                        x={event.x - NODE_WIDTH / 2 - 3}
-                        y={yPosition - NODE_HEIGHT / 2 - 3}
-                        width={NODE_WIDTH + 6}
-                        height={NODE_HEIGHT + 6}
+                        x={event.x - outlineW / 2 - 3}
+                        y={yPosition - outlineH / 2 - 3}
+                        width={outlineW + 6}
+                        height={outlineH + 6}
                         rx="10"
                         ry="10"
                         fill="none"
@@ -845,8 +901,8 @@ function AppLogReplay() {
                         pointerEvents="none"
                       />
                       <text
-                        x={event.x + NODE_WIDTH / 2 - 6}
-                        y={yPosition - NODE_HEIGHT / 2 + 4}
+                        x={event.x + outlineW / 2 - 6}
+                        y={yPosition - outlineH / 2 + 4}
                         textAnchor="end"
                         fontSize="22"
                         pointerEvents="none"
@@ -866,7 +922,7 @@ function AppLogReplay() {
             {hoveredEvent && (() => {
               const event = demoState.timelineEvents.find((e) => e.id === hoveredEvent)
               if (!event) return null
-              const y = event.lane * LANE_HEIGHT + LANE_HEIGHT / 2
+              const y = laneCenterByIndex(event.lane)
               return (
                 <div
                   style={{
