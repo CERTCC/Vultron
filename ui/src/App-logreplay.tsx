@@ -336,6 +336,19 @@ function AppLogReplay() {
   // horizontally scrollable (mirrors App-multivendor). A static width:'100%' +
   // minWidth clamps to the viewport, clipping nodes past it with no scroll.
   const contentWidth = Math.max(1200, demoState.nextXPosition + 500)
+  // Lane background = a paler version of that participant's label color (the
+  // ActorPanel background). Blend the color toward white so the lane reads as a
+  // faint tint of its label rather than the old white/gray alternation.
+  const palerTint = (hex: string, towardWhite = 0.6): string => {
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim())
+    if (!m) return hex
+    const int = parseInt(m[1], 16)
+    const r = (int >> 16) & 0xff
+    const g = (int >> 8) & 0xff
+    const b = int & 0xff
+    const mix = (c: number) => Math.round(c + (255 - c) * towardWhite)
+    return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`
+  }
 
   return (
     <div style={{
@@ -574,7 +587,7 @@ function AppLogReplay() {
                   right: 0,
                   height: LANE_HEIGHT,
                   borderBottom: '1px solid #ddd',
-                  background: participant.laneIndex % 2 === 0 ? '#ffffff' : '#f9f9f9',
+                  background: palerTint(participant.color),
                 }}
               />
             ))}
