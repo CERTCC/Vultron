@@ -23,6 +23,13 @@ interface AnimatedNodeProps {
   yPosition?: number  // Optional override for dynamic lane heights
   getCauseEventY?: (eventId: string) => number  // Function to get Y position of cause event
   isCollapsed?: boolean  // Whether the participant lane is collapsed
+  // Animate the slide-in on first mount regardless of event.timestamp. The
+  // default trigger (timestamp within the last 100ms) only fires for nodes
+  // created live, so it never fires in Log Replay where timestamps come from
+  // the (old) log. Replay reveals nodes by mounting them as the step index
+  // advances, so mount is the correct moment to animate. A ref guard keeps it
+  // to a single run per mount.
+  animateOnMount?: boolean
   onMouseEnter: () => void
   onMouseLeave: () => void
 }
@@ -35,10 +42,12 @@ export function AnimatedNode({
   yPosition,
   getCauseEventY,
   isCollapsed = false,
+  animateOnMount = false,
   onMouseEnter,
   onMouseLeave,
 }: AnimatedNodeProps) {
   const gRef = useRef<SVGGElement>(null)
+  const hasAnimatedRef = useRef(false)
   const [showTooltip, setShowTooltip] = useState(false)
   const isDecision = event.type === 'decision'
   const y = yPosition !== undefined ? yPosition : (event.lane * LANE_HEIGHT + LANE_HEIGHT / 2)
@@ -57,11 +66,15 @@ export function AnimatedNode({
   const rectY = y - height / 2
 
   useEffect(() => {
+    // Live demos: animate when the event was just created. Replay: animate once
+    // on mount (timestamps are from the log, so the "just created" test can't fire).
     const isNewEvent = event.timestamp && Date.now() - event.timestamp < 100
+    const shouldAnimate = animateOnMount ? !hasAnimatedRef.current : isNewEvent
 
-    if (!isDecision && event.causedBy && isNewEvent && gRef.current) {
+    if (!isDecision && event.causedBy && shouldAnimate && gRef.current) {
       const causeEvent = allEvents.find((e) => e.id === event.causedBy)
       if (causeEvent) {
+        hasAnimatedRef.current = true
         // Use the provided function to get cause Y, or fallback to old calculation
         const causeY = getCauseEventY
           ? getCauseEventY(causeEvent.id)
@@ -81,7 +94,7 @@ export function AnimatedNode({
         )
       }
     }
-  }, [event.timestamp, isDecision, event.causedBy, allEvents, y, getCauseEventY])
+  }, [event.timestamp, isDecision, event.causedBy, allEvents, y, getCauseEventY, animateOnMount])
 
   const handleMouseEnter = () => {
     setShowTooltip(true)

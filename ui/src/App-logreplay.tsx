@@ -717,7 +717,11 @@ function AppLogReplay() {
                 ? (hoveredEvent === event.id ? participantColors.decisionHover : participantColors.decision)
                 : (hoveredEvent === event.id ? participantColors.consequenceHover : participantColors.consequence)
 
-              const yPosition = event.lane * LANE_HEIGHT + (LANE_HEIGHT - NODE_HEIGHT) / 2
+              // Center the node on the lane (matches the arrow endpoint math,
+              // which targets lane center). The old (LANE_HEIGHT - NODE_HEIGHT)/2
+              // placed the node's center above the lane center, so downward
+              // arrowheads landed under the node and were hidden.
+              const yPosition = event.lane * LANE_HEIGHT + LANE_HEIGHT / 2
 
               return (
                 <g key={event.id}>
@@ -727,6 +731,11 @@ function AppLogReplay() {
                     isHovered={hoveredEvent === event.id}
                     fillColor={fillColor}
                     yPosition={yPosition}
+                    getCauseEventY={(eventId) => {
+                      const causeEvent = demoState.timelineEvents.find((e) => e.id === eventId)
+                      return causeEvent ? causeEvent.lane * LANE_HEIGHT + LANE_HEIGHT / 2 : 0
+                    }}
+                    animateOnMount
                     isCollapsed={false}
                     onMouseEnter={() => setHoveredEvent(event.id)}
                     onMouseLeave={() => setHoveredEvent(null)}
