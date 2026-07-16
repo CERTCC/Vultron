@@ -332,14 +332,180 @@ function AppLogReplay() {
   // Render timeline visualization
   const activeLanes = getActiveLanes(demoState)
   const totalHeight = activeLanes.length * LANE_HEIGHT
+  // Content width must cover the rightmost node so the container becomes
+  // horizontally scrollable (mirrors App-multivendor). A static width:'100%' +
+  // minWidth clamps to the viewport, clipping nodes past it with no scroll.
+  const contentWidth = Math.max(1200, demoState.nextXPosition + 500)
 
   return (
     <div style={{
       display: 'flex',
+      flexDirection: 'column',
       height: '100%',
       overflow: 'hidden',
       position: 'relative',
     }}>
+      {/* Full-width header spanning the sidebar + timeline. It sits ABOVE the
+          body row so the dark bar covers the whole page and the swimlanes below
+          it start at the same y as the sidebar's actor panels (keeps lanes and
+          their labels aligned — previously the header only covered the timeline,
+          pushing lanes 80px below the panels). */}
+      <div style={{
+        flexShrink: 0,
+        background: '#2d2d2d',
+        borderBottom: '2px solid #0d47a1',
+        display: 'flex',
+        flexDirection: 'column',
+        padding: '0.5rem 1rem',
+        gap: '0.5rem',
+        zIndex: 5,
+      }}>
+        {/* Top row - title and file controls */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <h3 style={{ margin: 0, color: 'white', fontSize: '1.125rem' }}>
+            Case Timeline ({demoState.timelineEvents.length} events)
+          </h3>
+          <div style={{
+            marginLeft: 'auto',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+          }}>
+            <span style={{
+              color: '#4caf50',
+              fontSize: '0.875rem',
+              background: 'rgba(76, 175, 80, 0.1)',
+              padding: '0.25rem 0.75rem',
+              borderRadius: '4px',
+            }}>
+              ✓ {accumulatedEntries.length} entries from {uploadCount} upload(s)
+            </span>
+            <input
+              type="file"
+              accept=".jsonl"
+              multiple
+              onChange={(e) => handleFileUpload(e.target.files, true)}
+              id="add-more-files"
+              style={{ display: 'none' }}
+            />
+            <label
+              htmlFor="add-more-files"
+              style={{
+                padding: '0.5rem 1rem',
+                background: '#4caf50',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '0.875rem',
+                fontWeight: 'bold',
+              }}
+            >
+              📁 Add More Files
+            </label>
+            <button
+              onClick={handleReset}
+              style={{
+                padding: '0.5rem 1rem',
+                background: '#f44336',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '0.875rem',
+              }}
+            >
+              🔄 Start Over
+            </button>
+          </div>
+        </div>
+
+        {/* Bottom row - playback controls */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+          padding: '0.25rem',
+          background: '#e3f2fd',
+          borderRadius: '4px',
+        }}>
+          <button
+            onClick={handleRewind}
+            disabled={currentEventIndex === 0}
+            style={{
+              padding: '0.375rem 0.75rem',
+              background: currentEventIndex === 0 ? '#555' : '#0d47a1',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: currentEventIndex === 0 ? 'not-allowed' : 'pointer',
+              fontSize: '0.875rem',
+            }}
+            title="Rewind to start"
+          >
+            ⏮
+          </button>
+          <button
+            onClick={handleStepBackward}
+            disabled={currentEventIndex === 0}
+            style={{
+              padding: '0.375rem 0.75rem',
+              background: currentEventIndex === 0 ? '#555' : '#0d47a1',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: currentEventIndex === 0 ? 'not-allowed' : 'pointer',
+              fontSize: '0.875rem',
+            }}
+            title="Previous event"
+          >
+            ⏪
+          </button>
+          <button
+            onClick={isPlaying ? handlePause : handlePlay}
+            style={{
+              padding: '0.375rem 1rem',
+              background: '#4caf50',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '0.875rem',
+              fontWeight: 'bold',
+            }}
+            title={isPlaying ? "Pause" : "Play"}
+          >
+            {isPlaying ? '⏸ Pause' : '▶ Play'}
+          </button>
+          <button
+            onClick={handleStepForward}
+            disabled={currentEventIndex >= demoState.timelineEvents.length - 1}
+            style={{
+              padding: '0.375rem 0.75rem',
+              background: currentEventIndex >= demoState.timelineEvents.length - 1 ? '#555' : '#0d47a1',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: currentEventIndex >= demoState.timelineEvents.length - 1 ? 'not-allowed' : 'pointer',
+              fontSize: '0.875rem',
+            }}
+            title="Next event"
+          >
+            ⏩
+          </button>
+          <span style={{
+            color: '#0d47a1',
+            fontWeight: 'bold',
+            fontSize: '0.875rem',
+            marginLeft: '0.5rem',
+          }}>
+            Event {currentEventIndex + 1} of {demoState.timelineEvents.length}
+          </span>
+        </div>
+      </div>
+
+      {/* Body row: sidebar + timeline share the same top edge (just below the header). */}
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
       {/* Left sidebar with actor panels */}
       <div
         ref={sidebarScrollRef}
@@ -377,171 +543,13 @@ function AppLogReplay() {
 
       {/* Main timeline area */}
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-        {/* Timeline header */}
-        <div style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          height: '80px',
-          background: '#2d2d2d',
-          borderBottom: '2px solid #0d47a1',
-          display: 'flex',
-          flexDirection: 'column',
-          padding: '0.5rem 1rem',
-          gap: '0.5rem',
-          zIndex: 5,
-        }}>
-          {/* Top row - title and file controls */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <h3 style={{ margin: 0, color: 'white', fontSize: '1.125rem' }}>
-              Case Timeline ({demoState.timelineEvents.length} events)
-            </h3>
-            <div style={{
-              marginLeft: 'auto',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-            }}>
-              <span style={{
-                color: '#4caf50',
-                fontSize: '0.875rem',
-                background: 'rgba(76, 175, 80, 0.1)',
-                padding: '0.25rem 0.75rem',
-                borderRadius: '4px',
-              }}>
-                ✓ {accumulatedEntries.length} entries from {uploadCount} upload(s)
-              </span>
-              <input
-                type="file"
-                accept=".jsonl"
-                multiple
-                onChange={(e) => handleFileUpload(e.target.files, true)}
-                id="add-more-files"
-                style={{ display: 'none' }}
-              />
-              <label
-                htmlFor="add-more-files"
-                style={{
-                  padding: '0.5rem 1rem',
-                  background: '#4caf50',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '0.875rem',
-                  fontWeight: 'bold',
-                }}
-              >
-                📁 Add More Files
-              </label>
-              <button
-                onClick={handleReset}
-                style={{
-                  padding: '0.5rem 1rem',
-                  background: '#f44336',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '0.875rem',
-                }}
-              >
-                🔄 Start Over
-              </button>
-            </div>
-          </div>
-
-          {/* Bottom row - playback controls */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            padding: '0.25rem',
-            background: '#e3f2fd',
-            borderRadius: '4px',
-          }}>
-            <button
-              onClick={handleRewind}
-              disabled={currentEventIndex === 0}
-              style={{
-                padding: '0.375rem 0.75rem',
-                background: currentEventIndex === 0 ? '#555' : '#0d47a1',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: currentEventIndex === 0 ? 'not-allowed' : 'pointer',
-                fontSize: '0.875rem',
-              }}
-              title="Rewind to start"
-            >
-              ⏮
-            </button>
-            <button
-              onClick={handleStepBackward}
-              disabled={currentEventIndex === 0}
-              style={{
-                padding: '0.375rem 0.75rem',
-                background: currentEventIndex === 0 ? '#555' : '#0d47a1',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: currentEventIndex === 0 ? 'not-allowed' : 'pointer',
-                fontSize: '0.875rem',
-              }}
-              title="Previous event"
-            >
-              ⏪
-            </button>
-            <button
-              onClick={isPlaying ? handlePause : handlePlay}
-              style={{
-                padding: '0.375rem 1rem',
-                background: '#4caf50',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontSize: '0.875rem',
-                fontWeight: 'bold',
-              }}
-              title={isPlaying ? "Pause" : "Play"}
-            >
-              {isPlaying ? '⏸ Pause' : '▶ Play'}
-            </button>
-            <button
-              onClick={handleStepForward}
-              disabled={currentEventIndex >= demoState.timelineEvents.length - 1}
-              style={{
-                padding: '0.375rem 0.75rem',
-                background: currentEventIndex >= demoState.timelineEvents.length - 1 ? '#555' : '#0d47a1',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: currentEventIndex >= demoState.timelineEvents.length - 1 ? 'not-allowed' : 'pointer',
-                fontSize: '0.875rem',
-              }}
-              title="Next event"
-            >
-              ⏩
-            </button>
-            <span style={{
-              color: '#ddd',
-              fontSize: '0.875rem',
-              marginLeft: '0.5rem',
-            }}>
-              Event {currentEventIndex + 1} of {demoState.timelineEvents.length}
-            </span>
-          </div>
-        </div>
-
         {/* Scrollable timeline */}
         <div
           ref={timelineScrollRef}
           onScroll={handleTimelineScroll}
           style={{
             position: 'absolute',
-            top: '80px',
+            top: 0,
             left: 0,
             right: 0,
             bottom: eventLogCollapsed ? '40px' : '200px',
@@ -552,8 +560,7 @@ function AppLogReplay() {
         >
           <div style={{
             height: `${totalHeight}px`,
-            width: '100%',
-            minWidth: '1200px',
+            width: `${contentWidth}px`,
             position: 'relative',
           }}>
             {/* Lane backgrounds */}
@@ -578,7 +585,7 @@ function AppLogReplay() {
                 position: 'absolute',
                 top: 0,
                 left: 0,
-                width: '100%',
+                width: `${contentWidth}px`,
                 height: '100%',
                 pointerEvents: 'none',
               }}
@@ -793,6 +800,7 @@ function AppLogReplay() {
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   )
