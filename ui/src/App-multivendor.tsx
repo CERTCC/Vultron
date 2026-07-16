@@ -567,8 +567,13 @@ function App() {
                     style={{
                       position: 'absolute',
                       top: yPos,
+                      // Stretch edge-to-edge instead of pinning to a fixed
+                      // `width: minWidth`. With few events minWidth floors at
+                      // 2000px, so on a wider viewport the fixed-width lane left a
+                      // bare gap on the right. left:0/right:0 fills the parent in
+                      // every case (parent width = max(viewport, minWidth)).
                       left: 0,
-                      width: minWidth,
+                      right: 0,
                       height,
                       background: participant.color,
                       opacity: 0.3,
