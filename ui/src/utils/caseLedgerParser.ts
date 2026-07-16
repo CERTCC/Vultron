@@ -1,9 +1,10 @@
 /**
  * Parser for the Vultron **case-ledger** JSONL format (the refactored log format).
  *
- * This REPLACES `jsonlParser.ts` for the current log generator. `jsonlParser.ts`
- * and `logEventMapper.ts` are kept frozen as historical reference for the OLD
- * format (see ui/CLAUDE.md §5–6, now historical). Do not import from them here.
+ * This is the current log-replay pipeline. It replaced an older pipeline
+ * (`jsonlParser.ts` + `logEventMapper.ts`) that parsed the pre-refactor format;
+ * those files have been deleted (git history preserves them). See ui/CLAUDE.md
+ * §5–6 for the format history.
  *
  * The ledger is a single shared, hash-chained log: each container-based demo run
  * writes per-folder copies (devlogs/two-actor/{finder,vendor,case-actor}/), but in
@@ -111,8 +112,7 @@ export type LaneId = 'finder' | 'vendor-1' | 'caseactor' | 'unknown'
  * Order matters: the Case Actor's URL is itself a `//vendor:` URL with a
  * `case-actor-…` path segment (e.g.
  * `http://vendor:7999/api/v2/actors/case-actor-<caseId>`), so the `case-actor`
- * test MUST run before the `//vendor:` test. (The frozen `extractActorType`
- * relies on the same ordering.)
+ * test MUST run before the `//vendor:` test.
  */
 export function actorUrlToLaneId(url?: string | null): LaneId {
   if (!url) return 'unknown'

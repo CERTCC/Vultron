@@ -50,6 +50,47 @@ others. Know which mode you're touching.
 > Constants are **not** centralized across all three apps — verify the file
 > you're editing rather than assuming `constants.ts` applies.
 
+### How to run it (READ THIS FIRST if you're new to the session)
+
+```bash
+cd ui
+npm run dev        # Vite dev server, prints a localhost URL (usually http://localhost:5173)
+```
+
+- **No `npm install` needed normally** — `ui/node_modules` is present in the
+  working tree. Only reinstall if `package.json` deps changed (recent bumps:
+  React 19, Vite 8, TS 6) or Vite errors on a missing module.
+- **No backend, no Python** — everything is client-side. The demo imports the
+  committed `data/json/protocol_states.json` directly (via `server.fs.allow`;
+  §9). `npm run dev` never needs the exporter or a server.
+- **Switching modes:** the mode toggle is at the top of the page
+  ([`DemoSelector.tsx`](src/DemoSelector.tsx)). It's plain in-memory React state
+  (`useState`, default `'multi'`) — **not** persisted to URL or localStorage, so
+  a page refresh returns to Multi-vendor. To make a mode the startup default,
+  change the `useState` initial value.
+- **IMPORTANT — the agent CANNOT run any of this in-container.** There is no
+  `node`/`npm`/`python` on PATH here (only `jq` + `node_modules/.bin` shims that
+  still need a node runtime). So `npm run dev/build/lint` and the Python exporter
+  **must be run by the user** in their real environment — hand them exact
+  commands, don't attempt them. Agent-side verification = careful diff review +
+  the build/lint gate the user runs. (See "Tooling constraint" at the bottom.)
+
+### Where each mode stands (testing status, as of this note)
+
+- **Single-vendor / Multi-vendor** — the proven, stable demos. Not under active
+  change; treat as reference behavior.
+- **Multi-vendor (Validated)** — protocol-deferral fork, **Steps 1–5 DONE**
+  (§9). Last change: the CaseActor revision-response fix (§9). Build + lint were
+  green and the fix was confirmed by manual walkthrough. Status: *initial work
+  complete, manual testing underway* — embargo negotiation/revision paths are
+  the highest-risk area to keep exercising.
+- **Log Replay** — **rebuilt from scratch (2026-06)** on the new case-ledger
+  format (§5–6). Its `npm run build`/`lint` have **NOT** been re-verified since
+  the rebuild (no node in-container). This is the **least-verified mode** — first
+  actions for a new session: have the user run build+lint, then load the sample
+  case and confirm violation-flagging. (The dead old pipeline files have now been
+  deleted — see §5–6 / §9 lint note.)
+
 ---
 
 ## 2. The core visual grammar: Decision / Consequence nodes
@@ -129,10 +170,33 @@ Case Actor lane down — see `inviteActions.ts`, which re-maps existing events'
 > **2026-06 restart.** The log generator was refactored and the replay demo was
 > rebuilt from scratch on the **new case-ledger format**, grounded in the protocol
 > source of truth (`protocol.ts` → `protocol_states.json`, §9). The OLD pipeline
-> (`jsonlParser.ts` + `logEventMapper.ts`) is **frozen, dead, and kept only as
-> historical reference** — nothing imports it. The "known bugs" / "data contract
+> (`jsonlParser.ts` + `logEventMapper.ts`) has been **deleted** (git history
+> preserves it) — nothing imported it. The "known bugs" / "data contract
 > gaps" that used to fill §5–6 described the OLD format and are obsolete (see git
 > history).
+
+**Why the old pipeline was scrapped (not just patched) — two reasons:**
+1. **The log format changed underneath it.** The generator's new vocabulary is
+   the six case-ledger verbs below; the old parser expected `submit_report` /
+   `engage_case` / `add_participant_status`, which the new logs no longer emit —
+   so it literally couldn't read them.
+2. **Its design was structurally broken.** The old `buildTimelineFromLogs`
+   guessed decision/consequence clusters by bucketing entries into 1-second
+   windows (`Math.floor(receivedAt/1000)`); it only knew how to cluster two
+   hardcoded verbs, dropped everything else through an early-return that never
+   advanced the X column (→ overlapping nodes), emitted no `causedBy` (→ no
+   arrows, §2), and never deduped. These came from *inferring* structure the log
+   didn't carry — unfixable by patching. The new pipeline gets ordering, dedup,
+   and causality from the format + a linear shadow-state walk instead of guessing.
+
+**The core conceptual shift (old → new):** the old mapper *transcribed* whatever
+the log said. The new mapper **reconstructs transitions from snapshots and
+validates each against the protocol** — the log records STATE SNAPSHOTS (not
+transitions), so the mapper diffs each snapshot vs. the previous shadow to
+recover the trigger, then asks `../protocol` if that trigger is legal (legal →
+advance; illegal → flag `violation:true` + keep going). The same
+`protocol_states.json` that *drives* the Validated interactive demo now *judges*
+the real logs — it's the §9 deferral idea applied to replay.
 
 **New pipeline:** `caseLedgerParser.ts` → `caseLedgerMapper.ts` → `App-logreplay.tsx`.
 
@@ -475,10 +539,8 @@ show only `validated/` paths.
   no node/npm (see below), so `npm run build` / `npm run lint` were NOT run here.
 - The 3 pre-existing lint errors lived in the OLD replay pipeline
   (`utils/jsonlParser.ts` `no-explicit-any` ×2, `utils/logEventMapper.ts`
-  `no-useless-assignment`). Those files are now **dead** (nothing imports them).
-  Cleanest follow-up: **delete `jsonlParser.ts` + `logEventMapper.ts`** (git history
-  preserves them) — that clears those 3 errors. Left in place for now so the user
-  can confirm the new pipeline first. The new `caseLedgerParser.ts` /
+  `no-useless-assignment`). Those files have now been **deleted** (git history
+  preserves them), which should clear those 3 errors. The new `caseLedgerParser.ts` /
   `caseLedgerMapper.ts` avoid `any` and dead assignments by design.
 - Replay-restart files to expect green: `utils/caseLedgerParser.ts`,
   `utils/caseLedgerMapper.ts`, `App-logreplay.tsx`, `types.ts` (one additive
