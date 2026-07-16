@@ -34,6 +34,9 @@ export interface TimelineEvent {
                        // protocol trigger was illegal from the shadow source state
                        // (see ui/src/utils/caseLedgerMapper.ts). Renderers may
                        // style flagged nodes (e.g. red); all other code ignores it.
+  violationReason?: string  // human-readable explanation of WHY the transition is
+                            // illegal per the protocol, shown in the replay hover
+                            // tooltip. Set only when `violation` is true.
 }
 
 export interface DemoState {

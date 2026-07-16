@@ -632,7 +632,10 @@ function AppLogReplay() {
               />
             ))}
 
-            {/* SVG layer for timeline events */}
+            {/* SVG layer for timeline events. No pointerEvents:'none' here — that
+                would block node hover (the nodes live inside this SVG and rely on
+                mouse events reaching their rects). Non-interactive elements
+                (arrows, violation outline) opt out individually instead. */}
             <svg
               style={{
                 position: 'absolute',
@@ -640,7 +643,6 @@ function AppLogReplay() {
                 left: 0,
                 width: `${contentWidth}px`,
                 height: '100%',
-                pointerEvents: 'none',
               }}
             >
               {/* Arrow markers */}
@@ -857,6 +859,53 @@ function AppLogReplay() {
               )
               })}
             </svg>
+
+            {/* Hover tooltip: node label + detail bullets, and — for flagged
+                nodes — an explanation of WHY the transition is illegal per the
+                protocol. Positioned in the same coordinate space as the nodes. */}
+            {hoveredEvent && (() => {
+              const event = demoState.timelineEvents.find((e) => e.id === hoveredEvent)
+              if (!event) return null
+              const y = event.lane * LANE_HEIGHT + LANE_HEIGHT / 2
+              return (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: y + 60,
+                    left: event.x - 140,
+                    background: 'white',
+                    border: `2px solid ${event.violation ? '#d32f2f' : '#333'}`,
+                    borderRadius: '8px',
+                    padding: '0.75rem',
+                    boxShadow: '0 4px 6px rgba(0,0,0,0.15)',
+                    zIndex: 1000,
+                    width: '280px',
+                    pointerEvents: 'none',
+                    textAlign: 'left',
+                  }}
+                >
+                  <div style={{ fontWeight: 'bold', marginBottom: '0.5rem' }}>
+                    {event.violation ? '⚠️ ' : ''}{event.label}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#666' }}>
+                    {event.consequences.map((c, i) => (
+                      <div key={i} style={{ marginBottom: '0.25rem' }}>• {c}</div>
+                    ))}
+                  </div>
+                  {event.violation && event.violationReason && (
+                    <div style={{
+                      marginTop: '0.5rem',
+                      paddingTop: '0.5rem',
+                      borderTop: '1px solid #eee',
+                      fontSize: '0.75rem',
+                      color: '#c62828',
+                    }}>
+                      <strong>Protocol violation:</strong> {event.violationReason}
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
           </div>
         </div>
 

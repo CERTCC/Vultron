@@ -235,7 +235,8 @@ function synthesizeCluster(
   decisionConsequences: string[],
   consequenceLabel: string,
   consequenceBullets: (lane: ParticipantState) => string[],
-  violation: boolean
+  violation: boolean,
+  violationReason?: string
 ): TimelineEvent[] {
   const decision = participants.get(decisionLaneId)
   if (!decision) return []
@@ -254,6 +255,7 @@ function synthesizeCluster(
       consequences: decisionConsequences,
       timestamp: baseTs,
       violation: violation || undefined,
+      violationReason: violation ? violationReason : undefined,
     },
   ]
 
@@ -538,10 +540,15 @@ function handleValidateReport(
   const src = shadow.rm[laneId] ?? 'RECEIVED'
   const legal = isLegalTransition('rm', src, 'validate')
   let violation = false
+  let violationReason: string | undefined
   if (legal) {
     shadow.rm[laneId] = nextState('rm', src, 'validate')!
   } else {
     violation = true
+    violationReason =
+      `The RM machine has no "validate" transition from ${src}. ` +
+      `"validate" is only legal from RECEIVED or INVALID. Recording it from ` +
+      `${src} would skip or repeat the report-validation step.`
     logLines.push(
       `  ↳ PROTOCOL VIOLATION: rm "validate" illegal from "${src}" (subject=${laneId}); forcing shadow → VALID`
     )
@@ -557,7 +564,8 @@ function handleValidateReport(
     ['Accept(Offer) — report deemed legitimate', `RM: ${src} → ${shadow.rm[laneId]}`],
     'Report Validated',
     () => ['Vendor validated the report', `RM: → ${shadow.rm[laneId]}`],
-    violation
+    violation,
+    violationReason
   )
   return { nodes, logLines }
 }
@@ -635,6 +643,7 @@ function handleParticipantStatus(
   // Track the changes this entry represents; pick a primary for the node label.
   const changes: Array<{ machine: MachineName; from: string; to: string; trigger: string }> = []
   let violation = false
+  const violationReasons: string[] = []
 
   // ---- RM ----
   if (rmNext !== undefined) {
@@ -656,6 +665,10 @@ function handleParticipantStatus(
           // Without this, a status entry whose ONLY content is an illegal RM jump
           // would hit the `changes.length === 0` early return and be invisible.
           changes.push({ machine: 'rm', from: src, to: rmNext, trigger: 'illegal' })
+          violationReasons.push(
+            `RM cannot reach ${rmNext} from ${src}: no sequence of legal RM ` +
+              `transitions connects them. The report's management state jumped illegally.`
+          )
           logLines.push(
             `  ↳ PROTOCOL VIOLATION: rm has no path "${src}" → "${rmNext}" (subject=${laneId}); forcing shadow`
           )
@@ -684,6 +697,11 @@ function handleParticipantStatus(
           // See the RM branch above: record the illegal jump so the flagged node
           // renders instead of vanishing via the `changes.length === 0` return.
           changes.push({ machine: 'vfd', from: src, to: vfdNext, trigger: 'illegal' })
+          violationReasons.push(
+            `VFD cannot reach ${vfdNext} from ${src}: the fix-development ladder ` +
+              `(vfd → Vfd → VFd → VFD) advances one milestone at a time and cannot ` +
+              `skip or regress. This snapshot jumped illegally.`
+          )
           logLines.push(
             `  ↳ PROTOCOL VIOLATION: vfd has no path "${src}" → "${vfdNext}" (subject=${laneId}); forcing shadow`
           )
@@ -720,7 +738,8 @@ function handleParticipantStatus(
     decisionBullets,
     label,
     () => [`${subjectName} status update`, ...changes.map((c) => `${c.machine.toUpperCase()} → ${c.to}`)],
-    violation
+    violation,
+    violationReasons.join(' ') || undefined
   )
   return { nodes, logLines }
 }
@@ -737,10 +756,15 @@ function handleRemoveEmbargo(
   const logLines: string[] = []
   const src = shadow.emState
   let violation = false
+  let violationReason: string | undefined
   if (isLegalTransition('em', src, 'terminate')) {
     shadow.emState = nextState('em', src, 'terminate')!
   } else {
     violation = true
+    violationReason =
+      `The EM machine has no "terminate" transition from ${src}. ` +
+      `An embargo can only be terminated from ACTIVE or REVISE. From ${src} ` +
+      `there is no active embargo to end.`
     logLines.push(
       `  ↳ PROTOCOL VIOLATION: em "terminate" illegal from "${src}"; forcing shadow → EXITED`
     )
@@ -756,7 +780,8 @@ function handleRemoveEmbargo(
     ['EmbargoEvent removed from case', `EM: ${src} → ${shadow.emState}`, 'Embargo period ended'],
     'Embargo Ended',
     () => ['Embargo terminated', `EM: → ${shadow.emState}`],
-    violation
+    violation,
+    violationReason
   )
   return { nodes, logLines }
 }
@@ -777,12 +802,19 @@ function handleCloseCase(
   // ledger omits those snapshots, close the subject's RM here as a fallback.
   const subjectUrl = entry.payloadSnapshot?.object?.attributedTo
   const subjectLane = actorUrlToLaneId(subjectUrl)
+  let violation = false
+  let violationReason: string | undefined
   if (subjectLane !== 'unknown' && shadow.seededRm.has(subjectLane) && shadow.rm[subjectLane] !== 'CLOSED') {
     const src = shadow.rm[subjectLane]
     if (isLegalTransition('rm', src, 'close')) {
       shadow.rm[subjectLane] = 'CLOSED'
       logLines.push(`  ↳ close_case: ${subjectLane} RM ${src} → CLOSED`)
     } else {
+      violation = true
+      violationReason =
+        `The RM machine has no "close" transition from ${src}. ` +
+        `A case can only be closed from ACCEPTED, DEFERRED, or INVALID — ` +
+        `closing from ${src} skips the required disposition of the report.`
       logLines.push(
         `  ↳ PROTOCOL VIOLATION: rm "close" illegal from "${src}" (subject=${subjectLane}); forcing CLOSED`
       )
@@ -799,7 +831,8 @@ function handleCloseCase(
     ['VulnerabilityCase closed', `EM: ${shadow.emState}`, 'Case archived in ledger'],
     'Case Closed',
     () => ['Case closed by Case Manager'],
-    false
+    violation,
+    violationReason
   )
   return { nodes, logLines }
 }
