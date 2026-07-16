@@ -42,3 +42,6 @@ from vultron.core.behaviors.inbox.nodes.pipeline import (  # noqa: F401
     ParsePayloadNode,
     RehydrateActivityNode,
 )
+from vultron.core.behaviors.inbox.nodes.dead_letter import (  # noqa: F401
+    StoreDeadLetterRecordNode,
+)

@@ -16,16 +16,25 @@
 """
 AddParticipantStatus behavior tree composition.
 
-Composes the five-step DEMOMA-07-003 workflow as a Sequence BT:
+Composes the four-step DEMOMA-07-003 workflow as a Sequence BT
+(step 3 raw peer re-broadcast removed per DEMOMA-07-005):
 
     AddParticipantStatusBT (Sequence)
-    ├─ VerifySenderIsParticipantNode   # Step 1: sender must be known participant
-    ├─ AppendParticipantStatusNode     # Step 2: append status to participant record
-    ├─ BroadcastStatusToPeersNode      # Step 3: Case Manager broadcasts to peers
-    ├─ PublicDisclosureBranchNode      # Step 4: embargo teardown on CS.P + CASE_OWNER
-    └─ AutoCloseBranchNode             # Step 5: log auto-close if all RM.CLOSED
+    ├─ VerifySenderIsParticipantNode      # Step 1: sender must be known participant
+    ├─ CheckParticipantRMNotClosedNode    # Guard: reject CLOSED→CLOSED rewrites
+    ├─ GuardedCommitOrSkip (Selector, only if case_id)  # Record receipt first (CLP-10-006)
+    │   ├─ Sequence("SkipIfNotCaseManager")
+    │   │   └─ Inverter(CheckIsCaseManagerNode)
+    │   └─ CommitCaseLedgerEntryNode
+    ├─ AppendParticipantStatusNode        # Step 2: append status to participant record
+    ├─ PublicDisclosureBranchNode         # Step 4: embargo teardown on CS.P + CASE_OWNER
+    └─ AutoCloseIfCaseManager (Selector)  # Step 5: auto-close only when CASE_MANAGER
+        ├─ Sequence
+        │   ├─ CheckIsCaseManagerNode
+        │   └─ AutoCloseBranchNode
+        └─ Success (skip if not CASE_MANAGER)
 
-Per specs/multi-actor-demo.yaml DEMOMA-07-003.
+Per specs/multi-actor-demo.yaml DEMOMA-07-003 and DEMOMA-07-005.
 """
 
 import logging
@@ -35,12 +44,16 @@ import py_trees
 from vultron.core.models.events.status import (
     AddParticipantStatusToParticipantReceivedEvent,
 )
+from vultron.core.behaviors.case.nodes.conditions import CheckIsCaseManagerNode
+from vultron.core.behaviors.case.nodes.lifecycle import (
+    create_receive_activity_tree,
+)
 from vultron.core.behaviors.status.append_participant_status_tree import (
     append_participant_status_tree,
 )
 from vultron.core.behaviors.status.nodes import (
     AutoCloseBranchNode,
-    BroadcastStatusToPeersNode,
+    CheckParticipantRMNotClosedNode,
     PublicDisclosureBranchNode,
     VerifySenderIsParticipantNode,
 )
@@ -50,23 +63,38 @@ logger = logging.getLogger(__name__)
 
 def add_participant_status_tree(
     request: AddParticipantStatusToParticipantReceivedEvent,
+    case_id: str | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the behavior tree for the AddParticipantStatus workflow.
 
     Handles receipt of an ``Add(ParticipantStatus, CaseParticipant)``
-    activity.  Implements all five steps of DEMOMA-07-003 as BT nodes
-    in a Sequence.
+    activity.  Implements the four remaining steps of DEMOMA-07-003 as BT
+    nodes in a Sequence (step 3 raw re-broadcast removed per DEMOMA-07-005).
 
-    The *case_id* is derived from the inline ``request.status.context``
-    field.  If it is not available in the inline object, the
+    When ``case_id`` is provided (or derived from the inline status object),
+    a guarded-commit subtree is inserted after precondition guards so the
+    canonical ledger records receipt of the triggering activity before any
+    protocol effects run (CLP-10-006).  Running the tree with
+    ``actor_id=receiving_actor_id`` (ADR-0022 single-BT shape) means
+    ``CheckIsCaseManagerNode`` in that subtree correctly fires only when
+    the receiving actor holds ``CVDRole.CASE_MANAGER``.
+
+    The *case_id* for the commit and all children is derived from the inline
+    ``request.status.context`` field when not supplied explicitly.  If it
+    is not available in the inline object, the
     ``VerifySenderIsParticipantNode`` will perform a DataLayer lookup.
 
-    ``BroadcastStatusToPeersNode`` and ``PublicDisclosureBranchNode`` use
-    the ``trigger_activity_factory`` that the caller places on the
-    py_trees blackboard via ``BTBridge(trigger_activity=...)``.
+    ``PublicDisclosureBranchNode`` uses the ``trigger_activity_factory`` that
+    the caller places on the py_trees blackboard via
+    ``BTBridge(trigger_activity=...)``.
 
     Args:
         request: The parsed inbound domain event.
+    case_id: ID of the VulnerabilityCase.  When provided (or derivable
+        from the inline status object), a guarded-commit subtree is
+        inserted after precondition guards so the receiving CaseActor
+        writes a canonical ledger entry (CLP-10-005).  Pass ``None``
+        (with no derivable context) to skip the commit.
 
     Returns:
         Root node of the ``AddParticipantStatusBT`` Sequence.
@@ -76,42 +104,56 @@ def add_participant_status_tree(
     actor_id = request.actor_id
     status_obj = request.status
 
-    # Derive case_id from the inline status object when available.
+    # Derive case_id from the inline status object when not supplied explicitly.
     # VerifySenderIsParticipantNode falls back to a DataLayer lookup when None.
-    case_id: str | None = None
-    if status_obj is not None:
+    tree_case_id: str | None = case_id
+    if tree_case_id is None and status_obj is not None:
         context_field = getattr(status_obj, "context", None)
         if context_field:
-            case_id = str(context_field)
+            tree_case_id = str(context_field)
 
-    root = py_trees.composites.Sequence(
-        name="AddParticipantStatusBT",
+    auto_close_selector = py_trees.composites.Selector(
+        name="AutoCloseIfCaseManager",
         memory=False,
         children=[
+            py_trees.composites.Sequence(
+                name="CaseManagerAutoClose",
+                memory=False,
+                children=[
+                    CheckIsCaseManagerNode(case_id=tree_case_id),
+                    AutoCloseBranchNode(case_id=tree_case_id),
+                ],
+            ),
+            py_trees.behaviours.Success(name="AutoCloseSkippedNotCaseManager"),
+        ],
+    )
+
+    root = create_receive_activity_tree(
+        name="AddParticipantStatusBT",
+        case_id=tree_case_id,
+        precondition_guards=[
             VerifySenderIsParticipantNode(
                 status_id=status_id,
                 sender_actor_id=actor_id,
-                case_id=case_id,
+                case_id=tree_case_id,
             ),
+            CheckParticipantRMNotClosedNode(
+                participant_id=participant_id,
+                status_id=status_id,
+            ),
+        ],
+        effect_nodes=[
             append_participant_status_tree(
                 status_id=status_id,
                 participant_id=participant_id,
                 status_obj_fallback=status_obj,
             ),
-            BroadcastStatusToPeersNode(
-                status_id=status_id,
-                participant_id=participant_id,
-                sender_actor_id=actor_id,
-                case_id=case_id,
-            ),
             PublicDisclosureBranchNode(
                 status_obj=status_obj,
                 sender_actor_id=actor_id,
-                case_id=case_id,
+                case_id=tree_case_id,
             ),
-            AutoCloseBranchNode(
-                case_id=case_id,
-            ),
+            auto_close_selector,
         ],
     )
     logger.debug(
@@ -120,6 +162,6 @@ def add_participant_status_tree(
         status_id,
         participant_id,
         actor_id,
-        case_id,
+        tree_case_id,
     )
     return root

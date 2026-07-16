@@ -4,6 +4,7 @@ Module-level helpers used across multiple use-case modules.
 All helpers are private to the use-cases package (prefix ``_``).
 """
 
+import hashlib
 import logging
 import uuid
 from typing import Any
@@ -14,14 +15,17 @@ from vultron.core.models.protocols import (
     is_participant_model,
 )
 from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.ports.case_persistence import (
+    CasePersistence,
+    CaseOutboxPersistence,
+)
 from vultron.core.states.participant_embargo_consent import (
     PEC,
     PEC_Trigger,
     apply_pec_trigger,
 )
 from vultron.core.states.rm import RM
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)
@@ -348,20 +352,49 @@ def _resolve_case_manager_id(
 ) -> str | None:
     """Return the actor ID of the Case Manager (CVDRole.CASE_MANAGER).
 
-    Iterates over all participants in the case's ``actor_participant_index``
-    and returns the ``attributed_to`` actor ID of the first participant that
-    holds ``CVDRole.CASE_MANAGER``.  Returns ``None`` when no Case Manager
-    participant is found.
+    Checks two participant sources in order:
+
+    1. ``actor_participant_index`` — the fast lookup used after bootstrap
+       (this is the primary path for trigger use cases).
+    2. ``case_participants`` — the canonical list used during bootstrap,
+       where inline participant objects may not yet be indexed.  This path
+       also handles ID-only references that are absent from the index.
+
+    Returns the ``attributed_to`` actor ID of the first participant holding
+    ``CVDRole.CASE_MANAGER``, or ``None`` when none is found.
 
     This is the correct recipient for all participant-originated outbound
     activities after case creation (PCR-08-001, PCR-08-002).
     """
+    # Primary path: fast index lookup (normal post-bootstrap operation).
     for p_id in case.actor_participant_index.values():
         p = dl.read(p_id)
-        if p is None:
+        if not is_participant_model(p):
             continue
-        roles = getattr(p, "case_roles", [])
-        if CVDRole.CASE_MANAGER in roles:
+        if CVDRole.CASE_MANAGER in p.roles:
+            manager_actor_id = getattr(p, "attributed_to", None)
+            return _as_id(manager_actor_id)
+
+    # Fallback: iterate case_participants for inline objects or IDs not yet
+    # in the index (bootstrap path, CBT-01-003).
+    indexed_participant_ids = set(case.actor_participant_index.values())
+    for participant_ref in case.case_participants:
+        if not isinstance(participant_ref, str):
+            # Inline participant object — no DataLayer read needed.
+            if (
+                is_participant_model(participant_ref)
+                and CVDRole.CASE_MANAGER in participant_ref.roles
+            ):
+                attributed = getattr(participant_ref, "attributed_to", None)
+                return _as_id(attributed)
+            continue
+        if participant_ref in indexed_participant_ids:
+            # Already checked via the index; skip to avoid duplicates.
+            continue
+        p = dl.read(participant_ref)
+        if not is_participant_model(p):
+            continue
+        if CVDRole.CASE_MANAGER in p.roles:
             manager_actor_id = getattr(p, "attributed_to", None)
             return _as_id(manager_actor_id)
     return None
@@ -468,3 +501,55 @@ def case_addressees(case: CaseModel, excluding_actor_id: str) -> list[str]:
         for actor_id in case.actor_participant_index.keys()
         if actor_id != excluding_actor_id
     ]
+
+
+def _log_label(uri: str) -> str:
+    """Return a deterministic redacted label for IDs used in log messages.
+
+    Do not log raw actor/activity identifiers (or URI segments) because they
+    may be sensitive.  Instead, emit a short non-reversible hash token that
+    still allows correlation across log lines.
+    """
+    digest = hashlib.sha256(uri.encode("utf-8")).hexdigest()[:12]
+    return f"id:{digest}"
+
+
+def outbox_ids(actor_id: str, dl: CaseOutboxPersistence) -> set[str]:
+    """Return the set of string activity IDs in the actor's outbox queue.
+
+    Uses ``outbox_list_for_actor`` when available (explicit actor scope),
+    otherwise falls back to the actor-scoped ``outbox_list()``.
+
+    Args:
+        actor_id: The actor whose outbox should be queried.
+        dl: The DataLayer to use for persistence.
+
+    Returns:
+        Set of activity IDs queued for delivery.
+    """
+    if hasattr(dl, "outbox_list_for_actor"):
+        items: list[str] = dl.outbox_list_for_actor(actor_id)  # type: ignore[attr-defined]
+        return set(items)
+    return set(dl.outbox_list())
+
+
+def add_activity_to_outbox(
+    actor_id: str, activity_id: str, dl: CaseOutboxPersistence
+) -> None:
+    """Append an activity ID to an actor's outbox and queue it for delivery.
+
+    Uses ``record_outbox_item`` to explicitly enqueue against *actor_id*,
+    bypassing any actor-scope on *dl* itself.  This ensures correct delivery
+    even when *dl* is a shared (unscoped) DataLayer instance.
+
+    Args:
+        actor_id: The actor whose outbox should receive the activity.
+        activity_id: The ID of the activity to queue for delivery.
+        dl: The DataLayer to use for persistence.
+    """
+    dl.record_outbox_item(actor_id, activity_id)
+    logger.debug(
+        "Queued activity '%s' in delivery queue for actor '%s'",
+        _log_label(activity_id),
+        _log_label(actor_id),
+    )

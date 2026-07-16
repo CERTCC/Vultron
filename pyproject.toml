@@ -1,7 +1,7 @@
 [build-system]
 # Todo: Why would I want to use a different build system?
 # SetupTools
-requires = ["setuptools>=82.0.1", "setuptools-scm"]
+requires = ["setuptools>=83.0.0", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 # Flit
 #requires = ["flit_core >=3.2,<4"]
@@ -32,9 +32,9 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-    "fastapi>=0.137.1",
+    "fastapi>=0.139.0",
     "isodate>=0.7.2",
-    "markdown-exec>=1.11.0",
+    "markdown-exec>=1.12.3",
     "mkdocs-autorefs>=1.4.3",
     "mkdocs-bibtex>=4.4.0",
     "mkdocs-include-markdown-plugin>=7.3.0",
@@ -42,23 +42,23 @@ dependencies = [
     "mkdocs-material>=9.6.20",
     "mkdocs-print-site-plugin>=2.8",
     "mkdocs>=1.6.1",
-    "mkdocstrings-python>=2.0.4",
-    "mkdocstrings>=1.0.4",
+    "mkdocstrings-python>=2.0.5",
+    "mkdocstrings>=1.0.6",
     "networkx>=3.5",
-    "owlready2>=0.48",
+    "owlready2>=0.51",
     "pandas>=3.0.3",
     "pydantic==2.13.4",
     "py-trees>=2.2.0",
     "rdflib>=7.2.1",
-    "scipy>=1.16.2",
-    "uvicorn>=0.49.0",
-    "click>=8.4.1",
-    "griffelib>=2.0.0",
+    "scipy>=1.18.0",
+    "uvicorn>=0.51.0",
+    "click>=8.4.2",
+    "griffelib>=2.1.0",
     "transitions>=0.9.3",
-    "sqlmodel>=0.0.38",
+    "sqlmodel>=0.0.39",
     "pyyaml>=6.0",
     "python-frontmatter>=1.3.0",
-    "pydantic-settings>=2.14.1",
+    "pydantic-settings>=2.14.2",
     "httpx2",
 ]
 dynamic = ["version",]
@@ -110,6 +110,7 @@ target-version = ['py38', 'py39', 'py310', 'py311', 'py312', 'py313' ]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
+pythonpath = ["."]
 # Default run excludes integration tests (demo suite) so the fast unit-test
 # suite stays under ~1 minute.  To run integration tests use one of:
 #
@@ -150,12 +151,13 @@ dev = [
     "flake8>=7.3.0",
     "isort>=7.0.0",
     "linkchecker>=10.6.0",
-    "mypy>=2.1.0",
+    "mypy>=2.3.0",
     "pandas-stubs>=3.0.3.260530",
     "pre-commit>=4.6.0",
-    "pyright>=1.1.410",
-    "pytest>=9.1.0",
+    "pyright>=1.1.411",
+    "pytest>=9.1.1",
     "pytest-timeout>=0.5",
-    "types-networkx>=3.6.1.20260612",
+    "pytest-xdist>=3.8.0",
+    "types-networkx>=3.6.1.20260624",
     "types-pyyaml>=6.0.12.20260518",
 ]

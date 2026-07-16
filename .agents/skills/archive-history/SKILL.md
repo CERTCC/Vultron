@@ -46,7 +46,7 @@ cat <<'ENDOFENTRY' | uv run append-history <TYPE> \
 <Full entry body — include PR URL, impl issue links, and outcome summary>
 
 ENDOFENTRY
-```text
+```
 
 The tool writes `plan/history/YYMM/<type>/<source>.md` and regenerates
 `plan/history/YYMM/README.md` locally (the README is gitignored).
@@ -54,8 +54,9 @@ The tool writes `plan/history/YYMM/<type>/<source>.md` and regenerates
 ### Step 2 — Lint the new history files
 
 ```bash
-npx markdownlint-cli2 "plan/history/$(date +%y%m)/**/*.md"
-```text
+markdownlint-cli2 --fix --config .markdownlint-cli2.yaml \
+  "plan/history/$(date +%y%m)/**/*.md"
+```
 
 Fix any lint errors in the generated files before continuing.
 
@@ -63,21 +64,19 @@ Fix any lint errors in the generated files before continuing.
 
 ```bash
 git add plan/history/
-```text
+```
 
 ### Step 4 — Commit
 
 ```bash
-git commit -m "history: archive <TYPE> <SOURCE> — <TITLE>
-
-Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
-```text
+uv run git commit -m "history: archive <TYPE> <SOURCE> — <TITLE>"
+```
 
 ### Step 5 — Push
 
 ```bash
-git push
-```text
+git push "https://x-access-token:$(gh auth token)@github.com/CERTCC/Vultron.git" HEAD
+```
 
 ---
 
@@ -108,18 +107,14 @@ BODY    = Full original concern body + "**Resolved**: YYYY-MM-DD — ..."
           + "Docs PR: <PR_URL>. Implementation tracked in #<IMPL_ISSUE>."
 ```
 
-### learn
+### learn (incoming learning file)
 
-```text
-TYPE    = learning
-TITLE   = <short observation title>
-SOURCE  = <label from the BUILD_LEARNINGS header, e.g. TRIGGER-ACTIVITY-PORT>
-BODY    = Full original BUILD_LEARNINGS entry text
-          + "**Promoted**: YYYY-MM-DD — captured in <destination files>."
-          + "Docs PR: <PR_URL>."
-```text
+```bash
+# After adding the promotion note to the file body, run:
+uv run append-history --from-file plan/incoming/learnings/<YYYYMMDD-SLUG>.md
+```
 
-Call once per archived entry in a loop.
+This moves the file to `plan/history/YYMM/learning/` and deletes the source.
 
 ### build
 
@@ -128,7 +123,7 @@ TYPE    = implementation
 TITLE   = <short task title>
 SOURCE  = ISSUE-<N>   (or full GitHub URL)
 BODY    = "## Issue #<N> — <title>\n\n<completion summary, PR link>"
-```text
+```
 
 ### update-priorities
 
@@ -137,7 +132,7 @@ TYPE    = priority
 TITLE   = <priority group title>
 SOURCE  = PRIORITY-<number>
 BODY    = <priority summary and completion notes>
-```text
+```
 
 ---
 

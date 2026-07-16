@@ -5,22 +5,18 @@ site_author: 'CERT Coordination Center'
 nav:
   - Home: 'https://certcc.github.io/'
   - Vultron: 'index.md'
-  - Learning Vultron:
+  - Tutorials:
     - 'tutorials/index.md'
     - Run the Receive-Report Demo: 'tutorials/receive_report_demo.md'
     - Running the Other Demos: 'tutorials/other_demos.md'
     - Running the Multi-Actor Container Demos: 'tutorials/container_demos.md'
     - Run the Two-Actor Demo: 'tutorials/two-actor-demo.md'
-  - Understanding Vultron:
+  - Explanation:
     - 'topics/index.md'
     - Background:
-        - 'topics/background/index.md'
-        - Interoperability: 'topics/background/interoperability.md'
-        - Defining CVD Success: 'topics/background/cvd_success.md'
-        - Documentation Overview: 'topics/background/overview.md'
-        - Terms and Definitions: 'topics/background/terms.md'
-        - Notation: 'topics/background/notation.md'
-        - Versioning: 'topics/background/versioning.md'
+      - 'topics/background/index.md'
+      - Interoperability: 'topics/background/interoperability.md'
+      - Defining CVD Success: 'topics/background/cvd_success.md'
     - Process Models:
       - 'topics/process_models/index.md'
       - Report Management:
@@ -44,9 +40,6 @@ nav:
         - 'topics/process_models/model_interactions/index.md'
         - RM and EM Interactions: 'topics/process_models/model_interactions/rm_em.md'
         - RM, EM, CS Interactions: 'topics/process_models/model_interactions/rm_em_cs.md'
-    - The Vultron Protocol:
-        - 'topics/formal_protocol/index.md'
-        - Worked Example: 'topics/formal_protocol/worked_example.md'
     - Behavior Logic:
       - 'topics/behavior_logic/index.md'
       - CVD Behaviors: 'topics/behavior_logic/cvd_bt.md'
@@ -76,35 +69,22 @@ nav:
         - Receive EM Messages: 'topics/behavior_logic/msg_em_bt.md'
         - Receive CS Messages: 'topics/behavior_logic/msg_cs_bt.md'
         - Receive Other Messages: 'topics/behavior_logic/msg_other_bt.md'
-    - Measuring CVD:
-        - 'topics/measuring_cvd/index.md'
-        - Possible Histories: 'topics/measuring_cvd/possible_histories.md'
-        - Desirable Histories: 'topics/measuring_cvd/desirable_histories.md'
-        - Random Walks: 'topics/measuring_cvd/random_walk.md'
-        - Reasoning Over Histories: 'topics/measuring_cvd/reasoning_over_histories.md'
-        - Discriminating Skill from Luck: 'topics/measuring_cvd/discriminating_skill_and_luck.md'
-        - Observing Skill: 'topics/measuring_cvd/observing_skill.md'
-        - Benchmarking CVD: 'topics/measuring_cvd/benchmarking.md'
-        - Benchmarking MPCVD: 'topics/measuring_cvd/benchmarking_mpcvd.md'
     - Other Uses of Vultron:
-        - 'topics/other_uses/index.md'
-        - Stakeholder Roles: 'topics/other_uses/roles_influence.md'
-        - Defining Zero Days: 'topics/other_uses/zero_day.md'
-        - Policy Formalization: 'topics/other_uses/policy_formalization.md'
-        - Situation Awareness: 'topics/other_uses/situation_awareness.md'
-        - VEP: 'topics/other_uses/vep.md'
-        - CVD Action Rules: 'topics/other_uses/action_rules.md'
-    - User Stories:
-        - 'topics/user_stories/index.md'
-        - Traceability Matrix: 'topics/user_stories/traceability.md'
+      - 'topics/other_uses/index.md'
+      - Stakeholder Roles: 'topics/other_uses/roles_influence.md'
+      - Defining Zero Days: 'topics/other_uses/zero_day.md'
+      - Policy Formalization: 'topics/other_uses/policy_formalization.md'
+      - Situation Awareness: 'topics/other_uses/situation_awareness.md'
+      - VEP: 'topics/other_uses/vep.md'
+      - CVD Action Rules: 'topics/other_uses/action_rules.md'
     - Future Work:
-        - 'topics/future_work/index.md'
-        - CS Model Limitations: 'topics/future_work/cs_model_limitations.md'
-        - CVD Directory: 'topics/future_work/cvd_directory.md'
-        - Reward Functions: 'topics/future_work/reward_functions.md'
-        - Ontology: 'topics/future_work/ontology.md'
-        - Modeling and Simulation: 'topics/future_work/mod_sim.md'
-  - Implementing Vultron:
+      - 'topics/future_work/index.md'
+      - CS Model Limitations: 'topics/future_work/cs_model_limitations.md'
+      - CVD Directory: 'topics/future_work/cvd_directory.md'
+      - Reward Functions: 'topics/future_work/reward_functions.md'
+      - Ontology: 'topics/future_work/ontology.md'
+      - Modeling and Simulation: 'topics/future_work/mod_sim.md'
+  - How-to Guides:
       - 'howto/index.md'
       - A Case Object: 'howto/case_object.md'
       - Process Implementation: 'howto/process_implementation.md'
@@ -126,11 +106,15 @@ nav:
             - Status Updates: 'howto/activitypub/activities/status_updates.md'
             - Acknowledging a Report: 'howto/activitypub/activities/acknowledge.md'
             - Error Handling: 'howto/activitypub/activities/error.md'
-      - EM and iCalendar: 'howto/em_icalendar.md'
-      - General Notes: 'howto/general_implementation.md'
+      - Worked Example: 'howto/worked_example.md'
+      - Demo How-Tos:
+          - FVV Demo: 'howto/demos/fvv-demo.md'
   - Reference:
     - 'reference/index.md'
     - Ubiquitous Language: 'reference/glossary.md'
+    - Terms and Definitions: 'reference/terms.md'
+    - Notation: 'reference/notation.md'
+    - Versioning: 'reference/versioning.md'
     - Formal Protocol:
       - 'reference/formal_protocol/index.md'
       - States: 'reference/formal_protocol/states.md'
@@ -198,15 +182,6 @@ nav:
           - CLI: 'reference/code/demo/cli.md'
           - Utilities: 'reference/code/demo/utils.md'
           - Demo Scripts: 'reference/code/demo/demos.md'
-    - Codebase:
-      - 'reference/codebase/index.md'
-      - 'reference/codebase/STACK.md'
-      - 'reference/codebase/STRUCTURE.md'
-      - 'reference/codebase/ARCHITECTURE.md'
-      - 'reference/codebase/CONVENTIONS.md'
-      - 'reference/codebase/INTEGRATIONS.md'
-      - 'reference/codebase/TESTING.md'
-      - 'reference/codebase/CONCERNS.md'
     - Ontology:
       - 'reference/ontology/index.md'
       - Vultron_AS: 'reference/ontology/vultron_as.md'
@@ -219,6 +194,19 @@ nav:
       - ISO 30111: 'reference/iso_crosswalks/iso_30111_2019.md'
       - ISO 29147: 'reference/iso_crosswalks/iso_29147_2018.md'
       - ISO 5895: 'reference/iso_crosswalks/iso_5895_2022.md'
+    - Measuring CVD:
+      - 'reference/measuring_cvd/index.md'
+      - Possible Histories: 'reference/measuring_cvd/possible_histories.md'
+      - Desirable Histories: 'reference/measuring_cvd/desirable_histories.md'
+      - Random Walks: 'reference/measuring_cvd/random_walk.md'
+      - Reasoning Over Histories: 'reference/measuring_cvd/reasoning_over_histories.md'
+      - Discriminating Skill from Luck: 'reference/measuring_cvd/discriminating_skill_and_luck.md'
+      - Observing Skill: 'reference/measuring_cvd/observing_skill.md'
+      - Benchmarking CVD: 'reference/measuring_cvd/benchmarking.md'
+      - Benchmarking MPCVD: 'reference/measuring_cvd/benchmarking_mpcvd.md'
+    - User Stories:
+      - 'reference/user_stories/index.md'
+      - Traceability Matrix: 'reference/user_stories/traceability.md'
     - Two-Actor Demo Protocol: 'reference/two-actor-demo-protocol.md'
     - SSVC Crosswalk: 'reference/ssvc_crosswalk.md'
     - Decision Records:
@@ -230,6 +218,33 @@ nav:
       - Use Factory Pattern for BT nodes: 'adr/0004-use-factory-methods-for-common-bt-node-types.md'
       - Use ActivityStreams Vocabulary as Message Format: 'adr/0005-activitystreams-vocabulary-as-vultron-message-format.md'
       - Use CalVer for Versioning: 'adr/0006-use-calver-for-project-versioning.md'
+      - Introduce a Behavior Dispatcher: 'adr/0007-use-behavior-dispatcher.md'
+      - Use py_trees for Handler BTs: 'adr/0008-use-py-trees-for-handler-bt-integration.md'
+      - Hexagonal Architecture: 'adr/0009-hexagonal-architecture.md'
+      - Standardize Object IDs: 'adr/0010-standardize-object-ids.md'
+      - Remove API v1: 'adr/0011-remove-api-v1.md'
+      - Per-Actor DataLayer Isolation: 'adr/0012-per-actor-datalayer-isolation.md'
+      - Unify RM State Tracking: 'adr/0013-unify-rm-state-tracking.md'
+      - Pin GitHub Actions to SHAs: 'adr/0014-sha-pin-github-actions.md'
+      - Create Case at Report Receipt: 'adr/0015-create-case-at-report-receipt.md'
+      - SQLModel/SQLite DataLayer: 'adr/0016-sqlmodel-sqlite-datalayer.md'
+      - Domain/Wire Object Separation: 'adr/0017-domain-wire-object-separation.md'
+      - Canonical Case History Convergence: 'adr/0018-canonical-case-history-convergence.md'
+      - Separate Case Ledger from Process Log: 'adr/0019-separate-case-ledger-from-process-log.md'
+      - Inbox BT Orchestration: 'adr/0020-inbox-bt-orchestration.md'
+      - CaseActor Inbox Routing: 'adr/0021-caseactor-inbox-routing-canonical-ledger.md'
+      - Single BT Execution Per Inbox Delivery: 'adr/0022-single-bt-execution-for-received-side-case-actor-routing.md'
+      - CaseProposal Protocol: 'adr/0023-case-proposal-protocol.md'
+      - Coordination Agent Taxonomy: 'adr/0024-coordination-agent-taxonomy.md'
+      - Call-Out Point Abstraction Layer: 'adr/0025-call-out-point-abstraction-layer.md'
+      - CaseActor-Routed Actor Suggestion: 'adr/0026-caseactor-routed-actor-suggestion.md'
+      - Exploit-Strategy Subtree Collapse: 'adr/0027-exploit-strategy-bt-collapse.md'
+      - Publication-Intent Subtree Collapse: 'adr/0028-publication-intent-bt-collapse.md'
+      - Notification Loop Collapse: 'adr/0029-notification-loop-suggest-actor.md'
+      - Publish Leaf Draft-Review-Submit Pipeline: 'adr/0030-publish-leaf-draft-review-submit-pipeline.md'
+      - vultron/enums/ Neutral Layer: 'adr/0031-vultron-enums-neutral-layer.md'
+      - Validate at Edge, Promote to Core: 'adr/0032-validate-at-edge-promote-to-core.md'
+      - Lifecycle-Staged Domain Types: 'adr/0033-lifecycle-staged-case-types.md'
   - About:
     - Contributing: 'about/contributing.md'
     - FAQ: 'about/faq.md'
@@ -239,10 +254,21 @@ not_in_nav: |
   _*.md
   _*/**/*.md
   includes/*
-  topics/user_stories/story_*.md
+  reference/user_stories/story_*.md
   *diagram*.md
   *table*.md
   *.ttl
+  # Maintainer/agent-facing pages intentionally excluded from the published nav
+  agents/*.md
+  developer/**/*.md
+  reference/inbox_handler.md
+  reference/code/hexagonal_architecture.md
+validation:
+  nav:
+    # Emit a warning when a page exists but is missing from the nav and is not
+    # declared in not_in_nav above. Surfaces future un-navved pages (e.g. new
+    # ADRs) and fails any --strict build (see mkdocs-build-strict.sh). #1304.
+    omitted_files: warn
 exclude_docs: |
   # Maintainer-focused docs are available in local/dev builds via mkdocs.dev.yml
   docs/developer/

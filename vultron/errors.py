@@ -153,6 +153,33 @@ class RegistryOrderError(VultronError):
     """
 
 
+class UnroutableActivityError(VultronError):
+    """Raised when an inbound activity cannot be routed to a case.
+
+    Raised by the dispatcher when no ``case_id`` can be extracted from an
+    inbound event whose semantic type requires case-scoped join-backfill
+    gating.  The caller MUST handle this exception explicitly rather than
+    silently dropping the activity.  See ``specs/architecture.yaml``
+    ARCH-15-003 and ``notes/domain-validation.md``.
+    """
+
+    def __init__(self, activity_id: str, reason: str):
+        self.activity_id = activity_id
+        self.reason = reason
+        super().__init__(f"Activity '{activity_id}' is unroutable: {reason}")
+
+
+class BtNodePreconditionError(VultronError):
+    """Raised by a BT node helper when a required precondition is unmet.
+
+    BT node helper methods (private methods called from ``update()``) MUST
+    raise this exception instead of returning ``None`` when a precondition
+    fails.  ``update()`` is the single ``try/except`` handler that converts
+    the exception to ``Status.FAILURE`` and sets ``self.feedback_message``.
+    See ADR-0032 and ``notes/bt-integration.md`` BT-HELPER-01.
+    """
+
+
 class DemoFailureError(VultronError):
     """Raised when a demo scenario completes with one or more step failures.
 

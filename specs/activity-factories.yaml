@@ -35,6 +35,24 @@ groups:
     statement: >-
       Factory functions SHOULD accept `**kwargs` for optional AS2 fields that are not protocol-significant,
       forwarding them to the underlying AS2 constructor
+  - id: AF-01-005
+    priority: MUST
+    statement: >-
+      When a factory parameter represents a domain entity whose fields determine how the wire object
+      is enriched (e.g. a `VulnerabilityCase` whose `em_state` determines whether `activeEmbargo`
+      appears in the stub), the factory MUST accept the core domain object and perform the
+      core→wire projection internally. Adapters and BT nodes MUST NOT pre-build partial wire
+      objects (e.g. a `VulnerabilityCaseStub`) to pass as factory arguments — doing so moves
+      projection logic out of the factory and into a layer that should be a thin pass-through,
+      and risks omitting fields that the factory would have included (e.g. `end_time` on
+      `EmbargoEvent`).
+    rationale: >-
+      Wire objects are projections of core objects. The factory layer is the single sanctioned
+      location for core→wire projection; it already imports both core and wire types. Pushing
+      projection into adapters splits the invariant across two layers, making it easy for
+      enrichment to be incomplete (issue #1300: `active_embargo` stored as `str | None` in
+      core meant a bare URI reached the wire instead of an `EmbargoEvent` with `end_time`
+      because the adapter never read the embargo entity from the DataLayer).
 - id: AF-02
   title: Module Structure
   specs:
@@ -148,3 +166,34 @@ groups:
       Migration of `from_core()` call sites in `vultron/core/use_cases/` to use driven adapter
       translation instead of calling wire-layer methods directly is a **separate tracked task**
       and MUST NOT be conflated with factory function migration
+- id: AF-09
+  title: Activity Translator Port
+  kind: implementation
+  specs:
+  - id: AF-09-001
+    priority: MUST
+    statement: >-
+      The correct replacement for `from_core()` calls in `vultron/core/use_cases/` is a
+      driven-adapter port: a `Protocol` interface defined in `vultron/core/` that accepts
+      domain objects and returns wire activities, implemented by an adapter in the wire layer.
+      Core use-cases MUST NOT import from `vultron/wire/` directly; they MUST call through
+      the port.
+    rationale: >-
+      `from_core()` is a wire-layer method. Calling it directly from core use-cases inverts
+      the hexagonal architecture dependency direction: core→wire. The Activity Translator port
+      pattern maintains the correct direction (core defines the port; wire implements it) while
+      providing the same functional capability. See AF-08-002 for migration scope.
+    relationships:
+    - rel_type: implements
+      spec_id: ARCH-04-001
+    - rel_type: refines
+      spec_id: AF-08-002
+  - id: AF-09-002
+    priority: MUST
+    statement: >-
+      The Activity Translator port MUST be injected into use-cases via dependency injection
+      (constructor parameter or factory argument). Use-cases MUST NOT instantiate the wire-layer
+      translator directly.
+    relationships:
+    - rel_type: refines
+      spec_id: AF-09-001

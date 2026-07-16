@@ -90,8 +90,11 @@ groups:
     priority: SHOULD
     statement: The replication sender SHOULD implement retry with exponential backoff on delivery failure
   - id: SYNC-05-002
+    priority: SHOULD
+    statement: Retry and backoff parameters SHOULD be configurable
+  - id: SYNC-05-003
     priority: MUST
-    statement: Retry and backoff parameters SHOULD be configurable; default values MUST be documented
+    statement: Default values for retry and backoff parameters MUST be documented
 - id: SYNC-06
   title: Leadership and Ownership
   specs:
@@ -106,9 +109,14 @@ groups:
     statement: The SYNC-1 through SYNC-4 phases implement a **single-node CaseActor configuration** — a degenerate Raft cluster
       of one. A single-node CaseActor is always the leader and always has write authority; no election is needed.
   - id: SYNC-06-004
-    priority: MUST
-    statement: 'A future multi-node CaseActor cluster (Phase 3) provides high-availability write authority via Raft consensus.
-      This is a distinct replication tier from participant replication:'
+    priority: SHOULD
+    statement: >-
+      A future multi-node CaseActor cluster (Phase 3) provides high-availability write authority
+      via Raft consensus. This is a distinct replication tier from participant replication:
+      participant replication (SYNC-2) is pull-based fan-out via `Announce(CaseLedgerEntry)`,
+      whereas the multi-node CaseActor cluster uses Raft consensus to elect a single write
+      authority among the CaseActor nodes. The two tiers operate independently and SHOULD NOT
+      be conflated.
 - id: SYNC-09
   title: Commit Discipline
   specs:

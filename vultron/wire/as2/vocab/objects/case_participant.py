@@ -40,7 +40,7 @@ from vultron.core.models.participant_status import (
     coerce_em_consent_state,
 )
 from vultron.core.states.rm import RM, is_valid_rm_transition
-from vultron.core.states.roles import CVDRole, serialize_roles, validate_roles
+from vultron.enums.roles import CVDRole, serialize_roles, validate_roles
 from vultron.core.models.base import NonEmptyString
 from vultron.core.models.enums import VultronObjectType as VO_type
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef, as_Link

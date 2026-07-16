@@ -23,14 +23,15 @@ Sub-modules
 - :mod:`~vultron.demo.helpers.actions` — ``actor_notifies_state_change``
   and named CVD lifecycle action wrappers.
 - :mod:`~vultron.demo.helpers.seeding` — ``_dl_key``, ``get_actor_by_id``,
-  ``seed_containers``, and ``reset_containers``.
+  ``seed_containers``, ``seed_containers_fvv``, and ``reset_containers``.
 - :mod:`~vultron.demo.helpers.sync` — SYNC-2 ``trigger_log_commit`` and
   ``verify_replica_state``.
 - :mod:`~vultron.demo.helpers.verification` — lower-level participant and
-  case-state assertion primitives, plus ``verify_coordinator_case_state``
+  case-state assertion primitives, plus ``verify_receiver_case_state``
   and ``verify_case_actor_unused``.
 - :mod:`~vultron.demo.helpers.workflow` — ``reporter_submits_report``,
-  ``coordinator_validates_report``, and ``find_case_for_offer``.
+  ``receiver_validates_report``, ``receiver_engages_case``, and
+  ``find_case_for_offer``.
 - :mod:`~vultron.demo.helpers.notes` — ``participant_adds_note_to_case``.
 - :mod:`~vultron.demo.helpers.milestones` — lifecycle milestone verifiers
   (``verify_case_active``, ``verify_fix_ready``, ``verify_fix_deployed``,
@@ -60,6 +61,7 @@ from vultron.demo.helpers.polling import (  # noqa: F401
     wait_for_case_em_terminated,
     wait_for_case_on_container,
     wait_for_case_participants,
+    wait_for_contiguous_ledger_coverage,
     wait_for_finder_case,
     wait_for_finder_log_entry,
     wait_for_note_in_case,
@@ -70,6 +72,7 @@ from vultron.demo.helpers.seeding import (  # noqa: F401
     get_actor_by_id,
     reset_containers,
     seed_containers,
+    seed_containers_fvv,
 )
 from vultron.demo.helpers.sync import (  # noqa: F401
     _extract_ref_id,
@@ -89,12 +92,13 @@ from vultron.demo.helpers.verification import (  # noqa: F401
     _fetch_participant_data,
     _require_case_participant_id,
     verify_case_actor_unused,
-    verify_coordinator_case_state,
+    verify_receiver_case_state,
 )
 from vultron.demo.helpers.workflow import (  # noqa: F401
     _load_case_from_datalayer,
     _report_id_from_offer_data,
-    coordinator_validates_report,
     find_case_for_offer,
+    receiver_engages_case,
+    receiver_validates_report,
     reporter_submits_report,
 )

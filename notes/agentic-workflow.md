@@ -54,11 +54,11 @@ specifications, design notes, and agent guidance.
 
 | | |
 |---|---|
-| **Trigger** | `plan/BUILD_LEARNINGS.md` has unprocessed insights |
-| **Input** | `plan/BUILD_LEARNINGS.md` |
+| **Trigger** | `plan/incoming/learnings/` has unprocessed files |
+| **Input** | `plan/incoming/learnings/` (individual per-entry files) |
 | **Process** | Load context → analyze gaps → grill-me interview → write |
 | **Output** | `specs/` (refined), `notes/` (promoted), `AGENTS.md` (updated) |
-| **Side effects** | Processed entries archived via `uv run append-history learning`, then deleted from `BUILD_LEARNINGS.md` |
+| **Side effects** | Processed files moved to `plan/history/YYMM/learning/` via `uv run append-history --from-file` |
 
 `learn` is the **second-priority** skill. Build execution produces insights
 that should be reflected in specs before the plan is updated. Running
@@ -100,10 +100,10 @@ already-completed work.
 | **Input** | Top-priority open GitHub Issue, `specs/`, `notes/` |
 | **Process** | Select task → claim branch → implement → validate → open PR |
 | **Output** | `vultron/` (code), `test/` (tests), GitHub PR |
-| **Side effects** | Summary archived via `uv run append-history implementation`; observations and open questions appended to `plan/BUILD_LEARNINGS.md` (triggering `learn` on the next loop) |
+| **Side effects** | Summary archived via `uv run append-history implementation`; observations recorded as individual files in `plan/incoming/learnings/` (triggering `learn` on the next loop) |
 
 `build` is the **lowest-priority** skill — it only runs when no higher-level
-skill is triggered. Its side effects (new `plan/BUILD_LEARNINGS.md` entries)
+skill is triggered. Its side effects (new files in `plan/incoming/learnings/`)
 naturally trigger `learn` on the next loop iteration.
 
 ---
@@ -122,9 +122,9 @@ flowchart TD
     CHK_IDEAS -->|Yes| INGEST["🌱 ingest-idea\nGitHub idea → specs/ + notes/"]
     INGEST --> START
 
-    CHK_IDEAS -->|No| CHK_NOTES{BUILD_LEARNINGS.md\nhas unprocessed\ninsights?}
+    CHK_IDEAS -->|No| CHK_NOTES{plan/incoming/learnings/\nhas unprocessed\nfiles?}
 
-    CHK_NOTES -->|Yes| LEARN["🧠 learn\nBUILD_LEARNINGS.md → specs/ + notes/ + AGENTS.md"]
+    CHK_NOTES -->|Yes| LEARN["🧠 learn\nplan/incoming/learnings/ → specs/ + notes/ + AGENTS.md"]
     LEARN --> START
 
     CHK_NOTES -->|No| CHK_SPECS{specs/ or notes/\nchanged since last\nplan update?}
@@ -153,15 +153,20 @@ flowchart TD
 | `AGENTS.md` | Agent conventions and patterns | Permanent |
 | GitHub Project #24 | Authoritative priority scheduling (Now/Next/Later/Someday) | Live — updated via API |
 | GitHub Task/Subtask Issues | Pending + in-progress tasks | Yes — closed when PR merges |
-| `plan/BUILD_LEARNINGS.md` | Ephemeral build/bugfix observations | Yes — processed and archived by `learn` |
+| `plan/incoming/learnings/` | Ephemeral build/bugfix observations (individual files) | Yes — files moved to history by `learn` |
 | `vultron/`, `test/` | Implementation | Permanent |
 
 ---
 
-## BUILD_LEARNINGS.md Content Policy
+## Incoming Learnings Queue Content Policy
 
-`plan/BUILD_LEARNINGS.md` is the **exclusive upstream channel** from
+`plan/incoming/learnings/` is the **exclusive upstream channel** from
 code-executing skills (`build`, `bugfix`) to the `learn` skill.
+
+Each observation is recorded as an individual file (`YYYYMMDD-SLUG.md`) with
+YAML frontmatter matching the history entry format. Using individual files
+instead of a shared flat file eliminates merge conflicts when multiple PRs
+each have an observation to record.
 
 ### What belongs here
 
@@ -179,23 +184,36 @@ code-executing skills (`build`, `bugfix`) to the `learn` skill.
 - Documentation of finished work → use `append-history` or `notes/`
 - `update-plan` gap-analysis observations → write directly to `notes/*.md`
 
+### File format
+
+```yaml
+---
+title: "Short observation title"
+type: learning
+timestamp: 'YYYY-MM-DDTHH:MM:SS+00:00'
+source: YYYYMMDD-SLUG
+---
+
+Observation body text.
+```
+
 ### Lifecycle
 
 ```text
 build/bugfix run
-  → observations appended to plan/BUILD_LEARNINGS.md
+  → creates plan/incoming/learnings/YYYYMMDD-SLUG.md (committed in the PR)
 
 learn run
-  → each entry promoted to specs/*.yaml, notes/*.md, or AGENTS.md
-  → each entry archived: uv run append-history learning
-  → each entry deleted from plan/BUILD_LEARNINGS.md
+  → each file promoted to specs/*.yaml, notes/*.md, or AGENTS.md
+  → promotion note appended to file body
+  → uv run append-history --from-file <path>  ← moves file to history, deletes source
 
 After learn completes:
-  plan/BUILD_LEARNINGS.md contains only unprocessed entries (ideally empty)
+  plan/incoming/learnings/ contains only .gitkeep (ideally empty)
   plan/history/YYMM/learning/*.md contains the archived originals
 ```
 
-See `specs/build-workflow.yaml` (BW-01 through BW-04) for the normative
+See `specs/build-workflow.yaml` (BW-01 through BW-06) for the normative
 requirements.
 
 ---
@@ -204,12 +222,12 @@ requirements.
 
 The pipeline has two natural feedback loops:
 
-1. **Build → Learn**: `build` and `bugfix` write observations to
-   `BUILD_LEARNINGS.md`. On the next loop, `learn` promotes those observations
-   to specs, notes, and `AGENTS.md`, archives each entry via
-   `uv run append-history learning`, then deletes the entry from
-   `BUILD_LEARNINGS.md`. This ensures what the codebase teaches us is
-   captured durably before the plan is next updated.
+1. **Build → Learn**: `build` and `bugfix` create individual learning files in
+   `plan/incoming/learnings/`. On the next loop, `learn` promotes each file's
+   observations to specs, notes, and `AGENTS.md`, archives each entry via
+   `uv run append-history --from-file`, and the file moves to history.
+   This ensures what the codebase teaches us is captured durably before the
+   plan is next updated.
 
 2. **Learn/Ingest → Update-plan**: After `learn` or `ingest-idea` refines
    specs and notes, `update-plan` picks up the changes and translates them

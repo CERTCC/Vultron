@@ -23,6 +23,7 @@ Per specs/behavior-tree-integration.yaml BT-06 and testability.yaml requirements
 """
 
 import pytest
+import py_trees
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -38,6 +39,16 @@ from vultron.core.behaviors.report.validate_tree import (
     create_validate_report_tree,
 )
 from vultron.core.states.rm import RM
+
+
+def _always_succeed_factory(name: str) -> py_trees.behaviour.Behaviour:
+    """Deterministic factory for integration tests: always returns SUCCESS."""
+
+    class _AlwaysSucceed(py_trees.behaviour.Behaviour):
+        def update(self):
+            return py_trees.common.Status.SUCCESS
+
+    return _AlwaysSucceed(name)
 
 
 @pytest.fixture
@@ -130,6 +141,18 @@ def bridge(datalayer, trigger_activity):
 
 
 @pytest.fixture
+def bridge_no_emit(datalayer):
+    """BTBridge without TriggerActivityPort — emit nodes return FAILURE immediately.
+
+    Use this fixture for tests that exercise paths where the emit must fail so
+    that the root Selector falls through to the validation-only branch.  Without
+    a TriggerActivityPort, EmitValidateReportActivity returns FAILURE before any
+    side-effects (like TransitionRMtoValid) can occur in the emit+validate branch.
+    """
+    return BTBridge(datalayer=datalayer)
+
+
+@pytest.fixture
 def case(
     bridge,
     datalayer,
@@ -182,21 +205,35 @@ def test_create_validate_report_tree_returns_selector(report, offer):
 
 
 def test_tree_structure_matches_spec(report, offer):
-    """Tree structure matches expected hierarchy from spec."""
+    """Tree structure matches expected hierarchy from spec.
+
+    Per #1029 ADR-0021: tree now includes emit node for CaseActor routing.
+    Root is a Selector with:
+    - Child 0: EmitAndValidate sequence (trigger path)
+    - Child 1: ValidationOnly selector (fallback for received path)
+    """
     tree = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
     )
 
-    # Root: Selector with 2 children
+    # Root: Selector with 2 children (emit+validate, fallback validate)
     assert len(tree.children) == 2
 
-    # Child 1: CheckRMStateValid (early exit)
-    early_exit = tree.children[0]
-    assert early_exit.name == "CheckRMStateValid"
+    # Child 0: EmitAndValidate (Sequence with emit + validation)
+    emit_and_validate = tree.children[0]
+    assert emit_and_validate.name == "EmitAndValidate"
+    assert len(emit_and_validate.children) == 2
+    assert emit_and_validate.children[0].name == "EmitValidateReportActivity"
 
-    # Child 2: ValidationFlow (Sequence)
-    validation_flow = tree.children[1]
+    # Child 1 of EmitAndValidate: ValidationOrShortcut selector
+    validation_selector = emit_and_validate.children[1]
+    assert validation_selector.name == "ValidationOrShortcut"
+    assert len(validation_selector.children) == 2
+    assert validation_selector.children[0].name == "CheckRMStateValid"
+
+    # ValidationFlow inside ValidationOrShortcut
+    validation_flow = validation_selector.children[1]
     assert validation_flow.name == "ValidationFlow"
     assert (
         len(validation_flow.children) == 4
@@ -233,6 +270,8 @@ def test_tree_execution_success_new_report(
     tree = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
+        credibility_factory=_always_succeed_factory,
+        validity_factory=_always_succeed_factory,
     )
 
     # Act: Execute tree
@@ -265,6 +304,8 @@ def test_tree_execution_does_not_create_case(
     tree = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
+        credibility_factory=_always_succeed_factory,
+        validity_factory=_always_succeed_factory,
     )
     result = bridge.execute_with_setup(
         tree=tree,
@@ -288,6 +329,8 @@ def test_tree_execution_transitions_vendor_to_valid(
     tree = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
+        credibility_factory=_always_succeed_factory,
+        validity_factory=_always_succeed_factory,
     )
 
     result = bridge.execute_with_setup(
@@ -319,6 +362,8 @@ def test_tree_execution_early_exit_already_valid(
     tree = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
+        credibility_factory=_always_succeed_factory,
+        validity_factory=_always_succeed_factory,
     )
 
     # Act: Execute tree
@@ -348,6 +393,8 @@ def test_tree_execution_invalid_state_transitions_to_valid(
     tree = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
+        credibility_factory=_always_succeed_factory,
+        validity_factory=_always_succeed_factory,
     )
 
     # Act: Execute tree
@@ -375,6 +422,8 @@ def test_tree_execution_no_prior_status_succeeds(
     tree = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
+        credibility_factory=_always_succeed_factory,
+        validity_factory=_always_succeed_factory,
     )
 
     # Act: Execute tree
@@ -399,6 +448,8 @@ def test_tree_execution_policy_stubs_always_accept(
     tree = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
+        credibility_factory=_always_succeed_factory,
+        validity_factory=_always_succeed_factory,
     )
 
     # Act: Execute tree
@@ -461,9 +512,17 @@ def test_tree_execution_missing_actor_id_fails(
 
 
 def test_tree_execution_missing_report_fails(
-    bridge, datalayer, actor_id, offer, actor, reporter_actor
+    bridge_no_emit, datalayer, actor_id, offer, actor, reporter_actor
 ):
-    """Tree fails if no case exists for the report (EnsureEmbargoExists fails)."""
+    """Tree fails when the report ID does not exist in the DataLayer.
+
+    Without a TriggerActivityPort the emit node fails immediately, preventing
+    any TransitionRMtoValid side-effects in the emit+validate branch.  The
+    fallback validation-only branch then runs: CheckRMStateReceivedOrInvalid
+    returns SUCCESS (no status record yet), the transition runs, then
+    EnsureEmbargoExists returns FAILURE because no case is linked to the
+    fake report ID.  The overall tree therefore returns FAILURE (DUR-07-004).
+    """
     # Arrange: Use non-existent report ID — no case will exist for it
     fake_report_id = "https://example.org/reports/non-existent"
 
@@ -473,13 +532,13 @@ def test_tree_execution_missing_report_fails(
     )
 
     # Act: Execute tree
-    result = bridge.execute_with_setup(
+    result = bridge_no_emit.execute_with_setup(
         tree=tree,
         actor_id=actor_id,
         datalayer=datalayer,
     )
 
-    # Assert: Tree fails because EnsureEmbargoExists finds no case
+    # Assert: Tree fails — no case exists so EnsureEmbargoExists blocks (DUR-07-004).
     assert result.status == Status.FAILURE
 
 
@@ -495,11 +554,15 @@ def test_tree_execution_idempotency(
     tree1 = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
+        credibility_factory=_always_succeed_factory,
+        validity_factory=_always_succeed_factory,
     )
 
     tree2 = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
+        credibility_factory=_always_succeed_factory,
+        validity_factory=_always_succeed_factory,
     )
 
     # Act: Execute tree twice
@@ -539,6 +602,8 @@ def test_tree_execution_actor_isolation(
     tree_a = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
+        credibility_factory=_always_succeed_factory,
+        validity_factory=_always_succeed_factory,
     )
     result_a = bridge.execute_with_setup(
         tree=tree_a,
@@ -550,6 +615,8 @@ def test_tree_execution_actor_isolation(
     tree_b = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
+        credibility_factory=_always_succeed_factory,
+        validity_factory=_always_succeed_factory,
     )
     result_b = bridge.execute_with_setup(
         tree=tree_b,
@@ -567,28 +634,106 @@ def test_tree_execution_actor_isolation(
 
 
 def test_ensure_embargo_exists_fails_without_case(
-    bridge, datalayer, actor_id, report, offer, actor, reporter_actor
+    bridge_no_emit, datalayer, actor_id, report, offer, actor, reporter_actor
 ):
-    """validate-report BT fails if no case exists for the report.
+    """validate-report BT returns FAILURE when no case is linked to the report.
 
-    EnsureEmbargoExists blocks validation when the case hasn't been
-    created yet (i.e., SubmitReportReceivedUseCase hasn't run first).
-    Per DUR-07-004.
+    Without a TriggerActivityPort the emit node fails immediately, so the root
+    Selector falls through to the validation-only branch.  EnsureEmbargoExists
+    returns FAILURE because ``find_case_by_report_id`` returns None.  The
+    overall tree therefore returns FAILURE (DUR-07-004 guard: embargo MUST be
+    established before RM.VALID).
     """
     # No case fixture — simulate report submitted but case not yet created.
     tree = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
     )
-    result = bridge.execute_with_setup(
+    result = bridge_no_emit.execute_with_setup(
         tree=tree,
         actor_id=actor_id,
         datalayer=datalayer,
     )
-    assert result.status == Status.FAILURE, (
-        "validate_report BT must FAIL when no case exists for the report "
-        "(EnsureEmbargoExists should block per DUR-07-004)"
+    # EnsureEmbargoExists blocks: no linked case exists (DUR-07-004).
+    assert result.status == Status.FAILURE
+
+
+# ============================================================================
+# Factory injection tests (BT-18-004)
+# ============================================================================
+
+
+def test_validate_tree_custom_credibility_factory_used(report, offer):
+    """credibility_factory node appears in the tree when a custom factory is passed."""
+    sentinel = {"called": False}
+
+    def custom_factory(name):
+        import py_trees
+
+        sentinel["called"] = True
+        sentinel["name"] = name
+
+        class _Marker(py_trees.behaviour.Behaviour):
+            def update(self):
+                return py_trees.common.Status.SUCCESS
+
+        return _Marker(name="CustomCredibility")
+
+    tree = create_validate_report_tree(
+        report_id=report.id_,
+        offer_id=offer.id_,
+        credibility_factory=custom_factory,
     )
+
+    assert sentinel["called"]
+    tree_str = py_trees.display.ascii_tree(tree)
+    assert "CustomCredibility" in tree_str
+
+
+def test_validate_tree_custom_validity_factory_used(report, offer):
+    """validity_factory node appears in the tree when a custom factory is passed."""
+    import py_trees
+
+    def custom_factory(name):
+        class _Marker(py_trees.behaviour.Behaviour):
+            def update(self):
+                return py_trees.common.Status.SUCCESS
+
+        return _Marker(name="CustomValidity")
+
+    tree = create_validate_report_tree(
+        report_id=report.id_,
+        offer_id=offer.id_,
+        validity_factory=custom_factory,
+    )
+
+    tree_str = py_trees.display.ascii_tree(tree)
+    assert "CustomValidity" in tree_str
+
+
+def test_validate_tree_gather_info_factory_signature_accepted(report, offer):
+    """gather_info_factory parameter is accepted without error (Phase 2 hook).
+
+    The factory is NOT called in Phase 1 (not wired into the tree body yet).
+    This test verifies only that the parameter is accepted without raising.
+    """
+
+    def gather_factory(name):
+        import py_trees
+
+        class _Marker(py_trees.behaviour.Behaviour):
+            def update(self):
+                return py_trees.common.Status.SUCCESS
+
+        return _Marker(name="CustomGather")
+
+    # Should not raise; factory is accepted even if not yet wired in Phase 1
+    tree = create_validate_report_tree(
+        report_id=report.id_,
+        offer_id=offer.id_,
+        gather_info_factory=gather_factory,
+    )
+    assert tree is not None
 
 
 def test_validate_report_tree_case_has_active_embargo(
@@ -605,6 +750,8 @@ def test_validate_report_tree_case_has_active_embargo(
     tree = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
+        credibility_factory=_always_succeed_factory,
+        validity_factory=_always_succeed_factory,
     )
     bridge.execute_with_setup(
         tree=tree,

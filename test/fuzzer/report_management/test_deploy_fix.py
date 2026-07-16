@@ -1,0 +1,206 @@
+#!/usr/bin/env python
+#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+"""Unit tests for vultron/demo/fuzzer/report_management/deploy_fix.py.
+
+Tests cover:
+  - AC-1: All nodes use correct py_trees WeightedBehavior base types (BT-16-004)
+  - AC-2: All nodes have docstrings with required sections (BT-16-003)
+  - AC-3: Unit tests cover each node's success_rate and status distribution
+"""
+
+from typing import Type
+
+import py_trees
+import pytest
+from py_trees.common import Status
+
+from vultron.demo.fuzzer.base import (
+    AlmostAlwaysFail,
+    AlmostAlwaysSucceed,
+    AlwaysSucceed,
+    OftenSucceed,
+    UsuallyFail,
+    UsuallySucceed,
+    WeightedBehavior,
+)
+from vultron.demo.fuzzer.report_management.deploy_fix import (
+    DeployFix,
+    DeployMitigation,
+    MitigationAvailable,
+    MitigationDeployed,
+    MonitorDeployment,
+    MonitoringRequirement,
+    NoNewDeploymentInfo,
+    PrioritizeDeployment,
+)
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+_TRIALS = 10_000
+_TOLERANCE = 0.03  # ±3 percentage points
+
+# (node_class, expected_base_type, expected_success_rate)
+_NODE_SPECS = [
+    (NoNewDeploymentInfo, UsuallySucceed, 3.0 / 4.0),
+    (PrioritizeDeployment, AlmostAlwaysSucceed, 9.0 / 10.0),
+    (MitigationDeployed, UsuallyFail, 1.0 / 4.0),
+    (MitigationAvailable, OftenSucceed, 7.0 / 10.0),
+    (DeployMitigation, UsuallySucceed, 3.0 / 4.0),
+    (MonitoringRequirement, OftenSucceed, 7.0 / 10.0),
+    (MonitorDeployment, AlwaysSucceed, 1.0),
+    (DeployFix, AlmostAlwaysFail, 1.0 / 10.0),
+]
+
+_ALL_NODES = [spec[0] for spec in _NODE_SPECS]
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _run_trials(node_cls: "Type[WeightedBehavior]", n: int = _TRIALS) -> float:
+    """Return empirical success rate over *n* independent ticks."""
+    node = node_cls()
+    node.setup()
+    successes = sum(1 for _ in range(n) if node.update() == Status.SUCCESS)
+    return successes / n
+
+
+# ---------------------------------------------------------------------------
+# AC-1: Node inheritance and py_trees compliance
+# ---------------------------------------------------------------------------
+
+
+class TestNodeIsWeightedBehavior:
+    @pytest.mark.parametrize("node_cls", _ALL_NODES)
+    def test_is_weighted_behavior_subclass(
+        self, node_cls: Type[WeightedBehavior]
+    ) -> None:
+        assert issubclass(node_cls, WeightedBehavior)
+
+    @pytest.mark.parametrize("node_cls", _ALL_NODES)
+    def test_is_py_trees_behaviour(
+        self, node_cls: Type[WeightedBehavior]
+    ) -> None:
+        assert isinstance(node_cls(), py_trees.behaviour.Behaviour)
+
+    @pytest.mark.parametrize("node_cls", _ALL_NODES)
+    def test_default_name_is_class_name(
+        self, node_cls: Type[WeightedBehavior]
+    ) -> None:
+        assert node_cls().name == node_cls.__name__
+
+    @pytest.mark.parametrize("node_cls", _ALL_NODES)
+    def test_custom_name_respected(
+        self, node_cls: Type[WeightedBehavior]
+    ) -> None:
+        assert node_cls(name="custom").name == "custom"
+
+    def test_node_count(self) -> None:
+        assert len(_ALL_NODES) == 8
+
+    @pytest.mark.parametrize("node_cls, expected_base, _", _NODE_SPECS)
+    def test_base_type(
+        self, node_cls: Type[WeightedBehavior], expected_base: type, _: float
+    ) -> None:
+        assert issubclass(node_cls, expected_base)
+
+
+# ---------------------------------------------------------------------------
+# AC-2: Docstring completeness (BT-16-003, BT-16-005)
+# ---------------------------------------------------------------------------
+
+_REQUIRED_SECTIONS = [
+    "semantic function",
+    "input category",
+    "success probability",
+    "automation potential",
+]
+
+
+class TestDocstrings:
+    @pytest.mark.parametrize("node_cls", _ALL_NODES)
+    def test_has_non_empty_docstring(
+        self, node_cls: Type[WeightedBehavior]
+    ) -> None:
+        doc = node_cls.__doc__ or ""
+        assert len(doc.strip()) > 0
+
+    @pytest.mark.parametrize("node_cls", _ALL_NODES)
+    @pytest.mark.parametrize("section", _REQUIRED_SECTIONS)
+    def test_docstring_has_required_section(
+        self, node_cls: Type[WeightedBehavior], section: str
+    ) -> None:
+        doc = (node_cls.__doc__ or "").lower()
+        assert (
+            section in doc
+        ), f"{node_cls.__name__} docstring missing '{section}' section"
+
+
+# ---------------------------------------------------------------------------
+# AC-3: success_rate attribute and status distribution
+# ---------------------------------------------------------------------------
+
+
+class TestSuccessRates:
+    @pytest.mark.parametrize("node_cls, _, expected_rate", _NODE_SPECS)
+    def test_success_rate_attribute(
+        self,
+        node_cls: Type[WeightedBehavior],
+        _: Type[WeightedBehavior],
+        expected_rate: float,
+    ) -> None:
+        assert abs(node_cls.success_rate - expected_rate) < 1e-9
+
+    @pytest.mark.parametrize("node_cls", _ALL_NODES)
+    def test_update_returns_valid_status(
+        self, node_cls: Type[WeightedBehavior]
+    ) -> None:
+        node = node_cls()
+        node.setup()
+        result = node.update()
+        assert result in (Status.SUCCESS, Status.FAILURE)
+
+    @pytest.mark.parametrize("node_cls", _ALL_NODES)
+    def test_update_never_returns_running(
+        self, node_cls: Type[WeightedBehavior]
+    ) -> None:
+        node = node_cls()
+        node.setup()
+        results = {node.update() for _ in range(50)}
+        assert Status.RUNNING not in results
+
+    @pytest.mark.parametrize("node_cls, _, expected_rate", _NODE_SPECS)
+    def test_empirical_distribution(
+        self,
+        node_cls: Type[WeightedBehavior],
+        _: Type[WeightedBehavior],
+        expected_rate: float,
+    ) -> None:
+        # AlwaysSucceed and AlwaysFail are deterministic — skip statistical check
+        if expected_rate in (0.0, 1.0):
+            node = node_cls()
+            node.setup()
+            expected_status = (
+                Status.SUCCESS if expected_rate == 1.0 else Status.FAILURE
+            )
+            assert node.update() == expected_status
+            return
+        rate = _run_trials(node_cls)
+        assert (
+            abs(rate - expected_rate) < _TOLERANCE
+        ), f"{node_cls.__name__}: empirical={rate:.4f} expected={expected_rate:.4f}"

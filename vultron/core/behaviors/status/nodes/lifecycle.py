@@ -20,20 +20,33 @@ all-participants-closed auto-close branch (step 5).
 """
 
 import logging
+import threading
 from typing import Any
 
 import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.embargo.nodes import TerminateEmbargoNode
+from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
 from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
-from vultron.core.behaviors.status.nodes.broadcast import _find_case_manager_id
-from vultron.core.models.protocols import PersistableModel, is_case_model
+from vultron.core.use_cases._helpers import _resolve_case_manager_id
+from vultron.core.models.protocols import (
+    PersistableModel,
+    is_case_model,
+    is_participant_model,
+)
 from vultron.core.states.rm import RM
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.core.use_cases._helpers import _as_id
 
 logger = logging.getLogger(__name__)
+
+# Guard against AutoCloseBranchNode firing more than once per case.
+# Keyed by case_id — the first BT execution to observe all-participants-CLOSED
+# for a given case wins; subsequent ones are no-ops for that case.
+# Protected by a threading.Lock because FastAPI BackgroundTasks run on a
+# thread pool (see AGENTS.md: "BTBridge Thread-Safety (RLock)").
+_auto_close_lock: threading.Lock = threading.Lock()
+_auto_close_triggered: set[str] = set()  # case_ids that have fired AutoClose
 
 
 class _PublicDisclosureSkipConditionNode(DataLayerCondition):
@@ -43,10 +56,11 @@ class _PublicDisclosureSkipConditionNode(DataLayerCondition):
     - The new status is NOT public-aware (CS.P not set), OR
     - DataLayer or case_id is unavailable, OR
     - The sender is not a known case participant, OR
-    - The sender does NOT hold the CASE_OWNER role.
+    - The sender does NOT hold the CASE_OWNER role, OR
+    - The case has no active embargo (nothing to terminate).
 
     Returns FAILURE (proceed to teardown) when the sender IS a CASE_OWNER
-    who has sent a public-aware status update.
+    who has sent a public-aware status update AND the case has an active embargo.
     """
 
     def __init__(
@@ -97,11 +111,19 @@ class _PublicDisclosureSkipConditionNode(DataLayerCondition):
             return Status.SUCCESS
 
         sender_participant = self.datalayer.read(sender_participant_id)
-        roles = getattr(sender_participant, "case_roles", [])
+        roles = (
+            sender_participant.roles
+            if is_participant_model(sender_participant)
+            else []
+        )
         if CVDRole.CASE_OWNER not in roles:
             return Status.SUCCESS
 
-        # Condition met: sender is CASE_OWNER reporting public awareness.
+        if _as_id(case.active_embargo) is None:
+            return Status.SUCCESS
+
+        # Condition met: sender is CASE_OWNER reporting public awareness AND
+        # there is an active embargo to terminate.
         return Status.FAILURE
 
 
@@ -111,16 +133,20 @@ class PublicDisclosureBranchNode(py_trees.composites.Selector):
     Condition: the new ParticipantStatus has CS.P (public-aware) set AND
     the sender holds the CASE_OWNER role.
 
-    When the condition is met, delegates to :class:`TerminateEmbargoNode`.
-    Skips silently if conditions are not met or trigger_activity_factory
-    is unavailable.
+    When the condition is met, delegates to the shared ``terminate_embargo_bt``
+    factory (BT-19-002), which places the routing guard before the EM state
+    mutation.  Skips silently if conditions are not met.
 
-    Always returns SUCCESS (failure to initiate teardown is not fatal to
-    the parent sequence).
+    Returns SUCCESS when teardown conditions are not met (skip path) or
+    when teardown completes and the broadcast activity is queued.
+    Returns FAILURE when teardown is needed but routing prerequisites are
+    absent or the activity cannot be dispatched (BT-14-001, BT-19-001).
 
     Implemented as a ``py_trees.composites.Selector`` (memory=False):
+
     - Child 1 ``_PublicDisclosureSkipConditionNode``: SUCCESS → skip teardown.
-    - Child 2 ``TerminateEmbargoNode``: always SUCCESS → teardown attempted.
+    - Child 2 ``TerminateEmbargoBT``: SUCCESS on success; FAILURE when routing
+      prerequisites are absent or dispatch fails (BT-14-001).
 
     Per DEMOMA-07-003 step 4.
     """
@@ -133,6 +159,15 @@ class PublicDisclosureBranchNode(py_trees.composites.Selector):
         name: str | None = None,
     ):
         super().__init__(name=name or self.__class__.__name__, memory=False)
+        result_out: dict[str, object] = {}
+        terminate_subtree = (
+            terminate_embargo_bt(
+                case_id=case_id,
+                result_out=result_out,
+            )
+            if case_id is not None
+            else py_trees.behaviours.Success(name="TerminateEmbargoSkipped")
+        )
         self.add_children(
             [
                 _PublicDisclosureSkipConditionNode(
@@ -141,10 +176,7 @@ class PublicDisclosureBranchNode(py_trees.composites.Selector):
                     case_id=case_id,
                     name="SkipCondition",
                 ),
-                TerminateEmbargoNode(
-                    case_id=case_id,
-                    name="TerminateEmbargo",
-                ),
+                terminate_subtree,
             ]
         )
 
@@ -181,7 +213,7 @@ class AutoCloseBranchNode(DataLayerAction):
             p = self.datalayer.read(p_id)
             if p is None:
                 return False
-            roles = getattr(p, "case_roles", [])
+            roles = p.roles if is_participant_model(p) else []
             if CVDRole.CASE_MANAGER in roles:
                 continue
             statuses = getattr(p, "participant_statuses", [])
@@ -213,7 +245,17 @@ class AutoCloseBranchNode(DataLayerAction):
         if not self._all_participants_closed(case):
             return Status.SUCCESS
 
-        case_manager_id = _find_case_manager_id(self.datalayer, case)
+        with _auto_close_lock:
+            if self.case_id in _auto_close_triggered:
+                self.logger.debug(
+                    "AutoCloseBranch: close_case already triggered for"
+                    " case '%s' — skipping duplicate fire",
+                    self.case_id,
+                )
+                return Status.SUCCESS
+            _auto_close_triggered.add(self.case_id)
+
+        case_manager_id = _resolve_case_manager_id(case, self.datalayer)
         if case_manager_id is None:
             self.logger.warning(
                 "AutoCloseBranch: no Case Manager found"
@@ -223,9 +265,45 @@ class AutoCloseBranchNode(DataLayerAction):
             return Status.SUCCESS
 
         self.logger.info(
-            "AutoCloseBranch: Case Manager '%s' auto-closing case '%s'"
-            " — all participants CLOSED (DEMOMA-07-003 step 5)",
-            case_manager_id,
+            "AutoCloseBranch: all participants CLOSED for case '%s'"
+            " — emitting Leave(VulnerabilityCase) to CaseActor '%s'"
+            " (DEMOMA-07-003 step 5)",
             self.case_id,
+            case_manager_id,
         )
+
+        if self.trigger_activity_factory is None:
+            self.logger.warning(
+                "AutoCloseBranch: no TriggerActivityPort — cannot emit"
+                " close_case activity for case '%s'",
+                self.case_id,
+            )
+            return Status.SUCCESS
+
+        try:
+            activity_id, _ = self.trigger_activity_factory.close_case(
+                case_id=self.case_id,
+                actor=self.actor_id or "",
+                to=[case_manager_id],
+            )
+            from typing import cast as _cast
+
+            from vultron.core.ports.case_persistence import (
+                CaseOutboxPersistence,
+            )
+
+            _cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
+                self.actor_id or "", activity_id
+            )
+            self.logger.info(
+                "AutoCloseBranch: emitted close_case activity '%s'"
+                " to CaseActor '%s'",
+                activity_id,
+                case_manager_id,
+            )
+        except Exception as e:
+            self.logger.error(
+                "AutoCloseBranch: failed to emit close_case: %s", e
+            )
+
         return Status.SUCCESS

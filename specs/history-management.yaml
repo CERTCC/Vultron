@@ -6,7 +6,7 @@ description: >-
   pattern with per-entry write-once files organized by month and type under
   `plan/history/`, managed by the `append-history` CLI tool.
 version: 1.2.0
-kind: pattern
+kind: dev-process
 scope:
   - prototype
   - production

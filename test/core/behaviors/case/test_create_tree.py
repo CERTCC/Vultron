@@ -27,6 +27,9 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.vultron_types import (
     VultronCase,
@@ -86,7 +89,12 @@ def create_case_activity(case_obj, actor_id):
 
 @pytest.fixture
 def bridge(datalayer):
-    return BTBridge(datalayer=datalayer)
+    # ProposeCaseToActorNode requires trigger_activity_factory; inject it here
+    # so all tree-execution tests exercise the full node sequence.
+    return BTBridge(
+        datalayer=datalayer,
+        trigger_activity=TriggerActivityAdapter(datalayer),
+    )
 
 
 # ============================================================================
@@ -114,6 +122,32 @@ def test_create_case_tree_second_child_is_sequence(case_obj, actor_id):
     import py_trees
 
     assert isinstance(tree.children[1], py_trees.composites.Sequence)
+
+
+def test_propose_case_to_actor_node_wired_after_create_actor_node(
+    case_obj, actor_id
+):
+    """ProposeCaseToActorNode appears immediately after CreateCaseActorNode (CP-04-002)."""
+    from vultron.core.behaviors.case.nodes.actor import ProposeCaseToActorNode
+    from vultron.core.behaviors.case.case_setup_tree import CreateCaseActorNode
+
+    tree = create_create_case_tree(case_obj=case_obj, actor_id=actor_id)
+    effect_seq = tree.children[1]
+    node_types = [type(c) for c in effect_seq.children]
+
+    assert (
+        ProposeCaseToActorNode in node_types
+    ), "ProposeCaseToActorNode must be present in create_create_case_tree"
+    propose_idx = node_types.index(ProposeCaseToActorNode)
+    create_actor_idx = next(
+        i
+        for i, c in enumerate(effect_seq.children)
+        if isinstance(c, CreateCaseActorNode)
+    )
+    assert propose_idx == create_actor_idx + 1, (
+        "ProposeCaseToActorNode must appear immediately after "
+        "CreateCaseActorNode (CP-04-002)"
+    )
 
 
 # ============================================================================
@@ -230,7 +264,7 @@ def test_create_case_tree_creates_case_owner_participant(
     datalayer, actor, case_obj, create_case_activity, bridge
 ):
     """A case-owner participant SHOULD be created and added to case_participants (CM-02-008)."""
-    from vultron.core.states.roles import CVDRole
+    from vultron.enums.roles import CVDRole
 
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
     bridge.execute_with_setup(
@@ -267,8 +301,8 @@ def test_create_case_tree_case_owner_participant_includes_config_roles(
     datalayer, actor, case_obj, create_case_activity, bridge
 ):
     """CreateCaseOwnerParticipant includes config roles + CASE_OWNER (CFG-07-004)."""
-    from vultron.core.models.actor_config import ActorConfig
-    from vultron.core.states.roles import CVDRole
+    from vultron.config.actor import ActorConfig
+    from vultron.enums.roles import CVDRole
 
     config = ActorConfig(default_case_roles=[CVDRole.COORDINATOR])
     tree = create_create_case_tree(
@@ -336,13 +370,16 @@ def test_create_case_tree_vendor_participant_seeded_with_rm_valid(
 # ============================================================================
 
 
-def test_create_case_tree_records_case_created_event(
+def test_create_case_tree_skips_ledger_entry_for_non_case_manager(
     datalayer, actor, case_obj, create_case_activity, bridge
 ):
-    """Case creation MUST produce at least one canonical CaseLedgerEntry (CM-02-009).
+    """create_create_case_tree run as a non-CaseActor correctly skips commit.
 
-    record_event('case_created') was removed in #789; the case-creation event is
-    now captured in the canonical ledger by CommitCaseLedgerEntryNode.
+    The guarded commit subtree silently skips when the running actor is not the
+    CASE_MANAGER.  In normal federation the vendor (or reporter) runs this tree
+    and should produce zero canonical ledger entries — the CaseActor commits its
+    initialization entry separately via OfferCaseManagerRoleReceivedUseCase
+    (Issue #1021).
     """
     from vultron.wire.as2.vocab.objects.case_ledger_entry import (
         CaseLedgerEntry as WireCaseLedgerEntry,
@@ -358,13 +395,20 @@ def test_create_case_tree_records_case_created_event(
         for e in datalayer.list_objects("CaseLedgerEntry")
         if isinstance(e, WireCaseLedgerEntry) and e.case_id == case_obj.id_
     ]
-    assert len(entries) >= 1
+    assert len(entries) == 0
 
 
 def test_create_case_tree_case_created_event_uses_case_id(
     datalayer, actor, case_obj, create_case_activity, bridge
 ):
-    """The canonical CaseLedgerEntry MUST reference the case ID (CM-02-009)."""
+    """create_create_case_tree produces zero canonical ledger entries for any actor.
+
+    The guarded commit is always skipped here because the actor running this
+    tree is the recipient of a Create(VulnerabilityCase) message, not the
+    CaseActor.  Canonical commits are the CaseActor's responsibility and are
+    tested (including case_id correctness) in
+    nodes/test_guarded_commit_tree.py (CM-02-009, Issue #1021).
+    """
     from vultron.wire.as2.vocab.objects.case_ledger_entry import (
         CaseLedgerEntry as WireCaseLedgerEntry,
     )
@@ -379,24 +423,19 @@ def test_create_case_tree_case_created_event_uses_case_id(
         for e in datalayer.list_objects("CaseLedgerEntry")
         if isinstance(e, WireCaseLedgerEntry) and e.case_id == case_obj.id_
     ]
-    assert len(entries) >= 1
-    assert all(e.case_id == case_obj.id_ for e in entries)
+    assert len(entries) == 0
 
 
 def test_create_case_tree_records_case_created_from_offer(
     datalayer, actor, case_obj, create_case_activity, bridge
 ):
-    """Case creation from an offer MUST still persist the case (CM-02-009).
+    """Case creation from an offer persists the case regardless of in_reply_to (CM-02-009).
 
-    Previously tested that an offer_received event was written to case.events.
-    Since record_event('offer_received') was removed in #789, the test now
-    verifies the behavioral outcome: the case is persisted and a canonical
-    ledger entry is written regardless of whether the activity has in_reply_to.
+    The canonical ledger entry is NOT produced here — the running actor (vendor)
+    is not the CaseActor and the guarded commit correctly skips.  Ledger
+    initialization is the CaseActor's responsibility (OfferCaseManagerRoleReceivedUseCase,
+    Issue #1021).
     """
-    from vultron.wire.as2.vocab.objects.case_ledger_entry import (
-        CaseLedgerEntry as WireCaseLedgerEntry,
-    )
-
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
     bridge.execute_with_setup(
         tree=tree, actor_id=actor.id_, activity=create_case_activity
@@ -404,23 +443,17 @@ def test_create_case_tree_records_case_created_from_offer(
 
     stored = datalayer.read(case_obj.id_)
     assert stored is not None
-
-    entries = [
-        e
-        for e in datalayer.list_objects("CaseLedgerEntry")
-        if isinstance(e, WireCaseLedgerEntry) and e.case_id == case_obj.id_
-    ]
-    assert len(entries) >= 1
 
 
 def test_create_case_tree_no_offer_received_event_without_in_reply_to(
     datalayer, actor, case_obj, create_case_activity, bridge
 ):
-    """Case creation without in_reply_to still persists the case and commits a ledger entry."""
-    from vultron.wire.as2.vocab.objects.case_ledger_entry import (
-        CaseLedgerEntry as WireCaseLedgerEntry,
-    )
+    """Case creation without in_reply_to still persists the case (CM-02-009).
 
+    The canonical ledger entry is NOT produced here — the running actor (vendor)
+    is not the CaseActor.  The guarded commit correctly skips for non-CaseActor
+    actors (Issue #1021).
+    """
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
     bridge.execute_with_setup(
         tree=tree, actor_id=actor.id_, activity=create_case_activity
@@ -429,48 +462,16 @@ def test_create_case_tree_no_offer_received_event_without_in_reply_to(
     stored = datalayer.read(case_obj.id_)
     assert stored is not None
 
-    entries = [
-        e
-        for e in datalayer.list_objects("CaseLedgerEntry")
-        if isinstance(e, WireCaseLedgerEntry) and e.case_id == case_obj.id_
-    ]
-    assert len(entries) >= 1
 
-
-def test_create_case_tree_canonical_ledger_entry_has_valid_hash(
+def test_create_case_tree_vendor_produces_no_ledger_entries(
     datalayer, actor, case_obj, create_case_activity, bridge
 ):
-    """The first canonical CaseLedgerEntry MUST have a non-empty entry_hash (CM-02-009)."""
-    from vultron.wire.as2.vocab.objects.case_ledger_entry import (
-        CaseLedgerEntry as WireCaseLedgerEntry,
-    )
+    """Vendor running create_create_case_tree produces zero canonical ledger entries.
 
-    tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
-    bridge.execute_with_setup(
-        tree=tree, actor_id=actor.id_, activity=create_case_activity
-    )
-
-    entries = [
-        e
-        for e in datalayer.list_objects("CaseLedgerEntry")
-        if isinstance(e, WireCaseLedgerEntry) and e.case_id == case_obj.id_
-    ]
-    assert len(entries) >= 1
-    for entry in entries:
-        assert entry.entry_hash is not None
-        assert len(entry.entry_hash) > 0
-
-
-def test_create_case_tree_events_have_trusted_timestamps(
-    datalayer, actor, case_obj, create_case_activity, bridge
-):
-    """Canonical ledger entry timestamps MUST be server-generated (CM-02-009).
-
-    Since record_event() was removed in #789, the trust guarantee now lives
-    in VultronCaseLedgerEntry.received_at, written by CommitCaseLedgerEntryNode.
+    The guarded commit silently skips because the running actor (vendor) is not
+    the CaseActor.  Ledger initialization is the CaseActor's responsibility
+    and is tested in nodes/test_guarded_commit_tree.py (CM-02-009, Issue #1021).
     """
-    from datetime import timezone
-
     from vultron.wire.as2.vocab.objects.case_ledger_entry import (
         CaseLedgerEntry as WireCaseLedgerEntry,
     )
@@ -485,11 +486,33 @@ def test_create_case_tree_events_have_trusted_timestamps(
         for e in datalayer.list_objects("CaseLedgerEntry")
         if isinstance(e, WireCaseLedgerEntry) and e.case_id == case_obj.id_
     ]
-    assert len(entries) >= 1
-    for entry in entries:
-        assert entry.received_at is not None
-        assert entry.received_at.tzinfo is not None
-        assert entry.received_at.tzinfo == timezone.utc
+    assert len(entries) == 0
+
+
+def test_create_case_tree_hash_and_timestamp_properties_delegated(
+    datalayer, actor, case_obj, create_case_activity, bridge
+):
+    """Vendor running create_create_case_tree produces zero canonical ledger entries.
+
+    entry_hash and received_at properties of CaseLedgerEntry are verified in
+    nodes/test_guarded_commit_tree.py where CaseActor identity is explicit and
+    no ID derivation is required (CM-02-009, Issue #1021).
+    """
+    from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+        CaseLedgerEntry as WireCaseLedgerEntry,
+    )
+
+    tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
+    bridge.execute_with_setup(
+        tree=tree, actor_id=actor.id_, activity=create_case_activity
+    )
+
+    entries = [
+        e
+        for e in datalayer.list_objects("CaseLedgerEntry")
+        if isinstance(e, WireCaseLedgerEntry) and e.case_id == case_obj.id_
+    ]
+    assert len(entries) == 0
 
 
 # ============================================================================

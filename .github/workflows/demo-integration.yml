@@ -35,28 +35,20 @@ jobs:
     if: "!startsWith(github.head_ref, 'dependabot/')"
 
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
-
-      # DEMOCI-02-007: Docker layer caching to avoid rebuilding unchanged layers.
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5  # v4.1.0
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
 
       # DEMOCI-02-007: Docker layer caching via Buildx GHA cache.
-      # docker buildx bake understands the compose file format and passes
-      # cache-from/cache-to through to BuildKit, which writes/reads the GHA
-      # cache natively.  --load ensures all built images are available to the
-      # docker daemon for the subsequent docker compose up step.
-      # Run from the docker/ directory so that context: .. resolves to the
-      # repo root and ../docker/Dockerfile resolves to docker/Dockerfile.
+      # This workflow only triggers on pull_request, so a cache it writes
+      # (scope=demo-integration) is only visible to that same PR branch —
+      # GitHub Actions cache entries from a branch aren't visible to other
+      # branches. cache-from-extra-scope reads the cache written by
+      # demo-image-cache-warm.yml on pushes to main, so a brand-new PR
+      # branch still gets a warm cache instead of starting fully cold.
       - name: Build Docker images
-        working-directory: docker
-        run: |
-          docker buildx bake \
-            --allow=fs.read=.. \
-            -f docker-compose-multi-actor.yml \
-            --set "*.cache-from=type=gha" \
-            --set "*.cache-to=type=gha,mode=max" \
-            --load
+        uses: ./.github/actions/build-demo-images
+        with:
+          cache-scope: demo-integration
+          cache-from-extra-scope: demo-integration-main
 
       # DEMOCI-02-005, DEMOCI-02-006: run two-actor demo; detect failure via
       # exit code of the demo-runner container.
@@ -84,20 +76,13 @@ jobs:
       # Invariants not yet passing are marked xfail so the build stays green;
       # unexpected passes appear as XPASS (visible but not failing).
       # See test/ci/README-case-log-ratchet.md for the ratchet workflow.
-      - name: Set up Python for invariant harness
+      - name: Set up Python and uv for invariant harness
         if: always()
-        id: setup-python-invariants
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
-        with:
-          python-version: "3.13"
-
-      - name: Install dependencies for invariant harness
-        if: always() && steps.setup-python-invariants.outcome == 'success'
-        id: install-invariant-deps
-        run: python -m pip install --upgrade pip uv && uv sync --dev --frozen
+        id: setup-invariant-harness
+        uses: ./.github/actions/setup-python-uv
 
       - name: Run case-ledger invariant harness
-        if: always() && steps.install-invariant-deps.outcome == 'success'
+        if: always() && steps.setup-invariant-harness.outcome == 'success'
         run: uv run pytest -m case_ledger_invariants -v --tb=short
 
       # DEMOCI-02-008: collect combined stream and per-service logs on failure.
@@ -122,6 +107,75 @@ jobs:
           retention-days: 7
 
       # DEMOCI-02-010: always tear down containers and volumes.
+      - name: Tear down containers and volumes
+        if: always()
+        run: |
+          docker compose -f docker/docker-compose-multi-actor.yml down -v
+
+  fvv:
+    name: FVV Demo Integration
+    runs-on: ubuntu-latest
+    # DEMOCI-02-009: 15-minute cap to prevent indefinite hangs.
+    timeout-minutes: 15
+    # DEMOCI-02-004: skip Dependabot PRs; python-app.yml guards broken deps.
+    if: "!startsWith(github.head_ref, 'dependabot/')"
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+
+      - name: Build Docker images
+        uses: ./.github/actions/build-demo-images
+        with:
+          cache-scope: demo-integration
+          cache-from-extra-scope: demo-integration-main
+
+      - name: Create devlogs directory
+        run: mkdir -p devlogs
+
+      - name: Run FVV demo
+        run: |
+          DEMO=fvv \
+          VULTRON_SERVER__LOG_LEVEL=DEBUG \
+            docker compose -f docker/docker-compose-multi-actor.yml \
+            up --abort-on-container-exit --exit-code-from demo-runner
+
+      - name: Upload case log JSONL files
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: fvv-case-logs
+          path: devlogs/
+          retention-days: 30
+
+      - name: Set up Python and uv for invariant harness
+        if: always()
+        id: setup-invariant-harness
+        uses: ./.github/actions/setup-python-uv
+
+      - name: Run case-ledger invariant harness
+        if: always() && steps.setup-invariant-harness.outcome == 'success'
+        run: uv run pytest -m case_ledger_invariants -v --tb=short
+
+      - name: Collect container logs
+        if: failure()
+        run: |
+          COMPOSE_FILE=docker/docker-compose-multi-actor.yml
+          mkdir -p /tmp/demo-logs
+          docker compose -f "$COMPOSE_FILE" logs \
+            > /tmp/demo-logs/combined.log 2>&1
+          for svc in finder vendor coordinator case-actor vendor2 demo-runner; do
+            docker compose -f "$COMPOSE_FILE" logs "$svc" \
+              > "/tmp/demo-logs/${svc}.log" 2>&1 || true
+          done
+
+      - name: Upload container logs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: fvv-container-logs
+          path: /tmp/demo-logs/
+          retention-days: 7
+
       - name: Tear down containers and volumes
         if: always()
         run: |

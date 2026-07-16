@@ -1,0 +1,1371 @@
+id: RMB
+title: Report Management Behavioral Requirements
+description: >-
+  Event-Condition-Action behavioral requirements for Report Management (RM).
+  Each group is triggered by either a received RM message or a local RM state
+  transition. Items are BehavioralSpec entries with typed preconditions and
+  ordered steps where sequencing is normatively required.
+  **Sources**: docs/reference/formal_protocol/transitions.md (RM tables),
+  specs/vultron-protocol-spec.yaml (VP-02, VP-03, VP-13),
+  docs/topics/behavior_logic/rm_bt.md, msg_rm_bt.md, rm_validation_bt.md,
+  rm_prioritization_bt.md, rm_closure_bt.md.
+  See also: notes/behavioral-conformance-specs.md for design rationale.
+version: 0.1.0
+kind: domain
+scope:
+- prototype
+- production
+groups:
+- id: RMB-01
+  title: Receive RS (Report Submission)
+  description: Wire-type mapping — see MSM-01-001 (RS → SUBMIT_REPORT → Offer(VulnerabilityReport)).
+  trigger:
+    type: message_received
+    value: RS
+  specs:
+  - id: RMB-01-001
+    priority: MUST
+    statement: >-
+      A Participant in RM Start (q^rm ∈ S) receiving RS MUST transition their
+      RM state to Received (q^rm S → R).
+    rationale: >-
+      RS is the sole RM message that directly changes the receiver's own RM
+      state. All other RM messages announce sender state only.
+    testable: true
+    preconditions:
+    - rm_state:
+        - START
+      description: Participant is in RM Start
+    steps:
+    - order: 1
+      actor: receiver
+      action: Transition RM state from START to RECEIVED
+      expected: Receiver RM state is RECEIVED
+    - order: 2
+      actor: receiver
+      action: Emit RK to acknowledge receipt of RS
+      expected: RK queued for sender
+    postconditions:
+    - description: Receiver RM state is RECEIVED; RK emitted to sender
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-03-009
+      note: RK acknowledgment of RS
+    - rel_type: satisfies
+      spec_id: MSM-01-001
+      note: 'RS shorthand wire-type mapping'
+
+  - id: RMB-01-002
+    priority: MUST
+    statement: >-
+      A Vendor Participant in RM Start receiving RS that introduces a
+      previously unknown vulnerability (q^cs ∈ vfd···) MUST transition their
+      CS to vendor-aware (q^cs vfd··· → Vfd···) and emit CV to announce the
+      transition.
+    rationale: >-
+      RS is the event that makes a Vendor aware of the vulnerability. The CS
+      V-transition records this awareness and CV announces it to other
+      Participants.
+    testable: true
+    preconditions:
+    - rm_state:
+        - START
+      role:
+        - vendor
+      cs_pattern: vfd...
+      description: Participant is in RM Start; Participant holds the Vendor role; CS matches pattern vfd...
+    steps:
+    - order: 1
+      actor: receiver
+      action: Transition RM state from START to RECEIVED
+      expected: Receiver RM state is RECEIVED
+    - order: 2
+      actor: receiver
+      action: Transition CS from vfd··· to Vfd··· (V event)
+      expected: CS vendor-aware bit set to V
+    - order: 3
+      actor: receiver
+      action: Emit CV to announce the CS vendor-aware transition
+      expected: CV queued for case participants
+    - order: 4
+      actor: receiver
+      action: Emit RK to acknowledge receipt of RS
+      expected: RK queued for sender
+    postconditions:
+    - description: Receiver RM state is RECEIVED; CS is vendor-aware; CV and RK emitted
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-03-002
+      note: Vendor MUST transition CS to Vfd on new RS
+    - rel_type: satisfies
+      spec_id: VP-03-009
+      note: RK acknowledgment of RS
+    - rel_type: satisfies
+      spec_id: MSM-01-001
+      note: 'RS shorthand wire-type mapping'
+
+  - id: RMB-01-003
+    priority: SHOULD
+    statement: >-
+      A Vendor Participant already in an active RM state (q^rm ∈ {R,I,V,D,A})
+      receiving RS for a vulnerability they were previously unaware of
+      (q^cs ∈ vfd···) SHOULD transition CS to Vfd··· and emit CV, even though
+      their RM state does not change.
+    rationale: >-
+      The CS V-transition captures vendor awareness regardless of when the
+      Vendor first receives RS. A Vendor who joins a case mid-lifecycle must
+      still record their own awareness event.
+    testable: true
+    preconditions:
+    - rm_state:
+        - RECEIVED
+        - INVALID
+        - VALID
+        - DEFERRED
+        - ACCEPTED
+      role:
+        - vendor
+      cs_pattern: vfd...
+      description: Participant is in an active RM state (Received/Invalid/Valid/Deferred/Accepted); Participant holds the Vendor role; CS matches pattern vfd...
+    steps:
+    - order: 1
+      actor: receiver
+      action: Transition CS from vfd··· to Vfd··· (V event)
+      expected: CS vendor-aware bit set to V
+    - order: 2
+      actor: receiver
+      action: Emit CV to announce the CS vendor-aware transition
+      expected: CV queued for case participants
+    - order: 3
+      actor: receiver
+      action: Emit RK to acknowledge receipt of RS
+      expected: RK queued for sender
+    postconditions:
+    - description: CS is vendor-aware; CV and RK emitted; receiver RM state unchanged
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-03-002
+      note: Vendor MUST transition CS to Vfd on receiving RS for new vulnerability
+    - rel_type: satisfies
+      spec_id: VP-03-009
+      note: RK acknowledgment of RS
+    - rel_type: satisfies
+      spec_id: MSM-01-001
+      note: 'RS shorthand wire-type mapping'
+
+  - id: RMB-01-004
+    priority: SHOULD
+    statement: >-
+      A Participant in an active RM state (q^rm ∈ {R,I,V,D,A}) receiving a
+      duplicate RS (already Vendor-aware, q^cs ∈ V···) SHOULD emit RK to
+      acknowledge receipt without changing RM or CS state.
+    rationale: >-
+      All R* messages warrant acknowledgment unless the report is Closed.
+      Duplicate RS does not re-trigger RM or CS transitions.
+    testable: true
+    preconditions:
+    - rm_state:
+        - RECEIVED
+        - INVALID
+        - VALID
+        - DEFERRED
+        - ACCEPTED
+      description: Participant is in an active RM state (Received/Invalid/Valid/Deferred/Accepted)
+    steps:
+    - order: 1
+      actor: receiver
+      action: Emit RK to acknowledge receipt of RS
+      expected: RK queued for sender
+    postconditions:
+    - description: RK emitted; RM and CS states unchanged
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-03-009
+      note: RK acknowledgment of RS
+    - rel_type: satisfies
+      spec_id: MSM-01-001
+      note: 'RS shorthand wire-type mapping'
+
+  - id: RMB-01-005
+    priority: MAY
+    statement: >-
+      A Participant in RM Closed (q^rm ∈ C) receiving any R* message MAY
+      ignore it without sending a response.
+    rationale: >-
+      Closed cases are terminal. The protocol permits silent discard to avoid
+      generating unnecessary traffic for completed work.
+    testable: false
+    lint_suppress:
+    - testable_without_steps
+    preconditions:
+    - rm_state:
+        - CLOSED
+      description: Participant is in RM Closed
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-03-013
+      note: Recipients MAY ignore messages received on Closed cases
+    - rel_type: satisfies
+      spec_id: MSM-01-001
+      note: 'RS shorthand wire-type mapping'
+
+- id: RMB-02
+  title: Receive RI (Report Invalid)
+  description: Wire-type mapping — see MSM-01-002 (RI → INVALIDATE_REPORT → TentativeReject(Offer(VulnerabilityReport))).
+  trigger:
+    type: message_received
+    value: RI
+  specs:
+  - id: RMB-02-001
+    priority: SHOULD
+    statement: >-
+      A Participant in an active RM state (q^rm ∈ {R,I,V,D,A}) receiving RI
+      SHOULD update their record of the sender's RM state to Invalid and emit
+      RK.
+    rationale: >-
+      RI is a status announcement — it does not change the receiver's own RM
+      state but informs them of the sender's validation result. Maintaining
+      this record supports shared situation awareness.
+    testable: true
+    preconditions:
+    - rm_state:
+        - RECEIVED
+        - INVALID
+        - VALID
+        - DEFERRED
+        - ACCEPTED
+      description: Participant is in an active RM state (Received/Invalid/Valid/Deferred/Accepted)
+    steps:
+    - order: 1
+      actor: receiver
+      action: Update local model of sender RM state to INVALID
+      expected: Sender RM state recorded as INVALID in receiver's model
+    - order: 2
+      actor: receiver
+      action: Emit RK to acknowledge receipt of RI
+      expected: RK queued for sender
+    postconditions:
+    - description: >-
+        Receiver RM state unchanged; sender's recorded RM state is INVALID;
+        RK emitted
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-03-009
+      note: RK acknowledgment of RI
+    - rel_type: satisfies
+      spec_id: VP-02-019
+      note: Shared awareness of sender RM state change
+    - rel_type: satisfies
+      spec_id: MSM-01-002
+      note: 'RI shorthand wire-type mapping'
+
+  - id: RMB-02-002
+    priority: SHOULD
+    statement: >-
+      A Participant in RM Start (q^rm ∈ S) receiving RI SHOULD respond with
+      both RE (to signal the unexpected message) and GI (to inquire what the
+      sender expected), in addition to RK.
+    rationale: >-
+      Receiving any R* message other than RS while in RM Start means the
+      sender believes the receiver is coordinating a report the receiver has
+      no knowledge of. RE+GI is the protocol-specified error response.
+    testable: true
+    preconditions:
+    - rm_state:
+        - START
+      description: Participant is in RM Start
+    steps:
+    - order: 1
+      actor: receiver
+      action: Emit RE to signal the unexpected message error
+      expected: RE queued for sender
+    - order: 2
+      actor: receiver
+      action: Emit GI to inquire what the sender expected
+      expected: GI queued for sender
+    - order: 3
+      actor: receiver
+      action: Emit RK to acknowledge receipt
+      expected: RK queued for sender
+    postconditions:
+    - description: RE, GI, and RK emitted; receiver RM state unchanged (START)
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-03-010
+      note: RE+GI when R* (other than RS) received while in RM Start
+    - rel_type: satisfies
+      spec_id: MSM-01-002
+      note: 'RI shorthand wire-type mapping'
+
+- id: RMB-03
+  title: Receive RV (Report Valid)
+  description: Wire-type mapping — see MSM-01-003 (RV → VALIDATE_REPORT → Accept(Offer(VulnerabilityReport))).
+  trigger:
+    type: message_received
+    value: RV
+  specs:
+  - id: RMB-03-001
+    priority: SHOULD
+    statement: >-
+      A Participant in an active RM state (q^rm ∈ {R,I,V,D,A}) receiving RV
+      SHOULD update their record of the sender's RM state to Valid and emit
+      RK.
+    rationale: >-
+      RV announces the sender's validation result. Maintaining this record
+      supports shared situation awareness across Participants.
+    testable: true
+    preconditions:
+    - rm_state:
+        - RECEIVED
+        - INVALID
+        - VALID
+        - DEFERRED
+        - ACCEPTED
+      description: Participant is in an active RM state (Received/Invalid/Valid/Deferred/Accepted)
+    steps:
+    - order: 1
+      actor: receiver
+      action: Update local model of sender RM state to VALID
+      expected: Sender RM state recorded as VALID in receiver's model
+    - order: 2
+      actor: receiver
+      action: Emit RK to acknowledge receipt of RV
+      expected: RK queued for sender
+    postconditions:
+    - description: >-
+        Receiver RM state unchanged; sender's recorded RM state is VALID;
+        RK emitted
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-03-009
+      note: RK acknowledgment of RV
+    - rel_type: satisfies
+      spec_id: VP-02-019
+      note: Shared awareness of sender RM state change
+    - rel_type: satisfies
+      spec_id: MSM-01-003
+      note: 'RV shorthand wire-type mapping'
+
+  - id: RMB-03-002
+    priority: SHOULD
+    statement: >-
+      A Participant in RM Start (q^rm ∈ S) receiving RV SHOULD respond with
+      RE and GI to signal the error and inquire what the sender expected, in
+      addition to RK.
+    rationale: >-
+      Receiving any R* message other than RS while in RM Start is an error
+      condition indicating the sender has a mistaken expectation about the
+      receiver's case knowledge.
+    testable: true
+    preconditions:
+    - rm_state:
+        - START
+      description: Participant is in RM Start
+    steps:
+    - order: 1
+      actor: receiver
+      action: Emit RE to signal the unexpected message error
+      expected: RE queued for sender
+    - order: 2
+      actor: receiver
+      action: Emit GI to inquire what the sender expected
+      expected: GI queued for sender
+    - order: 3
+      actor: receiver
+      action: Emit RK to acknowledge receipt
+      expected: RK queued for sender
+    postconditions:
+    - description: RE, GI, and RK emitted; receiver RM state unchanged (START)
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-03-010
+      note: RE+GI when R* (other than RS) received while in RM Start
+    - rel_type: satisfies
+      spec_id: MSM-01-003
+      note: 'RV shorthand wire-type mapping'
+
+- id: RMB-04
+  title: Receive RD (Report Deferred)
+  description: Wire-type mapping — see MSM-01-004 (RD → DEFER_CASE → Ignore(VulnerabilityCase)).
+  trigger:
+    type: message_received
+    value: RD
+  specs:
+  - id: RMB-04-001
+    priority: SHOULD
+    statement: >-
+      A Participant in an active RM state (q^rm ∈ {R,I,V,D,A}) receiving RD
+      SHOULD update their record of the sender's RM state to Deferred and
+      emit RK.
+    rationale: >-
+      RD announces the sender's deferral decision. Maintaining this record
+      supports shared situation awareness and coordination planning.
+    testable: true
+    preconditions:
+    - rm_state:
+        - RECEIVED
+        - INVALID
+        - VALID
+        - DEFERRED
+        - ACCEPTED
+      description: Participant is in an active RM state (Received/Invalid/Valid/Deferred/Accepted)
+    steps:
+    - order: 1
+      actor: receiver
+      action: Update local model of sender RM state to DEFERRED
+      expected: Sender RM state recorded as DEFERRED in receiver's model
+    - order: 2
+      actor: receiver
+      action: Emit RK to acknowledge receipt of RD
+      expected: RK queued for sender
+    postconditions:
+    - description: >-
+        Receiver RM state unchanged; sender's recorded RM state is DEFERRED;
+        RK emitted
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-03-009
+      note: RK acknowledgment of RD
+    - rel_type: satisfies
+      spec_id: VP-02-019
+      note: Shared awareness of sender RM state change
+    - rel_type: satisfies
+      spec_id: MSM-01-004
+      note: 'RD shorthand wire-type mapping'
+
+  - id: RMB-04-002
+    priority: SHOULD
+    statement: >-
+      A Participant in RM Start (q^rm ∈ S) receiving RD SHOULD respond with
+      RE and GI to signal the error and inquire what the sender expected, in
+      addition to RK.
+    rationale: >-
+      Receiving any R* message other than RS while in RM Start is an error
+      condition.
+    testable: true
+    preconditions:
+    - rm_state:
+        - START
+      description: Participant is in RM Start
+    steps:
+    - order: 1
+      actor: receiver
+      action: Emit RE to signal the unexpected message error
+      expected: RE queued for sender
+    - order: 2
+      actor: receiver
+      action: Emit GI to inquire what the sender expected
+      expected: GI queued for sender
+    - order: 3
+      actor: receiver
+      action: Emit RK to acknowledge receipt
+      expected: RK queued for sender
+    postconditions:
+    - description: RE, GI, and RK emitted; receiver RM state unchanged (START)
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-03-010
+      note: RE+GI when R* (other than RS) received while in RM Start
+    - rel_type: satisfies
+      spec_id: MSM-01-004
+      note: 'RD shorthand wire-type mapping'
+
+- id: RMB-05
+  title: Receive RA (Report Accepted)
+  description: Wire-type mapping — see MSM-01-005 (RA → ENGAGE_CASE → Join(VulnerabilityCase)).
+  trigger:
+    type: message_received
+    value: RA
+  specs:
+  - id: RMB-05-001
+    priority: SHOULD
+    statement: >-
+      A Participant in an active RM state (q^rm ∈ {R,I,V,D,A}) receiving RA
+      SHOULD update their record of the sender's RM state to Accepted and
+      emit RK.
+    rationale: >-
+      RA announces the sender's commitment to work the report. Recording this
+      supports shared situation awareness and helps coordinate timing of
+      follow-on actions such as embargo proposals.
+    testable: true
+    preconditions:
+    - rm_state:
+        - RECEIVED
+        - INVALID
+        - VALID
+        - DEFERRED
+        - ACCEPTED
+      description: Participant is in an active RM state (Received/Invalid/Valid/Deferred/Accepted)
+    steps:
+    - order: 1
+      actor: receiver
+      action: Update local model of sender RM state to ACCEPTED
+      expected: Sender RM state recorded as ACCEPTED in receiver's model
+    - order: 2
+      actor: receiver
+      action: Emit RK to acknowledge receipt of RA
+      expected: RK queued for sender
+    postconditions:
+    - description: >-
+        Receiver RM state unchanged; sender's recorded RM state is ACCEPTED;
+        RK emitted
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-03-009
+      note: RK acknowledgment of RA
+    - rel_type: satisfies
+      spec_id: VP-02-019
+      note: Shared awareness of sender RM state change
+    - rel_type: satisfies
+      spec_id: MSM-01-005
+      note: 'RA shorthand wire-type mapping'
+
+  - id: RMB-05-002
+    priority: SHOULD
+    statement: >-
+      A Participant in RM Start (q^rm ∈ S) receiving RA SHOULD respond with
+      RE and GI to signal the error and inquire what the sender expected, in
+      addition to RK.
+    rationale: >-
+      Receiving any R* message other than RS while in RM Start is an error
+      condition indicating the sender has a mistaken expectation about the
+      receiver's case knowledge.
+    testable: true
+    preconditions:
+    - rm_state:
+        - START
+      description: Participant is in RM Start
+    steps:
+    - order: 1
+      actor: receiver
+      action: Emit RE to signal the unexpected message error
+      expected: RE queued for sender
+    - order: 2
+      actor: receiver
+      action: Emit GI to inquire what the sender expected
+      expected: GI queued for sender
+    - order: 3
+      actor: receiver
+      action: Emit RK to acknowledge receipt
+      expected: RK queued for sender
+    postconditions:
+    - description: RE, GI, and RK emitted; receiver RM state unchanged (START)
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-03-010
+      note: RE+GI when R* (other than RS) received while in RM Start
+    - rel_type: satisfies
+      spec_id: MSM-01-005
+      note: 'RA shorthand wire-type mapping'
+
+- id: RMB-06
+  title: Receive RC (Report Closed)
+  description: Wire-type mapping — see MSM-01-006 (RC → CLOSE_REPORT → Reject(Offer(VulnerabilityReport))).
+  trigger:
+    type: message_received
+    value: RC
+  specs:
+  - id: RMB-06-001
+    priority: SHOULD
+    statement: >-
+      A Participant in an active RM state (q^rm ∈ {R,I,V,D,A}) receiving RC
+      SHOULD update their record of the sender's RM state to Closed and emit
+      RK.
+    rationale: >-
+      RC announces that the sender has completed their work on the report.
+      Maintaining this record supports shared situation awareness and
+      potential auto-close evaluation.
+    testable: true
+    preconditions:
+    - rm_state:
+        - RECEIVED
+        - INVALID
+        - VALID
+        - DEFERRED
+        - ACCEPTED
+      description: Participant is in an active RM state (Received/Invalid/Valid/Deferred/Accepted)
+    steps:
+    - order: 1
+      actor: receiver
+      action: Update local model of sender RM state to CLOSED
+      expected: Sender RM state recorded as CLOSED in receiver's model
+    - order: 2
+      actor: receiver
+      action: Emit RK to acknowledge receipt of RC
+      expected: RK queued for sender
+    postconditions:
+    - description: >-
+        Receiver RM state unchanged; sender's recorded RM state is CLOSED;
+        RK emitted
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-03-009
+      note: RK acknowledgment of RC
+    - rel_type: satisfies
+      spec_id: VP-02-019
+      note: Shared awareness of sender RM state change
+    - rel_type: satisfies
+      spec_id: MSM-01-006
+      note: 'RC shorthand wire-type mapping'
+
+  - id: RMB-06-002
+    priority: MAY
+    statement: >-
+      After receiving RC from all other active Participants, a Participant
+      MAY evaluate whether local closure criteria are satisfied and, if so,
+      initiate closure of their own RM state.
+    rationale: >-
+      When all other parties have closed, remaining open is often unnecessary.
+      This auto-close judgment is based on local policy and current EM state.
+    testable: false
+    lint_suppress:
+    - testable_without_steps
+    preconditions:
+    - rm_state:
+        - RECEIVED
+        - INVALID
+        - DEFERRED
+        - ACCEPTED
+      description: Participant is in RM Received/Invalid/Deferred/Accepted
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-02-035
+      note: Participants MAY close Accepted, Deferred, or Invalid reports
+    - rel_type: satisfies
+      spec_id: MSM-01-006
+      note: 'RC shorthand wire-type mapping'
+
+  - id: RMB-06-003
+    priority: SHOULD
+    statement: >-
+      A Participant in RM Start (q^rm ∈ S) receiving RC SHOULD respond with
+      RE and GI to signal the error and inquire what the sender expected, in
+      addition to RK.
+    rationale: >-
+      Receiving any R* message other than RS while in RM Start is an error
+      condition.
+    testable: true
+    preconditions:
+    - rm_state:
+        - START
+      description: Participant is in RM Start
+    steps:
+    - order: 1
+      actor: receiver
+      action: Emit RE to signal the unexpected message error
+      expected: RE queued for sender
+    - order: 2
+      actor: receiver
+      action: Emit GI to inquire what the sender expected
+      expected: GI queued for sender
+    - order: 3
+      actor: receiver
+      action: Emit RK to acknowledge receipt
+      expected: RK queued for sender
+    postconditions:
+    - description: RE, GI, and RK emitted; receiver RM state unchanged (START)
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-03-010
+      note: RE+GI when R* (other than RS) received while in RM Start
+    - rel_type: satisfies
+      spec_id: MSM-01-006
+      note: 'RC shorthand wire-type mapping'
+
+- id: RMB-07
+  title: Receive RE (Report Error)
+  description: >-
+    Wire-type mapping — see MSM-01-007 (RE has no dedicated MessageSemantics
+    dispatch value and no AS2 wire representation in the current semantic registry).
+  trigger:
+    type: message_received
+    value: RE
+  specs:
+  - id: RMB-07-001
+    priority: SHOULD
+    statement: >-
+      A Participant in an active RM state (q^rm ∈ {R,I,V,D,A}) receiving RE
+      SHOULD emit GI (to inquire about the nature of the error) and RK (to
+      acknowledge receipt).
+    rationale: >-
+      RE indicates the sender encountered an error related to the report. GI
+      opens a dialogue to resolve the problem; RK closes the acknowledgment
+      loop. Ordering GI before RK is preferred so context accompanies the
+      acknowledgment.
+    testable: true
+    preconditions:
+    - rm_state:
+        - RECEIVED
+        - INVALID
+        - VALID
+        - DEFERRED
+        - ACCEPTED
+      description: Participant is in an active RM state (Received/Invalid/Valid/Deferred/Accepted)
+    steps:
+    - order: 1
+      actor: receiver
+      action: Emit GI to inquire about the nature of the error
+      expected: GI queued for sender
+    - order: 2
+      actor: receiver
+      action: Emit RK to acknowledge receipt of RE
+      expected: RK queued for sender
+    postconditions:
+    - description: GI and RK emitted; receiver RM state unchanged
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-03-011
+      note: Acknowledge RE and inquire about the error with GI
+    - rel_type: satisfies
+      spec_id: MSM-01-007
+      note: 'RE shorthand wire-type mapping'
+
+  - id: RMB-07-002
+    priority: SHOULD
+    statement: >-
+      A Participant in RM Start (q^rm ∈ S) receiving RE SHOULD respond with
+      RE (to signal the unexpected message), GI (to inquire what the sender
+      expected), and RK (to acknowledge receipt).
+    rationale: >-
+      Receiving any R* message while in RM Start means the sender has a
+      stale or incorrect case reference. RE+GI is the protocol-specified
+      error response. Even RE itself, when received in START, signals a
+      coordination mismatch that requires the RE+GI error response per
+      VP-03-010.
+    testable: true
+    preconditions:
+    - rm_state:
+        - START
+      description: Participant is in RM Start
+    steps:
+    - order: 1
+      actor: receiver
+      action: Emit RE to signal the unexpected message error
+      expected: RE queued for sender
+    - order: 2
+      actor: receiver
+      action: Emit GI to inquire what the sender expected
+      expected: GI queued for sender
+    - order: 3
+      actor: receiver
+      action: Emit RK to acknowledge receipt
+      expected: RK queued for sender
+    postconditions:
+    - description: RE, GI, and RK emitted; receiver RM state unchanged (START)
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-03-010
+      note: RE+GI when R* (other than RS) received while in RM Start
+    - rel_type: satisfies
+      spec_id: MSM-01-007
+      note: 'RE shorthand wire-type mapping'
+
+- id: RMB-08
+  title: Receive RK (Report Acknowledgment)
+  description: Wire-type mapping — see MSM-01-008 (RK → ACK_REPORT → Read(Offer(VulnerabilityReport))).
+  trigger:
+    type: message_received
+    value: RK
+  specs:
+  - id: RMB-08-001
+    priority: MAY
+    statement: >-
+      A Participant in an active RM state (q^rm ∈ {R,I,V,D,A}) receiving RK
+      MAY take no further action; RK is an acknowledgment and requires no
+      response.
+    rationale: >-
+      RK closes the acknowledgment loop. Emitting RK in response to RK would
+      create an infinite acknowledgment chain. The protocol specifies no
+      mandatory response to RK from an active-state receiver.
+    testable: false
+    lint_suppress:
+    - testable_without_steps
+    preconditions:
+    - rm_state:
+        - RECEIVED
+        - INVALID
+        - VALID
+        - DEFERRED
+        - ACCEPTED
+      description: Participant is in an active RM state (Received/Invalid/Valid/Deferred/Accepted)
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-03-009
+      note: RK itself is never acknowledged with another RK
+    - rel_type: satisfies
+      spec_id: MSM-01-008
+      note: 'RK shorthand wire-type mapping'
+
+  - id: RMB-08-002
+    priority: SHOULD
+    statement: >-
+      A Participant in RM Start (q^rm ∈ S) receiving RK SHOULD respond with
+      RE and GI to signal the unexpected message and inquire what the sender
+      expected.
+    rationale: >-
+      RK arriving in START means the sender believes the receiver has already
+      acknowledged a message the receiver has never seen. RE+GI is the
+      protocol-specified error response for any R* message received while in
+      RM Start per VP-03-010.
+    testable: true
+    preconditions:
+    - rm_state:
+        - START
+      description: Participant is in RM Start
+    steps:
+    - order: 1
+      actor: receiver
+      action: Emit RE to signal the unexpected message error
+      expected: RE queued for sender
+    - order: 2
+      actor: receiver
+      action: Emit GI to inquire what the sender expected
+      expected: GI queued for sender
+    - order: 3
+      actor: receiver
+      action: Emit RK to acknowledge receipt
+      expected: RK queued for sender
+    postconditions:
+    - description: RE, GI, and RK emitted; receiver RM state unchanged (START)
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-03-010
+      note: RE+GI when R* received while in RM Start
+    - rel_type: satisfies
+      spec_id: MSM-01-008
+      note: 'RK shorthand wire-type mapping'
+
+- id: RMB-09
+  title: Enter RM Received
+  trigger:
+    type: state_entered
+    value: RM.RECEIVED
+  specs:
+  - id: RMB-09-001
+    priority: SHOULD
+    statement: >-
+      A Participant entering RM Received SHOULD initiate a report validation
+      process to determine whether the report is Valid or Invalid.
+    rationale: >-
+      Received is the intake state that exists specifically to await validation.
+      Failing to validate leaves the report stuck and blocks all subsequent
+      coordination steps that depend on the validation outcome.
+    testable: true
+    preconditions:
+    - rm_state:
+        - RECEIVED
+      description: Participant is in RM Received
+    steps:
+    - order: 1
+      actor: participant
+      action: >-
+        Initiate validation process (credibility check followed by validity
+        check)
+      expected: Validation process underway
+    postconditions:
+    - description: >-
+        Validation process initiated; report will transition to VALID or
+        INVALID on completion
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-02-006
+      note: Subject each Received report to a validation process
+    - rel_type: satisfies
+      spec_id: VP-02-007
+      note: Have a clearly defined process for validating Received reports
+    - rel_type: satisfies
+      spec_id: VP-02-009
+      note: Proceed only after validating received reports
+
+  - id: RMB-09-002
+    priority: MAY
+    statement: >-
+      A Participant entering RM Received MAY temporarily hold the report
+      pending additional information if the initial validation cannot be
+      completed with available data.
+    rationale: >-
+      Reports may arrive with insufficient detail for immediate validation.
+      Holding in Received preserves the option to revalidate when the Reporter
+      provides more information.
+    testable: false
+    lint_suppress:
+    - testable_without_steps
+    preconditions:
+    - rm_state:
+        - RECEIVED
+      description: Participant is in RM Received
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-02-012
+      note: MAY temporarily hold reports pending additional information
+    - rel_type: satisfies
+      spec_id: VP-02-013
+      note: SHOULD give Reporters an opportunity to update with additional info
+
+- id: RMB-10
+  title: Enter RM Valid
+  trigger:
+    type: state_entered
+    value: RM.VALID
+  specs:
+  - id: RMB-10-001
+    priority: MUST
+    statement: >-
+      A Participant entering RM Valid MUST initiate a prioritization evaluation
+      to determine whether to Accept or Defer the report.
+    rationale: >-
+      VP-02-002 requires that Participants prioritize Valid cases. Entering
+      Valid without initiating prioritization blocks progression and violates
+      the requirement.
+    testable: true
+    preconditions:
+    - rm_state:
+        - VALID
+      description: Participant is in RM Valid
+    steps:
+    - order: 1
+      actor: participant
+      action: Initiate prioritization evaluation (e.g., SSVC scoring)
+      expected: Prioritization process started; outcome is ACCEPTED or DEFERRED
+    postconditions:
+    - description: Prioritization underway; report will transition to ACCEPTED or DEFERRED
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-02-002
+      note: Participants MUST prioritize Valid cases
+    - rel_type: satisfies
+      spec_id: VP-02-014
+      note: SHOULD perform a prioritization evaluation for Valid reports
+
+  - id: RMB-10-002
+    priority: MUST_NOT
+    statement: >-
+      A Participant in RM Valid MUST NOT close the report directly from the
+      Valid state (q^rm V → C) without first transitioning through Accepted
+      or Deferred (constraint C-03).
+    rationale: >-
+      Closing directly from Valid skips the mandatory prioritization step.
+      Reports with no further action should be Deferred first and then
+      Closed, preserving the prioritization record.
+    testable: true
+    preconditions:
+    - rm_state:
+        - VALID
+      description: Participant is in RM Valid
+    lint_suppress:
+    - testable_without_steps
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-02-004
+      note: Participants MUST NOT close cases from the Valid state
+
+  - id: RMB-10-003
+    priority: SHOULD
+    statement: >-
+      A Participant entering RM Valid SHOULD emit RV to announce the
+      validation result to other Participants.
+    rationale: >-
+      State-change notifications support shared situation awareness. Other
+      Participants tracking this report depend on RV to update their model of
+      the sender's RM state.
+    testable: true
+    preconditions:
+    - rm_state:
+        - VALID
+      description: Participant is in RM Valid
+    steps:
+    - order: 1
+      actor: participant
+      action: Emit RV to announce RM Valid transition
+      expected: RV queued for case participants
+    postconditions:
+    - description: RV emitted; other Participants informed of Valid transition
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-03-004
+      note: SHOULD send RV when validation ends in valid determination
+    - rel_type: satisfies
+      spec_id: VP-03-012
+      note: SHOULD send a message for each RM state transition
+
+  - id: RMB-10-004
+    priority: SHOULD
+    statement: >-
+      A Participant entering RM Valid SHOULD create or update a case object
+      to track the report's progress through the CVD process.
+    rationale: >-
+      Valid reports represent confirmed vulnerability coordination work. A case
+      object enables participant management, embargo coordination, and state
+      tracking across all involved parties.
+    testable: true
+    preconditions:
+    - rm_state:
+        - VALID
+      description: Participant is in RM Valid
+    lint_suppress:
+    - testable_without_steps
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-02-015
+      note: SHOULD create a case for reports entering the Valid state
+    - rel_type: satisfies
+      spec_id: VP-02-020
+      note: SHOULD create a case for all Valid reports
+
+- id: RMB-11
+  title: Enter RM Invalid
+  trigger:
+    type: state_entered
+    value: RM.INVALID
+  specs:
+  - id: RMB-11-001
+    priority: SHOULD
+    statement: >-
+      A Participant entering RM Invalid SHOULD emit RI to announce the
+      invalid determination to other Participants.
+    rationale: >-
+      State-change notifications support shared situation awareness. Other
+      Participants tracking this report depend on RI to update their model of
+      the sender's validation outcome.
+    testable: true
+    preconditions:
+    - rm_state:
+        - INVALID
+      description: Participant is in RM Invalid
+    steps:
+    - order: 1
+      actor: participant
+      action: Emit RI to announce RM Invalid transition
+      expected: RI queued for case participants
+    postconditions:
+    - description: RI emitted; other Participants informed of Invalid transition
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-03-003
+      note: SHOULD send RI when validation ends in invalid determination
+    - rel_type: satisfies
+      spec_id: VP-03-012
+      note: SHOULD send a message for each RM state transition
+
+  - id: RMB-11-002
+    priority: SHOULD_NOT
+    statement: >-
+      Participants SHOULD NOT mark duplicate reports as Invalid.
+    rationale: >-
+      A duplicate report is not invalid — it describes a real vulnerability
+      already tracked in an existing case. Marking it Invalid misrepresents
+      the validation outcome and may confuse other Participants.
+    testable: true
+    preconditions:
+    - rm_state:
+        - INVALID
+      description: Participant is in RM Invalid
+    lint_suppress:
+    - testable_without_steps
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-02-022
+      note: Participants SHOULD NOT mark duplicate reports as Invalid
+    - rel_type: satisfies
+      spec_id: VP-02-023
+      note: Duplicate reports SHOULD pass through Valid state
+
+  - id: RMB-11-003
+    priority: MAY
+    statement: >-
+      A Participant in RM Invalid MAY revalidate the report when new
+      information becomes available, transitioning back through the validation
+      process toward RM Valid.
+    rationale: >-
+      Invalid reports may become valid if additional information is provided
+      by the Reporter or discovered independently. Revalidation preserves
+      coordination options without requiring a new RS.
+    testable: false
+    lint_suppress:
+    - testable_without_steps
+    preconditions:
+    - rm_state:
+        - INVALID
+      description: Participant is in RM Invalid
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-02-033
+      note: MAY periodically revalidate Invalid reports
+    - rel_type: satisfies
+      spec_id: VP-02-013
+      note: SHOULD give Reporters an opportunity to update with additional info
+
+  - id: RMB-11-004
+    priority: MAY
+    statement: >-
+      A Participant in RM Invalid MAY close the report if no further action
+      is expected and no active embargo is in force (q^em ∉ {A,R}).
+    rationale: >-
+      Invalid reports with no prospect of revalidation should eventually be
+      closed. Active embargo constraints on closure still apply.
+    testable: false
+    lint_suppress:
+    - testable_without_steps
+    preconditions:
+    - rm_state:
+        - INVALID
+      description: Participant is in RM Invalid
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-02-035
+      note: Participants MAY close Invalid reports
+    - rel_type: satisfies
+      spec_id: VP-13-005
+      note: SHOULD NOT close while an active embargo is in force
+
+- id: RMB-12
+  title: Enter RM Deferred
+  trigger:
+    type: state_entered
+    value: RM.DEFERRED
+  specs:
+  - id: RMB-12-001
+    priority: SHOULD
+    statement: >-
+      A Participant entering RM Deferred SHOULD emit RD to announce the
+      deferral decision to other Participants.
+    rationale: >-
+      State-change notifications support shared situation awareness. Other
+      Participants depend on RD to update their model of the sender's
+      prioritization decision and to calibrate their own coordination plans.
+    testable: true
+    preconditions:
+    - rm_state:
+        - DEFERRED
+      description: Participant is in RM Deferred
+    steps:
+    - order: 1
+      actor: participant
+      action: Emit RD to announce RM Deferred transition
+      expected: RD queued for case participants
+    postconditions:
+    - description: RD emitted; other Participants informed of Deferred transition
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-03-005
+      note: SHOULD send RD when prioritization ends in deferred decision
+    - rel_type: satisfies
+      spec_id: VP-03-012
+      note: SHOULD send a message for each RM state transition
+    - rel_type: satisfies
+      spec_id: VP-02-024
+      note: Vendors SHOULD communicate prioritization choices including deferral
+
+  - id: RMB-12-002
+    priority: SHOULD
+    statement: >-
+      A Participant in RM Deferred SHOULD monitor for new information
+      (updated threat intelligence, exploitation activity, or vendor progress)
+      that could justify reprioritization toward Accepted.
+    rationale: >-
+      Deferred does not mean permanently shelved. Changed conditions may
+      restore the urgency needed to resume active work on the report.
+    testable: true
+    preconditions:
+    - rm_state:
+        - DEFERRED
+      description: Participant is in RM Deferred
+    lint_suppress:
+    - testable_without_steps
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-02-017
+      note: Reports SHOULD exit Deferred when work resumes or no further action planned
+
+  - id: RMB-12-003
+    priority: MAY
+    statement: >-
+      A Participant in RM Deferred MAY set a policy timer to automatically
+      move the report to Closed after a defined period of inactivity.
+    rationale: >-
+      Indefinitely deferred reports accumulate as open coordination debt.
+      A timer enforces eventual cleanup consistent with local policy without
+      requiring manual review of every dormant case.
+    testable: false
+    lint_suppress:
+    - testable_without_steps
+    preconditions:
+    - rm_state:
+        - DEFERRED
+      description: Participant is in RM Deferred
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-02-031
+      note: MAY set a policy timer on Deferred reports
+
+- id: RMB-13
+  title: Enter RM Accepted
+  trigger:
+    type: state_entered
+    value: RM.ACCEPTED
+  specs:
+  - id: RMB-13-001
+    priority: MUST
+    statement: >-
+      A Participant MUST be in RM Accepted (q^rm ∈ A) before sending RS to
+      another Participant to initiate CVD coordination (constraint C-04).
+      Sending RS from any other RM state is prohibited.
+    rationale: >-
+      Sending RS from a non-Accepted state would initiate coordination before
+      the sender has committed to working the report. Accepted represents the
+      sender's confirmed engagement and readiness to coordinate.
+    testable: true
+    preconditions:
+    - rm_state:
+        - ACCEPTED
+      description: Participant is in RM Accepted
+    lint_suppress:
+    - testable_without_steps
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-03-001
+      note: MUST be in RM Accepted to send RS
+    - rel_type: satisfies
+      spec_id: VP-02-003
+      note: Participants initiating CVD with others MUST do so from Accepted state
+
+  - id: RMB-13-002
+    priority: SHOULD
+    statement: >-
+      A Participant entering RM Accepted SHOULD emit RA to announce the
+      accept decision to other Participants.
+    rationale: >-
+      State-change notifications support shared situation awareness. Other
+      Participants depend on RA to know that the sender has committed to
+      active work and may soon send RS to initiate coordination.
+    testable: true
+    preconditions:
+    - rm_state:
+        - ACCEPTED
+      description: Participant is in RM Accepted
+    steps:
+    - order: 1
+      actor: participant
+      action: Emit RA to announce RM Accepted transition
+      expected: RA queued for case participants
+    postconditions:
+    - description: RA emitted; other Participants informed of Accepted transition
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-03-006
+      note: SHOULD send RA when prioritization ends in accept decision
+    - rel_type: satisfies
+      spec_id: VP-03-012
+      note: SHOULD send a message for each RM state transition
+    - rel_type: satisfies
+      spec_id: VP-02-024
+      note: Vendors SHOULD communicate prioritization choices including acceptance
+
+  - id: RMB-13-003
+    priority: SHOULD
+    statement: >-
+      A Participant in RM Accepted SHOULD perform active work on the report
+      (e.g., fix development, remediation guidance, coordination with other
+      Participants via RS).
+    rationale: >-
+      Accepted is the active engagement state. Entering Accepted without
+      performing work reduces coordination effectiveness and may violate
+      implicitly agreed timelines within an active embargo.
+    testable: true
+    preconditions:
+    - rm_state:
+        - ACCEPTED
+      description: Participant is in RM Accepted
+    lint_suppress:
+    - testable_without_steps
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-02-002
+      note: Participants MUST prioritize Valid cases; Accepted is the result of prioritization
+
+- id: RMB-14
+  title: Enter RM Closed
+  trigger:
+    type: state_entered
+    value: RM.CLOSED
+  specs:
+  - id: RMB-14-001
+    priority: SHOULD
+    statement: >-
+      A Participant entering RM Closed SHOULD emit RC to announce the closure
+      to other Participants.
+    rationale: >-
+      State-change notifications support shared situation awareness. Other
+      Participants depend on RC to know the sender has completed their work
+      and to evaluate whether to initiate their own closure.
+    testable: true
+    preconditions:
+    - rm_state:
+        - CLOSED
+      description: Participant is in RM Closed
+    steps:
+    - order: 1
+      actor: participant
+      action: Emit RC to announce RM Closed transition
+      expected: RC queued for case participants
+    postconditions:
+    - description: RC emitted; other Participants informed of Closed transition
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-03-007
+      note: SHOULD send RC when report is closed
+    - rel_type: satisfies
+      spec_id: VP-03-012
+      note: SHOULD send a message for each RM state transition
+
+  - id: RMB-14-002
+    priority: MAY
+    statement: >-
+      A Participant in RM Closed (q^rm ∈ C) MAY ignore further R* messages
+      received on the closed report without sending a response.
+    rationale: >-
+      Closed is a terminal state. The protocol permits silent discard to avoid
+      generating traffic for completed work.
+    testable: false
+    lint_suppress:
+    - testable_without_steps
+    preconditions:
+    - rm_state:
+        - CLOSED
+      description: Participant is in RM Closed
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-03-013
+      note: Recipients MAY ignore messages received on Closed cases
+
+  - id: RMB-14-003
+    priority: SHOULD_NOT
+    statement: >-
+      A Participant SHOULD NOT close a report (q^rm ∈ {I,D,A} → C) while an
+      active embargo is in force (q^em ∈ {A,R}) unless they first communicate
+      their closure intent and continued embargo stance to other Participants.
+    rationale: >-
+      Closing while an embargo is active may signal withdrawal from the
+      coordinated timeline without proper notification, potentially undermining
+      the agreed disclosure date for all parties.
+    testable: true
+    preconditions:
+    - rm_state:
+        - INVALID
+        - DEFERRED
+        - ACCEPTED
+      em_state:
+        - ACTIVE
+        - REVISE
+      description: Participant is in RM Invalid/Deferred/Accepted; EM state is Active or Revise
+    lint_suppress:
+    - testable_without_steps
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-13-005
+      note: SHOULD NOT close while an active embargo is in force
+    - rel_type: satisfies
+      spec_id: VP-13-007
+      note: >-
+        SHOULD communicate intent to adhere or terminate compliance when closing
+        during an active embargo

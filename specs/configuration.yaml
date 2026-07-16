@@ -9,6 +9,7 @@ description: >-
 version: 1.0.0
 kind: implementation
 scope:
+
 - prototype
 - production
 groups:
@@ -225,3 +226,61 @@ groups:
     statement: >-
       BT nodes that create a case-owner participant record for the local actor MUST source
       the actor's CVD roles from `ActorConfig.default_case_roles`, not from a hardcoded constant.
+  - id: CFG-07-005
+    priority: MUST
+    statement: >-
+      A `load_actor_config()` function MUST exist in `vultron/config/` (the neutral config
+      sub-package) and MUST return an `ActorConfig` by reading `VULTRON_SEED_CONFIG` YAML
+      (extracting `local_actor` fields with `extra="ignore"` to discard demo-only fields) or
+      falling back to `VULTRON_ACTOR_*` environment variables.  Production adapter modules
+      MUST import this function rather than importing from `vultron/demo/` to obtain actor
+      policy configuration.
+    rationale: >-
+      PR #1331 introduced a direct `SeedConfig` import in
+      `vultron/adapters/driving/fastapi/inbox_port_factories.py`, making `vultron/demo/` a
+      de-facto production dependency (concern #1334).  A neutral `load_actor_config()` in
+      `vultron/config/` severs that dependency without losing YAML seed-file support.
+  - id: CFG-07-006
+    priority: MUST
+    statement: >-
+      `CVDRole` and its associated helpers (`serialize_roles`, `validate_roles`) MUST reside
+      in a top-level neutral enum module (`vultron/enums/roles.py`) rather than inside
+      `vultron/core/`, so that `vultron/config/` and other neutral modules can import them
+      without violating the constraint that neutral modules MUST NOT import from
+      `vultron/core/`.
+    rationale: >-
+      `ActorConfig` in `vultron/config/actor.py` needs `CVDRole`.  If `CVDRole` stays in
+      `vultron/core/states/roles.py`, `vultron/config/` must import from core — a layering
+      violation.  Moving `CVDRole` to the top-level neutral layer resolves this for all
+      layers simultaneously.
+  - id: CFG-07-007
+    priority: MUST
+    statement: >-
+      `LocalActorConfig` in `vultron/demo/seed_config.py` MUST be decoupled from `ActorConfig`:
+      it MUST carry only demo/bootstrap fields (`name`, `actor_type`, `id_`) and MUST NOT
+      extend `ActorConfig`.  Actor policy fields (`auto_create_case`, `default_case_roles`)
+      belong in `AppConfig.actor` and are loaded via `load_actor_config()`.
+    rationale: >-
+      `LocalActorConfig` currently extends `ActorConfig`, mixing bootstrap identity data with
+      runtime policy.  In the target architecture, identity data seeds the DataLayer once at
+      startup while policy is read at dispatch time from `AppConfig.actor`.  Decoupling the
+      two models reflects this distinct lifecycle and prevents demo scaffolding from leaking
+      policy concerns into production paths.
+  - id: CFG-07-008
+    priority: MUST
+    statement: >-
+      A YAML sub-block loader (e.g., `_actor_config_from_seed_yaml()`) MUST check for the
+      presence of the target key in the raw YAML dict before calling `model_validate`.
+      If the key is absent, the loader MUST return `None` so the caller falls through to
+      the next source in the resolution order (env vars, then defaults).
+    rationale: >-
+      `pydantic.model_validate({})` on a model whose every field has a default succeeds
+      silently and returns an all-defaults instance.  This makes it impossible to distinguish
+      "key absent from YAML" from "key explicitly set to defaults", causing `load_actor_config()`
+      to return early and skip `VULTRON_ACTOR__*` env vars — violating the documented
+      YAML → env → defaults resolution order (CFG-03-001).  The fix is a key-presence check
+      before `model_validate`, not a post-validate comparison.
+    relationships:
+    - rel_type: refines
+      spec_id: CFG-03-001
+      note: resolution-order guarantee requires key-presence check, not value comparison

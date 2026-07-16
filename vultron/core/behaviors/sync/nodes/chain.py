@@ -31,12 +31,23 @@ from vultron.core.sync_helpers import _find_equivalent_recorded_entry
 from vultron.core.sync_helpers import _reconstruct_tail_hash
 from vultron.errors import VultronCanonicalEntryError
 from vultron.errors import VultronError
+from vultron.errors import VultronValidationError
 
 logger = logging.getLogger(__name__)
 
 _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Create", "VulnerabilityCase"),
     ("Offer", "VulnerabilityReport"),
+    ("Offer", "VulnerabilityCase"),
+    # Accept(Offer(VulnerabilityReport)) — validate_report (RV message).
+    # The payload object is the Offer wrapping the VulnerabilityReport.
+    ("Accept", "Offer"),
+    # TentativeReject(Offer(VulnerabilityReport)) — invalidate_report (RI).
+    ("TentativeReject", "Offer"),
+    # Reject(Offer(VulnerabilityReport)) — close_report (RC).
+    ("Reject", "Offer"),
+    # Read(Offer(VulnerabilityReport)) — ack_report (RK message, ADR-0021).
+    ("Read", "Offer"),
     ("Add", "Note"),
     ("Add", "ParticipantStatus"),
     ("Add", "EmbargoEvent"),
@@ -59,6 +70,11 @@ _CASE_AUTHORED_SIGNATURES: frozenset[tuple[str, str]] = frozenset(
         ("Add", "EmbargoEvent"),
         ("Remove", "EmbargoEvent"),
         ("Invite", "EmbargoEvent"),
+        ("Offer", "VulnerabilityCase"),
+        # Leave(VulnerabilityCase) is emitted by the case-actor's
+        # AutoCloseBranchNode when all participants reach RM.CLOSED.
+        # The case-actor is the canonical author of this closure assertion.
+        ("Leave", "VulnerabilityCase"),
     }
 )
 _INLINE_OBJECT_KEYS: frozenset[str] = frozenset(
@@ -249,7 +265,18 @@ class ReconstructChainTailNode(DataLayerAction):
                 self.blackboard.activity, self.name
             )
 
-        tail_hash, tail_index = _reconstruct_tail_hash(case_id, self.datalayer)
+        try:
+            tail_hash, tail_index = _reconstruct_tail_hash(
+                case_id, self.datalayer
+            )
+        except VultronValidationError as exc:
+            self.logger.error(
+                "%s: cannot reconstruct tail hash for case '%s': %s",
+                self.name,
+                case_id,
+                exc,
+            )
+            return Status.FAILURE
         self.blackboard.tail_hash = tail_hash
         self.blackboard.tail_index = tail_index
         self.logger.debug(
@@ -334,7 +361,7 @@ class CreateLogEntryNode(DataLayerAction):
         self.case_id = case_id
         self.object_id = object_id
         self.event_type = event_type
-        self.payload_snapshot = payload_snapshot or {}
+        self.payload_snapshot = dict(payload_snapshot or {})
         self.term = term
         self.reason_code = reason_code
         self.reason_detail = reason_detail

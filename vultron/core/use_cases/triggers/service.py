@@ -42,6 +42,7 @@ from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases.triggers.actor import (
     SvcAcceptCaseInviteUseCase,
     SvcInviteActorToCaseUseCase,
+    SvcOfferCaseManagerRoleUseCase,
     SvcSuggestActorToCaseUseCase,
 )
 from vultron.core.use_cases.triggers.case import (
@@ -80,6 +81,7 @@ from vultron.core.use_cases.triggers.requests import (
     EngageCaseTriggerRequest,
     InvalidateReportTriggerRequest,
     InviteActorToCaseTriggerRequest,
+    OfferCaseManagerRoleTriggerRequest,
     ProposeEmbargoRevisionTriggerRequest,
     ProposeEmbargoTriggerRequest,
     RejectEmbargoTriggerRequest,
@@ -154,7 +156,9 @@ class TriggerService:
         req = ValidateReportTriggerRequest(
             actor_id=actor_id, offer_id=offer_id, note=note
         )
-        return SvcValidateReportUseCase(self._dl, req).execute()
+        return SvcValidateReportUseCase(
+            self._dl, req, trigger_activity=self._trigger_activity
+        ).execute()
 
     def invalidate_report(
         self,
@@ -438,13 +442,33 @@ class TriggerService:
         actor_id: str,
         case_id: str,
         invitee_id: str,
+        roles: list | None = None,
     ) -> dict[str, Any]:
         """Directly invite an actor to a case."""
         req = InviteActorToCaseTriggerRequest(
             actor_id=actor_id,
             case_id=case_id,
             invitee_id=invitee_id,
+            roles=roles,
         )
         return SvcInviteActorToCaseUseCase(
+            self._dl, req, trigger_activity=self._trigger_activity
+        ).execute()
+
+    def offer_case_manager_role(
+        self,
+        actor_id: str,
+        case_id: str,
+    ) -> dict[str, Any]:
+        """Offer the CASE_MANAGER role to the Case Actor.
+
+        The Case Actor must already exist in the DataLayer.  The offer is
+        sent from the Case Actor's identity (DEMOMA-08-007).
+        """
+        req = OfferCaseManagerRoleTriggerRequest(
+            actor_id=actor_id,
+            case_id=case_id,
+        )
+        return SvcOfferCaseManagerRoleUseCase(
             self._dl, req, trigger_activity=self._trigger_activity
         ).execute()

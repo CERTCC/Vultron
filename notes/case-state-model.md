@@ -1,7 +1,7 @@
 ---
 title: Case State Model Notes
 status: active
-description: "CVD case state model: six binary dimensions (RM/EM/CS), CaseStatus append- only history, and CaseEvent trusted timestamps."
+description: "CVD case state model: six binary dimensions (RM/EM/CS), CaseStatus append-only history, and canonical CaseLedgerEntry history."
 related_specs:
   - specs/case-management.yaml
 related_notes:
@@ -307,11 +307,11 @@ Directly setting `.em_state` on the `case_status` list attribute is a bug
 
 **Trusted timestamp implementation note**: When the spec says the CaseActor
 must timestamp state-changing events on receipt, this does NOT mean modifying
-the `updated_at` field on the receiving or participating object. It means the
-CaseActor records the event to an **append-only event log on the case**
-(see "CaseEvent Model" below). The distinction matters: modifying an existing
-object's timestamp would break the append-only history invariant and allow
-event-ordering disagreements across actor copies.
+the `updated_at` field on the receiving or participating object. It means
+the CaseActor records the event to the canonical `CaseLedgerEntry` hash
+chain. The distinction matters: modifying an existing object's timestamp
+would break the append-only history invariant and allow event-ordering
+disagreements across actor copies.
 
 **Cross-reference**: `vultron/wire/as2/vocab/objects/vulnerability_case.py`
 (the `current_status` property),
@@ -345,47 +345,12 @@ Pending)"; `specs/case-management.yaml` CM-03-006.
 
 ---
 
-## CaseEvent Model for Trusted Timestamps (SC-PRE-1) ✅ Implemented
+## CaseEvent Model — Removed in #792
 
-The `CaseEvent` model is implemented in
-`vultron/wire/as2/vocab/objects/case_event.py`. `VulnerabilityCase` has an
-`events: list[CaseEvent]` field and a `record_event(object_id, event_type)`
-append-only helper. Tests in `test/wire/as2/vocab/test_case_event.py`
-cover creation, serialization, and round-trip through TinyDB.
-
-The design is described below for reference. The key invariant is
-**`received_at` is always set by the server clock** via `now_utc()`
-inside `record_event()` — callers MUST NOT pass `received_at` from
-an incoming activity payload.
-
-### CaseEvent Model Fields
-
-- `object_id: str` — ID of the object being acted upon
-- `event_type: str` — short descriptor (e.g., `"embargo_accepted"`,
-  `"participant_joined"`, `"note_added"`, `"status_updated"`)
-- `received_at: datetime` — server-generated TZ-aware UTC timestamp;
-  defaults to `now_utc()` (microseconds stripped); serializes to
-  ISO 8601 UTC string; `field_validator` accepts ISO 8601 strings
-  on deserialization
-
-### How to record an event
-
-```python
-case.record_event(object_id=embargo.as_id, event_type="embargo_accepted")
-```
-
-Do NOT pass `received_at` — let it default to `now_utc()`.
-
-### Remaining work
-
-SC-PRE-1 provides the model and helper. Handlers have not yet been
-updated to call `record_event()` — that is tracked in SC-3.2.
-Pre-case event backfill at case creation is tracked in TECHDEBT-10.
-
-**Design Decision**: `received_at` is set by the handler (server clock),
-never copied from the incoming activity's own timestamp fields. This is
-the invariant that makes the CaseActor the sole trusted source of event
-ordering within a case.
+The `CaseEvent` model and `VulnerabilityCase.record_event()` helper have been
+removed. All protocol-significant event history is now recorded exclusively via
+the canonical `CaseLedgerEntry` hash chain (see `notes/case-ledger-authority.md`
+and `specs/case-ledger-processing.yaml`).
 
 **Cross-reference**: `specs/case-management.yaml` CM-02-009, CM-10-002.
 

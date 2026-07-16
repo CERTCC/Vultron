@@ -16,9 +16,10 @@
 
 This module provides:
 
+- :func:`compute_genesis_hash` — derive the per-case genesis hash from case
+  identity metadata (CLP-08-001, CLP-08-002).
 - :class:`HashChainLedgerRecord` — a single canonical ledger entry with
-  hash-chain
-  linkage and an optional embedded activity payload snapshot.
+  hash-chain linkage and an optional embedded activity payload snapshot.
 - :class:`CaseLedger` — an append-only, hash-chained ledger for a single case.
 
 Per-peer replication state tracking is provided by
@@ -28,14 +29,16 @@ in ``vultron.core.models.replication_state``.
 Design follows the single-writer CaseActor architecture described in
 ``notes/sync-ledger-replication.md`` and the requirements in
 ``specs/sync-ledger-replication.yaml`` (SYNC-01) and
-``specs/case-ledger-processing.yaml`` (CLP-01 through CLP-05).
+``specs/case-ledger-processing.yaml`` (CLP-01 through CLP-08).
 
 Hash chain:
 
-- Each :class:`HashChainLedgerRecord` stores the SHA-256 hash of its own canonical
-  content (``entry_hash``) and the hash of its immediate predecessor
+- Each :class:`HashChainLedgerRecord` stores the SHA-256 hash of its own
+  canonical content (``entry_hash``) and the hash of its immediate predecessor
   (``prev_log_hash``).
-- The first entry uses :data:`GENESIS_HASH` as ``prev_log_hash``.
+- The first entry uses the per-case genesis hash (see
+  :func:`compute_genesis_hash`) as ``prev_log_hash`` (CLP-08-001,
+  CLP-08-004).
 - Canonical serialization uses deterministic JSON (``sort_keys=True``,
   compact separators, UTF-8) — compatible with RFC 8785 JCS and
   forward-compatible with a future Merkle Tree implementation.
@@ -47,8 +50,9 @@ Append-only enforcement:
 - :class:`CaseLedger` rejects any attempt to modify or remove existing
   entries.  New entries are appended via :meth:`CaseLedger.append`.
 
-Per ``specs/sync-ledger-replication.yaml`` SYNC-01, SYNC-07, ``specs/case-ledger-processing.yaml``
-CLP-02 through CLP-05, and ``notes/sync-ledger-replication.md``.
+Per ``specs/sync-ledger-replication.yaml`` SYNC-01, SYNC-07,
+``specs/case-ledger-processing.yaml`` CLP-02 through CLP-08, and
+``notes/sync-ledger-replication.md``.
 """
 
 import hashlib
@@ -64,12 +68,37 @@ from vultron.core.models._helpers import _now_utc
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Constants
+# Per-case genesis hash (CLP-08-001, CLP-08-002)
 # ---------------------------------------------------------------------------
 
-#: Sentinel predecessor hash used for the first entry in a case ledger.
-#: 64 hex-zero characters represent a SHA-256 zero-hash.
-GENESIS_HASH: str = "0" * 64
+
+def compute_genesis_hash(
+    case_id: str, created_at: datetime, case_actor_id: str
+) -> str:
+    """Return the per-case genesis hash for a case ledger.
+
+    Derived as ``SHA-256(case_id + "|" + created_at.isoformat() + "|" +
+    case_actor_id)``, where ``case_id`` is the canonical case URI,
+    ``created_at`` is the case creation UTC timestamp, and
+    ``case_actor_id`` is the canonical URI of the CaseActor.
+
+    This anchors each case ledger to its origin identity and timestamp,
+    replacing the former global zero-hash sentinel (CLP-08-001,
+    CLP-08-002).
+
+    Args:
+        case_id: Canonical URI of the :class:`VulnerabilityCase`.
+        created_at: TZ-aware UTC datetime at case creation.
+        case_actor_id: Canonical URI of the CaseActor for this case.
+
+    Returns:
+        64-character lowercase hex SHA-256 digest string.
+
+    Spec: CLP-08-001, CLP-08-002.
+    """
+    raw = f"{case_id}|{created_at.isoformat()}|{case_actor_id}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
 
 # ---------------------------------------------------------------------------
 # Disposition type
@@ -146,8 +175,9 @@ class HashChainLedgerRecord(BaseModel):
             (CLP-02-003, SYNC-08-002).  Stored as a plain dict so that it
             survives DataLayer serialisation without wire-type coupling.
         prev_log_hash: SHA-256 hex hash of the immediate predecessor entry's
-            canonical content.  :data:`GENESIS_HASH` for the first entry in
-            a case ledger.
+            canonical content.  Per-case genesis hash (see
+            :func:`compute_genesis_hash`) for the first entry in a case
+            ledger.  Empty string when not yet known.
         entry_hash: SHA-256 hex hash of this entry's canonical content
             (excluding ``entry_hash`` itself).  Computed automatically by
             :meth:`model_validator` if not supplied.
@@ -188,8 +218,8 @@ class HashChainLedgerRecord(BaseModel):
         description="Normalized snapshot of the asserted activity payload for replay",
     )
     prev_log_hash: str = Field(
-        default=GENESIS_HASH,
-        description="SHA-256 hex hash of immediate predecessor entry; GENESIS_HASH for first",
+        default="",
+        description="SHA-256 hex hash of immediate predecessor entry; per-case genesis hash for first",
     )
     entry_hash: str = Field(
         default="",
@@ -275,27 +305,37 @@ class CaseLedger:
 
     Usage example::
 
-        log = CaseLedger(case_id="urn:uuid:abc123")
+        from datetime import datetime, timezone
+        case_id = "https://example.org/cases/abc123"
+        case_actor_id = "https://example.org/actors/case-actor"
+        created_at = datetime.now(timezone.utc)
+        g_hash = compute_genesis_hash(case_id, created_at, case_actor_id)
+        log = CaseLedger(case_id=case_id, genesis_hash=g_hash)
         entry = log.append(
             object_id="urn:uuid:report1",
             event_type="report_received",
             payload_snapshot={"id": "urn:uuid:report1"},
         )
         assert entry.log_index == 0
-        assert entry.prev_log_hash == GENESIS_HASH
+        assert entry.prev_log_hash == g_hash
         assert entry.verify_hash()
 
     Spec: SYNC-01-001, SYNC-01-002, SYNC-01-003, SYNC-07-001; CLP-04-001,
-    CLP-04-003.
+    CLP-04-003, CLP-08-002, CLP-08-004.
     """
 
-    def __init__(self, case_id: str) -> None:
+    def __init__(self, case_id: str, genesis_hash: str) -> None:
         """Initialise an empty log for *case_id*.
 
         Args:
             case_id: URI of the :class:`VulnerabilityCase` this log tracks.
+            genesis_hash: Per-case genesis hash computed via
+                :func:`compute_genesis_hash`.  Used as ``prev_log_hash`` for
+                the first entry and returned by :attr:`tail_hash` when the
+                ledger is empty (CLP-08-004).
         """
         self._case_id = case_id
+        self._genesis_hash = genesis_hash
         self._entries: list[HashChainLedgerRecord] = []
 
     # ------------------------------------------------------------------
@@ -323,7 +363,7 @@ class CaseLedger:
 
     @property
     def tail_hash(self) -> str:
-        """Hash of the last *recorded* entry, or :data:`GENESIS_HASH`.
+        """Hash of the last *recorded* entry, or the per-case genesis hash.
 
         This is the ``prev_log_hash`` that the next recorded entry MUST
         reference.  Rejected entries do not advance the tail (their hash is
@@ -331,11 +371,12 @@ class CaseLedger:
         hash-chain computation per CLP-04-003).
 
         Returns:
-            64-character lowercase hex SHA-256 string, or
-            :data:`GENESIS_HASH` if no recorded entries exist.
+            64-character lowercase hex SHA-256 string, or the per-case
+            genesis hash (see :func:`compute_genesis_hash`) if no recorded
+            entries exist (CLP-08-004).
         """
         recorded = self.recorded_entries
-        return recorded[-1].entry_hash if recorded else GENESIS_HASH
+        return recorded[-1].entry_hash if recorded else self._genesis_hash
 
     @property
     def next_index(self) -> int:
@@ -421,13 +462,14 @@ class CaseLedger:
 
         1. Every entry's ``entry_hash`` matches its computed hash.
         2. Every entry's ``prev_log_hash`` equals the ``entry_hash`` of the
-           previous *recorded* entry (or :data:`GENESIS_HASH` for the first).
+           previous *recorded* entry (or the per-case genesis hash for the
+           first).
         3. Every entry's ``log_index`` equals its position in :attr:`entries`.
 
         Returns:
             ``True`` if the chain is intact; ``False`` on the first violation.
         """
-        prev_recorded_hash = GENESIS_HASH
+        prev_recorded_hash = self._genesis_hash
         for pos, entry in enumerate(self._entries):
             if entry.log_index != pos:
                 return False

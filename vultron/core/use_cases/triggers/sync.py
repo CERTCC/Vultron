@@ -56,8 +56,8 @@ def replay_missing_entries_trigger(
     than the index of the entry whose ``entry_hash`` matches *from_hash*,
     and queues an ``Announce(CaseLedgerEntry)`` activity for each to *peer_id*.
 
-    When *from_hash* is ``GENESIS_HASH`` (or not found among stored entries),
-    ALL entries for the case are replayed.
+    When *from_hash* is ``""`` (empty string, indicating no entry acknowledged)
+    or is not found among stored entries, ALL entries for the case are replayed.
 
     Args:
         case_id: URI of the parent :class:`VulnerabilityCase`.
@@ -87,8 +87,8 @@ def replay_missing_entries_trigger(
     entries.sort(key=lambda e: e.log_index)
 
     # Find the log_index of the entry matching from_hash.
-    # If not found (e.g. GENESIS_HASH or unknown), start from index -1 so
-    # all entries are replayed.
+    # If not found (e.g. "" empty string or unknown hash), start from index -1
+    # so all entries are replayed.
     from_index = -1
     for entry in entries:
         if entry.entry_hash == from_hash:

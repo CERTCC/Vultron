@@ -433,3 +433,217 @@ class TestRegisterCaseActorParticipantNode:
             case_actor_participant_id=f"{actor_id}/case-actor/participant",
         )
         assert result.status == py_trees.common.Status.FAILURE
+
+
+# ---------------------------------------------------------------------------
+# ProposeCaseToActorNode tests
+# ---------------------------------------------------------------------------
+
+
+class TestProposeCaseToActorNode:
+    """ProposeCaseToActorNode sends Create(as_CaseProposal) to the case-actor."""
+
+    from vultron.core.behaviors.case.nodes.actor import (
+        ProposeCaseToActorNode,
+    )
+
+    CASE_ACTOR_ID = "https://example.org/actors/case-actor-service"
+
+    def test_succeeds_and_queues_proposal_to_outbox(
+        self,
+        bt_scenario: BTTestScenario,
+        actor: VultronCaseActor,
+        actor_id: str,
+        report: VultronReport,
+        case_obj: VultronCase,
+    ) -> None:
+        """Happy path: node returns SUCCESS and enqueues a Create activity."""
+        from vultron.core.behaviors.case.nodes.actor import (
+            ProposeCaseToActorNode,
+        )
+
+        outbox_before = list(
+            bt_scenario.dl.outbox_list_for_actor(actor_id) or []
+        )
+        result = bt_scenario.run(
+            ProposeCaseToActorNode(),
+            actor_id=actor_id,
+            case_id=case_obj.id_,
+            case_actor_id=self.CASE_ACTOR_ID,
+        )
+        bt_scenario.assert_success(result)
+
+        outbox_after = list(
+            bt_scenario.dl.outbox_list_for_actor(actor_id) or []
+        )
+        assert len(outbox_after) > len(
+            outbox_before
+        ), "ProposeCaseToActorNode must enqueue an activity to the outbox"
+
+    def test_persists_create_activity_in_datalayer(
+        self,
+        bt_scenario: BTTestScenario,
+        actor: VultronCaseActor,
+        actor_id: str,
+        report: VultronReport,
+        case_obj: VultronCase,
+    ) -> None:
+        """Create(as_CaseProposal) activity is persisted to the DataLayer."""
+        from vultron.core.behaviors.case.nodes.actor import (
+            ProposeCaseToActorNode,
+        )
+
+        create_activities_before = bt_scenario.dl.list_objects("Create")
+        bt_scenario.run(
+            ProposeCaseToActorNode(),
+            actor_id=actor_id,
+            case_id=case_obj.id_,
+            case_actor_id=self.CASE_ACTOR_ID,
+        )
+
+        create_activities_after = bt_scenario.dl.list_objects("Create")
+        assert len(create_activities_after) > len(
+            create_activities_before
+        ), "At least one new Create activity should be in the DataLayer"
+
+    def test_fails_without_case_id(
+        self,
+        bt_scenario: BTTestScenario,
+        actor: VultronCaseActor,
+        actor_id: str,
+    ) -> None:
+        """Node returns FAILURE when case_id is missing from the blackboard."""
+        from vultron.core.behaviors.case.nodes.actor import (
+            ProposeCaseToActorNode,
+        )
+
+        result = bt_scenario.run(
+            ProposeCaseToActorNode(),
+            actor_id=actor_id,
+            case_actor_id=self.CASE_ACTOR_ID,
+            # case_id intentionally omitted
+        )
+        bt_scenario.assert_failure(result)
+
+    def test_fails_without_case_actor_id(
+        self,
+        bt_scenario: BTTestScenario,
+        actor: VultronCaseActor,
+        actor_id: str,
+        case_obj: VultronCase,
+    ) -> None:
+        """Node returns FAILURE when case_actor_id is missing from the blackboard."""
+        from vultron.core.behaviors.case.nodes.actor import (
+            ProposeCaseToActorNode,
+        )
+
+        result = bt_scenario.run(
+            ProposeCaseToActorNode(),
+            actor_id=actor_id,
+            case_id=case_obj.id_,
+            # case_actor_id intentionally omitted
+        )
+        bt_scenario.assert_failure(result)
+
+    def test_fails_when_case_has_no_reports(
+        self,
+        bt_scenario: BTTestScenario,
+        actor: VultronCaseActor,
+        actor_id: str,
+    ) -> None:
+        """Node returns FAILURE when the case has no linked VulnerabilityReport."""
+        from vultron.core.behaviors.case.nodes.actor import (
+            ProposeCaseToActorNode,
+        )
+
+        empty_case = VultronCase(
+            id_="https://example.org/cases/empty-case",
+            name="Empty Case",
+            vulnerability_reports=[],
+        )
+        bt_scenario.dl.create(empty_case)
+
+        result = bt_scenario.run(
+            ProposeCaseToActorNode(),
+            actor_id=actor_id,
+            case_id=empty_case.id_,
+            case_actor_id=self.CASE_ACTOR_ID,
+        )
+        bt_scenario.assert_failure(result)
+
+    def test_fails_when_report_not_in_datalayer(
+        self,
+        bt_scenario: BTTestScenario,
+        actor: VultronCaseActor,
+        actor_id: str,
+    ) -> None:
+        """Node returns FAILURE when the linked report is absent from DataLayer."""
+        from vultron.core.behaviors.case.nodes.actor import (
+            ProposeCaseToActorNode,
+        )
+
+        dangling_case = VultronCase(
+            id_="https://example.org/cases/dangling",
+            name="Dangling Case",
+            vulnerability_reports=["https://example.org/reports/ghost"],
+        )
+        bt_scenario.dl.create(dangling_case)
+
+        result = bt_scenario.run(
+            ProposeCaseToActorNode(),
+            actor_id=actor_id,
+            case_id=dangling_case.id_,
+            case_actor_id=self.CASE_ACTOR_ID,
+        )
+        bt_scenario.assert_failure(result)
+
+    def test_fails_when_case_not_in_datalayer(
+        self,
+        bt_scenario: BTTestScenario,
+        actor: VultronCaseActor,
+        actor_id: str,
+    ) -> None:
+        """Node returns FAILURE when the case record is absent from DataLayer."""
+        from vultron.core.behaviors.case.nodes.actor import (
+            ProposeCaseToActorNode,
+        )
+
+        result = bt_scenario.run(
+            ProposeCaseToActorNode(),
+            actor_id=actor_id,
+            case_id="https://example.org/cases/nonexistent",
+            case_actor_id=self.CASE_ACTOR_ID,
+        )
+        bt_scenario.assert_failure(result)
+
+    def test_fails_when_no_trigger_activity_factory(
+        self,
+        actor: VultronCaseActor,
+        actor_id: str,
+        report: VultronReport,
+        case_obj: VultronCase,
+    ) -> None:
+        """Node returns FAILURE when trigger_activity_factory is absent."""
+        import py_trees
+
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.behaviors.case.nodes.actor import (
+            ProposeCaseToActorNode,
+        )
+
+        # Build a bridge with NO trigger_activity_factory injected.
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl.create(actor)
+        dl.create(report)
+        dl.create(case_obj)
+        bridge_no_factory = BTBridge(datalayer=dl)
+
+        py_trees.blackboard.Blackboard.storage.clear()
+        result = bridge_no_factory.execute_with_setup(
+            tree=ProposeCaseToActorNode(),
+            actor_id=actor_id,
+            case_id=case_obj.id_,
+            case_actor_id=self.CASE_ACTOR_ID,
+        )
+        assert result.status == py_trees.common.Status.FAILURE

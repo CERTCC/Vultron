@@ -17,7 +17,8 @@
 
 from typing import Literal
 
-from pydantic import Field, field_serializer, field_validator
+from pydantic import ConfigDict, Field, field_serializer, field_validator
+from pydantic.alias_generators import to_camel
 
 from vultron.core.states.em import EM
 from vultron.core.states.cs import CS_pxa
@@ -35,6 +36,8 @@ class CaseStatus(CoreObject):
     context is not meaningful.  ``attributed_to`` (reporting actor) is
     optional but must be non-empty when present.
     """
+
+    model_config = ConfigDict(alias_generator=to_camel)
 
     type_: Literal["CaseStatus"] = Field(
         default="CaseStatus",

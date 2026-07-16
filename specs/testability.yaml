@@ -107,6 +107,38 @@ groups:
     rationale: >-
       Flaky tests erode confidence in the test suite, mask real failures, and slow development.
       A flaky test MUST be fixed or removed; it MUST NOT be left in the suite.
+  - id: TB-06-007
+    priority: MUST
+    kind: implementation
+    statement: >-
+      Integration tests that exercise multi-actor message flows MUST give each simulated
+      actor its own isolated `DataLayer` instance. Tests that share a single `DataLayer`
+      across multiple actors bypass the outbox→inbox delivery path and test in-memory
+      state sharing instead of protocol communication.
+    rationale: >-
+      The outbox→inbox delivery path is a critical protocol boundary. A shared DataLayer
+      removes it: actor A's outbox write is immediately visible to actor B without going
+      through any delivery mechanism, making the test a unit test of shared state rather
+      than an integration test of the protocol.
+    relationships:
+    - rel_type: refines
+      spec_id: TB-06-001
+  - id: TB-06-008
+    priority: MUST
+    kind: language
+    statement: >-
+      BT factories that have probabilistic defaults (e.g., always-succeed or always-fail
+      stubs for nodes backed by configurable policies) MUST expose a module-level
+      deterministic factory constant for use in tests. Tests MUST use the deterministic
+      factory, not the production random-policy factory, to avoid stochastic test failures.
+    rationale: >-
+      A test that calls a production BT factory configured with a probability distribution
+      may pass or fail depending on random outcomes. The deterministic factory ensures
+      the test exercises a specific code path every time. Convention: name the constant
+      `_always_succeed_factory` or `_always_fail_factory` at module level.
+    relationships:
+    - rel_type: refines
+      spec_id: TB-06-006
 - id: TB-07
   title: Mocking and Stubbing
   specs:
@@ -143,9 +175,39 @@ groups:
   - id: TB-09-003
     priority: MUST
     statement: Tests MUST be refactored along with production code
+- id: TB-11
+  title: Test Infrastructure Consistency
+  kind: pattern
+  specs:
+  - id: TB-11-001
+    priority: MUST
+    statement: >-
+      When a pytest mark is renamed or added, ALL of the following MUST be
+      updated in the same changeset: (a) the `markers` list in `pyproject.toml`,
+      (b) any `.github/workflows/` YAML files that reference the mark by name
+      (e.g., `-m "mark_name"` in `pytest` invocations), and (c) any test files
+      that apply the mark.
+    rationale: >-
+      A mark renamed in test files but not in a workflow YAML causes `pytest` to
+      select 0 tests matching the old name and exit with code 5 (no tests
+      collected). CI treats a non-zero exit code as a failure, but the failure
+      message ("no tests ran") is easily misread as an environment issue rather
+      than a naming mismatch. Issue #934 observed this after renaming
+      `case_log_invariants` to `case_ledger_invariants` across test files while
+      leaving the workflow YAML referencing the old name.
+    verification: >-
+      After any pytest mark rename: grep `.github/workflows/` for the old mark
+      name and confirm zero matches; confirm `pyproject.toml` registers the new
+      name; run `pytest -m "new_mark_name" --collect-only` and confirm non-zero
+      test collection.
+    relationships:
+    - rel_type: refines
+      spec_id: TB-07-001
+      note: Mark consistency between source, config, and CI is part of test
+        infrastructure correctness
 - id: TB-10
   title: Architecture Boundary Tests
-  kind: pattern
+  kind: dev-process
   specs:
   - id: TB-10-001
     priority: SHOULD
@@ -157,3 +219,64 @@ groups:
       Automated boundary tests catch accidental cross-layer imports earlier than code review.
     scope:
     - production
+  - id: TB-10-002
+    priority: MUST
+    statement: >-
+      Architecture ratchet tests MUST use bidirectional equality: `assert actual_violations
+      == KNOWN_VIOLATIONS`. A subset check (`assert actual ⊆ KNOWN`) is prohibited because
+      it allows the violation set to grow without failing the test. When a violation is
+      resolved, its entry MUST be removed from `KNOWN_VIOLATIONS` in the same commit.
+    rationale: >-
+      See ARCH-18-001 for the architecture-level rule. This entry specifies the test
+      implementation obligation.
+    relationships:
+    - rel_type: implements
+      spec_id: ARCH-18-001
+- id: TB-12
+  title: BT Test Harness
+  kind: language
+  specs:
+  - id: TB-12-001
+    priority: MUST
+    statement: >-
+      BT leaf and composite node tests MUST use the `BTTestScenario` deep-module test
+      harness. The `setup_node_blackboard()` helper is an anti-pattern for integration
+      tests of BT nodes: it creates shallow, manually wired blackboard state that
+      diverges from the tree structure the node expects in production.
+    rationale: >-
+      `BTTestScenario` instantiates the full tree (or a representative subtree) and
+      exercises nodes in their actual execution context, catching structural assumptions
+      (e.g., parent Sequence providing the blackboard namespace) that `setup_node_blackboard()`
+      tests cannot detect.
+    relationships:
+    - rel_type: refines
+      spec_id: TB-03-001
+  - id: TB-12-002
+    priority: MUST
+    statement: >-
+      Each BT scenario test MUST run the BT tree exactly once per test case. Running the
+      same tree instance multiple times in a single test produces accumulated blackboard
+      state that masks isolation failures. Each test case MUST get a fresh tree instance.
+    relationships:
+    - rel_type: refines
+      spec_id: TB-12-001
+  - id: TB-12-003
+    priority: MUST
+    statement: >-
+      BT integration tests MUST complete within 5 seconds per test case. Tests that
+      exceed this limit MUST be redesigned (e.g., reducing dataset size, mocking
+      external I/O) rather than raising the timeout. The `pytest-timeout` `timeout = 5`
+      configuration MUST apply to all BT tests.
+    relationships:
+    - rel_type: refines
+      spec_id: TB-12-001
+  - id: TB-12-004
+    priority: SHOULD
+    statement: >-
+      When a BT test scenario produces a `SUBFAILED` status (partial-success in a
+      `memory=True` Sequence), the test SHOULD explicitly assert the expected leaf
+      statuses rather than asserting only the root status. `SUBFAILED` on the root
+      masks which children succeeded and which failed.
+    relationships:
+    - rel_type: refines
+      spec_id: TB-12-001

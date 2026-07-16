@@ -26,11 +26,32 @@ to inject adapter ports into use cases at dispatch time.
 import logging
 from typing import Any, cast
 
+from vultron.config.actor import ActorConfig
+from vultron.config.app import load_actor_config
 from vultron.core.models.events import MessageSemantics
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.ports.datalayer import DataLayer
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_actor_config() -> ActorConfig | None:
+    """Load the local actor's ``ActorConfig`` via :func:`load_actor_config`.
+
+    Reads actor policy from ``VULTRON_SEED_CONFIG`` YAML or
+    ``VULTRON_ACTOR__*`` env vars (CFG-07-005).  Returns ``None`` on any
+    load error so callers fall through to the always-create default
+    (CM-15-001).
+    """
+    try:
+        return load_actor_config()
+    except Exception:
+        logger.debug(
+            "_resolve_actor_config: load_actor_config failed — "
+            "defaulting to auto_create_case=True",
+            exc_info=True,
+        )
+        return None
 
 
 def _sync_port_factory(dl: DataLayer) -> dict[str, Any]:
@@ -74,11 +95,30 @@ def _sync_and_trigger_port_factory(dl: DataLayer) -> dict[str, Any]:
     return {**_sync_port_factory(dl), **_trigger_activity_port_factory(dl)}
 
 
+def _submit_report_port_factory(dl: DataLayer) -> dict[str, Any]:
+    """Create sync+trigger ports and resolve the local ``ActorConfig``.
+
+    Used for ``SUBMIT_REPORT`` so that ``SubmitReportReceivedUseCase``
+    receives a populated ``actor_config`` and can honour
+    ``auto_create_case=False`` at runtime (CM-15-001, issue #1319).
+    Falls back to ``actor_config=None`` when ``SeedConfig`` is unavailable,
+    preserving the always-create default.
+    """
+    kwargs: dict[str, Any] = _sync_and_trigger_port_factory(dl)
+    actor_config = _resolve_actor_config()
+    if actor_config is not None:
+        kwargs["actor_config"] = actor_config
+    return kwargs
+
+
 _SYNC_PORT_SEMANTICS = frozenset(
     {
         MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE,
         MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
         MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY,
+        MessageSemantics.ADD_NOTE_TO_CASE,
+        MessageSemantics.CLOSE_CASE,
+        MessageSemantics.INVITE_ACTOR_TO_CASE,
         MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
         MessageSemantics.REJECT_CASE_LEDGER_ENTRY,
         MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE,
@@ -89,25 +129,34 @@ _SYNC_PORT_SEMANTICS = frozenset(
 _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
     {
         MessageSemantics.ACCEPT_CASE_MANAGER_ROLE,
-        MessageSemantics.OFFER_CASE_MANAGER_ROLE,
-        MessageSemantics.SUGGEST_ACTOR_TO_CASE,
+        MessageSemantics.OFFER_ACTOR_TO_CASE,
+        MessageSemantics.OFFER_CASE_PARTICIPANT,
+        MessageSemantics.ACCEPT_OFFER_CASE_PARTICIPANT,
+        MessageSemantics.REJECT_OFFER_CASE_PARTICIPANT,
         MessageSemantics.VALIDATE_REPORT,
     }
 )
 
 # Semantics that require both a sync port and a trigger-activity port.
-# SUBMIT_REPORT, ENGAGE_CASE, DEFER_CASE run BTs that contain
-# CommitCaseLedgerEntryNode, which fans out Announce(CaseLedgerEntry)
-# via sync_port (SYNC-02-002), AND also need trigger_activity for
-# outbound wire-activity construction (e.g. Announce(VulnerabilityCase)
-# broadcast).
+# ENGAGE_CASE, DEFER_CASE run BTs that contain CommitCaseLedgerEntryNode,
+# which fans out Announce(CaseLedgerEntry) via sync_port (SYNC-02-002),
+# AND also need trigger_activity for outbound wire-activity construction
+# (e.g. Announce(VulnerabilityCase) broadcast).
+# NOTE: SUBMIT_REPORT is intentionally absent here — it uses
+# _submit_report_port_factory (below) which also injects actor_config.
 _SYNC_AND_TRIGGER_PORT_SEMANTICS = frozenset(
     {
-        MessageSemantics.ADD_NOTE_TO_CASE,
+        MessageSemantics.ACK_REPORT,
         MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
         MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
         MessageSemantics.DEFER_CASE,
         MessageSemantics.ENGAGE_CASE,
-        MessageSemantics.SUBMIT_REPORT,
+        MessageSemantics.OFFER_CASE_MANAGER_ROLE,
     }
 )
+
+# SUBMIT_REPORT needs sync + trigger ports AND the local actor's ActorConfig
+# so that SubmitReportReceivedUseCase can honour auto_create_case=False at
+# runtime (CM-15-001, issue #1319).  Kept in a separate set so the disjoint
+# guard in make_dispatcher() does not need special-casing.
+_SUBMIT_REPORT_SEMANTICS = frozenset({MessageSemantics.SUBMIT_REPORT})

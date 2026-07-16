@@ -60,21 +60,52 @@ import logging
 
 import py_trees
 
+from vultron.core.behaviors.call_out_point import CallOutBackendFactory
 from vultron.core.behaviors.report.nodes import (
     CheckRMStateReceivedOrInvalid,
     CheckRMStateValid,
     EnsureEmbargoExists,
-    EvaluateReportCredibility,
-    EvaluateReportValidity,
     TransitionRMtoValid,
 )
+from vultron.core.behaviors.report.nodes.emit import EmitValidateReportActivity
 
 logger = logging.getLogger(__name__)
+
+
+# Fuzzer defaults are imported lazily inside the default lambda to avoid
+# importing vultron.demo from core at module load time (BT-16-001).
+#
+# Phase 1: both policy nodes are deterministic stubs that always succeed.
+# The probabilistic EvaluateReportCredibility / EvaluateReportValidity fuzzer
+# classes exist for simulation scenarios (e.g. random-sampling runs) and can be
+# injected via the factory parameters; they are NOT used as defaults because the
+# ~81% two-node series success rate makes integrate-test workflows non-deterministic.
+def _default_credibility_factory(name: str) -> py_trees.behaviour.Behaviour:
+    from vultron.demo.fuzzer.base import AlwaysSucceed
+
+    return AlwaysSucceed(name)
+
+
+def _default_validity_factory(name: str) -> py_trees.behaviour.Behaviour:
+    from vultron.demo.fuzzer.base import AlwaysSucceed
+
+    return AlwaysSucceed(name)
+
+
+def _default_gather_info_factory(name: str) -> py_trees.behaviour.Behaviour:
+    from vultron.demo.fuzzer.report_management.validate import (
+        GatherValidationInfo,
+    )
+
+    return GatherValidationInfo(name)
 
 
 def create_validate_report_tree(
     report_id: str,
     offer_id: str,
+    credibility_factory: CallOutBackendFactory = _default_credibility_factory,
+    validity_factory: CallOutBackendFactory = _default_validity_factory,
+    gather_info_factory: CallOutBackendFactory = _default_gather_info_factory,
 ) -> py_trees.behaviour.Behaviour:
     """
     Create behavior tree for report validation workflow.
@@ -87,9 +118,23 @@ def create_validate_report_tree(
     (RM → ACCEPTED or RM → DEFERRED) is a separate, explicit protocol step
     that the operator must trigger via ``engage-case`` or ``defer-case``.
 
+    Per ADR-0021 CLP-10-001: the root Selector now includes an emit node
+    that sends an RmValidateReportActivity addressed to the Case Actor
+    (CASE_MANAGER participant). This enables the CaseActor's inbox to receive
+    the activity and execute the guarded commit (CLP-10-002, CLP-10-003).
+
     Args:
         report_id: ID of VulnerabilityReport to validate
         offer_id: ID of Offer activity containing the report
+        credibility_factory: Factory for the Evaluator call-out point that
+            assesses report credibility.  Defaults to the fuzzer backend
+            (BT-18-004).  The produced node must honour the blackboard
+            contract of ``EvaluateReportCredibility``.
+        validity_factory: Factory for the Evaluator call-out point that
+            assesses report validity.  Defaults to the fuzzer backend.
+        gather_info_factory: Factory for the Retriever call-out point that
+            gathers additional validation information.  Reserved for Phase 2;
+            not wired into the tree in Phase 1.
 
     Returns:
         Root node of the validation behavior tree (Selector)
@@ -111,6 +156,8 @@ def create_validate_report_tree(
     """
     # Phase 1: Match procedural handler logic
     # Future: Add InvalidateReport fallback per simulation BT
+    # Future (Phase 2): wire gather_info_factory into an EnoughInfoOrGather
+    # Selector guarding the info-gathering loop.
 
     # Child sequence: All validation actions (status update + embargo check)
     validation_actions = py_trees.composites.Sequence(
@@ -128,19 +175,75 @@ def create_validate_report_tree(
         memory=False,
         children=[
             CheckRMStateReceivedOrInvalid(report_id=report_id),
-            EvaluateReportCredibility(report_id=report_id),
-            EvaluateReportValidity(report_id=report_id),
+            credibility_factory("EvaluateReportCredibility"),
+            validity_factory("EvaluateReportValidity"),
             validation_actions,
         ],
     )
 
-    # Root selector: Early exit if valid OR run full validation flow
-    root = py_trees.composites.Selector(
-        name="ValidateReportBT",
+    # Validation selector (used by both branches)
+    validation_or_shortcut = py_trees.composites.Selector(
+        name="ValidationOrShortcut",
         memory=False,
         children=[
             CheckRMStateValid(report_id=report_id),
             validation_flow,
+        ],
+    )
+
+    # Sequence: Emit then validate (trigger-side preference)
+    emit_and_validate = py_trees.composites.Sequence(
+        name="EmitAndValidate",
+        memory=False,
+        children=[
+            EmitValidateReportActivity(offer_id=offer_id, report_id=report_id),
+            validation_or_shortcut,
+        ],
+    )
+
+    # Fallback: just validate if emit is not available (received-side)
+    # Create a separate validation selector since the first one is used above.
+    # NOTE: py_trees does not allow a node to have more than one parent, so
+    # the subtree below is intentionally a structural duplicate of
+    # ``validation_or_shortcut`` above.  Any future changes to the primary
+    # validation flow (children of ValidationFlow / ValidationActions) MUST be
+    # mirrored here to keep both branches equivalent.
+    validation_only = py_trees.composites.Selector(
+        name="ValidationOrShortcutFallback",
+        memory=False,
+        children=[
+            CheckRMStateValid(report_id=report_id),
+            py_trees.composites.Sequence(
+                name="ValidationFlow",
+                memory=False,
+                children=[
+                    CheckRMStateReceivedOrInvalid(report_id=report_id),
+                    credibility_factory("EvaluateReportCredibility"),
+                    validity_factory("EvaluateReportValidity"),
+                    py_trees.composites.Sequence(
+                        name="ValidationActions",
+                        memory=False,
+                        children=[
+                            TransitionRMtoValid(
+                                report_id=report_id, offer_id=offer_id
+                            ),
+                            EnsureEmbargoExists(report_id=report_id),
+                        ],
+                    ),
+                ],
+            ),
+        ],
+    )
+
+    # Root Selector: try emit+validate, fallback to validate-only
+    # On trigger side: emit succeeds, validation proceeds
+    # On received side: emit fails (no TriggerActivityPort), fallback validates
+    root = py_trees.composites.Selector(
+        name="ValidateReportBT",
+        memory=False,
+        children=[
+            emit_and_validate,
+            validation_only,
         ],
     )
 

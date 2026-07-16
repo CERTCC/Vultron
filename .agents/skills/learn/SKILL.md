@@ -3,7 +3,7 @@ name: learn
 description: >
   Promote lessons learned from the build process into durable specifications
   and design notes. First refreshes docs/reference/codebase/ via
-  acquire-codebase-knowledge, then reads BUILD_LEARNINGS.md and queries
+  acquire-codebase-knowledge, then reads plan/incoming/learnings/ and queries
   GitHub for open type:Concern issues (both as input queues), analyzes
   gaps, interviews the user with grill-me to align on scope, then writes
   to specs/, notes/, and AGENTS.md, opens a docs-only PR with the
@@ -17,14 +17,14 @@ description: >
 
 Integrate lessons learned from build execution into the project's durable
 specification and design documentation. The inputs are what the build process
-has discovered (`BUILD_LEARNINGS.md`) and open GitHub `type:Concern` issues
-tracked in the repository; the output is refined `specs/`, `notes/`, and
-`AGENTS.md`.
+has discovered (`plan/incoming/learnings/` — individual per-entry files) and
+open GitHub `type:Concern` issues tracked in the repository; the output is
+refined `specs/`, `notes/`, and `AGENTS.md`.
 
 **Constraint**: Modify **documentation files only**, including Markdown files
 and YAML spec files in `specs/`. Do not modify code or tests.
 
-**Trigger**: Use this skill when `plan/BUILD_LEARNINGS.md` has unprocessed
+**Trigger**: Use this skill when `plan/incoming/learnings/` has unprocessed
 entries that should be promoted into durable docs.
 
 > For new external ideas (GitHub Idea-type issues), use `plan-issue` instead.
@@ -34,8 +34,8 @@ entries that should be promoted into durable docs.
 1. **Ensure synced** (before any writes): `manage_worktree.sh ensure-synced`
 2. Invoke `acquire-codebase-knowledge` — full scan, refreshes all 7 docs
    in `docs/reference/codebase/`.
-3. Read `plan/BUILD_LEARNINGS.md` and query GitHub for open `type:Concern`
-   issues (both are input queues).
+3. Read all files in `plan/incoming/learnings/` and query GitHub for open
+   `type:Concern` issues (both are input queues).
 4. Invoke `orient-agent` then `deepen-context` for full context (specs,
    notes, code) — it now reads the freshly updated codebase docs.
 5. Analyze what the build process has learned vs. what specs and notes capture.
@@ -45,10 +45,11 @@ entries that should be promoted into durable docs.
 7. **Create the task branch**: `git switch -c learn/<YYYYMMDD>-<slug>`
    (worktree was already synced in step 1; branch here after slug is known)
 8. Write to `specs/`, `notes/`, and `AGENTS.md`.
-9. Archive each processed BUILD_LEARNINGS entry and each resolved Concern issue
-   via `uv run append-history learning`; delete BUILD_LEARNINGS entries from
-   their source file and close each resolved GitHub Concern issue with a
-   resolution comment.
+9. Archive each processed incoming learning file via
+   `uv run append-history --from-file <path>` (which moves the file to
+   `plan/history/YYMM/learning/` and deletes the source).
+   Archive each resolved Concern issue via `uv run append-history learning`
+   and close the issue with a resolution comment.
 10. Invoke `format-markdown`.
 11. Commit (including updated `docs/reference/codebase/` files), push, and
     open a docs-only PR with `specs-notes` label.
@@ -85,9 +86,9 @@ that the cost of a full scan is justified on every invocation.
 
 ### Phase 1 — Load Internal Sources and Context
 
-1. Read `plan/BUILD_LEARNINGS.md` — open questions, observations, and
-   constraints from recent build/bugfix runs (ephemeral queue; entries are
-   deleted after archiving).
+1. Read all files in `plan/incoming/learnings/` — open questions, observations,
+   and constraints from recent build/bugfix runs (ephemeral queue; files are
+   moved to `plan/history/YYMM/learning/` after archiving).
 2. Query GitHub for all open `type:Concern` issues — these are the tracked
    technical concerns, risks, and debt items surfaced by prior codebase scans
    and the `process-concerns` skill (second input queue; resolved issues are
@@ -106,20 +107,24 @@ that the cost of a full scan is justified on every invocation.
    Phase 0 has already refreshed the codebase docs, `orient-agent`/`deepen-context`
    will read up-to-date architecture and structure information.
 
-> `BUILD_LEARNINGS.md` is an ephemeral queue. Entries are deleted after
-> archiving. Any critical insight in an entry **must be promoted** to
-> `specs/` or `notes/` before being archived.
+> `plan/incoming/learnings/` is an ephemeral queue. Files are moved to
+> `plan/history/YYMM/learning/` after archiving. Any critical insight
+> in an entry **must be promoted** to `specs/` or `notes/` before being
+> archived.
 
 ### Phase 2 — Analyze Gaps
 
+See `.claude/skills/shared/completeness-doctrine.md` for the project standard
+on what constitutes a complete lesson — loaded by `orient-agent` in Phase 1.
+
 Identify what the build process and codebase scan have surfaced that is not
-yet captured in durable docs. Consider both BUILD_LEARNINGS entries and
+yet captured in durable docs. Consider both incoming learning files and
 open GitHub Concern issues:
 
 1. Missing requirements — behavior exists in code but has no spec.
 2. Ambiguous or untestable requirements — reality diverges from what's written.
 3. Redundant or contradictory requirements across spec files.
-4. Agent guidance patterns that keep recurring in `BUILD_LEARNINGS.md`
+4. Agent guidance patterns that keep recurring in `plan/incoming/learnings/`
    but are not yet in `AGENTS.md`.
 5. Open GitHub `type:Concern` issues that reveal missing spec requirements or
    durable design notes.
@@ -127,12 +132,18 @@ open GitHub Concern issues:
    --month YYMM` to identify which history entries contain architectural
    lessons, then open those entry files.
 
+A lesson is not complete until it has been promoted to `specs/`, `notes/`, or
+`AGENTS.md`. An incoming learning file that is archived without producing a
+durable output is a wasted lesson. If a learning entry clearly warrants a spec
+or notes update but one cannot be written in this session, document why and
+create a Concern issue — do not silently archive the entry without promotion.
+
 ### Phase 3 — Interview with Grill-Me
 
 Invoke the `grill-me` skill. Resolve one question at a time (using `ask_user`)
 with a recommended answer before writing anything:
 
-- Which insights from `BUILD_LEARNINGS.md` are most important to promote?
+- Which insights from `plan/incoming/learnings/` are most important to promote?
 - Which open GitHub `type:Concern` issues are addressed by this session's
   insights, outdated, or should be promoted to specs/notes? (Resolved
   concerns go to `specs/` if they reveal missing requirements, `notes/`
@@ -184,32 +195,39 @@ generated spec IDs in the ADR's "More Information" section (MS-11-004).
 ### Phase 6 — Update Agent Guidance (`AGENTS.md`)
 
 Promote recurring implementation patterns and conventions from
-`BUILD_LEARNINGS.md` into `AGENTS.md`. Keep entries precise, actionable,
+`plan/incoming/learnings/` into `AGENTS.md`. Keep entries precise, actionable,
 and minimal.
 
 ### Phase 7 — Prepare Archive Content and Close Processed Entries
 
-For each BUILD_LEARNINGS entry and each resolved GitHub Concern issue that
+For each incoming learning file and each resolved GitHub Concern issue that
 has been fully promoted to `specs/`, `notes/`, or `AGENTS.md`:
 
-1. Draft the archive body for each item (store in memory — the actual
-   `archive-history` invocations happen in Phase 9 after the PR URL is known):
+1. **For incoming learning files**: run `uv run append-history --from-file
+   <path>` — this moves the file from `plan/incoming/learnings/` to
+   `plan/history/YYMM/learning/`, deletes the source, and regenerates the
+   monthly README. Add a promotion note to the end of the body **before**
+   calling `append-history --from-file` (edit the file in-place):
 
    ```text
+   **Promoted**: YYYY-MM-DD — captured in <destination file(s)>.
+   Docs PR: <PR_URL>.   ← filled in after PR is opened
+   ```
 
+1. **For resolved GitHub Concern issues**: draft the archive body
+   (store in memory — the actual `archive-history` invocations happen in
+   Phase 9 after the PR URL is known):
+
+   ```text
    TYPE    = learning
-   TITLE   = <short observation title>
-   SOURCE  = <label from the entry header, e.g. LABEL>
-   BODY    = <full original BUILD_LEARNINGS entry or Concern body>
-             + "**Promoted**: YYYY-MM-DD — captured in <destination file(s)>."
+   TITLE   = <short concern title>
+   SOURCE  = CONCERN-<ISSUE_NUMBER>
+   BODY    = Full original concern body
+             + "**Resolved**: YYYY-MM-DD — captured in <destination file(s)>."
              + "Docs PR: <PR_URL>."  ← filled in after PR is opened
+   ```
 
-   ```text
-
-2. **For BUILD_LEARNINGS entries**: delete the entry from
-   `plan/BUILD_LEARNINGS.md` entirely — no strike-through, no tombstone.
-
-3. **For resolved GitHub Concern issues**: close the issue and add a
+2. **For resolved GitHub Concern issues**: close the issue and add a
    resolution comment after the PR is open (step in Phase 9):
 
    ```bash
@@ -224,64 +242,71 @@ has been fully promoted to `specs/`, `notes/`, or `AGENTS.md`:
    gh issue close "${ISSUE_NUMBER}" --repo CERTCC/Vultron
    ```text
 
-Do **not** reference `plan/BUILD_LEARNINGS.md` from durable docs.
+Do **not** reference `plan/incoming/learnings/` from durable docs.
 
 ### Phase 8 — Lint, Commit, and Open PR
 
 1. Invoke the `format-markdown` skill on all new/modified markdown files.
    Fix all errors.
-2. If a requirement conflict cannot be resolved, add a note to
-   `plan/BUILD_LEARNINGS.md` and **stop before committing**.
-3. Stage, commit, push, and open a docs-only PR (branch was created at the
-   end of Phase 3):
+2. If a requirement conflict cannot be resolved, create a learning file in
+   `plan/incoming/learnings/` and **stop before committing**.
+3. Stage and commit (branch was created at the end of Phase 3):
 
    ```bash
    git add specs/<changed-files> notes/<changed-files> AGENTS.md \
-       plan/BUILD_LEARNINGS.md docs/reference/codebase/
-   git commit -m "docs: promote BUILD_LEARNINGS — <topic>
+       plan/incoming/learnings/ docs/reference/codebase/
+   git commit -m "docs: promote learnings — <topic>
 
    - <bullet: what was promoted and where>
-   - Archive <N> entr[y/ies] via archive-history (after PR)
+   - Archive <N> entr[y/ies] via append-history --from-file (after PR)
    - Close <N> resolved GitHub Concern issue(s) with resolution comments
    - Refresh docs/reference/codebase/ via acquire-codebase-knowledge
 
    Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
-   git push -u origin learn/<YYYYMMDD>-<slug>
-
-   gh pr create --repo CERTCC/Vultron \
-     --title "docs: promote BUILD_LEARNINGS — <topic>" \
-     --body "- Closes #<issue if applicable>
-
-   ## Summary
-
-   <what build learnings were promoted and to which docs/specs/notes>
-
-   ## Changes
-
-   - <bullet: what was added or changed>" \
-     --label "specs-notes"
-   ```text
+   ```
 
    Use multiple commits for thematically distinct changes (e.g., spec
-   refinements, notes promoted, AGENTS.md updates). This PR carries the
-   `specs-notes` label for reviewer awareness.
+   refinements, notes promoted, AGENTS.md updates).
+
+   Then invoke the `create-pr` skill:
+
+   ```text
+   type:         docs
+   title:        docs: promote learnings — <topic>
+   body:         <composed per pr-body-guide.md docs template>
+   labels:       specs-notes
+   issue_number: <issue if applicable; omit if none>
+   ```
+
+   `create-pr` performs the rebase on `origin/main`, runs linters, pushes, and
+   returns the PR URL. Use the returned URL when filling in the `Docs PR:`
+   field in the archive bodies (Phase 9).
 
 ### Phase 9 — Archive Entries and Close Issues
 
-Now that the PR URL is known, archive each item by invoking the
-`archive-history` skill once per entry. For each item, pass:
+Now that the PR URL is known:
+
+1. **For each incoming learning file**: edit it in-place to add the final
+   PR URL to the promotion note (appended in Phase 7), then run:
+
+   ```bash
+   uv run append-history --from-file plan/incoming/learnings/<YYYYMMDD-SLUG>.md
+   ```
+
+   This moves the file to `plan/history/YYMM/learning/` and deletes the
+   source. Stage `plan/history/` and commit.
+
+2. **For each resolved GitHub Concern issue**: invoke the `archive-history`
+   skill once per entry:
 
 ```text
 TYPE    = learning
-TITLE   = <short observation title>
-SOURCE  = <label from the BUILD_LEARNINGS header>
-BODY    = <full original entry text>
-          + "**Promoted**: YYYY-MM-DD — captured in <destination file(s)>."
+TITLE   = <short concern title>
+SOURCE  = CONCERN-<ISSUE_NUMBER>
+BODY    = <full original concern body>
+          + "**Resolved**: YYYY-MM-DD — captured in <destination file(s)>."
           + "Docs PR: <PR_URL>."
-```text
-
-The `archive-history` skill runs `uv run append-history`, lints the new
-files, stages `plan/history/`, commits, and pushes — once per entry.
+```
 
 For resolved GitHub Concern issues, post the resolution comment and close
 the issue (see Phase 7 step 3 for the comment template).
@@ -291,9 +316,10 @@ the issue (see Phase 7 step 3 for the comment template).
 - Do not modify code or tests.
 - Do not process GitHub Idea-type issues — use `plan-issue` for those.
 - Do not skip the grill-me phase — it must complete before any writing.
-- Do not reference `plan/BUILD_LEARNINGS.md` from durable docs.
-- Archive processed entries via the `archive-history` skill; do not
-  call `uv run append-history` directly or leave entries in the file
-  after promoting.
+- Do not reference `plan/incoming/learnings/` from durable docs.
+- Archive processed incoming learning files via
+  `uv run append-history --from-file <path>`; do not leave files in
+  `plan/incoming/learnings/` after promoting.
+- Archive Concern issues via the `archive-history` skill.
 - Verify assumptions against the codebase; do not assert absence without
   evidence.

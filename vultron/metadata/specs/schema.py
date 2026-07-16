@@ -17,6 +17,9 @@ from typing import Annotated, Union
 from pydantic import BaseModel, StringConstraints, field_validator
 
 from vultron.metadata.base import NonEmptyStr
+from vultron.core.states.em import EM
+from vultron.core.states.rm import RM
+from vultron.enums.roles import CVDRole
 
 SpecIdStr = Annotated[
     str,
@@ -47,12 +50,37 @@ class RelationType(StrEnum):
     VERIFIES = "verifies"
     PART_OF = "part_of"
     CONSTRAINS = "constrains"
+    SATISFIES = "satisfies"
+
+
+class TriggerType(StrEnum):
+    """Enumeration of known behavioral trigger kinds (SR-02-017).
+
+    Enumerating trigger kinds allows a third kind (e.g. ``timer_expired``) to
+    be added explicitly rather than via free text, and lets conformance tooling
+    classify groups without parsing prose.
+    """
+
+    MESSAGE_RECEIVED = "message_received"
+    STATE_ENTERED = "state_entered"
+
+
+class Trigger(BaseModel):
+    """A typed trigger that activates a behavioral spec group (SR-02-018).
+
+    ``type`` identifies the category of trigger; ``value`` names the specific
+    message (e.g. ``"EP"``) or state (e.g. ``"RM.VALID"``) within that
+    category.
+    """
+
+    type: TriggerType
+    value: str
 
 
 class SpecKind(StrEnum):
     """Portability tier for a spec requirement (SR-02-005).
 
-    The five tiers form a portability hierarchy.  Use them to filter which
+    The six tiers form a portability hierarchy.  Use them to filter which
     specs apply to your project:
 
     - ``general``        — Universal: any project, any language.
@@ -61,7 +89,7 @@ class SpecKind(StrEnum):
     - ``pattern``        — Architectural / framework approach: language-agnostic
                            and not CVD-specific.
                            Examples: hexagonal architecture, BT composability,
-                           event-driven dispatch, structured logging format.
+                           event-driven dispatch.
     - ``domain``         — Vultron / CVD protocol: language-agnostic.
                            Examples: embargo lifecycle, case management, AS2
                            semantics, MPCVD state machines.
@@ -71,14 +99,18 @@ class SpecKind(StrEnum):
     - ``implementation`` — This specific codebase.
                            Examples: file paths under ``vultron/``, class names
                            in ``vultron/core/``, notes frontmatter schema.
+    - ``dev-process``    — This project's development and maintenance process.
+                           Examples: skill workflows, history management,
+                           spec authoring conventions, parallel agentic dev.
 
     Portability use cases
     ~~~~~~~~~~~~~~~~~~~~~
-    - Implementing Vultron in Python          → all five tiers
+    - Implementing Vultron in Python          → general + pattern + domain + language + implementation
     - Implementing Vultron in another language → general + pattern + domain
     - Different domain, Python/BT/hex stack   → general + pattern + language
     - BT / hexagonal wisdom, any language      → general + pattern
     - Universal wisdom only                    → general
+    - Contributing to this project            → all six tiers (include dev-process)
     """
 
     GENERAL = "general"
@@ -86,6 +118,7 @@ class SpecKind(StrEnum):
     DOMAIN = "domain"
     LANGUAGE = "language"
     IMPLEMENTATION = "implementation"
+    DEV_PROCESS = "dev-process"
 
 
 class Scope(StrEnum):
@@ -178,9 +211,21 @@ class StatementSpec(BaseModel):
 
 
 class Precondition(BaseModel):
-    """A precondition for a behavioral spec."""
+    """A precondition for a behavioral spec (SR-02-019).
 
-    description: str
+    Typed fields reference the stable protocol state-machine enums directly so
+    conformance tooling can evaluate preconditions without parsing prose.
+    ``description`` is required and provides a human-readable prose summary of
+    the full precondition, synthesised from all typed fields present.  Typed
+    fields that don't map to ``rm_state``, ``em_state``, ``cs_pattern``, or
+    ``role`` MUST be described here as a prose fallback.
+    """
+
+    rm_state: list[RM] | None = None
+    em_state: list[EM] | None = None
+    role: list[CVDRole] | None = None
+    cs_pattern: str | None = None
+    description: NonEmptyStr
 
 
 class BehaviorStep(BaseModel):
@@ -195,7 +240,7 @@ class BehaviorStep(BaseModel):
 class Postcondition(BaseModel):
     """A postcondition for a behavioral spec."""
 
-    description: str
+    description: NonEmptyStr
 
 
 class BehavioralSpec(StatementSpec):
@@ -222,6 +267,10 @@ class SpecGroup(BaseModel):
 
     ``kind`` and ``scope`` are optional overrides; when absent, values are
     inherited from the containing :class:`SpecFile`.
+
+    ``trigger`` annotates behavioral groups with the event that activates them,
+    enabling conformance tooling to classify groups by trigger kind without
+    parsing prose titles.
     """
 
     id: SpecIdStr
@@ -229,6 +278,7 @@ class SpecGroup(BaseModel):
     description: NonEmptyStr | None = None
     kind: SpecKind | None = None
     scope: list[Scope] | None = None
+    trigger: Trigger | None = None
     specs: list[Spec]
 
     @field_validator("scope")

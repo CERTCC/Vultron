@@ -15,190 +15,278 @@
 
 """Unit tests for embargo lifecycle and state-machine nodes (lifecycle.py)."""
 
-import logging
 from typing import cast
 from unittest.mock import MagicMock
 
 import py_trees
+import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.nodes.lifecycle import (
-    TerminateEmbargoNode,
     ValidateEmbargoRevisionStateNode,
 )
+from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
-from test.core.behaviors.embargo.nodes.conftest import (
-    make_case_and_embargo,
-    setup_blackboard,
-)
+from test.core.behaviors.embargo.nodes.conftest import make_case_and_embargo
+
+ACTOR_ID = "https://example.org/actors/vendor"
+CASE_MANAGER_ACTOR = "https://example.org/actors/case-manager"
 
 
-class TestTerminateEmbargoNode:
-    """Tests for TerminateEmbargoNode (trigger-side embargo teardown)."""
+def _make_case_with_manager(
+    suffix: str,
+    em_state: EM = EM.ACTIVE,
+) -> tuple[VulnerabilityCase, CaseParticipant, SqliteDataLayer]:
+    """Return a populated DataLayer with a case + CASE_MANAGER participant."""
+    dl = SqliteDataLayer("sqlite:///:memory:")
+    case, _embargo = make_case_and_embargo(suffix, em_state=em_state)
+
+    cm_participant = CaseParticipant(
+        id_=f"{case.id_}/participants/cm",
+        attributed_to=CASE_MANAGER_ACTOR,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    case.case_participants.append(cm_participant.id_)
+    case.actor_participant_index[CASE_MANAGER_ACTOR] = cm_participant.id_
+
+    dl.create(case)
+    dl.create(cm_participant)
+    return case, cm_participant, dl
+
+
+def _make_factory() -> MagicMock:
+    factory = MagicMock()
+    factory.terminate_embargo.return_value = (
+        "https://example.org/activities/act1",
+        {},
+    )
+    return factory
+
+
+@pytest.fixture(autouse=True)
+def clear_blackboard():
+    py_trees.blackboard.Blackboard.storage.clear()
+
+
+# ---------------------------------------------------------------------------
+# terminate_embargo_bt — shared factory (BT-19-001, BT-19-002)
+# ---------------------------------------------------------------------------
+
+
+class TestTerminateEmbargoBT:
+    """Tests for the shared terminate_embargo_bt factory (BT-19-001)."""
 
     def test_terminates_active_embargo(self):
-        """Node transitions ACTIVE → EXITED, clears active_embargo, returns SUCCESS."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
-        case, embargo = make_case_and_embargo("ten1", em_state=EM.ACTIVE)
-        dl.create(case)
+        """Shared BT transitions ACTIVE → EXITED and queues the activity."""
+        case, _, dl = _make_case_with_manager("teb1", em_state=EM.ACTIVE)
+        factory = _make_factory()
+        result_out: dict = {}
 
-        setup_blackboard(dl)
-        node = TerminateEmbargoNode(case_id=case.id_)
-        bt = py_trees.trees.BehaviourTree(root=node)
-        bt.setup()
-        bt.tick()
+        def builder(case_manager_id: str) -> list[str]:
+            aid, _ = factory.terminate_embargo(
+                embargo_id="https://example.org/cases/case_teb1/embargo_events/e1",
+                case_id=case.id_,
+                actor=ACTOR_ID,
+                to=[case_manager_id],
+            )
+            return [aid]
 
-        assert node.status == py_trees.common.Status.SUCCESS
+        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
+        tree = terminate_embargo_bt(
+            case_id=case.id_, result_out=result_out, activity_builder=builder
+        )
+        result = bridge.execute_with_setup(tree, actor_id=ACTOR_ID)
+
+        assert result.status == py_trees.common.Status.SUCCESS
         updated = cast(VulnerabilityCase, dl.read(case.id_))
         assert updated.current_status.em_state == EM.EXITED
         assert updated.active_embargo is None
+        factory.terminate_embargo.assert_called_once()
 
     def test_terminates_revise_embargo(self):
-        """Node transitions REVISE → EXITED, returns SUCCESS."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
-        case, embargo = make_case_and_embargo("ten2", em_state=EM.REVISE)
-        dl.create(case)
+        """Shared BT transitions REVISE → EXITED."""
+        case, _, dl = _make_case_with_manager("teb2", em_state=EM.REVISE)
+        factory = _make_factory()
+        result_out: dict = {}
 
-        setup_blackboard(dl)
-        node = TerminateEmbargoNode(case_id=case.id_)
-        bt = py_trees.trees.BehaviourTree(root=node)
-        bt.setup()
-        bt.tick()
+        def builder(case_manager_id: str) -> list[str]:
+            aid, _ = factory.terminate_embargo(
+                embargo_id="https://example.org/cases/case_teb2/embargo_events/e1",
+                case_id=case.id_,
+                actor=ACTOR_ID,
+                to=[case_manager_id],
+            )
+            return [aid]
 
-        assert node.status == py_trees.common.Status.SUCCESS
+        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
+        tree = terminate_embargo_bt(
+            case_id=case.id_, result_out=result_out, activity_builder=builder
+        )
+        result = bridge.execute_with_setup(tree, actor_id=ACTOR_ID)
+
+        assert result.status == py_trees.common.Status.SUCCESS
         updated = cast(VulnerabilityCase, dl.read(case.id_))
         assert updated.current_status.em_state == EM.EXITED
-        assert updated.active_embargo is None
 
-    def test_returns_success_when_no_active_embargo(self):
-        """Node returns SUCCESS without changes when no active embargo."""
+    def test_missing_case_manager_returns_failure_before_state_change(self):
+        """AC-5: Missing CASE_MANAGER → FAILURE; EM state and active_embargo unchanged."""
         dl = SqliteDataLayer("sqlite:///:memory:")
-        case, _ = make_case_and_embargo("ten3", em_state=EM.NONE)
-        case.active_embargo = None
-        dl.create(case)
+        case, embargo = make_case_and_embargo("teb3", em_state=EM.ACTIVE)
+        dl.create(case)  # no CASE_MANAGER participant
 
-        setup_blackboard(dl)
-        node = TerminateEmbargoNode(case_id=case.id_)
-        bt = py_trees.trees.BehaviourTree(root=node)
-        bt.setup()
-        bt.tick()
+        factory = _make_factory()
+        result_out: dict = {}
 
-        assert node.status == py_trees.common.Status.SUCCESS
+        def builder(case_manager_id: str) -> list[str]:
+            aid, _ = factory.terminate_embargo(
+                embargo_id=embargo.id_,
+                case_id=case.id_,
+                actor=ACTOR_ID,
+                to=[case_manager_id],
+            )
+            return [aid]
+
+        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
+        tree = terminate_embargo_bt(
+            case_id=case.id_, result_out=result_out, activity_builder=builder
+        )
+        result = bridge.execute_with_setup(tree, actor_id=ACTOR_ID)
+
+        # BT fails at routing guard — no state mutation occurs (BT-19-001).
+        assert result.status == py_trees.common.Status.FAILURE
         updated = cast(VulnerabilityCase, dl.read(case.id_))
-        assert updated.current_status.em_state == EM.NONE  # unchanged
+        assert updated.current_status.em_state == EM.ACTIVE  # unchanged
+        assert updated.active_embargo is not None  # unchanged
+        factory.terminate_embargo.assert_not_called()
 
-    def test_returns_success_when_invalid_transition(self, caplog):
-        """Node returns SUCCESS (non-fatal) when EM transition is blocked."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
-        case, embargo = make_case_and_embargo("ten4", em_state=EM.PROPOSED)
-        dl.create(case)
+    def test_no_active_embargo_returns_failure(self):
+        """BT returns FAILURE when the case has no active embargo."""
+        case, _, dl = _make_case_with_manager("teb4", em_state=EM.NONE)
+        case_obj = cast(VulnerabilityCase, dl.read(case.id_))
+        case_obj.active_embargo = None
+        dl.save(case_obj)
 
-        setup_blackboard(dl)
-        node = TerminateEmbargoNode(case_id=case.id_)
-        bt = py_trees.trees.BehaviourTree(root=node)
-        bt.setup()
+        factory = _make_factory()
+        result_out: dict = {}
 
-        with caplog.at_level(logging.WARNING):
-            bt.tick()
-
-        assert node.status == py_trees.common.Status.SUCCESS
-        assert any(
-            "EXITED" in r.message or "blocked" in r.message
-            for r in caplog.records
+        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
+        tree = terminate_embargo_bt(
+            case_id=case.id_,
+            result_out=result_out,
+            activity_builder=lambda _: [],
         )
+        result = bridge.execute_with_setup(tree, actor_id=ACTOR_ID)
 
-    def test_returns_success_when_case_missing(self):
-        """Node returns SUCCESS when case is not found in DataLayer."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
-
-        setup_blackboard(dl)
-        node = TerminateEmbargoNode(
-            case_id="https://example.org/cases/nonexistent"
-        )
-        bt = py_trees.trees.BehaviourTree(root=node)
-        bt.setup()
-        bt.tick()
-
-        assert node.status == py_trees.common.Status.SUCCESS
-
-    def test_returns_success_when_case_id_is_none(self):
-        """Node returns SUCCESS immediately when case_id is None."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
-
-        setup_blackboard(dl)
-        node = TerminateEmbargoNode(case_id=None)
-        bt = py_trees.trees.BehaviourTree(root=node)
-        bt.setup()
-        bt.tick()
-
-        assert node.status == py_trees.common.Status.SUCCESS
+        assert result.status == py_trees.common.Status.FAILURE
+        factory.terminate_embargo.assert_not_called()
 
     def test_resets_participant_pec_state(self):
-        """Node resets participant embargo_consent_state to NO_EMBARGO."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
-        case, _ = make_case_and_embargo("ten6", em_state=EM.ACTIVE)
+        """Shared BT resets participant embargo_consent_state to NO_EMBARGO."""
+        case, _, dl = _make_case_with_manager("teb5", em_state=EM.ACTIVE)
         participant = CaseParticipant(
             id_=f"{case.id_}/participants/p1",
             attributed_to="https://example.org/users/vendor",
         )
         participant.embargo_consent_state = PEC.SIGNATORY.value
-        case.case_participants.append(participant.id_)
-        dl.create(case)
+        case_obj = cast(VulnerabilityCase, dl.read(case.id_))
+        case_obj.case_participants.append(participant.id_)
+        dl.save(case_obj)
         dl.create(participant)
 
-        setup_blackboard(dl)
-        node = TerminateEmbargoNode(case_id=case.id_)
-        bt = py_trees.trees.BehaviourTree(root=node)
-        bt.setup()
-        bt.tick()
+        factory = _make_factory()
+        result_out: dict = {}
 
-        assert node.status == py_trees.common.Status.SUCCESS
+        def builder(case_manager_id: str) -> list[str]:
+            aid, _ = factory.terminate_embargo(
+                embargo_id="https://example.org/cases/case_teb5/embargo_events/e1",
+                case_id=case.id_,
+                actor=ACTOR_ID,
+                to=[case_manager_id],
+            )
+            return [aid]
+
+        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
+        tree = terminate_embargo_bt(
+            case_id=case.id_, result_out=result_out, activity_builder=builder
+        )
+        result = bridge.execute_with_setup(tree, actor_id=ACTOR_ID)
+
+        assert result.status == py_trees.common.Status.SUCCESS
         updated_p = cast(CaseParticipant, dl.read(participant.id_))
         assert updated_p.embargo_consent_state == PEC.NO_EMBARGO.value
 
-    def test_queues_activity_to_case_manager_outbox(self):
-        """When trigger_activity_factory is present, terminate_embargo is called."""
-        dl = SqliteDataLayer("sqlite:///:memory:")
-        case, _ = make_case_and_embargo("ten7", em_state=EM.ACTIVE)
+    def test_cascade_path_no_builder_returns_failure_when_no_factory(self):
+        """Without activity_builder, FAILURE when no trigger_activity_factory set.
 
-        case_manager_participant = CaseParticipant(
-            id_=f"{case.id_}/participants/cm",
-            attributed_to="https://example.org/actors/case-manager",
-            case_roles=[CVDRole.CASE_MANAGER],
+        This is the cascade path used by PublicDisclosureBranchNode (BT-14-001).
+        """
+        case, _, dl = _make_case_with_manager("teb6", em_state=EM.ACTIVE)
+        result_out: dict = {}
+
+        # No trigger_activity in BTBridge → factory is None on blackboard
+        bridge = BTBridge(datalayer=dl)
+        tree = terminate_embargo_bt(
+            case_id=case.id_,
+            result_out=result_out,
         )
-        case.case_participants.append(case_manager_participant.id_)
-        case.actor_participant_index[
-            "https://example.org/actors/case-manager"
-        ] = case_manager_participant.id_
-        dl.create(case)
-        dl.create(case_manager_participant)
+        result = bridge.execute_with_setup(tree, actor_id=ACTOR_ID)
 
-        py_trees.blackboard.Blackboard.enable_activity_stream()
-        blackboard = py_trees.blackboard.Client(name="test-setup-ten7")
-        for key in ("datalayer", "actor_id", "trigger_activity_factory"):
-            blackboard.register_key(
-                key=key, access=py_trees.common.Access.WRITE
-            )
-        blackboard.datalayer = dl
-        blackboard.actor_id = "https://example.org/actors/case-manager"
+        assert result.status == py_trees.common.Status.FAILURE
 
-        factory = MagicMock()
-        activity_id = "https://example.org/activities/act1"
-        factory.terminate_embargo.return_value = (activity_id, {})
-        blackboard.trigger_activity_factory = factory
+    def test_cascade_path_terminates_when_factory_present(self):
+        """Without activity_builder, SUCCESS when factory resolves from blackboard."""
+        case, _, dl = _make_case_with_manager("teb7", em_state=EM.ACTIVE)
+        factory = _make_factory()
+        result_out: dict = {}
 
-        node = TerminateEmbargoNode(case_id=case.id_)
-        bt = py_trees.trees.BehaviourTree(root=node)
-        bt.setup()
-        bt.tick()
+        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
+        tree = terminate_embargo_bt(
+            case_id=case.id_,
+            result_out=result_out,
+        )
+        result = bridge.execute_with_setup(tree, actor_id=ACTOR_ID)
 
-        assert node.status == py_trees.common.Status.SUCCESS
+        assert result.status == py_trees.common.Status.SUCCESS
+        updated = cast(VulnerabilityCase, dl.read(case.id_))
+        assert updated.current_status.em_state == EM.EXITED
         factory.terminate_embargo.assert_called_once()
+        outbox = dl.outbox_list_for_actor(ACTOR_ID)
+        assert "https://example.org/activities/act1" in outbox
+
+    def test_cascade_path_missing_case_manager_failure_before_state_change(
+        self,
+    ):
+        """AC-5 (cascade path): Missing CASE_MANAGER → FAILURE; no state mutation."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, _ = make_case_and_embargo("teb8", em_state=EM.ACTIVE)
+        dl.create(case)  # no CASE_MANAGER participant
+
+        factory = _make_factory()
+        result_out: dict = {}
+
+        bridge = BTBridge(datalayer=dl, trigger_activity=factory)
+        tree = terminate_embargo_bt(
+            case_id=case.id_,
+            result_out=result_out,
+        )
+        result = bridge.execute_with_setup(tree, actor_id=ACTOR_ID)
+
+        assert result.status == py_trees.common.Status.FAILURE
+        updated = cast(VulnerabilityCase, dl.read(case.id_))
+        assert updated.current_status.em_state == EM.ACTIVE  # unchanged
+        assert updated.active_embargo is not None  # unchanged
+        factory.terminate_embargo.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# ValidateEmbargoRevisionStateNode
+# ---------------------------------------------------------------------------
 
 
 class TestValidateEmbargoRevisionStateNode:

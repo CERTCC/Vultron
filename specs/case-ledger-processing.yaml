@@ -1,7 +1,7 @@
 id: CLP
 title: Case Ledger Processing
 description: >-
-  Requirements for participant assertions, CaseActor canonicalization, local case audit ledgerging,
+  Requirements for participant assertions, CaseActor canonicalization, local case audit ledgering,
   recorded-history projection, and replication-facing `CaseLedgerEntry` objects. `notes/activitystreams-semantics.md`,
   `notes/case-state-model.md`, `notes/sync-ledger-replication.md` `specs/sync-ledger-replication.md`,
   `specs/outbox.md`, `specs/message-validation.md`, `specs/idempotency.md` recording. Transport-layer
@@ -63,7 +63,7 @@ groups:
       Rejected `CaseLedgerEntry` objects SHOULD include a machine-readable reason code and MAY
       include human-readable detail
   - id: CLP-02-006
-    priority: MUST_NOT
+    priority: MUST
     statement: >-
       `CaseLedgerEntry` MUST include a `log_index` field corresponding to SYNC-01-002; this field
       MUST be set by the CaseActor's single authoritative write path and MUST NOT be assigned
@@ -291,3 +291,292 @@ groups:
       NOT use sequentially predictable or human-chosen path segments when origin-binding
       integrity is required; see `notes/case-ledger-authority.md` for future
       improvement paths (secret nonce, CaseActor keypairs)
+- id: CLP-09
+  title: Commit Authorization and Coverage
+  specs:
+  - id: CLP-09-001
+    priority: MUST
+    statement: >-
+      Every call site that invokes the canonical commit operation MUST reach it only
+      through a role-gated composition that verifies, at the time of invocation, that
+      the active actor holds `CVDRole.CASE_MANAGER` for the case; this MUST be a
+      role-based check, not an identity comparison, even where the CaseActor and the
+      role holder happen to coincide today
+    rationale: >-
+      An audit of `CommitCaseLedgerEntryNode` call sites (Epic #788, issue #1021)
+      found that only one of roughly ten call sites guarded the commit, and it did
+      so with an ad hoc Python-level identity check outside the BT rather than a
+      role check inside it. The other call sites committed unconditionally. Stating
+      this as one vague authorization line (see BT-10-004) was not specific enough
+      to prevent the gap from accumulating call site by call site.
+  - id: CLP-09-002
+    priority: MUST_NOT
+    statement: >-
+      The canonical commit operation MUST NOT be invoked directly (bare, unguarded)
+      from any production call site outside the guarded-commit composition itself;
+      a registry- or grep-based test MUST assert that no such bare usage exists
+    verification: >-
+      A dedicated test enumerates known commit call sites (or greps for the
+      unguarded commit node's class name) and fails if any usage outside the
+      guarded-commit factory's own implementation is found.
+  - id: CLP-09-003
+    priority: MUST
+    statement: >-
+      Every protocol-significant use case or BT subtree (per BT-06-001) MUST
+      produce exactly one canonical commit; a coverage test MUST enumerate
+      protocol-significant entries (e.g., everything reachable from
+      `USE_CASE_MAP`) and assert each one reaches a commit, rather than relying
+      on manual audit to discover missing commits
+    rationale: >-
+      `validate_report`, `ack_report`, and `close_case` produced no canonical
+      ledger entry at all on `main` for an unknown span of time (issue #998/#1022).
+      Dispatch completeness is already enforced structurally for `USE_CASE_MAP`
+      (DR-02-002, UCORG-02-002); commit completeness had no equivalent structural
+      check and was found only by a manual re-audit.
+  - id: CLP-09-004
+    priority: MUST
+    statement: >-
+      When the same use-case class may be invoked with more than one receiving-actor
+      identity for a single logical activity (e.g., a relayed copy delivered to a
+      second participant), authorization for the commit MUST be evaluated per
+      invocation against the active actor's role, and MUST NOT be assumed from the
+      use-case class's identity or from the fact that earlier invocations were
+      authorized
+    rationale: >-
+      The `ack_report` flow in the two/three-actor demo invokes the same use case
+      once with the case actor as receiver and once with the finder as a relay
+      target; only the case-actor invocation may commit. This is the same shape
+      of bug that produced the original hash-chain fork in issue #923, and it
+      recurs at every new dual-invocation call site unless authorization is
+      re-evaluated per invocation rather than per use-case class.
+- id: CLP-10
+  title: CaseActor Inbox Routing for Canonical Ledger Entry Authorship
+  description: >-
+    Requirements for the end-to-end routing path that delivers protocol-significant
+    activities to the CaseActor's inbox so the CaseActor can author canonical ledger
+    entries. Normative requirements generated from ADR-0021.
+  specs:
+  - id: CLP-10-001
+    priority: MUST
+    statement: >-
+      Every protocol-significant trigger tree MUST emit at least one outbound
+      activity addressed to `case_manager_id` (the CaseActor's actor ID) so that
+      the CaseActor's inbox receives the activity and can author a canonical
+      ledger entry. This requirement applies to ALL participants — the CaseActor
+      is a participant with extra duties; it is not excluded from CLP-10-001.
+      When the CaseActor itself originates an activity (e.g., `invite_actor_to_case`),
+      it MUST include its own actor ID in the outbound activity's `cc:` field so
+      that ASGI self-delivery triggers the CaseActor's received-side use case and
+      the `GuardedCommitCaseLedgerEntryBT` fires in the correct inbox context.
+    rationale: >-
+      Before ADR-0021, several trigger trees (e.g., `validate_report`,
+      `ack_report`, `close_case`) emitted no activity addressed to the CaseActor.
+      The CaseActor therefore had no protocol event to commit, and the canonical
+      ledger was missing those event types entirely. The ASGI self-delivery
+      mechanism already handles routing when the target actor ID is the
+      CaseActor sub-actor for the same container; the missing piece was the
+      emit node itself.
+      The self-routing requirement also applies when the CaseActor is the
+      originator: `invite_actor_to_case_trigger_bt` emitted an `Invite` addressed
+      only to the invitee — the CaseActor never received its own activity and the
+      canonical ledger had no `invite_actor_to_case` entry. Using `cc:` rather
+      than `to:` for the self-copy preserves the semantics that the invitee is the
+      primary recipient while still routing the activity through the CaseActor's
+      inbox for archival. See OX-08-004 for the updated addressing policy and
+      ADR-0021 for the full end-to-end path.
+    verification: >-
+      For each entry in `EXPECTED_EVENT_TYPES`, a test verifies that the
+      CaseActor's canonical ledger contains at least one entry with that
+      `eventType` after a full two-actor demo run.
+  - id: CLP-10-002
+    priority: MUST
+    statement: >-
+      A received-side use case MUST include a pre-flight guard that compares
+      `receiving_actor_id` to `case_actor_id` before executing any canonical
+      ledger commit operation; if `receiving_actor_id != case_actor_id`, the
+      commit step MUST be skipped entirely
+    rationale: >-
+      The correct pattern (established in `status.py`'s `_commit_log_cascade_bt`)
+      is to commit only when the actor running the use case IS the CaseActor.
+      When a non-CaseActor inbox receives the same activity (e.g., a relay copy
+      to a finder), the use case runs but skips the commit. The CaseActor's own
+      inbox delivery (via CLP-10-001) is responsible for the canonical write.
+    verification: >-
+      Unit tests for each received-side use case that participates in ledger
+      authorship assert that `create_guarded_commit_case_ledger_entry_tree` (or
+      the BT bridge) is NOT called when `receiving_actor_id` differs from the
+      resolved `case_actor_id`.
+  - id: CLP-10-003
+    priority: MUST_NOT
+    statement: >-
+      A received-side use case MUST NOT execute a BT or call the canonical commit
+      operation with `actor_id` set to any actor other than `receiving_actor_id`;
+      resolving a foreign `case_actor_id` and passing it to
+      `BTBridge.execute_with_setup` from the wrong DataLayer context is an
+      identity-spoofing violation and MUST NOT occur
+    rationale: >-
+      `note.py` and `embargo.py` contained this exact violation before ADR-0021:
+      they resolved the CaseActor ID from the DataLayer and ran the guarded-commit
+      BT with `actor_id=case_actor_id` even when the active DataLayer belonged to
+      the vendor actor. This produced outbox entries attributed to the wrong actor
+      and caused hash-chain divergence. See AGENTS.md § "Received-Side Use Cases
+      MUST NOT Spoof Another Actor's Identity" for the general rule; CLP-10-003
+      is the specific application to the canonical ledger commit path.
+    verification: >-
+      A static grep check (or dedicated test) asserts that no received-side use
+      case module passes a separately resolved actor ID to
+      `BTBridge.execute_with_setup` — only `receiving_actor_id` (or a name
+      that is provably equal to it) may appear as the `actor_id` argument.
+  - id: CLP-10-004
+    priority: MUST_NOT
+    statement: >-
+      The `announce_case_ledger_entry` event type MUST NOT appear in
+      `EXPECTED_EVENT_TYPES` for the case-actor canonical log; `Announce(CaseLedgerEntry)`
+      is the replication envelope that carries canonical entries to participants
+      and cannot itself be a `payloadSnapshot` inside a canonical entry
+    rationale: >-
+      Including `announce_case_ledger_entry` in `EXPECTED_EVENT_TYPES` creates a
+      circular requirement: the CaseActor would need to commit a ledger entry
+      whose payload is the `Announce` activity used to broadcast ledger entries,
+      which is self-referential and unachievable without corrupting the hash chain.
+      The `Announce(CaseLedgerEntry)` wire envelope is a transport artifact, not a
+      protocol-significant domain event; it belongs to the SYNC replication layer
+      (SYNC-02-002), not the canonical ledger content layer.
+    verification: >-
+      `test_invariant_5_expected_event_types_present` (after parameterization)
+      does not include `announce_case_ledger_entry` as a required event type for
+      the case-actor replica.
+  - id: CLP-10-005
+    priority: MUST
+    statement: >-
+      A received-side use case's `execute()` method MUST do exactly three
+      things: build one BT via a tree-factory function in
+      `vultron/core/behaviors/`, call `BTBridge.execute_with_setup()` exactly
+      once with `actor_id=receiving_actor_id` to run it, and handle the
+      result (log/extract output per the existing Procedural Glue Exception).
+      `execute()` MUST NOT perform any other domain-significant work — no
+      direct DataLayer mutation, no second `execute_with_setup()` call, and
+      no direct import or call of `create_guarded_commit_case_ledger_entry_tree`
+      (or any other guarded-commit factory). Any operation that is currently
+      procedural code in `execute()` (including the use case's main
+      operation, if not already a BT) MUST be expressed as a node in the
+      single tree; the guarded-commit subtree MUST be composed as a child
+      of that same tree-factory function, not invoked separately
+    rationale: >-
+      CLP-10-002/CLP-10-003 (ADR-0021) correctly require a pre-flight guard
+      before committing, and correctly require the guard to compare against
+      `receiving_actor_id`. An audit (issue #1036, broadened to also resolve
+      issue #1047) found three distinct ways the single-tree intent was
+      violated, all closed by the same rule: (1) `embargo.py` (3 use cases)
+      and `report.py`/`status.py` (3 use cases) ran a genuine second,
+      independently Python-gated `execute_with_setup()` call under a
+      different actor identity for the commit — literal actor-switching,
+      reproducing the "post-BT procedural cascade" anti-pattern (see
+      `notes/bt-integration.md`) for the commit step specifically; in
+      `embargo.py`'s case the main tree already (uselessly) embeds the same
+      guarded-commit branch under the wrong actor, so the first execution is
+      a guaranteed no-op. (2) `note.py` and `actor/case_manager_role.py`
+      call the commit factory exactly once but precede it with
+      domain-significant procedural code (DataLayer mutation, broadcast,
+      trigger-activity calls) for the main operation, outside any BT —
+      `execute()` is not "build one tree, run it, handle the result" even
+      though only one `execute_with_setup()` call exists. (3)
+      `case/lifecycle.py` already executes a single tree under the correct
+      actor but constructs it ad hoc inside `execute()` instead of via a
+      `behaviors/` factory function. See ADR-0022 for the full per-site
+      breakdown.
+    verification: >-
+      `test/architecture/test_single_bt_execution_received_side.py` greps every
+      module under `vultron/core/use_cases/` for imports of
+      `create_guarded_commit_case_ledger_entry_tree`; any match outside the
+      guarded-commit factory's own module is a violation. Known violations are
+      tracked as a ratchet set (`KNOWN_VIOLATIONS`) that must shrink to empty as
+      each use case migrates to the single-tree shape. The grep is a proxy for
+      the broader "execute() does nothing but build-run-handle one tree" rule;
+      it catches every known violation but a reviewer MUST still confirm no
+      other domain-significant code remains in `execute()` when closing each
+      migration.
+  - id: CLP-10-006
+    priority: MUST
+    statement: >-
+      In any receive-side BT tree that includes a `GuardedCommitCaseLedgerEntryBT`
+      subtree (composed via `create_guarded_commit_case_ledger_entry_tree`), the
+      commit subtree MUST appear after any pure precondition-guard nodes (nodes
+      that only read state and return FAILURE on mismatch, making no writes) and
+      BEFORE any protocol-effect nodes. A "protocol-effect node" is any node
+      that writes to the DataLayer, mutates actor or participant state, or
+      enqueues an outbox item. The ordering MUST be: (1) precondition
+      guards, (2) commit, (3) all protocol effects. A tree that applies any
+      protocol effect before committing the triggering activity inverts causal
+      ordering and MUST be corrected.
+    rationale: >-
+      The canonical case ledger records the cause (the received activity) and
+      replicates it to all participants. If protocol effects (state transitions,
+      outbox enqueues, participant updates) run before the ledger records the
+      triggering activity, the case ledger may show effects without the causes
+      that produced them. Participants replicating the ledger via
+      `Announce(CaseLedgerEntry)` would observe an effect entry with no prior
+      cause entry — making forensic and audit use of the ledger unreliable.
+      Audit issue #1068 found this inverted ordering consistently across
+      receive-side BTs in `vultron/core/behaviors/` and
+      `vultron/core/use_cases/received/`. The ledger entry records that the
+      activity was received and accepted by the CaseActor — this is independent
+      of whether subsequent effects succeed (a failed effect is an operational
+      concern, not a reason to omit the received-activity record).
+    verification: >-
+      A structural test in `test/architecture/` inspects each receive-side BT
+      tree returned by every tree-factory function in `vultron/core/behaviors/`.
+      For any tree containing `CommitCaseLedgerEntryNode` (or the guarded
+      composite wrapping it), the test asserts that no sibling node appearing
+      before the commit node in the `children` list is a protocol-effect node
+      (i.e., any node whose class name does not match the known
+      precondition-guard allowlist). The test fails if any receive-side tree
+      violates commit-first ordering.
+- id: CLP-11
+  title: Protocol Request/Reply State Detection
+  description: >-
+    Requirements for querying whether a protocol-level request/reply pair
+    (e.g., Offer(CaseParticipant) → Accept/Reject) is still open or has been
+    closed. These rules establish the canonical pattern for duplicate-emission
+    suppression and CaseActor decision-gate checks.
+  specs:
+  - id: CLP-11-001
+    priority: MUST
+    statement: >-
+      Open/closed state for a protocol request/reply pair (e.g.,
+      `Offer(CaseParticipant)` awaiting `Accept` or `Reject`) MUST be
+      determined by querying the case ledger via
+      `CasePersistence.find_protocol_pair()`, not by inspecting the outbox.
+    rationale: >-
+      The outbox is a delivery queue: entries are removed when the activity is
+      sent and MUST NOT be used to infer protocol state. The case ledger is the
+      canonical append-only protocol history and survives actor restarts. Any
+      code that reads the outbox to determine whether a request is still
+      in-flight is architecturally incorrect and MUST be replaced.
+  - id: CLP-11-002
+    priority: MUST_NOT
+    statement: >-
+      `find_protocol_pair()` (durable, DataLayer-backed) and
+      `PendingAssertionStore` (ephemeral, in-memory suppression) MUST NOT be
+      unified. They serve distinct purposes: `find_protocol_pair` determines
+      canonical open/closed state from the ledger; `PendingAssertionStore`
+      suppresses duplicate near-term re-emits while waiting for the
+      `CaseLedgerEntry` round-trip. Merging them would conflate durable
+      protocol state with short-lived emit-suppression state.
+  - id: CLP-11-003
+    priority: MUST
+    statement: >-
+      `ProtocolPair` MUST be the shared value type for both
+      `find_protocol_pair()` and `PendingAssertionStore`. Named reply-type
+      constants (`OFFER_CASE_PARTICIPANT_REPLY_TYPES`,
+      `INVITE_ACTOR_TO_CASE_REPLY_TYPES`) MUST be used when constructing or
+      querying a `ProtocolPair` to avoid hard-coding reply event-type strings
+      at call sites.
+  - id: CLP-11-004
+    priority: SHOULD
+    statement: >-
+      When searching for a reply entry in `find_protocol_pair()`, the
+      implementation SHOULD use the `event_type` field of `CaseLedgerEntry`
+      (derived from `MessageSemantics.value`) as the primary key, scoped to
+      `case_id`. `in_reply_to` chain-following is an internal implementation
+      detail and MUST NOT be exposed as a public port primitive.

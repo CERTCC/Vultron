@@ -21,6 +21,8 @@ directory.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from typing import cast
+
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.examples._base import *  # noqa: F401, F403
 from vultron.wire.as2.vocab.examples.actor import *  # noqa: F401, F403
@@ -33,8 +35,10 @@ from vultron.wire.as2.vocab.examples.status import *  # noqa: F401, F403
 
 from vultron.wire.as2.vocab.examples._base import (  # noqa: F401
     ACTOR_FUNCS,
+    _CASE_ACTOR,
     _COORDINATOR,
     case,
+    case_actor,
     coordinator,
     finder,
     gen_report,
@@ -43,8 +47,11 @@ from vultron.wire.as2.vocab.examples._base import (  # noqa: F401
 )
 from vultron.wire.as2.vocab.examples.actor import (  # noqa: F401
     accept_actor_recommendation,
+    accept_case_participant_offer,
+    offer_case_participant,
     recommend_actor,
     reject_actor_recommendation,
+    reject_case_participant_offer,
 )
 from vultron.wire.as2.vocab.examples.case import (  # noqa: F401
     accept_case_ownership_transfer,
@@ -150,13 +157,13 @@ def main():
     activity = close_report()
     obj_to_file(activity, f"{outdir}/close_report.json")
 
-    # case object
-    _case = case()
-    obj_to_file(_case, f"{outdir}/vulnerability_case.json")
-
-    # activity: vendor creates case from _report
+    # activity: vendor creates case from _report (also yields the case object)
     activity = create_case()
     obj_to_file(activity, f"{outdir}/create_case.json")
+
+    # case object — extracted from create_case activity for coherence
+    _case = cast(as_Base, activity.object_)
+    obj_to_file(_case, f"{outdir}/vulnerability_case.json")
 
     # activity: vendor adds _report to case
     activity = add_report_to_case()

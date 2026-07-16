@@ -29,7 +29,7 @@ import pytest
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.cs import CS_vfd
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.core.use_cases.received.case.create import (
     CreateCaseReceivedUseCase,
 )
@@ -107,6 +107,7 @@ def case_with_two_participants():
     case = VulnerabilityCase(
         id_=_CASE_ID,
         name="CBT-05-005/006 participant storage case",
+        attributed_to=_CASE_ACTOR_ID,
         case_participants=[case_actor_p, vendor_p],
     )
     case.actor_participant_index[_CASE_ACTOR_ID] = _PARTICIPANT_ID
@@ -255,9 +256,10 @@ class TestM4AddParticipantStatusAfterBootstrap:
             stored_p is not None
         ), "Vendor CaseParticipant must be stored during bootstrap (CBT-05-005)"
 
-        # Step 3: case-actor broadcasts Add(ParticipantStatus, vendor_p) to
-        # finder.  actor=_CASE_ACTOR_ID so VerifySenderIsParticipantNode passes
-        # (case.actor_participant_index contains _CASE_ACTOR_ID).
+        # Step 3: vendor self-reports its VFd status to the case actor.
+        # actor=_VENDOR_ID passes VerifySenderIsParticipantNode
+        # (case.actor_participant_index contains _VENDOR_ID), and is a valid
+        # non-CaseActor participant sender for this message type.
         # The status is NOT pre-created — it arrives inline in the activity, so
         # AppendParticipantStatusNode must resolve it from the fallback and
         # persist it independently.
@@ -269,9 +271,9 @@ class TestM4AddParticipantStatusAfterBootstrap:
         activity = add_status_to_participant_activity(
             status,
             target=vendor_p,
-            actor=_CASE_ACTOR_ID,
+            actor=_VENDOR_ID,
         )
-        event = make_payload(activity)
+        event = make_payload(activity, receiving_actor_id=_CASE_ACTOR_ID)
 
         AddParticipantStatusToParticipantReceivedUseCase(dl, event).execute()
 

@@ -27,14 +27,15 @@ Structure:
     CreateCaseBT (Selector)
     ├─ CheckCaseAlreadyExists          # Early exit if case already in DataLayer
     └─ CreateCaseFlow (Sequence)
+       ├─ GuardedCommitCaseLedgerEntryBT  # Record receipt before effects (CLP-10-006)
        ├─ SetCaseAttributedTo          # Set attributed_to to actor_id (CM-02-008)
        ├─ PersistCase                  # Save VulnerabilityCase to DataLayer
        ├─ RecordCaseCreationEvents     # Backfill offer_received + case_created events (CM-02-009)
        ├─ CreateCaseOwnerParticipant   # Add case owner as initial participant (CM-02-008)
        ├─ CreateCaseActorNode          # Create CaseActor service (CM-02-001)
+       ├─ ProposeCaseToActorNode       # Send Create(as_CaseProposal) to Case Actor (CP-04-002)
        ├─ EmitCreateCaseActivity       # Generate CreateCaseActivity activity
-       ├─ UpdateActorOutbox            # Append activity to actor outbox
-       └─ CommitCaseLedgerEntryNode       # Log entry → Announce fan-out (SYNC-02-002)
+       └─ UpdateActorOutbox            # Append activity to actor outbox
 
 Note: ``ValidateCaseObject`` was removed (#716).  ``VultronBase.id_`` is typed
 ``NonEmptyString`` with a ``default_factory``, so Pydantic enforces a valid
@@ -47,7 +48,7 @@ import logging
 
 import py_trees
 
-from vultron.core.models.actor_config import ActorConfig
+from vultron.config.actor import ActorConfig
 from vultron.core.models.vultron_types import VultronCase
 from vultron.core.behaviors.case.case_setup_tree import (
     CreateCaseActorNode,
@@ -61,10 +62,11 @@ from vultron.core.behaviors.case.participant_tree import (
 )
 from vultron.core.behaviors.case.nodes import (
     CheckCaseAlreadyExists,
-    CommitCaseLedgerEntryNode,
     PersistCase,
+    ProposeCaseToActorNode,
     SetCaseAttributedTo,
     UpdateActorOutbox,
+    create_receive_activity_tree,
 )
 
 logger = logging.getLogger(__name__)
@@ -99,20 +101,26 @@ def create_create_case_tree(
     """
     case_id = case_obj.id_
 
-    create_case_flow = py_trees.composites.Sequence(
+    create_case_flow = create_receive_activity_tree(
         name="CreateCaseFlow",
-        memory=False,
-        children=[
+        case_id=case_id,
+        precondition_guards=[],
+        effect_nodes=[
             SetCaseAttributedTo(case_obj=case_obj),
             PersistCase(case_obj=case_obj),
             RecordCaseCreationEvents(case_obj=case_obj),
             CreateCaseOwnerParticipant(
-                case_obj=case_obj, actor_config=actor_config
+                case_obj=case_obj,
+                actor_config=actor_config,
+                # No report_id in this flow; use case ID as the namespace
+                # segment so concurrent create-case executions don't share
+                # blackboard keys (BTND-03-004).
+                report_id=case_obj.id_,
             ),
             CreateCaseActorNode(case_id=case_id),
+            ProposeCaseToActorNode(),
             EmitCreateCaseActivity(),
             UpdateActorOutbox(),
-            CommitCaseLedgerEntryNode(case_id=case_id),
         ],
     )
 

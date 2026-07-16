@@ -137,14 +137,25 @@ groups:
     rationale: Duplicated models diverge silently over time; a hierarchy makes the relationship explicit and reduces boilerplate
 - id: CS-10
   title: Port and Adapter Data Exchange
-  kind: pattern
+  kind: language
   specs:
   - id: CS-10-001
     priority: MUST
-    statement: Data passed across port/adapter boundaries MUST use Pydantic `BaseModel`-derived classes rather than plain
-      `dict`s
-    rationale: '`dict`s discard type information at the boundary, suppress validation, and make interfaces ambiguous. Pydantic
-      models preserve validation, IDE support, and documentation at every layer crossing.'
+    statement: >-
+      Data passed across port/adapter boundaries MUST use named, domain-typed Pydantic classes
+      rather than plain `dict`s or bare `BaseModel` subclasses without semantic meaning. Port
+      `Protocol` signatures MUST declare parameters and return values as specific domain types
+      (e.g., `VulnerabilityCase`, `CaseParticipant`), not as `BaseModel` or `dict`.
+    rationale: >-
+      This rule has two eras: prior to domain-typed core objects, "use Pydantic `BaseModel`"
+      was the correct guidance (vs. plain `dict`s). With named domain types in place,
+      the standard is now higher: ports must name the type specifically so that port
+      signatures serve as machine-readable contracts rather than type-erased boundaries.
+      Bare `BaseModel` at a port is equivalent to `dict` from a contract-clarity perspective.
+      Python-specific (`language`-kind). See also ARCH-08-001 for the port Protocol obligation.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-08-001
   - id: CS-10-002
     priority: SHOULD
     statement: Wire-level ActivityStreams payload classes SHOULD carry the `Activity` suffix; domain event classes SHOULD
@@ -315,3 +326,122 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: BTND-07-002
+- id: CS-20
+  title: Protocol and Type-Guard Hygiene
+  kind: general
+  specs:
+  - id: CS-20-001
+    priority: MUST
+    statement: >-
+      When a field or method is removed from a concrete class that structurally
+      conforms to a `Protocol`, the matching declaration MUST also be removed from
+      the Protocol (and vice versa). Protocol members that no longer exist on any
+      conforming concrete class MUST NOT be left as stale declarations.
+    rationale: >-
+      Static type checkers (mypy, pyright) verify the concrete→Protocol direction
+      only: they confirm that the concrete class satisfies the Protocol, but they
+      do NOT flag Protocol members that have been removed from every concrete
+      implementation. A stale Protocol member silently breaks future callers that
+      accept a `Protocol`-typed parameter and access the removed attribute —
+      typically surfacing only at runtime. Issue #792 exposed this gap when
+      `CaseModel.events` was left in `protocols.py` after `VulnerabilityCase.events`
+      was removed.
+    verification: >-
+      Diff any PR that removes a field or method from a Protocol-conforming class;
+      confirm the matching Protocol declaration is also removed.
+    relationships:
+    - rel_type: refines
+      spec_id: CS-11-001
+      note: Explicit typing must stay accurate; stale Protocol members are a form
+        of inaccurate type annotation
+  - id: CS-20-002
+    priority: MUST
+    statement: >-
+      `TypeGuard` discriminator functions (e.g., `is_case_model()`) MUST use only
+      fields or methods that are explicitly declared on the target `Protocol` as
+      their `hasattr`/`isinstance` checks. Using a method or field that is NOT in
+      the Protocol as a discriminator is forbidden.
+    rationale: >-
+      If a discriminator tests a method that later gets removed from the concrete
+      class (and not from the Protocol), the guard silently starts returning
+      `False` for valid objects. Issue #888 caused `is_case_model()` to return
+      `False` for all stored cases when `record_event()` — which was never a
+      Protocol member — was removed from `VulnerabilityCase`. 440 tests failed
+      downstream before the root cause was traced. Using only Protocol-declared
+      members as discriminators ensures the guard stays correct as long as the
+      Protocol itself is maintained (per CS-20-001).
+    verification: >-
+      Inspect each `TypeGuard` function; confirm every `hasattr(obj, "x")` check
+      uses an attribute `x` that is declared on the target `Protocol`.
+    relationships:
+    - rel_type: refines
+      spec_id: CS-20-001
+- id: CS-19
+  title: Test Fixtures Mirroring Production Enums
+  kind: general
+  specs:
+  - id: CS-19-001
+    priority: MUST
+    statement: >-
+      A test fixture or constant that enumerates the same value set as a production
+      enum (e.g., a list of expected event-type strings mirroring `MessageSemantics`)
+      MUST derive its values from the enum at import/collection time rather than
+      duplicating them as separately-maintained literals.
+    rationale: >-
+      `EXPECTED_EVENT_TYPES` in `test/ci/test_case_ledger_invariants.py` hardcoded
+      values that silently diverged from `MessageSemantics` (issue #998/#1020):
+      five of ten values used legacy names that no longer matched the enum. The
+      mismatch produced no failure on its own — it only surfaced when the invariant
+      using it was audited by hand. Deriving the fixture from the enum makes the
+      two sets impossible to drift apart; a rename in the enum either propagates
+      automatically or fails loudly at collection time.
+    verification: >-
+      Grep test fixtures for literal string lists that parallel a production enum's
+      member names; replace with `[e.value for e in EnumName]` or equivalent,
+      narrowed with an explicit exclusion list where the fixture intentionally
+      covers a subset.
+- id: CS-21
+  title: Collection-Typed Pydantic Field Defaults
+  kind: language
+  specs:
+  - id: CS-21-001
+    priority: MUST_NOT
+    statement: >-
+      Pydantic model fields whose type is a collection (`dict`, `set`, `list`,
+      or any generic alias thereof) MUST NOT use `None` as their default value
+      when the intent is "empty collection if not provided". Use
+      `Field(default_factory=list)`, `Field(default_factory=dict)`, or
+      `Field(default_factory=set)` as appropriate. `None` is only acceptable
+      as a field default when it is an intentional sentinel meaning "absent"
+      (as distinct from "empty"), and that distinction must be observable in
+      the model's behaviour or serialisation.
+      Plain function and method parameters are out of scope for this rule:
+      `param: set[str] | None = None` with an `x or set()` guard in the body
+      is the correct idiom for optional collection parameters, as it avoids
+      the Python mutable-default-argument hazard (`= set()` shares a single
+      object across all calls that omit the argument).
+    rationale: >-
+      Pydantic v2 does not copy mutable class-level defaults — a field declared
+      as `roles: list[str] = []` on a BaseModel gives every instance a
+      reference to the same list. `Field(default_factory=list)` ensures each
+      instance gets its own fresh collection. Plain function parameters are
+      different: the conventional `None` sentinel with an inline `x or set()`
+      guard is safe and idiomatic Python, and avoids the mutable-default
+      aliasing hazard that `= set()` introduces. Issue #1359 identified the
+      Pydantic-field pattern; issue #1371 initially over-applied the rule to
+      plain function parameters — corrected by PR #1410.
+    verification: >-
+      Grep `vultron/` for Pydantic `BaseModel` subclass field declarations
+      that use a bare mutable literal as a default (e.g., `field: list[str] = []`,
+      `field: dict[str, Any] = {}`). Each such hit is a violation; replace
+      with `Field(default_factory=list)` etc. Plain function/method parameter
+      defaults (`param: set[str] | None = None`) are exempt from this check.
+    exceptions:
+      - >-
+        `None` is permitted as a Pydantic field default when it is a genuine
+        sentinel distinguishing "not provided" from "empty", provided the
+        distinction is observable in the model's behaviour or serialisation
+        (e.g., `BTExecutionResult.errors: list[str] | None` where `None` means
+        "no error list was collected" vs `[]` meaning "errors were collected
+        but none occurred"). AS2 wire-layer fields that use `None` to omit
+        keys from the serialised payload are a common example.

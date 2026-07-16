@@ -67,6 +67,26 @@ groups:
             spec_id: EH-01-001
             note: error-handling.yaml
 
+      - id: DEMOCI-01-006
+        priority: MUST
+        statement: >-
+          Every scenario entry-point function MUST call `reset_demo_failures()`
+          as its first action and MUST call `assert_demo_success()` as its final
+          action before returning. These two calls form the bookend contract that
+          initialises the failure accumulator and converts accumulated failures
+          into a `DemoFailureError` for CI detection.
+        rationale: >-
+          DEMOCI-01-003 and DEMOCI-01-004 specify the accumulation mechanism, but
+          do not specify where the accumulator is initialised or where the final
+          assertion is made. Without explicit bookends, a scenario may inherit
+          failure state from a previous run (if not reset) or exit without
+          surfacing accumulated failures (if `assert_demo_success()` is not called).
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-01-003
+          - rel_type: refines
+            spec_id: DEMOCI-01-004
+
   - id: DEMOCI-02
     title: GitHub Actions Demo Workflow
     specs:
@@ -188,3 +208,24 @@ groups:
           Each demo scenario added to CI SHOULD be run as a separate job
           (or matrix entry) so that failures are independently reported and
           one scenario failure does not prevent other scenarios from running.
+
+      - id: DEMOCI-03-004
+        priority: MUST
+        statement: >-
+          Each demo scenario (including FVV and any future scenario) MUST be
+          added to demo-integration.yml as a separate parallel job in the same
+          PR that introduces the scenario script; the job MUST use
+          `--abort-on-container-exit --exit-code-from demo-runner`,
+          `timeout-minutes: 15`, and the same teardown and log-upload steps
+          as the two-actor job (DEMOCI-02-006, DEMOCI-02-009, DEMOCI-02-010)
+        rationale: >-
+          Running scenarios in series would make CI proportionally slower with
+          each scenario added. Parallel jobs keep wall-clock time bounded and
+          produce independent pass/fail signals per scenario. Requiring the CI
+          job in the same PR as the scenario script ensures no scenario ships
+          without CI coverage.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-03-003
+          - rel_type: refines
+            spec_id: DEMOCI-03-002

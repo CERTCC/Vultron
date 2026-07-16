@@ -40,6 +40,8 @@ import py_trees
 from vultron.core.behaviors.case.nodes.communication import (
     CollectCaseAddresseesNode,
     CreateAndPersistCaseActivityNode,
+)
+from vultron.core.behaviors.case.nodes.delegation import (
     CreateOfferCaseManagerActivityNode,
     ResolveCaseManagerOfferContextNode,
 )
@@ -73,13 +75,17 @@ class SendOfferCaseManagerRoleNode(py_trees.composites.Sequence):
     Per DEMOMA-08-002, DEMOMA-08-003; Issue #469.
     """
 
-    def __init__(self, name: str | None = None):
+    def __init__(
+        self,
+        captured: dict | None = None,
+        name: str | None = None,
+    ) -> None:
         py_trees.composites.Sequence.__init__(
             self,
             name=name or self.__class__.__name__,
             memory=False,
             children=[
                 ResolveCaseManagerOfferContextNode(),
-                CreateOfferCaseManagerActivityNode(),
+                CreateOfferCaseManagerActivityNode(captured=captured),
             ],
         )

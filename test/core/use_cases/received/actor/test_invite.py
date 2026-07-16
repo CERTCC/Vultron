@@ -313,7 +313,7 @@ class TestInviteActorUseCases:
         )
         from vultron.core.models.vultron_types import VultronParticipant
         from vultron.core.states.rm import RM
-        from vultron.core.states.roles import CVDRole
+        from vultron.enums.roles import CVDRole
 
         dl = SqliteDataLayer("sqlite:///:memory:")
         invitee_id = "https://example.org/users/coordinator_rm2"
@@ -402,10 +402,12 @@ class TestInviteActorUseCases:
 
         dl = SqliteDataLayer("sqlite:///:memory:")
         invitee_id = "https://example.org/users/coordinator"
+        case_actor_id = "https://example.org/cases/caseIA3/actor"
         invitee = as_Organization(id_=invitee_id)
         case = VulnerabilityCase(
             id_="https://example.org/cases/caseIA3",
             name="TEST-ACCEPT-INVITE-EVENT",
+            attributed_to=case_actor_id,
         )
         invite = rm_invite_to_case_activity(
             invitee,
@@ -415,6 +417,25 @@ class TestInviteActorUseCases:
         )
         dl.create(invitee)
         dl.create(case)
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.base.objects.actors import as_Service
+
+        dl.create(as_Service(id_=case_actor_id, context=case.id_))
+        case_manager_participant = CaseParticipant(
+            id_=f"{case.id_}/participants/case-actor-p",
+            attributed_to=case_actor_id,
+            context=case.id_,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        dl.create(case_manager_participant)
+        case.case_participants.append(case_manager_participant.id_)
+        case.actor_participant_index[case_actor_id] = (
+            case_manager_participant.id_
+        )
+        dl.save(case)
         dl.create(invite)
 
         accept = rm_accept_invite_to_case_activity(
@@ -461,6 +482,7 @@ class TestInviteActorUseCases:
         case = VulnerabilityCase(
             id_="https://example.org/cases/caseLJ1",
             name="TEST-LATE-JOIN-BACKFILL",
+            attributed_to=case_actor_id,
         )
         case_actor.context = case.id_
         invite = rm_invite_to_case_activity(
@@ -472,6 +494,23 @@ class TestInviteActorUseCases:
         dl.create(invitee)
         dl.create(case_actor)
         dl.create(case)
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+
+        case_manager_participant = CaseParticipant(
+            id_=f"{case.id_}/participants/case-actor-p",
+            attributed_to=case_actor_id,
+            context=case.id_,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        dl.create(case_manager_participant)
+        case.case_participants.append(case_manager_participant.id_)
+        case.actor_participant_index[case_actor_id] = (
+            case_manager_participant.id_
+        )
+        dl.save(case)
         dl.create(invite)
 
         first = _seed_ledger_entry(
@@ -510,8 +549,10 @@ class TestInviteActorUseCases:
             kwargs["entry"]
             for _, kwargs in sync_port.send_announce_log_entry.call_args_list
         ]
-        # Backfill sends entries 0 and 1; CommitCaseLedgerEntryNode fans out
-        # the new accept_invite entry (2) to all participants via sync_port.
+        # Commit-first ordering: commit runs before invitee is registered, so
+        # commit fan-out does NOT include the invitee.  Backfill runs after
+        # invitee is registered with post-commit target (2), sending entries
+        # 0, 1, and 2 to the invitee.
         assert [entry.log_index for entry in announced_entries] == [0, 1, 2]
         assert announced_entries[0].entry_hash == first.entry_hash
         assert announced_entries[1].entry_hash == second.entry_hash
@@ -521,8 +562,10 @@ class TestInviteActorUseCases:
         ).id_
         state = cast(Any, dl.read(state_id))
         assert state is not None
-        assert state.join_backfill_target_index == 1
-        assert state.join_backfill_last_sent_index == 1
+        # With commit-first, the accept_invite entry (2) is committed before
+        # the invitee is registered, so backfill target includes entry 2.
+        assert state.join_backfill_target_index == 2
+        assert state.join_backfill_last_sent_index == 2
         assert state.join_backfill_complete is True
 
     def test_accept_invite_resumes_backfill_without_duplicate_entries(
@@ -548,6 +591,7 @@ class TestInviteActorUseCases:
         case = VulnerabilityCase(
             id_="https://example.org/cases/caseLJ2",
             name="TEST-LATE-JOIN-RESUME",
+            attributed_to=case_actor_id,
         )
         case_actor.context = case.id_
         invite = rm_invite_to_case_activity(
@@ -559,6 +603,23 @@ class TestInviteActorUseCases:
         dl.create(invitee)
         dl.create(case_actor)
         dl.create(case)
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+
+        case_manager_participant = CaseParticipant(
+            id_=f"{case.id_}/participants/case-actor-p",
+            attributed_to=case_actor_id,
+            context=case.id_,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        dl.create(case_manager_participant)
+        case.case_participants.append(case_manager_participant.id_)
+        case.actor_participant_index[case_actor_id] = (
+            case_manager_participant.id_
+        )
+        dl.save(case)
         dl.create(invite)
 
         first = _seed_ledger_entry(
@@ -628,10 +689,11 @@ class TestInviteActorUseCases:
             kwargs["entry"]
             for _, kwargs in sync_port.send_announce_log_entry.call_args_list
         ]
-        # Backfill resumes from entry 1; CommitCaseLedgerEntryNode fans out
-        # the new accept_invite entry (2) to all participants via sync_port.
-        assert [entry.log_index for entry in announced_entries] == [1, 2]
-        assert announced_entries[0].entry_hash == second.entry_hash
+        # Commit-first ordering: CommitCaseLedgerEntryNode fans out the new
+        # accept_invite entry (2) first (invitee already registered), then
+        # backfill resumes from the pre-commit target index and sends entry 1.
+        assert [entry.log_index for entry in announced_entries] == [2, 1]
+        assert announced_entries[1].entry_hash == second.entry_hash
         assert all(
             entry.entry_hash != first.entry_hash for entry in announced_entries
         )
@@ -664,6 +726,7 @@ class TestInviteActorUseCases:
         case = VulnerabilityCase(
             id_="https://example.org/cases/caseLJ3",
             name="TEST-LATE-JOIN-NO-MARKER",
+            attributed_to=case_actor_id,
         )
         case_actor.context = case.id_
         participant = VultronParticipant(
@@ -671,8 +734,25 @@ class TestInviteActorUseCases:
             attributed_to=invitee_id,
             context=case.id_,
         )
-        case.case_participants = [participant.id_]
-        case.actor_participant_index = {invitee_id: participant.id_}
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+
+        case_manager_participant = CaseParticipant(
+            id_=f"{case.id_}/participants/case-actor-p",
+            attributed_to=case_actor_id,
+            context=case.id_,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        case.case_participants = [
+            participant.id_,
+            case_manager_participant.id_,
+        ]
+        case.actor_participant_index = {
+            invitee_id: participant.id_,
+            case_actor_id: case_manager_participant.id_,
+        }
         invite = rm_invite_to_case_activity(
             invitee,
             target=VulnerabilityCaseStub(id_=case.id_),
@@ -682,6 +762,7 @@ class TestInviteActorUseCases:
         dl.create(invitee)
         dl.create(case_actor)
         dl.create(participant)
+        dl.create(case_manager_participant)
         dl.create(case)
         dl.create(invite)
 
@@ -721,9 +802,10 @@ class TestInviteActorUseCases:
             kwargs["entry"]
             for _, kwargs in sync_port.send_announce_log_entry.call_args_list
         ]
-        # Backfill sends entries 0 and 1; CommitCaseLedgerEntryNode fans out
-        # the new accept_invite entry (2) to all participants via sync_port.
-        assert [entry.log_index for entry in announced_entries] == [0, 1, 2]
+        # Commit-first ordering: CommitCaseLedgerEntryNode fans out the new
+        # accept_invite entry (2) first (invitee already registered), then
+        # backfill sends entries 0 and 1 that the invitee missed.
+        assert [entry.log_index for entry in announced_entries] == [2, 0, 1]
 
     def test_accept_invite_backfill_runs_when_announce_port_missing(
         self, make_payload
@@ -748,6 +830,7 @@ class TestInviteActorUseCases:
         case = VulnerabilityCase(
             id_="https://example.org/cases/caseLJ4",
             name="TEST-LATE-JOIN-NO-ANNOUNCE",
+            attributed_to=case_actor_id,
         )
         case_actor.context = case.id_
         invite = rm_invite_to_case_activity(
@@ -759,6 +842,23 @@ class TestInviteActorUseCases:
         dl.create(invitee)
         dl.create(case_actor)
         dl.create(case)
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+
+        case_manager_participant = CaseParticipant(
+            id_=f"{case.id_}/participants/case-actor-p",
+            attributed_to=case_actor_id,
+            context=case.id_,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        dl.create(case_manager_participant)
+        case.case_participants.append(case_manager_participant.id_)
+        case.actor_participant_index[case_actor_id] = (
+            case_manager_participant.id_
+        )
+        dl.save(case)
         dl.create(invite)
 
         _seed_ledger_entry(
@@ -803,3 +903,90 @@ class TestInviteActorUseCases:
         state = cast(Any, dl.read(state_id))
         assert state is not None
         assert state.join_backfill_complete is True
+
+
+class TestAcceptInviteRolesAC4:
+    """AC-4: CreateInviteeParticipantAtAcceptedNode reads roles from Invite."""
+
+    def test_roles_from_invite_set_on_participant(self, make_payload):
+        """AC-4: Accept(Invite) causes new participant to inherit roles from Invite."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.base.objects.actors import as_Organization
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        invitee_id = "https://example.org/users/vendor2"
+        invitee = as_Organization(id_=invitee_id)
+        case = VulnerabilityCase(
+            id_="https://example.org/cases/ac4-test",
+            name="AC-4 roles test",
+        )
+        invite = rm_invite_to_case_activity(
+            invitee,
+            target=VulnerabilityCaseStub(id_=case.id_),
+            actor="https://example.org/users/owner",
+            id_="https://example.org/cases/ac4-test/invitations/1",
+            roles=["vendor"],
+        )
+        dl.create(invitee)
+        dl.create(case)
+        dl.create(invite)
+
+        accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
+        event = make_payload(accept)
+        AcceptInviteActorToCaseReceivedUseCase(
+            dl, event, sync_port=MagicMock()
+        ).execute()
+
+        reloaded_case = cast(Any, dl.read(case.id_))
+        participant_id = reloaded_case.actor_participant_index.get(invitee_id)
+        assert (
+            participant_id is not None
+        ), "invitee must be registered as participant"
+        participant = cast(Any, dl.get(id_=participant_id))
+        assert participant is not None
+        assert (
+            CVDRole.VENDOR in participant.case_roles
+        ), "AC-4: participant case_roles must include VENDOR from Invite"
+
+    def test_no_roles_invite_gives_empty_case_roles(self, make_payload):
+        """AC-4 negative: Invite without roles gives participant case_roles=[]."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.wire.as2.vocab.base.objects.actors import as_Organization
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        invitee_id = "https://example.org/users/vendor3"
+        invitee = as_Organization(id_=invitee_id)
+        case = VulnerabilityCase(
+            id_="https://example.org/cases/ac4-neg",
+            name="AC-4 negative",
+        )
+        invite = rm_invite_to_case_activity(
+            invitee,
+            target=VulnerabilityCaseStub(id_=case.id_),
+            actor="https://example.org/users/owner",
+            id_="https://example.org/cases/ac4-neg/invitations/1",
+        )
+        dl.create(invitee)
+        dl.create(case)
+        dl.create(invite)
+
+        accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
+        event = make_payload(accept)
+        AcceptInviteActorToCaseReceivedUseCase(
+            dl, event, sync_port=MagicMock()
+        ).execute()
+
+        reloaded_case = cast(Any, dl.read(case.id_))
+        participant_id = reloaded_case.actor_participant_index.get(invitee_id)
+        participant = cast(Any, dl.get(id_=participant_id))
+        assert participant is not None
+        assert (
+            participant.case_roles == []
+        ), "Participant with no-roles invite must have empty case_roles"

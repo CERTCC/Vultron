@@ -46,12 +46,14 @@ from vultron.core.behaviors.case.nodes.participant.owner import (
     ResolveOwnerInitialStatusNode,
     ShouldAdvanceOwnerToAcceptedNode,
 )
+from vultron.core.behaviors.case.nodes.participant._bootstrap import (
+    EnsureReporterParticipantAtAcceptedNode,
+)
 from vultron.core.behaviors.case.nodes.participant.participant_add import (
     AttachParticipantToCaseNode,
     CaseHasActiveEmbargoNode,
     CaseHasNoActiveEmbargoNode,
     CreateParticipantNode,
-    EnsureReporterParticipantAtAcceptedNode,
     QueueAddParticipantNotificationNode,
     RecordParticipantAddedEventNode,
     ResolveParticipantAcceptedStatusNode,

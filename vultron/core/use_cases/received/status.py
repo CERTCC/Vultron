@@ -119,15 +119,19 @@ class CreateParticipantStatusReceivedUseCase:
 class AddParticipantStatusToParticipantReceivedUseCase:
     """Process a received Add(ParticipantStatus, CaseParticipant) message.
 
-    Delegates all five DEMOMA-07-003 steps to the ``AddParticipantStatusBT``
+    Delegates DEMOMA-07-003 steps to the ``AddParticipantStatusBT``
     behavior tree:
     1. Verify sender is a known case participant.
     2. Append the ParticipantStatus to the CaseParticipant record.
-    3. Broadcast the status update to all other case participants.
-    4. If the new status signals public awareness (CS.P) and the sender
+    3. If the new status signals public awareness (CS.P) and the sender
        holds the CASE_OWNER role, initiate embargo teardown.
-    5. If all participant RM states are CLOSED, log case closure
-       (prototype: log-only).
+    4. If all participant RM states are CLOSED and this actor is the
+       CASE_MANAGER, emit Leave(VulnerabilityCase) to trigger case closure.
+
+    The tree runs with ``actor_id=receiving_actor_id`` so that
+    ``CheckIsCaseManagerNode`` (step 4 gate) correctly evaluates the
+    executing actor, not the sender.  Sender identity is supplied via
+    constructor args to the relevant nodes.
 
     Per specs/multi-actor-demo.yaml DEMOMA-07-003,
         specs/behavior-tree-integration.yaml BT-06-001.
@@ -154,13 +158,25 @@ class AddParticipantStatusToParticipantReceivedUseCase:
             )
             return
 
+        receiving_actor_id = request.receiving_actor_id
+        if receiving_actor_id is None:
+            logger.debug(
+                "AddParticipantStatusToParticipantReceivedUseCase:"
+                " receiving_actor_id not set — skipping (CLP-10-005)"
+            )
+            return
+
         from vultron.core.behaviors.bridge import BTBridge
         from vultron.core.behaviors.status.add_participant_status_tree import (
             add_participant_status_tree,
         )
 
+        # Resolve case_id for the guarded-commit subtree (pre-flight lookup).
+        case_id = self._resolve_case_id_for_log_cascade()
+
         tree = add_participant_status_tree(
             request=request,
+            case_id=case_id,
         )
         bridge = BTBridge(
             datalayer=self._dl,
@@ -168,8 +184,9 @@ class AddParticipantStatusToParticipantReceivedUseCase:
         )
         result = bridge.execute_with_setup(
             tree=tree,
-            actor_id=request.actor_id,
+            actor_id=receiving_actor_id,
             activity=request,
+            sync_port=self._sync_port,
         )
 
         if result.status != Status.SUCCESS:
@@ -179,15 +196,6 @@ class AddParticipantStatusToParticipantReceivedUseCase:
                 request.activity_id,
                 reason or result.feedback_message,
             )
-            # Do NOT cascade on BT failure here.  Unlike RemoveEmbargo (where
-            # FAILURE means "already cleared" — an idempotent, non-error
-            # outcome), a status-update BT failure means the update itself was
-            # rejected (e.g., participant not found, invalid state transition).
-            # Broadcasting a log entry for a rejected update would mislead
-            # peers into believing the status was accepted.
-            return
-
-        self._commit_log_cascade_bt()
 
     def _resolve_case_id_for_log_cascade(self) -> str | None:
         request = self._request
@@ -207,64 +215,3 @@ class AddParticipantStatusToParticipantReceivedUseCase:
                 if context:
                     return str(context)
         return None
-
-    def _is_case_actor_receiver(
-        self, *, case_id: str, case_actor_id: str
-    ) -> bool:
-        receiving_actor_id = self._request.receiving_actor_id
-        if receiving_actor_id is None:
-            logger.warning(
-                "add_participant_status: missing receiving_actor_id for case '%s'"
-                " — skipping canonical commit to avoid non-CaseActor append",
-                case_id,
-            )
-            return False
-        if receiving_actor_id != case_actor_id:
-            logger.debug(
-                "add_participant_status: receiving actor is not the CaseActor for"
-                " case '%s' — skipping canonical commit",
-                case_id,
-            )
-            return False
-        return True
-
-    def _commit_log_cascade_bt(self) -> None:
-        """Commit a CaseLedgerEntry via CommitCaseLedgerEntryNode (PCR-08-003).
-
-        Derives case_id from the inline status object's ``context`` field.
-        Uses ``receiving_actor_id`` (the CaseActor's canonical ID) when
-        available, falling back to a DataLayer lookup for the Service object
-        whose ``context`` matches *case_id*.
-        """
-        from vultron.core.behaviors.bridge import BTBridge
-        from vultron.core.behaviors.case.nodes import CommitCaseLedgerEntryNode
-        from vultron.core.use_cases.received.actor import _find_case_actor_id
-
-        request = self._request
-        case_id = self._resolve_case_id_for_log_cascade()
-        if case_id is None:
-            logger.warning(
-                "add_participant_status: cannot determine case_id"
-                " — skipping log entry cascade (PCR-08-003)"
-            )
-            return
-
-        case_actor_id = _find_case_actor_id(self._dl, case_id)
-        if case_actor_id is None:
-            logger.warning(
-                "add_participant_status: cannot resolve CaseActor for case '%s'"
-                " — skipping log entry cascade (PCR-08-003)",
-                case_id,
-            )
-            return
-        if not self._is_case_actor_receiver(
-            case_id=case_id, case_actor_id=case_actor_id
-        ):
-            return
-
-        BTBridge(datalayer=self._dl).execute_with_setup(
-            tree=CommitCaseLedgerEntryNode(case_id=case_id),
-            actor_id=case_actor_id,
-            activity=request,
-            sync_port=self._sync_port,
-        )

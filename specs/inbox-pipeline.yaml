@@ -9,7 +9,7 @@ description: >-
   global in `inbox_handler.py` is unchanged; `InboxPipeline` is a parallel
   surface for tests and future adapter variants.
 version: 1.0.0
-kind: domain
+kind: implementation
 scope:
 - prototype
 - production

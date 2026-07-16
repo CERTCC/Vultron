@@ -38,6 +38,7 @@ from collections.abc import Iterable
 from typing import Protocol
 
 from vultron.core.models.protocols import PersistableModel
+from vultron.core.models.protocol_pair import ProtocolPair
 from vultron.core.ports.datalayer import StorableRecord
 
 
@@ -74,6 +75,16 @@ class CasePersistence(Protocol):
     def find_case_by_short_id(
         self, short_id: str
     ) -> PersistableModel | None: ...
+
+    def find_protocol_pair(
+        self,
+        case_id: str,
+        request_event_type: str,
+        object_id: str,
+        reply_event_types: frozenset[str],
+    ) -> ProtocolPair: ...
+
+    def delete(self, table: str, id_: str) -> bool: ...
 
 
 class CaseOutboxPersistence(CasePersistence, Protocol):

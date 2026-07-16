@@ -43,6 +43,8 @@ See also:
 
 from typing import Any, Protocol
 
+from vultron.core.models.protocols import CaseModel
+
 
 class TriggerActivityPort(Protocol):
     """Driven port for trigger-related outbound wire activity construction.
@@ -136,6 +138,34 @@ class TriggerActivityPort(Protocol):
         """
         ...
 
+    def validate_report(
+        self,
+        offer_id: str,
+        report_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist an ``Accept(Offer)`` validate-report activity.
+
+        Returns ``(activity_id, activity_dict)``.
+        Per ADR-0021 CLP-10-001: routes the activity to the Case Actor.
+        """
+        ...
+
+    def ack_report(
+        self,
+        offer_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist a ``Read(Offer(Report))`` ack-report activity.
+
+        Per ADR-0021 CLP-10-001: routes the activity to the Case Actor so the
+        CaseActor can commit a canonical ledger entry for this event.
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
     # -----------------------------------------------------------------------
     # Cases
     # -----------------------------------------------------------------------
@@ -148,6 +178,20 @@ class TriggerActivityPort(Protocol):
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist a ``Create(VulnerabilityCase)`` activity.
 
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def close_case(
+        self,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist a ``Leave(VulnerabilityCase)`` close-case activity.
+
+        Per ADR-0021 CLP-10-001: routes the activity to the Case Actor so the
+        CaseActor can commit a canonical ledger entry.
         Returns ``(activity_id, activity_dict)``.
         """
         ...
@@ -188,6 +232,26 @@ class TriggerActivityPort(Protocol):
         """
         ...
 
+    def create_case_proposal(
+        self,
+        actor: str,
+        report_id: str,
+        case_actor_id: str,
+        summary: str | None = None,
+        to: list[str] | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist a ``Create(as_CaseProposal)`` activity.
+
+        Builds an ``as_CaseProposal`` from the ``VulnerabilityReport``
+        identified by ``report_id``, addressed to the case-actor service at
+        ``case_actor_id``, and persists ``Create(as_CaseProposal)`` to the
+        DataLayer.
+
+        Per ``specs/case-proposal.yaml`` CP-04-001, CP-04-002.
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
     # -----------------------------------------------------------------------
     # Actors (invitations, recommendations)
     # -----------------------------------------------------------------------
@@ -198,14 +262,23 @@ class TriggerActivityPort(Protocol):
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        cc: list[str] | None = None,
         id_: str | None = None,
         attributed_to: str | None = None,
+        roles: list[str] | None = None,
+        target: CaseModel | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist an ``Invite(Actor, Case)`` activity.
 
         ``actor`` SHOULD be the Case Actor ID (PCR-08-007); ``attributed_to``
         MAY carry the case owner's ID for attribution.
+        ``cc`` MAY carry the Case Actor's own ID for self-archival (CLP-10-001).
         ``id_`` allows callers to supply a deterministic ID for idempotency.
+        ``roles`` carries the intended CVD roles for the invitee (CM-17-003).
+        ``target`` may be a core ``VulnerabilityCase`` (the adapter projects it
+        to an enriched stub including ``end_time`` when ``em_state == EM.ACTIVE``),
+        a pre-built stub, or a bare URI string.  When ``None``, the adapter reads
+        the case from the DataLayer by ``case_id`` (CM-17-002).
         Returns ``(activity_id, activity_dict)``.
         """
         ...
@@ -232,6 +305,64 @@ class TriggerActivityPort(Protocol):
         """Create and persist a ``Offer(Actor, Case)`` recommendation activity.
 
         ``id_`` allows callers to supply a deterministic ID for idempotency.
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def offer_actor_to_case(
+        self,
+        recommender_id: str,
+        recommended_id: str,
+        case_id: str,
+        actor: str,
+        origin: str | None = None,
+        to: list[str] | None = None,
+        id_: str | None = None,
+        roles: list[Any] | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist an ``Offer(CaseParticipant, Case)`` activity.
+
+        Transforms the original ``Offer(Actor, Case)`` into an
+        ``Offer(CaseParticipant{actor, roles}, Case)`` addressed to the
+        Case Owner.  ``roles`` defaults to ``[CVDRole.VENDOR]`` when
+        ``None`` (CM-16-003).  ``origin`` carries the original recommender
+        Offer ID so the Case Owner can trace the causal chain (CM-16-004).
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def emit_accept_actor_recommendation(
+        self,
+        recommender_id: str,
+        recommendation_id: str,
+        recommended_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+        id_: str | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist an ``AcceptActorRecommendation`` activity.
+
+        Sent by the CaseActor to the original recommender after the Case Owner
+        accepts the Offer(CaseParticipant) (CM-16-006 step 3).
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def emit_reject_actor_recommendation(
+        self,
+        recommender_id: str,
+        recommendation_id: str,
+        recommended_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+        id_: str | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist a ``RejectActorRecommendation`` activity.
+
+        Sent by the CaseActor to the original recommender after the Case Owner
+        rejects the Offer(CaseParticipant) (CM-16-007 step 3).
         Returns ``(activity_id, activity_dict)``.
         """
         ...
@@ -317,6 +448,26 @@ class TriggerActivityPort(Protocol):
         Ephemerally reconstructs the original Offer (using ``offer_id``,
         ``case_id``, ``participant_id``, and ``vendor_id``) before building
         the Accept so that ``Accept.object_`` is a typed
+        ``_OfferCaseManagerRoleActivity``, not a bare string IRI.
+
+        Returns the activity ID.
+        """
+        ...
+
+    def reject_case_manager_role(
+        self,
+        offer_id: str,
+        case_id: str,
+        participant_id: str,
+        vendor_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> str:
+        """Create and persist a ``Reject(_OfferCaseManagerRoleActivity)``.
+
+        Ephemerally reconstructs the original Offer (using ``offer_id``,
+        ``case_id``, ``participant_id``, and ``vendor_id``) before building
+        the Reject so that ``Reject.object_`` is a typed
         ``_OfferCaseManagerRoleActivity``, not a bare string IRI.
 
         Returns the activity ID.

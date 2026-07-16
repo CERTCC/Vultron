@@ -181,19 +181,24 @@ class CheckLedgerEntryAlreadyStoredNode(DataLayerCondition):
 
 
 _REMOVE_EMBARGO_EVENT = "remove_embargo_event_from_case"
+_ADD_PARTICIPANT_STATUS_EVENT = "add_participant_status_to_participant"
+_ADD_NOTE_TO_CASE_EVENT = "add_note_to_case"
+_ACCEPT_INVITE_ACTOR_TO_CASE_EVENT = "accept_invite_actor_to_case"
 
 
-class IsNotRemoveEmbargoEventNode(DataLayerCondition):
-    """Guard: return SUCCESS when this log entry is *not* a remove-embargo event.
+class IsRemoveEmbargoEventNode(DataLayerCondition):
+    """Precondition: return SUCCESS when this log entry IS a remove-embargo event.
 
-    Used as the first child of the ``LogEntryEventEffects`` Selector in
-    ``AnnounceLogEntryReceivedBT``.  When the event type does *not* require
-    any side-effects (i.e. it is not ``remove_embargo_event_from_case``), the
-    Selector short-circuits to SUCCESS without running the teardown branch.
-    When the event *is* a remove-embargo event, FAILURE is returned so the
-    Selector proceeds to ``ApplyEmbargoTeardownNode``.
+    Used as the precondition in the ``EmbargoEffects`` Selector's inner
+    Sequence in ``AnnounceLogEntryReceivedBT``::
 
-    Per specs/behavior-tree-integration.yaml BT-06-001.
+        Selector(EmbargoEffects)
+          Sequence
+            IsRemoveEmbargoEventNode   ← SUCCESS iff event_type matches
+            ApplyEmbargoTeardownNode
+          AlwaysSuccess("EmbargoEffectsSkipped")
+
+    Per BTND-08-001, BTND-08-002, BT-06-001.
     """
 
     def setup(self, **kwargs: Any) -> None:
@@ -204,7 +209,91 @@ class IsNotRemoveEmbargoEventNode(DataLayerCondition):
 
     def update(self) -> Status:
         entry = _require_log_entry(self.blackboard.activity, self.name)
-        if entry.event_type != _REMOVE_EMBARGO_EVENT:
+        if entry.event_type == _REMOVE_EMBARGO_EVENT:
+            return Status.SUCCESS
+        return Status.FAILURE
+
+
+class IsParticipantStatusEventNode(DataLayerCondition):
+    """Precondition: return SUCCESS when this log entry IS a participant-status event.
+
+    Used as the precondition in the ``ParticipantStatusEffects`` Selector's
+    inner Sequence in ``AnnounceLogEntryReceivedBT``::
+
+        Selector(ParticipantStatusEffects)
+          Sequence
+            IsParticipantStatusEventNode   ← SUCCESS iff event_type matches
+            ApplyParticipantStatusFromLedgerNode
+          AlwaysSuccess("ParticipantStatusEffectsSkipped")
+
+    Per BTND-08-001, BTND-08-002, DEMOMA-07-003 step 3.
+    """
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="activity", access=py_trees.common.Access.READ
+        )
+
+    def update(self) -> Status:
+        entry = _require_log_entry(self.blackboard.activity, self.name)
+        if entry.event_type == _ADD_PARTICIPANT_STATUS_EVENT:
+            return Status.SUCCESS
+        return Status.FAILURE
+
+
+class IsAddNoteEventNode(DataLayerCondition):
+    """Precondition: return SUCCESS when this log entry IS an add-note event.
+
+    Used as the precondition in the ``NoteEffects`` Selector's inner
+    Sequence in ``AnnounceLogEntryReceivedBT``::
+
+        Selector(NoteEffects)
+          Sequence
+            IsAddNoteEventNode   ← SUCCESS iff event_type matches
+            ApplyNoteFromLedgerNode
+          AlwaysSuccess("NoteEffectsSkipped")
+
+    Per BTND-08-001, BTND-08-002, SYNC-02-002.
+    """
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="activity", access=py_trees.common.Access.READ
+        )
+
+    def update(self) -> Status:
+        entry = _require_log_entry(self.blackboard.activity, self.name)
+        if entry.event_type == _ADD_NOTE_TO_CASE_EVENT:
+            return Status.SUCCESS
+        return Status.FAILURE
+
+
+class IsInviteAcceptEventNode(DataLayerCondition):
+    """Precondition: return SUCCESS when this log entry IS an accept-invite event.
+
+    Used as the precondition in the ``InviteAcceptEffects`` Selector's inner
+    Sequence in ``AnnounceLogEntryReceivedBT``::
+
+        Selector(InviteAcceptEffects)
+          Sequence
+            IsInviteAcceptEventNode   ← SUCCESS iff event_type matches
+            ApplyInviteAcceptFromLedgerNode
+          AlwaysSuccess("InviteAcceptEffectsSkipped")
+
+    Per BTND-08-001, BTND-08-002, SYNC-02-002, DEMOMA-07-003.
+    """
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="activity", access=py_trees.common.Access.READ
+        )
+
+    def update(self) -> Status:
+        entry = _require_log_entry(self.blackboard.activity, self.name)
+        if entry.event_type == _ACCEPT_INVITE_ACTOR_TO_CASE_EVENT:
             return Status.SUCCESS
         return Status.FAILURE
 
@@ -214,9 +303,9 @@ class CheckLedgerFreshnessNode(DataLayerCondition):
 
     "Fresh" means the actor's local ledger entries for the case form a
     contiguous, hash-verified sequence from ``log_index=0``
-    (``prev_log_hash == GENESIS_HASH``) through the actor's highest stored
-    entry.  The actor does **not** need to be at the CaseActor's current tip
-    — lagging is permitted so long as the local prefix has no gaps.
+    (``prev_log_hash == <per-case genesis hash>``) through the actor's highest
+    stored entry.  The actor does **not** need to be at the CaseActor's current
+    tip — lagging is permitted so long as the local prefix has no gaps.
 
     An empty local ledger is trivially fresh (the acknowledged prefix is the
     empty prefix).

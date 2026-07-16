@@ -163,6 +163,16 @@ def _make_lifespan(
             monitor = OutboxMonitor()
             monitor.start()
 
+            # Retry any Create(VulnerabilityCase) activities that were
+            # left pending from a previous process run (CP-05-005, #1139).
+            # The OutboxMonitor is started first so it can drain the
+            # re-queued activities immediately after startup.
+            from vultron.adapters.driving.fastapi.pending_retry import (
+                retry_pending_create_case_activities,
+            )
+
+            retry_pending_create_case_activities()
+
         yield
 
         if monitor is not None:

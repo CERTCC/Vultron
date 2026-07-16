@@ -12,6 +12,7 @@ description: >
 
 ## Quick Start
 
+0. Sync the worktree to `origin/main` before loading any context.
 1. Invoke `orient-agent` to load baseline context.
 2. Select a single target issue (auto or explicit) and fail fast on blockers.
 3. Claim the issue.
@@ -19,6 +20,19 @@ description: >
 5. Implement, validate, code-review, open PR, archive.
 
 ## Workflow
+
+### Phase 0 — Sync
+
+Move the worktree HEAD to `origin/main` before loading any context. Do **not**
+use `git checkout main` — that branch may be checked out in another worktree.
+
+```bash
+git fetch origin main && git reset --hard origin/main
+```
+
+If this fails, stop and investigate before proceeding. On success, `orient-agent`
+reads fresh specs/ADRs/notes, and the task branch created by `claim-issue.sh` in
+Phase 2 will be rooted at the latest `origin/main` commit.
 
 ### Phase 1 — Orient
 
@@ -69,13 +83,48 @@ Invoke the `orient-agent` skill.
 
 3. Pick the highest-priority candidate.
 
-4. Fail-fast blocker gate on the selected issue (auto-selected or explicit):
+4. **Empty-Epic gate** — applies to both auto-selected and explicit issues:
+
+   Query the selected issue's type and sub-issue count:
+
+   ```bash
+   gh api graphql -f query='{
+     repository(owner:"CERTCC", name:"Vultron") {
+       issue(number: <ISSUE_NUMBER>) {
+         issueType { name }
+         subIssues(first: 1) { totalCount }
+         labels(first: 20) { nodes { name } }
+       }
+     }
+   }'
+   ```
+
+   If `issueType.name == "Epic"` and `subIssues.totalCount == 0`:
+
+   1. Apply `needs-decomposition` label if not already present:
+
+      ```bash
+      gh issue edit <ISSUE_NUMBER> --repo CERTCC/Vultron \
+        --add-label "needs-decomposition"
+      ```
+
+   2. Post an actionable comment on the Epic:
+
+      ```bash
+      gh issue comment <ISSUE_NUMBER> --repo CERTCC/Vultron \
+        --body "No implementable sub-issues found. Run \`/plan-issue <ISSUE_NUMBER>\` to decompose this Epic into Tasks before building."
+      ```
+
+   3. Tell the user: "Epic #N has no sub-issues and cannot be built yet. Run `/plan-issue N` to decompose it into Tasks first."
+   4. **Stop.** Do not claim, branch, or proceed.
+
+5. Fail-fast blocker gate on the selected issue (auto-selected or explicit):
 
    - Query `blockedBy` for the issue and filter to `state=OPEN`.
    - If any OPEN blockers exist, print blocker numbers/titles and stop.
    - Do not claim, branch, or deepen context when blocked.
 
-5. **Claim the Issue**:
+6. **Claim the Issue**:
 
    ```bash
    bash .agents/skills/shared/claim-issue.sh <N> task <slug>
@@ -83,7 +132,7 @@ Invoke the `orient-agent` skill.
 
    Abort immediately if this exits non-zero.
 
-6. Fetch the issue body and comments. Use the content as implementation
+7. Fetch the issue body and comments. Use the content as implementation
    context throughout Phases 3–5.
 
 ### Phase 3 — Deepen Context
@@ -106,18 +155,36 @@ Invoke `deepen-context` with focus hints derived from the issue body
    bash .agents/skills/shared/add-to-project.sh "${NEW_ISSUE}"
    ```
 
-   Record the dependency in `plan/BUILD_LEARNINGS.md` and stop.
+   Record the dependency as a learning file in `plan/incoming/learnings/` and stop.
 
 4. If more than one prerequisite is required, or the work is non-trivial,
-   record details in `plan/BUILD_LEARNINGS.md` and stop.
+   create a learning file in `plan/incoming/learnings/` and stop.
 
 ### Phase 5 — Implement
 
-1. Implement only the selected task.
-2. Follow project conventions; keep the change focused.
-3. Add or update tests for new or changed behavior.
+See `.claude/skills/shared/completeness-doctrine.md` for the project standard
+on what "done" means — loaded by `orient-agent` in Phase 1.
+
+1. Implement the full intent of the selected task, not just the happy path.
+   Edge cases, error handling, and type correctness are part of the task, not
+   optional add-ons.
+2. Follow project conventions. "Keep the change focused" means do not expand
+   into adjacent unscoped work — it does not mean implement less than the task
+   requires.
+3. Add or update tests for every new or changed behavior. A behavior with no
+   test is not done.
 4. Reuse existing helpers and keep the implementation DRY.
 5. Sub-agents may help, but main-agent validation is mandatory.
+
+**Scope expansion judgment:** If implementing this task reveals adjacent work
+that clearly belongs with it, apply the following:
+
+- Would it require a new GitHub issue, a design decision, or an irreversible
+  change? → Ask the user if present. If unattended, make the best-judgment
+  call, record the rationale as a learning file in `plan/incoming/learnings/`,
+  and continue.
+- Trivially additive (clearly-missing test, obvious type annotation fix)?
+  → Just do it.
 
 ### Phase 6 — Validate
 
@@ -142,50 +209,52 @@ Invoke `deepen-context` with focus hints derived from the issue body
      blockers, not body-text markers).
    - Add a handoff comment on that Bug issue with pickup context for the next
      agent.
-   - Record the Bug link and blocked/unblocked decision in
-     `plan/BUILD_LEARNINGS.md`.
+   - Record the Bug link and blocked/unblocked decision as a learning file in
+     `plan/incoming/learnings/`.
 6. If clean-base proof cannot be obtained in-session, do **not** classify the
    failure as unrelated; continue treating it as branch-owned.
 
 ### Phase 7 — Pre-PR Code Review
 
 Invoke the `code-review` agent against the current branch diff vs `main`.
-Findings are tagged `[BLOCKING]` (fix before continuing) or `[ADVISORY]`
-(log in PR comment after opening).
+
+Findings use the three-category system from
+`.claude/skills/shared/completeness-doctrine.md`:
+
+- **FAIL** — broken, spec violated, changed behavior untested → fix before
+  the PR opens
+- **IMPROVE** — correct but incomplete → fix in this session, document in the
+  PR body
+- **DEFER** — genuinely out of scope → requires creating a follow-up GitHub
+  issue immediately; surface to the user for acknowledgment; do not defer
+  unilaterally
+
+There is no "ADVISORY" category that can be logged and forgotten. Every
+finding is either fixed here or gated via DEFER.
+
+Because this phase runs before the final commit, `git diff main...HEAD` may
+be empty if changes are unstaged. Stage all changed files first (`git add`),
+then pass `git diff --cached` as the diff source for the review, or do a
+draft commit and use `git diff main...HEAD` normally.
 
 ### Phase 8 — Open PR and Finalize
 
 1. Compute diff size: ≤50 lines → `size:S`; 51–300 → `size:M`; 301+ → `size:L`.
    Update the `size:` label on the Issue.
 
-2. Push and open a PR using the structured body template from
-   `.agents/skills/shared/pr-body-guide.md` (implementation PR shape):
+2. Invoke the `create-pr` skill to push and open the PR:
 
-   ```bash
-   git fetch origin main && git rebase origin/main
-   git push -u origin task/<N>-<slug>
-   gh pr create --repo CERTCC/Vultron \
-     --title "<short title>" \
-     --body "- Closes #<N>
-
-   ## Summary
-
-   <1–2 sentences: what this PR does and why>
-
-   ## Changes
-
-   - \`path/to/file.py\`: <what changed>
-
-   ## Verification
-
-   - All N unit tests pass (M new)
-   - Black, flake8, mypy, pyright clean" \
-     --label "size:<X>"
+   ```text
+   type:         implementation
+   title:        <short title>
+   body:         <composed per pr-body-guide.md implementation template>
+   labels:       size:<X>
+   issue_number: <N>
    ```
 
-   If the rebase reports conflicts, stop, resolve them, and re-run validation
-   before pushing. This check must happen immediately before the push, not
-   earlier in the workflow.
+   `create-pr` performs the rebase on `origin/main`, validates, pushes, and
+   returns the PR URL. Use the returned URL in the `archive-history` call
+   below.
 
 3. Post `[ADVISORY]` findings as a PR comment (if any).
 
@@ -198,19 +267,11 @@ Findings are tagged `[BLOCKING]` (fix before continuing) or `[ADVISORY]`
    BODY    = "## Issue #<N> — <title>\n\n<completion summary, PR link>"
    ```
 
-5. Record observations in `plan/BUILD_LEARNINGS.md`
-   (`### YYYY-MM-DD LABEL — description`). Do not write completion summaries
-   here.
+5. Record observations as individual learning files in `plan/incoming/learnings/`
+   (filename: `YYYYMMDD-SLUG.md`; frontmatter: `title`, `type: learning`,
+   `timestamp`, `source`). Do not write completion summaries here.
 
-6. Invoke `commit` if `BUILD_LEARNINGS.md` was updated.
-
-### Phase 9 — Merge Conflict Recovery (if needed)
-
-```bash
-git fetch origin main && git rebase origin/main
-# Success: git push --force-with-lease
-# Failure: post PR comment, add needs-rebase label, stop.
-```
+6. Invoke `commit` if any learning files were created in `plan/incoming/learnings/`.
 
 ## Constraints
 

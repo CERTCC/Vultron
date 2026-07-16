@@ -33,6 +33,7 @@ from datetime import datetime, timezone
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from vultron.core.models.base import NonEmptyString, UriString
+from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
 
@@ -325,6 +326,20 @@ class InviteActorToCaseRequest(BaseModel):
 
     case_id: UriString
     invitee_id: UriString
+    roles: list[CVDRole] | None = None
+
+
+class OfferCaseManagerRoleRequest(BaseModel):
+    """Request body for the offer-case-manager-role trigger endpoint.
+
+    TB-03-001: Must include case_id identifying the target case.
+    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    The Case Actor for the case must already exist in the DataLayer.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    case_id: UriString
 
 
 class NotifyFixReadyRequest(BaseModel):

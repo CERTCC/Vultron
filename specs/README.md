@@ -74,7 +74,9 @@ Load additional files only when the task touches the relevant area. See the
 | Inbox orchestration (core BT module + InboxOutcome seam) | `inbox-orchestration.yaml` |
 | Behavior Trees | `behavior-tree-integration.yaml`, `behavior-tree-node-design.yaml`, `bt-composability.yaml`, `triggerable-behaviors.yaml`, `vultron/core/use_cases/triggers/AGENTS.md` |
 | Case / state management | `case-management.yaml`, `state-machine.yaml`, `case-ledger-processing.yaml` |
-| Protocol conformance | `vultron-protocol-spec.yaml`, `vultron-as2-mapping.yaml` |
+| Lifecycle-staged domain types | `lifecycle-staged-types.yaml`, `notes/lifecycle-staged-types.md` |
+| CaseProposal protocol (distributed case actor initialization) | `case-proposal.yaml` |
+| Protocol conformance | `vultron-protocol-spec.yaml`, `vultron-as2-mapping.yaml`, `message-semantics-mapping.yaml` |
 | Wire vocabulary | `vocabulary-model.yaml` |
 | Activity factory functions | `activity-factories.yaml` |
 | Response generation / outbox | `response-format.yaml`, `outbox.yaml` |
@@ -86,6 +88,7 @@ Load additional files only when the task touches the relevant area. See the
 | Embargo default semantics | `embargo-policy.yaml`, `notes/embargo-default-semantics.md` |
 | Configuration | `configuration.yaml` |
 | Demo / CLI | `demo-cli.yaml`, `multi-actor-demo.yaml` |
+| Demo scenario report tool | `demo-report.yaml` |
 | Event-driven control flow / cascade model | `event-driven-control-flow.yaml`, `notes/event-driven-control-flow.md` |
 | Observability | `observability.yaml` |
 | Security / CI | `ci-security.yaml`, `encryption.yaml` |
@@ -170,11 +173,20 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 
 **Semantic–Wire Mapping**:
 
+- **`message-semantics-mapping.yaml`** - Normative bridge from protocol message
+  shorthand labels (RS, EP, CV, etc.) used in behavioral conformance specs
+  (RMB, EMB, CSB) to their `MessageSemantics` enum values and corresponding AS2
+  wire-format entries in `vultron-as2-mapping.yaml`. Closes the three-hop traceability
+  chain: shorthand → `MessageSemantics` → VAM spec ID. Also explicitly documents
+  shorthands (RE, EE, EK, CE, CK) that have no AS2 semantic dispatch entry.
+  (MSM-01 through MSM-03)
+
 - **`vultron-as2-mapping.yaml`** - Authoritative mapping from each `MessageSemantics`
   enum value to its ActivityStreams 2.0 wire representation: activity type,
   object type, target/context constraints, and nested-pattern conventions
   (VAM-01 through VAM-09). Foundational for hexagonal-architecture wire
-  replaceability (ARCH-07-001).
+  replaceability (ARCH-07-001). VAM items cross-reference MSM items via
+  `satisfies` relationships where protocol shorthands map to this spec.
 
 **Behavior Tree Integration** (optional for complex workflows):
 
@@ -290,6 +302,11 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   workflow trigger and path-filter rules, Dependabot skip condition, Docker layer caching,
   log artifact on failure, extensibility pattern for future scenarios
   (DEMOCI-01 through DEMOCI-03)
+- **`demo-report.yaml`** - Read-only tool that parses demo-run JSONL case-ledger
+  files into a human-readable report: input discovery, the distilled
+  `CaseTimelineEvent` model, markdown and self-contained HTML rendering, the
+  per-actor replica-presence matrix, friendly (non-URI) naming, and test
+  requirements (DRPT-01 through DRPT-05)
 
 ### Actor Profiles and Policies
 
@@ -337,11 +354,11 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 
 ### Project and Agent Guidance
 
-- **`build-workflow.yaml`** - Content policy for `plan/BUILD_LEARNINGS.md`:
-  what belongs in the file, what must not, how the `learn` skill archives
-  processed entries via `uv run append-history learning`, the `learning`
-  history entry type, and skill documentation update requirements
-  (BW-01 through BW-04)
+- **`build-workflow.yaml`** - Content policy for `plan/incoming/learnings/`:
+  individual per-entry files replacing the legacy shared `BUILD_LEARNINGS.md`,
+  file naming and format requirements, how the `learn` skill archives entries
+  via `uv run append-history --from-file`, the `--from-file` CLI flag
+  behaviour, and skill documentation update requirements (BW-01 through BW-06)
 - **`parallel-development.yaml`** - Multi-agent coordination via GitHub Issues:
   issue hierarchy (Epic/Task/Subtask), label taxonomy (`group:`, `size:`,
   `stale-claim`, `needs-rebase`, `specs-notes`), task claiming protocol (branch
@@ -436,9 +453,11 @@ is reserved for `testability.yaml`).
 | `DOCBW` | `docs-build-workflow.yaml` |
 | `CLP` | `case-ledger-processing.yaml` |
 | `CM` | `case-management.yaml` |
+| `CP` | `case-proposal.yaml` |
 | `CS` | `code-style.yaml` |
 | `DC` | `demo-cli.yaml` |
 | `DEMOMA` | `multi-actor-demo.yaml` |
+| `DRPT` | `demo-report.yaml` |
 | `DF` | `diataxis-requirements.yaml` |
 | `DL` | `datalayer.md` |
 | `EH` | `error-handling.yaml` |
@@ -449,6 +468,7 @@ is reserved for `testability.yaml`).
 | `IO` | `inbox-orchestration.yaml` |
 | `IE` | `inbox-endpoint.yaml` |
 | `IMPLTS` | `tech-stack.yaml` |
+| `MSM` | `message-semantics-mapping.yaml` |
 | `MV` | `message-validation.yaml` |
 | `NF` | `notes-frontmatter.yaml` |
 | `SR` | `spec-registry.yaml` |

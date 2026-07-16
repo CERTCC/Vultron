@@ -49,6 +49,7 @@ ENTRIES: list[SemanticEntry] = [
         event_class=CloseCaseReceivedEvent,
         use_case_class=CloseCaseReceivedUseCase,
         wire_activity_class=_RmCloseCaseActivity,
+        include_activity=True,
     ),
     SemanticEntry(
         semantics=MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY,

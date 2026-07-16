@@ -20,8 +20,10 @@ relevant_packages:
 IDEA-260402-01 (design session 2026-04-23) established that Vultron config
 files MUST use YAML for readability and MUST be loaded into Pydantic-backed
 structured objects for type safety. This note captures the design decisions
-and implementation guidance for `vultron/config.py` and the aligned
-`SeedConfig` refactor.
+and implementation guidance for the `vultron/config/` sub-package and the
+aligned `SeedConfig` refactor. The `vultron/config.py` flat module shown in
+the historical sections below was replaced by the sub-package in issue #1342;
+see § "Current Architecture" for the live layout.
 
 See `specs/configuration.yaml` for the formal requirements (CFG-01 through
 CFG-06).
@@ -45,7 +47,11 @@ CFG-06).
 
 ---
 
-## Module Structure
+## Module Structure (historical — superseded by issue #1342)
+
+> **Note**: The layout below was the pre-migration design. The flat
+> `vultron/config.py` no longer exists. See § "Current Architecture" below
+> for the live sub-package layout.
 
 ```text
 vultron/
@@ -55,9 +61,10 @@ vultron/
     seed_config.py   ← SeedConfig (separate; refactored to BaseSettings)
 ```
 
-`vultron/config.py` is a **neutral module** — it MUST NOT import from
-`vultron/adapters/` or `vultron/wire/` or FastAPI. It sits alongside
-`vultron/errors.py` and `vultron/enums.py` as a shared-access layer.
+`vultron/config.py` was a **neutral module** — it MUST NOT import from
+`vultron/adapters/` or `vultron/wire/` or FastAPI. It sat alongside
+`vultron/errors.py` as a shared-access layer. This constraint still applies
+to the `vultron/config/` sub-package.
 
 ---
 
@@ -186,7 +193,23 @@ server:
 
 database:
   db_url: "sqlite:///vultron.db"
+
+actor:
+  auto_create_case: true
+  default_case_roles: []
 ```
+
+The `actor:` section maps to `AppConfig.actor` (`ActorConfig`). It controls
+actor-policy defaults used by BT nodes and the production adapter:
+
+- `auto_create_case`: when `true` (default), create a `VulnerabilityCase`
+  immediately on `Offer(Report)` receipt (ADR-0015 Option 4).  Set to
+  `false` to defer case creation so a pre-case ACK can be sent first
+  (CM-15-001, issue #1133).
+- `default_case_roles`: list of CVD role strings (e.g. `["coordinator"]`)
+  assigned to the local actor when it creates or takes ownership of a case.
+  `CVDRole.CASE_OWNER` is always appended at participant-creation time
+  (BTND-05-002) and does not need to be listed here.
 
 ---
 
@@ -198,6 +221,8 @@ database:
 | `VULTRON_SERVER__BASE_URL` | `server.base_url` | `http://localhost:7999` |
 | `VULTRON_SERVER__LOG_LEVEL` | `server.log_level` | `INFO` |
 | `VULTRON_DATABASE__DB_URL` | `database.db_url` | `sqlite:///vultron.db` |
+| `VULTRON_ACTOR__AUTO_CREATE_CASE` | `actor.auto_create_case` | `true` |
+| `VULTRON_ACTOR__DEFAULT_CASE_ROLES` | `actor.default_case_roles` | `[]` |
 
 ### Legacy env var migration
 
@@ -263,7 +288,7 @@ async def info(config: AppConfig = Depends(get_config)):
 ```python
 # test/test_config.py
 import pytest
-import vultron.config as _cfg_module
+import vultron.config.app as _cfg_module  # _config_cache lives in app.py, not __init__
 from vultron.config import get_config, reload_config
 
 
@@ -310,45 +335,105 @@ def test_env_overrides_yaml(tmp_path, monkeypatch):
 
 ---
 
-## SeedConfig Refactoring Notes
+## Current Architecture: `vultron/config/` Sub-Package
 
-`SeedConfig` in `vultron/demo/seed_config.py` already uses the
-`yaml.safe_load()` + `model_validate()` pattern. The refactor to
-`pydantic-settings` `BaseSettings` makes loading consistent with
-`AppConfig`. Key changes:
+`vultron/config.py` was converted to a `vultron/config/` sub-package in
+issue #1342 (CFG-07-005, CFG-07-006). The current layout:
+
+```text
+vultron/
+  enums/
+    __init__.py  ← re-exports CVDRole, serialize_roles, validate_roles
+    roles.py     ← CVDRole, serialize_roles, validate_roles
+                   (moved from vultron/core/states/roles.py)
+  config/
+    __init__.py  ← public re-exports: AppConfig, ActorConfig, get_config,
+                   reload_config, RunMode, ServerConfig, DatabaseConfig,
+                   YamlConfigSource
+    app.py       ← AppConfig, ServerConfig, DatabaseConfig, RunMode,
+                   YamlConfigSource, get_config(), reload_config()
+    actor.py     ← ActorConfig (moved from vultron/core/models/actor_config.py)
+```
+
+`actor.py` imports `CVDRole` from `vultron.enums.roles` — not from
+`vultron/core/` — satisfying the neutral-module constraint.
+
+`AppConfig` has an `actor: ActorConfig` field (default: `ActorConfig()`) so
+production code reads actor policy via `get_config().actor`.  Actor config is
+also available from the YAML `actor:` section or `VULTRON_ACTOR__*` env vars.
+
+---
+
+## Key-Presence Check Required Before `model_validate`
+
+(ISSUE-1343, 2026-07-15; see `specs/configuration.yaml` CFG-07-008)
+
+Any YAML sub-block loader MUST check whether the target key is present in the
+raw dict **before** calling `model_validate`:
+
+```python
+# ❌ WRONG — model_validate({}) succeeds silently on an all-defaults model
+raw = yaml.safe_load(fh) or {}
+return ActorConfig.model_validate(raw.get("local_actor", {}))
+
+# ✅ CORRECT — return None when key is absent so caller falls through
+raw = yaml.safe_load(fh) or {}
+if "local_actor" not in raw:
+    return None
+return ActorConfig.model_validate(raw["local_actor"])
+```
+
+**Why `model_validate({})` is wrong**: Pydantic's `model_validate` on a
+model where every field has a default does not distinguish "field absent from
+source" from "field explicitly set to default". A dict with no keys validates
+successfully and returns an all-defaults instance. If the loader returns that
+instance, `load_actor_config()` exits early — silently ignoring
+`VULTRON_ACTOR__*` env vars and violating the YAML → env → defaults
+resolution order.
+
+**Pattern**: Whenever a loader reads a YAML sub-block and is supposed to fall
+back to a secondary source, check for key *presence* (not just type), then
+validate. This applies to all config loaders that have a "key absent means
+skip this source" contract.
+
+---
+
+## SeedConfig Refactoring
+
+`SeedConfig` in `vultron/demo/seed_config.py` MUST be migrated to
+`pydantic-settings` `BaseSettings` (issue #1334). Key changes:
 
 - Subclass `BaseSettings` instead of `BaseModel`
-- Set `model_config = {"env_prefix": "VULTRON_", ...}` with appropriate
-  field aliases matching existing env var names
-- Remove `from_env()` and `from_file()` classmethods; `BaseSettings`
-  handles source merging automatically
-- Keep `load()` as a thin wrapper for the `VULTRON_SEED_CONFIG` path
-  override (or replace with a `YamlConfigSource` on `SeedConfig`)
-- `LocalActorConfig` and `PeerActorConfig` stay as plain `BaseModel`
-  since they are sub-models, not top-level settings
+- Drop `from_env()` and `from_file()` classmethods — `BaseSettings` handles
+  source merging automatically
+- Keep `load()` only if `VULTRON_SEED_CONFIG` path override cannot be
+  expressed as a `YamlConfigSource`; otherwise remove it
+- `LocalActorConfig` MUST become a plain `BaseModel` carrying only bootstrap
+  identity fields (`name`, `actor_type`, `id_`) — it MUST NOT extend
+  `ActorConfig` (CFG-07-007). Actor policy fields (`auto_create_case`,
+  `default_case_roles`) are now owned by `AppConfig.actor`
+- `PeerActorConfig` stays as a plain `BaseModel` sub-model
 
 ---
 
 ## Relation to Existing Code
 
-### What this does NOT change
+### Layer rules
 
-- `SeedConfig`'s YAML format and field names (backward-compatible schema)
-- Docker seed-config YAML files in `docker/seed-configs/`
-- Demo scenario actor URL constants (those live in demo scripts, not
-  AppConfig)
-- The `.env` / `.env.example` files for Docker Compose (those set Docker
-  Compose project name, not Vultron app config)
-
-### Layer rules preserved
-
-`vultron/config.py` is a neutral module. The import graph stays clean:
+`vultron/config/` is a neutral sub-package. The import graph:
 
 ```text
-vultron/adapters/   → vultron/config.py   ✅  (adapters may import neutral modules)
-vultron/core/       → vultron/config.py   ✅  (core may import neutral modules)
-vultron/config.py   → vultron/adapters/   ❌  (MUST NOT — neutral modules don't
-                                               import from adapters)
-vultron/config.py   → vultron/core/       ❌  (MUST NOT — neutral modules don't
-                                               import from domain core)
+vultron/adapters/   → vultron/config/   ✅  (adapters may import neutral modules)
+vultron/core/       → vultron/config/   ✅  (core may import neutral modules)
+vultron/config/     → vultron/adapters/ ❌  (MUST NOT)
+vultron/config/     → vultron/core/     ❌  (MUST NOT — use vultron/enums/ instead)
+vultron/enums/      → vultron/core/     ❌  (MUST NOT — enums are bottom-of-stack)
+vultron/enums/      → vultron/config/   ❌  (MUST NOT)
 ```
+
+### Docker seed-config YAML files
+
+Files in `docker/seed-configs/` use the `local_actor:` block for bootstrap
+identity (`name`, `actor_type`, `id`). Actor policy fields that were previously
+in `local_actor:` (`auto_create_case`, `default_case_roles`) must move to a
+separate `config.yaml` `actor:` section in those deployments.

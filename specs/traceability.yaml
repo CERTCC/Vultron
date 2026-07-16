@@ -4,7 +4,7 @@ description: >-
   Requirements for maintaining the traceability matrix that maps user stories to specification
   requirements. `docs/topics/user_stories/`
 version: 1.0.0
-kind: general
+kind: implementation
 scope:
 - prototype
 - production
@@ -39,5 +39,6 @@ groups:
   - id: TRACE-02-002
     priority: SHOULD
     statement: >-
-      Stories with insufficient spec coverage SHOULD be documented in `plan/BUILD_LEARNINGS.md`
-      with specific technical details describing the gap and concrete steps toward remediation
+      Stories with insufficient spec coverage SHOULD be documented as incoming
+      learning files in `plan/incoming/learnings/` with specific technical
+      details describing the gap and concrete steps toward remediation

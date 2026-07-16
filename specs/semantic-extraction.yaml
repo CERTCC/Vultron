@@ -109,3 +109,53 @@ groups:
   - id: SE-05-003
     priority: MUST
     statement: All patterns MUST have unit test coverage
+  - id: SE-05-004
+    priority: SHOULD
+    statement: >-
+      Pattern matching SHOULD be actor-subtype-aware where the semantics of an activity
+      differ based on whether the sender is a `Vendor`, `Coordinator`, `Researcher`, or
+      other `CVDRole`. Patterns that match on object type alone (e.g., `InviteActorToCasePattern`)
+      without inspecting the sender's role produce a single use-case handler that must
+      internally branch; a separate pattern per sender subtype is the preferred decomposition.
+    rationale: >-
+      Open design question (as of 2026-07): `InviteActorToCasePattern` matches regardless
+      of the invitee's role. This is correct for the current single-handler path but will
+      need revisiting when role-specific invite acceptance logic is introduced. This entry
+      marks the known limitation so it is not rediscovered.
+- id: SE-06
+  title: Registry Order Enforcement
+  kind: implementation
+  specs:
+  - id: SE-06-001
+    priority: MUST
+    statement: >-
+      The `ActivityPatternRegistry` MUST include an import-time guard function
+      `_validate_registry_order()` that raises `RegistryOrderError` if any registered
+      `ActivityPattern` appears in the registry in an order that would cause a more-specific
+      pattern to be shadowed by a less-specific one that matches a superset of the same
+      activities.
+    rationale: >-
+      py_trees traverses the registry in insertion order; a less-specific pattern inserted
+      before a more-specific one will match first and the specific case is never reached.
+      This is a silent correctness bug that manifests only for the specific activity
+      combinations the shadowed pattern was meant to handle.
+    relationships:
+    - rel_type: refines
+      spec_id: SE-05-001
+  - id: SE-06-002
+    priority: MUST
+    statement: >-
+      `RegistryOrderError` MUST be a named exception class in the semantic extraction
+      module. It MUST NOT be raised as a generic `ValueError` or `AssertionError`.
+    relationships:
+    - rel_type: implements
+      spec_id: SE-06-001
+  - id: SE-06-003
+    priority: MUST
+    statement: >-
+      The registry order guard MUST have a companion unit test that asserts correct ordering
+      is maintained for all registered patterns. The test MUST fail if the guard raises
+      `RegistryOrderError` on the current registry.
+    relationships:
+    - rel_type: implements
+      spec_id: SE-06-001

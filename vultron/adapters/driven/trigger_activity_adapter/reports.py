@@ -23,6 +23,7 @@ from vultron.wire.as2.factories import (
     rm_close_report_activity,
     rm_invalidate_report_activity,
     rm_submit_report_activity,
+    rm_validate_report_activity,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
@@ -55,6 +56,25 @@ class _ReportsMixin:
         except ValueError:
             logger.warning(
                 "submit_report: activity '%s' already exists — skipping",
+                activity.id_,
+            )
+        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+
+    def validate_report(
+        self,
+        offer_id: str,
+        report_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist an ``Accept(Offer)`` validate-report activity."""
+        offer = cast(Any, self._dl.read(offer_id))
+        activity = rm_validate_report_activity(offer=offer, actor=actor, to=to)
+        try:
+            self._dl.create(activity)
+        except ValueError:
+            logger.warning(
+                "validate_report: activity '%s' already exists — skipping",
                 activity.id_,
             )
         return activity.id_, activity.model_dump(**_DUMP_KWARGS)
@@ -94,6 +114,28 @@ class _ReportsMixin:
         except ValueError:
             logger.warning(
                 "invalidate_report: activity '%s' already exists — skipping",
+                activity.id_,
+            )
+        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+
+    def ack_report(
+        self,
+        offer_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist a ``Read(Offer(Report))`` ack-report activity."""
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+            as_Read,
+        )
+
+        offer = cast(Any, self._dl.read(offer_id))
+        activity = as_Read(object_=offer, actor=actor, to=to)
+        try:
+            self._dl.create(activity)
+        except ValueError:
+            logger.warning(
+                "ack_report: activity '%s' already exists — skipping",
                 activity.id_,
             )
         return activity.id_, activity.model_dump(**_DUMP_KWARGS)

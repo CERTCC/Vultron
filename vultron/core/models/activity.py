@@ -83,12 +83,25 @@ class VultronAccept(VultronActivity):
 
     Mirrors the essential fields of ``as_Accept``.
     ``type_`` is ``"Accept"`` to match the wire value.
+
+    ``result`` carries the URI of the ``VulnerabilityCase`` this Accept
+    refers to.  For a duplicate-proposal response (CP-05-006 AC-2), it is
+    the URI of the *existing* case so the vendor can correlate the
+    acceptance to the already-created case.  For a first-time acceptance
+    it is the URI of the newly-created case.
     """
 
     type_: Literal["Accept"] = Field(
         default="Accept",
         validation_alias="type",
         serialization_alias="type",
+    )
+    result: str | None = Field(
+        default=None,
+        description=(
+            "URI of the VulnerabilityCase this Accept produced or refers to "
+            "(CP-05-006 AC-2)."
+        ),
     )
 
 
@@ -97,10 +110,17 @@ class VultronCreateCaseActivity(VultronActivity):
 
     Mirrors the essential fields of ``as_CreateCase``.
     ``type_`` is ``"Create"`` to match the wire value.
+
+    ``context`` carries the URI of the ``Accept(CaseProposal)`` activity
+    that authorised case creation (CP-05-003 causal traceability).
     """
 
     type_: Literal["Create"] = Field(
         default="Create",
         validation_alias="type",
         serialization_alias="type",
+    )
+    context: str | None = Field(
+        default=None,
+        description="URI of the Accept(CaseProposal) that authorised this Create.",
     )

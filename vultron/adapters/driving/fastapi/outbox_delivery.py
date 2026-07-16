@@ -42,6 +42,7 @@ from vultron.errors import (
     VultronOutboxToFieldMissingError,
 )
 from vultron.wire.as2.vocab.base.links import as_Link
+from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 logger = logging.getLogger(__name__)
@@ -51,6 +52,7 @@ logger = logging.getLogger(__name__)
 # from plain dicts that result from the model_dump() → VultronActivity
 # .model_validate() round-trip.
 _STUB_OBJECT_MODEL_MAP: dict[str, type[BaseModel]] = {
+    "CaseProposal": as_CaseProposal,
     "VulnerabilityCase": VulnerabilityCase,
 }
 
@@ -111,9 +113,15 @@ def _warn_secondary_addressing(
     activity_id: str,
     activity_type: str,
 ) -> None:
+    actor_id = getattr(outbound_activity, "actor", None)
     for addr_field in ("cc", "bto", "bcc"):
         value = getattr(outbound_activity, addr_field, None)
         if value is None or value == []:
+            continue
+        # CLP-10-001: purposeful self-copy — CaseActor adds its own URI to
+        # cc: so ASGI self-delivery routes a copy to its own inbox for ledger
+        # archival.  This is intentional; suppress the OX-08-004 warning.
+        if addr_field == "cc" and actor_id and value == [actor_id]:
             continue
         logger.warning(
             "Outbound %s activity '%s' has `%s:` set."

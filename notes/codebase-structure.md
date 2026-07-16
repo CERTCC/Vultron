@@ -46,7 +46,9 @@ Enums are currently organized across multiple locations in the codebase:
 - `vultron/core/models/events.py` — `MessageSemantics` (domain enum)
 - `vultron/wire/as2/enums.py` — AS2 structural enums (`as_ObjectType`,
   `as_TransitiveActivityType`, etc.)
-- `vultron/enums.py` — backward-compat re-exports only
+- `vultron/enums/` — bottom-of-stack neutral enumeration layer (`CVDRole`,
+  `serialize_roles`, `validate_roles`; MUST NOT import from `vultron/core/`
+  or `vultron/config/`); see `docs/adr/0031-vultron-enums-neutral-layer.md`
 - `vultron/case_states/enums/` — case state enums, split into submodules:
   - `cvss_31.py`
   - `embargo.py`
@@ -492,14 +494,18 @@ back into the behaviors layer, a circular import results.
 `vultron/core/use_cases/_helpers.py` (the neutral package-top-level module).
 This module is importable from both the `behaviors/` layer and the
 `triggers/` sub-package without loading the `triggers` package at all.
-`triggers/_helpers.py` can re-export from `_helpers.py` for callers already
-inside the `triggers` package.
+
+**Migration complete** (PR #1361): `_log_label`, `outbox_ids`, and
+`add_activity_to_outbox` have been moved from `triggers/_helpers.py` to
+`use_cases/_helpers.py`. All callers import from `use_cases._helpers` directly.
+The `triggers/_helpers.py` re-export bridge is no longer needed or present.
 
 **Corollary**: Core domain model classes (e.g., `VultronCase`) should
-implement the same interface methods as their wire-layer counterparts (e.g.,
-`record_event()`) so that Protocol guards like `is_case_model()` return
-`True` for both families. Avoid making the Protocol guard depend on the
-concrete wire-layer class.
+implement the same interface methods as their wire-layer counterparts so that
+Protocol guards like `is_case_model()` return `True` for both families.
+Avoid making the Protocol guard depend on the concrete wire-layer class, and
+never use methods that may be removed as discriminators — use Protocol-declared
+fields instead (see BUILD_LEARNINGS entry IS-CASE-MODEL-DISCRIMINATOR-888).
 
 ### FastAPI response_model Filtering
 
@@ -524,13 +530,23 @@ def get_object_by_key():  # or use Union types for specific subclasses
 add more. FastAPI's `response_model` filtering excludes fields not in the base
 class model.
 
-**Solution**: Remove return type annotations from endpoints that return multiple
-types, or use explicit `Union[Type1, Type2, ...]` if types are known.
+**Solution**:
+
+- *For AS2 endpoints*: Return `AS2JSONResponse(obj)` instead of a plain model
+  instance. `AS2JSONResponse` calls `model_dump(mode="json", by_alias=True,
+  exclude_none=True)` and sets `Content-Type: application/activity+json`,
+  bypassing FastAPI's `response_model` filtering entirely. This is the canonical
+  fix for AS2-typed routes (see `specs/http-protocol.yaml` HTTP-09-002,
+  HTTP-09-003).
+- *For non-AS2 endpoints*: Remove return type annotations from endpoints that
+  return multiple types, or use explicit `Union[Type1, Type2, ...]` if types are
+  known. Do **not** apply `AS2JSONResponse` to generic/non-AS2 routes.
 
 **Verification**: Test API serialization completeness, not just database
 storage. Check that all expected fields appear in JSON responses.
 
-See `specs/http-protocol.yaml` HTTP-08-001 for guidance.
+See `specs/http-protocol.yaml` HTTP-08-001 (root cause) and HTTP-09-002,
+HTTP-09-003 (AS2 endpoint fix).
 
 ### Health Check Readiness Gap
 
@@ -678,3 +694,32 @@ mode without requiring monkeypatching. Use `call_args.args` (not
 `call_args[0]`) when asserting mock positional arguments — the named
 attribute fails clearly if the call shifts to kwargs, while the index
 subscript returns an empty tuple silently.
+
+---
+
+## Logger Names: Verify from Source, Not Assumption
+
+(DEMO-CI-DIAGNOSTICS-951, 2026-06-15)
+
+When writing diagnostic docs, log-filter commands, or structured-logging guidance,
+always verify logger names directly from source — do not infer them from module
+paths.
+
+Two known non-obvious logger names in Vultron:
+
+**Inbox receipt layer (Layer 2 of the 3-layer pipeline)**:
+
+- Logger is `uvicorn.error`
+- **Not** `vultron.adapters.driving.fastapi.routers.actors`
+- The actors router explicitly overrides the module-default logger:
+  `logging.getLogger("uvicorn.error")`
+
+**`PersistLogEntryNode`**:
+
+- Logger is `vultron.core.behaviors.sync.nodes.chain.PersistLogEntryNode`
+  (class-qualified)
+- **Not** the bare module path `vultron.core.behaviors.sync.nodes.chain`
+
+When scoping `caplog` captures in tests (e.g.,
+`caplog.at_level(logging.INFO, logger="...")`), use the class-qualified name
+to avoid receiving unrelated records from other nodes in the same module.

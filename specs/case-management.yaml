@@ -6,6 +6,8 @@ description: >-
   between participant-specific and participant-agnostic state. `notes/bt-integration.md`,
   ActivityPub specification `handler-protocol.md` (HP-00-001, HP-00-002), `actor-knowledge-model.md`
   (AKM-01-001, AKM-01-002). CM-14 (case initialization sequence) sourced from IDEA-26050501.
+  CM-16 (actor suggestion routing) and CM-17 (invitation flow) sourced from ADR-0026
+  design session 2026-07-09.
 version: 1.0.0
 kind: domain
 scope:
@@ -705,3 +707,338 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: CM-14-001
+- id: CM-15
+  title: Case Creation Policy
+  description: >-
+    Requirements for the configurable auto_create_case policy on ActorConfig.
+    Enables pre-case-ACK protocol flows (ADR-0015 post-decision refinement,
+    issue #1133).
+  specs:
+  - id: CM-15-001
+    priority: MUST
+    statement: >-
+      ActorConfig MUST expose an `auto_create_case` boolean field (default: True).
+      When a receiver's auto_create_case is False, processing an inbound
+      Offer(Report) MUST store the VulnerabilityReport and the Offer(Report)
+      activity but MUST NOT create a VulnerabilityCase and MUST leave the
+      receiver's outbox unchanged. The gate MAY be enforced either as a
+      routing-level short-circuit in SubmitReportReceivedUseCase or as an
+      in-tree condition node at the root of create_receive_report_case_tree;
+      the observable outcome (no case, no outbound activities) is what is
+      normative, not the enforcement location.
+    rationale: >-
+      Receivers that follow the Option 3 protocol path (send Read(Offer(Report))
+      before deciding to accept or reject) require the ability to delay case
+      creation. The default (True) preserves the original ADR-0015 Option 4
+      "always create at RM.RECEIVED" behavior for all existing actors and demos.
+      Case creation is protocol-significant behavior (BT-15-001), so the
+      canonical gate lives in the behavior tree as a condition node; the
+      use-case short-circuit is an equivalent optimization that avoids invoking
+      the BT for a decision already known at dispatch time. Either placement
+      yields the same observable outcome, so the requirement is specified in
+      terms of behavior rather than call path.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-12-001
+- id: CM-16
+  title: Actor Suggestion Routing (Recommend-Actor Flow)
+  specs:
+  - id: CM-16-001
+    priority: MUST
+    statement: >-
+      A participant wishing to suggest that another actor be invited to the case MUST
+      send `Offer(object=Actor, target=Case)` to the CaseActor's inbox, not directly
+      to the Case Owner's inbox.
+    rationale: >-
+      All case-scoped protocol messages MUST route through the CaseActor so the event
+      can be recorded in the canonical case ledger before any downstream action is taken
+      (ADR-0021, PCR-08-001).
+    relationships:
+    - rel_type: implements
+      spec_id: PCR-08-001
+  - id: CM-16-002
+    priority: MUST
+    statement: >-
+      When the CaseActor receives `Offer(object=Actor, target=Case)`, it MUST commit a
+      `CaseLedgerEntry` for the received Offer and fan out the entry to all participants
+      BEFORE taking any downstream action.
+    rationale: >-
+      Ledger entries record events that have already occurred; pre-committing a
+      decision before communicating it is not permitted (CLP-10-006 commit ordering).
+    relationships:
+    - rel_type: implements
+      spec_id: CLP-10-006
+  - id: CM-16-003
+    priority: MUST
+    statement: >-
+      After recording the received `Offer(Actor)`, the CaseActor MUST assign a
+      non-empty default role list for the suggested actor via an Evaluator BT node
+      (ADR-0024 shape: Evaluator). The Evaluator MUST return FAILURE if it cannot
+      produce a non-empty role list; the downstream consumer node MUST NOT silently
+      substitute a default for an empty list written by the Evaluator (ADR-0032
+      BT-HELPER-01).
+    note: >-
+      The Evaluator node is a call-out point (ADR-0025 abstraction; ADR-0024 shape:
+      Evaluator) that MAY be replaced by a more sophisticated role-inference
+      implementation in future. The non-empty invariant is enforced at write time so
+      the downstream consumer never needs to treat an empty list as a sentinel.
+      See CM-16-011 and CM-16-012 for the recommended and permitted default values.
+  - id: CM-16-011
+    priority: SHOULD
+    statement: >-
+      The default role list SHOULD be `[CVDRole.VENDOR]` for actors whose type cannot
+      be determined from context, because in CVD cases the most likely role for a
+      newly added participant is Vendor.
+  - id: CM-16-012
+    priority: MAY
+    statement: >-
+      The default role list MAY be `[CVDRole.OTHER]` when the Evaluator can determine
+      that the suggested actor does not fit any known CVD role but still requires case
+      membership (e.g., a security researcher with no vendor affiliation).
+      `CVDRole.OTHER` is the most conservative choice because it makes no assumption
+      about the actor's function in the CVD process.
+  - id: CM-16-013
+    priority: MAY
+    statement: >-
+      The Evaluator's default role assignment MAY be overridden by actor-level
+      configuration (e.g., a policy that maps known actor URIs to specific roles)
+      or by the Case Owner at accept time when the Case Owner selects different
+      roles for the suggested participant.
+    rationale: >-
+      The Case Owner has ultimate authority over who participates in their case
+      and in what role. The Evaluator's output is a suggested starting point to
+      reduce friction, not a binding decision. The Case Owner can always update
+      role assignments to whatever they determine is appropriate.
+  - id: CM-16-004
+    priority: MUST
+    statement: >-
+      The CaseActor MUST transform the received `Offer(Actor)` into
+      `Offer(object=CaseParticipant{attributed_to=actor, case_roles=roles}, target=Case)`
+      and send it to the Case Owner's inbox, with `origin` set to the ID of the original
+      recommender's Offer activity.
+    rationale: >-
+      The Case Owner makes a membership decision about a CaseParticipant (actor + roles),
+      not about a bare Actor identity. The `origin` field preserves the causal chain
+      without a side-channel data store.
+  - id: CM-16-005
+    priority: MAY
+    statement: >-
+      The recommender's `Offer(Actor)` MAY include a `content` or `summary` field
+      explaining why the actor is being suggested. The CaseActor SHOULD forward this
+      text as the `content` of the transformed `Offer(CaseParticipant)` it sends to
+      the Case Owner.
+  - id: CM-16-006
+    priority: MUST
+    statement: >-
+      After receiving `Accept(Offer(CaseParticipant))` from the Case Owner, the CaseActor
+      MUST (1) commit a ledger entry for the Accept, (2) fan out the ledger entry, (3) send
+      `AcceptActorRecommendation` to the original recommender with `in_reply_to` set to
+      the ID of the original recommender's `Offer` activity, and (4) send
+      `Invite(CaseStub[+embargo])` to the suggested actor per CM-17.
+    relationships:
+    - rel_type: implements
+      spec_id: CM-17-001
+  - id: CM-16-007
+    priority: MUST
+    statement: >-
+      After receiving `Reject(Offer(CaseParticipant))` from the Case Owner, the CaseActor
+      MUST (1) commit a ledger entry for the Reject, (2) fan out the ledger entry, and
+      (3) send `RejectActorRecommendation` to the original recommender with `in_reply_to`
+      set to the ID of the original recommender's `Offer` activity.
+  - id: CM-16-008
+    priority: MUST
+    statement: >-
+      When a second `Offer(Actor X, Case)` arrives while a pending decision for Actor X
+      is still outstanding (no Accept or Reject yet received from the Case Owner), the
+      CaseActor MUST record the duplicate recommendation in the ledger and MUST send a
+      `Note` to the Case Owner's inbox indicating that a reinforcing suggestion was
+      received, including the second recommender's identity and any `content` from the
+      Offer. The CaseActor MUST NOT send a second transformed Offer to the Case Owner.
+  - id: CM-16-009
+    priority: MUST
+    statement: >-
+      When a second `Offer(Actor X, Case)` arrives after an Invite has already been sent
+      to Actor X (i.e., the invite is in-flight or the actor is already a participant),
+      the CaseActor MUST record the recommendation in the ledger, fan out the entry, and
+      auto-send `AcceptActorRecommendation` (with `in_reply_to` = original recommender's
+      Offer ID) back to the second recommender. The CaseActor MUST NOT send a duplicate
+      Invite to Actor X.
+  - id: CM-16-010
+    priority: MUST
+    statement: >-
+      In every step of the actor suggestion flow, the CaseActor MUST commit the ledger
+      entry for a protocol event AFTER the corresponding message has been sent or received,
+      never before.
+    rationale: >-
+      Pre-announcing a decision in the ledger before communicating the decision creates
+      a window where the ledger shows an effect without its cause.
+- id: CM-17
+  title: Invitation Flow — Enrichment and Roles
+  specs:
+  - id: CM-17-001
+    priority: MUST
+    statement: >-
+      The `Invite` activity sent by the CaseActor to a new actor MUST include a case
+      stub as the `object`, with the case stub containing at minimum the case ID and
+      type. This requirement is extended by CM-17-002 and CM-17-003.
+  - id: CM-17-002
+    priority: MUST
+    statement: >-
+      When `CaseStatus.em_state == ACTIVE` at the time the Invite is sent, the case stub
+      MUST include at minimum the `activeEmbargo` reference (ID + `end_time`) and the
+      embedded `CaseStatus.em_state` field so the invitee can give informed consent before
+      accepting.
+    rationale: >-
+      The invite-accept cycle is the only consent signal for late-joining participants
+      when an active embargo already exists. Accepting without seeing embargo terms is
+      not meaningfully informed consent (issue #1289, MV-10-006).
+    relationships:
+    - rel_type: implements
+      spec_id: MV-10-006
+  - id: CM-17-003
+    priority: MUST
+    statement: >-
+      The `Invite` activity MUST embed the intended `case_roles: list[CVDRole]` for the
+      invitee. Roles reach `EmitInviteActorToCaseNode` via the blackboard key
+      ``suggested_roles`` (flat, unnamespaced). There are two distinct source paths:
+      (1) **Direct-trigger path** — the Case Owner explicitly calls
+      `invite-actor-to-case` with a `roles` list; `SvcInviteActorToCaseUseCase`
+      writes that list to ``suggested_roles`` via `_extra_execute_kwargs()` before
+      BT execution. (2) **Suggest-actor received path** — the CaseActor receives
+      `Accept(Offer(CaseParticipant))`; `AcceptOfferCaseParticipantReceivedUseCase`
+      does NOT write ``suggested_roles``; the `Invite` is emitted with `roles=None`
+      and the invitee's `CaseParticipant.case_roles` is populated on
+      `Accept(Invite)` by reading roles from the persisted Invite wire object
+      (CM-17-004). In the suggest-actor path, roles originate from the Case Owner's
+      Accept response (CM-16-006) or the CaseActor's default role assignment
+      (CM-16-003).
+    rationale: >-
+      All invited participants getting `caseRoles=[]` is a protocol defect (issue
+      #1288). The participant record created on `Accept(Invite)` MUST reflect the
+      roles the Case Owner intended, whether those roles arrived via a direct trigger
+      request or via the suggest-actor round-trip.
+  - id: CM-17-004
+    priority: MUST
+    statement: >-
+      When the CaseActor receives `Accept(Invite)` from the invitee, it MUST (1) commit a
+      ledger entry for the Accept, (2) fan out the ledger entry to ALL existing participants,
+      (3) create a `CaseParticipant` record for the invitee at `RM.ACCEPTED` with the roles
+      from the Invite, (4) sign embargo consent if `em_state == EM.ACTIVE` (CM-10-001),
+      (5) send `Announce(VulnerabilityCase)` with the current full case snapshot to the
+      invitee, and (6) backfill all prior `CaseLedgerEntry` records to the invitee in
+      log-index order.
+    relationships:
+    - rel_type: implements
+      spec_id: CM-11-001
+    - rel_type: implements
+      spec_id: CM-10-001
+    - rel_type: implements
+      spec_id: PCR-08-010
+  - id: CM-17-005
+    priority: MUST_NOT
+    statement: >-
+      The invitee MUST NOT appear in the case participant list until their `Accept(Invite)`
+      has been received and processed by the CaseActor. A pending invitation (Invite sent,
+      no response yet) is tracked only as a ledger entry, not as a participant record.
+    rationale: >-
+      A participant record implies RM.ACCEPTED state and associated permissions. Creating
+      one before the invitee has consented would grant protocol access prematurely.
+  - id: CM-17-006
+    priority: MUST
+    statement: >-
+      The CaseActor MUST commit a `CaseLedgerEntry` for the emitted `Invite` activity
+      (recording the fact of its emission) AFTER the Invite has been queued for delivery
+      to the invitee. The commit MUST NOT precede the emission.
+    relationships:
+    - rel_type: implements
+      spec_id: CLP-10-006
+- id: CM-18
+  title: Participant Embargo Consent State Machine
+  kind: domain
+  specs:
+  - id: CM-18-001
+    priority: MUST
+    statement: >-
+      Each participant's embargo consent MUST be tracked as a `ParticipantEmbargoConsent`
+      (PEC) value with five possible states: `NO_EMBARGO` (initial), `INVITED` (invite sent,
+      awaiting response), `SIGNATORY` (accepted), `LAPSED` (timer expired with no response),
+      and `DECLINED` (explicitly refused).
+    rationale: >-
+      The five-state PEC machine formalizes the "pocket veto" mechanism: a participant who
+      is invited but never responds causes the embargo to lapse rather than block progress.
+      Source: `notes/participant-embargo-consent.md`.
+  - id: CM-18-002
+    priority: MUST
+    statement: >-
+      The `INVITED → DECLINED` and `LAPSED → DECLINED` transitions MAY be driven by a
+      timer expiry (pocket veto) rather than requiring an explicit participant action.
+      The timer period SHOULD be a configurable policy window (default: 7 days). The
+      pocket veto materialises when the timer fires without a prior acceptance; the
+      system records the transition to `DECLINED` as if the participant had declined.
+      The `SIGNATORY → LAPSED` transition is NOT timer-based: it fires when the embargo
+      enters the `REVISE` state, invalidating prior consent for the new terms.
+    rationale: >-
+      Per `notes/participant-embargo-consent.md`: `LAPSED` means "embargo terms changed;
+      prior consent no longer applies." `DECLINED` includes both explicit refusals and
+      timeout-based implicit refusals. Confusing `LAPSED` with the timer path is a
+      known documentation pitfall.
+  - id: CM-18-003
+    priority: MUST
+    statement: >-
+      The valid PEC state transitions are: `NO_EMBARGO | LAPSED | DECLINED → INVITED`
+      (INVITE trigger); `INVITED | LAPSED → SIGNATORY` (ACCEPT trigger); `INVITED | LAPSED
+      → DECLINED` (DECLINE trigger); `SIGNATORY → LAPSED` (REVISE trigger); and
+      `* → NO_EMBARGO` (RESET trigger, embargo terminated). Any other transition MUST be
+      rejected as a protocol error.
+    rationale: >-
+      The `LAPSED` and `DECLINED` states are not terminal: a participant who lapsed or
+      declined can be re-invited (e.g., when embargo terms change). `SIGNATORY → LAPSED`
+      occurs when the embargo enters REVISE and the participant's prior consent no longer
+      covers the revised terms. See `vultron/core/states/participant_embargo_consent.py`.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-18-001
+  - id: CM-18-004
+    priority: MUST_NOT
+    statement: >-
+      A participant's PEC state MUST NOT move from `SIGNATORY` to `INVITED` directly
+      (bypassing `LAPSED`). The only path back to `INVITED` from resolved states is via
+      `LAPSED → INVITED` (after a REVISE trigger) or `DECLINED → INVITED` (re-invite
+      after explicit decline). `SIGNATORY → INVITED` is not a valid transition.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-18-003
+- id: CM-19
+  title: Participant Index Discipline
+  kind: domain
+  specs:
+  - id: CM-19-001
+    priority: MUST
+    statement: >-
+      `case_participants` (the persisted set of `CaseParticipant` records) is the
+      authoritative source of participant membership. `actor_participant_index`
+      (the in-memory dict mapping actor IDs to participants) is a cache derived from
+      it. Divergence between these two structures is a hard error, not a recoverable
+      state.
+    rationale: >-
+      A divergence means the cache has entries the authority doesn't know about (or
+      vice versa), producing silently incorrect routing and access-control decisions.
+  - id: CM-19-002
+    priority: MUST
+    statement: >-
+      Any code path that modifies `case_participants` (add, remove, update) MUST also
+      update `actor_participant_index` atomically within the same transaction or
+      method call. The index MUST NOT be allowed to lag the authority.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-19-001
+  - id: CM-19-003
+    priority: MUST
+    statement: >-
+      Code that needs a participant by actor ID MUST read from `actor_participant_index`
+      (the cache). Code that needs the canonical participant set (e.g., for broadcast or
+      audit) MUST read from `case_participants`. Using the cache for canonical iteration
+      is prohibited because cache population order is undefined.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-19-001

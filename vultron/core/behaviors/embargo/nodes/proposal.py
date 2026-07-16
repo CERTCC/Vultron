@@ -158,17 +158,25 @@ class RecordParticipantAcceptanceNode(DataLayerAction):
 
     Uses EmbargoLifecycle.accept_embargo_invite(OBSERVED) to record the
     acceptance and apply any state transitions.
+
+    When ``accepting_actor_id`` is provided it is used instead of the BT
+    execution ``actor_id`` (which is the receiving actor).  This is the
+    ADR-0022 single-BT pattern: the tree executes under
+    ``actor_id=receiving_actor_id`` for guarded-commit gating, while the
+    acceptance is recorded for the message's actual accepting actor.
     """
 
     def __init__(
         self,
         case_id: str,
         embargo_id: str,
+        accepting_actor_id: str | None = None,
         name: str | None = None,
     ):
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
         self.embargo_id = embargo_id
+        self.accepting_actor_id = accepting_actor_id
 
     def update(self) -> Status:
         from vultron.core.states.em import EM
@@ -177,7 +185,15 @@ class RecordParticipantAcceptanceNode(DataLayerAction):
             self.feedback_message = "DataLayer not available"
             return Status.FAILURE
 
-        if self.actor_id is None:
+        # Use accepting_actor_id when provided (ADR-0022 single-BT pattern:
+        # tree executes under receiving_actor_id but acceptance is recorded
+        # for the actual accepting actor). Fall back to BT execution actor_id.
+        actor_id = (
+            self.accepting_actor_id
+            if self.accepting_actor_id
+            else self.actor_id
+        )
+        if actor_id is None:
             self.feedback_message = "actor_id not available"
             return Status.FAILURE
 
@@ -185,7 +201,7 @@ class RecordParticipantAcceptanceNode(DataLayerAction):
         result = service.accept_embargo_invite(
             case_id=self.case_id,
             embargo_id=self.embargo_id,
-            actor_id=self.actor_id,
+            actor_id=actor_id,
             transition_mode=TransitionMode.OBSERVED,
         )
 

@@ -150,6 +150,39 @@ AddReportToCaseActivityPattern = ActivityPattern(
 )
 
 # ---------------------------------------------------------------------------
+# CaseProposal patterns (CP-03-001 through CP-03-004)
+# ---------------------------------------------------------------------------
+
+CreateCaseProposalPattern = ActivityPattern(
+    description=(
+        "Vendor actor requests case initialization at a case-actor service "
+        "by creating a CaseProposal object. "
+        "Corresponds to Create(as_CaseProposal) — CP-03-001."
+    ),
+    activity_=TAtype.CREATE,
+    object_=VOtype.CASE_PROPOSAL,
+    strict=True,
+)
+AcceptCaseProposalPattern = ActivityPattern(
+    description=(
+        "Case-actor service accepts a vendor's CaseProposal. "
+        "Corresponds to Accept(as_CaseProposal) — CP-03-002."
+    ),
+    activity_=TAtype.ACCEPT,
+    object_=VOtype.CASE_PROPOSAL,
+    strict=True,
+)
+RejectCaseProposalPattern = ActivityPattern(
+    description=(
+        "Case-actor service rejects a vendor's CaseProposal. "
+        "Corresponds to Reject(as_CaseProposal) — CP-03-003."
+    ),
+    activity_=TAtype.REJECT,
+    object_=VOtype.CASE_PROPOSAL,
+    strict=True,
+)
+
+# ---------------------------------------------------------------------------
 # Actor-suggestion and case-manager-role patterns
 # ---------------------------------------------------------------------------
 
@@ -163,6 +196,36 @@ AcceptSuggestActorToCasePattern = ActivityPattern(
 )
 RejectSuggestActorToCasePattern = ActivityPattern(
     activity_=TAtype.REJECT, object_=SuggestActorToCasePattern
+)
+
+# CaseActor-routed ADR-0026 patterns (CM-16)
+OfferActorToCasePattern = ActivityPattern(
+    description=(
+        "Offer(CaseParticipant{actor,roles}, Case) sent by the CaseActor "
+        "to the Case Owner (CM-16-003/CM-16-004, ADR-0026). Used as the "
+        "nested sub-pattern inside AcceptActorRecommendationPattern and "
+        "RejectActorRecommendationPattern. Identified by object being "
+        "CASE_PARTICIPANT."
+    ),
+    activity_=TAtype.OFFER,
+    object_=VOtype.CASE_PARTICIPANT,
+    target_=VOtype.VULNERABILITY_CASE,
+)
+AcceptActorRecommendationPattern = ActivityPattern(
+    description=(
+        "Case Owner Accept(Offer(CaseParticipant)) routed to CaseActor "
+        "inbox per ADR-0026/CM-16-006."
+    ),
+    activity_=TAtype.ACCEPT,
+    object_=OfferActorToCasePattern,
+)
+RejectActorRecommendationPattern = ActivityPattern(
+    description=(
+        "Case Owner Reject(Offer(CaseParticipant)) routed to CaseActor "
+        "inbox per ADR-0026/CM-16-007."
+    ),
+    activity_=TAtype.REJECT,
+    object_=OfferActorToCasePattern,
 )
 OfferCaseManagerRolePattern = ActivityPattern(
     description=(

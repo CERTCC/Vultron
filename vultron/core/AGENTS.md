@@ -78,8 +78,9 @@ class CreateReportReceivedUseCase:
 - **BT Bridge**: `vultron/core/behaviors/bridge.py`
 - **BT nodes/trees**: `vultron/core/behaviors/report/`, `case/`,
   `helpers.py`
-- **Case Event Log**: `vultron/wire/as2/vocab/objects/case_event.py` — use
-  `VulnerabilityCase.record_event(object_id, event_type)`
+- **Canonical Case History**: `CaseEvent` and `record_event()` were
+  removed in #792. All protocol-significant history is now in the
+  `CaseLedgerEntry` hash chain; see `notes/case-ledger-authority.md`.
 
 ---
 

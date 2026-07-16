@@ -147,6 +147,51 @@ PR-time detection is sufficient.
 
 ---
 
+## Shared `.git` and Worktree Pruning (Danger)
+
+In this setup the `.git` **common directory is shared across multiple
+environments** — host macOS checkouts and one or more dev-container checkouts
+mount the same `.git`. Each worktree checkout may live at a path that only
+*one* of those environments can resolve (e.g. `/workspaces/vultron_clyde`
+exists only inside a container; `/Users/adh/dev/vultron_blinky` exists only on
+the host).
+
+**Never run `git worktree prune`, `git gc`, or any pruning command.** `prune`
+walks `.git/worktrees/*` and deletes the admin metadata for any worktree whose
+checkout path is not resolvable *from the current environment*. Because sibling
+environments' paths never resolve locally, prune silently destroys the admin
+dirs (`gitdir`, `commondir`, `HEAD`, `index`) of **live** worktrees owned by
+other containers or the host — not just genuinely stale ones. From the host,
+container worktrees always appear `prunable`; from a container, host worktrees
+always appear `prunable`. **`prunable` here means "path not visible from here,"
+not "safe to delete."** Leave such entries alone and confirm with the human
+before removing any worktree.
+
+### Recovery after an erroneous prune
+
+Refs and objects are never touched by prune, so no commits are lost — only the
+per-worktree admin metadata. `git worktree repair` **cannot** recreate a fully
+deleted admin dir; rebuild each one by hand, run **from the environment that
+can see that checkout**:
+
+```bash
+# For each affected worktree <path> that was on branch <branch>:
+#   (find the authoritative admin path from the worktree's own .git file)
+admin=$(sed -n 's/^gitdir: //p' "<path>/.git")   # e.g. .../.git/worktrees/<id>
+mkdir -p "$admin"
+printf '%s/.git\n' "<path>"              > "$admin/gitdir"
+printf '../..\n'                         > "$admin/commondir"
+printf 'ref: refs/heads/%s\n' "<branch>" > "$admin/HEAD"   # or a 40-char SHA if detached
+git -C "<path>" reset --mixed            # rebuilds the index only; leaves working-tree edits intact
+```
+
+Then `git worktree repair` (now that admin dirs exist) and `git worktree list`
+to confirm. Recover the branch mapping from `git worktree list` output captured
+*before* the prune, or from open PRs; if a worktree had moved branches,
+`git -C <path> checkout <correct-branch>` afterward — no data is lost either way.
+
+---
+
 ## Skill Updates Summary
 
 | Skill | Change |

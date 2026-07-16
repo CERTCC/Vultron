@@ -1,0 +1,57 @@
+name: Build demo images
+description: >
+  Builds the demo-integration Docker images via `docker buildx bake` using
+  the GHA cache backend. Shared by demo-integration.yml (PR builds, which
+  also load the images for `docker compose up`) and
+  demo-image-cache-warm.yml (main-branch cache warming, which only needs to
+  populate the cache) so the bake invocation doesn't drift out of sync
+  between the two workflows.
+
+inputs:
+  cache-scope:
+    description: >
+      GHA cache scope to read from and write to. cache-to always writes
+      this scope with mode=max.
+    required: true
+  cache-from-extra-scope:
+    description: >
+      Optional additional GHA cache scope to read from as a fallback (never
+      written to). Used by PR builds to fall back to the cache warmed on
+      main when the PR branch has no cache of its own yet.
+    required: false
+    default: ""
+  load:
+    description: >
+      Whether to pass --load so built images are available to the Docker
+      daemon for a subsequent `docker compose up`. Set to "false" for
+      cache-warming-only builds.
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+
+    - name: Build Docker images
+      working-directory: docker
+      shell: bash
+      env:
+        CACHE_SCOPE: ${{ inputs.cache-scope }}
+        CACHE_FROM_EXTRA_SCOPE: ${{ inputs.cache-from-extra-scope }}
+        LOAD: ${{ inputs.load }}
+      run: |
+        args=(
+          --allow=fs.read=..
+          -f docker-compose-multi-actor.yml
+          --set "*.cache-from=type=gha,scope=${CACHE_SCOPE}"
+          --set "*.cache-to=type=gha,scope=${CACHE_SCOPE},mode=max"
+        )
+        if [[ -n "$CACHE_FROM_EXTRA_SCOPE" ]]; then
+          args+=(--set "*.cache-from=type=gha,scope=${CACHE_FROM_EXTRA_SCOPE}")
+        fi
+        if [[ "$LOAD" == "true" ]]; then
+          args+=(--load)
+        fi
+        docker buildx bake "${args[@]}"

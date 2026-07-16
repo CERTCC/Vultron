@@ -13,7 +13,7 @@ description: >-
   `behavior-tree-integration.md` BT-06 (BT-driven transitions), `handler-protocol.md` HP-00
   (activities as state-change notifications), `vultron-protocol-spec.md` VP-01 through VP-13
 version: 1.0.0
-kind: language
+kind: domain
 scope:
 - prototype
 - production
@@ -167,3 +167,76 @@ groups:
       When deserializing state values from the DataLayer or from wire payloads, the receiving
       Pydantic model MUST declare the state field with the `StrEnum` type so that Pydantic
       coerces the incoming string to the correct enum member
+- id: SM-09
+  title: CS Forced Transitions and Reachable States
+  kind: domain
+  specs:
+  - id: SM-09-001
+    priority: MUST
+    statement: >-
+      The CS state machine MUST enforce two forced (ephemeral) transitions at validation
+      time: (1) `pX → PX` — exploit-public forces public-aware; (2) `vP → VP` —
+      public-aware forces vendor-aware. Any incoming CS state that contains `pX` or
+      `vP` MUST be promoted to the forced form before being persisted.
+    rationale: >-
+      These transitions are protocol-correctness invariants, not optional normalizations.
+      A CS state of `pXa` (exploit public, public unaware) is semantically impossible —
+      the exploit being public implies the vulnerability is public. Enforced by
+      `vultron/core/case_states/validations.py` `TRANSITION_RULES`.
+    relationships:
+    - rel_type: implements
+      spec_id: VP-14-001
+      note: exploit/attack public implies embargo termination, not just awareness
+  - id: SM-09-002
+    priority: MUST_NOT
+    statement: >-
+      The CS state machine MUST NOT allow states in the `vF*` pattern (fix-ready,
+      vendor-unaware) or `*fD*` pattern (fix-deployed, fix-not-ready). These 32 states
+      are structurally impossible and MUST be rejected at validation time.
+    rationale: >-
+      A vendor cannot have deployed a fix (`D`) without first having one ready (`F`);
+      a fix cannot be ready (`F`) if the vendor is unaware (`v`) of the vulnerability.
+      Together, SM-09-001 and this rule reduce the theoretical 64-state CS space to
+      the 32 reachable CS states: 4 valid VFD combinations (vfd, Vfd, VFd, VFD) ×
+      8 PXA combinations. See `docs/reference/formal_protocol/states.md` for the
+      formal derivation. Note: the "40-state" figure in the formal protocol paper
+      refers to the global case state space (`8 PXA × 5 EM`), not to CS alone.
+    relationships:
+    - rel_type: refines
+      spec_id: SM-09-001
+- id: SM-10
+  title: State Scoping Rules
+  kind: domain
+  specs:
+  - id: SM-10-001
+    priority: MUST
+    statement: >-
+      RM and VFD state transitions MUST update the sending actor's `ParticipantStatus`
+      record for the affected `CaseParticipant`. These axes are participant-specific:
+      each participant's RM and VFD state evolves independently.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-04-001
+    - rel_type: refines
+      spec_id: CM-04-002
+  - id: SM-10-002
+    priority: MUST
+    statement: >-
+      EM and PXA state transitions MUST update the shared `CaseStatus` record for the
+      associated `VulnerabilityCase`. These axes are participant-agnostic: a single
+      shared value covers all participants in the case.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-04-003
+    - rel_type: refines
+      spec_id: CM-04-004
+  - id: SM-10-003
+    priority: MUST_NOT
+    statement: >-
+      Handlers MUST NOT apply a participant-specific axis transition (RM, VFD) to the
+      shared `CaseStatus`, and MUST NOT apply a participant-agnostic axis transition
+      (EM, PXA) to a participant's `ParticipantStatus`. Mixing axes is a protocol
+      correctness violation.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-04-006

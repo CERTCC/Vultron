@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """Unit tests for sync conditions nodes."""
 
+import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.sync.nodes.conftest import (
@@ -12,13 +13,68 @@ from test.core.behaviors.sync.nodes.conftest import (
 from vultron.core.behaviors.sync.nodes import (
     CheckIsOwnCaseActorNode,
     CheckLedgerFreshnessNode,
+    IsAddNoteEventNode,
+    IsInviteAcceptEventNode,
+    IsParticipantStatusEventNode,
+    IsRemoveEmbargoEventNode,
 )
-from vultron.core.models.case_ledger import GENESIS_HASH
+from vultron.core.behaviors.sync.nodes.conditions import (
+    _ACCEPT_INVITE_ACTOR_TO_CASE_EVENT,
+    _ADD_NOTE_TO_CASE_EVENT,
+    _ADD_PARTICIPANT_STATUS_EVENT,
+    _REMOVE_EMBARGO_EVENT,
+)
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 
 
+@pytest.mark.parametrize(
+    "node_cls, matching_event_type",
+    [
+        (IsRemoveEmbargoEventNode, _REMOVE_EMBARGO_EVENT),
+        (IsParticipantStatusEventNode, _ADD_PARTICIPANT_STATUS_EVENT),
+        (IsAddNoteEventNode, _ADD_NOTE_TO_CASE_EVENT),
+        (IsInviteAcceptEventNode, _ACCEPT_INVITE_ACTOR_TO_CASE_EVENT),
+    ],
+)
+class TestPositiveLedgerEntryConditionNodes:
+    """Tests for positive-precondition Is* condition nodes (BTND-08-001)."""
+
+    def test_succeeds_on_matching_event_type(
+        self, bridge, case_actor, node_cls, matching_event_type
+    ):
+        entry = _make_entry(0)
+        entry = entry.model_copy(update={"event_type": matching_event_type})
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = bridge.execute_with_setup(
+            tree=node_cls(name=node_cls.__name__),
+            actor_id=OWNER_ACTOR_ID,
+            activity=event,
+        )
+
+        assert result.status == Status.SUCCESS
+
+    def test_fails_on_non_matching_event_type(
+        self, bridge, case_actor, node_cls, matching_event_type
+    ):
+        entry = _make_entry(0)
+        # use any event_type that is NOT the matching one
+        other_event = "some_other_event_type"
+        assert other_event != matching_event_type
+        entry = entry.model_copy(update={"event_type": other_event})
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = bridge.execute_with_setup(
+            tree=node_cls(name=node_cls.__name__),
+            actor_id=OWNER_ACTOR_ID,
+            activity=event,
+        )
+
+        assert result.status == Status.FAILURE
+
+
 def test_check_is_own_case_actor_succeeds_for_case_owner(bridge, case_actor):
-    entry = _make_entry(0, GENESIS_HASH)
+    entry = _make_entry(0)
     event = _make_event(entry, actor_id=case_actor.id_)
 
     result = bridge.execute_with_setup(
@@ -43,8 +99,8 @@ class TestCheckLedgerFreshnessNodeWithCaseIdArg:
         )
         assert result.status == Status.SUCCESS
 
-    def test_contiguous_chain_is_fresh(self, bridge, datalayer):
-        e0 = _make_entry(0, GENESIS_HASH)
+    def test_contiguous_chain_is_fresh(self, bridge, datalayer, case_obj):
+        e0 = _make_entry(0, case_obj.genesis_hash)
         datalayer.save(e0)
         e1 = _make_entry(1, e0.entry_hash)
         datalayer.save(e1)
@@ -59,7 +115,7 @@ class TestCheckLedgerFreshnessNodeWithCaseIdArg:
 
     def test_gap_in_ledger_is_stale(self, bridge, datalayer):
         """SYNC-10-004: any gap blocks the gate."""
-        e0 = _make_entry(0, GENESIS_HASH)
+        e0 = _make_entry(0)
         datalayer.save(e0)
         # Skip index 1; jump to index 2
         e2 = VultronCaseLedgerEntry(
@@ -83,7 +139,7 @@ class TestCheckLedgerFreshnessNodeWithCaseIdArg:
 
     def test_hash_mismatch_is_stale(self, bridge, datalayer):
         """SYNC-10-004: hash mismatch at any link is stale."""
-        e0 = _make_entry(0, GENESIS_HASH)
+        e0 = _make_entry(0)
         datalayer.save(e0)
         bad_e1 = VultronCaseLedgerEntry(
             case_id=CASE_ID,
@@ -109,7 +165,7 @@ class TestCheckLedgerFreshnessNodeWithCaseIdArg:
         import logging
 
         # Create a gap
-        e0 = _make_entry(0, GENESIS_HASH)
+        e0 = _make_entry(0)
         datalayer.save(e0)
         e2 = VultronCaseLedgerEntry(
             case_id=CASE_ID,

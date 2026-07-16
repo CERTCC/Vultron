@@ -92,7 +92,11 @@ Do NOT introduce alternative frameworks or package managers without approval.
   (e.g., `CaseTransferOffer` not `VultronOffer`). See CS-12-001.
 - **Vulnerability**: Abbreviated as `vul` (not `vuln`)
 - Wire-layer naming (as\_ prefix, trailing underscore, pattern objects) →
-  see [`vultron/wire/as2/AGENTS.md`](vultron/wire/as2/AGENTS.md)
+  see [`vultron/wire/as2/AGENTS.md`](vultron/wire/as2/AGENTS.md).
+  **Critical**: ALL classes in `vultron/wire/as2/vocab/objects/` use the
+  `as_` prefix (`as_VulnerabilityCase`, `as_CaseParticipant`, etc.). The
+  bare name `VulnerabilityCase` (no prefix) always refers to the **core**
+  domain model. See ARCH-14-001.
 - Use-case / handler naming (Received suffix, Svc prefix, \_trigger suffix)
   → see [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md)
 
@@ -108,6 +112,21 @@ Do NOT introduce alternative frameworks or package managers without approval.
   Fields that are required for a specific event subtype MUST NOT be typed
   as `X | None` in that subtype. Subclasses SHOULD narrow optional parent
   fields to required. See `specs/architecture.yaml` ARCH-10-001.
+- **Validate at the edge, promote to the core (ADR-0032)**: Wire-layer and
+  adapter objects may have `Optional` fields. Before passing data to core
+  logic, validate that required fields are present and raise a descriptive
+  exception if not. What core functions receive should be a type that makes
+  required fields non-optional — no `if x is None` guards needed inside core.
+- **Collection defaults**: collection-typed fields and parameters default to
+  the empty collection (`[]`, `{}`, `set()`), not `None`. Use
+  `field(default_factory=list)` etc. `None` is only correct when absence is
+  semantically distinct from empty (e.g. AS2 fields where `None` omits the
+  key from the wire payload, or deliberate sentinels like
+  `BTExecutionResult.errors`).
+- **Core helpers raise, never return `None`**: core domain helpers and BT node
+  helpers raise a descriptive exception on failure. In BT nodes, `update()` is
+  the sole `try/except` handler; helper methods are clean typed functions that
+  either succeed or raise. See `notes/bt-integration.md` § "BT-HELPER-01".
 - **Optional string fields MUST follow "if present, then non-empty"**:
   `Optional[str]` fields MUST reject empty strings. Use the shared
   `NonEmptyString` or `OptionalNonEmptyString` type alias from
@@ -232,8 +251,10 @@ creates a new entry file under `plan/history/YYMM/<type>/` — stage it with
 **gitignored**; do **not** stage it. Omitting the entry file is the most
 common cause of history files being left out of PRs.
 
-See each skill's SKILL.md for the exact commands. If the pre-commit hook
-reformats files: `git add -A && git commit -m "Same message"`.
+See each skill's SKILL.md for the exact commands. Pre-commit hooks are
+fail-only (no auto-fix); if a hook fails, run the relevant skill
+(`format-code` for black/markdown, `run-linters` for flake8) to fix and
+re-stage before committing.
 
 **After a PR merges**, if working in a named worktree slot, reset the slot
 so it is ready for the next task:
@@ -260,6 +281,18 @@ the GitHub Issue-based coordination model and
 - Treat anything under `/security`, `/auth`, or equivalent paths as sensitive
 - Do not generate secrets, credentials, or real tokens
 - Flag ambiguous requirements instead of guessing
+- **NEVER run `git worktree prune` (or `git gc` / any pruning command) in this
+  repo.** The `.git` common directory is **shared across multiple environments**
+  (host macOS checkouts *and* dev-container checkouts) via mounts. `prune` deletes
+  the admin metadata (`gitdir`/`commondir`/`HEAD`/`index`) for every worktree
+  whose checkout path is not resolvable *from the current environment* — which
+  silently destroys live worktrees belonging to other containers/the host, not
+  just stale ones. A worktree registered under a path the current environment
+  can't see always looks "prunable" but usually is not. If `git worktree list`
+  shows `prunable` entries, **leave them**; verify with the human before removing
+  any worktree. Recovery after an erroneous prune is possible (refs/objects
+  survive) but requires hand-rebuilding each admin dir — see
+  [`notes/parallel-development.md`](notes/parallel-development.md).
 
 ---
 
@@ -281,11 +314,35 @@ If instructions are ambiguous:
 
 ---
 
+## Quality Standard
+
+Every workflow skill reads `.claude/skills/shared/completeness-doctrine.md`
+via `orient-agent`. The full doctrine is there; this is the summary:
+
+- **"Done" requires**: all changed behaviors tested, edge cases handled,
+  types/docs current, linters clean.
+- **Depth within scope is non-negotiable**: happy-path-only is not done; a
+  behavior with no test is not done.
+- **Scope expansion**: ask if user is present; make best-judgment call if not,
+  record rationale as a learning file.
+- **Finding severity**: **FAIL** (broken) → fix before PR opens. **IMPROVE**
+  (correct but incomplete) → fix in this session. **DEFER** (out of scope) →
+  create follow-up issue + get user acknowledgment. No WARN-and-defer.
+
+---
+
 ## Common Pitfalls (Lessons Learned)
 
 Key pitfall write-ups are in the `notes/` files.
 Short entries are reproduced here; longer ones are referenced below.
 
+- **Production Adapters MUST NOT Import from `vultron/demo/` for Config** —
+  `vultron/demo/` is scaffolding; its modules MUST NOT be imported by
+  production adapter code.  Actor policy configuration (`auto_create_case`,
+  `default_case_roles`) belongs in `AppConfig.actor` (read via
+  `get_config().actor` from `vultron/config/`), not in `SeedConfig`.
+  See [notes/configuration.md](notes/configuration.md) § "Current Architecture"
+  and specs CFG-07-005 through CFG-07-007.
 - **Idempotency Responsibility Chain** — see
   [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md)
 - **Bulk Logging-Level Refactors Need a Consistency Grep Pass** — After
@@ -388,6 +445,18 @@ Short entries are reproduced here; longer ones are referenced below.
 - **ASGIEmitter Path Construction: Use Scheme+Netloc Only as `httpx` Base URL** — see [vultron/adapters/driven/AGENTS.md](vultron/adapters/driven/AGENTS.md)
 - **`create_app()` MUST NOT Mutate Module-Level Singletons** — see [vultron/adapters/driven/AGENTS.md](vultron/adapters/driven/AGENTS.md)
 - **Bootstrap Activities Must Embed Nested Objects Inline, Not as URI Strings** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
+- **Factory Parameters MUST Be Core Objects, Not Pre-Built Wire Stubs** — When a factory
+  function takes a parameter that represents a domain entity (e.g. `target: VulnerabilityCase`
+  for an invite), the caller MUST pass the core object and let the factory project it to a
+  wire type. Adapters and BT nodes MUST NOT pre-build a partial wire stub
+  (e.g. `VulnerabilityCaseStub`) to hand to the factory — that moves projection logic out
+  of the factory and into a layer that should be a thin pass-through. The typical failure
+  mode: the adapter only has a URI string for a related entity (e.g. `case.active_embargo:
+  str | None`) and can't include nested fields (e.g. `end_time`) without an extra DataLayer
+  read that it never makes. The factory, holding the full domain object, can project
+  everything correctly. See `specs/activity-factories.yaml` AF-01-005 and
+  [notes/activity-factories.md](notes/activity-factories.md)
+  § "Anti-pattern: Projection Logic in the Adapter".
 - **BT Failure Reason: Use `get_failure_reason()`, Not Generic Error Logs** — see [notes/bt-integration.md](notes/bt-integration.md)
 - **Dead-Letter vs. No-Pattern: Two Distinct UNKNOWN Failure Modes** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
 - **Accept.object_ Must Be the Invite Activity, Not the Case Object** — see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
@@ -425,6 +494,17 @@ Short entries are reproduced here; longer ones are referenced below.
   `Accept(Invite)` message IS the invitee's engage decision (PCR-08-009, PCR-08-010).
   See [notes/case-communication-model.md](notes/case-communication-model.md)
   § "Antipattern: Identity Spoofing in Received-Side Use Cases".
+- **Received-Side Guarded Commit MUST NOT Resolve a Foreign CaseActor ID** — Resolving
+  `case_actor_id` from the DataLayer and passing it as `actor_id` to
+  `BTBridge.execute_with_setup` from a non-CaseActor inbox context is an identity-spoofing
+  violation (CLP-10-003). The canonical pattern (see `status.py::_commit_log_cascade_bt`)
+  requires a strict pre-flight guard: `if receiving_actor_id != case_actor_id: return`.
+  The guarded commit BT must only run when the receiving actor IS the CaseActor — at which
+  point `actor_id=receiving_actor_id` is correct and no identity spoofing occurs. For the
+  CaseActor to receive the activity in the first place, the trigger tree MUST emit an
+  outbound activity addressed to `case_manager_id` (CLP-10-001). See ADR-0021 and
+  [notes/case-communication-model.md](notes/case-communication-model.md)
+  § "Antipattern: Received-Side Guarded Commit with Foreign CaseActor ID".
 - **Invite/Accept Handshake Must Route Through the Case Actor** — `RmInviteToCaseActivity`
   MUST be sent with `actor=case_actor_id` (not the case owner) from the Case Actor's
   outbox. The invitee's `Accept` MUST be addressed to the Case Actor, not the case owner.
@@ -444,6 +524,17 @@ Short entries are reproduced here; longer ones are referenced below.
 - **Use `isinstance` for Pyright Attribute Narrowing, Not `# type: ignore`** — see [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md)
 - **Untyped Closures Are Invisible to mypy — Extract to Named Functions** — see [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md)
 - **CI Runs All Tests; Default Local Run Omits Integration** — see `test/AGENTS.md` § Integration Tests
+- **Canonical Ledger Commits Must Be Role-Gated and Coverage-Checked, Not
+  Conventionally Trusted** — A canonical-write node
+  (`CommitCaseLedgerEntryNode`) reachable from more than one call site or
+  more than one actor context MUST be wrapped in a role-gated
+  Selector/Sequence/Success composite (see
+  `notes/bt-integration.md` § "Guarded Commit: Role-Gated Canonical
+  Writes"), and every protocol-significant use case MUST be covered by a
+  test asserting it reaches a commit — do not rely on manual audit to find
+  missing or unguarded commits after the fact. See
+  `specs/case-ledger-processing.yaml` CLP-09 and
+  `notes/case-ledger-authority.md` § "Commit Authorization and Coverage".
 - **Superseded `notes/*.md` Files Must Move to `archived_notes/`, Not Stay in `notes/`** — A file
   with `status: superseded` in its frontmatter MUST be moved to `archived_notes/` using `git mv`.
   Leaving it in `notes/` causes agents to load outdated guidance as active context and pollutes
@@ -495,8 +586,28 @@ Short entries are reproduced here; longer ones are referenced below.
   NOT use `record_event()` or any canonical commit path as a generic "log
   this thing" sink. See ADR-0019, `specs/case-ledger-processing.yaml` CLP-07,
   and `notes/case-ledger-authority.md` § "Canonical Entry Criteria".
+- **Negative-Guard Condition Nodes Are a Readability Anti-Pattern** — Do NOT
+  create condition nodes named `IsNotFoo` that return SUCCESS to *skip* an
+  effect and FAILURE to *trigger* it.  The backwards semantics force readers to
+  mentally invert the condition.  Use positive-precondition Sequences instead:
+  `Selector(Sequence(IsFooLedgerEntryNode, ApplyFooNode), Success("FooSkipped"))`.
+  See `specs/behavior-tree-node-design.yaml` BTND-08-001, BTND-08-002 and
+  `notes/bt-design-patterns.md` § "Idiom Family Selection Guide".
 - **Adding a New Pitfall: Check the Routing Policy First** — see
   [notes/agents-md-structure.md](notes/agents-md-structure.md)
+- **`as_VulnerabilityCase` (wire) vs `VulnerabilityCase` (core) — Always Check
+  Your Prefix** — The core domain model is `VulnerabilityCase` in
+  `vultron.core.models.case`. The wire AS2 projection is `as_VulnerabilityCase`
+  in `vultron.wire.as2.vocab.objects.vulnerability_case`. This `as_` prefix
+  convention applies to **all** classes in `vultron/wire/as2/vocab/objects/`:
+  `as_CaseParticipant`, `as_CaseStatus`, `as_VulnerabilityReport`, etc. If you
+  see a bare `VulnerabilityCase` import from the wire layer, that is a naming
+  violation (ARCH-14-001) — the migration to `as_` prefixes is tracked in GitHub.
+  In BT nodes, use cases, and core code: always import the bare-name core type.
+  In wire/extractor/factory code: always import the `as_`-prefixed wire type.
+  The two objects have identical field names; they differ only in field types
+  (core uses `str` IDs, wire uses `ActivityStreamRef[T]` unions). See
+  `specs/architecture.yaml` ARCH-14-001.
 - **Trigger-Side execute() Must Delegate SM Transitions to BTBridge** — A
   trigger-side `execute()` method that calls `EmbargoLifecycle`, `EMAdapter`,
   or creates `ParticipantStatus` records with a specific `rm_state`/`em_state`
@@ -512,6 +623,35 @@ Short entries are reproduced here; longer ones are referenced below.
   [notes/bt-integration.md](notes/bt-integration.md)
   § "Trigger/Received Parity" and `specs/behavior-tree-integration.yaml`
   BT-15-001, BT-15-002.
+- **Direct DataLayer Mutations in execute() Are Not Caught by the
+  Import-Based Ratchet** — `test/architecture/test_single_bt_execution_received_side.py`
+  detects direct imports of `create_guarded_commit_case_ledger_entry_tree`
+  and (after #1074) multi-`execute_with_setup` call patterns, but it does
+  **not** detect `self._dl.save()`, `self._dl.create()`, `self._dl.update()`,
+  or `self._dl.delete()` called directly inside `execute()`. These direct
+  mutations bypass the BT audit trail, skip the hash-chained ledger-commit
+  path, and constitute protocol-significant behavior outside the tree — the
+  exact anti-pattern BT-06-001 and BT-15-001 prohibit. A second AST-based
+  ratchet (`test/architecture/test_no_dl_mutations_in_execute.py`) tracks the
+  known violations (issue #1071). Until a file is removed from
+  `KNOWN_VIOLATIONS`, do **not** add new `dl.*()` calls in its `execute()`.
+  Any new `execute()` method MUST delegate all DataLayer mutations to a BT
+  leaf node via `execute_with_setup()`.
+- **Receive-Side BTs Must Record the Triggering Activity Before Applying
+  Protocol Effects** — In any receive-side BT tree that contains a
+  `GuardedCommitCaseLedgerEntryBT` subtree (via
+  `create_guarded_commit_case_ledger_entry_tree`), the commit subtree MUST
+  appear BEFORE any protocol-effect node (state transitions, outbox enqueues,
+  participant record mutations). Pure precondition-guard nodes (read-only
+  checks that return FAILURE without writing state) MAY precede the commit.
+  The correct ordering is: (1) precondition guards, (2) commit, (3) all
+  protocol effects. Placing effects before the commit inverts causal ordering:
+  the case ledger shows effects without the cause that produced them, breaking
+  forensic auditability and ledger replication. The commit records that the
+  triggering activity was received — this is independent of whether subsequent
+  effects succeed. Audit issue #1068 found this inverted ordering consistently
+  across receive-side BTs; fix tracked in implementation issues blocked by
+  #1052. See `specs/case-ledger-processing.yaml` CLP-10-006.
 - **Received-Side execute() Must Not Call commit_log_entry_trigger() Directly** —
   A received-side `execute()` method that calls `commit_log_entry_trigger()`
   (or any wrapper around it) directly is a BT-06-006 violation.
@@ -633,6 +773,216 @@ Short entries are reproduced here; longer ones are referenced below.
   violation (ADR-0009) and makes the pipeline untestable from non-HTTP entry
   points. See `specs/inbox-orchestration.yaml` IO-02-003 and IO-03-003, and
   `notes/inbox-orchestration.md`.
+- **`ProposeCaseToActorNode` Sends `Create(CaseProposal)`; `CreateCaseActorNode`
+  Does Not** — These two BT nodes have distinct responsibilities and MUST NOT be
+  conflated. `CreateCaseActorNode` registers the case-actor service as an actor
+  resource in the local DataLayer; it creates the actor identity, not the case.
+  `ProposeCaseToActorNode` sends `Create(as_CaseProposal)` to the already-registered
+  case-actor service to initiate the case initialization protocol. Updating
+  `CreateCaseActorNode` to send a CaseProposal is a violation of single
+  responsibility and causes the proposal to be sent before the actor is ready.
+  `ProposeCaseToActorNode` MUST be wired into the case-creation BT tree AFTER
+  `CreateCaseActorNode` succeeds. See `specs/case-proposal.yaml` CP-04-002 and
+  `notes/case-proposal.md`.
+- **Protocol-Declared Fields Must Stay in Sync with Concrete Classes** — When
+  a field or method is removed from a concrete class that structurally conforms
+  to a `Protocol`, the matching member MUST also be removed from the Protocol.
+  Static type checkers verify the concrete→Protocol direction only; a stale
+  Protocol member is invisible to mypy/pyright but silently breaks callers that
+  accept a `Protocol`-typed parameter and access the removed attribute. Issue #792:
+  `CaseModel.events` was left in `protocols.py` after `VulnerabilityCase.events`
+  was removed; no lint error occurred, but future callers would have failed at
+  runtime. See `specs/code-style.yaml` CS-20-001.
+- **`TypeGuard` Discriminators Must Use Protocol-Declared Fields Only** —
+  `TypeGuard` functions such as `is_case_model()` MUST use only `hasattr`
+  checks on attributes explicitly declared in the target `Protocol`. Using a
+  method or field that is NOT in the Protocol as a discriminator causes the guard
+  to silently return `False` for valid objects when that method is later removed.
+  Issue #888: `is_case_model()` tested `hasattr(obj, "record_event")` — a method
+  never on `CaseModel` — and when `record_event()` was removed from
+  `VulnerabilityCase`, 440 test failures cascaded before the root cause was
+  traced. See `specs/code-style.yaml` CS-20-002.
+- **Emit Nodes in Case-Scoped Trigger BTs Must Fail Fast on Missing CaseActor**
+  — After switching case-scoped trigger routing from `case_addressees()` to
+  CaseActor-only routing, emit nodes must fail fast (FAILURE or immediate
+  exception) when no routable CaseActor recipient can be resolved. Silently
+  returning without setting `to` causes `VultronOutboxToFieldMissingError` to
+  fire deep in the outbox handler, masking the true sender-side routing defect.
+  See `specs/participant-case-replica.yaml` PCR-08-011.
+- **Module Split: Re-Import Moved Names for `monkeypatch` Compatibility** —
+  When splitting a module that is accessed as `import module as m` in tests
+  using `monkeypatch.setattr(m, "name", ...)`, moved names MUST be re-imported
+  into the original module's namespace (not just defined in the new submodule).
+  Without the re-import, the original module has no `name` attribute and
+  `monkeypatch.setattr` raises `AttributeError`. Add `# noqa: F401` on re-export
+  lines to suppress unused-import lint warnings. Issue #972.
+- **FastAPI `dependency_overrides` Key Must Be Re-Exported When Converting a
+  Router Module to a Package** — When a test does
+  `app.dependency_overrides[actors_router.get_shared_dl]`, it accesses
+  `get_shared_dl` as an attribute of the `actors_router` module. Converting
+  `actors.py` to an `actors/` package breaks this reference unless
+  `get_shared_dl` is explicitly re-exported in `actors/__init__.py`. Before
+  finalizing any subpackage `__init__.py`, scan tests for
+  `module.dependency_function` attribute-access patterns. Issue #970.
+- **Guarded-Commit Tests Must Use the CASE_MANAGER Actor as `receiving_actor_id`**
+  — Tests for received-side use cases that exercise a guarded-commit BT path
+  MUST set `receiving_actor_id` to the actor holding `CVDRole.CASE_MANAGER` in
+  `actor_participant_index`, not to the `VultronCaseActor` service entity ID.
+  `CheckIsCaseManagerNode` compares `actor_id` against the CASE_MANAGER
+  *participant* entry, not the service resource. Passing the service entity ID
+  causes the role check to fail silently: the guarded commit never fires, RM
+  falls through to DEFERRED, and the test may pass for the wrong reason. Any
+  test that exercises BT operations in a received-side use case MUST pass a
+  `receiving_actor_id`. See `specs/behavior-tree-integration.yaml` BT-17-005.
+- **Routing Prerequisites Must Be Resolved Before State Mutation in Lifecycle BT
+  Sequences** — A BT Sequence that performs a protocol state-machine transition
+  (EM, RM, or CS) and then routes an outbound activity MUST resolve all routing
+  prerequisites (e.g., Case Manager actor ID) in a read-only guard node placed
+  BEFORE the state-mutation node. Committing a transition to the DataLayer before
+  verifying routing is available creates a divergence window: local state reflects
+  the new state (e.g., `EM=EXITED`) while peers still hold the prior state
+  (e.g., `EM=ACTIVE`) because the broadcast was never sent. The Sequence MUST fail
+  at the guard with zero DataLayer state change when routing prerequisites are
+  absent. Duplicated monolithic nodes that inline both mutation and dispatch in a
+  single `update()` MUST be replaced by a shared BT factory function used across
+  all call sites (trigger path and automatic-cascade path) to prevent per-path
+  drift back to the unsafe ordering. See `specs/behavior-tree-integration.yaml`
+  BT-19-001, BT-19-002 and [notes/bt-integration.md](notes/bt-integration.md)
+  § "Routing-Gated State Mutation".
+- **Pre-commit Hooks Are Fail-Only — Run Skills Before Committing** — The
+  `black` and `markdownlint-cli2` hooks use `--check` (no auto-fix). If a
+  hook fails at commit time, run `format-code` to auto-fix, re-stage, then
+  commit. Hooks that auto-modify files break `git rebase` by leaving a dirty
+  working tree mid-cherry-pick.
+- **Automation Potential and Call-Out Point Shape Are Orthogonal** — When
+  classifying a fuzzer node, the `automation potential` and `call-out point
+  shape` fields are **independent**. A node with High automation potential may
+  still require a Retriever, Sentinel, Evaluator, or Composer seam — "can be
+  automated" does not mean "no external seam exists." Assign shape using
+  **only** the ADR-0024 seam-structure decision tree: Who/what provides the
+  input? What does the node output? Does it monitor a condition, retrieve
+  facts, evaluate a situation, or compose content? The answers determine the
+  shape regardless of whether the implementation will be automated or
+  human-driven. `ProtocolInternal` is reserved exclusively for terminal
+  placeholders and structural composites that have **no** external input,
+  output, or monitoring seam. See `specs/behavior-tree-integration.yaml`
+  BT-18-005 and BT-18-006 and `docs/adr/0024-coordination-agent-taxonomy.md`.
+  BT-18-006 resolves the Sentinel vs. Retriever ambiguity for synchronous
+  binary external queries: a node the BT invokes on-demand that queries an
+  external system and returns only SUCCESS/FAILURE is a Retriever, not a
+  Sentinel.
+
+- **BT Integration Tests Must Use Deterministic Factories When the Default Is
+  Probabilistic** — When a tree builder's default `CallOutBackendFactory` wraps
+  a `WeightedBehavior` or `AlmostAlwaysSucceed` fuzzer node, integration tests
+  that assert `Status.SUCCESS` on the full tree become flaky. Pass an explicit
+  deterministic factory (e.g., a module-level `_always_succeed_factory` helper)
+  to every success-path integration test. Structure tests and `FAILURE`-path
+  tests are unaffected. See `test/AGENTS.md` § "BT Factory Determinism" and
+  [notes/bt-integration.md](notes/bt-integration.md)
+  § "Integration Tests Must Use Deterministic Factories When BT Default Is
+  Probabilistic".
+
+- **`NoNew*` flags imply an upstream Sentinel seam.** When a BT condition
+  node of the form `NoNew<X>Info` (or any node whose description says "check
+  whether new information has arrived") reads a change-detection flag, that
+  flag must have been written by someone. If the flag is written by the
+  **protocol's own BT execution** (e.g., a prior BT tick or an Actuator in
+  the same tree), the consuming node is `ProtocolInternal`. But if the flag
+  is written by an **external event monitor** — an agent that watches an
+  outside data source and fires into the blackboard when something changes —
+  then there is an upstream **Sentinel** agent whose call-out point must be
+  documented separately in the catalog. The consuming `NoNew*` node itself
+  is `ProtocolInternal` (it reads a local flag), but failing to document the
+  upstream Sentinel leaves the real external seam invisible. Always trace
+  the flag back to its writer and record a Sentinel stub entry for it. See
+  `notes/bt-fuzzer-nodes-report-management.md` for `NewValidationInfoSentinel`,
+  `NewPrioritizationInfoSentinel`, and `NewDeploymentInfoSentinel` as worked
+  examples. (Established in issue #1199.)
+- **Silent `None` Returns and Fake `SUCCESS` Are the Same Bug** —
+  Returning `None` from a helper when a required ID is absent, or
+  returning `Status.SUCCESS` from a BT node when a required blackboard
+  key is missing, both silently drop protocol behavior (ledger entries,
+  broadcasts, routing decisions). The correct pattern: check at the
+  conversion point and raise `VultronValidationError` (helpers) or
+  return `Status.FAILURE` (BT nodes) immediately.
+  See [notes/domain-validation.md](notes/domain-validation.md) and
+  `specs/architecture.yaml` ARCH-15-001 through ARCH-15-004.
+- **`outbox_list()` Requires `clone_for_actor` in Tests** — `SqliteDataLayer.outbox_list()` reads
+  from `dl._actor_id`, which is `""` on a freshly constructed DataLayer.
+  BT nodes write to the named actor's queue via `record_outbox_item(actor_id, ...)`.
+  The two paths share a key only when the DataLayer was obtained via `clone_for_actor(actor_id)`.
+  Use `dl.outbox_list_for_actor(local_actor_id)` or `dl.clone_for_actor(actor_id).outbox_list()` in tests.
+  See [notes/datalayer-design.md](notes/datalayer-design.md) § "`outbox_list()` Requires `clone_for_actor` in Tests".
+- **Happy-Path DL Seed Must Include `origin` Activities for `dl.read()` Calls** — Use cases that call
+  `dl.read(activity_id)` to resolve a related entity (e.g., `recommender_id`) silently fall back to
+  `""` / `None` when the activity is absent from the fixture. Assert `len(outbox) >= N` where N is
+  the *expected* count, not just `>= 1` — a partial emission can pass a weak assertion while hiding
+  a broken notification branch. See [notes/datalayer-design.md](notes/datalayer-design.md)
+  § "Happy-Path DL Seeds Must Include Origin Activities for `dl.read()` Calls".
+- **`UnroutableActivityError` Must Be Caught Inside `_handle`, Not Above It** — A gate/guard called
+  before the `try/except` in `DispatcherBase._handle` escapes to `_process_inbox_item`, which re-queues
+  the item — creating an infinite retry loop. Wrap gate calls in their own `try/except UnroutableActivityError`
+  inside `_handle` and return (drop the event). General rule: when converting a silent `return None`
+  into a `raise`, trace the full call stack to every re-queue/retry handler above the raise site.
+  See [notes/inbox-pipeline.md](notes/inbox-pipeline.md) § "`UnroutableActivityError` Must Be Caught Inside `_handle`".
+- **Blackboard List Write-Back: Only Needed for New Lists** — Mutating a list object retrieved from
+  the blackboard is in-place; the write-back (`blackboard.set(key, value)`) is a no-op unless `key`
+  was absent (KeyError branch) and you just created the list. Do not add write-backs to mutation
+  paths that already hold a reference — they create noise without effect.
+  See [notes/bt-integration.md](notes/bt-integration.md) § "Blackboard List Mutation: Write-Back Is Redundant".
+- **Always Check `BTBridge.execute_with_setup` Return Value** — `execute_with_setup` never raises;
+  it returns the `Status` enum. A FAILURE return left unchecked looks like SUCCESS. Always do:
+  `if bridge.execute_with_setup(...) == Status.FAILURE: raise VultronBTError(...)`.
+  See [notes/bt-integration.md](notes/bt-integration.md) § "Always Check `BTBridge.execute_with_setup` Return Value".
+- **Ledger Commit Must Precede Outbox Write** — When a use case or BT node both commits a ledger
+  entry and writes to the outbox, the commit MUST happen first. Writing to the outbox before
+  the ledger commit produces a state where outbound activities have been sent but the causal record
+  is absent from the ledger. See [notes/bt-integration.md](notes/bt-integration.md)
+  § "Ledger Commit Must Precede Outbox Write".
+- **`disposition="rejected"` for Local-Only Correlation Markers** — A ledger entry that records a
+  *local* correlation or rejection event (not a canonical CaseActor-accepted assertion) MUST use
+  `disposition="rejected"`. Using the default `"accepted"` disposition for non-canonical markers
+  pollutes the authoritative ledger. See [notes/bt-integration.md](notes/bt-integration.md)
+  § "Use `disposition="rejected"` for Local-Only Ledger Correlation Markers".
+- **Semantic Registry Pattern Must Match Inbound Wire Format** — The semantic registry key for
+  an activity type MUST match the inbound wire format (e.g., `SuggestActorToCasePattern`), NOT
+  the outbound factory output (e.g., `OfferActorToCasePattern`). Registering the outbound pattern
+  means the registry never fires for inbound messages of that type. See
+  [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
+  § "Semantic Registry Patterns Must Match Inbound Wire Format".
+- **`offer_case_participant_activity`: `event.object_id` Has `#participant` Suffix** —
+  `event.object_id` is the CaseParticipant URI (with `#participant` suffix), not the actor URI.
+  Extract `actor_id` from `event.attributed_to`, not `event.object_id`. See
+  [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
+  § "`offer_case_participant_activity`: `event.object_id` Has `#participant` Suffix".
+- **Pre-Build Dedup Sets Before Fallback Loops** — When skipping already-checked IDs inside a loop
+  using membership in `dict.values()`, pre-build `seen = set(d.values())` once before the loop.
+  Each `in d.values()` is O(n); the `set` makes it O(1) per check, reducing O(n×m) to O(n+m).
+- **Consolidated Helper Needs One Test Per Distinct Lookup Path** — When unifying two helpers into
+  one function with N distinct lookup paths (e.g., primary index + fallback scan), each path must
+  have at least one test where it is the sole source of truth (all other paths left empty). Tests
+  that always populate the fallback path leave the primary path untested. See
+  [notes/bt-integration.md](notes/bt-integration.md) § "Dual-Path Consolidation Test Gap".
+- **Domain Sweep Audit: Catalog → Code, Then Factory Injection, Then `register_key`** — For
+  FUZZ-08h-style completeness audits: (1) AST-parse demo/fuzzer classes for a flat inventory,
+  (2) cross-ref catalog `New-arch cross-ref:` lines for gaps, (3) grep `CallOutBackendFactory`
+  in all tree builders, (4) grep `register_key` for naming conflicts. Closed issues referenced by
+  `*(to be implemented — see FUZZ-08x)*` entries must be checked: if the issue is closed but
+  the class is absent, it's a gap. See [notes/bt-fuzzer-nodes-report-management.md](notes/bt-fuzzer-nodes-report-management.md)
+  § "Sentinel Stubs Must Be Synced When the Upstream Issue Closes".
+- **MkDocs `not_in_nav` and `exclude_docs` Are Not the Same** — `exclude_docs` prevents files from
+  appearing in the published build but does NOT satisfy the `validation.nav.omitted_files` guard.
+  Files intentionally excluded from the nav MUST ALSO be listed in `not_in_nav`. Also: when using
+  `INHERIT: mkdocs.yml`, the `not_in_nav` list in the overlay **replaces** (not extends) the base
+  list. The strict local build script `mkdocs-build-strict.sh` is the right gate; CI's
+  `docs-build-check.yml` runs non-strict and does not surface `omitted_files: warn` failures.
+- **Pre-commit Hooks Interfere with `git rebase` in Worktrees** — `git rebase origin/main` in a
+  worktree fails with "local changes would be overwritten" even on a clean tree when pre-commit
+  hooks (black, flake8) modify files during the checkout step. Workaround: use
+  `manage_worktree.sh ensure-synced` (preferred), or abort the rebase and create a fresh branch
+  from `origin/main` directly (`git switch -c <branch> origin/main`). Do NOT run
+  `git rebase` raw in a worktree without confirming pre-commit hooks are hook-only (check-mode).
 
 ## Skill Interaction Rules
 
@@ -708,3 +1058,47 @@ History entries live under `plan/history/YYMM/<type>/<entry-id>.md`. Use the
 `notes/history-management.md` for the format and usage. During `orient-agent`,
 read only `plan/*.md` — access `plan/history/` only for investigating
 completed work.
+
+---
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues; external PRs are not a triage surface. See `docs/agents/issue-tracker.md`.
+
+**Never use `gh issue create`** — it cannot set issue types, parent/child
+relationships, or blocker/blocked-by links. Always use the
+`manage-github-issue` helper script (`.agents/skills/manage-github-issue/manage_github_issue.sh`)
+or the `createIssue` GraphQL mutation directly (with `issueTypeId`,
+`parentIssueId` inline). Issue type IDs and relationship mutation names are in
+`.agents/skills/manage-github-issue/REFERENCE.md`.
+
+**Never pass backtick-containing markdown in a double-quoted `--body` string.**
+Backticks inside `"..."` are shell-interpreted and appear as `\`` in GitHub.
+Always use a single-quoted heredoc so the shell passes the body verbatim:
+
+```bash
+gh issue comment <N> --repo CERTCC/Vultron --body "$(cat <<'EOF'
+Use `code` freely here — no escaping needed.
+EOF
+)"
+
+gh pr create --body "$(cat <<'EOF'
+- Closes #N
+## Summary
+Run `/plan-issue` to fix `needs-decomposition` Epics.
+EOF
+)"
+```
+
+The same rule applies to `gh issue edit --body`, `gh issue comment`, and any
+other CLI command that accepts a markdown body argument.
+
+### Triage labels
+
+Default label vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context repo: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.

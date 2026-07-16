@@ -45,6 +45,22 @@ groups:
     priority: MUST
     statement: >-
       Demo scripts MUST be relocated to `vultron/demo/` and MUST be importable as `vultron.demo.<script_name>`
+  - id: DC-02-003
+    priority: MUST
+    statement: >-
+      `demo_step` and `demo_check` MUST NOT be used interchangeably. `demo_step` is an
+      **action step**: it performs a side-effecting operation and swallows any exception into
+      the demo failure accumulator so the scenario continues. `demo_check` is an
+      **observation-only assertion block**: it verifies that state meets expectations and
+      accumulates assertion failures, but MUST NOT perform any side-effecting operation.
+    rationale: >-
+      Using `demo_step` for observation or `demo_check` for actions obscures the semantic
+      intent of the scenario. An action disguised as a check will not be correctly identified
+      as a side-effecting step in scenario tracing and logging; an observation disguised as
+      a step will mislead readers about what the scenario is doing vs. verifying.
+    relationships:
+    - rel_type: refines
+      spec_id: DC-02-001
 - id: DC-03
   title: Demo Isolation
   specs:

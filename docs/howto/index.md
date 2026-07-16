@@ -1,4 +1,4 @@
-# Implementing Vultron
+# How-to Guides
 
 {% include-markdown "../includes/not_normative.md" %}
 
@@ -14,13 +14,13 @@ suggestions for potential implementers.
 
 !!! tip inline end "Prerequisites"
 
-    The [Implementing Vultron](index.md) section assumes that you have:
+    The [How-to Guides](index.md) section assumes that you have:
     
     - an interest in implementing the Vultron Protocol
     - basic familiarity with the Vultron Protocol
     - familiarity with the CVD process in general
 
-    If you are unfamiliar with the Vultron Protocol, we recommend that you start with [Understanding Vultron](../topics/index.md).
+    If you are unfamiliar with the Vultron Protocol, we recommend that you start with [Explanation](../topics/index.md).
     For technical reference, see [Reference](../reference/index.md).
     If you're just trying to understand the CVD process, we recommend that you start with the [CERT Guide to Coordinated Vulnerability Disclosure](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"}.
 
@@ -33,8 +33,6 @@ In this section, you will find:
 other processes
 - :simple-activitypub: An in-depth exploration of applying the [ActivityPub](activitypub/index.md) protocol as an underlying foundation to
   the Vultron Protocol.
-- :material-calendar-month: A few thoughts on the [Embargo Management Process](em_icalendar.md) and how it might be implemented using the `iCalendar` protocol.
-- :material-format-list-bulleted: [General notes](general_implementation.md) on future implementations.
 
 </div>
 

@@ -2,6 +2,12 @@
 
 import logging
 
+from py_trees.common import Status
+
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.announce_case_received_tree import (
+    create_announce_vulnerability_case_received_tree,
+)
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
 )
@@ -9,7 +15,6 @@ from vultron.core.models.protocols import is_case_model
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.use_cases._helpers import _as_id, _find_case_actor_id
-from vultron.core.use_cases.received.case import _store_embedded_participants
 
 logger = logging.getLogger(__name__)
 
@@ -99,29 +104,21 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
             )
             return
 
-        existing = self._dl.read(case_id)
-        if existing is not None:
-            logger.info(
-                "AnnounceVulnerabilityCase: case '%s' already exists locally"
-                " — skipping (idempotent, MV-10-004)",
+        tree = create_announce_vulnerability_case_received_tree(
+            case_id=case_id,
+            case_obj=case_obj,
+            request=request,
+        )
+        bridge = BTBridge(datalayer=self._dl)
+        result = bridge.execute_with_setup(
+            tree=tree,
+            actor_id=request.actor_id,
+            activity=request,
+        )
+        if result.status != Status.SUCCESS:
+            logger.warning(
+                "AnnounceVulnerabilityCaseReceivedBT did not succeed"
+                " for case '%s': %s",
                 case_id,
-            )
-            _store_embedded_participants(case_obj, self._dl, case_id)
-            _link_report_case_links(self._dl, case_obj)
-            return
-
-        try:
-            self._dl.save(case_obj)
-            _store_embedded_participants(case_obj, self._dl, case_id)
-            _link_report_case_links(self._dl, case_obj)
-            logger.info(
-                "AnnounceVulnerabilityCase: seeded case '%s' from actor '%s'",
-                case_id,
-                request.actor_id,
-            )
-        except Exception as exc:
-            logger.error(
-                "AnnounceVulnerabilityCase: failed to create case '%s': %s",
-                case_id,
-                exc,
+                BTBridge.get_failure_reason(tree),
             )

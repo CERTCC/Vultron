@@ -16,14 +16,17 @@
 """
 Communication action nodes for case behavior trees.
 
-Provides action nodes that emit outbound activities related to case creation
-and case-manager role offers.
+Provides action nodes that emit outbound activities related to case creation.
 
 Composite subtrees assembling these leaf nodes are defined in the sibling
 ``communication_tree.py`` module at the process-area root per BTND-07-003:
 
 - ``EmitCreateCaseActivity``
-- ``SendOfferCaseManagerRoleNode``
+
+Delegation-related nodes (``ResolveCaseManagerOfferContextNode``,
+``CreateOfferCaseManagerActivityNode``, ``AutoAcceptCaseManagerRoleNode``,
+``EmitRejectCaseManagerRoleNode``) live in the sibling ``delegation.py``
+module.
 """
 
 import logging
@@ -133,6 +136,10 @@ class CreateAndPersistCaseActivityNode(DataLayerAction):
         try:
             return self.blackboard.get("create_case_obj")
         except KeyError:
+            self.feedback_message = (
+                f"{self.name}: 'create_case_obj' not on blackboard"
+            )
+            self.logger.error(self.feedback_message)
             return None
 
     def _read_addressees(self) -> list[str] | None:
@@ -159,13 +166,16 @@ class CreateAndPersistCaseActivityNode(DataLayerAction):
             return Status.FAILURE
 
         case_obj = self._read_case_obj()
+        if case_obj is None:
+            return Status.FAILURE
+
         addressees = self._read_addressees()
         if addressees is None:
             return Status.FAILURE
 
         activity = VultronCreateCaseActivity(
             actor=self.actor_id,
-            object_=case_obj if case_obj is not None else case_id,
+            object_=case_obj,
             context=case_id,
             to=addressees if addressees else None,
         )
@@ -183,132 +193,3 @@ class CreateAndPersistCaseActivityNode(DataLayerAction):
 
         self.blackboard.activity_id = activity.id_
         return Status.SUCCESS
-
-
-class ResolveCaseManagerOfferContextNode(DataLayerAction):
-    """Validate blackboard context and stage Offer recipients."""
-
-    def __init__(self, name: str | None = None):
-        super().__init__(name=name or self.__class__.__name__)
-
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="case_actor_id", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="case_actor_participant_id",
-            access=py_trees.common.Access.READ,
-        )
-        self.blackboard.register_key(
-            key="offer_case_manager_to", access=py_trees.common.Access.WRITE
-        )
-
-    def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                f"{self.name}: DataLayer or actor_id not available"
-            )
-            return Status.FAILURE
-
-        case_id = self.blackboard.get("case_id")
-        case_actor_id = self.blackboard.get("case_actor_id")
-        participant_id = self.blackboard.get("case_actor_participant_id")
-        if (
-            not isinstance(case_id, str)
-            or not isinstance(case_actor_id, str)
-            or not isinstance(participant_id, str)
-        ):
-            self.logger.error(
-                f"{self.name}: case_id, case_actor_id, or"
-                " case_actor_participant_id missing from blackboard"
-            )
-            return Status.FAILURE
-
-        self.blackboard.offer_case_manager_to = [case_actor_id]
-        return Status.SUCCESS
-
-
-class CreateOfferCaseManagerActivityNode(DataLayerAction):
-    """Create Offer(CaseManagerRole) via trigger_activity_factory."""
-
-    def __init__(self, name: str | None = None):
-        super().__init__(name=name or self.__class__.__name__)
-
-    def setup(self, **kwargs: Any) -> None:
-        super().setup(**kwargs)
-        self.blackboard.register_key(
-            key="case_id", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="case_actor_id", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="case_actor_participant_id",
-            access=py_trees.common.Access.READ,
-        )
-        self.blackboard.register_key(
-            key="offer_case_manager_to", access=py_trees.common.Access.READ
-        )
-        self.blackboard.register_key(
-            key="activity_id", access=py_trees.common.Access.WRITE
-        )
-
-    def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                f"{self.name}: DataLayer or actor_id not available"
-            )
-            return Status.FAILURE
-
-        if self.trigger_activity_factory is None:
-            self.logger.error(
-                f"{self.name}: trigger_activity_factory not available"
-            )
-            return Status.FAILURE
-
-        case_id = self.blackboard.get("case_id")
-        case_actor_id = self.blackboard.get("case_actor_id")
-        participant_id = self.blackboard.get("case_actor_participant_id")
-        recipients = self.blackboard.get("offer_case_manager_to")
-
-        if (
-            not isinstance(case_id, str)
-            or not isinstance(case_actor_id, str)
-            or not isinstance(participant_id, str)
-            or not isinstance(recipients, list)
-        ):
-            self.logger.error(
-                f"{self.name}: case_id, case_actor_id, or"
-                " case_actor_participant_id missing from blackboard"
-            )
-            return Status.FAILURE
-
-        try:
-            activity_id = (
-                self.trigger_activity_factory.offer_case_manager_role(
-                    case_id=case_id,
-                    participant_id=participant_id,
-                    actor=case_actor_id,
-                    to=recipients,
-                )
-            )
-            self.blackboard.activity_id = activity_id
-            self.logger.info(
-                "%s: Queued Offer(CaseManagerRole) '%s' to Case Actor '%s'"
-                " for case '%s'",
-                self.name,
-                activity_id,
-                case_actor_id,
-                case_id,
-            )
-            return Status.SUCCESS
-
-        except Exception as e:
-            self.logger.error(
-                f"{self.name}: Error sending Offer(CaseManagerRole): {e}"
-            )
-            return Status.FAILURE

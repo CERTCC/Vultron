@@ -22,10 +22,8 @@ without modification.
 
 Submodules:
 - ``conditions``: Participant verification condition nodes
-- ``broadcast``: Peer fan-out helper and nodes (_find_case_manager_id,
-  FindCaseManagerNode, FilterPeerRecipientsNode,
-  CreateStatusBroadcastActivityNode, BroadcastQueueToOutboxNode,
-  BroadcastStatusToPeersNode)
+- ``broadcast``: (removed — case-manager lookup consolidated into
+  ``_resolve_case_manager_id`` in ``vultron.core.use_cases._helpers``)
 - ``append``: Load, validate RM transition, and append action nodes
   (SkipIfIdempotentNode, LoadParticipantNode,
   CheckStatusNotAlreadyAppendedNode, ResolveAndPersistStatusObjectNode,
@@ -37,14 +35,6 @@ Submodules:
   append nodes for the AddCaseStatusToCase workflow
 """
 
-from vultron.core.behaviors.status.nodes.broadcast import (
-    BroadcastQueueToOutboxNode,
-    BroadcastStatusToPeersNode,
-    CreateStatusBroadcastActivityNode,
-    FilterPeerRecipientsNode,
-    FindCaseManagerNode,
-    _find_case_manager_id,
-)
 from vultron.core.behaviors.status.nodes.case_status import (
     CASE_STATUS_ALREADY_PRESENT,
     AppendCaseStatusToCaseNode,
@@ -56,6 +46,7 @@ from vultron.core.behaviors.status.nodes.conditions import (
 )
 from vultron.core.behaviors.status.nodes.append import (
     AppendStatusAndSaveParticipantNode,
+    CheckParticipantRMNotClosedNode,
     CheckStatusNotAlreadyAppendedNode,
     LoadParticipantNode,
     ResolveAndPersistStatusObjectNode,
@@ -71,16 +62,10 @@ from vultron.core.behaviors.status.nodes.lifecycle import (
 __all__ = [
     # conditions
     "VerifySenderIsParticipantNode",
-    # broadcast
-    "_find_case_manager_id",
-    "FindCaseManagerNode",
-    "FilterPeerRecipientsNode",
-    "CreateStatusBroadcastActivityNode",
-    "BroadcastQueueToOutboxNode",
-    "BroadcastStatusToPeersNode",
     # append
     "LoadParticipantNode",
     "CheckStatusNotAlreadyAppendedNode",
+    "CheckParticipantRMNotClosedNode",
     "ResolveAndPersistStatusObjectNode",
     "ValidateRMTransitionNode",
     "AppendStatusAndSaveParticipantNode",

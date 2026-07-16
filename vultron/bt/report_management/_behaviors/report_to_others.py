@@ -34,7 +34,6 @@ from vultron.bt.messaging.states import MessageTypes
 from vultron.bt.report_management.fuzzer.report_to_others import (
     AllPartiesKnown,
     ChooseRecipient,
-    FindContact,
     HaveReportToOthersCapability,
     InjectCoordinator,
     InjectOther,
@@ -244,9 +243,8 @@ _EngageParticipant = sequence_node(
 #  will also need to sync case pxa and embargo status with new participant
 _NotifyRecipient = sequence_node(
     "_NotifyRecipient",
-    "Checks if it is ok to notify a recipient, finds their contact info, then notifies them",
+    "Checks if it is ok to notify a recipient, then notifies them",
     _EnsureOkToNotify,
-    FindContact,
     _EngageParticipant,
 )
 

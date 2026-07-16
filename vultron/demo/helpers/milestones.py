@@ -26,7 +26,7 @@ import logging
 from vultron.core.states.cs import CS_vfd
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.demo.helpers.sync import _extract_ref_id
 from vultron.demo.helpers.verification import (
     _assert_participant_vfd_pxa,
@@ -42,10 +42,10 @@ logger = logging.getLogger(__name__)
 
 
 def verify_case_active(
-    coordinator_client: DataLayerClient,
+    receiver_client: DataLayerClient,
     reporter_client: DataLayerClient,
     case_id: str,
-    coordinator_actor_id: str,
+    receiver_actor_id: str,
     reporter_actor_id: str,
 ) -> None:
     """Verify that the case is active with required participants and EM.ACTIVE.
@@ -57,23 +57,23 @@ def verify_case_active(
     Spec: DEMOMA-06-002, DEMOMA-06-003.
 
     Args:
-        coordinator_client: Client connected to the coordinator container.
+        receiver_client: Client connected to the receiver container.
         reporter_client: Client connected to the reporter container.
         case_id: Full URI of the ``VulnerabilityCase``.
-        coordinator_actor_id: Full URI of the coordinator actor.
+        receiver_actor_id: Full URI of the receiver actor.
         reporter_actor_id: Full URI of the reporter actor.
 
     Raises:
         AssertionError: If any invariant is violated.
     """
     # Coordinator side
-    case_data = coordinator_client.get(f"/datalayer/{case_id}")
+    case_data = receiver_client.get(f"/datalayer/{case_id}")
     assert (
         case_data
-    ), f"verify_case_active: coordinator case {case_id!r} not found"
+    ), f"verify_case_active: receiver case {case_id!r} not found"
     case = VulnerabilityCase.model_validate(case_data)
 
-    required = {coordinator_actor_id, reporter_actor_id}
+    required = {receiver_actor_id, reporter_actor_id}
     missing = required - set(case.actor_participant_index.keys())
     if missing:
         raise AssertionError(
@@ -84,19 +84,19 @@ def verify_case_active(
     if not other_actors:
         raise AssertionError(
             "verify_case_active: expected a Case Actor participant in addition"
-            " to coordinator and reporter"
+            " to receiver and reporter"
         )
     if case.current_status.em_state != EM.ACTIVE:
         raise AssertionError(
-            f"verify_case_active coordinator: expected EM.ACTIVE, found"
+            f"verify_case_active receiver: expected EM.ACTIVE, found"
             f" {case.current_status.em_state}"
         )
     if case.active_embargo is None:
         raise AssertionError(
-            "verify_case_active coordinator: case has no active_embargo"
+            "verify_case_active receiver: case has no active_embargo"
         )
     logger.info(
-        "✓ case active (coordinator): required participants (coordinator,"
+        "✓ case active (receiver): required participants (receiver,"
         " reporter) + case-actor present, EM.ACTIVE, embargo present"
     )
 
@@ -109,15 +109,15 @@ def verify_case_active(
         )
     reporter_case = VulnerabilityCase.model_validate(reporter_case_data)
 
-    coordinator_embargo_id = _extract_ref_id(case.active_embargo)
+    receiver_embargo_id = _extract_ref_id(case.active_embargo)
     reporter_embargo_id = _extract_ref_id(reporter_case.active_embargo)
     if (
-        coordinator_embargo_id is not None
-        and coordinator_embargo_id != reporter_embargo_id
+        receiver_embargo_id is not None
+        and receiver_embargo_id != reporter_embargo_id
     ):
         raise AssertionError(
             f"verify_case_active: reporter active_embargo {reporter_embargo_id!r}"
-            f" != coordinator active_embargo {coordinator_embargo_id!r}"
+            f" != coordinator active_embargo {receiver_embargo_id!r}"
         )
     logger.info(
         "✓ case active (reporter): case replica present, matching participant"
@@ -126,20 +126,20 @@ def verify_case_active(
 
 
 def verify_fix_ready(
-    coordinator_client: DataLayerClient,
+    receiver_client: DataLayerClient,
     reporter_client: DataLayerClient,
     case_id: str,
-    coordinator_actor_id: str,
+    receiver_actor_id: str,
 ) -> None:
     """Verify that both replicas show CS includes F (fix ready).
 
     Spec: DEMOMA-06-002.
 
     Args:
-        coordinator_client: Client connected to the coordinator container.
+        receiver_client: Client connected to the receiver container.
         reporter_client: Client connected to the reporter container.
         case_id: Full URI of the ``VulnerabilityCase``.
-        coordinator_actor_id: Full URI of the coordinator actor whose
+        receiver_actor_id: Full URI of the receiver actor whose
             participant vfd_state to check.
 
     Raises:
@@ -147,16 +147,16 @@ def verify_fix_ready(
     """
     fix_ready_states = {CS_vfd.VFd, CS_vfd.VFD}
     _check_participant_vfd_state_in(
-        coordinator_client,
+        receiver_client,
         case_id,
-        coordinator_actor_id,
+        receiver_actor_id,
         fix_ready_states,
         "verify_fix_ready coordinator",
     )
     _check_participant_vfd_state_in(
         reporter_client,
         case_id,
-        coordinator_actor_id,
+        receiver_actor_id,
         fix_ready_states,
         "verify_fix_ready reporter replica",
     )
@@ -164,20 +164,20 @@ def verify_fix_ready(
 
 
 def verify_fix_deployed(
-    coordinator_client: DataLayerClient,
+    receiver_client: DataLayerClient,
     reporter_client: DataLayerClient,
     case_id: str,
-    coordinator_actor_id: str,
+    receiver_actor_id: str,
 ) -> None:
     """Verify that both replicas show CS includes D (fix deployed).
 
     Spec: DEMOMA-06-002.
 
     Args:
-        coordinator_client: Client connected to the coordinator container.
+        receiver_client: Client connected to the receiver container.
         reporter_client: Client connected to the reporter container.
         case_id: Full URI of the ``VulnerabilityCase``.
-        coordinator_actor_id: Full URI of the coordinator actor whose
+        receiver_actor_id: Full URI of the receiver actor whose
             participant vfd_state to check.
 
     Raises:
@@ -185,16 +185,16 @@ def verify_fix_deployed(
     """
     deployed_state = {CS_vfd.VFD}
     _check_participant_vfd_state_in(
-        coordinator_client,
+        receiver_client,
         case_id,
-        coordinator_actor_id,
+        receiver_actor_id,
         deployed_state,
         "verify_fix_deployed coordinator",
     )
     _check_participant_vfd_state_in(
         reporter_client,
         case_id,
-        coordinator_actor_id,
+        receiver_actor_id,
         deployed_state,
         "verify_fix_deployed reporter replica",
     )
@@ -204,10 +204,10 @@ def verify_fix_deployed(
 
 
 def verify_publicly_disclosed(
-    coordinator_client: DataLayerClient,
+    receiver_client: DataLayerClient,
     reporter_client: DataLayerClient,
     case_id: str,
-    coordinator_actor_id: str,
+    receiver_actor_id: str,
 ) -> None:
     """Verify that both replicas reflect CS.VFDPxa and EM has terminated.
 
@@ -219,16 +219,16 @@ def verify_publicly_disclosed(
     Spec: DEMOMA-06-002.
 
     Args:
-        coordinator_client: Client connected to the coordinator container.
+        receiver_client: Client connected to the receiver container.
         reporter_client: Client connected to the reporter container.
         case_id: Full URI of the ``VulnerabilityCase``.
-        coordinator_actor_id: Full URI of the coordinator actor.
+        receiver_actor_id: Full URI of the receiver actor.
 
     Raises:
         AssertionError: If any disclosure invariant is violated.
     """
     for label, client in [
-        ("coordinator", coordinator_client),
+        ("receiver", receiver_client),
         ("reporter", reporter_client),
     ]:
         case_data = client.get(f"/datalayer/{case_id}")
@@ -243,24 +243,24 @@ def verify_publicly_disclosed(
             )
         logger.info("✓ publicly disclosed %s: EM.EXITED", label)
 
-    # Verify coordinator participant's latest status is VFD + public-aware pxa
+    # Verify receiver participant's latest status is VFD + public-aware pxa
     # on both the coordinator's and reporter's DataLayer replicas.
     for label, c in [
-        ("coordinator", coordinator_client),
+        ("receiver", receiver_client),
         ("reporter", reporter_client),
     ]:
-        p = _fetch_participant(c, case_id, coordinator_actor_id)
+        p = _fetch_participant(c, case_id, receiver_actor_id)
         if p is None:
             raise AssertionError(
-                f"verify_publicly_disclosed {label}: coordinator participant"
-                f" {coordinator_actor_id!r} not found"
+                f"verify_publicly_disclosed {label}: receiver participant"
+                f" {receiver_actor_id!r} not found"
             )
-        _assert_participant_vfd_pxa(p, label, coordinator_actor_id)
+        _assert_participant_vfd_pxa(p, label, receiver_actor_id)
     logger.info("✓ publicly disclosed: both replicas CS.VFDPxa and EM.EXITED")
 
 
 def verify_case_closed(
-    coordinator_client: DataLayerClient,
+    receiver_client: DataLayerClient,
     reporter_client: DataLayerClient,
     case_id: str,
 ) -> None:
@@ -273,16 +273,16 @@ def verify_case_closed(
     Spec: DEMOMA-06-002.
 
     Args:
-        coordinator_client: Client connected to the coordinator container.
+        receiver_client: Client connected to the receiver container.
         reporter_client: Client connected to the reporter container.
         case_id: Full URI of the ``VulnerabilityCase``.
 
     Raises:
-        AssertionError: If any non-coordinator participant is not RM.CLOSED
+        AssertionError: If any non-receiver participant is not RM.CLOSED
             on either replica.
     """
     for label, client in [
-        ("coordinator", coordinator_client),
+        ("receiver", receiver_client),
         ("reporter", reporter_client),
     ]:
         case_data = client.get(f"/datalayer/{case_id}")

@@ -56,26 +56,6 @@ def _extract_payload_snapshot(
     )
 
 
-def _resolve_activity_fields(
-    activity: Any, case_id: str, dl: CasePersistence
-) -> tuple[str, str, dict[str, Any]]:
-    """Derive (object_id, event_type, payload_snapshot) from *activity*.
-
-    Falls back to ``case_id``-based defaults when *activity* is ``None``.
-    """
-    if activity is None:
-        return case_id, "case_event", {}
-    object_id: str = getattr(activity, "activity_id", case_id)
-    semantic_type = getattr(activity, "semantic_type", None)
-    event_type: str = (
-        semantic_type.value
-        if semantic_type is not None
-        else getattr(activity, "activity_type", "case_event") or "case_event"
-    )
-    payload_snapshot = _extract_payload_snapshot(activity, dl=dl)
-    return object_id, event_type, payload_snapshot
-
-
 class CommitCaseLedgerEntryNode(DataLayerAction):
     """
     Commit a hash-chained CaseLedgerEntry and fan it out to all case participants.
@@ -91,8 +71,8 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
     2. ``case_id`` key in the py_trees blackboard (written by a prior node
        such as :class:`CreateCaseNode` or :class:`PersistCase`).
 
-    If ``case_id`` cannot be resolved, the node returns ``SUCCESS`` silently
-    (no-op for trees that run in a non-case context).
+    If ``case_id`` cannot be resolved, the node returns ``FAILURE`` so the
+    enclosing BT sequence propagates the error (ARCH-15-001).
 
     ``event_type`` and ``object_id`` are derived from the ``activity``
     blackboard key (the inbound :class:`~vultron.core.models.events.base.VultronEvent`
@@ -175,10 +155,11 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
 
         case_id = self._resolve_case_id()
         if not case_id:
-            self.logger.debug(
-                f"{self.name}: no case_id available — skipping log entry"
+            self.logger.error(
+                f"{self.name}: no case_id available — cannot commit ledger"
+                " entry"
             )
-            return Status.SUCCESS
+            return Status.FAILURE
 
         activity = self._resolve_activity()
         if activity is None:
@@ -228,3 +209,115 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
             result.feedback_message,
         )
         return Status.FAILURE
+
+
+def create_guarded_commit_case_ledger_entry_tree(
+    case_id: str | None = None,
+) -> py_trees.composites.Selector:
+    """Create a guarded commit subtree for canonical case-ledger entries.
+
+    The commit runs only when the executing actor holds ``CVDRole.CASE_MANAGER``
+    for the case. Non-manager actors take the success fallback and skip the
+    canonical commit silently.
+
+    Structure::
+
+        GuardedCommitCaseLedgerEntryBT (Selector)
+        ├── SkipIfNotCaseManager (Sequence)
+        │   └── Inverter(CheckIsCaseManagerNode)  # SUCCESS when NOT case manager
+        └── CommitCaseLedgerEntryNode             # only reached when IS case manager
+
+    Using an ``Inverter`` separates the two distinct FAILURE modes:
+
+    - Actor is NOT the case manager → ``Inverter`` converts FAILURE→SUCCESS,
+      ``SkipIfNotCaseManager`` succeeds, Selector returns SUCCESS (skip).
+    - Actor IS the case manager but commit fails → ``Inverter`` converts
+      SUCCESS→FAILURE, ``SkipIfNotCaseManager`` fails, Selector tries
+      ``CommitCaseLedgerEntryNode`` which returns FAILURE, Selector returns
+      FAILURE (propagates the infrastructure error to abort effect nodes).
+
+    This prevents the old fallback-Success pattern from masking a genuine
+    commit failure as a benign skip.
+
+    Called internally by :func:`create_receive_activity_tree`.  Direct callers
+    in tree-factory modules are a CLP-10-006 ordering violation; use
+    ``create_receive_activity_tree`` instead.
+    """
+    from vultron.core.behaviors.case.nodes.conditions import (
+        CheckIsCaseManagerNode,
+    )
+
+    check_node = CheckIsCaseManagerNode(case_id=case_id)
+    return py_trees.composites.Selector(
+        name="GuardedCommitCaseLedgerEntryBT",
+        memory=False,
+        children=[
+            py_trees.composites.Sequence(
+                name="SkipIfNotCaseManager",
+                memory=False,
+                children=[
+                    py_trees.decorators.Inverter(
+                        name="InvertIsNotCaseManager",
+                        child=check_node,
+                    ),
+                ],
+            ),
+            CommitCaseLedgerEntryNode(case_id=case_id),
+        ],
+    )
+
+
+def create_receive_activity_tree(
+    name: str,
+    case_id: str | None,
+    precondition_guards: list[py_trees.behaviour.Behaviour],
+    effect_nodes: list[py_trees.behaviour.Behaviour],
+) -> py_trees.composites.Sequence:
+    """Compose a receive-side BT with CLP-10-006 ordering.
+
+    Structurally enforces the correct receive-side ordering::
+
+        [*precondition_guards] → GuardedCommit(receipt) → [*effect_nodes]
+
+    Precondition guards are read-only checks that may return FAILURE to abort
+    the tree before any state is written.  The guarded commit ledgers receipt
+    of the triggering activity (which is on the blackboard before any node
+    runs, placed there by ``BTBridge.execute_with_setup``).  Effect nodes
+    perform state transitions, outbox enqueues, and participant mutations —
+    all of which happen only after the receipt is recorded.
+
+    When ``case_id`` is ``None`` the commit step is omitted entirely,
+    preserving behaviour for trees that receive no explicit case context.
+
+    Per ``specs/case-ledger-processing.yaml`` CLP-10-006.
+
+    Args:
+        name: Display name for the root Sequence node.
+        case_id: ID of the ``VulnerabilityCase`` to ledger against.  Pass
+            ``None`` to skip the commit step (no ledger entry written).
+        precondition_guards: Zero or more read-only condition nodes placed
+            before the commit.  These nodes MUST NOT write to the DataLayer.
+        effect_nodes: Zero or more action nodes placed after the commit.
+            These may perform any state mutation.
+
+    Returns:
+        Root ``Sequence`` node ready for execution via
+        :class:`~vultron.core.behaviors.bridge.BTBridge`.
+    """
+    children: list[py_trees.behaviour.Behaviour] = list(precondition_guards)
+    if case_id is not None:
+        children.append(
+            create_guarded_commit_case_ledger_entry_tree(case_id=case_id)
+        )
+    else:
+        logger.debug(
+            "create_receive_activity_tree(%s): case_id is None"
+            " — commit step omitted",
+            name,
+        )
+    children.extend(effect_nodes)
+    return py_trees.composites.Sequence(
+        name=name,
+        memory=False,
+        children=children,
+    )

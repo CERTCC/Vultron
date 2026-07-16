@@ -1,0 +1,1240 @@
+id: CSB
+title: CVD Case State Behavioral Requirements
+description: >-
+  Event-Condition-Action behavioral requirements for CVD Case State (CS)
+  transitions. Each group is triggered by either a received CS message or a
+  local CS state transition. Items are BehavioralSpec entries with typed
+  preconditions and ordered steps where sequencing is normatively required.
+  **Sources**: docs/reference/formal_protocol/transitions.md (CS tables),
+  specs/vultron-protocol-spec.yaml (VP-09, VP-12, VP-14),
+  docs/topics/behavior_logic/msg_cs_bt.md, monitor_threats_bt.md,
+  em_terminate_bt.md.
+  See also: notes/behavioral-conformance-specs.md for design rationale.
+  Note: CSB and EMB (em-behavior.yaml) are developed together because CS
+  cascade chains (e.g. enter-cs-p -> embargo teardown) reference EM behavior
+  directly — separating them would create dangling satisfies relationships.
+version: 0.1.0
+kind: domain
+scope:
+- prototype
+- production
+groups:
+- id: CSB-01
+  title: Receive CV (Vendor Aware)
+  description: >-
+    Wire-type mapping — see MSM-03-001 (CV → ADD_CASE_STATUS_TO_CASE →
+    Add(CaseStatus)[target=VulnerabilityCase]; CaseStatus payload encodes vendor_aware).
+  trigger:
+    type: message_received
+    value: CV
+  specs:
+  - id: CSB-01-001
+    priority: MUST
+    statement: >-
+      A Participant in a non-Closed RM state (q^rm ∉ C) receiving CV MUST
+      update their model of the sending Participant's CS state to Vendor Aware
+      (q^cs ∈ Vfd···) and emit CK to acknowledge receipt.
+    rationale: >-
+      CV announces a Vendor-specific CS transition. The receiver does not change
+      their own CS state; they update their awareness model for the sender. The
+      CK acknowledges receipt per VP-12 messaging norms.
+    testable: true
+    preconditions:
+    - rm_state:
+        - RECEIVED
+        - INVALID
+        - VALID
+        - DEFERRED
+        - ACCEPTED
+      description: Participant is in an active RM state (Received/Invalid/Valid/Deferred/Accepted)
+    steps:
+    - order: 1
+      actor: receiver
+      action: >-
+        Update model of sender's CS state to Vendor Aware (Vfd···) — receiver's
+        own CS state is unchanged
+      expected: Receiver's awareness model for sender reflects CS=Vfd
+    - order: 2
+      actor: receiver
+      action: Emit CK to acknowledge receipt of CV
+      expected: CK queued for sender
+    postconditions:
+    - description: Sender's CS state recorded as Vfd; CK emitted; receiver CS unchanged
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-03-001
+      note: 'CV shorthand wire-type mapping'
+
+- id: CSB-02
+  title: Receive CF (Fix Ready)
+  description: >-
+    Wire-type mapping — see MSM-03-002 (CF → ADD_CASE_STATUS_TO_CASE →
+    Add(CaseStatus)[target=VulnerabilityCase]; CaseStatus payload encodes fix_ready).
+  trigger:
+    type: message_received
+    value: CF
+  specs:
+  - id: CSB-02-001
+    priority: MUST
+    statement: >-
+      A Participant in a non-Closed RM state (q^rm ∉ C) receiving CF MUST
+      update their model of the sending Participant's CS state to Fix Ready
+      (q^cs ∈ VFd···) and emit CK to acknowledge receipt.
+    rationale: >-
+      CF announces a Vendor-specific CS transition. The receiver does not change
+      their own CS state; they update their awareness model for the sender.
+    testable: true
+    preconditions:
+    - rm_state:
+        - RECEIVED
+        - INVALID
+        - VALID
+        - DEFERRED
+        - ACCEPTED
+      description: Participant is in an active RM state (Received/Invalid/Valid/Deferred/Accepted)
+    steps:
+    - order: 1
+      actor: receiver
+      action: >-
+        Update model of sender's CS state to Fix Ready (VFd···) — receiver's
+        own CS state is unchanged
+      expected: Receiver's awareness model for sender reflects CS=VFd
+    - order: 2
+      actor: receiver
+      action: Emit CK to acknowledge receipt of CF
+      expected: CK queued for sender
+    postconditions:
+    - description: Sender's CS state recorded as VFd; CK emitted; receiver CS unchanged
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-03-002
+      note: 'CF shorthand wire-type mapping'
+
+- id: CSB-03
+  title: Receive CD (Fix Deployed)
+  description: >-
+    Wire-type mapping — see MSM-03-003 (CD → ADD_CASE_STATUS_TO_CASE →
+    Add(CaseStatus)[target=VulnerabilityCase]; CaseStatus payload encodes fix_deployed).
+  trigger:
+    type: message_received
+    value: CD
+  specs:
+  - id: CSB-03-001
+    priority: MUST
+    statement: >-
+      A Participant in a non-Closed RM state (q^rm ∉ C) receiving CD MUST
+      update their model of the sending Participant's CS state to Fix Deployed
+      (q^cs ∈ VFD···) and emit CK to acknowledge receipt.
+    rationale: >-
+      CD announces a Vendor-specific CS transition. The receiver does not change
+      their own CS state; they update their awareness model for the sender.
+    testable: true
+    preconditions:
+    - rm_state:
+        - RECEIVED
+        - INVALID
+        - VALID
+        - DEFERRED
+        - ACCEPTED
+      description: Participant is in an active RM state (Received/Invalid/Valid/Deferred/Accepted)
+    steps:
+    - order: 1
+      actor: receiver
+      action: >-
+        Update model of sender's CS state to Fix Deployed (VFD···) — receiver's
+        own CS state is unchanged
+      expected: Receiver's awareness model for sender reflects CS=VFD
+    - order: 2
+      actor: receiver
+      action: Emit CK to acknowledge receipt of CD
+      expected: CK queued for sender
+    postconditions:
+    - description: Sender's CS state recorded as VFD; CK emitted; receiver CS unchanged
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-03-003
+      note: 'CD shorthand wire-type mapping'
+
+- id: CSB-04
+  title: Receive CP (Public Aware)
+  description: >-
+    Wire-type mapping — see MSM-03-004 (CP → ADD_CASE_STATUS_TO_CASE →
+    Add(CaseStatus)[target=VulnerabilityCase]; CaseStatus payload encodes public_aware).
+  trigger:
+    type: message_received
+    value: CP
+  specs:
+  - id: CSB-04-001
+    priority: MUST
+    statement: >-
+      A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
+      (q^cs ∈ ···p··) and EM None or Exited (q^em ∈ {N, X}) receiving CP MUST
+      transition their local CS to Public Aware (q^cs ···p·· → ···P··) and emit
+      CK to acknowledge receipt.
+    rationale: >-
+      CP is a global (participant-agnostic) CS transition. All receivers must
+      update their own CS state. When EM is None or Exited, no embargo teardown
+      is needed.
+    testable: true
+    preconditions:
+    - cs_pattern: "...p.."
+      em_state:
+        - NONE
+        - EXITED
+      description: EM state is None or Exited; CS matches pattern ...p..
+    steps:
+    - order: 1
+      actor: receiver
+      action: Transition local CS to Public Aware (···P··)
+      expected: Receiver CS public bit set to P
+    - order: 2
+      actor: receiver
+      action: Emit CK to acknowledge receipt of CP
+      expected: CK queued for sender
+    postconditions:
+    - description: Receiver CS is public-aware; CK emitted
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-03-004
+      note: 'CP shorthand wire-type mapping'
+
+  - id: CSB-04-002
+    priority: MUST
+    statement: >-
+      A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
+      (q^cs ∈ ···p··) and EM Proposed (q^em ∈ P) receiving CP MUST transition
+      their local CS to Public Aware, MUST transition EM to None (q^em P → N),
+      and MUST emit CK to acknowledge receipt.
+    rationale: >-
+      Public awareness terminates a pending embargo proposal per VP-09-001 and
+      VP-11-002. The embargo cannot be negotiated once the information is public.
+    testable: true
+    preconditions:
+    - cs_pattern: "...p.."
+      em_state:
+        - PROPOSED
+      description: EM state is Proposed; CS matches pattern ...p..
+    steps:
+    - order: 1
+      actor: receiver
+      action: Transition local CS to Public Aware (···P··)
+      expected: Receiver CS public bit set to P
+    - order: 2
+      actor: receiver
+      action: Transition EM from PROPOSED to NONE (embargo proposal abandoned)
+      expected: Receiver EM state is NONE
+    - order: 3
+      actor: receiver
+      action: Emit CK to acknowledge receipt of CP
+      expected: CK queued for sender
+    postconditions:
+    - description: Receiver CS is public-aware; EM is NONE; CK emitted
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-09-001
+      note: Embargoes SHALL terminate immediately when information becomes public
+    - rel_type: satisfies
+      spec_id: MSM-03-004
+      note: 'CP shorthand wire-type mapping'
+
+  - id: CSB-04-003
+    priority: MUST
+    statement: >-
+      A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
+      (q^cs ∈ ···p··) and EM Active or Revise (q^em ∈ {A, R}) receiving CP MUST
+      transition their local CS to Public Aware, MUST initiate embargo termination
+      by emitting ET, and MUST emit CK to acknowledge receipt.
+    rationale: >-
+      VP-09-001 and VP-11-002 require immediate embargo termination when public
+      awareness occurs. The ordering — CS transition recorded before embargo
+      teardown — satisfies constraint C-14 from the behavioral spec design note:
+      record CS state change first, then initiate teardown.
+    testable: true
+    preconditions:
+    - cs_pattern: "...p.."
+      em_state:
+        - ACTIVE
+        - REVISE
+      description: EM state is Active or Revise; CS matches pattern ...p..
+    steps:
+    - order: 1
+      actor: receiver
+      action: Transition local CS to Public Aware (···P··)
+      expected: Receiver CS public bit set to P
+    - order: 2
+      actor: receiver
+      action: Emit ET to initiate embargo termination
+      expected: ET queued for participants; EM begins transitioning to EXITED
+    - order: 3
+      actor: receiver
+      action: Emit CK to acknowledge receipt of CP
+      expected: CK queued for sender
+    postconditions:
+    - description: >-
+        Receiver CS is public-aware; ET emitted; EM is EXITED; CK emitted
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-09-001
+      note: Embargoes SHALL terminate immediately when information becomes public
+    - rel_type: satisfies
+      spec_id: VP-11-002
+      note: >-
+        SHALL terminate embargo when information about vulnerability or exploit
+        is public
+    - rel_type: satisfies
+      spec_id: VP-11-003
+      note: >-
+        SHALL initiate embargo termination upon becoming aware of publicly
+        available information
+    - rel_type: satisfies
+      spec_id: MSM-03-004
+      note: 'CP shorthand wire-type mapping'
+
+  - id: CSB-04-004
+    priority: MUST
+    statement: >-
+      A Participant in a non-Closed RM state (q^rm ∉ C) already in CS Public
+      Aware (q^cs ∈ ···P··) receiving a duplicate CP MUST emit CK without any
+      CS or EM state transition.
+    rationale: >-
+      All C* messages warrant acknowledgment. Duplicate CP does not re-trigger
+      CS or EM transitions.
+    testable: true
+    preconditions:
+    - cs_pattern: "...P.."
+      description: CS matches pattern ...P..
+    steps:
+    - order: 1
+      actor: receiver
+      action: Emit CK to acknowledge receipt of CP (no state change)
+      expected: CK queued for sender; CS and EM states unchanged
+    postconditions:
+    - description: CK emitted; no state change
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-03-004
+      note: 'CP shorthand wire-type mapping'
+
+- id: CSB-05
+  title: Receive CX (Exploit Public)
+  description: >-
+    Wire-type mapping — see MSM-03-005 (CX → ADD_CASE_STATUS_TO_CASE →
+    Add(CaseStatus)[target=VulnerabilityCase]; CaseStatus payload encodes exploit_published).
+  trigger:
+    type: message_received
+    value: CX
+  specs:
+  - id: CSB-05-001
+    priority: MUST
+    statement: >-
+      A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
+      and not yet exploit-public (q^cs ∈ ···px·) and EM None or Exited
+      (q^em ∈ {N, X}) receiving CX MUST transition their local CS to both
+      Public Aware and Exploit Public (q^cs ···px· → ···PX·) and emit CK to
+      acknowledge receipt.
+    rationale: >-
+      CX in state ···px· implies the pX→PX invariant (constraint C-15): exploit
+      public without prior public awareness is an ephemeral state that
+      immediately resolves to both P and X. The CS transition is atomic.
+    testable: true
+    preconditions:
+    - cs_pattern: "...px."
+      em_state:
+        - NONE
+        - EXITED
+      description: EM state is None or Exited; CS matches pattern ...px.
+    steps:
+    - order: 1
+      actor: receiver
+      action: Transition local CS to Public Aware and Exploit Public (···PX·)
+      expected: Receiver CS public bit P and exploit bit X both set
+    - order: 2
+      actor: receiver
+      action: Emit CK to acknowledge receipt of CX
+      expected: CK queued for sender
+    postconditions:
+    - description: Receiver CS is ···PX·; CK emitted
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-03-005
+      note: 'CX shorthand wire-type mapping'
+
+  - id: CSB-05-002
+    priority: MUST
+    statement: >-
+      A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
+      and not yet exploit-public (q^cs ∈ ···px·) and EM Proposed
+      (q^em ∈ P) receiving CX MUST transition their local CS to ···PX·, MUST
+      transition EM to None (q^em P → N), and MUST emit CK to acknowledge.
+    rationale: >-
+      Exploit publication terminates a pending embargo proposal per VP-09-001.
+      The pX→PX invariant applies (constraint C-15).
+    testable: true
+    preconditions:
+    - cs_pattern: "...px."
+      em_state:
+        - PROPOSED
+      description: EM state is Proposed; CS matches pattern ...px.
+    steps:
+    - order: 1
+      actor: receiver
+      action: Transition local CS to Public Aware and Exploit Public (···PX·)
+      expected: Receiver CS public bit P and exploit bit X both set
+    - order: 2
+      actor: receiver
+      action: Transition EM from PROPOSED to NONE (embargo proposal abandoned)
+      expected: Receiver EM state is NONE
+    - order: 3
+      actor: receiver
+      action: Emit CK to acknowledge receipt of CX
+      expected: CK queued for sender
+    postconditions:
+    - description: Receiver CS is ···PX·; EM is NONE; CK emitted
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-09-001
+      note: Embargoes SHALL terminate immediately when information becomes public
+    - rel_type: satisfies
+      spec_id: MSM-03-005
+      note: 'CX shorthand wire-type mapping'
+
+  - id: CSB-05-003
+    priority: MUST
+    statement: >-
+      A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
+      and not yet exploit-public (q^cs ∈ ···px·) and EM Active or Revise
+      (q^em ∈ {A, R}) receiving CX MUST transition their local CS to ···PX·,
+      MUST initiate embargo termination by emitting ET, and MUST emit CK.
+      The CS transition MUST be recorded before embargo teardown is initiated
+      (constraint C-14).
+    rationale: >-
+      VP-09-001 and VP-11-002 require immediate embargo termination when exploit
+      publication occurs. The pX→PX invariant applies. C-14 ordering: record
+      CS transition first, then initiate teardown.
+    testable: true
+    preconditions:
+    - cs_pattern: "...px."
+      em_state:
+        - ACTIVE
+        - REVISE
+      description: EM state is Active or Revise; CS matches pattern ...px.
+    steps:
+    - order: 1
+      actor: receiver
+      action: Transition local CS to Public Aware and Exploit Public (···PX·)
+      expected: Receiver CS public bit P and exploit bit X both set
+    - order: 2
+      actor: receiver
+      action: Emit ET to initiate embargo termination
+      expected: ET queued for participants; EM begins transitioning to EXITED
+    - order: 3
+      actor: receiver
+      action: Emit CK to acknowledge receipt of CX
+      expected: CK queued for sender
+    postconditions:
+    - description: Receiver CS is ···PX·; ET emitted; EM is EXITED; CK emitted
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-09-001
+      note: Embargoes SHALL terminate immediately when exploit publication occurs
+    - rel_type: satisfies
+      spec_id: VP-11-002
+      note: SHALL terminate embargo when exploit is public
+    - rel_type: satisfies
+      spec_id: MSM-03-005
+      note: 'CX shorthand wire-type mapping'
+
+  - id: CSB-05-004
+    priority: MUST
+    statement: >-
+      A Participant in a non-Closed RM state (q^rm ∉ C) with CS already public
+      but not yet exploit-public (q^cs ∈ ···Px·) receiving CX MUST transition
+      their local CS exploit bit to X (q^cs ···Px· → ···PX·) and emit CK.
+    rationale: >-
+      When public awareness already exists, CX transitions only the exploit bit.
+      No new embargo teardown is triggered since the embargo should already have
+      been terminated when P was reached.
+    testable: true
+    preconditions:
+    - cs_pattern: "...Px."
+      description: CS matches pattern ...Px.
+    steps:
+    - order: 1
+      actor: receiver
+      action: Transition local CS exploit bit to X (···PX·)
+      expected: Receiver CS exploit bit X set; public bit P remains set
+    - order: 2
+      actor: receiver
+      action: Emit CK to acknowledge receipt of CX
+      expected: CK queued for sender
+    postconditions:
+    - description: Receiver CS is ···PX·; CK emitted
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-03-005
+      note: 'CX shorthand wire-type mapping'
+
+  - id: CSB-05-005
+    priority: MUST
+    statement: >-
+      A Participant in a non-Closed RM state (q^rm ∉ C) with CS already
+      exploit-public (q^cs ∈ ···PX·) receiving a duplicate CX MUST emit CK
+      without any CS or EM state transition.
+    rationale: >-
+      All C* messages warrant acknowledgment. Duplicate CX does not re-trigger
+      CS or EM transitions.
+    testable: true
+    preconditions:
+    - cs_pattern: "...PX."
+      description: CS matches pattern ...PX.
+    steps:
+    - order: 1
+      actor: receiver
+      action: Emit CK to acknowledge receipt of CX (no state change)
+      expected: CK queued for sender; CS and EM states unchanged
+    postconditions:
+    - description: CK emitted; no state change
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-03-005
+      note: 'CX shorthand wire-type mapping'
+
+- id: CSB-06
+  title: Receive CA (Attacks Observed)
+  description: >-
+    Wire-type mapping — see MSM-03-006 (CA → ADD_CASE_STATUS_TO_CASE →
+    Add(CaseStatus)[target=VulnerabilityCase]; CaseStatus payload encodes attacks_observed).
+  trigger:
+    type: message_received
+    value: CA
+  specs:
+  - id: CSB-06-001
+    priority: MUST
+    statement: >-
+      A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
+      and attacks not yet observed (q^cs ∈ ···p·a) and EM None or Exited
+      (q^em ∈ {N, X}) receiving CA MUST transition their local CS to both
+      Public Aware and Attacks Observed (q^cs ···p·a → ···P·A) and emit CK.
+    rationale: >-
+      CA in state ···p·a implies constraint C-16: attack observation without
+      prior public awareness triggers the CS→P transition alongside CS→A.
+      When EM is None or Exited, no embargo teardown is needed.
+    testable: true
+    preconditions:
+    - cs_pattern: "...p.a"
+      em_state:
+        - NONE
+        - EXITED
+      description: EM state is None or Exited; CS matches pattern ...p.a
+    steps:
+    - order: 1
+      actor: receiver
+      action: >-
+        Transition local CS to Public Aware and Attacks Observed (···P·A)
+      expected: Receiver CS public bit P and attacks bit A both set
+    - order: 2
+      actor: receiver
+      action: Emit CK to acknowledge receipt of CA
+      expected: CK queued for sender
+    postconditions:
+    - description: Receiver CS is ···P·A; CK emitted
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-03-006
+      note: 'CA shorthand wire-type mapping'
+
+  - id: CSB-06-002
+    priority: MUST
+    statement: >-
+      A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
+      and attacks not yet observed (q^cs ∈ ···p·a) and EM Proposed
+      (q^em ∈ P) receiving CA MUST transition their local CS to ···P·A, MUST
+      transition EM to None (q^em P → N), and MUST emit CK.
+    rationale: >-
+      Attacks observed alongside previously non-public CS triggers CS→P, which
+      terminates a pending embargo proposal. Constraint C-16 applies.
+    testable: true
+    preconditions:
+    - cs_pattern: "...p.a"
+      em_state:
+        - PROPOSED
+      description: EM state is Proposed; CS matches pattern ...p.a
+    steps:
+    - order: 1
+      actor: receiver
+      action: >-
+        Transition local CS to Public Aware and Attacks Observed (···P·A)
+      expected: Receiver CS public bit P and attacks bit A both set
+    - order: 2
+      actor: receiver
+      action: Transition EM from PROPOSED to NONE (embargo proposal abandoned)
+      expected: Receiver EM state is NONE
+    - order: 3
+      actor: receiver
+      action: Emit CK to acknowledge receipt of CA
+      expected: CK queued for sender
+    postconditions:
+    - description: Receiver CS is ···P·A; EM is NONE; CK emitted
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-09-001
+      note: Embargoes SHALL terminate immediately when information becomes public
+    - rel_type: satisfies
+      spec_id: MSM-03-006
+      note: 'CA shorthand wire-type mapping'
+
+  - id: CSB-06-003
+    priority: MUST
+    statement: >-
+      A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
+      and attacks not yet observed (q^cs ∈ ···p·a) and EM Active or Revise
+      (q^em ∈ {A, R}) receiving CA MUST transition their local CS to ···P·A,
+      MUST initiate embargo termination by emitting ET, and MUST emit CK.
+      The CS transition MUST be recorded before embargo teardown is initiated
+      (constraint C-14).
+    rationale: >-
+      Attacks observed without prior public awareness triggers CS→P (constraint
+      C-16) which in turn requires embargo termination per VP-09-001. The C-14
+      ordering: record CS transition first, then initiate teardown.
+    testable: true
+    preconditions:
+    - cs_pattern: "...p.a"
+      em_state:
+        - ACTIVE
+        - REVISE
+      description: EM state is Active or Revise; CS matches pattern ...p.a
+    steps:
+    - order: 1
+      actor: receiver
+      action: >-
+        Transition local CS to Public Aware and Attacks Observed (···P·A)
+      expected: Receiver CS public bit P and attacks bit A both set
+    - order: 2
+      actor: receiver
+      action: Emit ET to initiate embargo termination
+      expected: ET queued for participants; EM begins transitioning to EXITED
+    - order: 3
+      actor: receiver
+      action: Emit CK to acknowledge receipt of CA
+      expected: CK queued for sender
+    postconditions:
+    - description: >-
+        Receiver CS is ···P·A; ET emitted; EM is EXITED; CK emitted
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-09-001
+      note: Embargoes SHALL terminate immediately when information becomes public
+    - rel_type: satisfies
+      spec_id: VP-11-006
+      note: SHOULD terminate embargo when attacks are known to have occurred
+    - rel_type: satisfies
+      spec_id: MSM-03-006
+      note: 'CA shorthand wire-type mapping'
+
+  - id: CSB-06-004
+    priority: MUST
+    statement: >-
+      A Participant in a non-Closed RM state (q^rm ∉ C) with CS already public
+      but attacks not yet observed (q^cs ∈ ···P·a) receiving CA MUST
+      transition their local CS attacks bit to A (q^cs ···P·a → ···P·A) and
+      emit CK.
+    rationale: >-
+      When public awareness already exists, CA transitions only the attacks bit.
+      The public bit is already set; no new P transition is needed.
+    testable: true
+    preconditions:
+    - cs_pattern: "...P.a"
+      description: CS matches pattern ...P.a
+    steps:
+    - order: 1
+      actor: receiver
+      action: Transition local CS attacks bit to A (···P·A)
+      expected: Receiver CS attacks bit A set; public bit P remains set
+    - order: 2
+      actor: receiver
+      action: Emit CK to acknowledge receipt of CA
+      expected: CK queued for sender
+    postconditions:
+    - description: Receiver CS is ···P·A; CK emitted
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-03-006
+      note: 'CA shorthand wire-type mapping'
+
+  - id: CSB-06-005
+    priority: MUST
+    statement: >-
+      A Participant in a non-Closed RM state (q^rm ∉ C) with CS attacks already
+      observed (q^cs ∈ ···P·A) receiving a duplicate CA MUST emit CK without
+      any CS or EM state transition.
+    rationale: >-
+      All C* messages warrant acknowledgment. Duplicate CA does not re-trigger
+      CS or EM transitions.
+    testable: true
+    preconditions:
+    - cs_pattern: "...P.A"
+      description: CS matches pattern ...P.A
+    steps:
+    - order: 1
+      actor: receiver
+      action: Emit CK to acknowledge receipt of CA (no state change)
+      expected: CK queued for sender; CS and EM states unchanged
+    postconditions:
+    - description: CK emitted; no state change
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-03-006
+      note: 'CA shorthand wire-type mapping'
+
+- id: CSB-07
+  title: Receive CE (CS Error)
+  description: >-
+    Wire-type mapping — see MSM-03-007 (CE has no dedicated MessageSemantics
+    dispatch value and no AS2 wire representation in the current semantic registry).
+  trigger:
+    type: message_received
+    value: CE
+  specs:
+  - id: CSB-07-001
+    priority: SHOULD
+    statement: >-
+      A Participant in a non-Closed RM state (q^rm ∉ C) receiving CE SHOULD
+      emit CK to acknowledge receipt and SHOULD emit GI to inquire about the
+      nature of the CS error.
+    rationale: >-
+      CE signals a protocol error in the CS process. Acknowledging with CK and
+      following up with GI allows the sender to explain the error and enables
+      recovery. CE does not trigger a CS state transition.
+    testable: true
+    preconditions:
+    - rm_state:
+        - RECEIVED
+        - INVALID
+        - VALID
+        - DEFERRED
+        - ACCEPTED
+      description: Participant is in an active RM state (Received/Invalid/Valid/Deferred/Accepted)
+    steps:
+    - order: 1
+      actor: receiver
+      action: Emit CK to acknowledge receipt of CE
+      expected: CK queued for sender
+    - order: 2
+      actor: receiver
+      action: Emit GI to inquire about the nature of the error
+      expected: GI queued for sender
+    postconditions:
+    - description: CK and GI emitted; CS state unchanged
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-03-007
+      note: 'CE shorthand wire-type mapping'
+
+- id: CSB-08
+  title: Receive CK (CS Acknowledgment)
+  description: >-
+    Wire-type mapping — see MSM-03-008 (CK has no dedicated MessageSemantics
+    dispatch value and no AS2 wire representation in the current semantic registry).
+  trigger:
+    type: message_received
+    value: CK
+  specs:
+  - id: CSB-08-001
+    priority: MAY
+    statement: >-
+      A Participant receiving CK MAY process it as a passthrough acknowledgment
+      with no state transition and no required response.
+    rationale: >-
+      CK is a pure acknowledgment message. It confirms the sender received a
+      prior C* message. No state change or response is required from the
+      receiver.
+    testable: false
+    lint_suppress:
+    - testable_without_steps
+    preconditions: []
+    relationships:
+    - rel_type: satisfies
+      spec_id: MSM-03-008
+      note: 'CK shorthand wire-type mapping'
+
+- id: CSB-09
+  title: Enter CS Vendor Aware (V)
+  trigger:
+    type: state_entered
+    value: CS.V
+  specs:
+  - id: CSB-09-001
+    priority: SHOULD
+    statement: >-
+      A Vendor Participant entering CS Vendor Aware (q^cs ∈ Vfdpxa) with EM
+      None (q^em ∈ N) SHOULD begin embargo negotiations promptly.
+    rationale: >-
+      VP-14-005 recommends starting the EM process as soon as possible once a
+      Vendor is aware. Constraint C-32: EM SHOULD begin promptly on Vfdpxa entry
+      when no embargo exists.
+    testable: false
+    preconditions:
+    - cs_pattern: "Vfd..."
+      em_state:
+        - NONE
+      role:
+        - vendor
+      description: EM state is None; Participant holds the Vendor role; CS matches pattern Vfd...
+    lint_suppress:
+    - testable_without_steps
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-14-005
+      note: >-
+        Once a case has reached Vendor Aware, if the EM process has not started,
+        it SHOULD begin as soon as possible
+
+  - id: CSB-09-002
+    priority: SHOULD
+    statement: >-
+      A Participant entering CS Vendor Aware SHOULD emit CV to announce the
+      transition to other case Participants.
+    rationale: >-
+      State-change notifications support shared situation awareness. CV informs
+      other Participants that a Vendor is now aware, enabling them to coordinate
+      embargo and fix timing accordingly.
+    testable: true
+    preconditions:
+    - cs_pattern: "Vfd..."
+      description: CS matches pattern Vfd...
+    steps:
+    - order: 1
+      actor: participant
+      action: Emit CV to announce Vendor Aware CS transition
+      expected: CV queued for case participants
+    postconditions:
+    - description: CV emitted; other Participants informed of V transition
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-12-001
+      note: >-
+        CV messages SHOULD be sent only by Participants with direct knowledge
+        of the notification
+
+- id: CSB-10
+  title: Enter CS Fix Ready (F)
+  trigger:
+    type: state_entered
+    value: CS.F
+  specs:
+  - id: CSB-10-001
+    priority: SHOULD_NOT
+    statement: >-
+      A Participant entering CS Fix Ready (q^cs ∈ VFd···) SHOULD NOT start new
+      embargo negotiations. If an embargo proposal is pending (q^em ∈ P), the
+      Participant SHOULD reject it.
+    rationale: >-
+      VP-14-007 discourages starting or completing new embargo negotiations once
+      a fix is ready. Constraint C-34: fix readiness is late in the process for
+      beginning embargo negotiations.
+    testable: false
+    preconditions:
+    - cs_pattern: "VFd..."
+      description: CS matches pattern VFd...
+    lint_suppress:
+    - testable_without_steps
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-14-007
+      note: >-
+        Once a case has reached Fix Ready, new embargo negotiations SHOULD NOT
+        start and pending embargoes SHOULD be rejected
+
+  - id: CSB-10-002
+    priority: SHOULD
+    statement: >-
+      A Participant entering CS Fix Ready SHOULD emit CF to announce the
+      transition to other case Participants.
+    rationale: >-
+      State-change notifications support shared situation awareness. CF informs
+      other Participants that a fix is available, enabling them to coordinate
+      embargo extension or termination decisions.
+    testable: true
+    preconditions:
+    - cs_pattern: "VFd..."
+      description: CS matches pattern VFd...
+    steps:
+    - order: 1
+      actor: participant
+      action: Emit CF to announce Fix Ready CS transition
+      expected: CF queued for case participants
+    postconditions:
+    - description: CF emitted; other Participants informed of F transition
+
+- id: CSB-11
+  title: Enter CS Fix Deployed (D)
+  trigger:
+    type: state_entered
+    value: CS.D
+  specs:
+  - id: CSB-11-001
+    priority: SHOULD
+    statement: >-
+      A Participant entering CS Fix Deployed (q^cs ∈ VFD···) with an active
+      embargo (q^em ∈ {A, R}) SHOULD terminate the embargo by emitting ET.
+    rationale: >-
+      VP-14-010 recommends terminating any existing embargo once the fix has
+      been deployed. Constraint C-35: embargo termination SHOULD follow fix
+      deployment.
+    testable: true
+    preconditions:
+    - cs_pattern: "VFD..."
+      em_state:
+        - ACTIVE
+        - REVISE
+      description: EM state is Active or Revise; CS matches pattern VFD...
+    steps:
+    - order: 1
+      actor: participant
+      action: Emit ET to terminate the active embargo
+      expected: ET queued for participants; EM begins transitioning to EXITED
+    postconditions:
+    - description: ET emitted; EM is EXITED
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-14-010
+      note: >-
+        By the time a fix has been deployed, any existing embargo SHOULD
+        terminate
+
+  - id: CSB-11-002
+    priority: SHOULD
+    statement: >-
+      A Participant entering CS Fix Deployed SHOULD emit CD to announce the
+      transition to other case Participants.
+    rationale: >-
+      State-change notifications support shared situation awareness. CD informs
+      other Participants that the fix is deployed, allowing them to coordinate
+      publication and embargo termination decisions.
+    testable: true
+    preconditions:
+    - cs_pattern: "VFD..."
+      description: CS matches pattern VFD...
+    steps:
+    - order: 1
+      actor: participant
+      action: Emit CD to announce Fix Deployed CS transition
+      expected: CD queued for case participants
+    postconditions:
+    - description: CD emitted; other Participants informed of D transition
+
+- id: CSB-12
+  title: Enter CS Public Aware (P)
+  trigger:
+    type: state_entered
+    value: CS.P
+  specs:
+  - id: CSB-12-001
+    priority: MUST
+    statement: >-
+      A Participant entering CS Public Aware (q^cs → ···P··) with an active
+      embargo (q^em ∈ {A, R}) SHALL terminate the embargo immediately by
+      emitting ET. The CS state transition MUST be recorded before the embargo
+      teardown is initiated (constraint C-14).
+    rationale: >-
+      VP-09-001 and VP-14-001 require immediate embargo termination upon public
+      disclosure. Constraint C-14 requires observably correct ordering: the CS
+      state change is recorded first, then the teardown begins. This ensures
+      the canonical ledger correctly reflects cause (P transition) before effect
+      (embargo termination).
+    testable: true
+    preconditions:
+    - cs_pattern: "...P.."
+      em_state:
+        - ACTIVE
+        - REVISE
+      description: EM state is Active or Revise; CS matches pattern ...P..
+    steps:
+    - order: 1
+      actor: participant
+      action: Record CS Public Aware transition in local state
+      expected: Receiver CS public bit set to P
+    - order: 2
+      actor: participant
+      action: Emit ET to terminate the embargo
+      expected: ET queued for participants; EM begins transitioning to EXITED
+    postconditions:
+    - description: >-
+        CS public bit is P; ET emitted; EM is EXITED; CS transition recorded
+        before teardown (C-14)
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-09-001
+      note: Embargoes SHALL terminate immediately when information becomes public
+    - rel_type: satisfies
+      spec_id: VP-14-001
+      note: Once Public Awareness, any existing embargo SHALL terminate
+
+  - id: CSB-12-002
+    priority: MUST_NOT
+    statement: >-
+      A Participant entering CS Public Aware MUST NOT seek new embargoes or
+      accept new embargo proposals for this case.
+    rationale: >-
+      VP-14-001 prohibits seeking new embargoes once public awareness has
+      occurred. This applies to all future EP messages for this case.
+    testable: false
+    preconditions:
+    - cs_pattern: "...P.."
+      description: CS matches pattern ...P..
+    lint_suppress:
+    - testable_without_steps
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-14-001
+      note: Once Public Awareness, new embargoes SHALL NOT be sought
+
+  - id: CSB-12-003
+    priority: SHOULD
+    statement: >-
+      A Participant entering CS Public Aware SHOULD emit CP to announce the
+      transition to other case Participants if CP was not already the triggering
+      event (i.e., the transition was triggered locally or by a different message
+      type).
+    rationale: >-
+      State-change notifications support shared situation awareness. CP informs
+      other Participants that the vulnerability is now public. This item applies
+      when the P transition is triggered by a local event (e.g., own publication)
+      rather than by receiving CP from another Participant.
+    testable: true
+    preconditions:
+    - cs_pattern: "...P.."
+      description: CS matches pattern ...P..
+    steps:
+    - order: 1
+      actor: participant
+      action: Emit CP to announce Public Aware CS transition
+      expected: CP queued for case participants
+    postconditions:
+    - description: CP emitted; other Participants informed of P transition
+
+- id: CSB-13
+  title: Enter CS Exploit Public (X)
+  trigger:
+    type: state_entered
+    value: CS.X
+  specs:
+  - id: CSB-13-001
+    priority: MUST
+    statement: >-
+      A Participant entering CS in state ···px· (public not yet set, exploit
+      now set) MUST also trigger CS→P (the pX→PX invariant) before or
+      simultaneously with the exploit transition. This compound transition
+      MUST be treated as atomic: both P and X bits are set together.
+    rationale: >-
+      The ephemeral state ···pX· (exploit public without public awareness)
+      cannot exist as a stable state. Constraint C-15 requires the transition
+      to be ···px· → ···PX·, not ···px· → ···pX· → ···PX·. Observable
+      consequence: CX emitted from ···px· state must be accompanied by CP.
+      The precondition uses the post-transition pattern ···pX· (X uppercase,
+      P lowercase) since state_entered fires after the X bit is set.
+    testable: true
+    preconditions:
+    - cs_pattern: "...pX."
+      description: CS matches pattern ...pX.
+    steps:
+    - order: 1
+      actor: participant
+      action: >-
+        Transition CS to ···PX· (set both public bit P and exploit bit X
+        atomically)
+      expected: Receiver CS public bit P and exploit bit X both set
+    - order: 2
+      actor: participant
+      action: Emit CX to announce exploit public transition
+      expected: CX queued for case participants
+    - order: 3
+      actor: participant
+      action: Emit CP to announce public aware transition (C-15 constraint)
+      expected: CP queued for case participants
+    postconditions:
+    - description: CS is ···PX·; CX and CP both emitted; pX→PX invariant satisfied
+
+  - id: CSB-13-002
+    priority: MUST
+    statement: >-
+      A Participant entering CS Exploit Public (q^cs → ···PX·) with an active
+      embargo (q^em ∈ {A, R}) SHALL terminate the embargo immediately by
+      emitting ET. The CS state transition MUST be recorded before the embargo
+      teardown is initiated (constraint C-14).
+    rationale: >-
+      VP-09-001 and VP-14-002 require immediate embargo termination upon exploit
+      publication. The C-14 ordering applies: CS state recorded before teardown
+      begins.
+    testable: true
+    preconditions:
+    - cs_pattern: "...PX."
+      em_state:
+        - ACTIVE
+        - REVISE
+      description: EM state is Active or Revise; CS matches pattern ...PX.
+    steps:
+    - order: 1
+      actor: participant
+      action: Record CS Exploit Public transition in local state
+      expected: Receiver CS exploit bit set to X
+    - order: 2
+      actor: participant
+      action: Emit ET to terminate the embargo
+      expected: ET queued for participants; EM begins transitioning to EXITED
+    postconditions:
+    - description: >-
+        CS exploit bit is X; ET emitted; EM is EXITED; CS transition recorded
+        before teardown (C-14)
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-09-001
+      note: >-
+        Embargoes SHALL terminate immediately when exploit becomes public
+    - rel_type: satisfies
+      spec_id: VP-14-002
+      note: Once Exploit Publication, any existing embargo SHALL terminate
+
+  - id: CSB-13-003
+    priority: MUST_NOT
+    statement: >-
+      A Participant entering CS Exploit Public MUST NOT seek new embargoes or
+      accept new embargo proposals for this case.
+    rationale: >-
+      VP-14-002 prohibits seeking new embargoes once exploit publication has
+      occurred.
+    testable: false
+    preconditions:
+    - cs_pattern: "....X."
+      description: CS matches pattern ....X.
+    lint_suppress:
+    - testable_without_steps
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-14-002
+      note: Once Exploit Publication, new embargoes SHALL NOT be sought
+
+- id: CSB-14
+  title: Enter CS Attacks Observed (A)
+  trigger:
+    type: state_entered
+    value: CS.A
+  specs:
+  - id: CSB-14-001
+    priority: SHOULD
+    statement: >-
+      A Participant entering CS Attacks Observed (q^cs → ·····A) with an
+      active embargo (q^em ∈ {A, R}) SHOULD terminate the embargo by emitting
+      ET. The CS state transition SHOULD be recorded before the embargo
+      teardown is initiated (constraint C-14).
+    rationale: >-
+      VP-09-003 and VP-14-013 recommend early embargo termination when attacks
+      are observed. Unlike P and X, the attacks case is SHOULD (not SHALL) to
+      allow for judgment in cases where other factors may apply.
+    testable: true
+    preconditions:
+    - cs_pattern: ".....A"
+      em_state:
+        - ACTIVE
+        - REVISE
+      description: EM state is Active or Revise; CS matches pattern .....A
+    steps:
+    - order: 1
+      actor: participant
+      action: Record CS Attacks Observed transition in local state
+      expected: Receiver CS attacks bit set to A
+    - order: 2
+      actor: participant
+      action: Emit ET to terminate the embargo
+      expected: ET queued for participants; EM begins transitioning to EXITED
+    postconditions:
+    - description: CS attacks bit is A; ET emitted; EM is EXITED
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-09-003
+      note: >-
+        Embargoes SHOULD terminate early when there is evidence of active
+        exploitation
+    - rel_type: satisfies
+      spec_id: VP-11-006
+      note: >-
+        SHOULD terminate embargo when attacks are known to have occurred
+    - rel_type: satisfies
+      spec_id: VP-14-013
+      note: Once Attacks observed, any existing embargo SHOULD terminate
+
+  - id: CSB-14-002
+    priority: SHOULD
+    statement: >-
+      A Participant entering CS Attacks Observed with CS not yet public
+      (q^cs ∈ ···p·A) SHOULD also trigger CS→P and emit CP to announce public
+      awareness.
+    rationale: >-
+      Constraint C-16: attacks observed on an otherwise non-public case SHOULD
+      trigger the P transition. Active attacks constitute de-facto public
+      awareness of the vulnerability's existence.
+    testable: true
+    preconditions:
+    - cs_pattern: "...p.A"
+      description: CS matches pattern ...p.A
+    steps:
+    - order: 1
+      actor: participant
+      action: Transition CS to Public Aware and Attacks Observed (···P·A)
+      expected: Receiver CS public bit P and attacks bit A both set
+    - order: 2
+      actor: participant
+      action: Emit CP to announce Public Aware transition
+      expected: CP queued for case participants
+    - order: 3
+      actor: participant
+      action: Emit CA to announce Attacks Observed transition
+      expected: CA queued for case participants
+    postconditions:
+    - description: CS is ···P·A; CP and CA emitted
+
+  - id: CSB-14-003
+    priority: MUST_NOT
+    statement: >-
+      A Participant entering CS Attacks Observed MUST NOT seek new embargoes
+      for this case.
+    rationale: >-
+      VP-14-003 prohibits seeking new embargoes once attacks have been observed.
+    testable: false
+    preconditions:
+    - cs_pattern: ".....A"
+      description: CS matches pattern .....A
+    lint_suppress:
+    - testable_without_steps
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-14-003
+      note: Once Attacks observed, new embargoes SHALL NOT be sought
+
+  - id: CSB-14-004
+    priority: SHOULD
+    statement: >-
+      A Participant entering CS Attacks Observed SHOULD emit CA to announce the
+      transition to other case Participants.
+    rationale: >-
+      State-change notifications support shared situation awareness. CA informs
+      other Participants that active exploitation has been observed, enabling
+      them to re-evaluate embargo and disclosure decisions. VP-12-002 recommends
+      that fix development accelerate and embargo teardown begin.
+    testable: true
+    preconditions:
+    - cs_pattern: ".....A"
+      description: CS matches pattern .....A
+    steps:
+    - order: 1
+      actor: participant
+      action: Emit CA to announce Attacks Observed CS transition
+      expected: CA queued for case participants
+    postconditions:
+    - description: CA emitted; other Participants informed of A transition
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-12-002
+      note: >-
+        Once attacks have been observed, fix development SHOULD accelerate and
+        embargo teardown process SHOULD begin

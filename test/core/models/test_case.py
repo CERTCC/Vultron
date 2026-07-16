@@ -17,7 +17,6 @@ import pytest
 
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase, VultronCase
-from vultron.core.models.case_event import CaseEvent
 from vultron.core.models.case_participant import (
     FinderParticipant,
     VendorParticipant,
@@ -62,7 +61,6 @@ class TestVulnerabilityCaseBasics:
         assert case.vulnerability_reports == []
         assert case.notes == []
         assert case.case_activity == []
-        assert case.events == []
         assert case.parent_cases == []
         assert case.child_cases == []
         assert case.sibling_cases == []
@@ -254,35 +252,27 @@ class TestVulnerabilityCaseRecordActivity:
         assert len(case.case_activity) == 2
 
 
-class TestVulnerabilityCaseRecordEvent:
-    """record_event creates and appends a CaseEvent."""
+class TestWireVulnerabilityCaseFieldParity:
+    """Wire VulnerabilityCase must not have fields absent from core VulnerabilityCase.
 
-    def test_record_event_returns_case_event(self, case: VulnerabilityCase):
-        event = case.record_event("urn:uuid:obj-1", "embargo_accepted")
-        assert isinstance(event, CaseEvent)
+    Enforces ARCH-14-001 / ARCH-09-001: core domain models MUST be as rich as
+    or richer than wire counterparts (core >= wire).  Wire-only fields are a
+    violation; extra core-only fields are permitted and expected.
+    """
 
-    def test_record_event_appended_to_events(self, case: VulnerabilityCase):
-        event = case.record_event("urn:uuid:obj-1", "embargo_accepted")
-        assert event in case.events
+    def test_wire_vulnerability_case_field_names_match_core(self):
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase as WireVC,
+        )
 
-    def test_record_event_stores_object_id(self, case: VulnerabilityCase):
-        event = case.record_event("urn:uuid:obj-1", "embargo_accepted")
-        assert event.object_id == "urn:uuid:obj-1"
+        core_fields = set(VulnerabilityCase.model_fields.keys())
+        wire_fields = set(WireVC.model_fields.keys())
 
-    def test_record_event_stores_event_type(self, case: VulnerabilityCase):
-        event = case.record_event("urn:uuid:obj-1", "participant_joined")
-        assert event.event_type == "participant_joined"
-
-    def test_record_event_sets_trusted_timestamp(
-        self, case: VulnerabilityCase
-    ):
-        event = case.record_event("urn:uuid:obj-1", "embargo_accepted")
-        assert event.received_at.tzinfo is not None
-
-    def test_multiple_events_accumulate(self, case: VulnerabilityCase):
-        case.record_event("urn:uuid:obj-1", "event_one")
-        case.record_event("urn:uuid:obj-2", "event_two")
-        assert len(case.events) == 2
+        wire_only = wire_fields - core_fields
+        assert not wire_only, (
+            f"Wire VulnerabilityCase has fields not in core VulnerabilityCase "
+            f"(ARCH-09-001 violation): {sorted(wire_only)}"
+        )
 
 
 class TestVulnerabilityCaseWireRoundTrip:
@@ -326,20 +316,3 @@ class TestVulnerabilityCaseWireRoundTrip:
         wire_case = WireVC.from_core(core_case)
         restored = wire_case.to_core()
         assert restored.active_embargo == "urn:uuid:embargo-1"
-
-    def test_to_core_events_field_preserved(self):
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase as WireVC,
-        )
-
-        wire_case = WireVC(
-            id_="urn:uuid:vc-events",
-            attributed_to="https://example.org/actor",
-        )
-        wire_case.record_event("urn:uuid:obj", "test_event")
-        core_case = wire_case.to_core()
-        assert isinstance(core_case, VulnerabilityCase)
-        # events are preserved as embedded CaseEvent objects
-        assert len(core_case.events) == 1
-        assert isinstance(core_case.events[0], CaseEvent)
-        assert core_case.events[0].event_type == "test_event"

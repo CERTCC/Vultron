@@ -23,7 +23,7 @@ from typing import Literal
 from pydantic import Field, model_validator
 
 from vultron.core.models.base import CoreObject
-from vultron.core.models.case_event import CaseEvent
+from vultron.core.models.case_ledger import compute_genesis_hash
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.errors import VultronValidationError
@@ -70,14 +70,54 @@ class VulnerabilityCase(CoreObject):
     active_embargo: str | None = None
     proposed_embargoes: list[str] = Field(default_factory=list)
     case_activity: list[str] = Field(default_factory=list)
-    events: list[CaseEvent] = Field(default_factory=list)
+    genesis_hash: str = Field(
+        default="",
+        description=(
+            "Per-case genesis hash binding this ledger to its origin "
+            "identity and timestamp (CLP-08-003). "
+            "The empty-string default is intentional: rehydration paths "
+            "may deserialise objects that were stored before genesis hashes "
+            "were introduced. The model_validator enforces non-empty when "
+            "attributed_to is present at construction time."
+        ),
+    )
     # ADR-0017: ID-only cross-refs to avoid graph-cycle issues
     parent_cases: list[str] = Field(default_factory=list)
     child_cases: list[str] = Field(default_factory=list)
     sibling_cases: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def _init_case_statuses(self) -> VulnerabilityCase:
+    def _compute_genesis_hash_if_missing(self) -> "VulnerabilityCase":
+        """Compute ``genesis_hash`` at case creation when not explicitly set.
+
+        Uses ``id_``, ``published``, and ``attributed_to`` (the CaseActor URI)
+        as inputs to :func:`~vultron.core.models.case_ledger.compute_genesis_hash`.
+        When ``attributed_to`` is present, ``genesis_hash`` MUST be non-empty
+        after this validator runs — if the hash cannot be computed (e.g.,
+        ``published`` is absent), a
+        :exc:`~vultron.errors.VultronValidationError` is raised (fail-closed
+        per CLP-08-003/CLP-08-004).  No-ops when ``genesis_hash`` is already
+        set or when ``attributed_to`` is absent (genesis hash requires a
+        CaseActor URI as input).
+
+        Spec: CLP-08-002, CLP-08-003.
+        """
+        if not self.genesis_hash and self.attributed_to:
+            self.genesis_hash = compute_genesis_hash(
+                case_id=self.id_,
+                created_at=self.published,
+                case_actor_id=self.attributed_to,
+            )
+        if self.attributed_to and not self.genesis_hash:
+            raise VultronValidationError(
+                f"VulnerabilityCase '{self.id_}': genesis_hash could not "
+                "be computed — 'published' timestamp is required "
+                "(CLP-08-003)."
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _init_case_statuses(self) -> "VulnerabilityCase":
         """Seed ``case_statuses`` with a default entry when empty."""
         if not self.case_statuses and self.attributed_to:
             self.case_statuses = [
@@ -180,25 +220,6 @@ class VulnerabilityCase(CoreObject):
         """
         if activity_id not in self.case_activity:
             self.case_activity.append(activity_id)
-
-    def record_event(self, object_id: str, event_type: str) -> CaseEvent:
-        """Append a trusted-timestamp event to the case event log.
-
-        The ``received_at`` timestamp is set to the current UTC time at the
-        moment this method is called.  Callers MUST NOT supply a
-        ``received_at`` value sourced from an incoming activity payload.
-
-        Args:
-            object_id: Full URI of the object being acted upon.
-            event_type: Short descriptor of the event kind
-                (e.g. ``"embargo_accepted"``).
-
-        Returns:
-            The newly-created :class:`CaseEvent`.
-        """
-        event = CaseEvent(object_id=object_id, event_type=event_type)
-        self.events.append(event)
-        return event
 
     @property
     def current_status(self) -> CaseStatus:

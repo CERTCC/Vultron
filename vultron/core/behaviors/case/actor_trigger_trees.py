@@ -32,10 +32,14 @@ from typing import Callable
 
 import py_trees
 
+from vultron.core.behaviors.case.communication_tree import (
+    SendOfferCaseManagerRoleNode,
+)
 from vultron.core.behaviors.case.nodes.actor import (
     EmitAcceptCaseInviteNode,
     EmitInviteActorToCaseNode,
 )
+from vultron.core.behaviors.helpers import UpdateActorOutbox
 from vultron.core.behaviors.sender.send_tree import sender_side_bt
 
 logger = logging.getLogger(__name__)
@@ -65,6 +69,7 @@ def suggest_actor_to_case_trigger_bt(
 def invite_actor_to_case_trigger_bt(
     invitee_id: str,
     case_id: str,
+    case_actor_id: str | None = None,
     attributed_to: str | None = None,
     captured: dict | None = None,
 ) -> py_trees.behaviour.Behaviour:
@@ -72,11 +77,15 @@ def invite_actor_to_case_trigger_bt(
 
     Emits Invite(Actor, Case) from the Case Actor's identity directly to
     the invitee (no Case Manager resolution needed — the Case Actor IS the
-    routing endpoint here per PCR-08-007).
+    routing endpoint here per PCR-08-007).  When ``case_actor_id`` is
+    provided it is added to ``cc:`` so ASGI self-delivery routes a copy to
+    the CaseActor's own inbox for canonical ledger archival (CLP-10-001).
 
     Args:
         invitee_id: Actor URI of the participant being invited.
         case_id: ID of the VulnerabilityCase.
+        case_actor_id: Optional Case Actor URI added to ``cc:`` for
+            self-archival (CLP-10-001).
         attributed_to: Optional original requesting actor URI.
         captured: Optional dict; ``captured["activity"]`` is set on success.
 
@@ -90,6 +99,7 @@ def invite_actor_to_case_trigger_bt(
             EmitInviteActorToCaseNode(
                 invitee_id=invitee_id,
                 case_id=case_id,
+                case_actor_id=case_actor_id,
                 attributed_to=attributed_to,
                 captured=captured,
             ),
@@ -130,4 +140,40 @@ def accept_case_invite_trigger_bt(
         ],
     )
     logger.debug("Created AcceptCaseInviteTriggerBT for invite=%s", invite_id)
+    return root
+
+
+def offer_case_manager_role_trigger_bt(
+    captured: dict | None = None,
+) -> py_trees.behaviour.Behaviour:
+    """Return the trigger-side BT for the offer-case-manager-role workflow.
+
+    Emits ``Offer(CaseManagerRole)`` from the Case Actor's identity and flushes
+    the activity to the Case Actor's outbox.  This is the manual trigger-side
+    counterpart to the automatic path in ``receive_report_case_tree.py``
+    (DEMOMA-08-007).
+
+    The calling use case MUST pre-populate the blackboard (via
+    ``_extra_execute_kwargs``) with:
+
+    - ``case_id``: ID of the ``VulnerabilityCase``.
+    - ``case_actor_id``: ID of the Case Actor Service.
+    - ``case_actor_participant_id``: ID of the Case Actor's
+      ``CaseParticipant`` record.
+
+    Returns:
+        Sequence containing ``SendOfferCaseManagerRoleNode`` followed by
+        ``UpdateActorOutbox``.
+
+    Per specs/multi-actor-demo.yaml DEMOMA-08-007; BT-15-001.
+    """
+    root = py_trees.composites.Sequence(
+        name="OfferCaseManagerRoleTriggerBT",
+        memory=False,
+        children=[
+            SendOfferCaseManagerRoleNode(captured=captured),
+            UpdateActorOutbox(name="UpdateActorOutbox(Offer)"),
+        ],
+    )
+    logger.debug("Created OfferCaseManagerRoleTriggerBT")
     return root

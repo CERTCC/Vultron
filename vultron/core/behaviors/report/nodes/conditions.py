@@ -36,16 +36,26 @@ class CheckRMStateValid(DataLayerCondition):
     This node implements the early-exit check from the simulation BT.
     """
 
-    def __init__(self, report_id: str, name: str | None = None):
+    def __init__(
+        self,
+        report_id: str,
+        sender_actor_id: str | None = None,
+        name: str | None = None,
+    ):
         """
         Initialize CheckRMStateValid node.
 
         Args:
             report_id: ID of VulnerabilityReport to check
+            sender_actor_id: Explicit actor ID to use instead of the blackboard
+                ``actor_id``.  Thread this in when the tree runs under
+                ``receiving_actor_id`` but the RM check must target the message
+                sender (ADR-0022 single-BT pattern).
             name: Optional custom node name (defaults to class name)
         """
         super().__init__(name=name or self.__class__.__name__)
         self.report_id = report_id
+        self.sender_actor_id = sender_actor_id
 
     def update(self) -> Status:
         """
@@ -57,12 +67,15 @@ class CheckRMStateValid(DataLayerCondition):
         if self.datalayer is None:
             self.logger.error(f"{self.name}: DataLayer not available")
             return Status.FAILURE
-        if self.actor_id is None:
+        actor_id = (
+            self.sender_actor_id if self.sender_actor_id else self.actor_id
+        )
+        if actor_id is None:
             self.logger.error(f"{self.name}: actor_id not available")
             return Status.FAILURE
 
         valid_id = _report_phase_status_id(
-            self.actor_id, self.report_id, RM.VALID.value
+            actor_id, self.report_id, RM.VALID.value
         )
         if self.datalayer.read(valid_id) is not None:
             self.logger.debug(
@@ -85,16 +98,26 @@ class CheckRMStateReceivedOrInvalid(DataLayerCondition):
     This node implements the precondition check from the simulation BT.
     """
 
-    def __init__(self, report_id: str, name: str | None = None):
+    def __init__(
+        self,
+        report_id: str,
+        sender_actor_id: str | None = None,
+        name: str | None = None,
+    ):
         """
         Initialize CheckRMStateReceivedOrInvalid node.
 
         Args:
             report_id: ID of VulnerabilityReport to check
+            sender_actor_id: Explicit actor ID to use instead of the blackboard
+                ``actor_id``.  Thread this in when the tree runs under
+                ``receiving_actor_id`` but the RM check must target the message
+                sender (ADR-0022 single-BT pattern).
             name: Optional custom node name (defaults to class name)
         """
         super().__init__(name=name or self.__class__.__name__)
         self.report_id = report_id
+        self.sender_actor_id = sender_actor_id
 
     def update(self) -> Status:
         """
@@ -106,12 +129,15 @@ class CheckRMStateReceivedOrInvalid(DataLayerCondition):
         if self.datalayer is None:
             self.logger.error(f"{self.name}: DataLayer not available")
             return Status.FAILURE
-        if self.actor_id is None:
+        actor_id = (
+            self.sender_actor_id if self.sender_actor_id else self.actor_id
+        )
+        if actor_id is None:
             self.logger.error(f"{self.name}: actor_id not available")
             return Status.FAILURE
 
         valid_id = _report_phase_status_id(
-            self.actor_id, self.report_id, RM.VALID.value
+            actor_id, self.report_id, RM.VALID.value
         )
         if self.datalayer.read(valid_id) is not None:
             self.logger.debug(

@@ -197,22 +197,22 @@ because replicas need the actual asserted content to reconstruct state.
 
 ---
 
-## Post-#787 Convergence Decisions (Epic #788)
+## Post-#787 Convergence Decisions (Epic #788 — Completed)
 
 Issue #787 intentionally kept `CaseEvent` as a lightweight inline value object.
-That merged decision remains valid as a short-term compatibility step while the
-project converges on canonical `CaseLedgerEntry` history.
+That merged decision remained valid as a short-term compatibility step while the
+project converged on canonical `CaseLedgerEntry` history.
 
-Follow-on plan (Epic #788):
+Follow-on plan (Epic #788, all completed):
 
-- #789 migrates remaining `record_event()`-only write paths to CaseActor
+- #789 migrated remaining `record_event()`-only write paths to CaseActor
   canonical log commits.
-- #790 introduces actor-local `pending_assertions` to suppress duplicate emits
+- #790 introduced actor-local `pending_assertions` to suppress duplicate emits
   during canonical round-trip windows.
-- #791 adds a hard catch-up gate so actors must re-establish case-ledger freshness
-  before taking new case actions after restart.
-- #792 removes `CaseEvent` once canonical log reads/writes fully cover
-  protocol-significant history.
+- #791 added a hard catch-up gate so actors must re-establish case-ledger
+  freshness before taking new case actions after restart.
+- #792 removed `CaseEvent` and `VulnerabilityCase.record_event()` — canonical
+  `CaseLedgerEntry` is now the sole source of protocol-significant history.
 
 `pending_assertions` is temporary local memory for decision suppression, not a
 second source of truth. Canonical `CaseLedgerEntry` remains authoritative.
@@ -235,7 +235,7 @@ This framing has several practical consequences:
 - The old "intent vs event" terminology should be retired for this topic.
   `asserted` vs `recorded` is more accurate, with `rejected` as an additional
   CaseActor disposition.
-- The current `CaseEvent` / `record_event()` path is a useful foundation, but
+- The `CaseEvent` / `record_event()` path was a useful foundation, but
   the long-term canonical content model needs to grow into a richer
   `CaseLedgerEntry`.
 - Specs and implementations dealing with replication must distinguish between
@@ -331,6 +331,69 @@ that rejects entries violating CLP-07-001 through CLP-07-004 *before*
 they enter the hash chain. Failing fast at commit time keeps the
 canonical chain clean and surfaces bugs immediately, rather than allowing
 silent pollution that's discovered only when replicas diverge.
+
+---
+
+## Commit Authorization and Coverage (CLP-09, Epic #788 retrospective)
+
+Two gaps surfaced late in Epic #788 that CLP-09 now makes explicit, because
+the prior framing (BT-10-004's single line, "CaseActor MUST enforce
+case-level authorization") was not specific enough to prevent them from
+accumulating call site by call site.
+
+### Gap 1: Authorization Was a Convention, Not a Gate
+
+`CommitCaseLedgerEntryNode` (the canonical commit mechanism established by
+PR #1017 / BT-06-006) had no built-in authorization check. An audit found
+that only one of roughly ten call sites guarded the commit, and it did so
+with an ad hoc Python-level identity check (`_is_case_actor_receiver`)
+*outside* the BT, not a role check inside it. The other call sites
+committed unconditionally.
+
+The fix is a reusable guarded-commit composition, following the same
+Selector/Sequence/Success idiom already used elsewhere in this codebase
+(see `notes/bt-integration.md` § "Conditional BT Branches as Selector
+Composites" and § "Guarded Commit: Role-Gated Canonical Writes"):
+
+```text
+Selector
+├─ Sequence
+│  ├─ CheckIsCaseManagerNode   # role check, not identity comparison
+│  └─ CommitCaseLedgerEntryNode
+└─ Success("CommitCaseLedgerEntrySkippedNotCaseManager")
+```
+
+CLP-09-001 requires every commit call site to reach the commit only through
+this kind of guarded composition. CLP-09-002 requires a test that fails if
+any call site bypasses it.
+
+### Gap 2: Commit Coverage Had No Structural Check
+
+`validate_report`, `ack_report`, and `close_case` produced **no** canonical
+ledger entry at all on `main` for an unknown span of time (issue #998).
+Dispatch completeness already has a structural guarantee — DR-02-002 and
+UCORG-02-002 require every `MessageSemantics` value to resolve to a callable
+use case, enforced by a coverage test. Commit completeness had no
+equivalent: a use case could be fully wired for dispatch and still never
+touch the ledger, and nothing would fail until someone manually re-audited
+the tree-by-tree commit sites (which is how #998/#1022 found the gap).
+CLP-09-003 closes this by requiring the same kind of enumerated coverage
+test for commits that already exists for dispatch.
+
+### Gap 3: Dual-Invocation Use Cases Need Per-Invocation Authorization
+
+Some use-case classes are invoked more than once for the same logical
+activity, with different receiving actors. The clearest example is
+`ack_report` in the two/three-actor demo: the same `AckReportReceivedUseCase`
+runs once with the vendor (case actor) as receiver, and once with the finder
+as a relay target. Only the case-actor invocation should commit.
+
+This is structurally the same bug shape that produced the original
+hash-chain fork in issue #923 — a use case authored or committing on behalf
+of the wrong actor. CLP-09-004 makes the general rule explicit: authorization
+for a commit must be evaluated **per invocation**, against the actor that is
+actually active for that invocation, never assumed from the use-case class
+itself or from a prior invocation having been authorized.
 
 ---
 

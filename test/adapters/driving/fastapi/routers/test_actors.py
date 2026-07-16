@@ -19,7 +19,7 @@ from vultron.adapters.utils import strip_id_prefix
 from vultron.core.states.cs import CS_pxa, CS_vfd
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import (
@@ -173,9 +173,11 @@ def _seed_action_rules_data(dl):
     dl.create(case)
 
 
-def test_get_action_rules_returns_200_with_expected_fields(client_actors, dl):
+def test_get_action_rules_returns_200_with_expected_fields(
+    client_actors, datalayer
+):
     """Actor/case endpoint returns all required state and action fields."""
-    _seed_action_rules_data(dl)
+    _seed_action_rules_data(datalayer)
 
     resp = client_actors.get(
         f"/actors/{_route_key(_URN_ACTOR_ID)}/cases/"
@@ -211,9 +213,11 @@ def test_get_action_rules_case_not_found_returns_404(client_actors):
     assert resp.status_code == status.HTTP_404_NOT_FOUND
 
 
-def test_get_action_rules_actor_not_in_case_returns_404(client_actors, dl):
+def test_get_action_rules_actor_not_in_case_returns_404(
+    client_actors, datalayer
+):
     """Actor outside the selected case returns 404."""
-    _seed_action_rules_data(dl)
+    _seed_action_rules_data(datalayer)
 
     resp = client_actors.get(
         "/actors/99999999-0000-0000-0000-000000000000/cases/"
@@ -341,13 +345,13 @@ class TestCreateActor:
 _HTTP_URL_ACTOR_ID = "http://vendor:7999/api/v2/actors/alice"
 
 
-def test_get_actor_by_surrogate_key_returns_actor(client_actors, dl):
+def test_get_actor_by_surrogate_key_returns_actor(client_actors, datalayer):
     """GET /actors/{surrogate-key} resolves actor IDs that contain slashes."""
     from vultron.adapters.driven.db_record import object_to_record
     from vultron.wire.as2.vocab.base.objects.actors import as_Organization
 
     actor = as_Organization(id_=_HTTP_URL_ACTOR_ID, name="VendorActor")
-    dl.create(object_to_record(actor))
+    datalayer.create(object_to_record(actor))
 
     resp = client_actors.get(f"/actors/{_route_key(_HTTP_URL_ACTOR_ID)}")
     assert resp.status_code == status.HTTP_200_OK

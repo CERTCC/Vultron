@@ -21,7 +21,7 @@ from unittest.mock import MagicMock
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
-from vultron.core.models.case_ledger import GENESIS_HASH, HashChainLedgerRecord
+from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.replication_state import VultronReplicationState
@@ -85,7 +85,8 @@ def dl() -> SqliteDataLayer:
 
 @pytest.fixture
 def entry0() -> VultronCaseLedgerEntry:
-    return _make_entry(CASE_URI, 0, GENESIS_HASH)
+    _ZERO_HASH: str = "0" * 64
+    return _make_entry(CASE_URI, 0, _ZERO_HASH)
 
 
 @pytest.fixture
@@ -117,13 +118,13 @@ class TestRejectLogEntryPattern:
             entry0.model_dump(mode="json")
         )
         activity = reject_log_entry_activity(
-            wire_entry, context=GENESIS_HASH, actor=PARTICIPANT_URI
+            wire_entry, context="a" * 64, actor=PARTICIPANT_URI
         )
         event = extract_event(activity)
         assert event.semantic_type == MessageSemantics.REJECT_CASE_LEDGER_ENTRY
 
     def test_rejected_entry_accessible(self, entry0):
-        event = _make_reject_event(entry0, GENESIS_HASH, PARTICIPANT_URI)
+        event = _make_reject_event(entry0, "a" * 64, PARTICIPANT_URI)
         assert event.semantic_type == MessageSemantics.REJECT_CASE_LEDGER_ENTRY
         from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 
@@ -139,8 +140,8 @@ class TestRejectLogEntryPattern:
         assert isinstance(event, RejectLogEntryReceivedEvent)
         assert event.last_accepted_hash == entry0.entry_hash
 
-    def test_last_accepted_hash_defaults_to_genesis(self, entry0):
-        """When no context is set, last_accepted_hash falls back to GENESIS_HASH."""
+    def test_last_accepted_hash_defaults_to_empty_string(self, entry0):
+        """When no context is set, last_accepted_hash falls back to '' (CLP-08-005)."""
         from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 
         wire_entry = WireCaseLedgerEntry.model_validate(
@@ -149,7 +150,7 @@ class TestRejectLogEntryPattern:
         activity = reject_log_entry_activity(wire_entry, actor=PARTICIPANT_URI)
         event = extract_event(activity)
         assert isinstance(event, RejectLogEntryReceivedEvent)
-        assert event.last_accepted_hash == GENESIS_HASH
+        assert event.last_accepted_hash == ""
 
 
 class TestUpdateReplicationState:
@@ -210,7 +211,7 @@ class TestReplayMissingEntriesTrigger:
         replayed = replay_missing_entries_trigger(
             case_id=CASE_URI,
             peer_id=PARTICIPANT_URI,
-            from_hash=GENESIS_HASH,
+            from_hash="",
             case_actor_id=CASE_ACTOR_URI,
             dl=dl,
             sync_port=sync_port,
@@ -251,7 +252,7 @@ class TestReplayMissingEntriesTrigger:
         replayed = replay_missing_entries_trigger(
             case_id=CASE_URI,
             peer_id=PARTICIPANT_URI,
-            from_hash=GENESIS_HASH,
+            from_hash="",
             case_actor_id=CASE_ACTOR_URI,
             dl=dl,
             sync_port=sync_port,
@@ -264,7 +265,7 @@ class TestReplayMissingEntriesTrigger:
         replay_missing_entries_trigger(
             case_id=CASE_URI,
             peer_id=PARTICIPANT_URI,
-            from_hash=GENESIS_HASH,
+            from_hash="",
             case_actor_id=CASE_ACTOR_URI,
             dl=dl,
             sync_port=sync_port,

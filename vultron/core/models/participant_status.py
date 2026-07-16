@@ -17,12 +17,13 @@
 
 from typing import Literal
 
-from pydantic import Field, field_serializer, field_validator
+from pydantic import ConfigDict, Field, field_serializer, field_validator
+from pydantic.alias_generators import to_camel
 
 from vultron.core.states.rm import RM
 from vultron.core.states.cs import CS_vfd
 from vultron.core.states.participant_embargo_consent import PEC
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.core.models.case_status import CaseStatus
 
@@ -78,6 +79,8 @@ class ParticipantStatus(CoreObject):
     state (em_state and pxa_state) via a nested :class:`CaseStatus` object.
     """
 
+    model_config = ConfigDict(alias_generator=to_camel)
+
     type_: Literal["ParticipantStatus"] = Field(
         default="ParticipantStatus",
         validation_alias="type",
@@ -88,16 +91,8 @@ class ParticipantStatus(CoreObject):
     vfd_state: CS_vfd = CS_vfd.vfd
     case_engagement: bool = True
     embargo_adherence: bool = True
-    em_consent_state: PEC | None = Field(
-        default=None,
-        validation_alias="emConsentState",
-        serialization_alias="emConsentState",
-    )
-    cvd_role: list[CVDRole] = Field(
-        default_factory=lambda: [CVDRole.OTHER],
-        validation_alias="cvdRole",
-        serialization_alias="cvdRole",
-    )
+    em_consent_state: PEC | None = None
+    cvd_role: list[CVDRole] = Field(default_factory=lambda: [CVDRole.OTHER])
     tracking_id: NonEmptyString | None = None
     case_status: CaseStatus | None = None
 

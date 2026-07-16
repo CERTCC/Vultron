@@ -33,6 +33,7 @@ from vultron.core.models.pending_assertion import (
     DEFAULT_PENDING_ASSERTION_TIMEOUT,
     PendingAssertion,
     PendingAssertionStore,
+    ProtocolPair,
     _reset_stores,
     get_pending_assertion_store,
 )
@@ -156,7 +157,9 @@ class TestClear:
     def test_clear_sets_status_cleared(self, store):
         store.add(CASE_ID, EVENT_TYPE, OBJECT_ID)
         store.clear(CASE_ID, EVENT_TYPE, OBJECT_ID)
-        key = (CASE_ID, EVENT_TYPE, OBJECT_ID)
+        key = ProtocolPair(
+            case_id=CASE_ID, request_event_type=EVENT_TYPE, object_id=OBJECT_ID
+        )
         assert store._store[key].status == "cleared"
 
     def test_clear_on_nonexistent_is_noop(self, store):
@@ -167,7 +170,9 @@ class TestClear:
         store.add(CASE_ID, EVENT_TYPE, OBJECT_ID)
         store.clear(CASE_ID, EVENT_TYPE, OBJECT_ID)
         store.clear(CASE_ID, EVENT_TYPE, OBJECT_ID)  # second clear
-        key = (CASE_ID, EVENT_TYPE, OBJECT_ID)
+        key = ProtocolPair(
+            case_id=CASE_ID, request_event_type=EVENT_TYPE, object_id=OBJECT_ID
+        )
         assert store._store[key].status == "cleared"
 
     def test_cleared_entry_does_not_suppress_future_add(self, store):
@@ -208,7 +213,9 @@ class TestTimeout:
             mock_dt.now.return_value = future
             store_short.is_suppressed(CASE_ID, EVENT_TYPE, OBJECT_ID)
 
-        key = (CASE_ID, EVENT_TYPE, OBJECT_ID)
+        key = ProtocolPair(
+            case_id=CASE_ID, request_event_type=EVENT_TYPE, object_id=OBJECT_ID
+        )
         assert store_short._store[key].status == "timed_out"
 
     def test_timed_out_entry_logs_error(self, store_short, caplog):

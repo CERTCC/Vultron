@@ -149,6 +149,7 @@ mydb.json
 /ontology/*.properties
 catalog-*.xml
 /wip_notes/
+/wip_outputs/
 devlogs
 .codebase-scan.txt
 /demologs/
@@ -161,9 +162,22 @@ plan/history/*/README.md
 .DS_Store
 
 # Claude Code files
-.devcontainer
-.claude
 .claudeignore
+.claude/settings.local.json
+.claude/.gitignore
+
+# Devcontainer: shared scaffolding (Dockerfile, setup/postcreate/poststart.sh,
+# README, certs/README) IS tracked. These are per-developer local files —
+# corp CA certs, worktree/rename/spawn tooling, and env — kept out of git.
+.devcontainer/devcontainer.env
+.devcontainer/.gitignore
+.devcontainer/certs/*.crt
+.devcontainer/devcontainer-lock.json
+.devcontainer/devcontainer.json
+.devcontainer/features/
+.devcontainer/*.ps1
+.devcontainer/rename.sh
+.devcontainer/spawn.sh
 
 # Vite cache
 ui/.vite/

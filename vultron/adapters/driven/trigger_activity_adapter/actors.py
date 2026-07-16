@@ -23,6 +23,7 @@ import logging
 from typing import Any, cast
 
 from vultron.core.models.actor import CoreActor
+from vultron.core.models.protocols import CaseModel, is_case_model
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import _as_id
 from vultron.errors import VultronNotFoundError, VultronValidationError
@@ -30,20 +31,20 @@ from vultron.wire.as2.factories import (
     accept_actor_recommendation_activity,
     add_participant_to_case_activity,
     add_status_to_participant_activity,
+    offer_case_participant_activity,
     recommend_actor_activity,
+    reject_actor_recommendation_activity,
     rm_accept_invite_to_case_activity,
     rm_invite_to_case_activity,
 )
 from vultron.wire.as2.factories.case import (
     accept_case_manager_role_activity,
     offer_case_manager_role_activity,
+    reject_case_manager_role_activity,
 )
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    VulnerabilityCase,
-    VulnerabilityCaseStub,
-)
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 from ._base import _DUMP_KWARGS
 
@@ -63,22 +64,51 @@ class _ActorsMixin:
         case_id: str,
         actor: str,
         to: list[str] | None = None,
+        cc: list[str] | None = None,
         id_: str | None = None,
         attributed_to: str | None = None,
+        roles: list[str] | None = None,
+        target: CaseModel | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist an ``Invite(Actor, Case)`` activity.
 
         ``actor`` SHOULD be the Case Actor ID (PCR-08-007); ``attributed_to``
-        MAY carry the case owner's ID for attribution.
+        MAY carry the case owner's ID for attribution.  ``cc`` MAY carry the
+        Case Actor's own ID for self-archival (CLP-10-001).
+
+        ``roles`` carries the intended CVD roles for the invitee (CM-17-003).
+        ``target`` may be a core ``VulnerabilityCase`` (projected to an enriched
+        stub by the factory), a pre-built ``VulnerabilityCaseStub``, or a bare
+        URI string.  When ``None``, the case is read from the DataLayer by
+        ``case_id`` and passed to the factory with any active embargo entity for
+        CM-17-002 enrichment.
         """
         extra: dict[str, Any] = {"actor": actor, "to": to}
+        if cc is not None:
+            extra["cc"] = cc
         if id_ is not None:
             extra["id_"] = id_
         if attributed_to is not None:
             extra["attributed_to"] = attributed_to
+
+        # Read case and embargo from DataLayer; factory handles projection.
+        resolved: Any = target
+        if resolved is None:
+            resolved = self._dl.read(case_id)
+            if not is_case_model(resolved):
+                resolved = case_id
+
+        embargo_obj = None
+        if is_case_model(resolved):
+            active_embargo_uri = getattr(resolved, "active_embargo", None)
+            if active_embargo_uri:
+                embargo_obj = self._dl.read(active_embargo_uri)
+
         activity = rm_invite_to_case_activity(
             invitee=CoreActor(id_=invitee_id),
-            target=VulnerabilityCaseStub(id_=case_id),
+            target=resolved,
+            roles=roles,
+            embargo_obj=embargo_obj,
             **extra,
         )
         try:
@@ -148,6 +178,119 @@ class _ActorsMixin:
             logger.warning(
                 "suggest_actor_to_case: activity '%s' already exists"
                 " — skipping",
+                activity.id_,
+            )
+        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+
+    def offer_actor_to_case(
+        self,
+        recommender_id: str,
+        recommended_id: str,
+        case_id: str,
+        actor: str,
+        origin: str | None = None,
+        to: list[str] | None = None,
+        id_: str | None = None,
+        roles: list | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist an Offer(CaseParticipant{actor, roles}, Case).
+
+        Transforms the original Offer(Actor, Case) from a recommending
+        participant into an Offer(CaseParticipant) addressed to the Case Owner.
+        ``roles`` defaults to ``[CVDRole.VENDOR]`` when ``None`` (CM-16-003).
+        ``origin`` carries the original Offer ID for causal traceability
+        (CM-16-004).
+        """
+        extra: dict[str, Any] = {"actor": actor, "to": to}
+        if id_ is not None:
+            extra["id_"] = id_
+        if origin is not None:
+            extra["origin"] = origin
+        activity = offer_case_participant_activity(
+            recommended=CoreActor(id_=recommended_id),
+            target=case_id,
+            roles=roles,
+            **extra,
+        )
+        try:
+            self._dl.create(activity)
+        except ValueError:
+            logger.warning(
+                "offer_actor_to_case: activity '%s' already exists — skipping",
+                activity.id_,
+            )
+        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+
+    def emit_accept_actor_recommendation(
+        self,
+        recommender_id: str,
+        recommendation_id: str,
+        recommended_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+        id_: str | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist an AcceptActorRecommendation activity.
+
+        Sent by the CaseActor to the recommender after the Case Owner accepts
+        the Offer(CaseParticipant) (CM-16-006 step 3).
+        """
+        recommendation = recommend_actor_activity(
+            recommended=CoreActor(id_=recommended_id),
+            target=case_id,
+            id_=recommendation_id,
+            actor=recommender_id,
+        )
+        extra: dict[str, Any] = {"actor": actor, "to": to or [recommender_id]}
+        if id_ is not None:
+            extra["id_"] = id_
+        activity = accept_actor_recommendation_activity(
+            offer=recommendation, target=case_id, **extra
+        )
+        try:
+            self._dl.create(activity)
+        except ValueError:
+            logger.warning(
+                "emit_accept_actor_recommendation: activity '%s' already"
+                " exists — skipping",
+                activity.id_,
+            )
+        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+
+    def emit_reject_actor_recommendation(
+        self,
+        recommender_id: str,
+        recommendation_id: str,
+        recommended_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+        id_: str | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist a RejectActorRecommendation activity.
+
+        Sent by the CaseActor to the recommender after the Case Owner rejects
+        the Offer(CaseParticipant) (CM-16-007 step 3).
+        """
+        recommendation = recommend_actor_activity(
+            recommended=CoreActor(id_=recommended_id),
+            target=case_id,
+            id_=recommendation_id,
+            actor=recommender_id,
+        )
+        extra: dict[str, Any] = {"actor": actor, "to": to or [recommender_id]}
+        if id_ is not None:
+            extra["id_"] = id_
+        activity = reject_actor_recommendation_activity(
+            offer=recommendation, target=case_id, **extra
+        )
+        try:
+            self._dl.create(activity)
+        except ValueError:
+            logger.warning(
+                "emit_reject_actor_recommendation: activity '%s' already"
+                " exists — skipping",
                 activity.id_,
             )
         return activity.id_, activity.model_dump(**_DUMP_KWARGS)
@@ -305,6 +448,42 @@ class _ActorsMixin:
         except ValueError:
             logger.warning(
                 "accept_case_manager_role: activity '%s' already exists"
+                " — skipping",
+                activity.id_,
+            )
+        return activity.id_
+
+    def reject_case_manager_role(
+        self,
+        offer_id: str,
+        case_id: str,
+        participant_id: str,
+        vendor_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> str:
+        """Create and persist a ``Reject(_OfferCaseManagerRoleActivity)``.
+
+        Ephemerally reconstructs the original Offer from ``offer_id``,
+        ``case_id``, ``participant_id``, and ``vendor_id`` so that
+        ``Reject.object_`` is a typed ``_OfferCaseManagerRoleActivity``.
+        """
+        case = cast(VulnerabilityCase, self._dl.read(case_id))
+        participant = cast(CaseParticipant, self._dl.read(participant_id))
+        offer = offer_case_manager_role_activity(
+            case=case,
+            target=participant,
+            id_=offer_id,
+            actor=vendor_id,
+        )
+        activity = reject_case_manager_role_activity(
+            offer=offer, actor=actor, to=to
+        )
+        try:
+            self._dl.create(activity)
+        except ValueError:
+            logger.warning(
+                "reject_case_manager_role: activity '%s' already exists"
                 " — skipping",
                 activity.id_,
             )

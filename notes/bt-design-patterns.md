@@ -484,3 +484,53 @@ Fallback                             ← Pattern 1 (goal-first)
        ├─ PreconditionCheck          ← PPA precondition
        └─ Action                     ← PPA action
 ```
+
+---
+
+## Idiom Family Selection Guide
+
+Two distinct idiom families apply at different levels of the BT hierarchy.
+Choose by asking: **Is this tree routing a message to the right effect, or
+ensuring that a goal state is achieved?**
+
+### Handler / Routing BTs: Precondition-Sequence
+
+Use when dispatching an incoming ledger entry or activity to the appropriate
+effect handler based on its type.  The effect should fire if and only if the
+type matches; a non-match is a silent no-op.
+
+```text
+Selector                            ← effect slot (one per event type)
+  ├─ Sequence
+  │    ├─ IsFooLedgerEntryNode      ← SUCCESS iff entry IS this type
+  │    └─ ApplyFooEffectNode        ← fires only when IsFoo succeeded
+  └─ AlwaysSuccess("FooSkipped")    ← no-op path; name ends with "Skipped"
+```
+
+**Condition naming rule (BTND-08-001)**: Condition nodes in this idiom MUST
+use positive names (`IsFoo`, not `IsNotFoo`).  A negative-guard node that
+returns SUCCESS to *skip* an effect inverts the intent and is a
+readability anti-pattern — see BTND-08-001, BTND-08-002.
+
+### Goal-Ensuring / Action BTs: Postcondition-Fallback (PPA)
+
+Use when the tree must achieve a protocol state (see Patterns 1–3 above).
+The effect should fire only when the goal is not yet met.
+
+```text
+Fallback                            ← PPA root
+  ├─ GoalAlreadyAchievedNode        ← SUCCESS iff already done → short-circuit
+  └─ Sequence
+       ├─ PreconditionNode          ← guard: required before acting
+       └─ ActionNode                ← achieves the goal
+```
+
+**Selection heuristic**: If you are writing a dispatch table (one effect
+per message/entry type), reach for Precondition-Sequence.  If you are
+writing a stateful protocol step (reach state X if not already there),
+reach for Postcondition-Fallback.
+
+The distinction maps to the canonical protocol BT structure documented in
+`docs/topics/behavior_logic/`: ReceiveMessages subtrees use
+Precondition-Sequence routing; ReportManagement / EmbargoManagement subtrees
+use Postcondition-Fallback goal-ensuring patterns.

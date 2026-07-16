@@ -23,9 +23,13 @@ activity (protocol ET message).  Sequence:
 
     RemoveEmbargoFromCaseBT (Sequence)
     ├─ ValidateCaseExistsNode          # case must exist and pass is_case_model
+    ├─ GuardedCommitCaseLedgerEntryBT  # record receipt before effects (CLP-10-006)
     ├─ RemoveFromProposedEmbargoesNode # idempotent proposed-list cleanup
-    ├─ IsActiveEmbargoNode             # guard: is this the active embargo?
-    └─ ApplyEmbargoTeardownNode        # ACTIVE/REVISE→EXITED, clear, reset PEC
+    └─ TeardownIfActive (Selector)     # run teardown if active; skip silently
+       ├─ ActiveTeardown (Sequence)
+       │  ├─ IsActiveEmbargoNode       # guard: is this the active embargo?
+       │  └─ ApplyEmbargoTeardownNode  # ACTIVE/REVISE→EXITED, clear, reset PEC
+       └─ Success                      # embargo was only in proposed — not an error
 
 Per specs/behavior-tree-integration.yaml BT-06-001.
 """
@@ -34,7 +38,9 @@ import logging
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes import CommitCaseLedgerEntryNode
+from vultron.core.behaviors.case.nodes import (
+    create_receive_activity_tree,
+)
 from vultron.core.behaviors.embargo.nodes import (
     ApplyEmbargoTeardownNode,
     CreateAndStoreInviteNode,
@@ -62,10 +68,16 @@ def remove_embargo_from_case_tree(
     embargo from ``proposed_embargoes`` (idempotent) and, if the embargo is
     the active one, applies the ACTIVE/REVISE → EXITED EM state transition,
     clears ``active_embargo``, and resets participant embargo consent states.
+    Always commits a canonical ledger entry when the executing actor holds
+    the ``CASE_MANAGER`` role (via the guarded commit subtree).
 
-    BT returns SUCCESS when the active embargo is terminated.
-    BT returns FAILURE when the embargo was only in ``proposed_embargoes``
-    (the cleanup still runs — FAILURE is not an error condition here).
+    The inner ``TeardownIfActive`` Selector absorbs the FAILURE that occurs
+    when the embargo was only in ``proposed_embargoes`` (not the active
+    embargo), so the outer Sequence always reaches the guarded commit step.
+
+    BT returns SUCCESS when the outer Sequence completes (including when the
+    embargo was only proposed and no teardown was needed).
+    BT returns FAILURE only when the case is not found.
 
     Args:
         case_id: ID of the VulnerabilityCase to update.
@@ -74,16 +86,32 @@ def remove_embargo_from_case_tree(
     Returns:
         Root node of the ``RemoveEmbargoFromCaseBT`` Sequence.
     """
-    root = py_trees.composites.Sequence(
-        name="RemoveEmbargoFromCaseBT",
+    teardown_if_active = py_trees.composites.Selector(
+        name="TeardownIfActive",
         memory=False,
         children=[
-            ValidateCaseExistsNode(case_id=case_id),
+            py_trees.composites.Sequence(
+                name="ActiveTeardown",
+                memory=False,
+                children=[
+                    IsActiveEmbargoNode(
+                        case_id=case_id, embargo_id=embargo_id
+                    ),
+                    ApplyEmbargoTeardownNode(case_id=case_id),
+                ],
+            ),
+            py_trees.behaviours.Success(name="EmbargoWasNotActive"),
+        ],
+    )
+    root = create_receive_activity_tree(
+        name="RemoveEmbargoFromCaseBT",
+        case_id=case_id,
+        precondition_guards=[ValidateCaseExistsNode(case_id=case_id)],
+        effect_nodes=[
             RemoveFromProposedEmbargoesNode(
                 case_id=case_id, embargo_id=embargo_id
             ),
-            IsActiveEmbargoNode(case_id=case_id, embargo_id=embargo_id),
-            ApplyEmbargoTeardownNode(case_id=case_id),
+            teardown_if_active,
         ],
     )
     logger.info(
@@ -114,13 +142,12 @@ def add_embargo_to_case_tree(
     Returns:
         Root node of the ``AddEmbargoToCaseBT`` Sequence.
     """
-    root = py_trees.composites.Sequence(
+    root = create_receive_activity_tree(
         name="AddEmbargoToCaseBT",
-        memory=False,
-        children=[
-            ValidateCaseExistsNode(case_id=case_id),
+        case_id=case_id,
+        precondition_guards=[ValidateCaseExistsNode(case_id=case_id)],
+        effect_nodes=[
             SetEmbargoActiveNode(case_id=case_id, embargo_id=embargo_id),
-            CommitCaseLedgerEntryNode(case_id=case_id),
         ],
     )
     logger.info(
@@ -155,14 +182,16 @@ def invite_to_embargo_on_case_tree(
     Returns:
         Root node of the ``InviteToEmbargoOnCaseBT`` Sequence.
     """
-    root = py_trees.composites.Sequence(
+    root = create_receive_activity_tree(
         name="InviteToEmbargoOnCaseBT",
-        memory=False,
-        children=[
+        case_id=case_id,
+        precondition_guards=[],
+        effect_nodes=[
             CreateAndStoreInviteNode(),
-            OptionalLookupParticipantNode(case_id=case_id),
+            OptionalLookupParticipantNode(
+                case_id=case_id, target_actor_id=invitee_id
+            ),
             UpdateParticipantEmbargoPecNode(pec_trigger=PEC_Trigger.INVITE),
-            CommitCaseLedgerEntryNode(case_id=case_id),
         ],
     )
     logger.info(
@@ -198,15 +227,16 @@ def accept_invite_to_embargo_tree(
     Returns:
         Root node of the ``AcceptInviteToEmbargoBT`` Sequence.
     """
-    root = py_trees.composites.Sequence(
+    root = create_receive_activity_tree(
         name="AcceptInviteToEmbargoBT",
-        memory=False,
-        children=[
-            ValidateCaseExistsNode(case_id=case_id),
+        case_id=case_id,
+        precondition_guards=[ValidateCaseExistsNode(case_id=case_id)],
+        effect_nodes=[
             RecordParticipantAcceptanceNode(
-                case_id=case_id, embargo_id=embargo_id
+                case_id=case_id,
+                embargo_id=embargo_id,
+                accepting_actor_id=accepting_actor_id,
             ),
-            CommitCaseLedgerEntryNode(case_id=case_id),
         ],
     )
     logger.info(
@@ -245,15 +275,20 @@ def reject_invite_to_embargo_tree(
     Returns:
         Root node of the ``RejectInviteToEmbargoBT`` Sequence.
     """
-    root = py_trees.composites.Sequence(
+    effect_nodes: list[py_trees.behaviour.Behaviour] = [
+        OptionalLookupParticipantNode(case_id=case_id),
+        UpdateParticipantEmbargoPecNode(pec_trigger=PEC_Trigger.DECLINE),
+    ]
+    if embargo_id is not None:
+        # Only attempt pocket-veto removal when we know which embargo to check.
+        effect_nodes.insert(
+            1, RemoveStaleAcceptanceNode(embargo_id=embargo_id)
+        )
+    root = create_receive_activity_tree(
         name="RejectInviteToEmbargoBT",
-        memory=False,
-        children=[
-            OptionalLookupParticipantNode(case_id=case_id),
-            RemoveStaleAcceptanceNode(embargo_id=embargo_id or ""),
-            UpdateParticipantEmbargoPecNode(pec_trigger=PEC_Trigger.DECLINE),
-            CommitCaseLedgerEntryNode(case_id=case_id),
-        ],
+        case_id=case_id,
+        precondition_guards=[],
+        effect_nodes=effect_nodes,
     )
     logger.info(
         "Created RejectInviteToEmbargoBT for case=%s rejecting_actor=%s"

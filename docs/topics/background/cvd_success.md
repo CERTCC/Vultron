@@ -2,7 +2,7 @@
 
 !!! info inline end "Formalism development in Measuring CVD"
 
-    In the [Measuring CVD](../measuring_cvd/index.md) section of this documentation (based on
+    In the [Measuring CVD](../../reference/measuring_cvd/index.md) section of this documentation (based on
     our 2021 [report](https://doi.org/10.1184/R1/16416771){:target="_blank"}), we define a set of 12 ordering preferences over these 6 events.
 
 We take as a base set of criteria the ordering preferences given in the
@@ -151,8 +151,8 @@ set of outcomes we hope to facilitate with the Vultron protocol.
 
 !!! info "A Deeper Dive into these Desiderata"
 
-    The [Measuring CVD](../measuring_cvd/index.md) section of this documentation provides a more detailed
+    The [Measuring CVD](../../reference/measuring_cvd/index.md) section of this documentation provides a more detailed
     exploration of these desiderata in the context of CVD based on our 2021 report
     [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure (MPCVD)](https://doi.org/10.1184/R1/16416771).
     Specifically, we revisit this list in
-    [Desirable Histories](../measuring_cvd/desirable_histories.md).
+    [Desirable Histories](../../reference/measuring_cvd/desirable_histories.md).

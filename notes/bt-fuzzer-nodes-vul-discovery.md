@@ -68,6 +68,10 @@ is essentially the "output" of the discovery process.
   human tasking, scheduled policy, or an automated work-queue query
 - **Notes**: Always succeeds in simulation to keep the discovery loop active
 - **Automation potential**: **High** — static role/capability configuration check; can be fully automated as a lookup against the participant's role metadata or organizational task queue.
+- **New-arch cross-ref**: N/A — simulation-only BT not ported to new architecture
+- **Call-out point shape**: N/A
+- **Factory-fn placement**: N/A — simulation-only; `DiscoverVulnerabilityBt` is not
+  ported to the prototype architecture
 
 ### `DiscoverVulnerability`
 
@@ -82,6 +86,10 @@ is essentially the "output" of the discovery process.
 - **Notes**: Succeeds often enough to drive simulation throughput while still
   modeling that discovery is not guaranteed on every cycle
 - **Automation potential**: **Low** — inherently a human or tool-driven research activity (fuzzing, code audit, pentesting); results must be fed in from an external research pipeline.
+- **New-arch cross-ref**: N/A — simulation-only BT not ported to new architecture
+- **Call-out point shape**: N/A
+- **Factory-fn placement**: N/A — simulation-only; `DiscoverVulnerabilityBt` is not
+  ported to the prototype architecture
 
 ### `NoVulFound`
 
@@ -95,6 +103,10 @@ is essentially the "output" of the discovery process.
   input needed once we confirm discovery came up empty
 - **Notes**: Ensures the discovery branch always succeeds so the top-level
   sequence can continue to other work
-- **Automation potential**: **N/A** — terminal success placeholder; no real decision logic required.
+- **Automation potential**: **TerminalPlaceholder** — terminal success placeholder; no real decision logic required.
+- **New-arch cross-ref**: N/A — simulation-only BT not ported to new architecture
+- **Call-out point shape**: N/A
+- **Factory-fn placement**: N/A — simulation-only; `DiscoverVulnerabilityBt` is not
+  ported to the prototype architecture
 
 ---

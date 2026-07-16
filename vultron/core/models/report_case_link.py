@@ -21,7 +21,7 @@ from typing import Literal
 
 from pydantic import Field, model_validator
 
-from vultron.core.models.base import UriString, VultronObject
+from vultron.core.models.base import NonEmptyString, UriString, VultronObject
 
 
 class VultronReportCaseLink(VultronObject):
@@ -52,6 +52,21 @@ class VultronReportCaseLink(VultronObject):
             "validation.  Extracted from the CASE_MANAGER participant in the "
             "bootstrap snapshot; used to validate subsequent "
             "Announce(VulnerabilityCase) senders (CBT-01-006)."
+        ),
+    )
+    proposal_rejected: bool = Field(
+        default=False,
+        description=(
+            "True when the case-actor service rejected the CaseProposal "
+            "for this report (CP-06-004)."
+        ),
+    )
+    rejection_reason: NonEmptyString | None = Field(
+        default=None,
+        description=(
+            "Human-readable reason provided by the case-actor service when "
+            "rejecting the CaseProposal (CP-06-004).  None when not provided "
+            "or when the proposal was accepted."
         ),
     )
 

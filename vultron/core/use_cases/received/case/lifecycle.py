@@ -1,19 +1,27 @@
 """Use cases for vulnerability case activities."""
 
 import logging
-from typing import Any, cast
+from typing import TYPE_CHECKING
 
+from py_trees.common import Status
+
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.receive_close_case_tree import (
+    create_close_case_received_tree,
+)
 from vultron.core.models.events.case import (
     AddReportToCaseReceivedEvent,
     CloseCaseReceivedEvent,
 )
 from vultron.core.models.protocols import is_case_model
-from vultron.core.models.vultron_types import VultronActivity
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
 )
 from vultron.core.use_cases._helpers import _as_id
+
+if TYPE_CHECKING:
+    from vultron.core.ports.sync_activity import SyncActivityPort
 
 logger = logging.getLogger(__name__)
 
@@ -54,41 +62,51 @@ class AddReportToCaseReceivedUseCase:
 
 class CloseCaseReceivedUseCase:
     def __init__(
-        self, dl: CaseOutboxPersistence, request: CloseCaseReceivedEvent
+        self,
+        dl: CaseOutboxPersistence,
+        request: CloseCaseReceivedEvent,
+        sync_port: "SyncActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: CloseCaseReceivedEvent = request
+        self._sync_port = sync_port
 
     def execute(self) -> None:
         request = self._request
-        actor_id = request.actor_id
         case_id = request.case_id
+        if case_id is None:
+            logger.warning("close_case: missing case_id")
+            return
 
-        logger.info("Actor '%s' is closing case '%s'", actor_id, case_id)
-
-        close_activity = VultronActivity(
-            type_="Leave",
-            actor=actor_id,
-            object_=case_id,
-        )
-        try:
-            self._dl.create(close_activity)
-            logger.info("Created Leave activity %s", close_activity.id_)
-        except ValueError:
-            logger.info(
-                "Leave activity for case '%s' already exists — skipping (idempotent)",
-                case_id,
+        receiving_actor_id = request.receiving_actor_id
+        if receiving_actor_id is None:
+            logger.debug(
+                "CloseCaseReceivedUseCase: missing receiving_actor_id"
+                " — skipping commit (CLP-10-005)"
             )
             return
 
-        actor_obj = self._dl.read(actor_id)
-        if actor_obj is not None and hasattr(actor_obj, "outbox"):
-            cast(Any, actor_obj).outbox.items.append(close_activity.id_)
-            self._dl.save(actor_obj)
-            logger.info(
-                "Added Leave activity %s to actor %s outbox",
-                close_activity.id_,
-                actor_id,
+        logger.info(
+            "Actor '%s' is closing case '%s'",
+            request.actor_id,
+            case_id,
+        )
+
+        tree = create_close_case_received_tree(
+            case_id=case_id,
+            activity_id=request.activity_id,
+            activity_obj=request.activity,
+        )
+        result = BTBridge(datalayer=self._dl).execute_with_setup(
+            tree=tree,
+            actor_id=receiving_actor_id,
+            activity=request,
+            sync_port=self._sync_port,
+        )
+        if result.status != Status.SUCCESS:
+            logger.debug(
+                "CloseCaseReceivedUseCase: BT did not fully succeed for"
+                " case '%s': %s",
+                case_id,
+                BTBridge.get_failure_reason(tree) or result.feedback_message,
             )
-        # Queue for delivery via outbox_handler regardless of outbox field
-        self._dl.record_outbox_item(actor_id, close_activity.id_)

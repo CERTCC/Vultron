@@ -27,9 +27,71 @@ constructing the tree would raise ``AttributeError`` before any BT node runs,
 making a runtime validation node unreachable and redundant.
 """
 
+import logging
+from typing import Any
+
+import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerCondition
+from vultron.config.actor import ActorConfig
+from vultron.core.models.protocols import is_case_model
+from vultron.core.use_cases._helpers import _resolve_case_manager_id
+
+
+class CheckAutoCaseCreationEnabledNode(py_trees.behaviour.Behaviour):
+    """Gate case creation on the actor's ``auto_create_case`` policy.
+
+    Returns ``SUCCESS`` when the local actor's :class:`ActorConfig` has
+    ``auto_create_case`` set (the ADR-0015 Option 4 default), allowing the
+    downstream case-creation subtree to run.  Returns ``FAILURE`` when
+    ``auto_create_case`` is ``False``, so the enclosing ``Sequence`` exits
+    without creating a ``VulnerabilityCase`` — enabling the pre-case ACK
+    (``Read(Offer(Report))``) protocol path (CM-15-001, ADR-0015 Option 3).
+
+    The policy is supplied as a constructor argument rather than read from
+    the blackboard so it travels with the tree the same way
+    ``default_case_roles`` does (see ``CreateCaseOwnerParticipant``).  When no
+    ``ActorConfig`` is supplied the node defaults to enabled, preserving the
+    historical always-create behavior for callers that predate the flag.
+
+    Per specs/case-management.yaml CM-15-001.
+    """
+
+    # Declare the managed logger type so subclass log calls are type-checked
+    # against the stdlib logging.Logger API (not py_trees.logging.Logger).
+    logger: logging.Logger  # type: ignore[assignment]
+
+    def __init__(
+        self,
+        actor_config: ActorConfig | None = None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.logger = logging.getLogger(  # type: ignore[assignment]
+            f"{self.__class__.__module__}.{self.__class__.__name__}"
+        )
+        self.actor_config = actor_config
+
+    def update(self) -> Status:
+        auto_create = (
+            self.actor_config.auto_create_case
+            if self.actor_config is not None
+            else True
+        )
+        if auto_create:
+            self.logger.debug(
+                "%s: auto_create_case enabled — proceeding with case creation",
+                self.name,
+            )
+            return Status.SUCCESS
+
+        self.logger.info(
+            "%s: auto_create_case disabled — deferring case creation "
+            "(pre-case ACK path)",
+            self.name,
+        )
+        return Status.FAILURE
 
 
 class CheckCaseAlreadyExists(DataLayerCondition):
@@ -138,3 +200,79 @@ class CheckCaseExistsForReport(DataLayerCondition):
                 f"{self.name}: Error checking case existence: {e}"
             )
             return Status.FAILURE
+
+
+class CheckIsCaseManagerNode(DataLayerCondition):
+    """Check whether the executing actor is the case's CASE_MANAGER.
+
+    Reads ``case_id`` and ``actor_id`` from the blackboard, resolves the
+    case's CASE_MANAGER participant via ``_resolve_case_manager_id``, and
+    returns ``SUCCESS`` only when ``actor_id`` matches that participant's
+    ``attributed_to`` actor ID.
+    """
+
+    def __init__(
+        self, case_id: str | None = None, name: str | None = None
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._case_id = case_id
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="case_id", access=py_trees.common.Access.READ
+        )
+
+    def update(self) -> Status:
+        if self.datalayer is None or self.actor_id is None:
+            self.logger.error(
+                f"{self.name}: DataLayer or actor_id not available"
+            )
+            return Status.FAILURE
+
+        try:
+            case_id = self._case_id or self.blackboard.get("case_id")
+        except KeyError:
+            case_id = self._case_id
+
+        if not case_id:
+            self.logger.debug(
+                f"{self.name}: no case_id available — cannot check"
+                " CASE_MANAGER role"
+            )
+            return Status.FAILURE
+
+        case = self.datalayer.read(case_id)
+        if case is None:
+            self.logger.warning(
+                f"{self.name}: case '{case_id}' not found in DataLayer"
+            )
+            return Status.FAILURE
+        if not is_case_model(case):
+            self.logger.warning(
+                f"{self.name}: object '{case_id}' is not a VulnerabilityCase"
+            )
+            return Status.FAILURE
+
+        manager_id = _resolve_case_manager_id(case, self.datalayer)
+        if manager_id is None:
+            self.logger.debug(
+                f"{self.name}: no CASE_MANAGER found for case '{case_id}'"
+            )
+            return Status.FAILURE
+
+        if manager_id == self.actor_id:
+            self.logger.debug(
+                f"{self.name}: actor '{self.actor_id}' is CASE_MANAGER for"
+                f" case '{case_id}'"
+            )
+            return Status.SUCCESS
+
+        self.logger.debug(
+            "%s: actor '%s' is not CASE_MANAGER for case '%s' (manager=%s)",
+            self.name,
+            self.actor_id,
+            case_id,
+            manager_id,
+        )
+        return Status.FAILURE

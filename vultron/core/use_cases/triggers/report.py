@@ -42,8 +42,8 @@ from vultron.core.models.report import VultronReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
+from vultron.core.use_cases._helpers import outbox_ids
 from vultron.core.use_cases.triggers._helpers import (
-    outbox_ids,
     resolve_actor,
 )
 from vultron.core.use_cases.triggers.requests import (
@@ -88,11 +88,13 @@ def _resolve_offer_and_report(
 class SvcValidateReportUseCase(SvcBTTriggerBase):
     """Validate a report offer using the ValidateReportBT behavior tree.
 
-    Does not require a TriggerActivityPort — the validate BT performs only
-    state transitions without constructing outbound activities.
-    """
+    Per ADR-0021 CLP-10-001: the validate trigger tree now emits an
+    RmValidateReportActivity addressed to the Case Actor. This requires
+    a TriggerActivityPort to construct the outbound activity.
 
-    _requires_trigger_activity = False
+    Per issue #1029 AC-1: no longer has ``_requires_trigger_activity = False``;
+    the trigger_activity port is required.
+    """
 
     def _prepare(self) -> None:
         request = cast(ValidateReportTriggerRequest, self._request)

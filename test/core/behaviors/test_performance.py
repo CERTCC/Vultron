@@ -25,6 +25,8 @@ import time
 from functools import partial
 from unittest.mock import MagicMock
 
+import py_trees
+import py_trees.behaviour
 import pytest
 from py_trees.common import Status
 
@@ -40,6 +42,16 @@ from vultron.core.models.vultron_types import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _always_succeed_factory(name: str) -> py_trees.behaviour.Behaviour:
+    """Deterministic factory for performance tests: always returns SUCCESS."""
+
+    class _AlwaysSucceed(py_trees.behaviour.Behaviour):
+        def update(self):
+            return py_trees.common.Status.SUCCESS
+
+    return _AlwaysSucceed(name)
 
 
 def _mock_get_helper(table: str, id_: str) -> dict | None:
@@ -161,7 +173,10 @@ def test_bt_execution_performance_single_run(mock_datalayer, sample_activity):
     """
     bridge = BTBridge(datalayer=mock_datalayer)
     tree = create_validate_report_tree(
-        report_id="test-report-123", offer_id="test-offer-456"
+        report_id="test-report-123",
+        offer_id="test-offer-456",
+        credibility_factory=_always_succeed_factory,
+        validity_factory=_always_succeed_factory,
     )
 
     start = time.perf_counter()
@@ -198,7 +213,10 @@ def test_bt_execution_performance_percentiles(mock_datalayer, sample_activity):
 
     for _ in range(n_runs):
         tree = create_validate_report_tree(
-            report_id="test-report-123", offer_id="test-offer-456"
+            report_id="test-report-123",
+            offer_id="test-offer-456",
+            credibility_factory=_always_succeed_factory,
+            validity_factory=_always_succeed_factory,
         )
 
         start = time.perf_counter()

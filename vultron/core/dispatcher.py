@@ -31,6 +31,7 @@ from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.models.events import MessageSemantics
 from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.errors import (
+    UnroutableActivityError,
     VultronApiHandlerNotFoundError,
     VultronValidationError,
 )
@@ -97,7 +98,17 @@ class DispatcherBase:
         self._handle(event, dl)
 
     def _handle(self, event: "VultronEvent", dl: "DataLayer") -> None:
-        self._enforce_join_backfill_gate(event, dl)
+        try:
+            self._enforce_join_backfill_gate(event, dl)
+        except UnroutableActivityError:
+            logger.error(
+                "Activity '%s' is unroutable and will be dropped"
+                " (semantics=%s actor_id=%s): no case_id extractable",
+                event.activity_id,
+                event.semantic_type,
+                event.actor_id,
+            )
+            return
         use_case_class = self._get_use_case(event.semantic_type)
         extra_kwargs: dict[str, Any] = {}
         port_factory = self._port_factories.get(event.semantic_type)
@@ -124,8 +135,6 @@ class DispatcherBase:
         if not sender_id:
             return
         case_id = self._extract_case_id(event, dl)
-        if not case_id:
-            return
         highest_contiguous_index, has_case_entries = (
             self._highest_contiguous_case_log_index(case_id, dl)
         )
@@ -169,9 +178,7 @@ class DispatcherBase:
             expected += 1
         return expected - 1, True
 
-    def _extract_case_id(
-        self, event: "VultronEvent", dl: "DataLayer"
-    ) -> str | None:
+    def _extract_case_id(self, event: "VultronEvent", dl: "DataLayer") -> str:
         if (
             event.semantic_type
             == MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT
@@ -204,7 +211,10 @@ class DispatcherBase:
             value = getattr(event, attr, None)
             if isinstance(value, str) and value:
                 return value
-        return None
+        raise UnroutableActivityError(
+            activity_id=getattr(event, "activity_id", "") or "",
+            reason="No case_id attribute found on event",
+        )
 
     def _get_use_case(self, semantics: MessageSemantics) -> type:
         use_case_class = self._use_case_map.get(semantics)

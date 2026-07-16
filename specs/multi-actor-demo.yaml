@@ -146,6 +146,25 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-00-001
+  - id: DEMOMA-05-003
+    priority: MAY
+    statement: >-
+      Exchange demos located under `vultron/demo/exchange/` MAY use direct inbox injection
+      (constructing and posting raw ActivityStreams JSON) to simulate the receipt of a
+      specific wire message. Scenario demos under `vultron/demo/scenario/` MUST NOT use
+      direct inbox injection (DEMOMA-05-001 and DEMOMA-05-002 apply without exception to
+      scenario demos).
+    rationale: >-
+      Exchange demos are low-level wire-format verification scripts that intentionally
+      exercise the inbox parsing path directly. Scenario demos must exercise the full
+      actor behavior including trigger dispatch; direct inbox injection in a scenario demo
+      bypasses the triggering actor's BT execution and produces a scenario that does not
+      test the protocol from end to end. This carve-out resolves the apparent contradiction
+      between DEMOMA-05-001 (which would prohibit exchange demos) and the existing
+      `vultron/demo/exchange/` code.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-05-001
 - id: DEMOMA-06
   title: Two-Actor Scenario Workflow
   specs:
@@ -158,10 +177,15 @@ groups:
   - id: DEMOMA-06-002
     priority: MUST
     statement: >-
-      The two-actor demo MUST verify the following milestones, checking both the Vendor and
-      Finder DataLayers at each checkpoint: M1 (case + 3 participants + EM.ACTIVE),
-      M2 (Finder has case replica), M4 (CS.VF on all replicas),
-      M5 (CS.VFD on all replicas), M6 (CS.VFDPxa + EM terminated on all replicas),
+      The two-actor demo MUST verify the following milestones in order, checking both the
+      Vendor and Finder DataLayers at each checkpoint:
+      M1 (case + 3 participants + EM.ACTIVE),
+      M2 (Finder has case replica with matching participant index and active embargo),
+      M3 (notes exchange complete: question note + reply note present in canonical case
+      state on both replicas),
+      M4 (CS.VF on all replicas),
+      M5 (CS.VFD on all replicas),
+      M6 (CS.VFDPxa + EM terminated on all replicas),
       M7 (all participants RM.CLOSED, case closed)
   - id: DEMOMA-06-003
     priority: MUST
@@ -197,15 +221,39 @@ groups:
       The Case Actor received handler for ADD_PARTICIPANT_STATUS_TO_PARTICIPANT MUST:
       (1) verify the activity actor is a known case participant,
       (2) update the participant status record,
-      (3) announce the update to all other case participants,
+      (3) propagate the update to all other case participants via Announce(CaseLedgerEntry)
+      fan-out (per ADR-0019 and SYNC-02-002) — NOT via a direct raw Add(ParticipantStatus)
+      re-broadcast,
       (4) if CS.P is newly set by the Case Owner, trigger embargo teardown automatically,
       (5) if all participants are RM.CLOSED, close the case automatically
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-02-002
+      note: step 3 propagation must use canonical Announce(CaseLedgerEntry) fan-out
   - id: DEMOMA-07-004
     priority: SHOULD
     statement: >-
       The participant status trigger implementation SHOULD be layered: SvcAddObjectToCaseUseCase
       (generic Add(object, target=Case)) as the base, SvcAddParticipantStatusUseCase (new core
       use case) above it, and demo-specific endpoints in demo_triggers.py at the top
+  - id: DEMOMA-07-005
+    priority: MUST_NOT
+    statement: >-
+      The Case Actor received handler for ADD_PARTICIPANT_STATUS_TO_PARTICIPANT MUST NOT
+      send a raw Add(ParticipantStatus) re-broadcast directly to peer participants after
+      updating the local participant record. Announce(CaseLedgerEntry) fan-out is the sole
+      canonical propagation path for status updates to peers (DEMOMA-07-003 step 3); a
+      parallel raw re-broadcast causes every peer to receive and process the same status
+      update twice — once as a raw Add(ParticipantStatus) and once wrapped in
+      Announce(CaseLedgerEntry) — producing duplicate state transitions and non-canonical
+      messages in peer inboxes. This artefact is superseded by ADR-0019.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-07-003
+      note: prohibits the pre-SYNC raw re-broadcast artefact superseded by ADR-0019
+    - rel_type: refines
+      spec_id: SYNC-02-002
+      note: Announce(CaseLedgerEntry) is the sole canonical propagation path for status updates
 - id: DEMOMA-08
   title: Case Actor Bootstrap and CASE_MANAGER Role
   specs:
@@ -227,8 +275,45 @@ groups:
       The CASE_MANAGER role delegation (Vendor hands operational management to Case Actor)
       MUST be implemented as a distinct protocol mechanism from OFFER_CASE_OWNERSHIP_TRANSFER;
       CASE_MANAGER delegation allows the Vendor to retain CASE_OWNER while delegating
-      operational authority, and requires new MessageSemantics values:
-      OFFER_CASE_MANAGER_ROLE and ACCEPT_CASE_MANAGER_ROLE
+      operational authority.
+      Wire vocab types (`_OfferCaseManagerRoleActivity`, `_AcceptCaseManagerRoleActivity`,
+      `_RejectCaseManagerRoleActivity`), extractor patterns, factory functions,
+      `MessageSemantics` values (`OFFER_CASE_MANAGER_ROLE`, `ACCEPT_CASE_MANAGER_ROLE`,
+      `REJECT_CASE_MANAGER_ROLE`), and received-side use cases are already implemented.
+      The remaining gaps are: (1) these use cases are not registered in the semantic
+      registry (`vultron/semantic_registry/__init__.py`), and
+      (2) trigger-side use cases (`SvcOfferCaseManagerRoleUseCase` and peers) are not yet
+      implemented. See DEMOMA-08-006 through DEMOMA-08-009 for the downstream specs.
+  - id: DEMOMA-08-006
+    priority: MUST
+    statement: >-
+      `OfferCaseManagerRolePattern`, `AcceptCaseManagerRolePattern`, and
+      `RejectCaseManagerRolePattern` MUST be registered in
+      `SEMANTICS_ACTIVITY_PATTERNS` in `vultron/semantic_registry/__init__.py`.
+      `OfferCaseManagerRoleReceivedUseCase`, `AcceptCaseManagerRoleReceivedUseCase`, and
+      `RejectCaseManagerRoleReceivedUseCase` MUST be registered in the `use_case_map`.
+  - id: DEMOMA-08-007
+    priority: MUST
+    statement: >-
+      A trigger-side use case `SvcOfferCaseManagerRoleUseCase` MUST be implemented in
+      `vultron/core/use_cases/triggers/actor.py` (or a new module in that package).
+      It MUST build an `_OfferCaseManagerRoleActivity` addressed to the target Case Actor
+      and enqueue it to the offering Vendor's outbox.
+  - id: DEMOMA-08-008
+    priority: SHOULD
+    statement: >-
+      A trigger-side use case `SvcAcceptCaseManagerRoleUseCase` SHOULD be implemented
+      for the Case Actor to explicitly accept (rather than auto-accepting via the received
+      use case). This allows manual override of the auto-accept behavior for deployments
+      that require explicit operator approval before the Case Actor assumes the role.
+  - id: DEMOMA-08-009
+    priority: MUST
+    statement: >-
+      Unit and integration tests MUST cover the full CASE_MANAGER delegation handshake:
+      (1) Vendor offers role via `_OfferCaseManagerRoleActivity`,
+      (2) Case Actor auto-accepts via `OfferCaseManagerRoleReceivedUseCase`,
+      (3) Vendor receives `_AcceptCaseManagerRoleActivity` and triggers
+      trust bootstrap `Create(VulnerabilityCase)` to Reporter.
   - id: DEMOMA-08-003
     priority: MUST_NOT
     statement: >-
@@ -258,3 +343,42 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CBT-01-007
+- id: DEMOMA-09
+  title: FVV Scenario (Finder → Vendor1 → Vendor2, no Coordinator)
+  specs:
+  - id: DEMOMA-09-001
+    priority: MUST
+    statement: >-
+      The FVV scenario MUST seed three independent actor containers — Finder, Vendor1, and
+      Vendor2 — with no Coordinator; each container MUST have its own isolated DataLayer
+      and the Case Actor MUST be co-located in the Vendor1 container
+  - id: DEMOMA-09-002
+    priority: MUST
+    statement: >-
+      Vendor1 MUST invite Vendor2 to the case after accepting the report (RM→ACCEPTED),
+      using the standard invite-actor trigger path; Vendor2 MUST accept and become a
+      full SIGNATORY participant before the scenario advances to fix tracking
+  - id: DEMOMA-09-003
+    priority: MUST
+    statement: >-
+      The FVV scenario MUST reach a final state of VFDPxa CS on all three actor replicas
+      (Finder, Vendor1, Vendor2), with EM.EXITED and RM.CLOSED for all participants;
+      both Vendor1 and Vendor2 MUST each have their own Vendor Fix Path tracked
+      independently
+  - id: DEMOMA-09-004
+    priority: MUST
+    statement: >-
+      The FVV scenario MUST run deterministically end-to-end via a single
+      `docker compose` command using the existing multi-actor Compose stack; the
+      scenario script MUST verify SYNC-2 replica convergence (both Finder and Vendor2
+      replicas match the authoritative Vendor1 state) after each major protocol event
+  - id: DEMOMA-09-005
+    priority: MUST
+    statement: >-
+      The PR that introduces the FVV scenario script MUST also add a dedicated parallel
+      CI job to `.github/workflows/demo-integration.yml` that runs the FVV scenario
+      using `DEMO=fvv`; the job MUST run concurrently with (not after) the two-actor
+      job so that total CI wall-clock time does not grow linearly with scenario count
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOCI-03-004

@@ -131,3 +131,39 @@ groups:
       visible to collaborators.
     tags:
     - documentation
+  - id: PD-09-004
+    priority: MUST
+    statement: >-
+      An Epic whose scope includes changes to the canonical CaseLedgerEntry commit path
+      (commit call sites, commit authorization/gating, or per-actor ledger content) MUST include a
+      closing sub-issue that reviews a fresh multi-actor demo run's per-actor ledger logs before the
+      Epic is closed. Passing the aggregate invariant test suite alone is NOT sufficient closure
+      evidence for such an Epic. Concretely, an Epic is "in scope" for this rule if any change
+      within it touches `CommitCaseLedgerEntryNode`, `create_guarded_commit_case_ledger_entry_tree`,
+      or `create_commit_log_entry_tree` in `vultron/core/behaviors/`, or any call site that invokes
+      these directly.
+    rationale: >-
+      Epic #788's aggregate invariant suite (`test/ci/test_case_ledger_invariants.py`) passed
+      all checks on `main` throughout the epic, yet the originating issue (#923) found 17
+      protocol-correctness findings, including two critical-severity bugs (a hash-chain fork and an
+      RM oscillation loop), that were visible only from a direct side-by-side review of each actor's
+      JSONL log, not from any single structural invariant. Without a standing rule requiring this
+      review at closure, later commit-path changes in the same Epic (e.g., a new authorization gate
+      touching ~10 call sites) could reintroduce the same class of bug undetected.
+    tags:
+    - documentation
+  - id: PD-09-005
+    priority: SHOULD
+    statement: >-
+      Before scheduling an Epic whose goal is to deprecate or remove an existing artifact
+      (a field, a class, a write path), an exhaustive inventory of read and write call sites for that
+      artifact, across all layers, including any wire-layer or adapter-layer duplicates, SHOULD be
+      attached to the Epic issue at creation time.
+    rationale: >-
+      Epic #788's wire-layer `VulnerabilityCase.events`/`record_event()` duplicate (issue
+      #888) was discovered mid-epic rather than scoped at the start, and ended up as a late-arriving
+      prerequisite blocking the epic's final removal step (#792). An upfront inventory would have
+      surfaced this dependency before work began rather than after most of the epic was already
+      complete.
+    tags:
+    - documentation

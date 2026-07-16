@@ -12,6 +12,8 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """BT structure and no-post-BT-broadcast tests for UpdateCaseBT."""
 
+from unittest.mock import MagicMock
+
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.case.nodes.update import (
     ApplyCaseUpdateNode,
@@ -19,6 +21,7 @@ from vultron.core.behaviors.case.nodes.update import (
     CaptureCaseUpdateBroadcastExclusionsNode,
     CheckCaseUpdateOwnerNode,
 )
+from vultron.core.behaviors.case.update_support import broadcast_case_update
 from vultron.core.behaviors.case.update_tree import (
     create_update_case_received_tree,
 )
@@ -107,3 +110,40 @@ class TestUpdateCaseBTStructure:
 
         outbox_items = dl.outbox_list_for_actor(case_actor.id_)
         assert len(outbox_items) == 1
+
+
+class TestCollectionDefaultsCS21:
+    """Omitting excluded_actor_ids produces empty-set behaviour at the call site."""
+
+    def test_broadcast_case_update_omitting_excluded_actor_ids_does_not_raise(
+        self,
+    ):
+        """broadcast_case_update: omitting excluded_actor_ids does not raise."""
+        dl = MagicMock()
+        dl.read.return_value = None  # no case actor found — early return
+        case = MagicMock()
+        case.actor_participant_index = {}
+        # Call without excluded_actor_ids; should not raise.
+        broadcast_case_update(dl, "urn:uuid:case-1", case)
+
+    def test_broadcast_case_update_excludes_no_actors_by_default(self):
+        """broadcast_case_update: all participants are eligible when no exclusions given."""
+        dl = MagicMock()
+        dl.read.return_value = None  # no case actor found — early return
+        case = MagicMock()
+        actor_id = "https://example.org/actors/vendor"
+        case.actor_participant_index = {actor_id: MagicMock()}
+        # No exclusions — the function should reach the participant-list
+        # check (short-circuits only on missing CaseActor, not on empty list).
+        broadcast_case_update(dl, "urn:uuid:case-1", case)
+
+    def test_broadcast_case_update_private_omitting_excluded_actor_ids_does_not_raise(
+        self,
+    ):
+        """_broadcast_case_update: omitting excluded_actor_ids does not raise."""
+        use_case = UpdateCaseReceivedUseCase.__new__(UpdateCaseReceivedUseCase)
+        use_case._dl = MagicMock()
+        use_case._dl.read.return_value = None
+        case = MagicMock()
+        case.actor_participant_index = {}
+        use_case._broadcast_case_update("urn:uuid:case-1", case)

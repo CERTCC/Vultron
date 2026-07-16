@@ -7,6 +7,7 @@ description: >
 related_notes:
   - vultron/core/ports/AGENTS.md
   - notes/architecture-adapters.md
+  - notes/domain-validation.md
 relevant_packages:
   - vultron/core
   - vultron/wire/as2
@@ -96,7 +97,7 @@ Key enforced principle: core has no FastAPI, wire, or transport imports.
 
 ---
 
-## Rules 1-9
+## Rules 1-10
 
 1. Core has no wire-format imports.
 2. Core has no framework imports.
@@ -107,6 +108,9 @@ Key enforced principle: core has no FastAPI, wire, or transport imports.
 7. Connectors translate at the boundary only.
 8. Wire layer is replaceable as a unit.
 9. Port interfaces must not use `BaseModel` as boundary type hints.
+10. Edge adapters promote loose wire objects to strict core types before
+    calling core functions. Core helpers raise a descriptive exception on
+    failure; they never return `None` as a failure signal. See ADR-0032.
 
 ---
 
@@ -161,6 +165,10 @@ needed, implement one module in `adapters/driving/` and one in
 
 1. **Core >= Wire**: core represents all wire fields.
 2. **Fail-fast models**: required domain invariants validated at construction.
+   Core helpers raise a descriptive exception rather than returning `None` on
+   failure (ADR-0032). Collection-typed fields default to the empty collection
+   (`[]`, `{}`, `set()`); `None` is reserved for fields where absence is
+   semantically distinct from empty.
 3. **ActivityStreams alignment** for protocol-exposed objects.
 4. **Adapter/core boundary**: adapters own transport/wire construction.
 5. **Non-breaking BT migration**: layer cleanup and behavior changes are staged.

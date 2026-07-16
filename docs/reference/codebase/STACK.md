@@ -7,76 +7,78 @@
 | Area | Value | Evidence |
 |------|-------|----------|
 | Primary language | Python | `pyproject.toml`, `docs/reference/codebase/.codebase-scan.txt` |
-| Runtime + version | Python `>=3.12`; Docker and CI use Python 3.13 | `pyproject.toml`, `docker/Dockerfile`, `.github/workflows/python-app.yml` |
-| Package manager | `uv` for dependency sync and command execution | `Makefile`, `.github/workflows/python-app.yml`, `docker/Dockerfile` |
-| Module/build system | Setuptools build backend with `uv build` packaging | `pyproject.toml`, `.github/workflows/python-app.yml` |
+| Runtime + version | Python `>=3.12`; CI and Docker use Python `3.13` | `pyproject.toml`, `.github/actions/setup-python-uv/action.yml`, `docker/Dockerfile` |
+| Package manager | `uv` for sync, execution, and builds | `Makefile`, `.github/actions/setup-python-uv/action.yml`, `docker/Dockerfile` |
+| Module/build system | `setuptools.build_meta` with `setuptools-scm` dynamic versioning | `pyproject.toml` |
 
 ### 2) Production Frameworks and Dependencies
 
 | Dependency | Version | Role in system | Evidence |
 |------------|---------|----------------|----------|
-| `fastapi` | `>=0.136.3` | HTTP API and router layer | `pyproject.toml`, `vultron/adapters/driving/fastapi/app.py` |
-| `uvicorn` | `>=0.48.0` | ASGI server for the API | `pyproject.toml`, `docker/Dockerfile` |
-| `pydantic` | `==2.13.4` | Model validation and typed request/object models | `pyproject.toml`, `vultron/core/ports/datalayer.py` |
-| `pydantic-settings` | `>=2.14.1` | Environment-variable config loading | `pyproject.toml`, `vultron/config.py` |
-| `sqlmodel` | `>=0.0.38` | SQLite-backed persistence adapter | `pyproject.toml`, `vultron/adapters/driven/datalayer_sqlite.py` |
-| `httpx` | `>=0.28.1` | HTTP client for outbound inbox delivery | `pyproject.toml`, `vultron/adapters/driven/demo_http_delivery.py` |
-| `py-trees` | `>=2.2.0` | Behavior-tree implementation support | `pyproject.toml`, `docs/adr/0002-model-processes-with-behavior-trees.md` |
+| `fastapi` | `>=0.137.1` | HTTP API and driving adapter layer | `pyproject.toml`, `vultron/adapters/driving/fastapi/app.py` |
+| `uvicorn` | `>=0.49.0` | ASGI server for the API | `pyproject.toml`, `docker/Dockerfile` |
+| `pydantic` | `==2.13.4` | Validation for config, domain, and wire models | `pyproject.toml`, `vultron/config.py` |
+| `pydantic-settings` | `>=2.14.2` | Environment-driven config loading | `pyproject.toml`, `vultron/config.py` |
+| `sqlmodel` | `>=0.0.38` | SQLite-backed persistence adapter | `pyproject.toml`, `vultron/adapters/driven/datalayer_sqlite/datalayer.py` |
+| `py-trees` | `>=2.2.0` | Behavior-tree execution model | `pyproject.toml`, `AGENTS.md` |
 | `transitions` | `>=0.9.3` | State-machine support | `pyproject.toml` |
-| `pyyaml` | `>=6.0` | YAML-backed config and metadata loading | `pyproject.toml`, `vultron/demo/cli.py` |
-| `python-frontmatter` | `>=1.1.0` | YAML frontmatter parsing for notes/metadata tooling | `pyproject.toml`, `vultron/metadata/notes/` |
-| `click` | `>=8.4.1` | CLI framework for demo and script entry points | `pyproject.toml`, `vultron/demo/cli.py` |
-| `isodate` | `>=0.7.2` | ISO 8601 duration/date parsing | `pyproject.toml` |
-| `networkx` | `>=3.5` | Graph computations for case-state hypercube | `pyproject.toml`, `vultron/core/case_states/hypercube.py` |
-| `owlready2` | `>=0.48` | OWL ontology loading and querying | `pyproject.toml`, `vultron/scripts/ontology2md.py` |
-| `rdflib` | `>=7.2.1` | RDF graph support (used with owlready2/ontology tooling) | `pyproject.toml`, `vultron/scripts/ontology2md.py` |
-| `pandas` | `>=3.0.3` | Tabular data for analysis and reporting | `pyproject.toml`, `vultron/demo/vultrabot.py` |
-| `scipy` | `>=1.16.2` | Scientific computing support for analysis | `pyproject.toml`, `vultron/demo/vultrabot.py` |
-| `griffelib` | `>=2.0.0` | mkdocstrings support library | `pyproject.toml` |
-| `mkdocs` + Material plugins | mixed | Built documentation site and reference docs | `pyproject.toml`, `mkdocs.yml` |
+| `httpx2` | unpinned | HTTP client package used by delivery and demo helpers | `pyproject.toml`, `vultron/adapters/driven/demo_http_delivery.py`, `vultron/adapters/driven/asgi_emitter.py` |
+| `click` | `>=8.4.1` | CLI framework for demo and metadata commands | `pyproject.toml`, `vultron/demo/cli.py` |
+| `pyyaml` | `>=6.0` | YAML config and metadata parsing | `pyproject.toml`, `vultron/config.py` |
+| `python-frontmatter` | `>=1.3.0` | Notes/history metadata parsing | `pyproject.toml` |
+| `mkdocs` plus Material/doc plugins | mixed | Documentation site generation | `pyproject.toml`, `mkdocs.yml` |
+| `networkx` | `>=3.5` | Case-state graph computations | `pyproject.toml`, `vultron/core/case_states/hypercube.py` |
+| `owlready2` + `rdflib` | `>=0.48`, `>=7.2.1` | Ontology tooling | `pyproject.toml`, `vultron/scripts/ontology2md.py` |
+| `pandas` + `scipy` | `>=3.0.3`, `>=1.16.2` | Analysis/demo support | `pyproject.toml`, `vultron/demo/vultrabot.py` |
 
 ### 3) Development Toolchain
 
 | Tool | Purpose | Evidence |
 |------|---------|----------|
-| `black` (`>=26.5.1`) | Python formatting | `pyproject.toml`, `.pre-commit-config.yaml` |
+| `black` | Python formatting (pre-commit hook runs `--check` only; auto-fix via `make black` or `format-code` skill) | `pyproject.toml`, `.pre-commit-config.yaml` |
 | `flake8` | Python linting | `pyproject.toml`, `.flake8`, `.github/workflows/python-app.yml` |
-| `mypy` (`>=2.1.0`) | Static type checking | `pyproject.toml`, `.github/workflows/python-app.yml` |
-| `pyright` (`>=1.1.409`) | Static type checking | `pyproject.toml`, `pyrightconfig.json`, `.github/workflows/python-app.yml` |
-| `pytest` (`>=9.0.3`) | Automated tests | `pyproject.toml`, `test/AGENTS.md` |
-| `markdownlint-cli2` | Markdown linting/fixing via `./mdlint.sh` | `mdlint.sh`, `.pre-commit-config.yaml`, `.markdownlint-cli2.yaml` |
-| `pre-commit` | Hook orchestration | `pyproject.toml`, `.pre-commit-config.yaml` |
+| `mypy` | Static type checking | `pyproject.toml`, `.mypy.ini`, `.github/workflows/python-app.yml` |
+| `pyright` | Static type checking | `pyproject.toml`, `pyrightconfig.json`, `.github/workflows/python-app.yml` |
+| `pytest` + `pytest-timeout` | Automated tests | `pyproject.toml`, `test/AGENTS.md` |
+| `markdownlint-cli2` | Markdown lint/fix | `.pre-commit-config.yaml`, `.markdownlint-cli2.yaml`, `.github/workflows/lint_md_all.yml` |
+| `pre-commit` | Local hook orchestration | `pyproject.toml`, `.pre-commit-config.yaml` |
+| `linkchecker` | Docs link validation | `pyproject.toml`, `.github/workflows/docs-build-check.yml` |
 
 ### 4) Key Commands
 
 ```bash
 uv sync --dev
+uv build
+uv run pytest --tb=short
+uv run pytest -m "" --tb=short
 uv run black vultron/ test/
 uv run flake8 vultron/ test/
 uv run mypy
 uv run pyright
-uv run pytest --tb=short 2>&1 | tail -5
-uv run mkdocs serve
+uv run mkdocs build --config-file mkdocs.yml
 ```
 
 ### 5) Environment and Config
 
-- Config sources: `.env.example`, `pyproject.toml`, `docker/docker-compose.yml`,
+- Config sources: `config.example.yaml`, `vultron/config.py`, `.env.example`,
+  `docker/.env.example`, `docker/docker-compose.yml`,
   `docker/docker-compose-multi-actor.yml`
-- Required env vars seen in committed files: `PROJECT_NAME`, `LOG_LEVEL`,
-  `VULTRON_DB_URL`, `VULTRON_BASE_URL`, `VULTRON_API_BASE_URL`,
-  `VULTRON_ACTOR_ID`, `VULTRON_SEED_CONFIG`, `VULTRON_ACTOR_NAME`,
-  `VULTRON_ACTOR_TYPE`
-- Deployment/runtime constraints: default persistence is SQLite; Docker Compose
-  runs the API with `uvicorn vultron.adapters.driving.fastapi.main:app`; the
-  multi-actor setup expects one SQLite volume per actor service.
+- Required env vars verified in committed files:
+  `VULTRON_CONFIG`, `VULTRON_MODE`, `VULTRON_SERVER__BASE_URL`,
+  `VULTRON_SERVER__LOG_LEVEL`, `VULTRON_DATABASE__DB_URL`,
+  `VULTRON_PRE_BOOTSTRAP_QUEUE_TIMEOUT_SECONDS`, `VULTRON_API_BASE_URL`,
+  `VULTRON_ACTOR_ID`, `VULTRON_SEED_CONFIG`, `PROJECT_NAME`,
+  `COMPOSE_PROJECT_NAME`, `DEMO`
+- Deployment/runtime constraints: the main server uses SQLite by default, Docker
+  runs `uvicorn vultron.adapters.driving.fastapi.main:app`, and the multi-actor
+  compose stack allocates one SQLite-backed volume per actor service.
 
 ### 6) Evidence
 
 - `pyproject.toml`
 - `docker/Dockerfile`
+- `.github/actions/setup-python-uv/action.yml`
 - `.github/workflows/python-app.yml`
-- `Makefile`
-- `mdlint.sh`
-- `mkdocs.yml`
+- `config.example.yaml`
+- `vultron/config.py`
 - `docs/reference/codebase/.codebase-scan.txt`

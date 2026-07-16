@@ -70,6 +70,12 @@ from unexpected or malformed inbound protocol messages.
   inquiry will be sent; in production this should be a deterministic
   policy-driven action
 - **Automation potential**: **High** — deterministic policy-driven GI message dispatch in response to error conditions; can be fully automated once the follow-up policy is defined.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.messaging.FollowUpOnErrorMessage`
+- **Call-out point shape**: Composer — generates and dispatches a follow-up GI inquiry message to the sender of an unexpected or error protocol message; the produced artifact is the outbound GI protocol message.
+- **Factory-fn placement**: FUTURE:
+  `vultron.core.behaviors.inbox.create_inbound_error_followup_tree`
+  (issue #1254) — Composer effect node in the error-handling Fallback
+  within `ReceiveMessagesBt`, after the unrecognized-message check fails
 
 ---
 

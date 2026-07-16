@@ -66,7 +66,7 @@ class TestCaseManagerRoleDelegationUseCases:
 
         dl = SqliteDataLayer("sqlite:///:memory:")
         offer = self._make_offer()
-        event = make_payload(offer)
+        event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
 
         OfferCaseManagerRoleReceivedUseCase(dl, event).execute()
 
@@ -79,7 +79,7 @@ class TestCaseManagerRoleDelegationUseCases:
 
         dl = SqliteDataLayer("sqlite:///:memory:")
         offer = self._make_offer()
-        event = make_payload(offer)
+        event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
 
         OfferCaseManagerRoleReceivedUseCase(dl, event).execute()
         OfferCaseManagerRoleReceivedUseCase(dl, event).execute()
@@ -138,28 +138,22 @@ class TestCaseManagerRoleDelegationUseCases:
         self, make_payload
     ):
         """OfferCaseManagerRoleReceivedUseCase auto-accepts when trigger_activity provided."""
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import MagicMock
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.base.objects.actors import as_Organization
 
         dl = SqliteDataLayer("sqlite:///:memory:")
-        local_actor = as_Organization(id_=self._CASE_ACTOR_URI)
-        dl.create(local_actor)
 
         offer = self._make_offer()
-        event = make_payload(offer)
+        event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
 
         trigger = MagicMock()
         trigger.accept_case_manager_role.return_value = (
             "https://example.org/activities/accept-1"
         )
 
-        with patch(
-            "vultron.core.use_cases.triggers._helpers.add_activity_to_outbox"
-        ):
-            OfferCaseManagerRoleReceivedUseCase(
-                dl, event, trigger_activity=trigger
-            ).execute()
+        OfferCaseManagerRoleReceivedUseCase(
+            dl, event, trigger_activity=trigger
+        ).execute()
 
         trigger.accept_case_manager_role.assert_called_once()
         call_kwargs = trigger.accept_case_manager_role.call_args
@@ -174,7 +168,7 @@ class TestCaseManagerRoleDelegationUseCases:
 
         dl = SqliteDataLayer("sqlite:///:memory:")
         offer = self._make_offer()
-        event = make_payload(offer)
+        event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
 
         # No trigger_activity — should not raise
         OfferCaseManagerRoleReceivedUseCase(dl, event).execute()
@@ -190,7 +184,7 @@ class TestCaseManagerRoleDelegationUseCases:
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.base.objects.actors import as_Organization
         from vultron.core.models.vultron_types import VultronParticipant
-        from vultron.core.states.roles import CVDRole
+        from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
@@ -224,9 +218,59 @@ class TestCaseManagerRoleDelegationUseCases:
             {},
         )
 
-        with patch(
-            "vultron.core.use_cases.triggers._helpers.add_activity_to_outbox"
-        ):
+        with patch("vultron.core.use_cases._helpers.add_activity_to_outbox"):
+            AcceptCaseManagerRoleReceivedUseCase(
+                dl, event, trigger_activity=trigger
+            ).execute()
+
+        trigger.create_case.assert_called_once()
+        call_kwargs = trigger.create_case.call_args
+        assert call_kwargs.kwargs.get("to") == [reporter_id] or (
+            len(call_kwargs.args) >= 3 and reporter_id in call_kwargs.args
+        )
+
+    def test_accept_case_manager_role_bootstrap_via_case_participants_fallback(
+        self, make_payload
+    ):
+        """_find_reporter_id fallback: uses case_participants when index is empty."""
+        from unittest.mock import MagicMock, patch
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.models.vultron_types import VultronParticipant
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        reporter_id = "https://example.org/actors/reporter"
+        reporter_participant_id = f"{self._CASE_URI}/participants/reporter"
+        reporter_participant = VultronParticipant(
+            id_=reporter_participant_id,
+            attributed_to=reporter_id,
+            context=self._CASE_URI,
+            name="Reporter",
+            case_roles=[CVDRole.FINDER, CVDRole.REPORTER],
+        )
+        case = VulnerabilityCase(id_=self._CASE_URI, name="FALLBACK-TEST")
+        # Populate only case_participants; leave actor_participant_index empty
+        # (bootstrap path — index not yet populated).
+        case.case_participants.append(reporter_participant_id)  # type: ignore[arg-type]
+        dl.create(reporter_participant)
+        dl.create(case)
+
+        offer = self._make_offer()
+        accept = accept_case_manager_role_activity(
+            offer, actor=self._CASE_ACTOR_URI
+        )
+        event = make_payload(accept, receiving_actor_id=self._VENDOR_URI)
+
+        trigger = MagicMock()
+        trigger.create_case.return_value = (
+            "https://example.org/activities/create-fallback",
+            {},
+        )
+
+        with patch("vultron.core.use_cases._helpers.add_activity_to_outbox"):
             AcceptCaseManagerRoleReceivedUseCase(
                 dl, event, trigger_activity=trigger
             ).execute()
@@ -255,3 +299,148 @@ class TestCaseManagerRoleDelegationUseCases:
 
         stored = dl.get(accept.type_.value, accept.id_)
         assert stored is not None
+
+    def test_offer_case_manager_role_reject_emitted_when_accept_fails(
+        self, make_payload
+    ):
+        """When auto-accept raises, EmitRejectCaseManagerRoleNode fires instead."""
+        from unittest.mock import MagicMock
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+
+        # Seed DL so EmitRejectCaseManagerRoleNode can reconstruct the offer
+        case = VulnerabilityCase(id_=self._CASE_URI, name="REJECT-TEST")
+        participant = CaseParticipant(
+            id_=self._PARTICIPANT_URI,
+            attributed_to=self._CASE_ACTOR_URI,
+            context=self._CASE_URI,
+        )
+        dl.create(case)
+        dl.create(participant)
+
+        offer = self._make_offer()
+        event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
+
+        reject_id = "https://example.org/activities/reject-cm-fallback"
+        trigger = MagicMock()
+        trigger.accept_case_manager_role.side_effect = RuntimeError(
+            "accept unavailable"
+        )
+        trigger.reject_case_manager_role.return_value = reject_id
+
+        OfferCaseManagerRoleReceivedUseCase(
+            dl, event, trigger_activity=trigger
+        ).execute()
+
+        trigger.reject_case_manager_role.assert_called_once_with(
+            offer_id=offer.id_,
+            case_id=self._CASE_URI,
+            participant_id=self._PARTICIPANT_URI,
+            vendor_id=self._VENDOR_URI,
+            actor=self._CASE_ACTOR_URI,
+            to=[self._VENDOR_URI],
+        )
+
+    def test_offer_case_manager_role_outbox_failure_does_not_emit_reject(
+        self, make_payload
+    ):
+        """Outbox failure after Accept is persisted must NOT trigger Reject.
+
+        Regression for the broad-exception anti-pattern: when
+        accept_case_manager_role() succeeds (Accept written to DataLayer) but
+        record_outbox_item() then fails, the exception must propagate through
+        py_trees (bypassing the AcceptOrReject Selector fallback) so that
+        BTBridge fails the tree hard without emitting a contradictory Reject.
+        """
+        from unittest.mock import MagicMock, patch
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case = VulnerabilityCase(id_=self._CASE_URI, name="OUTBOX-FAIL-TEST")
+        participant = CaseParticipant(
+            id_=self._PARTICIPANT_URI,
+            attributed_to=self._CASE_ACTOR_URI,
+            context=self._CASE_URI,
+        )
+        dl.create(case)
+        dl.create(participant)
+
+        offer = self._make_offer()
+        event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
+
+        trigger = MagicMock()
+        trigger.accept_case_manager_role.return_value = (
+            "https://example.org/activities/accept-outbox-fail"
+        )
+
+        # Accept creation succeeds, but outbox enqueue fails.
+        with patch.object(
+            dl,
+            "record_outbox_item",
+            side_effect=RuntimeError("outbox unavailable"),
+        ):
+            # BTBridge swallows the exception; execute() must not raise.
+            OfferCaseManagerRoleReceivedUseCase(
+                dl, event, trigger_activity=trigger
+            ).execute()
+
+        # The Reject must NOT have been emitted — Accept was already persisted.
+        trigger.reject_case_manager_role.assert_not_called()
+
+    def test_offer_case_manager_role_reject_uses_adapter_when_accept_fails(
+        self, make_payload
+    ):
+        """reject_case_manager_role adapter method is called with correct args."""
+        from unittest.mock import MagicMock
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case = VulnerabilityCase(id_=self._CASE_URI, name="ADAPTER-REJECT")
+        participant = CaseParticipant(
+            id_=self._PARTICIPANT_URI,
+            attributed_to=self._CASE_ACTOR_URI,
+            context=self._CASE_URI,
+        )
+        dl.create(case)
+        dl.create(participant)
+
+        offer = self._make_offer()
+        event = make_payload(offer, receiving_actor_id=self._CASE_ACTOR_URI)
+
+        # Use a real adapter wrapped so accept raises but reject succeeds
+        real_adapter = TriggerActivityAdapter(dl)
+        patched = MagicMock(wraps=real_adapter)
+        patched.accept_case_manager_role.side_effect = RuntimeError(
+            "accept unavailable"
+        )
+
+        OfferCaseManagerRoleReceivedUseCase(
+            dl, event, trigger_activity=patched
+        ).execute()
+
+        patched.reject_case_manager_role.assert_called_once()
+        kwargs = patched.reject_case_manager_role.call_args.kwargs
+        assert kwargs["offer_id"] == offer.id_
+        assert kwargs["vendor_id"] == self._VENDOR_URI

@@ -17,11 +17,12 @@ from vultron.core.behaviors.sync.nodes import (
     CreateLogEntryNode,
     PersistLogEntryNode,
 )
-from vultron.core.models.case_ledger import GENESIS_HASH
 from vultron.core.behaviors.sync.nodes.chain import (
     _validate_canonical_entry,
 )
 from vultron.errors import VultronCanonicalEntryError
+
+_ZERO_HASH: str = "0" * 64  # arbitrary hash for test chains
 
 
 def _canonical_note_snapshot(actor_id: str) -> dict[str, object]:
@@ -60,7 +61,7 @@ def test_create_log_entry_node_writes_log_entry_to_blackboard(bridge):
             name="CreateLogEntry",
         ),
         actor_id=OWNER_ACTOR_ID,
-        tail_hash=GENESIS_HASH,
+        tail_hash=_ZERO_HASH,
         tail_index=-1,
     )
 
@@ -71,6 +72,17 @@ def test_create_log_entry_node_writes_log_entry_to_blackboard(bridge):
     )
     assert blackboard.log_entry.case_id == CASE_ID
     assert blackboard.log_entry.log_index == 0
+
+
+def test_create_log_entry_node_default_payload_snapshot_is_empty_dict():
+    """Omitting payload_snapshot gives an empty dict on the node instance."""
+    node = CreateLogEntryNode(
+        case_id=CASE_ID,
+        object_id="https://example.org/activities/act-2",
+        event_type="note_added",
+    )
+    assert node.payload_snapshot == {}
+    assert node.payload_snapshot is not None
 
 
 def test_validate_canonical_entry_rejects_empty_snapshot():
@@ -149,7 +161,7 @@ def test_create_log_entry_node_rejects_non_canonical_snapshots(
             name="CreateLogEntry",
         ),
         actor_id=OWNER_ACTOR_ID,
-        tail_hash=GENESIS_HASH,
+        tail_hash=_ZERO_HASH,
         tail_index=-1,
     )
 
@@ -167,7 +179,7 @@ def test_create_log_entry_node_allows_case_authored_announce(bridge):
             name="CreateLogEntry",
         ),
         actor_id=OWNER_ACTOR_ID,
-        tail_hash=GENESIS_HASH,
+        tail_hash=_ZERO_HASH,
         tail_index=-1,
     )
 
@@ -260,7 +272,7 @@ class TestPersistLogEntryNodeLogging:
 
     @pytest.fixture()
     def entry(self):
-        return _make_entry(log_index=0, prev_hash=GENESIS_HASH)
+        return _make_entry(log_index=0, prev_hash=_ZERO_HASH)
 
     def test_info_log_emitted_on_persist(
         self, bridge, entry, caplog: pytest.LogCaptureFixture

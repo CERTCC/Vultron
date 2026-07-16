@@ -48,7 +48,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
 )
 from vultron.core.states.rm import RM
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 
 # ---------------------------------------------------------------------------
 # Module-level outbox suppression
@@ -79,43 +79,6 @@ def _no_outbox_delivery():
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
-
-
-@pytest.fixture
-def actor_and_dl():
-    """Create actor + per-actor DataLayer together (avoids chicken-and-egg).
-
-    The actor object is created first (no DataLayer needed), then a
-    DataLayer is instantiated scoped to that actor's ID (ADR-0012 Option B).
-    The actor is then persisted into its own DataLayer.  Callers should
-    unpack via the ``actor`` and ``dl`` fixtures below.
-    """
-    from vultron.adapters.driven.datalayer_sqlite import (
-        SqliteDataLayer,
-        reset_datalayer,
-    )
-
-    actor_obj = as_Service(name="Vendor Co")
-    actor_id = actor_obj.id_
-    reset_datalayer(actor_id)
-    actor_dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
-    actor_dl.clear_all()
-    actor_dl.create(actor_obj)
-    yield actor_obj, actor_dl
-    actor_dl.close()
-    reset_datalayer(actor_id)
-
-
-@pytest.fixture
-def actor(actor_and_dl):
-    actor_obj, _ = actor_and_dl
-    return actor_obj
-
-
-@pytest.fixture
-def dl(actor_and_dl):
-    _, actor_dl = actor_and_dl
-    return actor_dl
 
 
 @pytest.fixture

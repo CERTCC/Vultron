@@ -202,4 +202,11 @@ class TriggerServicePort(Protocol):
         actor_id: str,
         case_id: str,
         invitee_id: str,
+        roles: list | None = None,
+    ) -> dict[str, Any]: ...
+
+    def offer_case_manager_role(
+        self,
+        actor_id: str,
+        case_id: str,
     ) -> dict[str, Any]: ...

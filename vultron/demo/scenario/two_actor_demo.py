@@ -83,6 +83,7 @@ from vultron.demo.helpers.polling import (  # noqa: F401
     wait_for_case_on_container,
     wait_for_case_participants,
     wait_for_finder_case,
+    wait_for_contiguous_ledger_coverage,
     wait_for_finder_log_entry,
     wait_for_note_in_case,
     wait_for_participant_vfd_state,
@@ -111,14 +112,14 @@ from vultron.demo.helpers.verification import (  # noqa: F401
     _fetch_participant_data,
     _require_case_participant_id,
     verify_case_actor_unused,
-    verify_coordinator_case_state,
+    verify_receiver_case_state,
 )
 from vultron.demo.helpers.workflow import (  # noqa: F401
     _load_case_from_datalayer,
     _report_id_from_offer_data,
-    coordinator_engages_case,
-    coordinator_validates_report,
     find_case_for_offer,
+    receiver_engages_case,
+    receiver_validates_report,
     reporter_submits_report,
 )
 
@@ -183,9 +184,9 @@ def finder_submits_report(
     in new scenarios.
     """
     return reporter_submits_report(
-        coordinator_client=vendor_client,
+        receiver_client=vendor_client,
         reporter=finder,
-        coordinator=vendor,
+        receiver=vendor,
         reporter_client=finder_client,
     )
 
@@ -195,15 +196,32 @@ def vendor_validates_report(
     vendor: as_Actor,
     offer_id: str,
 ) -> dict:
-    """Scenario alias for :func:`~vultron.demo.helpers.workflow.coordinator_validates_report`.
+    """Vendor validates the submitted report via the trigger endpoint.
 
-    Maintained for backward compatibility; prefer
-    ``coordinator_validates_report`` in new scenarios.
+    Thin scenario wrapper around
+    :func:`~vultron.demo.helpers.workflow.receiver_validates_report`.
     """
-    return coordinator_validates_report(
-        coordinator_client=vendor_client,
-        coordinator=vendor,
+    return receiver_validates_report(
+        receiver_client=vendor_client,
+        receiver=vendor,
         offer_id=offer_id,
+    )
+
+
+def vendor_engages_case(
+    vendor_client: DataLayerClient,
+    vendor: as_Actor,
+    case_id: str,
+) -> dict:
+    """Vendor engages the case via the trigger endpoint (RM → ACCEPTED).
+
+    Thin scenario wrapper around
+    :func:`~vultron.demo.helpers.workflow.receiver_engages_case`.
+    """
+    return receiver_engages_case(
+        receiver_client=vendor_client,
+        receiver=vendor,
+        case_id=case_id,
     )
 
 
@@ -271,16 +289,16 @@ def verify_vendor_case_state(
     question_note_id: Optional[str] = None,
     reply_note_id: Optional[str] = None,
 ) -> VulnerabilityCase:
-    """Scenario alias for :func:`~vultron.demo.helpers.verification.verify_coordinator_case_state`.
+    """Scenario alias for :func:`~vultron.demo.helpers.verification.verify_receiver_case_state`.
 
     Maintained for backward compatibility; prefer
-    ``verify_coordinator_case_state`` in new scenarios.
+    ``verify_receiver_case_state`` in new scenarios.
     """
-    return verify_coordinator_case_state(
-        coordinator_client=vendor_client,
+    return verify_receiver_case_state(
+        receiver_client=vendor_client,
         case_id=case_id,
         report_id=report_id,
-        coordinator_actor_id=vendor_actor_id,
+        receiver_actor_id=vendor_actor_id,
         reporter_actor_id=reporter_actor_id,
         question_note_id=question_note_id,
         reply_note_id=reply_note_id,
@@ -300,10 +318,10 @@ def verify_m1_state(
     new scenarios.
     """
     return verify_case_active(
-        coordinator_client=vendor_client,
+        receiver_client=vendor_client,
         reporter_client=finder_client,
         case_id=case_id,
-        coordinator_actor_id=vendor_actor_id,
+        receiver_actor_id=vendor_actor_id,
         reporter_actor_id=reporter_actor_id,
     )
 
@@ -316,10 +334,10 @@ def verify_m4_state(
 ) -> None:
     """Scenario alias for :func:`~vultron.demo.helpers.milestones.verify_fix_ready`."""
     return verify_fix_ready(
-        coordinator_client=vendor_client,
+        receiver_client=vendor_client,
         reporter_client=finder_client,
         case_id=case_id,
-        coordinator_actor_id=vendor_actor_id,
+        receiver_actor_id=vendor_actor_id,
     )
 
 
@@ -331,10 +349,10 @@ def verify_m5_state(
 ) -> None:
     """Scenario alias for :func:`~vultron.demo.helpers.milestones.verify_fix_deployed`."""
     return verify_fix_deployed(
-        coordinator_client=vendor_client,
+        receiver_client=vendor_client,
         reporter_client=finder_client,
         case_id=case_id,
-        coordinator_actor_id=vendor_actor_id,
+        receiver_actor_id=vendor_actor_id,
     )
 
 
@@ -346,10 +364,10 @@ def verify_m6_state(
 ) -> None:
     """Scenario alias for :func:`~vultron.demo.helpers.milestones.verify_publicly_disclosed`."""
     return verify_publicly_disclosed(
-        coordinator_client=vendor_client,
+        receiver_client=vendor_client,
         reporter_client=finder_client,
         case_id=case_id,
-        coordinator_actor_id=vendor_actor_id,
+        receiver_actor_id=vendor_actor_id,
     )
 
 
@@ -360,7 +378,7 @@ def verify_m7_state(
 ) -> None:
     """Scenario alias for :func:`~vultron.demo.helpers.milestones.verify_case_closed`."""
     return verify_case_closed(
-        coordinator_client=vendor_client,
+        receiver_client=vendor_client,
         reporter_client=finder_client,
         case_id=case_id,
     )
@@ -406,14 +424,14 @@ def _phase_report_submission(
 
     vendor_in_vendor = get_actor_by_id(vendor_client, vendor.id_)
     report, offer = reporter_submits_report(
-        coordinator_client=vendor_client,
+        receiver_client=vendor_client,
         reporter=finder,
-        coordinator=vendor_in_vendor,
+        receiver=vendor_in_vendor,
         reporter_client=finder_client,
     )
-    coordinator_validates_report(
-        coordinator_client=vendor_client,
-        coordinator=vendor_in_vendor,
+    vendor_validates_report(
+        vendor_client=vendor_client,
+        vendor=vendor_in_vendor,
         offer_id=offer.id_,
     )
 
@@ -427,9 +445,9 @@ def _phase_report_submission(
 
     # validate-report advances RM to VALID only; engage-case is a separate
     # explicit step that advances RM to ACCEPTED (RM state machine protocol).
-    coordinator_engages_case(
-        coordinator_client=vendor_client,
-        coordinator=vendor_in_vendor,
+    vendor_engages_case(
+        vendor_client=vendor_client,
+        vendor=vendor_in_vendor,
         case_id=case.id_,
     )
 
@@ -456,10 +474,10 @@ def _phase_report_submission(
         "EM.ACTIVE, finder has case replica"
     ):
         verify_case_active(
-            coordinator_client=vendor_client,
+            receiver_client=vendor_client,
             reporter_client=finder_client,
             case_id=case.id_,
-            coordinator_actor_id=vendor.id_,
+            receiver_actor_id=vendor.id_,
             reporter_actor_id=finder.id_,
         )
 
@@ -503,11 +521,11 @@ def _phase_notes_exchange(
     with demo_check(
         "M3: Vendor container holds the authoritative final case state"
     ):
-        final_case = verify_coordinator_case_state(
-            coordinator_client=vendor_client,
+        final_case = verify_receiver_case_state(
+            receiver_client=vendor_client,
             case_id=case.id_,
             report_id=report.id_,
-            coordinator_actor_id=vendor.id_,
+            receiver_actor_id=vendor.id_,
             reporter_actor_id=finder.id_,
             question_note_id=question_note.id_,
             reply_note_id=reply_note.id_,
@@ -540,7 +558,25 @@ def _phase_sync_verification(
     # `trigger_log_commit` and `wait_for_finder_log_entry` remain available
     # in `vultron.demo.helpers.sync` for tests that need to drive a *real*
     # protocol event and wait for its replica; they are intentionally not
-    # called here.
+    # called here — EXCEPT for the replica-state check below, where we must
+    # wait for finder to receive all canonical entries before comparing state.
+    # The vendor's report-acceptance creates canonical ledger entries whose
+    # Announce(CaseLedgerEntry) fan-out is an async BackgroundTask; without
+    # this wait intermediate entries may not have arrived yet (issue #1434).
+    vendor_entries = _get_log_entries_for_case(vendor_client, case.id_)
+    if vendor_entries:
+        vendor_tail = max(vendor_entries, key=lambda e: e["log_index"])
+        vendor_tail_index: int = vendor_tail["log_index"]
+        logger.info(
+            "Waiting for finder to replicate all vendor entries (0…%d)",
+            vendor_tail_index,
+        )
+        wait_for_contiguous_ledger_coverage(
+            client=finder_client,
+            case_id=case.id_,
+            expected_tail_index=vendor_tail_index,
+        )
+
     logger.info(
         "Verifying SYNC-2 replication by comparing vendor ↔ finder replica"
         " state (ADR-0019: synthetic entries omitted from canonical ledger)"
@@ -597,10 +633,10 @@ def _phase_fix_lifecycle(
             expected_states={CS_vfd.VFd, CS_vfd.VFD},
         )
         verify_fix_ready(
-            coordinator_client=vendor_client,
+            receiver_client=vendor_client,
             reporter_client=finder_client,
             case_id=case.id_,
-            coordinator_actor_id=vendor.id_,
+            receiver_actor_id=vendor.id_,
         )
 
     actor_notifies_fix_deployed(
@@ -617,10 +653,10 @@ def _phase_fix_lifecycle(
             expected_states={CS_vfd.VFD},
         )
         verify_fix_deployed(
-            coordinator_client=vendor_client,
+            receiver_client=vendor_client,
             reporter_client=finder_client,
             case_id=case.id_,
-            coordinator_actor_id=vendor.id_,
+            receiver_actor_id=vendor.id_,
         )
 
 
@@ -669,10 +705,10 @@ def _phase_publication(
             case_id=case.id_,
         )
         verify_publicly_disclosed(
-            coordinator_client=vendor_client,
+            receiver_client=vendor_client,
             reporter_client=finder_client,
             case_id=case.id_,
-            coordinator_actor_id=vendor.id_,
+            receiver_actor_id=vendor.id_,
         )
 
 
@@ -711,9 +747,28 @@ def _phase_case_closure(
             case_id=case.id_,
         )
         verify_case_closed(
-            coordinator_client=vendor_client,
+            receiver_client=vendor_client,
             reporter_client=finder_client,
             case_id=case.id_,
+        )
+
+    # Wait for finder to receive all canonical ledger entries (including the
+    # close_case tail) before _phase_dump_case_ledgers writes devlog files.
+    # AutoClose fans out Announce(CaseLedgerEntry) as an async BackgroundTask;
+    # intermediate entries may arrive after the tail (issue #1434).
+    vendor_entries = _get_log_entries_for_case(vendor_client, case.id_)
+    if vendor_entries:
+        vendor_tail = max(vendor_entries, key=lambda e: e["log_index"])
+        vendor_tail_index: int = vendor_tail["log_index"]
+        logger.info(
+            "Waiting for finder to replicate all vendor entries after closure"
+            " (0…%d)",
+            vendor_tail_index,
+        )
+        wait_for_contiguous_ledger_coverage(
+            client=finder_client,
+            case_id=case.id_,
+            expected_tail_index=vendor_tail_index,
         )
 
 
@@ -862,6 +917,14 @@ def run_two_actor_demo(
             vendor_id,
         )
     )
+    _phase_sync_verification(
+        finder_client,
+        vendor_client,
+        vendor,
+        finder,
+        case,
+        case_actor_client,
+    )
     _, _, _, finder_in_finder = _phase_notes_exchange(
         finder_client,
         vendor_client,
@@ -870,14 +933,6 @@ def run_two_actor_demo(
         vendor_in_vendor,
         case,
         report,
-    )
-    _phase_sync_verification(
-        finder_client,
-        vendor_client,
-        vendor,
-        finder,
-        case,
-        case_actor_client,
     )
     _phase_fix_lifecycle(
         finder_client,

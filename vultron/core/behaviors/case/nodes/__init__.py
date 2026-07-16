@@ -50,6 +50,8 @@ from typing import TYPE_CHECKING
 from vultron.core.behaviors.case.nodes.actor import (
     EmitAcceptCaseInviteNode,
     EmitInviteActorToCaseNode,
+    EvaluateDefaultRolesNode,
+    ProposeCaseToActorNode,
 )
 from vultron.core.behaviors.case.nodes.case_setup import (
     PersistCase,
@@ -60,12 +62,18 @@ from vultron.core.behaviors.case.nodes.case_setup import (
 from vultron.core.behaviors.case.nodes.communication import (
     CollectCaseAddresseesNode,
     CreateAndPersistCaseActivityNode,
+)
+from vultron.core.behaviors.case.nodes.delegation import (
+    AutoAcceptCaseManagerRoleNode,
     CreateOfferCaseManagerActivityNode,
+    EmitRejectCaseManagerRoleNode,
     ResolveCaseManagerOfferContextNode,
 )
 from vultron.core.behaviors.case.nodes.conditions import (
+    CheckAutoCaseCreationEnabledNode,
     CheckCaseAlreadyExists,
     CheckCaseExistsForReport,
+    CheckIsCaseManagerNode,
 )
 from vultron.core.behaviors.case.nodes.embargo import (
     AdvanceEMStateToActiveNode,
@@ -76,6 +84,8 @@ from vultron.core.behaviors.case.nodes.embargo import (
 )
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
+    create_guarded_commit_case_ledger_entry_tree,
+    create_receive_activity_tree,
 )
 from vultron.core.behaviors.case.nodes.participant import (
     CreateParticipantStatusNode,
@@ -95,9 +105,13 @@ __all__ = [
     # actor (leaf nodes)
     "EmitInviteActorToCaseNode",
     "EmitAcceptCaseInviteNode",
+    "EvaluateDefaultRolesNode",
+    "ProposeCaseToActorNode",
     # conditions
+    "CheckAutoCaseCreationEnabledNode",
     "CheckCaseAlreadyExists",
     "CheckCaseExistsForReport",
+    "CheckIsCaseManagerNode",
     # case_setup (leaf nodes)
     "PersistCase",
     "SetCaseAttributedTo",
@@ -123,15 +137,19 @@ __all__ = [
     # embargo_tree (composite subtree — lazy via __getattr__)
     "InitializeDefaultEmbargoNode",
     # communication (leaf nodes)
+    "AutoAcceptCaseManagerRoleNode",
     "CollectCaseAddresseesNode",
     "CreateAndPersistCaseActivityNode",
     "CreateOfferCaseManagerActivityNode",
+    "EmitRejectCaseManagerRoleNode",
     "ResolveCaseManagerOfferContextNode",
     # communication_tree (composite subtrees — lazy via __getattr__)
     "EmitCreateCaseActivity",
     "SendOfferCaseManagerRoleNode",
     # lifecycle
     "CommitCaseLedgerEntryNode",
+    "create_guarded_commit_case_ledger_entry_tree",
+    "create_receive_activity_tree",
     # update
     "CheckCaseUpdateOwnerNode",
     "CaptureCaseUpdateBroadcastExclusionsNode",

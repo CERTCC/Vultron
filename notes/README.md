@@ -19,10 +19,23 @@ decide what to pull for your task. In most cases you need only 1–3 files.
 
 **`architecture-hexagonal.md`**
 Hexagonal architecture overview: layer model (core / wire / adapters), inbound
-and outbound pipelines, The Hexagon diagram, file layout, Rules 1–9, design
-constraints/invariants, and review checklist.
+and outbound pipelines, The Hexagon diagram, file layout, Rules 1–10, design
+constraints/invariants, and review checklist. Includes the
+validate-at-edge / promote-to-core rule (ADR-0032).
 **Load when**: orienting to architecture boundaries, reviewing layering
 violations, or validating core/wire separation.
+
+**`domain-validation.md`**
+Strict vs. loose domain object boundary contract: where objects transition from
+loose (wire-deserialized, possibly-None fields) to strict (all required fields
+resolved), fail-fast patterns at use-case, BT node, and helper boundaries,
+canonical helper locations (`use_cases/_helpers.py`), and the named
+silent-failure sites from CONCERN-1360 with before/after behavior.
+Normative requirements: `specs/architecture.yaml` ARCH-15-001 through
+ARCH-15-004.
+**Load when**: implementing or reviewing error handling in use cases or BT nodes,
+auditing helpers that return `None` on failure, or designing new domain helpers
+that require non-None inputs.
 
 **`vultron/core/ports/AGENTS.md`**
 Port-focused architecture guidance for `vultron/core/ports/`: inbound vs
@@ -140,6 +153,19 @@ evaluating the relay/journal delivery architecture.
 
 ---
 
+## Protocol Conformance and Behavioral Specs
+
+**`behavioral-conformance-specs.md`**
+Design rationale and implementation plan for the behavioral conformance spec
+layer (RMB, EMB, CSB): ECA rules, schema extensions (`TriggerType`, `Trigger`,
+typed `Precondition`), conformance level framing (L1–L4), PR sequence, and
+primary sources for spec content.
+**Load when**: implementing or reviewing `specs/rm-behavior.yaml`,
+`specs/em-behavior.yaml`, or `specs/cs-behavior.yaml`; extending the spec
+schema for behavioral specs; or drafting docs updates for behavior logic.
+
+---
+
 ## Protocol Semantics and Behavior Trees
 
 **`activitystreams-semantics.md`**
@@ -150,6 +176,15 @@ state-change notifications (not commands): inbound vs outbound semantics,
 vocabulary examples.
 **Load when**: implementing any inbound or outbound message handler, debugging
 semantic extraction, or writing new ActivityStreams vocabulary classes.
+
+**`case-proposal.md`**
+Design rationale, protocol flow, and implementation guidance for the
+`CaseProposal` mechanism: new `as_CaseProposal` AS2 object type, the
+`Create(CaseProposal)` / `Accept(CaseProposal)` / `Reject(CaseProposal)` flow,
+`ProposeCaseToActorNode` vs `CreateCaseActorNode` responsibilities, and the
+three received-side use cases. ADR: `docs/adr/0023-case-proposal-protocol.md`.
+**Load when**: implementing `as_CaseProposal`, `ProposeCaseToActorNode`, or
+the received-side use cases; or working on issues #810, #811, #812.
 
 **`vocabulary-registry.md`**
 Design decisions and migration path for the AS2 vocabulary registry refactor:
@@ -205,11 +240,14 @@ composability violations, or refactoring near-duplicate BT implementations.
 **`bt-fuzzer-nodes.md`**
 Index and background for the fuzzer node catalog. Fuzzer nodes are stub
 implementations in the legacy BT simulation (`vultron/bt/`) that stand in for
-real-world decision logic not yet implemented. This file explains what fuzzer
-nodes represent, the entry format, automation potential categories, and the
-fuzzer base-type probability table, then indexes the per-domain sub-files.
-**Load when**: understanding what fuzzer nodes are and why they exist; jump
-directly to a sub-file for the actual catalog entries.
+real-world decision logic not yet implemented. Each fuzzer node is a
+**call-out point** — a location where the BT cannot proceed automatically and
+needs external input (data, a decision, or content). This file explains the
+entry format, automation potential categories, and the fuzzer base-type
+probability table, then indexes the per-domain sub-files.
+**Load when**: understanding what fuzzer nodes are and why they exist; mapping
+fuzzer nodes to coordination agent types; jump directly to a sub-file for the
+actual catalog entries.
 
 **`bt-fuzzer-nodes-vul-discovery.md`**
 Fuzzer node catalog for the Vulnerability Discovery workflow
@@ -255,14 +293,6 @@ manually trigger intermediate steps, designing the boundary between automated
 cascades and external decision nodes, or evaluating where UI or LLM agent
 integration fits in the protocol flow.
 
-**`bt-composability.md`**
-Vultron's fractal composability principle for behavior trees: concrete patterns
-for composing behavioural subtrees, the "trunkless branch" model applied at
-the composability layer, and guidance for building reusable BT building blocks.
-Operationalises `specs/bt-composability.yaml` (BTC-01 through BTC-04).
-**Load when**: designing composable BT subtrees, auditing BT compositions for
-violations, or working on BTC spec requirements.
-
 **`bt-design-patterns.md`**
 Idiomatic BT construction patterns from Colledanchise & Ögren applied to the
 Vultron simulation and prototype implementations: factory methods, node
@@ -289,15 +319,28 @@ configuration.
 
 ## Case and Data Model
 
+**`lifecycle-staged-types.md`**
+Design guidance for lifecycle-staged domain types (ADR-0033): the field-set
+governing principle (a milestone earns a type only when it changes the
+guaranteed-field set), the three-class analysis (only `VulnerabilityCase` gets
+staged types — `IncomingReport` → `Case` → `EmbargoedCase`; `ParticipantStatus`
+and `CaseStatus` use predicates + state groups), the `model_validate`-at-edge
+read mechanism, the data-as-source-of-truth transition model, the DataLayer
+round-trip constraint, and the per-dimension-status decomposition trailhead.
+**Load when**: designing or reviewing staged domain types, deciding whether a
+lifecycle milestone should be a type vs. a predicate/precondition, or working on
+`specs/lifecycle-staged-types.yaml` (LST) requirements.
+
 **`case-state-model.md`**
 VFD/PXA case state hypercube, potential actions per state, measuring CVD
 quality, participant-specific vs participant-agnostic state, append-only
-`CaseStatus`/`ParticipantStatus` history model, `CaseEvent` trusted-timestamp
-design (SC-PRE-1), actor-to-participant index (SC-PRE-2), report-as-proto-case
-lifecycle, pre-case event backfill, and multi-vendor action rules.
+`CaseStatus`/`ParticipantStatus` history model, actor-to-participant index
+(SC-PRE-2), report-as-proto-case lifecycle, pre-case event backfill, and
+multi-vendor action rules. Note: `CaseEvent`/`record_event()` were removed
+in issue #792; all protocol-significant history now lives in the canonical
+`CaseLedgerEntry` hash chain.
 **Load when**: working with case state machines, implementing participant or
-embargo status transitions, adding `record_event()` calls, or debugging action
-rule filtering.
+embargo status transitions, or debugging action rule filtering.
 
 **`case-communication-model.md`**
 Canonical communication model for post-case-creation participant messaging:
@@ -384,9 +427,9 @@ startup issues, or optimizing image build times.
 **`encryption.md`**
 Encryption design notes: public-key discovery, decryption placement in the
 inbound pipeline, outgoing encryption strategies, key rotation, and
-implementation guidance.
+implementation guidance. Implementation is tracked in issue #1156.
 **Load when**: implementing message encryption/decryption in the ActivityPub
-inbox/outbox pipeline.
+inbox/outbox pipeline (see issue #1156 and its children).
 
 **`demo-future-ideas.md`**
 Extended multi-actor demo scenario sketches: Two-Actor (Finder + Vendor),
@@ -461,6 +504,17 @@ flowchart and future BT automation notes.
 **Load when**: understanding or evolving the agent skill pipeline, automating
 the development loop, or deciding which skill to run next.
 
+**`coordination-agents.md`**
+Design guidance for coordination agents — external capabilities (human, skill,
+or LLM agent) that answer Vultron call-out points. Covers the two-surface
+integration model (trigger endpoints = call-in; call-out points = call-out),
+the four agent type patterns (Sentinel, Evaluator, Retriever, Composer), the
+trust/execution-authority axis, composite agent design, and the fuzzer-node
+discovery methodology.
+**Load when**: designing a new coordination agent or call-out point integration,
+working on the fuzzer-to-agent replacement roadmap, or explaining the
+coordination agent concept to new contributors.
+
 **`agents-md-structure.md`**
 Routing policy for `AGENTS.md` content: the decision tree for whether new
 guidance belongs in root `AGENTS.md`, a per-directory `AGENTS.md` file
@@ -494,12 +548,14 @@ Pydantic model, loader, pre-commit hook, and migration checklist.
 **Load when**: adding frontmatter to a new notes file, modifying the frontmatter
 schema, or debugging `validate-notes-frontmatter` pre-commit failures.
 
-**`spec-registry.md`**
-Design notes for the spec registry: converting `specs/*.md` files to
-structured YAML governed by Pydantic models in `vultron/metadata/specs/`,
-mirroring the `vultron/metadata/notes/` pattern.
-**Load when**: adding a new spec YAML file, modifying the spec registry schema,
-or debugging `spec-dump` output issues.
+**`spec-registry.md`** *(archived — see `archived_notes/`)*
+Implemented — `specs/*.md` fully migrated to YAML; `vultron/metadata/specs/` is in place.
+
+**`demo-ci.md`** *(archived — see `archived_notes/`)*
+Implemented — `demo-integration.yml` workflow exists in `.github/workflows/`.
+
+**`docs-build-workflow.md`** *(archived — see `archived_notes/`)*
+Implemented — `docs-build-check.yml` workflow exists in `.github/workflows/`.
 
 ---
 

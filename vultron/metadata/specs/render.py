@@ -114,11 +114,24 @@ def render_markdown(spec_file: SpecFile) -> str:
     return "\n".join(lines)
 
 
+def _precondition_dict(pc: object) -> dict:
+    d: dict = {}
+    if pc.rm_state is not None:  # type: ignore[attr-defined]
+        d["rm_state"] = [s.value for s in pc.rm_state]  # type: ignore[attr-defined]
+    if pc.em_state is not None:  # type: ignore[attr-defined]
+        d["em_state"] = [s.value for s in pc.em_state]  # type: ignore[attr-defined]
+    if pc.role is not None:  # type: ignore[attr-defined]
+        d["role"] = [r.value for r in pc.role]  # type: ignore[attr-defined]
+    if pc.cs_pattern is not None:  # type: ignore[attr-defined]
+        d["cs_pattern"] = pc.cs_pattern  # type: ignore[attr-defined]
+    d["description"] = pc.description  # type: ignore[attr-defined]
+    return d
+
+
 def _add_behavioral_spec_fields(d: dict, spec: BehavioralSpec) -> None:
     authored_sequences = {
         "preconditions": [
-            {"description": item.description}
-            for item in spec.preconditions or []
+            _precondition_dict(item) for item in spec.preconditions or []
         ],
         "steps": [_step_dict(item) for item in spec.steps or []],
         "postconditions": [
@@ -199,6 +212,11 @@ def _group_to_dict(group: SpecGroup, file: SpecFile) -> dict:
         d["kind"] = group.kind.value
     if group.scope is not None:
         d["scope"] = [s.value for s in group.scope]
+    if group.trigger is not None:
+        d["trigger"] = {
+            "type": group.trigger.type.value,
+            "value": group.trigger.value,
+        }
     d["specs"] = [_spec_to_dict(s, group, file) for s in group.specs]
     return d
 

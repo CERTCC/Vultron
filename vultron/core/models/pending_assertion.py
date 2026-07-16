@@ -34,6 +34,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Literal
 
+from vultron.core.models.protocol_pair import ProtocolPair
+
 logger = logging.getLogger(__name__)
 
 #: Default suppression window in seconds.
@@ -81,6 +83,12 @@ class PendingAssertionStore:
 
     Setting ``timeout_seconds=0`` disables suppression entirely.
 
+    The store is keyed by :class:`~vultron.core.models.protocol_pair.ProtocolPair`
+    (replacing the raw ``(case_id, event_type, object_id)`` tuple from earlier
+    versions).  The three-argument helpers (``add``, ``is_suppressed``,
+    ``clear``) remain for backward compatibility and construct a ``ProtocolPair``
+    internally.
+
     Args:
         timeout_seconds: Suppression window in seconds.  Defaults to
             :data:`DEFAULT_PENDING_ASSERTION_TIMEOUT` (180 s).  Zero
@@ -91,17 +99,19 @@ class PendingAssertionStore:
         self, timeout_seconds: float = DEFAULT_PENDING_ASSERTION_TIMEOUT
     ) -> None:
         self.timeout_seconds = timeout_seconds
-        self._store: dict[tuple[str, str, str], PendingAssertion] = {}
+        self._store: dict[ProtocolPair, PendingAssertion] = {}
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _key(
-        case_id: str, event_type: str, object_id: str
-    ) -> tuple[str, str, str]:
-        return (case_id, event_type, object_id)
+    def _key(case_id: str, event_type: str, object_id: str) -> ProtocolPair:
+        return ProtocolPair(
+            case_id=case_id,
+            request_event_type=event_type,
+            object_id=object_id,
+        )
 
     def _check_expired(self, entry: PendingAssertion) -> bool:
         """Return True and mark ``timed_out`` when the entry has expired.
@@ -261,6 +271,7 @@ __all__ = [
     "DEFAULT_PENDING_ASSERTION_TIMEOUT",
     "PendingAssertion",
     "PendingAssertionStore",
+    "ProtocolPair",
     "get_pending_assertion_store",
     "_reset_stores",
 ]

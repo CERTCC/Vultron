@@ -28,11 +28,15 @@ from typing import cast
 from pydantic import ValidationError
 
 from vultron.core.models.actor import CoreActor
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.actor import (
     _AcceptActorRecommendationActivity,
+    _AcceptCaseParticipantOfferActivity,
+    _OfferCaseParticipantActivity,
     _RecommendActorActivity,
     _RejectActorRecommendationActivity,
+    _RejectCaseParticipantOfferActivity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
@@ -40,6 +44,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Reject,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     VulnerabilityCaseRef,
 )
@@ -164,4 +169,118 @@ def reject_actor_recommendation_activity(
         )
         raise VultronActivityConstructionError(
             "reject_actor_recommendation_activity: invalid arguments"
+        ) from exc
+
+
+def offer_case_participant_activity(
+    recommended: CoreActor | as_Actor,
+    target: VulnerabilityCaseRef | None = None,
+    roles: list[CVDRole] | None = None,
+    **kwargs,
+) -> as_Offer:
+    """Build an Offer(CaseParticipant{actor, roles}, Case) for the Case Owner.
+
+    Transforms the original ``Offer(Actor, Case)`` recommendation into a
+    typed ``Offer(CaseParticipant{actor, roles=[VENDOR]}, Case)`` addressed
+    to the Case Owner.  ``origin`` in ``kwargs`` SHOULD carry the ID of the
+    original ``Offer(Actor, Case)`` for causal traceability (CM-16-004).
+
+    Args:
+        recommended: The actor being recommended as a participant.
+        target: The ``VulnerabilityCase`` (or its URI).
+        roles: Roles to assign; defaults to ``[CVDRole.VENDOR]`` (CM-16-003).
+        **kwargs: Optional AS2 fields forwarded to the constructor
+            (e.g. ``actor``, ``to``, ``origin``).
+
+    Returns:
+        An ``as_Offer`` whose ``object_`` is a ``CaseParticipant``.
+
+    Raises:
+        VultronActivityConstructionError: If Pydantic validation fails.
+    """
+    effective_roles = roles if roles is not None else [CVDRole.VENDOR]
+    actor_id = getattr(recommended, "id_", None) or str(recommended)
+    participant = CaseParticipant(
+        id_=f"{actor_id}#participant",
+        attributed_to=recommended,
+        case_roles=effective_roles,
+    )
+    try:
+        return _OfferCaseParticipantActivity(
+            object_=participant, target=target, **kwargs
+        )
+    except ValidationError as exc:
+        logger.warning(
+            "offer_case_participant_activity: invalid arguments: %s", exc
+        )
+        raise VultronActivityConstructionError(
+            "offer_case_participant_activity: invalid arguments"
+        ) from exc
+
+
+def accept_case_participant_offer_activity(
+    offer: as_Offer,
+    target: VulnerabilityCaseRef | None = None,
+    **kwargs,
+) -> as_Accept:
+    """Build an Accept(_OfferCaseParticipantActivity) from the Case Owner.
+
+    Args:
+        offer: The ``_OfferCaseParticipantActivity`` being accepted.
+        target: The ``VulnerabilityCase`` (or its URI).
+        **kwargs: Optional AS2 fields forwarded to the constructor.
+
+    Returns:
+        An ``as_Accept`` whose ``object_`` is the CaseParticipant offer.
+
+    Raises:
+        VultronActivityConstructionError: If Pydantic validation fails.
+    """
+    try:
+        return _AcceptCaseParticipantOfferActivity(
+            object_=cast(_OfferCaseParticipantActivity, offer),
+            target=target,
+            **kwargs,
+        )
+    except ValidationError as exc:
+        logger.warning(
+            "accept_case_participant_offer_activity: invalid arguments: %s",
+            exc,
+        )
+        raise VultronActivityConstructionError(
+            "accept_case_participant_offer_activity: invalid arguments"
+        ) from exc
+
+
+def reject_case_participant_offer_activity(
+    offer: as_Offer,
+    target: VulnerabilityCaseRef | None = None,
+    **kwargs,
+) -> as_Reject:
+    """Build a Reject(_OfferCaseParticipantActivity) from the Case Owner.
+
+    Args:
+        offer: The ``_OfferCaseParticipantActivity`` being rejected.
+        target: The ``VulnerabilityCase`` (or its URI).
+        **kwargs: Optional AS2 fields forwarded to the constructor.
+
+    Returns:
+        An ``as_Reject`` whose ``object_`` is the CaseParticipant offer.
+
+    Raises:
+        VultronActivityConstructionError: If Pydantic validation fails.
+    """
+    try:
+        return _RejectCaseParticipantOfferActivity(
+            object_=cast(_OfferCaseParticipantActivity, offer),
+            target=target,
+            **kwargs,
+        )
+    except ValidationError as exc:
+        logger.warning(
+            "reject_case_participant_offer_activity: invalid arguments: %s",
+            exc,
+        )
+        raise VultronActivityConstructionError(
+            "reject_case_participant_offer_activity: invalid arguments"
         ) from exc

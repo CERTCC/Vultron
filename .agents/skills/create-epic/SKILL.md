@@ -99,7 +99,20 @@ gh api graphql -f query="mutation {
 echo "  Added to Project #24 with Schedule=${SCHEDULE}"
 ```
 
-### Step 5 — Return Epic number
+### Step 5 — Apply `needs-decomposition` label
+
+Every newly created Epic starts without sub-issues. Apply the label
+immediately so the project board and `build` can identify it:
+
+```bash
+gh issue edit "${EPIC_NUMBER}" --repo CERTCC/Vultron \
+  --add-label "needs-decomposition"
+```
+
+Skip this step if `LEAF_ISSUES` is non-empty (sub-issues were linked in
+Step 3, so the Epic is not empty).
+
+### Step 6 — Return Epic number
 
 ```bash
 echo "${EPIC_NUMBER}"

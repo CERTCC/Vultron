@@ -17,7 +17,7 @@ from click.testing import CliRunner
 from fastapi.testclient import TestClient
 
 import vultron.demo.scenario.multi_vendor_demo as demo
-from test.demo._helpers import make_testclient_call
+from test.demo._helpers import make_client, make_testclient_call
 
 
 @pytest.fixture(scope="module")
@@ -40,22 +40,17 @@ def patch_datalayer_call(client: TestClient, base: str):
         importlib.reload(demo)
 
 
-def _make_client(base: str) -> demo.DataLayerClient:
-    """Return a client that routes through the patched TestClient."""
-    return demo.DataLayerClient(base_url=base)
-
-
 class TestSeedContainers:
     """Tests for multi-vendor container seeding."""
 
     def test_seed_containers_creates_all_local_actors(
         self, client: TestClient, base: str
     ):
-        finder_client = _make_client(base)
-        vendor_client = _make_client(base)
-        coordinator_client = _make_client(base)
-        case_actor_client = _make_client(base)
-        vendor2_client = _make_client(base)
+        finder_client = make_client(base)
+        vendor_client = make_client(base)
+        coordinator_client = make_client(base)
+        case_actor_client = make_client(base)
+        vendor2_client = make_client(base)
 
         (
             finder,
@@ -84,11 +79,11 @@ class TestVendorCreatesCase:
     def test_vendor_creates_case_on_case_actor(
         self, client: TestClient, base: str
     ):
-        finder_client = _make_client(base)
-        vendor_client = _make_client(base)
-        coordinator_client = _make_client(base)
-        case_actor_client = _make_client(base)
-        vendor2_client = _make_client(base)
+        finder_client = make_client(base)
+        vendor_client = make_client(base)
+        coordinator_client = make_client(base)
+        case_actor_client = make_client(base)
+        vendor2_client = make_client(base)
 
         demo.reset_containers(
             finder_client=finder_client,
@@ -147,11 +142,11 @@ class TestOwnershipTransfer:
     def test_vendor_offers_and_coordinator_accepts(
         self, client: TestClient, base: str
     ):
-        finder_client = _make_client(base)
-        vendor_client = _make_client(base)
-        coordinator_client = _make_client(base)
-        case_actor_client = _make_client(base)
-        vendor2_client = _make_client(base)
+        finder_client = make_client(base)
+        vendor_client = make_client(base)
+        coordinator_client = make_client(base)
+        case_actor_client = make_client(base)
+        vendor2_client = make_client(base)
 
         demo.reset_containers(
             finder_client=finder_client,
@@ -245,11 +240,11 @@ class TestRunMultiVendorDemo:
     def test_full_workflow_succeeds(
         self, client: TestClient, base: str, caplog
     ):
-        finder_client = _make_client(base)
-        vendor_client = _make_client(base)
-        coordinator_client = _make_client(base)
-        case_actor_client = _make_client(base)
-        vendor2_client = _make_client(base)
+        finder_client = make_client(base)
+        vendor_client = make_client(base)
+        coordinator_client = make_client(base)
+        case_actor_client = make_client(base)
+        vendor2_client = make_client(base)
 
         with caplog.at_level(logging.ERROR):
             final_case = demo.run_multi_vendor_demo(

@@ -21,7 +21,6 @@ from vultron.core.models.events.actor import (
     RejectCaseManagerRoleReceivedEvent,
     RejectCaseOwnershipTransferReceivedEvent,
     RejectInviteActorToCaseReceivedEvent,
-    RejectSuggestActorToCaseReceivedEvent,
 )
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.case import (
@@ -223,12 +222,6 @@ _CASES = [
         [("case_id", "object_id"), ("case", "object_")],
     ),
     # ── actor.py ──────────────────────────────────────────────────────────────
-    (
-        RejectSuggestActorToCaseReceivedEvent,
-        MessageSemantics.REJECT_SUGGEST_ACTOR_TO_CASE,
-        {"object_": _obj},
-        [("suggested_actor_id", "object_id"), ("suggested_actor", "object_")],
-    ),
     (
         AcceptCaseManagerRoleReceivedEvent,
         MessageSemantics.ACCEPT_CASE_MANAGER_ROLE,

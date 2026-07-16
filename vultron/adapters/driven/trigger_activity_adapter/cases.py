@@ -26,9 +26,13 @@ from vultron.wire.as2.factories import (
 )
 from vultron.wire.as2.factories.case import (
     announce_vulnerability_case_activity,
+    create_case_proposal_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Add
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    VulnerabilityReport,
+)
 
 from ._base import _DUMP_KWARGS
 
@@ -94,6 +98,26 @@ class _CasesMixin:
             )
         return activity.id_, activity.model_dump(**_DUMP_KWARGS)
 
+    def close_case(
+        self,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist a ``Leave(VulnerabilityCase)`` close-case activity."""
+        from vultron.wire.as2.factories import rm_close_case_activity
+
+        case = cast(VulnerabilityCase, self._dl.read(case_id))
+        activity = rm_close_case_activity(case=case, actor=actor, to=to)
+        try:
+            self._dl.create(activity)
+        except ValueError:
+            logger.warning(
+                "close_case: activity '%s' already exists — skipping",
+                activity.id_,
+            )
+        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+
     def add_object_to_case(
         self,
         actor: str,
@@ -145,3 +169,61 @@ class _CasesMixin:
                 activity.id_,
             )
         return activity.id_
+
+    def create_case_proposal(
+        self,
+        actor: str,
+        report_id: str,
+        case_actor_id: str,
+        summary: str | None = None,
+        to: list[str] | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist a ``Create(as_CaseProposal)`` activity.
+
+        Reads the ``VulnerabilityReport`` identified by ``report_id``,
+        constructs an ``as_CaseProposal``, and persists
+        ``Create(as_CaseProposal)`` to the DataLayer.
+
+        Per CP-04-001, CP-04-002.
+        """
+        from vultron.wire.as2.vocab.objects.case_proposal import (
+            as_CaseProposal,
+        )
+
+        report_obj = self._dl.read(report_id)
+        if report_obj is None:
+            raise ValueError(
+                f"create_case_proposal: report '{report_id}' not found"
+                " in DataLayer"
+            )
+        report = cast(VulnerabilityReport, report_obj)
+        proposal = as_CaseProposal(
+            attributed_to=actor,
+            object_=report,
+            target=case_actor_id,
+            summary=summary,
+        )
+        # Persist the proposal so the outbox expansion path can find it
+        # when the as_Create activity is read back from the DataLayer.
+        try:
+            self._dl.create(proposal)
+        except ValueError:
+            logger.debug(
+                "create_case_proposal: proposal '%s' already exists"
+                " — skipping",
+                proposal.id_,
+            )
+        recipients = to if to is not None else [case_actor_id]
+        activity = create_case_proposal_activity(
+            actor_id=actor,
+            proposal=proposal,
+            to=recipients,
+        )
+        try:
+            self._dl.create(activity)
+        except ValueError:
+            logger.warning(
+                "create_case_proposal: activity '%s' already exists — skipping",
+                activity.id_,
+            )
+        return activity.id_, activity.model_dump(**_DUMP_KWARGS)

@@ -101,6 +101,8 @@ def _build_activity_snapshot(
         in_reply_to=_get_id(getattr(activity, "in_reply_to", None)),
         to=_get_id_list(getattr(activity, "to", None)),
         cc=_get_id_list(getattr(activity, "cc", None)),
+        summary=getattr(activity, "summary", None) or None,
+        content=getattr(activity, "content", None) or None,
     )
 
 

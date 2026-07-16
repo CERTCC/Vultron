@@ -1,0 +1,43 @@
+# Warms the GHA Buildx cache for the demo-integration Docker images on main.
+#
+# demo-integration.yml only runs on pull_request, so a cache it writes is
+# only visible to that same PR branch (GitHub Actions cache visibility
+# rules). Without a build on the default branch, every new PR branch starts
+# with a fully cold cache. This workflow builds the same bake targets on
+# push to main and exports their layers to the "demo-integration-main" GHA
+# cache scope, which demo-integration.yml reads as a fallback cache-from so
+# new PR branches get a warm start.
+#
+# This workflow never runs the demo or uploads images anywhere — it only
+# populates the cache.
+
+name: Demo Image Cache Warm
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "vultron/**"
+      - "docker/**"
+      - "pyproject.toml"
+      - "uv.lock"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write  # needed for docker buildx bake cache-to: type=gha
+
+jobs:
+  warm-cache:
+    name: Warm Demo Image Cache
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+
+      - name: Build and cache Docker images
+        uses: ./.github/actions/build-demo-images
+        with:
+          cache-scope: demo-integration-main
+          load: "false"

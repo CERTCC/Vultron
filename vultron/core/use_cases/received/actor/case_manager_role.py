@@ -3,20 +3,28 @@
 import logging
 from typing import TYPE_CHECKING
 
+from py_trees.common import Status
+
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.offer_case_manager_role_received_tree import (
+    create_offer_case_manager_role_received_tree,
+)
 from vultron.core.models.events.actor import (
     AcceptCaseManagerRoleReceivedEvent,
     OfferCaseManagerRoleReceivedEvent,
     RejectCaseManagerRoleReceivedEvent,
 )
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.protocols import is_case_model, is_participant_model
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
 )
-from vultron.core.states.roles import CVDRole
+from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.enums.roles import CVDRole
 from vultron.core.use_cases._helpers import (
     _as_id,
     _idempotent_create,
+    add_activity_to_outbox,
 )
 
 if TYPE_CHECKING:
@@ -33,7 +41,13 @@ class OfferCaseManagerRoleReceivedUseCase:
     Offer).  The Accept is queued to the Case Actor's outbox so the offering
     Vendor receives confirmation.
 
-    See DEMOMA-08-002, DEMOMA-08-003; Issue #469.
+    After auto-accepting, the CaseActor commits its initialization entry to
+    the canonical case ledger (backfill).  This is the correct place for the
+    initial ``offer_case_manager_role`` ledger entry: the vendor MUST NOT
+    commit canonical entries, and the CaseActor's first protocol-significant
+    event is accepting its CASE_MANAGER role delegation.
+
+    See DEMOMA-08-002, DEMOMA-08-003; Issue #469, Issue #1021.
     """
 
     def __init__(
@@ -41,88 +55,50 @@ class OfferCaseManagerRoleReceivedUseCase:
         dl: CaseOutboxPersistence,
         request: OfferCaseManagerRoleReceivedEvent,
         trigger_activity: "TriggerActivityPort | None" = None,
+        sync_port: SyncActivityPort | None = None,
     ) -> None:
         self._dl = dl
         self._request: OfferCaseManagerRoleReceivedEvent = request
         self._trigger_activity = trigger_activity
+        self._sync_port = sync_port
 
     def execute(self) -> None:
-        from vultron.core.use_cases.received.sync import _find_local_actor_id
-        from vultron.core.use_cases.triggers._helpers import (
-            add_activity_to_outbox,
-        )
-
         request = self._request
-        _idempotent_create(
-            self._dl,
-            request.activity_type,
-            request.activity_id,
-            request.activity,
-            "OfferCaseManagerRole",
-            request.activity_id,
-        )
-        logger.info(
-            "OfferCaseManagerRoleReceived: actor '%s' offered CASE_MANAGER"
-            " role delegation for activity '%s'",
-            request.actor_id,
-            request.activity_id,
-        )
-
-        if self._trigger_activity is None:
-            logger.warning(
-                "OfferCaseManagerRoleReceived: trigger_activity not available"
-                " — skipping auto-accept for offer '%s'",
-                request.activity_id,
+        receiving_actor_id = request.receiving_actor_id
+        if receiving_actor_id is None:
+            logger.debug(
+                "OfferCaseManagerRoleReceivedUseCase: missing"
+                " receiving_actor_id — skipping (CLP-10-005)"
             )
             return
 
-        case_id = _as_id(request.activity.object_)
-        participant_id = _as_id(request.activity.target)
         offer_id = request.activity_id
         vendor_id = request.actor_id
+        case_id = _as_id(request.activity.object_)
+        participant_id = _as_id(request.activity.target)
 
-        if not case_id or not participant_id:
-            logger.warning(
-                "OfferCaseManagerRoleReceived: missing case_id or"
-                " participant_id in offer '%s' — skipping auto-accept",
-                offer_id,
-            )
-            return
-
-        local_actor_id = request.receiving_actor_id or _find_local_actor_id(
-            self._dl
+        tree = create_offer_case_manager_role_received_tree(
+            offer_id=offer_id,
+            offer_obj=request.activity,
+            case_id=case_id or "",
+            participant_id=participant_id or "",
+            vendor_id=vendor_id or "",
         )
-        if local_actor_id is None:
-            logger.warning(
-                "OfferCaseManagerRoleReceived: no local actor found"
-                " — skipping auto-accept for offer '%s'",
+        result = BTBridge(
+            datalayer=self._dl,
+            trigger_activity=self._trigger_activity,
+        ).execute_with_setup(
+            tree=tree,
+            actor_id=receiving_actor_id,
+            activity=request,
+            sync_port=self._sync_port,
+        )
+        if result.status != Status.SUCCESS:
+            logger.debug(
+                "OfferCaseManagerRoleReceivedUseCase: BT did not fully"
+                " succeed for offer '%s': %s",
                 offer_id,
-            )
-            return
-
-        try:
-            accept_id = self._trigger_activity.accept_case_manager_role(
-                offer_id=offer_id,
-                case_id=case_id,
-                participant_id=participant_id,
-                vendor_id=vendor_id,
-                actor=local_actor_id,
-                to=[vendor_id],
-            )
-            add_activity_to_outbox(local_actor_id, accept_id, self._dl)
-            logger.info(
-                "OfferCaseManagerRoleReceived: auto-accepted offer '%s'"
-                " as actor '%s'; queued Accept '%s' to outbox",
-                offer_id,
-                local_actor_id,
-                accept_id,
-            )
-        except Exception as exc:
-            logger.error(
-                "OfferCaseManagerRoleReceived: error auto-accepting offer"
-                " '%s': %s",
-                offer_id,
-                exc,
+                BTBridge.get_failure_reason(tree) or result.feedback_message,
             )
 
 
@@ -146,11 +122,42 @@ class AcceptCaseManagerRoleReceivedUseCase:
         self._request: AcceptCaseManagerRoleReceivedEvent = request
         self._trigger_activity = trigger_activity
 
+    def _find_reporter_id(self, case: object) -> str | None:
+        """Return the attributed_to actor ID of the first REPORTER or FINDER participant."""
+        # Primary path: fast index lookup.
+        for p_id in getattr(case, "actor_participant_index", {}).values():
+            p = self._dl.read(p_id)
+            if is_participant_model(p) and (
+                CVDRole.REPORTER in p.roles or CVDRole.FINDER in p.roles
+            ):
+                return _as_id(getattr(p, "attributed_to", None))
+
+        # Fallback: case_participants list (bootstrap path — index may not yet
+        # be populated when Accept(OfferCaseManagerRole) arrives).
+        indexed_ids = set(
+            getattr(case, "actor_participant_index", {}).values()
+        )
+        for participant_ref in getattr(case, "case_participants", []):
+            if not isinstance(participant_ref, str):
+                if is_participant_model(participant_ref) and (
+                    CVDRole.REPORTER in participant_ref.roles
+                    or CVDRole.FINDER in participant_ref.roles
+                ):
+                    return _as_id(
+                        getattr(participant_ref, "attributed_to", None)
+                    )
+                continue
+            if participant_ref in indexed_ids:
+                continue
+            p = self._dl.read(participant_ref)
+            if is_participant_model(p) and (
+                CVDRole.REPORTER in p.roles or CVDRole.FINDER in p.roles
+            ):
+                return _as_id(getattr(p, "attributed_to", None))
+        return None
+
     def execute(self) -> None:
         from vultron.core.use_cases.received.sync import _find_local_actor_id
-        from vultron.core.use_cases.triggers._helpers import (
-            add_activity_to_outbox,
-        )
 
         request = self._request
         _idempotent_create(
@@ -205,15 +212,7 @@ class AcceptCaseManagerRoleReceivedUseCase:
             )
             return
 
-        # Find the Reporter participant to address the Create(Case) to.
-        reporter_id: str | None = None
-        for p_id in case.actor_participant_index.values():
-            p = self._dl.read(p_id)
-            roles = getattr(p, "case_roles", [])
-            if CVDRole.REPORTER in roles or CVDRole.FINDER in roles:
-                reporter_id = _as_id(getattr(p, "attributed_to", None))
-                break
-
+        reporter_id = self._find_reporter_id(case)
         if not reporter_id:
             logger.warning(
                 "AcceptCaseManagerRoleReceived: no Reporter participant found"

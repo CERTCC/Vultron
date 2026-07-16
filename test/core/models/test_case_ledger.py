@@ -34,6 +34,7 @@ Covers:
 import hashlib
 import json
 import logging
+from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 import py_trees
@@ -41,11 +42,11 @@ import pytest
 
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.models.case_ledger import (
-    GENESIS_HASH,
     CaseLedger,
     HashChainLedgerRecord,
     _canonical_bytes,
     _sha256_hex,
+    compute_genesis_hash,
 )
 from vultron.core.models.replication_state import VultronReplicationState
 
@@ -55,11 +56,20 @@ from vultron.core.models.replication_state import VultronReplicationState
 
 CASE_ID = "urn:uuid:case-1234"
 OBJECT_ID = "urn:uuid:report-5678"
+CASE_ACTOR_ID = "https://example.org/actors/case-actor"
+
+# A fixed genesis hash for consistent tests — computed from known inputs
+_FIXED_CREATED_AT = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+CASE_GENESIS_HASH = compute_genesis_hash(
+    CASE_ID, _FIXED_CREATED_AT, CASE_ACTOR_ID
+)
+
+_ZERO_HASH: str = "0" * 64  # arbitrary prev_log_hash for test chains
 
 
 @pytest.fixture()
 def empty_log() -> CaseLedger:
-    return CaseLedger(case_id=CASE_ID)
+    return CaseLedger(case_id=CASE_ID, genesis_hash=CASE_GENESIS_HASH)
 
 
 @pytest.fixture()
@@ -123,16 +133,45 @@ class TestCanonicalHelpers:
 
 
 # ---------------------------------------------------------------------------
-# GENESIS_HASH
+# compute_genesis_hash
 # ---------------------------------------------------------------------------
 
 
-class TestGenesisHash:
-    def test_genesis_hash_is_64_zeros(self):
-        assert GENESIS_HASH == "0" * 64
+class TestComputeGenesisHash:
+    def test_returns_64_char_hex(self):
+        result = compute_genesis_hash(
+            CASE_ID, _FIXED_CREATED_AT, CASE_ACTOR_ID
+        )
+        assert len(result) == 64
+        assert all(c in "0123456789abcdef" for c in result)
 
-    def test_genesis_hash_length(self):
-        assert len(GENESIS_HASH) == 64
+    def test_deterministic_same_inputs(self):
+        h1 = compute_genesis_hash(CASE_ID, _FIXED_CREATED_AT, CASE_ACTOR_ID)
+        h2 = compute_genesis_hash(CASE_ID, _FIXED_CREATED_AT, CASE_ACTOR_ID)
+        assert h1 == h2
+
+    def test_different_case_ids_give_different_hashes(self):
+        h1 = compute_genesis_hash(CASE_ID, _FIXED_CREATED_AT, CASE_ACTOR_ID)
+        h2 = compute_genesis_hash(
+            "urn:uuid:other-case", _FIXED_CREATED_AT, CASE_ACTOR_ID
+        )
+        assert h1 != h2
+
+    def test_different_actor_ids_give_different_hashes(self):
+        h1 = compute_genesis_hash(CASE_ID, _FIXED_CREATED_AT, CASE_ACTOR_ID)
+        h2 = compute_genesis_hash(
+            CASE_ID, _FIXED_CREATED_AT, "https://example.org/actors/other"
+        )
+        assert h1 != h2
+
+    def test_different_timestamps_give_different_hashes(self):
+        h1 = compute_genesis_hash(CASE_ID, _FIXED_CREATED_AT, CASE_ACTOR_ID)
+        h2 = compute_genesis_hash(
+            CASE_ID,
+            datetime(2024, 6, 1, 12, 0, 0, tzinfo=timezone.utc),
+            CASE_ACTOR_ID,
+        )
+        assert h1 != h2
 
 
 # ---------------------------------------------------------------------------
@@ -147,13 +186,13 @@ class TestCaseLedgerEntry:
             log_index=0,
             object_id=OBJECT_ID,
             event_type="report_received",
-            prev_log_hash=GENESIS_HASH,
+            prev_log_hash=_ZERO_HASH,
         )
         assert entry.case_id == CASE_ID
         assert entry.log_index == 0
         assert entry.object_id == OBJECT_ID
         assert entry.event_type == "report_received"
-        assert entry.prev_log_hash == GENESIS_HASH
+        assert entry.prev_log_hash == _ZERO_HASH
 
     def test_entry_hash_auto_computed(self):
         entry = HashChainLedgerRecord(
@@ -161,7 +200,7 @@ class TestCaseLedgerEntry:
             log_index=0,
             object_id=OBJECT_ID,
             event_type="report_received",
-            prev_log_hash=GENESIS_HASH,
+            prev_log_hash=_ZERO_HASH,
         )
         assert entry.entry_hash != ""
         assert len(entry.entry_hash) == 64
@@ -172,7 +211,7 @@ class TestCaseLedgerEntry:
             log_index=0,
             object_id=OBJECT_ID,
             event_type="report_received",
-            prev_log_hash=GENESIS_HASH,
+            prev_log_hash=_ZERO_HASH,
         )
         assert entry.verify_hash()
 
@@ -182,7 +221,7 @@ class TestCaseLedgerEntry:
             log_index=0,
             object_id=OBJECT_ID,
             event_type="report_received",
-            prev_log_hash=GENESIS_HASH,
+            prev_log_hash=_ZERO_HASH,
         )
         # Manually tamper with object_id after creation
         object.__setattr__(entry, "object_id", "urn:uuid:tampered")
@@ -194,7 +233,7 @@ class TestCaseLedgerEntry:
             log_index=0,
             object_id=OBJECT_ID,
             event_type="test",
-            prev_log_hash=GENESIS_HASH,
+            prev_log_hash=_ZERO_HASH,
         )
         assert entry.disposition == "recorded"
 
@@ -204,7 +243,7 @@ class TestCaseLedgerEntry:
             log_index=0,
             object_id=OBJECT_ID,
             event_type="test",
-            prev_log_hash=GENESIS_HASH,
+            prev_log_hash=_ZERO_HASH,
             disposition="rejected",
             reason_code="INVALID_STATE",
         )
@@ -217,7 +256,7 @@ class TestCaseLedgerEntry:
             log_index=0,
             object_id=OBJECT_ID,
             event_type="test",
-            prev_log_hash=GENESIS_HASH,
+            prev_log_hash=_ZERO_HASH,
         )
         assert entry.term is None
 
@@ -227,14 +266,14 @@ class TestCaseLedgerEntry:
             log_index=0,
             object_id="urn:uuid:obj1",
             event_type="test",
-            prev_log_hash=GENESIS_HASH,
+            prev_log_hash=_ZERO_HASH,
         )
         e2 = HashChainLedgerRecord(
             case_id=CASE_ID,
             log_index=0,
             object_id="urn:uuid:obj2",
             event_type="test",
-            prev_log_hash=GENESIS_HASH,
+            prev_log_hash=_ZERO_HASH,
         )
         assert e1.entry_hash != e2.entry_hash
 
@@ -245,7 +284,7 @@ class TestCaseLedgerEntry:
             log_index=0,
             object_id=OBJECT_ID,
             event_type="test",
-            prev_log_hash=GENESIS_HASH,
+            prev_log_hash=_ZERO_HASH,
         )
         hashable = entry._hashable_dict()
         assert "entry_hash" not in hashable
@@ -257,7 +296,7 @@ class TestCaseLedgerEntry:
             log_index=0,
             object_id=OBJECT_ID,
             event_type="test",
-            prev_log_hash=GENESIS_HASH,
+            prev_log_hash=_ZERO_HASH,
             payload_snapshot=snap,
         )
         assert entry.payload_snapshot == snap
@@ -268,7 +307,7 @@ class TestCaseLedgerEntry:
             log_index=0,
             object_id=OBJECT_ID,
             event_type="test",
-            prev_log_hash=GENESIS_HASH,
+            prev_log_hash=_ZERO_HASH,
             disposition="rejected",
             reason_code="PRECONDITION_FAILED",
             reason_detail="Case is already closed",
@@ -283,7 +322,7 @@ class TestCaseLedgerEntry:
 
 class TestCaseLedgerAppend:
     def test_empty_log_tail_hash_is_genesis(self, empty_log: CaseLedger):
-        assert empty_log.tail_hash == GENESIS_HASH
+        assert empty_log.tail_hash == CASE_GENESIS_HASH
 
     def test_empty_log_next_index_is_zero(self, empty_log: CaseLedger):
         assert empty_log.next_index == 0
@@ -296,7 +335,7 @@ class TestCaseLedgerAppend:
     def test_first_entry_prev_hash_is_genesis(
         self, log_with_one_entry: CaseLedger
     ):
-        assert log_with_one_entry.entries[0].prev_log_hash == GENESIS_HASH
+        assert log_with_one_entry.entries[0].prev_log_hash == CASE_GENESIS_HASH
 
     def test_tail_hash_updates_after_append(
         self, log_with_one_entry: CaseLedger
@@ -349,6 +388,14 @@ class TestCaseLedgerAppend:
             reason_code="PRECONDITION_FAILED",
         )
         assert entry.disposition == "rejected"
+
+    def test_omitting_payload_snapshot_gives_empty_dict(
+        self, empty_log: CaseLedger
+    ):
+        """Omitting payload_snapshot produces an empty dict on the entry."""
+        entry = empty_log.append(object_id=OBJECT_ID, event_type="test")
+        assert entry.payload_snapshot == {}
+        assert entry.payload_snapshot is not None
 
 
 # ---------------------------------------------------------------------------
@@ -452,7 +499,7 @@ class TestCaseLedgerVerifyChain:
         empty_log.append(object_id="urn:uuid:a", event_type="first")
         e2 = empty_log.append(object_id="urn:uuid:b", event_type="second")
         # Tamper with e2's prev_log_hash to point at something wrong
-        object.__setattr__(e2, "prev_log_hash", GENESIS_HASH)
+        object.__setattr__(e2, "prev_log_hash", _ZERO_HASH)
         # verify_chain should detect the broken link
         assert not empty_log.verify_chain()
 
@@ -579,7 +626,7 @@ class TestReplicationState:
         state = VultronReplicationState(
             case_id=CASE_URI, peer_id="https://example.org/finder"
         )
-        assert state.last_acknowledged_hash == GENESIS_HASH
+        assert state.last_acknowledged_hash == ""
 
     def test_custom_last_acknowledged_hash(self):
         digest = "a" * 64

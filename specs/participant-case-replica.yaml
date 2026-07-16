@@ -263,6 +263,46 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: PCR-08-001
+  - id: PCR-08-011
+    priority: MUST
+    statement: >-
+      An emit node in a case-scoped trigger BT MUST resolve the CaseActor
+      recipient before enqueueing and MUST fail fast (return FAILURE or raise
+      immediately) when no routable CaseActor can be found. The node MUST NOT
+      silently enqueue an activity with a `None` or empty `to` field.
+    rationale: >-
+      When case-scoped trigger routing was changed from `case_addressees()` to
+      CaseActor-only routing, emit nodes that returned without setting `to`
+      caused `VultronOutboxToFieldMissingError` to be raised deep in the outbox
+      handler, far from the originating node. The true defect — missing CaseActor
+      routing in the trigger path — was masked. Failing fast at the emit node
+      surfaces the routing gap immediately and produces a diagnostic error in the
+      correct layer (issue #927).
+    relationships:
+    - rel_type: refines
+      spec_id: PCR-08-001
+      note: Participant outbound activities route through the CaseActor only;
+        failure to resolve the CaseActor is a trigger-side error
+    - rel_type: refines
+      spec_id: PCR-08-002
+      note: Using case_addressees() or None as the recipient in a trigger BT is
+        the specific violation this requirement prevents
+  - id: PCR-08-012
+    priority: MUST
+    statement: >-
+      The invitee's `Accept(Invite)` activity IS the invitee's RM engagement decision.
+      The Case Actor MUST derive the `RmAcceptInviteToCaseActivity` domain event from
+      this message upon receipt, recording the invitee's RM transition (VALID → ACCEPTED)
+      in its own DataLayer without requiring a separate explicit RM state-change message
+      from the invitee.
+    rationale: >-
+      PCR-08-009 prohibits the case owner from emitting RM state-change activities on
+      behalf of the invitee but did not state who IS responsible. The invitee's
+      `Accept(Invite)` is the authoritative signal; the Case Actor is the sole party
+      authorized to record the resulting RM transition.
+    relationships:
+    - rel_type: refines
+      spec_id: PCR-08-009
 - id: PCR-07
   title: Testing
   specs:

@@ -1,0 +1,99 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2023-2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""CVD Role enumeration — bottom-of-stack neutral layer.
+
+``CVDRole`` is a cross-cutting primitive used by ``vultron/core/``,
+``vultron/config/``, and ``vultron/adapters/``.  It lives here so that all
+three layers can import it without creating circular dependencies.
+
+This module MUST NOT import from ``vultron.core``, ``vultron.config``, or
+``vultron.adapters``.
+
+Per ``docs/adr/0031-vultron-enums-neutral-layer.md`` and
+``specs/configuration.yaml`` CFG-07-006.
+"""
+
+from enum import StrEnum, auto
+
+
+class CVDRole(StrEnum):
+    """Individual CVD role values (lowercase string enum).
+
+    Each member represents a single, atomic CVD role. Participants may hold
+    multiple roles simultaneously; use ``list[CVDRole]`` at call sites rather
+    than bitmask arithmetic.
+
+    Values are lowercase strings (e.g. ``CVDRole.FINDER == 'finder'``).
+
+    Roles:
+        FINDER: Entity that discovers the vulnerability.
+        REPORTER: Entity that reports the vulnerability to others.
+        VENDOR: Supplier of the affected product or service.
+        DEPLOYER: Entity that deploys the fix.
+        COORDINATOR: Entity that coordinates the CVD process.
+        OTHER: Any other CVD role not captured above.
+        CASE_OWNER: Actor who owns and manages a VulnerabilityCase (BTND-05-001).
+        CASE_MANAGER: The ActivityStreams Actor that performs ongoing case
+            replica synchronisation and manages the case on behalf of the case
+            owner.  A CaseManager participant always also holds the COORDINATOR
+            role (CBT-01-003).  While the demo uses a Service actor type, any
+            Actor type (e.g. Person) may hold this role.
+        CVE_NUMBERING_AUTHORITY: Participant that holds CVE Numbering Authority
+            (CNA) status, granting authority to assign CVE IDs.  A CNA is
+            orthogonal to other CVD roles — a VENDOR, COORDINATOR, or any other
+            participant may independently hold this role.  Used by
+            ``IsIDAssignmentAuthority`` (static capability check) and
+            ``IdAssignable`` (scope-match evaluation) BT nodes to route ID
+            assignment decisions to the correct participant(s).
+    """
+
+    FINDER = auto()
+    REPORTER = auto()
+    VENDOR = auto()
+    DEPLOYER = auto()
+    COORDINATOR = auto()
+    OTHER = auto()
+    CASE_OWNER = auto()
+    CASE_MANAGER = auto()
+    CVE_NUMBERING_AUTHORITY = auto()
+
+
+def serialize_roles(roles: list[CVDRole]) -> list[str]:
+    """Serialize a list of CVDRole members to a list of lowercase strings."""
+    return [role.value for role in roles]
+
+
+def validate_roles(value: object) -> list[CVDRole]:
+    """Coerce a list of strings or CVDRole members to ``list[CVDRole]``.
+
+    Accepts either a list of ``CVDRole`` enum members (pass-through) or a
+    list of string values (e.g. from JSON deserialization).  ``None`` is
+    treated as an empty list (field omitted).  Any other non-list type raises
+    ``ValueError`` so misconfigured scalar values are caught early.
+    """
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ValueError(
+            f"default_case_roles must be a list of CVDRole strings, got {type(value).__name__!r}: {value!r}"
+        )
+    result: list[CVDRole] = []
+    for item in value:
+        if isinstance(item, CVDRole):
+            result.append(item)
+        elif isinstance(item, str):
+            result.append(CVDRole(item.lower()))
+    return result

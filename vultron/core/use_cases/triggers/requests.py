@@ -19,6 +19,7 @@ from pydantic import BaseModel, ConfigDict, field_validator
 from vultron.core.models.base import NonEmptyString, UriString
 from vultron.core.states.cs import CS_vfd, CS_pxa
 from vultron.core.states.rm import RM
+from vultron.enums.roles import CVDRole
 
 
 class TriggerRequest(BaseModel):
@@ -200,6 +201,7 @@ class InviteActorToCaseTriggerRequest(CaseTriggerRequest):
     """
 
     invitee_id: NonEmptyString
+    roles: list[CVDRole] | None = None
 
 
 class AddParticipantStatusTriggerRequest(CaseTriggerRequest):
@@ -212,3 +214,12 @@ class AddParticipantStatusTriggerRequest(CaseTriggerRequest):
     rm_state: RM | None = None
     vfd_state: CS_vfd | None = None
     pxa_state: CS_pxa | None = None
+
+
+class OfferCaseManagerRoleTriggerRequest(CaseTriggerRequest):
+    """Trigger request to offer the CASE_MANAGER role to the Case Actor.
+
+    Emits an ``_OfferCaseManagerRoleActivity`` from the Case Actor's identity
+    to itself, initiating the CASE_MANAGER delegation handshake.  The Case
+    Actor must already exist in the DataLayer (DEMOMA-08-007).
+    """

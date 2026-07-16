@@ -25,6 +25,136 @@ from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import _resolve_case_manager_id
 
 
+class _EmitCaseActorReportActivityBase(DataLayerAction):
+    """Base class for emit nodes that route report-phase activities to the CaseActor.
+
+    Per ADR-0021 CLP-10-001: trigger trees MUST emit an outbound activity
+    addressed to case_manager_id so the CaseActor receives it and can commit
+    a canonical ledger entry.
+
+    Subclasses must override ``_call_factory`` to invoke the appropriate
+    ``TriggerActivityPort`` method and return ``(activity_id, activity_dict)``.
+    """
+
+    def __init__(
+        self, offer_id: str, report_id: str, name: str | None = None
+    ) -> None:
+        """Initialize the base emit node.
+
+        Args:
+            offer_id: ID of the Offer activity being acted upon.
+            report_id: ID of the VulnerabilityReport (for address resolution).
+            name: Optional custom node name.
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self.offer_id = offer_id
+        self.report_id = report_id
+
+    def _call_factory(
+        self, actor_id: str, addressees: list[str]
+    ) -> tuple[str, dict]:
+        """Invoke the trigger-activity factory method for this activity type.
+
+        Args:
+            actor_id: Sending actor URI.
+            addressees: Recipient URI list (already computed).
+
+        Returns:
+            ``(activity_id, activity_dict)``
+
+        Raises:
+            NotImplementedError: Subclasses must implement this method.
+        """
+        raise NotImplementedError
+
+    def update(self) -> Status:
+        """Create and queue the report-phase activity.
+
+        Returns:
+            SUCCESS if activity created and outbox updated, FAILURE on error.
+        """
+        if self.datalayer is None or self.actor_id is None:
+            self.logger.error(
+                "%s: DataLayer or actor_id not available", self.name
+            )
+            return Status.FAILURE
+
+        if self.trigger_activity_factory is None:
+            self.logger.warning(
+                "%s: no TriggerActivityPort — cannot emit report activity",
+                self.name,
+            )
+            return Status.FAILURE
+
+        try:
+            offer = self.datalayer.read(self.offer_id)
+            addressees = _compute_report_addressees(
+                self.report_id,
+                self.actor_id,
+                offer,
+                cast(CaseOutboxPersistence, self.datalayer),
+            )
+            if not addressees:
+                self.logger.error(
+                    "%s: no routable recipients for report activity"
+                    " (offer_id=%s, report_id=%s, actor_id=%s)",
+                    self.name,
+                    self.offer_id,
+                    self.report_id,
+                    self.actor_id,
+                )
+                return Status.FAILURE
+
+            activity_id, _ = self._call_factory(self.actor_id, addressees)
+
+            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
+                self.actor_id, activity_id
+            )
+            self.logger.info(
+                "Actor '%s' emitted %s for offer '%s'",
+                self.actor_id,
+                self.__class__.__name__,
+                self.offer_id,
+            )
+            return Status.SUCCESS
+
+        except Exception as e:
+            self.logger.error(
+                "%s: Error emitting activity: %s",
+                self.name,
+                e,
+            )
+            return Status.FAILURE
+
+
+class EmitValidateReportActivity(_EmitCaseActorReportActivityBase):
+    """Emit RmValidateReportActivity to the Case Actor's inbox.
+
+    Calls ``trigger_activity_factory.validate_report()`` and queues the
+    resulting activity ID via ``record_outbox_item``. Routes the activity
+    to the Case Actor (CASE_MANAGER participant) using ``_compute_report_addressees``.
+
+    Per ADR-0021 CLP-10-001: trigger trees MUST emit an outbound activity
+    addressed to case_manager_id so the CaseActor receives the activity and
+    can execute the guarded commit.
+
+    Per issue #1029 AC-1: validate_tree.py transitions from
+    ``_requires_trigger_activity = False`` to having a proper emit node.
+    """
+
+    def _call_factory(
+        self, actor_id: str, addressees: list[str]
+    ) -> tuple[str, dict]:
+        """Call ``validate_report`` on the trigger-activity factory."""
+        assert self.trigger_activity_factory is not None
+        return self.trigger_activity_factory.validate_report(
+            offer_id=self.offer_id,
+            report_id=self.report_id,
+            actor=actor_id,
+            to=addressees,
+        )
+
+
 def _compute_report_addressees(
     report_id: str,
     actor_id: str,
@@ -65,7 +195,7 @@ def _compute_report_addressees(
     return None
 
 
-class EmitInvalidateReportActivity(DataLayerAction):
+class EmitInvalidateReportActivity(_EmitCaseActorReportActivityBase):
     """Emit RmInvalidateReportActivity (TentativeReject) to the actor outbox.
 
     Calls ``trigger_activity_factory.invalidate_report()`` and queues the
@@ -75,84 +205,19 @@ class EmitInvalidateReportActivity(DataLayerAction):
     procedural calls in ``execute()``.
     """
 
-    def __init__(
-        self, offer_id: str, report_id: str, name: str | None = None
-    ) -> None:
-        """Initialize EmitInvalidateReportActivity.
-
-        Args:
-            offer_id: ID of the Offer activity being invalidated.
-            report_id: ID of the VulnerabilityReport (for address resolution).
-            name: Optional custom node name.
-        """
-        super().__init__(name=name or self.__class__.__name__)
-        self.offer_id = offer_id
-        self.report_id = report_id
-
-    def update(self) -> Status:
-        """Create and queue RmInvalidateReportActivity.
-
-        Returns:
-            SUCCESS if activity created and outbox updated, FAILURE on error.
-        """
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                "%s: DataLayer or actor_id not available", self.name
-            )
-            return Status.FAILURE
-
-        if self.trigger_activity_factory is None:
-            self.logger.warning(
-                "%s: no TriggerActivityPort — cannot emit InvalidateReport activity",
-                self.name,
-            )
-            return Status.FAILURE
-
-        try:
-            offer = self.datalayer.read(self.offer_id)
-            addressees = _compute_report_addressees(
-                self.report_id,
-                self.actor_id,
-                offer,
-                cast(CaseOutboxPersistence, self.datalayer),
-            )
-            if not addressees:
-                self.logger.error(
-                    "%s: no routable recipients for report activity"
-                    " (offer_id=%s, report_id=%s, actor_id=%s)",
-                    self.name,
-                    self.offer_id,
-                    self.report_id,
-                    self.actor_id,
-                )
-                return Status.FAILURE
-
-            activity_id, _ = self.trigger_activity_factory.invalidate_report(
-                offer_id=self.offer_id,
-                actor=self.actor_id,
-                to=addressees,
-            )
-
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, activity_id
-            )
-            self.logger.info(
-                "Actor '%s' emitted RmInvalidateReportActivity for offer '%s'",
-                self.actor_id,
-                self.offer_id,
-            )
-            return Status.SUCCESS
-
-        except Exception as e:
-            self.logger.error(
-                "%s: Error emitting invalidate-report activity: %s",
-                self.name,
-                e,
-            )
-            return Status.FAILURE
+    def _call_factory(
+        self, actor_id: str, addressees: list[str]
+    ) -> tuple[str, dict]:
+        """Call ``invalidate_report`` on the trigger-activity factory."""
+        assert self.trigger_activity_factory is not None
+        return self.trigger_activity_factory.invalidate_report(
+            offer_id=self.offer_id,
+            actor=actor_id,
+            to=addressees,
+        )
 
 
-class EmitCloseReportActivity(DataLayerAction):
+class EmitCloseReportActivity(_EmitCaseActorReportActivityBase):
     """Emit RmCloseReportActivity (Reject) to the actor outbox.
 
     Calls ``trigger_activity_factory.close_report()`` and queues the
@@ -164,80 +229,37 @@ class EmitCloseReportActivity(DataLayerAction):
     procedural calls in ``execute()``.
     """
 
-    def __init__(
-        self, offer_id: str, report_id: str, name: str | None = None
-    ) -> None:
-        """Initialize EmitCloseReportActivity.
+    def _call_factory(
+        self, actor_id: str, addressees: list[str]
+    ) -> tuple[str, dict]:
+        """Call ``close_report`` on the trigger-activity factory."""
+        assert self.trigger_activity_factory is not None
+        return self.trigger_activity_factory.close_report(
+            offer_id=self.offer_id,
+            report_id=self.report_id,
+            actor=actor_id,
+            to=addressees,
+        )
 
-        Args:
-            offer_id: ID of the Offer activity being closed/rejected.
-            report_id: ID of the VulnerabilityReport.
-            name: Optional custom node name.
-        """
-        super().__init__(name=name or self.__class__.__name__)
-        self.offer_id = offer_id
-        self.report_id = report_id
 
-    def update(self) -> Status:
-        """Create and queue RmCloseReportActivity.
+class EmitAckReportActivity(_EmitCaseActorReportActivityBase):
+    """Emit RmAckReportActivity (Read(Offer(Report))) to the CaseActor's inbox.
 
-        Returns:
-            SUCCESS if activity created and outbox updated, FAILURE on error.
-        """
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                "%s: DataLayer or actor_id not available", self.name
-            )
-            return Status.FAILURE
+    Per ADR-0021 CLP-10-001: when a vendor acknowledges a report, the AckReport
+    activity must be addressed to the CaseActor so the CaseActor can commit
+    a canonical ledger entry.
+    """
 
-        if self.trigger_activity_factory is None:
-            self.logger.warning(
-                "%s: no TriggerActivityPort — cannot emit CloseReport activity",
-                self.name,
-            )
-            return Status.FAILURE
-
-        try:
-            offer = self.datalayer.read(self.offer_id)
-            addressees = _compute_report_addressees(
-                self.report_id,
-                self.actor_id,
-                offer,
-                cast(CaseOutboxPersistence, self.datalayer),
-            )
-            if not addressees:
-                self.logger.error(
-                    "%s: no routable recipients for report activity"
-                    " (offer_id=%s, report_id=%s, actor_id=%s)",
-                    self.name,
-                    self.offer_id,
-                    self.report_id,
-                    self.actor_id,
-                )
-                return Status.FAILURE
-
-            activity_id, _ = self.trigger_activity_factory.close_report(
-                offer_id=self.offer_id,
-                report_id=self.report_id,
-                actor=self.actor_id,
-                to=addressees,
-            )
-
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, activity_id
-            )
-            self.logger.info(
-                "Actor '%s' emitted RmCloseReportActivity for offer '%s'",
-                self.actor_id,
-                self.offer_id,
-            )
-            return Status.SUCCESS
-
-        except Exception as e:
-            self.logger.error(
-                "%s: Error emitting close-report activity: %s", self.name, e
-            )
-            return Status.FAILURE
+    def _call_factory(
+        self, actor_id: str, addressees: list[str]
+    ) -> tuple[str, dict]:
+        """Call ``ack_report`` on the trigger-activity factory."""
+        assert self.trigger_activity_factory is not None
+        return self.trigger_activity_factory.ack_report(
+            offer_id=self.offer_id,
+            actor=actor_id,
+            to=addressees,
+        )
 
 
 class EmitSubmitReportActivity(DataLayerAction):

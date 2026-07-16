@@ -13,289 +13,790 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""BT nodes and factory for the SuggestActorToCase received use-case.
+"""Received-side BT factories for the suggest-actor workflow (CaseActor inbox).
 
-When a case owner receives a ``RecommendActorActivity`` (Offer) from a peer,
-the local actor:
+Three factories correspond to the three received-side protocol events defined
+in ADR-0026/CM-16:
 
-1. Verifies it is the case owner (precondition; silently skips otherwise).
-2. Checks no invite for this actor+case already exists (idempotency guard).
-3. Emits an ``AcceptActorRecommendationActivity`` to the recommender's outbox.
-4. Emits an ``RmInviteToCaseActivity`` to the suggested actor's outbox.
+- :func:`create_recommend_actor_to_case_received_tree`  — CaseActor handles
+  ``Offer(Actor, Case)`` from a recommending participant (CM-16-001..004).
+- :func:`create_accept_actor_recommendation_received_tree` — CaseActor handles
+  ``Accept(Offer(CaseParticipant))`` from the Case Owner (CM-16-006).
+- :func:`create_reject_actor_recommendation_received_tree` — CaseActor handles
+  ``Reject(Offer(CaseParticipant))`` from the Case Owner (CM-16-007).
 
-Per specs/case-management.yaml CM-08 and specs/behavior-tree-integration.yaml.
+All three trees route through the CaseActor inbox per ADR-0021/ADR-0026 and
+use :func:`~vultron.core.behaviors.case.nodes.lifecycle.create_receive_activity_tree`
+to enforce CLP-10-006 ordering (ledger commit before effect nodes).
 """
 
 import logging
-import uuid
 from typing import cast
 
 import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
-from vultron.core.models.protocols import is_case_model
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.actor import (
+    EmitInviteActorToCaseNode,
+    EvaluateDefaultRolesNode,
+)
+from vultron.core.behaviors.case.nodes.lifecycle import (
+    create_receive_activity_tree,
+)
+from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.sync.commit_tree import (
+    create_commit_log_entry_tree,
+)
+from vultron.core.models.protocol_pair import (
+    INVITE_ACTOR_TO_CASE_REPLY_TYPES,
+    OFFER_CASE_PARTICIPANT_REPLY_TYPES,
+)
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.use_cases._helpers import _as_id
+from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
 
-_NAMESPACE = uuid.NAMESPACE_URL
+
+# ---------------------------------------------------------------------------
+# Shared emit nodes
+# ---------------------------------------------------------------------------
 
 
-def _deterministic_invite_id(
-    case_id: str, invitee_id: str, actor_id: str
-) -> str:
-    """Return a stable invite ID for the (case, invitee, actor) triple.
+class EmitOfferCaseParticipantToOwnerNode(DataLayerAction):
+    """Transform Offer(Actor, Case) → Offer(CaseParticipant) and DM Case Owner.
 
-    Using UUID v5 so the same inputs always produce the same ID, which
-    lets the DataLayer reject a duplicate with ``ValueError`` on the second
-    ``create()`` call and lets ``CheckNoExistingInviteNode`` detect the
-    duplicate with a simple ``read()``.
-    """
-    name = f"{case_id}|invite|{invitee_id}|{actor_id}"
-    return f"urn:uuid:{uuid.uuid5(_NAMESPACE, name)}"
+    Uses ``trigger_activity_factory.offer_actor_to_case()`` with the
+    recommender_id, recommended_id, roles from the blackboard (written by
+    :class:`~vultron.core.behaviors.case.nodes.actor.EvaluateDefaultRolesNode`),
+    case_id, and case owner id.
+    The original offer ID is carried in the ``origin`` field so the Case Owner
+    can trace the causal chain (CM-16-004).
 
+    Reads ``suggested_roles_{recommendation_id_segment}`` from the blackboard
+    (namespaced per BTND-03-004); falls back to ``[CVDRole.VENDOR]`` when the
+    key is absent.
 
-def _deterministic_accept_id(recommendation_id: str, actor_id: str) -> str:
-    """Return a stable accept ID for the (recommendation, actor) pair."""
-    name = f"{recommendation_id}|accept|{actor_id}"
-    return f"urn:uuid:{uuid.uuid5(_NAMESPACE, name)}"
-
-
-class CheckIsCaseOwnerNode(DataLayerCondition):
-    """Return SUCCESS when the current actor owns the case; FAILURE otherwise.
-
-    Reads the case from the DataLayer and compares ``case.attributed_to``
-    against ``actor_id`` from the blackboard.  If the local actor is not the
-    owner the node returns FAILURE, which causes the parent Sequence to abort
-    without executing downstream nodes (silent skip per CM-08 precondition).
-    """
-
-    def __init__(self, case_id: str, name: str | None = None) -> None:
-        super().__init__(name=name or "CheckIsCaseOwner")
-        self.case_id = case_id
-
-    def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            return Status.FAILURE
-        case = self.datalayer.read(self.case_id)
-        if not is_case_model(case):
-            self.logger.warning(
-                "%s: case '%s' not found in DataLayer",
-                self.name,
-                self.case_id,
-            )
-            return Status.FAILURE
-        owner_id = _as_id(case.attributed_to)
-        if owner_id != self.actor_id:
-            self.logger.info(
-                "%s: local actor '%s' is not owner of case '%s' (owner: '%s')"
-                " — skipping suggest-actor handling",
-                self.name,
-                self.actor_id,
-                self.case_id,
-                owner_id,
-            )
-            return Status.FAILURE
-        return Status.SUCCESS
-
-
-class CheckNoExistingInviteNode(DataLayerCondition):
-    """Return SUCCESS when no invite for (invitee, case) already exists.
-
-    Uses a deterministic invite ID so a DataLayer ``read()`` is sufficient
-    to detect the duplicate.  Returns FAILURE (idempotent skip) if an invite
-    is already present.
-    """
-
-    def __init__(
-        self, invitee_id: str, case_id: str, name: str | None = None
-    ) -> None:
-        super().__init__(name=name or "CheckNoExistingInvite")
-        self.invitee_id = invitee_id
-        self.case_id = case_id
-
-    def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            return Status.FAILURE
-        invite_id = _deterministic_invite_id(
-            self.case_id, self.invitee_id, self.actor_id
-        )
-        if self.datalayer.read(invite_id) is not None:
-            self.logger.info(
-                "%s: invite for actor '%s' in case '%s' already exists"
-                " — skipping (idempotent)",
-                self.name,
-                self.invitee_id,
-                self.case_id,
-            )
-            return Status.FAILURE
-        return Status.SUCCESS
-
-
-class EmitAcceptRecommendationNode(DataLayerAction):
-    """Create and queue an ``AcceptActorRecommendationActivity`` to the outbox.
-
-    Reconstructs the original ``RecommendActorActivity`` from the
-    constructor args (the activity was already persisted by the use case
-    before the BT ran).  Derives a stable activity ID so a second execution
-    of the node is idempotent.
+    Returns SUCCESS on success, FAILURE if any required dependency is missing.
     """
 
     def __init__(
         self,
         recommendation_id: str,
         recommender_id: str,
-        invitee_id: str,
+        recommended_id: str,
         case_id: str,
         name: str | None = None,
     ) -> None:
-        super().__init__(name=name or "EmitAcceptRecommendation")
+        super().__init__(name=name or self.__class__.__name__)
         self.recommendation_id = recommendation_id
         self.recommender_id = recommender_id
-        self.invitee_id = invitee_id
+        self.recommended_id = recommended_id
         self.case_id = case_id
+
+    def setup(self, **kwargs) -> None:
+        super().setup(**kwargs)
+        id_segment = self.recommendation_id.split("/")[-1]
+        self.blackboard_key = f"suggested_roles_{id_segment}"
+        self.blackboard.register_key(
+            key=self.blackboard_key, access=py_trees.common.Access.READ
+        )
+
+    def _read_suggested_roles(self) -> list[CVDRole]:
+        try:
+            roles = self.blackboard.get(self.blackboard_key)
+            if isinstance(roles, list):
+                return roles
+        except KeyError:
+            pass
+        return [CVDRole.VENDOR]
 
     def update(self) -> Status:
         if self.datalayer is None or self.actor_id is None:
+            self.feedback_message = "DataLayer or actor_id not available"
             return Status.FAILURE
 
         factory = self.trigger_activity_factory
         if factory is None:
-            self.logger.error(
-                "%s: trigger_activity_factory not found in blackboard",
-                self.name,
+            self.feedback_message = (
+                "trigger_activity_factory not in blackboard"
             )
+            self.logger.error(self.feedback_message)
             return Status.FAILURE
 
-        accept_id = _deterministic_accept_id(
-            self.recommendation_id, self.actor_id
-        )
-        accept_activity_id, _ = factory.accept_actor_recommendation(
-            recommended_id=self.invitee_id,
-            recommender_id=self.recommender_id,
-            recommendation_id=self.recommendation_id,
-            case_id=self.case_id,
-            actor=self.actor_id,
-            to=[self.recommender_id],
-            id_=accept_id,
-        )
-        cast(CaseOutboxPersistence, self.datalayer).outbox_append(
-            accept_activity_id
-        )
-        self.logger.info(
-            "%s: queued AcceptActorRecommendation '%s' to outbox for actor '%s'",
-            self.name,
-            accept_activity_id,
-            self.actor_id,
-        )
-        return Status.SUCCESS
+        roles = self._read_suggested_roles()
+        if not roles:
+            self.feedback_message = (
+                f"suggested_roles for actor '{self.recommended_id}' is empty "
+                "— cannot emit Offer(CaseParticipant) without at least one role"
+            )
+            self.logger.error(self.feedback_message)
+            return Status.FAILURE
+        try:
+            case_obj = self.datalayer.read(self.case_id)
+            raw_owner = getattr(case_obj, "attributed_to", None)
+            owner_id = getattr(raw_owner, "id_", raw_owner) or None
+            if not owner_id:
+                self.feedback_message = (
+                    f"case '{self.case_id}' has no attributed_to (Case Owner) "
+                    "— cannot address Offer(CaseParticipant)"
+                )
+                self.logger.error(self.feedback_message)
+                return Status.FAILURE
+            activity_id, _ = factory.offer_actor_to_case(
+                recommender_id=self.recommender_id,
+                recommended_id=self.recommended_id,
+                case_id=self.case_id,
+                actor=self.actor_id,
+                origin=self.recommendation_id,
+                to=[owner_id],
+                roles=roles,
+            )
+            # Commit a local correlation marker first so duplicate checks work
+            # on retry even if the outbox write below fails (CM-16-008/AC-6).
+            # disposition="rejected" bypasses canonical-payload validation since
+            # Offer(CaseParticipant) is not a canonical ledger event type.
+            commit_tree = create_commit_log_entry_tree(
+                case_id=self.case_id,
+                object_id=self.recommended_id,
+                event_type="offer_case_participant",
+                disposition="rejected",
+            )
+            result = BTBridge(
+                datalayer=cast(CaseOutboxPersistence, self.datalayer)
+            ).execute_with_setup(
+                tree=commit_tree,
+                actor_id=self.actor_id,
+            )
+            if result.status != Status.SUCCESS:
+                raise RuntimeError(
+                    f"ledger correlation commit failed for "
+                    f"offer_case_participant/{self.recommended_id}"
+                )
+            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
+                self.actor_id, activity_id
+            )
+            self.logger.info(
+                "%s: queued Offer(CaseParticipant) '%s' to Case Owner outbox"
+                " for case '%s'",
+                self.name,
+                activity_id,
+                self.case_id,
+            )
+            return Status.SUCCESS
+        except Exception as e:
+            self.feedback_message = (
+                f"EmitOfferCaseParticipantToOwner failed: {e}"
+            )
+            self.logger.error(self.feedback_message)
+            return Status.FAILURE
 
 
-class EmitInviteToCaseNode(DataLayerAction):
-    """Create and queue an ``RmInviteToCaseActivity`` to the outbox.
+class EmitAcceptActorRecommendationNode(DataLayerAction):
+    """Queue AcceptActorRecommendation to the original recommender.
 
-    Uses the same deterministic ID as ``CheckNoExistingInviteNode`` so that
-    creating the invite a second time is rejected by the DataLayer and the
-    already-queued outbox entry is reused (fully idempotent).
+    Used after the Case Owner accepts Offer(CaseParticipant) (CM-16-006 step 3).
+    The ``in_reply_to`` field is set to the original recommender's offer ID
+    (carried in the Case Owner's Accept via the ``origin`` field of the
+    transformed Offer) so the recommender can correlate the response.
     """
 
     def __init__(
         self,
-        invitee_id: str,
+        recommender_id: str,
+        recommendation_id: str,
+        recommended_id: str,
         case_id: str,
         name: str | None = None,
     ) -> None:
-        super().__init__(name=name or "EmitInviteToCase")
-        self.invitee_id = invitee_id
+        super().__init__(name=name or self.__class__.__name__)
+        self.recommender_id = recommender_id
+        self.recommendation_id = recommendation_id
+        self.recommended_id = recommended_id
         self.case_id = case_id
 
     def update(self) -> Status:
         if self.datalayer is None or self.actor_id is None:
+            self.feedback_message = "DataLayer or actor_id not available"
             return Status.FAILURE
 
         factory = self.trigger_activity_factory
         if factory is None:
-            self.logger.error(
-                "%s: trigger_activity_factory not found in blackboard",
-                self.name,
+            self.feedback_message = (
+                "trigger_activity_factory not in blackboard"
             )
+            self.logger.error(self.feedback_message)
             return Status.FAILURE
 
-        invite_id = _deterministic_invite_id(
-            self.case_id, self.invitee_id, self.actor_id
-        )
-        invite_activity_id, _ = factory.invite_actor_to_case(
-            invitee_id=self.invitee_id,
+        try:
+            activity_id, _ = factory.emit_accept_actor_recommendation(
+                recommender_id=self.recommender_id,
+                recommendation_id=self.recommendation_id,
+                recommended_id=self.recommended_id,
+                case_id=self.case_id,
+                actor=self.actor_id,
+            )
+            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
+                self.actor_id, activity_id
+            )
+            self.logger.info(
+                "%s: queued AcceptActorRecommendation to '%s' for case '%s'",
+                self.name,
+                self.recommender_id,
+                self.case_id,
+            )
+            return Status.SUCCESS
+        except Exception as e:
+            self.feedback_message = (
+                f"EmitAcceptActorRecommendation failed: {e}"
+            )
+            self.logger.error(self.feedback_message)
+            return Status.FAILURE
+
+
+class EmitRejectActorRecommendationNode(DataLayerAction):
+    """Queue RejectActorRecommendation to the original recommender.
+
+    Used after the Case Owner rejects Offer(CaseParticipant) (CM-16-007 step 3).
+    """
+
+    def __init__(
+        self,
+        recommender_id: str,
+        recommendation_id: str,
+        recommended_id: str,
+        case_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.recommender_id = recommender_id
+        self.recommendation_id = recommendation_id
+        self.recommended_id = recommended_id
+        self.case_id = case_id
+
+    def update(self) -> Status:
+        if self.datalayer is None or self.actor_id is None:
+            self.feedback_message = "DataLayer or actor_id not available"
+            return Status.FAILURE
+
+        factory = self.trigger_activity_factory
+        if factory is None:
+            self.feedback_message = (
+                "trigger_activity_factory not in blackboard"
+            )
+            self.logger.error(self.feedback_message)
+            return Status.FAILURE
+
+        try:
+            activity_id, _ = factory.emit_reject_actor_recommendation(
+                recommender_id=self.recommender_id,
+                recommendation_id=self.recommendation_id,
+                recommended_id=self.recommended_id,
+                case_id=self.case_id,
+                actor=self.actor_id,
+            )
+            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
+                self.actor_id, activity_id
+            )
+            self.logger.info(
+                "%s: queued RejectActorRecommendation to '%s' for case '%s'",
+                self.name,
+                self.recommender_id,
+                self.case_id,
+            )
+            return Status.SUCCESS
+        except Exception as e:
+            self.feedback_message = (
+                f"EmitRejectActorRecommendation failed: {e}"
+            )
+            self.logger.error(self.feedback_message)
+            return Status.FAILURE
+
+
+# ---------------------------------------------------------------------------
+# Duplicate-detection precondition nodes (CM-16-008, CM-16-009)
+# ---------------------------------------------------------------------------
+
+
+class ActorAlreadyParticipantNode(DataLayerAction):
+    """Return SUCCESS if the recommended actor is already a case participant.
+
+    Reads ``VulnerabilityCase.actor_participant_index`` from the DataLayer.
+    Returns SUCCESS when ``recommended_id`` is a key in the index (AC-7b,
+    CM-16-009).
+
+    Used as the first arm of the duplicate-detection Selector in
+    :func:`create_recommend_actor_to_case_received_tree`.
+    """
+
+    def __init__(
+        self,
+        recommended_id: str,
+        case_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.recommended_id = recommended_id
+        self.case_id = case_id
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            self.feedback_message = "DataLayer not available"
+            return Status.FAILURE
+        case_obj = self.datalayer.read(self.case_id)
+        index = getattr(case_obj, "actor_participant_index", {}) or {}
+        if self.recommended_id in index:
+            self.logger.info(
+                "%s: actor '%s' is already a participant in case '%s'",
+                self.name,
+                self.recommended_id,
+                self.case_id,
+            )
+            return Status.SUCCESS
+        return Status.FAILURE
+
+
+class InviteInFlightNode(DataLayerAction):
+    """Return SUCCESS if an Invite to the recommended actor is in-flight.
+
+    Queries the case ledger via ``find_protocol_pair`` with
+    ``event_type="invite_actor_to_case"`` and ``object_id=recommended_id``.
+    Returns SUCCESS when the pair ``is_pending()`` — i.e., an Invite was
+    sent and no Accept/Reject has been recorded (AC-7a, CM-16-009).
+
+    Used as the second arm of the duplicate-detection Selector in
+    :func:`create_recommend_actor_to_case_received_tree`.
+    """
+
+    def __init__(
+        self,
+        recommended_id: str,
+        case_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.recommended_id = recommended_id
+        self.case_id = case_id
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            self.feedback_message = "DataLayer not available"
+            return Status.FAILURE
+        pair = self.datalayer.find_protocol_pair(
             case_id=self.case_id,
-            actor=self.actor_id,
-            to=[self.invitee_id],
-            id_=invite_id,
+            request_event_type="invite_actor_to_case",
+            object_id=self.recommended_id,
+            reply_event_types=INVITE_ACTOR_TO_CASE_REPLY_TYPES,
         )
-        cast(CaseOutboxPersistence, self.datalayer).outbox_append(
-            invite_activity_id
-        )
-        self.logger.info(
-            "%s: queued RmInviteToCase '%s' to outbox for actor '%s'",
-            self.name,
-            invite_activity_id,
-            self.actor_id,
-        )
-        return Status.SUCCESS
+        if pair.is_pending():
+            self.logger.info(
+                "%s: Invite to '%s' is in-flight for case '%s'",
+                self.name,
+                self.recommended_id,
+                self.case_id,
+            )
+            return Status.SUCCESS
+        return Status.FAILURE
 
 
-def create_suggest_actor_tree(
+class PendingOfferCaseParticipantNode(DataLayerAction):
+    """Return SUCCESS if an Offer(CaseParticipant) to the Case Owner is pending.
+
+    Queries the case ledger via ``find_protocol_pair`` with
+    ``event_type="offer_case_participant"`` and ``object_id=recommended_id``.
+    Returns SUCCESS when the pair ``is_pending()`` — i.e., the CaseActor
+    has already forwarded an Offer(CaseParticipant) for this actor and the
+    Case Owner has not yet responded (AC-6, CM-16-008).
+
+    Used as the third arm of the duplicate-detection Selector in
+    :func:`create_recommend_actor_to_case_received_tree`.
+    """
+
+    def __init__(
+        self,
+        recommended_id: str,
+        case_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.recommended_id = recommended_id
+        self.case_id = case_id
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            self.feedback_message = "DataLayer not available"
+            return Status.FAILURE
+        pair = self.datalayer.find_protocol_pair(
+            case_id=self.case_id,
+            request_event_type="offer_case_participant",
+            object_id=self.recommended_id,
+            reply_event_types=OFFER_CASE_PARTICIPANT_REPLY_TYPES,
+        )
+        if pair.is_pending():
+            self.logger.info(
+                "%s: Offer(CaseParticipant) for '%s' is pending Case Owner "
+                "decision in case '%s'",
+                self.name,
+                self.recommended_id,
+                self.case_id,
+            )
+            return Status.SUCCESS
+        return Status.FAILURE
+
+
+class EmitNoteDuplicateRecommendationToOwnerNode(DataLayerAction):
+    """Send a Note DM to the Case Owner noting reinforcing demand.
+
+    Used when a second ``Offer(Actor, Case)`` arrives while a first
+    ``Offer(CaseParticipant)`` is still pending the Case Owner's
+    Accept/Reject decision (AC-6, CM-16-008).  Sends a
+    ``Create(Note)`` + ``Add(Note, Case)`` to the Case Owner without
+    issuing a second ``Offer(CaseParticipant)``.
+
+    When ``offer_content`` is provided (non-None, non-empty), it is appended
+    to the Note body per CM-16-008's requirement to forward the incoming
+    Offer's ``content`` field to the Case Owner.
+    """
+
+    def __init__(
+        self,
+        recommendation_id: str,
+        recommender_id: str,
+        recommended_id: str,
+        case_id: str,
+        offer_content: str | None = None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.recommendation_id = recommendation_id
+        self.recommender_id = recommender_id
+        self.recommended_id = recommended_id
+        self.case_id = case_id
+        self.offer_content = (
+            (offer_content.strip() or None) if offer_content else None
+        )
+
+    def update(self) -> Status:
+        if self.datalayer is None or self.actor_id is None:
+            self.feedback_message = "DataLayer or actor_id not available"
+            return Status.FAILURE
+
+        factory = self.trigger_activity_factory
+        if factory is None:
+            self.feedback_message = (
+                "trigger_activity_factory not in blackboard"
+            )
+            self.logger.error(self.feedback_message)
+            return Status.FAILURE
+
+        try:
+            case_obj = self.datalayer.read(self.case_id)
+            raw_owner = getattr(case_obj, "attributed_to", None)
+            owner_id = getattr(raw_owner, "id_", raw_owner) or None
+            if not owner_id:
+                self.feedback_message = (
+                    f"case '{self.case_id}' has no attributed_to (Case Owner) "
+                    "— cannot address duplicate-recommendation Note"
+                )
+                self.logger.error(self.feedback_message)
+                return Status.FAILURE
+
+            actor_segment = self.recommended_id.split("/")[-1]
+            content = (
+                f"Duplicate actor recommendation: '{self.recommender_id}' "
+                f"also recommends actor '{actor_segment}' for case "
+                f"'{self.case_id}'.  An Offer(CaseParticipant) is already "
+                f"pending your decision (no second offer sent)."
+            )
+            if self.offer_content:
+                content = (
+                    f"{content}\n\nRecommender note: {self.offer_content}"
+                )
+            note_id, _ = factory.create_note(
+                name=f"Duplicate recommendation — {actor_segment}",
+                content=content,
+                context_id=self.case_id,
+                attributed_to=self.actor_id,
+                in_reply_to=self.recommendation_id,
+            )
+            activity_id, _ = factory.add_note_to_case(
+                note_id=note_id,
+                case_id=self.case_id,
+                actor=self.actor_id,
+                to=[owner_id],
+            )
+            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
+                self.actor_id, activity_id
+            )
+            self.logger.info(
+                "%s: sent duplicate-recommendation Note to Case Owner '%s'"
+                " for case '%s'",
+                self.name,
+                owner_id,
+                self.case_id,
+            )
+            return Status.SUCCESS
+        except Exception as e:
+            self.feedback_message = (
+                f"EmitNoteDuplicateRecommendationToOwner failed: {e}"
+            )
+            self.logger.error(self.feedback_message)
+            return Status.FAILURE
+
+
+# ---------------------------------------------------------------------------
+# BT factory functions
+# ---------------------------------------------------------------------------
+
+
+def create_receive_offer_case_participant_tree(
+    case_id: str,
+) -> py_trees.composites.Sequence:
+    """Received-side BT for Offer(CaseParticipant) on the Case Owner inbox.
+
+    Commits a canonical ``CaseLedgerEntry`` for the received
+    ``Offer(CaseParticipant)`` (CM-16-003/CM-16-004, ADR-0026). No effect
+    nodes are added here — the Case Owner's decision to Accept or Reject is
+    a separate outbound activity.
+
+    Args:
+        case_id: ID of the VulnerabilityCase.
+
+    Returns:
+        Root ``ReceiveOfferCaseParticipantBT`` Sequence node.
+    """
+    return create_receive_activity_tree(
+        name="ReceiveOfferCaseParticipantBT",
+        case_id=case_id,
+        precondition_guards=[],
+        effect_nodes=[],
+    )
+
+
+def create_recommend_actor_to_case_received_tree(
+    recommendation_id: str,
+    recommender_id: str,
+    recommended_id: str,
+    case_id: str,
+    offer_content: str | None = None,
+) -> py_trees.composites.Sequence:
+    """Received-side BT for Offer(Actor, Case) on the CaseActor inbox.
+
+    Commits a canonical ``CaseLedgerEntry`` for the received Offer
+    (CM-16-002), then routes to one of four branches via a Selector:
+
+    1. **AC-7b** — already participant: auto-accept to recommender (CM-16-009).
+    2. **AC-7a** — invite in-flight: auto-accept to recommender (CM-16-009).
+    3. **AC-6** — pending Case Owner decision: send Note DM, no second Offer
+       (CM-16-008).
+    4. **Fresh path** — evaluate default roles and forward
+       ``Offer(CaseParticipant)`` to the Case Owner (CM-16-003, CM-16-004).
+
+    Tree structure::
+
+        RecommendActorToCaseBT (Sequence, memory=False)
+        ├── GuardedCommitCaseLedgerEntryBT       — record receipt (CLP-10-006)
+        └── DuplicateOrFreshSelector (Selector, memory=False)
+            ├── AC-7b: Sequence(ActorAlreadyParticipantNode,
+            │                   EmitAcceptActorRecommendationNode)
+            ├── AC-7a: Sequence(InviteInFlightNode,
+            │                   EmitAcceptActorRecommendationNode)
+            ├── AC-6:  Sequence(PendingOfferCaseParticipantNode,
+            │                   EmitNoteDuplicateRecommendationToOwnerNode)
+            └── Fresh: Sequence(EvaluateDefaultRolesNode,
+                                EmitOfferCaseParticipantToOwnerNode)
+
+    Args:
+        recommendation_id: ID of the incoming ``Offer(Actor, Case)`` activity.
+        recommender_id: Actor ID of the recommending participant.
+        recommended_id: Actor ID of the suggested new participant.
+        case_id: ID of the VulnerabilityCase.
+        offer_content: Optional ``content`` field from the inbound Offer
+            activity; forwarded to the duplicate-recommendation Note per
+            CM-16-008.
+
+    Returns:
+        Root ``RecommendActorToCaseBT`` Sequence node.
+    """
+    ac7b_already_participant = py_trees.composites.Sequence(
+        name="AC7b_AlreadyParticipant",
+        memory=False,
+        children=[
+            ActorAlreadyParticipantNode(
+                recommended_id=recommended_id,
+                case_id=case_id,
+            ),
+            EmitAcceptActorRecommendationNode(
+                recommender_id=recommender_id,
+                recommendation_id=recommendation_id,
+                recommended_id=recommended_id,
+                case_id=case_id,
+            ),
+        ],
+    )
+
+    ac7a_invite_in_flight = py_trees.composites.Sequence(
+        name="AC7a_InviteInFlight",
+        memory=False,
+        children=[
+            InviteInFlightNode(
+                recommended_id=recommended_id,
+                case_id=case_id,
+            ),
+            EmitAcceptActorRecommendationNode(
+                recommender_id=recommender_id,
+                recommendation_id=recommendation_id,
+                recommended_id=recommended_id,
+                case_id=case_id,
+            ),
+        ],
+    )
+
+    ac6_pending_offer = py_trees.composites.Sequence(
+        name="AC6_PendingOffer",
+        memory=False,
+        children=[
+            PendingOfferCaseParticipantNode(
+                recommended_id=recommended_id,
+                case_id=case_id,
+            ),
+            EmitNoteDuplicateRecommendationToOwnerNode(
+                recommendation_id=recommendation_id,
+                recommender_id=recommender_id,
+                recommended_id=recommended_id,
+                case_id=case_id,
+                offer_content=offer_content,
+            ),
+        ],
+    )
+
+    fresh_path = py_trees.composites.Sequence(
+        name="FreshRecommendation",
+        memory=False,
+        children=[
+            EvaluateDefaultRolesNode(
+                suggested_actor_id=recommended_id,
+                case_id=case_id,
+                recommendation_id=recommendation_id,
+            ),
+            EmitOfferCaseParticipantToOwnerNode(
+                recommendation_id=recommendation_id,
+                recommender_id=recommender_id,
+                recommended_id=recommended_id,
+                case_id=case_id,
+            ),
+        ],
+    )
+
+    duplicate_or_fresh_selector = py_trees.composites.Selector(
+        name="DuplicateOrFreshSelector",
+        memory=False,
+        children=[
+            ac7b_already_participant,
+            ac7a_invite_in_flight,
+            ac6_pending_offer,
+            fresh_path,
+        ],
+    )
+
+    return create_receive_activity_tree(
+        name="RecommendActorToCaseBT",
+        case_id=case_id,
+        precondition_guards=[],
+        effect_nodes=[duplicate_or_fresh_selector],
+    )
+
+
+def create_accept_actor_recommendation_received_tree(
     recommendation_id: str,
     recommender_id: str,
     invitee_id: str,
     case_id: str,
 ) -> py_trees.composites.Sequence:
-    """Return the BT for handling an inbound ``RecommendActorActivity``.
+    """Received-side BT for Accept(Offer(CaseParticipant)) on the CaseActor inbox.
 
-    The returned Sequence:
-
-    1. ``CheckIsCaseOwnerNode``        — precondition: abort if not owner
-    2. ``CheckNoExistingInviteNode``   — idempotency: abort if invite exists
-    3. ``EmitAcceptRecommendationNode`` — queue Accept to outbox
-    4. ``EmitInviteToCaseNode``        — queue Invite to outbox
+    Commits a canonical ``CaseLedgerEntry`` (CM-16-006 step 1), then fans
+    out: sends ``AcceptActorRecommendation`` to the original recommender
+    (CM-16-006 step 3) and ``Invite(CaseStub+embargo+roles)`` to the
+    invitee (CM-16-006 step 4, CM-17).
 
     Args:
-        recommendation_id: ID of the incoming ``RecommendActorActivity``.
-        recommender_id: Actor ID of the peer who sent the recommendation.
-        invitee_id: Actor ID of the suggested participant.
-        case_id: ID of the VulnerabilityCase being referenced.
+        recommendation_id: ID of the original ``Offer(Actor, Case)`` from the
+            recommender (carried in the ``origin`` field of the transformed Offer).
+        recommender_id: Actor ID of the original recommender.
+        invitee_id: Actor ID of the suggested new participant.
+        case_id: ID of the VulnerabilityCase.
 
     Returns:
-        Configured ``py_trees.composites.Sequence`` ready for execution via
-        :class:`~vultron.core.behaviors.bridge.BTBridge`.
+        Root ``AcceptActorRecommendationBT`` Sequence node.
     """
-    # memory=False so preconditions (CheckIsCaseOwnerNode,
-    # CheckNoExistingInviteNode) are re-evaluated on every tick,
-    # keeping stateless ticking semantics consistent with all other
-    # case BTs (BTND-02-001 stateless ticking invariant).
-    return py_trees.composites.Sequence(
-        name="SuggestActorToCaseBT",
-        memory=False,
-        children=[
-            CheckIsCaseOwnerNode(case_id=case_id),
-            CheckNoExistingInviteNode(invitee_id=invitee_id, case_id=case_id),
-            EmitAcceptRecommendationNode(
-                recommendation_id=recommendation_id,
+    return create_receive_activity_tree(
+        name="AcceptActorRecommendationBT",
+        case_id=case_id,
+        precondition_guards=[],
+        effect_nodes=[
+            EmitAcceptActorRecommendationNode(
                 recommender_id=recommender_id,
-                invitee_id=invitee_id,
+                recommendation_id=recommendation_id,
+                recommended_id=invitee_id,
                 case_id=case_id,
             ),
-            EmitInviteToCaseNode(invitee_id=invitee_id, case_id=case_id),
+            EmitInviteActorToCaseNode(
+                invitee_id=invitee_id,
+                case_id=case_id,
+                case_actor_id=None,
+            ),
         ],
     )
 
 
-# Expose node classes for testing and external use
+def create_reject_actor_recommendation_received_tree(
+    recommendation_id: str,
+    recommender_id: str,
+    recommended_id: str,
+    case_id: str,
+) -> py_trees.composites.Sequence:
+    """Received-side BT for Reject(Offer(CaseParticipant)) on the CaseActor inbox.
+
+    Commits a canonical ``CaseLedgerEntry`` (CM-16-007 step 1), then sends
+    ``RejectActorRecommendation`` to the original recommender
+    (CM-16-007 step 3).
+
+    Args:
+        recommendation_id: ID of the original ``Offer(Actor, Case)`` from the
+            recommender (carried in the ``origin`` field of the transformed Offer).
+        recommender_id: Actor ID of the original recommender.
+        recommended_id: Actor ID of the suggested new participant.
+        case_id: ID of the VulnerabilityCase.
+
+    Returns:
+        Root ``RejectActorRecommendationBT`` Sequence node.
+    """
+    return create_receive_activity_tree(
+        name="RejectActorRecommendationBT",
+        case_id=case_id,
+        precondition_guards=[],
+        effect_nodes=[
+            EmitRejectActorRecommendationNode(
+                recommender_id=recommender_id,
+                recommendation_id=recommendation_id,
+                recommended_id=recommended_id,
+                case_id=case_id,
+            ),
+        ],
+    )
+
+
 __all__ = [
-    "CheckIsCaseOwnerNode",
-    "CheckNoExistingInviteNode",
-    "EmitAcceptRecommendationNode",
-    "EmitInviteToCaseNode",
-    "create_suggest_actor_tree",
+    "ActorAlreadyParticipantNode",
+    "EmitAcceptActorRecommendationNode",
+    "EmitNoteDuplicateRecommendationToOwnerNode",
+    "EmitOfferCaseParticipantToOwnerNode",
+    "EmitRejectActorRecommendationNode",
+    "InviteInFlightNode",
+    "PendingOfferCaseParticipantNode",
+    "create_accept_actor_recommendation_received_tree",
+    "create_receive_offer_case_participant_tree",
+    "create_recommend_actor_to_case_received_tree",
+    "create_reject_actor_recommendation_received_tree",
 ]

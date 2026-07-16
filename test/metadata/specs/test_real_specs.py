@@ -14,12 +14,16 @@ fixed before merging.
 
 from __future__ import annotations
 
+import io
+import json
+import sys
 from pathlib import Path
 
 import pytest
 
 from vultron.metadata.specs.lint import lint
 from vultron.metadata.specs.registry import load_registry
+from vultron.metadata.specs.render import main_llm_json
 
 _SPECS_DIR = Path(__file__).parents[3] / "specs"
 
@@ -55,3 +59,27 @@ def test_real_specs_lint_no_hard_errors():
     assert (
         exit_code == 0
     ), "spec-lint reported hard errors — run 'uv run spec-lint' to see details"
+
+
+def test_spec_dump_entrypoint_produces_valid_json(monkeypatch):
+    """main_llm_json() (the spec-dump CLI entrypoint) produces valid JSON.
+
+    Regression test for the stale-/app/vultron import bug (#1457): if the
+    schema module is resolved from a stale installation with missing enum
+    values or changed field types, load_registry() will raise a Pydantic
+    ValidationError before any JSON is emitted.
+    """
+    monkeypatch.setattr(sys, "argv", ["spec-dump", str(_SPECS_DIR)])
+    buf = io.StringIO()
+    monkeypatch.setattr(sys, "stdout", buf)
+
+    main_llm_json()
+
+    output = buf.getvalue()
+    data = json.loads(output)
+    assert data.get(
+        "topics"
+    ), "spec-dump output must include at least one topic"
+    assert data.get(
+        "requirements"
+    ), "spec-dump output must include requirements"

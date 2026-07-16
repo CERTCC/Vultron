@@ -22,6 +22,7 @@ from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.protocols import is_case_model
 from vultron.core.states.em import EM, is_valid_em_transition
 from vultron.core.use_cases._helpers import (
+    _as_id,
     reset_case_participant_embargo_consent,
 )
 
@@ -131,9 +132,6 @@ class RemoveFromProposedEmbargoesNode(DataLayerAction):
         if not is_case_model(case):
             self.feedback_message = f"Case '{self.case_id}' not found"
             return Status.FAILURE
-
-        def _as_id(obj: object) -> str | None:
-            return obj if isinstance(obj, str) else getattr(obj, "id_", None)
 
         proposed_ids = [_as_id(e) for e in case.proposed_embargoes]
         if self.embargo_id in proposed_ids:

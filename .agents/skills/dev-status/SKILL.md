@@ -33,7 +33,7 @@ Read these in parallel:
 
 | Source | What to check |
 |---|---|
-| `plan/BUILD_LEARNINGS.md` | Non-empty beyond the header? |
+| `plan/incoming/learnings/` | Count of `.md` files (excluding `.gitkeep`)? |
 | GitHub Issues — type: Idea | Count of open issues |
 | GitHub Issues — type: Bug | Count of open issues |
 | GitHub Issues — type: Concern | Count of open issues — **this is the only concern source; do not read `docs/reference/codebase/CONCERNS.md`** |
@@ -52,7 +52,7 @@ Print a single table followed by a "Next up" callout:
 
 | Queue                  | Count | Skill                |
 |------------------------|-------|----------------------|
-| BUILD_LEARNINGS        |   2   | learn                |
+| Incoming Learnings     |   2   | learn                |
 | Ideas (open)           |   1   | plan-issue           |
 | Bugs (open)            |   3   | bugfix               |
 | Concerns (open)        |   0   | —                    |
@@ -62,11 +62,11 @@ Print a single table followed by a "Next up" callout:
 
 Now: #691 Migrate project tracking | #476 Bug Fixes and Demo Polish
 
-**Next up**: learn — BUILD_LEARNINGS.md has unprocessed entries.
+**Next up**: learn — plan/incoming/learnings/ has unprocessed files.
 ```
 
-- **BUILD_LEARNINGS count**: number of `###` entry headers in the file
-  (zero if only the preamble is present)
+- **Incoming Learnings count**: number of `.md` files in `plan/incoming/learnings/`
+  (zero if the directory is empty or contains only `.gitkeep`)
 - **Ready to build**: open leaf issues in a Now-scheduled Epic that have no
   open blockers — determined entirely from the GitHub API
 - **Triage**: issues in Project #24 with `Schedule=Someday` and no Epic parent
@@ -77,7 +77,7 @@ Now: #691 Migrate project tracking | #476 Bug Fixes and Demo Polish
 Ranked priority (first matching condition wins for the primary recommendation;
 list all non-zero conditions as `ask_user` choices):
 
-1. `learn` — BUILD_LEARNINGS has entries
+1. `learn` — plan/incoming/learnings/ has files
 2. `process-concerns` — open Concern issues
 3. `plan-issue` — open Idea or Concern issues
 4. `bugfix` — open Bug issues

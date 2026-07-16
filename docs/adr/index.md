@@ -74,11 +74,37 @@ General information about architectural decision records is available at <https:
   `CaseLogEntry`](0018-canonical-case-history-convergence.md)
 - [ADR-0019 Separate the Case Ledger from the Per-Actor Process
   Log](0019-separate-case-ledger-from-process-log.md)
+- [ADR-0021 CaseActor Inbox Routing as the Sole Path to Canonical Ledger
+  Entries](0021-caseactor-inbox-routing-canonical-ledger.md)
+- [ADR-0022 Single BT Execution Per Inbox Delivery for Received-Side
+  CaseActor Routing](0022-single-bt-execution-for-received-side-case-actor-routing.md)
+- [ADR-0023 Introduce `CaseProposal` for Distributed Case Actor
+  Initialization](0023-case-proposal-protocol.md)
+- [ADR-0024 Coordination Agent Taxonomy](0024-coordination-agent-taxonomy.md)
+- [ADR-0025 Call-Out Point Abstraction Layer: Factory-Based Injection with
+  Typed Backends](0025-call-out-point-abstraction-layer.md)
+- [ADR-0031 Introduce `vultron/enums/` as a Bottom-of-Stack Neutral Layer for
+  Cross-Cutting Enumerations](0031-vultron-enums-neutral-layer.md)
+- [ADR-0032 Validate at the Edge, Promote to Strict Core
+  Types](0032-validate-at-edge-promote-to-core.md)
 
 ## Proposed ADRs
 
 - [ADR-0020 Move Inbox Orchestration into a Core BT Module with a Typed
   `process_payload` Seam](0020-inbox-bt-orchestration.md)
+- [ADR-0026 CaseActor-Routed Actor Suggestion and Invitation
+  Flow](0026-caseactor-routed-actor-suggestion.md)
+- [ADR-0027 Exploit-Strategy Subtree Collapse: Five Simulator Nodes →
+  EvaluateExploitStrategy](0027-exploit-strategy-bt-collapse.md) *(provisional)*
+- [ADR-0028 Publication-Intent Subtree Collapse: Bypass Leaves →
+  Intent-Record-Driven Arms](0028-publication-intent-bt-collapse.md) *(provisional)*
+- [ADR-0029 Notification Loop Collapse: InjectParticipant →
+  suggest-actor-to-case Protocol](0029-notification-loop-suggest-actor.md) *(provisional)*
+- [ADR-0030 Publish Leaf Expansion: Single Actuator →
+  Draft-Review-Submit Pipeline](0030-publish-leaf-draft-review-submit-pipeline.md)
+  *(provisional)*
+- [ADR-0033 Lifecycle-Staged Domain Types Anchored on Guaranteed-Field
+  Changes](0033-lifecycle-staged-case-types.md)
 
 ## Rejected ADRs
 

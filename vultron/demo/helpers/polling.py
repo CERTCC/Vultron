@@ -264,6 +264,81 @@ def wait_for_finder_log_entry(
     )
 
 
+def wait_for_contiguous_ledger_coverage(
+    client: DataLayerClient,
+    case_id: str,
+    expected_tail_index: int,
+    timeout_seconds: float = 15.0,
+    poll_interval: float = 0.5,
+) -> None:
+    """Poll *client*'s DataLayer until it holds all log indices 0…*expected_tail_index*.
+
+    :func:`wait_for_finder_log_entry` only confirms that the tail entry (by
+    hash) has arrived.  Because ``Announce(CaseLedgerEntry)`` activities are
+    delivered independently, an intermediate entry (e.g. logIndex=17) can
+    arrive *after* the tail entry, so the dump may still capture a gapped log.
+
+    This helper closes that race by polling until the replica's local index
+    set is the complete contiguous range ``{0, 1, …, expected_tail_index}``.
+
+    Args:
+        client: DataLayerClient connected to the replica container.
+        case_id: Full URI of the ``VulnerabilityCase``.
+        expected_tail_index: The highest ``log_index`` the replica must hold
+            (inclusive).  Typically obtained from the authoritative actor's
+            ledger dump before calling this function.
+        timeout_seconds: Maximum time to wait before raising.
+        poll_interval: Seconds between DataLayer poll attempts.
+
+    Raises:
+        AssertionError: If the replica does not have full contiguous coverage
+            within *timeout_seconds*.
+
+    Spec: SYNC-10-004 (catch-up gate must require a contiguous canonical log prefix).
+    """
+    expected_indices = set(range(expected_tail_index + 1))
+
+    def _check() -> bool:
+        raw = client.get("/datalayer/CaseLedgerEntrys/")
+        if not isinstance(raw, dict):
+            return False
+        present = {
+            v["log_index"]
+            for v in raw.values()
+            if isinstance(v, dict)
+            and v.get("case_id") == case_id
+            and isinstance(v.get("log_index"), int)
+        }
+        missing = expected_indices - present
+        if missing:
+            logger.debug(
+                "Ledger coverage check: %d/%d entries present for case %s; "
+                "missing indices: %s",
+                len(present),
+                expected_tail_index + 1,
+                case_id,
+                sorted(missing)[:10],
+            )
+            return False
+        logger.info(
+            "Ledger fully replicated for case %s (%d entries, indices 0…%d)",
+            case_id,
+            expected_tail_index + 1,
+            expected_tail_index,
+        )
+        return True
+
+    _poll_until(
+        _check,
+        timeout_seconds,
+        poll_interval,
+        f"Timed out waiting for contiguous ledger coverage (0…{expected_tail_index}) "
+        f"for case {case_id!r} — one or more intermediate entries may not have "
+        "been delivered",
+        swallow_exceptions=True,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Participant-state polling helpers
 # ---------------------------------------------------------------------------

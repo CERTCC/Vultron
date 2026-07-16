@@ -271,3 +271,188 @@ When a Demo Integration CI run fails, load
 [`notes/demo-ci-diagnostics.md`](../notes/demo-ci-diagnostics.md) for the
 3-layer diagnostic model, per-invariant diagnostic map, local Docker run
 workflow, and CI artifact interpretation guide.
+
+---
+
+## SYNC Replication Test Patterns
+
+### Happy-Path Replication Test Harness
+
+(SYNC-901, 2026-06-11)
+
+For SYNC happy-path replication integration coverage, the most stable test
+seam is **two isolated FastAPI apps** created with `create_isolated_actor_app`
+plus a shared `_TestASGIRouter` wired as each app's emitter fallback and as
+the module-level default emitter:
+
+- Each app has its own actor-scoped `DataLayer` — satisfying per-actor isolation
+- `_TestASGIRouter` routes `Announce(CaseLedgerEntry)` deliveries between apps
+  synchronously within the test process — no real HTTP, no retry delays
+- This setup exercises the full outbox → ASGI delivery → inbox processing
+  pipeline with realistic actor boundaries
+
+Use `post_actor_inbox` (the FastAPI test client) for inbound activities.
+
+### Predecessor-Mismatch Test Seam
+
+(SYNC-902, 2026-06-11)
+
+For predecessor-mismatch coverage, do **not** inject `Announce(CaseLedgerEntry)`
+through `post_actor_inbox`. Nested-object persistence in the inbox path can
+cause `CheckLogEntryAlreadyStored` to short-circuit before hash validation
+runs, masking the mismatch.
+
+The stable test seam for mismatch assertions is:
+
+1. Call `handle_inbox_item(dl, activity)` directly with a typed activity object
+2. Then drive normal outbox-based replay from the CaseActor
+
+This bypasses the short-circuit and ensures hash validation is exercised.
+
+---
+
+## Module-Split Test Layout Rules
+
+(NODES-SPLIT-883, 2026-06-11)
+
+When converting a behavior area from a flat `nodes.py` to a `nodes/` subpackage:
+
+- **Preserve import paths**: Add explicit re-exports in `nodes/__init__.py` for
+  all names previously importable from `nodes.py`. Callers that do
+  `from ...nodes import Foo` must continue to work without modification.
+- **Mirror in tests**: Move node-level tests from the flat test file into
+  `test/.../nodes/` with per-submodule test files (e.g., `test_conditions.py`,
+  `test_participant.py`). Keep tree-composition tests in the parent workflow
+  test module.
+- **Conftest inheritance**: pytest's upward conftest search means the parent
+  `conftest.py` fixtures are automatically available to the new subdirectory.
+  Only copy vocabulary-registration side-effect imports (if any) into each new
+  subdirectory `conftest.py`.
+- **Delete old flat file**: Do not leave both `nodes.py` and `nodes/__init__.py`
+  present — pytest will collect both and produce duplicate test IDs.
+
+This pattern applies equally to use-case subpackage splits
+(`triggers/`, `received/`, etc.).
+
+---
+
+## Hash-Chain Invariant Assertions
+
+(CASE-LOG-925, 2026-06-12)
+
+When asserting hash-chain invariants in SYNC tests, **always assert field
+presence before comparing field values**:
+
+```python
+# ❌ Wrong — "" == "" is a false positive if fields are missing
+assert entry_a["entry_hash"] == entry_b["prev_log_hash"]
+
+# ✅ Correct — assert presence first, then compare
+assert entry_a.get("entry_hash"), "entryHash must be non-empty"
+assert entry_b.get("prev_log_hash"), "prevLogHash must be non-empty"
+assert entry_a["entry_hash"] == entry_b["prev_log_hash"]
+```
+
+An empty string `""` compares equal to another `""`, masking serializer
+or schema-migration bugs that produce empty hash fields. The presence
+assertion catches this class of bug before the comparison.
+
+---
+
+## Pytest Mark Consistency — pyproject.toml and Workflow YAML
+
+(RENAME-934, 2026-06-12; see `specs/testability.yaml` TB-11-001)
+
+When renaming or adding a pytest mark, update **all three locations** in the
+same changeset:
+
+1. **`pyproject.toml`** `[tool.pytest.ini_options] markers` list
+2. **`.github/workflows/`** — any YAML file that references the mark by name
+   (e.g., `-m "old_mark_name"` in a `pytest` invocation)
+3. **Test source files** — all `@pytest.mark.old_name` usages
+
+A mark renamed in test files but not in a workflow YAML causes `pytest` to
+collect **0 tests** and exit with code 5 (no tests collected). CI treats this
+as a failure, but the error message ("no tests ran") looks like an environment
+issue rather than a naming mismatch.
+
+**Verification checklist after a mark rename**:
+
+```bash
+# Confirm old name is gone from workflows
+grep -r "old_mark_name" .github/workflows/  # should produce no output
+
+# Confirm new name is registered
+grep "new_mark_name" pyproject.toml
+
+# Confirm pytest collects tests
+uv run pytest -m "new_mark_name" --collect-only 2>&1 | tail -5
+```
+
+---
+
+## BT Factory Determinism: Integration Tests Must Use Explicit Factories
+
+(BT-FACTORY-DETERMINISM, 2026-07-08)
+
+When a BT tree builder accepts a `CallOutBackendFactory` parameter whose
+**default** is a probabilistic fuzzer node (`AlmostAlwaysSucceed`, `WeightedBehavior`,
+etc.), integration tests that assert `Status.SUCCESS` on the full tree MUST
+pass an explicit deterministic factory.
+
+A default factory at 90% success + two nodes in series = ~81% tree success
+rate — a failure probability that appears within a few test runs.
+
+**Structure tests** (node names, child counts) and **`FAILURE`-path tests**
+(missing `DataLayer`, missing report) are unaffected and do NOT need the
+deterministic factory.
+
+**Pattern**:
+
+```python
+# Module-level helper in the test file
+def _always_succeed_factory(name: str) -> py_trees.behaviour.Behaviour:
+    class _AlwaysSucceed(py_trees.behaviour.Behaviour):
+        def update(self):
+            return py_trees.common.Status.SUCCESS
+    return _AlwaysSucceed(name)
+
+
+# Passed explicitly to every SUCCESS-asserting integration test
+def test_validate_report_succeeds(dl, report):
+    tree = create_validate_report_tree(
+        report_id=report.id_,
+        credibility_factory=_always_succeed_factory,
+        validity_factory=_always_succeed_factory,
+    )
+    ...
+    assert result.status == Status.SUCCESS
+```
+
+See `notes/bt-integration.md` § "Integration Tests Must Use Deterministic
+Factories When BT Default Is Probabilistic" for full context.
+
+---
+
+## Genesis-Hash Path Must Be Tested with a Stored Case
+
+(CLP-08-995, 2026-06-18)
+
+`is_ledger_fresh_for_case` skips the genesis-hash check when the effective
+genesis hash is `""` (no stored case or empty hash). This means positive
+freshness tests that do **not** save a `VulnerabilityCase` to the DataLayer
+always bypass the genesis-hash validation path — they pass even if
+`_get_case_genesis_hash` is completely broken.
+
+**Rule**: For every positive freshness test that is meant to exercise
+CLP-08-004, save the `VulnerabilityCase` to the DataLayer first:
+
+```python
+dl.save(_make_case())  # ensures genesis hash is available for validation
+result = is_ledger_fresh_for_case(dl, case_id, ...)
+assert result is True
+```
+
+Tests that intentionally test the "no case stored → trivially fresh" path
+should be clearly labeled as such and must NOT be used as the sole coverage
+for the genesis-hash check path.

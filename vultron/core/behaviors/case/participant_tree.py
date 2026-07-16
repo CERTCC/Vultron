@@ -59,10 +59,10 @@ from vultron.core.behaviors.case.nodes.participant.participant_add import (
     ResolveParticipantAcceptedStatusNode,
     SeedParticipantAsSignatoryNode,
 )
-from vultron.core.models.actor_config import ActorConfig
+from vultron.config.actor import ActorConfig
 from vultron.core.models.vultron_types import VultronCase
 from vultron.core.states.rm import RM
-from vultron.core.states.roles import CVDRole
+from vultron.enums.roles import CVDRole
 
 
 class SeedParticipantAsSignatoryIfEmbargoActiveNode(
@@ -70,7 +70,12 @@ class SeedParticipantAsSignatoryIfEmbargoActiveNode(
 ):
     """Conditional subtree for CM-14-005 signatory seeding behavior."""
 
-    def __init__(self, participant_actor_id: str, name: str | None = None):
+    def __init__(
+        self,
+        participant_actor_id: str,
+        report_id: str | None = None,
+        name: str | None = None,
+    ):
         super().__init__(
             name=name or self.__class__.__name__,
             memory=False,
@@ -79,13 +84,14 @@ class SeedParticipantAsSignatoryIfEmbargoActiveNode(
                     name="SeedWhenActiveEmbargo",
                     memory=False,
                     children=[
-                        CaseHasActiveEmbargoNode(),
+                        CaseHasActiveEmbargoNode(report_id=report_id),
                         SeedParticipantAsSignatoryNode(
-                            participant_actor_id=participant_actor_id
+                            participant_actor_id=participant_actor_id,
+                            report_id=report_id,
                         ),
                     ],
                 ),
-                CaseHasNoActiveEmbargoNode(),
+                CaseHasNoActiveEmbargoNode(report_id=report_id),
             ],
         )
 
@@ -115,10 +121,12 @@ class CreateCaseOwnerParticipant(py_trees.composites.Sequence):
                     case_obj=case_obj,
                     initial_rm_state=initial_rm_state,
                 ),
-                CreateOwnerParticipantNode(actor_config=actor_config),
-                AttachOwnerParticipantToCaseNode(),
-                PersistOwnerCaseNode(),
-                RecordOwnerJoinedEventNode(),
+                CreateOwnerParticipantNode(
+                    actor_config=actor_config, report_id=report_id
+                ),
+                AttachOwnerParticipantToCaseNode(report_id=report_id),
+                PersistOwnerCaseNode(report_id=report_id),
+                RecordOwnerJoinedEventNode(report_id=report_id),
                 py_trees.composites.Selector(
                     name="AdvanceOwnerRmIfConfigured",
                     memory=False,
@@ -130,7 +138,9 @@ class CreateCaseOwnerParticipant(py_trees.composites.Sequence):
                                 ShouldAdvanceOwnerToAcceptedNode(
                                     advance_to_accepted=advance_to_accepted
                                 ),
-                                AdvanceOwnerRmToAcceptedNode(),
+                                AdvanceOwnerRmToAcceptedNode(
+                                    report_id=report_id
+                                ),
                             ],
                         ),
                         py_trees.behaviours.Success(name="SkipAdvanceOwnerRm"),
@@ -167,14 +177,17 @@ class CreateCaseParticipantNode(py_trees.composites.Sequence):
                 CreateParticipantNode(
                     participant_actor_id=actor_id,
                     roles=roles,
+                    report_id=report_id,
                 ),
-                AttachParticipantToCaseNode(participant_actor_id=actor_id),
-                RecordParticipantAddedEventNode(),
+                AttachParticipantToCaseNode(
+                    participant_actor_id=actor_id, report_id=report_id
+                ),
+                RecordParticipantAddedEventNode(report_id=report_id),
                 SeedParticipantAsSignatoryIfEmbargoActiveNode(
-                    participant_actor_id=actor_id
+                    participant_actor_id=actor_id, report_id=report_id
                 ),
                 QueueAddParticipantNotificationNode(
-                    participant_actor_id=actor_id
+                    participant_actor_id=actor_id, report_id=report_id
                 ),
             ],
         )
