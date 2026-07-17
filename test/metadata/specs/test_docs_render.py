@@ -1,0 +1,402 @@
+"""Tests for vultron.metadata.specs.docs_render.render_for_kind (AC-1).
+
+Covers: priority badges, group/file headers, behavioral ECA blocks,
+cross-kind relationship links, ValueError for unknown/empty kind,
+and SpecTag.BEHAVIORAL detection.
+"""
+
+import yaml
+import pytest
+
+from vultron.metadata.specs.registry import load_registry
+from vultron.metadata.specs.schema import SpecKind, SpecTag
+from vultron.metadata.specs.docs_render import render_for_kind
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+GENERAL_YAML = {
+    "id": "GEN",
+    "title": "General Test Specs",
+    "description": "A general kind spec for testing docs_render",
+    "version": "0.1",
+    "kind": "general",
+    "scope": ["production"],
+    "groups": [
+        {
+            "id": "GEN-01",
+            "title": "General Group",
+            "description": "Tests the general kind page renderer",
+            "specs": [
+                {
+                    "id": "GEN-01-001",
+                    "priority": "MUST",
+                    "statement": "GEN-01-001 MUST render correctly",
+                    "rationale": "Required for docs coverage",
+                },
+                {
+                    "id": "GEN-01-002",
+                    "priority": "SHOULD",
+                    "statement": "GEN-01-002 SHOULD appear with a badge",
+                    "relationships": [
+                        {
+                            "rel_type": "satisfies",
+                            "spec_id": "GEN-01-001",
+                        }
+                    ],
+                },
+                {
+                    "id": "GEN-01-003",
+                    "priority": "MAY",
+                    "statement": "GEN-01-003 MAY be optional",
+                },
+                {
+                    "id": "GEN-01-004",
+                    "priority": "MUST_NOT",
+                    "statement": "GEN-01-004 MUST NOT do the bad thing",
+                },
+                {
+                    "id": "GEN-01-005",
+                    "priority": "SHOULD_NOT",
+                    "statement": "GEN-01-005 SHOULD NOT be used",
+                },
+            ],
+        }
+    ],
+}
+
+DOMAIN_YAML = {
+    "id": "DOM",
+    "title": "Domain Test Specs",
+    "description": "A domain kind spec with relationships",
+    "version": "0.1",
+    "kind": "domain",
+    "scope": ["production"],
+    "groups": [
+        {
+            "id": "DOM-01",
+            "title": "Domain Group",
+            "specs": [
+                {
+                    "id": "DOM-01-001",
+                    "priority": "MUST",
+                    "statement": "DOM-01-001 MUST cross-reference GEN-01-001",
+                    "relationships": [
+                        {
+                            "rel_type": "satisfies",
+                            "spec_id": "GEN-01-001",
+                            "note": "fulfills the general rule",
+                        }
+                    ],
+                }
+            ],
+        }
+    ],
+}
+
+BEHAVIORAL_YAML = {
+    "id": "BHV",
+    "title": "Behavioral Test Specs",
+    "description": "A domain spec with BehavioralSpec items",
+    "version": "0.1",
+    "kind": "domain",
+    "tags": ["behavioral"],
+    "scope": ["production"],
+    "groups": [
+        {
+            "id": "BHV-01",
+            "title": "Behavioral Group",
+            "trigger": {"type": "message_received", "value": "EP"},
+            "specs": [
+                {
+                    "id": "BHV-01-001",
+                    "priority": "MUST",
+                    "statement": "BHV-01-001 MUST fire on EP",
+                    "preconditions": [
+                        {
+                            "rm_state": ["ACCEPTED"],
+                            "em_state": ["NONE"],
+                            "cs_pattern": "vfd...",
+                            "description": "Actor is in RM Accepted, EM None, CS matches vfd...",
+                        }
+                    ],
+                    "steps": [
+                        {
+                            "order": 1,
+                            "actor": "Participant",
+                            "action": "Propose embargo",
+                            "expected": "EM transitions to PROPOSED",
+                        }
+                    ],
+                    "postconditions": [
+                        {"description": "EM state is PROPOSED"}
+                    ],
+                }
+            ],
+        }
+    ],
+}
+
+
+@pytest.fixture
+def general_registry(tmp_path):
+    (tmp_path / "gen.yaml").write_text(yaml.dump(GENERAL_YAML))
+    return load_registry(tmp_path)
+
+
+@pytest.fixture
+def cross_kind_registry(tmp_path):
+    (tmp_path / "gen.yaml").write_text(yaml.dump(GENERAL_YAML))
+    (tmp_path / "dom.yaml").write_text(yaml.dump(DOMAIN_YAML))
+    return load_registry(tmp_path)
+
+
+@pytest.fixture
+def behavioral_registry(tmp_path):
+    (tmp_path / "dom.yaml").write_text(yaml.dump(DOMAIN_YAML))
+    (tmp_path / "bhv.yaml").write_text(yaml.dump(BEHAVIORAL_YAML))
+    return load_registry(tmp_path)
+
+
+# ---------------------------------------------------------------------------
+# ValueError for unknown / empty kind
+# ---------------------------------------------------------------------------
+
+
+def test_render_for_kind_unknown_raises(general_registry):
+    with pytest.raises(ValueError, match="Unknown SpecKind"):
+        render_for_kind("nonexistent-kind", general_registry)
+
+
+def test_render_for_kind_no_matching_files_raises(general_registry):
+    """Requesting a kind with no files should raise ValueError."""
+    with pytest.raises(ValueError, match="No spec files with kind"):
+        render_for_kind("domain", general_registry)
+
+
+# ---------------------------------------------------------------------------
+# Priority badges
+# ---------------------------------------------------------------------------
+
+
+def test_render_for_kind_must_badge(general_registry):
+    md = render_for_kind("general", general_registry)
+    assert "**MUST**" in md
+
+
+def test_render_for_kind_should_badge(general_registry):
+    md = render_for_kind("general", general_registry)
+    assert "**SHOULD**" in md
+
+
+def test_render_for_kind_may_badge(general_registry):
+    md = render_for_kind("general", general_registry)
+    assert "**MAY**" in md
+
+
+def test_render_for_kind_must_not_badge(general_registry):
+    md = render_for_kind("general", general_registry)
+    assert "**MUST NOT**" in md
+
+
+def test_render_for_kind_should_not_badge(general_registry):
+    md = render_for_kind("general", general_registry)
+    assert "**SHOULD NOT**" in md
+
+
+# ---------------------------------------------------------------------------
+# Structure: file H2, group H3, spec IDs, statements
+# ---------------------------------------------------------------------------
+
+
+def test_render_for_kind_file_title_h2(general_registry):
+    md = render_for_kind("general", general_registry)
+    assert "## General Test Specs" in md
+
+
+def test_render_for_kind_group_title_h3(general_registry):
+    md = render_for_kind("general", general_registry)
+    assert "### General Group" in md
+
+
+def test_render_for_kind_spec_id_in_output(general_registry):
+    md = render_for_kind("general", general_registry)
+    assert "GEN-01-001" in md
+
+
+def test_render_for_kind_statement_in_output(general_registry):
+    md = render_for_kind("general", general_registry)
+    assert "MUST render correctly" in md
+
+
+def test_render_for_kind_rationale_in_output(general_registry):
+    md = render_for_kind("general", general_registry)
+    assert "Required for docs coverage" in md
+
+
+def test_render_for_kind_anchors_present(general_registry):
+    md = render_for_kind("general", general_registry)
+    assert 'id="gen-01-001"' in md
+
+
+# ---------------------------------------------------------------------------
+# Cross-kind relationship links
+# ---------------------------------------------------------------------------
+
+
+def test_render_for_kind_same_kind_link(cross_kind_registry):
+    """Relationship to a spec on the same kind page uses a bare anchor."""
+    md = render_for_kind("general", cross_kind_registry)
+    assert "#gen-01-001" in md
+
+
+def test_render_for_kind_cross_kind_link(cross_kind_registry):
+    """Relationship to a spec on a different kind page uses a relative URL."""
+    md = render_for_kind("domain", cross_kind_registry)
+    assert "../general/#gen-01-001" in md
+
+
+def test_render_for_kind_relationship_label(cross_kind_registry):
+    md = render_for_kind("domain", cross_kind_registry)
+    assert "Satisfies" in md
+
+
+def test_render_for_kind_relationship_note(cross_kind_registry):
+    md = render_for_kind("domain", cross_kind_registry)
+    assert "fulfills the general rule" in md
+
+
+# ---------------------------------------------------------------------------
+# Behavioral ECA block
+# ---------------------------------------------------------------------------
+
+
+def test_render_for_kind_behavioral_section_header(behavioral_registry):
+    md = render_for_kind("domain", behavioral_registry)
+    assert "## Behavioral Specifications" in md
+
+
+def test_render_for_kind_eca_details_block(behavioral_registry):
+    md = render_for_kind("domain", behavioral_registry)
+    assert '??? details "ECA Details"' in md
+
+
+def test_render_for_kind_precondition_text(behavioral_registry):
+    md = render_for_kind("domain", behavioral_registry)
+    assert "Actor is in RM Accepted" in md
+
+
+def test_render_for_kind_precondition_rm_state(behavioral_registry):
+    md = render_for_kind("domain", behavioral_registry)
+    assert "RM state: `ACCEPTED`" in md
+
+
+def test_render_for_kind_precondition_cs_pattern(behavioral_registry):
+    md = render_for_kind("domain", behavioral_registry)
+    assert "CS pattern: `vfd...`" in md
+
+
+def test_render_for_kind_step_text(behavioral_registry):
+    md = render_for_kind("domain", behavioral_registry)
+    assert "Propose embargo" in md
+
+
+def test_render_for_kind_step_expected(behavioral_registry):
+    md = render_for_kind("domain", behavioral_registry)
+    assert "EM transitions to PROPOSED" in md
+
+
+def test_render_for_kind_postcondition_text(behavioral_registry):
+    md = render_for_kind("domain", behavioral_registry)
+    assert "EM state is PROPOSED" in md
+
+
+def test_render_for_kind_trigger_line(behavioral_registry):
+    md = render_for_kind("domain", behavioral_registry)
+    assert "Message Received" in md
+    assert "`EP`" in md
+
+
+# ---------------------------------------------------------------------------
+# SpecTag.BEHAVIORAL enum value
+# ---------------------------------------------------------------------------
+
+
+def test_spec_tag_behavioral_value():
+    assert SpecTag.BEHAVIORAL == "behavioral"
+
+
+def test_spec_tag_behavioral_in_enum():
+    assert SpecTag.BEHAVIORAL in list(SpecTag)
+
+
+# ---------------------------------------------------------------------------
+# SpecFile.tags field acceptance
+# ---------------------------------------------------------------------------
+
+
+def test_spec_file_tags_field_accepted(behavioral_registry):
+    bhv_file = next(f for f in behavioral_registry.files if f.id == "BHV")
+    assert bhv_file.tags is not None
+    assert SpecTag.BEHAVIORAL in bhv_file.tags
+
+
+def test_spec_file_tags_none_by_default(general_registry):
+    gen_file = general_registry.files[0]
+    assert gen_file.tags is None
+
+
+# ---------------------------------------------------------------------------
+# BehavioralSpec validator does not shadow StatementSpec validator
+# ---------------------------------------------------------------------------
+
+
+def test_behavioral_spec_empty_scope_raises():
+    """BehavioralSpec must still reject scope=[] (parent validator not shadowed)."""
+    from vultron.metadata.specs.schema import BehavioralSpec, RFC2119Priority
+
+    with pytest.raises(Exception):
+        BehavioralSpec(
+            id="BHV-01-001",
+            priority=RFC2119Priority.MUST,
+            statement="test",
+            scope=[],
+        )
+
+
+def test_behavioral_spec_empty_preconditions_raises():
+    """BehavioralSpec rejects preconditions=[] via its own validator."""
+    from vultron.metadata.specs.schema import (
+        BehavioralSpec,
+        RFC2119Priority,
+        Scope,
+    )
+
+    with pytest.raises(Exception):
+        BehavioralSpec(
+            id="BHV-01-001",
+            priority=RFC2119Priority.MUST,
+            statement="test",
+            scope=[Scope.PRODUCTION],
+            preconditions=[],
+        )
+
+
+# ---------------------------------------------------------------------------
+# All SpecKind values produce output via real registry
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("kind", list(SpecKind))
+def test_render_for_kind_real_registry_produces_output(kind: SpecKind):
+    """Every SpecKind must render non-empty output from the real spec registry."""
+    registry = load_registry()
+    md = render_for_kind(kind.value, registry)
+    assert len(md) > 0
+    # At minimum one spec ID pattern should appear
+    import re
+
+    assert re.search(
+        r"[A-Z]{2,8}-\d{2}-\d{3}", md
+    ), f"No spec IDs found in rendered output for kind={kind.value!r}"

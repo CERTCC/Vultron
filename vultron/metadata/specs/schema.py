@@ -155,6 +155,7 @@ class SpecTag(StrEnum):
     TESTING = "testing"
     TOOLING = "tooling"
     WIRE_FORMAT = "wire-format"
+    BEHAVIORAL = "behavioral"
 
 
 class LintWarningCode(StrEnum):
@@ -252,7 +253,9 @@ class BehavioralSpec(StatementSpec):
 
     @field_validator("preconditions", "steps", "postconditions")
     @classmethod
-    def _nonempty_if_present(cls, v: list | None, info: object) -> list | None:
+    def _behavioral_nonempty_if_present(
+        cls, v: list | None, info: object
+    ) -> list | None:
         if v is not None and len(v) == 0:
             field_name = getattr(info, "field_name", "list field")
             raise ValueError(f"{field_name} must be non-empty if present")
@@ -310,6 +313,7 @@ class SpecFile(BaseModel):
     version: NonEmptyStr
     kind: SpecKind
     scope: list[Scope]
+    tags: list[SpecTag] | None = None
     groups: list[SpecGroup]
 
     @field_validator("scope")
@@ -317,6 +321,13 @@ class SpecFile(BaseModel):
     def _scope_nonempty(cls, v: list) -> list:
         if not v:
             raise ValueError("scope must not be empty")
+        return v
+
+    @field_validator("tags")
+    @classmethod
+    def _tags_nonempty_if_present(cls, v: list | None) -> list | None:
+        if v is not None and len(v) == 0:
+            raise ValueError("tags must be non-empty if present")
         return v
 
     @field_validator("groups")

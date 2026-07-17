@@ -12,6 +12,8 @@ description: >-
   See also: notes/behavioral-conformance-specs.md for design rationale.
 version: 0.1.0
 kind: domain
+tags:
+- behavioral
 scope:
 - prototype
 - production
