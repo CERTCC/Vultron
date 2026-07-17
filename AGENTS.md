@@ -830,6 +830,25 @@ Short entries are reproduced here; longer ones are referenced below.
   `specs/datalayer.yaml` DL-05-001 through DL-05-004, and
   [notes/datalayer-design.md](notes/datalayer-design.md) § "Read Path MUST
   Return Core Objects".
+- **Core MUST NOT Re-Read a Wire Activity for Semantic Content — Split
+  Semantic vs. Envelope Needs** — `dl.read(activity_id)` in `vultron/core/` to
+  recover a domain fact from a stored AS2 Activity (e.g. reading a stored
+  `Offer` for its embedded report, or an `Invite` for its case/embargo id) is a
+  boundary violation (ARCH-09-001, ARCH-03-001): the activity is being used as
+  the system of record for a fact that should live in core. The domain fact MUST
+  be captured as **core state** at the point the extractor first interprets the
+  inbound activity, and core reads it from there; message-to-message correlation
+  (Accept→Invite) MUST resolve through a **core-entity relationship**, never a
+  wire re-read. This is NOT a license to clone each AS2 Activity into a 1:1 core
+  class — model only the domain fact, in domain vocabulary. Reading a stored
+  activity back is sanctioned ONLY to reconstitute the **verbatim original**
+  envelope for an outbound reply's inline `object_` (activity ids are
+  non-regenerable `urn:uuid:` values and the Actor Knowledge Model requires the
+  full inline original), and ONLY via a wire/adapter-owned seam that treats the
+  payload as opaque — never core interpreting it. See ADR-0035,
+  `specs/datalayer.yaml` DL-06-001 through DL-06-005, and
+  [notes/datalayer-design.md](notes/datalayer-design.md) § "Activity Read-Back:
+  Semantic Content vs. Envelope Reconstitution".
 - **Emit Nodes in Case-Scoped Trigger BTs Must Fail Fast on Missing CaseActor**
   — After switching case-scoped trigger routing from `case_addressees()` to
   CaseActor-only routing, emit nodes must fail fast (FAILURE or immediate
