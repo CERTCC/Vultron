@@ -1,12 +1,10 @@
 id: CP
 title: CaseProposal Protocol
 description: >-
-  Requirements for the CaseProposal protocol flow, which separates the act of
-  requesting case initialization from the act of creating the case. Covers the
-  `as_CaseProposal` wire vocabulary type, the `Create(CaseProposal)` /
-  `Accept(CaseProposal)` / `Reject(CaseProposal)` message flow, and the
-  corresponding MessageSemantics values and received-side use cases.
-  ADR: `docs/adr/0023-case-proposal-protocol.md`.
+  Requirements for the CaseProposal protocol flow, which separates the act of requesting
+  case initialization from the act of creating the case. Covers the wire vocabulary type,
+  the Create/Accept/Reject message flow, and the corresponding MessageSemantics values
+  and received-side use cases.
 version: 1.0.0
 kind: domain
 scope:

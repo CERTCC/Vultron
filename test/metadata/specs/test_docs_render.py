@@ -279,7 +279,7 @@ def test_render_for_kind_behavioral_section_header(behavioral_registry):
 
 def test_render_for_kind_eca_details_block(behavioral_registry):
     md = render_for_kind("domain", behavioral_registry)
-    assert '??? details "ECA Details"' in md
+    assert "<details><summary>ECA Details</summary>" in md
 
 
 def test_render_for_kind_precondition_text(behavioral_registry):

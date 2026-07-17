@@ -1,10 +1,9 @@
 id: DUR
 title: Duration
 description: >-
-  Requirements for a canonical representation of **time durations independent of start/end
-  timestamps**. Applicable wherever a duration must be exchanged in JSON (e.g., embargo policy
-  records, embargo initialization at case creation). `specs/code-style.md` CS-13-005 (datetime
-  wire format)
+  Requirements for a canonical representation of time durations independent of start/end
+  timestamps. Applicable wherever a duration must be exchanged in JSON, such as embargo
+  policy records and embargo initialization at case creation.
 version: 1.0.0
 kind: domain
 scope:

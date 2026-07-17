@@ -1,9 +1,9 @@
 id: UCORG
 title: Use-Case Organization
 description: >-
-  Requirements for the physical package layout of `vultron/core/use_cases/`, registry synchronization,
-  test mirroring, and documentation of the trigger → received → sync information flow pattern.
-  `specs/handler-protocol.md`
+  Requirements for the physical package layout of the use_cases package, registry
+  synchronization, test mirroring, and documentation of the trigger-to-received-to-sync
+  information flow pattern.
 version: 1.0.0
 kind: implementation
 scope:

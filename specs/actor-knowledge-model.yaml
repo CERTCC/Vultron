@@ -1,14 +1,11 @@
 id: AKM
 title: Actor Knowledge Model
 description: >-
-  This specification defines the **Actor Knowledge Model** — the principle that a Vultron
-  Actor's knowledge of the world is strictly bounded by the ActivityStreams 2.0 activities
-  it has received. Actors MUST NOT assume recipients have objects that have not been explicitly
-  included in prior activities. DataLayer access is private and non-shareable; all inter-Actor
-  communication occurs exclusively through the AS2 wire protocol. **Consolidates**: `specs/case-management.md`
-  CM-01-001 (actor isolation), `specs/message-validation.md` MV-09-001 (full inline object
-  requirement) `specs/case-management.md` CM-01-001, `specs/outbox.md` OX-07-002, `specs/multi-actor-demo.md`
-  DEMOMA-00-001
+  Defines the Actor Knowledge Model: a Vultron Actor's knowledge of the world is strictly
+  bounded by the ActivityStreams 2.0 activities it has received. Actors must not assume
+  recipients hold objects that were not explicitly included in prior activities; DataLayer
+  access is private and non-shareable, and all inter-Actor communication occurs exclusively
+  through the AS2 wire protocol.
 version: 1.0.0
 kind: domain
 scope:

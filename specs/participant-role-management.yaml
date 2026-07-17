@@ -1,11 +1,10 @@
 id: PRM
 title: Participant Role Management
-description: >
-  Defines the API for reading and mutating CVD roles on VultronParticipant
-  (core domain) and CaseParticipant (wire layer). Requires consistent
-  role-management methods on both classes, prohibits direct case_roles
-  attribute mutation in core code after construction, and mandates test
-  coverage for each method. Source: IDEA-26050401.
+description: >-
+  Defines the API for reading and mutating CVD roles on VultronParticipant (core domain)
+  and CaseParticipant (wire layer). Requires consistent role-management methods on both
+  classes, prohibits direct attribute mutation after construction, and mandates test
+  coverage for each method.
 version: 1.0.0
 kind: domain
 scope:

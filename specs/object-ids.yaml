@@ -2,8 +2,8 @@ id: OID
 title: Object ID
 description: >-
   Requirements for the format and handling of object identifiers throughout the Vultron system.
-  Establishes full-URI IDs as the canonical form for all ActivityStreams objects and DataLayer
-  records (see notes/codebase-structure.md "Actor IDs Must Always Be Full URIs").
+  Establishes full-URI IDs as the canonical form for all ActivityStreams objects and
+  DataLayer records.
 version: 1.0.0
 kind: domain
 scope:

@@ -1,15 +1,10 @@
 id: RMB
 title: Report Management Behavioral Requirements
 description: >-
-  Event-Condition-Action behavioral requirements for Report Management (RM).
-  Each group is triggered by either a received RM message or a local RM state
-  transition. Items are BehavioralSpec entries with typed preconditions and
-  ordered steps where sequencing is normatively required.
-  **Sources**: docs/reference/formal_protocol/transitions.md (RM tables),
-  specs/vultron-protocol-spec.yaml (VP-02, VP-03, VP-13),
-  docs/topics/behavior_logic/rm_bt.md, msg_rm_bt.md, rm_validation_bt.md,
-  rm_prioritization_bt.md, rm_closure_bt.md.
-  See also: notes/behavioral-conformance-specs.md for design rationale.
+  Event-Condition-Action behavioral requirements for Report Management (RM). Each group
+  is triggered by either a received RM message or a local RM state transition, and
+  specifies typed preconditions, ordered steps, and postconditions that implementations
+  must satisfy.
 version: 0.1.0
 kind: domain
 tags:
@@ -20,7 +15,7 @@ scope:
 groups:
 - id: RMB-01
   title: Receive RS (Report Submission)
-  description: Wire-type mapping — see MSM-01-001 (RS → SUBMIT_REPORT → Offer(VulnerabilityReport)).
+  description: Behaviors triggered when a participant receives an RS (Report Submission) message, including RM state transition from Start to Received and vendor CS awareness update.
   trigger:
     type: message_received
     value: RS
@@ -213,7 +208,7 @@ groups:
 
 - id: RMB-02
   title: Receive RI (Report Invalid)
-  description: Wire-type mapping — see MSM-01-002 (RI → INVALIDATE_REPORT → TentativeReject(Offer(VulnerabilityReport))).
+  description: Behaviors triggered when a participant receives an RI (Report Invalid) message, updating the sender's RM state model and acknowledging receipt.
   trigger:
     type: message_received
     value: RI
@@ -301,7 +296,7 @@ groups:
 
 - id: RMB-03
   title: Receive RV (Report Valid)
-  description: Wire-type mapping — see MSM-01-003 (RV → VALIDATE_REPORT → Accept(Offer(VulnerabilityReport))).
+  description: Behaviors triggered when a participant receives an RV (Report Valid) message, updating the sender's RM state model and acknowledging receipt.
   trigger:
     type: message_received
     value: RV
@@ -388,7 +383,7 @@ groups:
 
 - id: RMB-04
   title: Receive RD (Report Deferred)
-  description: Wire-type mapping — see MSM-01-004 (RD → DEFER_CASE → Ignore(VulnerabilityCase)).
+  description: Behaviors triggered when a participant receives an RD (Report Deferred) message, updating the sender's RM state model and acknowledging receipt.
   trigger:
     type: message_received
     value: RD
@@ -474,7 +469,7 @@ groups:
 
 - id: RMB-05
   title: Receive RA (Report Accepted)
-  description: Wire-type mapping — see MSM-01-005 (RA → ENGAGE_CASE → Join(VulnerabilityCase)).
+  description: Behaviors triggered when a participant receives an RA (Report Accepted) message, updating the sender's RM state model to Accepted and acknowledging receipt.
   trigger:
     type: message_received
     value: RA
@@ -562,7 +557,7 @@ groups:
 
 - id: RMB-06
   title: Receive RC (Report Closed)
-  description: Wire-type mapping — see MSM-01-006 (RC → CLOSE_REPORT → Reject(Offer(VulnerabilityReport))).
+  description: Behaviors triggered when a participant receives an RC (Report Closed) message, updating the sender's RM state model to Closed and acknowledging receipt.
   trigger:
     type: message_received
     value: RC
@@ -676,9 +671,7 @@ groups:
 
 - id: RMB-07
   title: Receive RE (Report Error)
-  description: >-
-    Wire-type mapping — see MSM-01-007 (RE has no dedicated MessageSemantics
-    dispatch value and no AS2 wire representation in the current semantic registry).
+  description: Behaviors triggered when a participant receives an RE (Report Management Error) signal, which has no dedicated semantic dispatch value and is handled outside the standard AS2 pattern-matching pipeline.
   trigger:
     type: message_received
     value: RE
@@ -764,7 +757,7 @@ groups:
 
 - id: RMB-08
   title: Receive RK (Report Acknowledgment)
-  description: Wire-type mapping — see MSM-01-008 (RK → ACK_REPORT → Read(Offer(VulnerabilityReport))).
+  description: Behaviors triggered when a participant receives an RK (Report Management Acknowledgment) message confirming receipt of a prior RM message.
   trigger:
     type: message_received
     value: RK

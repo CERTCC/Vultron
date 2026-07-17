@@ -1,18 +1,10 @@
 id: EMB
 title: Embargo Management Behavioral Requirements
 description: >-
-  Event-Condition-Action behavioral requirements for Embargo Management (EM).
-  Each group is triggered by either a received EM message or a local EM state
-  transition. Items are BehavioralSpec entries with typed preconditions and
-  ordered steps where sequencing is normatively required.
-  **Sources**: docs/reference/formal_protocol/transitions.md (EM tables),
-  specs/vultron-protocol-spec.yaml (VP-04 through VP-11, VP-13),
-  docs/topics/behavior_logic/em_bt.md, em_propose_bt.md, em_eval_bt.md,
-  em_terminate_bt.md, msg_em_bt.md.
-  See also: notes/behavioral-conformance-specs.md for design rationale.
-  Note: EMB and CSB (cs-behavior.yaml) are developed together because CS
-  cascade chains (enter-cs-p -> embargo teardown) reference EM behavior
-  directly.
+  Event-Condition-Action behavioral requirements for Embargo Management (EM). Each group
+  is triggered by either a received EM message or a local EM state transition, and
+  specifies typed preconditions, ordered steps, and postconditions that implementations
+  must satisfy.
 version: 0.1.0
 kind: domain
 tags:
@@ -23,9 +15,7 @@ scope:
 groups:
 - id: EMB-01
   title: Receive EP (Embargo Proposed)
-  description: >-
-    Wire-type mapping — see MSM-02-001 (EP → INVITE_TO_EMBARGO_ON_CASE →
-    Invite(Event)[context=VulnerabilityCase]).
+  description: Behaviors triggered when a participant receives an EP (Embargo Proposed) message, transitioning EM state to Proposed and acknowledging receipt.
   trigger:
     type: message_received
     value: EP
@@ -194,9 +184,7 @@ groups:
 
 - id: EMB-02
   title: Receive EA (Embargo Accepted)
-  description: >-
-    Wire-type mapping — see MSM-02-002 (EA → ACCEPT_INVITE_TO_EMBARGO_ON_CASE →
-    Accept(Invite(Event)[context=VulnerabilityCase])).
+  description: Behaviors triggered when a participant receives an EA (Embargo Accepted) message, transitioning EM state to Active and acknowledging receipt.
   trigger:
     type: message_received
     value: EA
@@ -304,9 +292,7 @@ groups:
 
 - id: EMB-03
   title: Receive EV (Embargo Revision Proposed)
-  description: >-
-    Wire-type mapping — see MSM-02-003 (EV → INVITE_TO_EMBARGO_ON_CASE →
-    Invite(Event)[context=VulnerabilityCase]; same wire form as EP).
+  description: Behaviors triggered when a participant receives an EV (Embargo Revision Proposed) message while an embargo is active, transitioning EM state to Revise and acknowledging receipt.
   trigger:
     type: message_received
     value: EV
@@ -428,9 +414,7 @@ groups:
 
 - id: EMB-04
   title: Receive EJ (Embargo Revision Rejected)
-  description: >-
-    Wire-type mapping — see MSM-02-004 (EJ → REJECT_INVITE_TO_EMBARGO_ON_CASE →
-    Reject(Invite(Event)[context=VulnerabilityCase]); same wire form as ER).
+  description: Behaviors triggered when a participant receives an EJ (Embargo Revision Rejected) message, reverting EM state from Revise to Active and acknowledging receipt.
   trigger:
     type: message_received
     value: EJ
@@ -511,9 +495,7 @@ groups:
 
 - id: EMB-05
   title: Receive EC (Embargo Revision Accepted)
-  description: >-
-    Wire-type mapping — see MSM-02-005 (EC → ACCEPT_INVITE_TO_EMBARGO_ON_CASE →
-    Accept(Invite(Event)[context=VulnerabilityCase]); same wire form as EA).
+  description: Behaviors triggered when a participant receives an EC (Embargo Revision Accepted) message, advancing EM state from Revise back to Active with updated terms and acknowledging receipt.
   trigger:
     type: message_received
     value: EC
@@ -595,9 +577,7 @@ groups:
 
 - id: EMB-06
   title: Receive ER (Embargo Rejected)
-  description: >-
-    Wire-type mapping — see MSM-02-006 (ER → REJECT_INVITE_TO_EMBARGO_ON_CASE →
-    Reject(Invite(Event)[context=VulnerabilityCase])).
+  description: Behaviors triggered when a participant receives an ER (Embargo Rejected) message, transitioning EM state from Proposed to None and acknowledging receipt.
   trigger:
     type: message_received
     value: ER
@@ -639,7 +619,7 @@ groups:
 
 - id: EMB-07
   title: Receive ET (Embargo Terminated)
-  description: Wire-type mapping — see MSM-02-007 (ET → REMOVE_EMBARGO_EVENT_FROM_CASE → Remove(Event)).
+  description: Behaviors triggered when a participant receives an ET (Embargo Terminated) message, transitioning EM state to Terminated and acknowledging receipt.
   trigger:
     type: message_received
     value: ET
@@ -740,9 +720,7 @@ groups:
 
 - id: EMB-08
   title: Receive EE (Embargo Error)
-  description: >-
-    Wire-type mapping — see MSM-02-008 (EE has no dedicated MessageSemantics
-    dispatch value and no AS2 wire representation in the current semantic registry).
+  description: Behaviors triggered when a participant receives an EE (Embargo Management Error) signal, which has no dedicated semantic dispatch value and is handled outside the standard AS2 pattern-matching pipeline.
   trigger:
     type: message_received
     value: EE
@@ -781,9 +759,7 @@ groups:
 
 - id: EMB-09
   title: Receive EK (Embargo Acknowledgment)
-  description: >-
-    Wire-type mapping — see MSM-02-009 (EK has no dedicated MessageSemantics
-    dispatch value and no AS2 wire representation in the current semantic registry).
+  description: Behaviors triggered when a participant receives an EK (Embargo Management Acknowledgment) passthrough signal, which has no dedicated semantic dispatch value and requires no state transition.
   trigger:
     type: message_received
     value: EK

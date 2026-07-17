@@ -1,24 +1,10 @@
 id: VAM
 title: Vultron Semantic–AS2 Mapping
 description: >-
-  This specification defines the authoritative mapping from each Vultron semantic message
-  type (`MessageSemantics` enum value) to its ActivityStreams 2.0 (AS2) wire representation.
-  It is the single source of truth for how Vultron domain semantics are encoded as AS2 activity
-  structures, and is a key part of maintaining the hexagonal architecture: core domain logic
-  and case-state machines depend only on `MessageSemantics` values; transport and representation
-  concerns (AS2 pattern matching, JSON-LD serialization, and wire encoding) are isolated to
-  the wire layer. If a future transport other than AS2 is adopted, a new mapping document
-  of this form MUST be produced, and `vultron/wire/as2/extractor.py` MUST remain the sole
-  implementation location for the AS2 mapping. `SEMANTICS_ACTIVITY_PATTERNS`), `vultron/core/models/events/base.py`
-  (`MessageSemantics` enum), `notes/activitystreams-semantics.md` **Notation used in this
-  document**: - `Verb(Object)` — an AS2 activity of type `Verb` whose `object` field is of
-  type `Object` - `Verb(Object)[field=Type]` — the activity additionally requires `field`
-  to be of type `Type` (e.g., `target=VulnerabilityCase`) - `Verb(Verb2(Object)[…])` — a nested
-  pattern: the outer activity's `object` field is itself an activity matching the inner pattern;
-  the inner pattern is matched against the rehydrated `object` field - AS2 core types are
-  rendered in `CamelCase` without a namespace prefix (e.g., `Note`, `Event`, `Actor`) - Vultron
-  domain types are prefixed implicitly by the Vultron namespace (e.g., `VulnerabilityReport`,
-  `VulnerabilityCase`, `CaseParticipant`, `CaseStatus`, `ParticipantStatus`)
+  Defines the authoritative mapping from each Vultron semantic message type (MessageSemantics
+  enum value) to its ActivityStreams 2.0 wire representation. This is the single source of
+  truth for how Vultron domain semantics are encoded as AS2 activity structures, isolating
+  transport and wire-encoding concerns from the core domain logic and case-state machines.
 version: 1.0.0
 kind: domain
 scope:

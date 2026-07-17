@@ -1,13 +1,10 @@
 id: CBT
 title: Case Bootstrap Trust
 description: >-
-  Requirements for establishing trust in a `VulnerabilityCase` and its
-  `CaseActor` at non-owner sites. Source: 2026-05-06 design conversation about
-  #440 and #457. Scope note: this spec governs trust establishment for
-  non-owner participants and refines the bootstrap assumptions in
-  `specs/participant-case-replica.yaml`; it does not replace the ongoing
-  single-writer and replica-routing rules in PCR or the log-replication
-  transport rules in `specs/sync-ledger-replication.yaml`.
+  Requirements for establishing trust in a VulnerabilityCase and its CaseActor at
+  non-owner sites. Governs the bootstrap process by which a non-owner participant
+  verifies that an incoming case and its managing actor are legitimate before
+  accepting case state updates.
 version: 1.0.0
 kind: domain
 scope:

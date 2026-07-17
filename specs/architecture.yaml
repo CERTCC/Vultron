@@ -1,10 +1,11 @@
 id: ARCH
 title: Architecture
-description: 'Defines the architectural constraints for the Vultron codebase. The system follows **Hexagonal Architecture**
-  (Ports and Adapters): the core domain is isolated from all external systems. External systems interact with the core through
-  defined **ports**, via thin **adapters**. `archived_notes/architecture-review.md` prevention), `notes/domain-model-separation.md`
-  (wire/domain/persistence separation), `archived_notes/architecture-review.md` (violation inventory and remediation history),
-  `docs/adr/0009-hexagonal-architecture.md` (decision rationale)'
+description: >-
+  Defines the architectural constraints for the Vultron codebase. The system follows hexagonal
+  architecture (Ports and Adapters): the core domain is isolated from all external systems,
+  which interact through defined ports via thin adapters. Covers layer separation rules,
+  the shared-base object hierarchy, domain model richness, and the fail-fast validation
+  boundary.
 version: 1.0.0
 kind: pattern
 scope:
@@ -316,14 +317,11 @@ groups:
       of construction
 - id: ARCH-15
   title: Fail-Fast at Domain Operation Boundaries
-  description: >
-    Extends ARCH-10-001. While ARCH-10 covers structural validation at Pydantic
-    construction time, ARCH-15 governs relational invariants enforced at runtime
-    entry points: use-case execute(), BT node update(), and helper functions that
-    require non-None resolved values. See notes/domain-validation.md for the
-    strict/loose distinction and canonical patterns, and ADR-0032
-    (docs/adr/0032-validate-at-edge-promote-to-core.md) for the architectural
-    decision that motivates this group.
+  description: >-
+    Governs relational invariants enforced at runtime entry points — use-case execute(),
+    BT node update(), and helper functions that require non-None resolved values. Extends
+    the construction-time fail-fast rule to cover checks that can only be performed at
+    the point of invocation, not at object construction.
   specs:
   - id: ARCH-15-001
     priority: MUST

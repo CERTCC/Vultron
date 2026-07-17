@@ -1,17 +1,12 @@
 id: MSM
 title: Protocol Shorthand to MessageSemantics Mapping
 description: >-
-  Authoritative normative bridge from protocol message shorthand labels
-  (RS, EP, CV, etc.) used in behavioral conformance specs (RMB, EMB, CSB) to
-  their `MessageSemantics` enum values and corresponding AS2 wire-format
-  specifications in `specs/vultron-as2-mapping.yaml` (VAM). Each entry
-  provides one row in the three-hop chain: shorthand → `MessageSemantics`
-  enum value → VAM spec ID. Shorthands with no dedicated `MessageSemantics`
-  dispatch value (protocol-layer error and acknowledgment signals) are
-  explicitly documented as such. **Authoritative source**: the extractor
-  pattern constants in `vultron/wire/as2/extractor/_instances.py` and the
-  semantic registry in `vultron/semantic_registry/` define the mapping; this
-  spec makes it normative at the protocol layer.
+  Authoritative normative bridge from protocol message shorthand labels (RS, EP, CV,
+  etc.) used in behavioral conformance specs to their MessageSemantics enum values and
+  corresponding AS2 wire-format specifications. Each entry provides one row in the
+  three-hop chain: shorthand to MessageSemantics enum value to AS2 wire form. Shorthands
+  with no dedicated dispatch value (protocol-layer error and acknowledgment signals)
+  are explicitly documented as such.
 version: 0.1.0
 kind: domain
 scope:
@@ -20,12 +15,7 @@ scope:
 groups:
 - id: MSM-01
   title: RM Protocol Message Shorthands
-  description: >-
-    Normative shorthand-to-semantic mappings for Report Management (RM)
-    protocol messages. These shorthands appear as `trigger.value` fields in
-    `specs/rm-behavior.yaml` (RMB). The mapping source is the report and case
-    entries in `vultron/semantic_registry/report.py` and
-    `vultron/semantic_registry/case.py`.
+  description: Normative shorthand-to-semantic mappings for Report Management (RM) protocol messages, covering RS, RI, RV, RD, RA, RC, RE, and RK.
   specs:
   - id: MSM-01-001
     priority: MUST
@@ -117,13 +107,10 @@ groups:
 - id: MSM-02
   title: EM Protocol Message Shorthands
   description: >-
-    Normative shorthand-to-semantic mappings for Embargo Management (EM)
-    protocol messages. These shorthands appear as `trigger.value` fields in
-    `specs/em-behavior.yaml` (EMB). The mapping source is
-    `vultron/semantic_registry/embargo.py`. Note: embargo revision shorthands
-    (EV, EJ, EC) share wire formats with their initial-proposal counterparts
-    (EP, ER, EA); the distinction is contextual (active embargo present),
-    not structural at the AS2 wire level.
+    Normative shorthand-to-semantic mappings for Embargo Management (EM) protocol messages,
+    covering EP, EA, EV, EJ, EC, ER, ET, EE, and EK. Embargo revision shorthands (EV, EJ,
+    EC) share wire formats with their initial-proposal counterparts (EP, ER, EA); the
+    distinction is contextual rather than structural.
   specs:
   - id: MSM-02-001
     priority: MUST
@@ -227,13 +214,10 @@ groups:
 - id: MSM-03
   title: CS Protocol Message Shorthands
   description: >-
-    Normative shorthand-to-semantic mappings for CVD Case State (CS)
-    protocol messages. These shorthands appear as `trigger.value` fields in
-    `specs/cs-behavior.yaml` (CSB). The mapping source is
-    `vultron/semantic_registry/status.py`. CS status shorthands (CV, CF, CD,
-    CP, CX, CA) all share the `ADD_CASE_STATUS_TO_CASE` semantic; the
-    specific state transition is encoded in the `CaseStatus` object payload,
-    not in the activity type.
+    Normative shorthand-to-semantic mappings for CVD Case State (CS) protocol messages,
+    covering CV, CF, CD, CP, CX, CA, CE, and CK. All CS status shorthands (CV through CA)
+    share the ADD_CASE_STATUS_TO_CASE semantic; the specific state transition is encoded
+    in the CaseStatus object payload rather than in the activity type.
   specs:
   - id: MSM-03-001
     priority: MUST

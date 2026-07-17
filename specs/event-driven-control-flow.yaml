@@ -1,12 +1,9 @@
 id: EDF
 title: Event-Driven Control Flow
 description: >-
-  This specification defines the event-driven processing model for Vultron actors: how primary
-  events enter the system, how cascading consequences are produced automatically, and what
-  constraints apply to demo scripts and integration tests. **See also**: `specs/behavior-tree-integration.md`
-  (BT cascade mechanism), `specs/outbox.md` (outbox delivery), `notes/event-driven-control-flow.md`
-  (conceptual actor model and design rationale), `notes/protocol-event-cascades.md` (concrete
-  cascade gap inventory)
+  Defines the event-driven processing model for Vultron actors: how primary events enter
+  the system, how cascading consequences are produced automatically, and what constraints
+  apply to demo scripts and integration tests.
 version: 1.0.0
 kind: pattern
 scope:

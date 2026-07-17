@@ -3,7 +3,7 @@ title: Handler Protocol
 description: Handler use-case classes process `VultronEvent` domain objects and implement protocol business logic. All handlers
   follow a common contract defined by the `UseCase` Protocol.
 version: 1.0.0
-kind: domain
+kind: pattern
 scope:
 
 - prototype

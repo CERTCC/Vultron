@@ -3,9 +3,7 @@ title: Embargo Policy
 description: >-
   Requirements for a standardized embargo policy record associated with an Actor profile.
   Allows actors to declare their default embargo preferences so that coordinators can evaluate
-  compatibility before proposing an embargo or inviting an actor to a case. Coordination",
-  "Prior Art and References (Embargo Policy)") `agentic-readiness.md`, `duration.md` (duration
-  string format)
+  compatibility before proposing an embargo or inviting an actor to a case.
 version: 1.0.0
 kind: domain
 scope:

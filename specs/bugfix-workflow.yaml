@@ -1,9 +1,8 @@
 id: BFW
 title: Bugfix Workflow
 description: >-
-  Requirements for the agent bugfix skill: root-cause depth analysis, user engagement, escalation
-  of discovered issues, and lifecycle archiving of completed bug fixes. IDEA-26042202 (bug
-  archiving)
+  Requirements for the agent bugfix skill: root-cause depth analysis, user engagement,
+  escalation of discovered issues, and lifecycle archiving of completed bug fixes.
 version: 1.0.0
 kind: dev-process
 scope:

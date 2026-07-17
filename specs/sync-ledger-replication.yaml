@@ -1,10 +1,9 @@
 id: SYNC
 title: Case Event Log Synchronization
-description: Requirements for the append-only canonical recorded case ledger, replication transport, conflict handling, per-peer
-  state tracking, and retry semantics for distributed case state synchronization across Participant Actors. SYNC-4), `plan/IMPLEMENTATION_NOTES.md`
-  (2026-03-26 SYNC design notes) `specs/case-ledger-processing.md`, `specs/outbox.md`, `specs/idempotency.md` `notes/sync-ledger-replication.md`
-  capturing the RAFT-inspired design notes. A `notes/` file is the appropriate place for design approach details; this spec
-  captures the normative requirements.
+description: >-
+  Requirements for the append-only canonical recorded case ledger, replication transport,
+  conflict handling, per-peer state tracking, and retry semantics for distributed case
+  state synchronization across Participant Actors.
 version: 1.0.0
 kind: domain
 scope:

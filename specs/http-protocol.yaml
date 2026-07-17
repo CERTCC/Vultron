@@ -1,9 +1,6 @@
 id: HTTP
 title: HTTP Protocol Requirements
-description: >-
-  Consolidated HTTP protocol requirements for Vultron API v2: status codes, headers, content
-  negotiation. **Consolidates**: `inbox-endpoint.md` (IE-03, IE-07), `message-validation.md`
-  (MV-06, MV-07), `error-handling.md` (EH-06), `agentic-readiness.md` (AR-03-002)
+description: HTTP protocol requirements for the Vultron API, covering status codes, headers, and content negotiation.
 version: 1.0.0
 kind: pattern
 scope:

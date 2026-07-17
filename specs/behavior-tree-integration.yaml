@@ -1,14 +1,11 @@
 id: BT
 title: Behavior Tree Integration
 description: >-
-  Handler functions may orchestrate business logic using behavior trees (BTs) for complex
-  workflows. BTs provide hierarchical, composable process modeling with explicit preconditions
-  and state transitions. ADR-0008 (py_trees integration) **Node construction patterns**: See
-  `notes/bt-design-patterns.md` for idiomatic guidance on PPA structure, implicit sequences,
-  safety guards, memory nodes, and granularity — derived from Colledanchise & Ögren (arXiv:1709.00084).
-  Formal requirements: `specs/behavior-tree-node-design.md` BTND-06-001 through BTND-06-007.
-  logic. Complex workflows (report validation, case creation, embargo management) SHOULD use
-  BTs for clarity and maintainability.
+  Requirements for integrating py_trees behavior trees into Vultron handler functions.
+  Covers the BT execution model, state management via the DataLayer, handler integration
+  patterns, actor isolation, concurrency constraints, and failure diagnosis. Complex
+  protocol workflows such as report validation, case creation, and embargo management
+  must be implemented as BT nodes or subtrees.
 version: 1.0.0
 kind: pattern
 scope:
@@ -770,11 +767,10 @@ groups:
   title: Production BT Collapse Patterns
   kind: pattern
   description: >-
-    PROVISIONAL (subject to revision at implementation time — see issue #1200
-    and per-requirement tracking issues). Requirements for production BT subtrees
-    that replace groups of simulator fuzzer nodes. Each collapse candidate
-    reduces multiple granular simulator leaves to a smaller set of production
-    call-out points with cleaner seam structure.
+    Requirements for production BT subtrees that replace groups of simulator fuzzer nodes.
+    Each collapse candidate reduces multiple granular simulator leaves to a smaller set of
+    production call-out points with cleaner seam structure; individual requirements are
+    provisional and subject to revision at implementation time.
   specs:
   - id: BT-20-001
     priority: SHOULD

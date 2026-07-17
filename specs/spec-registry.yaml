@@ -1,8 +1,9 @@
 id: SR
 title: Spec Registry
-description: Requirements for converting `specs/*.md` files to YAML governed by Pydantic models, building a structured registry
-  of all requirements, and providing linting, pytest integration, and context-generation tooling. module. Migration from `.md`
-  to `.yaml` is a one-time lossless conversion.
+description: >-
+  Requirements for the structured spec registry: YAML spec files governed by Pydantic models,
+  with linting, pytest integration, and context-generation tooling. The registry provides a
+  single source of truth for spec IDs, prefixes, titles, and cross-reference validation.
 version: 1.0.0
 kind: implementation
 scope:

@@ -1,12 +1,10 @@
 id: SBT
 title: Sync Behavior Trees
 description: >-
-  Requirements for behavior-tree-based implementation of sync log entry
-  protocol flows. Covers three BTs: AnnounceLogEntryReceivedBT (received-side
-  hash-chain validation with case-actor vs non-case-actor branching),
-  RejectLogEntryReceivedBT (replication state update and replay), and
-  CommitLogEntryBT (append, persist, fan-out). Replaces procedural sync
-  use-case logic per BT-06-001. Source: IDEA-26050402, IDEA-26050403.
+  Requirements for behavior-tree-based implementation of sync log entry protocol flows.
+  Covers three BTs: AnnounceLogEntryReceivedBT (received-side hash-chain validation with
+  case-actor vs non-case-actor branching), RejectLogEntryReceivedBT (replication state
+  update and replay), and CommitLogEntryBT (append, persist, fan-out).
 version: 1.0.0
 kind: pattern
 scope:
