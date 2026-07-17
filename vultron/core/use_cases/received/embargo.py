@@ -25,7 +25,12 @@ from vultron.core.models.protocols import (
     PersistableModel,
     is_case_model,
 )
-from vultron.core.states.cs import CS_pxa
+from vultron.core.states.cs import (
+    CS_pxa,
+    is_pxa_attacks_observed,
+    is_pxa_exploit_public,
+    is_pxa_public_aware,
+)
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -43,8 +48,15 @@ def _pxa_embargo_ineligible(dl: CasePersistence, case_id: str) -> bool:
     case = dl.read(case_id)
     if not is_case_model(case):
         return False
-    pxa_state = CS_pxa(case.current_status.pxa_state)
-    return pxa_state != CS_pxa.pxa
+    try:
+        pxa_state = CS_pxa(case.current_status.pxa_state)
+    except ValueError:
+        return False
+    return (
+        is_pxa_public_aware(pxa_state)
+        or is_pxa_exploit_public(pxa_state)
+        or is_pxa_attacks_observed(pxa_state)
+    )
 
 
 def _resolve_case_for_embargo_acceptance(

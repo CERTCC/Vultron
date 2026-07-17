@@ -33,6 +33,16 @@ from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 
 
+def _resolve_em_state(case: object) -> EM:
+    """Return the current em_state from a case, or EM.NONE if unavailable."""
+    try:
+        current_status = case.current_status  # type: ignore[attr-defined]
+    except (AttributeError, ValueError):
+        return EM.NONE
+    em_state = getattr(current_status, "em_state", None)
+    return em_state if em_state is not None else EM.NONE
+
+
 class CreateParticipantStatusNode(DataLayerAction):
     """Create a ParticipantStatus snapshot and append it to the participant."""
 
@@ -87,13 +97,10 @@ class CreateParticipantStatusNode(DataLayerAction):
 
         case_status: CaseStatus | None = None
         if self._pxa_state is not None:
-            current_em = getattr(
-                getattr(case, "current_status", None), "em_state", None
-            )
             case_status = CaseStatus(
                 context=self._case_id,
                 attributed_to=self._actor_id,
-                em_state=current_em if current_em is not None else EM.NONE,
+                em_state=_resolve_em_state(case),
                 pxa_state=self._pxa_state,
             )
 

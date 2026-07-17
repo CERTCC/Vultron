@@ -156,8 +156,9 @@ class ValidateCaseStatusTransitionNode(DataLayerCondition):
             )
             return Status.FAILURE
 
-        current_status = getattr(case, "current_status", None)
-        if current_status is None:
+        try:
+            current_status = case.current_status
+        except ValueError:
             return Status.SUCCESS
 
         status_obj = self._resolve_status()
