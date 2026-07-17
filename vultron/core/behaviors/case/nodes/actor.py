@@ -392,14 +392,10 @@ class ProposeCaseToActorNode(DataLayerAction):
 
     def _emit(self, actor_id: str, report_id: str, case_actor_id: str) -> str:
         assert self.trigger_activity_factory is not None
-        assert self.datalayer is not None
         activity_id, _ = self.trigger_activity_factory.create_case_proposal(
             actor=actor_id,
             report_id=report_id,
             case_actor_id=case_actor_id,
-        )
-        cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-            actor_id, activity_id
         )
         return activity_id
 
@@ -430,6 +426,9 @@ class ProposeCaseToActorNode(DataLayerAction):
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
+        cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
+            self.actor_id, activity_id
+        )
         self.logger.info(
             "%s: Queued Create(as_CaseProposal) '%s' to outbox"
             " for case-actor '%s' (case '%s')",
