@@ -456,6 +456,35 @@ groups:
     verification: >-
       For each BT-bearing area, scan `nodes/` modules and fail compliance when any leaf
       module exceeds 500 lines.
+  - id: BTND-07-005
+    priority: MUST
+    statement: >-
+      Before implementing guard, validation, or factory-call boilerplate in a new BT
+      leaf node's `update()` method, the implementer MUST search `vultron/core/behaviors/`
+      for an existing base class or helper that already provides that boilerplate and
+      inherit or reuse it. In particular: (1) `DataLayerAction` already provides
+      `self.datalayer`, `self.actor_id`, and `self.trigger_activity_factory`
+      resolution — do not re-implement these lookups inline; (2) existing emit-node
+      base classes (e.g., `_EmitCaseActorReportActivityBase`) already implement the
+      standard guard + factory-dispatch + outbox-write pattern — subclass them and
+      override `_call_factory()` rather than writing a new `update()` from scratch;
+      (3) if no suitable base class exists, extract the shared pattern into one and
+      document it for future reuse.
+    rationale: >-
+      The most common cause of god-node `update()` methods is copy-paste of guard and
+      factory-call boilerplate from prior nodes. Each copy drifts independently,
+      accumulates line count, and must be fixed separately. A shared base class keeps
+      `update()` methods to a single try-block orchestration with all logic in
+      overridable hooks, satisfying BTND-07-003 and the DRY principle simultaneously.
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-07-003
+    verification: >-
+      When reviewing a new or modified BT leaf node, confirm that its `update()` method
+      does not re-implement boilerplate already available in a parent class or shared
+      helper. Flag any inline `if self.datalayer is None`, `if self.actor_id is None`,
+      or `if self.trigger_activity_factory is None` guard blocks that duplicate logic
+      already present in an existing base class.
 - id: BTND-08
   title: Positive-Precondition Condition Node Naming
   kind: pattern
