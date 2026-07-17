@@ -48,6 +48,7 @@ from transitions import MachineError
 
 from vultron.core.models.protocols import is_case_model, is_participant_model
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM, EM_Trigger, EMAdapter, create_em_machine
 from vultron.core.states.participant_embargo_consent import (
     PEC,
@@ -192,7 +193,9 @@ class EmbargoLifecycle:
         Raises:
             VultronNotFoundError: If *case_id* does not resolve to a case.
             VultronInvalidStateTransitionError: If the current EM state does
-                not allow a PROPOSE transition (``STRICT`` mode only).
+                not allow a PROPOSE transition (``STRICT`` mode only), or if
+                any of P/X/A is set on the case (``STRICT`` mode only,
+                per EMB-01-002).
         """
         # Load and validate case
         case = self._persistence.read(case_id)
@@ -200,6 +203,13 @@ class EmbargoLifecycle:
             raise VultronNotFoundError("VulnerabilityCase", case_id)
 
         em_before = EM(case.current_status.em_state)
+
+        if transition_mode == TransitionMode.STRICT:
+            self._assert_pxa_embargo_eligible(
+                CS_pxa(case.current_status.pxa_state),
+                case_id,
+                "propose embargo",
+            )
 
         # OBSERVED fallback: ACTIVE/REVISE stays in REVISE; otherwise PROPOSED
         fallback = (
@@ -294,7 +304,10 @@ class EmbargoLifecycle:
         Raises:
             VultronNotFoundError: If *case_id* does not resolve to a case.
             VultronInvalidStateTransitionError: If the EM state does not allow
-                an ACCEPT transition (``STRICT`` mode, owner only).
+                an ACCEPT transition (``STRICT`` mode, owner only), or if the
+                owner would drive EM to ACTIVE but P/X/A is set (``STRICT``
+                mode, owner only, per EMB-02-002).  Non-owner callers record
+                PEC state only and are not blocked by P/X/A.
         """
         case = self._persistence.read(case_id)
         if not is_case_model(case):
@@ -312,6 +325,13 @@ class EmbargoLifecycle:
         )
 
         if is_owner and not already_active:
+            # Guard only applies when owner would drive the EM machine (EMB-02-002).
+            if transition_mode == TransitionMode.STRICT:
+                self._assert_pxa_embargo_eligible(
+                    CS_pxa(case.current_status.pxa_state),
+                    case_id,
+                    "accept embargo invite",
+                )
             em_after = self._drive_em_transition(
                 case_id=case_id,
                 em_before=em_before,
@@ -382,6 +402,10 @@ class EmbargoLifecycle:
             - ``PROPOSED → NO_EMBARGO``  (initial proposal rejected)
             - ``REVISE → ACTIVE``        (revision rejected; returns to active)
 
+        Per EMB-04-002, a REVISE rejection that would return the case to ACTIVE
+        is blocked in STRICT mode when P/X/A is set — callers must invoke
+        :meth:`terminate_active_embargo` (ET) instead.
+
         For any actor the actor's participant record is updated: PEC
         transitions to ``DECLINED`` and *embargo_id* is removed from
         ``accepted_embargo_ids`` (pocket-veto semantics).
@@ -398,7 +422,9 @@ class EmbargoLifecycle:
         Raises:
             VultronNotFoundError: If *case_id* does not resolve to a case.
             VultronInvalidStateTransitionError: If the EM state does not allow
-                a REJECT transition (``STRICT`` mode, owner only).
+                a REJECT transition (``STRICT`` mode, owner only), or if the
+                case is in REVISE state with P/X/A set (``STRICT`` mode only,
+                per EMB-04-002 — use terminate_active_embargo instead).
         """
         case = self._persistence.read(case_id)
         if not is_case_model(case):
@@ -411,6 +437,17 @@ class EmbargoLifecycle:
         is_owner = _as_id(case.attributed_to) == actor_id
 
         if is_owner:
+            # In STRICT mode, block REVISE→ACTIVE when P/X/A is set (EMB-04-002):
+            # the case must be terminated (ET), not returned to ACTIVE.
+            if (
+                transition_mode == TransitionMode.STRICT
+                and em_before == EM.REVISE
+            ):
+                self._assert_pxa_embargo_eligible(
+                    CS_pxa(case.current_status.pxa_state),
+                    case_id,
+                    "reject embargo revision (use terminate_active_embargo when P/X/A is set)",
+                )
             # OBSERVED fallback: REVISE reject → ACTIVE; otherwise → NO_EMBARGO
             fallback = EM.ACTIVE if em_before == EM.REVISE else EM.NONE
             em_after = self._drive_em_transition(
@@ -645,6 +682,28 @@ class EmbargoLifecycle:
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _assert_pxa_embargo_eligible(
+        pxa_state: CS_pxa,
+        case_id: str,
+        operation: str,
+    ) -> None:
+        """Raise if the case is no longer embargo-eligible due to P/X/A.
+
+        Per EMB-01-002 and EMB-02-002: once any of P, X, or A is set
+        (i.e. ``pxa_state != CS_pxa.pxa``), no new embargo may be proposed
+        or accepted.  This guard is only applied in STRICT mode.
+
+        Raises:
+            VultronInvalidStateTransitionError: When ``pxa_state != CS_pxa.pxa``.
+        """
+        if pxa_state != CS_pxa.pxa:
+            raise VultronInvalidStateTransitionError(
+                f"Cannot {operation} on case '{case_id}': public awareness,"
+                f" exploit publication, or attack observation is set"
+                f" (pxa_state='{pxa_state.name}')."
+            )
 
     def _drive_em_transition(
         self,

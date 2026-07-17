@@ -9,6 +9,12 @@ Coverage required by #746 AC-5 (propose_embargo STRICT) and #747 AC-1 to AC-7:
   - reject_embargo_invite STRICT and OBSERVED, owner vs. non-owner
   - terminate_active_embargo STRICT and OBSERVED, PEC cascade
   - record_participant_consent for ACCEPT, DECLINE, INVITE, RESET triggers
+
+Coverage added by #1454 (AC-1 to AC-3): P/X/A embargo-eligibility guards
+  - propose_embargo STRICT raises when pxa_state != pxa (all P/X/A variants)
+  - propose_embargo OBSERVED bypasses guard
+  - accept_embargo_invite STRICT raises when pxa_state != pxa
+  - accept_embargo_invite OBSERVED bypasses guard
 """
 
 from collections.abc import Generator
@@ -30,6 +36,7 @@ from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycleResult,
     TransitionMode,
 )
+from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.enums.roles import CVDRole
@@ -837,3 +844,256 @@ def test_record_participant_consent_actor_not_in_case(
 
     assert result.participant_changes == []
     assert result.case_changed is False
+
+
+# ---------------------------------------------------------------------------
+# Tests: P/X/A embargo-eligibility guards (#1454)
+# ---------------------------------------------------------------------------
+
+# All non-pxa CS_pxa states trigger the guard.
+_PXA_INELIGIBLE_STATES = [
+    CS_pxa.Pxa,  # public aware
+    CS_pxa.pXa,  # exploit published
+    CS_pxa.pxA,  # attacks observed
+    CS_pxa.PXa,  # public + exploit
+    CS_pxa.PxA,  # public + attacks
+    CS_pxa.pXA,  # exploit + attacks
+    CS_pxa.PXA,  # all three set
+]
+
+
+@pytest.mark.parametrize("pxa_state", _PXA_INELIGIBLE_STATES)
+def test_propose_embargo_strict_raises_when_pxa_set(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+    pxa_state: CS_pxa,
+) -> None:
+    """STRICT propose raises when any of P/X/A is set (EMB-01-002)."""
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_, em_state=EM.NONE)
+    case.current_status.pxa_state = pxa_state
+    dl.save(case)
+    embargo = _make_embargo(dl, case.id_)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    with pytest.raises(VultronInvalidStateTransitionError):
+        lifecycle.propose_embargo(
+            case_id=case.id_,
+            embargo_id=embargo.id_,
+            actor_id=owner.id_,
+        )
+
+
+def test_propose_embargo_strict_allowed_when_pxa_clear(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """STRICT propose succeeds when pxa_state is fully clear (pxa)."""
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_, em_state=EM.NONE)
+    # pxa_state defaults to CS_pxa.pxa — no mutation needed
+    embargo = _make_embargo(dl, case.id_)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    result = lifecycle.propose_embargo(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=owner.id_,
+    )
+
+    assert result.em_after == EM.PROPOSED
+
+
+@pytest.mark.parametrize("pxa_state", _PXA_INELIGIBLE_STATES)
+def test_propose_embargo_observed_bypasses_pxa_guard(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+    pxa_state: CS_pxa,
+) -> None:
+    """OBSERVED mode bypasses P/X/A guard and syncs to PROPOSED."""
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_, em_state=EM.NONE)
+    case.current_status.pxa_state = pxa_state
+    dl.save(case)
+    embargo = _make_embargo(dl, case.id_)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    result = lifecycle.propose_embargo(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=owner.id_,
+        transition_mode=TransitionMode.OBSERVED,
+    )
+
+    assert result.em_after == EM.PROPOSED
+
+
+@pytest.mark.parametrize("pxa_state", _PXA_INELIGIBLE_STATES)
+def test_accept_embargo_invite_strict_raises_when_pxa_set(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+    pxa_state: CS_pxa,
+) -> None:
+    """STRICT accept raises when any of P/X/A is set (EMB-02-002)."""
+    owner, dl = owner_and_dl
+    case, participants = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
+    case.current_status.pxa_state = pxa_state
+    dl.save(case)
+    embargo = _make_embargo(dl, case.id_)
+
+    # Seed owner to INVITED so the PEC transition would be valid
+    owner_p = cast(CaseParticipant, dl.read(participants[0].id_))
+    owner_p.embargo_consent_state = PEC.INVITED
+    dl.save(owner_p)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    with pytest.raises(VultronInvalidStateTransitionError):
+        lifecycle.accept_embargo_invite(
+            case_id=case.id_,
+            embargo_id=embargo.id_,
+            actor_id=owner.id_,
+        )
+
+
+def test_accept_embargo_invite_strict_allowed_when_pxa_clear(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """STRICT accept succeeds when pxa_state is fully clear (pxa)."""
+    owner, dl = owner_and_dl
+    case, participants = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
+    embargo = _make_embargo(dl, case.id_)
+
+    owner_p = cast(CaseParticipant, dl.read(participants[0].id_))
+    owner_p.embargo_consent_state = PEC.INVITED
+    dl.save(owner_p)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    result = lifecycle.accept_embargo_invite(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=owner.id_,
+    )
+
+    assert result.em_after == EM.ACTIVE
+
+
+@pytest.mark.parametrize("pxa_state", _PXA_INELIGIBLE_STATES)
+def test_accept_embargo_invite_observed_bypasses_pxa_guard(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+    pxa_state: CS_pxa,
+) -> None:
+    """OBSERVED mode bypasses P/X/A guard and syncs to ACTIVE."""
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
+    case.current_status.pxa_state = pxa_state
+    dl.save(case)
+    embargo = _make_embargo(dl, case.id_)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    result = lifecycle.accept_embargo_invite(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=owner.id_,
+        transition_mode=TransitionMode.OBSERVED,
+    )
+
+    assert result.em_after == EM.ACTIVE
+
+
+@pytest.mark.parametrize("pxa_state", _PXA_INELIGIBLE_STATES)
+def test_accept_embargo_invite_strict_non_owner_pxa_set_does_not_raise(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+    pxa_state: CS_pxa,
+) -> None:
+    """Non-owner STRICT accept with P/X/A set still records PEC (no guard)."""
+    owner, dl = owner_and_dl
+    finder = _make_actor(dl, "Finder Org")
+    case, _ = _make_case(
+        dl, owner.id_, extra_participant_ids=[finder.id_], em_state=EM.PROPOSED
+    )
+    case.current_status.pxa_state = pxa_state
+    dl.save(case)
+    embargo = _make_embargo(dl, case.id_)
+
+    finder_participant_id = case.actor_participant_index.get(finder.id_)
+    assert finder_participant_id is not None
+    finder_p = cast(CaseParticipant, dl.read(finder_participant_id))
+    finder_p.embargo_consent_state = PEC.INVITED
+    dl.save(finder_p)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    # Non-owner: does NOT drive EM state, guard must NOT raise (EMB-02-002)
+    result = lifecycle.accept_embargo_invite(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=finder.id_,
+    )
+
+    assert result.em_after == EM.PROPOSED  # EM unchanged
+    refreshed = cast(CaseParticipant, dl.read(finder_participant_id))
+    assert refreshed.embargo_consent_state == PEC.SIGNATORY.value
+
+
+# ---------------------------------------------------------------------------
+# Tests: reject_embargo_invite P/X/A guard (EMB-04-002)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("pxa_state", _PXA_INELIGIBLE_STATES)
+def test_reject_embargo_invite_strict_revise_pxa_raises(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+    pxa_state: CS_pxa,
+) -> None:
+    """STRICT reject from REVISE+PXA raises (EMB-04-002: must terminate, not revert)."""
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_, em_state=EM.REVISE)
+    case.current_status.pxa_state = pxa_state
+    dl.save(case)
+    embargo = _make_embargo(dl, case.id_)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    with pytest.raises(VultronInvalidStateTransitionError):
+        lifecycle.reject_embargo_invite(
+            case_id=case.id_,
+            embargo_id=embargo.id_,
+            actor_id=owner.id_,
+        )
+
+
+def test_reject_embargo_invite_strict_proposed_pxa_allowed(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """STRICT reject from PROPOSED+PXA is allowed (PROPOSED→NO_EMBARGO, no active embargo)."""
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
+    case.current_status.pxa_state = CS_pxa.Pxa  # public aware
+    dl.save(case)
+    embargo = _make_embargo(dl, case.id_)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    result = lifecycle.reject_embargo_invite(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=owner.id_,
+    )
+
+    assert result.em_after == EM.NONE
+
+
+@pytest.mark.parametrize("pxa_state", _PXA_INELIGIBLE_STATES)
+def test_reject_embargo_invite_observed_revise_pxa_bypasses_guard(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+    pxa_state: CS_pxa,
+) -> None:
+    """OBSERVED reject from REVISE+PXA bypasses the guard (state-sync)."""
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_, em_state=EM.REVISE)
+    case.current_status.pxa_state = pxa_state
+    dl.save(case)
+    embargo = _make_embargo(dl, case.id_)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    result = lifecycle.reject_embargo_invite(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=owner.id_,
+        transition_mode=TransitionMode.OBSERVED,
+    )
+
+    assert result.em_after == EM.ACTIVE
