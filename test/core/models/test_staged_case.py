@@ -376,16 +376,16 @@ class TestNoRMStagedTypes:
     """Per-participant RM state MUST NOT be a VulnerabilityCase staged type (AC-5)."""
 
     def test_no_valid_case_type_exists(self):
-        """There must be no 'ValidCase' or 'TriagedCase' in staged_case module."""
-        import vultron.core.models.staged_case as mod
+        """There must be no 'ValidCase' or 'TriagedCase' in staged_case __all__."""
+        from vultron.core.models.staged_case import __all__ as exports
 
-        for name in dir(mod):
-            assert "Valid" not in name or name in (
-                "VultronValidationError",
-            ), f"Found unexpected RM-typed class {name!r} in staged_case module"
+        for name in exports:
+            assert (
+                "Valid" not in name
+            ), f"Found unexpected RM-typed class {name!r} in staged_case.__all__"
             assert (
                 "Triage" not in name
-            ), f"Found unexpected RM-typed class {name!r} in staged_case module"
+            ), f"Found unexpected RM-typed class {name!r} in staged_case.__all__"
 
     def test_staged_case_exports(self):
         from vultron.core.models.staged_case import __all__

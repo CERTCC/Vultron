@@ -133,8 +133,6 @@ class EmbargoedCase(Case):
     Spec: LST-02-001, LST-02-003.
     """
 
-    model_config = ConfigDict(from_attributes=True)
-
     @model_validator(mode="after")
     def _check_embargoed_invariants(self) -> "EmbargoedCase":
         if self.active_embargo is None:
