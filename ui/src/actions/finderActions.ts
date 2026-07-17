@@ -13,6 +13,7 @@ import {
   setEmState,
 } from '../state/stateUpdaters'
 import { getParticipant, getActiveVendors, getVendors } from '../state/participantHelpers'
+import { requireNextState } from '../protocol'
 
 export function handleSubmitReport(state: DemoState): DemoState {
   const nextX = state.nextXPosition
@@ -21,8 +22,15 @@ export function handleSubmitReport(state: DemoState): DemoState {
 
   let newState = state
 
-  // Update participants
-  newState = updateParticipant(newState, 'finder', { rmState: 'RECEIVED' })
+  // The Finder enters CVD already at RM.ACCEPTED. Per the formal protocol, a
+  // Finder's START → RECEIVED → VALID → ACCEPTED traversal happens privately —
+  // they discover, validate, and prioritize their own find before contacting
+  // anyone (this is the Finder → Reporter transition; see states.md start-state
+  // table: Finder/Reporter starts at (A, N, pxa)). So the only observable RM
+  // states for the Finder are ACCEPTED ⇄ DEFERRED → CLOSED. We therefore seed
+  // ACCEPTED rather than RECEIVED, which also makes the later `close` transition
+  // legal (close is not permitted from RECEIVED).
+  newState = updateParticipant(newState, 'finder', { rmState: 'ACCEPTED' })
   newState = updateParticipant(newState, 'vendor-1', { rmState: 'RECEIVED', vfdState: 'Vfd', visible: true })
   newState = updateParticipant(newState, 'caseactor', { visible: true })
 
@@ -103,7 +111,7 @@ export function handleSubmitReport(state: DemoState): DemoState {
         'Announce(Case) received in inbox',
         'Case replica created in DataLayer',
         'Finder participant record created',
-        'Finder\'s RM → RECEIVED',
+        'Finder\'s RM: ACCEPTED (validated & prioritized privately before disclosure)',
         'Trust established with CaseActor',
       ],
     },
@@ -140,7 +148,8 @@ export function handleFinderAcceptEmbargo(state: DemoState): DemoState {
 
   // If all participants accepted, activate embargo
   if (allParticipantsAccepted) {
-    newState = { ...newState, emState: 'ACTIVE', phase: 'embargo-accepted' }
+    // EM destination computed from the protocol artifact (accept: PROPOSED → ACTIVE).
+    newState = { ...newState, emState: requireNextState('em', state.emState, 'accept'), phase: 'embargo-accepted' }
   }
 
   // Add timeline events
@@ -237,7 +246,8 @@ export function handleFinderRejectEmbargo(state: DemoState): DemoState {
 
   let newState = state
 
-  newState = { ...newState, emState: 'NONE', phase: 'embargo-rejected' }
+  // EM destination computed from the protocol artifact (reject: PROPOSED → NONE).
+  newState = { ...newState, emState: requireNextState('em', state.emState, 'reject'), phase: 'embargo-rejected' }
 
   const events = []
   let timestampOffset = 0
@@ -370,8 +380,10 @@ export function handleFinderAddNote(state: DemoState): DemoState {
 
   timestampOffset++
 
-  // Add consequence nodes to all active vendors (excluding declined vendors)
-  const activeVendors = getActiveVendors(newState).filter(v => v.rmState !== 'DECLINED')
+  // Add consequence nodes to all active vendors.
+  // (This fork drops the obsolete `!== 'DECLINED'` filter — DECLINED is not a
+  // real RM state and is never written; see CLAUDE.md §9.)
+  const activeVendors = getActiveVendors(newState)
 
   activeVendors.forEach(vendor => {
     events.push({
@@ -433,9 +445,14 @@ export function handleFinderNotifyPublished(state: DemoState): DemoState {
   newState = updateParticipant(newState, 'finder', { hasPublished: true })
   newState = setPhase(newState, 'finder-published')
 
-  // Update PXA state to P if not already
+  // Defensive fallback: if the case is somehow not yet public when the Finder
+  // acknowledges publication, advance PXA via the artifact's `public_becomes_aware`
+  // (pxa → Pxa). Normally unreachable — the filter only offers this action once
+  // pxaState is already 'Pxa' — and `finder-notify-published` is a demo-kind
+  // acknowledgement (see protocolActions.ts), not itself a machine driver. Pegged
+  // to the JSON anyway so no machine-state literal is hardcoded in the fork.
   if (state.pxaState === 'pxa') {
-    newState = setPxaState(newState, 'Pxa')
+    newState = setPxaState(newState, requireNextState('pxa', state.pxaState, 'public_becomes_aware'))
   }
 
   const finder = getParticipant(newState, 'finder')
@@ -516,9 +533,17 @@ export function handleFinderCloseCase(state: DemoState): DemoState {
   const eventId = `event-${state.timelineEvents.length + 1}`
   const now = Date.now()
 
+  const finderState = getParticipant(state, 'finder')
+  if (!finderState) return state
+
   let newState = state
 
-  newState = updateParticipant(newState, 'finder', { rmState: 'CLOSED', hasClosed: true })
+  // RM destination computed from the protocol artifact. The Finder enters CVD at
+  // ACCEPTED (see handleSubmitReport) and may pause at DEFERRED; `close` is legal
+  // from both. `hasClosed` is a demo-only flag with no machine slot.
+  const nextRmState = requireNextState('rm', finderState.rmState, 'close')
+
+  newState = updateParticipant(newState, 'finder', { rmState: nextRmState, hasClosed: true })
   // Don't change phase - in multi-vendor scenarios, finder closing doesn't stop vendors
   // Per Vultron protocol: RM state (including CLOSED) is participant-specific
   // Vendors can continue working after finder closes
@@ -549,8 +574,9 @@ export function handleFinderCloseCase(state: DemoState): DemoState {
 
   timestampOffset++
 
-  // Consequence nodes in all vendor lanes (excluding declined vendors)
-  const activeVendors = getActiveVendors(newState).filter(v => v.rmState !== 'DECLINED')
+  // Consequence nodes in all vendor lanes.
+  // (This fork drops the obsolete `!== 'DECLINED'` filter — see CLAUDE.md §9.)
+  const activeVendors = getActiveVendors(newState)
 
   activeVendors.forEach(vendor => {
     events.push({
@@ -612,8 +638,13 @@ export function handleFinderProposeRevision(state: DemoState): DemoState {
   let newState = state
 
   // Per Vultron protocol: A → pR (Active → propose → Revise)
-  newState = setEmState(newState, 'REVISE')
+  // EM destination computed from the protocol artifact (propose: ACTIVE → REVISE).
+  newState = setEmState(newState, requireNextState('em', state.emState, 'propose'))
   newState = { ...newState, embargoProposerId: 'finder' }  // Track who proposed this revision
+
+  // Reset the CaseActor's response flag so they can accept/reject this new revision
+  // (mirrors the per-participant resets below). UI-only flag — see actionFilters.
+  newState = updateParticipant(newState, 'caseactor', { embargoAccepted: false })
 
   const events = []
   let timestampOffset = 0
@@ -719,7 +750,8 @@ export function handleFinderAcceptRevision(state: DemoState): DemoState {
   const allParticipantsAccepted = getActiveVendors(newState).every((v) => v.embargoAccepted)
 
   if (allParticipantsAccepted) {
-    newState = setEmState(newState, 'ACTIVE')
+    // EM destination computed from the protocol artifact (accept: REVISE → ACTIVE).
+    newState = setEmState(newState, requireNextState('em', state.emState, 'accept'))
     newState = { ...newState, embargoProposerId: undefined }  // Clear proposer when revision is accepted
   }
   // Otherwise, stay in REVISE state
@@ -807,8 +839,9 @@ export function handleFinderRejectRevision(state: DemoState): DemoState {
   let newState = state
 
   // Per Vultron protocol: R → rA (Revise → reject → Active)
-  // Revision rejected - restore original embargo state
-  newState = setEmState(newState, 'ACTIVE')
+  // Revision rejected - restore original embargo state.
+  // EM destination computed from the protocol artifact (reject: REVISE → ACTIVE).
+  newState = setEmState(newState, requireNextState('em', state.emState, 'reject'))
   newState = { ...newState, embargoProposerId: undefined }  // Clear proposer when revision is rejected
 
   // Restore embargoAccepted for participants who were bound by original embargo

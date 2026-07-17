@@ -10,42 +10,44 @@ import {
   setPxaState,
 } from '../state/stateUpdaters'
 import { getActiveParticipants } from '../state/participantHelpers'
+import { requireNextState } from '../protocol'
 
 export function handleTriggerExploit(state: DemoState): DemoState {
   const nextX = state.nextXPosition
   const eventId = `event-${state.timelineEvents.length + 1}`
   const now = Date.now()
 
-  // Determine new PXA state
-  // Per Vultron protocol: exploit publication (X) automatically implies public awareness (P)
-  // States pXa and pXA are not valid - once an exploit is published, the public is aware
+  // Determine new PXA state. Per the Vultron protocol, exploit publication (X)
+  // automatically implies public awareness (P): states pXa/pXA are not reachable
+  // here because once an exploit is public, the public is aware. This is modeled
+  // as a COMPOSITE of two legal pxa-machine steps — `exploit_made_public` then
+  // `public_becomes_aware` — each computed from the protocol artifact, so the
+  // result (pxa→PXa, pxA→PXA, etc.) is grounded in the JSON rather than hardcoded.
   const currentPxa = state.pxaState
-  let newPxa = currentPxa
-  if (currentPxa === 'pxa') {
-    newPxa = 'PXa'  // exploit published -> public becomes aware automatically
-  } else if (currentPxa === 'Pxa') {
-    newPxa = 'PXa'  // public + exploit (already public)
-  } else if (currentPxa === 'pxA') {
-    newPxa = 'PXA'  // exploit + attacks -> public becomes aware automatically
-  } else if (currentPxa === 'PxA') {
-    newPxa = 'PXA'  // public + exploit + attacks (already public)
-  }
+  const afterExploit = requireNextState('pxa', currentPxa, 'exploit_made_public')
+  // Apply the implied public-awareness step only when P is not already set; if it
+  // is (Pxa/PxA), the exploit step above already produced a P-bearing state.
+  const newPxa = afterExploit.includes('P')
+    ? afterExploit
+    : requireNextState('pxa', afterExploit, 'public_becomes_aware')
 
   let newState = state
   newState = setPxaState(newState, newPxa)
 
-  // Per Vultron protocol (early_termination.md lines 32-39):
-  // "Embargoes SHALL terminate immediately when information about the vulnerability becomes public."
-  // Since exploit publication (X) automatically implies public awareness (P), embargo must terminate
+  // Per Vultron protocol (transitions.md:291-293): once the vuln is public, the
+  // embargo's fate depends on its state (same rule as vendor publication):
+  // - Active/Revise embargoes TERMINATE → EXITED (em `terminate`).
+  // - A merely PROPOSED embargo was never active, so publication implicitly
+  //   REJECTS it → NONE (em `reject`), NOT `terminate`.
+  // Both destinations are computed from the protocol artifact.
   const hadActiveEmbargo = state.emState === 'ACTIVE' || state.emState === 'REVISE'
   const hadProposedEmbargo = state.emState === 'PROPOSED'
 
   if (newPxa.includes('P')) {
     if (hadActiveEmbargo) {
-      newState = { ...newState, emState: 'EXITED' }
+      newState = { ...newState, emState: requireNextState('em', state.emState, 'terminate') }
     } else if (hadProposedEmbargo) {
-      // Proposal becomes invalid due to publication - treat as implicitly rejected
-      newState = { ...newState, emState: 'NONE' }
+      newState = { ...newState, emState: requireNextState('em', state.emState, 'reject') }
     }
   }
 
@@ -101,18 +103,12 @@ export function handleTriggerAttacks(state: DemoState): DemoState {
   const eventId = `event-${state.timelineEvents.length + 1}`
   const now = Date.now()
 
-  // Determine new PXA state
+  // Determine new PXA state. Attacks being observed (A) is a single legal step in
+  // the pxa machine (`attacks_are_observed`); destination computed from the
+  // protocol artifact (pxa→pxA, pXa→pXA, Pxa→PxA, PXa→PXA). Unlike an exploit,
+  // observing attacks does NOT imply public awareness, so no P is forced here.
   const currentPxa = state.pxaState
-  let newPxa = currentPxa
-  if (currentPxa === 'pxa') {
-    newPxa = 'pxA'  // attacks observed
-  } else if (currentPxa === 'pXa') {
-    newPxa = 'pXA'  // exploit + attacks
-  } else if (currentPxa === 'Pxa') {
-    newPxa = 'PxA'  // public + attacks
-  } else if (currentPxa === 'PXa') {
-    newPxa = 'PXA'  // public + exploit + attacks
-  }
+  const newPxa = requireNextState('pxa', currentPxa, 'attacks_are_observed')
 
   let newState = state
   newState = setPxaState(newState, newPxa)

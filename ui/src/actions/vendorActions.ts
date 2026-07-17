@@ -13,6 +13,7 @@ import {
   setEmState,
 } from '../state/stateUpdaters'
 import { getParticipant, getActiveParticipants, getActiveVendors, getVendors } from '../state/participantHelpers'
+import { requireNextState } from '../protocol'
 
 export function handleValidateReport(state: DemoState, vendorId: string): DemoState {
   const nextX = state.nextXPosition
@@ -24,7 +25,13 @@ export function handleValidateReport(state: DemoState, vendorId: string): DemoSt
 
   let newState = state
 
-  newState = updateParticipant(newState, vendorId, { rmState: 'VALID' })
+  // RM destination is computed from the protocol artifact (protocol_states.json)
+  // rather than hardcoded. The `validate` trigger is legal from RECEIVED and
+  // also from INVALID (re-validation), so deriving from the vendor's current
+  // rmState is more faithful than assuming RECEIVED → VALID.
+  const nextRmState = requireNextState('rm', vendor.rmState, 'validate')
+
+  newState = updateParticipant(newState, vendorId, { rmState: nextRmState })
   newState = setPhase(newState, 'report-validated')
 
   // Per Vultron protocol: case state changes should broadcast to all participants
@@ -93,7 +100,12 @@ export function handleAcceptReport(state: DemoState, vendorId: string): DemoStat
 
   let newState = state
 
-  newState = updateParticipant(newState, vendorId, { rmState: 'ACCEPTED' })
+  // RM destination computed from the protocol artifact. `accept` is legal from
+  // VALID and from DEFERRED (resume work) — both land at ACCEPTED — so deriving
+  // from the vendor's current rmState is more faithful than a hardcoded value.
+  const nextRmState = requireNextState('rm', vendor.rmState, 'accept')
+
+  newState = updateParticipant(newState, vendorId, { rmState: nextRmState })
   newState = setPhase(newState, 'report-accepted')
 
   const activeLanes = getActiveParticipants(newState)
@@ -160,7 +172,11 @@ export function handleDeferReport(state: DemoState, vendorId: string): DemoState
 
   let newState = state
 
-  newState = updateParticipant(newState, vendorId, { rmState: 'DEFERRED' })
+  // RM destination computed from the protocol artifact (defer is legal from
+  // VALID and from ACCEPTED; the demo only surfaces it from VALID).
+  const nextRmState = requireNextState('rm', vendor.rmState, 'defer')
+
+  newState = updateParticipant(newState, vendorId, { rmState: nextRmState })
   newState = setPhase(newState, 'report-deferred')
 
   const activeLanes = getActiveParticipants(newState)
@@ -227,7 +243,10 @@ export function handleInvalidateReport(state: DemoState, vendorId: string): Demo
 
   let newState = state
 
-  newState = updateParticipant(newState, vendorId, { rmState: 'INVALID' })
+  // RM destination computed from the protocol artifact (invalidate: RECEIVED → INVALID).
+  const nextRmState = requireNextState('rm', vendor.rmState, 'invalidate')
+
+  newState = updateParticipant(newState, vendorId, { rmState: nextRmState })
   newState = setPhase(newState, 'report-invalidated')
 
   // Per Vultron protocol: case state changes should broadcast to all participants
@@ -323,12 +342,14 @@ export function handleAcceptEmbargo(state: DemoState, vendorId: string): DemoSta
   // - Initial proposal: check if ALL parties (Finder + ALL vendors) accepted
   if (isRevisionAcceptance) {
     if (allParticipantsAccepted) {
-      newState = setEmState(newState, 'ACTIVE')
+      // EM destination computed from the protocol artifact (accept: REVISE → ACTIVE).
+      newState = setEmState(newState, requireNextState('em', state.emState, 'accept'))
       newState = { ...newState, embargoProposerId: undefined }  // Clear proposer when revision is accepted
     }
     // Otherwise, stay in REVISE state
   } else if (!isLateJoiner && allParticipantsAccepted) {
-    newState = { ...newState, emState: 'ACTIVE', phase: 'embargo-accepted' }
+    // EM destination computed from the protocol artifact (accept: PROPOSED → ACTIVE).
+    newState = { ...newState, emState: requireNextState('em', state.emState, 'accept'), phase: 'embargo-accepted' }
   }
 
   const events = [
@@ -489,9 +510,10 @@ export function handleRejectEmbargo(state: DemoState, vendorId: string): DemoSta
   let newState = state
 
   // If late joiner rejects an active embargo, embargo stays ACTIVE but they are excluded
-  // If rejecting during initial proposal, embargo goes back to NONE
+  // If rejecting during initial proposal, embargo goes back to NONE.
+  // EM destination computed from the protocol artifact (reject: PROPOSED → NONE).
   if (!isLateJoiner) {
-    newState = { ...newState, emState: 'NONE', phase: 'embargo-rejected' }
+    newState = { ...newState, emState: requireNextState('em', state.emState, 'reject'), phase: 'embargo-rejected' }
   }
 
   // Update vendor state - clear embargo proposal flag, keep embargoAccepted as false
@@ -633,7 +655,10 @@ export function handleNotifyFixReady(state: DemoState, vendorId: string): DemoSt
 
   let newState = state
 
-  newState = updateParticipant(newState, vendorId, { vfdState: 'VFd' })
+  // VFD destination computed from the protocol artifact (fix_is_ready: Vfd → VFd).
+  const nextVfdState = requireNextState('vfd', vendor.vfdState, 'fix_is_ready')
+
+  newState = updateParticipant(newState, vendorId, { vfdState: nextVfdState })
   newState = setPhase(newState, 'fix-ready')
 
   const events = []
@@ -742,7 +767,10 @@ export function handleNotifyFixDeployed(state: DemoState, vendorId: string): Dem
 
   let newState = state
 
-  newState = updateParticipant(newState, vendorId, { vfdState: 'VFD' })
+  // VFD destination computed from the protocol artifact (fix_is_deployed: VFd → VFD).
+  const nextVfdState = requireNextState('vfd', vendor.vfdState, 'fix_is_deployed')
+
+  newState = updateParticipant(newState, vendorId, { vfdState: nextVfdState })
   newState = setPhase(newState, 'fix-deployed')
 
   const events = []
@@ -854,34 +882,29 @@ export function handleVendorNotifyPublished(state: DemoState, vendorId: string):
   newState = updateParticipant(newState, vendorId, { hasPublished: true })
   newState = setPhase(newState, 'vendor-published')
 
-  // Determine new PXA state
+  // Determine new PXA state. Publication makes the public aware; the destination
+  // (Pxa/PXa/PxA/PXA depending on the X/A bits already set) is computed from the
+  // protocol artifact (pxa machine, `public_becomes_aware`). The publish action is
+  // only offered while not already public, so this transition is always legal.
   const currentPxa = state.pxaState
-  let newPxa = currentPxa
-  if (currentPxa === 'pxa') {
-    newPxa = 'Pxa'
-  } else if (currentPxa === 'pXa') {
-    newPxa = 'PXa'
-  } else if (currentPxa === 'pxA') {
-    newPxa = 'PxA'
-  } else if (currentPxa === 'pXA') {
-    newPxa = 'PXA'
-  }
+  const newPxa = requireNextState('pxa', currentPxa, 'public_becomes_aware')
 
   newState = setPxaState(newState, newPxa)
 
-  // Per Vultron protocol (early_termination.md lines 32-39):
-  // "Embargoes SHALL terminate immediately when information about the vulnerability becomes public."
-  // Publication (P) means public awareness, so:
-  // - Active embargoes (ACTIVE, REVISE) must terminate → EXITED
-  // - Pending proposals (PROPOSED) become moot → NONE (as if implicitly rejected)
+  // Per Vultron protocol (transitions.md:291-293): when the vuln becomes public,
+  // the embargo's fate depends on its state:
+  // - Active/Revise embargoes TERMINATE → EXITED (em `terminate`).
+  // - A merely PROPOSED embargo was never active, so there is nothing to
+  //   terminate; publication implicitly REJECTS the pending proposal → NONE
+  //   (em `reject`, the machine's only PROPOSED→NONE path — NOT `terminate`).
+  // Both destinations are computed from the protocol artifact.
   const hadActiveEmbargo = state.emState === 'ACTIVE' || state.emState === 'REVISE'
   const hadProposedEmbargo = state.emState === 'PROPOSED'
 
   if (hadActiveEmbargo) {
-    newState = { ...newState, emState: 'EXITED' }
+    newState = { ...newState, emState: requireNextState('em', state.emState, 'terminate') }
   } else if (hadProposedEmbargo) {
-    // Proposal becomes invalid due to publication - treat as implicitly rejected
-    newState = { ...newState, emState: 'NONE' }
+    newState = { ...newState, emState: requireNextState('em', state.emState, 'reject') }
   }
 
   const events = []
@@ -1056,8 +1079,9 @@ export function handleVendorReplyNote(state: DemoState, vendorId: string): DemoS
     timestampOffset++
   }
 
-  // Consequence nodes in other vendor lanes (not the replying vendor)
-  const otherVendors = getActiveVendors(newState).filter(v => v.id !== vendorId && v.rmState !== 'DECLINED')
+  // Consequence nodes in other vendor lanes (not the replying vendor).
+  // (This fork drops the obsolete `!== 'DECLINED'` filter — see CLAUDE.md §9.)
+  const otherVendors = getActiveVendors(newState).filter(v => v.id !== vendorId)
 
   otherVendors.forEach(otherVendor => {
     events.push({
@@ -1119,7 +1143,12 @@ export function handleVendorCloseCase(state: DemoState, vendorId: string): DemoS
 
   let newState = state
 
-  newState = updateParticipant(newState, vendorId, { rmState: 'CLOSED', hasClosed: true })
+  // RM destination computed from the protocol artifact. `close` is legal from
+  // ACCEPTED, INVALID, and DEFERRED (all → CLOSED); the demo surfaces the close
+  // action from each of those. `hasClosed` is a demo-only flag with no machine slot.
+  const nextRmState = requireNextState('rm', vendor.rmState, 'close')
+
+  newState = updateParticipant(newState, vendorId, { rmState: nextRmState, hasClosed: true })
   // Don't change phase - in multi-vendor scenarios, one vendor closing doesn't affect others
   // Per Vultron protocol: RM state (including CLOSED) is participant-specific
   // The case continues as long as other participants are active
@@ -1168,8 +1197,9 @@ export function handleVendorCloseCase(state: DemoState, vendorId: string): DemoS
     timestampOffset++
   }
 
-  // Consequence nodes in other vendor lanes (not the closing vendor)
-  const otherVendors = getActiveVendors(newState).filter(v => v.id !== vendorId && v.rmState !== 'DECLINED')
+  // Consequence nodes in other vendor lanes (not the closing vendor).
+  // (This fork drops the obsolete `!== 'DECLINED'` filter — see CLAUDE.md §9.)
+  const otherVendors = getActiveVendors(newState).filter(v => v.id !== vendorId)
 
   otherVendors.forEach(otherVendor => {
     events.push({
@@ -1234,8 +1264,13 @@ export function handleVendorProposeRevision(state: DemoState, vendorId: string):
   let newState = state
 
   // Per Vultron protocol: A → pR (Active → propose → Revise)
-  newState = setEmState(newState, 'REVISE')
+  // EM destination computed from the protocol artifact (propose: ACTIVE → REVISE).
+  newState = setEmState(newState, requireNextState('em', state.emState, 'propose'))
   newState = { ...newState, embargoProposerId: vendorId }  // Track who proposed this revision
+
+  // Reset the CaseActor's response flag so they can accept/reject this new revision
+  // (mirrors the per-participant resets below). UI-only flag — see actionFilters.
+  newState = updateParticipant(newState, 'caseactor', { embargoAccepted: false })
 
   const events = []
   let timestampOffset = 0
@@ -1374,7 +1409,8 @@ export function handleVendorAcceptRevision(state: DemoState, vendorId: string): 
     getActiveVendors(newState).every((v) => v.embargoAccepted)
 
   if (allParticipantsAccepted) {
-    newState = setEmState(newState, 'ACTIVE')
+    // EM destination computed from the protocol artifact (accept: REVISE → ACTIVE).
+    newState = setEmState(newState, requireNextState('em', state.emState, 'accept'))
     newState = { ...newState, embargoProposerId: undefined }  // Clear proposer when revision is accepted
   }
   // Otherwise, stay in REVISE state
@@ -1486,8 +1522,9 @@ export function handleVendorRejectRevision(state: DemoState, vendorId: string): 
   let newState = state
 
   // Per Vultron protocol: R → rA (Revise → reject → Active)
-  // Revision rejected - restore original embargo state
-  newState = setEmState(newState, 'ACTIVE')
+  // Revision rejected - restore original embargo state.
+  // EM destination computed from the protocol artifact (reject: REVISE → ACTIVE).
+  newState = setEmState(newState, requireNextState('em', state.emState, 'reject'))
   newState = { ...newState, embargoProposerId: undefined }  // Clear proposer when revision is rejected
 
   // Restore embargoAccepted for Finder (was participating)

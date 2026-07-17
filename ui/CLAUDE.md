@@ -19,35 +19,35 @@ Stack: **React 18 + TypeScript + Vite**, SVG-rendered timeline. No backend
 calls — everything runs client-side. Dev server: `npm run dev` (Vite).
 Build: `npm run build` (tsc + vite). Lint: `npm run lint` (eslint).
 
-### Entry point and the four demo modes
+### Entry point and the two demo modes
 
-`main.tsx` → `DemoSelector.tsx` toggles between four independent App roots:
+`main.tsx` → `DemoSelector.tsx` toggles between two independent App roots:
 
 | Mode | File | Source of truth |
 |------|------|-----------------|
-| **Single-vendor** (`'single'`) | `App.tsx` | Scripted / hardcoded actions |
-| **Multi-vendor** (`'multi'`, default) | `App-multivendor.tsx` | Scripted via `actions/` handlers |
-| **Multi-vendor (Validated)** (`'multi-validated'`) | `App-multivendor-validated.tsx` | Same as multi-vendor, but RM/EM/VFD/PXA defer to `protocol_states.json` (§9). **In-progress overhaul** — a frozen fork of multi-vendor. |
+| **Multi-vendor** (`'multi'`, default) | `App-multivendor.tsx` | Scripted via `actions/` handlers; RM/EM/VFD/PXA defer to `protocol_states.json` (§9). |
 | **Log Replay** (`'logreplay'`) | `App-logreplay.tsx` | Real case-ledger JSONL, validated against `protocol_states.json` (§5–6). |
 
 These are **separate, parallel implementations** — they do **not** share one
 engine. The multi-vendor demo is driven by handcrafted action handlers in
 `src/actions/`; the log-replay demo is driven by parsing real `*.jsonl` logs
 through `src/utils/`. Changes to one mode usually do **not** propagate to the
-others. Know which mode you're touching.
+other. Know which mode you're touching.
 
-> **Multi-vendor vs. Multi-vendor (Validated):** the Validated mode is a
-> deliberate, isolated **fork** of the working multi-vendor demo so the proven
-> demo keeps running untouched while the protocol-deferral overhaul proceeds
-> (see §9 "Validated fork"). It duplicates the multi-vendor-exclusive logic into
-> `actions/validated/` + `state/validated/actionFilters.ts`; the originals are
-> frozen. The two trees **drift** — a fix to one does NOT propagate to the
-> other. This is temporary: once Validated proves out it replaces the original
-> and the duplicates are deleted.
+> **History (2026-07):** three earlier modes were removed. The **Single-vendor**
+> (`App.tsx`) and original scripted **Multi-vendor** demos were deleted as no
+> longer useful, along with their exclusive handler/filter code. The
+> **Multi-vendor (Validated)** fork — an isolated rewrite that deferred RM/EM/VFD/PXA
+> to `protocol_states.json` (§9) — was then **promoted to be THE multi-vendor demo**:
+> `App-multivendor-validated.tsx` → `App-multivendor.tsx`, and its `actions/validated/*`
+> + `state/validated/actionFilters.ts` moved up to `actions/*` + `state/actionFilters.ts`.
+> So today's `App-multivendor.tsx` is the protocol-deferring implementation; the
+> old hardcoded one is gone (git history preserves it). No more fork, no `validated/`
+> subdirs.
 
 > Note: `App.css` defines its own `LANE_HEIGHT = 295` and inline node sizes,
 > separate from `constants.ts` (`LANE_HEIGHT = 400`, `NODE_HEIGHT = 100`).
-> Constants are **not** centralized across all three apps — verify the file
+> Constants are **not** centralized across the apps — verify the file
 > you're editing rather than assuming `constants.ts` applies.
 
 ### How to run it (READ THIS FIRST if you're new to the session)
@@ -77,12 +77,10 @@ npm run dev        # Vite dev server, prints a localhost URL (usually http://loc
 
 ### Where each mode stands (testing status, as of this note)
 
-- **Single-vendor / Multi-vendor** — the proven, stable demos. Not under active
-  change; treat as reference behavior.
-- **Multi-vendor (Validated)** — protocol-deferral fork, **Steps 1–5 DONE**
-  (§9). Last change: the CaseActor revision-response fix (§9). Build + lint were
-  green and the fix was confirmed by manual walkthrough. Status: *initial work
-  complete, manual testing underway* — embargo negotiation/revision paths are
+- **Multi-vendor** — the protocol-deferring demo (formerly the "Validated" fork,
+  promoted 2026-07 after the old hardcoded multi-vendor + single-vendor demos were
+  deleted). Steps 1–5 of the deferral work are DONE (§9), including the CaseActor
+  revision-response fix. Build + lint green. Embargo negotiation/revision paths are
   the highest-risk area to keep exercising.
 - **Log Replay** — **rebuilt from scratch (2026-06)** on the new case-ledger
   format (§5–6), then extended for **multi-vendor + invite events (2026-07)** so
@@ -326,8 +324,8 @@ view) rather than relying on `entryHash` dedup across differing copies.
 
 ## 8. Working norms for this subproject
 
-- Identify **which of the three App modes** a request targets before editing;
-  they don't share an engine.
+- Identify **which of the two App modes** (Multi-vendor / Log Replay) a request
+  targets before editing; they don't share an engine.
 - Preserve the decision/consequence + `causedBy` + same-X grammar (§2) — it's
   the whole point of the visualization.
 - Keep RM/VFD per-participant and EM/PXA case-level (§3).
@@ -377,14 +375,22 @@ byte-exact compare.
 **Optional, deferred:** add `data/json/**` to the `paths:` triggers in
 `.github/workflows/python-app.yml` to also catch hand-edits of the artifact.
 
-### `ui/`-side refactor — the Validated fork (IN PROGRESS)
+### `ui/`-side refactor — protocol deferral (DONE, now the shipping demo)
 
-The refactor happens **only inside an isolated fork** (the "Multi-vendor
-(Validated)" mode, §1), so the proven multi-vendor demo never breaks while this
-proceeds. Decision (with the maintainer): **moderate deferral depth** — handlers
-compute destinations from the JSON; filters derive RM/EM/VFD legality from it;
-non-machine rules (embargo gating, notes, invites, visuals) stay as an explicit
-overlay. NOT a full generic engine.
+This refactor was originally built inside an isolated "Validated" fork so the
+proven demo wouldn't break; as of 2026-07 the fork was **promoted to be the sole
+multi-vendor demo** (`App-multivendor.tsx` + `actions/*` + `state/actionFilters.ts`;
+the old hardcoded original and the `validated/` subdirs are gone — §1 History).
+So the deferral code described below now lives at the canonical paths, not under
+`*/validated/*`. Decision (with the maintainer): **moderate deferral depth** —
+handlers compute destinations from the JSON; filters derive RM/EM/VFD legality
+from it; non-machine rules (embargo gating, notes, invites, visuals) stay as an
+explicit overlay. NOT a full generic engine.
+
+> **Path note:** the `src/actions/validated/*` and `src/state/validated/actionFilters.ts`
+> references throughout the rest of §9 are historical — read them as `src/actions/*`
+> and `src/state/actionFilters.ts`. There is no longer a "frozen original" to drift
+> from; the deferral code IS the demo.
 
 **Foundation — DONE (verified: `npm run build` green):**
 - [`vite.config.ts`](vite.config.ts) — `server.fs.allow: ['..', '.']` so the
@@ -403,6 +409,10 @@ overlay. NOT a full generic engine.
   Composites: `submit-report` (rm `receive` + vfd `vendor_becomes_aware`),
   `vendor-notify-published` (pxa `public_becomes_aware` + em `terminate`).
   `demo`-kind = notes/replies/invites/publication-ack (no machine slot).
+  **NOTE (2026-07):** this file is currently **not imported anywhere** — the
+  handlers/filters call `requireNextState`/`isLegalTransition` directly rather
+  than going through this table. It's kept as reference documentation of the
+  action→trigger mapping; delete it if that reference value isn't wanted.
 
 **The 5-step plan (Steps 1–5 done):**
 1. ✅ Make the artifact importable (vite + tsconfig).
@@ -510,19 +520,19 @@ set it in `handleCaseActorAcceptRevision`, and reset it in
 **UI-only** — deliberately kept OUT of `allParticipantsAccepted` (finder + active
 vendors only), preserving "CaseActor facilitates, doesn't vote." The EM
 transition itself still comes from the artifact via `requireNextState('em', …)`.
-The frozen original carries the same latent gap; left untouched per fork isolation.
+(The old hardcoded multi-vendor demo carried the same latent gap; it has since
+been deleted, so this is now the only implementation and the gap is fixed here.)
 
 **Gotchas discovered (carry forward):**
-- **`DECLINED` RM pseudo-state — REMOVED from the Validated fork (Step 5).** It is
+- **`DECLINED` RM pseudo-state — REMOVED (Step 5).** It is
   NOT a real RM state in the JSON; it was a demo invention for declined invites
   and was in fact never *written* anywhere (no decline action/handler exists —
   invited vendors enter directly at RM.RECEIVED), so its guards/filters were inert.
-  The fork deleted the `rmState === 'DECLINED'` filter guard and the four
-  `!== 'DECLINED'` consequence-filter clauses. A vendor "declining" a report is, at
+  The `rmState === 'DECLINED'` filter guard and the four `!== 'DECLINED'`
+  consequence-filter clauses were deleted. A vendor "declining" a report is, at
   the protocol level, `invalidate` (→INVALID→CLOSED) or `defer` (→DEFERRED→CLOSED)
-  — both already modeled. The **frozen original** still carries DECLINED
-  ([actionFilters.ts:237](src/state/actionFilters.ts#L237)); leave it until the
-  fork replaces the original.
+  — both already modeled. (The old hardcoded demo still carried DECLINED; it has
+  been deleted, so nothing carries it anymore.)
 - **VFD `vfd→Vfd`** (and **RM `START→RECEIVED`**) have no standalone user
   action — the demo sets vendors straight to `Vfd`/`RECEIVED` at report receipt
   ([finderActions.ts:26](src/actions/finderActions.ts#L26),
@@ -541,29 +551,24 @@ The frozen original carries the same latent gap; left untouched per fork isolati
   no single `requireNextState` trigger — so they stay literal by design. Don't
   "finish the job" by forcing them through `requireNextState`.
 
-### Validated fork — file layout & isolation (how to keep it safe)
+### File layout (post-promotion, 2026-07)
 
-The overhaul's entire blast radius is **multi-vendor-exclusive**: `actions/*.ts`
-and `state/actionFilters.ts` are imported ONLY by `App-multivendor.tsx`
-(`App.tsx` is self-contained; `App-logreplay.tsx` uses only
-`participantHelpers`). So the fork duplicates exactly those:
-- `App-multivendor-validated.tsx` (copy of `App-multivendor.tsx`; only its
-  `actions/` + `actionFilters` imports were repointed to the forks).
-- `src/actions/validated/{finder,vendor,caseActor,invite,external}Actions.ts`
-  (relative imports bumped `../` → `../../`).
-- `src/state/validated/actionFilters.ts` (imports `../participantHelpers`,
-  `../../types`).
+The fork is gone — there is now a single multi-vendor implementation at the
+canonical paths:
+- `App-multivendor.tsx` — the demo (the deferral-based code, formerly
+  `App-multivendor-validated.tsx`). Imported only by `DemoSelector.tsx`.
+- `src/actions/{finder,vendor,caseActor,invite,external}Actions.ts` — its
+  handlers (import `../state/*`, `../protocol`, `../types`, `../constants`).
+- `src/state/actionFilters.ts` — its filters (import `./participantHelpers`,
+  `../types`, `../protocol`).
 
-**Shared (NOT forked, treat as stable):** `participantHelpers.ts`,
-`stateUpdaters.ts`, `constants.ts`, `types.ts`, `components/`. If Step 4/5 ever
-needs to change one of these, fork it too rather than mutating the shared copy
-(that would leak into the frozen original).
+These `actions/*.ts` + `state/actionFilters.ts` are imported ONLY by
+`App-multivendor.tsx`; `App-logreplay.tsx` uses only `state/participantHelpers`.
 
-**Invariant to preserve:** `App-multivendor-validated.tsx` must import ONLY from
-`*/validated/*`; the original `App-multivendor.tsx` must import ONLY the
-non-forked originals. A quick check:
-`grep -nE "from './(actions|state)/" src/App-multivendor-validated.tsx` should
-show only `validated/` paths.
+**Shared, treat as stable:** `participantHelpers.ts`, `stateUpdaters.ts`,
+`protocol.ts`, `constants.ts`, `types.ts`, `components/` — used by BOTH surviving
+demos (Log Replay's mapper imports `protocol.ts`, `constants.ts`, `types.ts`,
+`participantHelpers.ts`). A change here affects both; check both before editing.
 
 ### Lint / build status
 - **MUST be re-verified by the user** after the replay restart — the container has
