@@ -144,6 +144,26 @@ def create_em_machine() -> Machine:
 # Example: EM_NEGOTIATING groups states where embargo negotiation is ongoing
 EM_NEGOTIATING = (EM.PROPOSED, EM.REVISE)
 
+# States where an embargo is currently in force.
+# Per the EM machine, once ACTIVE the embargo never returns to NONE/PROPOSED.
+EM_EMBARGO_ACTIVE = (EM.ACTIVE, EM.REVISE)
+
+
+def is_em_embargo_active(state: EM) -> bool:
+    """Return True if an embargo is currently in force (ACTIVE or REVISE).
+
+    The REVISE state retains the active embargo while a revision is negotiated;
+    the embargo remains in force until EXITED.
+
+    Examples::
+
+        is_em_embargo_active(EM.ACTIVE)   # True
+        is_em_embargo_active(EM.REVISE)   # True
+        is_em_embargo_active(EM.PROPOSED) # False
+        is_em_embargo_active(EM.EXITED)   # False
+    """
+    return state in EM_EMBARGO_ACTIVE
+
 
 if __name__ == "__main__":
     M = create_em_machine()

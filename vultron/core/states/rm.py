@@ -88,6 +88,15 @@ RM_ACTIVE = (
     RM.ACCEPTED,
 )
 
+# States at or past RM.VALID on the valid path (the "validated ratchet").
+# RM.CLOSED is excluded because it is also reachable from RM.INVALID without
+# passing through validation.
+RM_VALIDATED = (
+    RM.VALID,
+    RM.DEFERRED,
+    RM.ACCEPTED,
+)
+
 
 class RM_Trigger(StrEnum):
     """
@@ -195,6 +204,24 @@ def is_rm_at_least(state: RM, threshold: RM) -> bool:
         is_rm_at_least(RM.START,    RM.ACCEPTED)  # False
     """
     return _RM_PROGRESS.get(state, 0) >= _RM_PROGRESS.get(threshold, 0)
+
+
+def is_rm_validated(state: RM) -> bool:
+    """Return True if *state* is on the validated path (VALID, DEFERRED, or ACCEPTED).
+
+    RM.CLOSED is excluded because it is reachable via RM.INVALID without passing
+    through validation; use ``is_rm_at_least(state, RM.VALID)`` when you need to
+    include CLOSED in a broader "at-or-past" check.
+
+    Examples::
+
+        is_rm_validated(RM.VALID)     # True
+        is_rm_validated(RM.ACCEPTED)  # True
+        is_rm_validated(RM.DEFERRED)  # True
+        is_rm_validated(RM.CLOSED)    # False
+        is_rm_validated(RM.INVALID)   # False
+    """
+    return state in RM_VALIDATED
 
 
 def create_rm_machine() -> Machine:
