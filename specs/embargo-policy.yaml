@@ -9,6 +9,9 @@ kind: domain
 scope:
 - prototype
 - production
+tags:
+- protocol
+- state-machine
 groups:
 - id: EP-01
   title: Policy Record Format

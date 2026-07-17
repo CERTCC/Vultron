@@ -11,6 +11,9 @@ kind: domain
 scope:
 - prototype
 - production
+tags:
+- protocol
+- persistence
 groups:
 - id: CLP-01
   title: Assertion Intake

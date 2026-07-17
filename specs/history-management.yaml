@@ -9,6 +9,9 @@ kind: dev-process
 scope:
   - prototype
   - production
+tags:
+- tooling
+- documentation
 groups:
   - id: HM-01
     title: History File Location and Structure

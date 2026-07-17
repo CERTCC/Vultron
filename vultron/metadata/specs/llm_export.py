@@ -57,7 +57,7 @@ def _spec_record(
         "scope": [s.value for s in effective_scope(spec, group, file)],
     }
 
-    tags = effective_tags(spec)
+    tags = effective_tags(spec, file)
     if tags:
         rec["tags"] = [t.value for t in tags]
 
@@ -151,7 +151,7 @@ def _matches_filters(
     eff_scope_values = {
         item.value for item in effective_scope(spec, group, file)
     }
-    eff_tag_values = {item.value for item in effective_tags(spec)}
+    eff_tag_values = {item.value for item in effective_tags(spec, file)}
 
     if kind and eff_kind.value != kind:
         return False

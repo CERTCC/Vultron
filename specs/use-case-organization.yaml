@@ -9,6 +9,8 @@ kind: implementation
 scope:
 - prototype
 - production
+tags:
+- code-style
 groups:
 - id: UCORG-01
   title: Package Layout

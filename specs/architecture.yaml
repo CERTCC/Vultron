@@ -11,6 +11,8 @@ kind: pattern
 scope:
 - prototype
 - production
+tags:
+- code-style
 groups:
 - id: ARCH-01
   title: Layer Separation

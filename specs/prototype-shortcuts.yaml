@@ -8,6 +8,8 @@ kind: implementation
 scope:
 - prototype
 - production
+tags:
+- tooling
 groups:
 - id: PROTO-01
   title: Authentication

@@ -11,6 +11,10 @@ kind: domain
 scope:
 - prototype
 - production
+tags:
+- messaging
+- protocol
+- federation
 groups:
 - id: AKM-01
   title: DataLayer Isolation (MUST)

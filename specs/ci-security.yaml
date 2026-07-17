@@ -6,6 +6,9 @@ kind: general
 scope:
 - prototype
 - production
+tags:
+- ci-cd
+- security
 groups:
 - id: CISEC-01
   title: Action Version Pinning

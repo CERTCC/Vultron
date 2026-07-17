@@ -9,6 +9,9 @@ kind: pattern
 scope:
 - prototype
 - production
+tags:
+- messaging
+- behavior-tree
 groups:
 - id: EDF-01
   title: Definitions

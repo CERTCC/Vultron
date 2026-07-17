@@ -9,6 +9,8 @@ kind: implementation
 scope:
 - prototype
 - production
+tags:
+- demo
 groups:
 - id: DC-01
   title: CLI Interface

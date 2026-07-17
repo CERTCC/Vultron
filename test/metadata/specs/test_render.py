@@ -152,6 +152,38 @@ def test_export_json_filter_by_tags_no_match(loaded_registry):
     assert data == {}
 
 
+def test_export_json_inherited_tags_present_in_output(tmp_path):
+    """export_json output must include inherited file-level tags in the record."""
+    data = {
+        "id": "TST",
+        "title": "Test",
+        "description": "Test",
+        "version": "0.1",
+        "kind": "general",
+        "scope": ["production"],
+        "tags": ["protocol"],
+        "groups": [
+            {
+                "id": "TST-01",
+                "title": "Group",
+                "specs": [
+                    {
+                        "id": "TST-01-001",
+                        "priority": "MUST",
+                        "statement": "TST-01-001 MUST pass",
+                    }
+                ],
+            }
+        ],
+    }
+    (tmp_path / "test.yaml").write_text(yaml.dump(data))
+    registry = load_registry(tmp_path)
+    json_str = export_json(registry, tags=["protocol"])
+    parsed = json.loads(json_str)
+    assert "TST-01-001" in parsed
+    assert parsed["TST-01-001"]["tags"] == ["protocol"]
+
+
 # ---------------------------------------------------------------------------
 # render_registry_markdown
 # ---------------------------------------------------------------------------

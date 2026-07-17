@@ -10,6 +10,8 @@ kind: pattern
 scope:
   - prototype
   - production
+tags:
+- behavior-tree
 relationships:
   - rel_type: extends
     spec_id: BT-06-001

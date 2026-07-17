@@ -10,6 +10,8 @@ kind: dev-process
 scope:
   - prototype
   - production
+tags:
+- tooling
 groups:
   - id: BW-01
     title: Incoming Learnings Queue Content Policy

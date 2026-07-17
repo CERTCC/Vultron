@@ -50,9 +50,18 @@ def effective_scope(
     return file.scope
 
 
-def effective_tags(spec: Spec) -> list[SpecTag]:
-    """Return tags for *spec*, defaulting to empty list when absent."""
-    return spec.tags if spec.tags is not None else []
+def effective_tags(spec: Spec, file: SpecFile | None = None) -> list[SpecTag]:
+    """Return effective tags for *spec*, inheriting from *file* when absent.
+
+    Spec-level tags take priority; when a spec has no tags, the file-level
+    tags are returned so that a file-level ``tags:`` entry satisfies the
+    per-item lint check for all specs in the file.
+    """
+    if spec.tags is not None:
+        return spec.tags
+    if file is not None and file.tags is not None:
+        return file.tags
+    return []
 
 
 class SpecRegistry(BaseModel):
@@ -95,6 +104,7 @@ class SpecRegistry(BaseModel):
                 priority=spec.priority.value,
                 kind=effective_kind(spec, group, file).value,
                 scope=[s.value for s in effective_scope(spec, group, file)],
+                tags=[t.value for t in effective_tags(spec, file)],
                 file_id=file.id,
                 group_id=group.id,
                 type=spec_type,
@@ -162,6 +172,12 @@ class SpecRegistry(BaseModel):
         spec = self.get(spec_id)
         group, file = self._spec_context[spec_id]
         return effective_scope(spec, group, file)
+
+    def get_effective_tags(self, spec_id: SpecIdStr) -> list[SpecTag]:
+        """Return the resolved ``tags`` for *spec_id* via file inheritance."""
+        spec = self.get(spec_id)
+        _, file = self._spec_context[spec_id]
+        return effective_tags(spec, file)
 
     def validate_cross_references(self) -> list[str]:
         """Return error strings for any dangling relationship targets

@@ -8,6 +8,8 @@ kind: general
 scope:
 - prototype
 - production
+tags:
+- idempotency
 groups:
 - id: ID-01
   title: Activity ID Uniqueness

@@ -8,6 +8,8 @@ kind: implementation
 scope:
 - prototype
 - production
+tags:
+- demo
 groups:
 - id: DEMOMA-00
   title: Cross-Actor Communication

@@ -9,6 +9,8 @@ kind: domain
 scope:
 - prototype
 - production
+tags:
+- security
 groups:
 - id: ENC-01
   title: Key Management

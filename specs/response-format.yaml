@@ -9,6 +9,8 @@ kind: domain
 scope:
 - prototype
 - production
+tags:
+- wire-format
 groups:
 - id: RF-01
   title: Response Activity Structure

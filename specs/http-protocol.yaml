@@ -6,6 +6,8 @@ kind: pattern
 scope:
 - prototype
 - production
+tags:
+- wire-format
 groups:
 - id: HTTP-01
   title: Content-Type Validation

@@ -152,7 +152,7 @@ def lint(spec_dir: Path, adr_dir: Path | None = None) -> int:
                 f"{_RATIONALE_WARN_CHARS} characters"
             )
 
-        tags = spec.tags or []
+        tags = registry.get_effective_tags(spec_id)
         if not tags and LintWarningCode.MISSING_TAGS not in suppressed:
             warnings.append(f"[WARN] {spec_id}: no tags defined")
 

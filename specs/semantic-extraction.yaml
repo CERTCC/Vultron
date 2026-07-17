@@ -9,6 +9,9 @@ kind: domain
 scope:
 - prototype
 - production
+tags:
+- messaging
+- wire-format
 groups:
 - id: SE-01
   title: Pattern Matching

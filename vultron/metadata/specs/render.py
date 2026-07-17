@@ -23,7 +23,6 @@ from pathlib import Path
 
 from vultron.metadata.specs.registry import (
     SpecRegistry,
-    effective_tags,
     load_registry,
 )
 from vultron.metadata.specs.schema import (
@@ -294,7 +293,7 @@ def export_json(
     for spec_id, spec in registry.all_specs.items():
         eff_kind = registry.get_effective_kind(spec_id)
         eff_scope = registry.get_effective_scope(spec_id)
-        eff_tags = effective_tags(spec)
+        eff_tags = registry.get_effective_tags(spec_id)
 
         if kind and eff_kind.value != kind:
             continue
@@ -304,7 +303,10 @@ def export_json(
             continue
         if priority and spec.priority.value != priority:
             continue
-        result[spec_id] = spec.model_dump(mode="json")
+        record = spec.model_dump(mode="json")
+        if eff_tags and record.get("tags") is None:
+            record["tags"] = [t.value for t in eff_tags]
+        result[spec_id] = record
 
     return json.dumps(result, indent=2)
 

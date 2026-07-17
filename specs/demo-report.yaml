@@ -10,6 +10,8 @@ version: 1.0.0
 kind: implementation
 scope:
 - prototype
+tags:
+- demo
 groups:
 - id: DRPT-01
   title: Tool Structure and Invocation

@@ -10,6 +10,9 @@ kind: implementation
 scope:
   - prototype
   - production
+tags:
+- ci-cd
+- demo
 groups:
   - id: DEMOCI-01
     title: Demo Runner Failure Signalling

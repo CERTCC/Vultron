@@ -9,6 +9,8 @@ kind: language
 scope:
 - prototype
 - production
+tags:
+- testing
 groups:
 - id: TB-01
   title: Testing Framework
