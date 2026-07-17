@@ -64,7 +64,20 @@ def get_object(
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
-    return obj
+    wire_data = obj.model_dump(by_alias=True, serialize_as_any=True)
+    rec = Record(
+        id_=wire_data.get("id", object_id),
+        type_=wire_data.get("type", ""),
+        data_=wire_data,
+    )
+    try:
+        wire_obj = record_to_object(rec)
+        return AS2JSONResponse(wire_obj)
+    except Exception as exc:
+        logger.debug(
+            "get_object: wire conversion failed for %r: %s", object_id, exc
+        )
+        return wire_data
 
 
 @router.get(
