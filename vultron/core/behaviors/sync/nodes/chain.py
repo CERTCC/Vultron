@@ -39,15 +39,10 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Create", "VulnerabilityCase"),
     ("Offer", "VulnerabilityReport"),
     ("Offer", "VulnerabilityCase"),
-    # Accept(Offer(VulnerabilityReport)) — validate_report (RV message).
-    # The payload object is the Offer wrapping the VulnerabilityReport.
-    ("Accept", "Offer"),
-    # TentativeReject(Offer(VulnerabilityReport)) — invalidate_report (RI).
-    ("TentativeReject", "Offer"),
-    # Reject(Offer(VulnerabilityReport)) — close_report (RC).
-    ("Reject", "Offer"),
-    # Read(Offer(VulnerabilityReport)) — ack_report (RK message, ADR-0021).
-    ("Read", "Offer"),
+    ("Accept", "Offer"),  # validate_report (RV) — object_ is the Offer
+    ("TentativeReject", "Offer"),  # invalidate_report (RI)
+    ("Reject", "Offer"),  # close_report (RC)
+    ("Read", "Offer"),  # ack_report (RK, ADR-0021)
     ("Add", "Note"),
     ("Add", "ParticipantStatus"),
     ("Add", "EmbargoEvent"),
@@ -137,16 +132,27 @@ def _snapshot_type(snapshot: dict[str, Any]) -> str | None:
     )
 
 
+_ACTOR_TYPES: frozenset[str] = frozenset(
+    {"Actor", "Application", "Group", "Organization", "Person", "Service"}
+)
+
+
 def _snapshot_object_type(snapshot: dict[str, Any]) -> str | None:
-    snapshot_object = snapshot.get("object")
-    if not isinstance(snapshot_object, dict):
-        snapshot_object = snapshot.get("object_")
-    if not isinstance(snapshot_object, dict):
+    # Invite(Actor, target=Case): object_ is the actor; use target.type so the
+    # signature resolves to ('Invite','VulnerabilityCase') not ('Invite','Org').
+    obj = snapshot.get("object") or snapshot.get("object_")
+    if not isinstance(obj, dict):
         return None
-    object_type = snapshot_object.get("type") or snapshot_object.get("type_")
-    return (
-        object_type if isinstance(object_type, str) and object_type else None
-    )
+    object_type = obj.get("type") or obj.get("type_")
+    if not isinstance(object_type, str) or not object_type:
+        return None
+    if object_type in _ACTOR_TYPES:
+        target = snapshot.get("target")
+        if isinstance(target, dict):
+            target_type = target.get("type") or target.get("type_")
+            if isinstance(target_type, str) and target_type:
+                return target_type
+    return object_type
 
 
 def _bare_inline_object_path(
