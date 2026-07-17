@@ -16,12 +16,14 @@
 Provides a backend API router for basic Vultron data layer operations.
 """
 
+import logging
 from copy import deepcopy
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from vultron.adapters.driven.datalayer import get_shared_dl
+from vultron.adapters.driven.db_record import Record, record_to_object
 from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
 from vultron.core.ports.datalayer import DataLayer
 from vultron.wire.as2.rehydration import rehydrate
@@ -41,6 +43,8 @@ from vultron.wire.as2.vocab.objects.vultron_actor import (
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/datalayer", tags=["datalayer"])
 
@@ -302,8 +306,6 @@ def reset_datalayer(
     operation_id="datalayer_get_by_key",
 )
 def get_object_by_key(key: str, datalayer: DataLayer = Depends(get_shared_dl)):
-    from vultron.adapters.driven.db_record import Record, record_to_object
-
     obj = datalayer.read(key)
 
     if not obj:
@@ -318,5 +320,8 @@ def get_object_by_key(key: str, datalayer: DataLayer = Depends(get_shared_dl)):
     try:
         wire_obj = record_to_object(rec)
         return AS2JSONResponse(wire_obj)
-    except Exception:
+    except Exception as exc:
+        logger.debug(
+            "get_object_by_key: wire conversion failed for %r: %s", key, exc
+        )
         return wire_data
