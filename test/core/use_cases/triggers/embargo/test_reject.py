@@ -13,8 +13,10 @@ from vultron.core.use_cases.triggers.requests import (
     RejectEmbargoTriggerRequest,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 from .conftest import _build_active_embargo_case, _persist_actor
 
@@ -46,8 +48,8 @@ def test_non_owner_reject_embargo_on_active_case_updates_participant_only(
 
     assert updated_case is not None
     assert updated_participant is not None
-    updated_case = cast(VulnerabilityCase, updated_case)
-    updated_participant = cast(CaseParticipant, updated_participant)
+    updated_case = cast(as_VulnerabilityCase, updated_case)
+    updated_participant = cast(as_CaseParticipant, updated_participant)
     assert updated_case.current_status.em_state == EM.ACTIVE
     assert updated_case.active_embargo == case.active_embargo
     assert updated_participant.embargo_consent_state == PEC.DECLINED.value

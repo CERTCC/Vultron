@@ -130,7 +130,7 @@ class TestVendorCreatesCase:
         assert case.id_ in case_ids
 
         case_data = case_actor_client.get(f"/datalayer/{case.id_}")
-        stored_case = demo.VulnerabilityCase(**case_data)
+        stored_case = demo.as_VulnerabilityCase(**case_data)
         from vultron.demo.scenario.multi_vendor_demo import ref_id as _ref_id
 
         assert _ref_id(stored_case.attributed_to) == vendor_in_vendor.id_
@@ -191,7 +191,7 @@ class TestOwnershipTransfer:
 
         # Confirm initial owner is vendor
         case_data = case_actor_client.get(f"/datalayer/{case.id_}")
-        initial_case = demo.VulnerabilityCase(**case_data)
+        initial_case = demo.as_VulnerabilityCase(**case_data)
         from vultron.demo.scenario.multi_vendor_demo import ref_id as _ref_id
 
         assert _ref_id(initial_case.attributed_to) == vendor_in_vendor.id_
@@ -216,7 +216,7 @@ class TestOwnershipTransfer:
 
         # Verify case ownership transferred to coordinator
         updated_data = case_actor_client.get(f"/datalayer/{case.id_}")
-        updated_case = demo.VulnerabilityCase(**updated_data)
+        updated_case = demo.as_VulnerabilityCase(**updated_data)
         from vultron.demo.scenario.multi_vendor_demo import ref_id as _ref_id
 
         assert (

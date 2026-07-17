@@ -29,13 +29,15 @@ from vultron.core.use_cases.query.action_rules import (
     GetActionRulesUseCase,
 )
 from vultron.errors import VultronNotFoundError, VultronValidationError
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import (
-    CaseStatus,
-    ParticipantStatus,
+    as_CaseStatus,
+    as_ParticipantStatus,
 )
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 ACTOR_ID = "https://example.org/actors/alice"
 CASE_ID = "https://example.org/cases/c1"
@@ -47,23 +49,25 @@ def dl():
     """In-memory DataLayer with a minimal valid case setup."""
     layer = SqliteDataLayer("sqlite:///:memory:")
 
-    # Case: VulnerabilityCase with actor_participant_index
-    case = VulnerabilityCase(
+    # Case: as_VulnerabilityCase with actor_participant_index
+    case = as_VulnerabilityCase(
         id_=CASE_ID,
         name="Test Case",
         case_participants=[PARTICIPANT_ID],
         actor_participant_index={ACTOR_ID: PARTICIPANT_ID},
-        case_statuses=[CaseStatus(em_state=EM.ACTIVE, pxa_state=CS_pxa.Pxa)],
+        case_statuses=[
+            as_CaseStatus(em_state=EM.ACTIVE, pxa_state=CS_pxa.Pxa)
+        ],
     )
     layer.create(case)
 
-    # Participant: CaseParticipant with VENDOR role and ACCEPTED RM state
-    participant = CaseParticipant(
+    # Participant: as_CaseParticipant with VENDOR role and ACCEPTED RM state
+    participant = as_CaseParticipant(
         id_=PARTICIPANT_ID,
         attributed_to=ACTOR_ID,
         case_roles=[CVDRole.VENDOR],
         participant_statuses=[
-            ParticipantStatus(
+            as_ParticipantStatus(
                 context=CASE_ID, rm_state=RM.ACCEPTED, vfd_state=CS_vfd.VFd
             )
         ],
@@ -165,9 +169,9 @@ class TestGetActionRulesUseCase:
             GetActionRulesUseCase(dl=dl, request=req).execute()
 
     def test_no_case_statuses_defaults(self, dl):
-        """When case has no CaseStatus entries, EM/PXA default to None/pxa."""
+        """When case has no as_CaseStatus entries, EM/PXA default to None/pxa."""
         layer = SqliteDataLayer("sqlite:///:memory:")
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_=CASE_ID,
             name="Empty Status Case",
             case_participants=[PARTICIPANT_ID],
@@ -175,12 +179,12 @@ class TestGetActionRulesUseCase:
             case_statuses=[],
         )
         layer.create(case)
-        participant = CaseParticipant(
+        participant = as_CaseParticipant(
             id_=PARTICIPANT_ID,
             attributed_to=ACTOR_ID,
             case_roles=[CVDRole.REPORTER],
             participant_statuses=[
-                ParticipantStatus(
+                as_ParticipantStatus(
                     context=CASE_ID,
                     rm_state=RM.RECEIVED,
                     vfd_state=CS_vfd.Vfd,
@@ -199,17 +203,17 @@ class TestGetActionRulesUseCase:
         assert result["pxa_state"] == CS_pxa.pxa.name
 
     def test_no_participant_statuses_defaults(self, dl):
-        """When participant has no ParticipantStatus entries, RM/VFD default."""
+        """When participant has no as_ParticipantStatus entries, RM/VFD default."""
         layer = SqliteDataLayer("sqlite:///:memory:")
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_=CASE_ID,
             name="Default Participant Status Case",
             case_participants=[PARTICIPANT_ID],
             actor_participant_index={ACTOR_ID: PARTICIPANT_ID},
-            case_statuses=[CaseStatus(em_state=EM.NO_EMBARGO)],
+            case_statuses=[as_CaseStatus(em_state=EM.NO_EMBARGO)],
         )
         layer.create(case)
-        participant = CaseParticipant(
+        participant = as_CaseParticipant(
             id_=PARTICIPANT_ID,
             attributed_to=ACTOR_ID,
             context=CASE_ID,
@@ -237,17 +241,19 @@ class TestGetActionRulesUseCase:
             EM.EXITED,
         ]:
             layer = SqliteDataLayer("sqlite:///:memory:")
-            case = VulnerabilityCase(
+            case = as_VulnerabilityCase(
                 id_=CASE_ID,
                 case_participants=[PARTICIPANT_ID],
                 actor_participant_index={ACTOR_ID: PARTICIPANT_ID},
-                case_statuses=[CaseStatus(em_state=em, pxa_state=CS_pxa.pxa)],
+                case_statuses=[
+                    as_CaseStatus(em_state=em, pxa_state=CS_pxa.pxa)
+                ],
             )
             layer.create(case)
-            participant = CaseParticipant(
+            participant = as_CaseParticipant(
                 id_=PARTICIPANT_ID,
                 attributed_to=ACTOR_ID,
-                participant_statuses=[ParticipantStatus(context=CASE_ID)],
+                participant_statuses=[as_ParticipantStatus(context=CASE_ID)],
             )
             layer.create(participant)
 
@@ -262,18 +268,18 @@ class TestGetActionRulesUseCase:
 
     def test_participant_lookup_raises_on_index_mismatch(self):
         layer = SqliteDataLayer("sqlite:///:memory:")
-        participant = CaseParticipant(
+        participant = as_CaseParticipant(
             id_=PARTICIPANT_ID,
             attributed_to=ACTOR_ID,
             case_roles=[CVDRole.VENDOR],
-            participant_statuses=[ParticipantStatus(context=CASE_ID)],
+            participant_statuses=[as_ParticipantStatus(context=CASE_ID)],
         )
         layer.create(participant)
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_=CASE_ID,
             case_participants=[PARTICIPANT_ID],
             actor_participant_index={ACTOR_ID: "https://example.org/p/wrong"},
-            case_statuses=[CaseStatus()],
+            case_statuses=[as_CaseStatus()],
         )
         layer.create(case)
 
@@ -283,18 +289,18 @@ class TestGetActionRulesUseCase:
 
     def test_participant_lookup_succeeds_without_index_entry(self):
         layer = SqliteDataLayer("sqlite:///:memory:")
-        participant = CaseParticipant(
+        participant = as_CaseParticipant(
             id_=PARTICIPANT_ID,
             attributed_to=ACTOR_ID,
             case_roles=[CVDRole.VENDOR],
-            participant_statuses=[ParticipantStatus(context=CASE_ID)],
+            participant_statuses=[as_ParticipantStatus(context=CASE_ID)],
         )
         layer.create(participant)
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_=CASE_ID,
             case_participants=[PARTICIPANT_ID],
             actor_participant_index={},
-            case_statuses=[CaseStatus()],
+            case_statuses=[as_CaseStatus()],
         )
         layer.create(case)
 

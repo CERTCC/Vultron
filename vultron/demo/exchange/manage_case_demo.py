@@ -30,7 +30,7 @@ Key activities demonstrated:
 - RmSubmitReportActivity (as:Offer) — finder submits a report to vendor
 - RmValidateReportActivity (as:Accept) — vendor validates the report
 - RmInvalidateReportActivity (as:TentativeReject) — vendor invalidates the report
-- CreateCaseActivity (as:Create) — vendor creates a VulnerabilityCase
+- CreateCaseActivity (as:Create) — vendor creates a as_VulnerabilityCase
 - RmEngageCaseActivity (as:Join) — actor actively engages the case (RM → ACCEPTED)
 - RmDeferCaseActivity (as:Ignore) — actor defers the case (RM → DEFERRED)
 - RmCloseCaseActivity (as:Leave) — actor closes the case (RM → CLOSED)
@@ -58,11 +58,13 @@ from typing import Callable, Optional, Sequence, Tuple
 
 # Vultron imports
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.enums.roles import CVDRole
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
@@ -103,14 +105,14 @@ def setup_report_and_case(
     report_content: str,
     case_name: str,
     case_content: str,
-) -> Tuple[VulnerabilityReport, VulnerabilityCase]:
+) -> Tuple[as_VulnerabilityReport, as_VulnerabilityCase]:
     """
     Shared setup: submit and validate a report, create a case, and add the
     vendor as a participant with the report linked.
 
     Returns the created report and case objects.
     """
-    report = VulnerabilityReport(
+    report = as_VulnerabilityReport(
         attributed_to=finder.id_,
         content=report_content,
         name=report_name,
@@ -126,7 +128,7 @@ def setup_report_and_case(
     )
     post_to_inbox_and_wait(client, vendor.id_, validate_activity)
 
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         attributed_to=vendor.id_,
         name=case_name,
         content=case_content,
@@ -134,7 +136,7 @@ def setup_report_and_case(
     create_case_act = create_case_activity(case, actor=vendor.id_)
     post_to_inbox_and_wait(client, vendor.id_, create_case_act)
 
-    vendor_participant = CaseParticipant(
+    vendor_participant = as_CaseParticipant(
         case_roles=[CVDRole.VENDOR],
         attributed_to=vendor.id_,
         context=case.id_,
@@ -172,7 +174,7 @@ def demo_engage_path(
 
     Workflow steps:
     1. Finder submits report; vendor validates it
-    2. Vendor creates VulnerabilityCase; adds vendor participant and report
+    2. Vendor creates as_VulnerabilityCase; adds vendor participant and report
     3. Vendor engages the case (RmEngageCaseActivity — RM → ACCEPTED)
     4. Vendor closes the case (RmCloseCaseActivity — RM → CLOSED)
     """
@@ -313,7 +315,7 @@ def demo_invalidate_path(
     logger.info("=" * 80)
 
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
-        report = VulnerabilityReport(
+        report = as_VulnerabilityReport(
             attributed_to=finder.id_,
             content="The login page shows a different error for valid vs invalid "
             "usernames.",

@@ -40,7 +40,7 @@ from vultron.errors import VultronInvalidStateTransitionError
 
 # noqa: F401 — vocabulary registration side-effect
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
-    VulnerabilityCase,
+    as_VulnerabilityCase,
 )
 
 # ---------------------------------------------------------------------------

@@ -55,10 +55,12 @@ from vultron.core.use_cases.received.report import (
 from vultron.core.use_cases.triggers.service import TriggerService
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 # ---------------------------------------------------------------------------
@@ -75,7 +77,7 @@ def _make_case_at_received(
     vendor_id: str,
     finder_id: str,
     report_id: str,
-) -> tuple[VulnerabilityCase, as_Offer]:
+) -> tuple[as_VulnerabilityCase, as_Offer]:
     """Create a case at RM.RECEIVED via the receive-report BT.
 
     Mirrors the real production path: Offer(Report) arrives → BT creates a
@@ -91,7 +93,7 @@ def _make_case_at_received(
         create_receive_report_case_tree,
     )
 
-    report_obj = VulnerabilityReport(id_=report_id, name="Test Vul Report")
+    report_obj = as_VulnerabilityReport(id_=report_id, name="Test Vul Report")
     dl.save(report_obj)
     offer = as_Offer(
         actor=finder_id,
@@ -113,10 +115,10 @@ def _make_case_at_received(
     case = dl.find_case_by_report_id(report_id)
     assert (
         case is not None
-    ), "receive_report BT must create a VulnerabilityCase"
+    ), "receive_report BT must create a as_VulnerabilityCase"
     assert isinstance(
-        case, VulnerabilityCase
-    ), f"Expected VulnerabilityCase, got {type(case)}"
+        case, as_VulnerabilityCase
+    ), f"Expected as_VulnerabilityCase, got {type(case)}"
     return case, offer
 
 
@@ -161,7 +163,7 @@ class TestTriggerEmitsToCaseActorOutbox:
 
     def _setup(
         self,
-    ) -> tuple[SqliteDataLayer, VulnerabilityCase, as_Offer, str]:
+    ) -> tuple[SqliteDataLayer, as_VulnerabilityCase, as_Offer, str]:
         """Return (dl, case, offer, case_actor_id) after BT receive-report."""
         dl = _make_dl()
         vendor = as_Service(id_=self.VENDOR_ID, name="Vendor")
@@ -276,14 +278,14 @@ class TestCaseActorReceivedWritesLedgerEntry:
         )
         dl.save(case_actor_svc)
 
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_=self.CASE_ID,
             name="Ledger Routing Test Case",
             attributed_to=self.CASE_ACTOR_ID,
         )
         case.vulnerability_reports.append(self.REPORT_ID)
 
-        cm_participant = CaseParticipant(
+        cm_participant = as_CaseParticipant(
             attributed_to=self.CASE_ACTOR_ID,
             context=self.CASE_ID,
             case_roles=[CVDRole.CASE_MANAGER],
@@ -300,7 +302,7 @@ class TestCaseActorReceivedWritesLedgerEntry:
     ) -> ValidateReportReceivedEvent:
         """Construct a ValidateReportReceivedEvent for the CaseActor's inbox.
 
-        The wire format is Accept(Offer(VulnerabilityReport)).  The activity
+        The wire format is Accept(Offer(as_VulnerabilityReport)).  The activity
         must carry an ``object_`` with ``type_="Offer"`` so the canonical
         signature check in ``_validate_canonical_entry`` sees
         ``("Accept", "Offer")``.
@@ -308,7 +310,7 @@ class TestCaseActorReceivedWritesLedgerEntry:
         if receiving_actor_id is None:
             receiving_actor_id = self.CASE_ACTOR_ID
 
-        # The inner Offer carries the VulnerabilityReport.
+        # The inner Offer carries the as_VulnerabilityReport.
         report_obj = VultronReport(id_=self.REPORT_ID)
         offer_obj = VultronActivity(
             id_=self.OFFER_ID,
@@ -404,12 +406,12 @@ class TestCaseActorReceivedWritesLedgerEntry:
         # Register VENDOR as a case participant so TransitionRMtoValid can
         # persist the status record.
         case = dl.read(self.CASE_ID)
-        assert isinstance(case, VulnerabilityCase)
+        assert isinstance(case, as_VulnerabilityCase)
         from vultron.core.models.case_actor import VultronCaseActor
 
         vendor_svc = VultronCaseActor(id_=self.VENDOR_ID)
         dl.save(vendor_svc)
-        vendor_p = CaseParticipant(
+        vendor_p = as_CaseParticipant(
             attributed_to=self.VENDOR_ID,
             context=self.CASE_ID,
             case_roles=[CVDRole.COORDINATOR],
@@ -505,14 +507,14 @@ class TestFullValidateReportLedgerChain:
         ca_svc = VultronCaseActor(id_=case_actor_id, context=case.id_)
         case_actor_dl.save(ca_svc)
 
-        ca_case = VulnerabilityCase(
+        ca_case = as_VulnerabilityCase(
             id_=case.id_,
             name=case.name or "Test Case",
             attributed_to=case_actor_id,
         )
         ca_case.vulnerability_reports.append(self.REPORT_ID)
 
-        ca_participant = CaseParticipant(
+        ca_participant = as_CaseParticipant(
             attributed_to=case_actor_id,
             context=ca_case.id_,
             case_roles=[CVDRole.CASE_MANAGER],

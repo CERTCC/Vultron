@@ -11,7 +11,9 @@ from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.events import MessageSemantics, VultronEvent
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 
 def test_prepare_for_dispatch_returns_vultron_event(monkeypatch):
@@ -316,7 +318,7 @@ def test_inbox_handler_replays_deferred_items_after_case_announce(monkeypatch):
     def fake_dispatch(event: VultronEvent, dl: SqliteDataLayer) -> None:
         dispatched.append(event.activity_id)
         if event.semantic_type == MessageSemantics.ANNOUNCE_VULNERABILITY_CASE:
-            dl.save(VulnerabilityCase(id_=case_id, name="Replica"))
+            dl.save(as_VulnerabilityCase(id_=case_id, name="Replica"))
 
     async def fake_outbox_handler(*_args: object, **_kwargs: object) -> None:
         return None
@@ -653,7 +655,7 @@ def test_make_dispatcher_ac2_auto_create_false_no_case_via_dispatcher(
     With _resolve_actor_config returning auto_create_case=False,
     dispatching an inbound Offer(Report) via DirectActivityDispatcher must
     store the report and Offer activity but must NOT create a
-    VulnerabilityCase and must leave the actor's outbox empty (CM-15-001,
+    as_VulnerabilityCase and must leave the actor's outbox empty (CM-15-001,
     issue #1319).
     """
     from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -708,7 +710,7 @@ def test_make_dispatcher_ac2_auto_create_false_no_case_via_dispatcher(
     # No case created.
     assert (
         dl.get_all("VulnerabilityCase") == []
-    ), "No VulnerabilityCase should be created when auto_create_case=False"
+    ), "No as_VulnerabilityCase should be created when auto_create_case=False"
     # Outbox must remain empty.
     assert (
         dl.outbox_list_for_actor(VENDOR_ID) == []

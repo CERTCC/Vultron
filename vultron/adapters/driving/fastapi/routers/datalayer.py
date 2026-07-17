@@ -32,14 +32,14 @@ from vultron.wire.as2.vocab.base.objects.collections import (
     as_OrderedCollection,
 )
 from vultron.wire.as2.vocab.objects.vultron_actor import (
-    VultronApplication,
-    VultronGroup,
-    VultronOrganization,
-    VultronPerson,
-    VultronService,
+    as_VultronApplication,
+    as_VultronGroup,
+    as_VultronOrganization,
+    as_VultronPerson,
+    as_VultronService,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 router = APIRouter(prefix="/datalayer", tags=["datalayer"])
@@ -79,7 +79,7 @@ def get_offer(
 
 @router.get(
     "/Report/",
-    response_model=VulnerabilityReport,
+    response_model=as_VulnerabilityReport,
     operation_id="datalayer_get_report",
 )
 def get_report(
@@ -88,7 +88,7 @@ def get_report(
     obj = datalayer.read(id)
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-    return AS2JSONResponse(VulnerabilityReport.model_validate(obj))
+    return AS2JSONResponse(as_VulnerabilityReport.model_validate(obj))
 
 
 @router.get(
@@ -162,7 +162,7 @@ def get_offers(
 
 @router.get(
     "/Reports/",
-    description="Returns all VulnerabilityReport objects.",
+    description="Returns all as_VulnerabilityReport objects.",
     operation_id="datalayer_list_reports",
 )
 def get_reports(
@@ -172,7 +172,7 @@ def get_reports(
 
     return AS2JSONResponse(
         {
-            k: VulnerabilityReport.model_validate(v).model_dump(
+            k: as_VulnerabilityReport.model_validate(v).model_dump(
                 mode="json", by_alias=True, exclude_none=True
             )
             for k, v in results.items()
@@ -181,11 +181,11 @@ def get_reports(
 
 
 _DATALAYER_ACTOR_TYPE_MAP: dict[str, type[as_Actor]] = {
-    "Person": VultronPerson,
-    "Organization": VultronOrganization,
-    "Service": VultronService,
-    "Application": VultronApplication,
-    "Group": VultronGroup,
+    "Person": as_VultronPerson,
+    "Organization": as_VultronOrganization,
+    "Service": as_VultronService,
+    "Application": as_VultronApplication,
+    "Group": as_VultronGroup,
 }
 
 

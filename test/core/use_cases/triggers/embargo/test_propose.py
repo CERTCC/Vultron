@@ -15,7 +15,9 @@ from vultron.core.use_cases.triggers.requests import (
 )
 from vultron.errors import VultronInvalidStateTransitionError
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 from .conftest import (
     _build_exited_case,
@@ -67,6 +69,6 @@ def test_propose_embargo_updates_case_state_via_bt_path(
     ).execute()
 
     assert "activity" in result
-    updated_case = cast(VulnerabilityCase, finder_dl.read(case.id_))
+    updated_case = cast(as_VulnerabilityCase, finder_dl.read(case.id_))
     assert updated_case.current_status.em_state == EM.PROPOSED
     assert len(updated_case.proposed_embargoes) == 1

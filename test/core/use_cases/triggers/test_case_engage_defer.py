@@ -50,10 +50,12 @@ from vultron.core.use_cases.triggers.note import (
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
-    CaseParticipant,
+    as_CaseParticipant,
     FinderParticipant,
 )
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 # ---------------------------------------------------------------------------
 # Test helpers
@@ -77,22 +79,22 @@ def _make_case_with_case_manager(
     actor_id: str,
     finder_id: str,
     case_actor_id: str,
-) -> tuple[VulnerabilityCase, CaseParticipant]:
-    """Create a VulnerabilityCase with all participants in both index and list.
+) -> tuple[as_VulnerabilityCase, as_CaseParticipant]:
+    """Create a as_VulnerabilityCase with all participants in both index and list.
 
     The actor participant is pre-initialized to RM.VALID so that
     engage (→ ACCEPTED) and defer (→ DEFERRED) transitions are valid.
     """
-    case = VulnerabilityCase(name="Test Case")
+    case = as_VulnerabilityCase(name="Test Case")
 
-    actor_participant = CaseParticipant(
+    actor_participant = as_CaseParticipant(
         attributed_to=actor_id,
         context=case.id_,
         case_roles=[CVDRole.VENDOR],
     )
     # Pre-advance actor to RM.VALID so engage/defer transitions will succeed
     from vultron.wire.as2.vocab.objects.case_status import (
-        ParticipantStatus as WireParticipantStatus,
+        as_ParticipantStatus as WireParticipantStatus,
     )
 
     actor_participant.participant_statuses.append(
@@ -106,7 +108,7 @@ def _make_case_with_case_manager(
         attributed_to=finder_id,
         context=case.id_,
     )
-    case_manager_participant = CaseParticipant(
+    case_manager_participant = as_CaseParticipant(
         attributed_to=case_actor_id,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -170,10 +172,10 @@ class TestEngageCaseRMTransitionViaBT:
         # Re-read participant from DataLayer to confirm BT wrote the change
         updated = self.dl.read(self.vendor_participant.id_)
         assert updated is not None
-        assert isinstance(updated, CaseParticipant)
+        assert isinstance(updated, as_CaseParticipant)
         assert (
             updated.participant_statuses
-        ), "Expected at least one ParticipantStatus after engage"
+        ), "Expected at least one as_ParticipantStatus after engage"
         assert (
             updated.participant_statuses[-1].rm_state == RM.ACCEPTED
         ), f"Expected RM.ACCEPTED, got {updated.participant_statuses[-1].rm_state}"
@@ -187,7 +189,7 @@ class TestEngageCaseRMTransitionViaBT:
         an explicit failure.
         """
         # Build a case with only actor_participant_index (not case_participants)
-        case_solo = VulnerabilityCase(name="Solo Case")
+        case_solo = as_VulnerabilityCase(name="Solo Case")
         case_solo.actor_participant_index[self.vendor.id_] = (
             f"{case_solo.id_}/participants/vendor"
         )
@@ -247,10 +249,10 @@ class TestDeferCaseRMTransitionViaBT:
         # Re-read participant from DataLayer to confirm BT wrote the change
         updated = self.dl.read(self.vendor_participant.id_)
         assert updated is not None
-        assert isinstance(updated, CaseParticipant)
+        assert isinstance(updated, as_CaseParticipant)
         assert (
             updated.participant_statuses
-        ), "Expected at least one ParticipantStatus after defer"
+        ), "Expected at least one as_ParticipantStatus after defer"
         assert (
             updated.participant_statuses[-1].rm_state == RM.DEFERRED
         ), f"Expected RM.DEFERRED, got {updated.participant_statuses[-1].rm_state}"
@@ -309,7 +311,7 @@ class TestAddNoteToCaseViaBT:
         # The case's notes list should contain the new note id
         updated_case = self.dl.read(self.case.id_)
         assert updated_case is not None
-        assert isinstance(updated_case, VulnerabilityCase)
+        assert isinstance(updated_case, as_VulnerabilityCase)
         assert (
             len(updated_case.notes) >= 1
         ), "Expected case.notes to contain the new note after BT-driven attachment"

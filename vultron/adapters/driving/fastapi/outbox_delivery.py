@@ -42,9 +42,11 @@ from vultron.errors import (
     VultronOutboxToFieldMissingError,
 )
 from vultron.wire.as2.vocab.base.links import as_Link
-from vultron.wire.as2.vocab.objects.case_ledger_entry import CaseLedgerEntry
+from vultron.wire.as2.vocab.objects.case_ledger_entry import as_CaseLedgerEntry
 from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -57,8 +59,8 @@ logger = logging.getLogger(__name__)
 # keeping the full inline entry on the wire (SYNC-02-004, SYNC-13-004).
 _STUB_OBJECT_MODEL_MAP: dict[str, type[BaseModel]] = {
     "CaseProposal": as_CaseProposal,
-    "VulnerabilityCase": VulnerabilityCase,
-    "CaseLedgerEntry": CaseLedgerEntry,
+    "VulnerabilityCase": as_VulnerabilityCase,
+    "CaseLedgerEntry": as_CaseLedgerEntry,
 }
 
 _INLINE_OBJECT_ACTIVITY_TYPES: frozenset[str] = frozenset(

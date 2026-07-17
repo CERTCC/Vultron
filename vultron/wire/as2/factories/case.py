@@ -16,7 +16,7 @@
 Factory functions for outbound Vultron case-management activities.
 
 These are the sole public construction API for activities involving
-``VulnerabilityCase`` objects. Internal activity subclasses are
+``as_VulnerabilityCase`` objects. Internal activity subclasses are
 imported here and MUST NOT be imported by callers.
 
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
@@ -70,19 +70,19 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor, as_ActorRef
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.wire.as2.vocab.objects.case_status import CaseStatus
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.embargo_event import (
-    EmbargoEvent as WireEmbargoEvent,
+    as_EmbargoEvent as WireEmbargoEvent,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    VulnerabilityCase,
-    VulnerabilityCaseRef,
+    as_VulnerabilityCase,
+    as_VulnerabilityCaseRef,
     VulnerabilityCaseStub,
 )
 from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 logger = logging.getLogger(__name__)
@@ -92,7 +92,7 @@ def _project_case_to_stub(
     case: Any,
     embargo_obj: Any,
 ) -> VulnerabilityCaseStub:
-    """Project a ``VulnerabilityCase`` (core or wire) to a ``VulnerabilityCaseStub``.
+    """Project a ``as_VulnerabilityCase`` (core or wire) to a ``VulnerabilityCaseStub``.
 
     When ``em_state == EM.ACTIVE`` and *embargo_obj* is provided, the stub
     carries ``active_embargo`` (ID + ``end_time``) and ``case_status``
@@ -100,7 +100,7 @@ def _project_case_to_stub(
     Falls back to a minimal stub when the case has no active embargo.
 
     Args:
-        case: A core or wire ``VulnerabilityCase`` to project.
+        case: A core or wire ``as_VulnerabilityCase`` to project.
         embargo_obj: The fetched ``EmbargoEvent`` (core or wire), or ``None``.
     """
     case_id = case.id_
@@ -112,7 +112,7 @@ def _project_case_to_stub(
     active_embargo_uri = getattr(case, "active_embargo", None)
     if em_state != EM.ACTIVE or active_embargo_uri is None:
         return VulnerabilityCaseStub(id_=case_id)
-    wire_status = CaseStatus(em_state=em_state)
+    wire_status = as_CaseStatus(em_state=em_state)
     embargo_ref: WireEmbargoEvent | str = active_embargo_uri
     if embargo_obj is not None:
         end_time = getattr(embargo_obj, "end_time", None)
@@ -136,15 +136,15 @@ def _project_case_to_stub(
 
 
 def add_report_to_case_activity(
-    report: VulnerabilityReport,
-    target: VulnerabilityCaseRef | None = None,
+    report: as_VulnerabilityReport,
+    target: as_VulnerabilityCaseRef | None = None,
     **kwargs,
 ) -> as_Add:
-    """Build an Add(VulnerabilityReport, target=VulnerabilityCase).
+    """Build an Add(as_VulnerabilityReport, target=as_VulnerabilityCase).
 
     Args:
-        report: The ``VulnerabilityReport`` to add to the case.
-        target: The ``VulnerabilityCase`` (or its URI) to which the
+        report: The ``as_VulnerabilityReport`` to add to the case.
+        target: The ``as_VulnerabilityCase`` (or its URI) to which the
             report is being added.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``).
@@ -170,15 +170,15 @@ def add_report_to_case_activity(
 
 
 def add_status_to_case_activity(
-    status: CaseStatus,
-    target: VulnerabilityCaseRef | None = None,
+    status: as_CaseStatus,
+    target: as_VulnerabilityCaseRef | None = None,
     **kwargs,
 ) -> as_Add:
-    """Build an Add(CaseStatus, target=VulnerabilityCase).
+    """Build an Add(as_CaseStatus, target=as_VulnerabilityCase).
 
     Args:
-        status: The ``CaseStatus`` to add.
-        target: The ``VulnerabilityCase`` (or its URI) to which the
+        status: The ``as_CaseStatus`` to add.
+        target: The ``as_VulnerabilityCase`` (or its URI) to which the
             status is being added.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``).
@@ -203,13 +203,13 @@ def add_status_to_case_activity(
 
 
 def create_case_activity(
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
     **kwargs,
 ) -> as_Create:
-    """Build a Create(VulnerabilityCase).
+    """Build a Create(as_VulnerabilityCase).
 
     Args:
-        case: The ``VulnerabilityCase`` being created.
+        case: The ``as_VulnerabilityCase`` being created.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``, ``to``).
 
@@ -229,13 +229,13 @@ def create_case_activity(
 
 
 def create_case_status_activity(
-    status: CaseStatus,
+    status: as_CaseStatus,
     **kwargs,
 ) -> as_Create:
-    """Build a Create(CaseStatus).
+    """Build a Create(as_CaseStatus).
 
     Args:
-        status: The ``CaseStatus`` being created.
+        status: The ``as_CaseStatus`` being created.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``, ``to``).
 
@@ -258,14 +258,14 @@ def create_case_status_activity(
 
 def add_note_to_case_activity(
     note: as_Note,
-    target: VulnerabilityCaseRef | None = None,
+    target: as_VulnerabilityCaseRef | None = None,
     **kwargs,
 ) -> as_Add:
-    """Build an Add(Note, target=VulnerabilityCase).
+    """Build an Add(Note, target=as_VulnerabilityCase).
 
     Args:
         note: The ``as_Note`` to add to the case.
-        target: The ``VulnerabilityCase`` (or its URI) to which the
+        target: The ``as_VulnerabilityCase`` (or its URI) to which the
             note is being added.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``).
@@ -286,13 +286,13 @@ def add_note_to_case_activity(
 
 
 def update_case_activity(
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
     **kwargs,
 ) -> as_Update:
-    """Build an Update(VulnerabilityCase).
+    """Build an Update(as_VulnerabilityCase).
 
     Args:
-        case: The updated ``VulnerabilityCase``.
+        case: The updated ``as_VulnerabilityCase``.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``, ``to``).
 
@@ -312,16 +312,16 @@ def update_case_activity(
 
 
 def rm_engage_case_activity(
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
     **kwargs,
 ) -> as_Join:
-    """Build a Join(VulnerabilityCase) — the RA message.
+    """Build a Join(as_VulnerabilityCase) — the RA message.
 
     Signals that the actor is now actively working on the case
     (``RM.ACCEPTED`` state).
 
     Args:
-        case: The ``VulnerabilityCase`` being engaged.
+        case: The ``as_VulnerabilityCase`` being engaged.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``, ``to``).
 
@@ -341,16 +341,16 @@ def rm_engage_case_activity(
 
 
 def rm_defer_case_activity(
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
     **kwargs,
 ) -> as_Ignore:
-    """Build an Ignore(VulnerabilityCase) — the RD message.
+    """Build an Ignore(as_VulnerabilityCase) — the RD message.
 
     Signals that the actor is deferring work on the case
     (``RM.DEFERRED`` state).
 
     Args:
-        case: The ``VulnerabilityCase`` being deferred.
+        case: The ``as_VulnerabilityCase`` being deferred.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``, ``to``).
 
@@ -370,15 +370,15 @@ def rm_defer_case_activity(
 
 
 def rm_close_case_activity(
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
     **kwargs,
 ) -> as_Leave:
-    """Build a Leave(VulnerabilityCase) — the RC message.
+    """Build a Leave(as_VulnerabilityCase) — the RC message.
 
     Signals permanent closure / departure from the case.
 
     Args:
-        case: The ``VulnerabilityCase`` being closed.
+        case: The ``as_VulnerabilityCase`` being closed.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``, ``to``).
 
@@ -398,24 +398,24 @@ def rm_close_case_activity(
 
 
 def offer_case_manager_role_activity(
-    case: VulnerabilityCase,
-    target: CaseParticipant,
+    case: as_VulnerabilityCase,
+    target: as_CaseParticipant,
     **kwargs,
 ) -> as_Offer:
-    """Build an Offer(VulnerabilityCase, target=CaseParticipant) — CASE_MANAGER delegation.
+    """Build an Offer(as_VulnerabilityCase, target=as_CaseParticipant) — CASE_MANAGER delegation.
 
     Distinct from :func:`offer_case_ownership_transfer_activity`: the offering
     actor retains ``CASE_OWNER``; only operational management authority is
     delegated to the Case Actor participant.
 
-    The case MUST be passed as an inline ``VulnerabilityCase`` object and the
-    ``target`` MUST be an inline ``CaseParticipant`` object (not a bare string
+    The case MUST be passed as an inline ``as_VulnerabilityCase`` object and the
+    ``target`` MUST be an inline ``as_CaseParticipant`` object (not a bare string
     IRI) so that pattern matching can distinguish this activity from a
     case-ownership transfer (see DEMOMA-08-002, DEMOMA-08-003).
 
     Args:
-        case: The ``VulnerabilityCase`` for which management is being delegated.
-        target: The ``CaseParticipant`` record of the Case Actor being delegated
+        case: The ``as_VulnerabilityCase`` for which management is being delegated.
+        target: The ``as_CaseParticipant`` record of the Case Actor being delegated
             the CASE_MANAGER role.  Must be an inline typed object — bare string
             IRIs are rejected.
         **kwargs: Optional AS2 fields forwarded to the constructor
@@ -427,12 +427,12 @@ def offer_case_manager_role_activity(
 
     Raises:
         VultronActivityConstructionError: If ``target`` is not an inline
-            ``CaseParticipant`` or if Pydantic validation fails.
+            ``as_CaseParticipant`` or if Pydantic validation fails.
     """
-    if not isinstance(target, CaseParticipant):
+    if not isinstance(target, as_CaseParticipant):
         raise VultronActivityConstructionError(
             "offer_case_manager_role_activity: target must be an inline"
-            " CaseParticipant object, not a bare string IRI or None"
+            " as_CaseParticipant object, not a bare string IRI or None"
         )
     try:
         return _OfferCaseManagerRoleActivity(
@@ -523,18 +523,18 @@ def reject_case_manager_role_activity(
 
 
 def offer_case_ownership_transfer_activity(
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
     target: as_ActorRef | None = None,
     **kwargs,
 ) -> as_Offer:
-    """Build an Offer(VulnerabilityCase, target=Actor) — ownership transfer.
+    """Build an Offer(as_VulnerabilityCase, target=Actor) — ownership transfer.
 
-    The case MUST be passed as an inline ``VulnerabilityCase`` object, not
+    The case MUST be passed as an inline ``as_VulnerabilityCase`` object, not
     a bare string ID, so the recipient can distinguish this activity from
     a ``SUBMIT_REPORT`` Offer during semantic pattern matching.
 
     Args:
-        case: The ``VulnerabilityCase`` whose ownership is being offered.
+        case: The ``as_VulnerabilityCase`` whose ownership is being offered.
         target: The actor (or actor URI) to whom ownership is offered.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``).
@@ -642,7 +642,7 @@ def rm_invite_to_case_activity(
     embargo_obj: Any = None,
     **kwargs,
 ) -> as_Invite:
-    """Build an Invite(Actor, target=VulnerabilityCase) — the RS message.
+    """Build an Invite(Actor, target=as_VulnerabilityCase) — the RS message.
 
     Invites an actor to join a case that already exists.  See
     :func:`vultron.wire.as2.factories.report.rm_submit_report_activity`
@@ -650,7 +650,7 @@ def rm_invite_to_case_activity(
 
     Args:
         invitee: The ``as_Actor`` (or actor URI) being invited.
-        target: The case to join — either a ``VulnerabilityCase`` (core or wire;
+        target: The case to join — either a ``as_VulnerabilityCase`` (core or wire;
             projected to an enriched ``VulnerabilityCaseStub`` via
             :func:`_project_case_to_stub`), a pre-built ``VulnerabilityCaseStub``,
             or a bare URI string.
@@ -659,7 +659,7 @@ def rm_invite_to_case_activity(
             participant roles so ``CreateInviteeParticipantAtAcceptedNode``
             can set them on the new ``VultronParticipant``.
         embargo_obj: The fetched ``EmbargoEvent`` for the case, used when
-            *target* is a ``VulnerabilityCase`` and ``em_state == EM.ACTIVE``
+            *target* is a ``as_VulnerabilityCase`` and ``em_state == EM.ACTIVE``
             to include ``end_time`` in the stub (CM-17-002).
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor`` for the inviting party).
@@ -697,7 +697,7 @@ def rm_accept_invite_to_case_activity(
     ``in_reply_to`` to the invite's ``id_`` if not provided.
     The ``invite`` MUST be the value returned by
     :func:`rm_invite_to_case_activity`; a plain ``as_Invite`` that does
-    not carry a ``VulnerabilityCase`` target will fail validation.
+    not carry a ``as_VulnerabilityCase`` target will fail validation.
 
     Args:
         invite: The ``_RmInviteToCaseActivity`` being accepted.
@@ -762,17 +762,17 @@ def rm_reject_invite_to_case_activity(
 
 
 def announce_vulnerability_case_activity(
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
     **kwargs,
 ) -> as_Announce:
-    """Build an Announce(VulnerabilityCase) — sent by the case owner.
+    """Build an Announce(as_VulnerabilityCase) — sent by the case owner.
 
     Sent after an ``Accept(Invite)`` is received and the invitee's
     embargo consent has been verified.  The full case object is sent
     inline so the recipient can seed their local DataLayer.
 
     Args:
-        case: The complete ``VulnerabilityCase`` being announced.
+        case: The complete ``as_VulnerabilityCase`` being announced.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``, ``to``).
 
@@ -799,7 +799,7 @@ def bootstrap_replay_question_activity(
     case_id: str,
     **kwargs,
 ) -> as_Question:
-    """Build a Question requesting replay of the bootstrap Create(VulnerabilityCase).
+    """Build a Question requesting replay of the bootstrap Create(as_VulnerabilityCase).
 
     Sent by the receiving actor to the (suspected) case creator when the
     pre-bootstrap inbox queue expires without a valid bootstrap arriving
@@ -827,7 +827,7 @@ def bootstrap_replay_question_activity(
             context=case_id,
             name=kwargs.pop(
                 "name",
-                f"Please resend bootstrap Create(VulnerabilityCase) for {case_id}",
+                f"Please resend bootstrap Create(as_VulnerabilityCase) for {case_id}",
             ),
             **kwargs,
         )
@@ -891,8 +891,8 @@ def accept_case_proposal_activity(
     """Build an ``Accept(as_CaseProposal)`` sent by the case-actor service.
 
     The case-actor service sends this to acknowledge that it will create a
-    ``VulnerabilityCase`` from the vendor's proposal.  A separate
-    ``Create(VulnerabilityCase)`` follows (CP-05-003).
+    ``as_VulnerabilityCase`` from the vendor's proposal.  A separate
+    ``Create(as_VulnerabilityCase)`` follows (CP-05-003).
 
     Args:
         actor_id: URI of the case-actor service that is accepting the proposal.

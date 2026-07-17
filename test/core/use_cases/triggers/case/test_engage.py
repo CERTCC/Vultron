@@ -18,10 +18,12 @@ from vultron.core.use_cases.triggers.case import (
 from vultron.errors import VultronValidationError
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
-    CaseParticipant,
+    as_CaseParticipant,
     FinderParticipant,
 )
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 
 def _make_actor(name: str) -> as_Service:
@@ -41,16 +43,16 @@ def _make_case_with_case_manager(
     actor_id: str,
     finder_id: str,
     case_actor_id: str,
-) -> tuple[VulnerabilityCase, CaseParticipant]:
-    case = VulnerabilityCase(name="Test Case")
+) -> tuple[as_VulnerabilityCase, as_CaseParticipant]:
+    case = as_VulnerabilityCase(name="Test Case")
 
-    actor_participant = CaseParticipant(
+    actor_participant = as_CaseParticipant(
         attributed_to=actor_id,
         context=case.id_,
         case_roles=[CVDRole.VENDOR],
     )
     from vultron.wire.as2.vocab.objects.case_status import (
-        ParticipantStatus as WireParticipantStatus,
+        as_ParticipantStatus as WireParticipantStatus,
     )
 
     actor_participant.participant_statuses.append(
@@ -64,7 +66,7 @@ def _make_case_with_case_manager(
         attributed_to=finder_id,
         context=case.id_,
     )
-    case_manager_participant = CaseParticipant(
+    case_manager_participant = as_CaseParticipant(
         attributed_to=case_actor_id,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -114,12 +116,12 @@ class TestEngageCaseRMTransitionViaBT:
 
         updated = self.dl.read(self.vendor_participant.id_)
         assert updated is not None
-        assert isinstance(updated, CaseParticipant)
+        assert isinstance(updated, as_CaseParticipant)
         assert updated.participant_statuses
         assert updated.participant_statuses[-1].rm_state == RM.ACCEPTED
 
     def test_engage_case_rm_not_updated_when_no_participant(self):
-        case_solo = VulnerabilityCase(name="Solo Case")
+        case_solo = as_VulnerabilityCase(name="Solo Case")
         case_solo.actor_participant_index[self.vendor.id_] = (
             f"{case_solo.id_}/participants/vendor"
         )

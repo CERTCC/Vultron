@@ -28,12 +28,12 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Reject,
 )
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
-    CaseLedgerEntry,
+    as_CaseLedgerEntry,
 )
 
 
 class _AnnounceLogEntryActivity(as_Announce):
-    """The CaseActor is announcing a canonical CaseLedgerEntry for replication.
+    """The CaseActor is announcing a canonical as_CaseLedgerEntry for replication.
 
     Sent to each participant actor after a new log entry has been committed
     to the case event log (SYNC-09-002).
@@ -42,7 +42,7 @@ class _AnnounceLogEntryActivity(as_Announce):
         being replicated.
     """
 
-    object_: CaseLedgerEntry = Field(
+    object_: as_CaseLedgerEntry = Field(
         default=...,
         validation_alias="object",
         serialization_alias="object",
@@ -50,24 +50,24 @@ class _AnnounceLogEntryActivity(as_Announce):
 
 
 class _RejectLogEntryActivity(as_Reject):
-    """Participant rejects a ``CaseLedgerEntry`` announcement due to hash-chain mismatch.
+    """Participant rejects a ``as_CaseLedgerEntry`` announcement due to hash-chain mismatch.
 
     Sent by a participant actor to the CaseActor when the incoming
-    ``Announce(CaseLedgerEntry)``'s ``prev_log_hash`` does not match the
+    ``Announce(as_CaseLedgerEntry)``'s ``prev_log_hash`` does not match the
     participant's local tail hash.
 
     The ``context`` field (inherited from ``as_Object``) carries the
     last accepted entry hash as a plain string so the CaseActor can
     determine which entries need to be replayed (SYNC-03-001).
 
-    object_: :class:`~vultron.wire.as2.vocab.objects.case_ledger_entry.CaseLedgerEntry`
+    object_: :class:`~vultron.wire.as2.vocab.objects.case_ledger_entry.as_CaseLedgerEntry`
         that was rejected.
     context: Last accepted entry hash string.
 
     Spec: SYNC-03-001, SYNC-03-002.
     """
 
-    object_: CaseLedgerEntry = Field(
+    object_: as_CaseLedgerEntry = Field(
         default=...,
         validation_alias="object",
         serialization_alias="object",

@@ -44,9 +44,9 @@ from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.wire.as2.factories import rm_invite_to_case_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Invite
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    VulnerabilityCase,
+    as_VulnerabilityCase,
     VulnerabilityCaseStub,
 )
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -92,16 +92,16 @@ def _cleanup_created_dls():
 
 def _make_case_with_case_manager(
     dl: SqliteDataLayer, owner_actor_id: str, case_actor_id: str
-) -> VulnerabilityCase:
-    case = VulnerabilityCase(
+) -> as_VulnerabilityCase:
+    case = as_VulnerabilityCase(
         attributed_to=owner_actor_id, name="Test Case", content="Content"
     )
-    owner_participant = CaseParticipant(
+    owner_participant = as_CaseParticipant(
         attributed_to=owner_actor_id,
         context=case.id_,
         case_roles=[CVDRole.CASE_OWNER],
     )
-    case_manager_participant = CaseParticipant(
+    case_manager_participant = as_CaseParticipant(
         attributed_to=case_actor_id,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -125,7 +125,7 @@ class TestSvcInviteActorToCaseUseCase:
 
         # Seed invitee and case in actor's DL
         dl.create(invitee)
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             attributed_to=actor.id_,
             name="Test Case",
             content="Test case content",
@@ -151,7 +151,7 @@ class TestSvcInviteActorToCaseUseCase:
         actor, dl = _make_actor_dl("Coordinator")
         invitee, _ = _make_actor_dl("Finder")
         dl.create(invitee)
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             attributed_to=actor.id_, name="Test Case", content="Content"
         )
         dl.create(case)
@@ -174,7 +174,7 @@ class TestSvcInviteActorToCaseUseCase:
         actor, dl = _make_actor_dl("Coordinator")
         # invitee NOT seeded in actor's DL
         missing_id = "https://example.org/actors/nobody"
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             attributed_to=actor.id_, name="Test Case", content="Content"
         )
         dl.create(case)
@@ -211,7 +211,7 @@ class TestSvcInviteActorToCaseUseCase:
         actor, dl = _make_actor_dl_with_http_id("Coordinator", _HTTP_ACTOR_ID)
         invitee, _ = _make_actor_dl("Finder")
         dl.create(invitee)
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             attributed_to=_HTTP_ACTOR_ID, name="Test Case", content="Content"
         )
         dl.create(case)
@@ -239,7 +239,7 @@ class TestSvcInviteActorToCaseUseCase:
         actor, dl = _make_actor_dl("Vendor")
         invitee, _ = _make_actor_dl("Coordinator")
         dl.create(invitee)
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             attributed_to=actor.id_, name="PCR Test Case", content="Content"
         )
         dl.create(case)
@@ -289,17 +289,19 @@ class TestInviteRolesAndEmbargoEnrichment:
     def _setup_invite(self, with_embargo=False, with_active_embargo=False):
         """Create actor, invitee, case; optionally add active embargo."""
         from vultron.core.states.em import EM
-        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.embargo_event import (
+            as_EmbargoEvent,
+        )
 
         actor, dl = _make_actor_dl("CaseOwner")
         invitee, _ = _make_actor_dl("Invitee")
         dl.create(invitee)
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             attributed_to=actor.id_, name="Test Case", content="Content"
         )
         dl.create(case)
         if with_active_embargo:
-            embargo = EmbargoEvent(
+            embargo = as_EmbargoEvent(
                 id_=f"{case.id_}/embargo/e1",
                 content="Active embargo",
             )
@@ -364,11 +366,13 @@ class TestInviteRolesAndEmbargoEnrichment:
         """AC-1: Invite.target stub carries activeEmbargo.endTime and emState=ACTIVE."""
         from datetime import datetime, timezone
 
-        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.embargo_event import (
+            as_EmbargoEvent,
+        )
 
         actor, invitee, dl, case = self._setup_invite()
         end_time = datetime(2030, 1, 1, tzinfo=timezone.utc)
-        embargo = EmbargoEvent(
+        embargo = as_EmbargoEvent(
             id_=f"{case.id_}/embargo/e1",
             content="Active embargo",
             end_time=end_time,
@@ -465,7 +469,7 @@ class TestRolesThreadingIntegration:
             as_Service,
         )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         # Shared DataLayer: both trigger and receive sides use it so the
@@ -478,7 +482,7 @@ class TestRolesThreadingIntegration:
         invitee_id = "https://example.org/actors/invitee-roundtrip"
         invitee = as_Organization(id_=invitee_id)
         dl.create(invitee)
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             attributed_to=owner.id_, name="Roles Round-Trip Test"
         )
         dl.create(case)
@@ -619,7 +623,7 @@ class TestSvcSuggestActorToCaseUseCase:
         actor, dl = _make_actor_dl("Coordinator")
         suggested, _ = _make_actor_dl("Vendor")
         dl.create(suggested)
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             attributed_to=actor.id_, name="Test Case", content="Content"
         )
         dl.create(case)
@@ -642,7 +646,7 @@ class TestSvcAcceptCaseInviteUseCase:
         invitee, dl_invitee = _make_actor_dl("Finder")
         dl_inviter.create(invitee)
 
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             attributed_to=inviter.id_, name="Test Case", content="Content"
         )
         dl_inviter.create(case)
@@ -694,7 +698,7 @@ class TestSvcAcceptCaseInviteUseCase:
         )
         dl_inviter.create(invitee)
 
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             attributed_to=inviter.id_, name="Test Case", content="Content"
         )
         dl_inviter.create(case)
@@ -724,19 +728,19 @@ class TestSvcAcceptCaseInviteUseCase:
 
 def _make_case_with_case_actor(
     dl: SqliteDataLayer, owner_actor_id: str, case_actor_id: str
-) -> tuple[VulnerabilityCase, str]:
-    """Create a VulnerabilityCase with a registered Case Actor service and
+) -> tuple[as_VulnerabilityCase, str]:
+    """Create a as_VulnerabilityCase with a registered Case Actor service and
     CASE_MANAGER participant.  Returns ``(case, case_actor_participant_id)``.
     """
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         attributed_to=owner_actor_id, name="Test Case", content="Content"
     )
-    owner_participant = CaseParticipant(
+    owner_participant = as_CaseParticipant(
         attributed_to=owner_actor_id,
         context=case.id_,
         case_roles=[CVDRole.CASE_OWNER],
     )
-    case_actor_participant = CaseParticipant(
+    case_actor_participant = as_CaseParticipant(
         attributed_to=case_actor_id,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -797,7 +801,7 @@ class TestSvcOfferCaseManagerRoleUseCase:
     def test_offer_raises_when_case_actor_missing(self):
         """VultronNotFoundError when no Case Actor Service exists for the case."""
         actor, dl = _make_actor_dl("Vendor")
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             attributed_to=actor.id_, name="No CaseActor Case", content="..."
         )
         dl.create(case)

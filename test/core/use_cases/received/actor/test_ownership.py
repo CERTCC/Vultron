@@ -27,7 +27,7 @@ from vultron.wire.as2.factories import (
     reject_case_ownership_transfer_activity,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    VulnerabilityCase,
+    as_VulnerabilityCase,
 )
 
 
@@ -42,7 +42,7 @@ class TestOwnershipTransferUseCases:
 
         dl = SqliteDataLayer("sqlite:///:memory:")
 
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_ot1",
             name="OT Case 1",
         )
@@ -65,7 +65,7 @@ class TestOwnershipTransferUseCases:
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
         dl = SqliteDataLayer("sqlite:///:memory:")
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_ot2",
             name="OT Case 2",
             attributed_to="https://example.org/users/vendor",
@@ -100,7 +100,7 @@ class TestOwnershipTransferUseCases:
         self, monkeypatch, caplog, make_payload
     ):
         """RejectCaseOwnershipTransferReceivedUseCase logs rejection; ownership unchanged."""
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_ot3",
             name="OT Case 3",
         )

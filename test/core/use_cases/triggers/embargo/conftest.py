@@ -18,8 +18,10 @@ from vultron.wire.as2.vocab.objects.case_participant import (
     FinderParticipant,
     VendorParticipant,
 )
-from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 
 def _persist_actor(dl: SqliteDataLayer, name: str) -> as_Service:
@@ -30,12 +32,12 @@ def _persist_actor(dl: SqliteDataLayer, name: str) -> as_Service:
 
 def _build_active_embargo_case(
     dl: SqliteDataLayer, owner_id: str, participant_id: str
-) -> tuple[VulnerabilityCase, as_Invite, str]:
-    case = VulnerabilityCase(
+) -> tuple[as_VulnerabilityCase, as_Invite, str]:
+    case = as_VulnerabilityCase(
         name="Embargo regression case",
         attributed_to=owner_id,
     )
-    embargo = EmbargoEvent(context=case.id_)
+    embargo = as_EmbargoEvent(context=case.id_)
     proposal = em_propose_embargo_activity(
         embargo, context=case.id_, actor=owner_id
     )
@@ -75,11 +77,11 @@ def _build_proposed_embargo_case_no_owner_attribution(
     dl: SqliteDataLayer,
     actor_id: str,
     case_manager_id: str,
-) -> tuple[VulnerabilityCase, as_Invite, str]:
+) -> tuple[as_VulnerabilityCase, as_Invite, str]:
     """Build a PROPOSED embargo case with ``attributed_to=None``."""
-    case = VulnerabilityCase(name="No-attribution proposed embargo case")
+    case = as_VulnerabilityCase(name="No-attribution proposed embargo case")
 
-    embargo = EmbargoEvent(context=case.id_)
+    embargo = as_EmbargoEvent(context=case.id_)
     proposal = em_propose_embargo_activity(
         embargo, context=case.id_, actor=case_manager_id
     )
@@ -120,8 +122,8 @@ def _build_proposed_embargo_case_no_owner_attribution(
 
 def _build_exited_case(
     dl: SqliteDataLayer, owner_id: str
-) -> VulnerabilityCase:
-    case = VulnerabilityCase(
+) -> as_VulnerabilityCase:
+    case = as_VulnerabilityCase(
         name="Exited embargo case",
         attributed_to=owner_id,
     )
@@ -132,8 +134,8 @@ def _build_exited_case(
 
 def _build_no_embargo_case_with_case_manager(
     dl: SqliteDataLayer, owner_id: str
-) -> VulnerabilityCase:
-    case = VulnerabilityCase(
+) -> as_VulnerabilityCase:
+    case = as_VulnerabilityCase(
         name="No embargo case",
         attributed_to=owner_id,
     )
@@ -154,13 +156,13 @@ def _build_no_embargo_case_with_case_manager(
 
 def _build_active_embargo_case_with_case_manager(
     dl: SqliteDataLayer, actor_id: str
-) -> VulnerabilityCase:
+) -> as_VulnerabilityCase:
     """Build a case in EM.ACTIVE state with ``actor`` as owner/case-manager."""
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         name="Active embargo revision case",
         attributed_to=actor_id,
     )
-    embargo = EmbargoEvent(context=case.id_)
+    embargo = as_EmbargoEvent(context=case.id_)
 
     owner_participant = VendorParticipant(
         attributed_to=actor_id,

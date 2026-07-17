@@ -62,7 +62,7 @@ from test.demo.conftest import _TestASGIRouter, create_isolated_actor_app
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 # ---------------------------------------------------------------------------
@@ -250,7 +250,7 @@ def _bootstrap_case(
     # Register reporter on owner's app so the router can deliver there.
     _create_actor(owner_tc, reporter_base_api, reporter_slug, "Reporter")
 
-    report = VulnerabilityReport(
+    report = as_VulnerabilityReport(
         attributed_to=reporter_actor_id,
         name="PCR-07-007 late-joiner test report",
         content=(

@@ -42,14 +42,14 @@ class TestCaseManagerRoleDelegationUseCases:
 
     def _make_offer(self):
         from vultron.wire.as2.vocab.objects.case_participant import (
-            CaseParticipant,
+            as_CaseParticipant,
         )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
-        case = VulnerabilityCase(id_=self._CASE_URI, name="CASE-MGR-TEST")
-        participant = CaseParticipant(
+        case = as_VulnerabilityCase(id_=self._CASE_URI, name="CASE-MGR-TEST")
+        participant = as_CaseParticipant(
             id_=self._PARTICIPANT_URI,
             attributed_to=self._CASE_ACTOR_URI,
             context=self._CASE_URI,
@@ -186,7 +186,7 @@ class TestCaseManagerRoleDelegationUseCases:
         from vultron.core.models.vultron_types import VultronParticipant
         from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         dl = SqliteDataLayer("sqlite:///:memory:")
@@ -200,7 +200,7 @@ class TestCaseManagerRoleDelegationUseCases:
             name="Reporter",
             case_roles=[CVDRole.FINDER, CVDRole.REPORTER],
         )
-        case = VulnerabilityCase(id_=self._CASE_URI, name="BOOTSTRAP-TEST")
+        case = as_VulnerabilityCase(id_=self._CASE_URI, name="BOOTSTRAP-TEST")
         case.actor_participant_index[reporter_id] = reporter_participant_id
         dl.create(vendor)
         dl.create(reporter_participant)
@@ -238,7 +238,7 @@ class TestCaseManagerRoleDelegationUseCases:
         from vultron.core.models.vultron_types import VultronParticipant
         from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         dl = SqliteDataLayer("sqlite:///:memory:")
@@ -251,7 +251,7 @@ class TestCaseManagerRoleDelegationUseCases:
             name="Reporter",
             case_roles=[CVDRole.FINDER, CVDRole.REPORTER],
         )
-        case = VulnerabilityCase(id_=self._CASE_URI, name="FALLBACK-TEST")
+        case = as_VulnerabilityCase(id_=self._CASE_URI, name="FALLBACK-TEST")
         # Populate only case_participants; leave actor_participant_index empty
         # (bootstrap path — index not yet populated).
         case.case_participants.append(reporter_participant_id)  # type: ignore[arg-type]
@@ -307,17 +307,17 @@ class TestCaseManagerRoleDelegationUseCases:
         from unittest.mock import MagicMock
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.objects.case_participant import (
-            CaseParticipant,
+            as_CaseParticipant,
         )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         dl = SqliteDataLayer("sqlite:///:memory:")
 
         # Seed DL so EmitRejectCaseManagerRoleNode can reconstruct the offer
-        case = VulnerabilityCase(id_=self._CASE_URI, name="REJECT-TEST")
-        participant = CaseParticipant(
+        case = as_VulnerabilityCase(id_=self._CASE_URI, name="REJECT-TEST")
+        participant = as_CaseParticipant(
             id_=self._PARTICIPANT_URI,
             attributed_to=self._CASE_ACTOR_URI,
             context=self._CASE_URI,
@@ -362,15 +362,17 @@ class TestCaseManagerRoleDelegationUseCases:
         from unittest.mock import MagicMock, patch
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.objects.case_participant import (
-            CaseParticipant,
+            as_CaseParticipant,
         )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         dl = SqliteDataLayer("sqlite:///:memory:")
-        case = VulnerabilityCase(id_=self._CASE_URI, name="OUTBOX-FAIL-TEST")
-        participant = CaseParticipant(
+        case = as_VulnerabilityCase(
+            id_=self._CASE_URI, name="OUTBOX-FAIL-TEST"
+        )
+        participant = as_CaseParticipant(
             id_=self._PARTICIPANT_URI,
             attributed_to=self._CASE_ACTOR_URI,
             context=self._CASE_URI,
@@ -407,18 +409,18 @@ class TestCaseManagerRoleDelegationUseCases:
         from unittest.mock import MagicMock
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.objects.case_participant import (
-            CaseParticipant,
+            as_CaseParticipant,
         )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
         from vultron.adapters.driven.trigger_activity_adapter import (
             TriggerActivityAdapter,
         )
 
         dl = SqliteDataLayer("sqlite:///:memory:")
-        case = VulnerabilityCase(id_=self._CASE_URI, name="ADAPTER-REJECT")
-        participant = CaseParticipant(
+        case = as_VulnerabilityCase(id_=self._CASE_URI, name="ADAPTER-REJECT")
+        participant = as_CaseParticipant(
             id_=self._PARTICIPANT_URI,
             attributed_to=self._CASE_ACTOR_URI,
             context=self._CASE_URI,

@@ -22,9 +22,9 @@ import pytest
 from vultron.errors import VultronValidationError
 from vultron.wire.as2.factories import rm_invite_to_case_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    VulnerabilityCase,
+    as_VulnerabilityCase,
     VulnerabilityCaseStub,
 )
 
@@ -33,14 +33,14 @@ _INVITEE = "https://example.org/actors/vendor"
 _CASE_ID = "https://example.org/cases/case-001"
 
 
-def _make_case(dl) -> VulnerabilityCase:
-    case = VulnerabilityCase(name="CVE-2025-001")
+def _make_case(dl) -> as_VulnerabilityCase:
+    case = as_VulnerabilityCase(name="CVE-2025-001")
     dl.create(case)
     return case
 
 
-def _make_participant(dl, case_id: str) -> CaseParticipant:
-    participant = CaseParticipant(
+def _make_participant(dl, case_id: str) -> as_CaseParticipant:
+    participant = as_CaseParticipant(
         context=case_id,
         attributed_to=_INVITEE,
     )

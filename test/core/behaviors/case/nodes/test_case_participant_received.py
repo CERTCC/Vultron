@@ -24,8 +24,10 @@ from vultron.core.behaviors.case.nodes.case_participant_received import (
     AddCaseParticipantToCaseReceivedNode,
     RemoveCaseParticipantFromCaseReceivedNode,
 )
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 ACTOR_ID = "https://example.org/actors/owner"
 COORDINATOR_ID = "https://example.org/actors/coordinator"
@@ -45,12 +47,12 @@ def bridge(dl):
 
 @pytest.fixture
 def case():
-    return VulnerabilityCase(id_=CASE_ID, name="CP Node Test Case")
+    return as_VulnerabilityCase(id_=CASE_ID, name="CP Node Test Case")
 
 
 @pytest.fixture
 def participant(case):
-    return CaseParticipant(
+    return as_CaseParticipant(
         id_=PARTICIPANT_ID,
         attributed_to=COORDINATOR_ID,
         context=case.id_,

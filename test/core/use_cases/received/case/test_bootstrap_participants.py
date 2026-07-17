@@ -15,7 +15,7 @@
 """Tests for embedded-participant storage during case bootstrap (CBT-05-005/006).
 
 Covers:
-  CBT-05-005  Embedded CaseParticipant objects are stored as independent
+  CBT-05-005  Embedded as_CaseParticipant objects are stored as independent
               DataLayer records so BT nodes (CheckParticipantExists,
               AppendParticipantStatusNode) can look them up by UUID.
   CBT-05-006  AddParticipantStatusBT succeeds on the reporter's replica after
@@ -41,12 +41,14 @@ from vultron.wire.as2.factories import (
     create_case_activity,
 )
 from vultron.wire.as2.vocab.objects.case_participant import (
-    CaseParticipant,
+    as_CaseParticipant,
 )
 from vultron.wire.as2.vocab.objects.case_status import (
-    ParticipantStatus as WireParticipantStatus,
+    as_ParticipantStatus as WireParticipantStatus,
 )
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 # ---------------------------------------------------------------------------
 # Shared constants
@@ -92,19 +94,19 @@ def dl():
 
 @pytest.fixture()
 def case_with_two_participants():
-    """VulnerabilityCase with CASE_MANAGER and vendor participants inline."""
-    case_actor_p = CaseParticipant(
+    """as_VulnerabilityCase with CASE_MANAGER and vendor participants inline."""
+    case_actor_p = as_CaseParticipant(
         case_roles=[CVDRole.CASE_MANAGER],
         id_=_PARTICIPANT_ID,
         attributed_to=_CASE_ACTOR_ID,
         context=_CASE_ID,
     )
-    vendor_p = CaseParticipant(
+    vendor_p = as_CaseParticipant(
         id_=_VENDOR_PARTICIPANT_ID,
         attributed_to=_VENDOR_ID,
         context=_CASE_ID,
     )
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         id_=_CASE_ID,
         name="CBT-05-005/006 participant storage case",
         attributed_to=_CASE_ACTOR_ID,
@@ -132,14 +134,14 @@ class TestBootstrapParticipantStorage:
 
     BT nodes ``CheckParticipantExists`` (#561) and ``AppendParticipantStatus``
     (#562) look up participants by UUID via ``datalayer.read(participant_id)``.
-    After a bootstrap ``Create(VulnerabilityCase)`` those participant records
+    After a bootstrap ``Create(as_VulnerabilityCase)`` those participant records
     MUST exist as independent DataLayer entries so the BT nodes can find them.
     """
 
     def test_embedded_participant_stored_after_bootstrap(
         self, dl, create_event
     ):
-        """Embedded CaseParticipant is stored as an independent DataLayer
+        """Embedded as_CaseParticipant is stored as an independent DataLayer
         record after a valid bootstrap (CBT-05-005, fixes #561 and #562).
         """
         link = _build_link()
@@ -213,7 +215,7 @@ class TestM4AddParticipantStatusAfterBootstrap:
 
     Before the fix (PRs #561, #562):
     - ``_store_embedded_participants`` did not persist each embedded participant
-      as an independent DataLayer record, so vendor's ``CaseParticipant`` could
+      as an independent DataLayer record, so vendor's ``as_CaseParticipant`` could
       not be found by its UUID after bootstrap.
     - ``AppendParticipantStatusNode`` did ``dl.read(vendor_participant_id)``
       → ``None`` → ``FAILURE``, leaving finder's replica without the vendor's
@@ -234,7 +236,7 @@ class TestM4AddParticipantStatusAfterBootstrap:
         """AddParticipantStatusBT appends VFd status on finder's replica.
 
         Full M4 path: bootstrap → verify participant stored → receive
-        Add(ParticipantStatus) from case-actor → assert VFd status on vendor
+        Add(as_ParticipantStatus) from case-actor → assert VFd status on vendor
         participant.  Regression for #563.
         """
         _vfd_status_id = f"{_VENDOR_PARTICIPANT_ID}/statuses/vfd-s1"
@@ -247,14 +249,14 @@ class TestM4AddParticipantStatusAfterBootstrap:
         dl.save(link)
 
         # Step 1: bootstrap — _store_embedded_participants saves vendor's
-        # CaseParticipant as an independent DataLayer record (CBT-05-005).
+        # as_CaseParticipant as an independent DataLayer record (CBT-05-005).
         CreateCaseReceivedUseCase(dl, bootstrap_event).execute()
 
         # Step 2: confirm vendor participant is independently stored (core fix).
         stored_p = dl.read(_VENDOR_PARTICIPANT_ID)
         assert (
             stored_p is not None
-        ), "Vendor CaseParticipant must be stored during bootstrap (CBT-05-005)"
+        ), "Vendor as_CaseParticipant must be stored during bootstrap (CBT-05-005)"
 
         # Step 3: vendor self-reports its VFd status to the case actor.
         # actor=_VENDOR_ID passes VerifySenderIsParticipantNode
@@ -282,7 +284,7 @@ class TestM4AddParticipantStatusAfterBootstrap:
         assert (
             updated_p is not None
         ), "Vendor participant must still exist after AddParticipantStatus"
-        updated_p = cast(CaseParticipant, updated_p)
+        updated_p = cast(as_CaseParticipant, updated_p)
         status_ids = [
             getattr(s, "id_", s) for s in updated_p.participant_statuses
         ]
@@ -293,6 +295,6 @@ class TestM4AddParticipantStatusAfterBootstrap:
         # The status object must also exist as an independent DataLayer record.
         stored_status = dl.read(_vfd_status_id)
         assert stored_status is not None, (
-            "ParticipantStatus must be persisted as an independent DataLayer"
+            "as_ParticipantStatus must be persisted as an independent DataLayer"
             " record by AddParticipantStatusToParticipantReceivedUseCase"
         )

@@ -11,13 +11,13 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Tests for wire EmbargoEvent domain boundary methods — ADR-0017."""
+"""Tests for wire as_EmbargoEvent domain boundary methods — ADR-0017."""
 
 from datetime import datetime, timezone
 
 from vultron.core.models.embargo_event import EmbargoEvent as CoreEmbargoEvent
 from vultron.wire.as2.vocab.objects.embargo_event import (
-    EmbargoEvent as WireEmbargoEvent,
+    as_EmbargoEvent as WireEmbargoEvent,
 )
 
 _CONTEXT = "https://example.org/cases/abc"
@@ -26,7 +26,7 @@ _START = datetime(2099, 1, 1, tzinfo=timezone.utc)
 
 
 class TestWireEmbargoEventBasics:
-    """Wire EmbargoEvent is an as_Event projection."""
+    """Wire as_EmbargoEvent is an as_Event projection."""
 
     def test_default_type(self):
         e = WireEmbargoEvent()

@@ -49,15 +49,15 @@ from vultron.wire.as2.vocab.objects.base import (
     _scalar_ref_id_or_value,
 )
 from vultron.wire.as2.vocab.objects.case_status import (
-    ParticipantStatus as WireParticipantStatus,
+    as_ParticipantStatus as WireParticipantStatus,
 )
 
 # Re-export core role subclasses so existing ``from wire import XxxParticipant``
 # imports continue to work without modification.
 __all__ = [
     "CaseActorParticipant",
-    "CaseParticipant",
-    "CaseParticipantRef",
+    "as_CaseParticipant",
+    "as_CaseParticipantRef",
     "CoordinatorParticipant",
     "DeployerParticipant",
     "FinderParticipant",
@@ -69,12 +69,12 @@ __all__ = [
 ]
 
 # Keep the wire name to avoid shadowing the core alias used inside this module.
-ParticipantStatus = WireParticipantStatus
+as_ParticipantStatus = WireParticipantStatus
 
 logger = logging.getLogger(__name__)
 
 
-class CaseParticipant(VultronAS2Object):
+class as_CaseParticipant(VultronAS2Object):
     """
     A CaseParticipant is a wrapper around an Actor in a VulnerabilityCase.
     It is used to track the status of the participant within the context of a specific case, as well as the roles they
@@ -111,7 +111,9 @@ class CaseParticipant(VultronAS2Object):
 
     name: NonEmptyString | None = None
     case_roles: list[CVDRole] = Field(default_factory=list)
-    participant_statuses: list[ParticipantStatus] = Field(default_factory=list)
+    participant_statuses: list[as_ParticipantStatus] = Field(
+        default_factory=list
+    )
     accepted_embargo_ids: list[str] = Field(default_factory=list)
     embargo_consent_state: str = Field(default="NO_EMBARGO")
     participant_case_name: NonEmptyString | None = Field(
@@ -154,7 +156,7 @@ class CaseParticipant(VultronAS2Object):
 
         # participant status is empty, so initialize it with a default status
         self.participant_statuses = [
-            ParticipantStatus(
+            as_ParticipantStatus(
                 context=self.context or self.id_,
                 attributed_to=self.attributed_to,
                 em_consent_state=coerce_em_consent_state(
@@ -175,7 +177,7 @@ class CaseParticipant(VultronAS2Object):
         )
 
     @property
-    def participant_status(self) -> ParticipantStatus | None:
+    def participant_status(self) -> as_ParticipantStatus | None:
         """Return the most recently appended ParticipantStatus.
 
         The list represents this replica's append-only history of status
@@ -196,7 +198,7 @@ class CaseParticipant(VultronAS2Object):
         return self.participant_statuses[-1]
 
     def append_rm_state(self, rm_state: RM, actor: str, context: str) -> bool:
-        """Append a new ParticipantStatus with the given RM state.
+        """Append a new as_ParticipantStatus with the given RM state.
 
         Skips the append (with a WARNING) if the transition from the current
         RM state to rm_state is not valid according to the RM state machine.
@@ -217,7 +219,7 @@ class CaseParticipant(VultronAS2Object):
             )
             return False
         self.participant_statuses.append(
-            ParticipantStatus(
+            as_ParticipantStatus(
                 attributed_to=actor,
                 context=context,
                 rm_state=rm_state,
@@ -301,8 +303,8 @@ class CaseParticipant(VultronAS2Object):
         return list(self.case_roles)
 
     @classmethod
-    def from_core(cls, core_obj: CoreCaseParticipant) -> "CaseParticipant":
-        return cast("CaseParticipant", super().from_core(core_obj))
+    def from_core(cls, core_obj: CoreCaseParticipant) -> "as_CaseParticipant":
+        return cast("as_CaseParticipant", super().from_core(core_obj))
 
     def to_core(self) -> CoreCaseParticipant:
         data = self._to_core_data()
@@ -327,14 +329,14 @@ class CaseParticipant(VultronAS2Object):
 # import XxxParticipant`` imports continue to work unmodified.
 # ---------------------------------------------------------------------------
 
-CaseParticipantRef: TypeAlias = ActivityStreamRef[CaseParticipant]
+as_CaseParticipantRef: TypeAlias = ActivityStreamRef[as_CaseParticipant]
 
 
 def main():
     from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
     actor = as_Actor(name="Actor Name")
-    cp = CaseParticipant(attributed_to=actor, context="case_id_foo")
+    cp = as_CaseParticipant(attributed_to=actor, context="case_id_foo")
     print(f"### {cp.type_} ###")
     print()
     print(cp.to_json(indent=2))

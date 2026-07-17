@@ -33,17 +33,19 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
     def test_announce_embargo_is_noop(self, make_payload):
         """execute() is a no-op: EM state and active_embargo are unchanged."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.embargo_event import (
+            as_EmbargoEvent,
+        )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         dl = SqliteDataLayer("sqlite:///:memory:")
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_aem1",
             name="Announce Embargo No-Op Test",
         )
-        embargo = EmbargoEvent(
+        embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_aem1/embargo_events/e1",
             context=case.id_,
         )
@@ -60,7 +62,7 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
 
         AnnounceEmbargoEventToCaseReceivedUseCase(dl, event).execute()
 
-        updated = cast(VulnerabilityCase, dl.read(case.id_))
+        updated = cast(as_VulnerabilityCase, dl.read(case.id_))
         assert updated is not None
         # State is UNCHANGED — Announce is not the ET message
         assert updated.current_status.em_state == EM.ACTIVE
@@ -83,7 +85,7 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
 
 class TestResetEmbargoConsentWithInlineParticipants:
     """Regression tests for #609: _reset_case_participant_embargo_consent
-    must tolerate inline CaseParticipant objects in case.case_participants,
+    must tolerate inline as_CaseParticipant objects in case.case_participants,
     not just plain string IDs.
     """
 
@@ -91,7 +93,7 @@ class TestResetEmbargoConsentWithInlineParticipants:
         self, make_payload
     ):
         """remove_embargo_from_case must not raise TypeError when
-        case.case_participants holds inline CaseParticipant objects
+        case.case_participants holds inline as_CaseParticipant objects
         (as stored on receiver side after fixes #572/#573).
 
         Regression test for #609.
@@ -100,11 +102,13 @@ class TestResetEmbargoConsentWithInlineParticipants:
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.states.participant_embargo_consent import PEC
         from vultron.wire.as2.vocab.objects.case_participant import (
-            CaseParticipant,
+            as_CaseParticipant,
         )
-        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.embargo_event import (
+            as_EmbargoEvent,
+        )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         py_trees.blackboard.Blackboard.enable_activity_stream()
@@ -117,7 +121,7 @@ class TestResetEmbargoConsentWithInlineParticipants:
         dl = SqliteDataLayer("sqlite:///:memory:")
 
         # Build a participant and store it — it also appears inline in case
-        participant = CaseParticipant(
+        participant = as_CaseParticipant(
             id_=participant_id,
             context=case_id,
             attributed_to=actor_id,
@@ -126,15 +130,15 @@ class TestResetEmbargoConsentWithInlineParticipants:
         participant.embargo_consent_state = PEC.SIGNATORY
         dl.create(participant)
 
-        embargo = EmbargoEvent(
+        embargo = as_EmbargoEvent(
             id_=f"{case_id}/embargo_events/e1",
             context=case_id,
         )
         dl.create(embargo)
 
-        # Store inline CaseParticipant object (not string ID) in
+        # Store inline as_CaseParticipant object (not string ID) in
         # case_participants — this is the condition that caused #609.
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_=case_id,
             name="Inline Participant Regression Test",
             attributed_to=actor_id,
@@ -155,14 +159,14 @@ class TestResetEmbargoConsentWithInlineParticipants:
         # Must not raise TypeError
         RemoveEmbargoEventFromCaseReceivedUseCase(dl, event).execute()
 
-        updated = cast(VulnerabilityCase, dl.read(case_id))
+        updated = cast(as_VulnerabilityCase, dl.read(case_id))
         assert updated is not None
         assert updated.active_embargo is None
         assert updated.current_status.em_state == EM.EXITED
 
     def test_reset_consent_with_inline_participant_resets_state(self):
         """_reset_case_participant_embargo_consent resets consent state even
-        when case_participants entries are inline wire-layer CaseParticipant
+        when case_participants entries are inline wire-layer as_CaseParticipant
         objects (not string IDs).
 
         Regression test for #609.
@@ -174,10 +178,10 @@ class TestResetEmbargoConsentWithInlineParticipants:
             reset_case_participant_embargo_consent as _reset_case_participant_embargo_consent,
         )
         from vultron.wire.as2.vocab.objects.case_participant import (
-            CaseParticipant,
+            as_CaseParticipant,
         )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         actor_id = "https://example.org/users/finder"
@@ -186,9 +190,9 @@ class TestResetEmbargoConsentWithInlineParticipants:
 
         dl = SqliteDataLayer("sqlite:///:memory:")
 
-        # Wire-layer CaseParticipant with non-default consent state.
+        # Wire-layer as_CaseParticipant with non-default consent state.
         # Stored in the DataLayer separately so dl.read(participant_id) works.
-        participant = CaseParticipant(
+        participant = as_CaseParticipant(
             id_=participant_id,
             context=case_id,
             attributed_to=actor_id,
@@ -198,7 +202,7 @@ class TestResetEmbargoConsentWithInlineParticipants:
 
         # Inline wire-layer object in case_participants — this is the condition
         # that caused #609 on the receiver side after fixes #572/#573.
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_=case_id,
             name="Reset Consent Inline",
         )

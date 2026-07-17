@@ -51,7 +51,7 @@ from typing import Callable, Optional, Sequence, Tuple
 from vultron.adapters.utils import parse_id
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
@@ -141,7 +141,7 @@ def demo_acknowledge_only(
     logger.info("=" * 80)
 
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
-        report = VulnerabilityReport(
+        report = as_VulnerabilityReport(
             attributed_to=finder.id_,
             content="Possible integer overflow in the network parsing library.",
             name="Network Parser Integer Overflow",
@@ -203,7 +203,7 @@ def demo_acknowledge_then_validate(
     logger.info("=" * 80)
 
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
-        report = VulnerabilityReport(
+        report = as_VulnerabilityReport(
             attributed_to=finder.id_,
             content=(
                 "SQL injection in the admin login form — confirmed via manual testing."
@@ -282,7 +282,7 @@ def demo_acknowledge_then_invalidate(
     logger.info("=" * 80)
 
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
-        report = VulnerabilityReport(
+        report = as_VulnerabilityReport(
             attributed_to=finder.id_,
             content=(
                 "Crash when submitting empty form — no security impact confirmed."

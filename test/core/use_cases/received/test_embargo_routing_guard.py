@@ -39,9 +39,11 @@ from vultron.wire.as2.factories import (
     em_propose_embargo_activity,
     remove_embargo_from_case_activity,
 )
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -61,7 +63,9 @@ def _make_embargo_case(
     case_id: str,
     author_id: str,
     case_actor_id: str,
-) -> tuple[SqliteDataLayer, VultronCaseActor, VulnerabilityCase, EmbargoEvent]:
+) -> tuple[
+    SqliteDataLayer, VultronCaseActor, as_VulnerabilityCase, as_EmbargoEvent
+]:
     """Return (dl, case_actor, case, embargo) ready for routing tests."""
     dl = SqliteDataLayer("sqlite:///:memory:")
 
@@ -73,17 +77,19 @@ def _make_embargo_case(
     )
     dl.create(case_actor)
 
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         id_=case_id,
         name="Embargo Routing Test",
         attributed_to=author_id,
     )
     p1_id = f"{case_id}/participants/p1"
     case.actor_participant_index[author_id] = p1_id
-    p1 = CaseParticipant(id_=p1_id, context=case_id, attributed_to=author_id)
+    p1 = as_CaseParticipant(
+        id_=p1_id, context=case_id, attributed_to=author_id
+    )
     dl.create(p1)
 
-    cm_participant = CaseParticipant(
+    cm_participant = as_CaseParticipant(
         id_=f"{case_id}/participants/cm",
         attributed_to=case_actor_id,
         context=case_id,
@@ -94,7 +100,7 @@ def _make_embargo_case(
     case.actor_participant_index[case_actor_id] = cm_participant.id_
     dl.save(case)
 
-    embargo = EmbargoEvent(
+    embargo = as_EmbargoEvent(
         id_=f"{case_id}/embargo_events/e1",
         content="Routing test embargo",
         context=case_id,
@@ -202,7 +208,7 @@ class TestAcceptInviteToEmbargoRoutingGuard:
         dl, case_actor, case, embargo = _make_embargo_case(
             self.CASE_ID, self.COORD_ID, self.CASE_ACTOR_ID
         )
-        case = cast(VulnerabilityCase, dl.read(case.id_))
+        case = cast(as_VulnerabilityCase, dl.read(case.id_))
         assert case is not None
         case.current_status.em_state = EM.PROPOSED
         dl.save(case)
@@ -286,7 +292,10 @@ class TestRemoveEmbargoRoutingGuard:
     def _setup(
         self,
     ) -> tuple[
-        SqliteDataLayer, VultronCaseActor, VulnerabilityCase, EmbargoEvent
+        SqliteDataLayer,
+        VultronCaseActor,
+        as_VulnerabilityCase,
+        as_EmbargoEvent,
     ]:
         dl, case_actor, case, embargo = _make_embargo_case(
             self.CASE_ID, self.AUTHOR_ID, self.CASE_ACTOR_ID
@@ -294,7 +303,7 @@ class TestRemoveEmbargoRoutingGuard:
         # Add embargo to proposed list so the BT removal step succeeds.
         read_case = dl.read(case.id_)
         assert read_case is not None
-        case = cast(VulnerabilityCase, read_case)
+        case = cast(as_VulnerabilityCase, read_case)
         case.proposed_embargoes.append(embargo.id_)
         dl.save(case)
         return dl, case_actor, case, embargo

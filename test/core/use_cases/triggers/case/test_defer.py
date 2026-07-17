@@ -18,13 +18,15 @@ from vultron.core.use_cases.triggers.case import (
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
-    CaseParticipant,
+    as_CaseParticipant,
     FinderParticipant,
 )
 from vultron.wire.as2.vocab.objects.case_status import (
-    ParticipantStatus as WireParticipantStatus,
+    as_ParticipantStatus as WireParticipantStatus,
 )
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 
 def _make_actor(name: str) -> as_Service:
@@ -44,10 +46,10 @@ def _make_case_with_case_manager(
     actor_id: str,
     finder_id: str,
     case_actor_id: str,
-) -> tuple[VulnerabilityCase, CaseParticipant]:
-    case = VulnerabilityCase(name="Test Case")
+) -> tuple[as_VulnerabilityCase, as_CaseParticipant]:
+    case = as_VulnerabilityCase(name="Test Case")
 
-    actor_participant = CaseParticipant(
+    actor_participant = as_CaseParticipant(
         attributed_to=actor_id,
         context=case.id_,
         case_roles=[CVDRole.VENDOR],
@@ -63,7 +65,7 @@ def _make_case_with_case_manager(
         attributed_to=finder_id,
         context=case.id_,
     )
-    case_manager_participant = CaseParticipant(
+    case_manager_participant = as_CaseParticipant(
         attributed_to=case_actor_id,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -113,7 +115,7 @@ class TestDeferCaseRMTransitionViaBT:
 
         updated = self.dl.read(self.vendor_participant.id_)
         assert updated is not None
-        assert isinstance(updated, CaseParticipant)
+        assert isinstance(updated, as_CaseParticipant)
         assert updated.participant_statuses
         assert updated.participant_statuses[-1].rm_state == RM.DEFERRED
 
@@ -144,8 +146,8 @@ class TestDeferCaseRMTransitionViaBT:
     def test_defer_case_rm_not_updated_when_no_participant(self):
         # Build a case with a valid vendor participant (so RM transition
         # succeeds) but no CASE_MANAGER, so ResolveCaseManagerNode fails.
-        case_solo = VulnerabilityCase(name="Solo Case")
-        vendor_participant = CaseParticipant(
+        case_solo = as_VulnerabilityCase(name="Solo Case")
+        vendor_participant = as_CaseParticipant(
             attributed_to=self.vendor.id_,
             context=case_solo.id_,
             case_roles=[CVDRole.VENDOR],

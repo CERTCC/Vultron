@@ -19,8 +19,8 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.examples._base import case, vendor
 from vultron.wire.as2.vocab.objects.case_status import (
-    CaseStatus,
-    ParticipantStatus,
+    as_CaseStatus,
+    as_ParticipantStatus,
 )
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
@@ -35,8 +35,8 @@ from vultron.wire.as2.factories import (
 _EXAMPLE_TIMESTAMP = datetime(2026, 6, 1, 19, 12, tzinfo=timezone.utc)
 
 
-def case_status() -> CaseStatus:
-    status = CaseStatus(
+def case_status() -> as_CaseStatus:
+    status = as_CaseStatus(
         id_="https://vultron.example/cases/1/status/1",
         context="https://vultron.example/cases/1",
         em_state=EM.EMBARGO_MANAGEMENT_NONE,
@@ -68,8 +68,8 @@ def add_status_to_case() -> as_Add:
     return activity
 
 
-def participant_status() -> ParticipantStatus:
-    status = ParticipantStatus(
+def participant_status() -> as_ParticipantStatus:
+    status = as_ParticipantStatus(
         id_="https://vultron.example/cases/1/participants/vendor/status/1",
         context="https://vultron.example/cases/1/participants/vendor",
         attributed_to="https://vultron.example/organizations/vendor",

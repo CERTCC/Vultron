@@ -34,7 +34,7 @@ class VultronActorMixin(as_Actor):
     )
 
 
-class VultronPerson(VultronActorMixin):
+class as_VultronPerson(VultronActorMixin):
     type_: Literal[as_ActorType.PERSON] = Field(
         default=as_ActorType.PERSON,
         validation_alias="type",
@@ -42,7 +42,7 @@ class VultronPerson(VultronActorMixin):
     )
 
 
-class VultronOrganization(VultronActorMixin):
+class as_VultronOrganization(VultronActorMixin):
     type_: Literal[as_ActorType.ORGANIZATION] = Field(
         default=as_ActorType.ORGANIZATION,
         validation_alias="type",
@@ -50,7 +50,7 @@ class VultronOrganization(VultronActorMixin):
     )
 
 
-class VultronService(VultronActorMixin):
+class as_VultronService(VultronActorMixin):
     type_: Literal[as_ActorType.SERVICE] = Field(
         default=as_ActorType.SERVICE,
         validation_alias="type",
@@ -58,7 +58,7 @@ class VultronService(VultronActorMixin):
     )
 
 
-class VultronApplication(VultronActorMixin):
+class as_VultronApplication(VultronActorMixin):
     type_: Literal[as_ActorType.APPLICATION] = Field(
         default=as_ActorType.APPLICATION,
         validation_alias="type",
@@ -66,7 +66,7 @@ class VultronApplication(VultronActorMixin):
     )
 
 
-class VultronGroup(VultronActorMixin):
+class as_VultronGroup(VultronActorMixin):
     type_: Literal[as_ActorType.GROUP] = Field(
         default=as_ActorType.GROUP,
         validation_alias="type",
@@ -76,27 +76,29 @@ class VultronGroup(VultronActorMixin):
 
 VOCABULARY["Actor"] = CoreActor
 VOCABULARY["CoreActor"] = CoreActor
-VOCABULARY["Person"] = VultronPerson
-VOCABULARY["Organization"] = VultronOrganization
-VOCABULARY["Service"] = VultronService
-VOCABULARY["Application"] = VultronApplication
-VOCABULARY["Group"] = VultronGroup
+VOCABULARY["Person"] = as_VultronPerson
+VOCABULARY["Organization"] = as_VultronOrganization
+VOCABULARY["Service"] = as_VultronService
+VOCABULARY["Application"] = as_VultronApplication
+VOCABULARY["Group"] = as_VultronGroup
 
 
-VultronPersonRef: TypeAlias = ActivityStreamRef[VultronPerson]
-VultronOrganizationRef: TypeAlias = ActivityStreamRef[VultronOrganization]
-VultronServiceRef: TypeAlias = ActivityStreamRef[VultronService]
-VultronApplicationRef: TypeAlias = ActivityStreamRef[VultronApplication]
-VultronGroupRef: TypeAlias = ActivityStreamRef[VultronGroup]
+as_VultronPersonRef: TypeAlias = ActivityStreamRef[as_VultronPerson]
+as_VultronOrganizationRef: TypeAlias = ActivityStreamRef[
+    as_VultronOrganization
+]
+as_VultronServiceRef: TypeAlias = ActivityStreamRef[as_VultronService]
+as_VultronApplicationRef: TypeAlias = ActivityStreamRef[as_VultronApplication]
+as_VultronGroupRef: TypeAlias = ActivityStreamRef[as_VultronGroup]
 
 
 ActorUnion: TypeAlias = Annotated[
     Union[
-        VultronPerson,
-        VultronOrganization,
-        VultronService,
-        VultronApplication,
-        VultronGroup,
+        as_VultronPerson,
+        as_VultronOrganization,
+        as_VultronService,
+        as_VultronApplication,
+        as_VultronGroup,
     ],
     Field(
         description="A concrete Vultron actor (Person, Organization, Service, Application, or Group)."
@@ -108,14 +110,14 @@ __all__ = [
     "ActorUnion",
     "CoreActor",
     "VultronActorMixin",
-    "VultronApplication",
-    "VultronApplicationRef",
-    "VultronGroup",
-    "VultronGroupRef",
-    "VultronOrganization",
-    "VultronOrganizationRef",
-    "VultronPerson",
-    "VultronPersonRef",
-    "VultronService",
-    "VultronServiceRef",
+    "as_VultronApplication",
+    "as_VultronApplicationRef",
+    "as_VultronGroup",
+    "as_VultronGroupRef",
+    "as_VultronOrganization",
+    "as_VultronOrganizationRef",
+    "as_VultronPerson",
+    "as_VultronPersonRef",
+    "as_VultronService",
+    "as_VultronServiceRef",
 ]

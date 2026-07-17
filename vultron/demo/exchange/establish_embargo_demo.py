@@ -50,13 +50,15 @@ from typing import Callable, Optional, Sequence, Tuple
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_participant import (
-    CaseParticipant,
+    as_CaseParticipant,
 )
 from vultron.enums.roles import CVDRole
-from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
@@ -91,9 +93,9 @@ logger = logging.getLogger(__name__)
 
 
 def _make_embargo_event(
-    case: VulnerabilityCase, days: int = 90
-) -> EmbargoEvent:
-    """Create a deterministic EmbargoEvent for a given case."""
+    case: as_VulnerabilityCase, days: int = 90
+) -> as_EmbargoEvent:
+    """Create a deterministic as_EmbargoEvent for a given case."""
     now = datetime.now().astimezone()
     now = now.replace(second=0, microsecond=0)
     end_at = (now + timedelta(days=days)).replace(
@@ -101,7 +103,7 @@ def _make_embargo_event(
     )
     # Use a URL-safe date string (no colons) for the ID path segment
     end_date_str = end_at.strftime("%Y-%m-%d")
-    return EmbargoEvent(
+    return as_EmbargoEvent(
         id_=f"{case.id_}/embargo_events/{days}d-{end_date_str}",
         name=f"Embargo for {case.name}",
         context=case.id_,
@@ -116,7 +118,7 @@ def _setup_two_participant_case(
     finder: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor,
-) -> VulnerabilityCase:
+) -> as_VulnerabilityCase:
     """
     Set up a case with two participants (vendor + coordinator) as a
     precondition for the embargo workflow.
@@ -129,7 +131,7 @@ def _setup_two_participant_case(
     5. Vendor adds finder as FinderReporter participant
     6. Vendor invites coordinator; coordinator accepts → coordinator added
     """
-    report = VulnerabilityReport(
+    report = as_VulnerabilityReport(
         attributed_to=finder.id_,
         content="A use-after-free vulnerability in the network stack.",
         name="Use-After-Free in Network Stack",
@@ -148,7 +150,7 @@ def _setup_two_participant_case(
     )
     post_to_inbox_and_wait(client, vendor.id_, validate_activity)
 
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         attributed_to=vendor.id_,
         name="UAF Case — Network Stack",
         content="Tracking the use-after-free vulnerability in the network stack.",
@@ -162,7 +164,7 @@ def _setup_two_participant_case(
     )
     post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
 
-    participant = CaseParticipant(
+    participant = as_CaseParticipant(
         case_roles=[CVDRole.FINDER, CVDRole.REPORTER],
         attributed_to=finder.id_,
         context=case.id_,

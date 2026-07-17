@@ -46,14 +46,16 @@ from typing import Callable, Optional, Sequence, Tuple
 
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_participant import (
-    CaseParticipant,
+    as_CaseParticipant,
 )
 from vultron.enums.roles import CVDRole
 from vultron.core.states.participant_embargo_consent import PEC
-from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 from vultron.core.states.rm import RM
 from vultron.core.states.cs import CS_vfd
@@ -94,7 +96,7 @@ def _setup_case_with_vendor(
     client: DataLayerClient,
     finder: as_Actor,
     vendor: as_Actor,
-) -> VulnerabilityCase:
+) -> as_VulnerabilityCase:
     """
     Set up an initialized case owned by the vendor as a precondition for the
     manage-participants workflow.
@@ -102,13 +104,13 @@ def _setup_case_with_vendor(
     Steps:
     1. Finder submits report to vendor
     2. Vendor validates the report
-    3. Vendor creates a VulnerabilityCase
+    3. Vendor creates a as_VulnerabilityCase
     4. Vendor creates a VendorParticipant and adds it to the case
     5. Report is linked to the case
 
-    Returns the created VulnerabilityCase.
+    Returns the created as_VulnerabilityCase.
     """
-    report = VulnerabilityReport(
+    report = as_VulnerabilityReport(
         attributed_to=finder.id_,
         content="A use-after-free vulnerability in the memory allocator.",
         name="Use-After-Free in Memory Allocator",
@@ -127,7 +129,7 @@ def _setup_case_with_vendor(
     )
     post_to_inbox_and_wait(client, vendor.id_, validate_activity)
 
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         attributed_to=vendor.id_,
         name="UAF Case — Memory Allocator",
         content="Tracking the use-after-free in the memory allocator.",
@@ -136,7 +138,7 @@ def _setup_case_with_vendor(
     post_to_inbox_and_wait(client, vendor.id_, create_case_act)
     verify_object_stored(client, case.id_)
 
-    vendor_participant = CaseParticipant(
+    vendor_participant = as_CaseParticipant(
         case_roles=[CVDRole.VENDOR],
         attributed_to=vendor.id_,
         context=case.id_,
@@ -177,7 +179,7 @@ def demo_manage_participants_accept(
     3. Coordinator accepts invitation (RmAcceptInviteToCaseActivity)
     4. Vendor creates coordinator participant (CreateParticipantActivity)
     5. Vendor adds coordinator participant to case (AddParticipantToCaseActivity)
-    6. Coordinator creates a ParticipantStatus (CreateStatusForParticipantActivity)
+    6. Coordinator creates a as_ParticipantStatus (CreateStatusForParticipantActivity)
     7. Coordinator adds the status to their participant (AddStatusToParticipantActivity)
     8. Vendor removes coordinator participant from case (RemoveParticipantFromCaseActivity)
     9. Verify coordinator no longer in case participant list
@@ -213,7 +215,7 @@ def demo_manage_participants_accept(
         post_to_inbox_and_wait(client, vendor.id_, accept)
 
     with demo_step("Step 4: Vendor creates coordinator participant"):
-        coordinator_participant = CaseParticipant(
+        coordinator_participant = as_CaseParticipant(
             case_roles=[CVDRole.COORDINATOR],
             attributed_to=coordinator.id_,
             context=case.id_,
@@ -247,8 +249,8 @@ def demo_manage_participants_accept(
                     f"not found in case after add. Participants: {participant_ids}"
                 )
 
-    with demo_step("Step 6: Coordinator creates a ParticipantStatus"):
-        participant_status = ParticipantStatus(
+    with demo_step("Step 6: Coordinator creates a as_ParticipantStatus"):
+        participant_status = as_ParticipantStatus(
             context=coordinator_participant.id_,
             rm_state=RM.ACCEPTED,
             vfd_state=CS_vfd.vfd,
@@ -262,11 +264,11 @@ def demo_manage_participants_accept(
             target=coordinator_participant.id_,
         )
         post_to_inbox_and_wait(client, coordinator.id_, create_status)
-        with demo_check("ParticipantStatus stored in data layer"):
+        with demo_check("as_ParticipantStatus stored in data layer"):
             verify_object_stored(client, participant_status.id_)
 
     with demo_step(
-        "Step 7: Coordinator adds ParticipantStatus to their participant"
+        "Step 7: Coordinator adds as_ParticipantStatus to their participant"
     ):
         add_status = add_status_to_participant_activity(
             participant_status,

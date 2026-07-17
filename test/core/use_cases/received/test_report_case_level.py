@@ -32,7 +32,9 @@ from vultron.core.use_cases.received.report import (
     CloseReportReceivedUseCase,
     InvalidateReportReceivedUseCase,
 )
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 
 class TestCaseLevelUseeCases:
@@ -45,7 +47,7 @@ class TestCaseLevelUseeCases:
     def _make_case_with_participant(
         self, dl: SqliteDataLayer, actor_id: str, initial_rm: RM
     ):
-        """Helper: create a VulnerabilityCase with one participant."""
+        """Helper: create a as_VulnerabilityCase with one participant."""
         from vultron.core.models.participant_status import (
             ParticipantStatus,
         )
@@ -62,7 +64,7 @@ class TestCaseLevelUseeCases:
                 )
             ],
         )
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/c1",
             name="Test Case",
         )
@@ -81,7 +83,7 @@ class TestCaseLevelUseeCases:
 
         InvalidateCaseUseCase(dl, case.id_, actor_id).execute()
 
-        updated_case = cast(VulnerabilityCase, dl.read(case.id_))
+        updated_case = cast(as_VulnerabilityCase, dl.read(case.id_))
         participant_id = updated_case.actor_participant_index[actor_id]
         participant = cast(VultronParticipant, dl.read(participant_id))
         assert participant.participant_statuses[-1].rm_state == RM.INVALID
@@ -95,7 +97,7 @@ class TestCaseLevelUseeCases:
 
         CloseCaseUseCase(dl, case.id_, actor_id).execute()
 
-        updated_case = cast(VulnerabilityCase, dl.read(case.id_))
+        updated_case = cast(as_VulnerabilityCase, dl.read(case.id_))
         participant_id = updated_case.actor_participant_index[actor_id]
         participant = cast(VultronParticipant, dl.read(participant_id))
         assert participant.participant_statuses[-1].rm_state == RM.CLOSED
@@ -166,7 +168,7 @@ class TestDereferencePatternInReportUseCases:
                 )
             ],
         )
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/c-deref",
             name="Deref Test Case",
         )
@@ -203,7 +205,7 @@ class TestDereferencePatternInReportUseCases:
 
         InvalidateReportReceivedUseCase(dl, event).execute()
 
-        updated_case = cast(VulnerabilityCase, dl.read(case.id_))
+        updated_case = cast(as_VulnerabilityCase, dl.read(case.id_))
         participant_id = updated_case.actor_participant_index[actor_id]
         participant = cast(VultronParticipant, dl.read(participant_id))
         assert participant.participant_statuses[-1].rm_state == RM.INVALID
@@ -236,7 +238,7 @@ class TestDereferencePatternInReportUseCases:
 
         CloseReportReceivedUseCase(dl, event).execute()
 
-        updated_case = cast(VulnerabilityCase, dl.read(case.id_))
+        updated_case = cast(as_VulnerabilityCase, dl.read(case.id_))
         participant_id = updated_case.actor_participant_index[actor_id]
         participant = cast(VultronParticipant, dl.read(participant_id))
         assert participant.participant_statuses[-1].rm_state == RM.CLOSED

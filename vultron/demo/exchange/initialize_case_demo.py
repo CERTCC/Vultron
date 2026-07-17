@@ -19,10 +19,10 @@ Demonstrates the workflow for initializing a vulnerability case via the Vultron 
 This demo script showcases the case initialization process:
 
 1. Setup: submit a vulnerability report (precondition for case creation)
-2. Create Case: vendor explicitly creates a VulnerabilityCase
+2. Create Case: vendor explicitly creates a as_VulnerabilityCase
 3. Add Vendor as Participant: vendor adds themselves as case creator/owner
 4. Add Report to Case: vendor links the submitted report to the case
-5. Create Participant: vendor creates a CaseParticipant for the finder
+5. Create Participant: vendor creates a as_CaseParticipant for the finder
 6. Add Participant to Case: vendor adds the finder participant to the case
 7. Show final case state
 
@@ -49,14 +49,16 @@ from typing import Callable, Optional, Sequence, Tuple
 # Vultron imports
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.objects.case_participant import (
-    CaseParticipant,
+    as_CaseParticipant,
 )
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
@@ -92,7 +94,7 @@ def demo_initialize_case(
     Steps:
     1. Finder submits a vulnerability report to vendor inbox
     2. Vendor validates the report (RmValidateReportActivity)
-    3. Vendor explicitly creates a VulnerabilityCase (CreateCaseActivity)
+    3. Vendor explicitly creates a as_VulnerabilityCase (CreateCaseActivity)
     4. Vendor adds themselves as VendorParticipant (case creator/owner)
     5. Vendor adds the report to the case (AddReportToCaseActivity)
     6. Vendor creates a FinderReporterParticipant for the finder
@@ -109,7 +111,7 @@ def demo_initialize_case(
     logger.info("=" * 80)
 
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
-        report = VulnerabilityReport(
+        report = as_VulnerabilityReport(
             attributed_to=finder.id_,
             content="A remote code execution vulnerability in the web framework.",
             name="Remote Code Execution Vulnerability",
@@ -132,7 +134,7 @@ def demo_initialize_case(
         post_to_inbox_and_wait(client, vendor.id_, validate_activity)
 
     with demo_step("Step 3: Vendor creates vulnerability case"):
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             attributed_to=vendor.id_,
             name="RCE Case — Web Framework",
             content="Tracking the RCE vulnerability in the web framework.",
@@ -146,7 +148,7 @@ def demo_initialize_case(
             log_case_state(client, case.id_, "after CreateCaseActivity")
 
     with demo_step("Step 4: Vendor adds themselves as case participant"):
-        vendor_participant = CaseParticipant(
+        vendor_participant = as_CaseParticipant(
             case_roles=[CVDRole.VENDOR],
             attributed_to=vendor.id_,
             context=case.id_,
@@ -202,7 +204,7 @@ def demo_initialize_case(
                 )
 
     with demo_step("Step 6: Vendor creates finder participant"):
-        participant = CaseParticipant(
+        participant = as_CaseParticipant(
             case_roles=[CVDRole.FINDER, CVDRole.REPORTER],
             attributed_to=finder.id_,
             context=case.id_,

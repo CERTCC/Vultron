@@ -32,9 +32,11 @@ from vultron.core.behaviors.status.nodes.lifecycle import (
     PublicDisclosureBranchNode,
 )
 from vultron.enums.roles import CVDRole
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 ACTOR_ID = "https://example.org/actors/vendor"
 CASE_MANAGER_ID = "https://example.org/actors/case-actor"
@@ -56,7 +58,7 @@ def dl():
 
 @pytest.fixture
 def participant():
-    return CaseParticipant(
+    return as_CaseParticipant(
         id_=PARTICIPANT_ID,
         context=CASE_ID,
         attributed_to=ACTOR_ID,
@@ -66,18 +68,18 @@ def participant():
 
 @pytest.fixture
 def status_obj():
-    return ParticipantStatus(id_=STATUS_ID, context=CASE_ID)
+    return as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID)
 
 
 @pytest.fixture
 def populated_dl(dl, participant, status_obj):
-    case_manager_participant = CaseParticipant(
+    case_manager_participant = as_CaseParticipant(
         id_=CM_PARTICIPANT_ID,
         context=CASE_ID,
         attributed_to=CASE_MANAGER_ID,
         case_roles=[CVDRole.CASE_MANAGER],
     )
-    case = VulnerabilityCase(id_=CASE_ID, name="Test Case")
+    case = as_VulnerabilityCase(id_=CASE_ID, name="Test Case")
     case.add_participant(participant)
     case.add_participant(case_manager_participant)
     dl.create(case)

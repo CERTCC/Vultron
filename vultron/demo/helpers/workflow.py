@@ -39,9 +39,11 @@ from vultron.wire.as2.factories import (
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 logger = logging.getLogger(__name__)
@@ -52,7 +54,7 @@ def reporter_submits_report(
     reporter: as_Actor,
     receiver: as_Actor,
     reporter_client: Optional[DataLayerClient] = None,
-) -> Tuple[VulnerabilityReport, as_Offer]:
+) -> Tuple[as_VulnerabilityReport, as_Offer]:
     """Reporter creates a vulnerability report and submits it to the receiver.
 
     When ``reporter_client`` is provided (e.g. in a multi-container Docker
@@ -106,7 +108,7 @@ def reporter_submits_report(
         with demo_step("Deliver reporter's offer to receiver's inbox"):
             post_to_inbox_and_wait(receiver_client, receiver.id_, offer)
     else:
-        report = VulnerabilityReport(
+        report = as_VulnerabilityReport(
             attributed_to=reporter.id_,
             name="Remote Code Execution in Network Stack",
             content=(
@@ -178,7 +180,7 @@ def receiver_engages_case(
     Args:
         receiver_client: Client connected to the receiver's container.
         receiver: Receiver ``as_Actor``.
-        case_id: Full URI of the ``VulnerabilityCase`` to engage.
+        case_id: Full URI of the ``as_VulnerabilityCase`` to engage.
 
     Returns:
         Response dict from the trigger endpoint (contains the engage
@@ -227,21 +229,21 @@ def _report_id_from_offer_data(
 def _load_case_from_datalayer(
     client: DataLayerClient,
     item: str | dict[str, object],
-) -> VulnerabilityCase | None:
-    """Load a VulnerabilityCase from the DataLayer, handling both IDs and dicts.
+) -> as_VulnerabilityCase | None:
+    """Load a as_VulnerabilityCase from the DataLayer, handling both IDs and dicts.
 
     Args:
         client: DataLayerClient for the container to query.
         item: Either a full case URI string or a raw dict to validate.
 
     Returns:
-        The ``VulnerabilityCase``, or ``None`` if the fetch fails.
+        The ``as_VulnerabilityCase``, or ``None`` if the fetch fails.
     """
     if not isinstance(item, str):
-        return VulnerabilityCase.model_validate(item)
+        return as_VulnerabilityCase.model_validate(item)
 
     try:
-        return VulnerabilityCase.model_validate(
+        return as_VulnerabilityCase.model_validate(
             client.get(f"/datalayer/{item}")
         )
     except Exception as exc:
@@ -252,15 +254,15 @@ def _load_case_from_datalayer(
 def find_case_for_offer(
     client: DataLayerClient,
     offer_id: str,
-) -> Optional[VulnerabilityCase]:
-    """Find the VulnerabilityCase associated with a report offer.
+) -> Optional[as_VulnerabilityCase]:
+    """Find the as_VulnerabilityCase associated with a report offer.
 
     Args:
         client: DataLayerClient connected to the container holding the case.
         offer_id: Full URI of the ``VultronActivity`` offer.
 
     Returns:
-        The matching ``VulnerabilityCase``, or ``None`` if not found.
+        The matching ``as_VulnerabilityCase``, or ``None`` if not found.
     """
     offer_data = client.get(f"/datalayer/{offer_id}")
     if not offer_data:

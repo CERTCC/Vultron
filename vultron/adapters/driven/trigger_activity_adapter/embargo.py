@@ -26,7 +26,7 @@ from vultron.wire.as2.factories import (
     em_reject_embargo_activity,
     remove_embargo_from_case_activity,
 )
-from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 from ._base import _DUMP_KWARGS
 
@@ -45,8 +45,8 @@ class _EmbargoMixin:
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, dict[str, Any]]:
-        """Create and persist an ``Invite(EmbargoEvent, Case)`` proposal."""
-        embargo = cast(EmbargoEvent, self._dl.read(embargo_id))
+        """Create and persist an ``Invite(as_EmbargoEvent, Case)`` proposal."""
+        embargo = cast(as_EmbargoEvent, self._dl.read(embargo_id))
         activity = em_propose_embargo_activity(
             embargo=embargo, context=case_id, actor=actor, to=to
         )
@@ -108,8 +108,8 @@ class _EmbargoMixin:
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, dict[str, Any]]:
-        """Create and persist an ``Announce(EmbargoEvent)`` activity."""
-        embargo = cast(EmbargoEvent, self._dl.read(embargo_id))
+        """Create and persist an ``Announce(as_EmbargoEvent)`` activity."""
+        embargo = cast(as_EmbargoEvent, self._dl.read(embargo_id))
         activity = announce_embargo_activity(
             embargo=embargo, context=case_id, actor=actor, to=to
         )
@@ -129,8 +129,8 @@ class _EmbargoMixin:
         actor: str,
         to: list[str] | None = None,
     ) -> tuple[str, dict[str, Any]]:
-        """Create and persist a ``Remove(EmbargoEvent, origin=case)`` ET activity."""
-        embargo = cast(EmbargoEvent, self._dl.read(embargo_id))
+        """Create and persist a ``Remove(as_EmbargoEvent, origin=case)`` ET activity."""
+        embargo = cast(as_EmbargoEvent, self._dl.read(embargo_id))
         activity = remove_embargo_from_case_activity(
             embargo=embargo, origin=case_id, actor=actor, to=to
         )

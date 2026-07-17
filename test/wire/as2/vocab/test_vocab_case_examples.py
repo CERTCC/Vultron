@@ -29,9 +29,11 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.wire.as2.vocab.objects.case_status import CaseStatus
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 
@@ -40,7 +42,7 @@ class TestVocabCaseObjectExamples(unittest.TestCase):
     def test_case(self):
         case = examples.case()
         self.assertIsInstance(case, as_Object)
-        self.assertIsInstance(case, VulnerabilityCase)
+        self.assertIsInstance(case, as_VulnerabilityCase)
 
         self.assertTrue(hasattr(case, "to_json"))
         json = case.to_json()
@@ -48,7 +50,7 @@ class TestVocabCaseObjectExamples(unittest.TestCase):
 
     def test_case_has_genesis_hash(self):
         case = examples.case()
-        self.assertIsInstance(case, VulnerabilityCase)
+        self.assertIsInstance(case, as_VulnerabilityCase)
         self.assertTrue(
             case.genesis_hash,
             "examples.case() genesis_hash must be non-empty (CLP-08-003)",
@@ -56,7 +58,7 @@ class TestVocabCaseObjectExamples(unittest.TestCase):
 
     def test_case_random_id_has_genesis_hash(self):
         case = examples.case(random_id=True)
-        self.assertIsInstance(case, VulnerabilityCase)
+        self.assertIsInstance(case, as_VulnerabilityCase)
         self.assertTrue(
             case.genesis_hash,
             "examples.case(random_id=True) genesis_hash must be non-empty (CLP-08-003)",
@@ -72,7 +74,7 @@ class TestVocabCaseObjectExamples(unittest.TestCase):
         self.assertEqual(create_case.type_, "Create")
         self.assertEqual(create_case.actor, vendor.id_)
 
-        case_from_activity = cast(VulnerabilityCase, create_case.object_)
+        case_from_activity = cast(as_VulnerabilityCase, create_case.object_)
         # Each call to create_case() uses a fresh random-ID case, so we assert
         # the id is non-empty rather than equal to the shared singleton.
         self.assertTrue(case_from_activity.id_)
@@ -80,7 +82,7 @@ class TestVocabCaseObjectExamples(unittest.TestCase):
             case_from_activity.vulnerability_reports[0], report.id_
         )
         participant = cast(
-            CaseParticipant, case_from_activity.case_participants[0]
+            as_CaseParticipant, case_from_activity.case_participants[0]
         )
         self.assertEqual(participant.attributed_to, vendor.id_)
 
@@ -120,7 +122,7 @@ class TestVocabCaseParticipantExamples(unittest.TestCase):
         self.assertEqual(activity.actor, vendor.id_)
         self.assertEqual(activity.target, case.id_)
 
-        participant = cast(CaseParticipant, activity.object_)
+        participant = cast(as_CaseParticipant, activity.object_)
         self.assertEqual(participant.attributed_to, vendor.id_)
         self.assertEqual(participant.name, vendor.name)
         self.assertEqual(participant.context, case.id_)
@@ -138,7 +140,7 @@ class TestVocabCaseParticipantExamples(unittest.TestCase):
         self.assertEqual(activity.actor, vendor.id_)
         self.assertEqual(activity.target, case.id_)
 
-        participant = cast(CaseParticipant, activity.object_)
+        participant = cast(as_CaseParticipant, activity.object_)
         self.assertEqual(participant.attributed_to, finder.id_)
         self.assertEqual(participant.name, finder.name)
         self.assertEqual(participant.context, case.id_)
@@ -156,7 +158,7 @@ class TestVocabCaseParticipantExamples(unittest.TestCase):
         self.assertEqual(activity.actor, vendor.id_)
         self.assertEqual(activity.target, case.id_)
 
-        participant = cast(CaseParticipant, activity.object_)
+        participant = cast(as_CaseParticipant, activity.object_)
         self.assertEqual(participant.attributed_to, coordinator.id_)
         self.assertEqual(participant.name, coordinator.name)
         self.assertEqual(participant.context, case.id_)
@@ -284,7 +286,7 @@ class TestVocabCaseOwnershipExamples(unittest.TestCase):
         self.assertEqual(activity.actor, vendor.id_)
         self.assertEqual(activity.target, coordinator.id_)
 
-        transfer_case = cast(VulnerabilityCase, activity.object_)
+        transfer_case = cast(as_VulnerabilityCase, activity.object_)
         for k, v in transfer_case.to_dict().items():
             if isinstance(v, list):
                 continue
@@ -317,7 +319,7 @@ class TestVocabCaseStatusExamples(unittest.TestCase):
     def test_case_status(self):
         obj = examples.case_status()
         self.assertIsInstance(obj, as_Object)
-        self.assertIsInstance(obj, CaseStatus)
+        self.assertIsInstance(obj, as_CaseStatus)
         self.assertIn(obj.em_state, EM)
         self.assertIn(obj.pxa_state, CS_pxa)
 

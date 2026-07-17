@@ -18,7 +18,7 @@ import pytest
 
 # noqa: F401 — imported for vocabulary registration side-effect
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
-    VulnerabilityCase,
+    as_VulnerabilityCase,
 )
 
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -41,7 +41,7 @@ from vultron.core.models.case_participant import (
     FinderParticipant,
     VendorParticipant,
 )
-from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -59,12 +59,12 @@ def _make_case(
     owner_id: str,
     extra_participant_ids: list[str] | None = None,
     em_state: EM = EM.NONE,
-) -> tuple[VulnerabilityCase, list[CaseParticipant]]:
-    """Create a VulnerabilityCase with an owner participant.
+) -> tuple[as_VulnerabilityCase, list[CaseParticipant]]:
+    """Create a as_VulnerabilityCase with an owner participant.
 
     Returns the case and the list of CaseParticipant objects created.
     """
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         name="Test embargo case",
         attributed_to=owner_id,
     )
@@ -98,8 +98,8 @@ def _make_case(
     return case, participants
 
 
-def _make_embargo(dl: SqliteDataLayer, case_id: str) -> EmbargoEvent:
-    embargo = EmbargoEvent(context=case_id)
+def _make_embargo(dl: SqliteDataLayer, case_id: str) -> as_EmbargoEvent:
+    embargo = as_EmbargoEvent(context=case_id)
     dl.create(embargo)
     return embargo
 
@@ -153,7 +153,7 @@ def test_propose_embargo_none_to_proposed(
     assert result.pec_reset is False
     assert result.participant_changes == []
 
-    updated = cast(VulnerabilityCase, dl.read(case.id_))
+    updated = cast(as_VulnerabilityCase, dl.read(case.id_))
     assert updated.current_status.em_state == EM.PROPOSED
     assert embargo.id_ in updated.proposed_embargoes
 
@@ -186,7 +186,7 @@ def test_propose_embargo_idempotent_repropse(
     # EM state did not change, embargo_id already present → nothing mutated
     assert result.case_changed is False
 
-    updated = cast(VulnerabilityCase, dl.read(case.id_))
+    updated = cast(as_VulnerabilityCase, dl.read(case.id_))
     # Must not have been duplicated
     assert updated.proposed_embargoes.count(embargo.id_) == 1
 
@@ -226,7 +226,7 @@ def test_propose_embargo_active_to_revise_cascades_pec(
         assert change.pec_after == PEC.LAPSED.value
 
     # DataLayer state matches
-    updated = cast(VulnerabilityCase, dl.read(case.id_))
+    updated = cast(as_VulnerabilityCase, dl.read(case.id_))
     assert updated.current_status.em_state == EM.REVISE
     for p in participants:
         updated_p = cast(CaseParticipant, dl.read(p.id_))
@@ -475,7 +475,7 @@ def test_accept_embargo_invite_observed_already_active_syncs_embargo(
     # EM stays ACTIVE (already there)
     assert result.em_after == EM.ACTIVE
     # But active_embargo must be updated to point at the new embargo
-    refreshed_case = cast(VulnerabilityCase, dl.read(case.id_))
+    refreshed_case = cast(as_VulnerabilityCase, dl.read(case.id_))
     assert _as_id(refreshed_case.active_embargo) == new_embargo.id_
 
 

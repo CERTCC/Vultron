@@ -82,7 +82,7 @@ class TestCaseActorWireRoundTrip:
 
     def test_from_core_preserves_id(self):
         from vultron.wire.as2.vocab.objects.case_actor import (
-            CaseActor as WireCaseActor,
+            as_CaseActor as WireCaseActor,
         )
 
         core_actor = CaseActor(
@@ -94,7 +94,7 @@ class TestCaseActorWireRoundTrip:
 
     def test_to_core_preserves_attributed_to(self):
         from vultron.wire.as2.vocab.objects.case_actor import (
-            CaseActor as WireCaseActor,
+            as_CaseActor as WireCaseActor,
         )
 
         wire_actor = WireCaseActor(
@@ -107,7 +107,7 @@ class TestCaseActorWireRoundTrip:
 
     def test_round_trip_preserves_id(self):
         from vultron.wire.as2.vocab.objects.case_actor import (
-            CaseActor as WireCaseActor,
+            as_CaseActor as WireCaseActor,
         )
 
         core_actor = CaseActor(

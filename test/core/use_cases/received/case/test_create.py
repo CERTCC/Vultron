@@ -45,9 +45,11 @@ from vultron.wire.as2.factories import (
     create_case_activity,
 )
 from vultron.wire.as2.vocab.objects.case_participant import (
-    CaseParticipant,
+    as_CaseParticipant,
 )
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 # ---------------------------------------------------------------------------
 # Shared constants
@@ -70,20 +72,20 @@ _VENDOR_PARTICIPANT_ID = f"{_CASE_ID}/participants/vendor"
 
 
 def _case_with_case_actor_participant() -> tuple:
-    """Build a VulnerabilityCase whose participant list includes a CASE_MANAGER.
+    """Build a as_VulnerabilityCase whose participant list includes a CASE_MANAGER.
 
-    Returns a tuple of (VulnerabilityCase, CaseActorParticipant).  The
+    Returns a tuple of (as_VulnerabilityCase, CaseActorParticipant).  The
     participant is embedded INLINE in the case snapshot (not just an ID),
-    matching what a real bootstrap ``Create(VulnerabilityCase)`` would carry.
+    matching what a real bootstrap ``Create(as_VulnerabilityCase)`` would carry.
     """
-    participant = CaseParticipant(
+    participant = as_CaseParticipant(
         case_roles=[CVDRole.CASE_MANAGER],
         id_=_PARTICIPANT_ID,
         attributed_to=_CASE_ACTOR_ID,
         context=_CASE_ID,
         name="CaseActor",
     )
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         id_=_CASE_ID,
         name="CBT test case",
         case_participants=[participant],
@@ -117,7 +119,7 @@ def dl():
 
 @pytest.fixture()
 def case_with_participant():
-    """Return (VulnerabilityCase, VultronParticipant) with CASE_MANAGER role."""
+    """Return (as_VulnerabilityCase, VultronParticipant) with CASE_MANAGER role."""
     return _case_with_case_actor_participant()
 
 
@@ -256,7 +258,9 @@ class TestAnnounceValidatedByTrustedCaseActorId:
 
     @pytest.fixture()
     def case_obj(self):
-        return VulnerabilityCase(id_=_CASE_ID, name="CBT announce gate case")
+        return as_VulnerabilityCase(
+            id_=_CASE_ID, name="CBT announce gate case"
+        )
 
     @pytest.fixture()
     def announce_from_trusted(self, case_obj):

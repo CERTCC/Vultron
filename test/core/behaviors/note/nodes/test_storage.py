@@ -25,7 +25,9 @@ from vultron.core.behaviors.note.nodes.storage import (
     SaveNoteNode,
 )
 from vultron.core.models.note import VultronNote
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 ACTOR_ID = "https://example.org/actors/finder"
 CASE_ID = "https://example.org/cases/case-01"
@@ -63,7 +65,7 @@ class TestSaveNoteNode:
 
 class TestAttachNoteToCaseNode:
     def test_attaches_note_to_case(self, bridge, dl, note):
-        case = VulnerabilityCase(id_=CASE_ID, name="Test Case")
+        case = as_VulnerabilityCase(id_=CASE_ID, name="Test Case")
         dl.create(case)
         dl.save(note)
         tree = AttachNoteToCaseNode(note_id=NOTE_ID, case_id=CASE_ID)
@@ -74,7 +76,7 @@ class TestAttachNoteToCaseNode:
         assert NOTE_ID in refreshed.notes
 
     def test_idempotent_when_note_already_attached(self, bridge, dl, note):
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_=CASE_ID, name="Test Case", notes=[NOTE_ID]
         )
         dl.create(case)

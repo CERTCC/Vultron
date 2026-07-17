@@ -43,7 +43,7 @@ class TestEmbargoPolicyCreation(unittest.TestCase):
     """Test EmbargoPolicy model creation — EP-01-001 through EP-01-003."""
 
     def setUp(self):
-        self.policy = cast(Any, ep_module.EmbargoPolicy)(
+        self.policy = cast(Any, ep_module.as_EmbargoPolicy)(
             actor_id=ACTOR_ID,
             inbox=INBOX,
             preferred_duration="P90D",
@@ -63,7 +63,7 @@ class TestEmbargoPolicyCreation(unittest.TestCase):
         self.assertEqual(VO_type.EMBARGO_POLICY, p.type_)
 
     def test_creation_accepts_timedelta_directly(self):
-        p = ep_module.EmbargoPolicy(
+        p = ep_module.as_EmbargoPolicy(
             actor_id=ACTOR_ID,
             inbox=INBOX,
             preferred_duration=_P60D,
@@ -71,7 +71,7 @@ class TestEmbargoPolicyCreation(unittest.TestCase):
         self.assertEqual(_P60D, p.preferred_duration)
 
     def test_creation_with_required_fields_only(self):
-        p = cast(Any, ep_module.EmbargoPolicy)(
+        p = cast(Any, ep_module.as_EmbargoPolicy)(
             actor_id=ACTOR_ID,
             inbox=INBOX,
             preferred_duration="P60D",
@@ -83,19 +83,21 @@ class TestEmbargoPolicyCreation(unittest.TestCase):
 
     def test_actor_id_required(self):
         with pytest.raises(ValidationError):
-            cast(Any, ep_module.EmbargoPolicy)(
+            cast(Any, ep_module.as_EmbargoPolicy)(
                 inbox=INBOX, preferred_duration="P90D"
             )
 
     def test_inbox_required(self):
         with pytest.raises(ValidationError):
-            cast(Any, ep_module.EmbargoPolicy)(
+            cast(Any, ep_module.as_EmbargoPolicy)(
                 actor_id=ACTOR_ID, preferred_duration="P90D"
             )
 
     def test_preferred_duration_required(self):
         with pytest.raises(ValidationError):
-            cast(Any, ep_module.EmbargoPolicy)(actor_id=ACTOR_ID, inbox=INBOX)
+            cast(Any, ep_module.as_EmbargoPolicy)(
+                actor_id=ACTOR_ID, inbox=INBOX
+            )
 
     def test_as_type_is_embargo_policy(self):
         self.assertEqual(VO_type.EMBARGO_POLICY, self.policy.type_)
@@ -117,12 +119,12 @@ class TestEmbargoPolicyValidation(unittest.TestCase):
         minimum_duration: str | timedelta | None = None,
         maximum_duration: str | timedelta | None = None,
         notes: str | None = None,
-    ) -> ep_module.EmbargoPolicy:
+    ) -> ep_module.as_EmbargoPolicy:
         # cast(Any, ...) allows passing str inputs that Pydantic's field_validator
         # converts to timedelta at runtime (mypy sees the declared timedelta type).
         return cast(
-            ep_module.EmbargoPolicy,
-            cast(Any, ep_module.EmbargoPolicy)(
+            ep_module.as_EmbargoPolicy,
+            cast(Any, ep_module.as_EmbargoPolicy)(
                 actor_id=actor_id,
                 inbox=inbox,
                 preferred_duration=preferred_duration,
@@ -222,7 +224,7 @@ class TestEmbargoPolicySerialization(unittest.TestCase):
     """Test EmbargoPolicy serialization — EP-01-004, DUR-05-001, DUR-05-002."""
 
     def setUp(self):
-        self.policy = cast(Any, ep_module.EmbargoPolicy)(
+        self.policy = cast(Any, ep_module.as_EmbargoPolicy)(
             actor_id=ACTOR_ID,
             inbox=INBOX,
             preferred_duration="P90D",
@@ -276,7 +278,7 @@ class TestEmbargoPolicySerialization(unittest.TestCase):
         dl.create(self.policy)
         stored = dl.read(self.policy.id_)
         self.assertIsNotNone(stored)
-        stored = cast(ep_module.EmbargoPolicy, stored)
+        stored = cast(ep_module.as_EmbargoPolicy, stored)
         self.assertEqual(self.policy.id_, stored.id_)
         self.assertEqual(ACTOR_ID, stored.actor_id)
         self.assertEqual(INBOX, stored.inbox)
@@ -286,7 +288,7 @@ class TestEmbargoPolicySerialization(unittest.TestCase):
 
     def test_roundtrip_timedelta_to_iso8601_and_back(self):
         """DUR-05-001, DUR-05-002: timedelta → 'P90D' → timedelta round-trips correctly."""
-        p = ep_module.EmbargoPolicy(
+        p = ep_module.as_EmbargoPolicy(
             actor_id=ACTOR_ID,
             inbox=INBOX,
             preferred_duration=timedelta(days=90),
@@ -296,7 +298,7 @@ class TestEmbargoPolicySerialization(unittest.TestCase):
         # JSON uses camelCase (alias_generator=to_camel)
         self.assertEqual("P90D", data["preferredDuration"])
         # Reconstruct from JSON
-        p2 = ep_module.EmbargoPolicy.model_validate_json(json_str)
+        p2 = ep_module.as_EmbargoPolicy.model_validate_json(json_str)
         self.assertEqual(timedelta(days=90), p2.preferred_duration)
 
     def test_json_serialization(self):
@@ -307,10 +309,10 @@ class TestEmbargoPolicySerialization(unittest.TestCase):
 
     def test_type_distinctness(self):
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
-        case = VulnerabilityCase()
+        case = as_VulnerabilityCase()
         self.assertNotEqual(self.policy.type_, case.type_)
 
 
@@ -327,7 +329,7 @@ class TestEmbargoPolicyCoreConversion(unittest.TestCase):
         )
 
         self.core_cls = CoreEmbargoPolicy
-        self.wire_cls = ep_module.EmbargoPolicy
+        self.wire_cls = ep_module.as_EmbargoPolicy
         self.core_policy = CoreEmbargoPolicy(
             actor_id=ACTOR_ID,
             inbox=INBOX,

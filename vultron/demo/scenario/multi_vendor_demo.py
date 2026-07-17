@@ -54,10 +54,12 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_TransitiveActivity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 from vultron.demo.scenario.two_actor_demo import (
     finder_submits_report,
@@ -236,8 +238,8 @@ def vendor_creates_case_on_case_actor(
     case_actor_client: DataLayerClient,
     case_actor: as_Actor,
     vendor: as_Actor,
-    report: VulnerabilityReport,
-) -> VulnerabilityCase:
+    report: as_VulnerabilityReport,
+) -> as_VulnerabilityCase:
     """Vendor creates the authoritative case on the CaseActor container."""
     with demo_step("Vendor creates the case via trigger"):
         result = post_to_trigger(
@@ -255,7 +257,7 @@ def vendor_creates_case_on_case_actor(
             },
         )
     create_case = as_Create.model_validate(result["activity"])
-    case = VulnerabilityCase.model_validate(
+    case = as_VulnerabilityCase.model_validate(
         create_case.object_.model_dump(by_alias=True)  # type: ignore[union-attr]
     )
     with demo_step("Delivering CreateCase activity to CaseActor"):
@@ -271,8 +273,8 @@ def vendor_adds_report_to_case(
     case_actor_client: DataLayerClient,
     case_actor: as_Actor,
     vendor: as_Actor,
-    case: VulnerabilityCase,
-    report: VulnerabilityReport,
+    case: as_VulnerabilityCase,
+    report: as_VulnerabilityReport,
 ) -> None:
     """Link the submitted report to the authoritative case."""
     with demo_step(
@@ -300,7 +302,7 @@ def vendor_offers_case_ownership_to_coordinator(
     case_actor: as_Actor,
     vendor: as_Actor,
     coordinator: as_Actor,
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
 ) -> as_Offer:
     """Vendor records a case ownership offer and delivers it to Coordinator.
 
@@ -335,7 +337,7 @@ def coordinator_accepts_case_ownership(
     case_actor: as_Actor,
     coordinator: as_Actor,
     offer: as_Offer,
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
 ) -> as_Accept:
     """Coordinator accepts the ownership transfer offer on the CaseActor.
 
@@ -356,7 +358,7 @@ def coordinator_accepts_case_ownership(
 
     with demo_check("Case attributed_to updated to Coordinator on CaseActor"):
         case_data = case_actor_client.get(f"/datalayer/{case.id_}")
-        updated_case = VulnerabilityCase(**case_data)
+        updated_case = as_VulnerabilityCase(**case_data)
         coord_segment = coordinator.id_.split("/")[-1]
         if coord_segment not in str(updated_case.attributed_to):
             raise AssertionError(
@@ -370,14 +372,14 @@ def coordinator_accepts_case_ownership(
     return accept
 
 
-def _multi_vendor_report_ids(case: VulnerabilityCase) -> list[str]:
+def _multi_vendor_report_ids(case: as_VulnerabilityCase) -> list[str]:
     return [
         ref_id(report) or str(report) for report in case.vulnerability_reports
     ]
 
 
 def _assert_multi_vendor_active_embargo(
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
     embargo_id: str,
 ) -> None:
     if case.current_status.em_state != EM.ACTIVE:
@@ -391,7 +393,7 @@ def _assert_multi_vendor_active_embargo(
 
 
 def _assert_multi_vendor_participants_present(
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
     actor_ids: tuple[str, ...],
 ) -> None:
     for actor_id in actor_ids:
@@ -403,7 +405,7 @@ def _assert_multi_vendor_participants_present(
 
 def _assert_multi_vendor_embargo_acceptance(
     case_actor_client: DataLayerClient,
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
     actor_ids: tuple[str, ...],
     embargo_id: str,
 ) -> None:
@@ -416,7 +418,7 @@ def _assert_multi_vendor_embargo_acceptance(
                 f"Participant record {participant_id} not found in "
                 "CaseActor DataLayer"
             )
-        participant = CaseParticipant(**participant_data)
+        participant = as_CaseParticipant(**participant_data)
         if embargo_id not in participant.accepted_embargo_ids:
             raise AssertionError(
                 f"Participant {participant_id} did not record acceptance of "
@@ -434,7 +436,7 @@ def verify_multi_vendor_case_state(
     vendor_actor_id: str,
     vendor2_actor_id: str,
     embargo_id: str,
-) -> VulnerabilityCase:
+) -> as_VulnerabilityCase:
     """Assert the authoritative final multi-vendor case state.
 
     Checks:
@@ -444,7 +446,7 @@ def verify_multi_vendor_case_state(
     - The embargo is ACTIVE and all three participants have accepted it.
     - Coordinator and Vendor2 containers do not hold the authoritative case.
     """
-    final_case = VulnerabilityCase(
+    final_case = as_VulnerabilityCase(
         **case_actor_client.get(f"/datalayer/{case_id}")
     )
     actor_ids = (reporter_actor_id, vendor_actor_id, vendor2_actor_id)
@@ -499,7 +501,7 @@ def run_multi_vendor_demo(
     coordinator_id: str | None = None,
     case_actor_id: str | None = None,
     vendor2_id: str | None = None,
-) -> VulnerabilityCase:
+) -> as_VulnerabilityCase:
     """Run the full deterministic multi-vendor ownership-transfer scenario."""
     logger.info("=" * 80)
     logger.info(

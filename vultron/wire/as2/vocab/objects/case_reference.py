@@ -34,7 +34,7 @@ from vultron.wire.as2.vocab.objects.base import (
 )
 
 
-class CaseReference(VultronAS2Object):
+class as_CaseReference(VultronAS2Object):
     """
     Represents a typed external reference associated with a case.
 
@@ -89,7 +89,7 @@ class CaseReference(VultronAS2Object):
         return v
 
     @classmethod
-    def from_core(cls, core_obj: CoreCaseReference) -> "CaseReference":
+    def from_core(cls, core_obj: CoreCaseReference) -> "as_CaseReference":
         data = core_obj.model_dump(mode="json")
         _strip_core_context(data)
         data["attributed_to"] = _scalar_ref_id_or_value(
@@ -105,14 +105,14 @@ class CaseReference(VultronAS2Object):
         return CoreCaseReference.model_validate(data)
 
 
-CaseReferenceRef: TypeAlias = ActivityStreamRef[CaseReference]
+as_CaseReferenceRef: TypeAlias = ActivityStreamRef[as_CaseReference]
 
 
 def main():
     from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
     actor = as_Actor()
-    obj = CaseReference(
+    obj = as_CaseReference(
         url="https://example.org/advisory/",
         name="Example Security Advisory",
         tags=["vendor-advisory", "patch"],

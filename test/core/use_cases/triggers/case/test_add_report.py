@@ -33,9 +33,11 @@ from vultron.core.use_cases.triggers.requests import (
     AddReportToCaseTriggerRequest,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -81,7 +83,7 @@ class TestSvcAddReportToCaseUseCase:
         """Set up actor and in-memory DataLayer."""
         self.actor, self.dl = _make_actor_dl("Vendor Co")
         # Create a case for testing
-        self.case = VulnerabilityCase(name="Test Case")
+        self.case = as_VulnerabilityCase(name="Test Case")
         self.dl.create(self.case)
         yield
         self.dl.clear_all()
@@ -90,7 +92,7 @@ class TestSvcAddReportToCaseUseCase:
     def test_add_report_to_case_happy_path(self):
         """SvcAddReportToCaseUseCase adds a report to a case."""
         # Create a report
-        report = VulnerabilityReport(
+        report = as_VulnerabilityReport(
             name="Test Report",
             content="Test report content",
         )
@@ -136,8 +138,8 @@ class TestSvcAddReportToCaseUseCase:
     def test_add_report_to_case_raises_when_report_wrong_type(self):
         """SvcAddReportToCaseUseCase raises VultronValidationError when report_id
         is not a VulnerabilityReport."""
-        # Create a wrong type object (VulnerabilityCase instead)
-        case_obj = VulnerabilityCase(name="Not a Report")
+        # Create a wrong type object (as_VulnerabilityCase instead)
+        case_obj = as_VulnerabilityCase(name="Not a Report")
         self.dl.create(case_obj)
 
         request = AddReportToCaseTriggerRequest(
@@ -157,7 +159,7 @@ class TestSvcAddReportToCaseUseCase:
     def test_add_report_to_case_raises_when_case_not_found(self):
         """SvcAddReportToCaseUseCase raises VultronNotFoundError when case
         not found."""
-        report = VulnerabilityReport(
+        report = as_VulnerabilityReport(
             name="Test Report",
             content="Test report content",
         )
@@ -178,7 +180,7 @@ class TestSvcAddReportToCaseUseCase:
     def test_add_report_to_case_activity_queued_in_delivery_queue(self):
         """SvcAddReportToCaseUseCase queues activity in delivery queue for
         outbox_handler."""
-        report = VulnerabilityReport(
+        report = as_VulnerabilityReport(
             name="Test Report",
             content="Test report content",
         )
@@ -210,7 +212,7 @@ class TestSvcAddReportToCaseUseCase:
     def test_add_report_to_case_delegates_to_add_object(self):
         """SvcAddReportToCaseUseCase validates report type then delegates to
         SvcAddObjectToCaseUseCase."""
-        report = VulnerabilityReport(
+        report = as_VulnerabilityReport(
             name="Test Report",
             content="Test report content",
         )
@@ -234,11 +236,11 @@ class TestSvcAddReportToCaseUseCase:
 
     def test_add_multiple_reports_to_case(self):
         """SvcAddReportToCaseUseCase can add multiple reports (called multiple times)."""
-        report1 = VulnerabilityReport(
+        report1 = as_VulnerabilityReport(
             name="Test Report 1",
             content="Test report content 1",
         )
-        report2 = VulnerabilityReport(
+        report2 = as_VulnerabilityReport(
             name="Test Report 2",
             content="Test report content 2",
         )

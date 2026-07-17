@@ -37,7 +37,9 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
 from vultron.core.models.events import MessageSemantics
 from vultron.semantic_registry import find_matching_semantics
 from vultron.wire.as2.factories import announce_log_entry_activity
-from vultron.wire.as2.vocab.objects.case_ledger_entry import CaseLedgerEntry
+from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+    as_CaseLedgerEntry as CaseLedgerEntry,
+)
 
 _CASE_ID = "https://example.org/cases/case-ingress-routing"
 _ENTRY_ID = "https://example.org/cases/case-ingress-routing/log/entry-1"

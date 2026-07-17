@@ -37,7 +37,6 @@ from vultron.core.behaviors.case.nodes.communication import (
     CreateAndPersistCaseActivityNode,
 )
 from vultron.core.dispatcher import DirectActivityDispatcher
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events import (
     AddNoteToCaseReceivedEvent,
     MessageSemantics,
@@ -45,7 +44,7 @@ from vultron.core.models.events import (
 from vultron.core.models.vultron_types import VultronCaseActor, VultronCase
 from vultron.errors import UnroutableActivityError
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    VulnerabilityCase as as_VulnerabilityCase,
+    as_VulnerabilityCase as as_VulnerabilityCase,
 )
 
 _FACTORY_PATH = (
@@ -265,7 +264,7 @@ class TestResolveCaseManagerIdCallers:
 
         scenario = BTTestScenario(actor_id=ACTOR_ID)
         # Seed case with no participants (empty actor_participant_index)
-        case = VulnerabilityCase(id_=CASE_ID, name="No CM")
+        case = as_VulnerabilityCase(id_=CASE_ID, name="No CM")
         scenario.dl.create(case)
 
         node = ResolveCaseManagerNode(case_id=CASE_ID)
@@ -280,7 +279,7 @@ class TestResolveCaseManagerIdCallers:
         )
 
         scenario = BTTestScenario(actor_id=ACTOR_ID)
-        case = VulnerabilityCase(id_=CASE_ID, name="No CM")
+        case = as_VulnerabilityCase(id_=CASE_ID, name="No CM")
         scenario.dl.create(case)
 
         node = CheckIsCaseManagerNode()

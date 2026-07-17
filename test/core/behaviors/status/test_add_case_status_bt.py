@@ -48,8 +48,10 @@ from vultron.core.use_cases.received.status import (
     AddCaseStatusToCaseReceivedUseCase,
 )
 from vultron.wire.as2.factories import add_status_to_case_activity
-from vultron.wire.as2.vocab.objects.case_status import CaseStatus
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -84,12 +86,12 @@ def bridge(dl):
 
 @pytest.fixture
 def case():
-    return VulnerabilityCase(id_=CASE_ID, name="BT Case")
+    return as_VulnerabilityCase(id_=CASE_ID, name="BT Case")
 
 
 @pytest.fixture
 def status_obj():
-    return CaseStatus(id_=STATUS_ID, context=CASE_ID)
+    return as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
 
 
 @pytest.fixture
@@ -123,7 +125,7 @@ class TestCheckCaseStatusIdempotencyNode:
     def test_duplicate_status_fails_with_sentinel(self, populated_dl):
         """Status already present → FAILURE with CASE_STATUS_ALREADY_PRESENT."""
         # Pre-load the status onto the case
-        case = cast(VulnerabilityCase, populated_dl.read(CASE_ID))
+        case = cast(as_VulnerabilityCase, populated_dl.read(CASE_ID))
         status = populated_dl.read(STATUS_ID)
         case.case_statuses.append(status)
         populated_dl.save(case)
@@ -167,8 +169,8 @@ class TestValidateCaseStatusTransitionNode:
 
     def test_valid_em_transition_succeeds(self, dl):
         """NONE → PROPOSED is a valid EM transition → SUCCESS."""
-        case = VulnerabilityCase(id_=CASE_ID, name="EM Valid")
-        initial = CaseStatus(
+        case = as_VulnerabilityCase(id_=CASE_ID, name="EM Valid")
+        initial = as_CaseStatus(
             id_=f"{CASE_ID}/statuses/init",
             context=CASE_ID,
             em_state=EM.NONE,
@@ -176,7 +178,7 @@ class TestValidateCaseStatusTransitionNode:
         case.case_statuses.append(initial)
         dl.create(case)
 
-        good_status = CaseStatus(
+        good_status = as_CaseStatus(
             id_=STATUS_ID, context=CASE_ID, em_state=EM.PROPOSED
         )
         dl.create(good_status)
@@ -192,8 +194,8 @@ class TestValidateCaseStatusTransitionNode:
 
     def test_invalid_em_transition_fails(self, dl):
         """NONE → ACTIVE skips PROPOSED — invalid EM transition → FAILURE."""
-        case = VulnerabilityCase(id_=CASE_ID, name="EM Invalid")
-        initial = CaseStatus(
+        case = as_VulnerabilityCase(id_=CASE_ID, name="EM Invalid")
+        initial = as_CaseStatus(
             id_=f"{CASE_ID}/statuses/init",
             context=CASE_ID,
             em_state=EM.NONE,
@@ -201,7 +203,7 @@ class TestValidateCaseStatusTransitionNode:
         case.case_statuses.append(initial)
         dl.create(case)
 
-        bad_status = CaseStatus(
+        bad_status = as_CaseStatus(
             id_=STATUS_ID, context=CASE_ID, em_state=EM.ACTIVE
         )
         dl.create(bad_status)
@@ -217,12 +219,12 @@ class TestValidateCaseStatusTransitionNode:
 
     def test_invalid_pxa_transition_fails(self, dl):
         """pxa → PXA skips intermediate steps — invalid PXA transition → FAILURE."""
-        # The default seed CaseStatus already has pxa_state=CS_pxa.pxa.
+        # The default seed as_CaseStatus already has pxa_state=CS_pxa.pxa.
         # A direct jump from pxa to PXA (all bits set at once) is invalid.
-        case = VulnerabilityCase(id_=CASE_ID, name="PXA Invalid")
+        case = as_VulnerabilityCase(id_=CASE_ID, name="PXA Invalid")
         dl.create(case)
 
-        bad_status = CaseStatus(
+        bad_status = as_CaseStatus(
             id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.PXA
         )
         dl.create(bad_status)
@@ -264,7 +266,7 @@ class TestAppendCaseStatusToCaseNode:
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
-        case = cast(VulnerabilityCase, populated_dl.read(CASE_ID))
+        case = cast(as_VulnerabilityCase, populated_dl.read(CASE_ID))
         status_ids = [getattr(s, "id_", s) for s in case.case_statuses]
         assert STATUS_ID in status_ids
 
@@ -280,10 +282,10 @@ class TestAppendCaseStatusToCaseNode:
 
     def test_status_not_in_dl_uses_fallback(self, dl):
         """Status not in DL; fallback inline object is saved and used."""
-        case = VulnerabilityCase(id_=CASE_ID, name="Fallback Case")
+        case = as_VulnerabilityCase(id_=CASE_ID, name="Fallback Case")
         dl.create(case)
 
-        inline_status = CaseStatus(id_=STATUS_ID, context=CASE_ID)
+        inline_status = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
         bridge = BTBridge(datalayer=dl)
         node = AppendCaseStatusToCaseNode(
             case_id=CASE_ID,
@@ -293,7 +295,7 @@ class TestAppendCaseStatusToCaseNode:
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
-        case = cast(VulnerabilityCase, dl.read(CASE_ID))
+        case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         status_ids = [getattr(s, "id_", s) for s in case.case_statuses]
         assert STATUS_ID in status_ids
 
@@ -306,8 +308,8 @@ class TestAppendCaseStatusToCaseNode:
 class TestAddCaseStatusTree:
     def test_happy_path_appends_status(self, populated_dl, make_payload):
         """Full Sequence: new status is appended to case."""
-        status_obj = cast(CaseStatus, populated_dl.read(STATUS_ID))
-        case_obj = cast(VulnerabilityCase, populated_dl.read(CASE_ID))
+        status_obj = cast(as_CaseStatus, populated_dl.read(STATUS_ID))
+        case_obj = cast(as_VulnerabilityCase, populated_dl.read(CASE_ID))
 
         activity = add_status_to_case_activity(
             status_obj, target=case_obj, actor=ACTOR_ID
@@ -319,7 +321,7 @@ class TestAddCaseStatusTree:
         result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
-        case = cast(VulnerabilityCase, populated_dl.read(CASE_ID))
+        case = cast(as_VulnerabilityCase, populated_dl.read(CASE_ID))
         status_ids = [getattr(s, "id_", s) for s in case.case_statuses]
         assert STATUS_ID in status_ids
 
@@ -328,13 +330,13 @@ class TestAddCaseStatusTree:
     ):
         """Duplicate status → BT FAILURE with CASE_STATUS_ALREADY_PRESENT."""
         # Pre-load the status onto the case
-        case = cast(VulnerabilityCase, populated_dl.read(CASE_ID))
+        case = cast(as_VulnerabilityCase, populated_dl.read(CASE_ID))
         status = populated_dl.read(STATUS_ID)
         case.case_statuses.append(status)
         populated_dl.save(case)
 
-        status_obj = cast(CaseStatus, populated_dl.read(STATUS_ID))
-        case_obj = cast(VulnerabilityCase, populated_dl.read(CASE_ID))
+        status_obj = cast(as_CaseStatus, populated_dl.read(STATUS_ID))
+        case_obj = cast(as_VulnerabilityCase, populated_dl.read(CASE_ID))
 
         activity = add_status_to_case_activity(
             status_obj, target=case_obj, actor=ACTOR_ID
@@ -349,8 +351,8 @@ class TestAddCaseStatusTree:
 
     def test_invalid_em_transition_fails(self, dl, make_payload):
         """Invalid EM transition → BT FAILURE; status not appended."""
-        case = VulnerabilityCase(id_=CASE_ID, name="EM Guard")
-        initial = CaseStatus(
+        case = as_VulnerabilityCase(id_=CASE_ID, name="EM Guard")
+        initial = as_CaseStatus(
             id_=f"{CASE_ID}/statuses/init",
             context=CASE_ID,
             em_state=EM.NONE,
@@ -358,7 +360,7 @@ class TestAddCaseStatusTree:
         case.case_statuses.append(initial)
         dl.create(case)
 
-        bad_status = CaseStatus(
+        bad_status = as_CaseStatus(
             id_=STATUS_ID, context=CASE_ID, em_state=EM.ACTIVE
         )
         dl.create(bad_status)
@@ -373,7 +375,7 @@ class TestAddCaseStatusTree:
         result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
-        updated_case = cast(VulnerabilityCase, dl.read(CASE_ID))
+        updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         status_ids = [getattr(s, "id_", s) for s in updated_case.case_statuses]
         assert STATUS_ID not in status_ids
 
@@ -387,8 +389,8 @@ class TestAddCaseStatusToCaseReceivedUseCase:
     def test_use_case_appends_status(self, make_payload):
         """Use case succeeds: status is appended to case."""
         dl = SqliteDataLayer("sqlite:///:memory:")
-        case = VulnerabilityCase(id_=CASE_ID, name="UC Case")
-        status_obj = CaseStatus(id_=STATUS_ID, context=CASE_ID)
+        case = as_VulnerabilityCase(id_=CASE_ID, name="UC Case")
+        status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
         dl.create(case)
         dl.create(status_obj)
 
@@ -399,7 +401,7 @@ class TestAddCaseStatusToCaseReceivedUseCase:
 
         AddCaseStatusToCaseReceivedUseCase(dl, event).execute()
 
-        updated_case = cast(VulnerabilityCase, dl.read(CASE_ID))
+        updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         status_ids = [getattr(s, "id_", s) for s in updated_case.case_statuses]
         assert STATUS_ID in status_ids
 
@@ -408,8 +410,8 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         import logging
 
         dl = SqliteDataLayer("sqlite:///:memory:")
-        case = VulnerabilityCase(id_=CASE_ID, name="Idempotent Case")
-        status_obj = CaseStatus(id_=STATUS_ID, context=CASE_ID)
+        case = as_VulnerabilityCase(id_=CASE_ID, name="Idempotent Case")
+        status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
         case.case_statuses.append(status_obj)
         dl.create(case)
         dl.create(status_obj)
@@ -441,8 +443,8 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         import logging
 
         dl = SqliteDataLayer("sqlite:///:memory:")
-        case = VulnerabilityCase(id_=CASE_ID, name="EM Guard Case")
-        initial = CaseStatus(
+        case = as_VulnerabilityCase(id_=CASE_ID, name="EM Guard Case")
+        initial = as_CaseStatus(
             id_=f"{CASE_ID}/statuses/init",
             context=CASE_ID,
             em_state=EM.NONE,
@@ -450,7 +452,7 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         case.case_statuses.append(initial)
         dl.create(case)
 
-        bad_status = CaseStatus(
+        bad_status = as_CaseStatus(
             id_=STATUS_ID, context=CASE_ID, em_state=EM.ACTIVE
         )
         dl.create(bad_status)
@@ -471,7 +473,7 @@ class TestAddCaseStatusToCaseReceivedUseCase:
             for m in warn_msgs
         ), "Expected WARNING for invalid transition"
 
-        updated_case = cast(VulnerabilityCase, dl.read(CASE_ID))
+        updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         status_ids = [getattr(s, "id_", s) for s in updated_case.case_statuses]
         assert STATUS_ID not in status_ids
 
@@ -482,11 +484,11 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         import logging
 
         dl = SqliteDataLayer("sqlite:///:memory:")
-        case = VulnerabilityCase(id_=CASE_ID, name="Missing ID Case")
+        case = as_VulnerabilityCase(id_=CASE_ID, name="Missing ID Case")
         dl.create(case)
 
         # Construct a status with no ID to force status_id=None via factory
-        status_obj = CaseStatus(id_=STATUS_ID, context=CASE_ID)
+        status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
         activity = add_status_to_case_activity(
             status_obj, target=case, actor=ACTOR_ID
         )

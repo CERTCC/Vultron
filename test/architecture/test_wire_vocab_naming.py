@@ -81,26 +81,7 @@ def _collect_collisions() -> frozenset[str]:
 # Fix: add the as_ prefix to the wire class (ARCH-14-001).
 # Migration tracked in issue #1056.
 # ---------------------------------------------------------------------------
-KNOWN_VIOLATIONS: frozenset[str] = frozenset(
-    {
-        "CaseActor",
-        "CaseLedgerEntry",
-        "CaseParticipant",
-        "CaseReference",
-        "CaseStatus",
-        "EmbargoEvent",
-        "EmbargoPolicy",
-        "ParticipantStatus",
-        "VulnerabilityCase",
-        "VulnerabilityRecord",
-        "VulnerabilityReport",
-        "VultronApplication",
-        "VultronGroup",
-        "VultronOrganization",
-        "VultronPerson",
-        "VultronService",
-    }
-)
+KNOWN_VIOLATIONS: frozenset[str] = frozenset()
 
 
 def test_wire_vocab_objects_do_not_shadow_core_model_names():

@@ -20,15 +20,15 @@ This demo script showcases two suggestion paths per ADR-0026 (CaseActor-routed):
 
 1. Accept path:
    - Finder → CaseActor inbox: Offer(Actor, Case)
-   - CaseActor → Case Owner inbox: Offer(CaseParticipant{actor, roles}, Case)
-   - Case Owner → CaseActor inbox: Accept(Offer(CaseParticipant))
+   - CaseActor → Case Owner inbox: Offer(as_CaseParticipant{actor, roles}, Case)
+   - Case Owner → CaseActor inbox: Accept(Offer(as_CaseParticipant))
    - CaseActor → Finder inbox: AcceptActorRecommendation
    - CaseActor → Coordinator inbox: Invite(CaseStub+embargo+roles)
 
 2. Reject path:
    - Finder → CaseActor inbox: Offer(Actor, Case)
-   - CaseActor → Case Owner inbox: Offer(CaseParticipant{actor, roles}, Case)
-   - Case Owner → CaseActor inbox: Reject(Offer(CaseParticipant))
+   - CaseActor → Case Owner inbox: Offer(as_CaseParticipant{actor, roles}, Case)
+   - Case Owner → CaseActor inbox: Reject(Offer(as_CaseParticipant))
    - CaseActor → Finder inbox: RejectActorRecommendation
 
 In this single-process prototype, vendor acts as both Case Owner and
@@ -49,12 +49,14 @@ from typing import Callable, Optional, Sequence, Tuple
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_participant import (
-    CaseParticipant,
+    as_CaseParticipant,
 )
 from vultron.enums.roles import CVDRole
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
@@ -89,14 +91,14 @@ def _setup_initialized_case(
     client: DataLayerClient,
     finder: as_Actor,
     vendor: as_Actor,
-) -> VulnerabilityCase:
+) -> as_VulnerabilityCase:
     """
     Set up an initialized case as a precondition for the suggest workflow.
 
     Mirrors the setup helper in invite_actor_demo but returns the
-    VulnerabilityCase so subsequent steps can reference it.
+    as_VulnerabilityCase so subsequent steps can reference it.
     """
-    report = VulnerabilityReport(
+    report = as_VulnerabilityReport(
         attributed_to=finder.id_,
         content="A remote code execution vulnerability in the web framework.",
         name="Remote Code Execution Vulnerability",
@@ -115,7 +117,7 @@ def _setup_initialized_case(
     )
     post_to_inbox_and_wait(client, vendor.id_, validate_activity)
 
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         attributed_to=vendor.id_,
         name="RCE Case — Web Framework",
         content="Tracking the RCE vulnerability in the web framework.",
@@ -129,7 +131,7 @@ def _setup_initialized_case(
     )
     post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
 
-    participant = CaseParticipant(
+    participant = as_CaseParticipant(
         case_roles=[CVDRole.FINDER, CVDRole.REPORTER],
         attributed_to=finder.id_,
         context=case.id_,
@@ -164,8 +166,8 @@ def demo_suggest_actor_accept(
 
     1. Setup: initialize case
     2. Finder → CaseActor inbox: Offer(Actor, Case)
-    3. CaseActor → Case Owner inbox: Offer(CaseParticipant{actor,roles}, Case)
-    4. Case Owner → CaseActor inbox: Accept(Offer(CaseParticipant))
+    3. CaseActor → Case Owner inbox: Offer(as_CaseParticipant{actor,roles}, Case)
+    4. Case Owner → CaseActor inbox: Accept(Offer(as_CaseParticipant))
     5. Verify acceptance persisted
 
     In this single-process prototype vendor acts as CaseActor.
@@ -197,7 +199,7 @@ def demo_suggest_actor_accept(
             verify_object_stored(client, recommendation.id_)
 
     with demo_step(
-        "Step 3: CaseActor transforms to Offer(CaseParticipant) → Case Owner"
+        "Step 3: CaseActor transforms to Offer(as_CaseParticipant) → Case Owner"
     ):
         # Per ADR-0026/CM-16-004: CaseActor transforms and forwards with
         # origin=original-offer-id.
@@ -212,13 +214,13 @@ def demo_suggest_actor_accept(
                 f"(roles: VENDOR). Origin: {recommendation.id_}"
             ),
         )
-        logger.info(f"Sending Offer(CaseParticipant): {logfmt(cp_offer)}")
+        logger.info(f"Sending Offer(as_CaseParticipant): {logfmt(cp_offer)}")
         post_to_inbox_and_wait(client, vendor.id_, cp_offer)
-        with demo_check("Offer(CaseParticipant) stored in data layer"):
+        with demo_check("Offer(as_CaseParticipant) stored in data layer"):
             verify_object_stored(client, cp_offer.id_)
 
     with demo_step(
-        "Step 4: Case Owner sends Accept(Offer(CaseParticipant)) to CaseActor"
+        "Step 4: Case Owner sends Accept(Offer(as_CaseParticipant)) to CaseActor"
     ):
         # Per ADR-0026/CM-16-006: Accept routes to CaseActor inbox.
         accept = accept_case_participant_offer_activity(
@@ -231,7 +233,7 @@ def demo_suggest_actor_accept(
             ),
         )
         logger.info(
-            f"Sending Accept(Offer(CaseParticipant)): {logfmt(accept)}"
+            f"Sending Accept(Offer(as_CaseParticipant)): {logfmt(accept)}"
         )
         post_to_inbox_and_wait(client, vendor.id_, accept)
         with demo_check("Accept stored in data layer"):
@@ -257,8 +259,8 @@ def demo_suggest_actor_reject(
 
     1. Setup: initialize case
     2. Finder → CaseActor inbox: Offer(Actor, Case)
-    3. CaseActor → Case Owner inbox: Offer(CaseParticipant{actor,roles}, Case)
-    4. Case Owner → CaseActor inbox: Reject(Offer(CaseParticipant))
+    3. CaseActor → Case Owner inbox: Offer(as_CaseParticipant{actor,roles}, Case)
+    4. Case Owner → CaseActor inbox: Reject(Offer(as_CaseParticipant))
     5. Verify no new participant was added
     """
     logger.info("=" * 80)
@@ -289,7 +291,7 @@ def demo_suggest_actor_reject(
             verify_object_stored(client, recommendation.id_)
 
     with demo_step(
-        "Step 3: CaseActor transforms to Offer(CaseParticipant) → Case Owner"
+        "Step 3: CaseActor transforms to Offer(as_CaseParticipant) → Case Owner"
     ):
         cp_offer = offer_case_participant_activity(
             coordinator,
@@ -302,13 +304,13 @@ def demo_suggest_actor_reject(
                 f"(roles: VENDOR). Origin: {recommendation.id_}"
             ),
         )
-        logger.info(f"Sending Offer(CaseParticipant): {logfmt(cp_offer)}")
+        logger.info(f"Sending Offer(as_CaseParticipant): {logfmt(cp_offer)}")
         post_to_inbox_and_wait(client, vendor.id_, cp_offer)
-        with demo_check("Offer(CaseParticipant) stored in data layer"):
+        with demo_check("Offer(as_CaseParticipant) stored in data layer"):
             verify_object_stored(client, cp_offer.id_)
 
     with demo_step(
-        "Step 4: Case Owner sends Reject(Offer(CaseParticipant)) to CaseActor"
+        "Step 4: Case Owner sends Reject(Offer(as_CaseParticipant)) to CaseActor"
     ):
         reject = reject_case_participant_offer_activity(
             cp_offer,
@@ -320,7 +322,7 @@ def demo_suggest_actor_reject(
             ),
         )
         logger.info(
-            f"Sending Reject(Offer(CaseParticipant)): {logfmt(reject)}"
+            f"Sending Reject(Offer(as_CaseParticipant)): {logfmt(reject)}"
         )
         post_to_inbox_and_wait(client, vendor.id_, reject)
 

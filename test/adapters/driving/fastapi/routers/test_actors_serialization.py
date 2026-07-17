@@ -30,13 +30,13 @@ from vultron.adapters.driving.fastapi.routers import actors as actors_router
 from vultron.adapters.driving.fastapi.routers import (
     datalayer as datalayer_router,
 )
-from vultron.wire.as2.vocab.objects.embargo_policy import EmbargoPolicy
+from vultron.wire.as2.vocab.objects.embargo_policy import as_EmbargoPolicy
 from vultron.wire.as2.vocab.objects.vultron_actor import (
-    VultronApplication,
-    VultronGroup,
-    VultronOrganization,
-    VultronPerson,
-    VultronService,
+    as_VultronApplication,
+    as_VultronGroup,
+    as_VultronOrganization,
+    as_VultronPerson,
+    as_VultronService,
 )
 
 
@@ -72,7 +72,7 @@ def client_datalayer(datalayer):
 def embargo_policy():
     from datetime import timedelta
 
-    return EmbargoPolicy(
+    return as_EmbargoPolicy(
         actor_id="https://example.org/actors/alice",
         inbox="https://example.org/actors/alice/inbox",
         preferred_duration=timedelta(days=90),
@@ -81,7 +81,7 @@ def embargo_policy():
 
 @pytest.fixture
 def vultron_person(embargo_policy):
-    return VultronPerson(
+    return as_VultronPerson(
         name="Alice",
         id_="https://example.org/actors/alice",
         embargo_policy=embargo_policy,
@@ -90,7 +90,7 @@ def vultron_person(embargo_policy):
 
 @pytest.fixture
 def vultron_organization(embargo_policy):
-    return VultronOrganization(
+    return as_VultronOrganization(
         name="ACME Corp",
         id_="https://example.org/actors/acme",
         embargo_policy=embargo_policy,
@@ -99,7 +99,7 @@ def vultron_organization(embargo_policy):
 
 @pytest.fixture
 def vultron_service(embargo_policy):
-    return VultronService(
+    return as_VultronService(
         name="VulnBot",
         id_="https://example.org/actors/vulnbot",
         embargo_policy=embargo_policy,
@@ -108,7 +108,7 @@ def vultron_service(embargo_policy):
 
 @pytest.fixture
 def vultron_application(embargo_policy):
-    return VultronApplication(
+    return as_VultronApplication(
         name="VulnApp",
         id_="https://example.org/actors/vulnapp",
         embargo_policy=embargo_policy,
@@ -117,7 +117,7 @@ def vultron_application(embargo_policy):
 
 @pytest.fixture
 def vultron_group(embargo_policy):
-    return VultronGroup(
+    return as_VultronGroup(
         name="VulnGroup",
         id_="https://example.org/actors/vulngroup",
         embargo_policy=embargo_policy,

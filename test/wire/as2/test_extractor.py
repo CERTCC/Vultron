@@ -36,10 +36,10 @@ def test_find_matching_semantics_returns_correct_semantics_for_create_report():
         as_Create,
     )
     from vultron.wire.as2.vocab.objects.vulnerability_report import (
-        VulnerabilityReport,
+        as_VulnerabilityReport,
     )
 
-    report = VulnerabilityReport(name="VR-001", content="test report")
+    report = as_VulnerabilityReport(name="VR-001", content="test report")
     activity = as_Create(
         actor="https://example.org/finder",
         object_=report,
@@ -87,11 +87,11 @@ def test_extract_intent_report_pass_through_fields():
         as_Create,
     )
     from vultron.wire.as2.vocab.objects.vulnerability_report import (
-        VulnerabilityReport,
+        as_VulnerabilityReport,
     )
 
     now = datetime.now(timezone.utc)
-    report = VulnerabilityReport(
+    report = as_VulnerabilityReport(
         name="VR-001",
         summary="Brief summary",
         content="Full content",
@@ -120,11 +120,11 @@ def test_extract_intent_case_pass_through_fields():
         as_Create,
     )
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
-        VulnerabilityCase,
+        as_VulnerabilityCase,
     )
 
     now = datetime.now(timezone.utc)
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         name="CASE-001",
         summary="Case summary",
         published=now,
@@ -144,10 +144,10 @@ def test_extract_intent_embargo_pass_through_fields():
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Create,
     )
-    from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+    from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
     now = datetime.now(timezone.utc)
-    embargo = EmbargoEvent(
+    embargo = as_EmbargoEvent(
         context="https://example.org/cases/1",
         published=now,
         updated=now,
@@ -196,10 +196,10 @@ def test_extract_intent_activity_origin_field():
         as_Create,
     )
     from vultron.wire.as2.vocab.objects.vulnerability_report import (
-        VulnerabilityReport,
+        as_VulnerabilityReport,
     )
 
-    report = VulnerabilityReport(name="VR-001", content="test")
+    report = as_VulnerabilityReport(name="VR-001", content="test")
     activity = as_Create(
         actor="https://example.org/alice",
         object_=report,
@@ -212,16 +212,16 @@ def test_extract_intent_activity_origin_field():
 
 
 def test_extract_intent_participant_case_roles():
-    """VultronParticipant.case_roles is populated from the wire CaseParticipant."""
+    """VultronParticipant.case_roles is populated from the wire as_CaseParticipant."""
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Create,
     )
     from vultron.wire.as2.vocab.objects.case_participant import (
-        CaseParticipant,
+        as_CaseParticipant,
     )
     from vultron.enums.roles import CVDRole
 
-    participant = CaseParticipant(
+    participant = as_CaseParticipant(
         attributed_to="https://example.org/alice",
         context="https://example.org/cases/1",
     )
@@ -240,13 +240,13 @@ def test_extract_intent_participant_case_roles():
 
 
 def test_extract_intent_case_status_name():
-    """CaseStatus.name is populated from the wire CaseStatus."""
+    """as_CaseStatus.name is populated from the wire as_CaseStatus."""
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Create,
     )
-    from vultron.wire.as2.vocab.objects.case_status import CaseStatus
+    from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 
-    cs = CaseStatus(context="https://example.org/cases/1")
+    cs = as_CaseStatus(context="https://example.org/cases/1")
     # CreateCaseStatusActivity pattern: Create + CASE_STATUS + context=VULNERABILITY_CASE
     activity = as_Create(
         actor="https://example.org/alice",
@@ -261,14 +261,14 @@ def test_extract_intent_case_status_name():
 
 
 def test_extract_intent_participant_status_vfd_state():
-    """ParticipantStatus.vfd_state is populated from the wire ParticipantStatus."""
+    """as_ParticipantStatus.vfd_state is populated from the wire as_ParticipantStatus."""
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Create,
     )
-    from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
+    from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
     from vultron.core.states.cs import CS_vfd
 
-    ps = ParticipantStatus(
+    ps = as_ParticipantStatus(
         context="https://example.org/cases/1",
         vfd_state=CS_vfd.Vfd,
     )

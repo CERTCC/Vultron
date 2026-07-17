@@ -60,7 +60,7 @@ def _make_vultron_activity(
 def test_recover_typed_inline_object_from_dict_rehydrates_model():
     """_recover_typed_inline_object_from_dict rebuilds configured model types."""
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
-        VulnerabilityCase,
+        as_VulnerabilityCase,
     )
 
     activity = _make_vultron_activity(
@@ -80,7 +80,7 @@ def test_recover_typed_inline_object_from_dict_rehydrates_model():
         activity,
     )
 
-    assert isinstance(recovered, VulnerabilityCase)
+    assert isinstance(recovered, as_VulnerabilityCase)
     assert activity.object_ is recovered
 
 
@@ -239,17 +239,17 @@ def test_handle_outbox_item_delivers_hydrated_participants():
     the outbound object_, not the pre-hydration object.
     """
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
-        VulnerabilityCase,
+        as_VulnerabilityCase,
     )
 
     participant_id = "urn:uuid:participant-572-001"
-    case_obj = VulnerabilityCase(
+    case_obj = as_VulnerabilityCase(
         id_="urn:uuid:case-572-001",
         case_participants=[participant_id],  # bare string before hydration
     )
     # dl.hydrate() is responsible for replacing bare strings with objects;
     # simulate it returning a case with participants already expanded.
-    hydrated_case = VulnerabilityCase(
+    hydrated_case = as_VulnerabilityCase(
         id_="urn:uuid:case-572-001",
         case_participants=[],  # hydrate() would fill this with full objects
     )

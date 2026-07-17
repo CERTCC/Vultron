@@ -15,7 +15,7 @@
 
 """Shared fixtures for test/core/behaviors/embargo/nodes tests.
 
-Imports VulnerabilityCase as a side effect to populate the global vocabulary
+Imports as_VulnerabilityCase as a side effect to populate the global vocabulary
 registry before any test in this package runs.
 """
 
@@ -24,22 +24,22 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.states.em import EM
-from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
-    VulnerabilityCase,
+    as_VulnerabilityCase,
 )
 
 
 def make_case_and_embargo(
     case_suffix: str,
     em_state: EM = EM.ACTIVE,
-) -> tuple[VulnerabilityCase, EmbargoEvent]:
-    """Create an in-memory VulnerabilityCase + EmbargoEvent pair."""
-    case = VulnerabilityCase(
+) -> tuple[as_VulnerabilityCase, as_EmbargoEvent]:
+    """Create an in-memory as_VulnerabilityCase + as_EmbargoEvent pair."""
+    case = as_VulnerabilityCase(
         id_=f"https://example.org/cases/case_{case_suffix}",
         name=f"Test Case {case_suffix}",
     )
-    embargo = EmbargoEvent(
+    embargo = as_EmbargoEvent(
         id_=f"https://example.org/cases/case_{case_suffix}/embargo_events/e1",
         context=case.id_,
     )

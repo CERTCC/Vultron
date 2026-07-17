@@ -14,7 +14,7 @@
 """Unit tests for TriggerActivityAdapter report-domain methods."""
 
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 _ACTOR = "https://example.org/actors/reporter"
@@ -22,8 +22,8 @@ _COORDINATOR = "https://example.org/actors/coordinator"
 _CASE_ID = "https://example.org/cases/case-001"
 
 
-def _make_report(dl) -> VulnerabilityReport:
-    report = VulnerabilityReport(name="CVE-2025-001", content="PoC details")
+def _make_report(dl) -> as_VulnerabilityReport:
+    report = as_VulnerabilityReport(name="CVE-2025-001", content="PoC details")
     dl.create(report)
     return report
 

@@ -33,7 +33,7 @@ from vultron.core.models.participant import VultronParticipant
 from vultron.core.models.protocols import is_participant_model
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 # Test implementation of abstract base classes
@@ -80,8 +80,8 @@ def bridge(datalayer):
 
 @pytest.fixture
 def sample_report():
-    """Sample VulnerabilityReport for testing CRUD operations."""
-    return VulnerabilityReport(
+    """Sample as_VulnerabilityReport for testing CRUD operations."""
+    return as_VulnerabilityReport(
         id_="https://example.org/objects/test-123",
         name="Test Object",
     )

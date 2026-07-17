@@ -24,9 +24,9 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Reject,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    VulnerabilityCaseRef,
+    as_VulnerabilityCaseRef,
 )
 
 
@@ -36,7 +36,7 @@ class _RecommendActorActivity(as_Offer):
     object_: CoreActor | as_Actor = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
-    target: VulnerabilityCaseRef = None
+    target: as_VulnerabilityCaseRef = None
 
 
 class _AcceptActorRecommendationActivity(as_Accept):
@@ -50,7 +50,7 @@ class _AcceptActorRecommendationActivity(as_Accept):
     object_: _RecommendActorActivity = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
-    target: VulnerabilityCaseRef = None
+    target: as_VulnerabilityCaseRef = None
 
 
 class _RejectActorRecommendationActivity(as_Reject):
@@ -63,7 +63,7 @@ class _RejectActorRecommendationActivity(as_Reject):
     object_: _RecommendActorActivity = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
-    target: VulnerabilityCaseRef = None
+    target: as_VulnerabilityCaseRef = None
 
 
 class _OfferCaseParticipantActivity(as_Offer):
@@ -75,10 +75,10 @@ class _OfferCaseParticipantActivity(as_Offer):
     (CM-16-004, ADR-0026).
     """
 
-    object_: CaseParticipant = Field(
+    object_: as_CaseParticipant = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
-    target: VulnerabilityCaseRef = None
+    target: as_VulnerabilityCaseRef = None
 
 
 class _AcceptCaseParticipantOfferActivity(as_Accept):
@@ -90,7 +90,7 @@ class _AcceptCaseParticipantOfferActivity(as_Accept):
     object_: _OfferCaseParticipantActivity = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
-    target: VulnerabilityCaseRef = None
+    target: as_VulnerabilityCaseRef = None
 
 
 class _RejectCaseParticipantOfferActivity(as_Reject):
@@ -102,7 +102,7 @@ class _RejectCaseParticipantOfferActivity(as_Reject):
     object_: _OfferCaseParticipantActivity = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
-    target: VulnerabilityCaseRef = None
+    target: as_VulnerabilityCaseRef = None
 
 
 # NOTE: Old non-suffixed names were removed intentionally. Use the

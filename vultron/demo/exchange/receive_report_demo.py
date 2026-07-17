@@ -58,9 +58,11 @@ from vultron.adapters.utils import parse_id
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
@@ -205,16 +207,16 @@ def verify_activity_in_inbox(
 
 def find_case_by_report(
     client: DataLayerClient, report_id: str
-) -> Optional[VulnerabilityCase]:
+) -> Optional[as_VulnerabilityCase]:
     """
-    Finds a VulnerabilityCase that references a specific report.
+    Finds a as_VulnerabilityCase that references a specific report.
 
     Args:
         client: DataLayerClient instance
         report_id: Full URI of the vulnerability report
 
     Returns:
-        VulnerabilityCase or None: The case if found, None otherwise
+        as_VulnerabilityCase or None: The case if found, None otherwise
     """
     cases = client.get("/datalayer/VulnerabilityCases/")
     if not cases:
@@ -226,13 +228,13 @@ def find_case_by_report(
             # Fetch the full case object
             try:
                 case_obj_data = client.get(f"/datalayer/{case_data}")
-                case_obj = VulnerabilityCase(**case_obj_data)
+                case_obj = as_VulnerabilityCase(**case_obj_data)
             except Exception as e:
                 logger.warning(f"Failed to fetch case {case_data}: {e}")
                 continue
         else:
             # API returned full object
-            case_obj = VulnerabilityCase(**case_data)
+            case_obj = as_VulnerabilityCase(**case_data)
 
         # Check if this case references our report
         if case_obj.vulnerability_reports:
@@ -272,7 +274,7 @@ def demo_validate_report(
     logger.info("=" * 80)
 
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
-        report = VulnerabilityReport(
+        report = as_VulnerabilityReport(
             attributed_to=finder.id_,
             content="This is a legitimate vulnerability in the authentication module.",
             name="Authentication Bypass Vulnerability",
@@ -350,7 +352,7 @@ def demo_invalidate_report(
     logger.info("=" * 80)
 
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
-        report = VulnerabilityReport(
+        report = as_VulnerabilityReport(
             attributed_to=finder.id_,
             content="Possible vulnerability in payment processing, needs more investigation.",
             name="Potential Payment Processing Issue",
@@ -429,7 +431,7 @@ def demo_invalidate_and_close_report(
     logger.info("=" * 80)
 
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
-        report = VulnerabilityReport(
+        report = as_VulnerabilityReport(
             attributed_to=finder.id_,
             content="This is a false positive - not a real vulnerability.",
             name="False Positive Report",

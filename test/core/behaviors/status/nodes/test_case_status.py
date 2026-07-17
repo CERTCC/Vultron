@@ -35,8 +35,10 @@ from vultron.core.behaviors.status.nodes.case_status import (
     ValidateCaseStatusTransitionNode,
 )
 from vultron.core.states.em import EM
-from vultron.wire.as2.vocab.objects.case_status import CaseStatus
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 ACTOR_ID = "https://example.org/actors/vendor"
 CASE_ID = "https://example.org/cases/case-01"
@@ -61,12 +63,12 @@ def bridge(dl):
 
 @pytest.fixture
 def case():
-    return VulnerabilityCase(id_=CASE_ID, name="Test Case")
+    return as_VulnerabilityCase(id_=CASE_ID, name="Test Case")
 
 
 @pytest.fixture
 def status_obj():
-    return CaseStatus(id_=STATUS_ID, context=CASE_ID)
+    return as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
 
 
 @pytest.fixture
@@ -145,9 +147,9 @@ class TestValidateCaseStatusTransitionNode:
         assert result.status == Status.SUCCESS
 
     def test_valid_em_transition_passes(self, populated_bridge, status_obj):
-        # Default case has a CaseStatus with em_state=EM.NONE;
+        # Default case has a as_CaseStatus with em_state=EM.NONE;
         # NONE → PROPOSED is a valid forward transition.
-        new_status = CaseStatus(
+        new_status = as_CaseStatus(
             id_=STATUS2_ID, context=CASE_ID, em_state=EM.PROPOSED
         )
         populated_bridge.datalayer.save(new_status)
@@ -163,9 +165,9 @@ class TestValidateCaseStatusTransitionNode:
         assert result.status == Status.SUCCESS
 
     def test_invalid_em_transition_fails(self, populated_bridge):
-        # Default case has a CaseStatus with em_state=EM.NONE;
+        # Default case has a as_CaseStatus with em_state=EM.NONE;
         # NONE → ACTIVE is invalid (skips PROPOSED).
-        new_status = CaseStatus(
+        new_status = as_CaseStatus(
             id_=STATUS2_ID, context=CASE_ID, em_state=EM.ACTIVE
         )
         populated_bridge.datalayer.save(new_status)

@@ -26,7 +26,7 @@ from vultron.wire.as2.factories import (
     rm_validate_report_activity,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 from ._base import _DUMP_KWARGS
@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 
 class _ReportsMixin:
-    """Trigger activity methods for VulnerabilityReport objects."""
+    """Trigger activity methods for as_VulnerabilityReport objects."""
 
     _dl: CaseOutboxPersistence
 
@@ -46,8 +46,8 @@ class _ReportsMixin:
         to: str,
         target: str,
     ) -> tuple[str, dict[str, Any]]:
-        """Create and persist an ``Offer(VulnerabilityReport)`` activity."""
-        report = cast(VulnerabilityReport, self._dl.read(report_id))
+        """Create and persist an ``Offer(as_VulnerabilityReport)`` activity."""
+        report = cast(as_VulnerabilityReport, self._dl.read(report_id))
         activity = rm_submit_report_activity(
             report=report, to=to, actor=actor, target=target
         )

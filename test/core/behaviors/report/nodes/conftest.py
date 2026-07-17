@@ -31,7 +31,7 @@ from test.core.behaviors.bt_harness import BTTestScenario
 
 # noqa: F401 — imported for vocabulary registration side-effect
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
-    VulnerabilityCase as _WireVulnerabilityCase,
+    as_VulnerabilityCase as _WireVulnerabilityCase,
 )
 
 

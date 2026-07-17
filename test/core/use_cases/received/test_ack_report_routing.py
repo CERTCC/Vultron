@@ -33,10 +33,12 @@ from vultron.core.models.report import VultronReport
 from vultron.enums.roles import CVDRole
 from vultron.core.use_cases.received.report import AckReportReceivedUseCase
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 # ---------------------------------------------------------------------------
@@ -76,12 +78,12 @@ def _make_case_actor_dl() -> SqliteDataLayer:
     ca_svc = VultronCaseActor(id_=CASE_ACTOR_ID, context=CASE_ID)
     dl.save(ca_svc)
 
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         id_=CASE_ID, name="AckReport Routing Test", attributed_to=CASE_ACTOR_ID
     )
     case.vulnerability_reports.append(REPORT_ID)
 
-    cm_participant = CaseParticipant(
+    cm_participant = as_CaseParticipant(
         attributed_to=CASE_ACTOR_ID,
         context=CASE_ID,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -92,7 +94,7 @@ def _make_case_actor_dl() -> SqliteDataLayer:
     dl.save(case)
 
     # Persist the offer so the emit node can read it.
-    report_obj = VulnerabilityReport(id_=REPORT_ID, name="Test Vuln Report")
+    report_obj = as_VulnerabilityReport(id_=REPORT_ID, name="Test Vuln Report")
     dl.save(report_obj)
     offer = as_Offer(actor=FINDER_ID, object_=report_obj.id_, target=VENDOR_ID)
     offer = as_Offer(id_=OFFER_ID, actor=FINDER_ID, object_=report_obj.id_)

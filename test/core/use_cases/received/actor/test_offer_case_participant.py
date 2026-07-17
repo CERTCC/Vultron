@@ -49,7 +49,9 @@ from vultron.wire.as2.factories import (
     rm_accept_invite_to_case_activity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor, as_Service
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -70,7 +72,7 @@ def _seed_dl_for_case_owner() -> tuple[SqliteDataLayer, str]:
     """
     dl = SqliteDataLayer("sqlite:///:memory:")
     owner_actor = as_Actor(id_=CASE_OWNER_ID)
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         id_=CASE_ID,
         name="OfferRoundTripTest",
         attributed_to=CASE_OWNER_ID,
@@ -88,7 +90,7 @@ def _seed_dl_for_case_actor() -> tuple[SqliteDataLayer, str]:
     """
     dl = SqliteDataLayer("sqlite:///:memory:")
     case_actor = as_Service(id_=CASE_ACTOR_ID)
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         id_=CASE_ID,
         name="OfferRoundTripTest",
         attributed_to=CASE_OWNER_ID,
@@ -294,7 +296,7 @@ def _seed_dl_for_ac1() -> SqliteDataLayer:
 
     dl = SqliteDataLayer("sqlite:///:memory:")
     case_actor = as_Service(id_=AC1_CASE_ACTOR_ID, context=AC1_CASE_ID)
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         id_=AC1_CASE_ID,
         name="AC1RolesThreading",
         attributed_to=AC1_CASE_OWNER_ID,

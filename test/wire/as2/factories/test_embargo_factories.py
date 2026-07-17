@@ -47,15 +47,15 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Reject,
     as_Remove,
 )
-from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 _ACTOR_URI = "https://example.org/actors/alice"
 _CASE_URI = "https://example.org/cases/case-001"
 
 
 @pytest.fixture
-def sample_embargo() -> EmbargoEvent:
-    return EmbargoEvent()
+def sample_embargo() -> as_EmbargoEvent:
+    return as_EmbargoEvent()
 
 
 @pytest.fixture

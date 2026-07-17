@@ -29,8 +29,10 @@ from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.demo.helpers.seeding import _dl_key
 from vultron.demo.utils import DataLayerClient, ref_id
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -44,26 +46,26 @@ def _fetch_participant(
     client: DataLayerClient,
     case_id: str,
     actor_id: str,
-) -> Optional[CaseParticipant]:
-    """Fetch the CaseParticipant record for *actor_id* in *case_id*.
+) -> Optional[as_CaseParticipant]:
+    """Fetch the as_CaseParticipant record for *actor_id* in *case_id*.
 
     Args:
         client: DataLayerClient for the target container.
-        case_id: Full URI of the ``VulnerabilityCase``.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
         actor_id: Full URI of the actor whose participant record to fetch.
 
     Returns:
-        The ``CaseParticipant`` or ``None`` if the actor or participant
+        The ``as_CaseParticipant`` or ``None`` if the actor or participant
         record is not found.
     """
     try:
         case_data = client.get(f"/datalayer/{case_id}")
-        case = VulnerabilityCase.model_validate(case_data)
+        case = as_VulnerabilityCase.model_validate(case_data)
         participant_id = case.actor_participant_index.get(actor_id)
         if participant_id is None:
             return None
         p_data = client.get(f"/datalayer/{_dl_key(participant_id)}")
-        return CaseParticipant(**p_data)
+        return as_CaseParticipant(**p_data)
     except (httpx.HTTPStatusError, AssertionError):
         return None
 
@@ -93,14 +95,14 @@ def _fetch_participant_data(client: DataLayerClient, p_id: str) -> dict | None:
 
 
 def _require_case_participant_id(
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
     actor_id: str,
     label: str,
 ) -> str:
     """Return the participant ID for *actor_id* in *case* or raise.
 
     Args:
-        case: The ``VulnerabilityCase`` whose index to check.
+        case: The ``as_VulnerabilityCase`` whose index to check.
         actor_id: Full URI of the actor.
         label: Human-readable label for the ``AssertionError`` message.
 
@@ -133,7 +135,7 @@ def _assert_vendor_participant_state(
         AssertionError: If the participant has no statuses or the latest
             RM state is not ``RM.ACCEPTED``.
     """
-    participant = CaseParticipant(
+    participant = as_CaseParticipant(
         **vendor_client.get(f"/datalayer/{_dl_key(participant_id)}")
     )
     latest = participant.participant_status
@@ -145,7 +147,7 @@ def _assert_vendor_participant_state(
         )
 
 
-def _assert_vendor_case_status(case: VulnerabilityCase) -> None:
+def _assert_vendor_case_status(case: as_VulnerabilityCase) -> None:
     """Assert that *case* has ``EM.ACTIVE`` and ``pxa == CS_pxa.pxa``.
 
     Raises:
@@ -163,7 +165,7 @@ def _assert_vendor_case_status(case: VulnerabilityCase) -> None:
 
 
 def _assert_case_notes(
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
     question_note_id: str | None,
     reply_note_id: str | None,
 ) -> None:
@@ -199,7 +201,7 @@ def _check_participant_vfd_state_in(
 
     Args:
         client: DataLayerClient for the target container.
-        case_id: Full URI of the ``VulnerabilityCase``.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
         actor_id: Full URI of the actor to check.
         expected_states: Set of acceptable ``CS_vfd`` values.
         label: Human-readable label for ``AssertionError`` messages.
@@ -224,14 +226,14 @@ def _check_participant_vfd_state_in(
 
 
 def _assert_participant_vfd_pxa(
-    participant: CaseParticipant,
+    participant: as_CaseParticipant,
     label: str,
     vendor_actor_id: str,
 ) -> None:
     """Assert *participant* has VFD and a public-aware pxa_state.
 
     Args:
-        participant: The ``CaseParticipant`` to check.
+        participant: The ``as_CaseParticipant`` to check.
         label: Human-readable label for ``AssertionError`` messages.
         vendor_actor_id: Full URI of the vendor actor (used in error messages).
 
@@ -259,7 +261,7 @@ def _assert_participant_vfd_pxa(
 
 def _all_fetchable_participants_rm_closed(
     client: DataLayerClient,
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
 ) -> bool:
     """Return ``True`` when every fetchable, non-CASE_MANAGER participant is
     ``RM.CLOSED``.
@@ -269,7 +271,7 @@ def _all_fetchable_participants_rm_closed(
 
     Args:
         client: DataLayerClient for the container to query.
-        case: The ``VulnerabilityCase`` whose participant index to walk.
+        case: The ``as_VulnerabilityCase`` whose participant index to walk.
 
     Returns:
         ``True`` if all locally-fetchable non-receiver participants are
@@ -281,7 +283,7 @@ def _all_fetchable_participants_rm_closed(
             continue  # remote container — not fetchable here
         if not p_data:
             return False
-        p = CaseParticipant(**p_data)
+        p = as_CaseParticipant(**p_data)
         if CVDRole.CASE_MANAGER in (p.case_roles or []):
             continue
         latest = p.participant_status
@@ -300,7 +302,7 @@ def verify_receiver_case_state(
     reporter_actor_id: str,
     question_note_id: Optional[str] = None,
     reply_note_id: Optional[str] = None,
-) -> VulnerabilityCase:
+) -> as_VulnerabilityCase:
     """Assert the final authoritative case state on the receiver container.
 
     Verifies that the case references the submitted report, that all required
@@ -311,7 +313,7 @@ def verify_receiver_case_state(
 
     Args:
         receiver_client: Client connected to the receiver container.
-        case_id: Full URI of the ``VulnerabilityCase`` to verify.
+        case_id: Full URI of the ``as_VulnerabilityCase`` to verify.
         report_id: Full URI of the submitted vulnerability report.
         receiver_actor_id: Full URI of the receiver actor.
         reporter_actor_id: Full URI of the reporter actor.
@@ -319,12 +321,12 @@ def verify_receiver_case_state(
         reply_note_id: Optional URI of the reply note to assert present.
 
     Returns:
-        The fetched and validated ``VulnerabilityCase``.
+        The fetched and validated ``as_VulnerabilityCase``.
 
     Raises:
         AssertionError: If any invariant is violated.
     """
-    final_case = VulnerabilityCase(
+    final_case = as_VulnerabilityCase(
         **receiver_client.get(f"/datalayer/{case_id}")
     )
 
@@ -377,7 +379,7 @@ def verify_case_actor_unused(
     Per D5-1-G3, the per-case ``VultronCaseActor`` co-locates in the
     receiver container for D5-2.  The standalone ``case-actor`` service
     participates in the Docker topology but should not hold the created
-    ``VulnerabilityCase``.
+    ``as_VulnerabilityCase``.
 
     Args:
         case_actor_client: Optional client connected to the dedicated

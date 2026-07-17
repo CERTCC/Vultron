@@ -13,7 +13,7 @@
 
 """Integration tests for PCR-07-006: full case-replica bootstrap sequence.
 
-Verifies: CaseActor sends Announce(VulnerabilityCase) → participant creates
+Verifies: CaseActor sends Announce(as_VulnerabilityCase) → participant creates
 local replica → subsequent case-scoped activities route without deferral.
 
 These tests exercise the full inbox dispatch path against a real in-memory
@@ -26,7 +26,7 @@ AC-1 tests (``TestBootstrapSequence.test_announce_creates_case_replica`` and
 ``test_case_fields_preserved_in_replica``) use a **two-app setup** where a
 separate owner app creates a case by processing a submitted report and then
 validates it.  Validation triggers the CaseActor to emit
-``Announce(VulnerabilityCase)`` via the outbox, which is routed to the
+``Announce(as_VulnerabilityCase)`` via the outbox, which is routed to the
 participant app via ``_TestASGIRouter``.  This exercises the full
 create-case → emit-Announce path, catching regressions where case creation
 no longer sends the announcement (PCR-07-006).
@@ -47,9 +47,11 @@ from vultron.wire.as2.factories import (
     rm_submit_report_activity,
 )
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 # ---------------------------------------------------------------------------
@@ -80,7 +82,7 @@ def participant_setup():
     """One isolated participant app for the AC-2 routing test.
 
     The case replica is seeded directly via a hand-crafted
-    ``Announce(VulnerabilityCase)`` (fast, sufficient for routing coverage).
+    ``Announce(as_VulnerabilityCase)`` (fast, sufficient for routing coverage).
     The ``_TestASGIRouter`` is wired as the ASGI emitter fallback so that any
     outbound deliveries from the participant stay in-process.
 
@@ -219,10 +221,10 @@ def _bootstrap_case_for_participant(
 
     1. Participant submits a ``SubmitReport`` offer to owner's inbox, which
        triggers the ``create_receive_report_case_tree`` BT and creates the
-       preliminary ``VulnerabilityCase`` with embargo.
+       preliminary ``as_VulnerabilityCase`` with embargo.
     2. Owner validates the report (``trigger/validate-report``), which
        triggers the ``create_validate_report_tree`` BT and causes the
-       CaseActor to emit ``Announce(VulnerabilityCase)`` to participant.
+       CaseActor to emit ``Announce(as_VulnerabilityCase)`` to participant.
     3. The Announce is delivered via the outbox → ``_TestASGIRouter`` →
        participant inbox chain.
     4. Participant's inbox handler processes the ``Announce``.
@@ -236,7 +238,7 @@ def _bootstrap_case_for_participant(
         participant_slug: Short slug for the participant actor.
 
     Returns:
-        The ``id_`` of the ``VulnerabilityCase`` created on owner's app.
+        The ``id_`` of the ``as_VulnerabilityCase`` created on owner's app.
     """
     owner_base_api = owner_iso.base_url + "/api/v2"
     participant_base_api = participant_iso.base_url + "/api/v2"
@@ -255,9 +257,9 @@ def _bootstrap_case_for_participant(
 
     # Build the SubmitReport offer and deliver it to owner's inbox.
     # This triggers the create_receive_report_case_tree BT which creates
-    # the preliminary VulnerabilityCase with embargo — required for the
+    # the preliminary as_VulnerabilityCase with embargo — required for the
     # subsequent validate-report step.
-    report = VulnerabilityReport(
+    report = as_VulnerabilityReport(
         attributed_to=participant_actor_id,
         name="PCR-07-006 bootstrap test report",
         content=(
@@ -276,14 +278,14 @@ def _bootstrap_case_for_participant(
     # Verify the submit-report BT created the case.
     all_cases = owner_iso.dl.get_all("VulnerabilityCase")
     assert len(all_cases) >= 1, (
-        "Expected at least one VulnerabilityCase in owner's DataLayer "
+        "Expected at least one as_VulnerabilityCase in owner's DataLayer "
         "after SubmitReport inbox delivery, but none was found.  "
         "The create_receive_report_case_tree BT may not have run."
     )
     case_id: str = all_cases[0]["id_"]
 
     # Owner validates the report: this triggers the validate-report BT
-    # and causes the CaseActor to emit Announce(VulnerabilityCase) to
+    # and causes the CaseActor to emit Announce(as_VulnerabilityCase) to
     # participant via the outbox → _TestASGIRouter → inbox chain.
     resp = owner_tc.post(
         f"/api/v2/actors/{_actor_slug(owner_actor_id)}"
@@ -314,10 +316,10 @@ class TestBootstrapSequence:
     """
 
     def test_announce_creates_case_replica(self, two_app_setup):
-        """AC-1: Announce(VulnerabilityCase) creates a local replica.
+        """AC-1: Announce(as_VulnerabilityCase) creates a local replica.
 
         Exercises the full bootstrap sequence: participant submits a report →
-        owner validates it → CaseActor emits ``Announce(VulnerabilityCase)``
+        owner validates it → CaseActor emits ``Announce(as_VulnerabilityCase)``
         via the outbox → participant's inbox receives and processes the
         Announce.
 
@@ -351,7 +353,7 @@ class TestBootstrapSequence:
         try:
             assert actor_dl.inbox_list() == [], (
                 "Participant actor's inbox queue was not drained after "
-                "processing Announce(VulnerabilityCase).  The inbox handler "
+                "processing Announce(as_VulnerabilityCase).  The inbox handler "
                 "may not have run (PCR-07-006 AC-1)."
             )
         finally:
@@ -359,8 +361,8 @@ class TestBootstrapSequence:
 
         replica = participant_iso.dl.read(case_id)
         assert replica is not None, (
-            f"Expected VulnerabilityCase '{case_id}' in participant's "
-            f"DataLayer after Announce(VulnerabilityCase) delivery, but "
+            f"Expected as_VulnerabilityCase '{case_id}' in participant's "
+            f"DataLayer after Announce(as_VulnerabilityCase) delivery, but "
             f"DataLayer has no record of it.  Bootstrap sequence may be "
             f"broken (PCR-07-006 AC-1)."
         )
@@ -384,7 +386,7 @@ class TestBootstrapSequence:
 
         replica = participant_iso.dl.read(case_id)
         assert replica is not None, (
-            f"No VulnerabilityCase replica found for '{case_id}' in "
+            f"No as_VulnerabilityCase replica found for '{case_id}' in "
             "participant's DataLayer after bootstrap sequence."
         )
 
@@ -431,7 +433,7 @@ class TestBootstrapSequence:
         )
 
         # Seed the replica via a direct Announce.
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_=_DIRECT_CASE_ID, name="PCR-07-006 Test Case"
         )
         announce = announce_vulnerability_case_activity(
