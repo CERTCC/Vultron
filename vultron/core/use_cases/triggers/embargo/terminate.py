@@ -30,10 +30,6 @@ from vultron.core.use_cases.triggers._helpers import (
 from vultron.core.use_cases.triggers.requests import (
     TerminateEmbargoTriggerRequest,
 )
-from vultron.errors import (
-    VultronInvalidStateTransitionError,
-    VultronValidationError,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -47,29 +43,17 @@ class SvcTerminateEmbargoUseCase(SvcEmbargoTriggerBase):
         self._actor_id = actor.id_
         self._case = resolve_case(request.case_id, dl)
 
-        if self._case.active_embargo is None:
-            logger.warning(
-                "Invalid EM state transition: actor '%s' cannot TERMINATE:"
-                " case '%s' has no active embargo.",
-                self._actor_id,
-                self._case.id_,
-            )
-            raise VultronInvalidStateTransitionError(
-                f"Case '{self._case.id_}' has no active embargo to terminate."
-            )
-
+        # Resolve embargo_id only when active_embargo is set; when it is None
+        # the HasActiveEmbargoNode BT precondition will halt the tree with a
+        # typed VultronInvalidStateTransitionError before activity construction.
         embargo_id = (
             self._case.active_embargo
             if isinstance(self._case.active_embargo, str)
             else getattr(self._case.active_embargo, "id_", None)
         )
-        if embargo_id is None:
-            raise VultronValidationError(
-                f"Active embargo on case '{self._case.id_}' is missing an ID."
-            )
-
-        _coerce_embargo_event(dl.read(embargo_id), embargo_id)
-        self._embargo_id = embargo_id
+        if embargo_id is not None:
+            _coerce_embargo_event(dl.read(embargo_id), embargo_id)
+        self._embargo_id = embargo_id or ""
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         def _build_activities(case_manager_id: str) -> list[str]:

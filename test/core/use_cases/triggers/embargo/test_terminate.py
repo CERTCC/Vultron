@@ -1,5 +1,6 @@
 """Tests for SvcTerminateEmbargoUseCase."""
 
+import pytest
 from typing import cast
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -12,13 +13,18 @@ from vultron.core.use_cases.triggers.embargo import SvcTerminateEmbargoUseCase
 from vultron.core.use_cases.triggers.requests import (
     TerminateEmbargoTriggerRequest,
 )
+from vultron.errors import VultronInvalidStateTransitionError
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
 
-from .conftest import _build_active_embargo_case, _persist_actor
+from .conftest import (
+    _build_active_embargo_case,
+    _build_no_embargo_case_with_case_manager,
+    _persist_actor,
+)
 
 
 def test_terminate_embargo_transitions_case_to_exited_via_bt_path(
@@ -47,3 +53,27 @@ def test_terminate_embargo_transitions_case_to_exited_via_bt_path(
     assert updated_case.current_status.em_state == EM.EXITED
     assert updated_case.active_embargo is None
     assert updated_participant.embargo_consent_state == PEC.NO_EMBARGO.value
+
+
+def test_terminate_embargo_no_active_embargo_raises_via_bt_node(
+    finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """HasActiveEmbargoNode raises VultronInvalidStateTransitionError when no active embargo.
+
+    Verifies that the guard previously in _prepare() is now enforced by the BT
+    node (AC-5 / LST-05): the use-case layer no longer checks case state inline.
+    """
+    _, finder_dl = finder_actor_and_dl
+    owner = _persist_actor(finder_dl, "Vendor Co")
+    case = _build_no_embargo_case_with_case_manager(finder_dl, owner.id_)
+    request = TerminateEmbargoTriggerRequest(
+        actor_id=owner.id_,
+        case_id=case.id_,
+    )
+
+    with pytest.raises(VultronInvalidStateTransitionError):
+        SvcTerminateEmbargoUseCase(
+            finder_dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(finder_dl),
+        ).execute()

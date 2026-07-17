@@ -22,6 +22,8 @@ from vultron.core.behaviors.embargo.nodes.cascade import (
     PersistEmbargoEventNode,
 )
 from vultron.core.behaviors.embargo.nodes.conditions import (
+    HasActiveEmbargoNode,
+    HasCaseStatusesNode,
     IsActiveEmbargoNode,
     LookupParticipantNode,
     OptionalLookupParticipantNode,
@@ -52,6 +54,8 @@ __all__ = [
     # Conditions
     "ValidateCaseExistsNode",
     "IsActiveEmbargoNode",
+    "HasActiveEmbargoNode",
+    "HasCaseStatusesNode",
     "LookupParticipantNode",
     "OptionalLookupParticipantNode",
     # Teardown

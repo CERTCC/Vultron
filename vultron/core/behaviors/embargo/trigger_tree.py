@@ -21,6 +21,7 @@ import py_trees
 
 from vultron.core.behaviors.embargo.nodes import (
     AcceptEmbargoLifecycleNode,
+    HasActiveEmbargoNode,
     PersistEmbargoEventNode,
     ProposeEmbargoLifecycleNode,
     ReadEmbargoIdNode,
@@ -174,6 +175,7 @@ def terminate_embargo_bt(
         name="TerminateEmbargoBT",
         memory=True,
         children=[
+            HasActiveEmbargoNode(case_id=case_id, result_out=result_out),
             ReadEmbargoIdNode(case_id=case_id),
             ResolveCaseManagerNode(case_id=case_id),
             TerminateEmbargoLifecycleNode(
