@@ -89,6 +89,8 @@ General information about architectural decision records is available at <https:
   Types](0032-validate-at-edge-promote-to-core.md)
 - [ADR-0034 DataLayer Port Returns Core Domain
   Objects](0034-datalayer-returns-core-objects.md)
+- [ADR-0035 Core Activity Representation and Envelope
+  Reconstitution](0035-core-activity-representation-and-envelope-reconstitution.md)
 
 ## Proposed ADRs
 

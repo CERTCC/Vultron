@@ -253,6 +253,8 @@ nav:
       - vultron/enums/ Neutral Layer: 'adr/0031-vultron-enums-neutral-layer.md'
       - Validate at Edge, Promote to Core: 'adr/0032-validate-at-edge-promote-to-core.md'
       - Lifecycle-Staged Domain Types: 'adr/0033-lifecycle-staged-case-types.md'
+      - DataLayer Returns Core Objects: 'adr/0034-datalayer-returns-core-objects.md'
+      - Core Activity Representation and Envelope Reconstitution: 'adr/0035-core-activity-representation-and-envelope-reconstitution.md'
   - About:
     - Contributing: 'about/contributing.md'
     - FAQ: 'about/faq.md'
