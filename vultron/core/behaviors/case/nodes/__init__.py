@@ -28,6 +28,7 @@ Submodules:
 - ``embargo``: Default embargo initialization action nodes
 - ``communication``: Outbound activity emission action nodes
 - ``lifecycle``: Case log entry commit action node
+- ``suggest_actor``: Suggest-actor workflow emit and duplicate-detection nodes
 
 Composite subtrees (``Sequence``/``Selector`` subclasses) are defined in
 sibling ``*_tree.py`` modules at the process-area root per BTND-07-003.
@@ -93,6 +94,15 @@ from vultron.core.behaviors.case.nodes.participant import (
     _create_and_attach_participant,
     resolve_participant_state_from_dl,
 )
+from vultron.core.behaviors.case.nodes.suggest_actor import (
+    ActorAlreadyParticipantNode,
+    EmitAcceptActorRecommendationNode,
+    EmitNoteDuplicateRecommendationToOwnerNode,
+    EmitOfferCaseParticipantToOwnerNode,
+    EmitRejectActorRecommendationNode,
+    InviteInFlightNode,
+    PendingOfferCaseParticipantNode,
+)
 from vultron.core.behaviors.case.nodes.update import (
     ApplyCaseUpdateNode,
     BroadcastCaseUpdateNode,
@@ -155,6 +165,14 @@ __all__ = [
     "CaptureCaseUpdateBroadcastExclusionsNode",
     "ApplyCaseUpdateNode",
     "BroadcastCaseUpdateNode",
+    # suggest_actor (leaf nodes)
+    "ActorAlreadyParticipantNode",
+    "EmitAcceptActorRecommendationNode",
+    "EmitNoteDuplicateRecommendationToOwnerNode",
+    "EmitOfferCaseParticipantToOwnerNode",
+    "EmitRejectActorRecommendationNode",
+    "InviteInFlightNode",
+    "PendingOfferCaseParticipantNode",
     # re-exported from helpers (backward compat)
     "UpdateActorOutbox",
 ]
