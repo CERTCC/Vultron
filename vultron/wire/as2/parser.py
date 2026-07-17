@@ -29,6 +29,15 @@ _VULNERABILITY_CASE_STUB_KEYS = frozenset(
     {"@context", "id", "type", "summary"}
 )
 
+# Field names whose values are opaque data blobs (declared ``dict[str, Any]``),
+# NOT AS2 object references.  These must not be recursively coerced into typed
+# vocabulary instances: a ``CaseLedgerEntry.payload_snapshot`` may itself carry
+# an ``{"type": "Announce", "object": {...}}`` snapshot dict, and coercing it to
+# an ``as_Announce`` model would make ``CaseLedgerEntry`` validation fail
+# (payload_snapshot expects a dict), causing the parser to fall back to the base
+# ``as_Object`` type and mis-route the entry (SYNC-13-004).
+_OPAQUE_PAYLOAD_KEYS = frozenset({"payloadSnapshot", "payload_snapshot"})
+
 
 def _inline_vocab_class(value: dict[str, Any]) -> type[BaseModel] | None:
     """Return the most specific vocabulary class for an inline dict, if known."""
@@ -62,7 +71,12 @@ def _expand_inline_value(value: object) -> object:
     if not isinstance(value, dict):
         return value
 
-    expanded = {key: _expand_inline_value(item) for key, item in value.items()}
+    expanded = {
+        key: (
+            item if key in _OPAQUE_PAYLOAD_KEYS else _expand_inline_value(item)
+        )
+        for key, item in value.items()
+    }
     inline_cls = _inline_vocab_class(expanded)
     if inline_cls is None:
         return expanded

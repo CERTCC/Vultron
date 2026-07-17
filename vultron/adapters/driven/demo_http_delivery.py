@@ -116,8 +116,11 @@ class DemoHttpDeliveryAdapter:
         # json= parameter fails for any activity whose nested objects contain
         # datetime fields (e.g. VulnerabilityCase.events[].received_at).
         if hasattr(activity, "model_dump_json"):
+            # serialize_as_any=True preserves nested-object subtype fields on
+            # the wire (e.g. inline CaseLedgerEntry fields) — SYNC-02-004,
+            # SYNC-13-004.
             json_body: str = activity.model_dump_json(
-                by_alias=True, exclude_none=True
+                by_alias=True, exclude_none=True, serialize_as_any=True
             )
         else:
             json_body = json.dumps(dict(activity), default=str)

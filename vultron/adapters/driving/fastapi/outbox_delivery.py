@@ -42,6 +42,7 @@ from vultron.errors import (
     VultronOutboxToFieldMissingError,
 )
 from vultron.wire.as2.vocab.base.links import as_Link
+from vultron.wire.as2.vocab.objects.case_ledger_entry import as_CaseLedgerEntry
 from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -52,10 +53,14 @@ logger = logging.getLogger(__name__)
 # Maps AS2 type strings to their wire-layer model classes for dict recovery.
 # Used in _recover_typed_inline_object_from_dict to reconstruct typed models
 # from plain dicts that result from the model_dump() → VultronActivity
-# .model_validate() round-trip.
+# .model_validate() round-trip.  CaseLedgerEntry is included so an outbound
+# Announce(CaseLedgerEntry) re-types its inline entry (whose fields survive
+# because VultronActivity.object_ is ``Any``) before wire serialization,
+# keeping the full inline entry on the wire (SYNC-02-004, SYNC-13-004).
 _STUB_OBJECT_MODEL_MAP: dict[str, type[BaseModel]] = {
     "CaseProposal": as_CaseProposal,
     "VulnerabilityCase": as_VulnerabilityCase,
+    "CaseLedgerEntry": as_CaseLedgerEntry,
 }
 
 _INLINE_OBJECT_ACTIVITY_TYPES: frozenset[str] = frozenset(
