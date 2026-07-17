@@ -37,6 +37,17 @@ export interface TimelineEvent {
   violationReason?: string  // human-readable explanation of WHY the transition is
                             // illegal per the protocol, shown in the replay hover
                             // tooltip. Set only when `violation` is true.
+  inferred?: boolean        // set by the replay mapper when a single-machine state
+                            // diff had to be bridged by MORE THAN ONE legal trigger
+                            // (a multi-hop triggerPath). The log records snapshots,
+                            // not transitions, so a >1-hop diff means intermediate
+                            // states were not logged and the mapper GUESSED the legal
+                            // path between them — which could mask an illegal 1-step
+                            // jump that happens to be bridgeable by a longer legal
+                            // detour. Not a violation; a "this step was inferred, not
+                            // observed" tripwire. Renderers may style it distinctly.
+  inferredNote?: string     // human-readable explanation of the inferred path, shown
+                            // in the hover tooltip. Set only when `inferred` is true.
 }
 
 export interface DemoState {

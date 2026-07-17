@@ -920,6 +920,37 @@ function AppLogReplay() {
                       </text>
                     </>
                   )}
+                  {/* Inferred-step annotation (tripwire): the mapper bridged this
+                      node's state diff with a multi-hop path because intermediate
+                      states weren't logged — so this step was inferred, not observed.
+                      Distinct from a violation: amber dashed outline + ℹ️, not red.
+                      Suppressed when the node is already a violation. */}
+                  {event.inferred && !event.violation && (
+                    <>
+                      <rect
+                        x={event.x - outlineW / 2 - 3}
+                        y={yPosition - outlineH / 2 - 3}
+                        width={outlineW + 6}
+                        height={outlineH + 6}
+                        rx="10"
+                        ry="10"
+                        fill="none"
+                        stroke="#f9a825"
+                        strokeWidth={3}
+                        strokeDasharray="5,4"
+                        pointerEvents="none"
+                      />
+                      <text
+                        x={event.x + outlineW / 2 - 6}
+                        y={yPosition - outlineH / 2 + 4}
+                        textAnchor="end"
+                        fontSize="20"
+                        pointerEvents="none"
+                      >
+                        ℹ️
+                      </text>
+                    </>
+                  )}
                 </g>
               )
               })}
@@ -939,7 +970,7 @@ function AppLogReplay() {
                     top: y + 60,
                     left: event.x - 140,
                     background: 'white',
-                    border: `2px solid ${event.violation ? '#d32f2f' : '#333'}`,
+                    border: `2px solid ${event.violation ? '#d32f2f' : event.inferred ? '#f9a825' : '#333'}`,
                     borderRadius: '8px',
                     padding: '0.75rem',
                     boxShadow: '0 4px 6px rgba(0,0,0,0.15)',
@@ -950,7 +981,7 @@ function AppLogReplay() {
                   }}
                 >
                   <div style={{ fontWeight: 'bold', marginBottom: '0.5rem' }}>
-                    {event.violation ? '⚠️ ' : ''}{event.label}
+                    {event.violation ? '⚠️ ' : event.inferred ? 'ℹ️ ' : ''}{event.label}
                   </div>
                   <div style={{ fontSize: '0.75rem', color: '#666' }}>
                     {event.consequences.map((c, i) => (
@@ -966,6 +997,17 @@ function AppLogReplay() {
                       color: '#c62828',
                     }}>
                       <strong>Protocol violation:</strong> {event.violationReason}
+                    </div>
+                  )}
+                  {!event.violation && event.inferred && event.inferredNote && (
+                    <div style={{
+                      marginTop: '0.5rem',
+                      paddingTop: '0.5rem',
+                      borderTop: '1px solid #eee',
+                      fontSize: '0.75rem',
+                      color: '#e65100',
+                    }}>
+                      <strong>Inferred step:</strong> {event.inferredNote}
                     </div>
                   )}
                 </div>

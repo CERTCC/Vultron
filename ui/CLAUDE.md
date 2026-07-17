@@ -256,6 +256,23 @@ every RM/VFD/EM/PXA step derived from a log entry is checked with
 found by a small BFS (`triggerPath`). This is the §9 deferral idea applied to
 replay rather than to the interactive demo.
 
+**Three node annotations the mapper produces:**
+- **Violation (red ⚠️, `violation`/`violationReason`)** — a derived trigger illegal
+  from the shadow state. Per-participant RM/VFD: `triggerPath` returns null. Case-level
+  EM/PXA (`applyCaseLevelForward`): reachable in *neither* direction (a mere backward
+  reach = stale snapshot, ignored — see quirk 4). Forces the shadow to the log's value
+  and keeps going.
+- **Inferred step (amber ℹ️, `inferred`/`inferredNote`)** — a *tripwire*, not an error.
+  Since the log records snapshots not transitions, a diff spanning >1 legal step means
+  intermediate states weren't logged and the mapper GUESSED the path — which could mask
+  an illegal 1-step jump bridgeable by a longer legal detour. Today's generator never
+  emits multi-hop diffs (validate has its own `validate_report` verb; only ACCEPTED/CLOSED
+  appear as RM status snapshots; VFD milestones logged singly), so this is **dormant** —
+  it exists to surface the inference if generator granularity ever coarsens. Violation
+  supersedes inferred on the same node. Exercised by
+  `devlogs/synthetic/inferred-multistep-case-ledger.jsonl`.
+- (no annotation) — a clean, single-step legal transition.
+
 Quirks of the current sample the mapper handles explicitly (carry forward):
 
 1. **Mid-stream start.** The two-actor sample begins with EM already **ACTIVE** at

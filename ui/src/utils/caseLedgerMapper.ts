@@ -286,7 +286,8 @@ function synthesizeCluster(
   consequenceLabel: string,
   consequenceBullets: (lane: ParticipantState) => string[],
   violation: boolean,
-  violationReason?: string
+  violationReason?: string,
+  inferred?: { note: string }
 ): TimelineEvent[] {
   const decision = participants.get(decisionLaneId)
   if (!decision) return []
@@ -306,6 +307,8 @@ function synthesizeCluster(
       timestamp: baseTs,
       violation: violation || undefined,
       violationReason: violation ? violationReason : undefined,
+      inferred: inferred ? true : undefined,
+      inferredNote: inferred?.note,
     },
   ]
 
@@ -365,6 +368,8 @@ interface CaseLevelResult {
   to: string
   violation: boolean
   reason?: string
+  inferredNote?: string  // set when the legal forward path was >1 hop (intermediate
+                         // case-level states were not logged; the path was inferred)
 }
 
 /**
@@ -426,7 +431,12 @@ function applyCaseLevelForward(
   }
   if (machine === 'em') shadow.emState = snapshot
   else shadow.pxaState = snapshot
-  return { trigger: lastTrigger, from: current, to: snapshot, violation: false }
+  const inferredNote = path.length > 1
+    ? `${machine.toUpperCase()} ${current} → ${snapshot} was not a single logged step: the ` +
+      `mapper inferred the legal path [${path.join(' → ')}] because intermediate case-level ` +
+      `states were not recorded.`
+    : undefined
+  return { trigger: lastTrigger, from: current, to: snapshot, violation: false, inferredNote }
 }
 
 // Friendly labels for triggers, keyed by machine:trigger.
@@ -816,6 +826,10 @@ function handleParticipantStatus(
   const changes: Array<{ machine: MachineName; from: string; to: string; trigger: string }> = []
   let violation = false
   const violationReasons: string[] = []
+  // Multi-hop inferences: a status diff bridged by >1 legal trigger means the log
+  // skipped intermediate states and the mapper GUESSED the path (see `inferred` in
+  // types.ts). Collected here and surfaced as an "inferred, not observed" tripwire.
+  const inferredNotes: string[] = []
 
   // ---- RM ----
   if (rmNext !== undefined) {
@@ -829,7 +843,13 @@ function handleParticipantStatus(
         const path = triggerPath('rm', src, rmNext)
         if (path && path.length > 0) {
           changes.push({ machine: 'rm', from: src, to: rmNext, trigger: path[path.length - 1] })
-          if (path.length > 1) logLines.push(`  ↳ RM path: ${src} → ${rmNext} via ${path.join(', ')}`)
+          if (path.length > 1) {
+            logLines.push(`  ↳ RM path: ${src} → ${rmNext} via ${path.join(', ')}`)
+            inferredNotes.push(
+              `RM ${src} → ${rmNext} was not a single logged step: the mapper inferred the ` +
+                `legal path [${path.join(' → ')}] because intermediate states were not recorded.`
+            )
+          }
           shadow.rm[laneId] = rmNext
         } else {
           violation = true
@@ -862,7 +882,13 @@ function handleParticipantStatus(
         const path = triggerPath('vfd', src, vfdNext)
         if (path && path.length > 0) {
           changes.push({ machine: 'vfd', from: src, to: vfdNext, trigger: path[path.length - 1] })
-          if (path.length > 1) logLines.push(`  ↳ VFD path: ${src} → ${vfdNext} via ${path.join(', ')}`)
+          if (path.length > 1) {
+            logLines.push(`  ↳ VFD path: ${src} → ${vfdNext} via ${path.join(', ')}`)
+            inferredNotes.push(
+              `VFD ${src} → ${vfdNext} was not a single logged step: the mapper inferred the ` +
+                `legal path [${path.join(' → ')}] because intermediate milestones were not recorded.`
+            )
+          }
           shadow.vfd[laneId] = vfdNext
         } else {
           violation = true
@@ -893,6 +919,7 @@ function handleParticipantStatus(
       violation = true
       if (pxaChange.reason) violationReasons.push(pxaChange.reason)
     }
+    if (pxaChange.inferredNote) inferredNotes.push(pxaChange.inferredNote)
   }
   const emChange = applyCaseLevelForward('em', shadow, cs?.emState, logLines)
   if (emChange) {
@@ -901,6 +928,7 @@ function handleParticipantStatus(
       violation = true
       if (emChange.reason) violationReasons.push(emChange.reason)
     }
+    if (emChange.inferredNote) inferredNotes.push(emChange.inferredNote)
   }
 
   // No meaningful change (only seeds / no-ops) → no node, no column.
@@ -914,6 +942,12 @@ function handleParticipantStatus(
   const decisionBullets = changes.map((c) => `${c.machine.toUpperCase()}: ${c.from} → ${c.to}`)
   const subjectName = participants.get(laneId)?.name ?? laneId
 
+  // A violation supersedes an inference (a flagged illegal jump is the stronger
+  // signal); only annotate as inferred when there's no violation on this node.
+  const inferred = !violation && inferredNotes.length > 0
+    ? { note: inferredNotes.join(' ') }
+    : undefined
+
   const nodes = synthesizeCluster(
     entry,
     participants,
@@ -924,7 +958,8 @@ function handleParticipantStatus(
     label,
     () => [`${subjectName} status update`, ...changes.map((c) => `${c.machine.toUpperCase()} → ${c.to}`)],
     violation,
-    violationReasons.join(' ') || undefined
+    violationReasons.join(' ') || undefined,
+    inferred
   )
   return { nodes, logLines }
 }
