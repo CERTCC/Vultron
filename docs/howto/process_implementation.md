@@ -96,3 +96,40 @@ Some portions of this process can be automated:
 - IDS and IPS signatures might be deployed prior to fix availability to act as an early warning of adversary activity.
 
 - Well-known code publication and malware analysis platforms can be monitored for evidence of exploit publication or use.
+
+## Conformance Levels
+
+Independent implementors can achieve different levels of protocol conformance.
+The Vultron Protocol defines four levels, each building on the previous:
+
+**L1 — Syntax**
+: Well-formed messages that conform to the wire format.
+  This level is covered by the [wire format specifications](../reference/specs/language.md).
+
+**L2 — Semantic**
+: Correct state transitions in response to received messages and local events.
+  This level is covered by the [Vultron Protocol spec (VP)](../reference/specs/general.md) and the
+  [Transition Functions](../reference/formal_protocol/transitions.md).
+
+**L3 — Behavioral**
+: Correct observable outputs — the right messages emitted and the right states reached
+  in response to a given (input state + received message/event) combination.
+  This level is covered by the domain behavioral specifications:
+
+    - [RMB — Report Management Behavioral Requirements](../reference/specs/domain.md#rmb)
+    - [EMB — Embargo Management Behavioral Requirements](../reference/specs/domain.md#emb)
+    - [CSB — CVD Case State Behavioral Requirements](../reference/specs/domain.md#csb)
+
+**L4 — Process**
+: Correct internal decision structure — for example, precondition checks before state writes
+  before protocol effects, audit-log ordering, and idempotency guarantees.
+  This level is enforceable only through a reference implementation.
+  The `vultron/core/behaviors/` behavior tree layer in this repository provides the
+  reference implementation for L4.
+
+!!! tip "Start with L2"
+
+    Most implementations will naturally achieve L1 by using a compliant message serializer.
+    L2 conformance is the practical minimum for interoperability: a Participant that transitions
+    states correctly can exchange messages with any other L2-conformant Participant.
+    L3 adds observable-output guarantees that matter for multi-party coordination correctness.

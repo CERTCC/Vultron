@@ -1,5 +1,18 @@
 # Vulnerability Discovery Behavior
 
+## Requirements
+
+The behavioral requirements for this tree are specified in the
+[Domain Specifications](../../reference/specs/domain.md):
+
+- [CSB-09](../../reference/specs/domain.md#csb-09) — Enter CS V (Vendor Aware)
+
+!!! note "Implementation approach"
+
+    The behavior tree diagram below illustrates one conformant implementation of these requirements.
+    Implementations are not required to use behavior trees — any approach that satisfies the
+    requirements above is conformant.
+
 CVD is built on the idea that vulnerabilities exist to be found. There are two ways for a CVD Participant to
 find out about a vulnerability. Either they discover it themselves, or they hear about it from someone else.
 The discovery behavior is modeled by the Discover Vulnerability Behavior Tree shown in the figure below.

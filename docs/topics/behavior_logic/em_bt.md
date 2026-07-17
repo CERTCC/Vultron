@@ -1,5 +1,21 @@
 # Embargo Management Behavior Tree
 
+## Requirements
+
+The behavioral requirements for this tree are specified in the
+[Domain Specifications](../../reference/specs/domain.md):
+
+- [EMB-10](../../reference/specs/domain.md#emb-10) — Enter EM Proposed
+- [EMB-11](../../reference/specs/domain.md#emb-11) — Enter EM Active
+- [EMB-12](../../reference/specs/domain.md#emb-12) — Enter EM Revise
+- [EMB-13](../../reference/specs/domain.md#emb-13) — Enter EM Exited
+
+!!! note "Implementation approach"
+
+    The behavior tree diagram below illustrates one conformant implementation of these requirements.
+    Implementations are not required to use behavior trees — any approach that satisfies the
+    requirements above is conformant.
+
 The Embargo Management Behavior Tree is shown in the figure below.
 It follows the state transition function in the
 [Embargo Management Process Model](../process_models/em/index.md#em-state-transitions).

@@ -1,5 +1,19 @@
 # Propose Embargo Behavior
 
+## Requirements
+
+The behavioral requirements for this tree are specified in the
+[Domain Specifications](../../reference/specs/domain.md):
+
+- [EMB-10](../../reference/specs/domain.md#emb-10) — Enter EM Proposed
+- [EMB-12](../../reference/specs/domain.md#emb-12) — Enter EM Revise
+
+!!! note "Implementation approach"
+
+    The behavior tree diagram below illustrates one conformant implementation of these requirements.
+    Implementations are not required to use behavior trees — any approach that satisfies the
+    requirements above is conformant.
+
 The Propose Embargo Behavior Tree is shown in the figure below.
 
 ```mermaid

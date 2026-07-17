@@ -1,5 +1,23 @@
 # Report Management Behavior Tree
 
+## Requirements
+
+The behavioral requirements for this tree are specified in the
+[Domain Specifications](../../reference/specs/domain.md):
+
+- [RMB-09](../../reference/specs/domain.md#rmb-09) — Enter RM Received
+- [RMB-10](../../reference/specs/domain.md#rmb-10) — Enter RM Valid
+- [RMB-11](../../reference/specs/domain.md#rmb-11) — Enter RM Invalid
+- [RMB-12](../../reference/specs/domain.md#rmb-12) — Enter RM Deferred
+- [RMB-13](../../reference/specs/domain.md#rmb-13) — Enter RM Accepted
+- [RMB-14](../../reference/specs/domain.md#rmb-14) — Enter RM Closed
+
+!!! note "Implementation approach"
+
+    The behavior tree diagram below illustrates one conformant implementation of these requirements.
+    Implementations are not required to use behavior trees — any approach that satisfies the
+    requirements above is conformant.
+
 A Behavior Tree for the Report Management model is shown in the figure below.
 The Report Management process is represented by a Fallback node. Note
 that we assume that completing the process will require multiple *ticks*

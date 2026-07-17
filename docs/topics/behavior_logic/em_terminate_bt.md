@@ -1,5 +1,18 @@
 # Terminate Embargo Behavior
 
+## Requirements
+
+The behavioral requirements for this tree are specified in the
+[Domain Specifications](../../reference/specs/domain.md):
+
+- [EMB-13](../../reference/specs/domain.md#emb-13) — Enter EM Exited
+
+!!! note "Implementation approach"
+
+    The behavior tree diagram below illustrates one conformant implementation of these requirements.
+    Implementations are not required to use behavior trees — any approach that satisfies the
+    requirements above is conformant.
+
 The Terminate Embargo Behavior Tree is shown in the diagram below.
 It consists of two major behaviors depending on whether an embargo has been established or not.
 

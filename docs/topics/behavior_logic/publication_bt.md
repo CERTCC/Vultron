@@ -1,5 +1,18 @@
 # Publication Behavior
 
+## Requirements
+
+The behavioral requirements for this tree are specified in the
+[Domain Specifications](../../reference/specs/domain.md):
+
+- [CSB-12](../../reference/specs/domain.md#csb-12) — Enter CS P (Public Aware)
+
+!!! note "Implementation approach"
+
+    The behavior tree diagram below illustrates one conformant implementation of these requirements.
+    Implementations are not required to use behavior trees — any approach that satisfies the
+    requirements above is conformant.
+
 The Publication Behavior Tree is shown in the following diagram.
 (A) It begins by ensuring that the Participant knows what they intend to publish (A1), followed by a check to
 see if that publication has been achieved (A2).

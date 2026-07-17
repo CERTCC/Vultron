@@ -34,56 +34,56 @@ Because it only reflects an individual Participant's report handling status,
 the RM process operates largely independent of both the EM and CS processes.
 Otherwise,
 
-!!! note ""
+!!! note "[RMB-13](../../reference/specs/domain.md#rmb-13)"
 
     Participants MUST be in RM $Accepted$ to send a report ($RS$) to
     someone else.
 
-!!! note ""
+!!! note "[RMB-11](../../reference/specs/domain.md#rmb-11)"
 
     Participants SHOULD send $RI$ when the report validation process
     ends in an $invalid$ determination.
 
-!!! note ""
+!!! note "[RMB-10](../../reference/specs/domain.md#rmb-10)"
 
     Participants SHOULD send $RV$ when the report validation process
     ends in a $valid$ determination.
 
-!!! note ""
+!!! note "[RMB-12](../../reference/specs/domain.md#rmb-12)"
 
     Participants SHOULD send $RD$ when the report prioritization process
     ends in a $deferred$ decision.
 
-!!! note ""
+!!! note "[RMB-13](../../reference/specs/domain.md#rmb-13)"
 
     Participants SHOULD send $RA$ when the report prioritization process
     ends in an $accept$ decision.
 
-!!! note ""
+!!! note "[RMB-14](../../reference/specs/domain.md#rmb-14)"
 
     Participants SHOULD send $RC$ when the report is closed.
 
-!!! note ""
+!!! note "[RMB-07](../../reference/specs/domain.md#rmb-07)"
 
     Participants SHOULD send $RE$ regardless of the state when any error
     is encountered.
 
-!!! note ""
+!!! note "[RMB-14](../../reference/specs/domain.md#rmb-14)"
 
     Recipients MAY ignore messages received on $Closed$ cases.
 
-!!! note ""
-  
+!!! note "[RMB-08](../../reference/specs/domain.md#rmb-08)"
+
     Recipients SHOULD send $RK$ in acknowledgment of any $R*$ message
     except $RK$ itself.
 
-!!! note ""
+!!! note "[RMB-01](../../reference/specs/domain.md#rmb-01)"
 
     Vendor Recipients should send both $CV$ and $RK$ in response to a
     report submission ($RS$). If the report is new to the Vendor, it
     MUST transition $q^{cs} \xrightarrow{\mathbf{V}}Vfd\cdot\cdot\cdot$.
 
-!!! note ""
+!!! note "[RMB-02](../../reference/specs/domain.md#rmb-02) — [RMB-06](../../reference/specs/domain.md#rmb-06)"
 
     Any $R*$ message, aside from $RS$, received by recipient in
     $q^{rm} \in S$ is an error because it indicates the sender thought
@@ -91,7 +91,7 @@ Otherwise,
     Recipient SHOULD respond with both an $RE$ to signal the error and
     $GI$ to find out what the sender expected.
 
-!!! note ""
+!!! note "[RMB-07](../../reference/specs/domain.md#rmb-07)"
 
     Recipients SHOULD acknowledge $RE$ messages ($RK$) and inquire
     ($GI$) as to the nature of the error.
@@ -144,40 +144,40 @@ expected response message.
 The appropriate Participant behavior in the EM process depends on whether the case state
 $q^{cs}$ is in $\cdot\cdot\cdot pxa$ or not.
 
-!!! note ""
+!!! note "[EMB-01](../../reference/specs/domain.md#emb-01) — [EMB-02](../../reference/specs/domain.md#emb-02)"
 
     Participants SHALL NOT negotiate embargoes where the vulnerability
     or its exploit is public or attacks are known to have occurred.
 
-!!! note ""
+!!! note "[EMB-01](../../reference/specs/domain.md#emb-01)"
 
     Participants MAY begin embargo negotiations before sending the
     report itself in an $RS$ message. Therefore, it is *not* an error
     for an $E*$ message to arrive while the Recipient is unaware of the
     report ($q^{rm} \in S$).
 
-!!! note ""
+!!! note "[EMB-06](../../reference/specs/domain.md#emb-06)"
 
     Participants MAY reject any embargo proposals or revisions for any
     reason.
 
-!!! note ""
+!!! note "[EMB-13](../../reference/specs/domain.md#emb-13)"
 
     If information about the vulnerability or an exploit for it has been
     made public, Participants SHALL terminate the embargo
     ($q^{cs} \in \{\cdot\cdot\cdot P \cdot\cdot, \cdot\cdot\cdot\cdot X \cdot\}$).
 
-!!! note ""
+!!! note "[EMB-13](../../reference/specs/domain.md#emb-13)"
 
     If attacks are known to have occurred, Participants SHOULD terminate
     the embargo ($q^{cs} \in \cdot\cdot\cdot\cdot\cdot A$).
 
-!!! note ""
+!!! note "[EMB-01](../../reference/specs/domain.md#emb-01) — [EMB-07](../../reference/specs/domain.md#emb-07)"
 
     Participants SHOULD send $EK$ in acknowledgment of any other $E*$
     message except $EK$ itself.
 
-!!! note ""
+!!! note "[EMB-08](../../reference/specs/domain.md#emb-08)"
 
     Participants SHOULD acknowledge ($EK$) and inquire ($GI$) about the
     nature of any error reported by an incoming $EE$ message.
@@ -258,13 +258,13 @@ However, this is not the case for the remainder of the CS substates.
 As above, the appropriate Participant response to receiving CS messages (namely, those surrounding *Public Awareness*,
 *Exploit Public*, or *Attacks Observed*) depends on the state of the EM process.
 
-!!! note ""
+!!! note "[CSB-12](../../reference/specs/domain.md#csb-12) — [CSB-13](../../reference/specs/domain.md#csb-13)"
 
     Participants SHALL initiate embargo termination upon becoming aware
     of publicly available information about the vulnerability or its
     exploit code.
 
-!!! note ""
+!!! note "[CSB-14](../../reference/specs/domain.md#csb-14)"
 
     Participants SHOULD initiate embargo termination upon becoming aware
     of attacks against an otherwise unpublished vulnerability.

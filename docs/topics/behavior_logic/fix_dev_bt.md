@@ -1,5 +1,19 @@
 # Fix Development Behavior
 
+## Requirements
+
+The behavioral requirements for this tree are specified in the
+[Domain Specifications](../../reference/specs/domain.md):
+
+- [CSB-09](../../reference/specs/domain.md#csb-09) — Enter CS V (Vendor Aware)
+- [CSB-10](../../reference/specs/domain.md#csb-10) — Enter CS F (Fix Ready)
+
+!!! note "Implementation approach"
+
+    The behavior tree diagram below illustrates one conformant implementation of these requirements.
+    Implementations are not required to use behavior trees — any approach that satisfies the
+    requirements above is conformant.
+
 The Fix Development Behavior Tree is shown below.
 
 ```mermaid

@@ -1,5 +1,15 @@
 # Reporting Behavior
 
+## Related Requirements
+
+This tree covers the report-sending (initiator) side of the RM process.
+Behavioral requirements for receiving RM messages are specified in the
+[Domain Specifications](../../reference/specs/domain.md):
+
+- [RMB-01](../../reference/specs/domain.md#rmb-01) — Receive RS (Report Submission) — what the recipient does when this tree sends a report
+
+See the full [RMB](../../reference/specs/domain.md#rmb) section for all RM behavioral requirements.
+
 The [*CERT Guide to Coordinated Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"}
 describes the reporting phase as the process of identifying parties that need to be informed about the vulnerability
 and then notifying them.

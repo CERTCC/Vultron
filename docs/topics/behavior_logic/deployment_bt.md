@@ -1,5 +1,18 @@
 # Deployment Behavior
 
+## Requirements
+
+The behavioral requirements for this tree are specified in the
+[Domain Specifications](../../reference/specs/domain.md):
+
+- [CSB-11](../../reference/specs/domain.md#csb-11) — Enter CS D (Fix Deployed)
+
+!!! note "Implementation approach"
+
+    The behavior tree diagram below illustrates one conformant implementation of these requirements.
+    Implementations are not required to use behavior trees — any approach that satisfies the
+    requirements above is conformant.
+
 The Deployment Behavior Tree is shown in the figure below.
 The goal of this behavior is either for (A) the case to reach the $q^{cs} \in D$ state or (B) for the Participant to be
 comfortable with remaining in a *Deferred* deployment state.
