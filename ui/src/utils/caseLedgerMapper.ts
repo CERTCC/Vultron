@@ -145,64 +145,114 @@ function triggerPath(machine: MachineName, prev: string, next: string): string[]
 // Participant roster helpers
 // ---------------------------------------------------------------------------
 
-// Fixed lane ordering, matching the Validated demo (finder top, vendor, caseactor).
-const LANE_INDEX: Record<Exclude<LaneId, 'unknown'>, number> = {
-  finder: 0,
-  'vendor-1': 1,
-  caseactor: 2,
+/** The 1-based vendor number from a `vendor-N` lane id (e.g. 'vendor-2' → 2). */
+function vendorNumber(laneId: string): number {
+  const m = laneId.match(/^vendor-(\d+)$/)
+  return m ? parseInt(m[1], 10) : 1
 }
 
-function makeParticipant(laneId: Exclude<LaneId, 'unknown'>): ParticipantState {
-  switch (laneId) {
-    case 'finder':
-      return {
-        id: 'finder',
-        name: 'Finder',
-        role: PARTICIPANT_ROLES.finder,
-        color: PARTICIPANT_COLORS.finder,
-        rmState: 'START',
-        vfdState: 'vfd',
-        embargoAccepted: false,
-        hasPublished: false,
-        hasClosed: false,
-        visible: true,
-        laneIndex: LANE_INDEX.finder,
-      }
-    case 'vendor-1':
-      return {
-        id: 'vendor-1',
-        name: 'Vendor',
-        role: PARTICIPANT_ROLES.vendor,
-        color: getVendorColor(1),
-        rmState: 'START',
-        vfdState: 'vfd',
-        embargoAccepted: false,
-        hasPublished: false,
-        hasClosed: false,
-        visible: true,
-        laneIndex: LANE_INDEX['vendor-1'],
-      }
-    case 'caseactor':
-      return {
-        id: 'caseactor',
-        name: 'Case Actor',
-        role: PARTICIPANT_ROLES.caseactor,
-        color: PARTICIPANT_COLORS.caseactor,
-        rmState: 'N/A',
-        vfdState: 'N/A',
-        embargoAccepted: false,
-        hasPublished: false,
-        hasClosed: false,
-        visible: true,
-        laneIndex: LANE_INDEX.caseactor,
-      }
+/**
+ * A lane-index map keyed by lane id. Built once per replay by pre-scanning the
+ * whole ledger (see `buildLaneIndex`): finder is top (0), vendors follow in
+ * numeric order, and the Case Actor is always forced to the bottom — regardless
+ * of when each actor first appears in the log. Because replay sees every entry
+ * up front, indices are assigned deterministically and never need the mid-stream
+ * reflow the interactive multi-vendor demo performs on invite.
+ */
+type LaneIndexMap = Record<string, number>
+
+function makeParticipant(laneId: Exclude<LaneId, 'unknown'>, laneIndex: number): ParticipantState {
+  if (laneId === 'finder') {
+    return {
+      id: 'finder',
+      name: 'Finder',
+      role: PARTICIPANT_ROLES.finder,
+      color: PARTICIPANT_COLORS.finder,
+      rmState: 'START',
+      vfdState: 'vfd',
+      embargoAccepted: false,
+      hasPublished: false,
+      hasClosed: false,
+      visible: true,
+      laneIndex,
+    }
+  }
+  if (laneId === 'caseactor') {
+    return {
+      id: 'caseactor',
+      name: 'Case Actor',
+      role: PARTICIPANT_ROLES.caseactor,
+      color: PARTICIPANT_COLORS.caseactor,
+      rmState: 'N/A',
+      vfdState: 'N/A',
+      embargoAccepted: false,
+      hasPublished: false,
+      hasClosed: false,
+      visible: true,
+      laneIndex,
+    }
+  }
+  // vendor-N
+  const n = vendorNumber(laneId)
+  return {
+    id: laneId,
+    name: n === 1 ? 'Vendor' : `Vendor ${n}`,
+    role: PARTICIPANT_ROLES.vendor,
+    color: getVendorColor(n),
+    rmState: 'START',
+    vfdState: 'vfd',
+    embargoAccepted: false,
+    hasPublished: false,
+    hasClosed: false,
+    visible: true,
+    laneIndex,
   }
 }
 
 /** Create a lane if it doesn't exist yet (robust to mid-stream / subset ledgers). */
-function ensureParticipant(participants: Map<string, ParticipantState>, laneId: LaneId): void {
+function ensureParticipant(
+  participants: Map<string, ParticipantState>,
+  laneId: LaneId,
+  laneIndex: LaneIndexMap
+): void {
   if (laneId === 'unknown') return
-  if (!participants.has(laneId)) participants.set(laneId, makeParticipant(laneId))
+  if (!participants.has(laneId)) {
+    participants.set(laneId, makeParticipant(laneId, laneIndex[laneId] ?? participants.size))
+  }
+}
+
+/**
+ * Pre-scan every entry to discover the full participant roster and assign stable
+ * lane indices: finder=0, then vendors in ascending numeric order, then the Case
+ * Actor last. Reads each entry's `actor`, its subject (`object.attributedTo`),
+ * and any `actorParticipantIndex` keys so no participant is missed regardless of
+ * which verb first mentions them.
+ */
+function buildLaneIndex(entries: CaseLedgerEntry[]): LaneIndexMap {
+  const lanes = new Set<string>()
+  const note = (url?: string | null) => {
+    const id = actorUrlToLaneId(url)
+    if (id !== 'unknown') lanes.add(id)
+  }
+  for (const entry of entries) {
+    const snap = entry.payloadSnapshot
+    note(snap?.actor)
+    note(snap?.object?.attributedTo)
+    const api = snap?.object?.actorParticipantIndex
+    if (api) for (const url of Object.keys(api)) note(url)
+  }
+
+  const vendors = Array.from(lanes)
+    .filter((id) => id.startsWith('vendor-'))
+    .sort((a, b) => vendorNumber(a) - vendorNumber(b))
+
+  const map: LaneIndexMap = {}
+  let idx = 0
+  if (lanes.has('finder')) map.finder = idx++
+  for (const v of vendors) map[v] = idx++
+  // caseactor is always last; assign the final index without a dangling increment.
+  if (lanes.has('caseactor')) map.caseactor = idx
+  return map
 }
 
 /** Visible, not-yet-closed lanes other than `decisionLaneId`, in lane order. */
@@ -364,6 +414,14 @@ const TRIGGER_LABEL: Record<string, string> = {
  */
 export function buildTimelineFromCaseLedger(entries: CaseLedgerEntry[]): DemoState {
   const participants = new Map<string, ParticipantState>()
+  // Pre-scan the whole ledger for the full roster + stable lane ordering, then
+  // pre-create every participant. Replay knows all actors up front, so lanes get
+  // fixed indices immediately (finder, vendors…, caseactor) with no mid-stream
+  // reflow. Handlers still call ensureParticipant defensively for subset ledgers.
+  const laneIndex = buildLaneIndex(entries)
+  for (const id of Object.keys(laneIndex)) {
+    ensureParticipant(participants, id as LaneId, laneIndex)
+  }
   const shadow: ShadowState = {
     rm: {},
     vfd: {},
@@ -382,7 +440,7 @@ export function buildTimelineFromCaseLedger(entries: CaseLedgerEntry[]): DemoSta
 
   for (const entry of entries) {
     const x = INITIAL_X_POSITION + visualEventIndex * X_INCREMENT
-    const result = handleEntry(entry, participants, shadow, x)
+    const result = handleEntry(entry, participants, shadow, x, laneIndex)
 
     // Keep the actor panels in sync with the shadow after each entry.
     syncParticipantsToShadow(participants, shadow)
@@ -434,21 +492,28 @@ function handleEntry(
   entry: CaseLedgerEntry,
   participants: Map<string, ParticipantState>,
   shadow: ShadowState,
-  x: number
+  x: number,
+  laneIndex: LaneIndexMap
 ): MapResult {
   switch (entry.eventType) {
     case 'offer_case_manager_role':
-      return handleOffer(entry, participants, shadow, x)
+      return handleOffer(entry, participants, shadow, x, laneIndex)
     case 'validate_report':
-      return handleValidateReport(entry, participants, shadow, x)
+      return handleValidateReport(entry, participants, shadow, x, laneIndex)
     case 'add_note_to_case':
-      return handleNote(entry, participants, shadow, x)
+      return handleNote(entry, participants, shadow, x, laneIndex)
     case 'add_participant_status_to_participant':
-      return handleParticipantStatus(entry, participants, shadow, x)
+      return handleParticipantStatus(entry, participants, shadow, x, laneIndex)
     case 'remove_embargo_event_from_case':
-      return handleRemoveEmbargo(entry, participants, shadow, x)
+      return handleRemoveEmbargo(entry, participants, shadow, x, laneIndex)
     case 'close_case':
-      return handleCloseCase(entry, participants, shadow, x)
+      return handleCloseCase(entry, participants, shadow, x, laneIndex)
+    case 'invite_actor_to_case':
+      // The bare invite carries an empty payload in the sample (no attribution),
+      // so it's the ACCEPT that creates the lane + join node. Record only a log line.
+      return { nodes: [], logLines: ['  ↳ invite_actor_to_case (awaiting accept)'] }
+    case 'accept_invite_actor_to_case':
+      return handleAcceptInvite(entry, participants, shadow, x, laneIndex)
     default:
       return { nodes: [], logLines: [`  ↳ unhandled eventType "${entry.eventType}"`] }
   }
@@ -460,23 +525,25 @@ function handleOffer(
   entry: CaseLedgerEntry,
   participants: Map<string, ParticipantState>,
   shadow: ShadowState,
-  x: number
+  x: number,
+  laneIndex: LaneIndexMap
 ): MapResult {
   const logLines: string[] = []
   const obj = entry.payloadSnapshot?.object
 
   // Build the roster from the case's actor→participant index (its keys are the
-  // three actor URLs). Fall back to the recorded actor if the index is absent.
+  // actor URLs). Fall back to the recorded actor if the index is absent. Lanes
+  // are normally pre-created (buildLaneIndex), so these are defensive no-ops.
   const roster = new Set<LaneId>()
   if (obj?.actorParticipantIndex) {
     for (const url of Object.keys(obj.actorParticipantIndex)) roster.add(actorUrlToLaneId(url))
   }
   roster.add(actorUrlToLaneId(entry.payloadSnapshot?.actor))
-  for (const laneId of roster) ensureParticipant(participants, laneId)
-  // Ensure all three standard lanes exist even if the index was sparse.
-  ensureParticipant(participants, 'finder')
-  ensureParticipant(participants, 'vendor-1')
-  ensureParticipant(participants, 'caseactor')
+  for (const laneId of roster) ensureParticipant(participants, laneId, laneIndex)
+  // Ensure the standard lanes exist even if the index was sparse.
+  ensureParticipant(participants, 'finder', laneIndex)
+  ensureParticipant(participants, 'vendor-1', laneIndex)
+  ensureParticipant(participants, 'caseactor', laneIndex)
 
   // Seed case-level EM/PXA from the offer's structured CaseStatus (trust the
   // structured fields, not its `name` — the sample's name "NONE pxa" lies).
@@ -493,14 +560,21 @@ function handleOffer(
   // Report-receipt seed: the vendor enters at RM.RECEIVED / VFD.Vfd so the later
   // `validate_report` is a legal RECEIVED→VALID step (matches the Validated demo's
   // receipt seed). Seeding the vendor at ACCEPTED would make `validate` illegal.
-  shadow.rm['vendor-1'] = 'RECEIVED'
-  shadow.vfd['vendor-1'] = 'Vfd'
+  //
+  // GUARDED on `=== undefined` (not on seededRm): some ledgers (e.g. fvv) log
+  // validate_report BEFORE the offer, so validate may have already advanced
+  // rm['vendor-1'] to VALID without marking it seeded — seeding here would
+  // regress it. We only set the baseline when the state was never touched, but
+  // always mark the lane seeded so later status snapshots are treated as
+  // transitions (and validated), not re-seeded.
+  if (shadow.rm['vendor-1'] === undefined) shadow.rm['vendor-1'] = 'RECEIVED'
   shadow.seededRm.add('vendor-1')
+  if (shadow.vfd['vendor-1'] === undefined) shadow.vfd['vendor-1'] = 'Vfd'
   shadow.seededVfd.add('vendor-1')
   // The Finder enters CVD already at RM.ACCEPTED (validated/prioritized privately
   // before disclosure — see Validated demo handleSubmitReport). VFD is seeded
   // lazily from the finder's first status snapshot.
-  shadow.rm['finder'] = 'ACCEPTED'
+  if (shadow.rm['finder'] === undefined) shadow.rm['finder'] = 'ACCEPTED'
   shadow.seededRm.add('finder')
 
   const nodes = synthesizeCluster(
@@ -525,16 +599,68 @@ function handleOffer(
   return { nodes, logLines }
 }
 
+// --- accept_invite_actor_to_case → invited vendor joins --------------------
+
+/**
+ * A later vendor accepts an invitation to the case. The invited vendor's lane
+ * was already created by the roster pre-scan; here we seed its report-receipt
+ * state (RM=RECEIVED / VFD=Vfd, like the primary vendor at case creation) and
+ * emit a "Joined Case" decision node in the invited vendor's lane. The recorded
+ * `actor` is the accepting vendor; `object.attributedTo` is the inviter.
+ */
+function handleAcceptInvite(
+  entry: CaseLedgerEntry,
+  participants: Map<string, ParticipantState>,
+  shadow: ShadowState,
+  x: number,
+  laneIndex: LaneIndexMap
+): MapResult {
+  const laneId = actorUrlToLaneId(entry.payloadSnapshot?.actor)
+  ensureParticipant(participants, laneId, laneIndex)
+  const logLines: string[] = []
+
+  if (laneId === 'unknown') {
+    return { nodes: [], logLines: ['  ↳ accept_invite: could not resolve accepting actor'] }
+  }
+
+  // Report-receipt seed for the joining vendor (mirrors the primary vendor seed
+  // in handleOffer). Guarded so a pre-existing status snapshot isn't regressed.
+  if (!shadow.seededRm.has(laneId)) {
+    shadow.rm[laneId] = 'RECEIVED'
+    shadow.seededRm.add(laneId)
+    logLines.push(`  ↳ seeded ${laneId} RM = RECEIVED (invite accepted)`)
+  }
+  if (!shadow.seededVfd.has(laneId)) {
+    shadow.vfd[laneId] = 'Vfd'
+    shadow.seededVfd.add(laneId)
+  }
+
+  const name = participants.get(laneId)?.name ?? laneId
+  const nodes = synthesizeCluster(
+    entry,
+    participants,
+    laneId,
+    x,
+    'Accept Invite',
+    [`${name} accepted the invitation to the case`, 'RM seeded → RECEIVED', 'VFD seeded → Vfd'],
+    'Vendor Joined',
+    () => [`${name} joined the case`],
+    false
+  )
+  return { nodes, logLines }
+}
+
 // --- validate_report → rm validate -----------------------------------------
 
 function handleValidateReport(
   entry: CaseLedgerEntry,
   participants: Map<string, ParticipantState>,
   shadow: ShadowState,
-  x: number
+  x: number,
+  laneIndex: LaneIndexMap
 ): MapResult {
   const laneId = actorUrlToLaneId(entry.payloadSnapshot?.actor)
-  ensureParticipant(participants, laneId)
+  ensureParticipant(participants, laneId, laneIndex)
   const logLines: string[] = []
 
   const src = shadow.rm[laneId] ?? 'RECEIVED'
@@ -576,10 +702,11 @@ function handleNote(
   entry: CaseLedgerEntry,
   participants: Map<string, ParticipantState>,
   shadow: ShadowState,
-  x: number
+  x: number,
+  laneIndex: LaneIndexMap
 ): MapResult {
   const laneId = actorUrlToLaneId(entry.payloadSnapshot?.actor)
-  ensureParticipant(participants, laneId)
+  ensureParticipant(participants, laneId, laneIndex)
   const obj = entry.payloadSnapshot?.object
   const noteName = obj?.name ?? 'Note'
   const content = (obj?.content ?? '').trim()
@@ -628,12 +755,13 @@ function handleParticipantStatus(
   entry: CaseLedgerEntry,
   participants: Map<string, ParticipantState>,
   shadow: ShadowState,
-  x: number
+  x: number,
+  laneIndex: LaneIndexMap
 ): MapResult {
   const obj = entry.payloadSnapshot?.object
   const subjectUrl = obj?.attributedTo ?? entry.payloadSnapshot?.target?.attributedTo ?? entry.payloadSnapshot?.actor
   const laneId = actorUrlToLaneId(subjectUrl)
-  ensureParticipant(participants, laneId)
+  ensureParticipant(participants, laneId, laneIndex)
 
   const tokens = parseStatusName(obj?.name)
   const rmNext = obj?.rmState ?? tokens.rm
@@ -750,9 +878,10 @@ function handleRemoveEmbargo(
   entry: CaseLedgerEntry,
   participants: Map<string, ParticipantState>,
   shadow: ShadowState,
-  x: number
+  x: number,
+  laneIndex: LaneIndexMap
 ): MapResult {
-  ensureParticipant(participants, 'caseactor')
+  ensureParticipant(participants, 'caseactor', laneIndex)
   const logLines: string[] = []
   const src = shadow.emState
   let violation = false
@@ -792,9 +921,10 @@ function handleCloseCase(
   entry: CaseLedgerEntry,
   participants: Map<string, ParticipantState>,
   shadow: ShadowState,
-  x: number
+  x: number,
+  laneIndex: LaneIndexMap
 ): MapResult {
-  ensureParticipant(participants, 'caseactor')
+  ensureParticipant(participants, 'caseactor', laneIndex)
   const logLines: string[] = []
 
   // The per-participant RM→CLOSED transitions arrive as their own status

@@ -25,6 +25,8 @@ export type LedgerEventType =
   | 'add_participant_status_to_participant'
   | 'remove_embargo_event_from_case'
   | 'close_case'
+  | 'invite_actor_to_case'
+  | 'accept_invite_actor_to_case'
 
 /** A case-level status snapshot (`CaseStatus`): the global EM/PXA pair. */
 export interface CaseStatusSnapshot {
@@ -103,22 +105,34 @@ export interface CaseLedgerEntry {
   receivedAt: string
 }
 
-/** A demo lane id. `unknown` is returned for unrecognized actor URLs. */
-export type LaneId = 'finder' | 'vendor-1' | 'caseactor' | 'unknown'
+/**
+ * A demo lane id. `unknown` is returned for unrecognized actor URLs. Vendors are
+ * `vendor-1`, `vendor-2`, … — the demo supports N vendors (a `vendor-${n}`
+ * template literal type keeps the union open while still excluding arbitrary
+ * strings from the caller's perspective).
+ */
+export type LaneId = 'finder' | `vendor-${number}` | 'caseactor' | 'unknown'
 
 /**
  * Map an actor URL to a demo lane id.
  *
- * Order matters: the Case Actor's URL is itself a `//vendor:` URL with a
- * `case-actor-…` path segment (e.g.
- * `http://vendor:7999/api/v2/actors/case-actor-<caseId>`), so the `case-actor`
- * test MUST run before the `//vendor:` test.
+ * The container demo gives each actor service a distinct hostname: `finder:`,
+ * `vendor:` (the first/primary vendor), `vendor2:`, `vendor3:`, … and the Case
+ * Actor runs as a sub-actor inside the vendor container with a `case-actor-…`
+ * path segment (e.g. `http://vendor:7999/api/v2/actors/case-actor-<caseId>`).
+ *
+ * Order matters: the `case-actor` test MUST run before the vendor-host tests
+ * because the Case Actor's URL is itself a `//vendor:` URL. The primary vendor
+ * (`//vendor:`) maps to `vendor-1`; `//vendorN:` maps to `vendor-N`.
  */
 export function actorUrlToLaneId(url?: string | null): LaneId {
   if (!url) return 'unknown'
   if (url.includes('case-actor')) return 'caseactor'
-  if (url.includes('//vendor:')) return 'vendor-1'
   if (url.includes('//finder:')) return 'finder'
+  // `//vendorN:` (N ≥ 2) → vendor-N; the bare `//vendor:` host → vendor-1.
+  const numberedVendor = url.match(/\/\/vendor(\d+):/)
+  if (numberedVendor) return `vendor-${parseInt(numberedVendor[1], 10)}`
+  if (url.includes('//vendor:')) return 'vendor-1'
   return 'unknown'
 }
 

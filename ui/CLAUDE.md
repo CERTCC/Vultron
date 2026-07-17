@@ -85,11 +85,13 @@ npm run dev        # Vite dev server, prints a localhost URL (usually http://loc
   complete, manual testing underway* — embargo negotiation/revision paths are
   the highest-risk area to keep exercising.
 - **Log Replay** — **rebuilt from scratch (2026-06)** on the new case-ledger
-  format (§5–6). Its `npm run build`/`lint` have **NOT** been re-verified since
-  the rebuild (no node in-container). This is the **least-verified mode** — first
-  actions for a new session: have the user run build+lint, then load the sample
-  case and confirm violation-flagging. (The dead old pipeline files have now been
-  deleted — see §5–6 / §9 lint note.)
+  format (§5–6), then extended for **multi-vendor + invite events (2026-07)** so
+  it replays 3-party cases (finder + N vendors), not just two-actor. Build + lint
+  are green and all three sample buttons (two-actor, synthetic-violation, fvv)
+  have been exercised in the browser. Playback, collapsible lanes, hover tooltips
+  (with violation explanations), and the red ⚠️ violation flagging all work.
+  Remaining validation happens by careful diff review + the user's build/lint
+  gate (no node in-container).
 
 ---
 
@@ -177,7 +179,7 @@ Case Actor lane down — see `inviteActions.ts`, which re-maps existing events'
 
 **Why the old pipeline was scrapped (not just patched) — two reasons:**
 1. **The log format changed underneath it.** The generator's new vocabulary is
-   the six case-ledger verbs below; the old parser expected `submit_report` /
+   the case-ledger verbs listed below; the old parser expected `submit_report` /
    `engage_case` / `add_participant_status`, which the new logs no longer emit —
    so it literally couldn't read them.
 2. **Its design was structurally broken.** The old `buildTimelineFromLogs`
@@ -201,34 +203,45 @@ the real logs — it's the §9 deferral idea applied to replay.
 **New pipeline:** `caseLedgerParser.ts` → `caseLedgerMapper.ts` → `App-logreplay.tsx`.
 
 - **`caseLedgerParser.ts`** — `parseCaseLedger(content)` → one `CaseLedgerEntry`
-  per line; `normalizeLedger(entries)` dedups by `entryHash` (the per-folder copies
-  are byte-identical) and sorts by `logIndex` (NOT `receivedAt` — several entries
-  share a wall-clock second). `actorUrlToLaneId(url)` maps actor URLs to lanes
-  (`case-actor`→`caseactor` tested FIRST, `//vendor:`→`vendor-1`,
-  `//finder:`→`finder`).
-- **`caseLedgerMapper.ts`** — `buildTimelineFromCaseLedger(entries)` walks entries
-  once in `logIndex` order maintaining a **shadow protocol state** (per-participant
-  RM/VFD, case-level EM/PXA). For each entry it derives the protocol trigger(s) and
-  **validates each against `../protocol`**: legal → advance via `nextState`; illegal
-  → flag the node `violation:true`, log a `PROTOCOL VIOLATION` line, and force the
-  shadow to the log's snapshot so replay continues (the protocol is the *validating
-  function*; see §6). Emits the standard decision/consequence + `causedBy` + same-X
-  grammar (§2). The old `visualEventIndex`-skip and no-`causedBy` bugs are gone by
-  construction (single linear loop; the column advances only when a cluster is
-  emitted; every cluster carries a real `causedBy`).
-- **`App-logreplay.tsx`** — "Load Sample Case" button imports the committed sample
-  ledger via `?raw` (repo-root file served through `server.fs.allow`, the same trick
-  `protocol.ts` uses for `protocol_states.json`); manual `.jsonl` upload still works
-  (dedup makes uploading all three folders safe). Violation nodes render with a red
-  outline + ⚠️.
+  per line; `normalizeLedger(entries)` dedups by `entryHash` and sorts by `logIndex`
+  (NOT `receivedAt` — several entries share a wall-clock second). `actorUrlToLaneId(url)`
+  maps actor URLs to lanes: `case-actor`→`caseactor` tested FIRST (the Case Actor's
+  URL is itself a `//vendor:` URL), then `//finder:`→`finder`, then `//vendorN:`→
+  `vendor-N` (regex; bare `//vendor:`→`vendor-1`). **Multi-vendor:** `LaneId` is
+  `'finder' | 'vendor-${number}' | 'caseactor' | 'unknown'`, so N vendors are supported.
+- **`caseLedgerMapper.ts`** — `buildTimelineFromCaseLedger(entries)` first
+  **pre-scans the whole ledger** (`buildLaneIndex`) to discover the full participant
+  roster and assign stable lane indices (finder=0, vendors in ascending numeric
+  order, caseactor always last), then pre-creates every lane. Because replay sees
+  every entry up front, indices are fixed immediately — **no mid-stream lane reflow**
+  like the interactive multi-vendor demo needs on invite. It then walks entries once
+  in `logIndex` order maintaining a **shadow protocol state** (per-participant RM/VFD
+  keyed by lane id, case-level EM/PXA). For each entry it derives the protocol
+  trigger(s) and **validates each against `../protocol`**: legal → advance via
+  `nextState`; illegal → flag the node `violation:true` (+ a human-readable
+  `violationReason`), log a `PROTOCOL VIOLATION` line, and force the shadow to the
+  log's snapshot so replay continues (the protocol is the *validating function*; see
+  §6). Emits the standard decision/consequence + `causedBy` + same-X grammar (§2).
+- **`App-logreplay.tsx`** — three "Load …" buttons import committed ledgers via `?raw`
+  (repo-root files served through `server.fs.allow`, the same trick `protocol.ts`
+  uses for `protocol_states.json`): **Load Sample Case** (`devlogs/two-actor/`),
+  **Load Violation Sample** (`devlogs/synthetic/`, hand-authored illegal transitions),
+  and **Load FVV Case** (`devlogs/fvv/`, finder + 2 vendors). Manual `.jsonl` upload
+  still works. Violation nodes render with a red outline + ⚠️; hovering any node shows
+  a tooltip (label + detail bullets, plus the `violationReason` for flagged nodes).
+  Node/arrow colors resolve per participant via `nodeColorsFor()` (any `vendor-N` →
+  `getVendorNodeColors`); a single `context-stroke` arrowhead marker inherits the
+  line color so arrows work for any vendor without a per-color marker. Lanes are
+  collapsible (vertical only — nodes keep full width + label).
 
 ### The case-ledger format (current)
 
 Each line is a `CaseLedgerEntry`: `{ logIndex, eventType, payloadSnapshot (an AS2
-activity), entryHash, prevLogHash, receivedAt, … }`. Six `eventType` verbs:
+activity), entryHash, prevLogHash, receivedAt, … }`. Eight `eventType` verbs:
 `offer_case_manager_role`, `validate_report`, `add_note_to_case`,
 `add_participant_status_to_participant`, `remove_embargo_event_from_case`,
-`close_case`. The log records **state SNAPSHOTS, not transitions** — the mapper
+`close_case`, and (multi-vendor) `invite_actor_to_case` +
+`accept_invite_actor_to_case`. The log records **state SNAPSHOTS, not transitions** — the mapper
 recovers the trigger by diffing each participant's snapshot against the previous one
 (RM/VFD via `object.rmState`/`vfdState`; EM/PXA via `caseStatus` /
 `caseStatuses[0]` structured fields). A status `name` like `"ACCEPTED VFD ACTIVE
@@ -271,12 +284,25 @@ Quirks of the current sample the mapper handles explicitly (carry forward):
    `actor` is the Case Actor while `object.attributedTo` is the vendor. The mapper
    puts the decision node in the **actor/recorder** lane (caseactor) but reads
    "whose machine" from `object.attributedTo`.
+7. **Verb order isn't fixed (multi-vendor).** In `devlogs/fvv/`, `validate_report`
+   is at `logIndex 0` — *before* the offer at `logIndex 1` (two-actor had the offer
+   first). So the vendor may already be advanced (RM=VALID) by the time `handleOffer`
+   runs. The receipt seeds in `handleOffer` are therefore guarded on
+   `shadow.rm[id] === undefined` (NOT on `seededRm`), so an already-advanced state is
+   never regressed. Don't reorder those seeds back to unconditional writes.
+8. **Invites: the `accept` creates the lane, not the `invite`.** `invite_actor_to_case`
+   has an **empty `payloadSnapshot`** in the sample (no attribution), so it only logs;
+   `accept_invite_actor_to_case` carries `actor`=joining vendor and creates the lane +
+   seeds its report-receipt state + emits an "Accept Invite" node (`handleAcceptInvite`).
 
 Still genuinely **absent** from the format (would further improve replay; raise with
 the log developer): an explicit `causedBy`/correlationId (the mapper infers
 causality from the entry itself, which suffices for now), and a `loggedBy`
-perspective field (all three folders remain byte-identical — one shared ledger, not
-three perspectives).
+perspective field. **Per-folder copies are NOT always byte-identical:** `two-actor/`'s
+three copies are (one shared ledger), but `fvv/`'s four copies (finder, vendor,
+vendor2, case-actor) differ per perspective while carrying the same 19 `logIndex`
+entries. The "Load …" buttons load a single canonical copy (the case-actor/coordinator
+view) rather than relying on `entryHash` dedup across differing copies.
 
 ---
 
@@ -286,10 +312,15 @@ three perspectives).
   to run JSONL through node/python scripts.
 - **`jq`** is available (`/usr/bin/jq`) — use it to inspect `*.jsonl` logs.
 - `node_modules/.bin` tools (eslint, tsc, vite) work via `npm run *`.
-- `devlogs/two-actor/{finder,vendor,case-actor}/` hold the sample case ledger
-  (`urn_uuid_…-case-ledger.jsonl`). All three are byte-identical (one shared
-  ledger; no per-perspective copies yet — see §6). The "Load Sample Case" button
-  imports the case-actor copy via `?raw`; dedup handles the rest.
+- `devlogs/` holds the committed sample ledgers each Log Replay button loads:
+  - `two-actor/{finder,vendor,case-actor}/` — the happy-path sample; all three
+    copies byte-identical (one shared ledger).
+  - `synthetic/violations-case-ledger.jsonl` — hand-authored fixture with two
+    deliberate illegal transitions (see `synthetic/README.md`).
+  - `fvv/{finder,vendor,vendor2,case-actor}/` — finder + 2 vendors; the four
+    copies DIFFER per perspective but carry the same 19 entries (see §6). Traced
+    clean (no violations) despite being unverified when added.
+  Each button imports the **case-actor** copy via `?raw`.
 
 ---
 

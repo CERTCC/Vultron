@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react'
 import type { DemoState } from './types'
 import './App.css'
-import { LANE_HEIGHT, LANE_HEIGHT_COLLAPSED, ACTOR_PANEL_WIDTH, NODE_COLORS, NODE_HEIGHT, NODE_WIDTH, NODE_HEIGHT_COLLAPSED, NODE_ANIMATION_MS } from './constants'
+import { LANE_HEIGHT, LANE_HEIGHT_COLLAPSED, ACTOR_PANEL_WIDTH, NODE_COLORS, NODE_HEIGHT, NODE_WIDTH, NODE_HEIGHT_COLLAPSED, NODE_ANIMATION_MS, getVendorNodeColors } from './constants'
 import { ActorPanel, AnimatedNode } from './components'
 import { getActiveLanes } from './state/participantHelpers'
 import {
@@ -22,6 +22,27 @@ import sampleLedgerRaw from '../../devlogs/two-actor/case-actor/urn_uuid_b9e6d36
 // EM re-terminate) to exercise the red ⚠️ violation flagging. See
 // devlogs/synthetic/README.md for the entry-by-entry expected result.
 import violationLedgerRaw from '../../devlogs/synthetic/violations-case-ledger.jsonl?raw'
+// Three-party container demo: finder + two vendors (vendor invites vendor2). These
+// logs are NOT verified for protocol validity — a good stress test for the
+// violation flagging. The case-actor copy is the coordinator's authoritative view
+// (all four folder copies carry the same 19 entries; they differ only per
+// perspective, so we load one copy rather than relying on entryHash dedup).
+import fvvLedgerRaw from '../../devlogs/fvv/case-actor/urn_uuid_4e4ee04a-6503-495d-ba34-50bcce4ebc18-case-ledger.jsonl?raw'
+
+type NodePalette = { decision: string; decisionHover: string; consequence: string; consequenceHover: string }
+
+/**
+ * Node color palette for a participant id. Handles any `vendor-N` (via the
+ * cycling vendor palette), plus finder and caseactor; falls back to finder's
+ * palette for anything unrecognized.
+ */
+function nodeColorsFor(participantId: string): NodePalette {
+  if (participantId === 'finder') return NODE_COLORS.finder
+  if (participantId === 'caseactor') return NODE_COLORS.caseactor
+  const m = participantId.match(/^vendor-(\d+)$/)
+  if (m) return getVendorNodeColors(parseInt(m[1], 10))
+  return NODE_COLORS.finder
+}
 
 function AppLogReplay() {
   const [demoState, setDemoState] = useState<DemoState | null>(null)
@@ -104,6 +125,10 @@ function AppLogReplay() {
   )
   const handleLoadViolationSample = useCallback(
     () => loadRawLedger(violationLedgerRaw, 'violation sample'),
+    [loadRawLedger]
+  )
+  const handleLoadFvv = useCallback(
+    () => loadRawLedger(fvvLedgerRaw, 'FVV logs'),
     [loadRawLedger]
   )
 
@@ -275,6 +300,30 @@ function AppLogReplay() {
           </button>
           <p style={{ fontSize: '0.8rem', color: '#888', margin: '0 0 0.5rem' }}>
             Loads <code style={{ background: '#fff', padding: '0.125rem 0.375rem', borderRadius: '3px' }}>devlogs/synthetic/</code> — two illegal transitions flagged in red
+          </p>
+
+          {/* Three-party case: finder + two vendors. Unverified logs — any
+              protocol violations will surface via the red flagging. */}
+          <button
+            onClick={handleLoadFvv}
+            style={{
+              display: 'block',
+              margin: '0.5rem auto 0.5rem',
+              padding: '0.625rem 1.5rem',
+              background: '#1565c0',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              fontSize: '0.9rem',
+              width: 'fit-content',
+            }}
+          >
+            ▶ Load FVV Case (finder + 2 vendors)
+          </button>
+          <p style={{ fontSize: '0.8rem', color: '#888', margin: '0 0 0.5rem' }}>
+            Loads <code style={{ background: '#fff', padding: '0.125rem 0.375rem', borderRadius: '3px' }}>devlogs/fvv/</code> — unverified 3-party case; violations (if any) flagged in red
           </p>
 
           <div style={{
@@ -682,7 +731,11 @@ function AppLogReplay() {
                 height: '100%',
               }}
             >
-              {/* Arrow markers */}
+              {/* Arrow markers. `arrowhead` is the fixed gray head for horizontal
+                  in-lane arrows. `arrowhead-ctx` uses fill="context-stroke" so the
+                  head automatically matches its line's stroke color — this lets
+                  vertical consequence arrows carry ANY vendor's color without a
+                  per-color marker (supports N vendors). */}
               <defs>
                 <marker
                   id="arrowhead"
@@ -695,34 +748,14 @@ function AppLogReplay() {
                   <polygon points="0 0, 16 5, 0 10" fill="#666" />
                 </marker>
                 <marker
-                  id="arrowhead-blue"
+                  id="arrowhead-ctx"
                   markerWidth="16"
                   markerHeight="10"
                   refX="16"
                   refY="5"
                   orient="auto"
                 >
-                  <polygon points="0 0, 16 5, 0 10" fill="#BBDEFB" />
-                </marker>
-                <marker
-                  id="arrowhead-purple"
-                  markerWidth="16"
-                  markerHeight="10"
-                  refX="16"
-                  refY="5"
-                  orient="auto"
-                >
-                  <polygon points="0 0, 16 5, 0 10" fill="#E1BEE7" />
-                </marker>
-                <marker
-                  id="arrowhead-orange"
-                  markerWidth="16"
-                  markerHeight="10"
-                  refX="16"
-                  refY="5"
-                  orient="auto"
-                >
-                  <polygon points="0 0, 16 5, 0 10" fill="#FFE0B2" />
+                  <polygon points="0 0, 16 5, 0 10" fill="context-stroke" />
                 </marker>
               </defs>
 
@@ -746,30 +779,15 @@ function AppLogReplay() {
                     const adjustedY1 = y1 + (sourceRectHalfHeight * direction)
                     const adjustedY2 = y2 - (targetRectHalfHeight * direction)
 
-                    // Determine arrow color based on target participant. No
-                    // arrowhead when the target lane is collapsed (matches multivendor).
-                    let arrowColor: string
-                    let arrowMarker: string
+                    // Arrow color = the target participant's consequence color
+                    // (works for any vendor-N via nodeColorsFor). The context-stroke
+                    // marker inherits this color. No arrowhead when the target lane
+                    // is collapsed (matches multivendor).
                     const targetParticipant = allParticipants.find(p => p.laneIndex === event.lane)
-
-                    if (targetParticipant) {
-                      if (targetParticipant.id === 'finder') {
-                        arrowColor = '#BBDEFB'
-                        arrowMarker = targetCollapsed ? '' : 'url(#arrowhead-blue)'
-                      } else if (targetParticipant.id === 'vendor-1') {
-                        arrowColor = '#E1BEE7'
-                        arrowMarker = targetCollapsed ? '' : 'url(#arrowhead-purple)'
-                      } else if (targetParticipant.id === 'caseactor') {
-                        arrowColor = '#FFE0B2'
-                        arrowMarker = targetCollapsed ? '' : 'url(#arrowhead-orange)'
-                      } else {
-                        arrowColor = '#999'
-                        arrowMarker = ''
-                      }
-                    } else {
-                      arrowColor = '#999'
-                      arrowMarker = ''
-                    }
+                    const arrowColor = targetParticipant
+                      ? nodeColorsFor(targetParticipant.id).consequence
+                      : '#999'
+                    const arrowMarker = targetParticipant && !targetCollapsed ? 'url(#arrowhead-ctx)' : ''
 
                     // Thinner, tighter-dashed line when pointing at a collapsed lane.
                     const strokeWidth = targetCollapsed ? 1.5 : 3
@@ -839,18 +857,9 @@ function AppLogReplay() {
               const participant = demoState.participants.get(event.participantId || event.actor)
               if (!participant) return null
 
-              // Get the appropriate colors for this participant
-              let participantColors: { decision: string; decisionHover: string; consequence: string; consequenceHover: string }
+              // Get the appropriate colors for this participant (any vendor-N).
               const pid = event.participantId || event.actor
-              if (pid === 'finder') {
-                participantColors = NODE_COLORS.finder
-              } else if (pid === 'vendor-1') {
-                participantColors = NODE_COLORS.vendor1
-              } else if (pid === 'caseactor') {
-                participantColors = NODE_COLORS.caseactor
-              } else {
-                participantColors = NODE_COLORS.finder // fallback
-              }
+              const participantColors = nodeColorsFor(pid)
 
               const fillColor = event.type === 'decision'
                 ? (hoveredEvent === event.id ? participantColors.decisionHover : participantColors.decision)
