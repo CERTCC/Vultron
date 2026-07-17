@@ -165,7 +165,7 @@ class CreateOfferCaseManagerActivityNode(DataLayerAction):
                 )
         return activity_id
 
-    def update(self) -> Status:
+    def _validate_context(self) -> Status | None:
         if (f := self._require_datalayer_and_actor()) is not None:
             self.logger.error(
                 "%s: DataLayer or actor_id not available", self.name
@@ -175,6 +175,11 @@ class CreateOfferCaseManagerActivityNode(DataLayerAction):
             self.logger.error(
                 "%s: trigger_activity_factory not available", self.name
             )
+            return f
+        return None
+
+    def update(self) -> Status:
+        if (f := self._validate_context()) is not None:
             return f
 
         ids = self._read_blackboard_ids()
@@ -265,7 +270,7 @@ class AutoAcceptCaseManagerRoleNode(DataLayerAction):
             self.actor_id, accept_id  # type: ignore[arg-type]
         )
 
-    def update(self) -> Status:
+    def _validate_context(self) -> Status | None:
         if (f := self._require_datalayer_and_actor()) is not None:
             self.logger.error(
                 "%s: DataLayer or actor_id not available", self.name
@@ -285,6 +290,11 @@ class AutoAcceptCaseManagerRoleNode(DataLayerAction):
                 self.offer_id,
             )
             return Status.FAILURE
+        return None
+
+    def update(self) -> Status:
+        if (f := self._validate_context()) is not None:
+            return f
         try:
             accept_id = self._call_factory()
         except Exception as exc:
@@ -370,7 +380,7 @@ class EmitRejectCaseManagerRoleNode(DataLayerAction):
             self.offer_id,
         )
 
-    def update(self) -> Status:
+    def _validate_context(self) -> Status | None:
         if (f := self._require_datalayer_and_actor()) is not None:
             self.logger.error(
                 "%s: DataLayer or actor_id not available", self.name
@@ -391,6 +401,11 @@ class EmitRejectCaseManagerRoleNode(DataLayerAction):
                 self.offer_id,
             )
             return Status.FAILURE
+        return None
+
+    def update(self) -> Status:
+        if (f := self._validate_context()) is not None:
+            return f
         try:
             self._emit()
             return Status.SUCCESS
