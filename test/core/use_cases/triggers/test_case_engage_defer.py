@@ -32,6 +32,8 @@ from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -172,7 +174,7 @@ class TestEngageCaseRMTransitionViaBT:
         # Re-read participant from DataLayer to confirm BT wrote the change
         updated = self.dl.read(self.vendor_participant.id_)
         assert updated is not None
-        assert isinstance(updated, as_CaseParticipant)
+        assert isinstance(updated, CaseParticipant)
         assert (
             updated.participant_statuses
         ), "Expected at least one as_ParticipantStatus after engage"
@@ -249,7 +251,7 @@ class TestDeferCaseRMTransitionViaBT:
         # Re-read participant from DataLayer to confirm BT wrote the change
         updated = self.dl.read(self.vendor_participant.id_)
         assert updated is not None
-        assert isinstance(updated, as_CaseParticipant)
+        assert isinstance(updated, CaseParticipant)
         assert (
             updated.participant_statuses
         ), "Expected at least one as_ParticipantStatus after defer"
@@ -311,7 +313,7 @@ class TestAddNoteToCaseViaBT:
         # The case's notes list should contain the new note id
         updated_case = self.dl.read(self.case.id_)
         assert updated_case is not None
-        assert isinstance(updated_case, as_VulnerabilityCase)
+        assert isinstance(updated_case, VulnerabilityCase)
         assert (
             len(updated_case.notes) >= 1
         ), "Expected case.notes to contain the new note after BT-driven attachment"

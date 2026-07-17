@@ -18,6 +18,8 @@ find_case_by_report_id (via vulnerability_reports list and ReportCaseLink).
 Fixtures (dl) come from conftest.
 """
 
+from vultron.core.models.case import VulnerabilityCase
+
 # ---------------------------------------------------------------------------
 # find_case_by_short_id tests
 # ---------------------------------------------------------------------------
@@ -35,7 +37,7 @@ def test_find_case_by_short_id_with_http_url_case_id(dl):
 
     result = dl.find_case_by_short_id("demo-123")
     assert result is not None
-    assert isinstance(result, as_VulnerabilityCase)
+    assert isinstance(result, VulnerabilityCase)
     assert result.id_ == case.id_
 
 
@@ -51,7 +53,7 @@ def test_find_case_by_short_id_with_urn_case_id(dl):
 
     result = dl.find_case_by_short_id("11111111-2222-3333-4444-555555555555")
     assert result is not None
-    assert isinstance(result, as_VulnerabilityCase)
+    assert isinstance(result, VulnerabilityCase)
     assert result.id_ == case.id_
 
 
@@ -98,7 +100,7 @@ def test_find_case_by_report_id_returns_case_when_report_stored_as_string(dl):
 
     result = dl.find_case_by_report_id(report.id_)
     assert result is not None
-    assert isinstance(result, as_VulnerabilityCase)
+    assert isinstance(result, VulnerabilityCase)
     assert result.id_ == case.id_
 
 
@@ -123,7 +125,6 @@ def test_find_case_by_report_id_returns_case_when_report_stored_as_object(dl):
 
     result = dl.find_case_by_report_id(report.id_)
     assert result is not None
-    assert isinstance(result, as_VulnerabilityCase)
     assert result.id_ == case.id_
 
 
@@ -206,5 +207,5 @@ def test_find_case_by_report_id_returns_case_via_report_case_link(dl):
     result = dl.find_case_by_report_id(report.id_)
 
     assert result is not None
-    assert isinstance(result, as_VulnerabilityCase)
+    assert isinstance(result, VulnerabilityCase)
     assert result.id_ == case.id_

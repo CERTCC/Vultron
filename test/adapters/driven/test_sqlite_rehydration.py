@@ -18,6 +18,7 @@ TestRehydrateFields (_rehydrate_fields expansion), and hydrate() for list fields
 Fixtures (dl) come from conftest.
 """
 
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.wire.as2.factories import rm_submit_report_activity
 
 # ---------------------------------------------------------------------------
@@ -203,7 +204,7 @@ def test_hydrate_expands_list_ref_field(dl):
     hydrated = dl.hydrate(stored_case)
     assert hydrated is not stored_case
     assert len(hydrated.case_participants) == 1
-    assert isinstance(hydrated.case_participants[0], as_CaseParticipant)
+    assert isinstance(hydrated.case_participants[0], CaseParticipant)
     assert hydrated.case_participants[0].id_ == participant.id_
 
 

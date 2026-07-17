@@ -427,9 +427,19 @@ def demo_get_case_ledger(
         and e.case_id == canonical_case_id
     ]
     raw_entries.sort(key=lambda e: e.log_index)
+    wire_entries = [
+        (
+            e
+            if isinstance(e, WireCaseLedgerEntry)
+            else WireCaseLedgerEntry.model_validate(
+                e.model_dump(by_alias=True, serialize_as_any=True)
+            )
+        )
+        for e in raw_entries
+    ]
     payloads = [
         e.model_dump(mode="json", by_alias=True, exclude_none=True)
-        for e in raw_entries
+        for e in wire_entries
     ]
 
     accept = request.headers.get("accept", "")
@@ -481,4 +491,11 @@ def demo_get_case_ledger_entry(
                 "activity_id": None,
             },
         )
-    return obj.model_dump(mode="json", by_alias=True)
+    wire_obj = (
+        obj
+        if isinstance(obj, WireCaseLedgerEntry)
+        else WireCaseLedgerEntry.model_validate(
+            obj.model_dump(by_alias=True, serialize_as_any=True)
+        )
+    )
+    return wire_obj.model_dump(mode="json", by_alias=True)

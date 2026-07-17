@@ -306,13 +306,12 @@ class TestAppendCaseStatusToCaseNode:
 
 
 class TestAddCaseStatusTree:
-    def test_happy_path_appends_status(self, populated_dl, make_payload):
+    def test_happy_path_appends_status(
+        self, populated_dl, make_payload, case, status_obj
+    ):
         """Full Sequence: new status is appended to case."""
-        status_obj = cast(as_CaseStatus, populated_dl.read(STATUS_ID))
-        case_obj = cast(as_VulnerabilityCase, populated_dl.read(CASE_ID))
-
         activity = add_status_to_case_activity(
-            status_obj, target=case_obj, actor=ACTOR_ID
+            status_obj, target=case, actor=ACTOR_ID
         )
         event = make_payload(activity)
 
@@ -321,25 +320,20 @@ class TestAddCaseStatusTree:
         result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
-        case = cast(as_VulnerabilityCase, populated_dl.read(CASE_ID))
-        status_ids = [getattr(s, "id_", s) for s in case.case_statuses]
+        updated_case = populated_dl.read(CASE_ID)
+        status_ids = [getattr(s, "id_", s) for s in updated_case.case_statuses]
         assert STATUS_ID in status_ids
 
     def test_idempotent_duplicate_fails_with_sentinel(
-        self, populated_dl, make_payload
+        self, populated_dl, make_payload, case, status_obj
     ):
         """Duplicate status → BT FAILURE with CASE_STATUS_ALREADY_PRESENT."""
-        # Pre-load the status onto the case
-        case = cast(as_VulnerabilityCase, populated_dl.read(CASE_ID))
-        status = populated_dl.read(STATUS_ID)
-        case.case_statuses.append(status)
+        # Pre-load the status onto the case (use wire types for DL save)
+        case.case_statuses.append(status_obj.id_)
         populated_dl.save(case)
 
-        status_obj = cast(as_CaseStatus, populated_dl.read(STATUS_ID))
-        case_obj = cast(as_VulnerabilityCase, populated_dl.read(CASE_ID))
-
         activity = add_status_to_case_activity(
-            status_obj, target=case_obj, actor=ACTOR_ID
+            status_obj, target=case, actor=ACTOR_ID
         )
         event = make_payload(activity)
 

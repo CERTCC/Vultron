@@ -36,7 +36,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
 
-from ._base import _DUMP_KWARGS
+from ._base import _DUMP_KWARGS, _to_wire
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ class _CasesMixin:
         to: list[str] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist a ``Create(as_VulnerabilityCase)`` activity."""
-        case = cast(as_VulnerabilityCase, self._dl.read(case_id))
+        case = _to_wire(self._dl.read(case_id), as_VulnerabilityCase)
         activity = create_case_activity(case=case, actor=actor, to=to)
         try:
             self._dl.create(activity)
@@ -71,7 +71,7 @@ class _CasesMixin:
         to: list[str] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist an ``Accept(as_VulnerabilityCase)`` engage activity."""
-        case = cast(as_VulnerabilityCase, self._dl.read(case_id))
+        case = _to_wire(self._dl.read(case_id), as_VulnerabilityCase)
         activity = rm_engage_case_activity(case=case, actor=actor, to=to)
         try:
             self._dl.create(activity)
@@ -89,7 +89,7 @@ class _CasesMixin:
         to: list[str] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist a ``TentativeReject(as_VulnerabilityCase)`` activity."""
-        case = cast(as_VulnerabilityCase, self._dl.read(case_id))
+        case = _to_wire(self._dl.read(case_id), as_VulnerabilityCase)
         activity = rm_defer_case_activity(case=case, actor=actor, to=to)
         try:
             self._dl.create(activity)
@@ -109,7 +109,7 @@ class _CasesMixin:
         """Create and persist a ``Leave(as_VulnerabilityCase)`` close-case activity."""
         from vultron.wire.as2.factories import rm_close_case_activity
 
-        case = cast(as_VulnerabilityCase, self._dl.read(case_id))
+        case = _to_wire(self._dl.read(case_id), as_VulnerabilityCase)
         activity = rm_close_case_activity(case=case, actor=actor, to=to)
         try:
             self._dl.create(activity)
@@ -127,7 +127,7 @@ class _CasesMixin:
         case_id: str,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist an ``Add(object, Case)`` activity."""
-        case = cast(Any, self._dl.read(case_id))
+        case = _to_wire(self._dl.read(case_id), as_VulnerabilityCase)
         obj = cast(Any, self._dl.read(object_id))
         activity = as_Add(actor=actor, object_=obj, target=case)
         try:
@@ -155,7 +155,7 @@ class _CasesMixin:
         Per MV-10-003: the case owner sends this after an ``Accept(Invite)``
         is received and the invitee's embargo consent has been verified.
         """
-        case = cast(as_VulnerabilityCase, self._dl.read(case_id))
+        case = _to_wire(self._dl.read(case_id), as_VulnerabilityCase)
         activity = announce_vulnerability_case_activity(
             case=case,
             actor=actor,
@@ -198,7 +198,7 @@ class _CasesMixin:
                 f"create_case_proposal: report '{report_id}' not found"
                 " in DataLayer"
             )
-        report = cast(as_VulnerabilityReport, report_obj)
+        report = _to_wire(report_obj, as_VulnerabilityReport)
         proposal = as_CaseProposal(
             attributed_to=actor,
             object_=report,

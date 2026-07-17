@@ -27,6 +27,7 @@ from vultron.adapters.driven.db_record import (
     _AS_OBJECT_REF_FIELDS,
     record_to_object,
 )
+from vultron.core.models import find_in_core_vocabulary
 from vultron.core.models.protocol_pair import ProtocolPair
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import StorableRecord
@@ -151,21 +152,36 @@ class SqliteDataLayer:
 
         Reconstruction is a three-step pipeline:
 
-        1. ``record_to_object`` — vocabulary-based base-type reconstruction.
-        2. ``_rehydrate_fields`` — expand dehydrated ``object_`` / ``target`` /
+        1. Core-vocabulary lookup — if the stored ``type_`` has a registered
+           core counterpart in ``CORE_VOCABULARY``, reconstruct via
+           ``find_in_core_vocabulary(type_).model_validate(data)`` (DL-05-001,
+           DL-05-002).  This ensures domain entities round-trip as core objects
+           rather than wire vocabulary types.  For persisted AS2 Activity types
+           (no core counterpart), falls back to the wire vocabulary path below.
+        2. ``record_to_object`` — wire-vocabulary base-type reconstruction
+           (fallback for AS2 Activities and any type not in ``CORE_VOCABULARY``).
+        3. ``_rehydrate_fields`` — expand dehydrated ``object_`` / ``target`` /
            ``origin`` / ``result`` / ``instrument`` ID strings back to typed
            Pydantic objects by reading them from the DataLayer.
-        3. ``_coerce_to_semantic_class`` — pattern-match the rehydrated object
+        4. ``_coerce_to_semantic_class`` — pattern-match the rehydrated object
            against ``SEMANTICS_ACTIVITY_PATTERNS`` and, when a more specific
            Python class is known (e.g. ``RmSubmitReportActivity`` for
            ``as_Offer``), coerce via ``model_validate`` so that callers always
            receive the most precise type without manual coercion.
         """
-        rec = Record(id_=row.id_, type_=row.type_, data_=row.data)
         try:
-            obj = cast(PersistableModel, record_to_object(rec))
-        except (ValueError, ValidationError):
-            return None
+            core_cls = find_in_core_vocabulary(row.type_)
+            obj = cast(PersistableModel, core_cls.model_validate(row.data))
+        except (KeyError, ValidationError):
+            # KeyError: no core counterpart → fall back to wire vocabulary.
+            # ValidationError: stored data came from a wire object whose schema
+            # differs from the core class (e.g. as_EmbargoEvent lacks context).
+            # Fall back to the wire path in both cases.
+            rec = Record(id_=row.id_, type_=row.type_, data_=row.data)
+            try:
+                obj = cast(PersistableModel, record_to_object(rec))
+            except (ValueError, ValidationError):
+                return None
         if obj is None:
             return None
         obj = self._rehydrate_fields(obj)

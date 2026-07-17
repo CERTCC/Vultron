@@ -28,7 +28,7 @@ from vultron.wire.as2.factories import (
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
-from ._base import _DUMP_KWARGS
+from ._base import _DUMP_KWARGS, _to_wire
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +46,7 @@ class _EmbargoMixin:
         to: list[str] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist an ``Invite(as_EmbargoEvent, Case)`` proposal."""
-        embargo = cast(as_EmbargoEvent, self._dl.read(embargo_id))
+        embargo = _to_wire(self._dl.read(embargo_id), as_EmbargoEvent)
         activity = em_propose_embargo_activity(
             embargo=embargo, context=case_id, actor=actor, to=to
         )
@@ -109,7 +109,7 @@ class _EmbargoMixin:
         to: list[str] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist an ``Announce(as_EmbargoEvent)`` activity."""
-        embargo = cast(as_EmbargoEvent, self._dl.read(embargo_id))
+        embargo = _to_wire(self._dl.read(embargo_id), as_EmbargoEvent)
         activity = announce_embargo_activity(
             embargo=embargo, context=case_id, actor=actor, to=to
         )
@@ -130,7 +130,7 @@ class _EmbargoMixin:
         to: list[str] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist a ``Remove(as_EmbargoEvent, origin=case)`` ET activity."""
-        embargo = cast(as_EmbargoEvent, self._dl.read(embargo_id))
+        embargo = _to_wire(self._dl.read(embargo_id), as_EmbargoEvent)
         activity = remove_embargo_from_case_activity(
             embargo=embargo, origin=case_id, actor=actor, to=to
         )

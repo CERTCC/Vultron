@@ -15,11 +15,36 @@
 
 """Shared constants and base class for TriggerActivityAdapter submodules."""
 
-from typing import Any
+from typing import Any, TypeVar
 
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.errors import VultronNotFoundError
+from vultron.wire.as2.vocab.base.base import as_Base
 
 _DUMP_KWARGS: dict[str, Any] = {"by_alias": True, "exclude_none": True}
+
+_BM = TypeVar("_BM", bound=as_Base)
+
+
+def _to_wire(core_obj: Any, wire_cls: type[_BM]) -> _BM:
+    """Convert a core domain object to its wire vocabulary counterpart.
+
+    Uses ``wire_cls.from_core(core_obj)`` so that wire classes that override
+    ``from_core`` (e.g. ``as_VulnerabilityCase`` which wraps ``case_activity``
+    string IDs as stub ``as_Activity`` objects) apply their custom logic.
+
+    Raises:
+        VultronNotFoundError: when *core_obj* is ``None`` (dl.read returned
+            no match for the requested ID).
+    """
+    if core_obj is None:
+        raise VultronNotFoundError(
+            wire_cls.__name__,
+            "object not found in DataLayer",
+        )
+    if isinstance(core_obj, wire_cls):
+        return core_obj
+    return wire_cls.from_core(core_obj)  # type: ignore[attr-defined,return-value,no-any-return]
 
 
 class _TriggerAdapterBase:

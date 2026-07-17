@@ -122,13 +122,14 @@ class TestEmbargoLogEntryCascade:
         dl, case_actor, case, embargo = _make_embargo_case_with_actor(
             case_id, author_id, case_manager_actor_id=author_id
         )
-        case = cast(as_VulnerabilityCase, dl.read(case.id_))
-        assert case is not None
-        case.current_status.em_state = EM.PROPOSED
-        dl.save(case)
+        case_read = cast(as_VulnerabilityCase, dl.read(case.id_))
+        assert case_read is not None
+        case_read.current_status.em_state = EM.PROPOSED
+        dl.save(case_read)
 
+        case_ref = as_VulnerabilityCase(id_=case_id)
         activity = add_embargo_to_case_activity(
-            embargo, target=case, actor=author_id
+            embargo, target=case_ref, actor=author_id
         )
         event = make_payload(activity, receiving_actor_id=case_actor.id_)
         sync_port = SyncActivityAdapter(dl)
@@ -167,7 +168,7 @@ class TestEmbargoLogEntryCascade:
         dl.save(case)
 
         activity = remove_embargo_from_case_activity(
-            embargo, origin=case, actor=author_id
+            embargo, origin=case.id_, actor=author_id
         )
         event = make_payload(activity, receiving_actor_id=case_actor.id_)
         sync_port = SyncActivityAdapter(dl)
@@ -212,7 +213,7 @@ class TestEmbargoLogEntryCascade:
         dl.save(case)
 
         activity = remove_embargo_from_case_activity(
-            embargo, origin=case, actor=author_id
+            embargo, origin=case.id_, actor=author_id
         )
         event = make_payload(activity, receiving_actor_id=case_actor.id_)
         sync_port = SyncActivityAdapter(dl)
@@ -292,7 +293,7 @@ class TestEmbargoLogEntryCascade:
 
         proposal = em_propose_embargo_activity(
             embargo,
-            context=case,
+            context=case.id_,
             actor="https://example.org/users/vendor",
             id_=f"{case_id}/embargo_proposals/1",
         )
@@ -300,7 +301,7 @@ class TestEmbargoLogEntryCascade:
 
         accept = em_accept_embargo_activity(
             proposal,
-            context=case,
+            context=case.id_,
             actor=coordinator_id,
         )
         # Per ADR-0022 / CLP-10-005: the guarded commit fires when

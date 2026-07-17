@@ -29,7 +29,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
 
-from ._base import _DUMP_KWARGS
+from ._base import _DUMP_KWARGS, _to_wire
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ class _ReportsMixin:
         target: str,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist an ``Offer(as_VulnerabilityReport)`` activity."""
-        report = cast(as_VulnerabilityReport, self._dl.read(report_id))
+        report = _to_wire(self._dl.read(report_id), as_VulnerabilityReport)
         activity = rm_submit_report_activity(
             report=report, to=to, actor=actor, target=target
         )

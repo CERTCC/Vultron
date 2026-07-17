@@ -43,6 +43,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.report import ValidateReportReceivedEvent
@@ -77,7 +78,7 @@ def _make_case_at_received(
     vendor_id: str,
     finder_id: str,
     report_id: str,
-) -> tuple[as_VulnerabilityCase, as_Offer]:
+) -> tuple[VulnerabilityCase, as_Offer]:
     """Create a case at RM.RECEIVED via the receive-report BT.
 
     Mirrors the real production path: Offer(Report) arrives → BT creates a
@@ -117,8 +118,8 @@ def _make_case_at_received(
         case is not None
     ), "receive_report BT must create a as_VulnerabilityCase"
     assert isinstance(
-        case, as_VulnerabilityCase
-    ), f"Expected as_VulnerabilityCase, got {type(case)}"
+        case, VulnerabilityCase
+    ), f"Expected VulnerabilityCase, got {type(case)}"
     return case, offer
 
 
@@ -163,7 +164,7 @@ class TestTriggerEmitsToCaseActorOutbox:
 
     def _setup(
         self,
-    ) -> tuple[SqliteDataLayer, as_VulnerabilityCase, as_Offer, str]:
+    ) -> tuple[SqliteDataLayer, VulnerabilityCase, as_Offer, str]:
         """Return (dl, case, offer, case_actor_id) after BT receive-report."""
         dl = _make_dl()
         vendor = as_Service(id_=self.VENDOR_ID, name="Vendor")
@@ -406,7 +407,7 @@ class TestCaseActorReceivedWritesLedgerEntry:
         # Register VENDOR as a case participant so TransitionRMtoValid can
         # persist the status record.
         case = dl.read(self.CASE_ID)
-        assert isinstance(case, as_VulnerabilityCase)
+        assert isinstance(case, VulnerabilityCase)
         from vultron.core.models.case_actor import VultronCaseActor
 
         vendor_svc = VultronCaseActor(id_=self.VENDOR_ID)

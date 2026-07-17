@@ -43,9 +43,6 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
@@ -144,8 +141,10 @@ def received_report(dl, actor, reporter, report, offer):
         reporter_actor_id=reporter.id_,
     )
     bridge.execute_with_setup(tree, actor_id=actor.id_)
+    from vultron.core.models.case import VulnerabilityCase
+
     case_obj = dl.find_case_by_report_id(report.id_)
-    assert isinstance(case_obj, as_VulnerabilityCase)
+    assert isinstance(case_obj, VulnerabilityCase)
     case_actor = as_Service(name=f"Case Actor for {case_obj.name}")
     dl.create(case_actor)
     case_manager_participant = as_CaseParticipant(
