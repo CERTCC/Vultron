@@ -2,12 +2,9 @@ id: CM
 title: Case Management
 description: >-
   Requirements for VulnerabilityCase lifecycle management, CaseActor responsibilities, and
-  the RM/EM/CS/VFD state model. Covers actor isolation at the protocol level and the distinction
-  between participant-specific and participant-agnostic state. `notes/bt-integration.md`,
-  ActivityPub specification `handler-protocol.md` (HP-00-001, HP-00-002), `actor-knowledge-model.md`
-  (AKM-01-001, AKM-01-002). CM-14 (case initialization sequence) sourced from IDEA-26050501.
-  CM-16 (actor suggestion routing) and CM-17 (invitation flow) sourced from ADR-0026
-  design session 2026-07-09.
+  the RM/EM/CS/VFD state model. Covers actor isolation at the protocol level, the distinction
+  between participant-specific and participant-agnostic state, case initialization sequencing,
+  embargo acceptance ownership, and the invitation acceptance lifecycle.
 version: 1.0.0
 kind: domain
 scope:
@@ -709,10 +706,7 @@ groups:
       spec_id: CM-14-001
 - id: CM-15
   title: Case Creation Policy
-  description: >-
-    Requirements for the configurable auto_create_case policy on ActorConfig.
-    Enables pre-case-ACK protocol flows (ADR-0015 post-decision refinement,
-    issue #1133).
+  description: Requirements for the configurable auto_create_case policy on ActorConfig, which controls whether a VulnerabilityCase is created automatically upon receipt of an Offer(Report).
   specs:
   - id: CM-15-001
     priority: MUST

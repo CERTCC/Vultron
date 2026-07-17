@@ -1,10 +1,9 @@
 id: IO
 title: Inbox Orchestration
 description: >-
-  Testable requirements for the core BT-backed inbox orchestration module:
-  InboxOutcome model, BT sequence invariants, adapter injection rules, caller
-  interface constraints, and error/outcome behavior. Derived from design
-  discussion in GitHub issue #977.
+  Testable requirements for the core BT-backed inbox orchestration module, covering
+  the InboxOutcome model, BT sequence invariants, adapter injection rules, caller
+  interface constraints, and error/outcome behavior.
 version: 1.0.0
 kind: pattern
 scope:

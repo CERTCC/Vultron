@@ -279,7 +279,7 @@ def test_render_for_kind_behavioral_section_header(behavioral_registry):
 
 def test_render_for_kind_eca_details_block(behavioral_registry):
     md = render_for_kind("domain", behavioral_registry)
-    assert '??? details "ECA Details"' in md
+    assert "<details><summary>ECA Details</summary>" in md
 
 
 def test_render_for_kind_precondition_text(behavioral_registry):
@@ -381,6 +381,138 @@ def test_behavioral_spec_empty_preconditions_raises():
             scope=[Scope.PRODUCTION],
             preconditions=[],
         )
+
+
+# ---------------------------------------------------------------------------
+# Table structure: header row and separator
+# ---------------------------------------------------------------------------
+
+
+def test_render_for_kind_table_header_present(general_registry):
+    md = render_for_kind("general", general_registry)
+    assert "| ID | Priority | Requirement | Related |" in md
+
+
+def test_render_for_kind_table_separator_present(general_registry):
+    md = render_for_kind("general", general_registry)
+    assert "|---|---|---|---|" in md
+
+
+# ---------------------------------------------------------------------------
+# Pipe-char escaping in cell content
+# ---------------------------------------------------------------------------
+
+PIPE_YAML = {
+    "id": "PIP",
+    "title": "Pipe Test Specs",
+    "description": "Spec with a pipe char in the statement",
+    "version": "0.1",
+    "kind": "general",
+    "scope": ["production"],
+    "groups": [
+        {
+            "id": "PIP-01",
+            "title": "Pipe Group",
+            "specs": [
+                {
+                    "id": "PIP-01-001",
+                    "priority": "MUST",
+                    "statement": "Do A | B",
+                }
+            ],
+        }
+    ],
+}
+
+
+@pytest.fixture
+def pipe_registry(tmp_path):
+    (tmp_path / "pip.yaml").write_text(__import__("yaml").dump(PIPE_YAML))
+    return load_registry(tmp_path)
+
+
+def test_render_for_kind_pipe_char_escaped(pipe_registry):
+    md = render_for_kind("general", pipe_registry)
+    assert "&#124;" in md
+    assert "Do A | B" not in md
+
+
+# ---------------------------------------------------------------------------
+# Multi-relationship Related cell uses <br> separator
+# ---------------------------------------------------------------------------
+
+MULTI_REL_YAML = {
+    "id": "MRL",
+    "title": "Multi-Rel Specs",
+    "description": "Spec with two relationships",
+    "version": "0.1",
+    "kind": "general",
+    "scope": ["production"],
+    "groups": [
+        {
+            "id": "MRL-01",
+            "title": "Multi-Rel Group",
+            "specs": [
+                {
+                    "id": "MRL-01-001",
+                    "priority": "MUST",
+                    "statement": "MRL base requirement",
+                },
+                {
+                    "id": "MRL-01-002",
+                    "priority": "SHOULD",
+                    "statement": "MRL multi-rel spec",
+                    "relationships": [
+                        {"rel_type": "satisfies", "spec_id": "MRL-01-001"},
+                        {"rel_type": "implements", "spec_id": "MRL-01-001"},
+                    ],
+                },
+            ],
+        }
+    ],
+}
+
+
+@pytest.fixture
+def multi_rel_registry(tmp_path):
+    (tmp_path / "mrl.yaml").write_text(__import__("yaml").dump(MULTI_REL_YAML))
+    return load_registry(tmp_path)
+
+
+def test_render_for_kind_multi_relationship_br_separator(multi_rel_registry):
+    md = render_for_kind("general", multi_rel_registry)
+    # Two relationships in one cell must be joined with <br>
+    assert "<br>" in md
+
+
+# ---------------------------------------------------------------------------
+# Material icon badges (distinct per RFC 2119 level)
+# ---------------------------------------------------------------------------
+
+
+def test_render_for_kind_must_material_icon(general_registry):
+    md = render_for_kind("general", general_registry)
+    assert ":material-check-all:" in md
+
+
+def test_render_for_kind_must_not_material_icon(general_registry):
+    md = render_for_kind("general", general_registry)
+    assert ":material-cancel:" in md
+
+
+def test_render_for_kind_should_material_icon(general_registry):
+    md = render_for_kind("general", general_registry)
+    assert ":material-check:" in md
+
+
+def test_render_for_kind_should_not_material_icon(general_registry):
+    md = render_for_kind("general", general_registry)
+    assert ":material-alert-outline:" in md
+
+
+def test_render_for_kind_may_material_icon(general_registry):
+    md = render_for_kind("general", general_registry)
+    assert ":material-information-outline:" in md
 
 
 # ---------------------------------------------------------------------------

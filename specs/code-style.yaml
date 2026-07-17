@@ -1,8 +1,6 @@
 id: CS
 title: Code Style Specifications
-description: 'Defines code formatting and import organization standards for Python code. **Consolidation note**: CI/CD enforcement
-  requirements (pre-commit hooks, CI pipeline pass criteria, parallel jobs) are consolidated in `tech-stack.md` (IMPLTS-07-001
-  through IMPLTS-07-006). This file covers formatting conventions and coding style standards only.'
+description: Defines code formatting, import organization, and coding style standards for Python code in the Vultron project.
 version: 1.0.0
 kind: language
 scope:

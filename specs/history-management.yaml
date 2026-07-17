@@ -1,10 +1,9 @@
 id: HM
 title: History File Management
 description: >-
-  Defines the structure, location, entry format, and tooling for managing
-  project history files. Replaces the monolithic append-only `plan/*HISTORY.md`
-  pattern with per-entry write-once files organized by month and type under
-  `plan/history/`, managed by the `append-history` CLI tool.
+  Defines the structure, location, entry format, and tooling for managing project history
+  files using per-entry write-once files organized by month and type, managed by the
+  `append-history` CLI tool.
 version: 1.2.0
 kind: dev-process
 scope:

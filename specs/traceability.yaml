@@ -2,7 +2,7 @@ id: TRACE
 title: Specification Traceability
 description: >-
   Requirements for maintaining the traceability matrix that maps user stories to specification
-  requirements. `docs/topics/user_stories/`
+  requirements, including coverage flagging and maintenance obligations.
 version: 1.0.0
 kind: implementation
 scope:

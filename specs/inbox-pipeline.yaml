@@ -1,13 +1,10 @@
 id: IBP
 title: Inbox Pipeline
 description: >-
-  `InboxPipeline` is a small injectable class that exposes the full
-  `rehydrate → prepare_for_dispatch → _dispatch_or_defer` chain as a single
-  testable unit. It honours the existing `ActivityDispatcher` and `DataLayer`
-  ports so that tests can drive the real pipeline with in-memory adapters
-  instead of mocking internal functions.  The module-level `_DISPATCHER`
-  global in `inbox_handler.py` is unchanged; `InboxPipeline` is a parallel
-  surface for tests and future adapter variants.
+  Requirements for InboxPipeline, an injectable class that exposes the full rehydrate,
+  prepare-for-dispatch, and dispatch-or-defer chain as a single testable unit. Honours
+  the existing ActivityDispatcher and DataLayer ports so that tests can drive the real
+  pipeline with in-memory adapters.
 version: 1.0.0
 kind: implementation
 scope:

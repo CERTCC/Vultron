@@ -1,17 +1,11 @@
 id: SM
 title: State Machine
 description: >-
-  Requirements governing how the RM (Report Management), EM (Embargo Management), and CS (CVD
-  Case State: VFD and PXA axes) protocol state machines are defined, represented, and executed
-  at runtime. The Vultron protocol operates three interacting state machines, each tracking
-  a distinct aspect of the coordinated vulnerability disclosure lifecycle. Each participant
-  maintains its own RM state; the CaseActor maintains EM and Case State (CS) shared across
-  all participants. Within the CS axes, the EM state and the PXA (Public eXploit/Attack) axis
-  are shared across all participants via the CaseActor; the VFD (Vendor Fix Deployed) axis
-  is maintained strictly per-participant, since each vendor's fix deployment status is independent.
-  `docs/adr/0013-unify-rm-state-tracking.md`, `specs/vultron-protocol-spec.md` tracking),
-  `behavior-tree-integration.md` BT-06 (BT-driven transitions), `handler-protocol.md` HP-00
-  (activities as state-change notifications), `vultron-protocol-spec.md` VP-01 through VP-13
+  Requirements governing how the RM (Report Management), EM (Embargo Management), and CS
+  (CVD Case State: VFD and PXA axes) protocol state machines are defined, represented, and
+  executed at runtime. Each participant maintains its own RM state; the CaseActor maintains
+  shared EM and Case State. Within CS, the PXA axis is shared across participants while the
+  VFD axis is per-participant.
 version: 1.0.0
 kind: domain
 scope:

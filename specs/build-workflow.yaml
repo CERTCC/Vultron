@@ -1,17 +1,10 @@
 id: BW
 title: Build Workflow Learnings Policy
 description: >-
-  Defines the content policy for `plan/incoming/learnings/` — the
-  per-entry incoming queue used by the `build` and `bugfix` skills to
-  pass implementation observations upstream to the `learn` skill. Each
-  observation is a separate file with YAML frontmatter matching the
-  history entry format. This eliminates merge conflicts that occurred
-  with the legacy `plan/BUILD_LEARNINGS.md` shared flat file and gives
-  each entry a clear lifecycle: created in the PR that surfaces the
-  learning, promoted by `learn`, then moved to `plan/history/YYMM/learning/`
-  via `uv run append-history --from-file`. Covers what belongs in the
-  queue, what must not go there, file naming and format, how `learn`
-  processes and archives entries, and the `learning` history entry type.
+  Defines the content policy for the per-entry incoming learnings queue used by the build
+  and bugfix skills to pass implementation observations upstream to the learn skill. Covers
+  what belongs in the queue, what must not go there, file naming and format, how the learn
+  skill processes and archives entries, and the learning history entry type.
 version: 2.0.0
 kind: dev-process
 scope:

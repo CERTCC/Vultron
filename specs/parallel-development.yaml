@@ -1,12 +1,10 @@
 id: PAD
 title: Parallel Agentic Development
 description: >-
-  Requirements for coordinating multiple parallel AI agents and human developers
-  via GitHub Issues. Defines the issue hierarchy, label taxonomy, task claiming
-  protocol, size labeling, orphan recovery, and the revised workflows for the
-  build, ingest-idea, review-priorities, and update-plan skills. Distinct from
-  agentic-readiness.yaml (AR), which covers making the Vultron protocol code
-  itself integrable with external agentic tools.
+  Requirements for coordinating multiple parallel AI agents and human developers via
+  GitHub Issues. Defines the issue hierarchy, label taxonomy, task claiming protocol,
+  size labeling, orphan recovery, and revised workflows for the build, ingest-idea,
+  review-priorities, and update-plan skills.
 version: 1.0.0
 kind: dev-process
 scope:

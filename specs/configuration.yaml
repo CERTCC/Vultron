@@ -1,11 +1,9 @@
 id: CFG
 title: Configuration Management
 description: >-
-  This specification defines requirements for unified, structured application configuration
-  in Vultron. Configuration MUST use YAML files (for human readability) backed by Pydantic-based
-  models (for type safety and schema clarity), loaded via `pydantic-settings` with environment
-  variable override support. `SeedConfig` demo/seed config. Demo scenario actor URLs (finder,
-  vendor, etc.) are out of scope for `AppConfig`.
+  Requirements for unified, structured application configuration in Vultron. Configuration
+  uses YAML files backed by Pydantic-based models loaded via pydantic-settings with
+  environment variable override support.
 version: 1.0.0
 kind: implementation
 scope:

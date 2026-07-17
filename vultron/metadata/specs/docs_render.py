@@ -27,13 +27,14 @@ from vultron.metadata.specs.schema import (
     SpecTag,
 )
 
-# Maps RFC2119 priority to a MkDocs Material badge string.
+# Maps RFC2119 priority to a distinct Material icon + bold label.
+# Icons are chosen to convey the strength of the obligation at a glance.
 _PRIORITY_BADGE: dict[RFC2119Priority, str] = {
-    RFC2119Priority.MUST: ":octicons-dot-fill-24:{ .must } **MUST**",
-    RFC2119Priority.MUST_NOT: ":octicons-dot-fill-24:{ .must-not } **MUST NOT**",
-    RFC2119Priority.SHOULD: ":octicons-dot-fill-24:{ .should } **SHOULD**",
-    RFC2119Priority.SHOULD_NOT: ":octicons-dot-fill-24:{ .should-not } **SHOULD NOT**",
-    RFC2119Priority.MAY: ":octicons-dot-fill-24:{ .may } **MAY**",
+    RFC2119Priority.MUST: ":material-check-all: **MUST**",
+    RFC2119Priority.MUST_NOT: ":material-cancel: **MUST NOT**",
+    RFC2119Priority.SHOULD: ":material-check: **SHOULD**",
+    RFC2119Priority.SHOULD_NOT: ":material-alert-outline: **SHOULD NOT**",
+    RFC2119Priority.MAY: ":material-information-outline: **MAY**",
 }
 
 # Relationship type label → human-readable prefix
@@ -78,15 +79,17 @@ def _cross_link(
     return f"[{spec_id}](../{slug}/#{anchor})"
 
 
-def _render_relationships(
-    lines: list[str],
+def _render_relationships_cell(
     spec: Spec,
     registry: SpecRegistry,
     current_kind: SpecKind,
-) -> None:
-    for rel in spec.relationships or []:
+) -> str:
+    """Return the Related cell content for a spec table row."""
+    if not spec.relationships:
+        return ""
+    parts = []
+    for rel in spec.relationships:
         label = _REL_LABEL.get(rel.rel_type, rel.rel_type.value)
-        # Resolve target kind from registry if possible; fall back to current
         try:
             target_kind = registry.get_effective_kind(rel.spec_id)
         except KeyError:
@@ -94,91 +97,102 @@ def _render_relationships(
         else:
             target = _cross_link(rel.spec_id, target_kind, current_kind)
         note = f" — {rel.note}" if rel.note else ""
-        lines.append(f"    - *{label}*: {target}{note}")
+        parts.append(f"*{label}*: {target}{note}")
+    return "<br>".join(parts)
 
 
-def _render_preconditions(lines: list[str], spec: BehavioralSpec) -> None:
+def _render_preconditions_lines(
+    lines: list[str], spec: BehavioralSpec
+) -> None:
     if not spec.preconditions:
         return
-    lines.append("        **Preconditions**")
+    lines.append("**Preconditions**")
     lines.append("")
     for pc in spec.preconditions:
-        lines.append(f"        - {pc.description}")
+        lines.append(f"- {pc.description}")
         if pc.rm_state:
-            states = ", ".join(s.value for s in pc.rm_state)
-            lines.append(f"          - RM state: `{states}`")
+            lines.append(
+                f"    - RM state: `{', '.join(s.value for s in pc.rm_state)}`"
+            )
         if pc.em_state:
-            states = ", ".join(s.value for s in pc.em_state)
-            lines.append(f"          - EM state: `{states}`")
+            lines.append(
+                f"    - EM state: `{', '.join(s.value for s in pc.em_state)}`"
+            )
         if pc.role:
-            roles = ", ".join(r.value for r in pc.role)
-            lines.append(f"          - Role: `{roles}`")
+            lines.append(
+                f"    - Role: `{', '.join(r.value for r in pc.role)}`"
+            )
         if pc.cs_pattern:
-            lines.append(f"          - CS pattern: `{pc.cs_pattern}`")
+            lines.append(f"    - CS pattern: `{pc.cs_pattern}`")
     lines.append("")
 
 
-def _render_steps(lines: list[str], spec: BehavioralSpec) -> None:
+def _render_steps_lines(lines: list[str], spec: BehavioralSpec) -> None:
     if not spec.steps:
         return
-    lines.append("        **Steps**")
+    lines.append("**Steps**")
     lines.append("")
     for step in spec.steps:
         expected = f" → {step.expected}" if step.expected else ""
-        lines.append(
-            f"        {step.order}. [{step.actor}] {step.action}{expected}"
-        )
+        lines.append(f"{step.order}. [{step.actor}] {step.action}{expected}")
     lines.append("")
 
 
-def _render_postconditions(lines: list[str], spec: BehavioralSpec) -> None:
+def _render_postconditions_lines(
+    lines: list[str], spec: BehavioralSpec
+) -> None:
     if not spec.postconditions:
         return
-    lines.append("        **Postconditions**")
+    lines.append("**Postconditions**")
     lines.append("")
     for pc in spec.postconditions:
-        lines.append(f"        - {pc.description}")
+        lines.append(f"- {pc.description}")
     lines.append("")
 
 
-def _render_behavioral(lines: list[str], spec: BehavioralSpec) -> None:
+def _render_behavioral_cell(spec: BehavioralSpec) -> str:
+    """Return inline collapsible ECA details for embedding in a table cell."""
     if not any([spec.preconditions, spec.steps, spec.postconditions]):
-        return
+        return ""
+    lines: list[str] = []
+    lines.append("<details><summary>ECA Details</summary>")
     lines.append("")
-    lines.append('    ??? details "ECA Details"')
-    lines.append("")
-    _render_preconditions(lines, spec)
-    _render_steps(lines, spec)
-    _render_postconditions(lines, spec)
+    _render_preconditions_lines(lines, spec)
+    _render_steps_lines(lines, spec)
+    _render_postconditions_lines(lines, spec)
+    lines.append("</details>")
+    return "<br>".join(lines)
 
 
-def _is_behavioral_file(spec_file: SpecFile) -> bool:
-    return any(
-        isinstance(spec, BehavioralSpec)
-        for group in spec_file.groups
-        for spec in group.specs
-    )
+def _render_requirement_cell(
+    spec: Spec,
+) -> str:
+    """Return the Requirement cell content for a spec table row."""
+    cell = spec.statement
+    if spec.rationale:
+        cell += f"<br><br>*{spec.rationale}*"
+    if isinstance(spec, BehavioralSpec):
+        eca = _render_behavioral_cell(spec)
+        if eca:
+            cell += "<br><br>" + eca
+    return cell
 
 
-def _has_behavioral_tag(spec_file: SpecFile) -> bool:
-    return SpecTag.BEHAVIORAL in (spec_file.tags or [])
-
-
-def _render_spec(
-    lines: list[str],
+def _render_spec_row(
     spec: Spec,
     registry: SpecRegistry,
     current_kind: SpecKind,
-) -> None:
-    badge = _PRIORITY_BADGE[spec.priority]
+) -> str:
+    """Return a single markdown table row for *spec*."""
     anchor = _spec_anchor(spec.id)
-    lines.append(f'<a id="{anchor}"></a>')
-    lines.append(f"- **`{spec.id}`** {badge} {spec.statement}")
-    if spec.rationale:
-        lines.append(f"    - *Rationale*: {spec.rationale}")
-    if isinstance(spec, BehavioralSpec):
-        _render_behavioral(lines, spec)
-    _render_relationships(lines, spec, registry, current_kind)
+    id_cell = f'<a id="{anchor}"></a>`{spec.id}`'
+    priority_cell = _PRIORITY_BADGE[spec.priority]
+    requirement_cell = _render_requirement_cell(spec)
+    related_cell = _render_relationships_cell(spec, registry, current_kind)
+    # Escape pipe chars inside cells to avoid breaking the table
+    requirement_cell = requirement_cell.replace("|", "&#124;")
+    related_cell = related_cell.replace("|", "&#124;")
+    return f"| {id_cell} | {priority_cell} | {requirement_cell} | {related_cell} |"
 
 
 def _render_group(
@@ -198,8 +212,11 @@ def _render_group(
         trigger_type = group.trigger.type.value.replace("_", " ").title()
         lines.append(f"*Trigger*: {trigger_type} — `{group.trigger.value}`")
         lines.append("")
+    # Table header
+    lines.append("| ID | Priority | Requirement | Related |")
+    lines.append("|---|---|---|---|")
     for spec in group.specs:
-        _render_spec(lines, spec, registry, current_kind)
+        lines.append(_render_spec_row(spec, registry, current_kind))
     lines.append("")
 
 
@@ -228,6 +245,18 @@ def _render_file(
         _render_group(
             lines, group, registry, current_kind, heading=group_heading
         )
+
+
+def _is_behavioral_file(spec_file: SpecFile) -> bool:
+    return any(
+        isinstance(spec, BehavioralSpec)
+        for group in spec_file.groups
+        for spec in group.specs
+    )
+
+
+def _has_behavioral_tag(spec_file: SpecFile) -> bool:
+    return SpecTag.BEHAVIORAL in (spec_file.tags or [])
 
 
 def render_for_kind(kind: str, registry: SpecRegistry) -> str:

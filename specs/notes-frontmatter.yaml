@@ -1,10 +1,8 @@
 id: NF
 title: Notes Frontmatter
 description: >-
-  This specification defines requirements for YAML frontmatter in `notes/*.md` files: the
-  required schema, a Pydantic-based loader in `vultron/metadata/`, validation enforcement,
-  and migration requirements. parallel but separate concern; this spec covers the notes side
-  only. A shared `vultron/metadata/base.py` holds common vocabulary.
+  Requirements for YAML frontmatter in notes files, covering the required schema, a
+  Pydantic-based loader, validation enforcement, and migration requirements.
 version: 1.0.0
 kind: implementation
 scope:

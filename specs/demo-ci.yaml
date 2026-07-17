@@ -2,10 +2,9 @@ id: DEMOCI
 title: Demo CI — GitHub Actions Demo Integration Workflow
 description: >-
   Requirements for a GitHub Actions workflow that builds and runs Vultron demo
-  containers on pull requests against main, and for hardening the demo runner
-  to exit non-zero when the demo fails. Closes the gap where all pytest tests
-  can pass while the actual demo produces 404 errors or other silent failures
-  (see issue #557). Source: IDEA-560.
+  containers on pull requests, and for hardening the demo runner to exit non-zero
+  when the demo fails — closing the gap where tests pass while the demo produces
+  silent failures.
 version: 1.0.0
 kind: implementation
 scope:

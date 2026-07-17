@@ -2,10 +2,9 @@ id: AF
 title: Activity Factory Functions
 description: >-
   Requirements governing the factory function API for constructing outbound Vultron protocol
-  activities. Factory functions replace direct instantiation of Vultron activity subclasses
-  as the public construction API and are the sole import point for activity construction outside
-  the wire vocabulary layer. `vocabulary-model.md` VM-01 through VM-05 (vocabulary registration),
-  `code-style.md` CS-05-001 (layer separation), `error-handling.md`
+  activities. Factory functions are the sole public construction API for activity objects
+  outside the wire vocabulary layer, replacing direct subclass instantiation to enforce
+  consistent field population and layer separation.
 version: 1.0.0
 kind: domain
 scope:

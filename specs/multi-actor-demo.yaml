@@ -2,8 +2,7 @@ id: DEMOMA
 title: Multi-Actor Demo
 description: >-
   Requirements for multi-actor demo scenarios, Docker Compose orchestration, actor isolation,
-  acceptance testing, and reproducibility. `plan/PRIORITIES.md` PRIORITY 300 `specs/case-management.md`,
-  `specs/observability.md`
+  acceptance testing, and reproducibility.
 version: 1.0.0
 kind: implementation
 scope:

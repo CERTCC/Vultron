@@ -3,11 +3,8 @@ title: Vocabulary Model
 description: >-
   Requirements governing how ActivityStreams 2.0 vocabulary types are defined, registered,
   configured, and deserialized in the Vultron wire layer. The vocabulary model is the foundation
-  of the inbound pipeline: every activity that enters the system must be deserialized into
-  a known vocabulary type before semantic extraction can assign it a domain meaning. `vultron/wire/as2/rehydration.py`,
-  `notes/activitystreams-semantics.md`, `notes/architecture-hexagonal.md`, `semantic-extraction.md`
-  SE-01-002 (rehydration before extraction), `code-style.md` CS-07-001 (as_ prefix policy),
-  `object-ids.md` OID-01-001 (full-URI IDs)
+  of the inbound pipeline: every activity must be deserialized into a known vocabulary type
+  before semantic extraction can assign it a domain meaning.
 version: 1.0.0
 kind: domain
 scope:

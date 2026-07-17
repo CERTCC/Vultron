@@ -1,6 +1,6 @@
 id: CISEC
 title: CI Security
-description: Requirements for securing CI/CD workflows and GitHub Actions usage in the Vultron project. `.github/workflows/`
+description: Requirements for securing CI/CD workflows and GitHub Actions usage in the Vultron project.
 version: 1.0.0
 kind: general
 scope:

@@ -1,12 +1,8 @@
 id: OB
 title: Observability
 description: >-
-  Observability enables operators to understand system behavior, diagnose issues, and monitor
-  health. This specification focuses on **health check endpoints** and high-level observability
-  architecture. **Status**: - **Minimal scope**: Only 2 active requirements (health checks);
-  most observability concerns consolidated elsewhere - **Logging requirements**: Consolidated
-  in `specs/structured-logging.md` (supersedes OB-01 through OB-04, OB-06) - **Metrics and
-  distributed tracing**: Deferred to future implementation
+  Requirements for health check endpoints and high-level observability architecture, enabling
+  operators to understand system behavior, diagnose issues, and monitor health.
 version: 1.0.0
 kind: general
 scope:

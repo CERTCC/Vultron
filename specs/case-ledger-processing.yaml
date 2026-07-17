@@ -1,12 +1,11 @@
 id: CLP
 title: Case Ledger Processing
 description: >-
-  Requirements for participant assertions, CaseActor canonicalization, local case audit ledgering,
-  recorded-history projection, and replication-facing `CaseLedgerEntry` objects. `notes/activitystreams-semantics.md`,
-  `notes/case-state-model.md`, `notes/sync-ledger-replication.md` `specs/sync-ledger-replication.md`,
-  `specs/outbox.md`, `specs/message-validation.md`, `specs/idempotency.md` recording. Transport-layer
-  handling for malformed or unrouteable traffic that cannot be attached to a report or case
-  remains out of scope here.
+  Requirements for participant assertions, CaseActor canonicalization, local case audit
+  ledgering, recorded-history projection, and replication-facing CaseLedgerEntry objects.
+  Covers the commit authorization model, per-case genesis hash derivation, the canonical
+  entry criteria that separate the case ledger from the process log, and the CaseActor
+  inbox routing path that enables ledger entry authorship.
 version: 1.0.0
 kind: domain
 scope:
@@ -354,7 +353,8 @@ groups:
   description: >-
     Requirements for the end-to-end routing path that delivers protocol-significant
     activities to the CaseActor's inbox so the CaseActor can author canonical ledger
-    entries. Normative requirements generated from ADR-0021.
+    entries. Covers outbound addressing rules, ASGI self-delivery, and the pre-flight
+    guard that prevents non-CaseActor invocations from committing ledger entries.
   specs:
   - id: CLP-10-001
     priority: MUST

@@ -1,14 +1,11 @@
 id: DRPT
 title: Demo Scenario Report Tool
 description: >-
-  Requirements for a read-only command-line tool that parses the JSONL
-  case-ledger replica files produced by demo scenario runs and renders a
-  selective, human-readable report — "who did what to whom, with what activity,
-  in what order." Covers input discovery, the distilled intermediate data model,
-  markdown and self-contained HTML rendering, the per-actor replica-presence
-  matrix, friendly (non-URI) naming, and test requirements. Sourced from
-  IDEA-1286. Related: `demo-cli.yaml` (DC), `multi-actor-demo.yaml` (DEMOMA),
-  `sync-ledger-replication.yaml` (SYNC), `case-ledger-processing.yaml` (CLP).
+  Requirements for a read-only command-line tool that parses the JSONL case-ledger
+  replica files produced by demo scenario runs and renders a selective, human-readable
+  report of who did what, with what activity, and in what order. Covers input discovery,
+  the distilled intermediate data model, markdown and HTML rendering, the per-actor
+  replica-presence matrix, friendly naming, and test requirements.
 version: 1.0.0
 kind: implementation
 scope:

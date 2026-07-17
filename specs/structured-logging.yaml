@@ -1,11 +1,10 @@
 id: SL
 title: Structured Logging Requirements
 description: >-
-  Consolidated logging requirements for Vultron API v2: log format, correlation IDs, log levels,
-  audit trail. **Consolidates**: `observability.md` (OB-01, OB-03, OB-04, OB-06), `error-handling.md`
-  (EH-04, EH-06), `inbox-endpoint.md` (IE-09)
+  Logging requirements for the Vultron API, covering log format, correlation IDs, log levels,
+  state transition logging, error context, and authorization and data-access audit records.
 version: 1.0.0
-kind: general
+kind: language
 scope:
 - prototype
 - production

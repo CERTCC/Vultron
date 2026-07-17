@@ -2,8 +2,8 @@ id: AR
 title: Agentic Readiness
 description: >-
   Requirements for API and CLI design that enable reliable interaction by automated agents
-  and AI systems. Ensures consistent, machine-parseable interfaces that support agentic workflows.
-  `structured-logging.md`, `observability.md`
+  and AI systems. Covers machine-parseable interfaces, structured response formats, and
+  observable behavior that supports agentic workflows.
 version: 1.0.0
 kind: pattern
 scope:

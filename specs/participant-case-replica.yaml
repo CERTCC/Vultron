@@ -2,14 +2,8 @@ id: PCR
 title: Participant Case Replica
 description: >-
   Requirements for how each Vultron Actor maintains and manages its local copy (replica) of
-  a `VulnerabilityCase`. Covers replica identity, bootstrap, update authority, case-context
-  message routing, reporter case discovery, and unknown-context handling. `specs/case-management.md`
-  CM-01-001, CM-02-002, CM-02-010, CM-06-001, CM-06-002; `specs/sync-ledger-replication.md` SYNC-02-001,
-  SYNC-02-003; `specs/actor-knowledge-model.md` AKM-01-001, AKM-01-002, AKM-02-001; `specs/response-format.md`
-  **Relationship to sync-ledger-replication.md**: This spec governs the *participant replica
-  lifecycle* (bootstrap, authority, routing). The SYNC spec governs the *log replication transport*
-  (hash-chain, per-peer state, `Announce(CaseLedgerEntry)`). Both must be satisfied simultaneously;
-  neither supersedes the other.
+  a VulnerabilityCase. Covers replica identity, bootstrap, update authority, case-context
+  message routing, reporter case discovery, and unknown-context handling.
 version: 1.0.0
 kind: domain
 scope:

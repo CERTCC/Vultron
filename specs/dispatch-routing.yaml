@@ -5,7 +5,7 @@ description: >-
   use-case class. The dispatcher may execute use cases synchronously (DirectActivityDispatcher)
   or asynchronously (queue-based).
 version: 1.0.0
-kind: domain
+kind: implementation
 scope:
 - prototype
 - production

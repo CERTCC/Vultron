@@ -1,14 +1,11 @@
 id: BTC
 title: Behavior Tree Composability
 description: >-
-  Requirements for implementing Vultron's behavioral logic as composable, reusable BT structures
-  using the simulator as the canonical blueprint. These requirements address the *workflow*
-  of BT composition: how to use the simulator reference, where structures must live, when
-  to use BT composite idioms instead of procedural code, and the fractal composability principle
-  that applies at every depth. - `specs/behavior-tree-integration.md` BT-06-001 through BT-06-006
-  — when to use BTs, protocol-significant behavior, cascade rules - `specs/behavior-tree-node-design.md`
-  BTND-01 through BTND-05 — node parameterization, composability, module ownership - `notes/bt-composability.md`
-  — implementation guidance, examples, and the fractal pattern in depth
+  Requirements for implementing Vultron's behavioral logic as composable, reusable BT
+  structures using the simulator as the canonical blueprint. Covers the workflow of BT
+  composition: how to use the simulator reference, where structures must live, when to
+  use BT composite idioms instead of procedural code, and the fractal composability
+  principle that applies at every depth.
 version: 1.0.0
 kind: pattern
 scope:

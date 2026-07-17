@@ -3,8 +3,7 @@ title: Encryption
 description: >-
   Requirements for encrypted messaging and actor key management using ActivityPub extension
   conventions. Ensures that sensitive vulnerability information can be protected in transit
-  between actors. implemented in the prototype. `case-management.md`, `inbox-endpoint.md`,
-  `semantic-extraction.md`
+  between actors.
 version: 1.0.0
 kind: domain
 scope:

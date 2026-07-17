@@ -1,9 +1,9 @@
 id: BTND
 title: Behavior Tree Node Design
 description: >-
-  Formal requirements for BT node parameterization, composability, and reuse in `vultron/core/behaviors/`.
-  These requirements operationalize the fractal composability pattern described in `notes/bt-reusability.md`.
-  *when-to-use BTs* and *execution model* requirements live in `specs/behavior-tree-integration.md`.
+  Formal requirements for BT node parameterization, composability, and reuse in the core
+  behaviors package. Covers node context injection, blackboard hygiene, module ownership,
+  and the fractal composability pattern that applies at every depth of the tree hierarchy.
 version: 1.0.0
 kind: pattern
 scope:

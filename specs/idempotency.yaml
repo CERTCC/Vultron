@@ -1,9 +1,8 @@
 id: ID
 title: Idempotency
 description: >-
-  The system must handle duplicate activity submissions gracefully, ensuring repeated identical
-  requests produce the same outcome without unintended side effects. **Consolidates**: `inbox-endpoint.md`
-  IE-10-001, `message-validation.md` MV-08-001, `handler-protocol.md` HP-07-001
+  Requirements for handling duplicate activity submissions gracefully, ensuring repeated
+  identical requests produce the same outcome without unintended side effects.
 version: 1.0.0
 kind: general
 scope:
