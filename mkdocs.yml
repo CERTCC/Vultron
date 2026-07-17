@@ -121,6 +121,13 @@ nav:
       - Messages: 'reference/formal_protocol/messages.md'
       - Transitions: 'reference/formal_protocol/transitions.md'
       - Protocol Summary: 'reference/formal_protocol/conclusion.md'
+    - Specifications:
+      - General: 'reference/specs/general.md'
+      - Pattern: 'reference/specs/pattern.md'
+      - Domain: 'reference/specs/domain.md'
+      - Language: 'reference/specs/language.md'
+      - Implementation: 'reference/specs/implementation.md'
+      - Dev Process: 'reference/specs/dev-process.md'
     - Case States:
       - 'reference/case_states/index.md'
       - vfdpxa: 'reference/case_states/state_vfdpxa.md'
@@ -258,6 +265,8 @@ not_in_nav: |
   *diagram*.md
   *table*.md
   *.ttl
+  codebase/**
+  reference/codebase/**
   # Maintainer/agent-facing pages intentionally excluded from the published nav
   agents/*.md
   developer/**/*.md

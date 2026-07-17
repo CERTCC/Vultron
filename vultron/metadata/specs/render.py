@@ -223,15 +223,18 @@ def _group_to_dict(group: SpecGroup, file: SpecFile) -> dict:
 
 def _file_to_dict(spec_file: SpecFile) -> dict:
     """Serialize a SpecFile to a dict with only authored fields."""
-    return {
+    d: dict = {
         "id": spec_file.id,
         "title": spec_file.title,
         "description": spec_file.description,
         "version": spec_file.version,
         "kind": spec_file.kind.value,
         "scope": [s.value for s in spec_file.scope],
-        "groups": [_group_to_dict(g, spec_file) for g in spec_file.groups],
     }
+    if spec_file.tags is not None:
+        d["tags"] = [t.value for t in spec_file.tags]
+    d["groups"] = [_group_to_dict(g, spec_file) for g in spec_file.groups]
+    return d
 
 
 class _YamlDumper(yaml.SafeDumper):
