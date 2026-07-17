@@ -71,6 +71,19 @@ ISSUE_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
   --issue-type-id "IT_kwDOAjf0s84B_EoA")
 ```
 
+### Phase 0b — Sync
+
+Move the worktree HEAD to `origin/main` before loading any context, so all
+planning (orient, deepen-context, grill-me) is based on the current state of
+specs and notes. Do **not** use `git checkout main` — that branch may be
+checked out in another worktree.
+
+```bash
+git fetch origin main && git reset --hard origin/main
+```
+
+If this fails, stop and investigate before proceeding.
+
 ### Phase 1 — Read and Validate
 
 ```bash
@@ -145,12 +158,12 @@ If the interview surfaces focus areas not covered in Phase 3, invoke
 
 ### Phase 4b — Create Task Branch (if docs changes are expected)
 
-If grill-me established that Phase 5 will produce file writes, create the
-branch **before** writing any files:
+If grill-me established that Phase 5 will produce file writes, re-sync to
+catch any updates that landed during the planning session, then create the
+branch:
 
 ```bash
-bash .agents/skills/shared/sync-check.sh \
-  || { echo "❌ Aborted — sync check failed." >&2; exit 1; }
+git fetch origin main && git reset --hard origin/main
 git switch -c "plan/${ISSUE_NUMBER}-<slug>"
 ```
 
@@ -267,12 +280,14 @@ See the loaded companion file for the type-specific completion step:
 ## Checklist
 
 - [ ] Issue identified (user-specified or selected from list)
+- [ ] Worktree reset to `origin/main` (Phase 0b — planning baseline)
 - [ ] Issue body fetched; type auto-detected (Idea, Concern, or Epic); issue is open
 - [ ] Type-specific companion file loaded (`idea.md`, `concern.md`, or `epic.md`)
 - [ ] `orient-agent` invoked
 - [ ] `deepen-context` invoked with focus hints from the issue
 - [ ] All grill-me branches resolved (shared + type-specific)
 - [ ] `deepen-context` re-invoked if new focus areas emerged during grilling
+- [ ] Worktree re-synced to `origin/main` before branch creation (Phase 4b — catches updates during planning session)
 - [ ] Task branch created (`plan/<N>-<slug>`) — if docs changes expected
 - [ ] Docs updated — optional for all types (or consciously skipped with a note)
 - [ ] Markdown lint clean (if docs changed)
