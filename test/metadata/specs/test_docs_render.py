@@ -348,6 +348,42 @@ def test_spec_file_tags_none_by_default(general_registry):
 
 
 # ---------------------------------------------------------------------------
+# BehavioralSpec validator does not shadow StatementSpec validator
+# ---------------------------------------------------------------------------
+
+
+def test_behavioral_spec_empty_scope_raises():
+    """BehavioralSpec must still reject scope=[] (parent validator not shadowed)."""
+    from vultron.metadata.specs.schema import BehavioralSpec, RFC2119Priority
+
+    with pytest.raises(Exception):
+        BehavioralSpec(
+            id="BHV-01-001",
+            priority=RFC2119Priority.MUST,
+            statement="test",
+            scope=[],
+        )
+
+
+def test_behavioral_spec_empty_preconditions_raises():
+    """BehavioralSpec rejects preconditions=[] via its own validator."""
+    from vultron.metadata.specs.schema import (
+        BehavioralSpec,
+        RFC2119Priority,
+        Scope,
+    )
+
+    with pytest.raises(Exception):
+        BehavioralSpec(
+            id="BHV-01-001",
+            priority=RFC2119Priority.MUST,
+            statement="test",
+            scope=[Scope.PRODUCTION],
+            preconditions=[],
+        )
+
+
+# ---------------------------------------------------------------------------
 # All SpecKind values produce output via real registry
 # ---------------------------------------------------------------------------
 
