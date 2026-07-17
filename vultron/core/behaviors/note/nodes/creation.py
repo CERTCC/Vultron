@@ -93,19 +93,24 @@ class AttachNoteFromResultNode(DataLayerAction):
         self.case_id = case_id
         self.result_out = result_out
 
-    def update(self) -> Status:
+    def _read_note_id(self) -> str | None:
         note_id = self.result_out.get("note_id")
         if not note_id:
             self.feedback_message = "note_id not available in result_out"
             self.logger.error(f"{self.name}: {self.feedback_message}")
+        return note_id or None
+
+    def update(self) -> Status:
+        note_id = self._read_note_id()
+        if note_id is None:
             return Status.FAILURE
 
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
+        fail = self._require_datalayer()
+        if fail is not None:
             self.logger.error(f"{self.name}: {self.feedback_message}")
-            return Status.FAILURE
+            return fail
 
-        case: Any = self.datalayer.read(self.case_id)
+        case: Any = self.datalayer.read(self.case_id)  # type: ignore[union-attr]
         if not is_case_model(case):
             self.feedback_message = f"case '{self.case_id}' not found"
             self.logger.warning(f"{self.name}: {self.feedback_message}")
@@ -120,7 +125,7 @@ class AttachNoteFromResultNode(DataLayerAction):
             return Status.SUCCESS
 
         case.notes.append(note_id)
-        self.datalayer.save(case)
+        self.datalayer.save(case)  # type: ignore[union-attr]
         self.logger.info(
             f"{self.name}: Attached note '{note_id}' to case '{self.case_id}'"
         )

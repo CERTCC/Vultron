@@ -67,48 +67,50 @@ class _EmitCaseActorReportActivityBase(DataLayerAction):
         """
         raise NotImplementedError
 
-    def update(self) -> Status:
-        """Create and queue the report-phase activity.
+    def _compute_addressees(self) -> list[str] | None:
+        """Resolve and validate outbound recipients; return None to fail."""
+        assert self.datalayer is not None and self.actor_id is not None
+        offer = self.datalayer.read(self.offer_id)
+        addressees = _compute_report_addressees(
+            self.report_id,
+            self.actor_id,
+            offer,
+            cast(CaseOutboxPersistence, self.datalayer),
+        )
+        if not addressees:
+            self.feedback_message = (
+                f"no routable recipients for report activity"
+                f" (offer_id={self.offer_id}, report_id={self.report_id},"
+                f" actor_id={self.actor_id})"
+            )
+            self.logger.error("%s: %s", self.name, self.feedback_message)
+        return addressees
 
-        Returns:
-            SUCCESS if activity created and outbox updated, FAILURE on error.
-        """
-        if self.datalayer is None or self.actor_id is None:
+    def _validate_context(self) -> Status | None:
+        if (f := self._require_datalayer_and_actor()) is not None:
             self.logger.error(
                 "%s: DataLayer or actor_id not available", self.name
             )
-            return Status.FAILURE
-
-        if self.trigger_activity_factory is None:
+            return f
+        if (f := self._require_factory()) is not None:
             self.logger.warning(
                 "%s: no TriggerActivityPort — cannot emit report activity",
                 self.name,
             )
-            return Status.FAILURE
+            return f
+        return None
 
+    def update(self) -> Status:
+        """Create and queue the report-phase activity."""
+        if (f := self._validate_context()) is not None:
+            return f
         try:
-            offer = self.datalayer.read(self.offer_id)
-            addressees = _compute_report_addressees(
-                self.report_id,
-                self.actor_id,
-                offer,
-                cast(CaseOutboxPersistence, self.datalayer),
-            )
+            addressees = self._compute_addressees()
             if not addressees:
-                self.logger.error(
-                    "%s: no routable recipients for report activity"
-                    " (offer_id=%s, report_id=%s, actor_id=%s)",
-                    self.name,
-                    self.offer_id,
-                    self.report_id,
-                    self.actor_id,
-                )
                 return Status.FAILURE
-
-            activity_id, _ = self._call_factory(self.actor_id, addressees)
-
+            activity_id, _ = self._call_factory(self.actor_id, addressees)  # type: ignore[arg-type]
             cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, activity_id
+                self.actor_id, activity_id  # type: ignore[arg-type]
             )
             self.logger.info(
                 "Actor '%s' emitted %s for offer '%s'",
@@ -117,13 +119,8 @@ class _EmitCaseActorReportActivityBase(DataLayerAction):
                 self.offer_id,
             )
             return Status.SUCCESS
-
         except Exception as e:
-            self.logger.error(
-                "%s: Error emitting activity: %s",
-                self.name,
-                e,
-            )
+            self.logger.error("%s: Error emitting activity: %s", self.name, e)
             return Status.FAILURE
 
 
@@ -285,29 +282,38 @@ class EmitSubmitReportActivity(DataLayerAction):
         self.recipient_id = recipient_id
         self._captured = captured
 
-    def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
+    def _call_factory(self) -> tuple[str, dict]:
+        """Call submit_report on the factory. Raises on error."""
+        assert self.trigger_activity_factory is not None
+        assert self.actor_id is not None
+        return self.trigger_activity_factory.submit_report(
+            report_id=self.report_id,
+            actor=self.actor_id,
+            to=self.recipient_id,
+            target=self.recipient_id,
+        )
+
+    def _validate_context(self) -> Status | None:
+        if (f := self._require_datalayer_and_actor()) is not None:
             self.logger.error(
                 "%s: DataLayer or actor_id not available", self.name
             )
-            return Status.FAILURE
-
-        if self.trigger_activity_factory is None:
+            return f
+        if (f := self._require_factory()) is not None:
             self.logger.warning(
                 "%s: no TriggerActivityPort — cannot emit SubmitReport offer",
                 self.name,
             )
-            return Status.FAILURE
+            return f
+        return None
 
+    def update(self) -> Status:
+        if (f := self._validate_context()) is not None:
+            return f
         try:
-            offer_id, offer_dict = self.trigger_activity_factory.submit_report(
-                report_id=self.report_id,
-                actor=self.actor_id,
-                to=self.recipient_id,
-                target=self.recipient_id,
-            )
+            offer_id, offer_dict = self._call_factory()
             cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, offer_id
+                self.actor_id, offer_id  # type: ignore[arg-type]
             )
             if self._captured is not None:
                 self._captured["offer"] = offer_dict
@@ -318,7 +324,6 @@ class EmitSubmitReportActivity(DataLayerAction):
                 self.recipient_id,
             )
             return Status.SUCCESS
-
         except Exception as e:
             self.logger.error(
                 "%s: Error emitting submit-report offer: %s", self.name, e

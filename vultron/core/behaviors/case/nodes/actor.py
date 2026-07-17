@@ -101,71 +101,64 @@ class EmitInviteActorToCaseNode(DataLayerAction):
             pass
         return None
 
-    def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.feedback_message = "DataLayer or actor_id not available"
-            return Status.FAILURE
-
-        factory = self.trigger_activity_factory
-        if factory is None:
-            self.feedback_message = (
-                "trigger_activity_factory not in blackboard"
-            )
-            self.logger.error(self.feedback_message)
-            return Status.FAILURE
-
-        # Add case_actor_id to cc: so ASGI self-delivery routes the Invite
-        # to the CaseActor's inbox for canonical ledger archival (CLP-10-001).
+    def _emit(self, factory: Any) -> tuple[str, dict]:
+        """Build the Invite activity and commit the ledger correlation marker."""
         cc = [self.case_actor_id] if self.case_actor_id else None
-
-        # CM-17-003: read intended roles for the invitee.
         roles = self._read_suggested_roles()
         if roles is not None and not roles:
-            self.feedback_message = (
-                f"suggested_roles for actor '{self.invitee_id}' is empty "
-                "— cannot emit Invite(Actor, Case) without at least one role"
+            raise ValueError(
+                f"suggested_roles for actor '{self.invitee_id}' is empty"
+                " — cannot emit Invite(Actor, Case) without at least one role"
             )
-            self.logger.error(self.feedback_message)
-            return Status.FAILURE
-
         # CM-17-002: pass the full case object so the adapter+factory can
         # project it to an enriched stub (with end_time) when em_state==ACTIVE.
+        assert self.datalayer is not None and self.actor_id is not None
         case = self.datalayer.read(self.case_id)
+        activity_id, activity_dict = factory.invite_actor_to_case(
+            invitee_id=self.invitee_id,
+            case_id=self.case_id,
+            actor=self.actor_id,
+            to=[self.invitee_id],
+            cc=cc,
+            attributed_to=self.attributed_to,
+            roles=roles,
+            target=case if is_case_model(case) else None,
+        )
+        # Commit a local correlation marker first so duplicate checks work
+        # on retry even if the outbox write below fails (CM-16-009/AC-7a).
+        # disposition="rejected" bypasses canonical-payload validation since
+        # Invite(Actor, Case) is not a canonical ledger event type.
+        commit_tree = create_commit_log_entry_tree(
+            case_id=self.case_id,
+            object_id=self.invitee_id,
+            event_type="invite_actor_to_case",
+            disposition="rejected",
+        )
+        result = BTBridge(
+            datalayer=cast(CaseOutboxPersistence, self.datalayer)
+        ).execute_with_setup(tree=commit_tree, actor_id=self.actor_id)
+        if result.status != Status.SUCCESS:
+            raise RuntimeError(
+                f"ledger correlation commit failed for"
+                f" invite_actor_to_case/{self.invitee_id}"
+            )
+        return activity_id, activity_dict
+
+    def update(self) -> Status:
+        fail = self._require_datalayer_and_actor()
+        if fail is not None:
+            return fail
+        fail = self._require_factory()
+        if fail is not None:
+            self.logger.error(self.feedback_message)
+            return fail
 
         try:
-            activity_id, activity_dict = factory.invite_actor_to_case(
-                invitee_id=self.invitee_id,
-                case_id=self.case_id,
-                actor=self.actor_id,
-                to=[self.invitee_id],
-                cc=cc,
-                attributed_to=self.attributed_to,
-                roles=roles,
-                target=case if is_case_model(case) else None,
+            activity_id, activity_dict = self._emit(
+                self.trigger_activity_factory
             )
-            # Commit a local correlation marker first so duplicate checks work
-            # on retry even if the outbox write below fails (CM-16-009/AC-7a).
-            # disposition="rejected" bypasses canonical-payload validation since
-            # Invite(Actor, Case) is not a canonical ledger event type.
-            commit_tree = create_commit_log_entry_tree(
-                case_id=self.case_id,
-                object_id=self.invitee_id,
-                event_type="invite_actor_to_case",
-                disposition="rejected",
-            )
-            result = BTBridge(
-                datalayer=cast(CaseOutboxPersistence, self.datalayer)
-            ).execute_with_setup(
-                tree=commit_tree,
-                actor_id=self.actor_id,
-            )
-            if result.status != Status.SUCCESS:
-                raise RuntimeError(
-                    f"ledger correlation commit failed for "
-                    f"invite_actor_to_case/{self.invitee_id}"
-                )
             cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, activity_id
+                self.actor_id, activity_id  # type: ignore[arg-type]
             )
             if self._captured is not None:
                 self._captured["activity"] = activity_dict
@@ -176,7 +169,6 @@ class EmitInviteActorToCaseNode(DataLayerAction):
                 self.case_id,
             )
             return Status.SUCCESS
-
         except Exception as e:
             self.feedback_message = f"EmitInviteActorToCase failed: {e}"
             self.logger.error(self.feedback_message)
@@ -200,26 +192,27 @@ class EmitAcceptCaseInviteNode(DataLayerAction):
         self.invite_id = invite_id
         self._captured = captured
 
-    def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.feedback_message = "DataLayer or actor_id not available"
-            return Status.FAILURE
+    def _emit(self) -> tuple[str, dict]:
+        assert self.trigger_activity_factory is not None
+        assert self.actor_id is not None
+        return self.trigger_activity_factory.accept_case_invite(
+            invite_id=self.invite_id,
+            actor=self.actor_id,
+        )
 
-        factory = self.trigger_activity_factory
-        if factory is None:
-            self.feedback_message = (
-                "trigger_activity_factory not in blackboard"
-            )
+    def update(self) -> Status:
+        fail = self._require_datalayer_and_actor()
+        if fail is not None:
+            return fail
+        fail = self._require_factory()
+        if fail is not None:
             self.logger.error(self.feedback_message)
-            return Status.FAILURE
+            return fail
 
         try:
-            activity_id, activity_dict = factory.accept_case_invite(
-                invite_id=self.invite_id,
-                actor=self.actor_id,
-            )
+            activity_id, activity_dict = self._emit()
             cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, activity_id
+                self.actor_id, activity_id  # type: ignore[arg-type]
             )
             if self._captured is not None:
                 self._captured["activity"] = activity_dict
@@ -229,7 +222,6 @@ class EmitAcceptCaseInviteNode(DataLayerAction):
                 self.invite_id,
             )
             return Status.SUCCESS
-
         except Exception as e:
             self.feedback_message = f"EmitAcceptCaseInvite failed: {e}"
             self.logger.error(self.feedback_message)
@@ -258,20 +250,23 @@ class AcceptCaseOwnershipTransferNode(DataLayerAction):
         self.case_id = case_id
         self.new_owner_id = new_owner_id
 
-    def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
-
+    def _read_case(self) -> Any | None:
+        assert self.datalayer is not None
         case = self.datalayer.read(self.case_id)
         if not is_case_model(case):
             self.feedback_message = f"case '{self.case_id}' not found"
-            self.logger.warning(
-                "%s: case '%s' not found",
-                self.name,
-                self.case_id,
-            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return None
+        return case
+
+    def update(self) -> Status:
+        fail = self._require_datalayer()
+        if fail is not None:
+            self.logger.error("%s: DataLayer not available", self.name)
+            return fail
+
+        case = self._read_case()
+        if case is None:
             return Status.FAILURE
 
         current_owner_id = _as_id(case.attributed_to)
@@ -285,7 +280,7 @@ class AcceptCaseOwnershipTransferNode(DataLayerAction):
             return Status.SUCCESS
 
         case.attributed_to = self.new_owner_id  # type: ignore[assignment]
-        self.datalayer.save(case)
+        self.datalayer.save(case)  # type: ignore[union-attr]
         self.logger.info(
             "%s: transferred ownership of case '%s' from '%s' to '%s'",
             self.name,
@@ -390,42 +385,48 @@ class ProposeCaseToActorNode(DataLayerAction):
             return raw
         return str(getattr(raw, "id_", raw))
 
-    def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.feedback_message = "DataLayer or actor_id not available"
-            return Status.FAILURE
-
-        factory = self.trigger_activity_factory
-        if factory is None:
-            self.feedback_message = (
-                "trigger_activity_factory not in blackboard"
+    def _build_proposal(self, case_id: str, case_actor_id: str) -> str | None:
+        """Call factory and enqueue outbox item; return activity_id or None."""
+        report_id = self._get_report_id(case_id)
+        if report_id is None:
+            return None
+        assert self.trigger_activity_factory is not None
+        assert self.actor_id is not None
+        try:
+            activity_id, _ = (
+                self.trigger_activity_factory.create_case_proposal(
+                    actor=self.actor_id,
+                    report_id=report_id,
+                    case_actor_id=case_actor_id,
+                )
             )
+        except Exception as exc:
+            self.feedback_message = f"create_case_proposal failed: {exc}"
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return None
+        cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
+            self.actor_id, activity_id
+        )
+        return activity_id
+
+    def update(self) -> Status:
+        fail = self._require_datalayer_and_actor()
+        if fail is not None:
+            return fail
+        fail = self._require_factory()
+        if fail is not None:
             self.logger.error("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
+            return fail
 
         ids = self._read_blackboard_ids()
         if ids is None:
             return Status.FAILURE
         case_id, case_actor_id = ids
 
-        report_id = self._get_report_id(case_id)
-        if report_id is None:
+        activity_id = self._build_proposal(case_id, case_actor_id)
+        if activity_id is None:
             return Status.FAILURE
 
-        try:
-            activity_id, _ = factory.create_case_proposal(
-                actor=self.actor_id,
-                report_id=report_id,
-                case_actor_id=case_actor_id,
-            )
-        except Exception as exc:
-            self.feedback_message = f"create_case_proposal failed: {exc}"
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-
-        cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-            self.actor_id, activity_id
-        )
         self.logger.info(
             "%s: Queued Create(as_CaseProposal) '%s' to outbox"
             " for case-actor '%s' (case '%s')",
