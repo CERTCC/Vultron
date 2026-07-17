@@ -16,16 +16,35 @@ from vultron.core.ports.case_persistence import (
     CasePersistence,
     CaseOutboxPersistence,
 )
-from vultron.core.use_cases._helpers import _as_id, _idempotent_create
+from vultron.core.use_cases._helpers import (
+    _as_id,
+    _idempotent_create,
+    add_activity_to_outbox,
+)
 from vultron.core.models.protocols import (
     PersistableModel,
     is_case_model,
 )
+from vultron.core.states.cs import CS_pxa
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
+
+
+def _pxa_embargo_ineligible(dl: CasePersistence, case_id: str) -> bool:
+    """Return True when P/X/A is set on the case (EMB-01-002, EMB-02-002).
+
+    Reads the case from the DataLayer; returns False (eligible) when the case
+    cannot be resolved so normal processing can continue.
+    """
+    case = dl.read(case_id)
+    if not is_case_model(case):
+        return False
+    pxa_state = CS_pxa(case.current_status.pxa_state)
+    return pxa_state != CS_pxa.pxa
 
 
 def _resolve_case_for_embargo_acceptance(
@@ -212,10 +231,12 @@ class InviteToEmbargoOnCaseReceivedUseCase:
         dl: CaseOutboxPersistence,
         request: InviteToEmbargoOnCaseReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: InviteToEmbargoOnCaseReceivedEvent = request
         self._sync_port = sync_port
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> None:
         from py_trees.common import Status
@@ -240,6 +261,39 @@ class InviteToEmbargoOnCaseReceivedUseCase:
                 "invite_to_embargo_on_case: missing receiving_actor_id"
                 " — skipping"
             )
+            return
+
+        # EMB-01-002: MUST NOT process EP when P/X/A is set; MUST emit ER.
+        if case_id and _pxa_embargo_ineligible(self._dl, case_id):
+            logger.info(
+                "invite_to_embargo_on_case: P/X/A set on case '%s'"
+                " — rejecting EP '%s' (EMB-01-002)",
+                case_id,
+                invite_id,
+            )
+            if self._trigger_activity is not None:
+                _idempotent_create(
+                    self._dl,
+                    request.activity_type,
+                    invite_id,
+                    request.activity,
+                    "InviteToEmbargoOnCase",
+                    invite_id,
+                )
+                reject_id, _ = self._trigger_activity.reject_embargo(
+                    proposal_id=invite_id,
+                    case_id=case_id,
+                    actor=receiving_actor_id,
+                    to=[request.actor_id],
+                )
+                add_activity_to_outbox(receiving_actor_id, reject_id, self._dl)
+            else:
+                logger.warning(
+                    "invite_to_embargo_on_case: trigger_activity unavailable"
+                    " — ER not emitted for EP '%s' on case '%s'",
+                    invite_id,
+                    case_id,
+                )
             return
 
         # Single BT execution under receiving_actor_id (ADR-0022 / CLP-10-005).
@@ -276,10 +330,12 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         dl: CaseOutboxPersistence,
         request: AcceptInviteToEmbargoOnCaseReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: AcceptInviteToEmbargoOnCaseReceivedEvent = request
         self._sync_port = sync_port
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> None:
         from py_trees.common import Status
@@ -313,6 +369,31 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         case_id = _case.id_
         accepting_actor_id = request.actor_id
         invite_id = request.invite_id or ""
+
+        # EMB-02-002: MUST NOT process EA to transition EM to Active when P/X/A
+        # is set; MUST emit ER instead.
+        if _pxa_embargo_ineligible(self._dl, case_id):
+            logger.info(
+                "accept_invite_to_embargo_on_case: P/X/A set on case '%s'"
+                " — rejecting EA (EMB-02-002)",
+                case_id,
+            )
+            if self._trigger_activity is not None and invite_id:
+                reject_id, _ = self._trigger_activity.reject_embargo(
+                    proposal_id=invite_id,
+                    case_id=case_id,
+                    actor=receiving_actor_id,
+                    to=[request.actor_id],
+                )
+                add_activity_to_outbox(receiving_actor_id, reject_id, self._dl)
+            else:
+                logger.warning(
+                    "accept_invite_to_embargo_on_case: trigger_activity"
+                    " unavailable or missing invite_id — ER not emitted"
+                    " for EA on case '%s'",
+                    case_id,
+                )
+            return
 
         # Single BT execution under receiving_actor_id (ADR-0022 / CLP-10-005).
         # accepting_actor_id is threaded into the tree as a node constructor arg

@@ -16,6 +16,8 @@ import logging
 from typing import Any, cast
 from unittest.mock import MagicMock
 
+import pytest
+
 from vultron.adapters.driven.db_record import StorableRecord
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -468,3 +470,273 @@ class TestEmbargoProposalLifecycle:
             SvcAcceptEmbargoUseCase(
                 dl, request, trigger_activity=TriggerActivityAdapter(dl)
             ).execute()
+
+
+# ---------------------------------------------------------------------------
+# Helpers shared by PXA guard tests
+# ---------------------------------------------------------------------------
+
+_PXA_INELIGIBLE_STATES = [
+    "Pxa",
+    "pXa",
+    "pxA",
+    "PXa",
+    "PxA",
+    "pXA",
+    "PXA",
+]
+
+
+def _make_pxa_case(
+    dl,
+    case_id: str,
+    coordinator_id: str,
+    embargo_id: str,
+    pxa_state_name: str,
+    em_state=EM.PROPOSED,
+):
+    """Return (case, embargo, proposal) with pxa_state set."""
+    from vultron.core.states.cs import CS_pxa
+    from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+
+    case = as_VulnerabilityCase(
+        id_=case_id,
+        name="PXA Guard Test",
+        attributed_to=coordinator_id,
+    )
+    case.current_status.em_state = em_state
+    case.current_status.pxa_state = CS_pxa[pxa_state_name]
+    embargo = as_EmbargoEvent(id_=embargo_id, content="PXA test embargo")
+    proposal = em_propose_embargo_activity(
+        embargo,
+        context=case.id_,
+        actor=coordinator_id,
+        id_=f"{case_id}/proposals/p1",
+    )
+    dl.create(case)
+    dl.create(embargo)
+    dl.create(proposal)
+    return case, embargo, proposal
+
+
+class TestInviteToEmbargoReceivedPxaGuard:
+    """EMB-01-002: EP received when P/X/A set — block processing and emit ER."""
+
+    COORD_ID = "https://example.org/actors/coord-ep-pxa"
+    CASE_ID = "https://example.org/cases/c-ep-pxa"
+    EMBARGO_ID = f"{CASE_ID}/embargo_events/e1"
+
+    @pytest.mark.parametrize("pxa_state_name", _PXA_INELIGIBLE_STATES)
+    def test_pxa_set_blocks_ep_processing(self, make_payload, pxa_state_name):
+        """invite_to_embargo_on_case does not run BT when P/X/A is set (EMB-01-002)."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case_id = f"{self.CASE_ID}/{pxa_state_name}"
+        embargo_id = f"{case_id}/embargo_events/e1"
+        case, embargo, proposal = _make_pxa_case(
+            dl,
+            case_id=case_id,
+            coordinator_id=self.COORD_ID,
+            embargo_id=embargo_id,
+            pxa_state_name=pxa_state_name,
+            em_state=EM.NONE,
+        )
+
+        event = make_payload(proposal, receiving_actor_id=self.COORD_ID)
+        InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+
+        # BT was not run: EM state must remain NONE (no PROPOSED transition)
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        updated = cast(as_VulnerabilityCase, dl.read(case.id_))
+        assert updated is not None
+        assert updated.current_status.em_state == EM.NONE
+
+    @pytest.mark.parametrize("pxa_state_name", _PXA_INELIGIBLE_STATES)
+    def test_pxa_set_emits_er_when_trigger_activity_provided(
+        self, make_payload, pxa_state_name
+    ):
+        """invite_to_embargo_on_case emits ER when trigger_activity is available and P/X/A set (EMB-01-002)."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case_id = f"{self.CASE_ID}/{pxa_state_name}/er"
+        embargo_id = f"{case_id}/embargo_events/e1"
+        case, embargo, proposal = _make_pxa_case(
+            dl,
+            case_id=case_id,
+            coordinator_id=self.COORD_ID,
+            embargo_id=embargo_id,
+            pxa_state_name=pxa_state_name,
+            em_state=EM.NONE,
+        )
+
+        trigger_activity = TriggerActivityAdapter(dl)
+        event = make_payload(proposal, receiving_actor_id=self.COORD_ID)
+        InviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, trigger_activity=trigger_activity
+        ).execute()
+
+        # ER activity must be in the outbox
+        outbox = dl.outbox_list_for_actor(self.COORD_ID)
+        assert len(outbox) == 1, f"Expected 1 ER in outbox; got {outbox}"
+
+    def test_pxa_clear_allows_ep_processing(self, make_payload):
+        """invite_to_embargo_on_case runs normally when pxa_state is clear."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.wire.as2.vocab.objects.embargo_event import (
+            as_EmbargoEvent,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case_id = f"{self.CASE_ID}/clear"
+        coordinator_id = self.COORD_ID
+
+        case = as_VulnerabilityCase(
+            id_=case_id, name="PXA clear", attributed_to=coordinator_id
+        )
+        dl.create(case)
+        embargo = as_EmbargoEvent(
+            id_=f"{case_id}/embargo_events/e1", content="clear embargo"
+        )
+        dl.create(embargo)
+        proposal = em_propose_embargo_activity(
+            embargo,
+            context=case,
+            actor=coordinator_id,
+            id_=f"{case_id}/proposals/p1",
+        )
+        dl.create(proposal)
+
+        event = make_payload(proposal, receiving_actor_id=coordinator_id)
+        InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+
+        # Proposal must be stored (BT ran CreateAndStoreInviteNode)
+        stored = dl.read(proposal.id_)
+        assert stored is not None
+
+
+class TestAcceptInviteToEmbargoReceivedPxaGuard:
+    """EMB-02-002: EA received when P/X/A set — block processing and emit ER."""
+
+    COORD_ID = "https://example.org/actors/coord-ea-pxa"
+    CASE_ID = "https://example.org/cases/c-ea-pxa"
+
+    @pytest.mark.parametrize("pxa_state_name", _PXA_INELIGIBLE_STATES)
+    def test_pxa_set_blocks_ea_processing(self, make_payload, pxa_state_name):
+        """accept_invite_to_embargo_on_case does not activate embargo when P/X/A set (EMB-02-002)."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case_id = f"{self.CASE_ID}/{pxa_state_name}"
+        embargo_id = f"{case_id}/embargo_events/e1"
+        case, embargo, proposal = _make_pxa_case(
+            dl,
+            case_id=case_id,
+            coordinator_id=self.COORD_ID,
+            embargo_id=embargo_id,
+            pxa_state_name=pxa_state_name,
+            em_state=EM.PROPOSED,
+        )
+
+        accept = em_accept_embargo_activity(
+            proposal, context=case, actor=self.COORD_ID
+        )
+        event = make_payload(accept, receiving_actor_id=self.COORD_ID)
+        AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+
+        # BT was not run: EM state must remain PROPOSED (not ACTIVE)
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        updated = cast(as_VulnerabilityCase, dl.read(case.id_))
+        assert updated is not None
+        assert updated.current_status.em_state == EM.PROPOSED
+
+    @pytest.mark.parametrize("pxa_state_name", _PXA_INELIGIBLE_STATES)
+    def test_pxa_set_emits_er_when_trigger_activity_provided(
+        self, make_payload, pxa_state_name
+    ):
+        """accept_invite_to_embargo_on_case emits ER when trigger_activity available and P/X/A set (EMB-02-002)."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case_id = f"{self.CASE_ID}/{pxa_state_name}/er"
+        embargo_id = f"{case_id}/embargo_events/e1"
+        case, embargo, proposal = _make_pxa_case(
+            dl,
+            case_id=case_id,
+            coordinator_id=self.COORD_ID,
+            embargo_id=embargo_id,
+            pxa_state_name=pxa_state_name,
+            em_state=EM.PROPOSED,
+        )
+
+        accept = em_accept_embargo_activity(
+            proposal, context=case, actor=self.COORD_ID
+        )
+        trigger_activity = TriggerActivityAdapter(dl)
+        event = make_payload(accept, receiving_actor_id=self.COORD_ID)
+        AcceptInviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, trigger_activity=trigger_activity
+        ).execute()
+
+        # ER activity must be in the outbox
+        outbox = dl.outbox_list_for_actor(self.COORD_ID)
+        assert len(outbox) == 1, f"Expected 1 ER in outbox; got {outbox}"
+
+    def test_pxa_clear_allows_ea_processing(self, make_payload):
+        """accept_invite_to_embargo_on_case activates embargo normally when pxa_state is clear."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.wire.as2.vocab.objects.embargo_event import (
+            as_EmbargoEvent,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case_id = f"{self.CASE_ID}/clear"
+        coordinator_id = self.COORD_ID
+
+        case = as_VulnerabilityCase(
+            id_=case_id, name="PXA clear EA", attributed_to=coordinator_id
+        )
+        case.current_status.em_state = EM.PROPOSED
+        dl.create(case)
+        embargo = as_EmbargoEvent(
+            id_=f"{case_id}/embargo_events/e1", content="clear embargo"
+        )
+        dl.create(embargo)
+        proposal = em_propose_embargo_activity(
+            embargo,
+            context=case,
+            actor=coordinator_id,
+            id_=f"{case_id}/proposals/p1",
+        )
+        dl.create(proposal)
+
+        accept = em_accept_embargo_activity(
+            proposal, context=case, actor=coordinator_id
+        )
+        event = make_payload(accept, receiving_actor_id=coordinator_id)
+        AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+
+        # Embargo should be activated (BT ran SetEmbargoActiveNode)
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        updated = cast(as_VulnerabilityCase, dl.read(case.id_))
+        assert updated is not None
+        assert updated.current_status.em_state == EM.ACTIVE

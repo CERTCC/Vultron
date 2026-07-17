@@ -143,9 +143,14 @@ enforces EMB-01-002, EMB-02-002, and EMB-04-002 via
 - `reject_embargo_invite()` — raises when EM is REVISE and P/X/A is set (caller
   MUST use `terminate_active_embargo()` instead)
 
-Note: the received-side path (`received/embargo.py`) does not yet use
-`EmbargoLifecycle`; it lacks these guards for inbound EP/EA processing.
-Tracked as a gap (see `specs/em-behavior.yaml` EMB-01-002, EMB-02-002).
+The received-side path (`received/embargo.py`) does not use `EmbargoLifecycle`
+for EM state transitions (those still use inline BT execution), but EMB-01-002
+and EMB-02-002 are enforced as explicit pre-flight guards in
+`InviteToEmbargoOnCaseReceivedUseCase.execute()` and
+`AcceptInviteToEmbargoOnCaseReceivedUseCase.execute()` respectively (implemented
+in [#1484](https://github.com/CERTCC/Vultron/issues/1484)). Migrating the
+received-side EM transitions to `EmbargoLifecycle` (AC-3 of #1484) is still
+pending.
 
 **Auto-terminate on publication** (CS.P event): handled by
 `PublicDisclosureBranchNode` in `vultron/core/behaviors/status/nodes/lifecycle.py`,
