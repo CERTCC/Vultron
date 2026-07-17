@@ -184,7 +184,9 @@ class CS_pxa(Enum):
     - `Pxa` indicates the public is aware, no exploit has been published, and no attacks have been observed.
     - `pxA` indicates the public is unaware, no exploit has been published, and attacks have been observed.
     - `PxA` indicates the public is aware, no exploit has been published, and attacks have been observed.
-    - `Pxa` indicates the public is aware, an exploit has been published, and no attacks have been observed.
+    - `pXa` indicates the public is unaware, an exploit has been published, and no attacks have been observed.
+    - `pXA` indicates the public is unaware, an exploit has been published, and attacks have been observed.
+    - `PXa` indicates the public is aware, an exploit has been published, and no attacks have been observed.
     - `PXA` indicates the public is aware, an exploit has been published, and attacks have been observed.
 
     Note that pXa and pXA are ephemeral states: the pX→PX invariant means that once an exploit is
