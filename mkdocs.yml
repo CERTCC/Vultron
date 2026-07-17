@@ -122,6 +122,7 @@ nav:
       - Transitions: 'reference/formal_protocol/transitions.md'
       - Protocol Summary: 'reference/formal_protocol/conclusion.md'
     - Specifications:
+      - 'reference/specs/index.md'
       - General: 'reference/specs/general.md'
       - Pattern: 'reference/specs/pattern.md'
       - Domain: 'reference/specs/domain.md'
