@@ -21,7 +21,7 @@ all-participants-closed auto-close branch (step 5).
 
 import logging
 import threading
-from typing import Any
+from typing import Any, cast
 
 import py_trees
 from py_trees.common import Status
@@ -34,6 +34,7 @@ from vultron.core.models.protocols import (
     is_case_model,
     is_participant_model,
 )
+from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.core.use_cases._helpers import _as_id
@@ -234,6 +235,24 @@ class AutoCloseBranchNode(DataLayerAction):
                 return False
         return True
 
+    def _emit_close_case(self, actor_id: str, case_manager_id: str) -> str:
+        """Call close_case factory and record outbox item, return activity_id.
+
+        Raises on factory or outbox failure so update() can log and continue.
+        """
+        assert self.trigger_activity_factory is not None
+        assert self.datalayer is not None
+        assert self.case_id is not None
+        activity_id, _ = self.trigger_activity_factory.close_case(
+            case_id=self.case_id,
+            actor=actor_id,
+            to=[case_manager_id],
+        )
+        cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
+            actor_id, activity_id
+        )
+        return activity_id
+
     def update(self) -> Status:
         if self.datalayer is None or not self.case_id:
             return Status.SUCCESS
@@ -241,7 +260,6 @@ class AutoCloseBranchNode(DataLayerAction):
         case = self.datalayer.read(self.case_id)
         if not is_case_model(case):
             return Status.SUCCESS
-
         if not self._all_participants_closed(case):
             return Status.SUCCESS
 
@@ -271,7 +289,6 @@ class AutoCloseBranchNode(DataLayerAction):
             self.case_id,
             case_manager_id,
         )
-
         if self.trigger_activity_factory is None:
             self.logger.warning(
                 "AutoCloseBranch: no TriggerActivityPort — cannot emit"
@@ -281,19 +298,8 @@ class AutoCloseBranchNode(DataLayerAction):
             return Status.SUCCESS
 
         try:
-            activity_id, _ = self.trigger_activity_factory.close_case(
-                case_id=self.case_id,
-                actor=self.actor_id or "",
-                to=[case_manager_id],
-            )
-            from typing import cast as _cast
-
-            from vultron.core.ports.case_persistence import (
-                CaseOutboxPersistence,
-            )
-
-            _cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id or "", activity_id
+            activity_id = self._emit_close_case(
+                self.actor_id or "", case_manager_id
             )
             self.logger.info(
                 "AutoCloseBranch: emitted close_case activity '%s'"

@@ -43,32 +43,34 @@ class CreateNoteNode(DataLayerAction):
         self.result_out = result_out
         self.in_reply_to = in_reply_to
 
+    def _call_factory(self, actor_id: str) -> tuple[str, dict]:
+        """Call ``create_note`` on the trigger-activity factory."""
+        assert self.trigger_activity_factory is not None
+        return self.trigger_activity_factory.create_note(
+            name=self.note_name,
+            content=self.note_content,
+            context_id=self.case_id,
+            attributed_to=actor_id,
+            in_reply_to=self.in_reply_to,
+        )
+
     def update(self) -> Status:
         if self.datalayer is None:
             self.feedback_message = "DataLayer not available"
             self.logger.error(f"{self.name}: {self.feedback_message}")
             return Status.FAILURE
-
         if self.trigger_activity_factory is None:
             self.feedback_message = (
                 "trigger_activity_factory not available in blackboard"
             )
             self.logger.error(f"{self.name}: {self.feedback_message}")
             return Status.FAILURE
-
         if self.actor_id is None:
             self.feedback_message = "actor_id not available in blackboard"
             self.logger.error(f"{self.name}: {self.feedback_message}")
             return Status.FAILURE
-
         try:
-            note_id, note_dict = self.trigger_activity_factory.create_note(
-                name=self.note_name,
-                content=self.note_content,
-                context_id=self.case_id,
-                attributed_to=self.actor_id,
-                in_reply_to=self.in_reply_to,
-            )
+            note_id, note_dict = self._call_factory(self.actor_id)
             self.result_out["note_id"] = note_id
             self.result_out["note_dict"] = note_dict
             self.feedback_message = f"Created note '{note_id}'"

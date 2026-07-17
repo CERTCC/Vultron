@@ -116,13 +116,31 @@ class CreateOfferCaseManagerActivityNode(DataLayerAction):
             key="activity_id", access=py_trees.common.Access.WRITE
         )
 
+    def _emit(
+        self,
+        case_id: str,
+        case_actor_id: str,
+        participant_id: str,
+        recipients: list,
+    ) -> str:
+        """Call offer_case_manager_role factory and return the activity_id.
+
+        Raises on factory failure so update() can handle it.
+        """
+        assert self.trigger_activity_factory is not None
+        return self.trigger_activity_factory.offer_case_manager_role(
+            case_id=case_id,
+            participant_id=participant_id,
+            actor=case_actor_id,
+            to=recipients,
+        )
+
     def update(self) -> Status:
         if self.datalayer is None or self.actor_id is None:
             self.logger.error(
                 f"{self.name}: DataLayer or actor_id not available"
             )
             return Status.FAILURE
-
         if self.trigger_activity_factory is None:
             self.logger.error(
                 f"{self.name}: trigger_activity_factory not available"
@@ -147,13 +165,8 @@ class CreateOfferCaseManagerActivityNode(DataLayerAction):
             return Status.FAILURE
 
         try:
-            activity_id = (
-                self.trigger_activity_factory.offer_case_manager_role(
-                    case_id=case_id,
-                    participant_id=participant_id,
-                    actor=case_actor_id,
-                    to=recipients,
-                )
+            activity_id = self._emit(
+                case_id, case_actor_id, participant_id, recipients
             )
             self.blackboard.activity_id = activity_id
             if self._captured is not None:
@@ -176,7 +189,6 @@ class CreateOfferCaseManagerActivityNode(DataLayerAction):
                 case_id,
             )
             return Status.SUCCESS
-
         except Exception as e:
             self.logger.error(
                 f"{self.name}: Error sending Offer(CaseManagerRole): {e}"
@@ -224,13 +236,28 @@ class AutoAcceptCaseManagerRoleNode(DataLayerAction):
         self.participant_id = participant_id
         self.vendor_id = vendor_id
 
+    def _emit_accept(self, actor_id: str) -> str:
+        """Call accept_case_manager_role factory and return accept_id.
+
+        Step 1 only — does NOT write to outbox (intentional split; see update()).
+        Raises on failure so update() can return FAILURE before any outbox write.
+        """
+        assert self.trigger_activity_factory is not None
+        return self.trigger_activity_factory.accept_case_manager_role(
+            offer_id=self.offer_id,
+            case_id=self.case_id,
+            participant_id=self.participant_id,
+            vendor_id=self.vendor_id,
+            actor=actor_id,
+            to=[self.vendor_id],
+        )
+
     def update(self) -> Status:
         if self.datalayer is None or self.actor_id is None:
             self.logger.error(
                 "%s: DataLayer or actor_id not available", self.name
             )
             return Status.FAILURE
-
         if self.trigger_activity_factory is None:
             self.logger.warning(
                 "%s: trigger_activity_factory not available"
@@ -239,7 +266,6 @@ class AutoAcceptCaseManagerRoleNode(DataLayerAction):
                 self.offer_id,
             )
             return Status.FAILURE
-
         if not self.case_id or not self.participant_id:
             self.logger.warning(
                 "%s: missing case_id or participant_id for offer '%s'"
@@ -250,18 +276,9 @@ class AutoAcceptCaseManagerRoleNode(DataLayerAction):
             return Status.FAILURE
 
         # Step 1: create and persist the Accept activity.
-        # Nothing has been written yet; any exception here is safe to
-        # convert to FAILURE so the AcceptOrReject Selector can fall back
-        # to EmitRejectCaseManagerRoleNode.
+        # Exception → FAILURE so AcceptOrReject Selector can fall back to Reject.
         try:
-            accept_id = self.trigger_activity_factory.accept_case_manager_role(
-                offer_id=self.offer_id,
-                case_id=self.case_id,
-                participant_id=self.participant_id,
-                vendor_id=self.vendor_id,
-                actor=self.actor_id,
-                to=[self.vendor_id],
-            )
+            accept_id = self._emit_accept(self.actor_id)
         except Exception as exc:
             self.logger.error(
                 "%s: error creating Accept activity for offer '%s': %s",
@@ -271,17 +288,13 @@ class AutoAcceptCaseManagerRoleNode(DataLayerAction):
             )
             return Status.FAILURE
 
-        # Step 2: enqueue the Accept activity to the outbox.
-        # The Accept is now persisted in the DataLayer.  If outbox enqueue
-        # fails here, we MUST NOT return FAILURE — the AcceptOrReject
-        # Selector would then fall through to EmitRejectCaseManagerRoleNode,
+        # Step 2: enqueue Accept — MUST NOT return FAILURE here.
+        # Accept is persisted; if outbox enqueue fails, propagate the exception
+        # so BTBridge fails hard rather than falling through to Reject and
         # producing contradictory protocol state (Accept stored, Reject sent).
-        # Let the exception propagate so BTBridge fails the tree hard,
-        # preserving the persisted Accept without triggering a spurious Reject.
         cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
             self.actor_id, accept_id
         )
-
         self.logger.info(
             "%s: auto-accepted offer '%s' as actor '%s';"
             " queued Accept '%s' to outbox",
@@ -330,13 +343,27 @@ class EmitRejectCaseManagerRoleNode(DataLayerAction):
         self.participant_id = participant_id
         self.vendor_id = vendor_id
 
+    def _emit(self, actor_id: str) -> str:
+        """Call reject_case_manager_role factory and return reject_id.
+
+        Raises on failure so update() can handle it.
+        """
+        assert self.trigger_activity_factory is not None
+        return self.trigger_activity_factory.reject_case_manager_role(
+            offer_id=self.offer_id,
+            case_id=self.case_id,
+            participant_id=self.participant_id,
+            vendor_id=self.vendor_id,
+            actor=actor_id,
+            to=[self.vendor_id],
+        )
+
     def update(self) -> Status:
         if self.datalayer is None or self.actor_id is None:
             self.logger.error(
                 "%s: DataLayer or actor_id not available", self.name
             )
             return Status.FAILURE
-
         if self.trigger_activity_factory is None:
             self.logger.warning(
                 "%s: trigger_activity_factory not available"
@@ -345,7 +372,6 @@ class EmitRejectCaseManagerRoleNode(DataLayerAction):
                 self.offer_id,
             )
             return Status.FAILURE
-
         if not self.case_id or not self.participant_id:
             self.logger.warning(
                 "%s: missing case_id or participant_id for offer '%s'"
@@ -354,16 +380,8 @@ class EmitRejectCaseManagerRoleNode(DataLayerAction):
                 self.offer_id,
             )
             return Status.FAILURE
-
         try:
-            reject_id = self.trigger_activity_factory.reject_case_manager_role(
-                offer_id=self.offer_id,
-                case_id=self.case_id,
-                participant_id=self.participant_id,
-                vendor_id=self.vendor_id,
-                actor=self.actor_id,
-                to=[self.vendor_id],
-            )
+            reject_id = self._emit(self.actor_id)
             cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
                 self.actor_id, reject_id
             )

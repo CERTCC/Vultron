@@ -275,6 +275,27 @@ class SendTerminateEmbargoActivityNode(DataLayerAction):
             access=py_trees.common.Access.READ,
         )
 
+    def _emit(
+        self, actor_id: str, embargo_id: str, case_manager_id: str
+    ) -> None:
+        """Call terminate_embargo factory and record outbox item.
+
+        Raises on any factory or outbox failure so update() can handle it.
+        """
+        assert self.trigger_activity_factory is not None
+        assert self.datalayer is not None
+        announce_id, _ = self.trigger_activity_factory.terminate_embargo(
+            embargo_id=embargo_id,
+            case_id=self._case_id,
+            actor=actor_id,
+            to=[case_manager_id],
+        )
+        add_activity_to_outbox(
+            actor_id,
+            announce_id,
+            self.datalayer,  # type: ignore[arg-type]
+        )
+
     def update(self) -> Status:
         if self.trigger_activity_factory is None:
             self.feedback_message = (
@@ -283,37 +304,23 @@ class SendTerminateEmbargoActivityNode(DataLayerAction):
             )
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
-
         if self.datalayer is None or self.actor_id is None:
             self.feedback_message = "DataLayer or actor_id not available"
             return Status.FAILURE
-
         try:
             embargo_id: str = self.blackboard.embargo_id
             case_manager_id: str = self.blackboard.case_manager_id
         except KeyError as exc:
             self.feedback_message = f"Required blackboard key missing: {exc}"
             return Status.FAILURE
-
         try:
-            announce_id, _ = self.trigger_activity_factory.terminate_embargo(
-                embargo_id=embargo_id,
-                case_id=self._case_id,
-                actor=self.actor_id,
-                to=[case_manager_id],
-            )
-            add_activity_to_outbox(
-                self.actor_id,
-                announce_id,
-                self.datalayer,  # type: ignore[arg-type]
-            )
+            self._emit(self.actor_id, embargo_id, case_manager_id)
         except Exception as exc:
             self.feedback_message = (
                 f"activity dispatch failed for case '{self._case_id}': {exc}"
             )
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
-
         return Status.SUCCESS
 
 

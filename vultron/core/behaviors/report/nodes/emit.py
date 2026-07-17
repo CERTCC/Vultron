@@ -285,27 +285,30 @@ class EmitSubmitReportActivity(DataLayerAction):
         self.recipient_id = recipient_id
         self._captured = captured
 
+    def _call_factory(self, actor_id: str) -> tuple[str, dict]:
+        """Call ``submit_report`` on the trigger-activity factory."""
+        assert self.trigger_activity_factory is not None
+        return self.trigger_activity_factory.submit_report(
+            report_id=self.report_id,
+            actor=actor_id,
+            to=self.recipient_id,
+            target=self.recipient_id,
+        )
+
     def update(self) -> Status:
         if self.datalayer is None or self.actor_id is None:
             self.logger.error(
                 "%s: DataLayer or actor_id not available", self.name
             )
             return Status.FAILURE
-
         if self.trigger_activity_factory is None:
             self.logger.warning(
                 "%s: no TriggerActivityPort — cannot emit SubmitReport offer",
                 self.name,
             )
             return Status.FAILURE
-
         try:
-            offer_id, offer_dict = self.trigger_activity_factory.submit_report(
-                report_id=self.report_id,
-                actor=self.actor_id,
-                to=self.recipient_id,
-                target=self.recipient_id,
-            )
+            offer_id, offer_dict = self._call_factory(self.actor_id)
             cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
                 self.actor_id, offer_id
             )
@@ -318,7 +321,6 @@ class EmitSubmitReportActivity(DataLayerAction):
                 self.recipient_id,
             )
             return Status.SUCCESS
-
         except Exception as e:
             self.logger.error(
                 "%s: Error emitting submit-report offer: %s", self.name, e
