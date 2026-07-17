@@ -3,8 +3,9 @@ title: Embargo Lifecycle — Architecture and Implementation Notes
 status: active
 description: >
   Target architecture for EM state management; the inline-EMAdapter
-  instantiation anti-pattern in trigger use cases; and the fragmentation
-  concern that motivates the EmbargoLifecycle service (see #538).
+  instantiation anti-pattern in trigger use cases; P/X/A embargo-eligibility
+  precondition guards in EmbargoLifecycle; and the fragmentation concern that
+  motivates the EmbargoLifecycle service (see #538).
 related_specs:
   - specs/case-management.yaml
   - specs/embargo-policy.yaml
@@ -13,6 +14,7 @@ related_notes:
   - notes/participant-embargo-consent.md
 relevant_packages:
   - vultron/core/states/em.py
+  - vultron/core/services/embargo_lifecycle.py
   - vultron/core/use_cases/triggers/embargo.py
   - vultron/core/use_cases/received/embargo.py
   - vultron/bt/embargo_management
@@ -95,31 +97,66 @@ transition logic with no shared validation or invariant enforcement.
 
 ---
 
-## Target Architecture
+## Current Architecture (Implemented)
 
-[#538](https://github.com/CERTCC/Vultron/issues/538) proposes a single
-`vultron/core/services/embargo_lifecycle.py` module with an
-`EmbargoLifecycle` service class that owns all EM + PEC transition logic.
+`EmbargoLifecycle` exists at `vultron/core/services/embargo_lifecycle.py` and
+owns all EM + PEC transition logic (implemented per
+[#538](https://github.com/CERTCC/Vultron/issues/538),
+[#746](https://github.com/CERTCC/Vultron/issues/746),
+[#747](https://github.com/CERTCC/Vultron/issues/747)).
 
-**Planned interface sketch** (from #538):
+**Actual public interface**:
 
 ```python
 class EmbargoLifecycle:
     def __init__(self, persistence: CasePersistence) -> None: ...
-    def propose(self, case_id: str, actor_id: str, ...) -> EM: ...
-    def accept(self, case_id: str, actor_id: str, proposal_id: str) -> EM: ...
-    def reject(self, case_id: str, actor_id: str, proposal_id: str) -> EM: ...
-    def terminate(self, case_id: str, actor_id: str) -> EM: ...
+    def propose_embargo(
+        self, *, case_id, embargo_id, actor_id, transition_mode=STRICT
+    ) -> EmbargoLifecycleResult: ...
+    def accept_embargo_invite(
+        self, *, case_id, embargo_id, actor_id, transition_mode=STRICT
+    ) -> EmbargoLifecycleResult: ...
+    def reject_embargo_invite(
+        self, *, case_id, embargo_id, actor_id, transition_mode=STRICT
+    ) -> EmbargoLifecycleResult: ...
+    def terminate_active_embargo(
+        self, *, case_id, actor_id, transition_mode=STRICT
+    ) -> EmbargoLifecycleResult: ...
+    def record_participant_consent(
+        self, *, case_id, actor_id, pec_trigger, embargo_id=None
+    ) -> EmbargoLifecycleResult: ...
 ```
 
-Once `EmbargoLifecycle` exists:
+**`TransitionMode`**: `STRICT` enforces valid transitions and precondition
+guards (used by trigger-side BT behaviors).  `OBSERVED` syncs local state
+unconditionally to match a remote party's assertion (used by received-side use
+cases — bypasses all guards).
 
-- Trigger use cases become thin orchestrators: resolve actors/cases → call
-  `EmbargoLifecycle` → build and send the outbound activity.
-- Received use cases call the same service in `OBSERVED` mode (state-sync
-  without re-enforcing proposal workflow).
-- BT behaviors call the same service, eliminating the parallel BT-side
-  implementation.
+**P/X/A embargo-eligibility guards** (added in
+[#1454](https://github.com/CERTCC/Vultron/issues/1454)): `EmbargoLifecycle`
+enforces EMB-01-002, EMB-02-002, and EMB-04-002 via
+`_assert_pxa_embargo_eligible()` in STRICT mode:
+
+- `propose_embargo()` — raises when `pxa_state != CS_pxa.pxa` (any of P/X/A set)
+- `accept_embargo_invite()` — raises when owner would drive EM to ACTIVE with
+  P/X/A set; non-owner consent recording is not blocked
+- `reject_embargo_invite()` — raises when EM is REVISE and P/X/A is set (caller
+  MUST use `terminate_active_embargo()` instead)
+
+Note: the received-side path (`received/embargo.py`) does not yet use
+`EmbargoLifecycle`; it lacks these guards for inbound EP/EA processing.
+Tracked as a gap (see `specs/em-behavior.yaml` EMB-01-002, EMB-02-002).
+
+**Auto-terminate on publication** (CS.P event): handled by
+`PublicDisclosureBranchNode` in `vultron/core/behaviors/status/nodes/lifecycle.py`,
+which delegates to the shared `terminate_embargo_bt` factory. This is the
+cascade path for AC-2 of issue #1454.
+
+Trigger use cases are thin orchestrators: resolve actors/cases → call
+`EmbargoLifecycle` → build and send the outbound activity.
+BT behaviors use `ProposeEmbargoLifecycleNode`, `AcceptEmbargoLifecycleNode`,
+`RejectEmbargoLifecycleNode`, and `TerminateEmbargoLifecycleNode` which all
+catch `VultronError` and return `Status.FAILURE`.
 
 ---
 
@@ -143,11 +180,18 @@ This follow-up is tracked in a separate issue blocked by #538.
 
 When implementing any code that transitions embargo state:
 
-1. **Check whether `EmbargoLifecycle` exists** (`vultron/core/services/`).
-   If it does, use it — do not re-instantiate `create_em_machine()` inline.
-2. **If `EmbargoLifecycle` is not yet implemented** (pre-#538), follow the
-   existing pattern in `triggers/embargo.py` but leave a `# TODO(#538)`
-   comment so the inline instantiation is discoverable for cleanup.
-3. **Always cascade PEC** when EM state changes: `ACTIVE → REVISE` must
-   trigger `_cascade_pec_revise`; termination must trigger `_cascade_pec_reset`.
-   The PEC cascade is not optional.
+1. **Always use `EmbargoLifecycle`** (`vultron/core/services/embargo_lifecycle.py`).
+   Never instantiate `create_em_machine()` + `EMAdapter` inline.
+2. **P/X/A precondition**: STRICT mode guards `propose_embargo()` and
+   `accept_embargo_invite()` (owner-only) against PXA-set cases.  If your
+   caller receives `VultronInvalidStateTransitionError`, the case is no longer
+   embargo-eligible — do not attempt to retry; emit ER to the proposer.
+3. **REVISE+PXA reject**: `reject_embargo_invite()` raises in STRICT mode when
+   EM is REVISE and P/X/A is set — the correct path is
+   `terminate_active_embargo()` per EMB-04-002.
+4. **PEC cascade is automatic**: `propose_embargo()` cascades `SIGNATORY →
+   LAPSED` on `ACTIVE → REVISE`; `terminate_active_embargo()` resets all PEC
+   to `NO_EMBARGO`. Callers do not need to do this manually.
+5. **OBSERVED mode** (received-side): pass
+   `transition_mode=TransitionMode.OBSERVED` to sync local state with a remote
+   assertion. All guards and PEC cascades are bypassed in OBSERVED mode.
