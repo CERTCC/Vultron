@@ -348,28 +348,72 @@ interface MapResult {
 }
 
 /**
- * Apply a single case-level machine snapshot forward-only. Never regresses the
- * shadow (a participant's embedded `caseStatus` can be stale — e.g. the sample's
- * finder status still reads EM=ACTIVE after the embargo was terminated). Returns
- * the trigger applied (for labeling) or null if nothing/forbidden happened.
+ * Result of applying a case-level (EM/PXA) snapshot to the shadow.
+ *   - `null`                    → no-op (empty/equal snapshot) or a STALE snapshot
+ *                                 (an earlier state we've already passed); ignored.
+ *   - `{ ..., violation:false }` → a legal forward advance was applied.
+ *   - `{ ..., violation:true }`  → an ILLEGAL jump: the snapshot is reachable
+ *                                 neither forward nor backward from the current
+ *                                 state, so it is not on any legal trajectory.
+ *                                 The shadow is forced to the snapshot (replay
+ *                                 continues from the log's reality) and the caller
+ *                                 flags the node.
+ */
+interface CaseLevelResult {
+  trigger: string
+  from: string
+  to: string
+  violation: boolean
+  reason?: string
+}
+
+/**
+ * Apply a single case-level machine snapshot. Legal forward advances are applied;
+ * STALE snapshots (reachable backward — a participant's embedded `caseStatus` can
+ * lag, e.g. the sample's finder status still reads EM=ACTIVE after the embargo
+ * terminated) are ignored forward-only. A snapshot reachable in NEITHER direction
+ * is a genuine protocol violation (e.g. EM jumping NONE→EXITED, or PXA regressing)
+ * — distinguished from staleness by testing for a reverse legal path — and is
+ * flagged rather than silently ignored.
  */
 function applyCaseLevelForward(
   machine: 'em' | 'pxa',
   shadow: ShadowState,
   snapshot: string | undefined,
   logLines: string[]
-): { trigger: string; from: string; to: string } | null {
+): CaseLevelResult | null {
   if (!snapshot) return null
   const current = machine === 'em' ? shadow.emState : shadow.pxaState
   if (snapshot === current) return null
 
   const path = triggerPath(machine, current, snapshot)
   if (path === null || path.length === 0) {
-    // Unreachable forward — almost always a stale/regressed snapshot. Keep shadow.
+    // No forward path. Distinguish a stale (backward-reachable) snapshot from a
+    // genuinely illegal jump (reachable in neither direction) via a reverse probe.
+    const reverse = triggerPath(machine, snapshot, current)
+    if (reverse && reverse.length > 0) {
+      // Stale: snapshot is an earlier state on our path. Keep shadow, no violation.
+      logLines.push(
+        `  ↳ ignored stale ${machine.toUpperCase()} snapshot "${snapshot}" (shadow stays "${current}")`
+      )
+      return null
+    }
+    // Illegal: not on any legal trajectory from `current`. Force shadow + flag.
     logLines.push(
-      `  ↳ ignored stale ${machine.toUpperCase()} snapshot "${snapshot}" (shadow stays "${current}")`
+      `  ↳ PROTOCOL VIOLATION: ${machine.toUpperCase()} has no legal path "${current}" → "${snapshot}"; forcing shadow`
     )
-    return null
+    if (machine === 'em') shadow.emState = snapshot
+    else shadow.pxaState = snapshot
+    return {
+      trigger: 'illegal',
+      from: current,
+      to: snapshot,
+      violation: true,
+      reason:
+        `${machine.toUpperCase()} cannot reach ${snapshot} from ${current}: no sequence of ` +
+        `legal ${machine.toUpperCase()} transitions connects them (in either direction), so the ` +
+        `case-level ${machine === 'em' ? 'embargo' : 'publicity'} state jumped illegally.`,
+    }
   }
 
   // Apply the (usually single-step) forward path.
@@ -382,7 +426,7 @@ function applyCaseLevelForward(
   }
   if (machine === 'em') shadow.emState = snapshot
   else shadow.pxaState = snapshot
-  return { trigger: lastTrigger, from: current, to: snapshot }
+  return { trigger: lastTrigger, from: current, to: snapshot, violation: false }
 }
 
 // Friendly labels for triggers, keyed by machine:trigger.
@@ -839,12 +883,25 @@ function handleParticipantStatus(
     }
   }
 
-  // ---- Case-level PXA / EM (forward-only; participant snapshots can be stale) ----
+  // ---- Case-level PXA / EM (forward-only; participant snapshots can be stale, but
+  // a snapshot on no legal trajectory is a violation — see applyCaseLevelForward) ----
   const cs = readCaseStatus(entry)
   const pxaChange = applyCaseLevelForward('pxa', shadow, cs?.pxaState, logLines)
-  if (pxaChange) changes.push({ machine: 'pxa', from: pxaChange.from, to: pxaChange.to, trigger: pxaChange.trigger })
+  if (pxaChange) {
+    changes.push({ machine: 'pxa', from: pxaChange.from, to: pxaChange.to, trigger: pxaChange.trigger })
+    if (pxaChange.violation) {
+      violation = true
+      if (pxaChange.reason) violationReasons.push(pxaChange.reason)
+    }
+  }
   const emChange = applyCaseLevelForward('em', shadow, cs?.emState, logLines)
-  if (emChange) changes.push({ machine: 'em', from: emChange.from, to: emChange.to, trigger: emChange.trigger })
+  if (emChange) {
+    changes.push({ machine: 'em', from: emChange.from, to: emChange.to, trigger: emChange.trigger })
+    if (emChange.violation) {
+      violation = true
+      if (emChange.reason) violationReasons.push(emChange.reason)
+    }
+  }
 
   // No meaningful change (only seeds / no-ops) → no node, no column.
   if (changes.length === 0) return { nodes: [], logLines }

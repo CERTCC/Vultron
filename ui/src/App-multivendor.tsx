@@ -321,6 +321,15 @@ function App() {
 
       let newState = demoState
 
+      // Inviting another vendor is available to ANY active participant (finder,
+      // any vendor, or the case actor), so handle it before the per-role routing.
+      // The inviter is whoever clicked; the handler is inviter-generic.
+      if (actionId === 'invite-vendor') {
+        newState = inviteActions.handleInviteVendor(newState, participantId)
+        setDemoState(newState)
+        return
+      }
+
       // Route to appropriate action handler
       if (participantId === 'finder') {
         if (actionId === 'submit-report') {
@@ -341,8 +350,6 @@ function App() {
           newState = finderActions.handleFinderNotifyPublished(newState)
         } else if (actionId === 'finder-close-case') {
           newState = finderActions.handleFinderCloseCase(newState)
-        } else if (actionId === 'finder-invite-vendor') {
-          newState = inviteActions.handleInviteVendor(newState, 'finder')
         }
       } else if (participantId === 'caseactor') {
         if (actionId === 'propose-embargo') {
@@ -383,8 +390,6 @@ function App() {
           newState = vendorActions.handleVendorReplyNote(newState, participantId)
         } else if (actionId === 'vendor-close-case') {
           newState = vendorActions.handleVendorCloseCase(newState, participantId)
-        } else if (actionId === 'vendor-invite-next-vendor') {
-          newState = inviteActions.handleInviteVendor(newState, participantId)
         }
       } else if (participantId === 'external') {
         if (actionId === 'trigger-exploit') {

@@ -30,6 +30,40 @@ import type { DemoState, Action } from '../types'
 import { getParticipant, getActiveVendors, getVendors } from './participantHelpers'
 import { isLegalTransition } from '../protocol'
 
+/**
+ * Build the "Submit Report to Vendor N" (invite) action, or null if unavailable.
+ *
+ * Inviting another vendor is a DEMO-overlay action — the Vultron protocol has no
+ * invite/report-forwarding transition (see protocolActions.ts, `kind:'demo'`), so
+ * this is a policy choice, not a machine gate. Policy: any active participant may
+ * invite another vendor **as long as the case is not yet closed**, independent of
+ * the case-level `phase`. This is grounded in the protocol's separation of Report
+ * Management (closure) from publicity/PXA: coordination — including onboarding a
+ * newly-discovered affected vendor — legitimately continues after publication,
+ * "long after the RM process has closed a case" is possible (cs_model.md). So the
+ * only real limit is that the case itself is still open.
+ *
+ * "Case not yet closed" = at least one participant is still active (not everyone
+ * has RM.CLOSED). The individual caller has already confirmed IT is active.
+ */
+function buildInviteAction(state: DemoState): Action | null {
+  // Case is closed only when every visible participant has closed.
+  const anyStillOpen = Array.from(state.participants.values())
+    .some(p => p.visible && !p.hasClosed)
+  if (!anyStillOpen) return null
+
+  const nextVendorNumber = getVendors(state).length + 1
+  const nextVendorId = `vendor-${nextVendorNumber}`
+  if (state.invitedVendors.has(nextVendorId)) return null
+
+  return {
+    id: 'invite-vendor',
+    label: `Submit Report to Vendor ${nextVendorNumber}`,
+    description: 'Send the vulnerability report to another vendor for collaboration',
+    enabled: true,
+  }
+}
+
 export function getFinderActions(state: DemoState): Action[] {
   const finder = getParticipant(state, 'finder')
   if (!finder) return []
@@ -37,7 +71,9 @@ export function getFinderActions(state: DemoState): Action[] {
   const activeVendors = getActiveVendors(state)
   const anyVendorVFD = activeVendors.some(v => v.vfdState === 'VFD')
 
-  // Start phase - submit report
+  // Before a report exists there is exactly one action: submit it. `start` is the
+  // only pre-case phase; every other phase means a case exists. (Submit itself has
+  // no machine slot — it's the demo bootstrap that seeds RM.RECEIVED, §9.)
   if (state.phase === 'start') {
     return [{
       id: 'submit-report',
@@ -47,215 +83,102 @@ export function getFinderActions(state: DemoState): Action[] {
     }]
   }
 
-  // Report received phase - case is active, participants can communicate
-  if (state.phase === 'report-received' && !finder.hasClosed) {
-    const actions: Action[] = []
+  // Once the Finder has closed, they have no further actions.
+  if (finder.hasClosed) return []
 
-    // Finder can ask questions once case exists (RM.RECEIVED is an active state)
+  // A case exists and the Finder is still participating. Every action below is
+  // gated by its own machine-legality (from protocol_states.json) plus an explicit
+  // documented overlay — NOT by the case-level `phase` string. This keeps the
+  // available actions caused by the artifact rather than by phase bookkeeping.
+  const actions: Action[] = []
+
+  // Embargoes SHALL terminate when P/X/A occur (early_termination.md), so no
+  // embargo accept/reject/propose once public.
+  const isPublic = state.pxaState.includes('P') || state.pxaState.includes('X') || state.pxaState.includes('A')
+
+  // EM accept/reject of the initial proposal — `accept`/`reject` legal from
+  // PROPOSED; overlay: Finder hasn't accepted and case isn't public.
+  if (isLegalTransition('em', state.emState, 'accept') && state.emState === 'PROPOSED' && !finder.embargoAccepted && !isPublic) {
     actions.push({
-      id: 'finder-add-note',
-      label: 'Ask Question',
-      description: 'Add a note to the case asking for information',
+      id: 'finder-accept-embargo',
+      label: 'Accept Embargo',
+      description: 'Accept the 90-day embargo proposal',
+      enabled: true,
+    }, {
+      id: 'finder-reject-embargo',
+      label: 'Reject Embargo',
+      description: 'Reject the embargo proposal',
       enabled: true,
     })
-
-    // Finder can send report to additional vendors at any time after case exists
-    // This is available even if all vendors have closed (e.g., to try another vendor)
-    const allVendors = getVendors(state)
-    const nextVendorNumber = allVendors.length + 1
-    const nextVendorId = `vendor-${nextVendorNumber}`
-    const canInviteMore = !state.invitedVendors.has(nextVendorId)
-
-    if (canInviteMore) {
-      actions.push({
-        id: 'finder-invite-vendor',
-        label: `Submit Report to Vendor ${nextVendorNumber}`,
-        description: 'Send the vulnerability report to another vendor',
-        enabled: true,
-      })
-    }
-
-    return actions
   }
 
-  // NOTE: Embargo handling and communication are independent per Vultron protocol
-
-  // Finder can communicate throughout the CVD process (after report is received)
-  // Only blocked when: Finder has closed, or case hasn't started yet
-  const caseIsActive = state.phase !== 'start' && !finder.hasClosed
-
-  if (caseIsActive) {
-    const actions: Action[] = []
-
-    // Embargo response actions (EM state machine - independent of other activities and phase)
-    // Per Vultron protocol (early_termination.md + negotiating.md):
-    // Embargoes SHALL terminate when P, X, or A occur - no accept/reject after that
-    const isPublic = state.pxaState.includes('P') || state.pxaState.includes('X') || state.pxaState.includes('A')
-
-    // EM accept/reject of the initial proposal — gated by machine legality
-    // (`accept`/`reject` are legal from PROPOSED) plus the demo overlay that the
-    // Finder hasn't already accepted and the case isn't public.
-    if (isLegalTransition('em', state.emState, 'accept') && state.emState === 'PROPOSED' && !finder.embargoAccepted && !isPublic) {
-      actions.push({
-        id: 'finder-accept-embargo',
-        label: 'Accept Embargo',
-        description: 'Accept the 90-day embargo proposal',
-        enabled: true,
-      }, {
-        id: 'finder-reject-embargo',
-        label: 'Reject Embargo',
-        description: 'Reject the embargo proposal',
-        enabled: true,
-      })
-    }
-
-    // Per Vultron protocol (em/index.md): Active participants can propose revisions.
-    // `propose` is machine-legal from ACTIVE (→REVISE) and REVISE (→REVISE); the
-    // demo overlay additionally requires this Finder to already be in the embargo.
-    if (isLegalTransition('em', state.emState, 'propose') && (state.emState === 'ACTIVE' || state.emState === 'REVISE') && !isPublic && finder.embargoAccepted) {
-      actions.push({
-        id: 'finder-propose-revision',
-        label: 'Propose Embargo Revision',
-        description: 'Propose a revision to the active embargo terms',
-        enabled: true,
-      })
-    }
-
-    // If there's a pending revision proposal, Finder can accept/reject it
-    // (`accept`/`reject` are machine-legal from REVISE) UNLESS Finder proposed it
-    // themselves (proposing implies acceptance) — that's the demo overlay.
-    if (isLegalTransition('em', state.emState, 'accept') && state.emState === 'REVISE' && !isPublic && !finder.embargoAccepted && state.embargoProposerId !== 'finder') {
-      // Show accept/reject when Finder hasn't accepted the revision yet and didn't propose it
-      actions.push({
-        id: 'finder-accept-revision',
-        label: 'Accept Embargo Revision',
-        description: 'Accept the proposed revision to embargo terms',
-        enabled: true,
-      }, {
-        id: 'finder-reject-revision',
-        label: 'Reject Embargo Revision',
-        description: 'Reject the proposed revision (keeps current embargo terms)',
-        enabled: true,
-      })
-    }
-
-    // Check if any vendor has replied to the current question
-    const anyVendorReplied = activeVendors.some(v => v.hasRepliedToCurrentNote)
-
-    // Communication actions - available regardless of embargo status
+  // Propose revision — `propose` legal from ACTIVE/REVISE; overlay: this Finder is
+  // already in the embargo and case isn't public.
+  if (isLegalTransition('em', state.emState, 'propose') && (state.emState === 'ACTIVE' || state.emState === 'REVISE') && !isPublic && finder.embargoAccepted) {
     actions.push({
-      id: 'finder-add-note',
-      label: anyVendorReplied ? 'Ask Another Question' : 'Ask Question',
-      description: anyVendorReplied
-        ? 'Add another note to the case asking for more information'
-        : 'Add a note to the case asking for information',
+      id: 'finder-propose-revision',
+      label: 'Propose Embargo Revision',
+      description: 'Propose a revision to the active embargo terms',
       enabled: true,
     })
-
-    // Add submit report to additional vendors option
-    // Available even if all vendors have closed (e.g., to try another vendor)
-    const allVendors = getVendors(state)
-    const nextVendorNumber = allVendors.length + 1
-    const nextVendorId = `vendor-${nextVendorNumber}`
-    const canInviteMore = !state.invitedVendors.has(nextVendorId)
-
-    if (canInviteMore) {
-      actions.push({
-        id: 'finder-invite-vendor',
-        label: `Submit Report to Vendor ${nextVendorNumber}`,
-        description: 'Send the vulnerability report to another vendor',
-        enabled: true,
-      })
-    }
-
-    // Close case - available once publication has occurred.
-    // RM `close` legality (legal from the Finder's ACCEPTED state in this fork)
-    // gates the machine step; the `pxaState.includes('P')` overlay is the demo
-    // policy that the Finder only closes after publication.
-    if (isLegalTransition('rm', finder.rmState, 'close') && state.pxaState.includes('P') && !finder.hasClosed) {
-      actions.push({
-        id: 'finder-close-case',
-        label: 'Close Case',
-        description: 'Finder closes their participation in the case',
-        enabled: true,
-      })
-    }
-
-    // Acknowledge publication if published and finder hasn't acknowledged
-    if (state.pxaState === 'Pxa' && anyVendorVFD && !finder.hasPublished) {
-      actions.push({
-        id: 'finder-notify-published',
-        label: 'Acknowledge Publication',
-        description: 'Finder acknowledges publication',
-        enabled: true,
-      })
-    }
-
-    return actions
   }
 
-  // Vendor closed
-  if (state.phase === 'vendor-closed' && !finder.hasClosed && state.pxaState.includes('P') && isLegalTransition('rm', finder.rmState, 'close')) {
-    return [{
+  // Accept/reject a pending revision — `accept`/`reject` legal from REVISE; overlay:
+  // Finder hasn't responded and didn't propose it (proposing implies acceptance).
+  if (isLegalTransition('em', state.emState, 'accept') && state.emState === 'REVISE' && !isPublic && !finder.embargoAccepted && state.embargoProposerId !== 'finder') {
+    actions.push({
+      id: 'finder-accept-revision',
+      label: 'Accept Embargo Revision',
+      description: 'Accept the proposed revision to embargo terms',
+      enabled: true,
+    }, {
+      id: 'finder-reject-revision',
+      label: 'Reject Embargo Revision',
+      description: 'Reject the proposed revision (keeps current embargo terms)',
+      enabled: true,
+    })
+  }
+
+  // Ask a question — always available to an active Finder (notes have no machine
+  // slot; the label just reflects whether a vendor has answered yet).
+  const anyVendorReplied = activeVendors.some(v => v.hasRepliedToCurrentNote)
+  actions.push({
+    id: 'finder-add-note',
+    label: anyVendorReplied ? 'Ask Another Question' : 'Ask Question',
+    description: anyVendorReplied
+      ? 'Add another note to the case asking for more information'
+      : 'Add a note to the case asking for information',
+    enabled: true,
+  })
+
+  // Submit report to additional vendors while the case is open.
+  const invite = buildInviteAction(state)
+  if (invite) actions.push(invite)
+
+  // Acknowledge publication once the vuln is public and a vendor has a deployed
+  // fix (Pxa + some vendor at VFD); overlay-only (acknowledgement has no machine
+  // slot). Kept before close so it appears while still relevant.
+  if (state.pxaState === 'Pxa' && anyVendorVFD && !finder.hasPublished) {
+    actions.push({
+      id: 'finder-notify-published',
+      label: 'Acknowledge Publication',
+      description: 'Finder acknowledges publication',
+      enabled: true,
+    })
+  }
+
+  // Close — `close` legal from the Finder's RM state (ACCEPTED/DEFERRED); overlay:
+  // the demo lets the Finder close only after publication (P present).
+  if (isLegalTransition('rm', finder.rmState, 'close') && state.pxaState.includes('P')) {
+    actions.push({
       id: 'finder-close-case',
       label: 'Close Case',
       description: 'Finder closes their participation in the case',
       enabled: true,
-    }]
+    })
   }
 
-  // Vendor published
-  if (state.phase === 'vendor-published' && !finder.hasClosed) {
-    const actions: Action[] = [{
-      id: 'finder-add-note',
-      label: 'Ask Question',
-      description: 'Add a note to the case asking for information',
-      enabled: true,
-    }]
-
-    if (!finder.hasPublished) {
-      actions.push({
-        id: 'finder-notify-published',
-        label: 'Acknowledge Publication',
-        description: 'Finder acknowledges publication',
-        enabled: true,
-      })
-    }
-
-    if (state.pxaState.includes('P') && isLegalTransition('rm', finder.rmState, 'close')) {
-      actions.push({
-        id: 'finder-close-case',
-        label: 'Close Case',
-        description: 'Finder closes their participation in the case',
-        enabled: true,
-      })
-    }
-
-    return actions
-  }
-
-  // Finder published or vendor closed
-  if (['finder-published', 'vendor-closed'].includes(state.phase) && !finder.hasClosed) {
-    const actions: Action[] = [{
-      id: 'finder-add-note',
-      label: 'Ask Question',
-      description: 'Add a note to the case asking for information',
-      enabled: true,
-    }]
-
-    if (state.pxaState.includes('P') && isLegalTransition('rm', finder.rmState, 'close')) {
-      actions.push({
-        id: 'finder-close-case',
-        label: 'Close Case',
-        description: 'Finder closes their participation in the case',
-        enabled: true,
-      })
-    }
-
-    return actions
-  }
-
-  return []
+  return actions
 }
 
 export function getVendorActions(state: DemoState, vendorId: string): Action[] {
@@ -312,294 +235,178 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
   // If embargo was EXITED (terminated), P/X/A occurred, or in REVISE state, vendors can participate
   // The barrier to participation no longer exists or is temporarily lifted for revision voting
 
-  const vendorActivePhases = ['report-received', 'report-validated', 'report-accepted', 'report-deferred', 'report-invalidated', 'embargo-proposed', 'embargo-rejected', 'embargo-accepted', 'finder-asked', 'fix-ready', 'fix-deployed', 'vendor-published']
+  // An active, participating vendor. Every action below is gated by its own
+  // machine-legality (from protocol_states.json via isLegalTransition) plus an
+  // explicit, documented non-machine overlay — NOT by the case-level `phase`
+  // string. This is deliberate: the four machines (RM/EM/VFD/PXA) are independent
+  // per the Vultron protocol, so e.g. fix development legitimately continues after
+  // publication (cs/index.md: "both Fix Ready and Public Awareness are necessary
+  // for Fix Deployment" in the shrinkwrap model). Gating on `phase` — a single
+  // last-action-wins string — previously hid legal actions (e.g. a vendor still at
+  // VFD=Vfd lost Notify Fix Ready once the Finder acknowledged publication).
+  const actions: Action[] = []
 
-  // Per-participant RM state: vendor marked report as invalid.
-  // From INVALID the machine permits `validate` (→VALID, reconsideration) and
-  // `close` (→CLOSED); both buttons are gated by that legality. The INVALID
-  // *phase routing* (this whole branch) and the "don't progress VFD while
-  // invalid" rule are demo overlay. We assert legality to stay in sync with
-  // protocol_states.json even though this branch is only entered when INVALID.
-  if (vendor.rmState === 'INVALID') {
-    const actions: Action[] = []
-
-    if (isLegalTransition('rm', vendor.rmState, 'validate')) {
-      actions.push({
-        id: 'validate-report',
-        label: 'Re-validate Report',
-        description: 'Mark the report as valid after reconsideration (RM: INVALID → VALID)',
-        enabled: true,
-      })
-    }
-
-    if (isLegalTransition('rm', vendor.rmState, 'close')) {
-      actions.push({
-        id: 'vendor-close-case',
-        label: 'Close Invalid Report',
-        description: 'Close the case for this invalid report (RM: INVALID → CLOSED)',
-        enabled: true,
-      })
-    }
-
-    // Allow replying to questions even while report is invalid
-    if (state.hasPendingFinderNote && !vendor.hasRepliedToCurrentNote) {
-      actions.push({
-        id: 'vendor-reply-note',
-        label: 'Reply to Question',
-        description: 'Respond to Finder\'s question',
-        enabled: true,
-      })
-    }
-
-    return actions
+  // ---- EM: embargo consent / revision (independent of VFD; not after public) ----
+  // `accept`/`reject` legal from PROPOSED; overlay: not yet accepted, not public.
+  if (isLegalTransition('em', state.emState, 'accept') && state.emState === 'PROPOSED' && !vendor.embargoAccepted && !isPublic) {
+    actions.push({
+      id: 'accept-embargo',
+      label: 'Accept Embargo',
+      description: 'Accept the 90-day embargo proposal',
+      enabled: true,
+    }, {
+      id: 'reject-embargo',
+      label: 'Reject Embargo',
+      description: 'Reject the embargo proposal',
+      enabled: true,
+    })
   }
 
-  // NOTE: Embargo handling is now moved into vendorActivePhases block below
-  // This ensures VFD and EM are independent per Vultron protocol
+  // Propose revision — `propose` legal from ACTIVE/REVISE; overlay: this vendor is
+  // in the embargo and case isn't public.
+  if (isLegalTransition('em', state.emState, 'propose') && (state.emState === 'ACTIVE' || state.emState === 'REVISE') && !isPublic && vendor.embargoAccepted) {
+    actions.push({
+      id: 'vendor-propose-revision',
+      label: 'Propose Embargo Revision',
+      description: 'Propose a revision to the active embargo terms',
+      enabled: true,
+    })
+  }
 
-  // Active case phases for vendors (includes pre-embargo and embargo phases)
-  if (vendorActivePhases.includes(state.phase)) {
-    const actions: Action[] = []
+  // Accept/reject a pending revision — `accept`/`reject` legal from REVISE; overlay:
+  // vendor hasn't responded and didn't propose it (proposing implies acceptance).
+  if (isLegalTransition('em', state.emState, 'accept') && state.emState === 'REVISE' && !isPublic && !vendor.embargoAccepted && state.embargoProposerId !== vendorId) {
+    actions.push({
+      id: 'vendor-accept-revision',
+      label: 'Accept Embargo Revision',
+      description: 'Accept the proposed revision to embargo terms',
+      enabled: true,
+    }, {
+      id: 'vendor-reject-revision',
+      label: 'Reject Embargo Revision',
+      description: 'Reject the proposed revision (keeps current embargo terms)',
+      enabled: true,
+    })
+  }
 
-    // Embargo response actions (EM state machine - independent of VFD and phase).
-    // `accept`/`reject` legal from PROPOSED gates the machine step; the overlay
-    // is "this vendor hasn't accepted and the case isn't public". Check EM
-    // state, NOT phase, since phase changes with VFD progression.
-    if (isLegalTransition('em', state.emState, 'accept') && state.emState === 'PROPOSED' && !vendor.embargoAccepted && !isPublic) {
-      actions.push({
-        id: 'accept-embargo',
-        label: 'Accept Embargo',
-        description: 'Accept the 90-day embargo proposal',
-        enabled: true,
-      }, {
-        id: 'reject-embargo',
-        label: 'Reject Embargo',
-        description: 'Reject the embargo proposal',
-        enabled: true,
-      })
-    }
+  // ---- RM lifecycle: buttons follow trigger legality from the current rmState ----
+  // (validate/invalidate from RECEIVED; validate from INVALID; accept/defer from
+  // VALID; accept/close from DEFERRED; close from ACCEPTED). Labels vary by source
+  // state, but each is gated purely by isLegalTransition so surfaced transitions
+  // track protocol_states.json.
+  if (isLegalTransition('rm', vendor.rmState, 'validate')) {
+    actions.push({
+      id: 'validate-report',
+      label: vendor.rmState === 'INVALID' ? 'Re-validate Report' : 'Validate Report',
+      description: vendor.rmState === 'INVALID'
+        ? 'Mark the report as valid after reconsideration (RM: INVALID → VALID)'
+        : 'Mark the report as valid (RM: RECEIVED → VALID)',
+      enabled: true,
+    })
+  }
+  if (isLegalTransition('rm', vendor.rmState, 'invalidate')) {
+    actions.push({
+      id: 'invalidate-report',
+      label: 'Invalidate Report',
+      description: 'Mark the report as invalid (RM: RECEIVED → INVALID)',
+      enabled: true,
+    })
+  }
+  if (isLegalTransition('rm', vendor.rmState, 'accept')) {
+    actions.push({
+      id: 'accept-report',
+      label: vendor.rmState === 'DEFERRED' ? 'Resume Work (Accept)' : 'Accept Report',
+      description: vendor.rmState === 'DEFERRED'
+        ? 'Resume work on the deferred report (RM: DEFERRED → ACCEPTED)'
+        : 'Accept the report and commit to working on it (RM: VALID → ACCEPTED)',
+      enabled: true,
+    })
+  }
+  if (isLegalTransition('rm', vendor.rmState, 'defer')) {
+    actions.push({
+      id: 'defer-report',
+      label: 'Defer Report',
+      description: 'Defer the report for later consideration (RM: VALID → DEFERRED)',
+      enabled: true,
+    })
+  }
 
-    // Per Vultron protocol (em/index.md): Active participants can propose revisions.
-    // `propose` is machine-legal from ACTIVE (→REVISE) and REVISE (→REVISE); the
-    // overlay additionally requires this vendor to already be in the embargo.
-    if (isLegalTransition('em', state.emState, 'propose') && (state.emState === 'ACTIVE' || state.emState === 'REVISE') && !isPublic && vendor.embargoAccepted) {
-      actions.push({
-        id: 'vendor-propose-revision',
-        label: 'Propose Embargo Revision',
-        description: 'Propose a revision to the active embargo terms',
-        enabled: true,
-      })
-    }
+  // ---- Notes: reply to a pending Finder question (no machine slot) ----
+  if (state.hasPendingFinderNote && !vendor.hasRepliedToCurrentNote) {
+    actions.push({
+      id: 'vendor-reply-note',
+      label: 'Reply to Question',
+      description: 'Respond to Finder\'s question',
+      enabled: true,
+    })
+  }
 
-    // If there's a pending revision proposal, vendor can accept/reject it
-    // (`accept`/`reject` machine-legal from REVISE) UNLESS vendor proposed it
-    // themselves (proposing implies acceptance) — demo overlay.
-    if (isLegalTransition('em', state.emState, 'accept') && state.emState === 'REVISE' && !isPublic && !vendor.embargoAccepted && state.embargoProposerId !== vendorId) {
-      actions.push({
-        id: 'vendor-accept-revision',
-        label: 'Accept Embargo Revision',
-        description: 'Accept the proposed revision to embargo terms',
-        enabled: true,
-      }, {
-        id: 'vendor-reject-revision',
-        label: 'Reject Embargo Revision',
-        description: 'Reject the proposed revision (keeps current embargo terms)',
-        enabled: true,
-      })
-    }
+  // ---- VFD: fix development, independent of publicity ----
+  // `fix_is_ready` legal from Vfd, `fix_is_deployed` from VFd (artifact). Overlay:
+  // `canProgressVFD` couples VFD to RM.ACCEPTED (Fix Ready requires the vendor to
+  // have accepted; not a single machine transition — see protocolActions/§9). NB:
+  // NOT gated on publicity — a vendor may (and per the shrinkwrap model, typically
+  // does) advance/deploy a fix after the vuln is public.
+  const canProgressVFD = vendor.rmState === 'ACCEPTED'
+  if (isLegalTransition('vfd', vendor.vfdState, 'fix_is_ready') && canProgressVFD) {
+    actions.push({
+      id: 'notify-fix-ready',
+      label: 'Notify Fix Ready',
+      description: 'Vendor notifies that a fix is ready',
+      enabled: true,
+    })
+  }
+  if (isLegalTransition('vfd', vendor.vfdState, 'fix_is_deployed') && canProgressVFD) {
+    actions.push({
+      id: 'notify-fix-deployed',
+      label: 'Notify Fix Deployed',
+      description: 'Vendor notifies that the fix has been deployed',
+      enabled: true,
+    })
+  }
 
-    // RM lifecycle buttons. The branch by `rmState` selects the right labels /
-    // descriptions for each state; each button is gated by the legality of its
-    // trigger from the current rmState (validate/invalidate from RECEIVED;
-    // accept/defer from VALID; accept/close from DEFERRED), so the surfaced
-    // transitions follow protocol_states.json rather than hardcoded source→dest.
+  // ---- Publication: case-wide P transition ----
+  // `public_becomes_aware` legality IS the "not already public" check; overlay:
+  // vendor only publishes once their own fix is deployed (VFD). (Composite — PXA +
+  // EM terminate — so gating stays hand-written.)
+  if (vendor.vfdState === 'VFD' && isLegalTransition('pxa', state.pxaState, 'public_becomes_aware')) {
+    actions.push({
+      id: 'vendor-notify-published',
+      label: 'Notify Published',
+      description: 'Vendor notifies that vulnerability is publicly disclosed',
+      enabled: true,
+    })
+  }
 
-    // Validation actions - vendor must validate before progressing VFD
-    if (vendor.rmState === 'RECEIVED') {
-      if (isLegalTransition('rm', vendor.rmState, 'validate')) {
-        actions.push({
-          id: 'validate-report',
-          label: 'Validate Report',
-          description: 'Mark the report as valid (RM: RECEIVED → VALID)',
-          enabled: true,
-        })
-      }
-      if (isLegalTransition('rm', vendor.rmState, 'invalidate')) {
-        actions.push({
-          id: 'invalidate-report',
-          label: 'Invalidate Report',
-          description: 'Mark the report as invalid (RM: RECEIVED → INVALID)',
-          enabled: true,
-        })
-      }
-    }
-
-    // Prioritization actions - after validation, vendor must accept or defer.
-    // Per Vultron protocol: VALID → ACCEPTED or VALID → DEFERRED.
-    if (vendor.rmState === 'VALID') {
-      if (isLegalTransition('rm', vendor.rmState, 'accept')) {
-        actions.push({
-          id: 'accept-report',
-          label: 'Accept Report',
-          description: 'Accept the report and commit to working on it (RM: VALID → ACCEPTED)',
-          enabled: true,
-        })
-      }
-      if (isLegalTransition('rm', vendor.rmState, 'defer')) {
-        actions.push({
-          id: 'defer-report',
-          label: 'Defer Report',
-          description: 'Defer the report for later consideration (RM: VALID → DEFERRED)',
-          enabled: true,
-        })
-      }
-    }
-
-    // Resume work on deferred report.
-    // Per Vultron protocol: DEFERRED → ACCEPTED or DEFERRED → CLOSED.
-    if (vendor.rmState === 'DEFERRED') {
-      if (isLegalTransition('rm', vendor.rmState, 'accept')) {
-        actions.push({
-          id: 'accept-report',
-          label: 'Resume Work (Accept)',
-          description: 'Resume work on the deferred report (RM: DEFERRED → ACCEPTED)',
-          enabled: true,
-        })
-      }
-      if (isLegalTransition('rm', vendor.rmState, 'close')) {
-        actions.push({
-          id: 'vendor-close-case',
-          label: 'Close Deferred Report',
-          description: 'Close the deferred report (RM: DEFERRED → CLOSED)',
-          enabled: true,
-        })
-      }
-    }
-
-    // Reply to questions - each vendor can reply independently
-    // Per Vultron protocol: notes are case-wide with inReplyTo relationships.
-    // Gated on the case-level pending-note flag (not `phase`) so that an RM
-    // transition by this or another vendor (e.g. defer) doesn't remove the option.
-    if (state.hasPendingFinderNote && !vendor.hasRepliedToCurrentNote) {
-      actions.push({
-        id: 'vendor-reply-note',
-        label: 'Reply to Question',
-        description: 'Respond to Finder\'s question',
-        enabled: true,
-      })
-    }
-
-    // Submit report to additional vendors (any vendor can do this)
-    const vendorCount = getVendors(state).length
-    const nextVendorNumber = vendorCount + 1
-    const nextVendorId = `vendor-${nextVendorNumber}`
-    const canInviteMore = !state.invitedVendors.has(nextVendorId)
-
-    if (canInviteMore) {
-      actions.push({
-        id: 'vendor-invite-next-vendor',
-        label: `Submit Report to Vendor ${nextVendorNumber}`,
-        description: 'Send the vulnerability report to another vendor for collaboration',
-        enabled: true,
-      })
-    }
-
-    // VFD progression - each vendor can progress independently. The VFD step
-    // legality comes from the artifact (`fix_is_ready` from Vfd, `fix_is_deployed`
-    // from VFd); `canProgressVFD` is the demo overlay coupling VFD to RM:
-    // per Vultron protocol Fix Ready can only occur once the vendor is in
-    // RM.ACCEPTED, so vendors in VALID/DEFERRED must accept first. (That RM→VFD
-    // coupling is not itself a single machine transition — see protocolActions.)
-    const canProgressVFD = vendor.rmState === 'ACCEPTED'
-
-    if (isLegalTransition('vfd', vendor.vfdState, 'fix_is_ready') && canProgressVFD) {
-      actions.push({
-        id: 'notify-fix-ready',
-        label: 'Notify Fix Ready',
-        description: 'Vendor notifies that a fix is ready',
-        enabled: true,
-      })
-    }
-
-    if (isLegalTransition('vfd', vendor.vfdState, 'fix_is_deployed') && canProgressVFD) {
-      actions.push({
-        id: 'notify-fix-deployed',
-        label: 'Notify Fix Deployed',
-        description: 'Vendor notifies that the fix has been deployed',
-        enabled: true,
-      })
-    }
-
-    // Publication - triggers the case-wide P (Public Awareness) PXA transition.
-    // `public_becomes_aware` legality (true only from a non-P pxaState) IS the
-    // "not already public" check; the `vfdState === 'VFD'` overlay is the demo
-    // rule that a vendor only publishes once their fix is deployed. (Publication
-    // is a composite — PXA + EM terminate — so gating stays hand-written here.)
-    if (vendor.vfdState === 'VFD' && isLegalTransition('pxa', state.pxaState, 'public_becomes_aware')) {
-      actions.push({
-        id: 'vendor-notify-published',
-        label: 'Notify Published',
-        description: 'Vendor notifies that vulnerability is publicly disclosed',
-        enabled: true,
-      })
-    }
-
-    // Close case - available after both fix deployed (VFD) AND published (P).
-    // RM `close` legality gates the machine step (legal from the vendor's
-    // ACCEPTED state); the VFD/P overlay is the demo rule that a vendor only
-    // closes after deploying a fix and publication has occurred.
-    if (vendor.vfdState === 'VFD' && state.pxaState.includes('P') && !vendor.hasClosed && isLegalTransition('rm', vendor.rmState, 'close')) {
+  // ---- Close ----
+  // `close` legal from ACCEPTED/DEFERRED/INVALID (artifact). Overlay differs by
+  // source: an INVALID or DEFERRED report can be closed immediately (dead-ends);
+  // an ACCEPTED report only closes after the vendor has deployed a fix (VFD) and
+  // the vuln is public (P) — the demo's "finished coordinating" rule.
+  if (isLegalTransition('rm', vendor.rmState, 'close')) {
+    const closeableNow =
+      vendor.rmState === 'INVALID' ||
+      vendor.rmState === 'DEFERRED' ||
+      (vendor.vfdState === 'VFD' && state.pxaState.includes('P'))
+    if (closeableNow) {
+      const label =
+        vendor.rmState === 'INVALID' ? 'Close Invalid Report'
+        : vendor.rmState === 'DEFERRED' ? 'Close Deferred Report'
+        : 'Close Case'
       actions.push({
         id: 'vendor-close-case',
-        label: 'Close Case',
+        label,
         description: 'Vendor closes their participation in the case',
         enabled: true,
       })
     }
-
-    return actions
   }
 
-  // Post-publication phases (including when another vendor closed)
-  if (['vendor-published', 'finder-published', 'finder-closed', 'vendor-closed'].includes(state.phase) && !vendor.hasClosed) {
-    const actions: Action[] = []
+  // ---- Invite: onboard another vendor while the case is open (demo overlay) ----
+  const invite = buildInviteAction(state)
+  if (invite) actions.push(invite)
 
-    // Reply to questions (gated on the case-level pending-note flag, not `phase`,
-    // which here is always a post-publication value)
-    if (state.hasPendingFinderNote && !vendor.hasRepliedToCurrentNote) {
-      actions.push({
-        id: 'vendor-reply-note',
-        label: 'Reply to Question',
-        description: 'Respond to Finder\'s question',
-        enabled: true,
-      })
-    }
-
-    // Publish if case is not yet public. `public_becomes_aware` legality is the
-    // "not yet public" check; the VFD + finder-closed overlay is demo phase policy.
-    if (vendor.vfdState === 'VFD' && isLegalTransition('pxa', state.pxaState, 'public_becomes_aware') && state.phase === 'finder-closed') {
-      actions.push({
-        id: 'vendor-notify-published',
-        label: 'Notify Published',
-        description: 'Vendor notifies that vulnerability is publicly disclosed',
-        enabled: true,
-      })
-    }
-
-    // Close case — RM `close` legality gates the step; VFD + P is demo overlay.
-    if (vendor.vfdState === 'VFD' && state.pxaState.includes('P') && isLegalTransition('rm', vendor.rmState, 'close')) {
-      actions.push({
-        id: 'vendor-close-case',
-        label: 'Close Case',
-        description: 'Vendor closes their participation in the case',
-        enabled: true,
-      })
-    }
-
-    return actions
-  }
-
-  return []
+  return actions
 }
 
 export function getCaseActorActions(state: DemoState): Action[] {
@@ -621,13 +428,15 @@ export function getCaseActorActions(state: DemoState): Action[] {
   // the overlay is "after case start, not public". Check emState only, NOT phase.
   const canProposeEmbargo = isLegalTransition('em', state.emState, 'propose') && state.emState === 'NONE' && state.phase !== 'start' && !isPublic
 
+  const actions: Action[] = []
+
   if (canProposeEmbargo) {
-    return [{
+    actions.push({
       id: 'propose-embargo',
       label: 'Propose Embargo',
       description: 'Propose a 90-day coordinated disclosure embargo',
       enabled: true,
-    }]
+    })
   }
 
   // Per Vultron protocol: CaseActor can propose and respond to embargo revisions.
@@ -637,12 +446,12 @@ export function getCaseActorActions(state: DemoState): Action[] {
   const canProposeRevision = isLegalTransition('em', state.emState, 'propose') && state.emState === 'ACTIVE' && !isPublic
 
   if (canProposeRevision) {
-    return [{
+    actions.push({
       id: 'caseactor-propose-revision',
       label: 'Propose Embargo Revision',
       description: 'Propose a revision to the active embargo terms',
       enabled: true,
-    }]
+    })
   }
 
   // If there's a pending revision that CaseActor didn't propose, they can accept/reject it
@@ -654,7 +463,7 @@ export function getCaseActorActions(state: DemoState): Action[] {
   // doesn't fire REVISE → ACTIVE the way a reject does). The flag is UI-only: it is
   // never read by `allParticipantsAccepted` (finder + active vendors only).
   if (isLegalTransition('em', state.emState, 'accept') && state.emState === 'REVISE' && !isPublic && !caseActor.embargoAccepted && state.embargoProposerId !== 'caseactor') {
-    return [{
+    actions.push({
       id: 'caseactor-accept-revision',
       label: 'Accept Embargo Revision',
       description: 'Accept the proposed revision to embargo terms',
@@ -664,10 +473,16 @@ export function getCaseActorActions(state: DemoState): Action[] {
       label: 'Reject Embargo Revision',
       description: 'Reject the proposed revision (keeps current embargo terms)',
       enabled: true,
-    }]
+    })
   }
 
-  return []
+  // The Case Actor (coordinator) can also onboard another vendor while the case
+  // is open — same policy as finder/vendors (buildInviteAction). Previously this
+  // was fully absent for the Case Actor.
+  const invite = buildInviteAction(state)
+  if (invite) actions.push(invite)
+
+  return actions
 }
 
 export function getExternalActions(state: DemoState): Action[] {
