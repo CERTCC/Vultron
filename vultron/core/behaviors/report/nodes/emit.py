@@ -86,8 +86,7 @@ class _EmitCaseActorReportActivityBase(DataLayerAction):
             self.logger.error("%s: %s", self.name, self.feedback_message)
         return addressees
 
-    def update(self) -> Status:
-        """Create and queue the report-phase activity."""
+    def _validate_context(self) -> Status | None:
         if (f := self._require_datalayer_and_actor()) is not None:
             self.logger.error(
                 "%s: DataLayer or actor_id not available", self.name
@@ -99,7 +98,12 @@ class _EmitCaseActorReportActivityBase(DataLayerAction):
                 self.name,
             )
             return f
+        return None
 
+    def update(self) -> Status:
+        """Create and queue the report-phase activity."""
+        if (f := self._validate_context()) is not None:
+            return f
         try:
             addressees = self._compute_addressees()
             if not addressees:
@@ -289,7 +293,7 @@ class EmitSubmitReportActivity(DataLayerAction):
             target=self.recipient_id,
         )
 
-    def update(self) -> Status:
+    def _validate_context(self) -> Status | None:
         if (f := self._require_datalayer_and_actor()) is not None:
             self.logger.error(
                 "%s: DataLayer or actor_id not available", self.name
@@ -301,7 +305,11 @@ class EmitSubmitReportActivity(DataLayerAction):
                 self.name,
             )
             return f
+        return None
 
+    def update(self) -> Status:
+        if (f := self._validate_context()) is not None:
+            return f
         try:
             offer_id, offer_dict = self._call_factory()
             cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
