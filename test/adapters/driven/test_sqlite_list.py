@@ -74,6 +74,7 @@ class TestListMethod:
 
     def test_list_returns_typed_objects_not_dicts(self, dl):
         """list() returns domain model instances, not raw dict records."""
+        from vultron.core.models.report import VulnerabilityReport
         from vultron.wire.as2.vocab.objects.vulnerability_report import (
             as_VulnerabilityReport,
         )
@@ -84,7 +85,7 @@ class TestListMethod:
         results = dl.list_objects("VulnerabilityReport")
 
         assert len(results) == 1
-        assert isinstance(results[0], as_VulnerabilityReport)
+        assert isinstance(results[0], VulnerabilityReport)
 
     def test_list_returns_semantic_class_for_activities(self, dl):
         """list() applies semantic coercion so activities get their subtype."""

@@ -7,6 +7,7 @@ from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -115,7 +116,7 @@ class TestDeferCaseRMTransitionViaBT:
 
         updated = self.dl.read(self.vendor_participant.id_)
         assert updated is not None
-        assert isinstance(updated, as_CaseParticipant)
+        assert isinstance(updated, CaseParticipant)
         assert updated.participant_statuses
         assert updated.participant_statuses[-1].rm_state == RM.DEFERRED
 

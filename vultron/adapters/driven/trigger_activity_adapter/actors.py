@@ -48,7 +48,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
 
-from ._base import _DUMP_KWARGS
+from ._base import _DUMP_KWARGS, _to_wire
 
 logger = logging.getLogger(__name__)
 
@@ -343,7 +343,9 @@ class _ActorsMixin:
         to: list[str] | None = None,
     ) -> str:
         """Create and persist an ``Add(as_CaseParticipant, Case)`` activity."""
-        participant = cast(as_CaseParticipant, self._dl.read(participant_id))
+        participant = _to_wire(
+            self._dl.read(participant_id), as_CaseParticipant
+        )
         activity = add_participant_to_case_activity(
             participant=participant, target=case_id, actor=actor, to=to
         )
@@ -406,8 +408,10 @@ class _ActorsMixin:
         """Create and persist an ``Offer(as_VulnerabilityCase, target=as_CaseParticipant)``
         CASE_MANAGER delegation activity.
         """
-        case = cast(as_VulnerabilityCase, self._dl.read(case_id))
-        participant = cast(as_CaseParticipant, self._dl.read(participant_id))
+        case = _to_wire(self._dl.read(case_id), as_VulnerabilityCase)
+        participant = _to_wire(
+            self._dl.read(participant_id), as_CaseParticipant
+        )
         activity = offer_case_manager_role_activity(
             case=case, target=participant, actor=actor, to=to
         )
@@ -436,8 +440,10 @@ class _ActorsMixin:
         ``case_id``, ``participant_id``, and ``vendor_id`` so that
         ``Accept.object_`` is a typed ``_OfferCaseManagerRoleActivity``.
         """
-        case = cast(as_VulnerabilityCase, self._dl.read(case_id))
-        participant = cast(as_CaseParticipant, self._dl.read(participant_id))
+        case = _to_wire(self._dl.read(case_id), as_VulnerabilityCase)
+        participant = _to_wire(
+            self._dl.read(participant_id), as_CaseParticipant
+        )
         offer = offer_case_manager_role_activity(
             case=case,
             target=participant,
@@ -472,8 +478,10 @@ class _ActorsMixin:
         ``case_id``, ``participant_id``, and ``vendor_id`` so that
         ``Reject.object_`` is a typed ``_OfferCaseManagerRoleActivity``.
         """
-        case = cast(as_VulnerabilityCase, self._dl.read(case_id))
-        participant = cast(as_CaseParticipant, self._dl.read(participant_id))
+        case = _to_wire(self._dl.read(case_id), as_VulnerabilityCase)
+        participant = _to_wire(
+            self._dl.read(participant_id), as_CaseParticipant
+        )
         offer = offer_case_manager_role_activity(
             case=case,
             target=participant,

@@ -34,6 +34,7 @@ from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.pending_assertion import (
     _reset_stores,
@@ -238,7 +239,7 @@ class TestSvcAddNoteToCaseUseCase:
         result = self._execute()
         note_id = result["note"]["id"]
         case_obj = self.dl.read(self.case.id_)
-        assert isinstance(case_obj, as_VulnerabilityCase)
+        assert isinstance(case_obj, VulnerabilityCase)
         note_ids = [
             n if isinstance(n, str) else getattr(n, "id_", str(n))
             for n in case_obj.notes
@@ -365,7 +366,7 @@ class TestSvcAddNoteToCaseUseCase:
         note_id = result["note"]["id"]
 
         case_obj = self.dl.read(self.case.id_)
-        assert isinstance(case_obj, as_VulnerabilityCase)
+        assert isinstance(case_obj, VulnerabilityCase)
         count_before = sum(
             1
             for n in case_obj.notes
@@ -383,7 +384,7 @@ class TestSvcAddNoteToCaseUseCase:
             self.dl.save(case_obj)
 
         case_obj2 = self.dl.read(self.case.id_)
-        assert isinstance(case_obj2, as_VulnerabilityCase)
+        assert isinstance(case_obj2, VulnerabilityCase)
         count_after = sum(
             1
             for n in case_obj2.notes

@@ -473,11 +473,9 @@ class TestCreateParticipantStatusNode:
         assert result_out["participant_id"] == self.actor_participant.id_
 
     def test_node_persists_status_with_explicit_rm_state(self):
-        """CreateParticipantStatusNode persists as_ParticipantStatus with given RM."""
+        """CreateParticipantStatusNode persists ParticipantStatus with given RM."""
+        from vultron.core.models.participant_status import ParticipantStatus
         from vultron.core.states.rm import RM
-        from vultron.wire.as2.vocab.objects.case_status import (
-            as_ParticipantStatus as WireParticipantStatus,
-        )
 
         bt_result, result_out = self._run_node(
             rm_state=RM.ACCEPTED, vfd_state=None, pxa_state=None
@@ -486,9 +484,7 @@ class TestCreateParticipantStatusNode:
         status_id = result_out.get("status_id")
         assert isinstance(status_id, str), "result_out must contain status_id"
         stored = self.dl.read(status_id)
-        # dl.read() reconstructs via find_in_vocabulary, which returns the
-        # wire-layer as_ParticipantStatus (VultronAS2Object subclass).
-        assert isinstance(stored, WireParticipantStatus)
+        assert isinstance(stored, ParticipantStatus)
         assert stored.rm_state == RM.ACCEPTED
 
     def test_node_appends_status_to_participant(self):
@@ -534,10 +530,8 @@ class TestCreateParticipantStatusNode:
 
     def test_node_uses_current_state_when_rm_none(self):
         """CreateParticipantStatusNode uses existing RM state when rm_state=None."""
+        from vultron.core.models.participant_status import ParticipantStatus
         from vultron.core.states.rm import RM
-        from vultron.wire.as2.vocab.objects.case_status import (
-            as_ParticipantStatus as WireParticipantStatus,
-        )
 
         _, result_out = self._run_node(
             rm_state=None, vfd_state=None, pxa_state=None
@@ -546,8 +540,6 @@ class TestCreateParticipantStatusNode:
         status_id = result_out.get("status_id")
         assert isinstance(status_id, str), "result_out must contain status_id"
         stored = self.dl.read(status_id)
-        # dl.read() reconstructs via find_in_vocabulary, which returns the
-        # wire-layer as_ParticipantStatus (VultronAS2Object subclass).
-        assert isinstance(stored, WireParticipantStatus)
+        assert isinstance(stored, ParticipantStatus)
         # No prior statuses → defaults to RM.START
         assert stored.rm_state == RM.START

@@ -30,6 +30,10 @@ from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.report import (
+    VulnerabilityReport as CoreVulnerabilityReport,
+)
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -231,7 +235,7 @@ class TestSvcValidateReportUseCase:
         ]
         updated = self.dl.read(vendor_participant_id)
         assert updated is not None
-        assert isinstance(updated, as_CaseParticipant)
+        assert isinstance(updated, CaseParticipant)
         assert updated.participant_statuses
         assert updated.participant_statuses[-1].rm_state == RM.VALID
 
@@ -368,7 +372,7 @@ class TestSvcValidateReportUseCase:
             self.vendor.id_
         ]
         p1 = self.dl.read(vendor_participant_id)
-        assert isinstance(p1, as_CaseParticipant)
+        assert isinstance(p1, CaseParticipant)
         statuses_after_first = list(p1.participant_statuses)
 
         # Second call: CheckRMStateValid short-circuits before TransitionRMtoValid;
@@ -378,7 +382,7 @@ class TestSvcValidateReportUseCase:
         ).execute()
 
         p2 = self.dl.read(vendor_participant_id)
-        assert isinstance(p2, as_CaseParticipant)
+        assert isinstance(p2, CaseParticipant)
         assert len(p2.participant_statuses) == len(
             statuses_after_first
         ), "Second validate re-appended a duplicate RM status entry"
@@ -433,7 +437,7 @@ class TestSvcSubmitReportUseCase:
         assert (
             stored is not None
         ), "as_VulnerabilityReport not found in DataLayer"
-        assert isinstance(stored, as_VulnerabilityReport)
+        assert isinstance(stored, CoreVulnerabilityReport)
         assert stored.name == "CVE-TEST"
 
     def test_submit_report_persists_report_case_link(self):

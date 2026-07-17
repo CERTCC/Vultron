@@ -215,7 +215,7 @@ class TestAcceptInviteToEmbargoRoutingGuard:
 
         proposal = em_propose_embargo_activity(
             embargo,
-            context=case,
+            context=case.id_,
             actor=self.COORD_ID,
             id_=f"{self.CASE_ID}/proposals/1",
         )
@@ -223,7 +223,7 @@ class TestAcceptInviteToEmbargoRoutingGuard:
 
         accept = em_accept_embargo_activity(
             proposal,
-            context=case,
+            context=case.id_,
             actor=self.COORD_ID,
         )
 

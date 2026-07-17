@@ -16,12 +16,14 @@
 Provides a backend API router for basic Vultron data layer operations.
 """
 
+import logging
 from copy import deepcopy
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from vultron.adapters.driven.datalayer import get_shared_dl
+from vultron.adapters.driven.db_record import Record, record_to_object
 from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
 from vultron.core.ports.datalayer import DataLayer
 from vultron.wire.as2.rehydration import rehydrate
@@ -42,6 +44,8 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/datalayer", tags=["datalayer"])
 
 
@@ -60,7 +64,20 @@ def get_object(
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
-    return obj
+    wire_data = obj.model_dump(by_alias=True, serialize_as_any=True)
+    rec = Record(
+        id_=wire_data.get("id", object_id),
+        type_=wire_data.get("type", ""),
+        data_=wire_data,
+    )
+    try:
+        wire_obj = record_to_object(rec)
+        return AS2JSONResponse(wire_obj)
+    except Exception as exc:
+        logger.debug(
+            "get_object: wire conversion failed for %r: %s", object_id, exc
+        )
+        return wire_data
 
 
 @router.get(
@@ -74,7 +91,11 @@ def get_offer(
     obj = datalayer.read(object_id)
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-    return AS2JSONResponse(as_Offer.model_validate(obj))
+    return AS2JSONResponse(
+        as_Offer.model_validate(
+            obj.model_dump(by_alias=True, serialize_as_any=True)
+        )
+    )
 
 
 @router.get(
@@ -88,7 +109,11 @@ def get_report(
     obj = datalayer.read(id)
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-    return AS2JSONResponse(as_VulnerabilityReport.model_validate(obj))
+    return AS2JSONResponse(
+        as_VulnerabilityReport.model_validate(
+            obj.model_dump(by_alias=True, serialize_as_any=True)
+        )
+    )
 
 
 @router.get(
@@ -125,7 +150,9 @@ def get_actor_offer(
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
-    offer = as_Offer.model_validate(obj)
+    offer = as_Offer.model_validate(
+        obj.model_dump(by_alias=True, serialize_as_any=True)
+    )
 
     # Verify that the offer was targeted to the given actor
     found = False
@@ -232,7 +259,9 @@ def get_actor_outbox(
     if not actor_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
-    actor = as_Actor.model_validate(actor_obj)
+    actor = as_Actor.model_validate(
+        actor_obj.model_dump(by_alias=True, serialize_as_any=True)
+    )
 
     if not actor.outbox:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
@@ -295,4 +324,17 @@ def get_object_by_key(key: str, datalayer: DataLayer = Depends(get_shared_dl)):
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
-    return obj
+    wire_data = obj.model_dump(by_alias=True, serialize_as_any=True)
+    rec = Record(
+        id_=wire_data.get("id", key),
+        type_=wire_data.get("type", ""),
+        data_=wire_data,
+    )
+    try:
+        wire_obj = record_to_object(rec)
+        return AS2JSONResponse(wire_obj)
+    except Exception as exc:
+        logger.debug(
+            "get_object_by_key: wire conversion failed for %r: %s", key, exc
+        )
+        return wire_data

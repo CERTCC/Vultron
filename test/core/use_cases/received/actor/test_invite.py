@@ -395,8 +395,8 @@ class TestInviteActorUseCases:
         """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.wire.as2.vocab.base.objects.actors import as_Organization
-        from vultron.wire.as2.vocab.objects.case_ledger_entry import (
-            as_CaseLedgerEntry as WireCaseLedgerEntry,
+        from vultron.core.models.case_ledger_entry import (
+            CaseLedgerEntry as WireCaseLedgerEntry,
         )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             as_VulnerabilityCase,

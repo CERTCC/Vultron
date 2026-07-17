@@ -19,6 +19,7 @@ promotes base-vocab activities to subtypes).
 Fixtures (dl) come from conftest.
 """
 
+from vultron.core.models.report import VulnerabilityReport
 from vultron.wire.as2.factories import (
     announce_log_entry_activity,
     em_propose_embargo_activity,
@@ -239,4 +240,4 @@ class TestCoerceToSemanticClass:
 
         result = dl.read(report.id_)
 
-        assert isinstance(result, as_VulnerabilityReport)
+        assert isinstance(result, VulnerabilityReport)

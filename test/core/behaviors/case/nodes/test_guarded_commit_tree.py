@@ -134,14 +134,12 @@ def _seeded_scenario(bt_scenario: BTTestScenario) -> BTTestScenario:
 def test_guarded_commit_tree_entry_has_non_empty_hash(
     _seeded_scenario: BTTestScenario,
 ) -> None:
-    """as_CaseLedgerEntry committed by CaseActor MUST have a non-empty entry_hash.
+    """CaseLedgerEntry committed by CaseActor MUST have a non-empty entry_hash.
 
     The CaseActor identity is MANAGER_ACTOR_ID — explicitly seeded in the
     fixture, with no ID derivation at runtime (CM-02-009, Issue #1021).
     """
-    from vultron.wire.as2.vocab.objects.case_ledger_entry import (
-        as_CaseLedgerEntry as WireCaseLedgerEntry,
-    )
+    from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 
     activity = _FakeActivity()
     tree = create_guarded_commit_case_ledger_entry_tree(case_id=CASE_ID)
@@ -153,7 +151,7 @@ def test_guarded_commit_tree_entry_has_non_empty_hash(
     entries = [
         e
         for e in _seeded_scenario.dl.list_objects("CaseLedgerEntry")
-        if isinstance(e, WireCaseLedgerEntry) and e.case_id == CASE_ID
+        if isinstance(e, CaseLedgerEntry) and e.case_id == CASE_ID
     ]
     assert len(entries) >= 1
     for entry in entries:
@@ -164,14 +162,12 @@ def test_guarded_commit_tree_entry_has_non_empty_hash(
 def test_guarded_commit_tree_entry_has_utc_received_at(
     _seeded_scenario: BTTestScenario,
 ) -> None:
-    """as_CaseLedgerEntry committed by CaseActor MUST have a UTC received_at timestamp.
+    """CaseLedgerEntry committed by CaseActor MUST have a UTC received_at timestamp.
 
     The CaseActor identity is MANAGER_ACTOR_ID — explicitly seeded in the
     fixture, with no ID derivation at runtime (CM-02-009, Issue #1021).
     """
-    from vultron.wire.as2.vocab.objects.case_ledger_entry import (
-        as_CaseLedgerEntry as WireCaseLedgerEntry,
-    )
+    from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 
     activity = _FakeActivity()
     tree = create_guarded_commit_case_ledger_entry_tree(case_id=CASE_ID)
@@ -183,7 +179,7 @@ def test_guarded_commit_tree_entry_has_utc_received_at(
     entries = [
         e
         for e in _seeded_scenario.dl.list_objects("CaseLedgerEntry")
-        if isinstance(e, WireCaseLedgerEntry) and e.case_id == CASE_ID
+        if isinstance(e, CaseLedgerEntry) and e.case_id == CASE_ID
     ]
     assert len(entries) >= 1
     for entry in entries:
@@ -195,14 +191,12 @@ def test_guarded_commit_tree_entry_has_utc_received_at(
 def test_guarded_commit_tree_entry_references_correct_case_id(
     _seeded_scenario: BTTestScenario,
 ) -> None:
-    """as_CaseLedgerEntry committed by CaseActor MUST reference the correct case_id.
+    """CaseLedgerEntry committed by CaseActor MUST reference the correct case_id.
 
     The CaseActor identity is MANAGER_ACTOR_ID — explicitly seeded in the
     fixture, with no ID derivation at runtime (CM-02-009, Issue #1021).
     """
-    from vultron.wire.as2.vocab.objects.case_ledger_entry import (
-        as_CaseLedgerEntry as WireCaseLedgerEntry,
-    )
+    from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 
     activity = _FakeActivity()
     tree = create_guarded_commit_case_ledger_entry_tree(case_id=CASE_ID)
@@ -214,7 +208,7 @@ def test_guarded_commit_tree_entry_references_correct_case_id(
     entries = [
         e
         for e in _seeded_scenario.dl.list_objects("CaseLedgerEntry")
-        if isinstance(e, WireCaseLedgerEntry) and e.case_id == CASE_ID
+        if isinstance(e, CaseLedgerEntry) and e.case_id == CASE_ID
     ]
     assert len(entries) >= 1
     assert all(e.case_id == CASE_ID for e in entries)
