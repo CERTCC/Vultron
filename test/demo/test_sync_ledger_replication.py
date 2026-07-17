@@ -163,6 +163,16 @@ def test_sync_single_peer_happy_path_replication(two_app_setup) -> None:
     case_actor_iso.dl.save(peer_participant)
     case_actor_iso.dl.save(case)
 
+    # The peer must already hold the case replica (with its genesis hash) before
+    # it can validate a replicated CaseLedgerEntry: ReconstructChainTail anchors
+    # the first entry on the per-case genesis hash (CLP-08-005).  Previously this
+    # precondition was masked because the ingress adapter pre-stored the inline
+    # entry directly; that write is now forbidden (SYNC-13-002), so seed the peer
+    # with the case as a participant realistically would have it.
+    peer_iso.dl.save(case_actor_participant)
+    peer_iso.dl.save(peer_participant)
+    peer_iso.dl.save(case)
+
     response = case_actor_tc.post(
         f"/api/v2/actors/{_actor_slug(case_actor_id)}/demo/sync-log-entry",
         json={

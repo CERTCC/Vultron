@@ -196,9 +196,14 @@ class IsRemoveEmbargoEventNode(DataLayerCondition):
           Sequence
             IsRemoveEmbargoEventNode   ← SUCCESS iff event_type matches
             ApplyEmbargoTeardownNode
-          AlwaysSuccess("EmbargoEffectsSkipped")
+          Inverter(IsRemoveEmbargoEventNode)  ← SUCCESS iff wrong event type
 
-    Per BTND-08-001, BTND-08-002, BT-06-001.
+    The Inverter fires SUCCESS only when the condition does NOT match (routing
+    no-op for the wrong event type).  When the condition matches but
+    ApplyEmbargoTeardownNode fails, both branches of the Selector fail and
+    the FAILURE propagates to block PersistReceivedLogEntry (SYNC-12-001).
+
+    Per BTND-08-001, BTND-08-002, BT-06-001, SYNC-12-001.
     """
 
     def setup(self, **kwargs: Any) -> None:
@@ -224,9 +229,14 @@ class IsParticipantStatusEventNode(DataLayerCondition):
           Sequence
             IsParticipantStatusEventNode   ← SUCCESS iff event_type matches
             ApplyParticipantStatusFromLedgerNode
-          AlwaysSuccess("ParticipantStatusEffectsSkipped")
+          Inverter(IsParticipantStatusEventNode)  ← SUCCESS iff wrong event type
 
-    Per BTND-08-001, BTND-08-002, DEMOMA-07-003 step 3.
+    The Inverter fires SUCCESS only when the condition does NOT match (routing
+    no-op for the wrong event type).  When the condition matches but
+    ApplyParticipantStatusFromLedgerNode fails, both branches of the Selector
+    fail and the FAILURE propagates to block PersistReceivedLogEntry (SYNC-12-001).
+
+    Per BTND-08-001, BTND-08-002, DEMOMA-07-003 step 3, SYNC-12-001.
     """
 
     def setup(self, **kwargs: Any) -> None:
@@ -252,9 +262,14 @@ class IsAddNoteEventNode(DataLayerCondition):
           Sequence
             IsAddNoteEventNode   ← SUCCESS iff event_type matches
             ApplyNoteFromLedgerNode
-          AlwaysSuccess("NoteEffectsSkipped")
+          Inverter(IsAddNoteEventNode)  ← SUCCESS iff wrong event type
 
-    Per BTND-08-001, BTND-08-002, SYNC-02-002.
+    The Inverter fires SUCCESS only when the condition does NOT match (routing
+    no-op for the wrong event type).  When the condition matches but
+    ApplyNoteFromLedgerNode fails, both branches of the Selector fail and
+    the FAILURE propagates to block PersistReceivedLogEntry (SYNC-12-001).
+
+    Per BTND-08-001, BTND-08-002, SYNC-02-002, SYNC-12-001.
     """
 
     def setup(self, **kwargs: Any) -> None:
@@ -280,9 +295,14 @@ class IsInviteAcceptEventNode(DataLayerCondition):
           Sequence
             IsInviteAcceptEventNode   ← SUCCESS iff event_type matches
             ApplyInviteAcceptFromLedgerNode
-          AlwaysSuccess("InviteAcceptEffectsSkipped")
+          Inverter(IsInviteAcceptEventNode)  ← SUCCESS iff wrong event type
 
-    Per BTND-08-001, BTND-08-002, SYNC-02-002, DEMOMA-07-003.
+    The Inverter fires SUCCESS only when the condition does NOT match (routing
+    no-op for the wrong event type).  When the condition matches but
+    ApplyInviteAcceptFromLedgerNode fails, both branches of the Selector fail
+    and the FAILURE propagates to block PersistReceivedLogEntry (SYNC-12-001).
+
+    Per BTND-08-001, BTND-08-002, SYNC-02-002, DEMOMA-07-003, SYNC-12-001.
     """
 
     def setup(self, **kwargs: Any) -> None:

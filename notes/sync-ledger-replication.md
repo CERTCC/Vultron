@@ -334,6 +334,54 @@ is handled gracefully without patching.
 
 ---
 
+## Ledger write ownership vs. message-ingress scratch (SYNC-13)
+
+The SYNC-12 effects-before-persist gate (`CheckLedgerEntryAlreadyStoredNode`)
+treats **presence of a `CaseLedgerEntry` in the DataLayer** as proof that the
+entry's domain effects were already applied — so it skips the whole
+`ProcessAndStore` subtree on repeat delivery. That inference is only sound if
+the *only* writer of a `CaseLedgerEntry` is the core write path that also
+applies the effects (`PersistReceivedLogEntry` for a participant replica; the
+CaseActor's authoritative append for the primary case).
+
+The FastAPI ingress adapter previously violated that: `_store_nested_inbox_object`
+pre-stored the inline `CaseLedgerEntry` during parse so that `rehydrate()` —
+which re-read the activity **by ID** from the DataLayer — could re-expand a
+dehydrated `object_` for semantic routing. That single adapter write made the
+gate fire SUCCESS on first delivery, so `LogEntryEventEffects` never ran (e.g.
+`ApplyInviteAcceptFromLedger` never added a participant → FVV "participant
+count 4; found 3"). Removing the pre-store instead broke routing, because a
+bare-string `object_` matches both `AnnounceLogEntryPattern` and
+`AnnounceVulnerabilityCasePattern` (both permissive). This is the
+oscillation tracked across issues #1324, #1446, and #1472.
+
+**Resolution (SYNC-13):** ledger writes are a core responsibility; ingress
+delivers messages and never writes the ledger. Concretely:
+
+1. `_store_nested_inbox_object` refuses to persist a `CaseLedgerEntry`
+   (SYNC-13-002).
+2. `FastAPIIngressAdapter.rehydrate` hydrates the **in-memory** parsed activity
+   for an `Announce(CaseLedgerEntry)` (via `DataLayer.hydrate`) instead of
+   re-reading it by ID, so the typed inline entry survives for routing without
+   any pre-store (SYNC-13-003/004). Non-ledger activities keep the canonical
+   by-ID read path unchanged.
+3. Serialization preserves inline nested-object subtype fields end-to-end:
+   `Record.from_obj`, the outbox delivery recovery map, and both wire emitters
+   (`ASGIEmitter`, `DemoHttpDeliveryAdapter`) use `serialize_as_any=True`; the
+   `CaseLedgerEntry` inside a stored `Announce` is kept inline rather than
+   dehydrated to a bare ID (`_dehydrate_data`), and `Record.to_obj` re-types
+   inline refs on read so replay reconstructs the full typed entry (#1472 AC-4).
+4. The wire parser does not recurse into opaque data blobs
+   (`payload_snapshot`); doing so coerced the snapshot into a typed activity and
+   made `CaseLedgerEntry` validation fail, silently down-casting the entry to
+   base `as_Object`.
+
+Consequence for tests: a participant must already hold the case replica (with
+its per-case genesis hash) before it can validate a replicated
+`CaseLedgerEntry` (`ReconstructChainTail` anchors on the genesis hash,
+CLP-08-005). Tests that previously relied on the adapter pre-store to make the
+entry "appear" in the peer DL must seed the case on the peer instead.
+
 ## Related
 
 - `specs/sync-ledger-replication.yaml` — normative requirements

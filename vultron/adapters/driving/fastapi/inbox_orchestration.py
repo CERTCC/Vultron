@@ -53,14 +53,35 @@ from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 logger = logging.getLogger(__name__)
 
 
+def _is_inline_ledger_entry_announce(activity: as_Activity) -> bool:
+    """Return True for an ``Announce`` carrying an inline ``CaseLedgerEntry``.
+
+    Used to select the in-memory rehydration path that does not depend on the
+    entry being pre-stored (SYNC-13-002/003).  Detected structurally via the
+    inline object's ``type_`` so no domain import is needed here.
+    """
+    if getattr(activity, "type_", None) != "Announce":
+        return False
+    nested = getattr(activity, "object_", None)
+    return getattr(nested, "type_", None) == "CaseLedgerEntry"
+
+
 class FastAPIIngressAdapter:
     """Ingress adapter for the FastAPI driving adapter.
 
     ``parse`` parses a raw JSON request-body dict into a typed
-    ``as_Activity`` and stores the activity (and any inline nested
-    object) in the shared DataLayer so later rehydration can resolve
-    references.  ``rehydrate`` resolves the stored activity's nested
-    references via the DataLayer.
+    ``as_Activity`` and stores the activity in the shared DataLayer so
+    later rehydration can resolve references.  ``rehydrate`` deep-hydrates
+    the *in-memory* parsed activity's reference fields via the DataLayer.
+
+    ``rehydrate`` intentionally hydrates the in-memory activity rather than
+    re-reading it by ID from the DataLayer.  A by-ID re-read would collapse an
+    inline ``object_`` to a bare ID string whenever that object was not
+    pre-stored — and per SYNC-13-002 a ``CaseLedgerEntry`` is deliberately not
+    pre-stored by ingress.  Carrying the typed inline object forward in-memory
+    (SYNC-13-003) keeps semantic routing of ``Announce(CaseLedgerEntry)``
+    unambiguous on first delivery (SYNC-13-004) without the adapter ever
+    writing the ledger.
 
     Args:
         dl: Shared DataLayer (for storing activities and rehydration).
@@ -108,7 +129,34 @@ class FastAPIIngressAdapter:
         return activity
 
     def rehydrate(self, activity: as_Activity) -> as_Activity:
-        """Resolve nested object references via the DataLayer."""
+        """Resolve nested object references for the activity.
+
+        For most activities this re-reads the stored activity by ID through the
+        canonical DataLayer pipeline (``_from_row`` → field expansion → semantic
+        coercion), preserving established behavior.
+
+        An ``Announce(CaseLedgerEntry)`` is the exception: per SYNC-13-002 the
+        inline entry is deliberately NOT pre-stored, so a by-ID re-read would
+        collapse ``object_`` to a bare ID string and mis-route the message
+        (SYNC-13-004).  For that case the already-typed in-memory activity is
+        hydrated in place (:meth:`DataLayer.hydrate` expands any scalar/list ID
+        references) and returned, so routing sees the typed ``CaseLedgerEntry``
+        without the adapter ever writing the ledger.
+        """
+        if _is_inline_ledger_entry_announce(activity):
+            try:
+                hydrated = self._dl.hydrate(activity)
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.warning(
+                    "FastAPIIngressAdapter.rehydrate: hydrate failed (%s);"
+                    " returning parsed activity unchanged.",
+                    exc,
+                )
+                return activity
+            if isinstance(hydrated, as_Activity):
+                return hydrated
+            return activity
+
         result = rehydrate(activity.id_, dl=self._dl)
         if isinstance(result, as_Activity):
             return result

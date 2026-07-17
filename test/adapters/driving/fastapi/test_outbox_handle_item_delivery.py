@@ -307,6 +307,9 @@ def test_handle_outbox_item_preserves_inline_case_ledger_entry_fields():
 
     mock_dl = MagicMock()
     mock_dl.read.return_value = activity
+    # Real hydrate is a no-op for an already-typed inline object; mimic that so
+    # the test observes the recovered typed entry rather than a MagicMock.
+    mock_dl.hydrate.side_effect = lambda obj: obj
     mock_emitter = AsyncMock()
 
     asyncio.run(
@@ -318,7 +321,11 @@ def test_handle_outbox_item_preserves_inline_case_ledger_entry_fields():
     mock_emitter.emit.assert_called_once()
     emitted_activity, emitted_recipients = mock_emitter.emit.call_args[0]
     assert emitted_recipients == [recipient]
-    assert isinstance(emitted_activity.object_, dict)
-    assert emitted_activity.object_["caseId"] == entry.case_id
-    assert emitted_activity.object_["logObjectId"] == entry.log_object_id
-    assert emitted_activity.object_["eventType"] == entry.event_type
+    # The outbound delivery now recovers the inline entry as a typed
+    # CaseLedgerEntry (SYNC-13-004) so serialize_as_any keeps its fields on the
+    # wire.  Assert against the typed object's attributes.
+    emitted_object = emitted_activity.object_
+    assert isinstance(emitted_object, WireCaseLedgerEntry)
+    assert emitted_object.case_id == entry.case_id
+    assert emitted_object.log_object_id == entry.log_object_id
+    assert emitted_object.event_type == entry.event_type

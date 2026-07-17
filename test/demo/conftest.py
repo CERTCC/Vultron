@@ -100,8 +100,13 @@ class _TestASGIRouter:
         self, activity: VultronActivity, recipients: list[str]
     ) -> None:
         """Deliver *activity* to each recipient via the registered ASGI app."""
+        # serialize_as_any=True mirrors the production emitters (ASGIEmitter /
+        # DemoHttpDeliveryAdapter) so inline nested-object subtype fields
+        # (e.g. a CaseLedgerEntry's case_id/event_type) survive the wire hop
+        # between isolated apps — otherwise this test double would silently
+        # drop them and mask SYNC-02-004 / SYNC-13-004 regressions.
         json_body: str = activity.model_dump_json(
-            by_alias=True, exclude_none=True
+            by_alias=True, exclude_none=True, serialize_as_any=True
         )
         for recipient_id in recipients:
             parsed = urlparse(recipient_id.rstrip("/") + "/inbox/")
