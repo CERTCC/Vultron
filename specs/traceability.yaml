@@ -8,6 +8,9 @@ kind: implementation
 scope:
 - prototype
 - production
+tags:
+- documentation
+- tooling
 groups:
 - id: TRACE-01
   title: Traceability Matrix

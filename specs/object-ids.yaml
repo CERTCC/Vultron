@@ -9,6 +9,9 @@ kind: domain
 scope:
 - prototype
 - production
+tags:
+- wire-format
+- protocol
 groups:
 - id: OID-01
   title: ID Format

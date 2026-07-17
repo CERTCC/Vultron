@@ -9,6 +9,9 @@ kind: domain
 scope:
 - prototype
 - production
+tags:
+- protocol
+- persistence
 groups:
 - id: SYNC-01
   title: Append-Only Log

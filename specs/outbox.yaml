@@ -9,6 +9,8 @@ kind: implementation
 scope:
 - prototype
 - production
+tags:
+- messaging
 groups:
 - id: OX-01
   title: Outbox Structure

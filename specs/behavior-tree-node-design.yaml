@@ -10,6 +10,8 @@ scope:
 
 - prototype
 - production
+tags:
+- behavior-tree
 groups:
 - id: BTND-01
   title: Node Parameterization

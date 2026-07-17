@@ -9,6 +9,8 @@ kind: pattern
 scope:
 - prototype
 - production
+tags:
+- tooling
 groups:
 - id: AR-01
   title: API Discoverability

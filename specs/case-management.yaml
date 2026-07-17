@@ -11,6 +11,9 @@ scope:
 
 - prototype
 - production
+tags:
+- protocol
+- state-machine
 groups:
 - id: CM-01
   title: Actor Isolation

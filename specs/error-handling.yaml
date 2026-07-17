@@ -9,6 +9,8 @@ kind: language
 scope:
 - prototype
 - production
+tags:
+- error-handling
 groups:
 - id: EH-01
   title: Exception Hierarchy

@@ -12,6 +12,9 @@ kind: implementation
 scope:
   - prototype
   - production
+tags:
+- ci-cd
+- documentation
 groups:
   - id: DOCBW-01
     title: Workflow File Name and Display Name

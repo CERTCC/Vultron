@@ -9,6 +9,9 @@ kind: implementation
 scope:
 - prototype
 - production
+tags:
+- tooling
+- documentation
 groups:
 - id: SR-01
   title: YAML File Format (MUST)

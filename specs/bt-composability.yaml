@@ -11,6 +11,8 @@ kind: pattern
 scope:
 - prototype
 - production
+tags:
+- behavior-tree
 groups:
 - id: BTC-01
   title: Simulator Reference Workflow

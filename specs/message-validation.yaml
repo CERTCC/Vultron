@@ -9,6 +9,9 @@ kind: domain
 scope:
 - prototype
 - production
+tags:
+- messaging
+- wire-format
 groups:
 - id: MV-01
   title: Activity Structure Validation

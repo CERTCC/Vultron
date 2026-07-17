@@ -9,6 +9,8 @@ version: 0.1.0
 kind: domain
 tags:
 - behavioral
+- state-machine
+- protocol
 scope:
 - prototype
 - production

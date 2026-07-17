@@ -11,6 +11,8 @@ kind: pattern
 scope:
 - prototype
 - production
+tags:
+- behavior-tree
 groups:
 - id: BT-01
   title: BT Execution Model

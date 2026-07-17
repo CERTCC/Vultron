@@ -9,6 +9,8 @@ kind: implementation
 scope:
 - prototype
 - production
+tags:
+- messaging
 groups:
 - id: DR-01
   title: Dispatcher Protocol

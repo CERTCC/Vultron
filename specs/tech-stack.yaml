@@ -8,6 +8,8 @@ kind: language
 scope:
 - prototype
 - production
+tags:
+- tooling
 groups:
 - id: IMPLTS-01
   title: Runtime and Language

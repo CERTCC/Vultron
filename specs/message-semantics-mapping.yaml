@@ -12,6 +12,9 @@ kind: domain
 scope:
 - prototype
 - production
+tags:
+- messaging
+- protocol
 groups:
 - id: MSM-01
   title: RM Protocol Message Shorthands

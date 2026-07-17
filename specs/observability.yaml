@@ -8,6 +8,8 @@ kind: general
 scope:
 - prototype
 - production
+tags:
+- observability
 groups:
 - id: OB-05
   title: Health Checks

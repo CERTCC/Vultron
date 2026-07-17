@@ -10,6 +10,8 @@ kind: implementation
 scope:
 - prototype
 - production
+tags:
+- messaging
 groups:
 - id: IBP-01
   title: InboxPipeline Class Contract

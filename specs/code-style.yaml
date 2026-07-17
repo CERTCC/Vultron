@@ -6,6 +6,8 @@ kind: language
 scope:
 - prototype
 - production
+tags:
+- code-style
 groups:
 - id: CS-01
   title: Code Formatting

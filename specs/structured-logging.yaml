@@ -8,6 +8,9 @@ kind: language
 scope:
 - prototype
 - production
+tags:
+- logging
+- observability
 groups:
 - id: SL-01
   title: Log Format

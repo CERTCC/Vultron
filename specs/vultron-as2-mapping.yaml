@@ -10,6 +10,9 @@ kind: domain
 scope:
 - prototype
 - production
+tags:
+- messaging
+- wire-format
 groups:
 - id: VAM-01
   title: General Mapping Conventions

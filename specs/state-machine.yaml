@@ -11,6 +11,9 @@ kind: domain
 scope:
 - prototype
 - production
+tags:
+- state-machine
+- protocol
 groups:
 - id: SM-01
   title: State Enum Design

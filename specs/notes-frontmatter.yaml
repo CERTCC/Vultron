@@ -8,6 +8,9 @@ kind: implementation
 scope:
 - prototype
 - production
+tags:
+- documentation
+- tooling
 groups:
 - id: NF-01
   title: Frontmatter Schema (MUST)

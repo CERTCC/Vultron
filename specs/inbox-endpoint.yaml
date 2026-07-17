@@ -9,6 +9,8 @@ kind: domain
 scope:
 - prototype
 - production
+tags:
+- messaging
 groups:
 - id: IE-02
   title: Endpoint Configuration

@@ -524,6 +524,119 @@ def test_effective_scope_inherits_from_file(spec_dir):
     assert registry.get_effective_scope("TST-01-001") == [Scope.PRODUCTION]
 
 
+def test_effective_tags_file_level_inherited(tmp_path):
+    data = {
+        "id": "TST",
+        "title": "Test",
+        "description": "Test",
+        "version": "0.1",
+        "kind": "general",
+        "scope": ["production"],
+        "tags": ["protocol"],
+        "groups": [
+            {
+                "id": "TST-01",
+                "title": "Group",
+                "specs": [
+                    {
+                        "id": "TST-01-001",
+                        "priority": "MUST",
+                        "statement": "TST-01-001 MUST pass",
+                    }
+                ],
+            }
+        ],
+    }
+    (tmp_path / "test.yaml").write_text(yaml.dump(data))
+    registry = load_registry(tmp_path)
+    assert registry.get_effective_tags("TST-01-001") == [SpecTag.PROTOCOL]
+
+
+def test_effective_tags_spec_overrides_file(tmp_path):
+    data = {
+        "id": "TST",
+        "title": "Test",
+        "description": "Test",
+        "version": "0.1",
+        "kind": "general",
+        "scope": ["production"],
+        "tags": ["protocol"],
+        "groups": [
+            {
+                "id": "TST-01",
+                "title": "Group",
+                "specs": [
+                    {
+                        "id": "TST-01-001",
+                        "priority": "MUST",
+                        "statement": "TST-01-001 MUST pass",
+                        "tags": ["testing"],
+                    }
+                ],
+            }
+        ],
+    }
+    (tmp_path / "test.yaml").write_text(yaml.dump(data))
+    registry = load_registry(tmp_path)
+    assert registry.get_effective_tags("TST-01-001") == [SpecTag.TESTING]
+
+
+def test_effective_tags_empty_when_neither_spec_nor_file(tmp_path):
+    data = {
+        "id": "TST",
+        "title": "Test",
+        "description": "Test",
+        "version": "0.1",
+        "kind": "general",
+        "scope": ["production"],
+        "groups": [
+            {
+                "id": "TST-01",
+                "title": "Group",
+                "specs": [
+                    {
+                        "id": "TST-01-001",
+                        "priority": "MUST",
+                        "statement": "TST-01-001 MUST pass",
+                    }
+                ],
+            }
+        ],
+    }
+    (tmp_path / "test.yaml").write_text(yaml.dump(data))
+    registry = load_registry(tmp_path)
+    assert registry.get_effective_tags("TST-01-001") == []
+
+
+def test_effective_tags_graph_node_populated(tmp_path):
+    data = {
+        "id": "TST",
+        "title": "Test",
+        "description": "Test",
+        "version": "0.1",
+        "kind": "general",
+        "scope": ["production"],
+        "tags": ["protocol"],
+        "groups": [
+            {
+                "id": "TST-01",
+                "title": "Group",
+                "specs": [
+                    {
+                        "id": "TST-01-001",
+                        "priority": "MUST",
+                        "statement": "TST-01-001 MUST pass",
+                    }
+                ],
+            }
+        ],
+    }
+    (tmp_path / "test.yaml").write_text(yaml.dump(data))
+    registry = load_registry(tmp_path)
+    node_tags = registry.graph.nodes["TST-01-001"]["tags"]
+    assert node_tags == ["protocol"]
+
+
 def test_effective_kind_spec_override(tmp_path):
     data = {
         "id": "TST",

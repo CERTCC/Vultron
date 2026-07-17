@@ -7,6 +7,9 @@ kind: general
 scope:
 - prototype
 - production
+tags:
+- documentation
+- tooling
 groups:
 - id: MS-01
   title: File Structure

@@ -7,6 +7,8 @@ kind: implementation
 scope:
 - prototype
 - production
+tags:
+- persistence
 groups:
 - id: DL-01
   title: Auto-Rehydration on Read

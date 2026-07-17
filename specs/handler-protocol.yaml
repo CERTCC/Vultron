@@ -8,6 +8,9 @@ scope:
 
 - prototype
 - production
+tags:
+- messaging
+- protocol
 groups:
 - id: HP-00
   title: Protocol Semantics

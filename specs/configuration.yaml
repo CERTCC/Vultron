@@ -10,6 +10,8 @@ scope:
 
 - prototype
 - production
+tags:
+- configuration
 groups:
 - id: CFG-01
   title: Module Placement and Config API

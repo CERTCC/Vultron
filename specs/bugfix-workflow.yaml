@@ -8,6 +8,8 @@ kind: dev-process
 scope:
 - prototype
 - production
+tags:
+- tooling
 groups:
 - id: BFW-01
   title: Phase 2 — Clarification (MUST)

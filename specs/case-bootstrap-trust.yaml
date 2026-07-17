@@ -10,6 +10,9 @@ kind: domain
 scope:
   - prototype
   - production
+tags:
+- protocol
+- state-machine
 groups:
   - id: CBT-01
     title: Original Report-Submission Bootstrap

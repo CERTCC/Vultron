@@ -9,6 +9,8 @@ kind: domain
 scope:
 - prototype
 - production
+tags:
+- protocol
 groups:
 - id: DUR-01
   title: Representation Format

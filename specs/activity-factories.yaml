@@ -10,6 +10,9 @@ kind: domain
 scope:
 - prototype
 - production
+tags:
+- messaging
+- wire-format
 groups:
 - id: AF-01
   title: Purpose and Scope

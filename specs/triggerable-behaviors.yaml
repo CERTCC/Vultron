@@ -10,6 +10,9 @@ kind: domain
 scope:
 - prototype
 - production
+tags:
+- messaging
+- protocol
 groups:
 - id: TRIG-01
   title: Endpoint Format

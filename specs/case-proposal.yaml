@@ -10,6 +10,9 @@ kind: domain
 scope:
   - prototype
   - production
+tags:
+- protocol
+- messaging
 groups:
   - id: CP-01
     title: Wire Vocabulary

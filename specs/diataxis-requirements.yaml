@@ -7,6 +7,8 @@ kind: general
 scope:
 - prototype
 - production
+tags:
+- documentation
 groups:
 - id: DF-01
   title: General architecture
