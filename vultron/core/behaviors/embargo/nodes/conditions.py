@@ -23,6 +23,7 @@ from vultron.core.models.protocols import (
     is_case_model,
     is_participant_model,
 )
+from vultron.errors import VultronInvalidStateTransitionError
 
 
 class ValidateCaseExistsNode(DataLayerCondition):
@@ -242,4 +243,93 @@ class OptionalLookupParticipantNode(DataLayerCondition):
             f" '{actor_id}' on case '{self.case_id}'"
         )
         self.logger.info("%s: %s", self.name, self.feedback_message)
+        return Status.SUCCESS
+
+
+class HasActiveEmbargoNode(DataLayerCondition):
+    """Guard that the case has an active embargo set.
+
+    Returns SUCCESS when ``case.active_embargo`` is non-None.
+    Returns FAILURE (writing ``VultronInvalidStateTransitionError`` into
+    ``result_out``) when there is no active embargo, halting the parent
+    Sequence before any state mutation occurs.
+
+    Used as the first precondition child in ``terminate_embargo_bt`` so that
+    the "no active embargo" state-transition error is produced by a named BT
+    node rather than inline use-case guard code (LST-05 / AC-5).
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        result_out: dict[str, object],
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self._result_out = result_out
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            self.feedback_message = "DataLayer not available"
+            return Status.FAILURE
+
+        case = self.datalayer.read(self.case_id)
+        if not is_case_model(case):
+            self.feedback_message = f"Case '{self.case_id}' not found"
+            return Status.FAILURE
+
+        active = case.active_embargo
+        active_id = (
+            active if isinstance(active, str) else getattr(active, "id_", None)
+        )
+        if active_id is None:
+            error = VultronInvalidStateTransitionError(
+                f"Case '{self.case_id}' has no active embargo to terminate."
+            )
+            self._result_out["error"] = error
+            self.feedback_message = str(error)
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        return Status.SUCCESS
+
+
+class HasCaseStatusesNode(DataLayerCondition):
+    """Guard that the case has at least one CaseStatus entry.
+
+    Returns SUCCESS when ``case.case_statuses`` is non-empty.
+    Returns FAILURE when the list is empty or when the case is not found,
+    signalling that EM/PXA state is unavailable and the caller should use
+    the ``EMBARGO_MANAGEMENT_NONE`` / ``pxa`` defaults (LST-05 / AC-5).
+
+    Use this as a precondition node in BT sequences that read
+    ``case.current_status.em_state`` or ``case.current_status.pxa_state``
+    to avoid a ``ValueError`` from an empty status list.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            self.feedback_message = "DataLayer not available"
+            return Status.FAILURE
+
+        case = self.datalayer.read(self.case_id)
+        if not is_case_model(case):
+            self.feedback_message = f"Case '{self.case_id}' not found"
+            return Status.FAILURE
+
+        if not case.case_statuses:
+            self.feedback_message = (
+                f"Case '{self.case_id}' has no CaseStatus entries"
+            )
+            return Status.FAILURE
+
         return Status.SUCCESS
