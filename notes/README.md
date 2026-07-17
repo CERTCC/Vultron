@@ -364,9 +364,12 @@ model.
 **`sync-ledger-replication.md`**
 Log-centric architecture overview: hash-chain design rationale, log position
 in activity `context`, implementation phases (SYNC-1–4), system invariants,
-and open questions for the replicated case event log.
+open questions for the replicated case event log, SYNC-13 ledger write-ownership
+boundary, and pre-SYNC-13 upgrade path.
 **Load when**: designing multi-actor case synchronization, evaluating the
-hash-chain log approach, or scoping the SYNC-1–4 implementation phases.
+hash-chain log approach, scoping the SYNC-1–4 implementation phases, or
+investigating the SYNC-12/SYNC-13 effects-before-persist and write-ownership
+invariants.
 
 **`participant-case-replica.md`**
 Design notes for participant case replicas: per-actor case copies, the
