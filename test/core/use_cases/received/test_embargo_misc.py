@@ -280,3 +280,25 @@ class TestPxaEmbargoIneligible:
             _pxa_embargo_ineligible(dl, "https://example.org/cases/missing")
             is False
         )
+
+    def test_value_error_on_current_status_returns_false(self):
+        """False (eligible) when case.current_status raises ValueError.
+
+        The try/except ValueError guard in _pxa_embargo_ineligible must
+        return False (fail-open) so that processing continues normally
+        when no materialized CaseStatus exists.
+        """
+        from unittest.mock import MagicMock, PropertyMock
+
+        mock_case = MagicMock()
+        mock_case.type_ = "VulnerabilityCase"
+        mock_case.case_participants = []
+        mock_case.case_statuses = []
+        type(mock_case).current_status = PropertyMock(
+            side_effect=ValueError("no materialized CaseStatus")
+        )
+
+        mock_dl = MagicMock()
+        mock_dl.read.return_value = mock_case
+
+        assert _pxa_embargo_ineligible(mock_dl, self.CASE_ID) is False

@@ -401,3 +401,35 @@ class TestValidateEmbargoRevisionStateNode:
 
         assert status == py_trees.common.Status.FAILURE
         assert "error" in result_out
+
+    def test_returns_failure_when_current_status_raises_value_error(self):
+        """FAILURE when case.current_status raises ValueError (no materialized status).
+
+        AC-3 guard: the try/except ValueError introduced for the bare
+        ``case.current_status.em_state`` access must map to FAILURE so that
+        callers do not attempt a revision proposal when no status exists.
+        """
+        from unittest.mock import MagicMock, PropertyMock
+
+        mock_case = MagicMock()
+        mock_case.type_ = "VulnerabilityCase"
+        mock_case.case_participants = []
+        mock_case.case_statuses = []
+        type(mock_case).current_status = PropertyMock(
+            side_effect=ValueError("no materialized CaseStatus")
+        )
+
+        mock_dl = MagicMock()
+        mock_dl.read.return_value = mock_case
+
+        result_out: dict = {}
+        node = ValidateEmbargoRevisionStateNode(
+            case_id="https://example.org/cases/any",
+            result_out=result_out,
+        )
+        node.datalayer = mock_dl
+
+        result = node.update()
+
+        assert result == py_trees.common.Status.FAILURE
+        assert "error" in result_out
