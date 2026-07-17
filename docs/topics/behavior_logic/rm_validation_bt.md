@@ -1,5 +1,19 @@
 # Report Validation Behavior
 
+## Requirements
+
+The behavioral requirements for this tree are specified in the
+[Domain Specifications](../../reference/specs/domain.md):
+
+- [RMB-10](../../reference/specs/domain.md#rmb-10) — Enter RM Valid
+- [RMB-11](../../reference/specs/domain.md#rmb-11) — Enter RM Invalid
+
+!!! note "Implementation approach"
+
+    The behavior tree diagram below illustrates one conformant implementation of these requirements.
+    Implementations are not required to use behavior trees — any approach that satisfies the
+    requirements above is conformant.
+
 A Report Validation Behavior Tree is shown in the next figure. To begin with (A), if the report is already
 *Valid*, no further action is needed from this behavior.
 

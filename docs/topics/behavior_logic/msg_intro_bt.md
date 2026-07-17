@@ -1,5 +1,50 @@
 # Receiving and Processing Messages Behavior
 
+## Requirements
+
+The behavioral requirements for the message-receive behaviors are specified in the
+[Domain Specifications](../../reference/specs/domain.md):
+
+**Report Management Messages** ([RMB](../../reference/specs/domain.md#rmb)):
+
+- [RMB-01](../../reference/specs/domain.md#rmb-01) — Receive RS (Report Submission)
+- [RMB-02](../../reference/specs/domain.md#rmb-02) — Receive RI (Report Invalid)
+- [RMB-03](../../reference/specs/domain.md#rmb-03) — Receive RV (Report Valid)
+- [RMB-04](../../reference/specs/domain.md#rmb-04) — Receive RD (Report Deferred)
+- [RMB-05](../../reference/specs/domain.md#rmb-05) — Receive RA (Report Accepted)
+- [RMB-06](../../reference/specs/domain.md#rmb-06) — Receive RC (Report Closed)
+- [RMB-07](../../reference/specs/domain.md#rmb-07) — Receive RE (Report Error)
+- [RMB-08](../../reference/specs/domain.md#rmb-08) — Receive RK (Report Acknowledgment)
+
+**Embargo Management Messages** ([EMB](../../reference/specs/domain.md#emb)):
+
+- [EMB-01](../../reference/specs/domain.md#emb-01) — Receive EP (Embargo Proposed)
+- [EMB-02](../../reference/specs/domain.md#emb-02) — Receive EA (Embargo Accepted)
+- [EMB-03](../../reference/specs/domain.md#emb-03) — Receive EV (Embargo Revision Proposed)
+- [EMB-04](../../reference/specs/domain.md#emb-04) — Receive EJ (Embargo Revision Rejected)
+- [EMB-05](../../reference/specs/domain.md#emb-05) — Receive EC (Embargo Revision Accepted)
+- [EMB-06](../../reference/specs/domain.md#emb-06) — Receive ER (Embargo Rejected)
+- [EMB-07](../../reference/specs/domain.md#emb-07) — Receive ET (Embargo Terminated)
+- [EMB-08](../../reference/specs/domain.md#emb-08) — Receive EE (Embargo Error)
+- [EMB-09](../../reference/specs/domain.md#emb-09) — Receive EK (Embargo Acknowledgment)
+
+**Case State Messages** ([CSB](../../reference/specs/domain.md#csb)):
+
+- [CSB-01](../../reference/specs/domain.md#csb-01) — Receive CV (Vendor Aware)
+- [CSB-02](../../reference/specs/domain.md#csb-02) — Receive CF (Fix Ready)
+- [CSB-03](../../reference/specs/domain.md#csb-03) — Receive CD (Fix Deployed)
+- [CSB-04](../../reference/specs/domain.md#csb-04) — Receive CP (Public Aware)
+- [CSB-05](../../reference/specs/domain.md#csb-05) — Receive CX (Exploit Public)
+- [CSB-06](../../reference/specs/domain.md#csb-06) — Receive CA (Attacks Observed)
+- [CSB-07](../../reference/specs/domain.md#csb-07) — Receive CE (CS Error)
+- [CSB-08](../../reference/specs/domain.md#csb-08) — Receive CK (CS Acknowledgment)
+
+!!! note "Implementation approach"
+
+    The behavior tree diagram below illustrates one conformant implementation of these requirements.
+    Implementations are not required to use behavior trees — any approach that satisfies the
+    requirements above is conformant.
+
 Now we return to the [CVD Behavior Tree](cvd_bt.md) to pick up the last unexplored branch, Receive Messages.
 The Receive Messages Behavior Tree is shown below.
 

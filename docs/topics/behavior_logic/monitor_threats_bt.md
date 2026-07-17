@@ -1,5 +1,20 @@
 # Monitor Threats Behavior Tree
 
+## Requirements
+
+The behavioral requirements for this tree are specified in the
+[Domain Specifications](../../reference/specs/domain.md):
+
+- [CSB-12](../../reference/specs/domain.md#csb-12) — Enter CS P (Public Aware)
+- [CSB-13](../../reference/specs/domain.md#csb-13) — Enter CS X (Exploit Public)
+- [CSB-14](../../reference/specs/domain.md#csb-14) — Enter CS A (Attacks Observed)
+
+!!! note "Implementation approach"
+
+    The behavior tree diagram below illustrates one conformant implementation of these requirements.
+    Implementations are not required to use behavior trees — any approach that satisfies the
+    requirements above is conformant.
+
 The Monitor Threats Behavior Tree is shown below.
 
 ```mermaid

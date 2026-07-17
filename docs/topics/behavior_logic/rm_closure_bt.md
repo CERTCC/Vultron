@@ -1,5 +1,18 @@
 # Report Closure Behavior
 
+## Requirements
+
+The behavioral requirements for this tree are specified in the
+[Domain Specifications](../../reference/specs/domain.md):
+
+- [RMB-14](../../reference/specs/domain.md#rmb-14) — Enter RM Closed
+
+!!! note "Implementation approach"
+
+    The behavior tree diagram below illustrates one conformant implementation of these requirements.
+    Implementations are not required to use behavior trees — any approach that satisfies the
+    requirements above is conformant.
+
 The Report Closure Behavior Tree is shown below.
 As usual, the post-condition is checked before proceeding.
 (A) If the case is already *Closed* ($q^{rm} \in C$), we're done.

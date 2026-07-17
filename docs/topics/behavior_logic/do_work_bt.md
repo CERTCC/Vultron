@@ -1,5 +1,14 @@
 # Do Work Behavior Tree
 
+## Related Requirements
+
+This orchestrating node coordinates multiple CVD work streams, each of which has its own behavioral requirements.
+See the [Domain Specifications](../../reference/specs/domain.md) for the full specification:
+
+- [RMB](../../reference/specs/domain.md#rmb) — Report Management behavioral requirements
+- [EMB](../../reference/specs/domain.md#emb) — Embargo Management behavioral requirements
+- [CSB](../../reference/specs/domain.md#csb) — Case State behavioral requirements
+
 Although it is not directly addressed by the [formal Vultron Protocol](../../reference/formal_protocol/index.md), the *do work* node
 of the [RM Behavior Tree](rm_bt.md) is where much of the CVD effort happens.
 As a result, it is worth spending some time reviewing what some of the underlying work actually entails.
