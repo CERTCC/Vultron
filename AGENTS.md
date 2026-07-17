@@ -402,6 +402,16 @@ Short entries are reproduced here; longer ones are referenced below.
   simple leaf nodes; the tree structure becomes the workflow documentation.
   See [notes/bt-integration.md](notes/bt-integration.md)
   § "DO NOT: God BT nodes with long `update()` methods".
+- **BT Emit Nodes: Inherit Base Classes, Never Reimplement Guard Boilerplate**
+  — Before writing `if self.datalayer is None`, `if self.actor_id is None`, or
+  `if self.trigger_activity_factory is None` in a new BT node's `update()`,
+  check whether a base class already handles these guards. `DataLayerAction`
+  provides `self.datalayer`, `self.actor_id`, and `self.trigger_activity_factory`
+  resolution. Emit nodes that route report-phase activities through the CaseActor
+  SHOULD inherit from `_EmitCaseActorReportActivityBase` and override only
+  `_call_factory()`. Reimplementing this boilerplate per-class is the root cause
+  of god-node `update()` methods: each copy accumulates independently and must be
+  fixed separately. See `specs/behavior-tree-node-design.yaml` BTND-07-005.
 - **Flat `nodes.py` in BT Areas Is Non-Compliant** — BT-bearing process
   areas under `vultron/core/behaviors/` MUST use a `nodes/` subpackage for
   leaf nodes and MUST keep tree composition in root `*_tree.py` modules.
