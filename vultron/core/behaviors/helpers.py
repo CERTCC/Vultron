@@ -181,6 +181,27 @@ class DataLayerAction(py_trees.behaviour.Behaviour):
         if self.actor_id is None:
             self.logger.error(f"{self.name}: actor_id not found in blackboard")
 
+    def _require_datalayer(self) -> Status | None:
+        """Return FAILURE if ``self.datalayer`` is not set, else None."""
+        if self.datalayer is None:
+            self.feedback_message = "DataLayer not available"
+            return Status.FAILURE
+        return None
+
+    def _require_datalayer_and_actor(self) -> Status | None:
+        """Return FAILURE if ``datalayer`` or ``actor_id`` is not set, else None."""
+        if self.datalayer is None or self.actor_id is None:
+            self.feedback_message = "DataLayer or actor_id not available"
+            return Status.FAILURE
+        return None
+
+    def _require_factory(self) -> Status | None:
+        """Return FAILURE if ``trigger_activity_factory`` is not set, else None."""
+        if self.trigger_activity_factory is None:
+            self.feedback_message = "trigger_activity_factory not available"
+            return Status.FAILURE
+        return None
+
     def update(self) -> Status:
         """
         Perform action. Override in subclasses.

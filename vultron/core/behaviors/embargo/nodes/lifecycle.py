@@ -15,6 +15,8 @@
 
 """Embargo state machine and lifecycle transition nodes."""
 
+from typing import Any
+
 import py_trees
 from py_trees.common import Status
 
@@ -342,15 +344,43 @@ class SetEmbargoActiveNode(DataLayerAction):
         self.case_id = case_id
         self.embargo_id = embargo_id
 
-    def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.FAILURE
-
+    def _read_case(self) -> Any | None:
+        assert self.datalayer is not None
         case = self.datalayer.read(self.case_id)
         if not is_case_model(case):
             self.feedback_message = f"Case '{self.case_id}' not found"
             self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return None
+        return case
+
+    def _apply_transition(self, case: Any) -> None:
+        """Apply EM → ACTIVE transition and persist; warn on non-standard path."""
+        current_em = case.current_status.em_state
+        if not is_valid_em_transition(current_em, EM.ACTIVE):
+            self.logger.warning(
+                "%s: EM transition %s → ACTIVE is not a standard machine"
+                " transition for case '%s'; applying state-sync override",
+                self.name,
+                current_em,
+                self.case_id,
+            )
+        case.set_embargo(self.embargo_id)
+        case.current_status.em_state = EM.ACTIVE
+        assert self.datalayer is not None
+        self.datalayer.save(case)
+        self.feedback_message = (
+            f"Activated embargo '{self.embargo_id}' on case"
+            f" '{self.case_id}' (EM {current_em} → ACTIVE)"
+        )
+        self.logger.info("%s: %s", self.name, self.feedback_message)
+
+    def update(self) -> Status:
+        fail = self._require_datalayer()
+        if fail is not None:
+            return fail
+
+        case = self._read_case()
+        if case is None:
             return Status.FAILURE
 
         current_embargo_id = _as_id(case.active_embargo)
@@ -362,23 +392,5 @@ class SetEmbargoActiveNode(DataLayerAction):
             self.logger.info("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
 
-        current_em = case.current_status.em_state
-        if not is_valid_em_transition(current_em, EM.ACTIVE):
-            self.logger.warning(
-                "%s: EM transition %s → ACTIVE is not a standard machine"
-                " transition for case '%s'; applying state-sync override",
-                self.name,
-                current_em,
-                self.case_id,
-            )
-
-        case.set_embargo(self.embargo_id)
-        case.current_status.em_state = EM.ACTIVE
-        self.datalayer.save(case)
-
-        self.feedback_message = (
-            f"Activated embargo '{self.embargo_id}' on case"
-            f" '{self.case_id}' (EM {current_em} → ACTIVE)"
-        )
-        self.logger.info("%s: %s", self.name, self.feedback_message)
+        self._apply_transition(case)
         return Status.SUCCESS
