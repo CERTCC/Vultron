@@ -16,10 +16,13 @@ import logging
 from typing import cast
 from unittest.mock import MagicMock
 
+import pytest
+
 from vultron.core.states.em import EM
 from vultron.core.use_cases.received.embargo import (
     AnnounceEmbargoEventToCaseReceivedUseCase,
     RemoveEmbargoEventFromCaseReceivedUseCase,
+    _pxa_embargo_ineligible,
 )
 from vultron.wire.as2.factories import (
     announce_embargo_activity,
@@ -221,4 +224,59 @@ class TestResetEmbargoConsentWithInlineParticipants:
         assert (
             getattr(updated_participant, "embargo_consent_state", None)
             == PEC.NO_EMBARGO.value
+        )
+
+
+# ---------------------------------------------------------------------------
+# _pxa_embargo_ineligible — AC-4 named-predicate coverage
+# ---------------------------------------------------------------------------
+
+
+class TestPxaEmbargoIneligible:
+    """Unit tests for _pxa_embargo_ineligible (AC-4: named predicates).
+
+    Verifies that every CS_pxa state with at least one bit set returns True
+    (ineligible) and that the clear state returns False (eligible).
+    """
+
+    CASE_ID = "https://example.org/cases/pxa-test"
+
+    def _make_dl_with_pxa(self, pxa_state_name: str):
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.states.cs import CS_pxa
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        pxa_state = CS_pxa[pxa_state_name]
+        case = as_VulnerabilityCase(id_=self.CASE_ID, name="PXA Test")
+        # Modify the auto-created default CaseStatus in-place so that
+        # current_status returns this PXA state when the case is read back.
+        case.current_status.pxa_state = pxa_state
+        dl.create(case)
+        return dl
+
+    @pytest.mark.parametrize(
+        "pxa_state_name",
+        ["Pxa", "pXa", "pxA", "PXa", "PxA", "pXA", "PXA"],
+    )
+    def test_any_pxa_bit_set_is_ineligible(self, pxa_state_name):
+        """Any P/X/A bit set makes the case embargo-ineligible."""
+        dl = self._make_dl_with_pxa(pxa_state_name)
+        assert _pxa_embargo_ineligible(dl, self.CASE_ID) is True
+
+    def test_clear_pxa_is_eligible(self):
+        """CS_pxa.pxa (all clear) makes the case embargo-eligible."""
+        dl = self._make_dl_with_pxa("pxa")
+        assert _pxa_embargo_ineligible(dl, self.CASE_ID) is False
+
+    def test_missing_case_returns_false(self):
+        """Missing case returns False so normal processing can continue."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        assert (
+            _pxa_embargo_ineligible(dl, "https://example.org/cases/missing")
+            is False
         )

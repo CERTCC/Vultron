@@ -25,7 +25,11 @@ from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycleResult,
     TransitionMode,
 )
-from vultron.core.states.em import EM, is_valid_em_transition
+from vultron.core.states.em import (
+    EM,
+    is_em_embargo_active,
+    is_valid_em_transition,
+)
 from vultron.core.use_cases._helpers import _as_id
 from vultron.core.use_cases._helpers import add_activity_to_outbox
 from vultron.errors import (
@@ -67,8 +71,11 @@ class ValidateEmbargoRevisionStateNode(DataLayerAction):
             self.feedback_message = str(not_found)
             return Status.FAILURE
 
-        em_state = case.current_status.em_state
-        if em_state not in (EM.ACTIVE, EM.REVISE):
+        try:
+            em_state = case.current_status.em_state
+        except ValueError:
+            em_state = None
+        if em_state is None or not is_em_embargo_active(em_state):
             bad_state = VultronInvalidStateTransitionError(
                 f"Cannot propose embargo revision: case '{self._case_id}'"
                 f" EM state '{em_state}' does not allow a revision proposal."
