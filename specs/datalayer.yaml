@@ -2,7 +2,7 @@ id: DL
 title: DataLayer Port
 description: Behavioural contract that all DataLayer adapter implementations MUST satisfy. Covers auto-rehydration on read,
   type-safe write operations, and port isolation.
-version: 1.1.0
+version: 1.2.0
 kind: implementation
 scope:
 - prototype
@@ -117,3 +117,68 @@ groups:
       code MUST prefer typed `read()`, `list()`, or dedicated typed helper methods, and migration work MUST remove the
       deprecated methods once existing call sites have been replaced.'
     rationale: The narrow port should converge on typed domain-object access rather than preserve raw-record escape hatches.
+- id: DL-05
+  title: Core-Object Read Contract
+  description: The DataLayer read path MUST return core domain objects for every persisted type that has a registered core
+    counterpart. Wire-layer vocabulary types MUST NOT be handed to core code through the persistence port.
+  specs:
+  - id: DL-05-001
+    priority: MUST
+    statement: '`dl.read(id)` and `dl.list_objects(type_key)` MUST reconstruct persisted domain entities using the core
+      vocabulary registry (`vultron.core.models.registry.CORE_VOCABULARY`) so that the returned instance is a
+      `vultron.core.models` type (e.g. core `VulnerabilityCase`), never a `vultron.wire.as2.vocab` type
+      (e.g. `as_VulnerabilityCase`), whenever the persisted `type_` has a registered core counterpart.'
+    rationale: >
+      Core code MUST receive core domain objects so that core validators run and static analysis sees the real type
+      (ARCH-01-002). Reconstructing via the wire `VOCABULARY` returns wire objects that only work in core by structural
+      coincidence of field names. Decided in ADR-0034; derived from ARCH-01-002 and DL-03-002.
+    relationships:
+    - rel_type: implements
+      spec_id: ARCH-01-002
+    tags:
+    - persistence
+    - wire-format
+  - id: DL-05-002
+    priority: MUST
+    statement: The DataLayer adapter MUST own the wire↔core translation for persistence and MUST maintain its own
+      `type_`→core-class mapping (via `CORE_VOCABULARY`) that is independent of the wire `VOCABULARY` registry; the wire
+      vocabulary registry MUST NOT be the mechanism by which core objects are reconstructed on the read path.
+    rationale: >
+      The wire registry is a wire-layer concern (DL-03-002). Making the adapter reconstruct core objects from a core
+      registry decouples DataLayer storage from the wire type system so the wire layer can evolve without breaking
+      persistence.
+    relationships:
+    - rel_type: implements
+      spec_id: DL-03-002
+    tags:
+    - persistence
+    - wire-format
+  - id: DL-05-003
+    priority: MUST_NOT
+    statement: Core code (`vultron/core/`) MUST NOT rely on structural duck-typing Protocols (e.g. the `CaseModel`,
+      `ParticipantModel`, `ParticipantStatusModel`, `LogEntryModel` Protocols and the `is_case_model()` /
+      `is_participant_model()` / `is_log_entry_model()` `TypeGuard` helpers in `vultron/core/models/protocols.py`) as a
+      means of accepting DataLayer results without importing concrete core types; once DL-05-001 holds, core MUST depend on
+      concrete core domain classes (real `isinstance` narrowing) and the workaround Protocols MUST be removed.
+    rationale: >
+      The duck-typing Protocols exist solely to let core touch wire objects at runtime without a compile-time wire import,
+      evading rather than honouring ARCH-01-001. When the read path returns core objects, the Protocols are dead weight
+      and mask the boundary from mypy/pyright.
+    relationships:
+    - rel_type: implements
+      spec_id: ARCH-01-001
+    tags:
+    - persistence
+    - wire-format
+  - id: DL-05-004
+    priority: MUST
+    statement: An architecture ratchet test MUST assert that no `vultron.wire.as2` vocabulary type is returned from
+      `dl.read()` / `dl.list_objects()` into `vultron/core/`; the test MAY exempt persisted AS2 Activity types that have no
+      registered core counterpart, and any such exemption MUST be enumerated explicitly so the exemption set can only shrink.
+    rationale: >
+      Prevents regression back to wire-object leakage. Activity read-back from core is itself a boundary violation tracked
+      separately; the enumerated exemption set documents the remaining debt and ratchets toward zero.
+    tags:
+    - persistence
+    - testing
+    - wire-format

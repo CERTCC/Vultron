@@ -812,6 +812,24 @@ Short entries are reproduced here; longer ones are referenced below.
   never on `CaseModel` — and when `record_event()` was removed from
   `VulnerabilityCase`, 440 test failures cascaded before the root cause was
   traced. See `specs/code-style.yaml` CS-20-002.
+- **`dl.read()` Returns Core Objects — Core MUST NOT Receive or Duck-Type Wire
+  Objects** — The DataLayer read path (`dl.read()`, `dl.list_objects()`) MUST
+  return **core** domain objects (`vultron/core/models/`), never **wire**
+  vocabulary types (`vultron/wire/as2/vocab/objects/`, `as_`-prefixed), for any
+  persisted `type_` with a registered `CORE_VOCABULARY` counterpart. Do NOT add
+  new structural duck-typing Protocols or `TypeGuard` helpers (the
+  `CaseModel` / `is_case_model()` family in `vultron/core/models/protocols.py`)
+  to let core operate on DataLayer results without importing concrete core
+  types — that pattern evades ARCH-01-001 by hiding a runtime `core → wire`
+  dependency from mypy/pyright, and it only works by structural coincidence of
+  field names. Core code MUST depend on concrete core classes and real
+  `isinstance` narrowing. The one recognised exception is persisted AS2
+  Activities (`vultron/wire/as2/vocab/activities/`), which have no core
+  counterpart; core reading those back from the DataLayer is a tracked
+  boundary violation, not a sanctioned pattern. See ADR-0034,
+  `specs/datalayer.yaml` DL-05-001 through DL-05-004, and
+  [notes/datalayer-design.md](notes/datalayer-design.md) § "Read Path MUST
+  Return Core Objects".
 - **Emit Nodes in Case-Scoped Trigger BTs Must Fail Fast on Missing CaseActor**
   — After switching case-scoped trigger routing from `case_addressees()` to
   CaseActor-only routing, emit nodes must fail fast (FAILURE or immediate

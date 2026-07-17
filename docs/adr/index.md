@@ -87,6 +87,8 @@ General information about architectural decision records is available at <https:
   Cross-Cutting Enumerations](0031-vultron-enums-neutral-layer.md)
 - [ADR-0032 Validate at the Edge, Promote to Strict Core
   Types](0032-validate-at-edge-promote-to-core.md)
+- [ADR-0034 DataLayer Port Returns Core Domain
+  Objects](0034-datalayer-returns-core-objects.md)
 
 ## Proposed ADRs
 
