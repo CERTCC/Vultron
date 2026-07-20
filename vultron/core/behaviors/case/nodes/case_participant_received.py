@@ -26,8 +26,9 @@ BTND-07-003.
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
-from vultron.core.models.protocols import is_case_model, is_participant_model
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 
 
 class AddCaseParticipantToCaseReceivedNode(DataLayerAction):
@@ -59,7 +60,7 @@ class AddCaseParticipantToCaseReceivedNode(DataLayerAction):
         participant = self.datalayer.read(self.participant_id)
         case = self.datalayer.read(self.case_id)
 
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.feedback_message = f"case '{self.case_id}' not found"
             self.logger.warning(
                 "%s: case '%s' not found",
@@ -68,7 +69,7 @@ class AddCaseParticipantToCaseReceivedNode(DataLayerAction):
             )
             return Status.FAILURE
 
-        if not is_participant_model(participant):
+        if not isinstance(participant, CaseParticipant):
             self.feedback_message = (
                 f"participant '{self.participant_id}' not found"
             )
@@ -120,7 +121,7 @@ class RemoveCaseParticipantFromCaseReceivedNode(DataLayerAction):
 
         case = self.datalayer.read(self.case_id)
 
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.feedback_message = f"case '{self.case_id}' not found"
             self.logger.warning(
                 "%s: case '%s' not found",

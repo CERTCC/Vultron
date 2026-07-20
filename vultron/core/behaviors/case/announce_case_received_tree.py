@@ -27,21 +27,21 @@ from vultron.core.behaviors.case.nodes.announce import SeedAnnouncedCaseNode
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
 )
-from vultron.core.models.protocols import CaseModel
+from vultron.core.models.case import VulnerabilityCase
 
 logger = logging.getLogger(__name__)
 
 
 def create_announce_vulnerability_case_received_tree(
     case_id: str,
-    case_obj: CaseModel,
+    case_obj: VulnerabilityCase,
     request: AnnounceVulnerabilityCaseReceivedEvent,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for ``AnnounceVulnerabilityCaseReceivedUseCase``.
 
     Args:
         case_id: URI of the announced case.
-        case_obj: The ``CaseModel`` instance extracted from the activity.
+        case_obj: The ``VulnerabilityCase`` instance extracted from the activity.
         request: The received event carrying the full activity context.
 
     Returns:

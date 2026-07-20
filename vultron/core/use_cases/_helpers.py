@@ -9,11 +9,8 @@ import logging
 from typing import Any
 
 from vultron.core.models._helpers import _as_id
-from vultron.core.models.protocols import (
-    CaseModel,
-    is_case_model,
-    is_participant_model,
-)
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.ports.case_persistence import (
     CasePersistence,
@@ -226,7 +223,7 @@ def resolve_case(case_id: str, dl: CasePersistence):
     case_raw = dl.read(case_id)
     if case_raw is None:
         raise VultronNotFoundError("VulnerabilityCase", case_id)
-    if not is_case_model(case_raw):
+    if not isinstance(case_raw, VulnerabilityCase):
         raise VultronValidationError(
             f"Expected VulnerabilityCase, got {type(case_raw).__name__}."
         )
@@ -249,7 +246,7 @@ def update_participant_rm_state(
     called from the BT nodes layer).
     """
     case_obj = dl.read(case_id)
-    if not is_case_model(case_obj):
+    if not isinstance(case_obj, VulnerabilityCase):
         logger.warning(
             "update_participant_rm_state: case '%s' not found or wrong type",
             case_id,
@@ -264,7 +261,7 @@ def update_participant_rm_state(
         else:
             participant_raw = participant_ref
 
-        if not is_participant_model(participant_raw):
+        if not isinstance(participant_raw, CaseParticipant):
             continue
 
         participant = participant_raw
@@ -318,7 +315,7 @@ def update_participant_rm_state(
 
 
 def _resolve_case_manager_id(
-    case: CaseModel, dl: CasePersistence
+    case: VulnerabilityCase, dl: CasePersistence
 ) -> str | None:
     """Return the actor ID of the Case Manager (CVDRole.CASE_MANAGER).
 
@@ -339,7 +336,7 @@ def _resolve_case_manager_id(
     # Primary path: fast index lookup (normal post-bootstrap operation).
     for p_id in case.actor_participant_index.values():
         p = dl.read(p_id)
-        if not is_participant_model(p):
+        if not isinstance(p, CaseParticipant):
             continue
         if CVDRole.CASE_MANAGER in p.roles:
             manager_actor_id = getattr(p, "attributed_to", None)
@@ -352,7 +349,7 @@ def _resolve_case_manager_id(
         if not isinstance(participant_ref, str):
             # Inline participant object — no DataLayer read needed.
             if (
-                is_participant_model(participant_ref)
+                isinstance(participant_ref, CaseParticipant)
                 and CVDRole.CASE_MANAGER in participant_ref.roles
             ):
                 attributed = getattr(participant_ref, "attributed_to", None)
@@ -362,7 +359,7 @@ def _resolve_case_manager_id(
             # Already checked via the index; skip to avoid duplicates.
             continue
         p = dl.read(participant_ref)
-        if not is_participant_model(p):
+        if not isinstance(p, CaseParticipant):
             continue
         if CVDRole.CASE_MANAGER in p.roles:
             manager_actor_id = getattr(p, "attributed_to", None)
@@ -371,7 +368,7 @@ def _resolve_case_manager_id(
 
 
 def resolve_case_participant_id_for_actor(
-    case: CaseModel,
+    case: VulnerabilityCase,
     actor_id: str,
     dl: CasePersistence,
 ) -> str | None:
@@ -388,10 +385,10 @@ def resolve_case_participant_id_for_actor(
             continue
         participant_obj = (
             participant_ref
-            if is_participant_model(participant_ref)
+            if isinstance(participant_ref, CaseParticipant)
             else dl.read(participant_id)
         )
-        if not is_participant_model(participant_obj):
+        if not isinstance(participant_obj, CaseParticipant):
             continue
         participant_actor_id = _as_id(participant_obj.attributed_to)
         if participant_actor_id == actor_id:
@@ -429,7 +426,7 @@ def resolve_case_participant_id_for_actor(
 
 
 def reset_case_participant_embargo_consent(
-    dl: CasePersistence, case: CaseModel
+    dl: CasePersistence, case: VulnerabilityCase
 ) -> None:
     """Reset all participants' embargo consent state to NO_EMBARGO.
 
@@ -449,7 +446,7 @@ def reset_case_participant_embargo_consent(
         if participant_id is None:
             continue
         participant = dl.read(participant_id)
-        if not is_participant_model(participant):
+        if not isinstance(participant, CaseParticipant):
             continue
         if participant.embargo_consent_state != PEC.NO_EMBARGO.value:
             participant.embargo_consent_state = apply_pec_trigger(
@@ -458,7 +455,9 @@ def reset_case_participant_embargo_consent(
             dl.save(participant)
 
 
-def case_addressees(case: CaseModel, excluding_actor_id: str) -> list[str]:
+def case_addressees(
+    case: VulnerabilityCase, excluding_actor_id: str
+) -> list[str]:
     """Return actor IDs for all case participants except *excluding_actor_id*.
 
     Uses ``case.actor_participant_index`` (a ``dict[actor_id, participant_id]``)

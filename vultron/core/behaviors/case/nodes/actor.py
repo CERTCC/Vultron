@@ -42,7 +42,7 @@ from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.enums.roles import CVDRole, serialize_roles
 from vultron.core.models._helpers import _as_id
@@ -122,7 +122,7 @@ class EmitInviteActorToCaseNode(DataLayerAction):
             cc=cc,
             attributed_to=self.attributed_to,
             roles=roles,
-            target=case if is_case_model(case) else None,
+            target=case if isinstance(case, VulnerabilityCase) else None,
         )
         # Commit a local correlation marker first so duplicate checks work
         # on retry even if the outbox write below fails (CM-16-009/AC-7a).
@@ -253,7 +253,7 @@ class AcceptCaseOwnershipTransferNode(DataLayerAction):
     def _read_case(self) -> Any | None:
         assert self.datalayer is not None
         case = self.datalayer.read(self.case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.feedback_message = f"case '{self.case_id}' not found"
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return None
@@ -366,7 +366,7 @@ class ProposeCaseToActorNode(DataLayerAction):
             return None
 
         case = self.datalayer.read(case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.feedback_message = f"Case '{case_id}' not found"
             self.logger.error("%s: %s", self.name, self.feedback_message)
             return None

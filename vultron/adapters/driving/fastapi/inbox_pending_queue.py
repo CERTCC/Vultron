@@ -27,7 +27,7 @@ from datetime import timezone
 from vultron.config import get_config
 from vultron.core.models.events import VultronEvent
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
 from vultron.wire.as2.factories.case import bootstrap_replay_question_activity
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
@@ -206,7 +206,7 @@ def _replay_pending_case_activities(
             when not provided (best-effort; expiry Warning is still
             logged).
     """
-    if not is_case_model(dl.read(case_id)):
+    if not isinstance(dl.read(case_id), VulnerabilityCase):
         return
 
     pending_id = VultronPendingCaseInbox.build_id(case_id)

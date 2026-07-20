@@ -20,8 +20,8 @@ from typing import Any
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
-from vultron.core.models.protocols import is_case_model
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.case import VulnerabilityCase
 
 
 class CreateNoteNode(DataLayerAction):
@@ -111,7 +111,7 @@ class AttachNoteFromResultNode(DataLayerAction):
             return fail
 
         case: Any = self.datalayer.read(self.case_id)  # type: ignore[union-attr]
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.feedback_message = f"case '{self.case_id}' not found"
             self.logger.warning(f"{self.name}: {self.feedback_message}")
             return Status.FAILURE

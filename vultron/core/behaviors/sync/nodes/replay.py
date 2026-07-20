@@ -23,11 +23,10 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
-from vultron.core.models.protocols import (
-    LogEntryModel,
-    is_case_model,
-    is_log_entry_model,
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger_entry import (
+    CaseLedgerEntry,
+    VultronCaseLedgerEntry,
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases._helpers import case_addressees
@@ -42,7 +41,7 @@ def _require_log_entry(
     entry = getattr(activity, "log_entry", None)
     if entry is None:
         entry = getattr(activity, "object_", None)
-    if is_log_entry_model(entry):
+    if isinstance(entry, CaseLedgerEntry):
         if isinstance(entry, VultronCaseLedgerEntry):
             return entry
         return VultronCaseLedgerEntry.model_validate(
@@ -59,7 +58,7 @@ def _require_rejected_entry(
     entry = getattr(activity, "rejected_entry", None)
     if entry is None:
         entry = getattr(activity, "object_", None)
-    if is_log_entry_model(entry):
+    if isinstance(entry, CaseLedgerEntry):
         if isinstance(entry, VultronCaseLedgerEntry):
             return entry
         return VultronCaseLedgerEntry.model_validate(
@@ -154,10 +153,11 @@ class CollectAndSortCaseLedgerEntriesNode(DataLayerAction):
                 f"{self.name}: Reject(CaseLedgerEntry) missing peer actor_id"
             )
 
-        entries: list[LogEntryModel] = [
+        entries: list[CaseLedgerEntry] = [
             obj
             for obj in self.datalayer.list_objects("CaseLedgerEntry")
-            if is_log_entry_model(obj) and obj.case_id == entry.case_id
+            if isinstance(obj, CaseLedgerEntry)
+            and obj.case_id == entry.case_id
         ]
         entries.sort(key=lambda log_entry: log_entry.log_index)
 
@@ -183,7 +183,7 @@ class FindDivergenceIndexNode(DataLayerAction):
 
     def update(self) -> Status:
         entries = cast(
-            list[LogEntryModel], self.blackboard.replay_case_ledger_entries
+            list[CaseLedgerEntry], self.blackboard.replay_case_ledger_entries
         )
         from_hash = self.blackboard.activity.last_accepted_hash
         from_index = -1
@@ -242,7 +242,7 @@ class SendMissingEntriesNode(DataLayerAction):
         entry = cast(VultronCaseLedgerEntry, self.blackboard.replay_entry)
         peer_id = cast(str, self.blackboard.replay_peer_id)
         entries = cast(
-            list[LogEntryModel], self.blackboard.replay_case_ledger_entries
+            list[CaseLedgerEntry], self.blackboard.replay_case_ledger_entries
         )
         from_index = cast(int, self.blackboard.replay_from_index)
 
@@ -305,7 +305,7 @@ class CollectLogEntryRecipientsNode(DataLayerAction):
 
         entry = cast(VultronCaseLedgerEntry, self.blackboard.log_entry)
         case_obj = self.datalayer.read(self.case_id)
-        if not is_case_model(case_obj):
+        if not isinstance(case_obj, VulnerabilityCase):
             self.logger.warning(
                 "%s: case '%s' not found; skipping fan-out for '%s'",
                 self.name,

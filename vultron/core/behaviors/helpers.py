@@ -32,10 +32,8 @@ import py_trees
 from pydantic import BaseModel
 from py_trees.common import Status
 
-from vultron.core.models.protocols import (
-    is_case_model,
-    is_participant_model,
-)
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.ports.case_persistence import (
     CasePersistence,
     CaseOutboxPersistence,
@@ -269,7 +267,7 @@ class FindParticipantByActorIdNode(DataLayerCondition):
                 participant_obj = self.datalayer.read(
                     participant_ref, raise_on_missing=False
                 )
-            if not is_participant_model(participant_obj):
+            if not isinstance(participant_obj, CaseParticipant):
                 continue
             if (
                 self._participant_actor_id(participant_obj)
@@ -301,7 +299,7 @@ class FindParticipantByActorIdNode(DataLayerCondition):
             return Status.FAILURE
 
         case_obj = self.datalayer.read(self.case_id, raise_on_missing=False)
-        if not is_case_model(case_obj):
+        if not isinstance(case_obj, VulnerabilityCase):
             self.feedback_message = f"Case {self.case_id} not found"
             self.logger.debug("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE

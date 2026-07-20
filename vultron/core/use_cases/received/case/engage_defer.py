@@ -9,7 +9,7 @@ from vultron.core.models.events.case import (
     DeferCaseReceivedEvent,
     EngageCaseReceivedEvent,
 )
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.case_persistence import CasePersistence
 
 from ._helpers import _store_embedded_participants
@@ -52,7 +52,7 @@ class EngageCaseReceivedUseCase:
         # locate them by UUID.  Mirrors the Create (#564) and Announce (#566)
         # paths (CBT-05-005, fixes #573).
         case_obj = request.case
-        if is_case_model(case_obj):
+        if isinstance(case_obj, VulnerabilityCase):
             _store_embedded_participants(case_obj, self._dl, case_id)
 
         logger.info(

@@ -43,7 +43,7 @@ See also:
 
 from typing import Any, Protocol
 
-from vultron.core.models.protocols import CaseModel
+from vultron.core.models.case import VulnerabilityCase
 
 
 class TriggerActivityPort(Protocol):
@@ -266,7 +266,7 @@ class TriggerActivityPort(Protocol):
         id_: str | None = None,
         attributed_to: str | None = None,
         roles: list[str] | None = None,
-        target: CaseModel | None = None,
+        target: VulnerabilityCase | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist an ``Invite(Actor, Case)`` activity.
 

@@ -41,10 +41,10 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.models._helpers import _as_id
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.protocols import is_case_model, is_participant_model
-from vultron.core.models._helpers import _as_id
 
 logger = logging.getLogger(__name__)
 
@@ -123,7 +123,7 @@ class ApplyParticipantStatusFromLedgerNode(DataLayerAction):
             return Status.SUCCESS
 
         participant = self.datalayer.read(participant_id)
-        if not is_participant_model(participant):
+        if not isinstance(participant, CaseParticipant):
             self.logger.debug(
                 "%s: participant '%s' not found in local DataLayer"
                 " — skipping (non-fatal, partial case view)",
@@ -177,8 +177,6 @@ class ApplyParticipantStatusFromLedgerNode(DataLayerAction):
         # via the DataLayer reconstructs the object through the
         # vocabulary registry, returning the wire-format class that
         # round-trips correctly.
-        from vultron.core.models.protocols import ParticipantStatusModel
-
         status_from_dl = self.datalayer.read(status_id)
         if status_from_dl is None:
             self.logger.warning(
@@ -190,7 +188,7 @@ class ApplyParticipantStatusFromLedgerNode(DataLayerAction):
             return Status.SUCCESS
 
         participant.participant_statuses.append(
-            cast(ParticipantStatusModel, status_from_dl)
+            cast(ParticipantStatus, status_from_dl)
         )
         self.datalayer.save(participant)
 
@@ -252,7 +250,7 @@ class ApplyNoteFromLedgerNode(DataLayerAction):
             return Status.SUCCESS
 
         case = self.datalayer.read(case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.logger.debug(
                 "%s: case '%s' not found in local DataLayer"
                 " — skipping (non-fatal, partial case view)",
@@ -331,7 +329,7 @@ class ApplyInviteAcceptFromLedgerNode(DataLayerAction):
             return Status.SUCCESS
 
         case = self.datalayer.read(case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.logger.debug(
                 "%s: case '%s' not found in local DataLayer"
                 " — skipping (non-fatal, partial case view)",

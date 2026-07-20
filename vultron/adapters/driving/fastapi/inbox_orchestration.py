@@ -42,7 +42,7 @@ from vultron.adapters.driving.fastapi.routers.actors._inbox import (
     _store_nested_inbox_object,
 )
 from vultron.core.models.events import VultronEvent
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.wire.as2.errors import VultronParseError
@@ -266,7 +266,7 @@ class FastAPIQueuePort:
 
     def is_case_known(self, case_id: str) -> bool:
         """Return ``True`` if the case replica is locally available."""
-        return is_case_model(self._dl.read(case_id))
+        return isinstance(self._dl.read(case_id), VulnerabilityCase)
 
     def queue(
         self,

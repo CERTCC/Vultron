@@ -34,6 +34,7 @@ from vultron.core.behaviors.status.nodes.case_status import (
     CheckCaseStatusIdempotencyNode,
     ValidateCaseStatusTransitionNode,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.em import EM
 from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -203,9 +204,8 @@ class TestValidateCaseStatusTransitionNode:
             em_state=EM.ACTIVE,
         )
 
-        # Build a mock case that passes is_case_model but raises on current_status.
-        mock_case = MagicMock()
-        mock_case.type_ = "VulnerabilityCase"
+        # Use spec=VulnerabilityCase so isinstance() passes, but override current_status to raise.
+        mock_case = MagicMock(spec=VulnerabilityCase)
         mock_case.case_participants = []
         mock_case.case_statuses = []
         type(mock_case).current_status = PropertyMock(

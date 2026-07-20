@@ -19,17 +19,15 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerCondition
-from vultron.core.models.protocols import (
-    is_case_model,
-    is_participant_model,
-)
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.errors import VultronInvalidStateTransitionError
 
 
 class ValidateCaseExistsNode(DataLayerCondition):
     """Check that the target case exists in the DataLayer.
 
-    Returns SUCCESS if the case is found and passes ``is_case_model``.
+    Returns SUCCESS if the case is found and is a ``VulnerabilityCase``.
     Returns FAILURE otherwise, halting the parent Sequence.
     """
 
@@ -43,7 +41,7 @@ class ValidateCaseExistsNode(DataLayerCondition):
             return Status.FAILURE
 
         case = self.datalayer.read(self.case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.feedback_message = (
                 f"Case '{self.case_id}' not found or not a valid case model"
             )
@@ -74,7 +72,7 @@ class IsActiveEmbargoNode(DataLayerCondition):
             return Status.FAILURE
 
         case = self.datalayer.read(self.case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.feedback_message = f"Case '{self.case_id}' not found"
             return Status.FAILURE
 
@@ -122,7 +120,7 @@ class LookupParticipantNode(DataLayerCondition):
             return Status.FAILURE
 
         case = self.datalayer.read(self.case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.feedback_message = f"Case '{self.case_id}' not found"
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
@@ -143,7 +141,7 @@ class LookupParticipantNode(DataLayerCondition):
             return Status.FAILURE
 
         participant = self.datalayer.read(participant_id)
-        if not is_participant_model(participant):
+        if not isinstance(participant, CaseParticipant):
             self.feedback_message = (
                 f"Participant '{participant_id}' not found or invalid"
             )
@@ -203,7 +201,7 @@ class OptionalLookupParticipantNode(DataLayerCondition):
             return Status.SUCCESS
 
         case = self.datalayer.read(self.case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.feedback_message = f"Case '{self.case_id}' not found — skipping participant lookup"
             self.logger.debug("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
@@ -229,7 +227,7 @@ class OptionalLookupParticipantNode(DataLayerCondition):
             return Status.SUCCESS
 
         participant = self.datalayer.read(participant_id)
-        if not is_participant_model(participant):
+        if not isinstance(participant, CaseParticipant):
             self.feedback_message = (
                 f"Participant '{participant_id}' not found or invalid"
                 " — skipping PEC update"
@@ -275,7 +273,7 @@ class HasActiveEmbargoNode(DataLayerCondition):
             return Status.FAILURE
 
         case = self.datalayer.read(self.case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.feedback_message = f"Case '{self.case_id}' not found"
             return Status.FAILURE
 
@@ -322,7 +320,7 @@ class HasCaseStatusesNode(DataLayerCondition):
             return Status.FAILURE
 
         case = self.datalayer.read(self.case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.feedback_message = f"Case '{self.case_id}' not found"
             return Status.FAILURE
 

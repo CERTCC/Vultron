@@ -21,7 +21,7 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.use_cases._helpers import _resolve_case_manager_id
 from vultron.core.use_cases._helpers import add_activity_to_outbox
 
@@ -46,7 +46,7 @@ class ResolveCaseManagerNode(DataLayerAction):
             return Status.FAILURE
 
         case = self.datalayer.read(self.case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.feedback_message = (
                 f"Case '{self.case_id}' not found or wrong type"
             )

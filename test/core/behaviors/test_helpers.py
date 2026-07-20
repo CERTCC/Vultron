@@ -30,7 +30,7 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.models.case import VultronCase
 from vultron.core.models.participant import VultronParticipant
-from vultron.core.models.protocols import is_participant_model
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -221,7 +221,7 @@ def test_find_participant_by_actor_id_success_writes_blackboard(
 
         def update(self) -> Status:
             found = self.blackboard.get("found_participant")
-            if not is_participant_model(found):
+            if not isinstance(found, CaseParticipant):
                 self.feedback_message = "No participant found on blackboard"
                 return Status.FAILURE
             self.feedback_message = f"Found participant {found.id_}"

@@ -30,11 +30,9 @@ from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
 from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import _resolve_case_manager_id
-from vultron.core.models.protocols import (
-    PersistableModel,
-    is_case_model,
-    is_participant_model,
-)
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.protocols import PersistableModel
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.core.models._helpers import _as_id
@@ -105,7 +103,7 @@ class _PublicDisclosureSkipConditionNode(DataLayerCondition):
         sender_participant = self.datalayer.read(sender_participant_id)
         roles = (
             sender_participant.roles
-            if is_participant_model(sender_participant)
+            if isinstance(sender_participant, CaseParticipant)
             else []
         )
         return CVDRole.CASE_OWNER in roles
@@ -118,7 +116,7 @@ class _PublicDisclosureSkipConditionNode(DataLayerCondition):
             return Status.SUCCESS
 
         case = self.datalayer.read(self.case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             return Status.SUCCESS
 
         if not self._sender_is_case_owner(case):
@@ -218,7 +216,7 @@ class AutoCloseBranchNode(DataLayerAction):
             p = self.datalayer.read(p_id)
             if p is None:
                 return False
-            roles = p.roles if is_participant_model(p) else []
+            roles = p.roles if isinstance(p, CaseParticipant) else []
             if CVDRole.CASE_MANAGER in roles:
                 continue
             statuses = getattr(p, "participant_statuses", [])
@@ -285,7 +283,9 @@ class AutoCloseBranchNode(DataLayerAction):
         if self.datalayer is None or not self.case_id:
             return Status.SUCCESS
         case = self.datalayer.read(self.case_id)
-        if not is_case_model(case) or not self._all_participants_closed(case):
+        if not isinstance(
+            case, VulnerabilityCase
+        ) or not self._all_participants_closed(case):
             return Status.SUCCESS
         if not self._claim_close():
             return Status.SUCCESS

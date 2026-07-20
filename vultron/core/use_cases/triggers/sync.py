@@ -28,10 +28,7 @@ from __future__ import annotations
 
 import logging
 
-from vultron.core.models.protocols import (
-    LogEntryModel,
-    is_log_entry_model,
-)
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
 )
@@ -71,10 +68,10 @@ def replay_missing_entries_trigger(
 
     Spec: SYNC-03-002.
     """
-    entries: list[LogEntryModel] = [
+    entries: list[CaseLedgerEntry] = [
         obj
         for obj in dl.list_objects("CaseLedgerEntry")
-        if is_log_entry_model(obj) and obj.case_id == case_id
+        if isinstance(obj, CaseLedgerEntry) and obj.case_id == case_id
     ]
 
     if not entries:

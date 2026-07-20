@@ -32,8 +32,8 @@ from vultron.core.behaviors.helpers import (
     DataLayerCondition,
 )
 from vultron.core.models.events.case import UpdateCaseReceivedEvent
-from vultron.core.models.protocols import is_case_model
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.case import VulnerabilityCase
 
 
 class CheckCaseUpdateOwnerNode(DataLayerCondition):
@@ -52,7 +52,7 @@ class CheckCaseUpdateOwnerNode(DataLayerCondition):
             return Status.FAILURE
 
         case = self.datalayer.read(self.case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.feedback_message = f"case '{self.case_id}' not found"
             self.logger.warning(
                 "%s: case '%s' not found in DataLayer",
@@ -96,7 +96,7 @@ class CaptureCaseUpdateBroadcastExclusionsNode(DataLayerCondition):
             return Status.FAILURE
 
         case = self.datalayer.read(self.case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.feedback_message = f"case '{self.case_id}' not found"
             self.logger.warning(
                 "%s: case '%s' not found in DataLayer",
@@ -132,7 +132,7 @@ class ApplyCaseUpdateNode(DataLayerAction):
             return Status.FAILURE
 
         stored_case = self.datalayer.read(self.case_id)
-        if not is_case_model(stored_case):
+        if not isinstance(stored_case, VulnerabilityCase):
             self.logger.warning(
                 "%s: case '%s' not found in DataLayer",
                 self.name,
@@ -177,7 +177,7 @@ class BroadcastCaseUpdateNode(DataLayerAction):
             return Status.FAILURE
 
         case = self.datalayer.read(self.case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.feedback_message = f"case '{self.case_id}' not found"
             self.logger.warning(
                 "%s: case '%s' not found in DataLayer",

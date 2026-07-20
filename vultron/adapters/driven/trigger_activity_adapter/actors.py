@@ -23,7 +23,7 @@ import logging
 from typing import Any, cast
 
 from vultron.core.models.actor import CoreActor
-from vultron.core.models.protocols import CaseModel, is_case_model
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.models._helpers import _as_id
 from vultron.errors import VultronNotFoundError, VultronValidationError
@@ -70,7 +70,7 @@ class _ActorsMixin:
         id_: str | None = None,
         attributed_to: str | None = None,
         roles: list[str] | None = None,
-        target: CaseModel | None = None,
+        target: VulnerabilityCase | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist an ``Invite(Actor, Case)`` activity.
 
@@ -97,11 +97,11 @@ class _ActorsMixin:
         resolved: Any = target
         if resolved is None:
             resolved = self._dl.read(case_id)
-            if not is_case_model(resolved):
+            if not isinstance(resolved, VulnerabilityCase):
                 resolved = case_id
 
         embargo_obj = None
-        if is_case_model(resolved):
+        if isinstance(resolved, VulnerabilityCase):
             active_embargo_uri = getattr(resolved, "active_embargo", None)
             if active_embargo_uri:
                 embargo_obj = self._dl.read(active_embargo_uri)
