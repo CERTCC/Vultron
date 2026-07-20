@@ -32,8 +32,8 @@ from vultron.core.behaviors.helpers import (
     DataLayerCondition,
 )
 from vultron.core.models.events.case import UpdateCaseReceivedEvent
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.use_cases._helpers import _as_id
 
 
 class CheckCaseUpdateOwnerNode(DataLayerCondition):

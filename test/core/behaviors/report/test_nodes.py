@@ -28,7 +28,7 @@ from py_trees.composites import Sequence
 
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.use_cases._helpers import _report_phase_status_id
+from vultron.core.models._helpers import _report_phase_status_id
 from vultron.core.models.vultron_types import (
     VultronOffer,
     VultronReport,

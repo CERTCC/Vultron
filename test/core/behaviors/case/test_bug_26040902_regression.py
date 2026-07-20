@@ -91,7 +91,7 @@ def test_receive_report_case_bt_succeeds_without_conftest_imports(
         VultronReport,
     )
     from vultron.core.states.rm import RM
-    from vultron.core.use_cases._helpers import _report_phase_status_id
+    from vultron.core.models._helpers import _report_phase_status_id
     from vultron.wire.as2.vocab.base.registry import VOCABULARY
 
     dl = _fresh_datalayer

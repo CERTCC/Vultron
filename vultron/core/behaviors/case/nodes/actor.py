@@ -45,7 +45,7 @@ from vultron.core.behaviors.sync.commit_tree import (
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.enums.roles import CVDRole, serialize_roles
-from vultron.core.use_cases._helpers import _as_id
+from vultron.core.models._helpers import _as_id
 
 
 class EmitInviteActorToCaseNode(DataLayerAction):

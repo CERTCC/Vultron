@@ -39,7 +39,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
-from vultron.core.use_cases._helpers import _report_phase_status_id
+from vultron.core.models._helpers import _report_phase_status_id
 from vultron.core.use_cases.triggers.report import (
     SvcSubmitReportUseCase,
     SvcValidateReportUseCase,

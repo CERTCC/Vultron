@@ -41,7 +41,7 @@ from vultron.core.models.vultron_types import (
     VultronParticipant,
 )
 from vultron.enums.roles import CVDRole
-from vultron.core.use_cases._helpers import _as_id
+from vultron.core.models._helpers import _as_id
 
 
 def _derive_case_slug(case_id: str) -> str:

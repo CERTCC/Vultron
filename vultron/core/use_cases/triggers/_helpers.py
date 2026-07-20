@@ -108,7 +108,7 @@ def _coerce_embargo_event(raw_embargo: object, embargo_id: str) -> object:
 
 def _is_case_owner(case: object | None, actor_id: str) -> bool:
     """Return True when ``actor_id`` matches the case owner."""
-    from vultron.core.use_cases._helpers import _as_id
+    from vultron.core.models._helpers import _as_id
 
     if case is None:
         return False

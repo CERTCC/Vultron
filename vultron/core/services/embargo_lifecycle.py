@@ -56,7 +56,7 @@ from vultron.core.states.participant_embargo_consent import (
     PEC_Trigger,
     apply_pec_trigger,
 )
-from vultron.core.use_cases._helpers import _as_id
+from vultron.core.models._helpers import _as_id
 from vultron.errors import (
     VultronInvalidStateTransitionError,
     VultronNotFoundError,

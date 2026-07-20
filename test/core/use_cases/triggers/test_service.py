@@ -41,7 +41,7 @@ except ImportError:
     from pydantic_core import ValidationError as PydanticValidationError
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.use_cases._helpers import _report_phase_status_id
+from vultron.core.models._helpers import _report_phase_status_id
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole

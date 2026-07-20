@@ -26,9 +26,9 @@ BTND-07-003.
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.use_cases._helpers import _as_id
 
 
 class AddCaseParticipantToCaseReceivedNode(DataLayerAction):

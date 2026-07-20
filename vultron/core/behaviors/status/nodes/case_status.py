@@ -30,7 +30,7 @@ from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.states.cs import is_valid_pxa_transition
 from vultron.core.states.em import is_valid_em_transition
-from vultron.core.use_cases._helpers import _as_id
+from vultron.core.models._helpers import _as_id
 
 logger = logging.getLogger(__name__)
 

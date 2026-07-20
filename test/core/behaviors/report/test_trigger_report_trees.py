@@ -35,7 +35,7 @@ from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VultronReport
 from vultron.core.states.rm import RM
-from vultron.core.use_cases._helpers import _report_phase_status_id
+from vultron.core.models._helpers import _report_phase_status_id
 from vultron.errors import VultronInvalidStateTransitionError
 
 # noqa: F401 — vocabulary registration side-effect

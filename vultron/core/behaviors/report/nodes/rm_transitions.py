@@ -23,9 +23,9 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
+from vultron.core.models._helpers import _report_phase_status_id
 from vultron.core.use_cases._helpers import (
     _idempotent_create,
-    _report_phase_status_id,
     update_participant_rm_state,
 )
 
