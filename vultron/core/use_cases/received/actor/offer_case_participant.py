@@ -117,7 +117,7 @@ class AcceptOfferCaseParticipantReceivedUseCase:
     def execute(self) -> None:
         request = self._request
         activity_id = request.activity_id
-        case_id = request.target_id
+        case_id = request.target_id or request.inner_target_id
         inner_offer = getattr(request.activity, "object_", None)
         participant_obj = getattr(inner_offer, "object_", None)
         raw_invitee = getattr(participant_obj, "attributed_to", None)

@@ -178,8 +178,9 @@ class _ActorsMixin:
         if raw is None:
             raise VultronNotFoundError("Offer(CaseParticipant)", cp_offer_id)
         cp_offer = cast(as_Offer, raw)
+        target = getattr(cp_offer, "target", None)
         activity = accept_case_participant_offer_activity(
-            offer=cp_offer, actor=actor, to=to
+            offer=cp_offer, actor=actor, to=to, target=target
         )
         try:
             self._dl.create(activity)
