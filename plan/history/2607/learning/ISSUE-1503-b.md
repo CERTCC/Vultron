@@ -1,8 +1,8 @@
 ---
 title: "git rebase fails in worktrees when pre-commit hook modifies files during cherry-pick"
 type: learning
-timestamp: 2026-07-17
-source: ISSUE-1503
+timestamp: "2026-07-17T00:00:00Z"
+source: ISSUE-1503-b
 ---
 
 `git rebase origin/main` fails with "Your local changes would be overwritten" in
@@ -23,3 +23,7 @@ Root cause: during rebase, git checks out the onto-point (origin/main) as the
 base for the merge. In a worktree, the working tree files already contain the
 newer committed versions. Git sees this as "uncommitted changes" relative to
 origin/main and aborts.
+
+**Promoted**: 2026-07-20 — captured in `AGENTS.md` (expanded "git rebase in worktrees"
+pitfall entry with `git reset --soft` + `git -c core.hooksPath=/dev/null commit` workaround).
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1523>3>

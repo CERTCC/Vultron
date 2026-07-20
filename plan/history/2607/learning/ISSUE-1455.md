@@ -1,7 +1,7 @@
 ---
 title: getattr(obj, name, default) does not suppress ValueError from property getters
 type: learning
-timestamp: 2026-07-17
+timestamp: "2026-07-17T00:00:00Z"
 source: ISSUE-1455
 ---
 
@@ -17,3 +17,7 @@ except (AttributeError, ValueError):
 ```
 
 The old `getattr(case, "current_status", None)` idiom was a latent bug across multiple BT nodes and use cases. All three call sites in ISSUE-1455 scope were fixed with `try/except` guards.
+
+**Promoted**: 2026-07-20 — captured in `notes/domain-validation.md` § "Pitfall:
+`getattr(obj, name, default)` Does Not Catch `ValueError`" and `AGENTS.md` pitfall bullet.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1523>3>

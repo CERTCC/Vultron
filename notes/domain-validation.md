@@ -146,3 +146,32 @@ if case_id is None:
 
 See `specs/architecture.yaml` ARCH-15-001 through ARCH-15-004 for
 normative requirements derived from this concern.
+
+---
+
+## Pitfall: `getattr(obj, name, default)` Does Not Catch `ValueError`
+
+Python's three-argument `getattr` suppresses only `AttributeError`. If a
+property getter raises `ValueError` — as `VulnerabilityCase.current_status`
+does when `case_statuses` has no materialised entries — the default is
+**never returned** and the `ValueError` propagates.
+
+The `getattr(case, "current_status", None)` idiom is therefore a latent bug
+wherever a property may raise.
+
+**Pattern — safe property access when a property may raise:**
+
+```python
+try:
+    current_status = case.current_status
+except (AttributeError, ValueError):
+    current_status = None
+```
+
+Use `except (AttributeError, ValueError)` rather than a bare `except` so that
+unexpected exception types still surface. Apply this pattern at BT node or
+use-case entry points wherever a case property is accessed on an
+object that may be only partially initialised (e.g., freshly constructed
+from a DataLayer read before all derived fields are available).
+
+Source: ISSUE-1455 — three call sites fixed across BT nodes and use cases.

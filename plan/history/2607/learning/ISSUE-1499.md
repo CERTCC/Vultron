@@ -21,3 +21,7 @@ files changed), this is safe.
 
 **Alternative:** Use `git -c core.hooksPath=/dev/null rebase origin/main` to
 skip hooks during the rebase, then run hooks manually via `pre-commit run --all-files`.
+
+**Promoted**: 2026-07-20 — captured in `AGENTS.md` (expanded "git rebase in worktrees"
+pitfall entry — `-c core.hooksPath=/dev/null rebase` alternative added).
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1523>3>
