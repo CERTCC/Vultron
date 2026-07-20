@@ -59,18 +59,14 @@ entries that should be promoted into durable docs.
 ### Phase 0 — Sync and Refresh Codebase Knowledge
 
 **First, ensure the worktree is synced to `origin/main`** before any file
-writes, so all subsequent changes land on an up-to-date baseline:
+writes:
 
 ```bash
-SCRIPT="$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh"
-if [ -f "$SCRIPT" ]; then
-  bash "$SCRIPT" ensure-synced || { echo "❌ Aborted — sync check failed." >&2; exit 1; }
-else
-  git fetch origin --quiet 2>/dev/null || true
-  BEHIND=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo 0)
-  [ "$BEHIND" -gt 0 ] && { echo "❌ Aborted: $BEHIND commit(s) behind origin/main. Run: git rebase origin/main" >&2; exit 1; }
-fi
-```text
+bash .agents/skills/shared/sync-check.sh
+```
+
+If that script is absent, verify `git rev-list HEAD..origin/main` returns 0
+before continuing.
 
 Do this **before** `acquire-codebase-knowledge` runs — the scan regenerates
 files in `docs/reference/codebase/` (uncommitted), and those outputs must not
@@ -102,7 +98,8 @@ that the cost of a full scan is justified on every invocation.
      --json number,title,body
    ```text
 
-1. Invoke `orient-agent` then `deepen-context` for full context: specs JSON,
+3. Invoke `orient-agent` then `deepen-context` for full context: specs JSON,
+
    plan files, docs/adr/, notes/, AGENTS.md, and a code scan. Because
    Phase 0 has already refreshed the codebase docs, `orient-agent`/`deepen-context`
    will read up-to-date architecture and structure information.
@@ -255,18 +252,11 @@ Do **not** reference `plan/incoming/learnings/` from durable docs.
    ```bash
    git add specs/<changed-files> notes/<changed-files> AGENTS.md \
        plan/incoming/learnings/ docs/reference/codebase/
-   git commit -m "docs: promote learnings — <topic>
-
-   - <bullet: what was promoted and where>
-   - Archive <N> entr[y/ies] via append-history --from-file (after PR)
-   - Close <N> resolved GitHub Concern issue(s) with resolution comments
-   - Refresh docs/reference/codebase/ via acquire-codebase-knowledge
-
-   Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
    ```
 
-   Use multiple commits for thematically distinct changes (e.g., spec
-   refinements, notes promoted, AGENTS.md updates).
+   Commit per `commit/SKILL.md` conventions. Subject format:
+   `docs: promote learnings — <topic>`. Use multiple commits for thematically
+   distinct changes (spec refinements, notes promoted, AGENTS.md updates).
 
    Then invoke the `create-pr` skill:
 
