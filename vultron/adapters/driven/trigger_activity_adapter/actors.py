@@ -404,9 +404,11 @@ class _ActorsMixin:
         participant_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> str:
+    ) -> tuple[str, dict]:
         """Create and persist an ``Offer(as_VulnerabilityCase, target=as_CaseParticipant)``
         CASE_MANAGER delegation activity.
+
+        Returns ``(activity_id, activity_dict)``.
         """
         case = _to_wire(self._dl.read(case_id), as_VulnerabilityCase)
         participant = _to_wire(
@@ -423,7 +425,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_
+        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
 
     def accept_case_manager_role(
         self,

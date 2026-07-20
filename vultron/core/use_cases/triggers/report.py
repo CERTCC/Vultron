@@ -42,7 +42,6 @@ from vultron.core.models.report import VultronReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
-from vultron.core.use_cases._helpers import outbox_ids
 from vultron.core.use_cases.triggers._helpers import (
     resolve_actor,
 )
@@ -103,24 +102,16 @@ class SvcValidateReportUseCase(SvcBTTriggerBase):
         self._offer, self._report = _resolve_offer_and_report(
             request.offer_id, self._dl
         )
-        self._before = outbox_ids(self._actor_id, self._dl)
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         return create_validate_report_tree(
             report_id=self._report.id_,
             offer_id=self._offer.id_,
+            captured=self._captured,
         )
 
     def _handle_result(self) -> None:
-        after = outbox_ids(self._actor_id, self._dl)
-        new_items = after - self._before
-        if new_items:
-            activity_id = next(iter(new_items))
-            activity_obj = self._dl.read(activity_id)
-            if activity_obj is not None:
-                self._captured["activity"] = activity_obj.model_dump(
-                    by_alias=True, exclude_none=True
-                )
+        pass
 
 
 class SvcInvalidateReportUseCase(SvcBTTriggerBase):
@@ -133,24 +124,15 @@ class SvcInvalidateReportUseCase(SvcBTTriggerBase):
         self._offer, self._report = _resolve_offer_and_report(
             request.offer_id, self._dl
         )
-        self._before = outbox_ids(self._actor_id, self._dl)
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         return create_invalidate_report_trigger_tree(
             offer_id=self._offer.id_,
             report_id=self._report.id_,
+            captured=self._captured,
         )
 
     def _handle_result(self) -> None:
-        after = outbox_ids(self._actor_id, self._dl)
-        new_items = after - self._before
-        if new_items:
-            activity_id = next(iter(new_items))
-            activity_obj = self._dl.read(activity_id)
-            if activity_obj is not None:
-                self._captured["activity"] = activity_obj.model_dump(
-                    by_alias=True, exclude_none=True
-                )
         logger.info(
             "Actor '%s' invalidated offer '%s' (report '%s')",
             self._actor_id,
@@ -169,24 +151,15 @@ class SvcRejectReportUseCase(SvcBTTriggerBase):
         self._offer, self._report = _resolve_offer_and_report(
             request.offer_id, self._dl
         )
-        self._before = outbox_ids(self._actor_id, self._dl)
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         return create_reject_report_trigger_tree(
             offer_id=self._offer.id_,
             report_id=self._report.id_,
+            captured=self._captured,
         )
 
     def _handle_result(self) -> None:
-        after = outbox_ids(self._actor_id, self._dl)
-        new_items = after - self._before
-        if new_items:
-            activity_id = next(iter(new_items))
-            activity_obj = self._dl.read(activity_id)
-            if activity_obj is not None:
-                self._captured["activity"] = activity_obj.model_dump(
-                    by_alias=True, exclude_none=True
-                )
         request = cast(RejectReportTriggerRequest, self._request)
         logger.info(
             "Actor '%s' hard-closed offer '%s' (report '%s'); note: %s",
@@ -207,25 +180,16 @@ class SvcCloseReportUseCase(SvcBTTriggerBase):
         self._offer, self._report = _resolve_offer_and_report(
             request.offer_id, self._dl
         )
-        self._before = outbox_ids(self._actor_id, self._dl)
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         return create_close_report_trigger_tree(
             offer_id=self._offer.id_,
             report_id=self._report.id_,
             result_out=self._result_out,
+            captured=self._captured,
         )
 
     def _handle_result(self) -> None:
-        after = outbox_ids(self._actor_id, self._dl)
-        new_items = after - self._before
-        if new_items:
-            activity_id = next(iter(new_items))
-            activity_obj = self._dl.read(activity_id)
-            if activity_obj is not None:
-                self._captured["activity"] = activity_obj.model_dump(
-                    by_alias=True, exclude_none=True
-                )
         request = cast(CloseReportTriggerRequest, self._request)
         logger.info(
             "Actor '%s' closed offer '%s' (report '%s') via RM lifecycle;"
