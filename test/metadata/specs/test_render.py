@@ -27,7 +27,6 @@ BEHAVIORAL_YAML = {
     "title": "Behavioral Test Specs",
     "description": "Spec file for testing export_yaml fidelity",
     "version": "0.1",
-    "kind": "domain",
     "scope": ["production"],
     "groups": [
         {
@@ -38,6 +37,7 @@ BEHAVIORAL_YAML = {
                 {
                     "id": "BEH-01-001",
                     "priority": "MUST",
+                    "kind": "domain",
                     "statement": "BEH-01-001 MUST behave correctly",
                     "preconditions": [
                         {
@@ -159,7 +159,6 @@ def test_export_json_inherited_tags_present_in_output(tmp_path):
         "title": "Test",
         "description": "Test",
         "version": "0.1",
-        "kind": "general",
         "scope": ["production"],
         "tags": ["protocol"],
         "groups": [
@@ -170,6 +169,7 @@ def test_export_json_inherited_tags_present_in_output(tmp_path):
                     {
                         "id": "TST-01-001",
                         "priority": "MUST",
+                        "kind": "general",
                         "statement": "TST-01-001 MUST pass",
                     }
                 ],

@@ -6,7 +6,6 @@ description: >-
   specifies typed preconditions, ordered steps, and postconditions that implementations
   must satisfy.
 version: 0.1.0
-kind: domain
 tags:
 - behavioral
 - state-machine
@@ -24,6 +23,7 @@ groups:
   specs:
   - id: EMB-01-001
     priority: MUST
+    kind: domain
     statement: >-
       A Participant in EM None (q^em ∈ N) with CS not yet public/exploit/attack
       (q^cs ∈ ···pxa) receiving EP MUST transition their EM state to Proposed
@@ -59,6 +59,7 @@ groups:
 
   - id: EMB-01-002
     priority: MUST_NOT
+    kind: domain
     statement: >-
       A Participant MUST NOT accept a new embargo proposal (process EP) when
       information about the vulnerability is public (q^cs ∈ ···P··), exploit
@@ -101,6 +102,7 @@ groups:
 
   - id: EMB-01-003
     priority: MUST
+    kind: domain
     statement: >-
       A Participant already in EM Proposed (q^em ∈ P) with CS not yet
       public/exploit/attack (q^cs ∈ ···pxa) receiving a second or counter EP
@@ -135,6 +137,7 @@ groups:
 
   - id: EMB-01-004
     priority: SHOULD_NOT
+    kind: domain
     statement: >-
       A Participant in RM Invalid (q^rm ∈ I) SHOULD NOT propose or accept an
       embargo when receiving EP.
@@ -160,6 +163,7 @@ groups:
 
   - id: EMB-01-005
     priority: SHOULD_NOT
+    kind: domain
     statement: >-
       A Participant in an inactive RM state (q^rm ∈ {D, C}) SHOULD NOT begin
       embargo management by accepting an incoming EP.
@@ -193,6 +197,7 @@ groups:
   specs:
   - id: EMB-02-001
     priority: MUST
+    kind: domain
     statement: >-
       A Participant in EM Proposed (q^em ∈ P) with CS not yet public/exploit/attack
       (q^cs ∈ ···pxa) receiving EA MUST transition their EM state to Active
@@ -230,6 +235,7 @@ groups:
 
   - id: EMB-02-002
     priority: MUST_NOT
+    kind: domain
     statement: >-
       A Participant MUST NOT process EA to transition EM to Active when the case
       is already public (q^cs ∈ ···P··), exploit is public (q^cs ∈ ····X·), or
@@ -267,6 +273,7 @@ groups:
 
   - id: EMB-02-003
     priority: SHOULD_NOT
+    kind: domain
     statement: >-
       A Participant in RM Invalid or Closed (q^rm ∈ {I, C}) SHOULD NOT allow
       EM to proceed from Proposed to Active upon receiving EA.
@@ -301,6 +308,7 @@ groups:
   specs:
   - id: EMB-03-001
     priority: MUST
+    kind: domain
     statement: >-
       A Participant in EM Active (q^em ∈ A) with CS not yet public/exploit/attack
       (q^cs ∈ ···pxa) receiving EV MUST transition their EM state to Revise
@@ -341,6 +349,7 @@ groups:
 
   - id: EMB-03-002
     priority: MUST
+    kind: domain
     statement: >-
       A Participant already in EM Revise (q^em ∈ R) with CS not yet
       public/exploit/attack (q^cs ∈ ···pxa) receiving a counter EV
@@ -373,6 +382,7 @@ groups:
 
   - id: EMB-03-003
     priority: MUST
+    kind: domain
     statement: >-
       A Participant in EM Active or Revise (q^em ∈ {A, R}) with CS in a
       public/exploit/attack state (q^cs ∉ ···pxa) receiving EV MUST emit ET
@@ -423,6 +433,7 @@ groups:
   specs:
   - id: EMB-04-001
     priority: MUST
+    kind: domain
     statement: >-
       A Participant in EM Revise (q^em ∈ R) with CS not yet public/exploit/attack
       (q^cs ∈ ···pxa) receiving EJ MUST transition their EM state back to Active
@@ -458,6 +469,7 @@ groups:
 
   - id: EMB-04-002
     priority: MUST
+    kind: domain
     statement: >-
       A Participant in EM Revise (q^em ∈ R) with CS in a public/exploit/attack
       state (q^cs ∉ ···pxa) receiving EJ MUST emit ET to terminate the embargo
@@ -504,6 +516,7 @@ groups:
   specs:
   - id: EMB-05-001
     priority: MUST
+    kind: domain
     statement: >-
       A Participant in EM Revise (q^em ∈ R) with CS not yet public/exploit/attack
       (q^cs ∈ ···pxa) receiving EC MUST transition their EM state back to Active
@@ -541,6 +554,7 @@ groups:
 
   - id: EMB-05-002
     priority: MUST
+    kind: domain
     statement: >-
       A Participant in EM Revise (q^em ∈ R) with CS in a public/exploit/attack
       state (q^cs ∉ ···pxa) receiving EC MUST emit ET to terminate the embargo
@@ -586,6 +600,7 @@ groups:
   specs:
   - id: EMB-06-001
     priority: MUST
+    kind: domain
     statement: >-
       A Participant in EM Proposed (q^em ∈ P) receiving ER MUST transition their
       EM state back to None (q^em P → N) and emit EK to acknowledge receipt.
@@ -628,6 +643,7 @@ groups:
   specs:
   - id: EMB-07-001
     priority: MUST
+    kind: domain
     statement: >-
       A Participant in EM Active (q^em ∈ A) receiving ET MUST transition their
       EM state to Exited (q^em A → X) and emit EK to acknowledge receipt.
@@ -661,6 +677,7 @@ groups:
 
   - id: EMB-07-002
     priority: MUST
+    kind: domain
     statement: >-
       A Participant in EM Revise (q^em ∈ R) receiving ET MUST transition their
       EM state to Exited (q^em R → X) and emit EK to acknowledge receipt.
@@ -694,6 +711,7 @@ groups:
 
   - id: EMB-07-003
     priority: MUST
+    kind: domain
     statement: >-
       A Participant already in EM Exited (q^em ∈ X) receiving ET MUST emit EK
       without any state transition.
@@ -729,6 +747,7 @@ groups:
   specs:
   - id: EMB-08-001
     priority: SHOULD
+    kind: domain
     statement: >-
       A Participant receiving EE SHOULD emit EK to acknowledge receipt and SHOULD
       emit GI to inquire about the nature of the error.
@@ -768,6 +787,7 @@ groups:
   specs:
   - id: EMB-09-001
     priority: MAY
+    kind: domain
     statement: >-
       A Participant receiving EK MAY process it as a passthrough acknowledgment
       with no state transition and no required response.
@@ -795,6 +815,7 @@ groups:
   specs:
   - id: EMB-10-001
     priority: MAY
+    kind: domain
     statement: >-
       A Participant entering EM Proposed MAY evaluate the proposed terms and
       respond with EA (accept), EV (counter-propose a revision), or ER (reject).
@@ -822,6 +843,7 @@ groups:
 
   - id: EMB-10-002
     priority: SHOULD_NOT
+    kind: domain
     statement: >-
       A Participant in RM Invalid or Deferred or Closed (q^rm ∈ {I, D, C})
       SHOULD NOT begin or continue embargo negotiations while in those inactive
@@ -855,6 +877,7 @@ groups:
   specs:
   - id: EMB-11-001
     priority: SHOULD_NOT
+    kind: domain
     statement: >-
       A Participant in EM Active SHOULD NOT share the vulnerability report with
       a newly invited Participant until that Participant has accepted the existing
@@ -879,6 +902,7 @@ groups:
 
   - id: EMB-11-002
     priority: SHOULD
+    kind: domain
     statement: >-
       A Participant entering EM Active SHOULD maintain the embargo by not
       publishing information about the vulnerability until the embargo expires
@@ -901,6 +925,7 @@ groups:
 
   - id: EMB-11-003
     priority: MUST_NOT
+    kind: domain
     statement: >-
       A Participant in RM Closed or Deferred (q^rm ∈ {C, D}) in EM Active
       while other Participants remain engaged MUST NOT automatically terminate
@@ -929,6 +954,7 @@ groups:
 
   - id: EMB-11-004
     priority: SHOULD
+    kind: domain
     statement: >-
       Reports with no further tasks (q^rm ∈ {D, I}) SHOULD be held in Deferred
       or Invalid while the embargo remains Active or Revise (q^em ∈ {A, R})
@@ -955,6 +981,7 @@ groups:
 
   - id: EMB-11-005
     priority: SHOULD
+    kind: domain
     statement: >-
       A Participant who intends to change their adherence stance to an active
       embargo SHOULD communicate that intent clearly to other Participants.
@@ -982,6 +1009,7 @@ groups:
   specs:
   - id: EMB-12-001
     priority: MAY
+    kind: domain
     statement: >-
       A Participant entering EM Revise MAY evaluate the revision proposal and
       respond with EC (accept the revision), EJ (reject the revision), or EV
@@ -1004,6 +1032,7 @@ groups:
 
   - id: EMB-12-002
     priority: MUST_NOT
+    kind: domain
     statement: >-
       A Participant in RM Closed or Deferred (q^rm ∈ {C, D}) in EM Revise
       while other Participants remain engaged MUST NOT automatically terminate
@@ -1031,6 +1060,7 @@ groups:
 
   - id: EMB-12-003
     priority: SHOULD
+    kind: domain
     statement: >-
       A Participant who intends to change their adherence stance while an embargo
       is in Revise state SHOULD communicate that intent clearly to other
@@ -1058,6 +1088,7 @@ groups:
   specs:
   - id: EMB-13-001
     priority: SHOULD
+    kind: domain
     statement: >-
       A Participant entering EM Exited SHOULD reset all Participant embargo
       consent states to reflect that the embargo has ended.
@@ -1086,6 +1117,7 @@ groups:
 
   - id: EMB-13-002
     priority: MUST_NOT
+    kind: domain
     statement: >-
       A Participant in EM Exited MUST NOT seek new embargoes or accept new
       embargo proposals (EP) for this case when the CS state is public

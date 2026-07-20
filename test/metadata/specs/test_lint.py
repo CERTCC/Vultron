@@ -22,6 +22,7 @@ def _minimal_spec(spec_id="TST-01-001", priority="MUST", extra=None):
     spec = {
         "id": spec_id,
         "priority": priority,
+        "kind": "general",
         "statement": f"{spec_id} MUST do the thing",
         "rationale": "Because testing",
         "tags": ["testing"],
@@ -33,7 +34,6 @@ def _minimal_spec(spec_id="TST-01-001", priority="MUST", extra=None):
         "title": "Test File",
         "description": "Test spec file",
         "version": "0.1",
-        "kind": "general",
         "scope": ["production"],
         "groups": [
             {
@@ -68,7 +68,7 @@ def test_lint_empty_dir(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_lint_duplicate_spec_ids(tmp_path, capsys):
+def test_lint_duplicate_spec_ids(tmp_path):
     data = _minimal_spec("DUP-01-001")
     data["id"] = "DUP"
     data["groups"][0]["id"] = "DUP-01"
@@ -100,7 +100,6 @@ def test_lint_prefix_mismatch(tmp_path, capsys):
         "title": "Test File",
         "description": "Prefix mismatch test",
         "version": "0.1",
-        "kind": "general",
         "scope": ["production"],
         "groups": [
             {
@@ -110,6 +109,7 @@ def test_lint_prefix_mismatch(tmp_path, capsys):
                     {
                         "id": "OTHER-01-001",
                         "priority": "MUST",
+                        "kind": "general",
                         "statement": "OTHER-01-001 MUST be consistent",
                         "rationale": "Consistency",
                         "tags": ["testing"],
@@ -217,7 +217,6 @@ def test_lint_spec_id_prefix_mismatch(tmp_path, capsys):
         "title": "Test File",
         "description": "Spec ID prefix mismatch test",
         "version": "0.1",
-        "kind": "general",
         "scope": ["production"],
         "groups": [
             {
@@ -227,6 +226,7 @@ def test_lint_spec_id_prefix_mismatch(tmp_path, capsys):
                     {
                         "id": "TST-01-001",  # prefix TST-01 != group TST-02
                         "priority": "MUST",
+                        "kind": "general",
                         "statement": "TST-01-001 MUST be in group TST-01",
                         "rationale": "Prefix consistency",
                         "tags": ["testing"],
@@ -327,3 +327,17 @@ def test_lint_adr_ref_no_rationale_no_warn(tmp_path, capsys):
     captured = capsys.readouterr()
     assert result == 0
     assert "ADR-" not in captured.out
+
+
+# ---------------------------------------------------------------------------
+# Missing item-level kind is a hard error
+# ---------------------------------------------------------------------------
+
+
+def test_lint_missing_item_kind_is_hard_error(tmp_path):
+    """A spec item missing kind: is a hard error (exit 1)."""
+    data = _minimal_spec()
+    del data["groups"][0]["specs"][0]["kind"]
+    _write_yaml(tmp_path, data)
+    result = lint(tmp_path)
+    assert result == 1

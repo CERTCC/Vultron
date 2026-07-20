@@ -4,7 +4,6 @@ description: >-
   Logging requirements for the Vultron API, covering log format, correlation IDs, log levels,
   state transition logging, error context, and authorization and data-access audit records.
 version: 1.0.0
-kind: language
 scope:
 - prototype
 - production
@@ -17,36 +16,41 @@ groups:
   specs:
   - id: SL-01-001
     priority: MUST
+    kind: language
     statement: All log entries MUST include `timestamp` field in ISO 8601 format
     scope:
     - production
   - id: SL-01-002
     priority: MUST
+    kind: language
     statement: >-
       All log entries MUST include `level` field (DEBUG, INFO, WARNING, ERROR, CRITICAL)
     scope:
     - production
   - id: SL-01-003
     priority: MUST
+    kind: language
     statement: All log entries MUST include `component` field (module or function name)
     scope:
     - production
   - id: SL-01-004
     priority: MUST
+    kind: language
     statement: All log entries MUST include `message` field (human-readable text)
     scope:
     - production
 - id: SL-02
   title: Correlation IDs
-  kind: domain
   specs:
   - id: SL-02-001
     priority: MUST
+    kind: domain
     statement: Log entries MUST include `activity_id` field when activity is available
     scope:
     - production
   - id: SL-02-002
     priority: MUST
+    kind: domain
     statement: Log entries MUST include `actor_id` field when actor is available
     scope:
     - production
@@ -55,24 +59,30 @@ groups:
   specs:
   - id: SL-03-001
     priority: MUST
+    kind: language
     statement: Log levels MUST follow standard severity semantics per table below
 - id: SL-04
   title: State Transition Logging
   specs:
   - id: SL-04-001
     priority: MUST
+    kind: language
     statement: All state transitions MUST be logged at INFO level
   - id: SL-04-002
     priority: MUST
+    kind: language
     statement: State transition logs MUST include before state
   - id: SL-04-003
     priority: MUST
+    kind: language
     statement: State transition logs MUST include after state
   - id: SL-04-004
     priority: MUST
+    kind: language
     statement: State transition logs MUST include triggering event (activity type + semantic)
   - id: SL-04-005
     priority: SHOULD
+    kind: language
     statement: >-
       Demo scripts and stepwise workflows SHOULD use structured, consistent lifecycle logs
 - id: SL-05
@@ -80,33 +90,40 @@ groups:
   specs:
   - id: SL-05-001
     priority: SHOULD
+    kind: language
     statement: ERROR level logs SHOULD include exception type and message
   - id: SL-05-002
     priority: SHOULD
+    kind: language
     statement: ERROR level logs SHOULD include stack trace for unexpected exceptions
   - id: SL-05-003
     priority: SHOULD
+    kind: language
     statement: ERROR level logs SHOULD include original activity ID if available
 - id: SL-06
   title: Authorization Logging
   specs:
   - id: SL-06-001
     priority: SHOULD
+    kind: language
     statement: Authorization decisions SHOULD be logged with decision (allowed/denied)
     scope:
     - production
   - id: SL-06-002
     priority: SHOULD
+    kind: language
     statement: Authorization logs SHOULD include actor performing action
     scope:
     - production
   - id: SL-06-003
     priority: SHOULD
+    kind: language
     statement: Authorization logs SHOULD include resource being accessed
     scope:
     - production
   - id: SL-06-004
     priority: SHOULD
+    kind: language
     statement: Authorization logs SHOULD include denial reason if denied
     scope:
     - production
@@ -115,17 +132,20 @@ groups:
   specs:
   - id: SL-07-001
     priority: SHOULD
+    kind: language
     statement: >-
       Sensitive data operations SHOULD log operation type (CREATE, READ, UPDATE, DELETE)
     scope:
     - production
   - id: SL-07-002
     priority: SHOULD
+    kind: language
     statement: Data access logs SHOULD include resource type and ID
     scope:
     - production
   - id: SL-07-003
     priority: SHOULD
+    kind: language
     statement: Data access logs SHOULD include actor performing operation
     scope:
     - production
@@ -134,6 +154,7 @@ groups:
   specs:
   - id: SL-08-001
     priority: MAY
+    kind: language
     statement: System MAY log performance metrics at DEBUG level
     scope:
     - production

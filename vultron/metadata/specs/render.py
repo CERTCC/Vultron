@@ -207,8 +207,6 @@ def _group_to_dict(group: SpecGroup, file: SpecFile) -> dict:
     d: dict = {"id": group.id, "title": group.title}
     if group.description is not None:
         d["description"] = group.description
-    if group.kind is not None:
-        d["kind"] = group.kind.value
     if group.scope is not None:
         d["scope"] = [s.value for s in group.scope]
     if group.trigger is not None:
@@ -227,7 +225,6 @@ def _file_to_dict(spec_file: SpecFile) -> dict:
         "title": spec_file.title,
         "description": spec_file.description,
         "version": spec_file.version,
-        "kind": spec_file.kind.value,
         "scope": [s.value for s in spec_file.scope],
     }
     if spec_file.tags is not None:

@@ -6,7 +6,6 @@ description: >-
   verifies that an incoming case and its managing actor are legitimate before
   accepting case state updates.
 version: 1.0.0
-kind: domain
 scope:
   - prototype
   - production
@@ -19,6 +18,7 @@ groups:
     specs:
       - id: CBT-01-001
         priority: MUST
+        kind: domain
         statement: >-
           When an actor creates a case in response to an inbound
           `Offer(VulnerabilityReport)`, that case creator MUST establish trust
@@ -31,6 +31,7 @@ groups:
             spec_id: PCR-02-005
       - id: CBT-01-002
         priority: MUST
+        kind: domain
         statement: >-
           The bootstrap `Create(VulnerabilityCase)` activity MUST carry a full
           inline `VulnerabilityCase` snapshot rather than a minimal stub or
@@ -40,6 +41,7 @@ groups:
             spec_id: AKM-03-001
       - id: CBT-01-003
         priority: MUST
+        kind: domain
         statement: >-
           The bootstrap case snapshot MUST identify the case creator/owner as a
           participant with `CASE_OWNER` role and MUST identify the CaseActor as
@@ -51,12 +53,14 @@ groups:
             spec_id: CM-02-010
       - id: CBT-01-004
         priority: MUST
+        kind: domain
         statement: >-
           When the original report submitter is intended to receive ongoing
           case updates immediately, the bootstrap case snapshot MUST include
           that actor as a participant from the start.
       - id: CBT-01-005
         priority: MUST
+        kind: domain
         statement: >-
           A report submitter MUST NOT trust a newly introduced CaseActor unless
           the bootstrap `Create(VulnerabilityCase)` both comes from the same
@@ -69,6 +73,7 @@ groups:
             spec_id: AKM-02-001
       - id: CBT-01-006
         priority: MUST
+        kind: domain
         statement: >-
           After validating the bootstrap `Create(VulnerabilityCase)`, the
           receiving actor MUST persist the report-to-case link, the trusted
@@ -79,6 +84,7 @@ groups:
             spec_id: PCR-05-001
       - id: CBT-01-007
         priority: MUST
+        kind: domain
         statement: >-
           All nested domain objects in the bootstrap `Create(VulnerabilityCase)`
           payload (e.g., `CaseParticipant` objects in `case_participants`) MUST
@@ -102,6 +108,7 @@ groups:
     specs:
       - id: CBT-02-001
         priority: MUST
+        kind: domain
         statement: >-
           For the original report-submission path, `Create(VulnerabilityCase)`
           is a one-time bootstrap message only; subsequent full-case
@@ -114,6 +121,7 @@ groups:
             spec_id: PCR-03-001
       - id: CBT-02-002
         priority: MUST_NOT
+        kind: domain
         statement: >-
           Transport authentication or encrypted direct messaging alone MUST NOT
           be treated as sufficient authority to trust a previously unknown
@@ -123,6 +131,7 @@ groups:
             spec_id: AKM-01-002
       - id: CBT-02-003
         priority: MUST
+        kind: domain
         statement: >-
           Once a CaseActor has been trusted for a case, that identity MUST NOT
           be replaced implicitly by ordinary case-update traffic; CaseActor
@@ -135,6 +144,7 @@ groups:
     specs:
       - id: CBT-03-001
         priority: SHOULD
+        kind: domain
         statement: >-
           If a CaseActor-originated case message arrives before the required
           bootstrap trust handoff, the receiving actor SHOULD queue it only for
@@ -146,6 +156,7 @@ groups:
             spec_id: PCR-06-002
       - id: CBT-03-002
         priority: MUST_NOT
+        kind: domain
         statement: >-
           A pre-bootstrap CaseActor message MUST NOT update local case state
           before the corresponding trust-establishing bootstrap message has been
@@ -155,6 +166,7 @@ groups:
             spec_id: PCR-06-003
       - id: CBT-03-003
         priority: MUST
+        kind: domain
         statement: >-
           When the bounded pre-bootstrap queue expires (default: 300 seconds,
           configurable via `AppConfig.pre_bootstrap_queue_timeout_seconds`),
@@ -162,6 +174,7 @@ groups:
           a resend after bootstrap.
       - id: CBT-03-004
         priority: SHOULD
+        kind: domain
         statement: >-
           When bootstrap has not arrived in time, the receiver SHOULD request a
           replay from the original report receiver / case creator by sending an
@@ -174,6 +187,7 @@ groups:
     specs:
       - id: CBT-04-001
         priority: MUST
+        kind: domain
         statement: >-
           For a participant added after case creation, the trust-establishing
           message MUST be `InviteActorToCase` from the case creator/owner rather
@@ -183,12 +197,14 @@ groups:
             spec_id: CM-11-001
       - id: CBT-04-002
         priority: MUST
+        kind: domain
         statement: >-
           The trust-establishing invite for a late joiner MUST identify both
           the case and the CaseActor that will send subsequent
           `Announce(VulnerabilityCase)` updates.
       - id: CBT-04-003
         priority: MUST
+        kind: domain
         statement: >-
           After the late joiner has validated and accepted that invitation, the
           CaseActor MAY send `Announce(VulnerabilityCase)` without a separate
@@ -201,6 +217,7 @@ groups:
     specs:
       - id: CBT-05-001
         priority: MUST
+        kind: domain
         statement: >-
           Tests MUST verify that the original report submitter accepts
           CaseActor-originated `Announce(VulnerabilityCase)` updates only after
@@ -208,18 +225,21 @@ groups:
           established trust.
       - id: CBT-05-002
         priority: MUST
+        kind: domain
         statement: >-
           Tests MUST verify that a bootstrap `Create(VulnerabilityCase)` is
           rejected when the sender does not match the actor that received the
           report or when the case does not reference the known submitted report.
       - id: CBT-05-003
         priority: MUST
+        kind: domain
         statement: >-
           Tests MUST verify that pre-bootstrap CaseActor messages remain
           unapplied, expire safely, and lead to a replay request to the case
           creator.
       - id: CBT-05-004
         priority: MUST
+        kind: domain
         statement: >-
           Tests MUST verify that late joiners establish trust through
           `InviteActorToCase` and may then accept CaseActor-originated

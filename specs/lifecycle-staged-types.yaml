@@ -6,7 +6,6 @@ description: >-
   required (non-None) fields; milestones that only gate permitted actions are modeled
   as predicates and preconditions rather than new types.
 version: 0.1.0
-kind: domain
 scope:
 - prototype
 - production
@@ -19,6 +18,7 @@ groups:
   specs:
   - id: LST-01-001
     priority: MUST
+    kind: domain
     statement: >-
       A lifecycle milestone MUST be modeled as a distinct staged type only when
       it changes the set of guaranteed (required, non-None) fields on the domain
@@ -29,6 +29,7 @@ groups:
       See ADR-0033.
   - id: LST-01-002
     priority: MUST
+    kind: domain
     statement: >-
       A milestone that only changes which actions are permitted, without
       changing which fields are present, MUST be modeled in the transition model
@@ -41,6 +42,7 @@ groups:
   specs:
   - id: LST-02-001
     priority: MUST
+    kind: domain
     statement: >-
       The VulnerabilityCase staged family MUST consist of exactly three types:
       `IncomingReport` (report data, no case), `Case` (a case exists), and
@@ -51,6 +53,7 @@ groups:
       case-universal milestone does. See ADR-0033.
   - id: LST-02-002
     priority: MUST
+    kind: domain
     statement: >-
       A `Case` MUST guarantee at least one vulnerability report, the reporter
       and receiver participants (at least two parties), and a seeded
@@ -63,6 +66,7 @@ groups:
       spec_id: ARCH-10-001
   - id: LST-02-003
     priority: MUST
+    kind: domain
     statement: >-
       An `EmbargoedCase` MUST guarantee `active_embargo` is non-None and
       `em_state` is in {ACTIVE, REVISE}.
@@ -71,6 +75,7 @@ groups:
       monotonic milestone with a genuine type-level non-None guarantee.
   - id: LST-02-004
     priority: MUST_NOT
+    kind: domain
     statement: >-
       Per-participant RM state (valid, accepted, deferred) MUST NOT be modeled
       as a VulnerabilityCase staged type.
@@ -82,6 +87,7 @@ groups:
   specs:
   - id: LST-03-001
     priority: MUST_NOT
+    kind: domain
     statement: >-
       `ParticipantStatus` and `CaseStatus` MUST NOT be given lifecycle-staged
       subtypes, because no RM/vfd/EM/pxa milestone adds a field to them.
@@ -93,6 +99,7 @@ groups:
   specs:
   - id: LST-04-001
     priority: MUST
+    kind: domain
     statement: >-
       Per-participant RM and vfd ratchets, and case-level EM and pxa ratchets,
       MUST be modeled as state-group tuples and `is_*()` predicates, extending
@@ -106,6 +113,7 @@ groups:
   specs:
   - id: LST-05-001
     priority: MUST
+    kind: domain
     statement: >-
       A core function requiring a narrowed staged type MUST obtain it by
       validating the generic object at its entry boundary (e.g.
@@ -119,6 +127,7 @@ groups:
       spec_id: ARCH-15-002
   - id: LST-05-002
     priority: MUST_NOT
+    kind: domain
     statement: >-
       The lifecycle stage MUST NOT be stored as a persisted field; the staged
       type MUST always be re-derived from the case data, which is the single
@@ -128,6 +137,7 @@ groups:
       sources of truth. See ADR-0033 transition model.
   - id: LST-05-003
     priority: MUST
+    kind: domain
     statement: >-
       Staged types MUST remain round-trippable through the DataLayer: a
       persisted staged object rehydrates to the base type and re-validates to its

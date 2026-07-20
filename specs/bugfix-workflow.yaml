@@ -4,7 +4,6 @@ description: >-
   Requirements for the agent bugfix skill: root-cause depth analysis, user engagement,
   escalation of discovered issues, and lifecycle archiving of completed bug fixes.
 version: 1.0.0
-kind: dev-process
 scope:
 - prototype
 - production
@@ -16,26 +15,31 @@ groups:
   specs:
   - id: BFW-01-001
     priority: MUST
+    kind: dev-process
     statement: >-
       The agent MUST confirm the selected bug with the user before beginning any implementation
       work.
   - id: BFW-01-002
     priority: MUST
+    kind: dev-process
     statement: >-
       The agent MUST confirm its reproduction scenario description with the user and update
       its understanding if the user disagrees.
   - id: BFW-01-003
     priority: MUST
+    kind: dev-process
     statement: >-
       The agent MUST confirm the expected behaviour with the user and probe for edge cases
       when any are unclear.
   - id: BFW-01-004
     priority: MUST
+    kind: dev-process
     statement: >-
       The agent MUST confirm fix scope (files, components, tests, docs) with the user before
       proceeding.
   - id: BFW-01-005
     priority: MUST_NOT
+    kind: dev-process
     statement: >-
       The agent MUST NOT proceed to Phase 3 implementation until the user has explicitly confirmed
       or corrected every point in BFW-01-001 through BFW-01-004.
@@ -44,21 +48,25 @@ groups:
   specs:
   - id: BFW-02-001
     priority: MUST
+    kind: dev-process
     statement: >-
       Unless the user has already indicated a broader underlying issue in Phase 2, the agent
       MUST ask whether the observed symptom is a surface manifestation of a deeper structural
       issue before locking in scope.
   - id: BFW-02-002
     priority: MUST
+    kind: dev-process
     statement: >-
       If the user confirms a deeper issue exists, the agent MUST ask which of the related
       concerns the current fix should address and adjust the agreed scope accordingly.
   - id: BFW-02-003
     priority: MUST
+    kind: dev-process
     statement: >-
       Implementation MUST remain blocked until Phase 2b produces a user-confirmed scope.
   - id: BFW-02-004
     priority: SHOULD
+    kind: dev-process
     statement: >-
       Phase 2b questions SHOULD reference specific code paths, data flows, or invariants the
       agent has identified as plausible root causes, rather than asking open-ended questions.
@@ -67,17 +75,20 @@ groups:
   specs:
   - id: BFW-03-001
     priority: MUST
+    kind: dev-process
     statement: >-
       When Phase 2 or Phase 2b analysis surfaces additional related issues beyond the confirmed
       scope, the agent MUST file each as a new Bug-type GitHub issue using the `manage-github-issue`
       skill with a brief description and reproduction pointer.
   - id: BFW-03-002
     priority: MUST_NOT
+    kind: dev-process
     statement: >-
       The agent MUST NOT pursue newly discovered issues in the current run; only the confirmed-scope
       fix is implemented.
   - id: BFW-03-003
     priority: SHOULD
+    kind: dev-process
     statement: >-
       The PR description for the fix SHOULD reference any new bug issues filed during analysis
       (e.g., `Also filed: #NNN`).
@@ -86,6 +97,7 @@ groups:
   specs:
   - id: BFW-04-001
     priority: MUST
+    kind: dev-process
     statement: >-
       When a bug fix passes validation, the agent MUST append a completion summary for the
       bug to `plan/history/` using `uv run append-history implementation` in the same format

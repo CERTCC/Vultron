@@ -7,7 +7,6 @@ description: >-
   the shared-base object hierarchy, domain model richness, and the fail-fast validation
   boundary.
 version: 1.0.0
-kind: pattern
 scope:
 - prototype
 - production
@@ -19,6 +18,7 @@ groups:
   specs:
   - id: ARCH-01-001
     priority: MUST_NOT
+    kind: pattern
     statement: The `core/` package (or equivalent domain layer) MUST NOT import from `wire/`, `adapters/`, or any external
       framework
     rationale: Keeps domain logic replaceable without touching the wire or transport layer
@@ -27,9 +27,11 @@ groups:
       spec_id: CS-05-001
   - id: ARCH-01-002
     priority: MUST
+    kind: pattern
     statement: Core functions MUST accept and return domain types only
   - id: ARCH-01-003
     priority: MUST_NOT
+    kind: pattern
     statement: The `wire/` layer (AS2 parser, semantic extractor) MUST NOT contain handler logic, case management, or journal
       management
     rationale: Wire format concerns are structurally distinct from domain concerns; mixing them prevents future wire format
@@ -37,6 +39,7 @@ groups:
 
   - id: ARCH-01-004
     priority: MUST
+    kind: pattern
     statement: >-
       All ARCH-01-001 violations in `vultron/core/` MUST be remediated via
       dedicated driven ports. Each file with a core→wire import MUST be given
@@ -69,17 +72,17 @@ groups:
       spec_id: ARCH-01-001
 - id: ARCH-02
   title: SemanticIntent Enum
-  kind: domain
   specs:
   - id: ARCH-02-001
     priority: MUST
+    kind: domain
     statement: The `MessageSemantics` enum (`SemanticIntent`) MUST be defined in the domain layer, not in the wire layer
 - id: ARCH-03
   title: Semantic Extractor
-  kind: domain
   specs:
   - id: ARCH-03-001
     priority: MUST
+    kind: domain
     statement: 'AS2 vocabulary MUST be mapped to domain concepts in exactly one location: the semantic extractor'
     rationale: Isolates the single seam where wire format changes are absorbed
 - id: ARCH-04
@@ -87,12 +90,14 @@ groups:
   specs:
   - id: ARCH-04-001
     priority: MUST
+    kind: pattern
     statement: Driven adapters (persistence, delivery queue, DNS resolver, HTTP delivery) MUST be injected into core services
       via port interfaces
     rationale: Enables testing core logic with in-memory ports and swapping production backends without touching domain code
 
   - id: ARCH-04-002
     priority: MUST
+    kind: implementation
     statement: >-
       `SyncActivityPort` MUST be defined as a `typing.Protocol` in
       `vultron/core/ports/sync_activity_port.py` with two fire-and-forget
@@ -119,14 +124,15 @@ groups:
 
 - id: ARCH-05
   title: Connector Plugins
-  kind: language
   specs:
   - id: ARCH-05-001
     priority: MUST_NOT
+    kind: language
     statement: Connector plugins (tracker integrations) MUST be discovered via Python entry points (`importlib.metadata`);
       the core MUST NOT import them directly
   - id: ARCH-05-002
     priority: MUST
+    kind: language
     statement: Connector plugins MUST translate only — no case handling logic, authorization, or journal management belongs
       in a connector
 - id: ARCH-06
@@ -134,22 +140,26 @@ groups:
   specs:
   - id: ARCH-06-001
     priority: SHOULD
+    kind: pattern
     statement: The wire layer (`wire/as2/`) SHOULD be replaceable as a unit without touching the core or adapter layers
 - id: ARCH-07
   title: Handler Isolation
   specs:
   - id: ARCH-07-001
     priority: MUST_NOT
+    kind: pattern
     statement: Handler functions MUST NOT re-invoke semantic extraction
 - id: ARCH-08
   title: Driving Adapter Boundary
   specs:
   - id: ARCH-08-001
     priority: MUST
+    kind: pattern
     statement: Driving adapters (HTTP inbox, CLI, MCP server) MUST invoke the wire pipeline before calling into the core
     rationale: Any driving adapter that needs to ingest AS2 can reuse the wire pipeline; there is no duplication
   - id: ARCH-08-002
     priority: MUST
+    kind: pattern
     statement: >-
       A driving adapter MUST promote an incoming wire object to its most-specific domain
       type at the adapter boundary, before passing the object into the core. The core
@@ -167,7 +177,6 @@ groups:
       spec_id: CS-10-001
 - id: ARCH-12
   title: Shared-Base Object Hierarchy
-  kind: implementation
   rationale: >-
     The from_core()/to_core() translation protocol (the original ARCH-12
     design) was a workaround for independent parallel hierarchies. A
@@ -178,6 +187,7 @@ groups:
   specs:
   - id: ARCH-12-001
     priority: MUST
+    kind: implementation
     statement: >-
       `as_Base` MUST inherit from `VultronBase`; `as_Object` MUST inherit
       from `VultronObject`. `VultronBase` and `VultronObject` (in
@@ -192,6 +202,7 @@ groups:
       `issubclass(as_Object, VultronObject)` are both True.
   - id: ARCH-12-002
     priority: MUST
+    kind: implementation
     statement: >-
       The shared base (`VultronBase` / `VultronObject`) MUST define all
       shared fields with the most lenient types (`str | None`,
@@ -204,6 +215,7 @@ groups:
       subclasses.
   - id: ARCH-12-003
     priority: MUST
+    kind: implementation
     statement: >-
       The core branch MAY narrow inherited fields via Pydantic validators
       (e.g., `NonEmptyString | None`, required `datetime`). Core-branch
@@ -216,6 +228,7 @@ groups:
       `test/architecture/test_layer_boundaries.py`.
   - id: ARCH-12-004
     priority: MUST
+    kind: implementation
     statement: >-
       The wire branch MUST NOT carry domain validators. Wire-branch overrides
       exist solely for AS2 serialization shape (field aliases, `@context`,
@@ -223,6 +236,7 @@ groups:
       `VOCABULARY`; core-branch types MUST register in `CORE_VOCABULARY`.
   - id: ARCH-12-005
     priority: MUST
+    kind: implementation
     statement: >-
       For types where both branches share field names and compatible types,
       translation from a core object to its wire counterpart MUST use
@@ -234,6 +248,7 @@ groups:
       round-trip is correct by construction.
   - id: ARCH-12-006
     priority: MUST
+    kind: implementation
     statement: >-
       Actor `inbox` and `outbox` fields MUST be typed `str | None` in the
       shared base and core branch, carrying only the URI of the inbox or
@@ -246,6 +261,7 @@ groups:
       that blocked the original ARCH-12 from_core()/to_core() approach.
   - id: ARCH-12-007
     priority: MUST
+    kind: implementation
     statement: >-
       All core domain objects that represent protocol-significant entities
       (cases, reports, participants, actors, log entries, embargo policies,
@@ -275,11 +291,13 @@ groups:
   specs:
   - id: ARCH-09-001
     priority: MUST
+    kind: pattern
     statement: Core domain models MUST be as rich as or richer than their wire-layer counterparts
     rationale: A thinner core model forces piecemeal additions as handlers are implemented, causing boundary leakage and implementation
       drift
   - id: ARCH-09-002
     priority: MUST
+    kind: implementation
     statement: >-
       Actor domain models (`CoreActor` and its concrete subclasses `VultronPerson`,
       `VultronOrganization`, `VultronService`, `VultronApplication`, `VultronGroup`)
@@ -313,6 +331,7 @@ groups:
   specs:
   - id: ARCH-10-001
     priority: MUST
+    kind: pattern
     statement: Domain events and domain models MUST validate required fields at construction time and fail immediately if
       required invariants are not satisfied
     rationale: Late validation masks missing data and makes debugging harder; fail-fast ensures errors surface at the point
@@ -327,6 +346,7 @@ groups:
   specs:
   - id: ARCH-15-001
     priority: MUST
+    kind: pattern
     statement: >
       A BT node's update() MUST return Status.FAILURE when a required blackboard
       key is absent or resolves to None. It MUST NOT return Status.SUCCESS in
@@ -343,6 +363,7 @@ groups:
         note: Extends construction-time fail-fast to runtime BT node entry points.
   - id: ARCH-15-002
     priority: MUST
+    kind: pattern
     statement: >
       A helper function that requires a non-None ID MUST check the result
       and raise VultronValidationError (or UnroutableActivityError for routing
@@ -359,6 +380,7 @@ groups:
         note: Extends construction-time fail-fast to helper function entry points.
   - id: ARCH-15-003
     priority: MUST
+    kind: pattern
     statement: >
       The dispatcher MUST raise UnroutableActivityError when no case_id can
       be extracted from an inbound event. It MUST NOT return None and silently
@@ -374,6 +396,7 @@ groups:
         note: Extends construction-time fail-fast to dispatcher routing entry points.
   - id: ARCH-15-004
     priority: MUST
+    kind: pattern
     statement: >
       Each domain helper function MUST have exactly one canonical copy.
       Duplicate implementations of the same logic (e.g., multiple copies of
@@ -394,6 +417,7 @@ groups:
   specs:
   - id: ARCH-11-001
     priority: SHOULD
+    kind: pattern
     statement: Core ports SHOULD be organized into inbound (driving) and outbound (driven) categories
 - id: ARCH-14
   title: Wire Vocabulary Object Naming Convention
@@ -410,6 +434,7 @@ groups:
   specs:
   - id: ARCH-14-001
     priority: MUST
+    kind: implementation
     statement: >-
       All Vultron-specific wire vocabulary classes defined in
       `vultron/wire/as2/vocab/objects/` MUST use the `as_` prefix
@@ -428,6 +453,7 @@ groups:
       `vultron/core/models/`.
   - id: ARCH-14-002
     priority: MUST
+    kind: implementation
     statement: >-
       The wire-layer base class for all Vultron-specific AS2 objects (currently
       `VultronAS2Object`) MUST be renamed `as_VultronObject`. This eliminates
@@ -443,6 +469,7 @@ groups:
       no class named `VultronAS2Object` exists anywhere in the codebase.
   - id: ARCH-14-003
     priority: MUST
+    kind: implementation
     statement: >-
       `TypeAlias` companion types (wire-layer reference unions, e.g.,
       `VulnerabilityCaseRef`) MUST also use the `as_` prefix
@@ -459,6 +486,7 @@ groups:
   specs:
   - id: ARCH-13-001
     priority: MUST
+    kind: implementation
     statement: >
       The base `DataLayer` protocol MUST be used only for shared object storage operations
       (read, write, save, list). It MUST NOT be passed to functions that perform
@@ -470,6 +498,7 @@ groups:
       writes to be unreadable by the correct actor.
   - id: ARCH-13-002
     priority: MUST
+    kind: implementation
     statement: >
       Inbox and outbox queue operations (inbox_list, inbox_pop, inbox_append,
       outbox_list, outbox_pop, outbox_append) MUST be performed on an `ActorScopedDataLayer`
@@ -479,6 +508,7 @@ groups:
       (actor_id=None) cannot address per-actor queue rows correctly.
   - id: ARCH-13-003
     priority: MUST
+    kind: implementation
     statement: >
       The actor_id used when constructing an `ActorScopedDataLayer` MUST be the
       actor's canonical URI (the value of actor.id_), not a short ID, UUID
@@ -490,6 +520,7 @@ groups:
       outbound activities are silently dropped (see BUG-2026040901).
   - id: ARCH-13-004
     priority: MUST
+    kind: implementation
     statement: >
       The actor_id argument passed to record_outbox_item MUST match exactly the
       actor_id used to construct the `ActorScopedDataLayer` that will later call
@@ -499,6 +530,7 @@ groups:
       full-URI vs. short-UUID — produces a silent empty read.
   - id: ARCH-13-005
     priority: SHOULD
+    kind: implementation
     statement: >
       The `ActorScopedDataLayer` protocol type SHOULD be defined in
       `vultron/core/ports/datalayer.py` as a refinement of `DataLayer` so that
@@ -513,10 +545,10 @@ groups:
       the code.
 - id: ARCH-16
   title: App State Isolation
-  kind: language
   specs:
   - id: ARCH-16-001
     priority: MUST_NOT
+    kind: language
     statement: >-
       `create_app()` (or any equivalent application factory) MUST NOT mutate module-level
       singletons, global registries, or process-wide shared state. All per-application
@@ -532,10 +564,10 @@ groups:
       spec_id: ARCH-04-001
 - id: ARCH-17
   title: ASGIEmitter Base URL
-  kind: implementation
   specs:
   - id: ARCH-17-001
     priority: MUST
+    kind: implementation
     statement: >-
       The `ASGIEmitter` base URL MUST contain only the scheme and netloc components
       (e.g., `https://example.org`). It MUST NOT include a path prefix, trailing slash,
@@ -546,6 +578,7 @@ groups:
       produces `https://example.org/api/api/actors/…`. Root cause of bugs #557 and #558.
   - id: ARCH-17-002
     priority: MUST
+    kind: implementation
     statement: >-
       `ASGIEmitter` MUST use a `contextvars.ContextVar[int]` reentrancy guard, not a
       `threading.Lock` or boolean flag, to detect and prevent re-entrant emission
@@ -560,10 +593,10 @@ groups:
       spec_id: ARCH-17-001
 - id: ARCH-18
   title: Architecture Ratchet Discipline
-  kind: dev-process
   specs:
   - id: ARCH-18-001
     priority: MUST
+    kind: dev-process
     statement: >-
       Architecture boundary tests that enforce a `KNOWN_VIOLATIONS` allowlist MUST use
       a bidirectional equality assertion: `assert actual_violations == KNOWN_VIOLATIONS`.
@@ -579,6 +612,7 @@ groups:
       spec_id: ARCH-10-001
   - id: ARCH-18-002
     priority: MUST
+    kind: dev-process
     statement: >-
       When a known architectural violation is resolved (the file or import is removed or
       refactored), the corresponding entry MUST be removed from the `KNOWN_VIOLATIONS`
@@ -593,10 +627,10 @@ groups:
       spec_id: ARCH-18-001
 - id: ARCH-19
   title: Outbound Delivery Pipeline
-  kind: pattern
   specs:
   - id: ARCH-19-001
     priority: MUST
+    kind: pattern
     statement: >-
       Outbound delivery MUST be modelled as a three-stage pipeline: (1) **Emission** —
       the use-case or handler writes the activity to the outbox; (2) **Transport delivery**
@@ -609,6 +643,7 @@ groups:
       foundation for correct at-least-once delivery. Source: `notes/architecture-adapters.md`.
   - id: ARCH-19-002
     priority: MUST
+    kind: pattern
     statement: >-
       Emission (stage 1) MUST be idempotent with respect to the outbox: writing the same
       activity ID twice MUST NOT create a duplicate outbox entry.
@@ -617,6 +652,7 @@ groups:
       spec_id: ARCH-19-001
   - id: ARCH-19-003
     priority: MUST
+    kind: pattern
     statement: >-
       Transport delivery (stage 2) MUST be retried on transient network failures. The retry
       mechanism MUST be implemented in the outbox worker, not in the use-case or handler.
@@ -625,6 +661,7 @@ groups:
       spec_id: ARCH-19-001
   - id: ARCH-19-004
     priority: MUST_NOT
+    kind: pattern
     statement: >-
       A transport delivery failure (stage 2 error) MUST NOT be interpreted as recipient
       rejection (stage 3 semantics). Delivery failure means the activity did not reach
@@ -635,6 +672,7 @@ groups:
       spec_id: ARCH-19-001
   - id: ARCH-19-005
     priority: MUST
+    kind: pattern
     statement: >-
       The outbox worker MUST record the delivery outcome (success, transient failure, or
       permanent failure) in the per-actor process log (Python `logging`) at the level
