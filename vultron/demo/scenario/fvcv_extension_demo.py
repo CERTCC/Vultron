@@ -468,10 +468,13 @@ def _phase_coordinator_suggests_vendor2(
     )
 
     # 5 participants: Finder + Vendor1 + Coordinator + Vendor2 + CaseActor
+    # Vendor2 joins via the CaseActor→Vendor2 invite path (ADR-0026), which
+    # requires an extra propagation hop back to Vendor1; use a longer timeout.
     wait_for_case_participants(
         vendor_client=vendor_client,
         case_id=case.id_,
         expected_count=5,
+        timeout_seconds=20.0,
     )
     logger.info("✓ M3: Vendor2 joined case (%d participants)", 5)
 

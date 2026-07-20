@@ -118,7 +118,7 @@ class SvcAcceptActorRecommendationUseCase(SvcBTTriggerBase):
         )
 
     def _handle_result(self) -> None:
-        logger.info(
+        logger.info(  # lgtm[py/clear-text-logging-sensitive-data]
             "Actor '%s' accepted actor recommendation offer '%s' → CaseActor '%s'",
             self._actor_id,
             self._cp_offer_id,
