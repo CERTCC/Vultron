@@ -29,6 +29,7 @@ from vultron.core.models._helpers import _as_id
 from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.wire.as2.factories import (
     accept_actor_recommendation_activity,
+    accept_case_participant_offer_activity,
     add_participant_to_case_activity,
     add_status_to_participant_activity,
     offer_case_participant_activity,
@@ -152,6 +153,40 @@ class _ActorsMixin:
         except ValueError:
             logger.warning(
                 "accept_case_invite: activity '%s' already exists — skipping",
+                activity.id_,
+            )
+        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+
+    def accept_case_participant_offer(
+        self,
+        cp_offer_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist an ``Accept(Offer(CaseParticipant))`` activity.
+
+        Sent by the Case Owner to the CaseActor after reviewing the
+        Offer(CaseParticipant) forwarded per ADR-0026 (CM-16-006).
+        The ``to:`` list should contain the CaseActor URI so the Accept routes
+        back to CaseActor for processing.
+        """
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (  # noqa: PLC0415
+            as_Offer,
+        )
+
+        raw = self._dl.read(cp_offer_id)
+        if raw is None:
+            raise VultronNotFoundError("Offer(CaseParticipant)", cp_offer_id)
+        cp_offer = cast(as_Offer, raw)
+        activity = accept_case_participant_offer_activity(
+            offer=cp_offer, actor=actor, to=to
+        )
+        try:
+            self._dl.create(activity)
+        except ValueError:
+            logger.warning(
+                "accept_case_participant_offer: activity '%s' already exists"
+                " — skipping",
                 activity.id_,
             )
         return activity.id_, activity.model_dump(**_DUMP_KWARGS)

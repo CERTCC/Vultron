@@ -21,7 +21,8 @@ Submodules:
   (``EmitOfferCaseParticipantToOwnerNode``,
   ``EmitAcceptActorRecommendationNode``,
   ``EmitRejectActorRecommendationNode``,
-  ``EmitNoteDuplicateRecommendationToOwnerNode``)
+  ``EmitNoteDuplicateRecommendationToOwnerNode``,
+  ``EmitAcceptCaseParticipantOfferNode``)
 - ``conditions``: Duplicate-detection precondition nodes
   (``ActorAlreadyParticipantNode``,
   ``InviteInFlightNode``,
@@ -35,6 +36,7 @@ from vultron.core.behaviors.case.nodes.suggest_actor.conditions import (
 )
 from vultron.core.behaviors.case.nodes.suggest_actor.emit import (
     EmitAcceptActorRecommendationNode,
+    EmitAcceptCaseParticipantOfferNode,
     EmitNoteDuplicateRecommendationToOwnerNode,
     EmitOfferCaseParticipantToOwnerNode,
     EmitRejectActorRecommendationNode,
@@ -43,6 +45,7 @@ from vultron.core.behaviors.case.nodes.suggest_actor.emit import (
 __all__ = [
     "ActorAlreadyParticipantNode",
     "EmitAcceptActorRecommendationNode",
+    "EmitAcceptCaseParticipantOfferNode",
     "EmitNoteDuplicateRecommendationToOwnerNode",
     "EmitOfferCaseParticipantToOwnerNode",
     "EmitRejectActorRecommendationNode",

@@ -197,6 +197,13 @@ class TriggerServicePort(Protocol):
         invite_id: str,
     ) -> dict[str, Any]: ...
 
+    def accept_actor_recommendation(
+        self,
+        actor_id: str,
+        cp_offer_id: str,
+        case_actor_id: str,
+    ) -> dict[str, Any]: ...
+
     def invite_actor_to_case(
         self,
         actor_id: str,

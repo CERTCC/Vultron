@@ -294,6 +294,20 @@ class TriggerActivityPort(Protocol):
         """
         ...
 
+    def accept_case_participant_offer(
+        self,
+        cp_offer_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist an ``Accept(Offer(CaseParticipant))`` activity.
+
+        Sent by the Case Owner to the CaseActor after reviewing the
+        Offer(CaseParticipant) forwarded per ADR-0026 (CM-16-006).
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
     def suggest_actor_to_case(
         self,
         recommended_id: str,

@@ -44,6 +44,7 @@ import vultron.demo.exchange.manage_participants_demo as manage_participants_dem
 import vultron.demo.exchange.receive_report_demo as receive_report_demo
 import vultron.demo.exchange.status_updates_demo as status_updates_demo
 import vultron.demo.exchange.suggest_actor_demo as suggest_actor_demo
+import vultron.demo.scenario.fvcv_extension_demo as fvcv_extension_demo
 import vultron.demo.scenario.fvv_demo as fvv_demo
 import vultron.demo.scenario.multi_vendor_demo as multi_vendor_demo
 import vultron.demo.scenario.three_actor_demo as three_actor_demo
@@ -643,6 +644,116 @@ def fvv(
         vendor2_url=vendor2_url,
         finder_id=finder_id,
         vendor_id=vendor_id,
+        vendor2_id=vendor2_id,
+    )
+
+
+# ---------------------------------------------------------------------------
+# FVCV-extension sub-command — Finder + Vendor1 + Coordinator + Vendor2 (D5-6)
+# ---------------------------------------------------------------------------
+
+
+@main.command(name="fvcv-extension")
+@click.option(
+    "--finder-url",
+    envvar="VULTRON_FINDER_BASE_URL",
+    default=fvcv_extension_demo.FINDER_BASE_URL,
+    show_default=True,
+    help="Base URL of the Finder container API "
+    "(env: VULTRON_FINDER_BASE_URL).",
+)
+@click.option(
+    "--vendor-url",
+    envvar="VULTRON_VENDOR_BASE_URL",
+    default=fvcv_extension_demo.VENDOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the Vendor1 container API "
+    "(env: VULTRON_VENDOR_BASE_URL).",
+)
+@click.option(
+    "--coordinator-url",
+    envvar="VULTRON_COORDINATOR_BASE_URL",
+    default=fvcv_extension_demo.COORDINATOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the Coordinator container API "
+    "(env: VULTRON_COORDINATOR_BASE_URL).",
+)
+@click.option(
+    "--vendor2-url",
+    envvar="VULTRON_VENDOR2_BASE_URL",
+    default=fvcv_extension_demo.VENDOR2_BASE_URL,
+    show_default=True,
+    help="Base URL of the Vendor2 container API "
+    "(env: VULTRON_VENDOR2_BASE_URL).",
+)
+@click.option(
+    "--finder-id",
+    default=None,
+    help="Deterministic full URI for the Finder actor (optional).",
+)
+@click.option(
+    "--vendor-id",
+    default=None,
+    help="Deterministic full URI for the Vendor1 actor (optional).",
+)
+@click.option(
+    "--coordinator-id",
+    default=None,
+    help="Deterministic full URI for the Coordinator actor (optional).",
+)
+@click.option(
+    "--vendor2-id",
+    default=None,
+    help="Deterministic full URI for the Vendor2 actor (optional).",
+)
+@click.option(
+    "--skip-health-check",
+    is_flag=True,
+    default=False,
+    help="Skip container availability checks.",
+)
+def fvcv_extension(
+    finder_url: str,
+    vendor_url: str,
+    coordinator_url: str,
+    vendor2_url: str,
+    finder_id: str | None,
+    vendor_id: str | None,
+    coordinator_id: str | None,
+    vendor2_id: str | None,
+    skip_health_check: bool,
+) -> None:
+    """Run the FVCV-extension (Finder + Vendor1 + Coordinator + Vendor2) demo (D5-6).
+
+    Vendor1 retains CASE_OWNER throughout.  Coordinator holds CVDRole.COORDINATOR
+    (not CASE_MANAGER).  Coordinator suggests Vendor2 via the ADR-0026
+    CaseActor-routed suggest-actor flow; Vendor1 approves; CaseActor invites
+    Vendor2.  Both vendors then independently advance through the full fix and
+    publication lifecycle.
+
+    \b
+    Workflow:
+      1. Seed all four containers (actor records + peer registration).
+      2. Finder submits a vulnerability report to Vendor1's inbox.
+      3. Vendor1 validates and engages the case.
+      4. Vendor1 invites Coordinator with CVDRole.COORDINATOR.
+      5. Coordinator accepts; Coordinator suggests Vendor2 (ADR-0026).
+      6. Vendor1 approves the actor recommendation.
+      7. CaseActor invites Vendor2; Vendor2 accepts.
+      8. Verify SYNC-2 replication on all replicas.
+      9. Both vendors independently advance through fix-ready → fix-deployed.
+     10. All participants report publication; embargo terminates.
+     11. All participants close the case.
+    """
+    fvcv_extension_demo.main(
+        skip_health_check=skip_health_check,
+        finder_url=finder_url,
+        vendor_url=vendor_url,
+        coordinator_url=coordinator_url,
+        vendor2_url=vendor2_url,
+        finder_id=finder_id,
+        vendor_id=vendor_id,
+        coordinator_id=coordinator_id,
         vendor2_id=vendor2_id,
     )
 

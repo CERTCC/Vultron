@@ -315,6 +315,22 @@ class AcceptCaseInviteRequest(BaseModel):
     invite_id: NonEmptyString
 
 
+class AcceptActorRecommendationRequest(BaseModel):
+    """Request body for the accept-actor-recommendation trigger endpoint.
+
+    Sent by the Case Owner (e.g. Vendor1) to accept an Offer(CaseParticipant)
+    forwarded by the CaseActor per ADR-0026 (CM-16-006).
+
+    TB-03-001: Must include cp_offer_id and case_actor_id.
+    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    cp_offer_id: NonEmptyString
+    case_actor_id: UriString
+
+
 class InviteActorToCaseRequest(BaseModel):
     """Request body for the invite-actor-to-case trigger endpoint.
 
