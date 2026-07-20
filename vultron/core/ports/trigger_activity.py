@@ -423,14 +423,14 @@ class TriggerActivityPort(Protocol):
         participant_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> str:
+    ) -> tuple[str, dict[str, Any]]:
         """Create and persist an ``Offer(VulnerabilityCase, target=CaseParticipant)``
         CASE_MANAGER delegation activity.
 
         ``participant_id`` must refer to an existing ``CaseParticipant`` with
         ``CASE_MANAGER`` role (the Case Actor participant).
 
-        Returns the activity ID.
+        Returns ``(activity_id, activity_dict)``.
         """
         ...
 

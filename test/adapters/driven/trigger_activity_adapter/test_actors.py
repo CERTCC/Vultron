@@ -183,23 +183,25 @@ class TestAddParticipantToCase:
 
 
 class TestOfferCaseManagerRole:
-    def test_returns_activity_id(self, adapter, dl):
+    def test_returns_activity_id_and_dict(self, adapter, dl):
         case = _make_case(dl)
         participant = _make_participant(dl, case.id_)
 
-        activity_id = adapter.offer_case_manager_role(
+        activity_id, activity_dict = adapter.offer_case_manager_role(
             case_id=case.id_,
             participant_id=participant.id_,
             actor=_ACTOR,
         )
 
         assert activity_id
+        assert isinstance(activity_dict, dict)
+        assert activity_dict.get("type") == "Offer"
 
     def test_persists_offer_activity(self, adapter, dl):
         case = _make_case(dl)
         participant = _make_participant(dl, case.id_)
 
-        activity_id = adapter.offer_case_manager_role(
+        activity_id, _ = adapter.offer_case_manager_role(
             case_id=case.id_,
             participant_id=participant.id_,
             actor=_ACTOR,
@@ -214,7 +216,7 @@ class TestAcceptCaseManagerRole:
         case = _make_case(dl)
         participant = _make_participant(dl, case.id_)
 
-        offer_id = adapter.offer_case_manager_role(
+        offer_id, _ = adapter.offer_case_manager_role(
             case_id=case.id_,
             participant_id=participant.id_,
             actor=_ACTOR,
@@ -234,7 +236,7 @@ class TestAcceptCaseManagerRole:
         case = _make_case(dl)
         participant = _make_participant(dl, case.id_)
 
-        offer_id = adapter.offer_case_manager_role(
+        offer_id, _ = adapter.offer_case_manager_role(
             case_id=case.id_,
             participant_id=participant.id_,
             actor=_ACTOR,

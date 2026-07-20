@@ -103,6 +103,7 @@ def _default_gather_info_factory(name: str) -> py_trees.behaviour.Behaviour:
 def create_validate_report_tree(
     report_id: str,
     offer_id: str,
+    captured: dict | None = None,
     credibility_factory: CallOutBackendFactory = _default_credibility_factory,
     validity_factory: CallOutBackendFactory = _default_validity_factory,
     gather_info_factory: CallOutBackendFactory = _default_gather_info_factory,
@@ -126,6 +127,8 @@ def create_validate_report_tree(
     Args:
         report_id: ID of VulnerabilityReport to validate
         offer_id: ID of Offer activity containing the report
+        captured: Optional dict; ``captured["activity"]`` is set to the
+            serialised activity dict on success (DL-06-001, AC-1).
         credibility_factory: Factory for the Evaluator call-out point that
             assesses report credibility.  Defaults to the fuzzer backend
             (BT-18-004).  The produced node must honour the blackboard
@@ -196,7 +199,9 @@ def create_validate_report_tree(
         name="EmitAndValidate",
         memory=False,
         children=[
-            EmitValidateReportActivity(offer_id=offer_id, report_id=report_id),
+            EmitValidateReportActivity(
+                offer_id=offer_id, report_id=report_id, captured=captured
+            ),
             validation_or_shortcut,
         ],
     )
