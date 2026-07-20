@@ -100,12 +100,17 @@ if manager_id is None:
 
 ## Canonical Helper Locations
 
-Helpers that extract IDs or look up participants belong in
-`vultron/core/use_cases/_helpers.py` — the neutral module importable
-from both `behaviors/` and `use_cases/` layers without circular imports.
+Layer-neutral utilities with no dependencies above `models/` belong in
+`vultron/core/models/_helpers.py` — the bottom of the hexagonal stack,
+safely importable by **all** layers (`behaviors/`, `use_cases/`, `services/`,
+`adapters/`). Examples: `_as_id()`, `_report_phase_status_id()`.
 
-Duplicate copies in other modules (e.g., `services/embargo_lifecycle.py`)
-MUST import from `use_cases/_helpers` and not maintain their own copies.
+Higher-level helpers that depend on ports, state machines, or use-case
+logic belong in `vultron/core/use_cases/_helpers.py`. Examples:
+`_idempotent_create`, `update_participant_rm_state`, `add_activity_to_outbox`.
+
+Duplicate copies in other modules MUST NOT be maintained — import from the
+canonical location instead.
 `behaviors/status/nodes/broadcast.py` was deleted in #1378 after its only
 content (`_find_case_manager_id`) was consolidated into `_resolve_case_manager_id`.
 
@@ -138,7 +143,7 @@ if case_id is None:
 
 | Site | Old behavior | New behavior |
 |---|---|---|
-| `_as_id()` in `embargo_lifecycle.py` | Duplicate copy | Removed; callers import from `use_cases._helpers` |
+| `_as_id()` in `embargo_lifecycle.py` | Duplicate copy | Removed; moved to `core.models._helpers` (#1428) |
 | `_find_case_manager_*` (3 copies) | 3 independent copies returning `None` | 1 canonical function in `use_cases/_helpers`; others removed |
 | `_extract_case_id()` in dispatcher | Returns `None`; activity silently not indexed | Raises `UnroutableActivityError` |
 | `CommitCaseLedgerEntryNode.update()` | Returns `Status.SUCCESS` on missing `case_id` | Returns `Status.FAILURE` |
