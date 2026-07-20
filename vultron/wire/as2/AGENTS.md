@@ -36,46 +36,22 @@
 
 ## Semantic Extraction — Pattern Ordering Rules
 
-`SEMANTIC_REGISTRY` in `vultron/semantic_registry/` is
-**order-sensitive**. Specific patterns MUST appear before more general
-ones. A pattern placed after a more general match will never be reached.
+`SEMANTIC_REGISTRY` in `vultron/semantic_registry/` is **order-sensitive**.
+Specific patterns MUST precede general ones; `UNKNOWN` MUST be last. A
+general pattern placed first silently shadows specific ones.
 
-- `ActivityPattern` instances are defined in
-  `vultron/wire/as2/extractor/_instances.py` and re-exported from
-  `vultron/wire/as2/extractor/` (the package `__init__.py`); they are
-  imported into the domain sub-modules under `vultron/semantic_registry/`
-- Always `rehydrate()` on incoming activities before pattern matching
-- Add new `ActivityPattern` objects named `<TypeName>Pattern`
+- `ActivityPattern` instances: `vultron/wire/as2/extractor/_instances.py`;
+  re-exported from the package `__init__.py`
+- Always `rehydrate()` before pattern matching
+- Name pattern objects `<TypeName>Pattern`
 - Test every new pattern in `test/test_semantic_activity_patterns.py`
 
-See `notes/activitystreams-semantics.md` for the full extractor design.
+Invariant: SE-03-002. `_validate_registry_order()` raises `RegistryOrderError`
+at import time if violated.
 
-### Overview
+See `notes/activitystreams-semantics.md` for full extractor design.
 
-`SEMANTIC_REGISTRY` is the single ordered list that maps every AS2
-activity structure to a `MessageSemantics` value, a `VultronEvent`
-subclass, and a use-case class. `find_matching_semantics()` returns the
-**first** match.
-
-`ActivityPattern` objects — one per `MessageSemantics` value — are
-defined in `vultron/wire/as2/extractor/_instances.py` and re-exported
-from the `vultron/wire/as2/extractor/` package; they are imported into
-the `semantic_registry` package submodules.
-
-### The Ordering Invariant
-
-**More-specific patterns MUST precede more-general ones. `UNKNOWN` must
-be last.**
-
-A pattern is *more specific* than another if its dump is a proper
-superset of the other's dump within the same `activity_` group. If a
-general pattern appears first, the specific one is never reached and the
-wrong use case is invoked with no error signal.
-
-This invariant is captured by `specs/semantic-extraction.yaml`
-SE-03-002.
-
-#### Group ordering within `SEMANTIC_REGISTRY`
+### Group ordering within `SEMANTIC_REGISTRY`
 
 Entries are grouped by domain area; within each group, specific patterns
 come before general ones:
@@ -100,31 +76,10 @@ specific than an existing entry in the same `activity_` group, place it
 
 ### Import-Time Order Guard
 
-Because a misplaced pattern fails silently at runtime,
-`semantic_registry/__init__.py` calls
-`_validate_registry_order(SEMANTIC_REGISTRY)` at module load time. If
-any less-specific entry precedes a more-specific one within the same
-`activity_` group, the validator raises `RegistryOrderError`
-immediately on import.
-
-This is a hard guard: a mis-ordered registry **prevents the module from
-loading**, making the error impossible to miss.
-
-#### Algorithm
-
-The validator uses the same subset logic as
-`test_non_overlapping_activity_patterns` in
-`test/test_semantic_activity_patterns.py`:
-
-1. Group entries by `activity_` type.
-2. For every pair `(A, B)` where A appears before B in the registry:
-   - if `dump(B)` is a strict subset of `dump(A)` (B is more specific),
-     A should have appeared after B — raise `RegistryOrderError`.
-3. Pass if no out-of-order pairs are found.
-
-The test `test_non_overlapping_activity_patterns` is a
-belt-and-suspenders check that also catches edge cases the runtime
-validator might miss. Both should remain.
+`_validate_registry_order()` is called at module load — a mis-ordered registry
+**prevents the module from loading**. Also run
+`test/test_semantic_activity_patterns.py` after any registry edit (belt-and-
+suspenders for edge cases the runtime guard might miss).
 
 ### File Locations
 
@@ -139,20 +94,13 @@ validator might miss. Both should remain.
 | `vultron/errors.py` | `RegistryOrderError(VultronError)` |
 | `test/test_semantic_activity_patterns.py` | Pattern ordering + dispatch tests |
 
-### Common Pitfall: Adding a Pattern Without Running Tests
+### Adding a New Pattern
 
-When adding a new `ActivityPattern` to `extractor/_instances.py`:
-
-1. Define the pattern object named `<TypeName>Pattern` in `_instances.py`.
-2. Add the new name to the re-export lists in `extractor/__init__.py`
-   (both the `from ... import` block and `__all__`).
-3. Add the corresponding `SemanticEntry` in the correct group position.
-4. Run `test/test_semantic_activity_patterns.py` immediately.
-5. If import raises `RegistryOrderError`, move the new entry earlier in the
-   registry before the more-general entry it conflicts with.
-
-The runtime guard catches the common failure mode, and the test file provides
-faster local feedback plus extra edge-case coverage.
+1. Define `<TypeName>Pattern` in `_instances.py`.
+2. Add to `extractor/__init__.py` re-export lists (import + `__all__`).
+3. Add `SemanticEntry` in the correct group position.
+4. Run `test/test_semantic_activity_patterns.py`.
+5. If `RegistryOrderError`, move entry earlier than the conflicting general one.
 
 ---
 
@@ -185,33 +133,8 @@ enforced by `test/architecture/test_activity_factory_imports.py`.
 
 ## Common Pitfalls — wire layer
 
-**`SEMANTIC_REGISTRY` ordering errors fail silently —
-`_validate_registry_order()` required** — see the pattern-ordering
-guidance above.
-
-A misplaced pattern (less-specific before more-specific within the same
-`activity_` group) causes the wrong use case to execute with no error
-signal. `_validate_registry_order()` raises `RegistryOrderError` at
-import time to make this impossible to miss. Run
-`test/test_semantic_activity_patterns.py` immediately after editing the
-registry.
-
-See [notes/activitystreams-semantics.md](../../../notes/activitystreams-semantics.md)
-for:
-
-- Pattern Matching with ActivityStreams
-- `VulnerabilityCase.case_activity` Cannot Store Typed Activities
-- Accept/Reject `object` Field Must Use an Inline Typed Activity Object
-- Pydantic Union Serialization Silently Returns `None` for
-  `active_embargo`
-- ActivityStreams as Wire Format, Not Domain Model
-- Preserve Subclass Identity in ActivityStreams Decorators
-- Dead-Letter vs. No-Pattern: Two Distinct UNKNOWN Failure Modes
-- Accept.object_ Must Be the Invite Activity, Not the Case Object
-- Transitive Activity `object_` Contract at Base Type
-- Base-Typed Serialization Drops Subtype Fields: Use
-  `serialize_as_any=True`
-- Invite Response Parsing Requires Recursive Rehydration
-- Bootstrap Activities Must Embed Nested Objects Inline, Not as URI
-  Strings
-- Activity `name` Field Must Not Use `repr()` or `str()`
+**`SEMANTIC_REGISTRY` ordering errors** — see pattern-ordering guidance above
+and
+[notes/activitystreams-semantics.md](../../../notes/activitystreams-semantics.md)
+for all AS2 pitfalls (pattern matching, Union serialization, wire format vs.
+domain model, `serialize_as_any=True`, rehydration, bootstrap activities, etc.).
