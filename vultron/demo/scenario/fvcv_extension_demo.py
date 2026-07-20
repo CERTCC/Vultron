@@ -147,7 +147,11 @@ def _is_cp_offer_for_case(obj_id: str, obj_data: dict, case_id: str) -> bool:
     """Return True if *obj_data* looks like an Offer(CaseParticipant) for *case_id*."""
     if obj_data.get("type") != "Offer":
         return False
-    if obj_data.get("target") != case_id:
+    target_raw = obj_data.get("target")
+    target_id = (
+        target_raw.get("id") if isinstance(target_raw, dict) else target_raw
+    )
+    if target_id != case_id:
         return False
     inner = obj_data.get("object")
     if not isinstance(inner, dict):
@@ -402,8 +406,6 @@ def _phase_coordinator_suggests_vendor2(
     )
     logger.info("─" * 80)
 
-    vendor2_in_vendor2 = get_actor_by_id(vendor2_client, vendor2.id_)
-
     # Step M3: Coordinator sends suggest-actor-to-case (Offer(Actor, Case) → CaseActor).
     with demo_step("Coordinator suggests Vendor2 to CaseActor"):
         post_to_trigger(
@@ -454,66 +456,16 @@ def _phase_coordinator_suggests_vendor2(
     logger.info("Vendor1 sent Accept(Offer(CaseParticipant)) to CaseActor")
 
     # CaseActor receives Accept → emits Invite to Vendor2.
-    # Poll Vendor2's container for the case replica from CaseActor.
-    # If the automatic ADR-0026 invite did not arrive in time, fall back to an
-    # explicit invite from Vendor1 so the scenario can proceed.
-    vendor2_has_case = False
-    try:
+    # Poll Vendor2's container for the case replica (DEMOMA-10-005 / CM-16-006).
+    with demo_check("Vendor2 received invite from CaseActor (ADR-0026 path)"):
         wait_for_case_on_container(
             client=vendor2_client,
             case_id=case.id_,
             timeout_seconds=20.0,
         )
-        vendor2_has_case = True
-        logger.info(
-            "Vendor2 received case replica via CaseActor invite (ADR-0026 path)"
-        )
-    except Exception:  # noqa: BLE001
-        logger.info(
-            "Vendor2 has not received case replica yet — trying fallback explicit invite"
-        )
-
-    with demo_check("Vendor2 received invite from CaseActor (ADR-0026 path)"):
-        if not vendor2_has_case:
-            raise AssertionError(
-                "Vendor2 did not receive case replica via CaseActor automatic invite"
-            )
-
-    if not vendor2_has_case:
-        # Fallback: Vendor1 explicitly invites Vendor2 (e.g., if CaseActor
-        # auto-invite was not triggered).
-        with demo_step("Vendor1 explicitly invites Vendor2 (fallback)"):
-            invite2_result = post_to_trigger(
-                client=vendor_client,
-                actor_id=vendor_in_vendor.id_,
-                behavior="invite-actor-to-case",
-                body={
-                    "case_id": case.id_,
-                    "invitee_id": vendor2.id_,
-                    "roles": ["vendor"],
-                },
-            )
-        invite2 = as_TransitiveActivity.model_validate(
-            invite2_result["activity"]
-        )
-        with demo_step("Delivering Vendor2 invite to Vendor2's inbox"):
-            post_to_inbox_and_wait(
-                vendor2_client, vendor2_in_vendor2.id_, invite2
-            )
-        with demo_step("Vendor2 accepts the case invitation"):
-            post_to_trigger(
-                client=vendor2_client,
-                actor_id=vendor2_in_vendor2.id_,
-                behavior="accept-case-invite",
-                body={"invite_id": invite2.id_},
-            )
-        with demo_check(
-            "Vendor2's DataLayer received case replica (after fallback)"
-        ):
-            wait_for_case_on_container(
-                client=vendor2_client,
-                case_id=case.id_,
-            )
+    logger.info(
+        "Vendor2 received case replica via CaseActor invite (ADR-0026 path)"
+    )
 
     # 5 participants: Finder + Vendor1 + Coordinator + Vendor2 + CaseActor
     wait_for_case_participants(
