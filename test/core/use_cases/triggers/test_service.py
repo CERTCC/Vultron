@@ -252,6 +252,7 @@ def case_with_proposal(dl, actor):
     dl.create(proposal)
     case_obj.current_status.em_state = EM.PROPOSED
     case_obj.proposed_embargoes.append(embargo.id_)
+    case_obj.pending_embargo_proposal_index[embargo.id_] = proposal.id_
     dl.create(case_obj)
     _add_case_manager(case_obj, dl)
     return case_obj, proposal, embargo

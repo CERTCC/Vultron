@@ -150,3 +150,19 @@ class RejectInviteToEmbargoOnCaseReceivedEvent(VultronEvent):
     @property
     def invite(self) -> "VultronActivity | None":
         return cast("VultronActivity | None", self.object_)
+
+    @property
+    def embargo_id(self) -> str | None:
+        return self.inner_object_id
+
+    @property
+    def embargo(self) -> "VultronEmbargoEvent | None":
+        return cast("VultronEmbargoEvent | None", self.inner_object)
+
+    @property
+    def case_id(self) -> str | None:
+        return self.inner_context_id
+
+    @property
+    def case(self) -> "VultronCase | None":
+        return cast("VultronCase | None", self.inner_context)
