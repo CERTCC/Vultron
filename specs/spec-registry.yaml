@@ -237,6 +237,61 @@ groups:
     priority: SHOULD
     statement: The JSON exporter SHOULD support filtering by `kind`, `scope`, `tags`, or `priority` to allow agents to request
       only relevant subsets.
+- id: SR-09
+  title: Docs Renderer Kind Routing (MUST)
+  specs:
+  - id: SR-09-001
+    priority: MUST
+    statement: >-
+      The `render_for_kind(kind, registry)` function MUST route each spec group to the docs page
+      matching its effective kind, where effective kind is resolved by `effective_kind()` (item
+      overrides group, group overrides file).
+    rationale: >-
+      Filtering by file-level kind only causes group- and item-level kind overrides to be silently
+      ignored in published docs, placing specs on the wrong category page despite correct YAML
+      metadata.
+    tags:
+    - documentation
+    - tooling
+  - id: SR-09-002
+    priority: MUST
+    statement: >-
+      When a group contains items of mixed kinds, the group MUST appear on each docs page for which
+      it has at least one item whose effective kind matches that page. Items whose effective kind does
+      not match the current page MUST be suppressed (not rendered) on that page.
+    rationale: >-
+      Showing items on every page where their group appears would duplicate content and mislead
+      readers about a spec's portability tier. Suppressing non-matching items keeps each page
+      accurate while preserving group context.
+    tags:
+    - documentation
+    - tooling
+  - id: SR-09-003
+    priority: MUST
+    statement: >-
+      The `SpecFile`-level `kind` field MUST reflect the majority kind of its groups (after
+      resolving effective group kind from the majority of their items). Group-level `kind` overrides
+      MUST reflect the majority kind of their items. These invariants MUST be enforced by the spec
+      linter.
+    rationale: >-
+      File and group kinds exist solely as boilerplate-reduction defaults. If the declared kind does
+      not match the actual majority of its children, it misleads both agents consuming spec-dump
+      output and the docs renderer.
+    tags:
+    - documentation
+    - tooling
+  - id: SR-09-004
+    priority: SHOULD
+    statement: >-
+      The spec linter SHOULD emit an advisory warning when a group-level `kind` does not match
+      the majority effective kind of its items, and when a file-level `kind` does not match the
+      majority effective group kind. The warning SHOULD be suppressible via `lint_suppress`.
+    rationale: >-
+      Automated detection of kind drift prevents the category-page placement errors that motivated
+      issue #1491 from recurring silently.
+    tags:
+    - documentation
+    - tooling
 - id: SR-08
   title: Migration (MUST)
   specs:
