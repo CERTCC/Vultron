@@ -327,3 +327,98 @@ def test_lint_adr_ref_no_rationale_no_warn(tmp_path, capsys):
     captured = capsys.readouterr()
     assert result == 0
     assert "ADR-" not in captured.out
+
+
+# ---------------------------------------------------------------------------
+# Kind-drift advisory warnings (SR-09-003, SR-09-004)
+# ---------------------------------------------------------------------------
+
+
+def _kind_drift_file(
+    file_kind="general",
+    group_kind=None,
+    item_kind=None,
+    suppress=False,
+):
+    """Build a YAML spec file whose group and/or items have kind overrides."""
+    spec: dict = {
+        "id": "KD-01-001",
+        "priority": "MUST",
+        "statement": "KD-01-001 MUST fire",
+        "tags": ["testing"],
+        "rationale": "For testing",
+    }
+    if item_kind:
+        spec["kind"] = item_kind
+    if suppress:
+        spec["lint_suppress"] = ["kind_drift"]
+    group: dict = {
+        "id": "KD-01",
+        "title": "Kind Drift Group",
+        "specs": [spec],
+    }
+    if group_kind:
+        group["kind"] = group_kind
+    return {
+        "id": "KD",
+        "title": "Kind Drift Test",
+        "description": "Kind drift test file",
+        "version": "0.1",
+        "kind": file_kind,
+        "scope": ["production"],
+        "groups": [group],
+    }
+
+
+def test_lint_kind_drift_group_vs_item_emits_warn(tmp_path, capsys):
+    """SR-09-004: a group with kind=general containing an item kind=domain
+    emits a [WARN] for the group-level drift."""
+    data = _kind_drift_file(
+        file_kind="general",
+        group_kind="general",
+        item_kind="domain",
+    )
+    _write_yaml(tmp_path, data)
+    result = lint(tmp_path)
+    captured = capsys.readouterr()
+    assert result == 0, "kind-drift warnings must be advisory, not hard errors"
+    assert "[WARN]" in captured.out
+    assert "kind_drift" in captured.out
+
+
+def test_lint_kind_drift_file_vs_group_emits_warn(tmp_path, capsys):
+    """SR-09-004: a file with kind=general containing a group kind=domain
+    emits a [WARN] for the file-level drift."""
+    data = _kind_drift_file(file_kind="general", group_kind="domain")
+    _write_yaml(tmp_path, data)
+    result = lint(tmp_path)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "[WARN]" in captured.out
+    assert "kind_drift" in captured.out
+
+
+def test_lint_kind_drift_no_warn_when_consistent(tmp_path, capsys):
+    """SR-09-003: no kind-drift warning when file, group, and items all agree."""
+    data = _kind_drift_file(
+        file_kind="general", group_kind=None, item_kind=None
+    )
+    _write_yaml(tmp_path, data)
+    result = lint(tmp_path)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "kind_drift" not in captured.out
+
+
+def test_lint_kind_drift_suppress(tmp_path, capsys):
+    """SR-09-004: kind_drift warning is suppressible via lint_suppress."""
+    data = _kind_drift_file(
+        file_kind="general",
+        group_kind="domain",
+        suppress=True,
+    )
+    _write_yaml(tmp_path, data)
+    result = lint(tmp_path)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "kind_drift" not in captured.out

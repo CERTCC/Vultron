@@ -15,8 +15,18 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from vultron.metadata.specs.registry import SpecRegistry, load_registry
-from vultron.metadata.specs.schema import BehavioralSpec, LintWarningCode
+import collections
+
+from vultron.metadata.specs.registry import (
+    SpecRegistry,
+    effective_kind,
+    load_registry,
+)
+from vultron.metadata.specs.schema import (
+    BehavioralSpec,
+    LintWarningCode,
+    SpecKind,
+)
 
 _RATIONALE_WARN_CHARS = 500
 _ADR_REF_RE = re.compile(r"\bADR-(\d{4})\b")
@@ -94,6 +104,71 @@ def _check_adr_references(
     return warnings
 
 
+def _majority_kind(kinds: list[SpecKind]) -> SpecKind | None:
+    """Return the most common kind in *kinds*, or ``None`` if empty."""
+    if not kinds:
+        return None
+    counter: collections.Counter[SpecKind] = collections.Counter(kinds)
+    return counter.most_common(1)[0][0]
+
+
+def _check_kind_drift(registry: SpecRegistry) -> list[str]:
+    """Emit advisory warnings when declared kind diverges from majority kind
+    of children (SR-09-003, SR-09-004).
+
+    - Group-level ``kind`` SHOULD match the majority effective kind of its
+      items.
+    - File-level ``kind`` SHOULD match the majority effective group kind.
+
+    The check is suppressible via ``lint_suppress: [kind_drift]`` on any
+    spec item inside the affected group or file — because neither groups nor
+    files have a ``lint_suppress`` field, suppression is evaluated per-spec
+    to allow targeted opt-outs.
+    """
+    warnings: list[str] = []
+    for spec_file in registry.files:
+        group_majority_kinds: list[SpecKind] = []
+        for group in spec_file.groups:
+            item_kinds = [
+                effective_kind(spec, group, spec_file) for spec in group.specs
+            ]
+            majority = _majority_kind(item_kinds)
+            if majority is None:
+                continue
+            group_majority_kinds.append(majority)
+            # Check group-level kind against majority of its items.
+            group_effective = (
+                group.kind if group.kind is not None else spec_file.kind
+            )
+            if group_effective != majority:
+                # Suppress if any spec in the group has kind_drift suppressed.
+                suppressed = any(
+                    LintWarningCode.KIND_DRIFT in (spec.lint_suppress or [])
+                    for spec in group.specs
+                )
+                if not suppressed:
+                    warnings.append(
+                        f"[WARN] {group.id}: group kind={group_effective.value!r} "
+                        f"does not match majority item kind={majority.value!r} "
+                        f"(suppress with lint_suppress: [kind_drift])"
+                    )
+        # Check file-level kind against majority of group majority kinds.
+        file_majority = _majority_kind(group_majority_kinds)
+        if file_majority is not None and spec_file.kind != file_majority:
+            suppressed = any(
+                LintWarningCode.KIND_DRIFT in (spec.lint_suppress or [])
+                for group in spec_file.groups
+                for spec in group.specs
+            )
+            if not suppressed:
+                warnings.append(
+                    f"[WARN] {spec_file.id}: file kind={spec_file.kind.value!r} "
+                    f"does not match majority group kind={file_majority.value!r} "
+                    f"(suppress with lint_suppress: [kind_drift])"
+                )
+    return warnings
+
+
 def lint(spec_dir: Path, adr_dir: Path | None = None) -> int:
     """Validate the spec registry in ``spec_dir``.
 
@@ -157,6 +232,7 @@ def lint(spec_dir: Path, adr_dir: Path | None = None) -> int:
             warnings.append(f"[WARN] {spec_id}: no tags defined")
 
     warnings.extend(_check_adr_references(registry, adr_dir))
+    warnings.extend(_check_kind_drift(registry))
 
     for w in warnings:
         print(w)

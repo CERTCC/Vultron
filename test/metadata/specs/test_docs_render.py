@@ -532,3 +532,183 @@ def test_render_for_kind_real_registry_produces_output(kind: SpecKind):
     assert re.search(
         r"[A-Z]{2,8}-\d{2}-\d{3}", md
     ), f"No spec IDs found in rendered output for kind={kind.value!r}"
+
+
+# ---------------------------------------------------------------------------
+# SR-09-001 / SR-09-002: effective-kind routing for mixed-kind files/groups
+# ---------------------------------------------------------------------------
+
+# A file-level kind=general file where one group has kind=implementation
+# and another inherits general.  The implementation page should show the
+# overriding group; the general page should show the inherited-kind group
+# but suppress the implementation item.
+MIXED_KIND_FILE_YAML = {
+    "id": "MIX",
+    "title": "Mixed Kind Specs",
+    "description": "File-level kind=general with one group override",
+    "version": "0.1",
+    "kind": "general",
+    "scope": ["production"],
+    "groups": [
+        {
+            "id": "MIX-01",
+            "title": "General Group",
+            "specs": [
+                {
+                    "id": "MIX-01-001",
+                    "priority": "MUST",
+                    "statement": "MIX-01-001 is general",
+                },
+            ],
+        },
+        {
+            "id": "MIX-02",
+            "title": "Implementation Group",
+            "kind": "implementation",
+            "specs": [
+                {
+                    "id": "MIX-02-001",
+                    "priority": "MUST",
+                    "statement": "MIX-02-001 is implementation-specific",
+                },
+            ],
+        },
+    ],
+}
+
+# File kind=general with one group that has mixed-kind items.
+MIXED_KIND_GROUP_YAML = {
+    "id": "MGR",
+    "title": "Mixed Group Items",
+    "description": "File general with a group containing items of mixed kinds",
+    "version": "0.1",
+    "kind": "general",
+    "scope": ["production"],
+    "groups": [
+        {
+            "id": "MGR-01",
+            "title": "Mixed Item Group",
+            "specs": [
+                {
+                    "id": "MGR-01-001",
+                    "priority": "MUST",
+                    "statement": "MGR-01-001 is general (inherits file)",
+                },
+                {
+                    "id": "MGR-01-002",
+                    "priority": "SHOULD",
+                    "statement": "MGR-01-002 is implementation",
+                    "kind": "implementation",
+                },
+            ],
+        },
+    ],
+}
+
+# A second file that provides the implementation kind so render_for_kind
+# doesn't raise "No spec files with kind=implementation".
+IMPL_ANCHOR_YAML = {
+    "id": "IMP",
+    "title": "Implementation Anchor",
+    "description": "Provides implementation-kind items for the test registry",
+    "version": "0.1",
+    "kind": "implementation",
+    "scope": ["production"],
+    "groups": [
+        {
+            "id": "IMP-01",
+            "title": "Implementation Group",
+            "specs": [
+                {
+                    "id": "IMP-01-001",
+                    "priority": "MUST",
+                    "statement": "IMP-01-001 is implementation",
+                },
+            ],
+        },
+    ],
+}
+
+
+@pytest.fixture
+def mixed_kind_file_registry(tmp_path):
+    (tmp_path / "mix.yaml").write_text(yaml.dump(MIXED_KIND_FILE_YAML))
+    (tmp_path / "imp.yaml").write_text(yaml.dump(IMPL_ANCHOR_YAML))
+    return load_registry(tmp_path)
+
+
+@pytest.fixture
+def mixed_kind_group_registry(tmp_path):
+    (tmp_path / "mgr.yaml").write_text(yaml.dump(MIXED_KIND_GROUP_YAML))
+    (tmp_path / "imp.yaml").write_text(yaml.dump(IMPL_ANCHOR_YAML))
+    return load_registry(tmp_path)
+
+
+def test_group_kind_override_appears_on_overridden_kind_page(
+    mixed_kind_file_registry,
+):
+    """SR-09-001: a group with kind=implementation must appear on the
+    implementation page even though its file has kind=general."""
+    md = render_for_kind("implementation", mixed_kind_file_registry)
+    assert "MIX-02-001" in md, (
+        "Item from group with kind=implementation should appear on "
+        "implementation page"
+    )
+
+
+def test_group_kind_override_absent_from_wrong_kind_page(
+    mixed_kind_file_registry,
+):
+    """SR-09-002: a group with kind=implementation must NOT appear on the
+    general page."""
+    md = render_for_kind("general", mixed_kind_file_registry)
+    assert "MIX-02-001" not in md, (
+        "Item from group with kind=implementation should NOT appear on "
+        "general page"
+    )
+
+
+def test_inherited_kind_group_appears_on_file_kind_page(
+    mixed_kind_file_registry,
+):
+    """SR-09-001: a group that inherits file kind=general appears on the
+    general page."""
+    md = render_for_kind("general", mixed_kind_file_registry)
+    assert (
+        "MIX-01-001" in md
+    ), "Item inheriting file kind=general should appear on general page"
+
+
+def test_item_kind_override_appears_on_overridden_page(
+    mixed_kind_group_registry,
+):
+    """SR-09-001: an item with kind=implementation appears on the
+    implementation page even though its group and file have kind=general."""
+    md = render_for_kind("implementation", mixed_kind_group_registry)
+    assert (
+        "MGR-01-002" in md
+    ), "Item with kind=implementation should appear on implementation page"
+
+
+def test_item_kind_override_suppressed_on_wrong_page(
+    mixed_kind_group_registry,
+):
+    """SR-09-002: an item with kind=implementation is suppressed on the
+    general page while the rest of the group still renders."""
+    md = render_for_kind("general", mixed_kind_group_registry)
+    assert (
+        "MGR-01-001" in md
+    ), "General item should still appear on general page"
+    assert (
+        "MGR-01-002" not in md
+    ), "Implementation item must be suppressed on the general page"
+
+
+def test_mixed_group_appears_on_both_kind_pages(mixed_kind_group_registry):
+    """SR-09-002: a group with mixed-kind items appears on both the general
+    and implementation pages (with different items visible on each)."""
+    gen_md = render_for_kind("general", mixed_kind_group_registry)
+    impl_md = render_for_kind("implementation", mixed_kind_group_registry)
+    # The group heading must appear on both pages
+    assert "MGR-01" in gen_md
+    assert "MGR-01" in impl_md
