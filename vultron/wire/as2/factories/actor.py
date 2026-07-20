@@ -202,7 +202,7 @@ def offer_case_participant_activity(
     actor_id = getattr(recommended, "id_", None) or str(recommended)
     participant = as_CaseParticipant(
         id_=f"{actor_id}#participant",
-        attributed_to=recommended,
+        attributed_to=actor_id,
         case_roles=effective_roles,
     )
     try:
