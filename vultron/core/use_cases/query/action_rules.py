@@ -23,6 +23,7 @@ from typing import cast
 from vultron.core.case_states.patterns.potential_actions import (
     action as get_actions,
 )
+from vultron.core.models._helpers import has_case_statuses
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.ports.case_persistence import CasePersistence
@@ -108,7 +109,7 @@ class GetActionRulesUseCase:
         # 4. Get shared case states from the current CaseStatus
         em_state: EM = EM.EMBARGO_MANAGEMENT_NONE
         pxa_state: CS_pxa = CS_pxa.pxa
-        if case.case_statuses:
+        if has_case_statuses(case):
             current_cs = case.current_status
             em_state = current_cs.em_state
             pxa_state = current_cs.pxa_state
