@@ -386,14 +386,14 @@ groups:
 
 - id: DEMOMA-10
   title: FVCV-Extension Scenario (Vendor1 retains ownership; Coordinator is participant; Coordinator suggests Vendor2)
-  kind: domain
   specs:
   - id: DEMOMA-10-001
     priority: MUST
     statement: >-
-      The FVCV-extension scenario MUST seed four independent actor containers — Finder,
-      Vendor1, Coordinator, and Vendor2 — with the CaseActor co-located in the Vendor1
-      container; each container MUST have its own isolated DataLayer.
+      The FVCV-extension scenario MUST involve four actor identities — Finder, Vendor1,
+      Coordinator, and Vendor2 — each with its own isolated DataLayer; the CaseActor
+      MUST run as a separate actor identity with its own container and DataLayer, not
+      co-located in the Vendor1 container.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-01-001
@@ -453,19 +453,19 @@ groups:
   - id: DEMOMA-10-007
     priority: MUST
     statement: >-
-      The FVCV-extension scenario MUST run deterministically end-to-end via a single
-      `docker compose` command; the scenario script MUST verify SYNC-2 replica
-      convergence for Finder, Coordinator, and Vendor2 replicas against the authoritative
-      Vendor1 state after each major protocol event.
+      The FVCV-extension scenario MUST run deterministically end-to-end; the scenario
+      script MUST verify SYNC-2 replica convergence for Finder, Coordinator, and Vendor2
+      replicas against the authoritative Vendor1 state after each major protocol event.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-09-004
   - id: DEMOMA-10-008
     priority: MUST
+    kind: implementation
     statement: >-
-      The PR that introduces the FVCV-extension scenario MUST add a dedicated parallel
-      CI job to `.github/workflows/demo-integration.yml` that runs the scenario using
-      `DEMO=fvcv_extension`; the job MUST run concurrently with existing demo CI jobs.
+      The implementation of the FVCV-extension scenario MUST add a dedicated parallel
+      CI job that runs the scenario concurrently with existing demo CI jobs; the scenario
+      MUST be runnable end-to-end via a single orchestration command (e.g., `docker compose`).
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-09-005

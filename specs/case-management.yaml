@@ -951,7 +951,6 @@ groups:
       spec_id: CLP-10-006
 - id: CM-18
   title: Participant Embargo Consent State Machine
-  kind: domain
   specs:
   - id: CM-18-001
     priority: MUST
@@ -1007,7 +1006,6 @@ groups:
       spec_id: CM-18-003
 - id: CM-19
   title: Participant Index Discipline
-  kind: domain
   specs:
   - id: CM-19-001
     priority: MUST
@@ -1042,7 +1040,6 @@ groups:
 
 - id: CM-20
   title: Coordinator-as-Participant Role Constraints
-  kind: domain
   specs:
   - id: CM-20-001
     priority: MUST
@@ -1050,17 +1047,18 @@ groups:
       A Coordinator invited to a case as a regular participant MUST hold
       `CVDRole.COORDINATOR` in their `case_roles` list and MUST NOT hold
       `CVDRole.CASE_MANAGER`. The `CASE_MANAGER` role is reserved for the
-      CaseActor service (CBT-01-003) and MUST NOT be assigned to a human or
-      organizational Coordinator actor that joins a case as a facilitating
-      participant rather than as the case management service.
+      CaseActor service (CBT-01-003) and MUST NOT be assigned to any
+      organizational or human participant joining a case as a facilitation
+      actor rather than as the case management service.
     rationale: >-
-      The distinction between "Coordinator as participant" and "CASE_MANAGER
-      service actor" is a core ownership invariant: `CASE_MANAGER` grants
-      write authority to the canonical ledger (CLP-09). Assigning
-      `CASE_MANAGER` to a human Coordinator who is merely facilitating
-      coordination — not replacing the case management service — would grant
-      unintended ledger write authority and violate the single-writer regime
-      (SYNC-13).
+      `CASE_OWNER` is the role that confers case administration authority
+      (CM-02-001, CM-02-004, CM-02-005). `CASE_MANAGER` is a distinct role
+      reserved exclusively for the CaseActor service; it grants write
+      authority to the canonical ledger (CLP-09) and MUST NOT be held by any
+      participant actor regardless of their organizational role. These two
+      constraints are independent: a Coordinator participant lacks both
+      `CASE_OWNER` (they are not the case administrator) and `CASE_MANAGER`
+      (they are not the case management service).
     relationships:
     - rel_type: refines
       spec_id: CBT-01-003
@@ -1072,11 +1070,11 @@ groups:
       Coordinator participant MUST include `CVDRole.COORDINATOR` and MUST NOT
       include `CVDRole.CASE_MANAGER` or `CVDRole.CASE_OWNER`.
     rationale: >-
-      The Case Owner retains ownership throughout the expansion scenario
-      (CM-02-001). A suggested Coordinator does not take over case administration;
-      they participate as a facilitator. Role assignments at invite time must
-      reflect the actual intended function, not the actor's general organizational
-      role.
+      Invitation and case ownership transfer are distinct protocol operations.
+      An `Offer(Actor, Case)` invite adds a participant; it does not transfer
+      `CASE_OWNER` authority (CM-02-001) or the `CASE_MANAGER` service role
+      (CM-20-001). Role assignments at invite time must reflect the invited
+      actor's actual function in the case, not their organizational identity.
     relationships:
     - rel_type: refines
       spec_id: CM-20-001
