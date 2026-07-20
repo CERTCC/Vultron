@@ -16,6 +16,7 @@
 import pytest
 
 from vultron.core.models.offer_record import VultronOfferRecord
+from vultron.wire.as2.vocab.activities.report import _RmSubmitReportActivity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
@@ -110,10 +111,6 @@ class TestSubmitReport:
             )
 
         # The Offer activity must have been rolled back.
-        from vultron.wire.as2.vocab.activities.report import (
-            _RmSubmitReportActivity,
-        )
-
         activities = list(dl.list_objects("Offer"))
         assert not any(
             isinstance(a, _RmSubmitReportActivity) for a in activities
@@ -144,6 +141,36 @@ class TestSubmitReport:
 
         # The Offer activity MUST still be present — no compensating delete.
         assert dl.read(offer_id) is not None
+
+    def test_original_error_raised_when_compensating_delete_also_fails(
+        self, adapter, dl
+    ):
+        """Original RuntimeError propagates even when compensating delete raises."""
+        report = _make_report(dl)
+
+        original_create = dl.create
+        original_delete = dl.delete
+
+        def failing_create(obj):
+            if isinstance(obj, VultronOfferRecord):
+                raise RuntimeError("simulated DB failure")
+            return original_create(obj)
+
+        def failing_delete(table, id_):
+            raise OSError("delete also broken")
+
+        dl.create = failing_create
+        dl.delete = failing_delete
+
+        with pytest.raises(RuntimeError, match="simulated DB failure"):
+            adapter.submit_report(
+                report_id=report.id_,
+                actor=_ACTOR,
+                to=_COORDINATOR,
+                target=_CASE_ID,
+            )
+
+        dl.delete = original_delete
 
 
 class TestCloseReport:
