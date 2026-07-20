@@ -187,14 +187,13 @@ of the coupling before designing the refactor.
 types (`vultron/wire/as2/vocab/objects/`, `as_`-prefixed), for any persisted
 `type_` that has a registered core counterpart in `CORE_VOCABULARY`.
 
-The current read path reconstructs via `find_in_vocabulary()` (the **wire**
-`VOCABULARY`), so core BT nodes and use cases receive `as_VulnerabilityCase`
-etc. and work around it with the duck-typing Protocols and `TypeGuard`
-helpers in `vultron/core/models/protocols.py` (`CaseModel`, `is_case_model()`,
-…). Those Protocols evade — rather than honour — ARCH-01-001: they hide a
-runtime `core → wire` dependency from mypy/pyright.
+**Implemented (PR #1529):** The read path now reconstructs domain entities via
+`CORE_VOCABULARY`, so `dl.read()` returns core objects. The duck-typing
+Protocols and `TypeGuard` helpers (`CaseModel`, `is_case_model()`, etc.) in
+`vultron/core/models/protocols.py` were removed; core uses direct
+`isinstance()` checks against concrete core classes (DL-05-003).
 
-Target end-state (DL-05-001 through DL-05-004):
+DL-05 end-state achieved (all four requirements met):
 
 1. The adapter reconstructs registered domain entities via
    `find_in_core_vocabulary()` / `CORE_VOCABULARY`, so reads/writes of domain

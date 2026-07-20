@@ -500,12 +500,12 @@ This module is importable from both the `behaviors/` layer and the
 `use_cases/_helpers.py`. All callers import from `use_cases._helpers` directly.
 The `triggers/_helpers.py` re-export bridge is no longer needed or present.
 
-**Corollary**: Core domain model classes (e.g., `VultronCase`) should
-implement the same interface methods as their wire-layer counterparts so that
-Protocol guards like `is_case_model()` return `True` for both families.
-Avoid making the Protocol guard depend on the concrete wire-layer class, and
-never use methods that may be removed as discriminators — use Protocol-declared
-fields instead (see BUILD_LEARNINGS entry IS-CASE-MODEL-DISCRIMINATOR-888).
+**Corollary**: The duck-typing Protocol guards (`is_case_model()` etc.) were
+removed in PR #1529 (ADR-0034 / DL-05-003). Core code now uses concrete
+`isinstance(obj, VulnerabilityCase)` checks directly. The old corollary about
+keeping domain model classes structurally compatible with wire types no longer
+applies — the DataLayer read path (ADR-0034) ensures `dl.read()` returns core
+objects, so `isinstance` always holds.
 
 ### FastAPI response_model Filtering
 
