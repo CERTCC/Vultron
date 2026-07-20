@@ -7,7 +7,6 @@ description: >-
   shared EM and Case State. Within CS, the PXA axis is shared across participants while the
   VFD axis is per-participant.
 version: 1.0.0
-kind: domain
 scope:
 - prototype
 - production
@@ -20,26 +19,31 @@ groups:
   specs:
   - id: SM-01-001
     priority: MUST
+    kind: domain
     statement: >-
       All protocol state axes (RM, EM, VFD, PXA) MUST be defined using Python `StrEnum`
   - id: SM-01-002
     priority: SHOULD
+    kind: domain
     statement: >-
       State enums SHOULD provide both a full descriptive name and a short single-character
       alias for each state
   - id: SM-01-003
     priority: MUST
+    kind: domain
     statement: State enum values are the authoritative definition of valid states
 - id: SM-02
   title: State Machine Definitions
   specs:
   - id: SM-02-001
     priority: SHOULD
+    kind: domain
     statement: >-
       Each state axis SHOULD have a corresponding `create_*_machine()` factory function that
       produces a `transitions` library `Machine` instance for the axis
   - id: SM-02-002
     priority: MUST_NOT
+    kind: domain
     statement: >-
       `create_*_machine()` factory functions MUST NOT be called for runtime state changes
       in production use-case or handler code
@@ -48,6 +52,7 @@ groups:
       spec_id: SM-02-001
   - id: SM-02-003
     priority: SHOULD
+    kind: domain
     statement: >-
       Trigger names for `transitions` library machines SHOULD be defined as a companion `StrEnum`
       (e.g., `EM_Trigger`) using `auto()` so that trigger strings remain stable and are not
@@ -57,30 +62,34 @@ groups:
   specs:
   - id: SM-03-001
     priority: SHOULD
+    kind: domain
     statement: >-
       Each state transition SHOULD be expressed as a typed `TransitionBase` subclass with
       `trigger`, `source`, and `dest` fields typed to the appropriate enums
   - id: SM-03-002
     priority: SHOULD
+    kind: domain
     statement: >-
       Transition definitions SHOULD be stored as a module-level list in the same module that
       defines the state enum
   - id: SM-03-003
     priority: MUST
+    kind: domain
     statement: >-
       Transitions SHOULD be exhaustive: every valid (source → dest) pair that the protocol
       describes MUST have a corresponding transition entry
 - id: SM-04
   title: Runtime State Changes
-  kind: pattern
   specs:
   - id: SM-04-001
     priority: MUST
+    kind: pattern
     statement: >-
       Runtime state changes MUST be guarded by an explicit precondition check before the state
       value is written
   - id: SM-04-002
     priority: MUST
+    kind: pattern
     statement: >-
       State-changing handlers MUST be idempotent with respect to repeated application of the
       same transition
@@ -90,15 +99,16 @@ groups:
       note: handler-protocol.md
 - id: SM-05
   title: State History
-  kind: pattern
   specs:
   - id: SM-05-001
     priority: MUST
+    kind: pattern
     statement: >-
       Persisted state for both case-level and participant-level axes MUST use an append-only
       history list
   - id: SM-05-002
     priority: MUST
+    kind: pattern
     statement: >-
       The `current_status` property (or equivalent) MUST return the single most-recently-timestamped
       entry from the history list
@@ -108,6 +118,7 @@ groups:
       note: case-management.md
   - id: SM-05-003
     priority: MUST
+    kind: pattern
     statement: >-
       Status history entries MUST record a trusted server-side timestamp (`received_at` or
       `updated`) set via `now_utc()` at write time
@@ -117,36 +128,39 @@ groups:
       note: case-management.md
   - id: SM-05-004
     priority: SHOULD
+    kind: pattern
     statement: >-
       The case state log SHOULD store references (IDs) to entries in the main case history
       log rather than duplicating full record content
 - id: SM-06
   title: In-Memory (Transient) State
-  kind: domain
   specs:
   - id: SM-06-001
     priority: SHOULD
+    kind: domain
     statement: >-
       Transient state used only during a single request (e.g., for tracking report status
       during validation processing) SHOULD be clearly separated from persisted state
   - id: SM-06-002
     priority: MUST
+    kind: domain
     statement: >-
       Transient RM status for reports (e.g., `ReportStatus` in the in-memory `STATUS` dict)
       MUST be replaced by persisted participant-level state once a report is associated with
       a case and a `CaseParticipant` record exists
 - id: SM-07
   title: State Subsets and Guards
-  kind: pattern
   specs:
   - id: SM-07-001
     priority: SHOULD
+    kind: pattern
     statement: >-
       Commonly used groups of states that define validity zones for transitions SHOULD be
       defined as module-level constants (tuples or frozensets) in the same module as the state
       enum
   - id: SM-07-002
     priority: MUST
+    kind: pattern
     statement: >-
       State subset constants MUST be derived from enum values, not raw strings, to prevent
       silent mismatches when enum values change
@@ -155,21 +169,23 @@ groups:
   specs:
   - id: SM-08-001
     priority: MUST
+    kind: domain
     statement: >-
       State enum values MUST be stored and transmitted as their string value (not as Python
       enum names or as integers)
   - id: SM-08-002
     priority: MUST
+    kind: domain
     statement: >-
       When deserializing state values from the DataLayer or from wire payloads, the receiving
       Pydantic model MUST declare the state field with the `StrEnum` type so that Pydantic
       coerces the incoming string to the correct enum member
 - id: SM-09
   title: CS Forced Transitions and Reachable States
-  kind: domain
   specs:
   - id: SM-09-001
     priority: MUST
+    kind: domain
     statement: >-
       The CS state machine MUST enforce two forced (ephemeral) transitions at validation
       time: (1) `pX → PX` — exploit-public forces public-aware; (2) `vP → VP` —
@@ -186,6 +202,7 @@ groups:
       note: exploit/attack public implies embargo termination, not just awareness
   - id: SM-09-002
     priority: MUST_NOT
+    kind: domain
     statement: >-
       The CS state machine MUST NOT allow states in the `vF*` pattern (fix-ready,
       vendor-unaware) or `*fD*` pattern (fix-deployed, fix-not-ready). These 32 states
@@ -203,10 +220,10 @@ groups:
       spec_id: SM-09-001
 - id: SM-10
   title: State Scoping Rules
-  kind: domain
   specs:
   - id: SM-10-001
     priority: MUST
+    kind: domain
     statement: >-
       RM and VFD state transitions MUST update the sending actor's `ParticipantStatus`
       record for the affected `CaseParticipant`. These axes are participant-specific:
@@ -218,6 +235,7 @@ groups:
       spec_id: CM-04-002
   - id: SM-10-002
     priority: MUST
+    kind: domain
     statement: >-
       EM and PXA state transitions MUST update the shared `CaseStatus` record for the
       associated `VulnerabilityCase`. These axes are participant-agnostic: a single
@@ -229,6 +247,7 @@ groups:
       spec_id: CM-04-004
   - id: SM-10-003
     priority: MUST_NOT
+    kind: domain
     statement: >-
       Handlers MUST NOT apply a participant-specific axis transition (RM, VFD) to the
       shared `CaseStatus`, and MUST NOT apply a participant-agnostic axis transition

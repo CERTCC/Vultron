@@ -5,7 +5,6 @@ description: >-
   exception hierarchy and error categories. Governs graceful degradation, clear error
   messages, system stability, and debuggability.
 version: 1.0.0
-kind: language
 scope:
 - prototype
 - production
@@ -17,9 +16,11 @@ groups:
   specs:
   - id: EH-01-001
     priority: MUST
+    kind: language
     statement: The system MUST define custom exceptions for application-specific errors
   - id: EH-01-002
     priority: MUST
+    kind: language
     statement: Custom exceptions MUST inherit from a base VultronError exception
   - id: EH-01-003
     priority: MUST
@@ -30,27 +31,32 @@ groups:
   specs:
   - id: EH-02-001
     priority: MUST
+    kind: language
     statement: Submodule-specific errors MUST be defined in submodule `errors.py`
   - id: EH-02-002
     priority: MUST
+    kind: language
     statement: Submodule errors MUST inherit from base custom exceptions in `vultron/errors.py`
 - id: EH-03
   title: Error Categories
   specs:
   - id: EH-03-001
     priority: MUST
+    kind: language
     statement: The system MUST define error categories
 - id: EH-04
   title: Error Context
   specs:
   - id: EH-04-001
     priority: SHOULD
+    kind: language
     statement: Exceptions SHOULD include contextual information
 - id: EH-05
   title: Error Response Format
   specs:
   - id: EH-05-001
     priority: MUST
+    kind: language
     statement: 'HTTP error responses MUST include structured JSON body with fields:'
     relationships:
     - rel_type: depends_on
@@ -60,6 +66,7 @@ groups:
   specs:
   - id: EH-06-001
     priority: MUST
+    kind: language
     statement: All errors MUST be logged at the appropriate level per log level semantics
     relationships:
     - rel_type: depends_on

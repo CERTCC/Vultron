@@ -7,7 +7,6 @@ description: >-
   entry criteria that separate the case ledger from the process log, and the CaseActor
   inbox routing path that enables ledger entry authorship.
 version: 1.0.0
-kind: domain
 scope:
 - prototype
 - production
@@ -20,21 +19,25 @@ groups:
   specs:
   - id: CLP-01-001
     priority: MUST
+    kind: domain
     statement: >-
       Non-CaseActor activities that participate in a report, proto-case, or case workflow
       MUST be treated as participant assertions awaiting CaseActor processing
   - id: CLP-01-002
     priority: MUST_NOT
+    kind: domain
     statement: >-
       The protocol MUST NOT require a separate "asserted mode" marker on ordinary participant
       activities for case/proto-case flows
   - id: CLP-01-003
     priority: MUST
+    kind: domain
     statement: >-
       The CaseActor MUST be the only actor that emits canonical case-history entries used
       by replicas
   - id: CLP-01-004
     priority: MUST_NOT
+    kind: domain
     statement: >-
       Participant replicas MUST NOT project shared case state directly from peer assertions
 - id: CLP-02
@@ -42,36 +45,43 @@ groups:
   specs:
   - id: CLP-02-001
     priority: MUST
+    kind: domain
     statement: >-
       For each case-resolvable assertion processed at the case layer, the CaseActor MUST append
       a canonical `CaseLedgerEntry`
   - id: CLP-02-002
     priority: MUST
+    kind: domain
     statement: >-
       `CaseLedgerEntry` MUST be a canonical content object distinct from any transport envelope
       used to replicate it
   - id: CLP-02-003
     priority: MUST
+    kind: domain
     statement: >-
       `CaseLedgerEntry` MUST include the asserted activity payload, or a normalized immutable
       snapshot of it, sufficient for deterministic replay
   - id: CLP-02-004
     priority: MUST
+    kind: domain
     statement: >-
       `CaseLedgerEntry` MUST include a disposition field with at least `recorded` and `rejected`
   - id: CLP-02-005
     priority: SHOULD
+    kind: domain
     statement: >-
       Rejected `CaseLedgerEntry` objects SHOULD include a machine-readable reason code and MAY
       include human-readable detail
   - id: CLP-02-006
     priority: MUST
+    kind: domain
     statement: >-
       `CaseLedgerEntry` MUST include a `log_index` field corresponding to SYNC-01-002; this field
       MUST be set by the CaseActor's single authoritative write path and MUST NOT be assigned
       by external parties
   - id: CLP-02-007
     priority: MUST
+    kind: domain
     statement: >-
       `CaseLedgerEntry` MAY include an optional `term` field reserved for Raft cluster use; in
       single-node deployments this field SHOULD be omitted or set to `null`; in multi-node
@@ -82,16 +92,19 @@ groups:
   specs:
   - id: CLP-03-001
     priority: MUST
+    kind: domain
     statement: >-
       Only assertions that can be resolved to a specific report, proto-case, or case MUST
       be appended to the case audit ledger
   - id: CLP-03-002
     priority: MUST
+    kind: domain
     statement: >-
       Malformed, unauthenticated, or otherwise unrouteable inbound messages that cannot be
       attached to a report or case MUST be handled outside the case audit ledger
   - id: CLP-03-003
     priority: MUST
+    kind: domain
     statement: >-
       The assertion-recording model MUST support continuity from report receipt through the
       case lifecycle so that all history — including the proto-case stage (RM.RECEIVED / RM.INVALID)
@@ -101,31 +114,37 @@ groups:
   specs:
   - id: CLP-04-001
     priority: MUST
+    kind: domain
     statement: >-
       The authoritative recorded history of a case MUST be a filtered projection of `CaseLedgerEntry`
       objects whose disposition is `recorded`
   - id: CLP-04-002
     priority: MUST
+    kind: domain
     statement: >-
       Case-state reconstruction MUST use only the recorded projection and MUST ignore rejected
       entries
   - id: CLP-04-003
     priority: MUST
+    kind: domain
     statement: >-
       Replicated hash chains, Merkle proofs, and replay state MUST be computed over recorded
       `CaseLedgerEntry` objects only
   - id: CLP-04-004
     priority: MUST
+    kind: domain
     statement: >-
       CaseActor fan-out replication MUST deliver the canonical `CaseLedgerEntry` content, wrapped
       in an ActivityStreams transport envelope such as `Announce`
   - id: CLP-04-005
     priority: SHOULD
+    kind: domain
     statement: >-
       When a participant includes log-position context with an assertion, it SHOULD use the
       sender's last accepted canonical hash or position from the recorded projection
   - id: CLP-04-006
     priority: MUST
+    kind: domain
     statement: >-
       The canonical recorded log is the authoritative source of truth for case participant
       membership and case state
@@ -134,16 +153,19 @@ groups:
   specs:
   - id: CLP-05-001
     priority: SHOULD
+    kind: domain
     statement: >-
       CaseActor rejection outcomes SHOULD be sent directly to the asserting participant rather
       than broadcast to all participants
   - id: CLP-05-002
     priority: MUST_NOT
+    kind: domain
     statement: >-
       Normal case-update fan-out MUST NOT replicate rejected `CaseLedgerEntry` objects to all
       case participants
   - id: CLP-05-003
     priority: SHOULD
+    kind: domain
     statement: >-
       The system SHOULD provide a convenient way to retrieve the recorded-only history projection
       without requiring consumers to manually filter rejected entries from the broader audit
@@ -153,31 +175,37 @@ groups:
   specs:
   - id: CLP-06-001
     priority: SHOULD
+    kind: domain
     statement: >-
       Participant actors SHOULD maintain actor-local pending assertion state for recently
       emitted case-scoped assertions that are awaiting canonical `CaseLedgerEntry` confirmation
   - id: CLP-06-002
     priority: MUST_NOT
+    kind: domain
     statement: >-
       Pending assertion state MUST NOT be treated as canonical case history and MUST NOT be
       used as the authoritative source for participant membership or case state reconstruction
   - id: CLP-06-003
     priority: MUST
+    kind: domain
     statement: >-
       Implementations that provide pending assertion suppression MUST support a configurable
       timeout; the default timeout SHOULD be 180 seconds
   - id: CLP-06-004
     priority: MUST
+    kind: domain
     statement: >-
       When a pending assertion reaches timeout without matching canonical confirmation, it MUST
       transition to a timed-out state and the system MUST emit an error log
   - id: CLP-06-005
     priority: MUST_NOT
+    kind: domain
     statement: >-
       Pending assertion timeout handling MUST NOT automatically retry assertion emission;
       follow-up emission decisions MUST be made by subsequent behavior evaluation
   - id: CLP-06-006
     priority: MUST
+    kind: domain
     statement: >-
       A pending assertion entry MUST be cleared when a matching canonical
       `CaseLedgerEntry(recorded|rejected)` is observed
@@ -186,6 +214,7 @@ groups:
   specs:
   - id: CLP-07-001
     priority: MUST
+    kind: domain
     statement: >-
       A `CaseLedgerEntry` committed to the canonical case ledger MUST correspond to exactly
       one CaseActor-accepted protocol-significant assertion; the entry's `payloadSnapshot`
@@ -193,12 +222,14 @@ groups:
       normalization of it, and MUST NOT be empty for non-rejection entries
   - id: CLP-07-002
     priority: MUST
+    kind: domain
     statement: >-
       Each logical state change MUST produce at most one canonical `CaseLedgerEntry`; the
       CaseActor MUST NOT commit both an accepted-participant-assertion entry and a
       separately-synthesized CaseActor entry for the same state change
   - id: CLP-07-003
     priority: MUST
+    kind: domain
     statement: >-
       The `payloadSnapshot.actor` field of a `CaseLedgerEntry(recorded)` MUST preserve the
       original asserting actor's identity; the CaseActor's own identity appears only on
@@ -206,6 +237,7 @@ groups:
       metadata, never as a substitute for the asserter
   - id: CLP-07-004
     priority: MUST_NOT
+    kind: domain
     statement: >-
       The canonical case ledger MUST NOT contain runtime diagnostics, demo checkpoints,
       synthetic verification markers, troubleshooting events, or any per-actor
@@ -213,12 +245,14 @@ groups:
       by `specs/structured-logging.yaml`
   - id: CLP-07-005
     priority: SHOULD
+    kind: domain
     statement: >-
       The CaseActor commit boundary SHOULD enforce CLP-07-001 through CLP-07-004 with a
       runtime guard that rejects non-canonical entries before they enter the hash chain,
       failing fast rather than silently polluting replicated history
   - id: CLP-07-006
     priority: MUST
+    kind: domain
     statement: >-
       Nested protocol objects referenced from a `payloadSnapshot` (e.g., `EmbargoEvent`,
       `VulnerabilityReport`, `Note`, `ParticipantStatus`) MUST be embedded inline as full
@@ -226,12 +260,14 @@ groups:
       DataLayer lookup to resolve MUST NOT be used in canonical snapshots
   - id: CLP-07-007
     priority: MUST
+    kind: domain
     statement: >-
       `payloadSnapshot` context values MUST use the case URI once a case exists;
       report URIs MUST NOT appear as the context for ParticipantStatus or other
       case-scoped snapshots after the report→case promotion has occurred
   - id: CLP-07-008
     priority: MUST
+    kind: domain
     statement: >-
       If a canonicalization path resolves an ID-string nested reference for
       `payloadSnapshot` inlining, it MUST verify that the resolved object's context
@@ -245,6 +281,7 @@ groups:
   specs:
   - id: CLP-08-001
     priority: MUST
+    kind: domain
     statement: >-
       Each case ledger MUST use a per-case genesis hash as the predecessor hash for its
       first entry; a globally-shared constant MUST NOT be used as the genesis predecessor
@@ -256,6 +293,7 @@ groups:
       without any case-specific knowledge
   - id: CLP-08-002
     priority: MUST
+    kind: domain
     statement: >-
       The per-case genesis hash MUST be derived as
       `SHA-256(case_id + "|" + created_at.isoformat() + "|" + case_actor_id)`, where
@@ -268,17 +306,20 @@ groups:
       case metadata to independently verify the ledger's genesis
   - id: CLP-08-003
     priority: MUST
+    kind: domain
     statement: >-
       The case-specific genesis hash MUST be stored on `VulnerabilityCase` as a required
       field computed at case creation time, so that receivers can verify that a ledger
       starts correctly for this case
   - id: CLP-08-004
     priority: MUST
+    kind: domain
     statement: >-
       `CaseLedger.tail_hash` MUST return the case-specific genesis hash when no recorded
       entries exist; it MUST NOT return a globally-shared constant sentinel
   - id: CLP-08-005
     priority: MUST
+    kind: domain
     statement: >-
       Sync replay and backfill requests that supply a `from_hash` value MUST use the
       case-specific genesis hash (or the hash of a known recorded entry) as the starting
@@ -286,6 +327,7 @@ groups:
       to replay from the beginning of the recorded projection
   - id: CLP-08-006
     priority: MUST
+    kind: domain
     statement: >-
       The non-spoofability guarantee of the per-case genesis hash is satisfied by a
       domain-bound case URI (e.g., `https://example.org/cases/<uuid>`) whose path
@@ -298,6 +340,7 @@ groups:
   specs:
   - id: CLP-09-001
     priority: MUST
+    kind: domain
     statement: >-
       Every call site that invokes the canonical commit operation MUST reach it only
       through a role-gated composition that verifies, at the time of invocation, that
@@ -313,6 +356,7 @@ groups:
       to prevent the gap from accumulating call site by call site.
   - id: CLP-09-002
     priority: MUST_NOT
+    kind: domain
     statement: >-
       The canonical commit operation MUST NOT be invoked directly (bare, unguarded)
       from any production call site outside the guarded-commit composition itself;
@@ -323,6 +367,7 @@ groups:
       guarded-commit factory's own implementation is found.
   - id: CLP-09-003
     priority: MUST
+    kind: domain
     statement: >-
       Every protocol-significant use case or BT subtree (per BT-06-001) MUST
       produce exactly one canonical commit; a coverage test MUST enumerate
@@ -337,6 +382,7 @@ groups:
       check and was found only by a manual re-audit.
   - id: CLP-09-004
     priority: MUST
+    kind: domain
     statement: >-
       When the same use-case class may be invoked with more than one receiving-actor
       identity for a single logical activity (e.g., a relayed copy delivered to a
@@ -361,6 +407,7 @@ groups:
   specs:
   - id: CLP-10-001
     priority: MUST
+    kind: domain
     statement: >-
       Every protocol-significant trigger tree MUST emit at least one outbound
       activity addressed to `case_manager_id` (the CaseActor's actor ID) so that
@@ -393,6 +440,7 @@ groups:
       `eventType` after a full two-actor demo run.
   - id: CLP-10-002
     priority: MUST
+    kind: domain
     statement: >-
       A received-side use case MUST include a pre-flight guard that compares
       `receiving_actor_id` to `case_actor_id` before executing any canonical
@@ -411,6 +459,7 @@ groups:
       resolved `case_actor_id`.
   - id: CLP-10-003
     priority: MUST_NOT
+    kind: domain
     statement: >-
       A received-side use case MUST NOT execute a BT or call the canonical commit
       operation with `actor_id` set to any actor other than `receiving_actor_id`;
@@ -432,6 +481,7 @@ groups:
       that is provably equal to it) may appear as the `actor_id` argument.
   - id: CLP-10-004
     priority: MUST_NOT
+    kind: domain
     statement: >-
       The `announce_case_ledger_entry` event type MUST NOT appear in
       `EXPECTED_EVENT_TYPES` for the case-actor canonical log; `Announce(CaseLedgerEntry)`
@@ -451,6 +501,7 @@ groups:
       the case-actor replica.
   - id: CLP-10-005
     priority: MUST
+    kind: domain
     statement: >-
       A received-side use case's `execute()` method MUST do exactly three
       things: build one BT via a tree-factory function in
@@ -501,6 +552,7 @@ groups:
       migration.
   - id: CLP-10-006
     priority: MUST
+    kind: domain
     statement: >-
       In any receive-side BT tree that includes a `GuardedCommitCaseLedgerEntryBT`
       subtree (composed via `create_guarded_commit_case_ledger_entry_tree`), the
@@ -545,6 +597,7 @@ groups:
   specs:
   - id: CLP-11-001
     priority: MUST
+    kind: domain
     statement: >-
       Open/closed state for a protocol request/reply pair (e.g.,
       `Offer(CaseParticipant)` awaiting `Accept` or `Reject`) MUST be
@@ -558,6 +611,7 @@ groups:
       in-flight is architecturally incorrect and MUST be replaced.
   - id: CLP-11-002
     priority: MUST_NOT
+    kind: domain
     statement: >-
       `find_protocol_pair()` (durable, DataLayer-backed) and
       `PendingAssertionStore` (ephemeral, in-memory suppression) MUST NOT be
@@ -568,6 +622,7 @@ groups:
       protocol state with short-lived emit-suppression state.
   - id: CLP-11-003
     priority: MUST
+    kind: domain
     statement: >-
       `ProtocolPair` MUST be the shared value type for both
       `find_protocol_pair()` and `PendingAssertionStore`. Named reply-type
@@ -577,6 +632,7 @@ groups:
       at call sites.
   - id: CLP-11-004
     priority: SHOULD
+    kind: domain
     statement: >-
       When searching for a reply entry in `find_protocol_pair()`, the
       implementation SHOULD use the `event_type` field of `CaseLedgerEntry`

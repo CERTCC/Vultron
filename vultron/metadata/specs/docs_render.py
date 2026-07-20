@@ -17,7 +17,6 @@ from __future__ import annotations
 
 from vultron.metadata.specs.registry import (
     SpecRegistry,
-    effective_kind,
     load_registry,
 )
 from vultron.metadata.specs.schema import (
@@ -242,9 +241,8 @@ def _render_file(
     """Render *spec_file* groups that have at least one item matching
     *current_kind* (SR-09-001, SR-09-002).
 
-    Groups are routed by their effective kind resolved via ``effective_kind()``.
-    Mixed-kind groups appear here only when they contain at least one item whose
-    effective kind matches *current_kind*; non-matching items are suppressed.
+    Groups appear here only when they contain at least one item whose
+    ``kind`` matches *current_kind*; non-matching items are suppressed.
     """
     anchor = spec_file.id.lower()
     if is_behavioral_section:
@@ -263,9 +261,7 @@ def _render_file(
     for group in spec_file.groups:
         # Collect items whose effective kind matches current_kind.
         matching_specs = [
-            spec
-            for spec in group.specs
-            if effective_kind(spec, group, spec_file) == current_kind
+            spec for spec in group.specs if spec.kind == current_kind
         ]
         if not matching_specs:
             continue
@@ -316,7 +312,7 @@ def render_for_kind(kind: str, registry: SpecRegistry) -> str:
         f
         for f in registry.files
         if any(
-            effective_kind(spec, group, f) == target_kind
+            spec.kind == target_kind
             for group in f.groups
             for spec in group.specs
         )

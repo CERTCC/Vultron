@@ -4,7 +4,6 @@ description: >-
   Requirements for multi-actor demo scenarios, Docker Compose orchestration, actor isolation,
   acceptance testing, and reproducibility.
 version: 1.0.0
-kind: implementation
 scope:
 - prototype
 - production
@@ -16,6 +15,7 @@ groups:
   specs:
   - id: DEMOMA-00-001
     priority: MUST
+    kind: implementation
     statement: >-
       Cross-actor communication MUST occur exclusively via HTTP using the ActivityStreams
       inbox endpoint
@@ -24,21 +24,25 @@ groups:
   specs:
   - id: DEMOMA-01-001
     priority: MUST
+    kind: implementation
     statement: >-
       Each actor in a multi-actor demo MUST run in a separate container with its own DataLayer
       instance
   - id: DEMOMA-01-002
     priority: MUST
+    kind: implementation
     statement: >-
       Each actor container MUST expose the actor's identity via its `/actors/{actor_id}` profile
       endpoint so that other containers can discover it at startup
   - id: DEMOMA-01-003
     priority: MUST
+    kind: implementation
     statement: >-
       Demo startup MUST automatically reset all actor state to a known clean baseline before
       the scenario executes, without requiring manual user intervention
   - id: DEMOMA-01-004
     priority: MUST
+    kind: implementation
     statement: >-
       Each call to `create_app()` MUST create fresh per-app instances of the dispatcher,
       emitter, and DataLayer stored on `app.state`; `create_app()` MUST NOT mutate
@@ -55,6 +59,7 @@ groups:
       spec_id: DEMOMA-01-001
   - id: DEMOMA-01-005
     priority: MUST
+    kind: implementation
     statement: >-
       Co-located actors (multiple FastAPI app instances in the same process) MUST each have
       a dedicated `DataLayer` instance registered in their `app.dependency_overrides`; no
@@ -72,6 +77,7 @@ groups:
   specs:
   - id: DEMOMA-02-001
     priority: MUST
+    kind: implementation
     statement: >-
       Docker Compose configurations for multi-actor demos MUST include a `healthcheck` for
       each actor service that probes the `/health/ready` endpoint
@@ -84,11 +90,13 @@ groups:
       note: observability.md
   - id: DEMOMA-02-002
     priority: MUST
+    kind: implementation
     statement: >-
       Dependent services (e.g., a demo orchestration container) MUST use `condition: service_healthy`
       for all actor service dependencies
   - id: DEMOMA-02-003
     priority: MUST
+    kind: implementation
     statement: >-
       Port mappings, network names, and required environment variables MUST be documented
       in the `docker-compose.yml` file or an accompanying `README.md`
@@ -97,16 +105,19 @@ groups:
   specs:
   - id: DEMOMA-03-001
     priority: MUST
+    kind: implementation
     statement: >-
       Each multi-actor demo scenario MUST include an acceptance test that validates the end-to-end
       workflow deterministically
   - id: DEMOMA-03-002
     priority: MUST
+    kind: implementation
     statement: >-
       Acceptance tests MUST assert final state for each actor (e.g., correct RM/EM/CS state,
       expected case ledger entries)
   - id: DEMOMA-03-003
     priority: MUST
+    kind: implementation
     statement: >-
       Acceptance tests MUST be reproducible: the same test on the same codebase MUST produce
       the same result on successive runs
@@ -115,9 +126,11 @@ groups:
   specs:
   - id: DEMOMA-04-001
     priority: SHOULD
+    kind: implementation
     statement: 'Multi-actor demo scenarios SHOULD be implemented progressively:'
   - id: DEMOMA-04-002
     priority: SHOULD
+    kind: implementation
     statement: >-
       Each scenario SHOULD include a summary of the expected CVD workflow steps and the expected
       final RM/EM/CS state for each actor
@@ -126,6 +139,7 @@ groups:
   specs:
   - id: DEMOMA-05-001
     priority: MUST
+    kind: implementation
     statement: >-
       All actor-initiated actions in scenario demos MUST be driven through the trigger API
       (`POST /actors/{actor_id}/trigger/{behavior-name}`), not by direct inbox injection or
@@ -141,6 +155,7 @@ groups:
       note: trigger endpoint format
   - id: DEMOMA-05-002
     priority: MUST_NOT
+    kind: implementation
     statement: >-
       Scenario demo scripts MUST NOT construct and POST raw ActivityStreams JSON directly
       to an actor's inbox as a substitute for calling that actor's trigger endpoint
@@ -149,6 +164,7 @@ groups:
       spec_id: DEMOMA-00-001
   - id: DEMOMA-05-003
     priority: MAY
+    kind: implementation
     statement: >-
       Exchange demos located under `vultron/demo/exchange/` MAY use direct inbox injection
       (constructing and posting raw ActivityStreams JSON) to simulate the receipt of a
@@ -171,12 +187,14 @@ groups:
   specs:
   - id: DEMOMA-06-001
     priority: MUST
+    kind: implementation
     statement: >-
       The two-actor (Reporter + Vendor) demo scenario MUST execute a complete CVD lifecycle
       ending in final case state VFDPxa (Vendor aware, Fix ready, Fix Deployed, Public aware,
       no exploit public, no active attacks)
   - id: DEMOMA-06-002
     priority: MUST
+    kind: implementation
     statement: >-
       The two-actor demo MUST verify the following milestones in order, checking both the
       Vendor and Finder DataLayers at each checkpoint:
@@ -190,12 +208,14 @@ groups:
       M7 (all participants RM.CLOSED, case closed)
   - id: DEMOMA-06-003
     priority: MUST
+    kind: implementation
     statement: >-
       Milestone verification MUST read both the Vendor DataLayer and the Finder DataLayer
       directly; direct DataLayer reads are acceptable in demo scripts for verification
       (read-only assertions), but MUST NOT be used to write or manipulate actor state
   - id: DEMOMA-06-004
     priority: MUST
+    kind: implementation
     statement: >-
       The two-actor demo Docker topology MUST use exactly two containers (finder and vendor);
       the Case Actor MUST be an actor record co-located in the vendor container with its own
@@ -205,6 +225,7 @@ groups:
   specs:
   - id: DEMOMA-07-001
     priority: MUST
+    kind: implementation
     statement: >-
       CS state transitions (fix-ready, fix-deployed, published) and RM case closure MUST
       all be driven through participant status updates via
@@ -212,12 +233,14 @@ groups:
       low-level state-machine endpoints
   - id: DEMOMA-07-002
     priority: MUST
+    kind: implementation
     statement: >-
       Demo trigger endpoints for participant status transitions MUST use the "notify" naming
       convention (e.g., notify-fix-ready, notify-fix-deployed, notify-published, close-case)
       to avoid semantic collision with the ActivityStreams Announce verb
   - id: DEMOMA-07-003
     priority: MUST
+    kind: implementation
     statement: >-
       The Case Actor received handler for ADD_PARTICIPANT_STATUS_TO_PARTICIPANT MUST:
       (1) verify the activity actor is a known case participant,
@@ -233,12 +256,14 @@ groups:
       note: step 3 propagation must use canonical Announce(CaseLedgerEntry) fan-out
   - id: DEMOMA-07-004
     priority: SHOULD
+    kind: implementation
     statement: >-
       The participant status trigger implementation SHOULD be layered: SvcAddObjectToCaseUseCase
       (generic Add(object, target=Case)) as the base, SvcAddParticipantStatusUseCase (new core
       use case) above it, and demo-specific endpoints in demo_triggers.py at the top
   - id: DEMOMA-07-005
     priority: MUST_NOT
+    kind: implementation
     statement: >-
       The Case Actor received handler for ADD_PARTICIPANT_STATUS_TO_PARTICIPANT MUST NOT
       send a raw Add(ParticipantStatus) re-broadcast directly to peer participants after
@@ -260,6 +285,7 @@ groups:
   specs:
   - id: DEMOMA-08-001
     priority: MUST
+    kind: implementation
     statement: >-
       The vendor MUST send Create(VulnerabilityCase) (not Announce) to the Reporter as the
       trust bootstrap after case initialization; only the Case Actor uses Announce for
@@ -272,6 +298,7 @@ groups:
       note: original report submission path bootstrap
   - id: DEMOMA-08-002
     priority: MUST
+    kind: implementation
     statement: >-
       The CASE_MANAGER role delegation (Vendor hands operational management to Case Actor)
       MUST be implemented as a distinct protocol mechanism from OFFER_CASE_OWNERSHIP_TRANSFER;
@@ -287,6 +314,7 @@ groups:
       implemented. See DEMOMA-08-006 through DEMOMA-08-009 for the downstream specs.
   - id: DEMOMA-08-006
     priority: MUST
+    kind: implementation
     statement: >-
       `OfferCaseManagerRolePattern`, `AcceptCaseManagerRolePattern`, and
       `RejectCaseManagerRolePattern` MUST be registered in
@@ -295,6 +323,7 @@ groups:
       `RejectCaseManagerRoleReceivedUseCase` MUST be registered in the `use_case_map`.
   - id: DEMOMA-08-007
     priority: MUST
+    kind: implementation
     statement: >-
       A trigger-side use case `SvcOfferCaseManagerRoleUseCase` MUST be implemented in
       `vultron/core/use_cases/triggers/actor.py` (or a new module in that package).
@@ -302,6 +331,7 @@ groups:
       and enqueue it to the offering Vendor's outbox.
   - id: DEMOMA-08-008
     priority: SHOULD
+    kind: implementation
     statement: >-
       A trigger-side use case `SvcAcceptCaseManagerRoleUseCase` SHOULD be implemented
       for the Case Actor to explicitly accept (rather than auto-accepting via the received
@@ -309,6 +339,7 @@ groups:
       that require explicit operator approval before the Case Actor assumes the role.
   - id: DEMOMA-08-009
     priority: MUST
+    kind: implementation
     statement: >-
       Unit and integration tests MUST cover the full CASE_MANAGER delegation handshake:
       (1) Vendor offers role via `_OfferCaseManagerRoleActivity`,
@@ -317,6 +348,7 @@ groups:
       trust bootstrap `Create(VulnerabilityCase)` to Reporter.
   - id: DEMOMA-08-003
     priority: MUST_NOT
+    kind: implementation
     statement: >-
       CASE_MANAGER role delegation MUST NOT reuse or adapt the existing
       OFFER_CASE_OWNERSHIP_TRANSFER, ACCEPT_CASE_OWNERSHIP_TRANSFER, or
@@ -324,6 +356,7 @@ groups:
       with different semantics and different effects on case ownership
   - id: DEMOMA-08-004
     priority: MUST
+    kind: implementation
     statement: >-
       When the Case Actor accepts the CASE_MANAGER delegation, it MUST run the case
       initialization BT: establish the default embargo with both Vendor and Reporter
@@ -331,6 +364,7 @@ groups:
       before the trust bootstrap is sent to the Reporter
   - id: DEMOMA-08-005
     priority: MUST
+    kind: implementation
     statement: >-
       All nested domain objects in the bootstrap `Create(VulnerabilityCase)` activity (e.g.,
       `CaseParticipant` objects in `case_participants`) MUST be embedded as full inline
@@ -349,18 +383,21 @@ groups:
   specs:
   - id: DEMOMA-09-001
     priority: MUST
+    kind: implementation
     statement: >-
       The FVV scenario MUST seed three independent actor containers — Finder, Vendor1, and
       Vendor2 — with no Coordinator; each container MUST have its own isolated DataLayer
       and the Case Actor MUST be co-located in the Vendor1 container
   - id: DEMOMA-09-002
     priority: MUST
+    kind: implementation
     statement: >-
       Vendor1 MUST invite Vendor2 to the case after accepting the report (RM→ACCEPTED),
       using the standard invite-actor trigger path; Vendor2 MUST accept and become a
       full SIGNATORY participant before the scenario advances to fix tracking
   - id: DEMOMA-09-003
     priority: MUST
+    kind: implementation
     statement: >-
       The FVV scenario MUST reach a final state of VFDPxa CS on all three actor replicas
       (Finder, Vendor1, Vendor2), with EM.EXITED and RM.CLOSED for all participants;
@@ -368,6 +405,7 @@ groups:
       independently
   - id: DEMOMA-09-004
     priority: MUST
+    kind: implementation
     statement: >-
       The FVV scenario MUST run deterministically end-to-end via a single
       `docker compose` command using the existing multi-actor Compose stack; the
@@ -375,6 +413,7 @@ groups:
       replicas match the authoritative Vendor1 state) after each major protocol event
   - id: DEMOMA-09-005
     priority: MUST
+    kind: implementation
     statement: >-
       The PR that introduces the FVV scenario script MUST also add a dedicated parallel
       CI job to `.github/workflows/demo-integration.yml` that runs the FVV scenario

@@ -7,7 +7,6 @@ description: >-
   protocol workflows such as report validation, case creation, and embargo management
   must be implemented as BT nodes or subtrees.
 version: 1.0.0
-kind: domain
 scope:
 - prototype
 - production
@@ -16,86 +15,99 @@ tags:
 groups:
 - id: BT-01
   title: BT Execution Model
-  kind: pattern
   specs:
   - id: BT-01-001
     priority: MUST
+    kind: pattern
     statement: BT execution MUST be event-driven, triggered by handler invocation
   - id: BT-01-002
     priority: MUST
+    kind: pattern
     statement: BTs MUST execute to completion (or max iterations) per invocation
   - id: BT-01-003
     priority: MUST_NOT
+    kind: pattern
     statement: BT execution MUST NOT use continuous tick-based polling loops
   - id: BT-01-004
     priority: MUST
+    kind: pattern
     statement: BTs MUST be single-shot executions within handler context
 - id: BT-02
   title: BT Library
-  kind: language
   specs:
   - id: BT-02-001
     priority: MUST
+    kind: language
     statement: >-
       Prototype handlers MUST implement BT execution using industry- standard BT library
     rationale: Mature libraries provide visualization, debugging, and standard BT semantics
   - id: BT-02-002
     priority: MUST
+    kind: language
     statement: Simulation code in `vultron/bt/` MUST remain unchanged
 - id: BT-03
   title: State Management
-  kind: domain
   specs:
   - id: BT-03-001
     priority: MUST
+    kind: domain
     statement: BTs MUST use DataLayer as persistent state store
   - id: BT-03-002
     priority: MUST_NOT
+    kind: domain
     statement: BTs MUST NOT maintain separate blackboard persistence
   - id: BT-03-003
     priority: MAY
+    kind: domain
     statement: BT blackboard MAY cache DataLayer state during execution
   - id: BT-03-004
     priority: MUST
+    kind: domain
     statement: State changes MUST be committed to DataLayer on successful execution
 - id: BT-04
   title: Handler Integration
-  kind: pattern
   specs:
   - id: BT-04-001
     priority: MUST
+    kind: pattern
     statement: Handler protocol MUST be preserved (decorator, signature, registration)
   - id: BT-04-002
     priority: MAY
+    kind: pattern
     statement: Handlers MAY invoke BTs via bridge layer
   - id: BT-04-003
     priority: MUST
+    kind: pattern
     statement: Handlers MUST remain synchronous (BT execution within handler)
   - id: BT-04-004
     priority: MUST
+    kind: pattern
     statement: BT execution errors MUST propagate to handler error handling
 - id: BT-05
   title: BT Bridge Layer
-  kind: language
   specs:
   - id: BT-05-001
     priority: SHOULD
+    kind: language
     statement: System SHOULD provide BT execution bridge for handler-to-BT invocation
   - id: BT-05-002
     priority: SHOULD
+    kind: language
     statement: Bridge SHOULD set up py_trees context with DataLayer access
   - id: BT-05-003
     priority: SHOULD
+    kind: language
     statement: Bridge SHOULD populate blackboard with activity and actor state
   - id: BT-05-004
     priority: SHOULD
+    kind: language
     statement: Bridge SHOULD execute tree and return execution result
 - id: BT-06
   title: Workflow-Specific Trees
-  kind: domain
   specs:
   - id: BT-06-001
     priority: MUST
+    kind: domain
     statement: >-
       All protocol-significant behavior MUST be implemented as BT nodes or subtrees. There
       is no "simple enough to skip" threshold.
@@ -104,14 +116,17 @@ groups:
       audit, and explainability.
   - id: BT-06-002
     priority: MUST
+    kind: domain
     statement: >-
       Prototype use-case BTs MUST correspond to identifiable subtrees of the canonical CVD
       protocol BT
   - id: BT-06-003
     priority: SHOULD
+    kind: domain
     statement: BT nodes SHOULD be deterministic
   - id: BT-06-004
     priority: MUST
+    kind: domain
     statement: >-
       Individual BT nodes MUST be simple and focused on a single concern (e.g., a single exception
       check or a single boolean condition)
@@ -120,27 +135,31 @@ groups:
       code; if it is not in the tree it cannot be reasoned about from the tree alone.
   - id: BT-06-005
     priority: MUST
+    kind: domain
     statement: >-
       Cascades from a parent subtree to a child subtree in the canonical BT MUST be expressed
       as BT subtrees within the use case's BT — not as procedural calls in `execute()` after
       `bt.run()` returns.
   - id: BT-06-006
     priority: MUST_NOT
+    kind: domain
     statement: >-
       Protocol-observable actions and state transitions MUST NOT be performed as procedural
       code outside the BT.
 - id: BT-07
   title: DataLayer Integration
-  kind: domain
   specs:
   - id: BT-07-001
     priority: MUST
+    kind: domain
     statement: BT nodes MUST interact with DataLayer via Protocol interface
   - id: BT-07-002
     priority: MUST
+    kind: domain
     statement: BT nodes MUST use type-safe DataLayer operations
   - id: BT-07-003
     priority: MUST
+    kind: domain
     statement: State transitions MUST be logged at the appropriate level
     relationships:
     - rel_type: depends_on
@@ -149,36 +168,40 @@ groups:
       spec_id: SL-04-001
 - id: BT-08
   title: Command-Line Execution
-  kind: pattern
   specs:
   - id: BT-08-001
     priority: MAY
+    kind: pattern
     statement: System MAY provide CLI interface for BT execution
   - id: BT-08-002
     priority: SHOULD
+    kind: pattern
     statement: CLI SHOULD support invoking specific trees with test data
   - id: BT-08-003
     priority: SHOULD
+    kind: pattern
     statement: CLI SHOULD log BT execution visualization
 - id: BT-09
   title: Actor Isolation
-  kind: domain
   specs:
   - id: BT-09-001
     priority: MUST
+    kind: domain
     statement: Each actor MUST have isolated BT execution context
   - id: BT-09-002
     priority: MUST_NOT
+    kind: domain
     statement: Actor blackboards MUST NOT share state
   - id: BT-09-003
     priority: MUST
+    kind: domain
     statement: Actor interaction MUST occur only via protocol messages
 - id: BT-10
   title: CaseActor Management
-  kind: domain
   specs:
   - id: BT-10-001
     priority: MUST
+    kind: domain
     statement: Report validation MUST trigger VulnerabilityCase creation
     relationships:
     - rel_type: implements
@@ -187,12 +210,15 @@ groups:
       spec_id: VP-02-020
   - id: BT-10-002
     priority: MUST
+    kind: domain
     statement: Case creation MUST create corresponding CaseActor (Service)
   - id: BT-10-003
     priority: MUST
+    kind: domain
     statement: CaseActor MUST manage case-related message processing
   - id: BT-10-004
     priority: MUST
+    kind: domain
     statement: CaseActor MUST enforce case-level authorization
     scope:
     - production
@@ -205,6 +231,7 @@ groups:
       spec_id: CLP-09-004
   - id: BT-10-005
     priority: SHOULD
+    kind: domain
     statement: >-
       When an actor accepts a case invitation, the system SHOULD automatically advance the
       accepting actor's RM state to ACCEPTED via BT or use-case execution
@@ -213,10 +240,10 @@ groups:
       spec_id: CM-11-001
 - id: BT-12
   title: VFD/PXA State Machine Usage
-  kind: domain
   specs:
   - id: BT-12-001
     priority: MUST
+    kind: domain
     statement: >-
       When implementing VFD (vendor fix deployed) or PXA (public exploit/attack) state transitions,
       new code MUST use `create_vfd_machine()` and `create_pxa_machine()` (defined in `vultron/core/states/cs.py`)
@@ -228,22 +255,25 @@ groups:
       and the implementation.
 - id: BT-11
   title: Concurrency
-  kind: domain
   specs:
   - id: BT-11-001
     priority: MUST
+    kind: domain
     statement: Prototype MUST process messages sequentially (FIFO order)
     rationale: Eliminates race conditions in prototype phase
   - id: BT-11-002
     priority: MUST_NOT
+    kind: domain
     statement: Sequential processing MUST NOT block HTTP response (BackgroundTasks)
   - id: BT-11-003
     priority: MAY
+    kind: domain
     statement: Future optimizations MAY introduce resource-level locking
     scope:
     - production
   - id: BT-11-004
     priority: MUST
+    kind: domain
     statement: >-
       `BTBridge` MUST acquire a `threading.RLock` (re-entrant lock), not a plain
       `threading.Lock`, when serializing BT execution. Any code path in which
@@ -261,10 +291,10 @@ groups:
       spec_id: BT-11-001
 - id: BT-13
   title: BT Failure Diagnosis
-  kind: implementation
   specs:
   - id: BT-13-001
     priority: MUST
+    kind: implementation
     statement: >-
       After any BT execution that returns FAILURE, code MUST retrieve the
       failure reason via `BTBridge.get_failure_reason(tree)` (a depth-first
@@ -281,6 +311,7 @@ groups:
 
   - id: BT-13-002
     priority: MUST
+    kind: implementation
     statement: >-
       The `BTBridge.get_failure_reason()` pattern MUST be applied consistently
       across all BT execution sites, not only for a single BT class or
@@ -292,10 +323,10 @@ groups:
         note: Scope is all BT execution sites, not just sync
 - id: BT-14
   title: Peer Broadcast Failure Semantics
-  kind: domain
   specs:
   - id: BT-14-001
     priority: MUST
+    kind: domain
     statement: >-
       Any BT node or subtree that performs protocol-visible peer broadcast
       fan-out MUST return FAILURE when broadcast preparation or outbox
@@ -313,6 +344,7 @@ groups:
       note: Delivery failures must propagate to handler error paths
   - id: BT-14-002
     priority: SHOULD
+    kind: domain
     statement: >-
       Peer broadcast fan-out paths SHOULD reuse a shared helper/subtree for
       recipient filtering, activity construction, and outbox enqueueing so the
@@ -322,10 +354,10 @@ groups:
       silent-failure behavior in only some pathways.
 - id: BT-15
   title: Trigger-Side Use-Case Contract
-  kind: domain
   specs:
   - id: BT-15-001
     priority: MUST
+    kind: domain
     statement: >-
       Trigger-side execute() methods MUST delegate state-machine transitions
       (RM, EM, CS) to BT leaf nodes via BTBridge, following the same pattern
@@ -345,6 +377,7 @@ groups:
       note: SM transitions performed outside a BT violate BT-06-006
   - id: BT-15-002
     priority: MUST_NOT
+    kind: domain
     statement: >-
       Trigger-side execute() methods MUST NOT call domain lifecycle methods
       (e.g., EmbargoLifecycle, EMAdapter, direct ParticipantStatus writes with
@@ -360,10 +393,10 @@ groups:
       spec_id: BT-06-006
 - id: BT-17
   title: Role-Gated BT Subtrees and Blackboard Hygiene
-  kind: pattern
   specs:
   - id: BT-17-001
     priority: MUST
+    kind: pattern
     statement: >-
       Any BT subtree whose semantics are restricted to the `CVDRole.CASE_MANAGER`
       actor MUST be wrapped in a role-guard composite using
@@ -390,6 +423,7 @@ groups:
         inside the tree with an explicit guard
   - id: BT-17-002
     priority: MUST
+    kind: pattern
     statement: >-
       A module-level idempotency set (a `set[str]` used to track "already fired"
       state for a BT node) MUST be paired with a role guard (BT-17-001) that
@@ -410,6 +444,7 @@ groups:
       spec_id: BT-17-001
   - id: BT-17-003
     priority: MUST
+    kind: pattern
     statement: >-
       When a BT node takes a no-op path (e.g., an empty recipient list or a
       guard condition that is not met), it MUST explicitly write `None` to any
@@ -434,6 +469,7 @@ groups:
       note: Blackboard cleanup is part of the blackboard management contract
   - id: BT-17-004
     priority: MUST
+    kind: pattern
     statement: >-
       A consumer BT node that reads an output key set by a peer producer node
       MUST treat both `KeyError` (key never written) and a `None` value
@@ -475,10 +511,10 @@ groups:
       note: The role guard identity check is what makes this fixture requirement necessary
 - id: BT-16
   title: Simulation Fuzzer Node Layout
-  kind: implementation
   specs:
   - id: BT-16-001
     priority: MUST
+    kind: implementation
     statement: >-
       Probabilistic simulation (fuzzer) BT nodes MUST reside in
       `vultron/demo/fuzzer/` and MUST NOT be placed in
@@ -490,6 +526,7 @@ groups:
       simulation artifacts from leaking into core protocol logic.
   - id: BT-16-002
     priority: MUST
+    kind: implementation
     statement: >-
       The probabilistic base types (WeightedBehavior subclasses) for
       simulation nodes MUST be defined in `vultron/demo/fuzzer/base.py`
@@ -505,6 +542,7 @@ groups:
       note: py_trees.behaviour.Behaviour is the required base for all prototype BT nodes
   - id: BT-16-003
     priority: MUST
+    kind: implementation
     statement: >-
       Each simulation fuzzer node MUST be named after the external-dependency
       touchpoint it represents (e.g., `EvaluateEmbargoProposal`, `DeployFix`)
@@ -519,6 +557,7 @@ groups:
       future implementation targets.
   - id: BT-16-004
     priority: MUST
+    kind: implementation
     statement: >-
       Simulation fuzzer modules MUST be organized by CVD domain:
       `vultron/demo/fuzzer/base.py` (probabilistic infrastructure),
@@ -533,6 +572,7 @@ groups:
       implementers.
   - id: BT-16-005
     priority: SHOULD
+    kind: implementation
     statement: >-
       Each simulation fuzzer node SHOULD be categorized in its docstring by
       automation potential: High (fully automatable via API or policy rule),
@@ -550,10 +590,10 @@ groups:
       high automation potential."
 - id: BT-18
   title: Call-Out Point Abstraction Layer
-  kind: pattern
   specs:
   - id: BT-18-001
     priority: MUST
+    kind: pattern
     statement: >-
       Every call-out point node MUST declare its blackboard contract in its
       class docstring: the set of input keys read before dispatch and the set
@@ -572,6 +612,7 @@ groups:
         format for data-producing nodes.
   - id: BT-18-002
     priority: MUST
+    kind: pattern
     statement: >-
       A call-out point backend — fuzzer or real implementation — MUST write
       to all declared output keys when it returns SUCCESS. A backend MUST NOT
@@ -586,6 +627,7 @@ groups:
       transparent.
   - id: BT-18-003
     priority: MUST
+    kind: pattern
     statement: >-
       The fuzzer backend for a data-producing call-out point (Evaluator,
       Retriever, or Composer shape) MUST write synthetic but type-conformant
@@ -599,6 +641,7 @@ groups:
       runs.
   - id: BT-18-004
     priority: MUST
+    kind: pattern
     statement: >-
       A call-out point node MUST be constructed via a backend factory
       callable. Tree-building functions that contain call-out points MUST
@@ -619,6 +662,7 @@ groups:
         existing factory pattern required for all BT construction.
   - id: BT-18-005
     priority: MUST
+    kind: pattern
     statement: >-
       The call-out point shape of a fuzzer node MUST be determined solely by
       the ADR-0024 seam-structure decision tree (how external input enters and
@@ -652,6 +696,7 @@ groups:
         have no bearing on call-out point shape assignment.
   - id: BT-18-006
     priority: MUST
+    kind: pattern
     statement: >-
       A node that queries an external system synchronously and returns only a
       binary (SUCCESS/FAILURE) result MUST be classified as a Retriever, not
@@ -685,10 +730,10 @@ groups:
         ambiguity for binary-result external queries.
 - id: BT-19
   title: Routing-Gated State Mutation in Lifecycle BT Sequences
-  kind: pattern
   specs:
   - id: BT-19-001
     priority: MUST
+    kind: pattern
     statement: >-
       A BT Sequence that performs a state mutation and then routes an outbound
       message MUST resolve all routing prerequisites in a read-only guard node
@@ -793,7 +838,6 @@ groups:
 
 - id: BT-20
   title: Production BT Collapse Patterns
-  kind: implementation
   description: >-
     Requirements for production BT subtrees that replace groups of simulator fuzzer nodes.
     Each collapse candidate reduces multiple granular simulator leaves to a smaller set of
@@ -802,6 +846,7 @@ groups:
   specs:
   - id: BT-20-001
     priority: SHOULD
+    kind: implementation
     statement: >-
       The production `create_acquire_exploit_strategy_tree` factory SHOULD
       provide a single `EvaluateExploitStrategy` Evaluator call-out point in
@@ -823,6 +868,7 @@ groups:
     tracking_issue: "#1200 (planning); implementation issue TBD (blocked by #1200)"
   - id: BT-20-002
     priority: SHOULD
+    kind: implementation
     statement: >-
       The production `create_publication_tree` factory SHOULD use
       `PrioritizePublicationIntents` (Evaluator) output to gate per-artifact
@@ -841,6 +887,7 @@ groups:
     tracking_issue: "#1200 (planning); implementation issue TBD (blocked by #1200)"
   - id: BT-20-003
     priority: SHOULD
+    kind: implementation
     statement: >-
       The production `create_report_to_others_tree` factory SHOULD retain the
       outer loop structure (party identification Retrievers, effort-gate
@@ -863,6 +910,7 @@ groups:
       suggest-actor redesign)
   - id: BT-20-004
     priority: SHOULD
+    kind: implementation
     statement: >-
       The production `create_publish_artifact_tree` factory SHOULD implement
       a multi-step pipeline replacing the single `Publish` Actuator leaf: at
@@ -884,10 +932,10 @@ groups:
       implementation issue for BT-20-002)
 - id: BT-21
   title: Fuzzer Node Replacement Lifecycle
-  kind: dev-process
   specs:
   - id: BT-21-001
     priority: MUST
+    kind: dev-process
     statement: >-
       Each fuzzer (simulator) BT node targeted for replacement by a production implementation
       MUST have a corresponding tracking issue that captures: the fuzzer node name, the
@@ -903,6 +951,7 @@ groups:
       spec_id: BT-20-001
   - id: BT-21-002
     priority: MUST
+    kind: dev-process
     statement: >-
       When a fuzzer node is replaced by its production equivalent, the corresponding
       BT-20 `PROVISIONAL` rationale note MUST be updated to remove the `PROVISIONAL`

@@ -7,7 +7,6 @@ description: >-
   access is private and non-shareable, and all inter-Actor communication occurs exclusively
   through the AS2 wire protocol.
 version: 1.0.0
-kind: domain
 scope:
 - prototype
 - production
@@ -21,11 +20,13 @@ groups:
   specs:
   - id: AKM-01-001
     priority: MUST_NOT
+    kind: domain
     statement: >-
       Each Actor's DataLayer is private to that Actor and MUST NOT be accessible to any other
       Actor.
   - id: AKM-01-002
     priority: MUST_NOT
+    kind: domain
     statement: >-
       Actors that are co-located on the same server or within the same process MUST still
       interact via the wire protocol and MUST NOT communicate via direct DataLayer access
@@ -35,16 +36,19 @@ groups:
   specs:
   - id: AKM-02-001
     priority: MUST_NOT
+    kind: domain
     statement: >-
       An Actor MUST NOT assume that a recipient has knowledge of any object that has not been
       explicitly included in a prior activity sent to that recipient.
   - id: AKM-02-002
     priority: MUST_NOT
+    kind: domain
     statement: >-
       Actors MUST NOT use object references in place of full inline objects when the recipient
       cannot be expected to have the referenced object in its own DataLayer.
   - id: AKM-02-003
     priority: MUST
+    kind: domain
     statement: >-
       The sole exception to the full-inline-object rule is the `target` field of an `Invite`
       activity in selective-disclosure scenarios.
@@ -53,11 +57,13 @@ groups:
   specs:
   - id: AKM-03-001
     priority: MUST
+    kind: domain
     statement: >-
       Outbound initiating activities (Create, Offer, Invite, Announce, Add, Remove, Update,
       Join, Ignore, Leave) MUST carry the `object` field as a fully inline typed domain object.
   - id: AKM-03-002
     priority: MUST
+    kind: domain
     statement: >-
       The outbox handler MUST enforce object integrity at delivery time as a last-resort runtime
       guard.
@@ -66,6 +72,7 @@ groups:
   specs:
   - id: AKM-04-001
     priority: MAY
+    kind: domain
     statement: >-
       A future implementation MAY track which objects have been shared with each participant
       (e.g., via `CaseLedgerEntry` hash-chain records) to avoid redundant full-object transmission.

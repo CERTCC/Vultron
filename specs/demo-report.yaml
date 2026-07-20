@@ -7,7 +7,6 @@ description: >-
   the distilled intermediate data model, markdown and HTML rendering, the per-actor
   replica-presence matrix, friendly naming, and test requirements.
 version: 1.0.0
-kind: implementation
 scope:
 - prototype
 tags:
@@ -18,6 +17,7 @@ groups:
   specs:
   - id: DRPT-01-001
     priority: MUST
+    kind: implementation
     statement: >-
       The report tool MUST be implemented as a standalone module at
       `vultron/demo/report.py`, importable as `vultron.demo.report`, and MUST
@@ -29,6 +29,7 @@ groups:
       produces the ledger files.
   - id: DRPT-01-002
     priority: MUST
+    kind: implementation
     statement: >-
       The tool MUST accept a directory path (defaulting to the `DEVLOGS_DIR`
       environment variable, or `devlogs/` relative to the repository root when
@@ -40,12 +41,14 @@ groups:
       and read by `test/ci/test_case_ledger_invariants.py`.
   - id: DRPT-01-003
     priority: MUST
+    kind: implementation
     statement: >-
       The tool MUST derive each entry's actor name from the name of the
       directory that contains its JSONL file (e.g. `finder`, `vendor`,
       `case-actor`).
   - id: DRPT-01-004
     priority: MUST
+    kind: implementation
     statement: >-
       The tool MUST exit with status code 0 on success and a non-zero status
       code when the input directory is missing, contains no matching JSONL
@@ -55,6 +58,7 @@ groups:
   specs:
   - id: DRPT-02-001
     priority: MUST
+    kind: implementation
     statement: >-
       The tool MUST define a first-class `pydantic.BaseModel` (v2) distilled
       event type (e.g. `CaseTimelineEvent`) that represents one canonical
@@ -65,6 +69,7 @@ groups:
       described in IDEA-1286; it isolates JSONL parsing quirks from rendering.
   - id: DRPT-02-002
     priority: MUST
+    kind: implementation
     statement: >-
       Each distilled event MUST surface, where available in the source entries:
       the acting actor, the event type (or extracted message semantics), the
@@ -73,6 +78,7 @@ groups:
       and a short (truncated) `entry_hash` for chain traceability.
   - id: DRPT-02-003
     priority: MUST
+    kind: implementation
     statement: >-
       The parser MUST tolerate both camelCase and snake_case field spellings in
       source entries (e.g. `logIndex`/`log_index`, `entryHash`/`entry_hash`,
@@ -80,6 +86,7 @@ groups:
       already present in `test/ci/test_case_ledger_invariants.py`.
   - id: DRPT-02-004
     priority: MUST
+    kind: implementation
     statement: >-
       The tool MUST merge entries from all discovered actors into a single
       canonical timeline, de-duplicating replicated entries by `entry_hash`, and
@@ -89,6 +96,7 @@ groups:
       the single case story rather than N near-identical per-actor logs.
   - id: DRPT-02-005
     priority: MUST
+    kind: implementation
     statement: >-
       For each canonical timeline event, the tool MUST compute a per-actor
       replica-presence indicator recording which discovered actors' replicas
@@ -99,6 +107,7 @@ groups:
   specs:
   - id: DRPT-03-001
     priority: MUST
+    kind: implementation
     statement: >-
       Human-readable output MUST render actors and target objects by short,
       friendly names (e.g. "Finder", "report", "note"), MUST NOT use bare URIs
@@ -111,6 +120,7 @@ groups:
       "https://…/actors/finder submitted urn:uuid:…".
   - id: DRPT-03-002
     priority: SHOULD
+    kind: implementation
     statement: >-
       Event summaries SHOULD map the event type / message semantics to a concise
       active-voice phrase (subject verb object). Where a protocol vocabulary of
@@ -122,12 +132,14 @@ groups:
   specs:
   - id: DRPT-04-001
     priority: MUST
+    kind: implementation
     statement: >-
       The tool MUST render a markdown table report (one row per canonical
       timeline event) covering the distilled fields, including a per-actor
       replica-presence matrix column group.
   - id: DRPT-04-002
     priority: MUST
+    kind: implementation
     statement: >-
       The tool MUST render a self-contained static HTML report file with all
       styling inlined (no external CSS, JS, fonts, or network assets), so the
@@ -139,6 +151,7 @@ groups:
       JS toolchain.
   - id: DRPT-04-003
     priority: MUST
+    kind: implementation
     statement: >-
       In the HTML report, the per-actor replica-presence matrix MUST be rendered
       as a per-actor checkbox/emoji cell per event, showing a present/absent
@@ -146,11 +159,13 @@ groups:
       actors' replicas shows three checks across four columns).
   - id: DRPT-04-004
     priority: MUST
+    kind: implementation
     statement: >-
       The output format MUST be selectable (e.g. `--format markdown|html`), and
       the tool MUST write the report to a file (path configurable).
   - id: DRPT-04-005
     priority: SHOULD
+    kind: implementation
     statement: >-
       After writing an HTML report, the tool SHOULD open it in the default
       browser via `webbrowser.open()`, and MUST provide a flag (e.g.
@@ -161,6 +176,7 @@ groups:
   specs:
   - id: DRPT-05-001
     priority: MUST
+    kind: implementation
     statement: >-
       Unit tests MUST cover JSONL-to-distilled-model parsing against fixtures
       that include both camelCase and snake_case field spellings, and MUST
@@ -168,12 +184,14 @@ groups:
       per-actor replica-presence computation.
   - id: DRPT-05-002
     priority: MUST
+    kind: implementation
     statement: >-
       Unit tests MUST cover both renderers: given a fixed list of distilled
       events, assert the markdown table structure and assert that the HTML
       output is well-formed and self-contained (references no external assets).
   - id: DRPT-05-003
     priority: MUST
+    kind: implementation
     statement: >-
       A CLI smoke test MUST invoke the entry point against a tiny fixture
       directory, assert exit code 0, assert an output file is written, and

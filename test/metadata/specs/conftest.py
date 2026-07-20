@@ -10,7 +10,6 @@ MINIMAL_YAML = {
     "title": "Test Spec File",
     "description": "A spec file for unit testing",
     "version": "0.1",
-    "kind": "general",
     "scope": ["production"],
     "groups": [
         {
@@ -20,6 +19,7 @@ MINIMAL_YAML = {
                 {
                     "id": "TST-01-001",
                     "priority": "MUST",
+                    "kind": "general",
                     "statement": "TST-01-001 MUST satisfy the test",
                     "rationale": "Required for test coverage",
                     "tags": ["testing"],
@@ -34,7 +34,6 @@ SECOND_YAML = {
     "title": "More Test Specs",
     "description": "Additional spec file for testing",
     "version": "0.2",
-    "kind": "general",
     "scope": ["production"],
     "groups": [
         {
@@ -44,6 +43,7 @@ SECOND_YAML = {
                 {
                     "id": "MOR-01-001",
                     "priority": "SHOULD",
+                    "kind": "general",
                     "statement": "MOR-01-001 SHOULD also work correctly",
                     "rationale": "Multi-file registry testing",
                     "tags": ["testing"],

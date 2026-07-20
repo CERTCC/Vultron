@@ -5,7 +5,6 @@ description: >-
   Allows actors to declare their default embargo preferences so that coordinators can evaluate
   compatibility before proposing an embargo or inviting an actor to a case.
 version: 1.0.0
-kind: domain
 scope:
 - prototype
 - production
@@ -18,11 +17,13 @@ groups:
   specs:
   - id: EP-01-001
     priority: MAY
+    kind: domain
     statement: >-
       An Actor profile MAY include a `embargo_policy` field containing a structured embargo
       policy record
   - id: EP-01-002
     priority: MUST
+    kind: domain
     statement: 'The embargo policy record MUST include the following fields:'
     relationships:
     - rel_type: implements
@@ -36,6 +37,7 @@ groups:
       note: ISO 8601 duration format
   - id: EP-01-003
     priority: SHOULD
+    kind: domain
     statement: 'The embargo policy record SHOULD include the following fields:'
     relationships:
     - rel_type: implements
@@ -47,11 +49,13 @@ groups:
       note: ISO 8601 duration format
   - id: EP-01-004
     priority: MUST
+    kind: domain
     statement: >-
       The embargo policy record MUST be serializable as a Pydantic model and persisted in
       the DataLayer
   - id: EP-01-005
     priority: MUST
+    kind: domain
     statement: The embargo policy record MUST use full-URI IDs for `actor_id`
     relationships:
     - rel_type: depends_on
@@ -61,12 +65,14 @@ groups:
   specs:
   - id: EP-02-001
     priority: SHOULD
+    kind: domain
     statement: >-
       Each Actor SHOULD expose its embargo policy at `GET /actors/{actor_id}/embargo-policy`
     scope:
     - production
   - id: EP-02-002
     priority: MUST
+    kind: domain
     statement: >-
       The policy endpoint MUST be machine-readable (returns JSON) and MUST be listed in the
       Actor's ActivityPub profile under a well-known key (e.g., `vultron:embargoPolicy`)
@@ -77,6 +83,7 @@ groups:
   specs:
   - id: EP-03-001
     priority: SHOULD
+    kind: domain
     statement: >-
       Before proposing an embargo or inviting an actor to join an existing embargo, the CaseActor
       SHOULD retrieve and evaluate the target actor's embargo policy for compatibility with
@@ -92,6 +99,7 @@ groups:
       spec_id: VP-07-007
   - id: EP-03-002
     priority: MUST
+    kind: domain
     statement: >-
       Compatibility evaluation MUST check that the proposed duration falls within the target
       actor's `minimum_duration`–`maximum_duration` range, if declared
@@ -113,6 +121,7 @@ groups:
   specs:
   - id: EP-04-001
     priority: MUST
+    kind: domain
     statement: >-
       When a receiver applies their published default embargo at case creation and the sender
       submitted no explicit embargo proposal, the initial `CaseStatus.em_state` MUST be set
@@ -123,12 +132,14 @@ groups:
       spec_id: DUR-07-003
   - id: EP-04-002
     priority: MUST_NOT
+    kind: domain
     statement: >-
       The implementation MUST apply both the PROPOSE and ACCEPT state machine triggers atomically
       within `InitializeDefaultEmbargoNode`. The intermediate `EM.PROPOSED` state MUST NOT
       be persisted or observable externally.
   - id: EP-04-003
     priority: MUST
+    kind: domain
     statement: >-
       When both the sender and receiver have an applicable embargo proposal at case creation
       (sender proposes a duration and receiver has a default), the shorter of the two MUST
@@ -136,15 +147,16 @@ groups:
       as a pending revision (`em_state = EM.REVISE`).
   - id: EP-04-004
     priority: MUST
+    kind: domain
     statement: >-
       EP-04-003 is contingent on a sender-proposal mechanism being available. Until such a
       mechanism exists, only the no-sender-proposal case (EP-04-001) applies at case creation.
 - id: EP-05
   title: Counter-Revision PEC Cascade Rule
-  kind: domain
   specs:
   - id: EP-05-001
     priority: MUST
+    kind: domain
     statement: >-
       When an embargo transitions from `ACTIVE` to `REVISE` (counter-revision proposed),
       the CaseActor MUST call `_cascade_pec_revise()` to reset each `SIGNATORY`
@@ -158,6 +170,7 @@ groups:
       spec_id: CM-18-001
   - id: EP-05-002
     priority: MUST_NOT
+    kind: domain
     statement: >-
       When the embargo is already in `REVISE` state and a further revision proposal
       arrives (`REVISE → REVISE`), the CaseActor MUST NOT call `_cascade_pec_revise()`
@@ -169,10 +182,10 @@ groups:
       spec_id: EP-05-001
 - id: EP-06
   title: PEC Idempotency
-  kind: domain
   specs:
   - id: EP-06-001
     priority: MUST_NOT
+    kind: domain
     statement: >-
       An idempotent retry or re-processing of a participant add-or-update MUST NOT
       overwrite a non-null PEC state with the default `NO_EMBARGO`. Once a participant

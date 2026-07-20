@@ -8,7 +8,6 @@ description: >-
   with no dedicated dispatch value (protocol-layer error and acknowledgment signals)
   are explicitly documented as such.
 version: 0.1.0
-kind: domain
 scope:
 - prototype
 - production
@@ -22,6 +21,7 @@ groups:
   specs:
   - id: MSM-01-001
     priority: MUST
+    kind: domain
     statement: >-
       Protocol shorthand `RS` (Report Submission) MUST dispatch as
       `MessageSemantics.SUBMIT_REPORT`; its AS2 wire form is
@@ -31,6 +31,7 @@ groups:
       spec_id: VAM-02-002
   - id: MSM-01-002
     priority: MUST
+    kind: domain
     statement: >-
       Protocol shorthand `RI` (Report Invalid) MUST dispatch as
       `MessageSemantics.INVALIDATE_REPORT`; its AS2 wire form is
@@ -40,6 +41,7 @@ groups:
       spec_id: VAM-02-005
   - id: MSM-01-003
     priority: MUST
+    kind: domain
     statement: >-
       Protocol shorthand `RV` (Report Valid) MUST dispatch as
       `MessageSemantics.VALIDATE_REPORT`; its AS2 wire form is
@@ -49,6 +51,7 @@ groups:
       spec_id: VAM-02-004
   - id: MSM-01-004
     priority: MUST
+    kind: domain
     statement: >-
       Protocol shorthand `RD` (Report/Case Deferred) MUST dispatch as
       `MessageSemantics.DEFER_CASE`; its AS2 wire form is
@@ -63,6 +66,7 @@ groups:
       spec_id: VAM-03-004
   - id: MSM-01-005
     priority: MUST
+    kind: domain
     statement: >-
       Protocol shorthand `RA` (Report/Case Accepted) MUST dispatch as
       `MessageSemantics.ENGAGE_CASE`; its AS2 wire form is
@@ -76,6 +80,7 @@ groups:
       spec_id: VAM-03-003
   - id: MSM-01-006
     priority: MUST
+    kind: domain
     statement: >-
       Protocol shorthand `RC` (Report Closed) MUST dispatch as
       `MessageSemantics.CLOSE_REPORT`; its AS2 wire form is
@@ -85,6 +90,7 @@ groups:
       spec_id: VAM-02-006
   - id: MSM-01-007
     priority: MUST
+    kind: domain
     statement: >-
       Protocol shorthand `RE` (Report Management Error) has no dedicated
       `MessageSemantics` dispatch value and no entry in
@@ -99,6 +105,7 @@ groups:
       `find_matching_semantics()` dispatch path.
   - id: MSM-01-008
     priority: MUST
+    kind: domain
     statement: >-
       Protocol shorthand `RK` (Report Management Acknowledgment) MUST dispatch
       as `MessageSemantics.ACK_REPORT`; its AS2 wire form is
@@ -117,6 +124,7 @@ groups:
   specs:
   - id: MSM-02-001
     priority: MUST
+    kind: domain
     statement: >-
       Protocol shorthand `EP` (Embargo Proposed) MUST dispatch as
       `MessageSemantics.INVITE_TO_EMBARGO_ON_CASE`; its AS2 wire form is
@@ -126,6 +134,7 @@ groups:
       spec_id: VAM-05-005
   - id: MSM-02-002
     priority: MUST
+    kind: domain
     statement: >-
       Protocol shorthand `EA` (Embargo Accepted) MUST dispatch as
       `MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE`; its AS2 wire form
@@ -135,6 +144,7 @@ groups:
       spec_id: VAM-05-006
   - id: MSM-02-003
     priority: MUST
+    kind: domain
     statement: >-
       Protocol shorthand `EV` (Embargo Revision Proposed) MUST dispatch as
       `MessageSemantics.INVITE_TO_EMBARGO_ON_CASE`; its AS2 wire form is
@@ -151,6 +161,7 @@ groups:
       spec_id: VAM-05-005
   - id: MSM-02-004
     priority: MUST
+    kind: domain
     statement: >-
       Protocol shorthand `EJ` (Embargo Revision Rejected) MUST dispatch as
       `MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE`; its AS2 wire form
@@ -163,6 +174,7 @@ groups:
       spec_id: VAM-05-007
   - id: MSM-02-005
     priority: MUST
+    kind: domain
     statement: >-
       Protocol shorthand `EC` (Embargo Revision Accepted) MUST dispatch as
       `MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE`; its AS2 wire form
@@ -175,6 +187,7 @@ groups:
       spec_id: VAM-05-006
   - id: MSM-02-006
     priority: MUST
+    kind: domain
     statement: >-
       Protocol shorthand `ER` (Embargo Rejected) MUST dispatch as
       `MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE`; its AS2 wire form
@@ -184,6 +197,7 @@ groups:
       spec_id: VAM-05-007
   - id: MSM-02-007
     priority: MUST
+    kind: domain
     statement: >-
       Protocol shorthand `ET` (Embargo Terminated) MUST dispatch as
       `MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE`; its AS2 wire form is
@@ -193,6 +207,7 @@ groups:
       spec_id: VAM-05-003
   - id: MSM-02-008
     priority: MUST
+    kind: domain
     statement: >-
       Protocol shorthand `EE` (Embargo Management Error) has no dedicated
       `MessageSemantics` dispatch value and no entry in
@@ -204,6 +219,7 @@ groups:
       not modeled as AS2 semantic dispatch entries.
   - id: MSM-02-009
     priority: MUST
+    kind: domain
     statement: >-
       Protocol shorthand `EK` (Embargo Management Acknowledgment) has no
       dedicated `MessageSemantics` dispatch value and no entry in
@@ -224,6 +240,7 @@ groups:
   specs:
   - id: MSM-03-001
     priority: MUST
+    kind: domain
     statement: >-
       Protocol shorthand `CV` (Vendor Aware) MUST dispatch as
       `MessageSemantics.ADD_CASE_STATUS_TO_CASE`; its AS2 wire form is
@@ -234,6 +251,7 @@ groups:
       spec_id: VAM-08-002
   - id: MSM-03-002
     priority: MUST
+    kind: domain
     statement: >-
       Protocol shorthand `CF` (Fix Ready) MUST dispatch as
       `MessageSemantics.ADD_CASE_STATUS_TO_CASE`; its AS2 wire form is
@@ -244,6 +262,7 @@ groups:
       spec_id: VAM-08-002
   - id: MSM-03-003
     priority: MUST
+    kind: domain
     statement: >-
       Protocol shorthand `CD` (Fix Deployed) MUST dispatch as
       `MessageSemantics.ADD_CASE_STATUS_TO_CASE`; its AS2 wire form is
@@ -254,6 +273,7 @@ groups:
       spec_id: VAM-08-002
   - id: MSM-03-004
     priority: MUST
+    kind: domain
     statement: >-
       Protocol shorthand `CP` (Public Aware) MUST dispatch as
       `MessageSemantics.ADD_CASE_STATUS_TO_CASE`; its AS2 wire form is
@@ -264,6 +284,7 @@ groups:
       spec_id: VAM-08-002
   - id: MSM-03-005
     priority: MUST
+    kind: domain
     statement: >-
       Protocol shorthand `CX` (Exploit Published) MUST dispatch as
       `MessageSemantics.ADD_CASE_STATUS_TO_CASE`; its AS2 wire form is
@@ -274,6 +295,7 @@ groups:
       spec_id: VAM-08-002
   - id: MSM-03-006
     priority: MUST
+    kind: domain
     statement: >-
       Protocol shorthand `CA` (Attacks Observed) MUST dispatch as
       `MessageSemantics.ADD_CASE_STATUS_TO_CASE`; its AS2 wire form is
@@ -284,6 +306,7 @@ groups:
       spec_id: VAM-08-002
   - id: MSM-03-007
     priority: MUST
+    kind: domain
     statement: >-
       Protocol shorthand `CE` (Case State Error) has no dedicated
       `MessageSemantics` dispatch value and no entry in
@@ -295,6 +318,7 @@ groups:
       not modeled as AS2 semantic dispatch entries.
   - id: MSM-03-008
     priority: MUST
+    kind: domain
     statement: >-
       Protocol shorthand `CK` (Case State Acknowledgment) has no dedicated
       `MessageSemantics` dispatch value and no entry in

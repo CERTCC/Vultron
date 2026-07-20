@@ -6,7 +6,6 @@ description: >-
   classes, prohibits direct attribute mutation after construction, and mandates test
   coverage for each method.
 version: 1.0.0
-kind: domain
 scope:
   - prototype
   - production
@@ -18,6 +17,7 @@ groups:
     specs:
       - id: PRM-01-001
         priority: MUST
+        kind: domain
         statement: >
           VultronParticipant MUST expose a read-only `roles` property that
           returns `list[CVDRole]`, providing a stable public interface for
@@ -31,6 +31,7 @@ groups:
           - protocol
       - id: PRM-01-002
         priority: MUST
+        kind: domain
         statement: >
           VultronParticipant MUST expose a `has_role(role: CVDRole) -> bool`
           method that returns True when the participant holds the given role,
@@ -42,6 +43,7 @@ groups:
           - protocol
       - id: PRM-01-003
         priority: MUST
+        kind: domain
         statement: >
           Core code in `vultron/core/` MUST use `participant.roles` (the
           property) or `participant.has_role(role)` for role-presence checks
@@ -59,6 +61,7 @@ groups:
     specs:
       - id: PRM-02-001
         priority: MUST
+        kind: domain
         statement: >
           VultronParticipant MUST expose an `add_role(role: CVDRole,
           raise_when_present: bool = False) -> None` method that adds a role to
@@ -70,6 +73,7 @@ groups:
           - protocol
       - id: PRM-02-002
         priority: MUST
+        kind: domain
         statement: >
           `add_role()` MUST be idempotent: calling it with a role that the
           participant already holds MUST NOT raise an error unless
@@ -82,6 +86,7 @@ groups:
           - protocol
       - id: PRM-02-003
         priority: MUST
+        kind: domain
         statement: >
           `add_role()` MUST raise `KeyError` when `raise_when_present=True` and
           the given role is already present in the participant's role set.
@@ -92,6 +97,7 @@ groups:
           - protocol
       - id: PRM-02-004
         priority: MUST
+        kind: domain
         statement: >
           VultronParticipant MUST expose a `remove_role(role: CVDRole,
           raise_when_missing: bool = False) -> None` method that removes a role
@@ -103,6 +109,7 @@ groups:
           - protocol
       - id: PRM-02-005
         priority: MUST
+        kind: domain
         statement: >
           `remove_role()` MUST be idempotent: calling it with a role that the
           participant does not hold MUST NOT raise an error unless
@@ -115,6 +122,7 @@ groups:
           - protocol
       - id: PRM-02-006
         priority: MUST
+        kind: domain
         statement: >
           `remove_role()` MUST raise `KeyError` when `raise_when_missing=True`
           and the given role is not present in the participant's role set.
@@ -129,6 +137,7 @@ groups:
     specs:
       - id: PRM-03-001
         priority: MUST
+        kind: domain
         statement: >
           Core code in `vultron/core/` MUST NOT mutate `case_roles` directly on
           a VultronParticipant instance after construction (e.g.
@@ -144,6 +153,7 @@ groups:
           - tooling
       - id: PRM-03-002
         priority: MUST
+        kind: domain
         statement: >
           Passing `case_roles=[...]` as a constructor argument when creating a
           VultronParticipant instance is permitted and does not violate
@@ -161,6 +171,7 @@ groups:
     specs:
       - id: PRM-04-001
         priority: MUST
+        kind: domain
         statement: >
           The wire-layer class `CaseParticipant`
           (`vultron/wire/as2/vocab/objects/case_participant.py`) MUST expose
@@ -175,6 +186,7 @@ groups:
           - wire-format
       - id: PRM-04-002
         priority: SHOULD
+        kind: domain
         statement: >
           Wire-layer `model_validator` methods in `CaseParticipant` subclasses
           (e.g. `FinderParticipant`, `VendorParticipant`) that initialise
@@ -192,6 +204,7 @@ groups:
     specs:
       - id: PRM-05-001
         priority: MUST
+        kind: domain
         statement: >
           Unit tests for `VultronParticipant.add_role()` MUST cover: (a) adding
           a new role, (b) idempotent re-add (no exception, INFO log), and (c)
@@ -202,6 +215,7 @@ groups:
           - testing
       - id: PRM-05-002
         priority: MUST
+        kind: domain
         statement: >
           Unit tests for `VultronParticipant.remove_role()` MUST cover: (a)
           removing a present role, (b) idempotent remove-when-missing (no
@@ -213,6 +227,7 @@ groups:
           - testing
       - id: PRM-05-003
         priority: MUST
+        kind: domain
         statement: >
           Unit tests for `VultronParticipant.has_role()` MUST cover both the
           case where the role is present (returns True) and the case where it is
@@ -223,6 +238,7 @@ groups:
           - testing
       - id: PRM-05-004
         priority: SHOULD
+        kind: domain
         statement: >
           An architecture test SHOULD enforce that no Python source file under
           `vultron/core/` (outside `vultron/core/models/participant.py`) contains

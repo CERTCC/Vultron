@@ -5,7 +5,6 @@ description: >-
   behaviors package. Covers node context injection, blackboard hygiene, module ownership,
   and the fractal composability pattern that applies at every depth of the tree hierarchy.
 version: 1.0.0
-kind: pattern
 scope:
 
 - prototype
@@ -18,6 +17,7 @@ groups:
   specs:
   - id: BTND-01-001
     priority: MUST_NOT
+    kind: pattern
     statement: >-
       BT nodes MUST NOT hard-code actor identities, CVD roles, case IDs, or any context that
       varies by usage site; these values MUST be constructor parameters.
@@ -29,12 +29,14 @@ groups:
       spec_id: BT-06-004
   - id: BTND-01-002
     priority: MUST_NOT
+    kind: pattern
     statement: >-
       BT nodes MUST NOT read actor identity, case ID, or CVD role from environment variables,
       module-level globals, or any implicit ambient context. All variable inputs MUST arrive
       via constructor parameters or the documented blackboard interface.
   - id: BTND-01-003
     priority: MUST
+    kind: pattern
     statement: >-
       When a BT node name is derived from a parameterized value (e.g., role or actor ID),
       the name MUST be constructed from that parameter at instantiation time, not hard-coded
@@ -47,6 +49,7 @@ groups:
   specs:
   - id: BTND-02-001
     priority: MUST
+    kind: pattern
     statement: >-
       Logic that appears in two or more BT nodes or subtrees MUST be extracted into a shared,
       parameterized node or factory function in a neutral shared module (see `BTND-04-001`).
@@ -55,6 +58,7 @@ groups:
       spec_id: BT-06-004
   - id: BTND-02-002
     priority: SHOULD
+    kind: pattern
     statement: >-
       Each BT subtree SHOULD be independently triggerable as a use-case entry point AND composable
       as a child of a larger subtree.
@@ -66,6 +70,7 @@ groups:
       spec_id: BT-06-002
   - id: BTND-02-003
     priority: SHOULD
+    kind: pattern
     statement: >-
       New BT subtrees SHOULD be verified against `notes/vultron-bt.txt` (the canonical simulation
       BT structure) to confirm structural correspondence before committing.
@@ -74,6 +79,7 @@ groups:
       spec_id: BT-06-002
   - id: BTND-02-004
     priority: SHOULD
+    kind: pattern
     statement: >-
       A shared BT node or subtree that models a generic operation (e.g., "create a case participant
       with any role") SHOULD replace all role-specific one-off variants (e.g., `CreateFinderParticipantNode`,
@@ -83,10 +89,10 @@ groups:
       sites.
 - id: BTND-03
   title: Blackboard Interface Contracts
-  kind: language
   specs:
   - id: BTND-03-001
     priority: MUST
+    kind: language
     statement: >-
       Each BT node that reads from or writes to the py_trees blackboard MUST declare all blackboard
       keys it uses in its `setup()` method via `register_key()`.
@@ -98,6 +104,7 @@ groups:
       spec_id: BT-03-003
   - id: BTND-03-002
     priority: MUST_NOT
+    kind: language
     statement: >-
       A BT node MUST NOT read a blackboard key that was not registered with at least `READ`
       access in `setup()`.
@@ -106,11 +113,13 @@ groups:
       spec_id: BT-03-003
   - id: BTND-03-003
     priority: SHOULD
+    kind: language
     statement: >-
       A BT node's docstring SHOULD document all blackboard keys it reads and writes, including
       the expected type and the node that produces the value for each READ key.
   - id: BTND-03-004
     priority: MUST
+    kind: language
     statement: >-
       A BT node that writes an inter-node handoff key (a blackboard key written by one node
       and consumed by a downstream sibling within the same tree) MUST namespace the key by
@@ -132,6 +141,7 @@ groups:
       spec_id: BTND-03-001
   - id: BTND-03-005
     priority: MUST
+    kind: language
     statement: >-
       Blackboard keys MUST NOT contain forward-slash characters. Keys MUST follow the
       `{noun}_{id_segment}` naming convention where the noun names the value and `id_segment`
@@ -148,6 +158,7 @@ groups:
       spec_id: BTND-03-004
   - id: BTND-03-006
     priority: MUST
+    kind: language
     statement: >-
       A decomposed BT leaf node that encounters a domain-layer error MUST write the error
       to the `result_out["error"]` blackboard key before returning `FAILURE`, and MUST
@@ -163,6 +174,7 @@ groups:
       spec_id: BTND-03-001
   - id: BTND-03-007
     priority: MUST
+    kind: language
     statement: >-
       A decomposed BT leaf node MUST convert `KeyError` (missing blackboard key) to a
       `FAILURE` status and MUST NOT allow the `KeyError` to propagate uncaught to the
@@ -178,10 +190,10 @@ groups:
       spec_id: BTND-03-001
 - id: BTND-04
   title: Module Ownership
-  kind: implementation
   specs:
   - id: BTND-04-001
     priority: MUST_NOT
+    kind: implementation
     statement: >-
       BT nodes or subtrees that are used by more than one domain module (e.g., by both `case/`
       and `report/`) MUST be defined in the shared `vultron/core/behaviors/helpers.py` module
@@ -195,12 +207,14 @@ groups:
       spec_id: ARCH-04-001
   - id: BTND-04-002
     priority: MUST_NOT
+    kind: implementation
     statement: >-
       BT nodes MUST NOT import from `vultron/demo/` or any other demo-layer module. Demo-specific
       context (step descriptions, demo loggers, demo flags) belongs in demo scripts, not in
       BT nodes.
   - id: BTND-04-003
     priority: MUST_NOT
+    kind: implementation
     statement: >-
       `behaviors/` modules MUST NOT import from `use_cases/` modules. The import direction
       is one-way: use-cases drive BT trees; BT nodes MUST NOT import use-case classes or
@@ -217,10 +231,10 @@ groups:
       spec_id: ARCH-04-001
 - id: BTND-05
   title: Actor Configuration for Participant Nodes
-  kind: domain
   specs:
   - id: BTND-05-001
     priority: MUST
+    kind: domain
     statement: >-
       The `CVDRoles` enum MUST include a `CASE_OWNER` flag value representing the actor who
       owns and manages a `VulnerabilityCase`.
@@ -231,6 +245,7 @@ groups:
       this explicitly avoids hardcoding the assumption that the case creator is always a vendor.
   - id: BTND-05-002
     priority: MUST
+    kind: domain
     statement: >-
       `CreateInitialVendorParticipant` MUST be replaced by a `CreateCaseOwnerParticipant`
       node that:
@@ -243,6 +258,7 @@ groups:
       spec_id: BTND-01-001
   - id: BTND-05-003
     priority: MUST
+    kind: domain
     statement: >-
       The `CreateFinderParticipantNode` backward-compatibility alias (currently `CreateFinderParticipantNode
       = CreateCaseParticipantNode`) MUST be removed. All call sites MUST use `CreateCaseParticipantNode`
@@ -252,6 +268,7 @@ groups:
       actual generality.
   - id: BTND-05-004
     priority: MUST
+    kind: domain
     statement: >-
       The `CVDRole` enum MUST include a `CVE_NUMBERING_AUTHORITY` value representing a
       participant that holds CVE Numbering Authority (CNA) status.
@@ -269,10 +286,10 @@ groups:
       spec_id: BTND-05-001
 - id: BTND-06
   title: Idiomatic BT Construction Patterns
-  kind: language
   specs:
   - id: BTND-06-001
     priority: SHOULD
+    kind: language
     statement: >-
       (**SHOULD**) Stateful BT nodes SHOULD use the **implicit sequence** pattern: a Fallback
       whose first child checks whether the goal is already achieved (the postcondition), and
@@ -285,6 +302,7 @@ groups:
       spec_id: BT-06-003
   - id: BTND-06-002
     priority: SHOULD
+    kind: language
     statement: >-
       (**SHOULD**) When a Sequence contains multiple actions, each action that may already
       be complete SHOULD be paired with its success condition via a Fallback, making the **explicit
@@ -297,6 +315,7 @@ groups:
       spec_id: BT-06-004
   - id: BTND-06-003
     priority: SHOULD
+    kind: language
     statement: >-
       (**SHOULD**) Every BT node that performs a protocol state transition (RM/EM/CS state
       machine update, emitting an AS2 activity, or creating/updating a domain object) SHOULD
@@ -311,6 +330,7 @@ groups:
       spec_id: BT-06-004
   - id: BTND-06-004
     priority: MAY
+    kind: language
     statement: >-
       (**MAY**) Multi-step workflows where each step has its own preconditions that may need
       to be achieved MAY be constructed using **back-chaining**: start with the goal condition,
@@ -324,6 +344,7 @@ groups:
       spec_id: BT-06-002
   - id: BTND-06-005
     priority: MUST
+    kind: language
     statement: >-
       (**SHOULD**) Before any irreversible or protocol-significant action, a **safety guard
       condition** MUST be the first child of the enclosing Sequence, so that the action is
@@ -336,6 +357,7 @@ groups:
       spec_id: BT-06-003
   - id: BTND-06-006
     priority: MAY
+    kind: language
     statement: >-
       (**MAY**) Memory composites (`memory=True` in py_trees) MAY be used **only** in contexts
       that are fully deterministic and non-reactive: no external actor can undo a child's
@@ -345,6 +367,7 @@ groups:
       spec_id: BT-06-003
   - id: BTND-06-007
     priority: SHOULD
+    kind: language
     statement: >-
       (**SHOULD**) Use the following **granularity guidelines** when deciding whether a behavior
       should be a leaf node or a subtree:
@@ -353,6 +376,7 @@ groups:
       spec_id: BT-06-004
   - id: BTND-06-008
     priority: MUST
+    kind: language
     statement: >-
       Code that writes to a `memory=False` py_trees Sequence MUST be written assuming that
       any child's writes to the blackboard are immediately visible to subsequent children
@@ -369,10 +393,10 @@ groups:
       spec_id: BTND-06-001
 - id: BTND-07
   title: BT Node Module Organization
-  kind: pattern
   specs:
   - id: BTND-07-001
     priority: MUST
+    kind: pattern
     statement: >-
       BT node classes for a given protocol step MUST be organized into a `nodes/`
       subpackage rather than a single flat `nodes.py` module. This applies to all
@@ -402,6 +426,7 @@ groups:
       exempt.
   - id: BTND-07-002
     priority: SHOULD
+    kind: pattern
     statement: >-
       (**SHOULD**) The test suite for a `nodes/` subpackage SHOULD mirror the subpackage
       structure: a `test/…/nodes/` directory with one `test_<submodule>.py` per submodule,
@@ -418,6 +443,7 @@ groups:
       exists with per-submodule test files.
   - id: BTND-07-003
     priority: MUST
+    kind: pattern
     statement: >-
       Each BT-bearing process area directory under `vultron/core/behaviors/` MUST
       maintain a clear structural split between tree factory modules and leaf node
@@ -445,6 +471,7 @@ groups:
       factory functions.
   - id: BTND-07-004
     priority: MUST
+    kind: pattern
     statement: >-
       BT leaf node modules under `vultron/core/behaviors/**/nodes/` MUST stay under
       500 lines each. A leaf module that exceeds 500 lines MUST be further decomposed
@@ -460,6 +487,7 @@ groups:
       module exceeds 500 lines.
   - id: BTND-07-005
     priority: MUST
+    kind: pattern
     statement: >-
       Before implementing guard, validation, or factory-call boilerplate in a new BT
       leaf node's `update()` method, the implementer MUST search `vultron/core/behaviors/`
@@ -489,10 +517,10 @@ groups:
       already present in an existing base class.
 - id: BTND-08
   title: Positive-Precondition Condition Node Naming
-  kind: pattern
   specs:
   - id: BTND-08-001
     priority: SHOULD
+    kind: pattern
     statement: >-
       Condition nodes used as type-dispatch guards in a
       `Selector(Sequence(Condition, Action), AlwaysSuccess)` composite MUST use
@@ -516,6 +544,7 @@ groups:
       as the first child of a `Selector` composite; flag any found.
   - id: BTND-08-002
     priority: SHOULD
+    kind: pattern
     statement: >-
       The `AlwaysSuccess` fallback in a `Selector(Sequence(IsFoo, ApplyFoo),
       AlwaysSuccess)` composite MUST be given a descriptive `name` of the form
@@ -535,10 +564,10 @@ groups:
       confirm the `AlwaysSuccess` node's `name` ends with `"Skipped"`.
 - id: BTND-09
   title: BT Error Handling Contract
-  kind: language
   specs:
   - id: BTND-09-001
     priority: MUST
+    kind: language
     statement: >-
       BT helper functions MUST raise exceptions on error — they MUST NOT catch exceptions
       and return a sentinel value. The `update()` method of the owning leaf node is the

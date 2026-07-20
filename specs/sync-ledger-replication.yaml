@@ -5,7 +5,6 @@ description: >-
   conflict handling, per-peer state tracking, and retry semantics for distributed case
   state synchronization across Participant Actors.
 version: 1.0.0
-kind: domain
 scope:
 - prototype
 - production
@@ -18,37 +17,46 @@ groups:
   specs:
   - id: SYNC-01-001
     priority: MUST
+    kind: domain
     statement: The canonical recorded case ledger MUST be append-only; log entries MUST be immutable once appended
   - id: SYNC-01-002
     priority: MUST
+    kind: domain
     statement: Each log entry MUST carry a monotonically increasing index scoped to its case
   - id: SYNC-01-003
     priority: MUST
+    kind: domain
     statement: Each log entry MUST include a cryptographic hash of its own content and MUST reference the hash of its immediate
       predecessor, forming a forward-linked hash chain (Merkle chain style)
   - id: SYNC-01-004
     priority: MUST
+    kind: domain
     statement: Canonical recorded log entries MUST be written through the CaseActor's single authoritative write path
   - id: SYNC-01-005
     priority: MUST
+    kind: domain
     statement: The hash-chain log entry format MUST be designed to be forward-compatible with a future Merkle Tree implementation
 - id: SYNC-02
   title: Replication Transport
   specs:
   - id: SYNC-02-001
     priority: MUST
+    kind: domain
     statement: Log replication between CaseActor and Participant Actors MUST use ActivityStreams `Announce` activities as
       the transport envelope for canonical recorded log content
   - id: SYNC-02-002
     priority: MUST
+    kind: domain
     statement: Each replication message MUST identify the sender, target recipient, the log entry hash, and the predecessor
       hash
   - id: SYNC-02-003
     priority: MUST
+    kind: domain
     statement: Replication MUST originate from the replication leader (initially the CaseActor) and be sent to each Participant
       Actor individually
   - id: SYNC-02-004
     priority: MUST_NOT
+    kind: domain
     statement: Each `Announce(CaseLedgerEntry)` activity MUST embed the full inline `CaseLedgerEntry` object in its `object` field;
       a URI-only reference MUST NOT be used, because the recipient needs all entry fields (including `prev_log_hash` and `entry_hash`)
       to validate the hash chain without an additional round-trip to the sender's DataLayer
@@ -57,14 +65,17 @@ groups:
   specs:
   - id: SYNC-03-001
     priority: MUST
+    kind: domain
     statement: A receiver MUST reject a replication message whose predecessor hash does not match the receiver's current log
       tail hash
   - id: SYNC-03-002
     priority: MUST
+    kind: domain
     statement: On receiving a rejection, the sender MUST retry replication starting from the entry following the last accepted
       hash reported by the receiver
   - id: SYNC-03-003
     priority: MUST_NOT
+    kind: domain
     statement: 'Replication MUST be idempotent: repeated delivery of the same log entry MUST NOT produce duplicate entries
       in the receiver''s log'
     relationships:
@@ -73,6 +84,7 @@ groups:
       note: idempotency.md
   - id: SYNC-03-004
     priority: SHOULD
+    kind: domain
     statement: When a Participant Actor sends any message to the CaseActor, it SHOULD include the hash of its last accepted
       canonical recorded log entry as a parameter in the activity's context field
 - id: SYNC-04
@@ -80,38 +92,47 @@ groups:
   specs:
   - id: SYNC-04-001
     priority: MUST
+    kind: domain
     statement: The replication leader MUST track per-peer state including at minimum the last acknowledged log entry hash
       for each peer
   - id: SYNC-04-002
     priority: MUST
+    kind: domain
     statement: Per-peer replication state MUST be persisted via the DataLayer so that it survives a leader restart
 - id: SYNC-05
   title: Retry and Backoff
   specs:
   - id: SYNC-05-001
     priority: SHOULD
+    kind: domain
     statement: The replication sender SHOULD implement retry with exponential backoff on delivery failure
   - id: SYNC-05-002
     priority: SHOULD
+    kind: domain
     statement: Retry and backoff parameters SHOULD be configurable
   - id: SYNC-05-003
     priority: MUST
+    kind: domain
     statement: Default values for retry and backoff parameters MUST be documented
 - id: SYNC-06
   title: Leadership and Ownership
   specs:
   - id: SYNC-06-001
     priority: SHOULD
+    kind: domain
     statement: Replication leadership SHOULD be treated as distinct from case ownership
   - id: SYNC-06-002
     priority: SHOULD
+    kind: domain
     statement: The conditions under which replication leadership changes SHOULD be documented in `notes/sync-ledger-replication.md`
   - id: SYNC-06-003
     priority: MUST
+    kind: domain
     statement: The SYNC-1 through SYNC-4 phases implement a **single-node CaseActor configuration** — a degenerate Raft cluster
       of one. A single-node CaseActor is always the leader and always has write authority; no election is needed.
   - id: SYNC-06-004
     priority: SHOULD
+    kind: domain
     statement: >-
       A future multi-node CaseActor cluster (Phase 3) provides high-availability write authority
       via Raft consensus. This is a distinct replication tier from participant replication:
@@ -124,14 +145,17 @@ groups:
   specs:
   - id: SYNC-09-001
     priority: MUST
+    kind: domain
     statement: A log entry is **committed** when it has been durably appended to the authoritative log and is safe to apply
       to the case state machine
   - id: SYNC-09-002
     priority: MUST
+    kind: domain
     statement: External Vultron messages (activities sent to Participant Actors or other protocol participants) MUST only
       be emitted after the associated `CaseLedgerEntry` is committed
   - id: SYNC-09-003
     priority: MUST
+    kind: domain
     statement: The CaseActor's behavior tree execution MUST be gated on holding leadership role; in single-node this is always
       satisfied; in multi-node this MUST be checked against the Raft leader state
 - id: SYNC-07
@@ -139,14 +163,17 @@ groups:
   specs:
   - id: SYNC-07-001
     priority: MUST
+    kind: domain
     statement: 'Unit tests MUST cover append-only semantics: entries are immutable, hashes are unique, and predecessor hash
       references are set correctly'
   - id: SYNC-07-002
     priority: MUST
+    kind: domain
     statement: 'Integration tests MUST cover the full single-peer replication cycle: leader appends an entry, sends an `Announce`
       activity, and the receiver validates the predecessor hash and appends the entry'
   - id: SYNC-07-003
     priority: MUST
+    kind: domain
     statement: 'Tests MUST cover conflict and idempotency scenarios: mismatched predecessor hash, duplicate delivery, and
       leader retry after rejection'
 - id: SYNC-08
@@ -154,21 +181,26 @@ groups:
   specs:
   - id: SYNC-08-001
     priority: MUST
+    kind: domain
     statement: 'Append-only integrity: log entries MUST be immutable once committed and MUST be uniquely identified by their
       content hash'
   - id: SYNC-08-002
     priority: MUST
+    kind: domain
     statement: 'Deterministic projection: given an identical canonical recorded log prefix, all compliant implementations
       MUST derive identical state'
   - id: SYNC-08-003
     priority: MUST_NOT
+    kind: domain
     statement: 'Idempotent replay: reprocessing any canonical recorded log prefix (including duplicates) MUST NOT change the
       resulting state'
   - id: SYNC-08-004
     priority: MUST_NOT
+    kind: domain
     statement: 'Monotonic visibility: participants MUST NOT regress their acknowledged log position'
   - id: SYNC-08-005
     priority: MUST
+    kind: domain
     statement: 'Reject-on-divergence: entries that do not extend the current hash chain MUST be rejected and MUST trigger
       resynchronization'
 - id: SYNC-10
@@ -176,29 +208,34 @@ groups:
   specs:
   - id: SYNC-10-001
     priority: MUST
+    kind: domain
     statement: >-
       After actor process restart or recovery, an actor with case state in scope MUST re-establish
       case-ledger freshness with the CaseActor before taking new protocol-significant case actions
   - id: SYNC-10-002
     priority: MUST
+    kind: domain
     statement: >-
       While catch-up freshness is not established, the actor MUST block or defer new
       protocol-significant case actions and surface an explicit stale-or-catching-up
       condition
   - id: SYNC-10-003
     priority: SHOULD
+    kind: domain
     statement: >-
       Catch-up freshness checks SHOULD use the actor's last acknowledged canonical hash and
       replay mechanisms so that action gating is based on canonical log position, not local
       wall-clock assumptions
   - id: SYNC-10-004
     priority: MUST
+    kind: domain
     statement: >-
       The catch-up gate MUST require a contiguous canonical log prefix from genesis through
       the actor's currently acknowledged tip; any gap in that prefix MUST block
       protocol-significant case actions
   - id: SYNC-10-005
     priority: MUST_NOT
+    kind: domain
     statement: >-
       The catch-up gate MUST NOT require the actor's acknowledged tip to equal the CaseActor's
       current ledger tip; lagging behind the leader tip is allowed if the actor's own
@@ -208,6 +245,7 @@ groups:
   specs:
   - id: SYNC-11-001
     priority: SHOULD
+    kind: domain
     statement: >-
       A participant actor SHOULD maintain an actor-local, in-memory pending-assertion store
       that records outbound assertion activities (e.g., Add(Note,Case)) emitted toward the
@@ -215,6 +253,7 @@ groups:
       the suppression window is configurable and zero disables suppression
   - id: SYNC-11-002
     priority: SHOULD
+    kind: domain
     statement: >-
       After a participant successfully enqueues an assertion activity toward the CaseActor,
       the participant SHOULD record the (case_id, event_type, activity_id) triple in its
@@ -222,6 +261,7 @@ groups:
       suppressed while the round-trip is pending
   - id: SYNC-11-003
     priority: SHOULD
+    kind: domain
     statement: >-
       When a participant receives a matching Announce(CaseLedgerEntry) whose log_object_id
       equals a pending assertion's object_id, the participant's pending-assertion store
@@ -229,12 +269,14 @@ groups:
       longer suppressed
   - id: SYNC-11-004
     priority: MUST_NOT
+    kind: domain
     statement: >-
       The CaseActor MUST NOT use the pending-assertion store for its own ledger commits;
       the CaseActor's DataLayer idempotency check already guards against duplicate commits
       by the single authoritative writer
   - id: SYNC-11-005
     priority: SHOULD
+    kind: domain
     statement: >-
       A pending assertion that exceeds its configured timeout window SHOULD be marked
       timed-out and SHOULD no longer suppress future re-emits, allowing operator retry or
@@ -244,18 +286,21 @@ groups:
   specs:
   - id: SYNC-12-001
     priority: MUST
+    kind: domain
     statement: >-
       A participant MUST apply all domain effects derived from a CaseLedgerEntry (embargo
       teardown, participant-status update, note attachment, invite-accept) BEFORE persisting
       the entry to its local ledger; if any effect fails, the entry MUST NOT be persisted
   - id: SYNC-12-002
     priority: MUST
+    kind: domain
     statement: >-
       The presence of a CaseLedgerEntry in a participant's local ledger MUST imply that all
       domain effects for that entry were successfully applied; a persisted entry with
       unapplied effects is a protocol violation
   - id: SYNC-12-003
     priority: MUST
+    kind: domain
     statement: >-
       When a participant receives a CaseLedgerEntry that is already present in its local
       ledger, the participant MUST skip both effects and persist (treat as already-done);
@@ -274,6 +319,7 @@ groups:
   specs:
   - id: SYNC-13-001
     priority: MUST
+    kind: domain
     statement: >-
       A CaseLedgerEntry record is written to an actor's DataLayer ONLY by that actor's core
       ledger write path — the CaseActor's authoritative append (SYNC-01-004) for its own
@@ -286,6 +332,7 @@ groups:
       note: SYNC-12-002 relies on this write-ownership guarantee to hold
   - id: SYNC-13-002
     priority: MUST_NOT
+    kind: domain
     statement: >-
       Adapter, wire, transport, and message-parsing code MUST NOT create, save, or otherwise
       persist a CaseLedgerEntry to the DataLayer. Only a CaseActor may author CaseLedgerEntry
@@ -294,6 +341,7 @@ groups:
       does not write the ledger.
   - id: SYNC-13-003
     priority: MUST_NOT
+    kind: domain
     statement: >-
       Message ingress MUST NOT use the canonical ledger/DataLayer store as a scratch or
       lookup cache for routing, semantic classification, or rehydration of an inbound
@@ -302,6 +350,7 @@ groups:
       so that semantic routing and effect application do not depend on pre-storing the entry.
   - id: SYNC-13-004
     priority: MUST
+    kind: domain
     statement: >-
       Semantic routing of an inbound Announce(CaseLedgerEntry) MUST resolve to the
       log-entry semantic (ANNOUNCE_CASE_LEDGER_ENTRY) on first delivery using the typed

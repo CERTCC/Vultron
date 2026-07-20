@@ -21,7 +21,6 @@ GENERAL_YAML = {
     "title": "General Test Specs",
     "description": "A general kind spec for testing docs_render",
     "version": "0.1",
-    "kind": "general",
     "scope": ["production"],
     "groups": [
         {
@@ -32,12 +31,14 @@ GENERAL_YAML = {
                 {
                     "id": "GEN-01-001",
                     "priority": "MUST",
+                    "kind": "general",
                     "statement": "GEN-01-001 MUST render correctly",
                     "rationale": "Required for docs coverage",
                 },
                 {
                     "id": "GEN-01-002",
                     "priority": "SHOULD",
+                    "kind": "general",
                     "statement": "GEN-01-002 SHOULD appear with a badge",
                     "relationships": [
                         {
@@ -49,16 +50,19 @@ GENERAL_YAML = {
                 {
                     "id": "GEN-01-003",
                     "priority": "MAY",
+                    "kind": "general",
                     "statement": "GEN-01-003 MAY be optional",
                 },
                 {
                     "id": "GEN-01-004",
                     "priority": "MUST_NOT",
+                    "kind": "general",
                     "statement": "GEN-01-004 MUST NOT do the bad thing",
                 },
                 {
                     "id": "GEN-01-005",
                     "priority": "SHOULD_NOT",
+                    "kind": "general",
                     "statement": "GEN-01-005 SHOULD NOT be used",
                 },
             ],
@@ -71,7 +75,6 @@ DOMAIN_YAML = {
     "title": "Domain Test Specs",
     "description": "A domain kind spec with relationships",
     "version": "0.1",
-    "kind": "domain",
     "scope": ["production"],
     "groups": [
         {
@@ -81,6 +84,7 @@ DOMAIN_YAML = {
                 {
                     "id": "DOM-01-001",
                     "priority": "MUST",
+                    "kind": "domain",
                     "statement": "DOM-01-001 MUST cross-reference GEN-01-001",
                     "relationships": [
                         {
@@ -100,7 +104,6 @@ BEHAVIORAL_YAML = {
     "title": "Behavioral Test Specs",
     "description": "A domain spec with BehavioralSpec items",
     "version": "0.1",
-    "kind": "domain",
     "tags": ["behavioral"],
     "scope": ["production"],
     "groups": [
@@ -112,6 +115,7 @@ BEHAVIORAL_YAML = {
                 {
                     "id": "BHV-01-001",
                     "priority": "MUST",
+                    "kind": "domain",
                     "statement": "BHV-01-001 MUST fire on EP",
                     "preconditions": [
                         {
@@ -360,6 +364,7 @@ def test_behavioral_spec_empty_scope_raises():
         BehavioralSpec(
             id="BHV-01-001",
             priority=RFC2119Priority.MUST,
+            kind=SpecKind.GENERAL,
             statement="test",
             scope=[],
         )
@@ -377,6 +382,7 @@ def test_behavioral_spec_empty_preconditions_raises():
         BehavioralSpec(
             id="BHV-01-001",
             priority=RFC2119Priority.MUST,
+            kind=SpecKind.GENERAL,
             statement="test",
             scope=[Scope.PRODUCTION],
             preconditions=[],
@@ -407,7 +413,6 @@ PIPE_YAML = {
     "title": "Pipe Test Specs",
     "description": "Spec with a pipe char in the statement",
     "version": "0.1",
-    "kind": "general",
     "scope": ["production"],
     "groups": [
         {
@@ -417,6 +422,7 @@ PIPE_YAML = {
                 {
                     "id": "PIP-01-001",
                     "priority": "MUST",
+                    "kind": "general",
                     "statement": "Do A | B",
                 }
             ],
@@ -446,7 +452,6 @@ MULTI_REL_YAML = {
     "title": "Multi-Rel Specs",
     "description": "Spec with two relationships",
     "version": "0.1",
-    "kind": "general",
     "scope": ["production"],
     "groups": [
         {
@@ -456,11 +461,13 @@ MULTI_REL_YAML = {
                 {
                     "id": "MRL-01-001",
                     "priority": "MUST",
+                    "kind": "general",
                     "statement": "MRL base requirement",
                 },
                 {
                     "id": "MRL-01-002",
                     "priority": "SHOULD",
+                    "kind": "general",
                     "statement": "MRL multi-rel spec",
                     "relationships": [
                         {"rel_type": "satisfies", "spec_id": "MRL-01-001"},
@@ -545,9 +552,8 @@ def test_render_for_kind_real_registry_produces_output(kind: SpecKind):
 MIXED_KIND_FILE_YAML = {
     "id": "MIX",
     "title": "Mixed Kind Specs",
-    "description": "File-level kind=general with one group override",
+    "description": "File with general and implementation items",
     "version": "0.1",
-    "kind": "general",
     "scope": ["production"],
     "groups": [
         {
@@ -557,6 +563,7 @@ MIXED_KIND_FILE_YAML = {
                 {
                     "id": "MIX-01-001",
                     "priority": "MUST",
+                    "kind": "general",
                     "statement": "MIX-01-001 is general",
                 },
             ],
@@ -564,11 +571,11 @@ MIXED_KIND_FILE_YAML = {
         {
             "id": "MIX-02",
             "title": "Implementation Group",
-            "kind": "implementation",
             "specs": [
                 {
                     "id": "MIX-02-001",
                     "priority": "MUST",
+                    "kind": "implementation",
                     "statement": "MIX-02-001 is implementation-specific",
                 },
             ],
@@ -580,9 +587,8 @@ MIXED_KIND_FILE_YAML = {
 MIXED_KIND_GROUP_YAML = {
     "id": "MGR",
     "title": "Mixed Group Items",
-    "description": "File general with a group containing items of mixed kinds",
+    "description": "File with a group containing items of mixed kinds",
     "version": "0.1",
-    "kind": "general",
     "scope": ["production"],
     "groups": [
         {
@@ -592,13 +598,14 @@ MIXED_KIND_GROUP_YAML = {
                 {
                     "id": "MGR-01-001",
                     "priority": "MUST",
-                    "statement": "MGR-01-001 is general (inherits file)",
+                    "kind": "general",
+                    "statement": "MGR-01-001 is general",
                 },
                 {
                     "id": "MGR-01-002",
                     "priority": "SHOULD",
-                    "statement": "MGR-01-002 is implementation",
                     "kind": "implementation",
+                    "statement": "MGR-01-002 is implementation",
                 },
             ],
         },
@@ -612,7 +619,6 @@ IMPL_ANCHOR_YAML = {
     "title": "Implementation Anchor",
     "description": "Provides implementation-kind items for the test registry",
     "version": "0.1",
-    "kind": "implementation",
     "scope": ["production"],
     "groups": [
         {
@@ -622,6 +628,7 @@ IMPL_ANCHOR_YAML = {
                 {
                     "id": "IMP-01-001",
                     "priority": "MUST",
+                    "kind": "implementation",
                     "statement": "IMP-01-001 is implementation",
                 },
             ],

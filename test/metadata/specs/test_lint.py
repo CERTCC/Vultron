@@ -22,6 +22,7 @@ def _minimal_spec(spec_id="TST-01-001", priority="MUST", extra=None):
     spec = {
         "id": spec_id,
         "priority": priority,
+        "kind": "general",
         "statement": f"{spec_id} MUST do the thing",
         "rationale": "Because testing",
         "tags": ["testing"],
@@ -33,7 +34,6 @@ def _minimal_spec(spec_id="TST-01-001", priority="MUST", extra=None):
         "title": "Test File",
         "description": "Test spec file",
         "version": "0.1",
-        "kind": "general",
         "scope": ["production"],
         "groups": [
             {
@@ -100,7 +100,6 @@ def test_lint_prefix_mismatch(tmp_path, capsys):
         "title": "Test File",
         "description": "Prefix mismatch test",
         "version": "0.1",
-        "kind": "general",
         "scope": ["production"],
         "groups": [
             {
@@ -110,6 +109,7 @@ def test_lint_prefix_mismatch(tmp_path, capsys):
                     {
                         "id": "OTHER-01-001",
                         "priority": "MUST",
+                        "kind": "general",
                         "statement": "OTHER-01-001 MUST be consistent",
                         "rationale": "Consistency",
                         "tags": ["testing"],
@@ -217,7 +217,6 @@ def test_lint_spec_id_prefix_mismatch(tmp_path, capsys):
         "title": "Test File",
         "description": "Spec ID prefix mismatch test",
         "version": "0.1",
-        "kind": "general",
         "scope": ["production"],
         "groups": [
             {
@@ -227,6 +226,7 @@ def test_lint_spec_id_prefix_mismatch(tmp_path, capsys):
                     {
                         "id": "TST-01-001",  # prefix TST-01 != group TST-02
                         "priority": "MUST",
+                        "kind": "general",
                         "statement": "TST-01-001 MUST be in group TST-01",
                         "rationale": "Prefix consistency",
                         "tags": ["testing"],
@@ -330,95 +330,14 @@ def test_lint_adr_ref_no_rationale_no_warn(tmp_path, capsys):
 
 
 # ---------------------------------------------------------------------------
-# Kind-drift advisory warnings (SR-09-003, SR-09-004)
+# Missing item-level kind is a hard error
 # ---------------------------------------------------------------------------
 
 
-def _kind_drift_file(
-    file_kind="general",
-    group_kind=None,
-    item_kind=None,
-    suppress=False,
-):
-    """Build a YAML spec file whose group and/or items have kind overrides."""
-    spec: dict = {
-        "id": "KD-01-001",
-        "priority": "MUST",
-        "statement": "KD-01-001 MUST fire",
-        "tags": ["testing"],
-        "rationale": "For testing",
-    }
-    if item_kind:
-        spec["kind"] = item_kind
-    if suppress:
-        spec["lint_suppress"] = ["kind_drift"]
-    group: dict = {
-        "id": "KD-01",
-        "title": "Kind Drift Group",
-        "specs": [spec],
-    }
-    if group_kind:
-        group["kind"] = group_kind
-    return {
-        "id": "KD",
-        "title": "Kind Drift Test",
-        "description": "Kind drift test file",
-        "version": "0.1",
-        "kind": file_kind,
-        "scope": ["production"],
-        "groups": [group],
-    }
-
-
-def test_lint_kind_drift_group_vs_item_emits_warn(tmp_path, capsys):
-    """SR-09-004: a group with kind=general containing an item kind=domain
-    emits a [WARN] for the group-level drift."""
-    data = _kind_drift_file(
-        file_kind="general",
-        group_kind="general",
-        item_kind="domain",
-    )
+def test_lint_missing_item_kind_is_hard_error(tmp_path, capsys):
+    """A spec item missing kind: is a hard error (exit 1)."""
+    data = _minimal_spec()
+    del data["groups"][0]["specs"][0]["kind"]
     _write_yaml(tmp_path, data)
     result = lint(tmp_path)
-    captured = capsys.readouterr()
-    assert result == 0, "kind-drift warnings must be advisory, not hard errors"
-    assert "[WARN]" in captured.out
-    assert "kind_drift" in captured.out
-
-
-def test_lint_kind_drift_file_vs_group_emits_warn(tmp_path, capsys):
-    """SR-09-004: a file with kind=general containing a group kind=domain
-    emits a [WARN] for the file-level drift."""
-    data = _kind_drift_file(file_kind="general", group_kind="domain")
-    _write_yaml(tmp_path, data)
-    result = lint(tmp_path)
-    captured = capsys.readouterr()
-    assert result == 0
-    assert "[WARN]" in captured.out
-    assert "kind_drift" in captured.out
-
-
-def test_lint_kind_drift_no_warn_when_consistent(tmp_path, capsys):
-    """SR-09-003: no kind-drift warning when file, group, and items all agree."""
-    data = _kind_drift_file(
-        file_kind="general", group_kind=None, item_kind=None
-    )
-    _write_yaml(tmp_path, data)
-    result = lint(tmp_path)
-    captured = capsys.readouterr()
-    assert result == 0
-    assert "kind_drift" not in captured.out
-
-
-def test_lint_kind_drift_suppress(tmp_path, capsys):
-    """SR-09-004: kind_drift warning is suppressible via lint_suppress."""
-    data = _kind_drift_file(
-        file_kind="general",
-        group_kind="domain",
-        suppress=True,
-    )
-    _write_yaml(tmp_path, data)
-    result = lint(tmp_path)
-    captured = capsys.readouterr()
-    assert result == 0
-    assert "kind_drift" not in captured.out
+    assert result == 1

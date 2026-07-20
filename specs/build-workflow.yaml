@@ -6,7 +6,6 @@ description: >-
   what belongs in the queue, what must not go there, file naming and format, how the learn
   skill processes and archives entries, and the learning history entry type.
 version: 2.0.0
-kind: dev-process
 scope:
   - prototype
   - production
@@ -19,6 +18,7 @@ groups:
     specs:
       - id: BW-01-001
         priority: MUST
+        kind: dev-process
         statement: >-
           `plan/incoming/learnings/` MUST contain only implementation
           observations, open questions, constraints, and insights discovered
@@ -37,6 +37,7 @@ groups:
               not in the incoming learnings queue.
       - id: BW-01-002
         priority: MUST_NOT
+        kind: dev-process
         statement: >-
           The `build` and `bugfix` skills MUST NOT write completion summaries
           or task-status narratives to `plan/incoming/learnings/`.
@@ -47,6 +48,7 @@ groups:
             spec_id: HM-05-001
       - id: BW-01-003
         priority: MUST
+        kind: dev-process
         statement: >-
           Each incoming learning file MUST be named `YYYYMMDD-SLUG.md`
           where `YYYYMMDD` is the creation date and `SLUG` is a short
@@ -60,6 +62,7 @@ groups:
           record. The date prefix provides filesystem sort order.
       - id: BW-01-004
         priority: MUST_NOT
+        kind: dev-process
         statement: >-
           Skills other than `build` and `bugfix` MUST NOT create files in
           `plan/incoming/learnings/`. The `update-plan` skill MUST write
@@ -77,6 +80,7 @@ groups:
     specs:
       - id: BW-02-001
         priority: MUST
+        kind: domain
         statement: >-
           Every file in `plan/incoming/learnings/` MUST use the same YAML
           frontmatter format as history entry files: required fields
@@ -92,6 +96,7 @@ groups:
             spec_id: HM-02-001
       - id: BW-02-002
         priority: MUST
+        kind: domain
         statement: >-
           The `source` field MUST match the filename stem
           (`YYYYMMDD-SLUG`). The `timestamp` field MUST reflect the
@@ -106,6 +111,7 @@ groups:
     specs:
       - id: BW-03-001
         priority: MUST
+        kind: dev-process
         statement: >-
           When the `learn` skill processes `plan/incoming/learnings/`, each
           file MUST be promoted to the appropriate durable destination
@@ -116,6 +122,7 @@ groups:
             spec_id: HM-02-002
       - id: BW-03-002
         priority: MUST
+        kind: dev-process
         statement: >-
           `uv run append-history --from-file <path>` MUST be used to
           archive each processed incoming learning file. This command
@@ -131,6 +138,7 @@ groups:
             spec_id: HM-01-002
       - id: BW-03-003
         priority: SHOULD
+        kind: dev-process
         statement: >-
           After a complete `learn` cycle, `plan/incoming/learnings/` SHOULD
           contain only a `.gitkeep` file. The queue SHOULD be empty after
@@ -141,6 +149,7 @@ groups:
     specs:
       - id: BW-04-001
         priority: MUST
+        kind: implementation
         statement: >-
           The `learning` entry type MUST exist in `HistoryEntryType` in
           `vultron/metadata/history/types.py`.  The `learn` skill MUST
@@ -151,6 +160,7 @@ groups:
             spec_id: HM-02-002
       - id: BW-04-002
         priority: MUST
+        kind: implementation
         statement: >-
           History entries of type `learning` MUST follow the same
           frontmatter and body format as all other `append-history` entry
@@ -165,6 +175,7 @@ groups:
     specs:
       - id: BW-05-001
         priority: MUST
+        kind: implementation
         statement: >-
           `uv run append-history --from-file <path>` MUST read the
           complete file content (frontmatter + body), parse the
@@ -174,6 +185,7 @@ groups:
           It MUST delete the source file after a successful write.
       - id: BW-05-002
         priority: MUST
+        kind: implementation
         statement: >-
           `uv run append-history --from-file` MUST be mutually exclusive
           with the positional `type` argument, `--title`, `--source`,
@@ -181,6 +193,7 @@ groups:
           non-zero with an error message listing the conflicting flags.
       - id: BW-05-003
         priority: MUST
+        kind: implementation
         statement: >-
           `uv run append-history --from-file` MUST reject files whose
           frontmatter `timestamp` is more than 60 seconds in the future
@@ -192,6 +205,7 @@ groups:
     specs:
       - id: BW-06-001
         priority: MUST
+        kind: dev-process
         statement: >-
           The `build` skill documentation MUST distinguish between
           learnings (observations and constraints recorded as individual
@@ -200,12 +214,14 @@ groups:
           outputs are required; neither may be omitted or combined.
       - id: BW-06-002
         priority: MUST
+        kind: dev-process
         statement: >-
           The `learn` skill documentation MUST reference
           `plan/incoming/learnings/` as its primary input source and MUST
           describe the `append-history --from-file` archiving lifecycle.
       - id: BW-06-003
         priority: MUST_NOT
+        kind: dev-process
         statement: >-
           The `update-plan` skill MUST NOT instruct agents to write to
           `plan/incoming/learnings/`. Observations discovered during gap
