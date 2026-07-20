@@ -101,7 +101,12 @@ def _check_adr_references(
 
 
 def _check_missing_kind(registry: SpecRegistry) -> list[str]:
-    """Return hard errors for any spec item missing a ``kind:`` field (SR-09-003)."""
+    """Return hard errors for any spec item missing a ``kind:`` field (SR-09-003).
+
+    Pydantic already rejects ``kind: null`` at load time via the required
+    ``SpecKind`` field type, so this check is belt-and-suspenders for future
+    schema relaxations or registry manipulation outside the Pydantic validator.
+    """
     errors: list[str] = []
     for spec_id, spec in registry.all_specs.items():
         if spec.kind is None:

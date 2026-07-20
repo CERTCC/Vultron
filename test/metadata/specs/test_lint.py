@@ -68,7 +68,7 @@ def test_lint_empty_dir(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_lint_duplicate_spec_ids(tmp_path, capsys):
+def test_lint_duplicate_spec_ids(tmp_path):
     data = _minimal_spec("DUP-01-001")
     data["id"] = "DUP"
     data["groups"][0]["id"] = "DUP-01"
@@ -334,7 +334,7 @@ def test_lint_adr_ref_no_rationale_no_warn(tmp_path, capsys):
 # ---------------------------------------------------------------------------
 
 
-def test_lint_missing_item_kind_is_hard_error(tmp_path, capsys):
+def test_lint_missing_item_kind_is_hard_error(tmp_path):
     """A spec item missing kind: is a hard error (exit 1)."""
     data = _minimal_spec()
     del data["groups"][0]["specs"][0]["kind"]
