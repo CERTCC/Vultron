@@ -175,7 +175,7 @@ def accept_actor_recommendation_trigger_bt(
             ),
         ],
     )
-    logger.debug(  # lgtm[py/clear-text-logging-sensitive-data]
+    logger.debug(
         "Created AcceptActorRecommendationTriggerBT for offer=%s case_actor=%s",
         cp_offer_id,
         case_actor_id,
