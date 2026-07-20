@@ -48,7 +48,7 @@ dependencies = [
     "owlready2>=0.51",
     "pandas>=3.0.3",
     "pydantic==2.13.4",
-    "py-trees>=2.2.0",
+    "py-trees>=2.5.0",
     "rdflib>=7.2.1",
     "scipy>=1.18.0",
     "uvicorn>=0.51.0",

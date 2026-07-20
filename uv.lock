@@ -1089,14 +1089,14 @@ wheels = [
 
 [[package]]
 name = "py-trees"
-version = "2.4.0"
+version = "2.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydot" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/79/9c/b8c39a86ce887e3547b415e6bd61b70e1004af0a8ba1b44e75233a4406a2/py_trees-2.4.0.tar.gz", hash = "sha256:cd8738a80e7422aec2b133270b6aa92e3e83926ded2ba9b3614028dba99cdb41", size = 85359, upload-time = "2025-11-13T22:46:01.41Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ec/03/92cd36f7a6f1ca774b91083924f5c260b1b2064a5644b7a61f8e2eae3262/py_trees-2.5.0.tar.gz", hash = "sha256:5637c25560851bfc96d22ce133f6a7ef654605cab428ed0ae842717c9e498d5d", size = 8511950, upload-time = "2026-07-14T00:40:35.792Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7d/0a/2e0c30342586dabb0b4b7946393a7aeb725fca7b4549fb02e128a1a0fe87/py_trees-2.4.0-py3-none-any.whl", hash = "sha256:c26a2d23f70871ce093abd5f8425998529bfe7b97cc563316e9c3c9cec20c312", size = 114099, upload-time = "2025-11-13T22:45:58.884Z" },
+    { url = "https://files.pythonhosted.org/packages/61/99/afa1e1b93e953a878ba877243b8ab296e83e9d93b8259ca30d90bda9fc02/py_trees-2.5.0-py2.py3-none-any.whl", hash = "sha256:dfba364075cbf4706623454daace2961162fa98c3f3d062bd5af5098aac17127", size = 145771, upload-time = "2026-07-14T00:40:32.348Z" },
 ]
 
 [[package]]
@@ -1840,7 +1840,7 @@ requires-dist = [
     { name = "networkx", specifier = ">=3.5" },
     { name = "owlready2", specifier = ">=0.51" },
     { name = "pandas", specifier = ">=3.0.3" },
-    { name = "py-trees", specifier = ">=2.2.0" },
+    { name = "py-trees", specifier = ">=2.5.0" },
     { name = "pydantic", specifier = "==2.13.4" },
     { name = "pydantic-settings", specifier = ">=2.14.2" },
     { name = "python-frontmatter", specifier = ">=1.3.0" },
