@@ -24,4 +24,4 @@ skip hooks during the rebase, then run hooks manually via `pre-commit run --all-
 
 **Promoted**: 2026-07-20 — captured in `AGENTS.md` (expanded "git rebase in worktrees"
 pitfall entry — `-c core.hooksPath=/dev/null rebase` alternative added).
-Docs PR: <!-- filled in after PR opens -->
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1523>3>

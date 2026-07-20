@@ -1,7 +1,7 @@
 ---
 title: "_to_wire must use wire_cls.from_core(), not model_dump+model_validate"
 type: learning
-timestamp: 2026-07-17
+timestamp: "2026-07-17T00:00:00Z"
 source: ISSUE-1503
 ---
 
@@ -21,4 +21,4 @@ and custom conversion logic. It is the canonical core→wire conversion path.
 
 **Promoted**: 2026-07-20 — captured in `notes/activity-factories.md` § "Anti-Pattern:
 `model_dump` + `model_validate` Instead of `from_core()`" and `AGENTS.md` pitfall bullet.
-Docs PR: <!-- filled in after PR opens -->
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1523>3>

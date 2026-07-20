@@ -1,7 +1,7 @@
 ---
 title: "stale /app/.venv entrypoint shadows working-tree vultron when PATH is inherited"
 type: learning
-timestamp: "2026-07-15"
+timestamp: "2026-07-15T00:00:00Z"
 source: ISSUE-1457
 ---
 
@@ -57,4 +57,4 @@ until #1460 is resolved.
 
 **Promoted**: 2026-07-20 — captured in `AGENTS.md` ("Always Use `uv run <tool>` in
 Devcontainer Workflows" pitfall bullet).
-Docs PR: <!-- filled in after PR opens -->
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1523>3>

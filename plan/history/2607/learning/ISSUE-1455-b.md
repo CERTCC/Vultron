@@ -1,8 +1,8 @@
 ---
 title: Wire/core type mismatch — EmbargoedCase.model_validate() fails on DataLayer objects
 type: learning
-timestamp: 2026-07-17
-source: ISSUE-1455
+timestamp: "2026-07-17T00:00:00Z"
+source: ISSUE-1455-b
 ---
 
 DataLayer `read()` returns wire objects (`as_VulnerabilityCase`, `as_CaseStatus`). Calling `EmbargoedCase.model_validate(wire_obj)` or `Case.model_validate(wire_obj)` always fails with pydantic `ValidationError` because `as_CaseStatus` is not a valid `CaseStatus` in pydantic's view. AC-1 and AC-5 of #1455 were reverted for this reason.
@@ -11,4 +11,4 @@ Before attempting staged-type promotion at any BT node or use case entry point, 
 
 **Promoted**: 2026-07-20 — captured in `AGENTS.md` ("Staged-Type `model_validate`
 Only Works on Core-Constructed Objects" pitfall bullet).
-Docs PR: <!-- filled in after PR opens -->
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1523>3>

@@ -40,4 +40,4 @@ pre-message state (the message hasn't been processed yet when the rule fires).
 
 **Promoted**: 2026-07-20 — pattern already captured inline in `specs/cs-behavior.yaml`
 CSB-13-001 rationale (no new docs needed; archiving learning).
-Docs PR: <!-- filled in after PR opens -->
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1523>3>
