@@ -16,7 +16,6 @@
 import pytest
 
 from vultron.core.models.offer_record import VultronOfferRecord
-from vultron.wire.as2.vocab.activities.report import _RmSubmitReportActivity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
@@ -110,10 +109,11 @@ class TestSubmitReport:
                 target=_CASE_ID,
             )
 
-        # The Offer activity must have been rolled back.
+        # The Offer activity must have been rolled back — list_objects("Offer")
+        # should return no entries after the compensating delete.
         activities = list(dl.list_objects("Offer"))
-        assert not any(
-            isinstance(a, _RmSubmitReportActivity) for a in activities
+        assert (
+            len(activities) == 0
         ), "Offer activity should have been deleted by compensating rollback"
 
     def test_no_compensating_delete_on_duplicate_offer_record(
