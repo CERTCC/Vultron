@@ -270,10 +270,9 @@ activity into the API response; the factory already built the object):
 **B — semantic-content reads** (core re-interprets a stored activity for a
 domain fact — the ARCH-09-001 core violations):
 
-- *report/offer*: `triggers/report.py::_resolve_offer_and_report` (reads `Offer`
-  for the embedded `VulnerabilityReport`); `behaviors/report/nodes/emit.py:90`
-  and `behaviors/report/nodes/case_creation.py:191` (read `Offer` for fallback
-  addressing).
+- ~~*report/offer*~~: migrated (#1518). `VultronOfferRecord` now captures
+  offer facts at adapter time (sender) and received-side ingest time (receiver).
+  Core reads `VultronOfferRecord` instead of the stored wire `Offer` activity.
 - *embargo*: `use_cases/received/embargo.py:74,474` (read `Invite` for `context`
   = case id and `object_` = embargo id); `use_cases/triggers/_helpers.py:129`
   and `find_embargo_proposal` / `list_objects("Invite")` (pending proposal);
