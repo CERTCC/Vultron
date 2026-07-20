@@ -19,7 +19,7 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.em import EM, is_valid_em_transition
 from vultron.core.use_cases._helpers import (
     _as_id,
@@ -72,7 +72,7 @@ class ApplyEmbargoTeardownNode(DataLayerAction):
             case_id = entry.case_id
 
         case = self.datalayer.read(case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.feedback_message = f"Case '{case_id}' not found"
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
@@ -129,7 +129,7 @@ class RemoveFromProposedEmbargoesNode(DataLayerAction):
             return Status.FAILURE
 
         case = self.datalayer.read(self.case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.feedback_message = f"Case '{self.case_id}' not found"
             return Status.FAILURE
 

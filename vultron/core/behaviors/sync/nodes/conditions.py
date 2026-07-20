@@ -24,7 +24,7 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerCondition
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
-from vultron.core.models.protocols import is_log_entry_model
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.sync_helpers import is_ledger_fresh_for_case
 from vultron.errors import VultronError
@@ -56,7 +56,7 @@ def _require_log_entry(
     entry = getattr(activity, "log_entry", None)
     if entry is None:
         entry = getattr(activity, "object_", None)
-    if is_log_entry_model(entry):
+    if isinstance(entry, CaseLedgerEntry):
         if isinstance(entry, VultronCaseLedgerEntry):
             return entry
         return VultronCaseLedgerEntry.model_validate(

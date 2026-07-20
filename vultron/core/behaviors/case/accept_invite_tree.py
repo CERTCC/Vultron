@@ -46,13 +46,10 @@ from vultron.core.behaviors.case.nodes import (
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
-from vultron.core.models.protocols import (
-    LogEntryModel,
-    is_log_entry_model,
-    is_participant_model,
-)
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.replication_state import VultronReplicationState
-from vultron.core.models.protocols import is_case_model
 from vultron.core.models.vultron_types import VultronParticipant
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
@@ -136,10 +133,10 @@ class CapturePreCommitBackfillTargetNode(DataLayerAction):
             self.blackboard.pre_commit_backfill_target = -1
             return Status.SUCCESS
 
-        entries: list[LogEntryModel] = [
+        entries: list[CaseLedgerEntry] = [
             obj
             for obj in self.datalayer.list_objects("CaseLedgerEntry")
-            if is_log_entry_model(obj) and obj.case_id == self.case_id
+            if isinstance(obj, CaseLedgerEntry) and obj.case_id == self.case_id
         ]
         target = entries[-1].log_index if entries else -1
         self.blackboard.pre_commit_backfill_target = target
@@ -184,7 +181,7 @@ class CheckInviteeNotAlreadyParticipantNode(DataLayerCondition):
             return Status.FAILURE
 
         case = self.datalayer.read(self.case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.logger.warning(
                 "%s: case '%s' not found",
                 self.name,
@@ -325,7 +322,7 @@ class CreateInviteeParticipantAtAcceptedNode(DataLayerAction):
             return Status.FAILURE
 
         case = self.blackboard.get("invitee_case")
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.logger.error(
                 "%s: invitee_case not found in blackboard", self.name
             )
@@ -342,7 +339,7 @@ class CreateInviteeParticipantAtAcceptedNode(DataLayerAction):
                 )
                 return Status.FAILURE
             existing = self.datalayer.read(participant_id)
-            if not is_participant_model(existing):
+            if not isinstance(existing, CaseParticipant):
                 self.logger.error(
                     "%s: expected existing participant '%s'",
                     self.name,
@@ -442,7 +439,7 @@ class _CheckEmbargoActiveStateNode(DataLayerAction):
 
     def update(self) -> Status:
         case = self.blackboard.get("invitee_case")
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.logger.error("%s: invitee_case not available", self.name)
             # Initialize key so downstream nodes can safely read it.
             self.blackboard.active_embargo_id = None
@@ -564,9 +561,9 @@ class PersistInviteeParticipantNode(DataLayerAction):
 
         participant = self.blackboard.get("new_invite_participant")
         case = self.blackboard.get("invitee_case")
-        if not isinstance(
-            participant, VultronParticipant
-        ) or not is_case_model(case):
+        if not isinstance(participant, VultronParticipant) or not isinstance(
+            case, VulnerabilityCase
+        ):
             self.logger.error(
                 "%s: new_invite_participant or invitee_case missing",
                 self.name,
@@ -614,7 +611,7 @@ class BackfillCanonicalLedgerToInviteeNode(DataLayerAction):
         except (AttributeError, KeyError):
             self._sync_port = None
 
-    def _resolve_backfill_target(self, entries: list[LogEntryModel]) -> int:
+    def _resolve_backfill_target(self, entries: list[CaseLedgerEntry]) -> int:
         """Resolve the backfill target index.
 
         Reads ``pre_commit_backfill_target`` from the blackboard when set to a
@@ -647,10 +644,10 @@ class BackfillCanonicalLedgerToInviteeNode(DataLayerAction):
             )
             return Status.FAILURE
 
-        entries: list[LogEntryModel] = [
+        entries: list[CaseLedgerEntry] = [
             obj
             for obj in self.datalayer.list_objects("CaseLedgerEntry")
-            if is_log_entry_model(obj) and obj.case_id == self.case_id
+            if isinstance(obj, CaseLedgerEntry) and obj.case_id == self.case_id
         ]
         entries.sort(key=lambda log_entry: log_entry.log_index)
 

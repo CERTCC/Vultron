@@ -35,7 +35,7 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerCondition
 from vultron.config.actor import ActorConfig
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.use_cases._helpers import _resolve_case_manager_id
 
 
@@ -248,7 +248,7 @@ class CheckIsCaseManagerNode(DataLayerCondition):
                 f"{self.name}: case '{case_id}' not found in DataLayer"
             )
             return Status.FAILURE
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.logger.warning(
                 f"{self.name}: object '{case_id}' is not a VulnerabilityCase"
             )

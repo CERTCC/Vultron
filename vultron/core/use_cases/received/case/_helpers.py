@@ -9,7 +9,7 @@ from vultron.core.behaviors.case.nodes.participant.common import (  # noqa: F401
 from vultron.core.behaviors.case.update_support import (
     find_excluded_actor_ids,
 )
-from vultron.core.models.protocols import CaseModel
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.ports.case_persistence import CasePersistence
 
@@ -38,7 +38,7 @@ def _find_report_case_link(
 
 
 def _check_participant_embargo_acceptance(
-    case: CaseModel, dl: CasePersistence
+    case: VulnerabilityCase, dl: CasePersistence
 ) -> set[str]:
     """Check which participants have not accepted the active embargo.
 
@@ -49,7 +49,7 @@ def _check_participant_embargo_acceptance(
 
 
 def _store_embedded_participants(
-    case_obj: CaseModel, dl: CasePersistence, case_id: str
+    case_obj: VulnerabilityCase, dl: CasePersistence, case_id: str
 ) -> None:
     """Persist embedded participant objects from a case snapshot.
 

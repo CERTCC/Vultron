@@ -23,7 +23,8 @@ from typing import cast
 from vultron.core.case_states.patterns.potential_actions import (
     action as get_actions,
 )
-from vultron.core.models.protocols import CaseModel, ParticipantModel
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.scoring.utils import enum2title
 from vultron.core.states.cs import CS_pxa, CS_vfd
@@ -44,7 +45,7 @@ class ActionRulesRequest(BaseModel):
 
 
 def _resolve_participant_id_from_actor(
-    case: CaseModel, actor_id: str, dl: CasePersistence
+    case: VulnerabilityCase, actor_id: str, dl: CasePersistence
 ) -> str:
     """Resolve a case-scoped participant ID from an actor ID."""
     participant_id = resolve_case_participant_id_for_actor(case, actor_id, dl)
@@ -83,7 +84,7 @@ class GetActionRulesUseCase:
         # 2. Resolve the actor's CaseParticipant in the selected case.
         participant_id = _resolve_participant_id_from_actor(case, actor_id, dl)
 
-        participant = cast(ParticipantModel | None, dl.read(participant_id))
+        participant = cast(CaseParticipant | None, dl.read(participant_id))
         if participant is None:
             raise VultronNotFoundError("CaseParticipant", participant_id)
         participant_actor_id = (

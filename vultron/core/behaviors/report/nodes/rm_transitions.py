@@ -19,7 +19,7 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
@@ -66,7 +66,7 @@ def _transition_case_participant_rm(
         return Status.FAILURE
 
     case = node.datalayer.find_case_by_report_id(report_id)
-    if not is_case_model(case):
+    if not isinstance(case, VulnerabilityCase):
         node.logger.warning(
             "%s: no case found for report '%s' — RM state not updated",
             node.name,
@@ -158,7 +158,11 @@ class TransitionRMtoValid(DataLayerAction):
         try:
             # CLP-07-007: context must use the case URI once a case exists.
             case = self.datalayer.find_case_by_report_id(self.report_id)
-            context = case.id_ if is_case_model(case) else self.report_id
+            context = (
+                case.id_
+                if isinstance(case, VulnerabilityCase)
+                else self.report_id
+            )
 
             status = ParticipantStatus(
                 id_=_report_phase_status_id(
@@ -183,7 +187,7 @@ class TransitionRMtoValid(DataLayerAction):
                 actor_id,
             )
 
-            if is_case_model(case):
+            if isinstance(case, VulnerabilityCase):
                 update_participant_rm_state(
                     case.id_, actor_id, RM.VALID, self.datalayer
                 )
@@ -237,7 +241,11 @@ class TransitionRMtoInvalid(DataLayerAction):
         try:
             # CLP-07-007: context must use the case URI once a case exists.
             case = self.datalayer.find_case_by_report_id(self.report_id)
-            context = case.id_ if is_case_model(case) else self.report_id
+            context = (
+                case.id_
+                if isinstance(case, VulnerabilityCase)
+                else self.report_id
+            )
 
             status = ParticipantStatus(
                 id_=_report_phase_status_id(
@@ -311,7 +319,11 @@ class TransitionRMtoClosed(DataLayerAction):
         try:
             # CLP-07-007: context must use the case URI once a case exists.
             case = self.datalayer.find_case_by_report_id(self.report_id)
-            context = case.id_ if is_case_model(case) else self.report_id
+            context = (
+                case.id_
+                if isinstance(case, VulnerabilityCase)
+                else self.report_id
+            )
 
             status = ParticipantStatus(
                 id_=_report_phase_status_id(

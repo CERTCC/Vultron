@@ -21,7 +21,7 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     EmbargoLifecycleResult,
@@ -65,7 +65,7 @@ class ValidateEmbargoRevisionStateNode(DataLayerAction):
             return Status.FAILURE
 
         case = self.datalayer.read(self._case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             not_found = VultronValidationError(
                 f"Case '{self._case_id}' not found or invalid."
             )
@@ -243,7 +243,7 @@ class ReadEmbargoIdNode(DataLayerAction):
             return Status.FAILURE
 
         case = self.datalayer.read(self._case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.feedback_message = f"Case '{self._case_id}' not found"
             return Status.FAILURE
 
@@ -347,7 +347,7 @@ class SetEmbargoActiveNode(DataLayerAction):
     def _read_case(self) -> Any | None:
         assert self.datalayer is not None
         case = self.datalayer.read(self.case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.feedback_message = f"Case '{self.case_id}' not found"
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return None

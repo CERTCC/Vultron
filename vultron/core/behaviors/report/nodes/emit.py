@@ -20,7 +20,7 @@ from typing import cast
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import _resolve_case_manager_id
 
@@ -173,7 +173,7 @@ def _compute_report_addressees(
         List of recipient URIs, or None when no recipients can be determined.
     """
     case = dl.find_case_by_report_id(report_id)
-    if is_case_model(case):
+    if isinstance(case, VulnerabilityCase):
         case_manager_id = _resolve_case_manager_id(case, dl)
         if case_manager_id and case_manager_id != actor_id:
             return [case_manager_id]

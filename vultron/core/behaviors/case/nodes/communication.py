@@ -36,7 +36,7 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.vultron_types import VultronCreateCaseActivity
 
 logger = logging.getLogger(__name__)
@@ -79,7 +79,7 @@ class CollectCaseAddresseesNode(DataLayerAction):
             return Status.FAILURE
 
         case_obj = self.datalayer.read(case_id)
-        if is_case_model(case_obj):
+        if isinstance(case_obj, VulnerabilityCase):
             addressees = [
                 actor_id
                 for actor_id in case_obj.actor_participant_index.keys()

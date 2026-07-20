@@ -26,7 +26,7 @@ from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models._helpers import _now_utc
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
-from vultron.core.models.protocols import is_log_entry_model
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.sync_helpers import _find_equivalent_recorded_entry
 from vultron.core.sync_helpers import _reconstruct_tail_hash
 from vultron.errors import VultronCanonicalEntryError
@@ -83,7 +83,7 @@ def _require_log_entry(
     entry = getattr(activity, "log_entry", None)
     if entry is None:
         entry = getattr(activity, "object_", None)
-    if is_log_entry_model(entry):
+    if isinstance(entry, CaseLedgerEntry):
         if isinstance(entry, VultronCaseLedgerEntry):
             return entry
         return VultronCaseLedgerEntry.model_validate(
@@ -100,7 +100,7 @@ def _require_case_id_from_activity(activity: Any, node_name: str) -> str:
         entry = getattr(activity, "rejected_entry", None)
     if entry is None:
         entry = getattr(activity, "object_", None)
-    if is_log_entry_model(entry):
+    if isinstance(entry, CaseLedgerEntry):
         return entry.case_id
     raise VultronError(f"{node_name}: could not resolve case_id from activity")
 
@@ -315,7 +315,7 @@ class UpdateReplicationStateNode(DataLayerAction):
         entry = getattr(activity, "rejected_entry", None)
         if entry is None:
             entry = getattr(activity, "object_", None)
-        if not is_log_entry_model(entry):
+        if not isinstance(entry, CaseLedgerEntry):
             raise VultronError(
                 f"{self.name}: activity did not carry a VultronCaseLedgerEntry"
             )

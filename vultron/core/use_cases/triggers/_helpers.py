@@ -24,10 +24,7 @@ framework imports allowed here.
 import logging
 from collections.abc import Callable
 
-from vultron.core.models.protocols import (
-    CaseModel,
-    is_case_model,
-)
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.case_persistence import (
     CasePersistence,
     CaseOutboxPersistence,
@@ -48,14 +45,14 @@ def resolve_actor(actor_id: str, dl: CasePersistence):
     return actor
 
 
-def resolve_case(case_id: str, dl: CasePersistence) -> CaseModel:
+def resolve_case(case_id: str, dl: CasePersistence) -> VulnerabilityCase:
     """Resolve a VulnerabilityCase by ID; raise domain error if absent or wrong type."""
     case_raw = dl.read(case_id)
-    if case_raw is None or not is_case_model(case_raw):
+    if case_raw is None or not isinstance(case_raw, VulnerabilityCase):
         case_raw = dl.find_case_by_short_id(case_id)
     if case_raw is None:
         raise VultronNotFoundError("VulnerabilityCase", case_id)
-    if not is_case_model(case_raw):
+    if not isinstance(case_raw, VulnerabilityCase):
         raise VultronValidationError(
             f"Expected VulnerabilityCase, got {type(case_raw).__name__}."
         )
@@ -120,7 +117,7 @@ def _is_case_owner(case: object | None, actor_id: str) -> bool:
 
 
 def _resolve_embargo_proposal(
-    case: CaseModel, proposal_id: str | None, dl: CaseOutboxPersistence
+    case: VulnerabilityCase, proposal_id: str | None, dl: CaseOutboxPersistence
 ):
     """Resolve the embargo proposal for a case."""
     from vultron.errors import VultronNotFoundError, VultronValidationError

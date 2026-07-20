@@ -19,7 +19,7 @@ from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
 )
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.use_cases._helpers import _as_id
 
 if TYPE_CHECKING:
@@ -141,7 +141,7 @@ class RemoveNoteFromCaseReceivedUseCase:
             return
         case = self._dl.read(case_id)
 
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             logger.warning(
                 "remove_note_from_case: case '%s' not found", case_id
             )

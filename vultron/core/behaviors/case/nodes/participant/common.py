@@ -24,12 +24,9 @@ from vultron.core.models.participant_status import (
     coerce_cvd_roles,
     coerce_em_consent_state,
 )
-from vultron.core.models.protocols import (
-    CaseModel,
-    is_case_model,
-    is_participant_status_model,
-)
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.vultron_types import VultronParticipant
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
@@ -51,7 +48,7 @@ def _create_and_attach_participant(
     case_id: str,
     actor_id_for_index: str,
     node_logger: logging.Logger,
-) -> CaseModel | None:
+) -> VulnerabilityCase | None:
     """
     Create participant if needed and attach it to the case (unsaved return).
 
@@ -72,7 +69,7 @@ def _create_and_attach_participant(
         )
 
     stored_case = dl.read(case_id)
-    if not is_case_model(stored_case):
+    if not isinstance(stored_case, VulnerabilityCase):
         node_logger.error("Case %s not found in DataLayer", case_id)
         return None
 
@@ -81,7 +78,7 @@ def _create_and_attach_participant(
     )
     if existing_participant_id is not None:
         existing_participant = dl.read(existing_participant_id)
-        if existing_participant is not None:
+        if isinstance(existing_participant, CaseParticipant):
             stored_case.add_participant(existing_participant)
             node_logger.debug(
                 "Participant already registered for actor '%s' in case '%s'",
@@ -114,7 +111,9 @@ def _get_or_create_accepted_status(
 
     # CLP-07-007: context must use the case URI once a case exists.
     case_obj = dl.find_case_by_report_id(report_id)
-    context = case_obj.id_ if is_case_model(case_obj) else report_id
+    context = (
+        case_obj.id_ if isinstance(case_obj, VulnerabilityCase) else report_id
+    )
 
     accepted_status_id = _report_phase_status_id(
         actor_id,
@@ -122,7 +121,7 @@ def _get_or_create_accepted_status(
         RM.ACCEPTED.value,
     )
     existing = dl.read(accepted_status_id)
-    if is_participant_status_model(existing):
+    if isinstance(existing, ParticipantStatus):
         should_update_role = existing.cvd_role != cvd_role
         should_backfill_consent = (
             existing.em_consent_state is None and em_consent_state is not None
@@ -251,7 +250,7 @@ def _queue_participant_add_notification(
 def _ensure_reporter_participant(
     dl: CasePersistence,
     link: VultronReportCaseLink,
-    case_obj: CaseModel,
+    case_obj: VulnerabilityCase,
     case_id: str,
 ) -> None:
     """Ensure the reporter's participant record is at RM.ACCEPTED (#589, #624).

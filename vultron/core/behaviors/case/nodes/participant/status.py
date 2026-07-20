@@ -27,7 +27,8 @@ from vultron.core.models.participant_status import (
     coerce_cvd_roles,
     coerce_em_consent_state,
 )
-from vultron.core.models.protocols import is_case_model, is_participant_model
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.cs import CS_pxa, CS_vfd
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
@@ -72,7 +73,7 @@ class CreateParticipantStatusNode(DataLayerAction):
             return Status.FAILURE
 
         case = dl.read(self._case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.logger.error(
                 "%s: Case '%s' not found in DataLayer",
                 self.name,
@@ -110,13 +111,13 @@ class CreateParticipantStatusNode(DataLayerAction):
         participant_obj = dl.read(participant_id)
         participant_roles = (
             participant_obj.roles
-            if is_participant_model(participant_obj)
+            if isinstance(participant_obj, CaseParticipant)
             else []
         )
         status_roles = coerce_cvd_roles(participant_roles)
         raw_consent = (
             getattr(participant_obj, "embargo_consent_state", None)
-            if is_participant_model(participant_obj)
+            if isinstance(participant_obj, CaseParticipant)
             else None
         )
         em_consent_state = coerce_em_consent_state(raw_consent)

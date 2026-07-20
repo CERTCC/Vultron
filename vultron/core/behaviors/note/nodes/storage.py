@@ -21,7 +21,7 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.note import VultronNote
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.use_cases._helpers import _as_id
 
 
@@ -73,7 +73,7 @@ class AttachNoteToCaseNode(DataLayerAction):
             return Status.FAILURE
 
         case: Any = self.datalayer.read(self.case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.logger.warning(
                 f"{self.name}: case '{self.case_id}' not found"
                 " — cannot attach note"

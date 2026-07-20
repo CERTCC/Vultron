@@ -745,7 +745,7 @@ def test_validate_report_tree_case_has_active_embargo(
     receive_report_case_tree).  validate_report verifies the embargo exists
     via EnsureEmbargoExists and only succeeds when it does.
     """
-    from vultron.core.models.protocols import is_case_model
+    from vultron.core.models.case import VulnerabilityCase
 
     tree = create_validate_report_tree(
         report_id=report.id_,
@@ -765,7 +765,9 @@ def test_validate_report_tree_case_has_active_embargo(
 
     case_ids = list(cases.keys())
     case_obj = datalayer.read(case_ids[0])
-    assert is_case_model(case_obj), "Expected a valid CaseModel"
+    assert isinstance(
+        case_obj, VulnerabilityCase
+    ), "Expected a VulnerabilityCase"
     assert case_obj.active_embargo is not None, (
         "VulnerabilityCase must have active_embargo set so participants "
         "can learn about the embargo from the Create(Case) activity"

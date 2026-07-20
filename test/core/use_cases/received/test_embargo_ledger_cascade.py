@@ -18,7 +18,6 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
-from vultron.core.models.protocols import is_log_entry_model
 from vultron.core.states.em import EM
 from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
@@ -140,7 +139,7 @@ class TestEmbargoLogEntryCascade:
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if is_log_entry_model(obj)
+            if isinstance(obj, VultronCaseLedgerEntry)
             and cast(VultronCaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
@@ -179,7 +178,7 @@ class TestEmbargoLogEntryCascade:
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if is_log_entry_model(obj)
+            if isinstance(obj, VultronCaseLedgerEntry)
             and cast(VultronCaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
@@ -224,7 +223,7 @@ class TestEmbargoLogEntryCascade:
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if is_log_entry_model(obj)
+            if isinstance(obj, VultronCaseLedgerEntry)
             and cast(VultronCaseLedgerEntry, obj).case_id == case_id
         ]
         # Cascade must fire even on BT FAILURE.
@@ -271,7 +270,7 @@ class TestEmbargoLogEntryCascade:
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if is_log_entry_model(obj)
+            if isinstance(obj, VultronCaseLedgerEntry)
             and cast(VultronCaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 0, (
@@ -316,7 +315,7 @@ class TestEmbargoLogEntryCascade:
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if is_log_entry_model(obj)
+            if isinstance(obj, VultronCaseLedgerEntry)
             and cast(VultronCaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
@@ -354,7 +353,7 @@ class TestEmbargoLogEntryCascade:
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if is_log_entry_model(obj)
+            if isinstance(obj, VultronCaseLedgerEntry)
             and cast(VultronCaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1

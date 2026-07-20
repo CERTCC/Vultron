@@ -21,10 +21,8 @@ from vultron.core.use_cases._helpers import (
     _idempotent_create,
     add_activity_to_outbox,
 )
-from vultron.core.models.protocols import (
-    PersistableModel,
-    is_case_model,
-)
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.protocols import PersistableModel
 from vultron.core.states.cs import (
     CS_pxa,
     is_pxa_attacks_observed,
@@ -46,7 +44,7 @@ def _pxa_embargo_ineligible(dl: CasePersistence, case_id: str) -> bool:
     cannot be resolved so normal processing can continue.
     """
     case = dl.read(case_id)
-    if not is_case_model(case):
+    if not isinstance(case, VulnerabilityCase):
         return False
     try:
         pxa_state = CS_pxa(case.current_status.pxa_state)
@@ -374,7 +372,7 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             return
 
         _case = _resolve_case_for_embargo_acceptance(self._dl, request)
-        if not is_case_model(_case):
+        if not isinstance(_case, VulnerabilityCase):
             logger.error("accept_invite_to_embargo_on_case: case not found")
             return
 
