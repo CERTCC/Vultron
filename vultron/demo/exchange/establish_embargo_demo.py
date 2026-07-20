@@ -47,6 +47,7 @@ import sys
 from datetime import datetime, timedelta
 from typing import Callable, Optional, Sequence, Tuple
 
+from vultron.core.states.em import is_em_embargo_active
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_participant import (
@@ -294,7 +295,7 @@ def demo_propose_embargo_accept(
                 raise ValueError(
                     "Could not retrieve case after embargo acceptance"
                 )
-            if final_case.active_embargo is None:
+            if not is_em_embargo_active(final_case.current_status.em_state):
                 raise ValueError(
                     f"Expected case '{case.id_}' to have an active embargo after "
                     f"acceptance, but active_embargo is None. "
@@ -370,7 +371,7 @@ def demo_propose_embargo_reject(
                 raise ValueError(
                     "Could not retrieve case after embargo rejection"
                 )
-            if final_case.active_embargo is not None:
+            if is_em_embargo_active(final_case.current_status.em_state):
                 raise ValueError(
                     f"Expected case '{case.id_}' to have no active embargo after "
                     f"rejection, but active_embargo = {final_case.active_embargo}"

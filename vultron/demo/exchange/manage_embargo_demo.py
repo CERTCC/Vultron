@@ -47,6 +47,7 @@ import sys
 from datetime import datetime, timedelta
 from typing import Callable, Optional, Sequence, Tuple
 
+from vultron.core.states.em import is_em_embargo_active
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_participant import (
@@ -296,7 +297,7 @@ def demo_activate_then_terminate(
                 raise ValueError(
                     "Could not retrieve case after embargo activation"
                 )
-            if mid_case.active_embargo is None:
+            if not is_em_embargo_active(mid_case.current_status.em_state):
                 raise ValueError(
                     f"Expected case '{case.id_}' to have an active embargo, "
                     f"but active_embargo is None."
@@ -324,7 +325,7 @@ def demo_activate_then_terminate(
                 raise ValueError(
                     "Could not retrieve case after embargo termination"
                 )
-            if final_case.active_embargo is not None:
+            if is_em_embargo_active(final_case.current_status.em_state):
                 raise ValueError(
                     f"Expected case '{case.id_}' to have no active embargo "
                     f"after termination, but active_embargo = "
@@ -410,7 +411,7 @@ def demo_reject_then_repropose(
                 raise ValueError(
                     "Could not retrieve case after embargo rejection"
                 )
-            if mid_case.active_embargo is not None:
+            if is_em_embargo_active(mid_case.current_status.em_state):
                 raise ValueError(
                     f"Expected case '{case.id_}' to have no active embargo "
                     f"after rejection, but active_embargo = "
@@ -468,7 +469,7 @@ def demo_reject_then_repropose(
                 raise ValueError(
                     "Could not retrieve case after revised embargo activation"
                 )
-            if final_case.active_embargo is None:
+            if not is_em_embargo_active(final_case.current_status.em_state):
                 raise ValueError(
                     f"Expected case '{case.id_}' to have an active embargo "
                     f"after re-proposal and acceptance, but active_embargo is None."

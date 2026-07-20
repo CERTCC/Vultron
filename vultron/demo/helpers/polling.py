@@ -451,12 +451,12 @@ def wait_for_case_em_terminated(
     Raises:
         AssertionError: If EM.EXITED is not observed within *timeout_seconds*.
     """
-    from vultron.core.states.em import EM  # noqa: PLC0415
+    from vultron.core.states.em import is_em_exited  # noqa: PLC0415
 
     def _check() -> bool:
         case_data = client.get(f"/datalayer/{case_id}")
         case = as_VulnerabilityCase.model_validate(case_data)
-        return case.current_status.em_state == EM.EXITED
+        return is_em_exited(case.current_status.em_state)
 
     _poll_until(
         _check,

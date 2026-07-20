@@ -24,7 +24,7 @@ from typing import Optional
 import httpx2 as httpx
 
 from vultron.core.states.cs import CS_pxa, CS_vfd
-from vultron.core.states.em import EM
+from vultron.core.states.em import is_em_embargo_active
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.demo.helpers.seeding import _dl_key
@@ -153,7 +153,7 @@ def _assert_vendor_case_status(case: as_VulnerabilityCase) -> None:
     Raises:
         AssertionError: If either invariant is violated.
     """
-    if case.current_status.em_state != EM.ACTIVE:
+    if not is_em_embargo_active(case.current_status.em_state):
         raise AssertionError(
             f"Expected ACTIVE final EM state (default embargo activated at"
             f" case creation per EP-04-001), found {case.current_status.em_state}"

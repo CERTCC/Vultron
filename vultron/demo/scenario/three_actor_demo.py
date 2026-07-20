@@ -37,7 +37,7 @@ import os
 import sys
 import warnings
 
-from vultron.core.states.em import EM
+from vultron.core.states.em import is_em_embargo_active
 from vultron.demo.scenario.two_actor_demo import (
     get_actor_by_id,
     wait_for_case_participants,
@@ -434,7 +434,7 @@ def _assert_three_actor_active_embargo(
     case: as_VulnerabilityCase,
     embargo_id: str,
 ) -> None:
-    if case.current_status.em_state != EM.ACTIVE:
+    if not is_em_embargo_active(case.current_status.em_state):
         raise AssertionError(
             f"Expected ACTIVE embargo state, found {case.current_status.em_state}"
         )

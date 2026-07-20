@@ -151,7 +151,7 @@ class TestRunThreeActorDemo:
             case
             for case in final_cases
             if len(case.case_participants) == 3
-            and case.current_status.em_state == demo.EM.ACTIVE
+            and demo.is_em_embargo_active(case.current_status.em_state)
         ]
         assert len(matching_cases) == 1
         final_case = matching_cases[0]
