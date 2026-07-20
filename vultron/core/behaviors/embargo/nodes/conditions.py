@@ -19,6 +19,7 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerCondition
+from vultron.core.models._helpers import has_case_statuses
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.errors import VultronInvalidStateTransitionError
@@ -324,7 +325,7 @@ class HasCaseStatusesNode(DataLayerCondition):
             self.feedback_message = f"Case '{self.case_id}' not found"
             return Status.FAILURE
 
-        if not case.case_statuses:
+        if not has_case_statuses(case):
             self.feedback_message = (
                 f"Case '{self.case_id}' has no CaseStatus entries"
             )
