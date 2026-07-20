@@ -29,7 +29,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
 )
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.use_cases.received.case_proposal import (
     AcceptCaseProposalReceivedUseCase,
@@ -94,7 +94,7 @@ class TestCreateCaseProposalReceivedUseCase:
         cases = [
             obj
             for obj in dl.list_objects("VulnerabilityCase")
-            if is_case_model(obj)
+            if isinstance(obj, VulnerabilityCase)
         ]
         assert (
             len(cases) == 1
@@ -153,7 +153,7 @@ class TestCreateCaseProposalReceivedUseCase:
         case_rows = dl.list_objects("VulnerabilityCase")
         assert case_rows, "No VulnerabilityCase created"
         case_obj = dl.read(case_rows[0].id_)
-        assert is_case_model(case_obj)
+        assert isinstance(case_obj, VulnerabilityCase)
 
         report_obj = proposal.object_
         assert isinstance(report_obj, as_VulnerabilityReport)
@@ -238,7 +238,7 @@ class TestCreateCaseProposalIdempotency:
         all_cases = [
             obj
             for obj in dl.list_objects("VulnerabilityCase")
-            if is_case_model(obj)
+            if isinstance(obj, VulnerabilityCase)
         ]
         assert (
             len(all_cases) == 1
@@ -352,7 +352,7 @@ class TestCreateCaseProposalIdempotencyIntegration:
         cases_after_first = [
             obj
             for obj in dl.list_objects("VulnerabilityCase")
-            if is_case_model(obj)
+            if isinstance(obj, VulnerabilityCase)
         ]
         assert (
             len(cases_after_first) == 1
@@ -365,7 +365,7 @@ class TestCreateCaseProposalIdempotencyIntegration:
         all_cases = [
             obj
             for obj in dl.list_objects("VulnerabilityCase")
-            if is_case_model(obj)
+            if isinstance(obj, VulnerabilityCase)
         ]
         assert (
             len(all_cases) == 1

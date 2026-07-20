@@ -54,6 +54,7 @@ from vultron.core.use_cases.received.report import (
     ValidateReportReceivedUseCase,
 )
 from vultron.core.use_cases.triggers.service import TriggerService
+from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
@@ -102,6 +103,13 @@ def _make_case_at_received(
         target=vendor_id,
     )
     dl.create(offer)
+    offer_record = VultronOfferRecord(
+        offer_id=offer.id_,
+        report_id=report_obj.id_,
+        offer_actor_id=finder_id,
+        offer_to=[vendor_id],
+    )
+    dl.create(offer_record)
 
     bridge = BTBridge(
         datalayer=dl, trigger_activity=TriggerActivityAdapter(dl)
@@ -400,7 +408,7 @@ class TestCaseActorReceivedWritesLedgerEntry:
         under (receiving_actor_id=CASE_ACTOR_ID).
         """
         from vultron.core.states.rm import RM
-        from vultron.core.use_cases._helpers import _report_phase_status_id
+        from vultron.core.models._helpers import _report_phase_status_id
 
         dl = self._make_case_actor_dl()
 

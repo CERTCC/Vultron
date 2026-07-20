@@ -135,7 +135,11 @@ before proceeding. Do not open a PR with lint failures.
 
 **Implementation PR** (`type: implementation`):
 
-Invoke `format-code`, then `run-linters`, then `run-tests`.
+```bash
+uv run black vultron/ test/
+uv run flake8 vultron/ test/ && uv run mypy && uv run pyright
+uv run pytest --tb=short 2>&1 | tail -5
+```
 
 If any step fails, fix, re-validate, and continue. Do not open a PR with
 failing tests or lint errors.
@@ -162,53 +166,9 @@ Capture and return the PR URL emitted by `gh pr create`.
 
 ### Draft-with-conflict path (unresolvable rebase)
 
-If Phase 2 aborted with unresolvable conflicts:
-
-1. Push the **un-rebased** branch as-is:
-
-   ```bash
-   git push "https://x-access-token:$(gh auth token)@github.com/CERTCC/Vultron.git" \
-     "$(git branch --show-current)"
-   ```
-
-2. Open a **draft** PR with conflict notes and `needs-rebase` label:
-
-   ```bash
-   gh pr create --repo CERTCC/Vultron \
-     --head "$(git branch --show-current)" \
-     --base main \
-     --title "<title> [NEEDS REBASE]" \
-     --body "<!-- needs-rebase -->
-   > ⚠️ **This PR requires manual conflict resolution before it can be merged.**
-   >
-   > The \`create-pr\` skill attempted an automatic rebase on \`origin/main\`
-   > but encountered conflicts it could not resolve:
-   >
-   > **Conflicting files:**
-   > <list each conflicting file>
-   >
-   > **Nature of each conflict:**
-   > <one line per file: what both sides changed>
-   >
-   > **To resolve:**
-   > \`\`\`bash
-   > git fetch origin main
-   > git rebase origin/main
-   > # resolve conflicts in the files listed above
-   > git rebase --continue
-   > git push --force-with-lease
-   > \`\`\`
-   > Then convert this draft PR to ready for review.
-
-   <original PR body below>
-
-   <body>" \
-     --draft \
-     --label "needs-rebase"
-   ```
-
-3. Tell the user the draft PR URL and what needs resolving.
-4. Return the draft PR URL.
+If Phase 2 aborted with unresolvable conflicts: push the un-rebased branch
+as-is, then open a draft PR with `needs-rebase` label per
+[REFERENCE.md](REFERENCE.md) § "Conflict PR template".
 
 ---
 

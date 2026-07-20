@@ -39,17 +39,24 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
-from vultron.core.use_cases._helpers import _report_phase_status_id
+from vultron.core.models._helpers import _report_phase_status_id
 from vultron.core.use_cases.triggers.report import (
+    SvcCloseReportUseCase,
+    SvcInvalidateReportUseCase,
+    SvcRejectReportUseCase,
     SvcSubmitReportUseCase,
     SvcValidateReportUseCase,
 )
 from vultron.core.use_cases.triggers.requests import (
+    CloseReportTriggerRequest,
+    InvalidateReportTriggerRequest,
+    RejectReportTriggerRequest,
     SubmitReportTriggerRequest,
     ValidateReportTriggerRequest,
 )
+from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.errors import VultronNotFoundError, VultronValidationError
+from vultron.errors import VultronNotFoundError
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
@@ -95,6 +102,13 @@ def _make_offer(
         actor=actor_id,
     )
     dl.create(offer)
+    offer_record = VultronOfferRecord(
+        offer_id=offer.id_,
+        report_id=report.id_,
+        offer_actor_id=actor_id,
+        offer_to=[recipient_id],
+    )
+    dl.create(offer_record)
     return offer
 
 
@@ -323,21 +337,18 @@ class TestSvcValidateReportUseCase:
                 trigger_activity=TriggerActivityAdapter(self.dl),
             ).execute()
 
-    def test_validate_report_raises_when_offer_is_wrong_type(self):
-        """VultronValidationError raised when offer_id resolves to wrong type."""
-        # Store a plain as_VulnerabilityReport (not an Offer) as the offer_id.
-        non_offer = as_VulnerabilityReport(
-            name="Not an offer",
-            content="wrong type object",
-            attributed_to=self.vendor.id_,
-        )
-        self.dl.create(non_offer)
+    def test_validate_report_raises_when_offer_record_missing(self):
+        """VultronNotFoundError raised when no VultronOfferRecord exists for offer_id.
 
+        Per ADR-0035: _resolve_offer_and_report reads VultronOfferRecord, not
+        the stored wire Offer. If no record was written at offer creation time,
+        the lookup returns None → VultronNotFoundError.
+        """
         request = ValidateReportTriggerRequest(
             actor_id=self.vendor.id_,
-            offer_id=non_offer.id_,
+            offer_id="urn:uuid:offer-with-no-record",
         )
-        with pytest.raises(VultronValidationError):
+        with pytest.raises(VultronNotFoundError):
             SvcValidateReportUseCase(
                 self.dl,
                 request,
@@ -356,6 +367,21 @@ class TestSvcValidateReportUseCase:
                 request,
                 trigger_activity=None,
             ).execute()
+
+    def test_validate_report_returns_activity_dict(self):
+        """execute() returns result['activity'] as Accept(Offer) dict (AC-3, DL-06-001)."""
+        request = ValidateReportTriggerRequest(
+            actor_id=self.vendor.id_,
+            offer_id=self.offer.id_,
+        )
+        result = SvcValidateReportUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+        ).execute()
+
+        assert result.get("activity") is not None
+        assert result["activity"].get("type") == "Accept"
 
     def test_validate_report_idempotent_when_already_valid(self):
         """Second execute() on an already-VALID report does not re-transition RM."""
@@ -386,6 +412,155 @@ class TestSvcValidateReportUseCase:
         assert len(p2.participant_statuses) == len(
             statuses_after_first
         ), "Second validate re-appended a duplicate RM status entry"
+
+
+# ---------------------------------------------------------------------------
+# SvcInvalidateReportUseCase / SvcRejectReportUseCase / SvcCloseReportUseCase
+# ---------------------------------------------------------------------------
+
+
+class _ReportTriggerBase:
+    """Shared fixture for use cases that act on a received offer."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        self.vendor, self.dl = _make_actor_dl("Vendor Co")
+        self.finder, self.finder_dl = _make_actor_dl("Finder Co")
+        self.case_actor, self.case_actor_dl = _make_actor_dl("Case Actor")
+
+        self.report = as_VulnerabilityReport(
+            name="CVE-TEST",
+            content="Vulnerability report content",
+            attributed_to=self.finder.id_,
+        )
+        self.dl.create(self.report)
+
+        self.offer = _make_offer(
+            self.dl,
+            self.report,
+            self.vendor.id_,
+            actor_id=self.finder.id_,
+        )
+
+        self.case = _make_case_with_embargo(
+            self.dl,
+            self.vendor.id_,
+            self.finder.id_,
+            self.case_actor.id_,
+            self.report.id_,
+        )
+        yield
+        self.dl.clear_all()
+        self.dl.close()
+        self.finder_dl.clear_all()
+        self.finder_dl.close()
+        self.case_actor_dl.clear_all()
+        self.case_actor_dl.close()
+        reset_datalayer(self.vendor.id_)
+        reset_datalayer(self.finder.id_)
+        reset_datalayer(self.case_actor.id_)
+
+
+class TestSvcInvalidateReportUseCase(_ReportTriggerBase):
+    """execute() path tests for SvcInvalidateReportUseCase."""
+
+    def test_invalidate_report_returns_activity_dict(self):
+        """execute() returns result['activity'] with type 'TentativeReject' (DL-06-001)."""
+        request = InvalidateReportTriggerRequest(
+            actor_id=self.vendor.id_,
+            offer_id=self.offer.id_,
+        )
+        result = SvcInvalidateReportUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+        ).execute()
+
+        assert result.get("activity") is not None
+        assert result["activity"].get("type") == "TentativeReject"
+
+    def test_invalidate_report_queues_activity_in_outbox(self):
+        """execute() enqueues at least one activity in the actor's outbox."""
+        request = InvalidateReportTriggerRequest(
+            actor_id=self.vendor.id_,
+            offer_id=self.offer.id_,
+        )
+        before = set(self.dl.outbox_list_for_actor(self.vendor.id_))
+        SvcInvalidateReportUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+        ).execute()
+        after = set(self.dl.outbox_list_for_actor(self.vendor.id_))
+        assert len(after - before) >= 1
+
+
+class TestSvcRejectReportUseCase(_ReportTriggerBase):
+    """execute() path tests for SvcRejectReportUseCase."""
+
+    def test_reject_report_returns_activity_dict(self):
+        """execute() returns result['activity'] with type 'Reject' (DL-06-001)."""
+        request = RejectReportTriggerRequest(
+            actor_id=self.vendor.id_,
+            offer_id=self.offer.id_,
+        )
+        result = SvcRejectReportUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+        ).execute()
+
+        assert result.get("activity") is not None
+        assert result["activity"].get("type") == "Reject"
+
+    def test_reject_report_queues_activity_in_outbox(self):
+        """execute() enqueues at least one activity in the actor's outbox."""
+        request = RejectReportTriggerRequest(
+            actor_id=self.vendor.id_,
+            offer_id=self.offer.id_,
+        )
+        before = set(self.dl.outbox_list_for_actor(self.vendor.id_))
+        SvcRejectReportUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+        ).execute()
+        after = set(self.dl.outbox_list_for_actor(self.vendor.id_))
+        assert len(after - before) >= 1
+
+
+class TestSvcCloseReportUseCase(_ReportTriggerBase):
+    """execute() path tests for SvcCloseReportUseCase."""
+
+    def test_close_report_returns_activity_dict(self):
+        """execute() returns result['activity'] as Reject(Offer) dict (DL-06-001)."""
+        request = CloseReportTriggerRequest(
+            actor_id=self.vendor.id_,
+            offer_id=self.offer.id_,
+        )
+        result = SvcCloseReportUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+        ).execute()
+
+        assert result.get("activity") is not None
+        assert result["activity"].get("type") == "Reject"
+
+    def test_close_report_queues_activity_in_outbox(self):
+        """execute() enqueues at least one activity in the actor's outbox."""
+        request = CloseReportTriggerRequest(
+            actor_id=self.vendor.id_,
+            offer_id=self.offer.id_,
+        )
+        before = set(self.dl.outbox_list_for_actor(self.vendor.id_))
+        SvcCloseReportUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+        ).execute()
+        after = set(self.dl.outbox_list_for_actor(self.vendor.id_))
+        assert len(after - before) >= 1
 
 
 # ---------------------------------------------------------------------------

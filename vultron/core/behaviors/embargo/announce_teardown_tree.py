@@ -22,7 +22,7 @@ Provides factory functions for embargo-related BTs:
 activity (protocol ET message).  Sequence:
 
     RemoveEmbargoFromCaseBT (Sequence)
-    ├─ ValidateCaseExistsNode          # case must exist and pass is_case_model
+    ├─ ValidateCaseExistsNode          # case must exist as VulnerabilityCase
     ├─ GuardedCommitCaseLedgerEntryBT  # record receipt before effects (CLP-10-006)
     ├─ RemoveFromProposedEmbargoesNode # idempotent proposed-list cleanup
     └─ TeardownIfActive (Selector)     # run teardown if active; skip silently

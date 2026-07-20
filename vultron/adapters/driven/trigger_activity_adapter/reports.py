@@ -18,6 +18,7 @@
 import logging
 from typing import Any, cast
 
+from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.wire.as2.factories import (
     rm_close_report_activity,
@@ -25,6 +26,7 @@ from vultron.wire.as2.factories import (
     rm_submit_report_activity,
     rm_validate_report_activity,
 )
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Read
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
@@ -57,6 +59,19 @@ class _ReportsMixin:
             logger.warning(
                 "submit_report: activity '%s' already exists — skipping",
                 activity.id_,
+            )
+        offer_record = VultronOfferRecord(
+            offer_id=activity.id_,
+            report_id=report_id,
+            offer_actor_id=actor,
+            offer_to=[to] if isinstance(to, str) else list(to),
+        )
+        try:
+            self._dl.create(offer_record)
+        except ValueError:
+            logger.warning(
+                "submit_report: offer record '%s' already exists — skipping",
+                offer_record.id_,
             )
         return activity.id_, activity.model_dump(**_DUMP_KWARGS)
 
@@ -125,10 +140,6 @@ class _ReportsMixin:
         to: list[str] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist a ``Read(Offer(Report))`` ack-report activity."""
-        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-            as_Read,
-        )
-
         offer = cast(Any, self._dl.read(offer_id))
         activity = as_Read(object_=offer, actor=actor, to=to)
         try:

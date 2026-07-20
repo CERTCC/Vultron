@@ -22,7 +22,7 @@ from vultron.core.behaviors.helpers import (
     FindParticipantByActorIdNode,
 )
 from vultron.core.states.rm import RM
-from vultron.core.use_cases._helpers import _report_phase_status_id
+from vultron.core.models._helpers import _report_phase_status_id
 from vultron.errors import VultronInvalidStateTransitionError
 
 

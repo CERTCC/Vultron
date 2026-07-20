@@ -45,7 +45,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.states.rm import RM
-from vultron.core.use_cases._helpers import _report_phase_status_id
+from vultron.core.models._helpers import _report_phase_status_id
 
 
 class BTTestScenario:

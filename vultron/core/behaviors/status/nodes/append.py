@@ -27,16 +27,15 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
-from vultron.core.models.protocols import (
-    PersistableModel,
-    is_participant_model,
-)
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.protocols import PersistableModel
 from vultron.core.states.rm import (
     RM,
     is_monotonic_rm_forward,
     is_valid_rm_transition,
 )
-from vultron.core.use_cases._helpers import _as_id
+from vultron.core.models._helpers import _as_id
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +116,7 @@ class LoadParticipantNode(DataLayerAction):
             return Status.FAILURE
 
         participant = self.datalayer.read(self.participant_id)
-        if not is_participant_model(participant):
+        if not isinstance(participant, CaseParticipant):
             self.feedback_message = (
                 f"Participant '{self.participant_id}' not found"
             )
@@ -407,10 +406,8 @@ class AppendStatusAndSaveParticipantNode(DataLayerAction):
             )
             return Status.FAILURE
 
-        from vultron.core.models.protocols import ParticipantStatusModel
-
         participant.participant_statuses.append(
-            cast(ParticipantStatusModel, status_obj)
+            cast(ParticipantStatus, status_obj)
         )
         self.datalayer.save(participant)
         self.logger.info(
@@ -455,7 +452,7 @@ class CheckParticipantRMNotClosedNode(DataLayerCondition):
             return Status.FAILURE
 
         participant = self.datalayer.read(self.participant_id)
-        if not is_participant_model(participant):
+        if not isinstance(participant, CaseParticipant):
             self.logger.debug(
                 "%s: participant '%s' not found — allowing (no terminal check)",
                 self.name,

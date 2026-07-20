@@ -28,6 +28,7 @@ IO-03-003).
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+import asyncio
 import logging
 from typing import Any, cast
 
@@ -42,7 +43,7 @@ from vultron.adapters.driving.fastapi.routers.actors._inbox import (
     _store_nested_inbox_object,
 )
 from vultron.core.models.events import VultronEvent
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.wire.as2.errors import VultronParseError
@@ -51,6 +52,21 @@ from vultron.wire.as2.rehydration import rehydrate
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 logger = logging.getLogger(__name__)
+
+# Per-actor asyncio locks that serialise concurrent inbox background tasks.
+# When multiple HTTP POSTs arrive for the same actor simultaneously, each
+# creates a separate asyncio Task (BackgroundTask).  Without serialisation,
+# the second task's process_payload can run before the first has stored its
+# ledger entry, causing a hash-chain mismatch → spurious Reject → Replay loop
+# that may not converge within the demo timeout (issue #1525).
+_actor_inbox_locks: dict[str, asyncio.Lock] = {}
+
+
+def _get_actor_lock(actor_id: str) -> asyncio.Lock:
+    """Return the per-actor asyncio.Lock for *actor_id*, creating it on first use."""
+    if actor_id not in _actor_inbox_locks:
+        _actor_inbox_locks[actor_id] = asyncio.Lock()
+    return _actor_inbox_locks[actor_id]
 
 
 def _is_inline_ledger_entry_announce(activity: as_Activity) -> bool:
@@ -266,7 +282,7 @@ class FastAPIQueuePort:
 
     def is_case_known(self, case_id: str) -> bool:
         """Return ``True`` if the case replica is locally available."""
-        return is_case_model(self._dl.read(case_id))
+        return isinstance(self._dl.read(case_id), VulnerabilityCase)
 
     def queue(
         self,
@@ -344,27 +360,33 @@ async def run_inbox_pipeline(
         actor_id=actor_id,
     )
 
-    outcome = process_payload(payload, ingress, dispatch_adp, queue)
-    logger.info(
-        "run_inbox_pipeline: status=%s context_id=%s",
-        outcome.status,
-        outcome.context_id,
-    )
-
-    # Process any replayed activities (pushed back to the queue by
-    # DeferCheckNode/DispatchNode replay after bootstrap).
-    stored_ingress = StoredActivityIngressAdapter(dl=dl)
-    while actor_dl.inbox_list():
-        item_id = actor_dl.inbox_pop()
-        if item_id is None:
-            break
-        replay_outcome = process_payload(
-            item_id, stored_ingress, dispatch_adp, queue
-        )
+    # Serialise concurrent inbox background tasks for this actor so that
+    # process_payload for entry N+1 never starts before entry N has been
+    # stored.  Without this lock, two HTTP POSTs that arrive close together
+    # create two asyncio Tasks that can run in any order; if entry N+1's
+    # task runs first, the hash-chain check fails → spurious Reject (issue #1525).
+    async with _get_actor_lock(actor_id):
+        outcome = process_payload(payload, ingress, dispatch_adp, queue)
         logger.info(
-            "run_inbox_pipeline: replayed status=%s context_id=%s",
-            replay_outcome.status,
-            replay_outcome.context_id,
+            "run_inbox_pipeline: status=%s context_id=%s",
+            outcome.status,
+            outcome.context_id,
         )
+
+        # Process any replayed activities (pushed back to the queue by
+        # DeferCheckNode/DispatchNode replay after bootstrap).
+        stored_ingress = StoredActivityIngressAdapter(dl=dl)
+        while actor_dl.inbox_list():
+            item_id = actor_dl.inbox_pop()
+            if item_id is None:
+                break
+            replay_outcome = process_payload(
+                item_id, stored_ingress, dispatch_adp, queue
+            )
+            logger.info(
+                "run_inbox_pipeline: replayed status=%s context_id=%s",
+                replay_outcome.status,
+                replay_outcome.context_id,
+            )
 
     await outbox_handler(actor_id, actor_dl, shared_dl=dl, emitter=emitter)

@@ -411,8 +411,9 @@ class TestValidateEmbargoRevisionStateNode:
         """
         from unittest.mock import MagicMock, PropertyMock
 
-        mock_case = MagicMock()
-        mock_case.type_ = "VulnerabilityCase"
+        from vultron.core.models.case import VulnerabilityCase
+
+        mock_case = MagicMock(spec=VulnerabilityCase)
         mock_case.case_participants = []
         mock_case.case_statuses = []
         type(mock_case).current_status = PropertyMock(

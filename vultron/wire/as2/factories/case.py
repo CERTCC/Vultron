@@ -28,7 +28,7 @@ from typing import Any, cast
 from pydantic import ValidationError
 
 from vultron.core.models.actor import CoreActor
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.em import EM
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.base.objects.activities.intransitive import (
@@ -670,7 +670,7 @@ def rm_invite_to_case_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    if is_case_model(target):
+    if isinstance(target, (VulnerabilityCase, as_VulnerabilityCase)):
         target = _project_case_to_stub(target, embargo_obj)
     if roles is not None:
         kwargs["roles"] = roles

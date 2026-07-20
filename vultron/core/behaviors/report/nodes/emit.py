@@ -20,7 +20,8 @@ from typing import cast
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import _resolve_case_manager_id
 
@@ -34,21 +35,32 @@ class _EmitCaseActorReportActivityBase(DataLayerAction):
 
     Subclasses must override ``_call_factory`` to invoke the appropriate
     ``TriggerActivityPort`` method and return ``(activity_id, activity_dict)``.
+
+    When *captured* is provided, the activity dict is stored as
+    ``captured["activity"]`` on success, eliminating any need for a
+    follow-up ``dl.read(activity_id)`` call (AC-1, AC-2, DL-06-001).
     """
 
     def __init__(
-        self, offer_id: str, report_id: str, name: str | None = None
+        self,
+        offer_id: str,
+        report_id: str,
+        captured: dict | None = None,
+        name: str | None = None,
     ) -> None:
         """Initialize the base emit node.
 
         Args:
             offer_id: ID of the Offer activity being acted upon.
             report_id: ID of the VulnerabilityReport (for address resolution).
+            captured: Optional dict; ``captured["activity"]`` is set to the
+                serialised activity dict on success.
             name: Optional custom node name.
         """
         super().__init__(name=name or self.__class__.__name__)
         self.offer_id = offer_id
         self.report_id = report_id
+        self._captured = captured
 
     def _call_factory(
         self, actor_id: str, addressees: list[str]
@@ -70,11 +82,14 @@ class _EmitCaseActorReportActivityBase(DataLayerAction):
     def _compute_addressees(self) -> list[str] | None:
         """Resolve and validate outbound recipients; return None to fail."""
         assert self.datalayer is not None and self.actor_id is not None
-        offer = self.datalayer.read(self.offer_id)
+        record_id = VultronOfferRecord.build_id(self.offer_id)
+        offer_record = self.datalayer.read(record_id)
+        if not isinstance(offer_record, VultronOfferRecord):
+            offer_record = None
         addressees = _compute_report_addressees(
             self.report_id,
             self.actor_id,
-            offer,
+            offer_record,
             cast(CaseOutboxPersistence, self.datalayer),
         )
         if not addressees:
@@ -108,10 +123,12 @@ class _EmitCaseActorReportActivityBase(DataLayerAction):
             addressees = self._compute_addressees()
             if not addressees:
                 return Status.FAILURE
-            activity_id, _ = self._call_factory(self.actor_id, addressees)  # type: ignore[arg-type]
+            activity_id, activity_dict = self._call_factory(self.actor_id, addressees)  # type: ignore[arg-type]
             cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
                 self.actor_id, activity_id  # type: ignore[arg-type]
             )
+            if self._captured is not None:
+                self._captured["activity"] = activity_dict
             self.logger.info(
                 "Actor '%s' emitted %s for offer '%s'",
                 self.actor_id,
@@ -139,6 +156,20 @@ class EmitValidateReportActivity(_EmitCaseActorReportActivityBase):
     ``_requires_trigger_activity = False`` to having a proper emit node.
     """
 
+    def __init__(
+        self,
+        offer_id: str,
+        report_id: str,
+        captured: dict | None = None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(
+            offer_id=offer_id,
+            report_id=report_id,
+            captured=captured,
+            name=name,
+        )
+
     def _call_factory(
         self, actor_id: str, addressees: list[str]
     ) -> tuple[str, dict]:
@@ -155,38 +186,37 @@ class EmitValidateReportActivity(_EmitCaseActorReportActivityBase):
 def _compute_report_addressees(
     report_id: str,
     actor_id: str,
-    offer: object | None,
+    offer_record: VultronOfferRecord | None,
     dl: CaseOutboxPersistence,
 ) -> list[str] | None:
     """Compute outbound recipient list for a report-phase trigger activity.
 
     For case-scoped report activities, route only to the Case Actor. Falls back
-    to the offer submitter when no case is found (no case-scoped routing).
+    to the offer submitter (from the ``VultronOfferRecord``) when no case is
+    found.
+
+    Per ADR-0035 DL-06-001: the offer submitter ID is read from the core
+    ``VultronOfferRecord``, not from the stored wire Offer activity.
 
     Args:
         report_id: VulnerabilityReport ID used to locate the linked case.
         actor_id: Sender's actor ID (excluded from recipient list).
-        offer: The Offer activity object (used for fallback addressing).
+        offer_record: Core offer record capturing the submitter's actor ID.
         dl: DataLayer for case lookup.
 
     Returns:
         List of recipient URIs, or None when no recipients can be determined.
     """
     case = dl.find_case_by_report_id(report_id)
-    if is_case_model(case):
+    if isinstance(case, VulnerabilityCase):
         case_manager_id = _resolve_case_manager_id(case, dl)
         if case_manager_id and case_manager_id != actor_id:
             return [case_manager_id]
         return None
 
-    offer_actor = getattr(offer, "actor", None)
-    if offer_actor is None:
+    if offer_record is None:
         return None
-    offer_actor_id = (
-        offer_actor
-        if isinstance(offer_actor, str)
-        else getattr(offer_actor, "id_", None)
-    )
+    offer_actor_id = offer_record.offer_actor_id
     if offer_actor_id and offer_actor_id != actor_id:
         return [offer_actor_id]
     return None
@@ -201,6 +231,20 @@ class EmitInvalidateReportActivity(_EmitCaseActorReportActivityBase):
     Per issue #849 AC-1, AC-2: emit nodes must be BT leaf nodes, not inline
     procedural calls in ``execute()``.
     """
+
+    def __init__(
+        self,
+        offer_id: str,
+        report_id: str,
+        captured: dict | None = None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(
+            offer_id=offer_id,
+            report_id=report_id,
+            captured=captured,
+            name=name,
+        )
 
     def _call_factory(
         self, actor_id: str, addressees: list[str]
@@ -226,6 +270,20 @@ class EmitCloseReportActivity(_EmitCaseActorReportActivityBase):
     procedural calls in ``execute()``.
     """
 
+    def __init__(
+        self,
+        offer_id: str,
+        report_id: str,
+        captured: dict | None = None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(
+            offer_id=offer_id,
+            report_id=report_id,
+            captured=captured,
+            name=name,
+        )
+
     def _call_factory(
         self, actor_id: str, addressees: list[str]
     ) -> tuple[str, dict]:
@@ -246,6 +304,20 @@ class EmitAckReportActivity(_EmitCaseActorReportActivityBase):
     activity must be addressed to the CaseActor so the CaseActor can commit
     a canonical ledger entry.
     """
+
+    def __init__(
+        self,
+        offer_id: str,
+        report_id: str,
+        captured: dict | None = None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(
+            offer_id=offer_id,
+            report_id=report_id,
+            captured=captured,
+            name=name,
+        )
 
     def _call_factory(
         self, actor_id: str, addressees: list[str]

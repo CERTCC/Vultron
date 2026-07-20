@@ -27,7 +27,7 @@ from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.use_cases._helpers import _report_phase_status_id
+from vultron.core.models._helpers import _report_phase_status_id
 from vultron.adapters.driving.fastapi.deps import (
     get_canonical_actor_dl,
     get_trigger_dl,
@@ -40,6 +40,7 @@ from vultron.core.use_cases.triggers.service import TriggerService
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
@@ -119,6 +120,13 @@ def offer(dl, report, actor, reporter):
         target=actor.id_,
     )
     dl.create(offer_obj)
+    offer_record = VultronOfferRecord(
+        offer_id=offer_obj.id_,
+        report_id=report.id_,
+        offer_actor_id=reporter.id_,
+        offer_to=[actor.id_],
+    )
+    dl.create(offer_record)
     return offer_obj
 
 
@@ -340,15 +348,19 @@ def test_trigger_validate_report_transitions_rm_to_valid(
     ), "Expected a RM.VALID ParticipantStatus after validate-report trigger"
 
 
-def test_trigger_validate_report_non_report_offer_returns_422(
+def test_trigger_validate_report_non_report_offer_returns_404(
     client_triggers, actor, non_report_object
 ):
-    """validate-report rejects an offer_id that is not an Offer of a report."""
+    """validate-report returns 404 when no VultronOfferRecord exists for the offer_id.
+
+    Per ADR-0035: _resolve_offer_and_report reads VultronOfferRecord; a non-offer
+    ID has no record → VultronNotFoundError → HTTP 404.
+    """
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/validate-report",
         json={"offer_id": non_report_object.id_},
     )
-    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
 
 
 # ===========================================================================
@@ -455,15 +467,19 @@ def test_trigger_invalidate_report_with_note_returns_202(
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
 
-def test_trigger_invalidate_report_non_report_offer_returns_422(
+def test_trigger_invalidate_report_non_report_offer_returns_404(
     client_triggers, actor, non_report_object
 ):
-    """invalidate-report rejects an offer_id that is not an Offer of a report."""
+    """invalidate-report returns 404 when no VultronOfferRecord exists for the offer_id.
+
+    Per ADR-0035: _resolve_offer_and_report reads VultronOfferRecord; a non-offer
+    ID has no record → VultronNotFoundError → HTTP 404.
+    """
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/invalidate-report",
         json={"offer_id": non_report_object.id_},
     )
-    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
 
 
 # ===========================================================================
@@ -582,15 +598,19 @@ def test_trigger_reject_report_adds_activity_to_outbox(
     assert len(outbox_after - outbox_before) >= 1
 
 
-def test_trigger_reject_report_non_report_offer_returns_422(
+def test_trigger_reject_report_non_report_offer_returns_404(
     client_triggers, actor, non_report_object
 ):
-    """reject-report rejects an offer_id that is not an Offer of a report."""
+    """reject-report returns 404 when no VultronOfferRecord exists for the offer_id.
+
+    Per ADR-0035: _resolve_offer_and_report reads VultronOfferRecord; a non-offer
+    ID has no record → VultronNotFoundError → HTTP 404.
+    """
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/reject-report",
         json={"offer_id": non_report_object.id_, "note": "Not a report."},
     )
-    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
 
 
 # ===========================================================================
@@ -707,15 +727,19 @@ def test_trigger_close_report_already_closed_returns_409(
     assert data["detail"]["error"] == "Conflict"
 
 
-def test_trigger_close_report_non_report_offer_returns_422(
+def test_trigger_close_report_non_report_offer_returns_404(
     client_triggers, actor, non_report_object
 ):
-    """close-report rejects an offer_id that is not an Offer of a report."""
+    """close-report returns 404 when no VultronOfferRecord exists for the offer_id.
+
+    Per ADR-0035: _resolve_offer_and_report reads VultronOfferRecord; a non-offer
+    ID has no record → VultronNotFoundError → HTTP 404.
+    """
     resp = client_triggers.post(
         f"/actors/{actor.id_}/trigger/close-report",
         json={"offer_id": non_report_object.id_},
     )
-    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
 
 
 # ===========================================================================

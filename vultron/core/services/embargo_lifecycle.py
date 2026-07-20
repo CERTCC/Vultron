@@ -46,7 +46,8 @@ from typing import Any
 from pydantic import BaseModel, Field
 from transitions import MachineError
 
-from vultron.core.models.protocols import is_case_model, is_participant_model
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM, EM_Trigger, EMAdapter, create_em_machine
@@ -55,7 +56,7 @@ from vultron.core.states.participant_embargo_consent import (
     PEC_Trigger,
     apply_pec_trigger,
 )
-from vultron.core.use_cases._helpers import _as_id
+from vultron.core.models._helpers import _as_id
 from vultron.errors import (
     VultronInvalidStateTransitionError,
     VultronNotFoundError,
@@ -199,7 +200,7 @@ class EmbargoLifecycle:
         """
         # Load and validate case
         case = self._persistence.read(case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             raise VultronNotFoundError("VulnerabilityCase", case_id)
 
         em_before = EM(case.current_status.em_state)
@@ -310,7 +311,7 @@ class EmbargoLifecycle:
                 PEC state only and are not blocked by P/X/A.
         """
         case = self._persistence.read(case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             raise VultronNotFoundError("VulnerabilityCase", case_id)
 
         em_before = EM(case.current_status.em_state)
@@ -427,7 +428,7 @@ class EmbargoLifecycle:
                 per EMB-04-002 — use terminate_active_embargo instead).
         """
         case = self._persistence.read(case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             raise VultronNotFoundError("VulnerabilityCase", case_id)
 
         em_before = EM(case.current_status.em_state)
@@ -516,7 +517,7 @@ class EmbargoLifecycle:
                 ``None``.
         """
         case = self._persistence.read(case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             raise VultronNotFoundError("VulnerabilityCase", case_id)
 
         em_before = EM(case.current_status.em_state)
@@ -592,7 +593,7 @@ class EmbargoLifecycle:
             when the transition was valid.
         """
         case = self._persistence.read(case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             raise VultronNotFoundError("VulnerabilityCase", case_id)
 
         em_state = EM(case.current_status.em_state)
@@ -614,7 +615,7 @@ class EmbargoLifecycle:
             )
 
         participant = self._persistence.read(participant_id)
-        if not is_participant_model(participant):
+        if not isinstance(participant, CaseParticipant):
             return EmbargoLifecycleResult(
                 em_before=em_state,
                 em_after=em_state,
@@ -772,7 +773,7 @@ class EmbargoLifecycle:
             return []
 
         participant = self._persistence.read(participant_id)
-        if not is_participant_model(participant):
+        if not isinstance(participant, CaseParticipant):
             return []
 
         pec_before = participant.embargo_consent_state
@@ -825,7 +826,7 @@ class EmbargoLifecycle:
             return []
 
         participant = self._persistence.read(participant_id)
-        if not is_participant_model(participant):
+        if not isinstance(participant, CaseParticipant):
             return []
 
         pec_before = participant.embargo_consent_state
@@ -869,7 +870,7 @@ class EmbargoLifecycle:
             if participant_id is None:
                 continue
             participant = self._persistence.read(participant_id)
-            if not is_participant_model(participant):
+            if not isinstance(participant, CaseParticipant):
                 continue
             if participant.embargo_consent_state == PEC.NO_EMBARGO.value:
                 continue
@@ -903,7 +904,7 @@ class EmbargoLifecycle:
             if participant_id is None:
                 continue
             participant = self._persistence.read(participant_id)
-            if not is_participant_model(participant):
+            if not isinstance(participant, CaseParticipant):
                 continue
             if participant.embargo_consent_state == PEC.SIGNATORY.value:
                 pec_before = participant.embargo_consent_state

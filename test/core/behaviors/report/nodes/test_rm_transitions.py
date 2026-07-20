@@ -39,7 +39,7 @@ from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.report import VultronReport
 from vultron.core.models.activity import VultronOffer
 from vultron.core.states.rm import RM
-from vultron.core.use_cases._helpers import _report_phase_status_id
+from vultron.core.models._helpers import _report_phase_status_id
 from test.core.behaviors.bt_harness import BTTestScenario
 
 

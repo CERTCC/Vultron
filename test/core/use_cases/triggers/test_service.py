@@ -28,7 +28,6 @@ from vultron.adapters.driven.db_record import object_to_record
 from vultron.errors import (
     VultronInvalidStateTransitionError,
     VultronNotFoundError,
-    VultronValidationError,
 )
 from vultron.core.use_cases.triggers.service import TriggerService
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -39,9 +38,10 @@ try:
     from pydantic import ValidationError as PydanticValidationError
 except ImportError:
     from pydantic_core import ValidationError as PydanticValidationError
+from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.use_cases._helpers import _report_phase_status_id
+from vultron.core.models._helpers import _report_phase_status_id
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
@@ -137,6 +137,13 @@ def offer(dl, report, actor, reporter):
         target=actor.id_,
     )
     dl.create(offer_obj)
+    offer_record = VultronOfferRecord(
+        offer_id=offer_obj.id_,
+        report_id=report.id_,
+        offer_actor_id=reporter.id_,
+        offer_to=[actor.id_],
+    )
+    dl.create(offer_record)
     return offer_obj
 
 
@@ -312,11 +319,15 @@ def test_validate_report_trigger_transitions_rm_to_valid(
     ), "Expected a RM.VALID ParticipantStatus after validate_report_trigger"
 
 
-def test_validate_report_trigger_non_report_offer_raises_422(
+def test_validate_report_trigger_non_report_offer_raises_404(
     dl, actor, non_report_object
 ):
-    """validate_report_trigger raises 422 when offer_id is not a report Offer."""
-    with pytest.raises(VultronValidationError):
+    """validate_report_trigger raises 404 when no VultronOfferRecord exists for the offer_id.
+
+    Per ADR-0035: _resolve_offer_and_report reads from the core VultronOfferRecord,
+    not the stored wire activity. A non-offer ID has no record → VultronNotFoundError.
+    """
+    with pytest.raises(VultronNotFoundError):
         TriggerService(
             dl, trigger_activity=TriggerActivityAdapter(dl)
         ).validate_report(actor.id_, non_report_object.id_, None)
@@ -368,11 +379,15 @@ def test_invalidate_report_trigger_adds_activity_to_outbox(
     assert len(after - before) >= 1
 
 
-def test_invalidate_report_trigger_non_report_offer_raises_422(
+def test_invalidate_report_trigger_non_report_offer_raises_404(
     dl, actor, non_report_object
 ):
-    """invalidate_report_trigger raises 422 when offer_id is not a report Offer."""
-    with pytest.raises(VultronValidationError):
+    """invalidate_report_trigger raises 404 when no VultronOfferRecord exists.
+
+    Per ADR-0035: _resolve_offer_and_report reads VultronOfferRecord; no record
+    for non-offer IDs → VultronNotFoundError.
+    """
+    with pytest.raises(VultronNotFoundError):
         TriggerService(
             dl, trigger_activity=TriggerActivityAdapter(dl)
         ).invalidate_report(actor.id_, non_report_object.id_, None)
@@ -424,11 +439,15 @@ def test_reject_report_trigger_adds_activity_to_outbox(
     assert len(after - before) >= 1
 
 
-def test_reject_report_trigger_non_report_offer_raises_422(
+def test_reject_report_trigger_non_report_offer_raises_404(
     dl, actor, non_report_object
 ):
-    """reject_report_trigger raises 422 when offer_id is not a report Offer."""
-    with pytest.raises(VultronValidationError):
+    """reject_report_trigger raises 404 when no VultronOfferRecord exists.
+
+    Per ADR-0035: _resolve_offer_and_report reads VultronOfferRecord; no record
+    for non-offer IDs → VultronNotFoundError.
+    """
+    with pytest.raises(VultronNotFoundError):
         TriggerService(
             dl, trigger_activity=TriggerActivityAdapter(dl)
         ).reject_report(actor.id_, non_report_object.id_, "reason")
@@ -468,11 +487,15 @@ def test_close_report_trigger_unknown_actor_raises_404(dl, offer):
         ).close_report("urn:uuid:no-such", offer.id_, None)
 
 
-def test_close_report_trigger_non_report_offer_raises_422(
+def test_close_report_trigger_non_report_offer_raises_404(
     dl, actor, non_report_object
 ):
-    """close_report_trigger raises 422 when offer_id is not a report Offer."""
-    with pytest.raises(VultronValidationError):
+    """close_report_trigger raises 404 when no VultronOfferRecord exists.
+
+    Per ADR-0035: _resolve_offer_and_report reads VultronOfferRecord; no record
+    for non-offer IDs → VultronNotFoundError.
+    """
+    with pytest.raises(VultronNotFoundError):
         TriggerService(
             dl, trigger_activity=TriggerActivityAdapter(dl)
         ).close_report(actor.id_, non_report_object.id_, None)

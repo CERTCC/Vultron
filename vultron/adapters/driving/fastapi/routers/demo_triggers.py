@@ -58,7 +58,7 @@ from vultron.adapters.driving.fastapi.trigger_models import (
     SyncLogEntryRequest,
 )
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as WireCaseLedgerEntry,
 )
@@ -70,9 +70,9 @@ router = APIRouter(prefix="/actors", tags=["Demo Triggers"])
 
 def _resolve_case_id(case_key: str, dl: DataLayer) -> str:
     case_obj = dl.read(case_key)
-    if case_obj is None or not is_case_model(case_obj):
+    if case_obj is None or not isinstance(case_obj, VulnerabilityCase):
         case_obj = dl.find_case_by_short_id(case_key)
-    if case_obj is None or not is_case_model(case_obj):
+    if case_obj is None or not isinstance(case_obj, VulnerabilityCase):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Case not found.",

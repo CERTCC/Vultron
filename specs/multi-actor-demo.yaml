@@ -422,6 +422,7 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOCI-03-004
+
 - id: DEMOMA-10
   title: FVCV-Extension Scenario (Vendor1 retains ownership; Coordinator is participant; Coordinator suggests Vendor2)
   specs:

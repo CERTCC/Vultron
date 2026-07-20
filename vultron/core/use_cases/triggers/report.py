@@ -38,11 +38,11 @@ from vultron.core.behaviors.report.trigger_report_trees import (
 from vultron.core.behaviors.report.validate_tree import (
     create_validate_report_tree,
 )
-from vultron.core.models.report import VultronReport
+from vultron.core.models.offer_record import VultronOfferRecord
+from vultron.core.models.report import VulnerabilityReport, VultronReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
-from vultron.core.use_cases._helpers import outbox_ids
 from vultron.core.use_cases.triggers._helpers import (
     resolve_actor,
 )
@@ -60,29 +60,33 @@ logger = logging.getLogger(__name__)
 
 def _resolve_offer_and_report(
     offer_id: str, dl: CaseOutboxPersistence
-) -> tuple[Any, Any]:
-    """Resolve offer and its embedded report; raise domain errors on failure.
+) -> tuple[Any, VulnerabilityReport]:
+    """Resolve the offer record and its embedded report from core state.
 
-    After the DataLayer rehydration pipeline, ``dl.read(offer_id)`` returns an
-    ``RmSubmitReportActivity`` with its ``object_`` already expanded to a
-    ``VulnerabilityReport``.  No manual coercion is needed.
+    Per ADR-0035 DL-06-001: core MUST NOT re-read the stored Offer wire
+    activity to recover semantic content.  The domain facts (report ID,
+    offer actor) are captured in a ``VultronOfferRecord`` at submission time.
     """
-    offer = dl.read(offer_id)
-    if offer is None:
+    record_id = VultronOfferRecord.build_id(offer_id)
+    offer_record = dl.read(record_id)
+    if offer_record is None:
         raise VultronNotFoundError("Offer", offer_id)
-    if getattr(offer, "type_", "") != "Offer":
+    if not isinstance(offer_record, VultronOfferRecord):
         raise VultronValidationError(
-            f"Expected RmSubmitReportActivity for offer '{offer_id}', "
-            f"got type '{getattr(offer, 'type_', 'unknown')}'."
+            f"Expected VultronOfferRecord for offer '{offer_id}', "
+            f"got type '{getattr(offer_record, 'type_', 'unknown')}'."
         )
-    report = getattr(offer, "object_", None)
-    if getattr(report, "type_", "") != "VulnerabilityReport":
+    report = dl.read(offer_record.report_id)
+    if report is None:
+        raise VultronNotFoundError(
+            "VulnerabilityReport", offer_record.report_id
+        )
+    if not isinstance(report, VulnerabilityReport):
         raise VultronValidationError(
-            f"Expected VulnerabilityReport embedded in offer '{offer_id}', "
-            f"got type"
-            f" '{getattr(report, 'type_', 'None' if report is None else 'unknown')}'."
+            f"Expected VulnerabilityReport '{offer_record.report_id}', "
+            f"got type '{getattr(report, 'type_', 'unknown')}'."
         )
-    return offer, report
+    return offer_record, report
 
 
 class SvcValidateReportUseCase(SvcBTTriggerBase):
@@ -103,24 +107,16 @@ class SvcValidateReportUseCase(SvcBTTriggerBase):
         self._offer, self._report = _resolve_offer_and_report(
             request.offer_id, self._dl
         )
-        self._before = outbox_ids(self._actor_id, self._dl)
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         return create_validate_report_tree(
             report_id=self._report.id_,
-            offer_id=self._offer.id_,
+            offer_id=self._offer.offer_id,
+            captured=self._captured,
         )
 
     def _handle_result(self) -> None:
-        after = outbox_ids(self._actor_id, self._dl)
-        new_items = after - self._before
-        if new_items:
-            activity_id = next(iter(new_items))
-            activity_obj = self._dl.read(activity_id)
-            if activity_obj is not None:
-                self._captured["activity"] = activity_obj.model_dump(
-                    by_alias=True, exclude_none=True
-                )
+        pass
 
 
 class SvcInvalidateReportUseCase(SvcBTTriggerBase):
@@ -133,28 +129,19 @@ class SvcInvalidateReportUseCase(SvcBTTriggerBase):
         self._offer, self._report = _resolve_offer_and_report(
             request.offer_id, self._dl
         )
-        self._before = outbox_ids(self._actor_id, self._dl)
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         return create_invalidate_report_trigger_tree(
-            offer_id=self._offer.id_,
+            offer_id=self._offer.offer_id,
             report_id=self._report.id_,
+            captured=self._captured,
         )
 
     def _handle_result(self) -> None:
-        after = outbox_ids(self._actor_id, self._dl)
-        new_items = after - self._before
-        if new_items:
-            activity_id = next(iter(new_items))
-            activity_obj = self._dl.read(activity_id)
-            if activity_obj is not None:
-                self._captured["activity"] = activity_obj.model_dump(
-                    by_alias=True, exclude_none=True
-                )
         logger.info(
             "Actor '%s' invalidated offer '%s' (report '%s')",
             self._actor_id,
-            self._offer.id_,
+            self._offer.offer_id,
             self._report.id_,
         )
 
@@ -169,29 +156,20 @@ class SvcRejectReportUseCase(SvcBTTriggerBase):
         self._offer, self._report = _resolve_offer_and_report(
             request.offer_id, self._dl
         )
-        self._before = outbox_ids(self._actor_id, self._dl)
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         return create_reject_report_trigger_tree(
-            offer_id=self._offer.id_,
+            offer_id=self._offer.offer_id,
             report_id=self._report.id_,
+            captured=self._captured,
         )
 
     def _handle_result(self) -> None:
-        after = outbox_ids(self._actor_id, self._dl)
-        new_items = after - self._before
-        if new_items:
-            activity_id = next(iter(new_items))
-            activity_obj = self._dl.read(activity_id)
-            if activity_obj is not None:
-                self._captured["activity"] = activity_obj.model_dump(
-                    by_alias=True, exclude_none=True
-                )
         request = cast(RejectReportTriggerRequest, self._request)
         logger.info(
             "Actor '%s' hard-closed offer '%s' (report '%s'); note: %s",
             self._actor_id,
-            self._offer.id_,
+            self._offer.offer_id,
             self._report.id_,
             request.note,
         )
@@ -207,31 +185,22 @@ class SvcCloseReportUseCase(SvcBTTriggerBase):
         self._offer, self._report = _resolve_offer_and_report(
             request.offer_id, self._dl
         )
-        self._before = outbox_ids(self._actor_id, self._dl)
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         return create_close_report_trigger_tree(
-            offer_id=self._offer.id_,
+            offer_id=self._offer.offer_id,
             report_id=self._report.id_,
             result_out=self._result_out,
+            captured=self._captured,
         )
 
     def _handle_result(self) -> None:
-        after = outbox_ids(self._actor_id, self._dl)
-        new_items = after - self._before
-        if new_items:
-            activity_id = next(iter(new_items))
-            activity_obj = self._dl.read(activity_id)
-            if activity_obj is not None:
-                self._captured["activity"] = activity_obj.model_dump(
-                    by_alias=True, exclude_none=True
-                )
         request = cast(CloseReportTriggerRequest, self._request)
         logger.info(
             "Actor '%s' closed offer '%s' (report '%s') via RM lifecycle;"
             " note: %s",
             self._actor_id,
-            self._offer.id_,
+            self._offer.offer_id,
             self._report.id_,
             request.note,
         )

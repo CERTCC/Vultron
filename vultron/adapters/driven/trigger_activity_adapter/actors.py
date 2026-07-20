@@ -23,9 +23,9 @@ import logging
 from typing import Any, cast
 
 from vultron.core.models.actor import CoreActor
-from vultron.core.models.protocols import CaseModel, is_case_model
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.use_cases._helpers import _as_id
+from vultron.core.models._helpers import _as_id
 from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.wire.as2.factories import (
     accept_actor_recommendation_activity,
@@ -70,7 +70,7 @@ class _ActorsMixin:
         id_: str | None = None,
         attributed_to: str | None = None,
         roles: list[str] | None = None,
-        target: CaseModel | None = None,
+        target: VulnerabilityCase | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist an ``Invite(Actor, Case)`` activity.
 
@@ -97,11 +97,11 @@ class _ActorsMixin:
         resolved: Any = target
         if resolved is None:
             resolved = self._dl.read(case_id)
-            if not is_case_model(resolved):
+            if not isinstance(resolved, VulnerabilityCase):
                 resolved = case_id
 
         embargo_obj = None
-        if is_case_model(resolved):
+        if isinstance(resolved, VulnerabilityCase):
             active_embargo_uri = getattr(resolved, "active_embargo", None)
             if active_embargo_uri:
                 embargo_obj = self._dl.read(active_embargo_uri)
@@ -404,9 +404,11 @@ class _ActorsMixin:
         participant_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> str:
+    ) -> tuple[str, dict]:
         """Create and persist an ``Offer(as_VulnerabilityCase, target=as_CaseParticipant)``
         CASE_MANAGER delegation activity.
+
+        Returns ``(activity_id, activity_dict)``.
         """
         case = _to_wire(self._dl.read(case_id), as_VulnerabilityCase)
         participant = _to_wire(
@@ -423,7 +425,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_
+        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
 
     def accept_case_manager_role(
         self,

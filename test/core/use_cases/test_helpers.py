@@ -43,7 +43,6 @@ import pytest
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.protocols import CaseModel, is_case_model
 from vultron.enums.roles import CVDRole
 from vultron.core.use_cases._helpers import (
     _resolve_case_manager_id,
@@ -75,14 +74,16 @@ def participant() -> CaseParticipant:
 @pytest.fixture()
 def seeded_case(
     dl: SqliteDataLayer, participant: CaseParticipant
-) -> CaseModel:
+) -> VulnerabilityCase:
     """Case with participant stored in DL and registered on both surfaces."""
     dl.create(participant)
     case = VulnerabilityCase(id_=_CASE_ID, name="Test Case")
     case.add_participant(participant)
     dl.create(case)
     stored = dl.read(_CASE_ID)
-    assert is_case_model(stored), "seeded_case: DL did not return a CaseModel"
+    assert isinstance(
+        stored, VulnerabilityCase
+    ), "seeded_case: DL did not return a VulnerabilityCase"
     return stored
 
 
@@ -90,7 +91,7 @@ class TestResolveCaseParticipantIdForActor:
     """Contract tests for resolve_case_participant_id_for_actor."""
 
     def test_happy_path_returns_canonical_id(
-        self, seeded_case: CaseModel, dl: SqliteDataLayer
+        self, seeded_case: VulnerabilityCase, dl: SqliteDataLayer
     ) -> None:
         """Both surfaces consistent: canonical participant ID is returned."""
         result = resolve_case_participant_id_for_actor(
@@ -113,7 +114,7 @@ class TestResolveCaseParticipantIdForActor:
         dl.create(case)
 
         stored = dl.read(_CASE_ID)
-        assert is_case_model(stored)
+        assert isinstance(stored, VulnerabilityCase)
         result = resolve_case_participant_id_for_actor(stored, _ACTOR_ID, dl)
         assert result == _PARTICIPANT_ID
 
@@ -132,12 +133,12 @@ class TestResolveCaseParticipantIdForActor:
         # Re-read from DL: the DL normalises inline objects to typed records.
         # The case must still resolve via the inline-then-rehydrated path.
         stored = dl.read(_CASE_ID)
-        assert is_case_model(stored)
+        assert isinstance(stored, VulnerabilityCase)
         result = resolve_case_participant_id_for_actor(stored, _ACTOR_ID, dl)
         assert result == _PARTICIPANT_ID
 
     def test_not_found_returns_none(
-        self, seeded_case: CaseModel, dl: SqliteDataLayer
+        self, seeded_case: VulnerabilityCase, dl: SqliteDataLayer
     ) -> None:
         """Actor not in case at all → None returned without error."""
         unknown_id = "https://example.org/actors/unknown"
@@ -160,7 +161,7 @@ class TestResolveCaseParticipantIdForActor:
         dl.create(case)
 
         stored = dl.read(_CASE_ID)
-        assert is_case_model(stored)
+        assert isinstance(stored, VulnerabilityCase)
         with pytest.raises(
             VultronValidationError, match="actor_participant_index"
         ):
@@ -183,7 +184,7 @@ class TestResolveCaseParticipantIdForActor:
         dl.create(case)
 
         stored = dl.read(_CASE_ID)
-        assert is_case_model(stored)
+        assert isinstance(stored, VulnerabilityCase)
         with pytest.raises(VultronValidationError, match="divergence"):
             resolve_case_participant_id_for_actor(stored, _ACTOR_ID, dl)
 
@@ -216,7 +217,7 @@ class TestResolveCaseParticipantIdForActor:
         dl.create(case)
 
         stored = dl.read(_CASE_ID)
-        assert is_case_model(stored)
+        assert isinstance(stored, VulnerabilityCase)
         with pytest.raises(
             VultronValidationError, match="multiple participants"
         ):
@@ -280,7 +281,7 @@ class TestResolveCaseManagerId:
         case.case_participants.append(_CM_PARTICIPANT_ID)
         cm_dl.create(case)
         stored = cm_dl.read(_CM_CASE_ID)
-        assert is_case_model(stored)
+        assert isinstance(stored, VulnerabilityCase)
         result = _resolve_case_manager_id(stored, cm_dl)
         assert result == _CM_ACTOR_ID
 
@@ -292,7 +293,7 @@ class TestResolveCaseManagerId:
         """Inline participant object (bootstrap path): returns attributed_to."""
         case = VulnerabilityCase(id_=_CM_CASE_ID, name="CM Inline Test")
         case.case_participants.append(cm_participant)  # type: ignore[arg-type]
-        result = _resolve_case_manager_id(cast(CaseModel, case), cm_dl)
+        result = _resolve_case_manager_id(cast(VulnerabilityCase, case), cm_dl)
         assert result == _CM_ACTOR_ID
 
     def test_no_case_manager_returns_none(
@@ -306,7 +307,7 @@ class TestResolveCaseManagerId:
         case.case_participants.append(_VENDOR_PARTICIPANT_ID)
         cm_dl.create(case)
         stored = cm_dl.read(_CM_CASE_ID)
-        assert is_case_model(stored)
+        assert isinstance(stored, VulnerabilityCase)
         result = _resolve_case_manager_id(stored, cm_dl)
         assert result is None
 
@@ -318,7 +319,7 @@ class TestResolveCaseManagerId:
         case = VulnerabilityCase(id_=_CM_CASE_ID, name="Empty Test")
         cm_dl.create(case)
         stored = cm_dl.read(_CM_CASE_ID)
-        assert is_case_model(stored)
+        assert isinstance(stored, VulnerabilityCase)
         result = _resolve_case_manager_id(stored, cm_dl)
         assert result is None
 
@@ -336,7 +337,7 @@ class TestResolveCaseManagerId:
         case.case_participants.append(_CM_PARTICIPANT_ID)
         cm_dl.create(case)
         stored = cm_dl.read(_CM_CASE_ID)
-        assert is_case_model(stored)
+        assert isinstance(stored, VulnerabilityCase)
         result = _resolve_case_manager_id(stored, cm_dl)
         assert result == _CM_ACTOR_ID
 
@@ -349,7 +350,7 @@ class TestResolveCaseManagerId:
         case.case_participants.append(_CM_PARTICIPANT_ID)  # not in DL
         cm_dl.create(case)
         stored = cm_dl.read(_CM_CASE_ID)
-        assert is_case_model(stored)
+        assert isinstance(stored, VulnerabilityCase)
         result = _resolve_case_manager_id(stored, cm_dl)
         assert result is None
 
@@ -365,6 +366,6 @@ class TestResolveCaseManagerId:
         case.actor_participant_index[_CM_ACTOR_ID] = _CM_PARTICIPANT_ID
         cm_dl.create(case)
         stored = cm_dl.read(_CM_CASE_ID)
-        assert is_case_model(stored)
+        assert isinstance(stored, VulnerabilityCase)
         result = _resolve_case_manager_id(stored, cm_dl)
         assert result == _CM_ACTOR_ID

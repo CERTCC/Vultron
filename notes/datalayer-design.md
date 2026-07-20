@@ -187,14 +187,13 @@ of the coupling before designing the refactor.
 types (`vultron/wire/as2/vocab/objects/`, `as_`-prefixed), for any persisted
 `type_` that has a registered core counterpart in `CORE_VOCABULARY`.
 
-The current read path reconstructs via `find_in_vocabulary()` (the **wire**
-`VOCABULARY`), so core BT nodes and use cases receive `as_VulnerabilityCase`
-etc. and work around it with the duck-typing Protocols and `TypeGuard`
-helpers in `vultron/core/models/protocols.py` (`CaseModel`, `is_case_model()`,
-…). Those Protocols evade — rather than honour — ARCH-01-001: they hide a
-runtime `core → wire` dependency from mypy/pyright.
+**Implemented (PR #1529):** The read path now reconstructs domain entities via
+`CORE_VOCABULARY`, so `dl.read()` returns core objects. The duck-typing
+Protocols and `TypeGuard` helpers (`CaseModel`, `is_case_model()`, etc.) in
+`vultron/core/models/protocols.py` were removed; core uses direct
+`isinstance()` checks against concrete core classes (DL-05-003).
 
-Target end-state (DL-05-001 through DL-05-004):
+DL-05 end-state achieved (all four requirements met):
 
 1. The adapter reconstructs registered domain entities via
    `find_in_core_vocabulary()` / `CORE_VOCABULARY`, so reads/writes of domain
@@ -271,10 +270,9 @@ activity into the API response; the factory already built the object):
 **B — semantic-content reads** (core re-interprets a stored activity for a
 domain fact — the ARCH-09-001 core violations):
 
-- *report/offer*: `triggers/report.py::_resolve_offer_and_report` (reads `Offer`
-  for the embedded `VulnerabilityReport`); `behaviors/report/nodes/emit.py:90`
-  and `behaviors/report/nodes/case_creation.py:191` (read `Offer` for fallback
-  addressing).
+- ~~*report/offer*~~: migrated (#1518). `VultronOfferRecord` now captures
+  offer facts at adapter time (sender) and received-side ingest time (receiver).
+  Core reads `VultronOfferRecord` instead of the stored wire `Offer` activity.
 - *embargo*: `use_cases/received/embargo.py:74,474` (read `Invite` for `context`
   = case id and `object_` = embargo id); `use_cases/triggers/_helpers.py:129`
   and `find_embargo_proposal` / `list_objects("Invite")` (pending proposal);

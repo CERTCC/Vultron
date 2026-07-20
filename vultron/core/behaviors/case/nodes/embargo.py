@@ -39,7 +39,7 @@ from py_trees.common import Status
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.enums import VultronObjectType
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
@@ -47,7 +47,7 @@ from vultron.core.services.embargo_lifecycle import (
 )
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
-from vultron.core.use_cases._helpers import _as_id
+from vultron.core.models._helpers import _as_id
 from vultron.errors import VultronError
 
 logger = logging.getLogger(__name__)
@@ -199,7 +199,7 @@ class AdvanceEMStateToActiveNode(DataLayerAction):
             return Status.FAILURE
 
         stored_case = self.datalayer.read(case_id, raise_on_missing=False)
-        if not is_case_model(stored_case):
+        if not isinstance(stored_case, VulnerabilityCase):
             self.logger.error(
                 "%s: Case %s not found in DataLayer", self.name, case_id
             )
@@ -287,7 +287,7 @@ class AttachEmbargoToCaseNode(DataLayerAction):
             return Status.FAILURE
 
         stored_case = self.datalayer.read(case_id, raise_on_missing=False)
-        if not is_case_model(stored_case):
+        if not isinstance(stored_case, VulnerabilityCase):
             self.logger.error(
                 "%s: Case %s not found in DataLayer", self.name, case_id
             )
@@ -352,7 +352,7 @@ class SeedOwnerAsSignatoryNode(DataLayerAction):
             return Status.SUCCESS
 
         stored_case = self.datalayer.read(case_id, raise_on_missing=False)
-        if not is_case_model(stored_case):
+        if not isinstance(stored_case, VulnerabilityCase):
             self.logger.error(
                 "%s: Case %s not found in DataLayer", self.name, case_id
             )

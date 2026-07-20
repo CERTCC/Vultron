@@ -32,17 +32,14 @@ from vultron.core.behaviors.case.nodes.participant.common import (
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.config.actor import ActorConfig
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.vultron_types import VultronCase, VultronParticipant
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
-from vultron.core.use_cases._helpers import (
-    _as_id,
-    _report_phase_status_id,
-    update_participant_rm_state,
-)
+from vultron.core.models._helpers import _as_id, _report_phase_status_id
+from vultron.core.use_cases._helpers import update_participant_rm_state
 
 
 def _resolve_case_id(
@@ -302,7 +299,7 @@ class PersistOwnerCaseNode(DataLayerAction):
             self.logger.error("%s: DataLayer not available", self.name)
             return Status.FAILURE
         stored_case = self.blackboard.get(self._participant_case_key)
-        if not is_case_model(stored_case):
+        if not isinstance(stored_case, VulnerabilityCase):
             self.logger.error(
                 "%s: %s missing in blackboard",
                 self.name,
@@ -359,7 +356,11 @@ class AdvanceOwnerRmToAcceptedNode(DataLayerAction):
         case_id = case_id_obj if isinstance(case_id_obj, str) else None
         if case_id is None:
             stored_case = self.blackboard.get(self._participant_case_key)
-            case_id = stored_case.id_ if is_case_model(stored_case) else None
+            case_id = (
+                stored_case.id_
+                if isinstance(stored_case, VulnerabilityCase)
+                else None
+            )
         if case_id is None:
             self.logger.error("%s: case_id not available", self.name)
             return Status.FAILURE
@@ -417,7 +418,7 @@ class RecordOwnerJoinedEventNode(DataLayerAction):
 
         stored_case = self.blackboard.get(self._participant_case_key)
         participant = self.blackboard.get(self._new_case_participant_key)
-        if not is_case_model(stored_case) or not isinstance(
+        if not isinstance(stored_case, VulnerabilityCase) or not isinstance(
             participant, VultronParticipant
         ):
             self.logger.error(

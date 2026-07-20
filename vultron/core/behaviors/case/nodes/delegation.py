@@ -145,24 +145,16 @@ class CreateOfferCaseManagerActivityNode(DataLayerAction):
         recipients: list,
     ) -> str:
         assert self.trigger_activity_factory is not None
-        assert self.datalayer is not None
-        activity_id = self.trigger_activity_factory.offer_case_manager_role(
-            case_id=case_id,
-            participant_id=participant_id,
-            actor=case_actor_id,
-            to=recipients,
+        activity_id, activity_dict = (
+            self.trigger_activity_factory.offer_case_manager_role(
+                case_id=case_id,
+                participant_id=participant_id,
+                actor=case_actor_id,
+                to=recipients,
+            )
         )
         if self._captured is not None:
-            activity_obj = self.datalayer.read(activity_id)
-            if activity_obj is not None and hasattr(
-                activity_obj, "model_dump"
-            ):
-                self._captured["activity"] = activity_obj.model_dump(
-                    mode="json",
-                    by_alias=True,
-                    serialize_as_any=True,
-                    exclude_none=True,
-                )
+            self._captured["activity"] = activity_dict
         return activity_id
 
     def _validate_context(self) -> Status | None:

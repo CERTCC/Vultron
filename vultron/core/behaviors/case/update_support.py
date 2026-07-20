@@ -21,13 +21,13 @@ import logging
 from typing import Any, cast
 
 from vultron.core.models.events.case import UpdateCaseReceivedEvent
-from vultron.core.models.protocols import is_participant_model
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.vultron_types import VultronActivity
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
 )
-from vultron.core.use_cases._helpers import _as_id
+from vultron.core.models._helpers import _as_id
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +64,7 @@ def find_excluded_actor_ids(case: Any, dl: CasePersistence) -> set[str]:
                 participant_id,
             )
             continue
-        if not is_participant_model(participant):
+        if not isinstance(participant, CaseParticipant):
             continue
         accepted_ids = getattr(participant, "accepted_embargo_ids", []) or []
         if embargo_id not in accepted_ids:

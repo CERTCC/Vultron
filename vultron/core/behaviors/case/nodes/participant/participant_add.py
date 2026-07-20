@@ -37,14 +37,11 @@ from vultron.core.models.participant_status import (
     ParticipantStatus,
     coerce_cvd_roles,
 )
-from vultron.core.models.protocols import (
-    is_case_model,
-    is_participant_status_model,
-)
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.vultron_types import VultronParticipant
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.enums.roles import CVDRole
-from vultron.core.use_cases._helpers import _as_id
+from vultron.core.models._helpers import _as_id
 
 
 class ResolveParticipantAcceptedStatusNode(DataLayerAction):
@@ -138,8 +135,8 @@ class CreateParticipantNode(DataLayerAction):
         accepted_status = self.blackboard.get(
             self._participant_accepted_status_key
         )
-        if accepted_status is not None and not is_participant_status_model(
-            accepted_status
+        if accepted_status is not None and not isinstance(
+            accepted_status, ParticipantStatus
         ):
             self.logger.error(
                 "%s: %s has invalid type",
@@ -258,7 +255,7 @@ class RecordParticipantAddedEventNode(DataLayerAction):
 
         stored_case = self.blackboard.get(self._participant_case_key)
         participant_id = self.blackboard.get(self._new_participant_id_key)
-        if not is_case_model(stored_case) or not isinstance(
+        if not isinstance(stored_case, VulnerabilityCase) or not isinstance(
             participant_id, str
         ):
             self.logger.error(
@@ -292,7 +289,7 @@ class CaseHasActiveEmbargoNode(DataLayerAction):
 
     def update(self) -> Status:
         stored_case = self.blackboard.get(self._participant_case_key)
-        if not is_case_model(stored_case):
+        if not isinstance(stored_case, VulnerabilityCase):
             self.logger.error(
                 "%s: %s missing in blackboard",
                 self.name,
@@ -325,7 +322,7 @@ class CaseHasNoActiveEmbargoNode(DataLayerAction):
 
     def update(self) -> Status:
         stored_case = self.blackboard.get(self._participant_case_key)
-        if not is_case_model(stored_case):
+        if not isinstance(stored_case, VulnerabilityCase):
             self.logger.error(
                 "%s: %s missing in blackboard",
                 self.name,
@@ -372,7 +369,7 @@ class SeedParticipantAsSignatoryNode(DataLayerAction):
 
         stored_case = self.blackboard.get(self._participant_case_key)
         participant = self.blackboard.get(self._new_case_participant_key)
-        if not is_case_model(stored_case) or not isinstance(
+        if not isinstance(stored_case, VulnerabilityCase) or not isinstance(
             participant, VultronParticipant
         ):
             self.logger.error(

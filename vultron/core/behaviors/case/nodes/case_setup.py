@@ -34,14 +34,14 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.vultron_types import (
     VultronCase,
     VultronCaseActor,
     VultronParticipant,
 )
 from vultron.enums.roles import CVDRole
-from vultron.core.use_cases._helpers import _as_id
+from vultron.core.models._helpers import _as_id
 
 
 def _derive_case_slug(case_id: str) -> str:
@@ -157,7 +157,7 @@ class RecordOfferReceivedEventNode(DataLayerAction):
             return Status.FAILURE
 
         case = self.datalayer.read(case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.logger.error(
                 f"{self.name}: Case {case_id} not found in DataLayer"
             )
@@ -204,7 +204,7 @@ class RecordCaseCreatedEventNode(DataLayerAction):
                 f"{self.name}: case_for_creation_events missing or invalid"
             )
             return Status.FAILURE
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.logger.error(
                 f"{self.name}: case_for_creation_events missing or invalid"
             )
@@ -405,7 +405,7 @@ class RegisterCaseActorParticipantNode(DataLayerAction):
             return Status.FAILURE
 
         case = self.datalayer.read(case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.logger.error(
                 "%s: Case '%s' not found; cannot register CaseActor participant",
                 self.name,

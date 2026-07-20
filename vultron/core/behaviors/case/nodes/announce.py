@@ -32,7 +32,7 @@ from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
 )
-from vultron.core.models.protocols import CaseModel
+from vultron.core.models.case import VulnerabilityCase
 
 
 class SeedAnnouncedCaseNode(DataLayerAction):
@@ -50,7 +50,7 @@ class SeedAnnouncedCaseNode(DataLayerAction):
     def __init__(
         self,
         case_id: str,
-        case_obj: CaseModel,
+        case_obj: VulnerabilityCase,
         request: AnnounceVulnerabilityCaseReceivedEvent,
         name: str | None = None,
     ) -> None:

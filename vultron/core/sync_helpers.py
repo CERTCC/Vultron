@@ -3,7 +3,7 @@
 import logging
 from typing import Any
 
-from vultron.core.models.protocols import LogEntryModel, is_log_entry_model
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import VultronValidationError
 
@@ -75,10 +75,10 @@ def is_ledger_fresh_for_case(
         fresh; a human-readable explanation when stale or when genesis
         metadata is unavailable.
     """
-    entries: list[LogEntryModel] = [
+    entries: list[CaseLedgerEntry] = [
         obj
         for obj in dl.list_objects("CaseLedgerEntry")
-        if is_log_entry_model(obj) and obj.case_id == case_id
+        if isinstance(obj, CaseLedgerEntry) and obj.case_id == case_id
     ]
 
     if not entries:
@@ -154,10 +154,10 @@ def _reconstruct_tail_hash(
         VultronValidationError: When the ledger is empty and the per-case
             genesis hash cannot be found in the DataLayer.
     """
-    entries: list[LogEntryModel] = [
+    entries: list[CaseLedgerEntry] = [
         obj
         for obj in dl.list_objects("CaseLedgerEntry")
-        if is_log_entry_model(obj) and obj.case_id == case_id
+        if isinstance(obj, CaseLedgerEntry) and obj.case_id == case_id
     ]
 
     if not entries:
@@ -183,17 +183,17 @@ def _find_equivalent_recorded_entry(
     event_type: str,
     payload_snapshot: dict[str, Any],
     dl: CasePersistence,
-) -> LogEntryModel | None:
+) -> CaseLedgerEntry | None:
     """Return an already-recorded canonical entry with equivalent semantics.
 
     "Equivalent" means same case, object, event type, and payload snapshot.
     This supports idempotent handling of participant retries without appending
     duplicate canonical entries for the same logical assertion.
     """
-    matches: list[LogEntryModel] = [
+    matches: list[CaseLedgerEntry] = [
         entry
         for obj in dl.list_objects("CaseLedgerEntry")
-        if is_log_entry_model(obj)
+        if isinstance(obj, CaseLedgerEntry)
         for entry in [obj]
         if entry.case_id == case_id
         and entry.disposition == "recorded"

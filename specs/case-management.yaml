@@ -1140,6 +1140,7 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-19-001
+
 - id: CM-20
   title: Coordinator-as-Participant Role Constraints
   specs:

@@ -25,10 +25,12 @@ from typing import Any
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
-from vultron.core.models.protocols import PersistableModel, is_case_model
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.protocols import PersistableModel
 from vultron.core.states.cs import is_valid_pxa_transition
 from vultron.core.states.em import is_valid_em_transition
-from vultron.core.use_cases._helpers import _as_id
+from vultron.core.models._helpers import _as_id
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +70,7 @@ class CheckCaseStatusIdempotencyNode(DataLayerCondition):
             return Status.FAILURE
 
         case = self.datalayer.read(self.case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.feedback_message = f"Case '{self.case_id}' not found"
             self.logger.warning(
                 "CheckCaseStatusIdempotency: %s", self.feedback_message
@@ -149,7 +151,7 @@ class ValidateCaseStatusTransitionNode(DataLayerCondition):
             return Status.FAILURE
 
         case = self.datalayer.read(self.case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.feedback_message = f"Case '{self.case_id}' not found"
             self.logger.warning(
                 "ValidateCaseStatusTransition: %s", self.feedback_message
@@ -230,7 +232,7 @@ class AppendCaseStatusToCaseNode(DataLayerAction):
             return Status.FAILURE
 
         case = self.datalayer.read(self.case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.feedback_message = f"Case '{self.case_id}' not found"
             self.logger.warning(
                 "AppendCaseStatusToCase: %s", self.feedback_message
@@ -245,6 +247,14 @@ class AppendCaseStatusToCaseNode(DataLayerAction):
             )
             return Status.FAILURE
 
+        if not isinstance(status_obj, CaseStatus):
+            self.feedback_message = (
+                f"Status '{self.status_id}' is not a CaseStatus"
+            )
+            self.logger.warning(
+                "AppendCaseStatusToCase: %s", self.feedback_message
+            )
+            return Status.FAILURE
         case.case_statuses.append(status_obj)
         self.datalayer.save(case)
         self.logger.info(

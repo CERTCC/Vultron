@@ -19,7 +19,7 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
-from vultron.core.models.protocols import is_participant_model
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
@@ -72,7 +72,7 @@ class UpdateParticipantEmbargoPecNode(DataLayerAction):
             )
             return Status.SUCCESS
 
-        if not is_participant_model(participant):
+        if not isinstance(participant, CaseParticipant):
             self.logger.warning(
                 "%s: invalid participant on blackboard", self.name
             )
@@ -260,7 +260,7 @@ class RemoveStaleAcceptanceNode(DataLayerAction):
             )
             return Status.SUCCESS
 
-        if not is_participant_model(participant):
+        if not isinstance(participant, CaseParticipant):
             self.logger.debug(
                 "%s: invalid participant on blackboard", self.name
             )

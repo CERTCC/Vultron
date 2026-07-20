@@ -13,18 +13,19 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Protocol types for domain model objects used by core use cases.
+"""Protocol types for structural contracts at DataLayer port boundaries.
 
-Both wire-layer types (e.g. VulnerabilityCase) and domain types (e.g.
-VultronCase) conform structurally to these Protocols, so use cases can call
-methods on DataLayer results without importing wire-layer classes.
+Only Protocols that cannot be replaced by concrete ``isinstance`` checks
+belong here. The duck-typing workaround Protocols (``CaseModel``,
+``ParticipantModel``, ``ParticipantStatusModel``, ``LogEntryModel``) were
+removed in favour of direct ``isinstance`` checks against core domain classes
+(ADR-0034, DL-05-003).
 """
 
 from typing import Any, Mapping, Protocol, TypeGuard
 
-from vultron.core.states.cs import CS_pxa, CS_vfd
+from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
-from vultron.core.states.rm import RM
 
 
 class PersistableModel(Protocol):
@@ -46,54 +47,6 @@ class CaseStatusModel(Protocol):
     pxa_state: CS_pxa
 
 
-class ParticipantStatusModel(PersistableModel, Protocol):
-    """Duck-type protocol for a persisted ParticipantStatus record.
-
-    Satisfied by both the core :class:`~vultron.core.models.participant_status.ParticipantStatus`
-    and the wire-layer type returned by the DataLayer vocabulary registry.
-    """
-
-    rm_state: RM
-    vfd_state: CS_vfd
-    context: str
-    cvd_role: list
-    em_consent_state: Any | None
-
-
-class CaseModel(PersistableModel, Protocol):
-    case_participants: list
-    vulnerability_reports: list
-    active_embargo: object
-    actor_participant_index: dict[str, str]
-    attributed_to: object
-    notes: list
-    case_statuses: list
-    proposed_embargoes: list
-    name: str | None
-
-    def set_embargo(self, embargo_id: str) -> None: ...
-    def add_participant(self, participant: object) -> None: ...
-    def remove_participant(self, participant_id: str) -> None: ...
-
-    @property
-    def current_status(self) -> CaseStatusModel: ...
-
-
-class ParticipantModel(PersistableModel, Protocol):
-    accepted_embargo_ids: list
-    embargo_consent_state: str
-    participant_statuses: list[ParticipantStatusModel]
-    attributed_to: object
-    case_roles: list
-
-    @property
-    def roles(self) -> list: ...
-
-    def append_rm_state(
-        self, rm_state: RM, actor: str, context: str
-    ) -> bool: ...
-
-
 class OutboxCollectionModel(Protocol):
     items: list[object]
 
@@ -103,75 +56,5 @@ class ActorModel(PersistableModel, Protocol):
     outbox: OutboxCollectionModel
 
 
-def is_case_model(obj: PersistableModel | None) -> TypeGuard[CaseModel]:
-    return bool(
-        obj is not None
-        and getattr(obj, "type_", None) == "VulnerabilityCase"
-        and hasattr(obj, "case_participants")
-        and hasattr(obj, "case_statuses")
-    )
-
-
-def is_participant_model(
-    obj: PersistableModel | object | None,
-) -> TypeGuard[ParticipantModel]:
-    return bool(
-        obj is not None
-        and getattr(obj, "type_", None) == "CaseParticipant"
-        and hasattr(obj, "participant_statuses")
-        and hasattr(obj, "append_rm_state")
-    )
-
-
-def is_participant_status_model(
-    obj: object | None,
-) -> "TypeGuard[ParticipantStatusModel]":
-    """Return True if *obj* duck-types as a ParticipantStatus record.
-
-    Checks ``type_ == "ParticipantStatus"`` rather than using ``isinstance``
-    so it works for both the core model and the wire-layer type returned by
-    the DataLayer vocabulary registry (CLP-07-007).
-    """
-    return bool(
-        obj is not None
-        and getattr(obj, "type_", None) == "ParticipantStatus"
-        and hasattr(obj, "rm_state")
-        and hasattr(obj, "context")
-    )
-
-
 def has_outbox(obj: PersistableModel | None) -> TypeGuard[ActorModel]:
     return bool(obj is not None and hasattr(obj, "outbox"))
-
-
-class LogEntryModel(PersistableModel, Protocol):
-    """Protocol for a persisted canonical case ledger entry.
-
-    Satisfied by :class:`~vultron.core.models.case_ledger_entry.VultronCaseLedgerEntry`.
-    Used by the receive-side use case without importing from wire layer.
-    """
-
-    case_id: str
-    log_index: int
-    disposition: str
-    term: int | None
-    log_object_id: str
-    event_type: str
-    payload_snapshot: dict
-    prev_log_hash: str
-    entry_hash: str
-    received_at: Any
-    reason_code: str | None
-    reason_detail: str | None
-
-
-def is_log_entry_model(obj: object | None) -> TypeGuard[LogEntryModel]:
-    """Return True if *obj* satisfies the :class:`LogEntryModel` protocol."""
-    return bool(
-        obj is not None
-        and getattr(obj, "type_", None) == "CaseLedgerEntry"
-        and hasattr(obj, "case_id")
-        and hasattr(obj, "log_index")
-        and hasattr(obj, "prev_log_hash")
-        and hasattr(obj, "entry_hash")
-    )

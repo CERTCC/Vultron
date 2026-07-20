@@ -11,10 +11,11 @@ from vultron.core.behaviors.case.announce_case_received_tree import (
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
 )
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.use_cases._helpers import _as_id, _find_case_actor_id
+from vultron.core.models._helpers import _as_id
+from vultron.core.use_cases._helpers import _find_case_actor_id
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +77,10 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
             )
             return
 
-        if not is_case_model(case_obj):
+        if (
+            not isinstance(case_obj, VulnerabilityCase)
+            and getattr(case_obj, "type_", None) != "VulnerabilityCase"
+        ):
             logger.warning(
                 "AnnounceVulnerabilityCase: object in activity '%s' is not a"
                 " VulnerabilityCase (%s) — skipping",

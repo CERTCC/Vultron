@@ -1069,7 +1069,7 @@ def _read_case_obj(self, case_id: str) -> VulnerabilityCase:
         obj = self.blackboard[case_id]
     except KeyError:
         raise BtNodePreconditionError(f"case {case_id!r} not in blackboard")
-    if not is_case_model(obj):
+    if not isinstance(obj, VulnerabilityCase):
         raise BtNodePreconditionError(
             f"blackboard entry {case_id!r} is not a VulnerabilityCase"
         )

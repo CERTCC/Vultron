@@ -175,7 +175,6 @@ class TestResetEmbargoConsentWithInlineParticipants:
         Regression test for #609.
         """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.core.models.protocols import is_case_model
         from vultron.core.states.participant_embargo_consent import PEC
         from vultron.core.use_cases._helpers import (
             reset_case_participant_embargo_consent as _reset_case_participant_embargo_consent,
@@ -203,21 +202,21 @@ class TestResetEmbargoConsentWithInlineParticipants:
         participant.embargo_consent_state = PEC.SIGNATORY.value
         dl.create(participant)
 
-        # Inline wire-layer object in case_participants — this is the condition
-        # that caused #609 on the receiver side after fixes #572/#573.
-        case = as_VulnerabilityCase(
+        # Wire-layer case stored in DataLayer; dl.read() returns core type (ADR-0034).
+        wire_case = as_VulnerabilityCase(
             id_=case_id,
             name="Reset Consent Inline",
         )
-        case.case_participants.append(participant)
-        dl.create(case)
+        wire_case.case_participants.append(participant)
+        dl.create(wire_case)
 
-        assert is_case_model(
-            case
-        ), "VulnerabilityCase should satisfy CaseModel"
+        from vultron.core.models.case import VulnerabilityCase
+
+        core_case = dl.read(case_id)
+        assert isinstance(core_case, VulnerabilityCase)
 
         # Must not raise TypeError
-        _reset_case_participant_embargo_consent(dl, case)
+        _reset_case_participant_embargo_consent(dl, core_case)
 
         updated_participant = dl.read(participant_id)
         assert updated_participant is not None
