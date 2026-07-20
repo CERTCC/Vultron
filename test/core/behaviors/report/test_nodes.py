@@ -26,7 +26,12 @@ Per GitHub issue #401 and specs/behavior-tree-node-design.yaml.
 import pytest
 from py_trees.composites import Sequence
 
+from vultron.core.behaviors.report.nodes.case_creation import (
+    _collect_create_case_addressees,
+)
+from vultron.core.behaviors.report.nodes.emit import _compute_report_addressees
 from vultron.core.models.case_actor import VultronCaseActor
+from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models._helpers import _report_phase_status_id
 from vultron.core.models.vultron_types import (
@@ -78,6 +83,13 @@ def offer(
     """Create a test offer and persist it in the scenario DataLayer."""
     obj = VultronOffer(actor=actor.id_, object_=report.id_)
     bt_scenario.dl.create(obj)
+    offer_record = VultronOfferRecord(
+        offer_id=obj.id_,
+        report_id=report.id_,
+        offer_actor_id=actor.id_,
+        offer_to=[],
+    )
+    bt_scenario.dl.create(offer_record)
     return obj
 
 
@@ -507,3 +519,149 @@ def test_update_actor_outbox_logs_case_id_in_message(
     assert cases, "Expected VulnerabilityCase to be created"
     case_id = next(iter(cases))
     assert case_id in caplog.text
+
+
+# ============================================================================
+# AC-4: Domain facts read from VultronOfferRecord, not wire Offer
+# ============================================================================
+
+
+class TestComputeReportAddresseesFallback:
+    """_compute_report_addressees reads from VultronOfferRecord, not wire Offer.
+
+    Per ADR-0035 DL-06-001: when no case is found for a report, the fallback
+    addressee is the offer submitter's actor ID, which must come from the core
+    VultronOfferRecord — not from getattr(offer, "actor", None).
+    """
+
+    def test_returns_offer_actor_when_no_case(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """Fallback path returns offer_actor_id from VultronOfferRecord."""
+        from typing import cast
+        from vultron.core.ports.case_persistence import CaseOutboxPersistence
+
+        actor_id = "urn:test:actor:1"
+        submitter_id = "urn:test:submitter:1"
+        offer_record = VultronOfferRecord(
+            offer_id="urn:test:offer:1",
+            report_id="urn:test:report:1",
+            offer_actor_id=submitter_id,
+            offer_to=[],
+        )
+        result = _compute_report_addressees(
+            report_id="urn:test:report:no-case",
+            actor_id=actor_id,
+            offer_record=offer_record,
+            dl=cast(CaseOutboxPersistence, bt_scenario.dl),
+        )
+        assert result == [submitter_id]
+
+    def test_returns_none_when_no_offer_record(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """Fallback path returns None when offer_record is None."""
+        from typing import cast
+        from vultron.core.ports.case_persistence import CaseOutboxPersistence
+
+        result = _compute_report_addressees(
+            report_id="urn:test:report:no-case",
+            actor_id="urn:test:actor:1",
+            offer_record=None,
+            dl=cast(CaseOutboxPersistence, bt_scenario.dl),
+        )
+        assert result is None
+
+    def test_excludes_self_from_addressees(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """Fallback path excludes actor_id (self) from addressees."""
+        from typing import cast
+        from vultron.core.ports.case_persistence import CaseOutboxPersistence
+
+        actor_id = "urn:test:actor:self"
+        offer_record = VultronOfferRecord(
+            offer_id="urn:test:offer:2",
+            report_id="urn:test:report:2",
+            offer_actor_id=actor_id,
+            offer_to=[],
+        )
+        result = _compute_report_addressees(
+            report_id="urn:test:report:no-case",
+            actor_id=actor_id,
+            offer_record=offer_record,
+            dl=cast(CaseOutboxPersistence, bt_scenario.dl),
+        )
+        assert result is None
+
+
+class TestCollectCreateCaseAddresseesFromRecord:
+    """_collect_create_case_addressees reads offer_to/offer_actor_id from VultronOfferRecord.
+
+    Per ADR-0035 DL-06-001: addressees are computed from the core
+    VultronOfferRecord, not from getattr(offer, "to"/"actor", None).
+    """
+
+    def test_includes_offer_to_recipients(self) -> None:
+        """offer_to list from VultronOfferRecord is included in addressees."""
+        actor_id = "urn:test:actor:creator"
+        recipient_id = "urn:test:recipient:1"
+        offer_record = VultronOfferRecord(
+            offer_id="urn:test:offer:3",
+            report_id="urn:test:report:3",
+            offer_actor_id="urn:test:submitter:3",
+            offer_to=[recipient_id],
+        )
+        result = _collect_create_case_addressees(
+            actor=actor_id,
+            report=None,
+            offer_record=offer_record,
+            actor_id=actor_id,
+        )
+        assert recipient_id in result
+
+    def test_includes_offer_actor_id(self) -> None:
+        """offer_actor_id from VultronOfferRecord is included in addressees."""
+        actor_id = "urn:test:actor:creator"
+        submitter_id = "urn:test:submitter:4"
+        offer_record = VultronOfferRecord(
+            offer_id="urn:test:offer:4",
+            report_id="urn:test:report:4",
+            offer_actor_id=submitter_id,
+            offer_to=[],
+        )
+        result = _collect_create_case_addressees(
+            actor=actor_id,
+            report=None,
+            offer_record=offer_record,
+            actor_id=actor_id,
+        )
+        assert submitter_id in result
+
+    def test_excludes_actor_id_from_addressees(self) -> None:
+        """actor_id (creator) is excluded from the addressee list."""
+        actor_id = "urn:test:actor:creator"
+        offer_record = VultronOfferRecord(
+            offer_id="urn:test:offer:5",
+            report_id="urn:test:report:5",
+            offer_actor_id="urn:test:submitter:5",
+            offer_to=[actor_id],
+        )
+        result = _collect_create_case_addressees(
+            actor=actor_id,
+            report=None,
+            offer_record=offer_record,
+            actor_id=actor_id,
+        )
+        assert actor_id not in result
+
+    def test_no_offer_record_returns_actor_only(self) -> None:
+        """When offer_record is None, only actor is in addressee pool (self-excluded → empty)."""
+        actor_id = "urn:test:actor:creator"
+        result = _collect_create_case_addressees(
+            actor=actor_id,
+            report=None,
+            offer_record=None,
+            actor_id=actor_id,
+        )
+        assert actor_id not in result

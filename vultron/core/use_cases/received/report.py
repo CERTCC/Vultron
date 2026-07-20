@@ -14,6 +14,7 @@ from vultron.core.models.events.report import (
     SubmitReportReceivedEvent,
     ValidateReportReceivedEvent,
 )
+from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import VultronValidationError
 
@@ -60,6 +61,30 @@ def _store_submit_report_dependencies(
     except ValueError as e:
         logger.debug(
             "SubmitReport activity %s already exists (pre-stored by inbox endpoint): %s",
+            request.activity_id,
+            e,
+        )
+
+    # Per ADR-0035 DL-06-002: capture domain facts from the inbound Offer so
+    # the receiver's trigger-side validate/invalidate/close paths can look up
+    # the offer record without re-reading the stored wire Offer activity.
+    if request.report_id is None:
+        return
+    offer_to: list[str] = list(request.activity.to or [])
+    offer_record = VultronOfferRecord(
+        offer_id=request.activity_id,
+        report_id=request.report_id,
+        offer_actor_id=request.actor_id,
+        offer_to=offer_to,
+    )
+    try:
+        dl.create(offer_record)
+        logger.info(
+            "Stored VultronOfferRecord for offer '%s'", request.activity_id
+        )
+    except ValueError as e:
+        logger.debug(
+            "VultronOfferRecord for offer '%s' already exists: %s",
             request.activity_id,
             e,
         )

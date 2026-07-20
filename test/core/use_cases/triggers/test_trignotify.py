@@ -26,6 +26,7 @@ from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
+from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.states.em import EM
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronValidationError
@@ -536,6 +537,13 @@ class TestReportTriggerToField:
             actor=self.finder.id_,
         )
         self.dl.create(self.offer)
+        offer_record = VultronOfferRecord(
+            offer_id=self.offer.id_,
+            report_id=self.report.id_,
+            offer_actor_id=self.finder.id_,
+            offer_to=[self.vendor.id_],
+        )
+        self.dl.create(offer_record)
         yield
         self.dl.clear_all()
         self.dl.close()

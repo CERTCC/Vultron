@@ -476,3 +476,78 @@ class TestOfferAddressingSemantics:
         assert (
             all_cases == []
         ), "Expected no case when receiving actor in target but not in to"
+
+
+class TestSubmitReportStoresOfferRecord:
+    """SubmitReportReceivedUseCase stores VultronOfferRecord for trigger-side lookup.
+
+    Per ADR-0035 DL-06-002: domain facts from the inbound Offer MUST be captured
+    as core state so the receiver's trigger paths (validate/invalidate/close) can
+    look them up without re-reading the stored wire Offer activity.
+    """
+
+    VENDOR_ID = "https://example.org/actors/vendor"
+    FINDER_ID = "https://example.org/users/finder"
+    REPORT_ID = "https://example.org/reports/r-offer-rec-1"
+    OFFER_ID = "https://example.org/activities/offer-rec-1"
+
+    def _make_event_and_dl(self):
+        from vultron.core.models.case_actor import VultronCaseActor
+
+        report = VultronReport(id_=self.REPORT_ID)
+        activity = VultronActivity(
+            id_=self.OFFER_ID,
+            type_="Offer",
+            actor=self.FINDER_ID,
+            to=[self.VENDOR_ID],
+        )
+        event = SubmitReportReceivedEvent(
+            semantic_type=MessageSemantics.SUBMIT_REPORT,
+            activity_id=self.OFFER_ID,
+            actor_id=self.FINDER_ID,
+            object_=report,
+            activity=activity,
+            receiving_actor_id=self.VENDOR_ID,
+        )
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        dl.save(VultronCaseActor(id_=self.VENDOR_ID))
+        return event, dl
+
+    def test_stores_offer_record_on_received(self):
+        """SubmitReportReceivedUseCase creates VultronOfferRecord in DataLayer."""
+        from vultron.core.models.offer_record import VultronOfferRecord
+
+        event, dl = self._make_event_and_dl()
+        SubmitReportReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        record_id = VultronOfferRecord.build_id(self.OFFER_ID)
+        record = dl.read(record_id)
+        assert isinstance(
+            record, VultronOfferRecord
+        ), "Expected VultronOfferRecord stored for received Offer"
+        assert record.offer_id == self.OFFER_ID
+        assert record.report_id == self.REPORT_ID
+        assert record.offer_actor_id == self.FINDER_ID
+        assert self.VENDOR_ID in record.offer_to
+
+    def test_offer_record_is_idempotent(self):
+        """Calling SubmitReportReceivedUseCase twice creates only one VultronOfferRecord."""
+        from vultron.core.models.offer_record import VultronOfferRecord
+
+        event, dl = self._make_event_and_dl()
+        SubmitReportReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+        SubmitReportReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        record_id = VultronOfferRecord.build_id(self.OFFER_ID)
+        records = [
+            r for r in dl.get_all("OfferRecord") if r.get("id_") == record_id
+        ]
+        assert (
+            len(records) == 1
+        ), "Expected exactly one VultronOfferRecord after idempotent calls"

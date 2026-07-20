@@ -21,6 +21,7 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import _resolve_case_manager_id
 
@@ -81,11 +82,14 @@ class _EmitCaseActorReportActivityBase(DataLayerAction):
     def _compute_addressees(self) -> list[str] | None:
         """Resolve and validate outbound recipients; return None to fail."""
         assert self.datalayer is not None and self.actor_id is not None
-        offer = self.datalayer.read(self.offer_id)
+        record_id = VultronOfferRecord.build_id(self.offer_id)
+        offer_record = self.datalayer.read(record_id)
+        if not isinstance(offer_record, VultronOfferRecord):
+            offer_record = None
         addressees = _compute_report_addressees(
             self.report_id,
             self.actor_id,
-            offer,
+            offer_record,
             cast(CaseOutboxPersistence, self.datalayer),
         )
         if not addressees:
@@ -182,18 +186,22 @@ class EmitValidateReportActivity(_EmitCaseActorReportActivityBase):
 def _compute_report_addressees(
     report_id: str,
     actor_id: str,
-    offer: object | None,
+    offer_record: VultronOfferRecord | None,
     dl: CaseOutboxPersistence,
 ) -> list[str] | None:
     """Compute outbound recipient list for a report-phase trigger activity.
 
     For case-scoped report activities, route only to the Case Actor. Falls back
-    to the offer submitter when no case is found (no case-scoped routing).
+    to the offer submitter (from the ``VultronOfferRecord``) when no case is
+    found.
+
+    Per ADR-0035 DL-06-001: the offer submitter ID is read from the core
+    ``VultronOfferRecord``, not from the stored wire Offer activity.
 
     Args:
         report_id: VulnerabilityReport ID used to locate the linked case.
         actor_id: Sender's actor ID (excluded from recipient list).
-        offer: The Offer activity object (used for fallback addressing).
+        offer_record: Core offer record capturing the submitter's actor ID.
         dl: DataLayer for case lookup.
 
     Returns:
@@ -206,14 +214,9 @@ def _compute_report_addressees(
             return [case_manager_id]
         return None
 
-    offer_actor = getattr(offer, "actor", None)
-    if offer_actor is None:
+    if offer_record is None:
         return None
-    offer_actor_id = (
-        offer_actor
-        if isinstance(offer_actor, str)
-        else getattr(offer_actor, "id_", None)
-    )
+    offer_actor_id = offer_record.offer_actor_id
     if offer_actor_id and offer_actor_id != actor_id:
         return [offer_actor_id]
     return None

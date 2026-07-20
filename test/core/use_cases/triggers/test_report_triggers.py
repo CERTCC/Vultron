@@ -54,8 +54,9 @@ from vultron.core.use_cases.triggers.requests import (
     SubmitReportTriggerRequest,
     ValidateReportTriggerRequest,
 )
+from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.errors import VultronNotFoundError, VultronValidationError
+from vultron.errors import VultronNotFoundError
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
@@ -101,6 +102,13 @@ def _make_offer(
         actor=actor_id,
     )
     dl.create(offer)
+    offer_record = VultronOfferRecord(
+        offer_id=offer.id_,
+        report_id=report.id_,
+        offer_actor_id=actor_id,
+        offer_to=[recipient_id],
+    )
+    dl.create(offer_record)
     return offer
 
 
@@ -329,21 +337,18 @@ class TestSvcValidateReportUseCase:
                 trigger_activity=TriggerActivityAdapter(self.dl),
             ).execute()
 
-    def test_validate_report_raises_when_offer_is_wrong_type(self):
-        """VultronValidationError raised when offer_id resolves to wrong type."""
-        # Store a plain as_VulnerabilityReport (not an Offer) as the offer_id.
-        non_offer = as_VulnerabilityReport(
-            name="Not an offer",
-            content="wrong type object",
-            attributed_to=self.vendor.id_,
-        )
-        self.dl.create(non_offer)
+    def test_validate_report_raises_when_offer_record_missing(self):
+        """VultronNotFoundError raised when no VultronOfferRecord exists for offer_id.
 
+        Per ADR-0035: _resolve_offer_and_report reads VultronOfferRecord, not
+        the stored wire Offer. If no record was written at offer creation time,
+        the lookup returns None → VultronNotFoundError.
+        """
         request = ValidateReportTriggerRequest(
             actor_id=self.vendor.id_,
-            offer_id=non_offer.id_,
+            offer_id="urn:uuid:offer-with-no-record",
         )
-        with pytest.raises(VultronValidationError):
+        with pytest.raises(VultronNotFoundError):
             SvcValidateReportUseCase(
                 self.dl,
                 request,
