@@ -44,7 +44,7 @@ from vultron.core.models.protocols import (
 from vultron.core.models.vultron_types import VultronParticipant
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.enums.roles import CVDRole
-from vultron.core.use_cases._helpers import _as_id
+from vultron.core.models._helpers import _as_id
 
 
 class ResolveParticipantAcceptedStatusNode(DataLayerAction):

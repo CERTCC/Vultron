@@ -21,7 +21,7 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.protocols import is_case_model
-from vultron.core.use_cases._helpers import _as_id
+from vultron.core.models._helpers import _as_id
 
 
 class CreateNoteNode(DataLayerAction):

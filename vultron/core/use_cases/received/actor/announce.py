@@ -14,7 +14,8 @@ from vultron.core.models.events.actor import (
 from vultron.core.models.protocols import is_case_model
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.use_cases._helpers import _as_id, _find_case_actor_id
+from vultron.core.models._helpers import _as_id
+from vultron.core.use_cases._helpers import _find_case_actor_id
 
 logger = logging.getLogger(__name__)
 

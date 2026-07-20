@@ -64,7 +64,7 @@ from vultron.core.states.participant_embargo_consent import (
 )
 from vultron.core.states.rm import RM
 from vultron.enums.roles import validate_roles
-from vultron.core.use_cases._helpers import _as_id
+from vultron.core.models._helpers import _as_id
 
 logger = logging.getLogger(__name__)
 

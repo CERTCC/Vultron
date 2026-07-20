@@ -93,35 +93,23 @@ def _collect_violations() -> frozenset[str]:
 # ---------------------------------------------------------------------------
 KNOWN_VIOLATIONS: frozenset[str] = frozenset(
     [
-        "vultron/core/behaviors/case/accept_invite_tree.py",
-        "vultron/core/behaviors/case/nodes/actor.py",
+        # Remaining violations import helpers other than _as_id /
+        # _report_phase_status_id (fixed by #1428) — tracked for future
+        # migration.
         "vultron/core/behaviors/case/nodes/announce.py",
-        "vultron/core/behaviors/case/nodes/case_participant_received.py",
-        "vultron/core/behaviors/case/nodes/case_setup.py",
         "vultron/core/behaviors/case/nodes/conditions.py",
-        "vultron/core/behaviors/case/nodes/embargo.py",
         "vultron/core/behaviors/case/nodes/lifecycle.py",
-        "vultron/core/behaviors/case/nodes/participant/common.py",
         "vultron/core/behaviors/case/nodes/participant/owner.py",
-        "vultron/core/behaviors/case/nodes/participant/participant_add.py",
-        "vultron/core/behaviors/case/nodes/update.py",
-        "vultron/core/behaviors/case/update_support.py",
         "vultron/core/behaviors/embargo/nodes/lifecycle.py",
         "vultron/core/behaviors/embargo/nodes/proposal.py",
         "vultron/core/behaviors/embargo/nodes/teardown.py",
-        "vultron/core/behaviors/note/nodes/creation.py",
-        "vultron/core/behaviors/note/nodes/storage.py",
-        "vultron/core/behaviors/report/nodes/conditions.py",
         "vultron/core/behaviors/report/nodes/emit.py",
         "vultron/core/behaviors/report/nodes/participant.py",
         "vultron/core/behaviors/report/nodes/rm_transitions.py",
         "vultron/core/behaviors/report/nodes/storage.py",
         "vultron/core/behaviors/sender/nodes/actions.py",
-        "vultron/core/behaviors/status/nodes/append.py",
-        "vultron/core/behaviors/status/nodes/case_status.py",
         "vultron/core/behaviors/status/nodes/lifecycle.py",
         "vultron/core/behaviors/sync/nodes/chain.py",
-        "vultron/core/behaviors/sync/nodes/effects.py",
         "vultron/core/behaviors/sync/nodes/replay.py",
     ]
 )

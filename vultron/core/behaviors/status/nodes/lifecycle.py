@@ -37,7 +37,7 @@ from vultron.core.models.protocols import (
 )
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
-from vultron.core.use_cases._helpers import _as_id
+from vultron.core.models._helpers import _as_id
 
 logger = logging.getLogger(__name__)
 

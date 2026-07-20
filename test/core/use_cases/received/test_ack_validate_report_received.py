@@ -22,7 +22,7 @@ from vultron.core.models.events.report import (
     ValidateReportReceivedEvent,
 )
 from vultron.core.models.report import VultronReport
-from vultron.core.use_cases._helpers import _report_phase_status_id
+from vultron.core.models._helpers import _report_phase_status_id
 from vultron.core.use_cases.received.report import (
     AckReportReceivedUseCase,
     SubmitReportReceivedUseCase,
