@@ -122,7 +122,10 @@ class AcceptOfferCaseParticipantReceivedUseCase:
         participant_obj = getattr(inner_offer, "object_", None)
         raw_invitee = getattr(participant_obj, "attributed_to", None)
         invitee_id = getattr(raw_invitee, "id_", raw_invitee)
-        recommendation_id = getattr(inner_offer, "origin", None)
+        raw_recommendation_id = getattr(inner_offer, "origin", None)
+        recommendation_id = getattr(
+            raw_recommendation_id, "id_", raw_recommendation_id
+        )
         recommender_id = None
         if recommendation_id:
             stored_offer = self._dl.read(recommendation_id)
@@ -187,7 +190,10 @@ class RejectOfferCaseParticipantReceivedUseCase:
         participant_obj = getattr(inner_offer, "object_", None)
         raw_invitee = getattr(participant_obj, "attributed_to", None)
         recommended_id = getattr(raw_invitee, "id_", None) or request.object_id
-        recommendation_id = getattr(inner_offer, "origin", None)
+        raw_recommendation_id = getattr(inner_offer, "origin", None)
+        recommendation_id = getattr(
+            raw_recommendation_id, "id_", raw_recommendation_id
+        )
         recommender_id = None
         if recommendation_id:
             stored_offer = self._dl.read(recommendation_id)
