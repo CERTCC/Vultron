@@ -231,5 +231,75 @@
         "dest": "PXA"
       }
     ]
+  },
+  "embargo_viability": {
+    "_note": "Cross-machine embargo-viability rule over the COMBINED CS state (vVfFdDpPxXaA regex patterns). Source: vultron/core/case_states/patterns/embargo.py. A state with no matching pattern has no listed viability flags.",
+    "patterns": [
+      {
+        "pattern": "..dpxa",
+        "flags": [
+          "START_OK",
+          "VIABLE"
+        ]
+      },
+      {
+        "pattern": "...pxa",
+        "flags": [
+          "VIABLE"
+        ]
+      },
+      {
+        "pattern": "...P..",
+        "flags": [
+          "NO_START",
+          "NOT_VIABLE"
+        ]
+      },
+      {
+        "pattern": "....X.",
+        "flags": [
+          "NO_START",
+          "NOT_VIABLE"
+        ]
+      },
+      {
+        "pattern": ".....A",
+        "flags": [
+          "NO_START",
+          "NOT_VIABLE"
+        ]
+      },
+      {
+        "pattern": "...pX.",
+        "flags": [
+          "NO_START",
+          "NOT_VIABLE",
+          "CAUTION"
+        ]
+      },
+      {
+        "pattern": "...p.A",
+        "flags": [
+          "NO_START",
+          "NOT_VIABLE",
+          "CAUTION"
+        ]
+      },
+      {
+        "pattern": ".Fdpxa",
+        "flags": [
+          "START_OK",
+          "VIABLE",
+          "CAUTION"
+        ]
+      },
+      {
+        "pattern": "..Dpxa",
+        "flags": [
+          "NO_START",
+          "VIABLE"
+        ]
+      }
+    ]
   }
 }

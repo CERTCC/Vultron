@@ -28,7 +28,7 @@
 
 import type { DemoState, Action } from '../types'
 import { getParticipant, getActiveVendors, getVendors } from './participantHelpers'
-import { isLegalTransition } from '../protocol'
+import { isLegalTransition, canStartEmbargo, embargoViable } from '../protocol'
 
 /**
  * Build the "Submit Report to Vendor N" (invite) action, or null if unavailable.
@@ -92,13 +92,15 @@ export function getFinderActions(state: DemoState): Action[] {
   // available actions caused by the artifact rather than by phase bookkeeping.
   const actions: Action[] = []
 
-  // Embargoes SHALL terminate when P/X/A occur (early_termination.md), so no
-  // embargo accept/reject/propose once public.
-  const isPublic = state.pxaState.includes('P') || state.pxaState.includes('X') || state.pxaState.includes('A')
+  // Embargo viability from the artifact's cross-machine rule (keyed on case-level
+  // PXA). Responding to / revising an EXISTING embargo requires it still be
+  // `viable` — which the artifact makes false once P/X/A occurs (negotiating.md's
+  // MUST NOT), replacing the old hand-rolled `isPublic` substring check.
+  const viable = embargoViable(state.pxaState)
 
   // EM accept/reject of the initial proposal — `accept`/`reject` legal from
-  // PROPOSED; overlay: Finder hasn't accepted and case isn't public.
-  if (isLegalTransition('em', state.emState, 'accept') && state.emState === 'PROPOSED' && !finder.embargoAccepted && !isPublic) {
+  // PROPOSED; overlay: Finder hasn't accepted and the embargo is still viable.
+  if (isLegalTransition('em', state.emState, 'accept') && state.emState === 'PROPOSED' && !finder.embargoAccepted && viable) {
     actions.push({
       id: 'finder-accept-embargo',
       label: 'Accept Embargo',
@@ -113,8 +115,8 @@ export function getFinderActions(state: DemoState): Action[] {
   }
 
   // Propose revision — `propose` legal from ACTIVE/REVISE; overlay: this Finder is
-  // already in the embargo and case isn't public.
-  if (isLegalTransition('em', state.emState, 'propose') && (state.emState === 'ACTIVE' || state.emState === 'REVISE') && !isPublic && finder.embargoAccepted) {
+  // already in the embargo and it is still viable.
+  if (isLegalTransition('em', state.emState, 'propose') && (state.emState === 'ACTIVE' || state.emState === 'REVISE') && viable && finder.embargoAccepted) {
     actions.push({
       id: 'finder-propose-revision',
       label: 'Propose Embargo Revision',
@@ -125,7 +127,7 @@ export function getFinderActions(state: DemoState): Action[] {
 
   // Accept/reject a pending revision — `accept`/`reject` legal from REVISE; overlay:
   // Finder hasn't responded and didn't propose it (proposing implies acceptance).
-  if (isLegalTransition('em', state.emState, 'accept') && state.emState === 'REVISE' && !isPublic && !finder.embargoAccepted && state.embargoProposerId !== 'finder') {
+  if (isLegalTransition('em', state.emState, 'accept') && state.emState === 'REVISE' && viable && !finder.embargoAccepted && state.embargoProposerId !== 'finder') {
     actions.push({
       id: 'finder-accept-revision',
       label: 'Accept Embargo Revision',
@@ -196,10 +198,12 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
   // Per Vultron protocol (working_with_others.md lines 107-115):
   // If vendor joined a case with an existing embargo, they must accept/reject embargo FIRST
   // before they can proceed with other actions
-  // UNLESS embargo has terminated due to P, X, or A (per early_termination.md)
-  const isPublic = state.pxaState.includes('P') || state.pxaState.includes('X') || state.pxaState.includes('A')
+  // UNLESS the embargo is no longer viable (terminated due to P/X/A) — that barrier
+  // is lifted. Viability comes from the artifact's cross-machine rule (keyed on PXA),
+  // replacing the old hand-rolled `isPublic` substring check.
+  const viable = embargoViable(state.pxaState)
 
-  if (vendor.embargoProposedToParticipant && !vendor.embargoAccepted && !isPublic) {
+  if (vendor.embargoProposedToParticipant && !vendor.embargoAccepted && viable) {
     // Determine if this is a revision scenario or late-joiner scenario
     const isRevisionScenario = state.emState === 'REVISE'
 
@@ -226,7 +230,7 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
   // If vendor rejected an ACTIVE embargo, they cannot participate (no actions available)
   // HOWEVER: During REVISE state, all vendors can participate and vote on the revision
   // ALSO: Per early_termination.md lines 32-39, if embargo is terminated (EXITED or by P/X/A), vendor can participate
-  const hasActiveEmbargo = state.emState === 'ACTIVE' && !isPublic
+  const hasActiveEmbargo = state.emState === 'ACTIVE' && viable
   if (hasActiveEmbargo && !vendor.embargoAccepted && !vendor.embargoProposedToParticipant) {
     // Vendor rejected ACTIVE embargo - they are excluded from participation
     // No actions available until embargo ends or a revision is proposed
@@ -246,9 +250,9 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
   // VFD=Vfd lost Notify Fix Ready once the Finder acknowledged publication).
   const actions: Action[] = []
 
-  // ---- EM: embargo consent / revision (independent of VFD; not after public) ----
-  // `accept`/`reject` legal from PROPOSED; overlay: not yet accepted, not public.
-  if (isLegalTransition('em', state.emState, 'accept') && state.emState === 'PROPOSED' && !vendor.embargoAccepted && !isPublic) {
+  // ---- EM: embargo consent / revision (independent of VFD; requires viability) ----
+  // `accept`/`reject` legal from PROPOSED; overlay: not yet accepted, embargo still viable.
+  if (isLegalTransition('em', state.emState, 'accept') && state.emState === 'PROPOSED' && !vendor.embargoAccepted && viable) {
     actions.push({
       id: 'accept-embargo',
       label: 'Accept Embargo',
@@ -263,8 +267,8 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
   }
 
   // Propose revision — `propose` legal from ACTIVE/REVISE; overlay: this vendor is
-  // in the embargo and case isn't public.
-  if (isLegalTransition('em', state.emState, 'propose') && (state.emState === 'ACTIVE' || state.emState === 'REVISE') && !isPublic && vendor.embargoAccepted) {
+  // in the embargo and it is still viable.
+  if (isLegalTransition('em', state.emState, 'propose') && (state.emState === 'ACTIVE' || state.emState === 'REVISE') && viable && vendor.embargoAccepted) {
     actions.push({
       id: 'vendor-propose-revision',
       label: 'Propose Embargo Revision',
@@ -275,7 +279,7 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
 
   // Accept/reject a pending revision — `accept`/`reject` legal from REVISE; overlay:
   // vendor hasn't responded and didn't propose it (proposing implies acceptance).
-  if (isLegalTransition('em', state.emState, 'accept') && state.emState === 'REVISE' && !isPublic && !vendor.embargoAccepted && state.embargoProposerId !== vendorId) {
+  if (isLegalTransition('em', state.emState, 'accept') && state.emState === 'REVISE' && viable && !vendor.embargoAccepted && state.embargoProposerId !== vendorId) {
     actions.push({
       id: 'vendor-accept-revision',
       label: 'Accept Embargo Revision',
@@ -413,20 +417,19 @@ export function getCaseActorActions(state: DemoState): Action[] {
   const caseActor = getParticipant(state, 'caseactor')
   if (!caseActor || !caseActor.visible) return []
 
-  // Per Vultron protocol (early_termination.md lines 32-39):
-  // "Embargoes SHALL terminate immediately when information about the vulnerability becomes public."
-  // Once P (public awareness) is reached, no embargo can be proposed or maintained
-  const isPublic = state.pxaState.includes('P')
+  // Embargo viability comes from the artifact's cross-machine rule
+  // (`canStartEmbargo` / `embargoViable` over the CS state, keyed on case-level
+  // PXA). This is the source-of-truth replacement for the old hand-rolled
+  // `isPublic` checks — it encodes the protocol's "MUST NOT propose/accept a new
+  // embargo once P, X, or A" (negotiating.md) directly from the exported rule,
+  // so a protocol change propagates on regeneration. `canStart` gates NEW
+  // embargoes (propose from NONE); `viable` gates continuing an existing one.
+  const canStart = canStartEmbargo(state.pxaState)
+  const viable = embargoViable(state.pxaState)
 
-  // Per Vultron protocol: CaseActor can propose embargo when:
-  // - EM is NONE (no embargo yet) - can propose at ANY time after case starts
-  // - EM was rejected and returned to NONE - can propose again
-  // - At least one vendor is in active RM state (case exists)
-  // - Vulnerability is NOT yet public (P state not reached)
-  // Protocol allows embargo proposals independent of RM states (even if vendor has invalidated).
-  // `propose` legality from the current emState gates the machine step (NONE→PROPOSED);
-  // the overlay is "after case start, not public". Check emState only, NOT phase.
-  const canProposeEmbargo = isLegalTransition('em', state.emState, 'propose') && state.emState === 'NONE' && state.phase !== 'start' && !isPublic
+  // Propose a NEW embargo: machine-legal (NONE→PROPOSED), case has started, and
+  // the artifact says a new embargo may be started in this CS state.
+  const canProposeEmbargo = isLegalTransition('em', state.emState, 'propose') && state.emState === 'NONE' && state.phase !== 'start' && canStart
 
   const actions: Action[] = []
 
@@ -439,11 +442,10 @@ export function getCaseActorActions(state: DemoState): Action[] {
     })
   }
 
-  // Per Vultron protocol: CaseActor can propose and respond to embargo revisions.
-  // `propose` is machine-legal from ACTIVE (→REVISE); the demo surfaces a CaseActor
-  // revision proposal only from ACTIVE (not from REVISE — a re-propose), hence the
-  // explicit `=== 'ACTIVE'` overlay on top of the legality check.
-  const canProposeRevision = isLegalTransition('em', state.emState, 'propose') && state.emState === 'ACTIVE' && !isPublic
+  // Propose a revision to an EXISTING active embargo — `propose` machine-legal from
+  // ACTIVE (→REVISE); demo surfaces it only from ACTIVE (not a REVISE re-propose);
+  // gated by `viable` (the existing embargo must still be viable in this CS state).
+  const canProposeRevision = isLegalTransition('em', state.emState, 'propose') && state.emState === 'ACTIVE' && viable
 
   if (canProposeRevision) {
     actions.push({
@@ -462,7 +464,7 @@ export function getCaseActorActions(state: DemoState): Action[] {
   // is still pending (CaseActor acceptance doesn't count toward consensus, so it
   // doesn't fire REVISE → ACTIVE the way a reject does). The flag is UI-only: it is
   // never read by `allParticipantsAccepted` (finder + active vendors only).
-  if (isLegalTransition('em', state.emState, 'accept') && state.emState === 'REVISE' && !isPublic && !caseActor.embargoAccepted && state.embargoProposerId !== 'caseactor') {
+  if (isLegalTransition('em', state.emState, 'accept') && state.emState === 'REVISE' && viable && !caseActor.embargoAccepted && state.embargoProposerId !== 'caseactor') {
     actions.push({
       id: 'caseactor-accept-revision',
       label: 'Accept Embargo Revision',

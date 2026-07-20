@@ -77,6 +77,29 @@ def test_exported_payload_shape() -> None:
             assert t["dest"] in machine["states"]
 
 
+def test_exported_embargo_viability_shape() -> None:
+    """Guard the cross-machine embargo-viability section the UI relies on."""
+    payload = build_payload()
+
+    assert "embargo_viability" in payload, "missing 'embargo_viability' section"
+    section = payload["embargo_viability"]
+    assert set(section) >= {"patterns"}
+    assert section["patterns"], "embargo_viability has no patterns"
+
+    known_flags = {"START_OK", "NO_START", "VIABLE", "NOT_VIABLE", "CAUTION"}
+    # A CS-state pattern is exactly 6 chars over the vVfFdDpPxXaA (+ wildcard) alphabet.
+    cs_char = set("vVfFdDpPxXaA.")
+    for entry in section["patterns"]:
+        assert set(entry) == {"pattern", "flags"}
+        pattern = entry["pattern"]
+        assert len(pattern) == 6, f"CS pattern must be 6 chars: {pattern!r}"
+        assert set(pattern) <= cs_char, f"bad char in CS pattern: {pattern!r}"
+        assert entry["flags"], f"pattern {pattern!r} has no flags"
+        assert set(entry["flags"]) <= known_flags, (
+            f"unknown viability flag(s) in {pattern!r}: {entry['flags']}"
+        )
+
+
 def test_committed_file_is_valid_json() -> None:
     if not OUTPUT_PATH.exists():
         pytest.skip("artifact missing; see test_exported_states_file_exists")

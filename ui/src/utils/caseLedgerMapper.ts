@@ -42,6 +42,8 @@ import {
   legalTriggers,
   nextState,
   machineStates,
+  canStartEmbargo,
+  embargoViable,
   type MachineName,
 } from '../protocol'
 import {
@@ -929,6 +931,33 @@ function handleParticipantStatus(
       if (emChange.reason) violationReasons.push(emChange.reason)
     }
     if (emChange.inferredNote) inferredNotes.push(emChange.inferredNote)
+
+    // Cross-machine embargo-viability check (artifact rule): even a per-machine-
+    // LEGAL EM advance can violate the protocol if the embargo is being negotiated
+    // in a CS state that forbids it (MUST NOT propose/accept a new embargo once
+    // P/X/A — negotiating.md). `shadow.pxaState` was just advanced by the pxa call
+    // above, so it reflects this entry's publicity. Starting a new embargo (into
+    // PROPOSED) needs `canStartEmbargo`; establishing/continuing one (into
+    // ACTIVE/REVISE) needs `embargoViable`.
+    const enteringNew = emChange.to === 'PROPOSED'
+    const enteringActive = emChange.to === 'ACTIVE' || emChange.to === 'REVISE'
+    const viabilityOk = enteringNew
+      ? canStartEmbargo(shadow.pxaState)
+      : enteringActive
+      ? embargoViable(shadow.pxaState)
+      : true
+    if (!viabilityOk) {
+      violation = true
+      violationReasons.push(
+        `Embargo entered ${emChange.to} while the case is at PXA ${shadow.pxaState}, but the ` +
+          `protocol forbids ${enteringNew ? 'proposing' : 'establishing/continuing'} an embargo ` +
+          `once the vulnerability is public, an exploit is public, or attacks are observed ` +
+          `(per the artifact's embargo-viability rule).`
+      )
+      logLines.push(
+        `  ↳ PROTOCOL VIOLATION: EM → ${emChange.to} not viable at PXA=${shadow.pxaState} (embargo-viability rule)`
+      )
+    }
   }
 
   // No meaningful change (only seeds / no-ops) → no node, no column.

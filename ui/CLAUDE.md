@@ -384,10 +384,38 @@ drift test run on `main` independently of the demo.
   `uv run export-demo-states` (outside the container) and re-commit whenever the
   protocol's state machines change.
 
-**JSON shape:** `{ _README, rm, em, vfd, pxa }`, each machine =
-`{ initial, states[], transitions[{trigger,source,dest}] }`. The exporter is
-deterministic (no timestamps, fixed machine order) so the drift test can do a
-byte-exact compare.
+**JSON shape:** `{ _README, rm, em, vfd, pxa, embargo_viability }`. Each machine =
+`{ initial, states[], transitions[{trigger,source,dest}] }`. `embargo_viability`
+= `{ _note, patterns[{pattern, flags[]}] }` — a **cross-machine** rule the four
+per-machine tables can't express (see below). The exporter is deterministic (no
+timestamps, fixed order) so the drift test can do a byte-exact compare.
+
+**Cross-machine embargo viability (2026-07).** "Can a new embargo be
+proposed/accepted, or an existing one continue?" is NOT a per-machine fact — it
+depends on the combined CS state (the protocol's MUST NOT propose/accept a new
+embargo once P/X/A, negotiating.md). The four per-machine tables can't represent
+a dependency *between* machines, so this rule was historically hand-coded as an
+`isPublic` overlay in the demos — and drifted (Finder/Vendor used P||X||A, the
+Case Actor used P-only, so after attacks the Case Actor still offered "Propose
+Embargo" but no one could respond). Fixed by making it artifact-driven end to end:
+- **Exporter** emits `embargo_viability` from
+  [`vultron/core/case_states/patterns/embargo.py`](../vultron/core/case_states/patterns/embargo.py)
+  (`_EMBARGO_VIABILITY`), as CS-state (`vVfFdDpPxXaA`) regex patterns → viability
+  flags (`START_OK`/`NO_START`/`VIABLE`/`NOT_VIABLE`/`CAUTION`).
+- **`protocol.ts`** exposes `canStartEmbargo(pxaToken)` / `embargoViable(pxaToken)`,
+  matching the assembled CS state against those patterns. VFD is pinned to base
+  `vfd` (the fix-deployed `..Dpxa`→NO_START rule is only a SHOULD-NOT per RFC-2119,
+  so the demo must leave it *possible*; wildcarding VFD enforces exactly the hard
+  P/X/A MUST-NOT and no more — decided with the maintainer).
+- **`actionFilters.ts`** — all three participant functions gate embargo
+  propose/accept via these helpers (no more per-function `isPublic`; can't drift).
+- **`caseLedgerMapper.ts`** — Log Replay flags a violation if a log advances EM
+  into PROPOSED/ACTIVE/REVISE while the CS state forbids it (embargo negotiated in
+  a public/exploited/attacked state).
+
+This is the pattern to follow for any future cross-machine rule: **put it in the
+artifact (extend the exporter), read it in `protocol.ts`, defer to it in the
+demos** — never hand-code a second copy in the UI.
 
 **Optional, deferred:** add `data/json/**` to the `paths:` triggers in
 `.github/workflows/python-app.yml` to also catch hand-edits of the artifact.

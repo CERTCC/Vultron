@@ -54,6 +54,8 @@ from transitions import Machine
 from vultron.core.states.cs import create_pxa_machine, create_vfd_machine
 from vultron.core.states.em import create_em_machine
 from vultron.core.states.rm import create_rm_machine
+from vultron.core.case_states.patterns.embargo import _EMBARGO_VIABILITY
+from vultron.core.scoring.embargo import EmbargoViability
 
 # Where the artifact lives, relative to the repo root.
 # __file__ = <repo>/vultron/scripts/export_states.py
@@ -106,6 +108,54 @@ def _machine_to_dict(machine: Machine) -> dict[str, Any]:
     }
 
 
+# Short, stable names for the EmbargoViability flags (the enum's convenience
+# aliases). Keyed by int value so the export never depends on which alias
+# `.name` happens to resolve to. Kept in a fixed, meaningful order.
+_EMBARGO_VIABILITY_NAMES: dict[int, str] = {
+    EmbargoViability.START_OK.value: "START_OK",
+    EmbargoViability.NO_START.value: "NO_START",
+    EmbargoViability.VIABLE.value: "VIABLE",
+    EmbargoViability.NOT_VIABLE.value: "NOT_VIABLE",
+    EmbargoViability.CAUTION.value: "CAUTION",
+}
+
+
+def _embargo_viability_to_dict() -> dict[str, Any]:
+    """Serialize the cross-machine embargo-viability rule.
+
+    Unlike the four per-machine tables, embargo viability is a function of the
+    COMBINED CS state (the 6-char ``vVfFdDpPxXaA`` string). It is the authoritative
+    source for "can a new embargo be started / is an existing embargo viable" in a
+    given case state (see ``vultron/core/case_states/patterns/embargo.py``), and it
+    encodes cross-machine rules the per-machine tables cannot (e.g. an embargo is
+    NOT_VIABLE / NO_START once P, X, or A is set — negotiating.md's MUST NOT).
+
+    Emitted as an ordered list of ``{pattern, flags}`` so demos can match a CS
+    state against the patterns exactly as the Python does (``re.match``), rather
+    than hardcoding their own copy of the rule.
+    """
+    patterns: list[dict[str, Any]] = []
+    # Preserve the source dict's insertion order for determinism.
+    for pattern, flags in _EMBARGO_VIABILITY.items():
+        # Dedup + order flags by the canonical value order above.
+        values = sorted({f.value for f in flags})
+        patterns.append(
+            {
+                "pattern": pattern,
+                "flags": [_EMBARGO_VIABILITY_NAMES[v] for v in values],
+            }
+        )
+    return {
+        "_note": (
+            "Cross-machine embargo-viability rule over the COMBINED CS state "
+            "(vVfFdDpPxXaA regex patterns). Source: "
+            "vultron/core/case_states/patterns/embargo.py. A state with no "
+            "matching pattern has no listed viability flags."
+        ),
+        "patterns": patterns,
+    }
+
+
 def build_payload() -> dict[str, Any]:
     """Build the full, deterministic export payload.
 
@@ -121,6 +171,7 @@ def build_payload() -> dict[str, Any]:
     }
     for key, factory in _MACHINES:
         payload[key] = _machine_to_dict(factory())
+    payload["embargo_viability"] = _embargo_viability_to_dict()
     return payload
 
 

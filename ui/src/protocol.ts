@@ -124,3 +124,91 @@ export function legalTriggers(machine: MachineName, current: string): string[] {
   const byTrigger = TRANSITION_INDEX[machine].get(current)
   return byTrigger ? Array.from(byTrigger.keys()) : []
 }
+
+// ---------------------------------------------------------------------------
+// Embargo viability (cross-machine rule over the combined CS state)
+// ---------------------------------------------------------------------------
+//
+// Unlike the four per-machine tables above, "can a new embargo be started / is
+// an existing embargo viable" is a function of the COMBINED CS state — the
+// 6-char `vVfFdDpPxXaA` string. It encodes cross-machine rules the per-machine
+// tables cannot (e.g. an embargo is NOT_VIABLE / NO_START once P, X, or A is
+// set — the protocol's "MUST NOT propose or accept a new embargo when public /
+// exploit-public / attacked", negotiating.md). The exporter emits this from
+// `vultron/core/case_states/patterns/embargo.py`; the drift test guards its shape.
+//
+// This is the ONLY place `ui/` reads that section, mirroring how the machine
+// helpers above are the only readers of the machine tables.
+
+interface RawEmbargoPattern {
+  pattern: string
+  flags: string[]
+}
+
+const EMBARGO_VIABILITY_PATTERNS: ReadonlyArray<{ re: RegExp; flags: ReadonlySet<string> }> =
+  (
+    (protocolStates as { embargo_viability?: { patterns?: RawEmbargoPattern[] } })
+      .embargo_viability?.patterns ?? []
+  ).map((p) => ({
+    // Anchor so a 6-char pattern matches exactly a 6-char CS state (the Python
+    // uses re.match against 6-char states; anchoring both ends is equivalent here
+    // and rejects malformed inputs).
+    re: new RegExp(`^${p.pattern}$`),
+    flags: new Set(p.flags),
+  }))
+
+/**
+ * Assemble the 6-char CS state (`vVfFdDpPxXaA`) the embargo-viability patterns
+ * match against, from the demo's case-level PXA token.
+ *
+ * The patterns are the regexes (their `.`s are the wildcards); the state we build
+ * here must be a CONCRETE 6-char string. VFD is tracked per-participant in the
+ * demo, but the case-level embargo decision needs one combined state, so we pin
+ * the VFD half to its base value `vfd` (v=not-aware, f=not-ready, d=not-deployed).
+ *
+ * Pinning to `vfd` (rather than a real vendor's VFD) is the deliberate way to
+ * "ignore VFD" for this decision: the only patterns that key on the VFD chars are
+ * the fix-deployed ones (`..Dpxa` → NO_START), which the protocol treats as merely
+ * SHOULD-NOT (RFC-2119) — discouraged, not forbidden — so the demo must leave that
+ * possible. `vfd` (not deployed) never trips those, so we enforce exactly the hard
+ * MUST-NOT prohibition (P/X/A, whose patterns wildcard the VFD chars anyway) and
+ * correctly decline to block the soft case. (Decision recorded with the maintainer.)
+ *
+ * `pxaToken` is the demo's case-level PXA value (`pxa`, `Pxa`, `pxA`, `PXA`, …) —
+ * already the 3-char P/X/A string. If it isn't 3 chars we fall back to all-clear
+ * `pxa` (the base state) rather than risk a malformed match.
+ */
+export function assembleCsState(pxaToken: string): string {
+  const pxa = pxaToken.length === 3 ? pxaToken : 'pxa'
+  return `vfd${pxa}`
+}
+
+/** The viability flags for a CS state (union across all matching patterns). */
+function embargoViabilityFlags(csState: string): Set<string> {
+  const flags = new Set<string>()
+  for (const { re, flags: patFlags } of EMBARGO_VIABILITY_PATTERNS) {
+    if (re.test(csState)) for (const f of patFlags) flags.add(f)
+  }
+  return flags
+}
+
+/**
+ * May a NEW embargo be proposed/accepted in this case state? True iff the
+ * artifact marks the state START_OK. Because a `.`-wildcarded CS state can match
+ * several patterns, we also require that NO matching pattern forbids starting
+ * (NO_START), so the hard prohibition always wins over a permissive match.
+ */
+export function canStartEmbargo(pxaToken: string): boolean {
+  const flags = embargoViabilityFlags(assembleCsState(pxaToken))
+  return flags.has('START_OK') && !flags.has('NO_START')
+}
+
+/**
+ * Is an EXISTING embargo still viable (may it continue / be revised / accepted)
+ * in this case state? True iff the artifact marks the state VIABLE and does not
+ * mark it NOT_VIABLE. (P/X/A states are NOT_VIABLE, so this is false there.)
+ */
+export function embargoViable(pxaToken: string): boolean {
+  const flags = embargoViabilityFlags(assembleCsState(pxaToken))
+  return flags.has('VIABLE') && !flags.has('NOT_VIABLE')
+}
