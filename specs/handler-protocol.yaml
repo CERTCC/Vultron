@@ -14,6 +14,7 @@ tags:
 groups:
 - id: HP-00
   title: Protocol Semantics
+  kind: domain
   specs:
   - id: HP-00-001
     priority: MUST
@@ -151,6 +152,7 @@ groups:
     rationale: Ensures notes are fully persisted and linked to cases, consistent with the case management data model
 - id: HP-09
   title: Offer Recipient Addressing
+  kind: domain
   specs:
   - id: HP-09-001
     priority: MUST
@@ -164,6 +166,7 @@ groups:
       spec_id: VAM-01-008
 - id: HP-10
   title: Unsupported Addressing Fields
+  kind: domain
   specs:
   - id: HP-10-001
     priority: MUST

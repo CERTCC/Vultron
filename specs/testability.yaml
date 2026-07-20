@@ -178,7 +178,7 @@ groups:
     statement: Tests MUST be refactored along with production code
 - id: TB-11
   title: Test Infrastructure Consistency
-  kind: pattern
+  kind: language
   specs:
   - id: TB-11-001
     priority: MUST

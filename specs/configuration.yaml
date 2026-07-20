@@ -54,16 +54,19 @@ groups:
   specs:
   - id: CFG-02-001
     priority: MUST
+    kind: implementation
     statement: >-
       The application MUST support loading configuration from a YAML file. The default path
       MUST be `config.yaml` in the project root (current working directory at startup).
   - id: CFG-02-002
     priority: MUST
+    kind: implementation
     statement: >-
       The default config file path MUST be overridable via the `VULTRON_CONFIG` environment
       variable.
   - id: CFG-02-003
     priority: MUST
+    kind: language
     statement: >-
       The application MUST use `pydantic-settings` (`BaseSettings`) with a custom YAML settings
       source to implement config loading.
@@ -140,7 +143,7 @@ groups:
       in `SeedConfig`.
 - id: CFG-05
   title: SeedConfig Alignment
-  kind: language
+  kind: implementation
   specs:
   - id: CFG-05-001
     priority: SHOULD
@@ -159,7 +162,7 @@ groups:
       `VULTRON_ACTOR_TYPE`, `VULTRON_ACTOR_ID`, `VULTRON_SEED_CONFIG`).
 - id: CFG-06
   title: Testing
-  kind: language
+  kind: implementation
   specs:
   - id: CFG-06-001
     priority: MUST

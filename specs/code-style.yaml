@@ -197,12 +197,14 @@ groups:
       this ambiguity
   - id: CS-13-002
     priority: MUST
+    kind: implementation
     statement: All datetime values MUST be created via the `now_utc()` helper in `vultron.wire.as2.vocab.base.dt_utils`
   - id: CS-13-003
     priority: SHOULD
     statement: All datetime values SHOULD be stored at second precision (microseconds set to zero)
   - id: CS-13-004
     priority: MUST
+    kind: implementation
     statement: Embargo deadline datetimes MUST be computed using the `days_from_now_utc(n)` helper rather than inline arithmetic
   - id: CS-13-005
     priority: MUST
@@ -253,7 +255,7 @@ groups:
       the collision (e.g., `list_objects`).
 - id: CS-17
   title: Pydantic Models for Structured Data
-  kind: general
+  kind: language
   specs:
   - id: CS-17-001
     priority: MUST
@@ -265,7 +267,7 @@ groups:
       path explicitly.
 - id: CS-18
   title: Module Size and Organization
-  kind: general
+  kind: language
   specs:
   - id: CS-18-001
     priority: SHOULD
@@ -328,7 +330,7 @@ groups:
       spec_id: BTND-07-002
 - id: CS-20
   title: Protocol and Type-Guard Hygiene
-  kind: general
+  kind: language
   specs:
   - id: CS-20-001
     priority: MUST
@@ -378,7 +380,7 @@ groups:
       spec_id: CS-20-001
 - id: CS-19
   title: Test Fixtures Mirroring Production Enums
-  kind: general
+  kind: language
   specs:
   - id: CS-19-001
     priority: MUST

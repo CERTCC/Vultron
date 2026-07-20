@@ -93,6 +93,7 @@ groups:
 
   - id: ARCH-04-002
     priority: MUST
+    kind: implementation
     statement: >-
       `SyncActivityPort` MUST be defined as a `typing.Protocol` in
       `vultron/core/ports/sync_activity_port.py` with two fire-and-forget
@@ -280,6 +281,7 @@ groups:
       drift
   - id: ARCH-09-002
     priority: MUST
+    kind: implementation
     statement: >-
       Actor domain models (`CoreActor` and its concrete subclasses `VultronPerson`,
       `VultronOrganization`, `VultronService`, `VultronApplication`, `VultronGroup`)
@@ -397,6 +399,7 @@ groups:
     statement: Core ports SHOULD be organized into inbound (driving) and outbound (driven) categories
 - id: ARCH-14
   title: Wire Vocabulary Object Naming Convention
+  kind: implementation
   rationale: >-
     Wire vocabulary objects in `vultron/wire/as2/vocab/objects/` historically
     used bare domain names (e.g., `VulnerabilityCase`, `CaseParticipant`) that
@@ -456,6 +459,7 @@ groups:
       name that matches a core model name without the `as_` prefix.
 - id: ARCH-13
   title: DataLayer Scope Contract
+  kind: implementation
   specs:
   - id: ARCH-13-001
     priority: MUST

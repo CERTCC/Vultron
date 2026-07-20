@@ -15,12 +15,10 @@ tags:
 groups:
   - id: HM-01
     title: History File Location and Structure
-    kind: general
+    kind: dev-process
     specs:
       - id: HM-01-001
         priority: MUST
-        lint_suppress:
-          - kind_drift
         statement: >-
           All project history files MUST reside under `plan/history/`. The
           top-level `plan/` directory MUST NOT contain any new `*HISTORY.md`
@@ -168,7 +166,7 @@ groups:
 
   - id: HM-04
     title: Agent Context Boundaries
-    kind: pattern
+    kind: dev-process
     specs:
       - id: HM-04-001
         priority: MUST_NOT
@@ -193,7 +191,7 @@ groups:
 
   - id: HM-05
     title: Skill and AGENTS.md Integration
-    kind: pattern
+    kind: dev-process
     specs:
       - id: HM-05-001
         priority: MUST

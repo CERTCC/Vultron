@@ -6,7 +6,7 @@ description: >-
   case-actor vs non-case-actor branching), RejectLogEntryReceivedBT (replication state
   update and replay), and CommitLogEntryBT (append, persist, fan-out).
 version: 1.0.0
-kind: pattern
+kind: implementation
 scope:
   - prototype
   - production

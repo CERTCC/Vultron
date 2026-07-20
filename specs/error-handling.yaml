@@ -23,6 +23,7 @@ groups:
     statement: Custom exceptions MUST inherit from a base VultronError exception
   - id: EH-01-003
     priority: MUST
+    kind: implementation
     statement: Custom exceptions MUST be centralized in `vultron/errors.py`
 - id: EH-02
   title: Submodule Errors

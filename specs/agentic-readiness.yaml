@@ -151,6 +151,7 @@ groups:
   specs:
   - id: AR-08-001
     priority: MUST
+    kind: language
     statement: >-
       The CLI MUST be installable as a Python package entry point defined in `pyproject.toml`
     scope:

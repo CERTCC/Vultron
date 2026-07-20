@@ -127,7 +127,7 @@ groups:
       declared on the annotated base class
 - id: HTTP-09
   title: AS2 Response Class Convention
-  kind: language
+  kind: implementation
   rationale: >-
     FastAPI's `response_model=` serves two purposes: OpenAPI schema generation
     and runtime response filtering. When a route returns a wire AS2 object

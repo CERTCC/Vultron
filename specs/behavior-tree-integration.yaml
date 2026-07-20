@@ -451,6 +451,7 @@ groups:
       spec_id: BT-17-003
   - id: BT-17-005
     priority: MUST
+    kind: implementation
     statement: >-
       Tests for a received-side use case that exercises a BT guarded-commit path
       MUST pass `receiving_actor_id` equal to the actor holding
@@ -474,7 +475,7 @@ groups:
       note: The role guard identity check is what makes this fixture requirement necessary
 - id: BT-16
   title: Simulation Fuzzer Node Layout
-  kind: pattern
+  kind: implementation
   specs:
   - id: BT-16-001
     priority: MUST

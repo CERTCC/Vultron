@@ -61,7 +61,7 @@ groups:
       staging for commit, reducing CI failures and improving development velocity
 - id: PD-05
   title: Append-Only History Write Protocol
-  kind: pattern
+  kind: dev-process
   specs:
   - id: PD-05-001
     priority: MUST
@@ -91,6 +91,7 @@ groups:
       history entry is permanent.
 - id: PD-06
   title: Plan Section Organization (MUST/SHOULD)
+  kind: dev-process
   specs:
   - id: PD-06-004
     priority: MUST_NOT
