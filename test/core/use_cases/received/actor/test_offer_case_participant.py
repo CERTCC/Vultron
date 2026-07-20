@@ -223,6 +223,50 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
             AcceptOfferCaseParticipantReceivedUseCase(dl, mock_event).execute()
         assert any("missing" in r.message.lower() for r in caplog.records)
 
+    def test_recommender_notified_via_core_state(self):
+        """AC-5: recommender notification emitted; recommender read from core state.
+
+        Seeds recommendation_recommender_index on the case (as
+        OfferActorToCaseReceivedUseCase does at ingestion time), then runs
+        AcceptOfferCaseParticipantReceivedUseCase and asserts that at least
+        two outbox activities are queued — one Invite to the invitee and one
+        AcceptActorRecommendation to the recommender — confirming the recommender
+        ID came from core state, not from a dl.read(recommendation_id) re-read.
+        """
+        from vultron.core.models.case import VulnerabilityCase
+
+        RECOMMENDATION_ID = "https://example.org/activities/orig-offer-001"
+
+        dl, actor_id = _seed_dl_for_case_actor()
+        # Seed the recommender index as OfferActorToCaseReceivedUseCase would.
+        case = dl.read(CASE_ID)
+        assert isinstance(case, VulnerabilityCase)
+        case.recommendation_recommender_index[RECOMMENDATION_ID] = (
+            RECOMMENDER_ID
+        )
+        dl.save(case)
+
+        event = self._event()
+        AcceptOfferCaseParticipantReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        outbox = dl.outbox_list_for_actor(actor_id)
+        assert len(outbox) >= 2, (
+            "Expected at least two outbox activities (Accept notification to "
+            f"recommender + Invite to invitee); got {len(outbox)}"
+        )
+        # At least one queued activity must be addressed to the recommender.
+        addressed_to_recommender = [
+            act_id
+            for act_id in outbox
+            if RECOMMENDER_ID in (getattr(dl.read(act_id), "to", None) or [])
+        ]
+        assert addressed_to_recommender, (
+            f"No outbox activity addressed to recommender '{RECOMMENDER_ID}'; "
+            "recommender lookup must read from core state (recommendation_recommender_index)"
+        )
+
 
 # ---------------------------------------------------------------------------
 # RejectOfferCaseParticipantReceivedUseCase (CaseActor inbox)
@@ -273,6 +317,45 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
         with caplog.at_level(logging.WARNING):
             RejectOfferCaseParticipantReceivedUseCase(dl, mock_event).execute()
         assert any("missing" in r.message.lower() for r in caplog.records)
+
+    def test_recommender_notified_via_core_state(self):
+        """AC-5: recommender notification emitted on reject; recommender from core state.
+
+        Seeds recommendation_recommender_index on the case and asserts that
+        RejectOfferCaseParticipantReceivedUseCase queues a RejectActorRecommendation
+        addressed to the recommender, read from core state.
+        """
+        from vultron.core.models.case import VulnerabilityCase
+
+        RECOMMENDATION_ID = "https://example.org/activities/orig-offer-001"
+
+        dl, actor_id = _seed_dl_for_case_actor()
+        case = dl.read(CASE_ID)
+        assert isinstance(case, VulnerabilityCase)
+        case.recommendation_recommender_index[RECOMMENDATION_ID] = (
+            RECOMMENDER_ID
+        )
+        dl.save(case)
+
+        event = self._event()
+        RejectOfferCaseParticipantReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        outbox = dl.outbox_list_for_actor(actor_id)
+        assert len(outbox) >= 1, (
+            "Expected at least one outbox activity (RejectActorRecommendation "
+            f"to recommender); got {len(outbox)}"
+        )
+        addressed_to_recommender = [
+            act_id
+            for act_id in outbox
+            if RECOMMENDER_ID in (getattr(dl.read(act_id), "to", None) or [])
+        ]
+        assert addressed_to_recommender, (
+            f"No outbox activity addressed to recommender '{RECOMMENDER_ID}'; "
+            "recommender lookup must read from core state (recommendation_recommender_index)"
+        )
 
 
 # ---------------------------------------------------------------------------

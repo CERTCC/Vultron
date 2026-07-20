@@ -72,6 +72,9 @@ class VulnerabilityCase(CoreObject):
     pending_embargo_proposal_index: dict[str, str] = Field(
         default_factory=dict
     )
+    recommendation_recommender_index: dict[str, str] = Field(
+        default_factory=dict
+    )
     case_activity: list[str] = Field(default_factory=list)
     genesis_hash: str = Field(
         default="",

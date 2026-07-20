@@ -135,3 +135,45 @@ class TestOfferActorToCaseReceivedUseCase:
             OfferActorToCaseReceivedUseCase(dl, mock_event).execute()
 
         assert any("missing" in r.message.lower() for r in caplog.records)
+
+    def test_offer_actor_populates_recommendation_recommender_index(
+        self, make_payload
+    ):
+        """AC-1 (write-side): execute() writes activity_id→recommender_id to core state.
+
+        Verifies that OfferActorToCaseReceivedUseCase populates
+        VulnerabilityCase.recommendation_recommender_index so downstream
+        Accept/Reject use cases can look up the recommender without re-reading
+        the stored wire Offer (ADR-0035 DL-06-002).
+        """
+        from typing import cast
+
+        from vultron.core.models.case import VulnerabilityCase
+
+        dl, local_actor_id, case_id = self._setup_dl()
+        recommender_id = "https://example.org/actors/finder"
+        recommended_id = "https://example.org/actors/vendor-new"
+        recommended = as_Actor(id_=recommended_id)
+
+        activity = recommend_actor_activity(
+            recommended,
+            target=case_id,
+            actor=recommender_id,
+            to=[local_actor_id],
+        )
+        event = make_payload(activity)
+        activity_id = activity.id_
+
+        OfferActorToCaseReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        case = cast(VulnerabilityCase, dl.read(case_id))
+        assert isinstance(case, VulnerabilityCase)
+        assert (
+            case.recommendation_recommender_index.get(activity_id)
+            == recommender_id
+        ), (
+            "recommendation_recommender_index must map activity_id → recommender_id "
+            "after OfferActorToCaseReceivedUseCase runs (ADR-0035 DL-06-002)"
+        )
