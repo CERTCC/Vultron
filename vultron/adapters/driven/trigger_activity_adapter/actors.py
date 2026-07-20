@@ -249,6 +249,13 @@ class _ActorsMixin:
             roles=roles,
             **extra,
         )
+        # Save the inline CaseParticipant so dl.read() can expand it during
+        # outbox delivery (MV-09-001: dehydration stores object_ as a bare ID).
+        if isinstance(activity.object_, as_CaseParticipant):
+            try:
+                self._dl.create(activity.object_)
+            except ValueError:
+                pass
         try:
             self._dl.create(activity)
         except ValueError:
