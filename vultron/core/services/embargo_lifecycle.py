@@ -165,6 +165,7 @@ class EmbargoLifecycle:
         embargo_id: str,
         actor_id: str | None = None,
         transition_mode: TransitionMode = TransitionMode.STRICT,
+        em_before: EM | None = None,
     ) -> EmbargoLifecycleResult:
         """Propose or counter-propose an embargo on a case.
 
@@ -187,6 +188,13 @@ class EmbargoLifecycle:
                 ``OBSERVED`` syncs local state even when the transition would
                 not normally be valid, forcing ``PROPOSED`` (or ``REVISE``
                 when the local state is ``ACTIVE``/``REVISE``).
+            em_before: When provided by the caller (e.g. from
+                ``ReadEmStateNode``), the service uses this value directly and
+                skips the internal ``case.current_status.em_state`` read.  The
+                caller is then responsible for writing the returned ``em_after``
+                via ``WriteEmStateNode`` (AC-1 of issue #1474).  When ``None``
+                the service reads ``em_state`` from the case itself (legacy /
+                non-BT callers).
 
         Returns:
             :class:`EmbargoLifecycleResult` describing what changed.
@@ -203,7 +211,12 @@ class EmbargoLifecycle:
         if not isinstance(case, VulnerabilityCase):
             raise VultronNotFoundError("VulnerabilityCase", case_id)
 
-        em_before = EM(case.current_status.em_state)
+        # When em_before is supplied by the BT caller (ReadEmStateNode), use it
+        # directly; otherwise read from the case (legacy / non-BT callers).
+        caller_owns_em_io = em_before is not None
+        if not caller_owns_em_io:
+            em_before = EM(case.current_status.em_state)
+        assert em_before is not None  # guaranteed by the branch above
 
         if transition_mode == TransitionMode.STRICT:
             self._assert_pxa_embargo_eligible(
@@ -230,10 +243,12 @@ class EmbargoLifecycle:
         if em_before == EM.ACTIVE and em_after == EM.REVISE:
             participant_changes = self._cascade_pec_revise(case)
 
-        # Mutate case — track whether anything actually changed
+        # Mutate case — track whether anything actually changed.
+        # When the BT caller owns em I/O (caller_owns_em_io), skip the em_state
+        # write here — the caller's WriteEmStateNode handles it.
         case_mutated = False
 
-        if em_after != em_before:
+        if not caller_owns_em_io and em_after != em_before:
             case.current_status.em_state = em_after
             case_mutated = True
 
@@ -283,6 +298,7 @@ class EmbargoLifecycle:
         embargo_id: str,
         actor_id: str,
         transition_mode: TransitionMode = TransitionMode.STRICT,
+        em_before: EM | None = None,
     ) -> EmbargoLifecycleResult:
         """Accept an embargo invite on a case.
 
@@ -298,6 +314,9 @@ class EmbargoLifecycle:
             embargo_id: ID of the ``EmbargoEvent`` being accepted.
             actor_id: ID of the accepting actor.
             transition_mode: ``STRICT`` (default) or ``OBSERVED``.
+            em_before: When provided by the caller (e.g. from
+                ``ReadEmStateNode``), the service uses this value directly and
+                skips the internal read/write of ``case.current_status.em_state``.
 
         Returns:
             :class:`EmbargoLifecycleResult` describing what changed.
@@ -314,7 +333,12 @@ class EmbargoLifecycle:
         if not isinstance(case, VulnerabilityCase):
             raise VultronNotFoundError("VulnerabilityCase", case_id)
 
-        em_before = EM(case.current_status.em_state)
+        # When em_before is supplied by the BT caller (ReadEmStateNode), use it
+        # directly; otherwise read from the case (legacy / non-BT callers).
+        caller_owns_em_io = em_before is not None
+        if not caller_owns_em_io:
+            em_before = EM(case.current_status.em_state)
+        assert em_before is not None  # guaranteed by the branch above
         em_after = em_before
         case_mutated = False
         case_embargo_changed = False
@@ -341,8 +365,9 @@ class EmbargoLifecycle:
                 fallback_dest=EM.ACTIVE,
                 actor_id=actor_id,
             )
-            # Sync em_state and active_embargo whenever owner accepted
-            if em_after != em_before:
+            # When the BT caller owns em I/O, skip the em_state write here —
+            # the caller's WriteEmStateNode handles it.
+            if not caller_owns_em_io and em_after != em_before:
                 case.current_status.em_state = em_after
                 case_mutated = True
             # Sync active_embargo independently: handle OBSERVED mode where
@@ -396,6 +421,7 @@ class EmbargoLifecycle:
         embargo_id: str,
         actor_id: str,
         transition_mode: TransitionMode = TransitionMode.STRICT,
+        em_before: EM | None = None,
     ) -> EmbargoLifecycleResult:
         """Reject an embargo proposal or revision on a case.
 
@@ -416,6 +442,9 @@ class EmbargoLifecycle:
             embargo_id: ID of the ``EmbargoEvent`` being rejected.
             actor_id: ID of the rejecting actor.
             transition_mode: ``STRICT`` (default) or ``OBSERVED``.
+            em_before: When provided by the caller (e.g. from
+                ``ReadEmStateNode``), the service uses this value directly and
+                skips the internal read/write of ``case.current_status.em_state``.
 
         Returns:
             :class:`EmbargoLifecycleResult` describing what changed.
@@ -431,7 +460,12 @@ class EmbargoLifecycle:
         if not isinstance(case, VulnerabilityCase):
             raise VultronNotFoundError("VulnerabilityCase", case_id)
 
-        em_before = EM(case.current_status.em_state)
+        # When em_before is supplied by the BT caller (ReadEmStateNode), use it
+        # directly; otherwise read from the case (legacy / non-BT callers).
+        caller_owns_em_io = em_before is not None
+        if not caller_owns_em_io:
+            em_before = EM(case.current_status.em_state)
+        assert em_before is not None  # guaranteed by the branch above
         em_after = em_before
         case_mutated = False
 
@@ -459,7 +493,9 @@ class EmbargoLifecycle:
                 fallback_dest=fallback,
                 actor_id=actor_id,
             )
-            if em_after != em_before:
+            # When the BT caller owns em I/O, skip the em_state write here —
+            # the caller's WriteEmStateNode handles it.
+            if not caller_owns_em_io and em_after != em_before:
                 case.current_status.em_state = em_after
                 case_mutated = True
 
@@ -494,6 +530,7 @@ class EmbargoLifecycle:
         case_id: str,
         actor_id: str | None = None,
         transition_mode: TransitionMode = TransitionMode.STRICT,
+        em_before: EM | None = None,
     ) -> EmbargoLifecycleResult:
         """Terminate the active embargo on a case.
 
@@ -505,6 +542,9 @@ class EmbargoLifecycle:
             case_id: ID of the ``VulnerabilityCase`` to update.
             actor_id: Optional ID of the terminating actor (logging only).
             transition_mode: ``STRICT`` (default) or ``OBSERVED``.
+            em_before: When provided by the caller (e.g. from
+                ``ReadEmStateNode``), the service uses this value directly and
+                skips the internal read/write of ``case.current_status.em_state``.
 
         Returns:
             :class:`EmbargoLifecycleResult` describing what changed.
@@ -520,7 +560,12 @@ class EmbargoLifecycle:
         if not isinstance(case, VulnerabilityCase):
             raise VultronNotFoundError("VulnerabilityCase", case_id)
 
-        em_before = EM(case.current_status.em_state)
+        # When em_before is supplied by the BT caller (ReadEmStateNode), use it
+        # directly; otherwise read from the case (legacy / non-BT callers).
+        caller_owns_em_io = em_before is not None
+        if not caller_owns_em_io:
+            em_before = EM(case.current_status.em_state)
+        assert em_before is not None  # guaranteed by the branch above
 
         # In STRICT mode, require an active embargo to be identified
         embargo_id = _as_id(case.active_embargo)
@@ -538,7 +583,10 @@ class EmbargoLifecycle:
             actor_id=actor_id,
         )
 
-        case.current_status.em_state = em_after
+        # When the BT caller owns em I/O, skip the em_state write here —
+        # the caller's WriteEmStateNode handles it.
+        if not caller_owns_em_io:
+            case.current_status.em_state = em_after
         case.active_embargo = None
 
         participant_changes = self._cascade_pec_reset(case)
@@ -570,6 +618,7 @@ class EmbargoLifecycle:
         actor_id: str,
         pec_trigger: PEC_Trigger,
         embargo_id: str | None = None,
+        em_before: EM | None = None,
     ) -> EmbargoLifecycleResult:
         """Apply a PEC trigger to a single participant without changing EM state.
 
@@ -585,6 +634,9 @@ class EmbargoLifecycle:
             pec_trigger: The PEC trigger to apply.
             embargo_id: Optional ID of the relevant ``EmbargoEvent``; used
                 to maintain ``accepted_embargo_ids`` on ACCEPT/DECLINE.
+            em_before: When provided by the caller (e.g. from
+                ``ReadEmStateNode``), the service uses this value directly and
+                skips the internal ``case.current_status.em_state`` read.
 
         Returns:
             :class:`EmbargoLifecycleResult` with ``em_before == em_after``
@@ -596,7 +648,11 @@ class EmbargoLifecycle:
         if not isinstance(case, VulnerabilityCase):
             raise VultronNotFoundError("VulnerabilityCase", case_id)
 
-        em_state = EM(case.current_status.em_state)
+        em_state = (
+            em_before
+            if em_before is not None
+            else EM(case.current_status.em_state)
+        )
 
         participant_id = case.actor_participant_index.get(actor_id)
         if not participant_id:

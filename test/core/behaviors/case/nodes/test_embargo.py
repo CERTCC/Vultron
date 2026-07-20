@@ -21,6 +21,7 @@ Per specs/case-management.yaml CM-02, OX-03-001, CM-14-003.
 
 from datetime import datetime, timedelta, timezone
 from typing import Any, cast
+from unittest.mock import MagicMock
 
 import pytest
 from py_trees.common import Status
@@ -248,7 +249,9 @@ class TestInitializeDefaultEmbargoNode:
                         kwargs["transition_mode"].value,
                     )
                 )
-                return object()
+                result = MagicMock()
+                result.em_after = kwargs.get("em_before", EM.NONE)
+                return result
 
             def accept_embargo_invite(self, **kwargs: Any) -> Any:
                 calls.append(

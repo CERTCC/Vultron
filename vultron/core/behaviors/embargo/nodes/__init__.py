@@ -21,6 +21,10 @@ Re-exports all public node classes from submodules for backward compatibility.
 from vultron.core.behaviors.embargo.nodes.cascade import (
     PersistEmbargoEventNode,
 )
+from vultron.core.behaviors.embargo.nodes.em_state import (
+    ReadEmStateNode,
+    WriteEmStateNode,
+)
 from vultron.core.behaviors.embargo.nodes.conditions import (
     HasActiveEmbargoNode,
     HasCaseStatusesNode,
@@ -58,6 +62,9 @@ __all__ = [
     "HasCaseStatusesNode",
     "LookupParticipantNode",
     "OptionalLookupParticipantNode",
+    # EM state read/write (AC-1 of issue #1474)
+    "ReadEmStateNode",
+    "WriteEmStateNode",
     # Teardown
     "ApplyEmbargoTeardownNode",
     "RemoveFromProposedEmbargoesNode",
