@@ -12,14 +12,11 @@ description: >
 
 # Skill: Orient Agent
 
-Load the universal baseline context every workflow skill needs. Run this
-before any implementation, planning, or documentation work.
-
 ## Procedure
 
 ### Step 1 — Read the ubiquitous language glossary
 
-Read `docs/reference/glossary.md` first to establish domain vocabulary.
+Read `docs/reference/glossary.md`.
 
 ### Step 2 — Load specs
 
@@ -31,20 +28,13 @@ Run `uv run spec-dump 2>&1`. Capture the output. Do **not** read raw
 Read in parallel:
 
 - `AGENTS.md` — agent rules, conventions, and pitfalls
-- `.claude/skills/shared/completeness-doctrine.md` — project quality standard;
-  governs what "done" means for every implementation, review, and learning task
-- `notes/README.md` — index of active design notes (do not read individual
-  notes files here; use `deepen-context` for task-specific notes)
-- `docs/adr/index.md` — overview of all ADRs (accepted, proposed, rejected,
-  superseded); used by `deepen-context` to decide which ADRs to load
+- `.claude/skills/shared/completeness-doctrine.md` — quality standard; governs what "done" means
+- `notes/README.md` — index of active design notes (do not read individual notes files here; use `deepen-context`)
+- `docs/adr/index.md` — overview of all ADRs; used by `deepen-context` to decide which ADRs to load
 
 ### Step 4 — Read build observations
 
-Read all files in `plan/incoming/learnings/` for ephemeral build/bugfix
-observations queued for the `learn` skill.
-
-> **`plan/history/` is excluded.** Read it only when investigating
-> completed work (e.g., during the `learn` skill).
+Read all files in `plan/incoming/learnings/`. Do not read `plan/history/`.
 
 ### Step 5 — Query current priorities
 
@@ -52,13 +42,4 @@ observations queued for the `learn` skill.
 bash .agents/skills/shared/query-now-epics.sh
 ```
 
-This shows open Epics with `Schedule=Now` so you know what work is
-currently in progress.
-
-## Notes
-
-- Do not skip this skill even for "small" tasks — it ensures cross-cutting
-  specs (`ARCH`, `CS`, `TB`, `HP`, `SL`, `EH`) and agent rules are always
-  in context.
-- After orient-agent, invoke `deepen-context` with task-specific hints
-  once the target issue is known.
+Do not skip this skill even for small tasks. After orient-agent, invoke `deepen-context` with task-specific hints once the target issue is known.

@@ -18,85 +18,18 @@ outputs:
     description: "The last 5 lines of pytest output (summary and short failure traces)"
 ---
 
-# Skill: Run canonical test-suite and capture summary
+# Skill: Run Tests
 
-## Purpose
+| Suite | Command |
+|---|---|
+| Unit (default) | `uv run pytest --tb=short 2>&1 \| tail -5` |
+| Integration | `uv run pytest -m integration --tb=short 2>&1 \| tail -5` |
+| All | `uv run pytest -m "" --tb=short 2>&1 \| tail -5` |
 
-Run the repository's canonical test command exactly as maintainers and CI do,
-then capture the last five lines of output. This is the canonical validation
-step used across the project and by automation.
+## Constraints
 
-## Inputs
-
-- `repo_root` (string, default `.`): repository root where the command should
-  be executed.
-
-## Outputs
-
-- `pytest_summary` (string): the last five lines produced by the test command,
-  intended for quick inspection and automated parsing.
-
-## Test Suites
-
-The project has two test suites:
-
-| Suite | Command | What it runs |
-|---|---|---|
-| Unit (default) | `uv run pytest --tb=short 2>&1 \| tail -5` | All tests except `@pytest.mark.integration` |
-| Integration | `uv run pytest -m integration --tb=short 2>&1 \| tail -5` | Demo and file-backed I/O tests |
-| All tests | `uv run pytest -m "" --tb=short 2>&1 \| tail -5` | Both suites combined |
-
-The default command excludes integration tests (configured via
-`addopts = "-m 'not integration'"` in `pyproject.toml`). Integration tests
-include `test/demo/` and any tests that require disk I/O or external services.
-
-## Procedure
-
-1. From the repository root, run the unit test suite exactly once and capture
-   the last five lines of output:
-
-```bash
-uv run pytest --tb=short 2>&1 | tail -5
-```
-
-1. Read the five-line summary for pass/fail status and short failure traces.
-
-## Constraints / Rules
-
-- Run the exact command above and only once per validation cycle.
-- Do NOT re-run pytest to extract counts; do not use `-q` or otherwise change
-  pytest output formatting.
-- Do NOT change the `tail` window (it must be `tail -5`).
-- pytest is configured with `filterwarnings = ["error"]` in `pyproject.toml`;
-  warnings are treated as test errors. Do NOT suppress or ignore warnings
-  without fixing their root cause.
-- Integration tests are excluded from the default run by design (they involve
-  network/disk I/O and run separately). Run them with `-m integration` when
-  validating demo workflows or file-backed datalayer behavior.
-- This skill reports test output only; it does not authorize pre-existing/
-  unrelated conclusions from a single failure snippet.
-- Calling skills (`build`, `bugfix`, `pr-comprehensive-fix`) must treat test
-  failures as branch-owned by default and require evidence before labeling
-  failures as pre-existing.
-
-## Examples
-
-```bash
-cd "$REPO_ROOT"
-
-# Default (unit tests only, ~13s)
-uv run pytest --tb=short 2>&1 | tail -5
-
-# Integration tests only (~6s)
-uv run pytest -m integration --tb=short 2>&1 | tail -5
-
-# All tests combined
-uv run pytest -m "" --tb=short 2>&1 | tail -5
-```
-
-## Rationale
-
-Using a single, canonical command keeps CI output consistent and makes
-automated tooling and skills (like Copilot skills) reliable. The integration
-test split prevents slow file-backed storage tests from degrading the default
-feedback loop while still providing full coverage when needed.
+- Run exactly once per validation cycle; do not use `-q` or change output formatting.
+- Do not change `tail -5`.
+- `filterwarnings = ["error"]` in `pyproject.toml` — warnings are test errors; fix root cause, do not suppress.
+- Integration tests are excluded from the default run; use `-m integration` for demo/datalayer validation.
+- Treat all failures as branch-owned by default; clean-base proof is required before classifying as pre-existing.

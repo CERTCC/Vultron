@@ -61,21 +61,7 @@ Invoke the `orient-agent` skill.
 2. Query leaf Issues of that Epic:
 
    ```bash
-   gh api graphql -f query='{
-     repository(owner:"CERTCC", name:"Vultron") {
-       issue(number: <EPIC_NUMBER>) {
-         subIssues(first: 50) {
-           nodes {
-             number title state
-             assignees(first: 1) { nodes { login } }
-             blockedBy(first: 10) { nodes { number title state } }
-             subIssues(first: 1) { totalCount }
-             labels(first: 10) { nodes { name } }
-           }
-         }
-       }
-     }
-   }'
+   bash .agents/skills/shared/query-epic-subissues.sh <EPIC_NUMBER>
    ```
 
    A candidate issue must: `state=OPEN`, no assignees, no `stale-claim`
@@ -88,15 +74,7 @@ Invoke the `orient-agent` skill.
    Query the selected issue's type and sub-issue count:
 
    ```bash
-   gh api graphql -f query='{
-     repository(owner:"CERTCC", name:"Vultron") {
-       issue(number: <ISSUE_NUMBER>) {
-         issueType { name }
-         subIssues(first: 1) { totalCount }
-         labels(first: 20) { nodes { name } }
-       }
-     }
-   }'
+   bash .agents/skills/shared/query-issue-type.sh <ISSUE_NUMBER>
    ```
 
    If `issueType.name == "Epic"` and `subIssues.totalCount == 0`:
@@ -188,31 +166,21 @@ that clearly belongs with it, apply the following:
 
 ### Phase 6 — Validate
 
-1. Invoke `format-code`, then `run-linters`, then `run-tests`.
+1. Run in order:
+
+   ```bash
+   uv run black vultron/ test/
+   uv run flake8 vultron/ test/ && uv run mypy && uv run pyright
+   uv run pytest --tb=short 2>&1 | tail -5
+   ```
+
 2. Do not skip or delegate validation.
-3. During validation failures, ownership defaults to the current branch:
-   - **Format/lint/type failures**: fix them directly; do not file incidental
-     bug issues for these categories.
-   - **Test failures**: assume the failure is caused by current changes until
-     disproven with evidence.
-4. A test failure may be classified as pre-existing/unrelated **only** after:
-   - A clean-base proof on current `main` (or equivalent documented evidence)
-     reproduces the same failure.
-   - At least one causality check against the branch diff is performed
-     (e.g., isolate or temporarily revert suspect hunks and re-run relevant
-     tests).
-5. If pre-existing is proven:
-   - Create or update a Bug issue via `manage-github-issue` with evidence:
-     failing command/output, clean-base proof, causality check, and explicit
-     blocked/unblocked impact on the current issue.
-   - Wire blocking relationships with `manage-github-issue` (use structured
-     blockers, not body-text markers).
-   - Add a handoff comment on that Bug issue with pickup context for the next
-     agent.
-   - Record the Bug link and blocked/unblocked decision as a learning file in
-     `plan/incoming/learnings/`.
-6. If clean-base proof cannot be obtained in-session, do **not** classify the
-   failure as unrelated; continue treating it as branch-owned.
+3. Apply branch-ownership and pre-existing-failure rules from
+   `completeness-doctrine.md` § "Finding Severity".
+4. If pre-existing is proven: create/update a Bug issue via `manage-github-issue`
+   with evidence (failing command/output, clean-base proof, causality check,
+   blocked/unblocked impact), wire structured blockers, add a handoff comment,
+   and record the Bug link as a learning file in `plan/incoming/learnings/`.
 
 ### Phase 7 — Pre-PR Code Review
 
