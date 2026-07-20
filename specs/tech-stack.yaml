@@ -114,6 +114,7 @@ groups:
     statement: Static documentation SHOULD be hosted via GitHub Pages.
   - id: IMPLTS-05-007
     priority: MUST
+    kind: dev-process
     statement: Source code MUST be hosted in GitHub using git for version control.
 - id: IMPLTS-07
   title: Code Quality Tooling

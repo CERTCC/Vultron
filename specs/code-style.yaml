@@ -99,6 +99,7 @@ groups:
       `as_Object`) retain the `as_` prefix as an ActivityStreams provenance marker.
   - id: CS-07-002
     priority: MUST
+    kind: language
     statement: 'For fields whose plain name collides with a Python builtin or reserved word (e.g., `object`, `type`, `id`,
       `context`), use a trailing underscore: `object_`, `type_`, `id_`, `context_`'
     rationale: Idiomatic Python (PEP 8); keeps models readable and decoupled from AS2 naming conventions.
@@ -137,27 +138,46 @@ groups:
     rationale: Duplicated models diverge silently over time; a hierarchy makes the relationship explicit and reduces boilerplate
 - id: CS-10
   title: Port and Adapter Data Exchange
-  kind: language
   specs:
   - id: CS-10-001
     priority: MUST
+    kind: pattern
     statement: >-
-      Data passed across port/adapter boundaries MUST use named, domain-typed Pydantic classes
-      rather than plain `dict`s or bare `BaseModel` subclasses without semantic meaning. Port
-      `Protocol` signatures MUST declare parameters and return values as specific domain types
-      (e.g., `VulnerabilityCase`, `CaseParticipant`), not as `BaseModel` or `dict`.
+      Data passed across port/adapter boundaries MUST use named, domain-typed objects
+      rather than type-erased containers (plain maps, untyped base classes, or
+      equivalent). Port interface signatures MUST declare parameters and return values
+      as specific domain types, not as generic base types or untyped collections.
     rationale: >-
-      This rule has two eras: prior to domain-typed core objects, "use Pydantic `BaseModel`"
-      was the correct guidance (vs. plain `dict`s). With named domain types in place,
-      the standard is now higher: ports must name the type specifically so that port
-      signatures serve as machine-readable contracts rather than type-erased boundaries.
-      Bare `BaseModel` at a port is equivalent to `dict` from a contract-clarity perspective.
-      Python-specific (`language`-kind). See also ARCH-08-001 for the port Protocol obligation.
+      Ports that accept or return type-erased containers (dicts, bare base models)
+      serve as machine-readable contracts in name only — the type system cannot enforce
+      what passes through them. Naming the specific domain type at the boundary makes
+      the contract explicit, enables static verification, and surfaces layer-coupling
+      violations at compile/analysis time rather than runtime.
     relationships:
+    - rel_type: refines
+      spec_id: ARCH-08-001
+  - id: CS-10-003
+    priority: MUST
+    kind: language
+    statement: >-
+      In this Python codebase, port boundary types MUST be named Pydantic model classes
+      (e.g., `VulnerabilityCase`, `CaseParticipant`), not plain `dict`s or bare
+      `BaseModel` subclasses without semantic meaning. Port `Protocol` signatures MUST
+      declare parameters and return values as these specific domain types.
+    rationale: >-
+      Prior to domain-typed core objects, "use Pydantic `BaseModel`" was the correct
+      guidance (vs. plain `dict`s). With named domain types in place the standard is
+      higher: bare `BaseModel` at a port is equivalent to `dict` from a contract-clarity
+      perspective. See also ARCH-08-001 for the port Protocol obligation.
+    relationships:
+    - rel_type: refines
+      spec_id: CS-10-001
+      note: Python/Pydantic-specific application of the typed-port-boundary pattern
     - rel_type: refines
       spec_id: ARCH-08-001
   - id: CS-10-002
     priority: SHOULD
+    kind: domain
     statement: Wire-level ActivityStreams payload classes SHOULD carry the `Activity` suffix; domain event classes SHOULD
       carry the `Event` suffix
     rationale: Distinguishes wire representation from domain intent, prevents accidental coupling between layers, and makes
