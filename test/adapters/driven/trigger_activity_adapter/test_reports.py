@@ -13,6 +13,9 @@
 
 """Unit tests for TriggerActivityAdapter report-domain methods."""
 
+import pytest
+
+from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
@@ -64,6 +67,82 @@ class TestSubmitReport:
             target=_CASE_ID,
         )
 
+        assert dl.read(offer_id) is not None
+
+    def test_persists_offer_record(self, adapter, dl):
+        report = _make_report(dl)
+
+        offer_id, _ = adapter.submit_report(
+            report_id=report.id_,
+            actor=_ACTOR,
+            to=_COORDINATOR,
+            target=_CASE_ID,
+        )
+
+        record_id = VultronOfferRecord.build_id(offer_id)
+        record = dl.read(record_id)
+        assert record is not None
+        assert isinstance(record, VultronOfferRecord)
+        assert record.offer_id == offer_id
+        assert record.report_id == report.id_
+        assert record.offer_actor_id == _ACTOR
+        assert _COORDINATOR in record.offer_to
+
+    def test_compensating_delete_on_offer_record_failure(self, adapter, dl):
+        """Offer activity is rolled back when VultronOfferRecord creation fails."""
+        report = _make_report(dl)
+
+        original_create = dl.create
+
+        def failing_create(obj):
+            if isinstance(obj, VultronOfferRecord):
+                raise RuntimeError("simulated DB failure")
+            return original_create(obj)
+
+        dl.create = failing_create
+
+        with pytest.raises(RuntimeError, match="simulated DB failure"):
+            adapter.submit_report(
+                report_id=report.id_,
+                actor=_ACTOR,
+                to=_COORDINATOR,
+                target=_CASE_ID,
+            )
+
+        # The Offer activity must have been rolled back.
+        from vultron.wire.as2.vocab.activities.report import (
+            _RmSubmitReportActivity,
+        )
+
+        activities = list(dl.list_objects("Offer"))
+        assert not any(
+            isinstance(a, _RmSubmitReportActivity) for a in activities
+        ), "Offer activity should have been deleted by compensating rollback"
+
+    def test_no_compensating_delete_on_duplicate_offer_record(
+        self, adapter, dl
+    ):
+        """ValueError on offer record create does not trigger compensating delete."""
+        report = _make_report(dl)
+
+        original_create = dl.create
+
+        def offer_record_raises_value_error(obj):
+            if isinstance(obj, VultronOfferRecord):
+                raise ValueError("already exists")
+            return original_create(obj)
+
+        dl.create = offer_record_raises_value_error
+
+        # Call succeeds (ValueError is swallowed by the idempotent guard).
+        offer_id, _ = adapter.submit_report(
+            report_id=report.id_,
+            actor=_ACTOR,
+            to=_COORDINATOR,
+            target=_CASE_ID,
+        )
+
+        # The Offer activity MUST still be present — no compensating delete.
         assert dl.read(offer_id) is not None
 
 
