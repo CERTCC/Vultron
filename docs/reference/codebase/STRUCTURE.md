@@ -6,62 +6,67 @@
 
 | Path | Purpose | Evidence |
 |------|---------|----------|
-| `vultron/` | Main Python package: adapters, core, wire layer, demos, metadata tooling | `docs/reference/codebase/.codebase-scan.txt`, `AGENTS.md` |
-| `test/` | Pytest suite mirroring `vultron/` | `pyproject.toml`, `test/AGENTS.md` |
-| `docs/` | MkDocs source for published/reference docs | `mkdocs.yml`, `docs/reference/codebase/.codebase-scan.txt` |
-| `doc/` | Example and legacy-support docs outside MkDocs | `README.md`, `doc/README.md` |
-| `notes/` | Durable design notes and architecture guidance | `notes/README.md` |
-| `specs/` | Formal YAML requirement files and spec registry inputs | `specs/README.md` |
-| `docker/` | Dockerfile, compose stacks, seed configs, and demo entrypoint | `docker/README.md`, `docker/Dockerfile` |
-| `integration_tests/` | Manual Docker-backed acceptance scripts outside pytest | `integration_tests/README.md` |
-| `.github/` | CI workflows, reusable actions, and repo automation | `.github/workflows/python-app.yml`, `.github/actions/setup-python-uv/action.yml` |
-| `plan/` | Planning, history, and build-learning artifacts | `AGENTS.md`, `docs/reference/codebase/.codebase-scan.txt` |
-| `site/` | Generated MkDocs output; not source | `docs/reference/codebase/.codebase-scan.txt` |
-| `.venv/`, `.mypy_cache/`, `.pytest_cache/` | Local environment and tool caches; not source | `docs/reference/codebase/.codebase-scan.txt` |
+| `vultron/` | Main Python package — all production source | `pyproject.toml` `[tool.setuptools.packages.find]` |
+| `vultron/core/` | Domain layer: models, ports, use cases, states, behaviors | `notes/architecture-hexagonal.md` |
+| `vultron/wire/` | Wire format layer: AS2 vocabulary, parser, extractor, factories | `notes/architecture-hexagonal.md` |
+| `vultron/adapters/` | Adapter layer: driving (HTTP/CLI/MCP), driven (SQLite, delivery), connectors | `notes/architecture-hexagonal.md` |
+| `vultron/bt/` | Behavior tree node library grouped by CVD domain area | `vultron/bt/` directory listing |
+| `vultron/config/` | Layer-neutral configuration models and loading logic | `vultron/config/app.py`, `vultron/config/actor.py` |
+| `vultron/enums/` | Shared CVD-domain enums (roles, states) imported by config and core | `vultron/enums/` |
+| `vultron/demo/` | Demo scenario runners and seed-config helpers | `pyproject.toml` entry points |
+| `vultron/metadata/` | Spec registry, history CLI, notes metadata tooling | `vultron/metadata/specs/`, `vultron/metadata/history/` |
+| `vultron/scripts/` | CLI entry points (`vultrabot`) | `pyproject.toml` `[project.scripts]` |
+| `vultron/semantic_registry/` | ActivityStreams semantic pattern registry | `vultron/semantic_registry/` |
+| `test/` | Pytest test suite (mirrors `vultron/` layout) | `pyproject.toml` `[tool.pytest.ini_options]` |
+| `test/architecture/` | Architecture-boundary enforcement tests | `test/architecture/test_core_no_adapter_imports.py` |
+| `specs/` | Structured YAML specification files | `specs/README.md` |
+| `notes/` | Durable design insight Markdown files | `notes/README.md` |
+| `docs/` | MkDocs documentation source | `Makefile` `docs` target |
+| `plan/` | Agent workflow files: implementation plan, priorities, learnings, history | `plan/BUILD_LEARNINGS.md`, `plan/IMPLEMENTATION_PLAN.md` |
+| `.github/workflows/` | CI/CD pipeline definitions | `.github/workflows/python-app.yml` |
+| `.devcontainer/` | Dev container configuration | `.devcontainer/Dockerfile` |
+| `integration_tests/` | Separate integration test suite | `integration_tests/README.md` |
 
 ### 2) Entry Points
 
-- Main runtime entry: `vultron/adapters/driving/fastapi/main.py:app`
-- Secondary entry points (worker/cli/jobs):
-  `vultron/adapters/driving/fastapi/app.py:app_v2`,
-  `vultron/adapters/driving/fastapi/app.py:create_app`,
-  `vultron/demo/cli.py:main`, metadata CLIs under `[project.scripts]`, and
-  MCP-style tool functions in `vultron/adapters/driving/mcp_server.py`
-- How entry is selected (script/config): Docker runs
-  `uvicorn vultron.adapters.driving.fastapi.main:app`; packaged CLI commands are
-  declared under `[project.scripts]` in `pyproject.toml`; tests instantiate
-  isolated apps via `create_app()`.
+- **Main ASGI app** (uvicorn/production): `vultron.adapters.driving.fastapi.main:app`
+- **Sub-app for dev/tests**: `vultron.adapters.driving.fastapi.app:app_v2`
+- **CLI scripts**:
+  - `vultron-demo` → `vultron.demo.cli:main`
+  - `vultrabot` → `vultron.scripts.vultrabot:main`
+  - `vultrabot_cvd` → `vultron.demo.vultrabot:main`
+  - `spec-dump` / `spec-dump-llm-json` → `vultron.metadata.specs.render:main_llm_json`
+  - `spec-lint` → `vultron.metadata.specs.lint:main`
+  - `append-history` → `vultron.metadata.history.cli:main`
+  - `show-history` → `vultron.metadata.history.show_history_cli:main`
+- **How entry is selected**: via `[project.scripts]` in `pyproject.toml`; uvicorn deployment uses `vultron.adapters.driving.fastapi.main:app`
 
 ### 3) Module Boundaries
 
 | Boundary | What belongs here | What must not be here |
 |----------|-------------------|------------------------|
-| `vultron/core/` | Domain models, ports, dispatcher, use cases, core BTs | FastAPI/framework imports and adapter-owned I/O |
-| `vultron/wire/as2/` | ActivityStreams vocabulary, patterns, rehydration, extraction | Case/business logic |
-| `vultron/adapters/driving/` | HTTP/CLI/MCP-facing translation into core calls | Persistent domain ownership |
-| `vultron/adapters/driven/` | Persistence, outbound delivery, domain→wire translation adapters | Request routing and HTTP endpoint definitions |
-| `vultron/metadata/` | Spec, notes, and history tooling | Runtime protocol orchestration |
-| `vultron/demo/` | Demo orchestration, seeding, verification helpers | Authoritative domain interfaces |
-| `vultron/bt/` | Legacy/experimental BT package retained alongside core behaviors | New adapter wiring or primary runtime entrypoints |
-| `vultron/demo/fuzzer/` | Fuzzer/simulation call-out point implementations and shape mixin classes; depends on `vultron/core/behaviors/call_out_point.py` for `CallOutBackendFactory` type | Core domain logic; tree builders default to fuzzer factories but must not import `vultron.demo` (BT-16-001) |
-| `test/` | Mirrored tests and fixtures | Production runtime code |
+| `vultron/core/` | Domain models, ports (Protocol classes), use cases, states, behaviors | FastAPI, wire-format (AS2), adapter imports |
+| `vultron/wire/as2/` | AS2 vocabulary (Pydantic models), parser, semantic extractor, factories | Core domain import of AS2 types; FastAPI |
+| `vultron/adapters/` | HTTP handlers, SQLite data layer, outbound delivery, CLI, MCP, connectors | Core domain logic (no business rules) |
+| `vultron/config/` | Configuration models and loading only | Imports from `vultron.adapters` or `vultron.core` |
+| `vultron/enums/` | Shared CVD enums usable by `config/` and `core/` | Adapter or wire-specific types |
+| `vultron/bt/` | Behavior tree node definitions for CVD sub-protocols | Direct FastAPI or SQLite imports |
+
+Enforced by: `test/architecture/test_core_no_adapter_imports.py`, `test/architecture/test_core_no_wire_imports.py`
 
 ### 4) Naming and Organization Rules
 
-- File naming pattern: snake_case Python modules, e.g. `outbox_monitor.py`,
-  `three_actor_demo.py`, `sync_activity_adapter.py`
-- Directory organization pattern: layer-oriented runtime layout under
-  `vultron/` (`core/`, `wire/`, `adapters/`) plus support packages
-  (`demo/`, `metadata/`, `scripts/`)
-- Import aliasing or path conventions: package-qualified absolute imports are
-  the norm; selected façade/re-export modules exist, e.g.
-  `vultron.adapters.driven.datalayer` and `vultron.wire.as2.extractor`
+- **File naming**: `snake_case.py` for modules (e.g., `bt_node.py`, `datalayer_sqlite.py`)
+- **Class naming**: `PascalCase`; wire-layer AS2 vocab classes use `as_` prefix (e.g., `as_VulnerabilityCase`, `as_Activity`)
+- **Domain abbreviation**: `vul` (not `vuln`) for vulnerability; `em` for embargo management; `rm` for report management; `cs` for case state
+- **Use-case naming**: `Svc` prefix + domain noun + action suffix (e.g., `SvcCloseReportUseCase`)
+- **Directory organization**: by architectural layer (`core/`, `wire/`, `adapters/`) then by CVD domain area within layers
+- **Import conventions**: absolute imports; no circular dependencies; core must not import from adapters or wire; `__init__.py` re-exports for backward compatibility
 
 ### 5) Evidence
 
-- `docs/reference/codebase/.codebase-scan.txt`
-- `pyproject.toml`
-- `vultron/adapters/driving/fastapi/main.py`
-- `vultron/adapters/driving/fastapi/app.py`
-- `vultron/demo/cli.py`
-- `docker/Dockerfile`
+- `vultron/` directory listing
+- `pyproject.toml` `[project.scripts]`
+- `notes/architecture-hexagonal.md`
+- `AGENTS.md`
+- `test/architecture/test_core_no_adapter_imports.py`

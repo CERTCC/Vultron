@@ -6,67 +6,65 @@
 
 | Item | Rule | Example | Evidence |
 |------|------|---------|----------|
-| Files | Snake_case Python module names | `outbox_monitor.py`, `sync_activity_adapter.py` | `docs/reference/codebase/.codebase-scan.txt`, `vultron/adapters/driving/fastapi/outbox_monitor.py` |
-| Functions/methods | Snake_case verbs; helper/private names often start with `_` | `get_default_emitter`, `_prepare_activity_object_for_delivery` | `vultron/adapters/driving/fastapi/outbox_handler.py` |
-| Types/interfaces | PascalCase for classes and Protocols | `OutboxMonitor`, `SqliteDataLayer`, `DataLayer` | `vultron/adapters/driving/fastapi/outbox_monitor.py`, `vultron/adapters/driven/datalayer_sqlite/datalayer.py`, `vultron/core/ports/datalayer.py` |
-| Wire-layer classes | `as_` prefix on wire vocabulary class names | `as_Activity` | `vultron/wire/as2/AGENTS.md`, `vultron/wire/as2/extractor/_extract.py` |
-| Use cases | Received-side classes use `Received`; trigger-side classes use `Svc` prefix | `CreateReportReceivedUseCase`, `SvcValidateReportUseCase` | `vultron/core/AGENTS.md`, `vultron/semantic_registry/report.py`, `vultron/core/use_cases/triggers/report.py` |
-| Constants/env vars | UPPER_CASE names | `DEFAULT_MAX_RETRIES`, `VULTRON_DATABASE__DB_URL` | `vultron/adapters/driven/demo_http_delivery.py`, `vultron/config.py` |
+| Python modules | `snake_case.py` | `datalayer_sqlite.py`, `bt_node.py` | Any source file in `vultron/` |
+| Classes | `PascalCase` | `VulnerabilityCase`, `SqliteDataLayer` | `vultron/core/models/case.py` |
+| Wire-layer AS2 vocab classes | `as_` prefix + `PascalCase` | `as_VulnerabilityCase`, `as_Activity` | `vultron/wire/as2/vocab/objects/` |
+| Use-case classes | `Svc` prefix + noun + action + `UseCase` | `SvcCloseReportUseCase`, `SvcEngageCaseUseCase` | `vultron/core/use_cases/triggers/` |
+| Use-case trigger request models | noun + `TriggerRequest` suffix | `AcceptCaseInviteTriggerRequest` | `vultron/core/use_cases/triggers/requests.py` |
+| Functions / methods | `snake_case` | `get_config()`, `load_actor_config()` | `vultron/config/app.py` |
+| Constants / env vars | `UPPER_SNAKE_CASE` | `VULTRON_CONFIG`, `VULTRON_DATABASE__DB_URL` | `vultron/config/app.py`, `.env.example` |
+| Domain abbreviation | `vul` (not `vuln`) for vulnerability | `VulnerabilityCase`, `VulnDiscovery` | `AGENTS.md` |
+| CVD sub-protocol abbreviations | `em` (embargo), `rm` (report management), `cs` (case state) | `vultron/bt/embargo_management/`, `vultron/core/states/em.py` | Directory listing |
+| Test files | `test_<module>.py` | `test_config.py`, `test_states_em.py` | `test/` layout |
+| Spec IDs | `<TOPIC>-<NN>-<NNN>` | `ARCH-01-001`, `CFG-07-002` | `specs/*.yaml` |
 
 ### 2) Formatting and Linting
 
-- Formatter: `black` with `line-length = 79` in `pyproject.toml`
-- Linter: `flake8` via `.flake8`; static analysis also uses `mypy` and
-  `pyright`; markdown is checked by `markdownlint-cli2`
-- Pre-commit hooks are **fail-only** (no auto-fix during commit): `black` runs
-  with `--check`, `markdownlint-cli2` does not apply fixes. Auto-format before
-  committing via the `format-code` and `run-linters` skills or `make black`.
-- Most relevant enforced rules: flake8 ignores `E203` and `E501`,
-  `__init__.py` may ignore `F401`, mypy checks packages `vultron` and `test`,
-  and markdownlint disables `MD013`, `MD033`, `MD041`, `MD046`, `MD051`, and
-  `MD060`
-- Run commands: `uv run black vultron/ test/`, `uv run flake8 vultron/ test/`,
-  `uv run mypy`, `uv run pyright`, `./mdlint.sh`
+- **Formatter**: black, `line-length = 79`, targets Python 3.8–3.13 — config in `pyproject.toml` `[tool.black]`
+- **Linter**: flake8 — config in `.flake8` (ignores E203, E501; max complexity 10; excludes `docs/`, `build/`, `dist/`)
+- **Type checkers**: mypy + pyright (both run in CI, both must pass)
+- **Import ordering**: isort with `profile = "black"` — config in `pyproject.toml` `[tool.isort]`
+- **Markdown**: markdownlint-cli2 via `mdlint.sh`
+- **Most relevant enforced rules**: line length 79, max cyclomatic complexity 10, unused imports allowed only in `__init__.py` (F401), both mypy and pyright must pass
+- **Run commands**:
+
+  ```bash
+  uv run black .          # format
+  uv run flake8 vultron/ test/  # lint
+  uv run mypy             # type-check
+  uv run pyright          # type-check (second pass)
+  ./mdlint.sh             # markdown lint
+  ```
 
 ### 3) Import and Module Conventions
 
-- Import grouping/order: sampled modules follow standard library, third-party,
-  then `vultron.*` imports.
-- Alias vs relative import policy: package-qualified absolute imports dominate;
-  some package `__init__.py` files re-export public names for compatibility.
-- Public exports/barrel policy: targeted re-export/facade modules exist, e.g.
-  `vultron.wire.as2.extractor`, `vultron.adapters.driven.datalayer`, and
-  `vultron.adapters.driving.fastapi.routers`.
+- **Import grouping/order**: stdlib → third-party → local; isort enforces black profile
+- **Absolute imports only**: no relative imports; all intra-package references use full `vultron.*` paths
+- **Layer isolation**: `vultron/core/` must not import from `vultron/adapters/` or `vultron/wire/`; `vultron/config/` must not import from `vultron/adapters/` or `vultron/core/`
+- **Backward-compat re-exports**: split modules re-export all public names from their `__init__.py` to avoid breaking callers (e.g., `vultron/adapters/driven/datalayer_sqlite.py`)
+- **`__init__.py` F401 exception**: unused imports in `__init__.py` files are allowed (flake8 per-file-ignore)
 
 ### 4) Error and Logging Conventions
 
-- Error strategy by layer: core raises project/domain exceptions; adapters log
-  and translate failures at boundaries.
-- Logging style and required context fields: project guidance calls for
-  `DEBUG`/`INFO`/`WARNING`/`ERROR`/`CRITICAL`; root guidance requires
-  `activity_id` and `actor_id` when available.
-- Sensitive-data redaction rules: `[TODO]` no explicit runtime redaction policy
-  was found in the sampled code/config files.
+- **Error strategy by layer**:
+  - Wire layer: raises `vultron.wire.errors` types on parse/validation failure
+  - Core use cases: raises `vultron.errors.VultronValidationError` or similar domain errors; fail-fast at use-case boundary (ARCH-15)
+  - Adapters: catch and translate errors into HTTP responses or log entries
+- **Logging**: use `logging.getLogger(__name__)` at module level; `logger.debug(...)` for trace detail, `logger.warning(...)` for recoverable issues
+- **Sensitive data**: no specific redaction rules observed; [ASK USER] whether PII from vulnerability reports requires redaction at log points
 
 ### 5) Testing Conventions
 
-- Test file naming/location rule: `test/` mirrors `vultron/`; files are named
-  `test_*.py`
-- Mocking strategy norm: `monkeypatch`, `AsyncMock`/`MagicMock`, FastAPI
-  dependency overrides, and isolated in-memory SQLite instances are common
-- Coverage expectation: `test/AGENTS.md` states 80%+ overall coverage and 100%
-  coverage for critical paths; `[TODO]` no committed coverage-report tool config
-  was found
+- **Test file naming/location**: `test/` directory mirrors `vultron/` package layout; files named `test_<module>.py`
+- **Spec marker**: `@pytest.mark.spec("SPEC-ID-NNN")` links tests to spec requirements; validated against `SpecRegistry` at collection time (warns on unknown IDs)
+- **Integration marker**: `@pytest.mark.integration` for tests that exercise the full HTTP stack; excluded from default `pytest` run
+- **Mocking strategy**: real `sqlite:///:memory:` database in all tests (no DB mocking); `conftest.py` forces in-memory DB via env var before any imports
+- **Coverage expectation**: [TODO] — no coverage tool configured in `pyproject.toml`; CI does not report coverage percentage
 
 ### 6) Evidence
 
-- `AGENTS.md`
-- `vultron/core/AGENTS.md`
-- `vultron/wire/as2/AGENTS.md`
-- `test/AGENTS.md`
-- `pyproject.toml`
 - `.flake8`
-- `.mypy.ini`
-- `.pre-commit-config.yaml`
-- `.markdownlint-cli2.yaml`
-- `vultron/adapters/driving/fastapi/outbox_handler.py`
+- `pyproject.toml` `[tool.black]`, `[tool.isort]`, `[tool.pytest.ini_options]`
+- `AGENTS.md` "Coding Rules" section
+- `test/conftest.py`
+- `vultron/wire/as2/AGENTS.md`

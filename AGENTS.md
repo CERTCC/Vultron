@@ -812,6 +812,44 @@ Short entries are reproduced here; longer ones are referenced below.
   never on `CaseModel` — and when `record_event()` was removed from
   `VulnerabilityCase`, 440 test failures cascaded before the root cause was
   traced. See `specs/code-style.yaml` CS-20-002.
+- **`getattr(obj, name, default)` Does Not Catch `ValueError` from Property
+  Getters** — Python's three-argument `getattr` suppresses only `AttributeError`.
+  If a property raises `ValueError` — as `VulnerabilityCase.current_status` does
+  when `case_statuses` is empty — the default is never returned and the error
+  propagates. Use `try/except (AttributeError, ValueError)` instead whenever
+  accessing a property that may raise on a partially-initialised object.
+  See [notes/domain-validation.md](notes/domain-validation.md)
+  § "Pitfall: `getattr(obj, name, default)` Does Not Catch `ValueError`".
+- **Core→Wire Conversion: Use `wire_cls.from_core()`, Never `model_dump` +
+  `model_validate`** — `wire_cls.model_validate(core_obj.model_dump(...))` breaks
+  silently when a wire class has field types that differ from the core class (e.g.
+  `as_VulnerabilityCase.case_activity` is `list[as_Activity]`, not `list[str]`).
+  `wire_cls.from_core(core_obj)` is the canonical core→wire conversion path; it
+  handles all field-type differences via `_field_map` and custom conversion logic.
+  See [notes/activity-factories.md](notes/activity-factories.md)
+  § "Anti-Pattern: `model_dump` + `model_validate` Instead of `from_core()`".
+- **Staged-Type `model_validate` Only Works on Core-Constructed Objects** —
+  `EmbargoedCase.model_validate(obj)` and `Case.model_validate(obj)` fail with
+  `ValidationError` when `obj` was returned by `dl.read()` or `dl.list_objects()`.
+  `dl.read()` returns core domain objects via the vocabulary registry, but their
+  nested fields (e.g. `case_statuses`) may still be wire-typed (`as_CaseStatus`),
+  which Pydantic rejects at the staged-type boundary. Only attempt
+  `model_validate`-based staged-type promotion on objects that were constructed
+  through core model paths (e.g. `VulnerabilityCase(...)` constructor). For
+  DataLayer results, check pre-conditions (field presence, state predicates)
+  directly on the returned object without re-validating through a staged type.
+- **Always Use `uv run <tool>` in Devcontainer Workflows** — Bare console-script
+  entrypoints (e.g. `spec-dump`, `append-history`) in a devcontainer resolve from
+  `/app/.venv/bin/`, which imports `vultron` from the baked image snapshot at
+  `/app/vultron/`, not from the mounted working tree. `uv run spec-dump` is
+  correct; bare `spec-dump` is not. This applies to all tools installed as
+  `[project.scripts]` entry points until `#1460` (devcontainer `/app` mount
+  design) is resolved.
+- **Walrus Operator for Single-Assignment Guard Blocks** — When a helper returns
+  `Status | None` and the only use is an early-return guard, use the walrus
+  operator to collapse the two-line pattern:
+  `if (f := self._require_factory()) is not None: return f`. This is established
+  idiom in `vultron/core/behaviors/`; apply it when reducing `update()` size.
 - **`dl.read()` Returns Core Objects — Core MUST NOT Receive or Duck-Type Wire
   Objects** — The DataLayer read path (`dl.read()`, `dl.list_objects()`) MUST
   return **core** domain objects (`vultron/core/models/`), never **wire**
@@ -1026,10 +1064,14 @@ Short entries are reproduced here; longer ones are referenced below.
   `docs-build-check.yml` runs non-strict and does not surface `omitted_files: warn` failures.
 - **Pre-commit Hooks Interfere with `git rebase` in Worktrees** — `git rebase origin/main` in a
   worktree fails with "local changes would be overwritten" even on a clean tree when pre-commit
-  hooks (black, flake8) modify files during the checkout step. Workaround: use
-  `manage_worktree.sh ensure-synced` (preferred), or abort the rebase and create a fresh branch
-  from `origin/main` directly (`git switch -c <branch> origin/main`). Do NOT run
-  `git rebase` raw in a worktree without confirming pre-commit hooks are hook-only (check-mode).
+  hooks (black, flake8) modify files during the checkout step. Preferred workaround:
+  `manage_worktree.sh ensure-synced`. Manual workaround when already on the wrong branch:
+  (1) `git reset --soft origin/main` to move the branch parent while keeping staged changes,
+  (2) `git -c core.hooksPath=/dev/null commit` to re-create the commit without running hooks,
+  (3) `git branch -f <branch> HEAD` if needed to update the branch pointer.
+  Alternative when rebasing is unavoidable: `git -c core.hooksPath=/dev/null rebase origin/main`,
+  then run `pre-commit run --all-files` manually afterwards.
+  Do NOT run `git rebase` raw in a worktree without confirming pre-commit hooks are check-only.
 
 ## Skill Interaction Rules
 

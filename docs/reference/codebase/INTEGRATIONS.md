@@ -4,65 +4,44 @@
 
 ### 1) Integration Inventory
 
-| System | Type (API/DB/Queue/etc) | Purpose | Auth model | Criticality | Evidence |
-|--------|---------------------------|---------|------------|-------------|----------|
-| SQLite via SQLModel | DB | Persist Vultron objects and queue records | DB URL only; no separate DB auth shown | high | `vultron/adapters/driven/datalayer_sqlite/datalayer.py`, `config.example.yaml` |
-| `ASGIEmitter` | In-process API | Deliver outbound activities to co-located actors through the mounted ASGI app | Same-process; no network auth | high | `vultron/adapters/driven/asgi_emitter.py`, `vultron/adapters/driving/fastapi/main.py` |
-| `DemoHttpDeliveryAdapter` | Remote HTTP API | POST outbound activities to recipient inbox URLs | No signing/auth shown in this adapter | high | `vultron/adapters/driven/demo_http_delivery.py` |
-| `SyncActivityAdapter` | Internal driven port adapter | Convert domain log entries to wire activities and queue them | N/A (in-process) | high | `vultron/adapters/driven/sync_activity_adapter.py` |
-| `TriggerActivityAdapter` | Internal driven port adapter | Convert trigger-side domain actions into wire activities | N/A (in-process) | high | `vultron/adapters/driven/trigger_activity_adapter/__init__.py` |
-| Demo HTTP clients | API client | Seed actors, drive demos, and verify flows over HTTP | Base URL config only | medium | `vultron/demo/utils.py`, `vultron/demo/helpers/verification.py` |
-| MCP tool surface | In-process tool/API surface | Expose trigger use cases as callable functions pending SDK registration | None shown | low | `vultron/adapters/driving/mcp_server.py` |
-| `ProdHttpDeliveryAdapter` | Remote HTTP API stub | Placeholder for signed remote delivery | `[TODO]` not implemented | medium | `vultron/adapters/driven/prod_http_delivery.py` |
-| `SharedInboxAdapter` | Shared inbox stub | Placeholder for ActivityPub shared-inbox fan-out | `[TODO]` not implemented | medium | `vultron/adapters/driving/shared_inbox.py` |
+| System | Type | Purpose | Auth model | Criticality | Evidence |
+|--------|------|---------|------------|-------------|----------|
+| SQLite (via SQLModel/SQLAlchemy) | Database | Persistent storage for domain objects and inbox/outbox queues | None (local file or `:memory:`) | High | `vultron/adapters/driven/datalayer_sqlite/` |
+| Peer Vultron actors (HTTP/AS2) | Outbound HTTP API | ActivityStreams 2.0 message delivery to other Vultron nodes | [ASK USER] — not observed in source | High | `vultron/adapters/driven/prod_http_delivery.py` |
+| ActivityPub / AS2 (inbound) | Inbound HTTP | Receive CVD coordination activities from other actors | [ASK USER] — HTTP auth mechanism not confirmed | High | `vultron/adapters/driving/fastapi/inbox_handler.py` |
+| MCP server (Model Context Protocol) | Local adapter | Expose trigger use cases as AI agent tools | None (local) | Medium | `vultron/adapters/driving/mcp_server.py` |
+| Third-party trackers (Jira, VINCE) | Connector adapter | Translate external tracker events to/from Vultron domain | [ASK USER] — example only, not production-wired | Low | `vultron/adapters/connectors/example/` |
 
 ### 2) Data Stores
 
 | Store | Role | Access layer | Key risk | Evidence |
 |-------|------|--------------|----------|----------|
-| SQLite object store | Primary persistence for typed Vultron objects | `SqliteDataLayer` | Single-node/local-file limits | `vultron/adapters/driven/datalayer_sqlite/__init__.py`, `vultron/adapters/driven/datalayer_sqlite/datalayer.py` |
-| SQLite inbox/outbox queues | Actor-scoped queue persistence | `SqliteDataLayer` queue methods plus inbox/outbox handlers | Queue behavior depends on correct actor scoping | `vultron/core/ports/datalayer.py`, `vultron/adapters/driving/fastapi/outbox_handler.py` |
-| Named Docker volumes per actor | Persist multi-actor demo databases | Docker Compose | Operational complexity rises with actor count | `docker/docker-compose-multi-actor.yml` |
+| SQLite (file or `:memory:`) | Single canonical activity store for all domain objects | `SqliteDataLayer` in `vultron/adapters/driven/datalayer_sqlite/` | Single-process SQLite has no concurrent multi-writer support; not suitable for multi-node deployment without migration | `vultron/adapters/driven/datalayer_sqlite/schema.py` |
+| In-memory (tests) | Isolated per-test data store | `reset_datalayer()` + `sqlite:///:memory:` | None (intended ephemeral use) | `test/conftest.py` |
 
 ### 3) Secrets and Credentials Handling
 
-- Credential sources: environment variables, YAML config, and Docker Compose env
-  blocks
-- Hardcoding checks: no API keys or passwords were found in sampled committed
-  config files; examples primarily define base URLs and actor IDs
-- Rotation or lifecycle notes: `[TODO]` no secret-rotation or external secret
-  manager configuration was found
+- **Credential sources**: `VULTRON_CONFIG` YAML file and/or environment variables; only `PROJECT_NAME` is documented in `.env.example`
+- **Hardcoding checks**: no hardcoded credentials observed in source; database URL is always injected via config
+- **Rotation or lifecycle notes**: [ASK USER] — no secrets manager integration observed; credential rotation strategy unknown
 
 ### 4) Reliability and Failure Behavior
 
-- Retry/backoff behavior: `DemoHttpDeliveryAdapter` retries per recipient with
-  exponential backoff (`DEFAULT_MAX_RETRIES = 3`, `DEFAULT_INITIAL_DELAY = 0.5`,
-  multiplier `2.0`, max delay `30.0`)
-- Timeout policy: local ASGI delivery uses `10.0` seconds; remote HTTP delivery
-  uses `5.0` seconds; Docker health checks use short `curl -f` probes
-- Circuit-breaker or fallback behavior: `ASGIEmitter` falls back to
-  `DemoHttpDeliveryAdapter` on local delivery failures; no broader circuit
-  breaker was found
+- **Retry/backoff behavior**: [TODO] — not observed in `prod_http_delivery.py` surface scan; pending deeper review
+- **Timeout policy**: pytest test timeout is 5 s (via `pytest-timeout`); HTTP client timeout for outbound delivery not confirmed — [TODO]
+- **Circuit-breaker or fallback**: not observed
 
 ### 5) Observability for Integrations
 
-- Logging around external calls: yes; emitters and outbox handling log delivery
-  attempts and failures
-- Metrics/tracing coverage: no metrics or tracing integration was found in the
-  sampled runtime files
-- Missing visibility gaps: queue-depth metrics, retry counters, DB latency, and
-  signed-delivery telemetry were not found
+- **Logging around external calls**: `logging.getLogger(__name__)` used throughout; log calls appear in adapter modules
+- **Metrics/tracing**: no dedicated metrics or distributed tracing framework observed (no Prometheus, OpenTelemetry, Datadog)
+- **Missing visibility gaps**: no structured log correlation IDs between inbound AS2 activity and outbound delivery confirmation; no health-check metrics for outbound delivery failures
 
 ### 6) Evidence
 
-- `vultron/adapters/driven/datalayer_sqlite/datalayer.py`
-- `vultron/adapters/driven/asgi_emitter.py`
-- `vultron/adapters/driven/demo_http_delivery.py`
-- `vultron/adapters/driven/sync_activity_adapter.py`
-- `vultron/adapters/driven/trigger_activity_adapter/__init__.py`
-- `vultron/adapters/driving/fastapi/outbox_handler.py`
-- `vultron/demo/utils.py`
-- `vultron/adapters/driving/mcp_server.py`
+- `vultron/adapters/driven/datalayer_sqlite/`
 - `vultron/adapters/driven/prod_http_delivery.py`
-- `vultron/adapters/driving/shared_inbox.py`
-- `docker/docker-compose-multi-actor.yml`
+- `vultron/adapters/driving/fastapi/inbox_handler.py`
+- `vultron/adapters/driving/mcp_server.py`
+- `vultron/adapters/connectors/example/`
+- `.env.example`

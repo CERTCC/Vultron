@@ -54,3 +54,7 @@ Any tool installed as a bare console-script entrypoint in `/app/.venv/bin/`
 is susceptible to this class of stale-import bug whenever the image falls
 behind the working tree. Prefer `uv run <tool>` in devcontainer workflows
 until #1460 is resolved.
+
+**Promoted**: 2026-07-20 — captured in `AGENTS.md` ("Always Use `uv run <tool>` in
+Devcontainer Workflows" pitfall bullet).
+Docs PR: <!-- filled in after PR opens -->

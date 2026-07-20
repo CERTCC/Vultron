@@ -24,3 +24,7 @@ if (f := self._require_factory()) is not None:
 
 This saves 2 lines per guard, which matters when reducing `update()` methods
 from ~40-60 lines to ≤30 lines.
+
+**Promoted**: 2026-07-20 — captured in `AGENTS.md` ("Walrus Operator for
+Single-Assignment Guard Blocks" pitfall bullet).
+Docs PR: <!-- filled in after PR opens -->

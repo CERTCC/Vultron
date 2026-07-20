@@ -37,3 +37,7 @@ pre-message state (the message hasn't been processed yet when the rule fires).
 - CSB-13-001 (enter CS.X, pX→PX): `"...pX."` — X uppercase, P lowercase ✓
 - CSB-13-002 (enter CS.X, embargo teardown): `"...PX."` — both P and X uppercase ✓
 - CSB-14-002 (enter CS.A, trigger CS→P): `"...p.A"` — A uppercase, P lowercase ✓
+
+**Promoted**: 2026-07-20 — pattern already captured inline in `specs/cs-behavior.yaml`
+CSB-13-001 rationale (no new docs needed; archiving learning).
+Docs PR: <!-- filled in after PR opens -->
