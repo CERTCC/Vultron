@@ -17,6 +17,9 @@
 
 Node classes:
 
+- :class:`RecordRecommendationRecommenderNode` — writes
+  ``recommendation_id → recommender_id`` into
+  ``VulnerabilityCase.recommendation_recommender_index`` (ADR-0035 DL-06-002).
 - :class:`EmitOfferCaseParticipantToOwnerNode` — transforms
   ``Offer(Actor, Case)`` into ``Offer(CaseParticipant)`` and DMs the Case Owner
   (CM-16-004).
@@ -39,8 +42,61 @@ from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.enums.roles import CVDRole
+
+
+class RecordRecommendationRecommenderNode(DataLayerAction):
+    """Write recommendation_id → recommender_id into core case state.
+
+    Runs as the first effect node in ``RecommendActorToCaseBT`` so downstream
+    Accept/Reject use cases can look up the recommender without re-reading the
+    stored wire Offer (ADR-0035 DL-06-002, CLP-10-005).
+
+    Idempotent: no-op when the index already holds the correct mapping.
+    Returns SUCCESS unconditionally so the tree continues even when the case
+    cannot be found (the subsequent routing nodes will handle that failure).
+    """
+
+    def __init__(
+        self,
+        recommendation_id: str,
+        recommender_id: str,
+        case_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.recommendation_id = recommendation_id
+        self.recommender_id = recommender_id
+        self.case_id = case_id
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            return Status.SUCCESS
+
+        case = self.datalayer.read(self.case_id)
+        if not isinstance(case, VulnerabilityCase):
+            return Status.SUCCESS
+
+        if (
+            case.recommendation_recommender_index.get(self.recommendation_id)
+            != self.recommender_id
+        ):
+            case.recommendation_recommender_index[self.recommendation_id] = (
+                self.recommender_id
+            )
+            self.datalayer.save(case)
+            self.logger.debug(
+                "%s: recorded recommender '%s' for recommendation '%s'"
+                " in case '%s'",
+                self.name,
+                self.recommender_id,
+                self.recommendation_id,
+                self.case_id,
+            )
+
+        return Status.SUCCESS
 
 
 class EmitOfferCaseParticipantToOwnerNode(DataLayerAction):

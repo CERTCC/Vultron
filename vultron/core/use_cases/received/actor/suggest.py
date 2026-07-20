@@ -7,7 +7,6 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.suggest_actor_tree import (
     create_recommend_actor_to_case_received_tree,
 )
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.actor import (
     OfferActorToCaseReceivedEvent,
 )
@@ -20,31 +19,18 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _record_recommendation_recommender(
-    dl: CasePersistence,
-    case_id: str,
-    recommendation_id: str,
-    recommender_id: str,
-) -> None:
-    """Record recommendation_id → recommender_id in case core state (ADR-0035 DL-06)."""
-    case = dl.read(case_id)
-    if not isinstance(case, VulnerabilityCase):
-        return
-    if (
-        case.recommendation_recommender_index.get(recommendation_id)
-        == recommender_id
-    ):
-        return
-    case.recommendation_recommender_index[recommendation_id] = recommender_id
-    dl.save(case)
-
-
 class OfferActorToCaseReceivedUseCase:
     """CaseActor received Offer(Actor, Case) from a recommending participant.
 
     Delegates to :func:`create_recommend_actor_to_case_received_tree` via
     BTBridge to commit the ledger entry and DM Offer(CaseParticipant) to the
     Case Owner (CM-16-002..004, ADR-0026).
+
+    The BT's first effect node (RecordRecommendationRecommenderNode) writes
+    recommendation_id → recommender_id into
+    VulnerabilityCase.recommendation_recommender_index so downstream
+    Accept/Reject use cases can look up the recommender without re-reading the
+    stored wire Offer (ADR-0035 DL-06-002, CLP-10-005).
     """
 
     def __init__(
@@ -81,12 +67,6 @@ class OfferActorToCaseReceivedUseCase:
                 activity_id,
             )
             return
-
-        # ADR-0035 DL-06: record recommender as core state so Accept/Reject
-        # use cases can look it up without re-reading the stored wire Offer.
-        _record_recommendation_recommender(
-            self._dl, case_id, activity_id, recommender_id
-        )
 
         offer_content = getattr(request.activity, "content", None)
         if offer_content is not None and not isinstance(offer_content, str):

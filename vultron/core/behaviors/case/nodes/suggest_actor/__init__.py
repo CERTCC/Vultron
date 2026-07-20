@@ -38,6 +38,7 @@ from vultron.core.behaviors.case.nodes.suggest_actor.emit import (
     EmitNoteDuplicateRecommendationToOwnerNode,
     EmitOfferCaseParticipantToOwnerNode,
     EmitRejectActorRecommendationNode,
+    RecordRecommendationRecommenderNode,
 )
 
 __all__ = [
@@ -48,4 +49,5 @@ __all__ = [
     "EmitRejectActorRecommendationNode",
     "InviteInFlightNode",
     "PendingOfferCaseParticipantNode",
+    "RecordRecommendationRecommenderNode",
 ]
