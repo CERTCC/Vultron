@@ -7,7 +7,7 @@ description: >-
   protocol workflows such as report validation, case creation, and embargo management
   must be implemented as BT nodes or subtrees.
 version: 1.0.0
-kind: pattern
+kind: domain
 scope:
 - prototype
 - production
@@ -16,6 +16,7 @@ tags:
 groups:
 - id: BT-01
   title: BT Execution Model
+  kind: pattern
   specs:
   - id: BT-01-001
     priority: MUST
@@ -59,6 +60,7 @@ groups:
     statement: State changes MUST be committed to DataLayer on successful execution
 - id: BT-04
   title: Handler Integration
+  kind: pattern
   specs:
   - id: BT-04-001
     priority: MUST
@@ -147,6 +149,7 @@ groups:
       spec_id: SL-04-001
 - id: BT-08
   title: Command-Line Execution
+  kind: pattern
   specs:
   - id: BT-08-001
     priority: MAY

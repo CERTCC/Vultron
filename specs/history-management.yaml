@@ -19,6 +19,8 @@ groups:
     specs:
       - id: HM-01-001
         priority: MUST
+        lint_suppress:
+          - kind_drift
         statement: >-
           All project history files MUST reside under `plan/history/`. The
           top-level `plan/` directory MUST NOT contain any new `*HISTORY.md`

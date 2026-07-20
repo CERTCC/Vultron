@@ -127,7 +127,6 @@ groups:
       spec_id: TB-06-001
   - id: TB-06-008
     priority: MUST
-    kind: language
     statement: >-
       BT factories that have probabilistic defaults (e.g., always-succeed or always-fail
       stubs for nodes backed by configurable policies) MUST expose a module-level

@@ -19,6 +19,8 @@ groups:
     specs:
       - id: BW-01-001
         priority: MUST
+        lint_suppress:
+          - kind_drift
         statement: >-
           `plan/incoming/learnings/` MUST contain only implementation
           observations, open questions, constraints, and insights discovered
