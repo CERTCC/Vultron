@@ -1039,3 +1039,66 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-19-001
+
+- id: CM-20
+  title: Coordinator-as-Participant Role Constraints
+  kind: domain
+  specs:
+  - id: CM-20-001
+    priority: MUST
+    statement: >-
+      A Coordinator invited to a case as a regular participant MUST hold
+      `CVDRole.COORDINATOR` in their `case_roles` list and MUST NOT hold
+      `CVDRole.CASE_MANAGER`. The `CASE_MANAGER` role is reserved for the
+      CaseActor service (CBT-01-003) and MUST NOT be assigned to a human or
+      organizational Coordinator actor that joins a case as a facilitating
+      participant rather than as the case management service.
+    rationale: >-
+      The distinction between "Coordinator as participant" and "CASE_MANAGER
+      service actor" is a core ownership invariant: `CASE_MANAGER` grants
+      write authority to the canonical ledger (CLP-09). Assigning
+      `CASE_MANAGER` to a human Coordinator who is merely facilitating
+      coordination — not replacing the case management service — would grant
+      unintended ledger write authority and violate the single-writer regime
+      (SYNC-13).
+    relationships:
+    - rel_type: refines
+      spec_id: CBT-01-003
+  - id: CM-20-002
+    priority: MUST
+    statement: >-
+      When a Coordinator is suggested via the `Offer(Actor, Case)` path (CM-16)
+      and the Case Owner approves the invitation, the roles assigned to the
+      Coordinator participant MUST include `CVDRole.COORDINATOR` and MUST NOT
+      include `CVDRole.CASE_MANAGER` or `CVDRole.CASE_OWNER`.
+    rationale: >-
+      The Case Owner retains ownership throughout the expansion scenario
+      (CM-02-001). A suggested Coordinator does not take over case administration;
+      they participate as a facilitator. Role assignments at invite time must
+      reflect the actual intended function, not the actor's general organizational
+      role.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-20-001
+    - rel_type: refines
+      spec_id: CM-16-004
+  - id: CM-20-003
+    priority: MUST
+    statement: >-
+      When a Coordinator participant (holding `CVDRole.COORDINATOR` without
+      `CVDRole.CASE_MANAGER`) suggests that another actor be added to the case
+      via `Offer(Actor, Case)`, the suggestion MUST route through the CaseActor
+      inbox per ADR-0026 (CM-16-001). The Case Owner — not the Coordinator — MUST
+      remain the sole decision-maker for approving or rejecting the invitation
+      (CM-02-001).
+    rationale: >-
+      A Coordinator-as-participant should be able to exercise their facilitation
+      role (suggesting additional vendors) without requiring ownership transfer.
+      The CaseActor-routed suggest flow (ADR-0026) already provides this:
+      the Coordinator sends `Offer(Actor, Case)` to the CaseActor, which records
+      and forwards it to the Case Owner for approval.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-16-001
+    - rel_type: refines
+      spec_id: CM-20-001
