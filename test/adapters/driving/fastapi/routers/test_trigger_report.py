@@ -27,7 +27,7 @@ from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.use_cases._helpers import _report_phase_status_id
+from vultron.core.models._helpers import _report_phase_status_id
 from vultron.adapters.driving.fastapi.deps import (
     get_canonical_actor_dl,
     get_trigger_dl,

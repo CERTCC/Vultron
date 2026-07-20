@@ -400,7 +400,7 @@ class TestCaseActorReceivedWritesLedgerEntry:
         under (receiving_actor_id=CASE_ACTOR_ID).
         """
         from vultron.core.states.rm import RM
-        from vultron.core.use_cases._helpers import _report_phase_status_id
+        from vultron.core.models._helpers import _report_phase_status_id
 
         dl = self._make_case_actor_dl()
 

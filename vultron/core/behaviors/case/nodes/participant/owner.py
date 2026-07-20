@@ -38,11 +38,8 @@ from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
-from vultron.core.use_cases._helpers import (
-    _as_id,
-    _report_phase_status_id,
-    update_participant_rm_state,
-)
+from vultron.core.models._helpers import _as_id, _report_phase_status_id
+from vultron.core.use_cases._helpers import update_participant_rm_state
 
 
 def _resolve_case_id(

@@ -6,9 +6,9 @@ All helpers are private to the use-cases package (prefix ``_``).
 
 import hashlib
 import logging
-import uuid
 from typing import Any
 
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.protocols import (
     CaseModel,
     is_case_model,
@@ -47,24 +47,6 @@ _SNAPSHOT_REFERENCE_FIELDS = {
     "caseStatuses",
 }
 _SNAPSHOT_INLINE_DEPTH_LIMIT = 8
-
-
-def _as_id(obj: Any) -> str | None:
-    """Return the ActivityStreams id of *obj* as a plain string.
-
-    - If *obj* is ``None``, returns ``None``.
-    - If *obj* has an ``id_`` attribute, returns ``obj.id_``.
-    - Otherwise returns ``str(obj)``.
-
-    This handles the mixed ``str | <wire-type>`` collections that arise when
-    the DataLayer stores plain string IDs alongside rehydrated objects.
-    """
-    if obj is None:
-        return None
-    id_ = getattr(obj, "id_", None)
-    if isinstance(id_, str):
-        return id_
-    return str(obj)
 
 
 def _inline_snapshot_reference_value(
@@ -231,18 +213,6 @@ def _idempotent_create(
         logger.info("Stored %s '%s'", label, id_key)
     else:
         logger.warning("no %s object for event '%s'", label, activity_id)
-
-
-def _report_phase_status_id(
-    actor_id: str, report_id: str, rm_state: str
-) -> str:
-    """Return a deterministic URN for a report-phase participant status record.
-
-    Uses UUID v5 (name-based) so the same (actor, report, rm_state) triple
-    always produces the same ID, enabling idempotent DataLayer creation.
-    """
-    name = f"{actor_id}|{report_id}|{rm_state}"
-    return f"urn:uuid:{uuid.uuid5(uuid.NAMESPACE_URL, name)}"
 
 
 def resolve_case(case_id: str, dl: CasePersistence):

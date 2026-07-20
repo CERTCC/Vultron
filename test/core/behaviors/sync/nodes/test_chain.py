@@ -255,6 +255,33 @@ def test_validate_canonical_entry_allows_case_actor_for_case_authored_signature(
     )
 
 
+def test_validate_canonical_entry_allows_case_actor_for_invite_vulnerability_case():
+    """Regression #1526: Invite(VulnerabilityCase) is case-authored; CaseActor must be allowed."""
+    participant_actor_id = "https://example.org/actors/participant-1"
+    snapshot = {
+        "type": "Invite",
+        "actor": CASE_ACTOR_ID,
+        "object": {
+            "type": "Organization",
+            "id": participant_actor_id,
+        },
+        "target": {
+            "type": "VulnerabilityCase",
+            "id": CASE_ID,
+            "context": CASE_ID,
+        },
+        "context": CASE_ID,
+    }
+    _validate_canonical_entry(
+        case_id=CASE_ID,
+        actor_id=CASE_ACTOR_ID,
+        case_actor_id=CASE_ACTOR_ID,
+        disposition="recorded",
+        payload_snapshot=snapshot,
+        event_type="invite_actor_to_case",
+    )
+
+
 def test_validate_canonical_entry_provenance_skipped_when_no_case_actor_id():
     """Provenance check is skipped when case_actor_id is not provided."""
     _validate_canonical_entry(

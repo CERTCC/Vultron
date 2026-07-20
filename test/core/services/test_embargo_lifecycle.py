@@ -42,7 +42,7 @@ from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronInvalidStateTransitionError
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.core.use_cases._helpers import _as_id
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import (
     CaseParticipant,
     FinderParticipant,

@@ -36,7 +36,7 @@ from vultron.core.states.rm import (
     is_monotonic_rm_forward,
     is_valid_rm_transition,
 )
-from vultron.core.use_cases._helpers import _as_id
+from vultron.core.models._helpers import _as_id
 
 logger = logging.getLogger(__name__)
 

@@ -28,7 +28,7 @@ from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.use_cases._helpers import _report_phase_status_id
+from vultron.core.models._helpers import _report_phase_status_id
 from vultron.core.models.vultron_types import (
     VultronCaseActor,
     VultronOffer,
