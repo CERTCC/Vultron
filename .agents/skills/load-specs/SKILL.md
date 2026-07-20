@@ -22,7 +22,7 @@ outputs:
 # Skill: Load Specs
 
 ```bash
-uv run spec-dump
+PYTHONPATH= uv run spec-dump
 ```
 
 Do **not** read raw `specs/*.yaml` files directly — the JSON export resolves inheritance and flattens group nesting. See [REFERENCE.md](REFERENCE.md) for the full output structure and field definitions.
