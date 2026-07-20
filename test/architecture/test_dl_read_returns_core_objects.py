@@ -94,7 +94,6 @@ ACTIVITY_TYPE_EXEMPTIONS: frozenset[str] = frozenset(
         "Like",
         "Listen",
         "Move",
-        "Offer",
         "Question",
         "Read",
         "Reject",
