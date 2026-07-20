@@ -397,6 +397,7 @@ class TestEmbargoTriggerToField:
         self.dl.create(proposal)
         self.case.current_status.em_state = EM.PROPOSED
         self.case.proposed_embargoes.append(embargo.id_)
+        self.case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
         self.dl.save(self.case)
 
         request = AcceptEmbargoTriggerRequest(
@@ -456,6 +457,7 @@ class TestEmbargoTriggerToField:
         self.dl.create(proposal)
         self.case.current_status.em_state = EM.PROPOSED
         self.case.proposed_embargoes.append(embargo.id_)
+        self.case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
         self.dl.save(self.case)
 
         request = RejectEmbargoTriggerRequest(

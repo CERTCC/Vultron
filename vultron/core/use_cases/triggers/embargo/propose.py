@@ -57,6 +57,7 @@ class SvcProposeEmbargoUseCase(SvcEmbargoTriggerBase):
                 to=[case_manager_id],
             )
             self._captured["activity"] = proposal_dict
+            self._captured["proposal_id"] = proposal_id
             return [proposal_id]
 
         return propose_embargo_trigger_bt(
@@ -65,6 +66,18 @@ class SvcProposeEmbargoUseCase(SvcEmbargoTriggerBase):
             result_out=self._result_out,
             activity_builder=_build_activities,
         )
+
+    def _handle_result(self) -> None:
+        super()._handle_result()
+        proposal_id = self._captured.get("proposal_id")
+        if isinstance(proposal_id, str) and proposal_id:
+            from vultron.core.use_cases.received.embargo import (
+                _record_embargo_proposal_index,
+            )
+
+            _record_embargo_proposal_index(
+                self._dl, self._case.id_, self._embargo.id_, proposal_id
+            )
 
     def _log_lifecycle_result(self) -> None:
         lr = self._lifecycle_result

@@ -281,6 +281,7 @@ def test_dispatcher_resolves_case_for_reject_embargo_invite_gate():
         activity_id="act-gate-4",
         actor_id=actor_id,
         object_=invite,
+        inner_context=VulnerabilityCaseStub(id_=case_id),
         activity=VultronActivity(type_="Reject", actor=actor_id),
     )
     state_id = VultronReplicationState(
@@ -311,9 +312,6 @@ def test_dispatcher_resolves_case_for_reject_embargo_invite_gate():
     with pytest.raises(VultronValidationError):
         dispatcher.dispatch(event, mock_dl)
 
-    assert any(
-        call.args == (invite.id_,) for call in mock_dl.read.call_args_list
-    )
     assert any(
         call.args == (state_id,) for call in mock_dl.read.call_args_list
     )

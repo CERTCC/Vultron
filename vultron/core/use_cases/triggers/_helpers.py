@@ -59,37 +59,17 @@ def resolve_case(case_id: str, dl: CasePersistence) -> VulnerabilityCase:
     return case_raw
 
 
-def find_embargo_proposal(case_id: str, dl: CasePersistence):
-    """
-    Find the first stored EmProposeEmbargoActivity for the given case.
+def find_embargo_proposal_id(case: VulnerabilityCase) -> str | None:
+    """Return the first pending embargo proposal ID from core state.
 
-    Returns None if no matching proposal is found.
+    Looks up ``case.pending_embargo_proposal_index`` (embargo_id → proposal_id)
+    and returns the first proposal ID found.  Returns None if no pending
+    proposal is recorded.  ADR-0035: no DL wire re-read.
     """
-    for obj in dl.list_objects("Invite"):
-        context = getattr(obj, "context", None)
-        c_id = (
-            context
-            if isinstance(context, str)
-            else getattr(context, "id_", str(context))
-        )
-        if c_id != case_id:
-            continue
-        embargo_ref = getattr(obj, "object_", None)
-        if embargo_ref is None:
-            continue
-        embargo_id = (
-            embargo_ref
-            if isinstance(embargo_ref, str)
-            else getattr(embargo_ref, "id_", None)
-        )
-        if embargo_id is None:
-            continue
-        emb = dl.read(embargo_id)
-        if emb is not None and str(getattr(emb, "type_", "")) in (
-            "Event",
-            "EmbargoEvent",
-        ):
-            return obj
+    index = case.pending_embargo_proposal_index
+    for proposal_id in index.values():
+        if proposal_id:
+            return proposal_id
     return None
 
 
@@ -117,45 +97,51 @@ def _is_case_owner(case: object | None, actor_id: str) -> bool:
 
 
 def _resolve_embargo_proposal(
-    case: VulnerabilityCase, proposal_id: str | None, dl: CaseOutboxPersistence
-):
-    """Resolve the embargo proposal for a case."""
-    from vultron.errors import VultronNotFoundError, VultronValidationError
+    case: VulnerabilityCase,
+    proposal_id: str | None,
+) -> str:
+    """Return the proposal ID for a pending embargo on *case*.
+
+    When *proposal_id* is provided it is used directly (after verifying it
+    appears in ``case.pending_embargo_proposal_index``).  When absent, the
+    first entry in the index is used.  Raises ``VultronNotFoundError`` when
+    no pending proposal can be located.  ADR-0035: no DL wire re-read.
+    """
+    from vultron.errors import VultronNotFoundError
+
+    index = case.pending_embargo_proposal_index
 
     if proposal_id:
-        proposal = dl.read(proposal_id)
-        if proposal is None:
+        if proposal_id not in index.values():
             raise VultronNotFoundError("EmbargoProposal", proposal_id)
-    else:
-        proposal = find_embargo_proposal(case.id_, dl)
-        if proposal is None:
-            raise VultronNotFoundError(
-                "EmbargoProposal",
-                f"(pending for case '{case.id_}')",
-            )
+        return proposal_id
 
-    if getattr(proposal, "type_", "") != "Invite":
-        raise VultronValidationError(
-            f"Expected an EmProposeEmbargoActivity (embargo proposal), got "
-            f"type '{getattr(proposal, 'type_', 'unknown')}'."
+    resolved = find_embargo_proposal_id(case)
+    if resolved is None:
+        raise VultronNotFoundError(
+            "EmbargoProposal",
+            f"(pending for case '{case.id_}')",
         )
-    return proposal
+    return resolved
 
 
-def _resolve_embargo_id_from_proposal(proposal: object) -> str:
-    """Return the embargo ID referenced by a proposal."""
+def _resolve_embargo_id_from_proposal_id(
+    case: VulnerabilityCase,
+    proposal_id: str,
+) -> str:
+    """Return the embargo ID for *proposal_id* from ``case.pending_embargo_proposal_index``.
+
+    The index maps embargo_id → proposal_id; this function inverts the lookup.
+    Raises ``VultronValidationError`` when the proposal_id is not found.
+    """
     from vultron.errors import VultronValidationError
 
-    embargo_id = getattr(getattr(proposal, "object_", None), "id_", None)
-    if embargo_id is not None and not isinstance(embargo_id, str):
-        raise VultronValidationError(
-            "Proposal embargo event reference must have a string ID."
-        )
-    if not embargo_id:
-        raise VultronValidationError(
-            "Proposal is missing an embargo event reference."
-        )
-    return embargo_id
+    for embargo_id, pid in case.pending_embargo_proposal_index.items():
+        if pid == proposal_id:
+            return embargo_id
+    raise VultronValidationError(
+        f"No embargo found for proposal '{proposal_id}' in case '{case.id_}'."
+    )
 
 
 def send_case_actor_activity(

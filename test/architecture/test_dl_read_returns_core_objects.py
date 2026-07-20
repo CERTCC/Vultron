@@ -88,7 +88,6 @@ ACTIVITY_TYPE_EXEMPTIONS: frozenset[str] = frozenset(
         "Flag",
         "Follow",
         "Ignore",
-        "Invite",
         "Join",
         "Leave",
         "Like",

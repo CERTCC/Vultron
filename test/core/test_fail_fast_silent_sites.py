@@ -213,7 +213,6 @@ class TestExtractCaseIdRaisesUnroutableActivityError:
         Test the internal method directly so the raise behaviour is explicit
         even if the caller (_handle) catches it.
         """
-        mock_dl = MagicMock()
         dispatcher = DirectActivityDispatcher(use_case_map={})
         event = AddNoteToCaseReceivedEvent(
             activity_id=ACTIVITY_ID,
@@ -222,7 +221,7 @@ class TestExtractCaseIdRaisesUnroutableActivityError:
         )
 
         with pytest.raises(UnroutableActivityError) as exc_info:
-            dispatcher._extract_case_id(event, mock_dl)
+            dispatcher._extract_case_id(event)
 
         exc = exc_info.value
         assert exc.activity_id == ACTIVITY_ID

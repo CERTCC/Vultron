@@ -16,7 +16,6 @@ from vultron.core.ports.case_persistence import (
     CasePersistence,
     CaseOutboxPersistence,
 )
-from vultron.core.models._helpers import _as_id
 from vultron.core.use_cases._helpers import (
     _idempotent_create,
     add_activity_to_outbox,
@@ -63,29 +62,28 @@ def _resolve_case_for_embargo_acceptance(
     if request.case_id:
         return dl.read(request.case_id)
 
-    if request.invite_id is None:
-        logger.error(
-            "accept_invite_to_embargo_on_case: missing invite_id on request"
-        )
-        return None
+    logger.error(
+        "accept_invite_to_embargo_on_case: missing case_id on request"
+        " (invite '%s')",
+        request.invite_id,
+    )
+    return None
 
-    invite = dl.read(request.invite_id)
-    if invite is None:
-        logger.error(
-            "accept_invite_to_embargo_on_case: invite '%s' not found",
-            request.invite_id,
-        )
-        return None
 
-    context_id = _as_id(getattr(invite, "context", None))
-    if context_id is None:
-        logger.error(
-            "accept_invite_to_embargo_on_case: cannot determine case from "
-            "invite '%s'",
-            request.invite_id,
-        )
-        return None
-    return dl.read(context_id)
+def _record_embargo_proposal_index(
+    dl: CasePersistence,
+    case_id: str,
+    embargo_id: str,
+    proposal_id: str,
+) -> None:
+    """Record embargo_id → proposal_id in case core state (ADR-0035 DL-06)."""
+    case = dl.read(case_id)
+    if not isinstance(case, VulnerabilityCase):
+        return
+    if case.pending_embargo_proposal_index.get(embargo_id) == proposal_id:
+        return
+    case.pending_embargo_proposal_index[embargo_id] = proposal_id
+    dl.save(case)
 
 
 class CreateEmbargoEventReceivedUseCase:
@@ -333,6 +331,15 @@ class InviteToEmbargoOnCaseReceivedUseCase:
                 result.feedback_message,
             )
 
+        # Record embargo_id → invite_id in core state so accept/reject
+        # trigger use cases can correlate without re-reading the Invite wire
+        # activity (ADR-0035 DL-06).
+        embargo_id = request.object_id
+        if case_id and embargo_id and invite_id:
+            _record_embargo_proposal_index(
+                self._dl, case_id, embargo_id, invite_id
+            )
+
 
 class AcceptInviteToEmbargoOnCaseReceivedUseCase:
     def __init__(
@@ -465,14 +472,8 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
             invite_id,
         )
 
-        # Extract case and embargo IDs from the stored invite activity.
-        case_id: str | None = None
-        embargo_id: str | None = None
-        if invite_id:
-            invite = self._dl.read(invite_id)
-            if invite is not None:
-                case_id = _as_id(getattr(invite, "context", None))
-                embargo_id = _as_id(getattr(invite, "object_", None))
+        case_id = request.case_id
+        embargo_id = request.embargo_id
 
         if not case_id:
             logger.warning(

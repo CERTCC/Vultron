@@ -273,10 +273,13 @@ domain fact — the ARCH-09-001 core violations):
 - ~~*report/offer*~~: migrated (#1518). `VultronOfferRecord` now captures
   offer facts at adapter time (sender) and received-side ingest time (receiver).
   Core reads `VultronOfferRecord` instead of the stored wire `Offer` activity.
-- *embargo*: `use_cases/received/embargo.py:74,474` (read `Invite` for `context`
-  = case id and `object_` = embargo id); `use_cases/triggers/_helpers.py:129`
-  and `find_embargo_proposal` / `list_objects("Invite")` (pending proposal);
-  `dispatcher.py:196` (read `Invite` for `context`).
+- ~~*embargo*~~: migrated (#1519). `pending_embargo_proposal_index: dict[str,
+  str]` (embargo_id → proposal_id) added to `VulnerabilityCase`; populated on
+  receive (`InviteToEmbargoOnCaseReceivedUseCase`) and trigger
+  (`SvcProposeEmbargoUseCase._handle_result`). All `dl.read(invite_id)` and
+  `list_objects("Invite")` semantic reads in `received/embargo.py`,
+  `triggers/_helpers.py`, and `dispatcher.py` removed. `Invite` removed from
+  DL-05-004 exemptions.
 - *actor/participant*: `use_cases/received/actor/offer_case_participant.py:128,193`
   (read the original recommendation `Offer` for the recommender's actor id);
   `use_cases/triggers/actor.py:163` (read `Invite` for a type check).

@@ -62,6 +62,7 @@ def _build_active_embargo_case(
     }
     case.current_status.em_state = EM.ACTIVE
     case.proposed_embargoes.append(embargo.id_)
+    case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
     case.set_embargo(embargo.id_)
 
     dl.create(case)
@@ -110,6 +111,7 @@ def _build_proposed_embargo_case_no_owner_attribution(
     }
     case.current_status.em_state = EM.PROPOSED
     case.proposed_embargoes.append(embargo.id_)
+    case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
 
     dl.create(case)
     dl.create(embargo)
