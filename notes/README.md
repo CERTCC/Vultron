@@ -319,6 +319,15 @@ configuration.
 
 ## Case and Data Model
 
+**`status-dimension-objects.md`**
+Design guidance for per-machine dimension objects decomposed from `CaseStatus`
+and `ParticipantStatus` (ADR-0036): naming table, `BaseModel`-not-`CoreObject`
+rationale, immutable `transition()` pattern, wire projection notes, call-site
+migration mapping (~308 active sites), and `EmbargoLifecycle` migration priority.
+**Load when**: implementing or reviewing dimension-object migration, working on
+`specs/status-dimension-objects.yaml` (SDO) requirements, or understanding how
+`EmDimension`/`RmDimension`/etc. embed inside status objects.
+
 **`lifecycle-staged-types.md`**
 Design guidance for lifecycle-staged domain types (ADR-0033): the field-set
 governing principle (a milestone earns a type only when it changes the
