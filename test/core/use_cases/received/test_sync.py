@@ -24,6 +24,7 @@ from vultron.core.models.case_ledger import (
 )
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.events import MessageSemantics
+from vultron.core.models.ledger_gap_buffer import LedgerGapBuffer
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases.received.sync import (
     AnnounceLedgerEntryReceivedUseCase,
@@ -155,6 +156,9 @@ class TestReconstructTailHash:
         assert tail_index == 0
 
 
+RECEIVER_URI = "https://example.org/actors/reporter"
+
+
 class TestAnnounceLedgerEntryReceivedUseCase:
     def _make_event(
         self, entry: VultronCaseLedgerEntry
@@ -163,7 +167,11 @@ class TestAnnounceLedgerEntryReceivedUseCase:
             entry.model_dump(mode="json")
         )
         activity = announce_log_entry_activity(wire_entry, actor=ACTOR_URI)
-        return cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
+        event = cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
+        # The inbox adapter always sets receiving_actor_id in production; set
+        # it here so the reject is enqueued against the receiving actor's
+        # outbox (matching send_announce_log_entry's explicit-actor queueing).
+        return event.model_copy(update={"receiving_actor_id": RECEIVER_URI})
 
     def test_inline_case_ledger_entry_round_trip(self, first_entry):
         """parse_activity must preserve inline as_CaseLedgerEntry fields (BUG-26041501).
@@ -222,8 +230,8 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         # Bad entry still not stored
         assert dl.read(bad_entry.id_) is None
 
-        # A Reject activity should be queued in the outbox
-        queued = dl.outbox_list()
+        # A Reject activity should be queued in the receiving actor's outbox
+        queued = dl.outbox_list_for_actor(RECEIVER_URI)
         assert len(queued) == 1
 
         reject_obj = dl.read(queued[0])
@@ -246,7 +254,7 @@ class TestAnnounceLedgerEntryReceivedUseCase:
             dl, event, sync_port=sync_port
         ).execute()
 
-        queued = dl.outbox_list()
+        queued = dl.outbox_list_for_actor(RECEIVER_URI)
         reject_obj = dl.read(queued[0])
         assert getattr(reject_obj, "context", None) == first_entry.entry_hash
 
@@ -260,7 +268,7 @@ class TestAnnounceLedgerEntryReceivedUseCase:
             dl, event, sync_port=sync_port
         ).execute()
 
-        queued = dl.outbox_list()
+        queued = dl.outbox_list_for_actor(RECEIVER_URI)
         reject_obj = dl.read(queued[0])
         to_field = getattr(reject_obj, "to", None) or []
         assert ACTOR_URI in to_field
@@ -298,3 +306,169 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         )
         assert event.log_entry is not None
         assert event.log_entry.case_id == CASE_URI
+
+
+class TestOutOfOrderAnnounceBuffering:
+    """Out-of-order ``Announce(CaseLedgerEntry)`` must not permanently drop
+    entries; the replica converges to a contiguous prefix regardless of
+    delivery order (issue #1556, SYNC-10-004).
+    """
+
+    @pytest.fixture
+    def gap_buffer(self) -> LedgerGapBuffer:
+        return LedgerGapBuffer()
+
+    def _make_event(
+        self, entry: VultronCaseLedgerEntry
+    ) -> AnnounceLogEntryReceivedEvent:
+        wire_entry = WireCaseLedgerEntry.model_validate(
+            entry.model_dump(mode="json")
+        )
+        activity = announce_log_entry_activity(wire_entry, actor=ACTOR_URI)
+        return cast(AnnounceLogEntryReceivedEvent, extract_event(activity))
+
+    def _chain(
+        self, case: VulnerabilityCase, length: int
+    ) -> list[VultronCaseLedgerEntry]:
+        """Build a valid hash chain of *length* entries anchored on genesis."""
+        entries: list[VultronCaseLedgerEntry] = []
+        prev = case.genesis_hash
+        for i in range(length):
+            entry = _make_entry(CASE_URI, i, prev)
+            entries.append(entry)
+            prev = entry.entry_hash
+        return entries
+
+    def _present_indices(self, dl: SqliteDataLayer) -> set[int]:
+        return {
+            obj.log_index
+            for obj in dl.list_objects("CaseLedgerEntry")
+            if getattr(obj, "case_id", None) == CASE_URI
+            and isinstance(obj, VultronCaseLedgerEntry)
+        }
+
+    def test_reversed_delivery_converges_to_contiguous_prefix(
+        self, dl, case_with_genesis, gap_buffer
+    ):
+        """Delivering a 3-entry chain fully reversed (2, 1, 0) must leave all
+        three entries stored — no entry is permanently dropped.
+        """
+        e0, e1, e2 = self._chain(case_with_genesis, 3)
+        sync_port = MagicMock(spec=SyncActivityPort)
+
+        # Reverse order: the two later entries arrive before their predecessor.
+        for entry in (e2, e1, e0):
+            AnnounceLedgerEntryReceivedUseCase(
+                dl,
+                self._make_event(entry),
+                sync_port=sync_port,
+                gap_buffer=gap_buffer,
+            ).execute()
+
+        assert self._present_indices(dl) == {0, 1, 2}
+
+    def test_single_gap_then_predecessor_clicks_into_place(
+        self, dl, case_with_genesis, gap_buffer
+    ):
+        """Index 1 arriving before index 0 must be buffered and applied once
+        index 0 lands (the minimal out-of-order case).
+        """
+        e0, e1 = self._chain(case_with_genesis, 2)
+        sync_port = MagicMock(spec=SyncActivityPort)
+
+        AnnounceLedgerEntryReceivedUseCase(
+            dl,
+            self._make_event(e1),
+            sync_port=sync_port,
+            gap_buffer=gap_buffer,
+        ).execute()
+        # Before the predecessor arrives, nothing is stored but the entry is
+        # held in the buffer (not dropped).
+        assert self._present_indices(dl) == set()
+        assert gap_buffer.depth(CASE_URI) == 1
+
+        AnnounceLedgerEntryReceivedUseCase(
+            dl,
+            self._make_event(e0),
+            sync_port=sync_port,
+            gap_buffer=gap_buffer,
+        ).execute()
+        assert self._present_indices(dl) == {0, 1}
+        assert gap_buffer.depth(CASE_URI) == 0
+
+    def test_multi_gap_cascade_drains_all_successors(
+        self, dl, case_with_genesis, gap_buffer
+    ):
+        """With 4, 5 and 6 buffered, delivering 3 must cascade-drain all of
+        them once the gap at index 3 is closed.
+
+        Mirrors the maintainer's zipper example: 0,1,2 present, later entries
+        buffered, the predecessor arrives → the whole contiguous run clicks
+        into place in one drain.
+        """
+        e0, e1, e2, e3, e4, e5, e6 = self._chain(case_with_genesis, 7)
+        sync_port = MagicMock(spec=SyncActivityPort)
+
+        # Establish a contiguous prefix 0,1,2.
+        for entry in (e0, e1, e2):
+            AnnounceLedgerEntryReceivedUseCase(
+                dl,
+                self._make_event(entry),
+                sync_port=sync_port,
+                gap_buffer=gap_buffer,
+            ).execute()
+        assert self._present_indices(dl) == {0, 1, 2}
+
+        # 4, 5 and 6 arrive out of order (all forward gaps) and are buffered.
+        for entry in (e4, e5, e6):
+            AnnounceLedgerEntryReceivedUseCase(
+                dl,
+                self._make_event(entry),
+                sync_port=sync_port,
+                gap_buffer=gap_buffer,
+            ).execute()
+        assert self._present_indices(dl) == {0, 1, 2}
+        assert gap_buffer.depth(CASE_URI) == 3
+
+        # 3 lands → cascade should drain 4, 5, 6 as well.
+        AnnounceLedgerEntryReceivedUseCase(
+            dl,
+            self._make_event(e3),
+            sync_port=sync_port,
+            gap_buffer=gap_buffer,
+        ).execute()
+        assert self._present_indices(dl) == {0, 1, 2, 3, 4, 5, 6}
+        assert gap_buffer.depth(CASE_URI) == 0
+
+    def test_replayed_entries_out_of_order_still_converge(
+        self, dl, case_with_genesis, gap_buffer
+    ):
+        """The CaseActor replay path (SYNC-03-002) sends each missing entry as
+        a separate ``Announce`` over an unordered transport.  Those replays flow
+        through the *same* receive path, so out-of-order replays are buffered
+        and drained just like normal fan-out — the participant converges
+        regardless of replay delivery order (issue #1556 finding: replay was
+        order-fragile before buffering).
+        """
+        # Participant is stuck at index 0; the CaseActor replays 1..4.
+        entries = self._chain(case_with_genesis, 5)
+        sync_port = MagicMock(spec=SyncActivityPort)
+        AnnounceLedgerEntryReceivedUseCase(
+            dl,
+            self._make_event(entries[0]),
+            sync_port=sync_port,
+            gap_buffer=gap_buffer,
+        ).execute()
+        assert self._present_indices(dl) == {0}
+
+        # Replayed entries arrive in a shuffled order (3, 1, 4, 2).
+        for entry in (entries[3], entries[1], entries[4], entries[2]):
+            AnnounceLedgerEntryReceivedUseCase(
+                dl,
+                self._make_event(entry),
+                sync_port=sync_port,
+                gap_buffer=gap_buffer,
+            ).execute()
+
+        assert self._present_indices(dl) == {0, 1, 2, 3, 4}
+        assert gap_buffer.depth(CASE_URI) == 0
