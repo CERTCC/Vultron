@@ -39,7 +39,7 @@ from vultron.core.behaviors.case.nodes.actor import (
     EmitAcceptCaseInviteNode,
     EmitInviteActorToCaseNode,
 )
-from vultron.core.behaviors.case.nodes.suggest_actor.emit import (
+from vultron.core.behaviors.case.nodes.suggest_actor.accept_offer import (
     EmitAcceptCaseParticipantOfferNode,
 )
 from vultron.core.behaviors.helpers import UpdateActorOutbox

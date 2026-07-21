@@ -17,18 +17,22 @@
 
 Submodules:
 
-- ``emit``: Outbound activity emission nodes
+- ``emit``: CaseActor-side outbound emission nodes
   (``EmitOfferCaseParticipantToOwnerNode``,
   ``EmitAcceptActorRecommendationNode``,
   ``EmitRejectActorRecommendationNode``,
-  ``EmitNoteDuplicateRecommendationToOwnerNode``,
-  ``EmitAcceptCaseParticipantOfferNode``)
+  ``EmitNoteDuplicateRecommendationToOwnerNode``)
+- ``accept_offer``: Case Owner owner-side Accept response
+  (``EmitAcceptCaseParticipantOfferNode``)
 - ``conditions``: Duplicate-detection precondition nodes
   (``ActorAlreadyParticipantNode``,
   ``InviteInFlightNode``,
   ``PendingOfferCaseParticipantNode``)
 """
 
+from vultron.core.behaviors.case.nodes.suggest_actor.accept_offer import (
+    EmitAcceptCaseParticipantOfferNode,
+)
 from vultron.core.behaviors.case.nodes.suggest_actor.conditions import (
     ActorAlreadyParticipantNode,
     InviteInFlightNode,
@@ -36,7 +40,6 @@ from vultron.core.behaviors.case.nodes.suggest_actor.conditions import (
 )
 from vultron.core.behaviors.case.nodes.suggest_actor.emit import (
     EmitAcceptActorRecommendationNode,
-    EmitAcceptCaseParticipantOfferNode,
     EmitNoteDuplicateRecommendationToOwnerNode,
     EmitOfferCaseParticipantToOwnerNode,
     EmitRejectActorRecommendationNode,
