@@ -20,7 +20,10 @@ CASE_MANAGER delegation.
 import pytest
 
 from vultron.errors import VultronValidationError
-from vultron.wire.as2.factories import rm_invite_to_case_activity
+from vultron.wire.as2.factories import (
+    offer_case_participant_activity,
+    rm_invite_to_case_activity,
+)
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -250,6 +253,55 @@ class TestOfferCaseManagerRole:
         )
 
         assert dl.read(activity_id) is not None
+
+
+class TestAcceptCaseParticipantOffer:
+    def _make_cp_offer(self, dl) -> str:
+        vendor = as_Service(id_=_INVITEE, name="Vendor")
+        dl.create(vendor)
+        offer = offer_case_participant_activity(
+            recommended=vendor,
+            actor=_ACTOR,
+            to=[_ACTOR],
+        )
+        # Store the nested CaseParticipant so _rehydrate_fields can expand the
+        # dehydrated object_ URI back to a full participant when reading the offer.
+        dl.create(offer.object_)
+        dl.create(offer)
+        return offer.id_
+
+    def test_returns_id_and_dict(self, adapter, dl):
+        cp_offer_id = self._make_cp_offer(dl)
+
+        activity_id, activity_dict = adapter.accept_case_participant_offer(
+            cp_offer_id=cp_offer_id,
+            actor=_ACTOR,
+        )
+
+        assert activity_id
+        assert isinstance(activity_dict, dict)
+
+    def test_verbatim_reconstitution_preserves_inline_object(
+        self, adapter, dl
+    ):
+        """Accept(Offer(CaseParticipant)) object_ must embed the original offer inline.
+
+        DL-06-004: the adapter reads the stored offer activity and passes it
+        verbatim as ``object_`` of the Accept.  The serialised dict MUST
+        contain the offer id as ``object.id``, not a bare URI string.
+        """
+        cp_offer_id = self._make_cp_offer(dl)
+
+        _, activity_dict = adapter.accept_case_participant_offer(
+            cp_offer_id=cp_offer_id,
+            actor=_ACTOR,
+        )
+
+        obj = activity_dict.get("object")
+        assert isinstance(
+            obj, dict
+        ), "object_ must be an inline dict, not a URI"
+        assert obj.get("id") == cp_offer_id
 
 
 class TestAcceptCaseManagerRole:
