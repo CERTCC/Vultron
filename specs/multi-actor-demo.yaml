@@ -5,6 +5,7 @@ description: >-
   acceptance testing, and reproducibility.
 version: 1.0.0
 scope:
+
 - prototype
 - production
 tags:
@@ -515,3 +516,127 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-09-005
+
+- id: DEMOMA-11
+  title: FVCV-Handoff Scenario (Vendor1 transfers ownership to Coordinator; Coordinator invites Vendor2)
+  specs:
+  - id: DEMOMA-11-001
+    priority: MUST
+    kind: implementation
+    statement: >-
+      The FVCV-handoff scenario MUST involve four actor identities with isolated
+      DataLayers and a separate CaseActor container, as required by DEMOMA-10-001.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-10-001
+  - id: DEMOMA-11-002
+    priority: MUST
+    kind: implementation
+    statement: >-
+      Vendor1 MUST create the case as CASE_OWNER and MUST invite Coordinator as a
+      participant. Coordinator MUST accept the invitation and hold a case replica in
+      their DataLayer before the ownership-transfer handshake begins.
+      Vendor1 then MUST transfer ownership via `offer-case-ownership-transfer` and
+      `accept-case-ownership-transfer` trigger endpoints (TRIG-11-001, TRIG-11-002).
+      After the handoff, Coordinator MUST hold `CVDRole.CASE_OWNER` and Vendor1
+      MUST become a plain participant.
+    rationale: >-
+      This is the defining contrast with FVCV-extension (DEMOMA-10-002): ownership
+      transfers mid-scenario rather than staying with Vendor1 throughout.
+      The Coordinator must already hold a case replica before accepting ownership,
+      because `AcceptCaseOwnershipTransferNode` reads the case from the DataLayer
+      and returns FAILURE if the case is not found.
+    relationships:
+    - rel_type: refines
+      spec_id: TRIG-11-001
+    - rel_type: refines
+      spec_id: TRIG-11-002
+  - id: DEMOMA-11-003
+    priority: MUST
+    kind: implementation
+    statement: >-
+      After becoming CASE_OWNER, the Coordinator MUST invite Vendor2 directly using
+      the `invite-actor-to-case` trigger, not via a recommendation/approval chain.
+      Vendor2 MUST receive and accept the invitation via the `accept-case-invite`
+      trigger; the CaseActor MUST then emit `Announce(VulnerabilityCase)` to seed
+      Vendor2's case replica (MV-10-003/MV-10-004). The demo script MUST poll
+      Vendor2's DataLayer for the arriving invitation before driving the accept step.
+    rationale: >-
+      In FVCV-extension, Vendor1 approves a Coordinator suggestion. In FVCV-handoff,
+      the Coordinator is the owner and invites directly — no approval step is needed.
+      The Vendor2 accept-invite step is mandatory: per MV-10-004 an Invite alone does
+      not seed the replica; the CaseActor's Announce fires only after Accept(Invite).
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-10-003
+  - id: DEMOMA-11-004
+    priority: MUST
+    kind: implementation
+    statement: >-
+      The `CaseActor.attributed_to` field MUST be updated to the Coordinator's actor
+      ID after the ownership transfer completes. All participants MUST observe the
+      updated `attributed_to` in their case replicas.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-10-002
+  - id: DEMOMA-11-005
+    priority: MUST
+    kind: implementation
+    statement: >-
+      The EM state machine MUST transition correctly through the ownership change:
+      an active embargo initiated before the transfer MUST remain ACTIVE and all
+      participants (including Vendor2 after joining) MUST be subject to it.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-10-006
+  - id: DEMOMA-11-006
+    priority: MUST
+    kind: implementation
+    statement: >-
+      The FVCV-handoff scenario MUST reach a final state with four participants —
+      Finder, Vendor1, Coordinator, and Vendor2 (plus CaseActor) — and MUST advance
+      to VFDPxa CS with EM.EXITED and RM.CLOSED for all participants, as required by
+      DEMOMA-10-006.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-10-006
+  - id: DEMOMA-11-007
+    priority: MUST
+    kind: implementation
+    statement: >-
+      The FVCV-handoff scenario MUST run deterministically and MUST verify SYNC-2
+      replica convergence for all non-owning participants after each major protocol
+      event, as required by DEMOMA-10-007.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-10-007
+  - id: DEMOMA-11-008
+    priority: MUST
+    kind: implementation
+    statement: >-
+      The implementation of the FVCV-handoff scenario MUST add a dedicated parallel
+      CI job and a CLI entry point, as required by DEMOMA-10-008.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-10-008
+  - id: DEMOMA-11-009
+    priority: MUST
+    kind: implementation
+    statement: >-
+      The demo script MUST include polling wait steps between asynchronous protocol
+      boundaries: (a) after emitting the ownership-transfer offer, poll Coordinator's
+      DataLayer for the stored `Offer(VulnerabilityCase)` before driving the accept
+      trigger; (b) after Coordinator accepts, poll Vendor1's case replica until
+      `attributed_to` reflects the Coordinator's ID before proceeding; (c) after
+      Coordinator invites Vendor2, poll Vendor2's DataLayer for the arriving
+      `Invite(Actor, Case)` before driving the accept trigger; (d) after Vendor2
+      accepts the invitation, poll Vendor2's DataLayer for the case replica seeded
+      by the CaseActor's `Announce(VulnerabilityCase)`.
+    rationale: >-
+      Each of these polling steps was required in FVCV-extension (see ISSUE-1535
+      post-review fixes). Omitting any wait step causes the scenario to proceed on
+      state that has not yet been committed to the target actor's DataLayer,
+      producing consistent CI failures rather than intermittent flakes.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-10-007
