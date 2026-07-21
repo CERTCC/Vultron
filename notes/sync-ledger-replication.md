@@ -384,6 +384,54 @@ entry "appear" in the peer DL must seed the case on the peer instead.
 
 ---
 
+## Out-of-Order Delivery and the Ledger Gap Buffer (SYNC-10-004)
+
+`Announce(CaseLedgerEntry)` travels over a transport with **no ordering
+guarantee**, and Vultron may not be the only protocol implementation on the
+wire. A participant replica can therefore receive an entry before its
+hash-chain predecessor. The bare reject-on-mismatch path
+(`CheckHashOrRejectOnMismatchNode` → `SendRejectLogEntryNode`) *dropped* such an
+entry and relied on a `Reject → replay` round-trip to redeliver it. That
+recovery is itself order-fragile — `SendMissingEntriesNode` replays each missing
+entry as a *separate* `Announce`, which can reorder again and hit the same drop
+— so under adversarial reordering an entry could be lost indefinitely
+(issue #1556, observed as Vendor2 stalling at case closure in the FVV demo).
+
+**Resolution: receiver-side buffering makes convergence order-independent.**
+
+- `LedgerGapBuffer` (`vultron/core/models/ledger_gap_buffer.py`) is an
+  actor-local, per-case, in-memory store of forward-gap entries, mirroring
+  `PendingAssertionStore`: per-actor module-level registry, ephemeral (lost on
+  restart; the SYNC-10 catch-up gate re-syncs), **not** a DataLayer entity. This
+  is the "clearly separate, non-ledger holding area" sanctioned by SYNC-13-003 —
+  presence of a `CaseLedgerEntry` in the DataLayer still means "effects applied
+  and entry committed" (SYNC-13-001).
+- **Keyed on `prev_log_hash`** (the entry's upstream tooth). The successor of a
+  just-persisted tail is exactly `buffer[new_tail.entry_hash]` — an O(1) lookup,
+  so a contiguous buffered run of *k* entries drains in O(k). Keying on `id_`,
+  `entry_hash`, or a plain list would make find-next O(n) and the cascade O(n²).
+- **On mismatch:** if the entry is a genuine *forward* gap
+  (`log_index > tail_index + 1`) it is buffered; a `Reject(CaseLedgerEntry)` is
+  **still always sent** as the backstop for entries that are genuinely *lost*
+  (never delivered) rather than merely reordered. Stale/at-or-behind-tail
+  entries are not buffered — they fall straight through to the reject.
+- **On commit:** `AnnounceLedgerEntryReceivedUseCase` drains the buffer — for
+  each newly committed tail it re-runs the announce receive BT on the buffered
+  successor, reusing the exact effects-before-persist path (SYNC-12-001) and
+  cascading until no buffered entry extends the tail.
+- **Bounded:** the buffer caps per-case size and evicts the entry farthest ahead
+  of the gap (highest `log_index`) with a WARNING; eviction is recoverable via
+  the Reject already sent, so it never has to re-trigger recovery itself.
+
+Because replayed entries flow through the *same* receive path, buffering also
+makes the `Reject → replay` recovery order-robust for free — no separate
+redesign of the replay loop was needed. A companion fix made
+`SyncActivityAdapter.send_reject_log_entry` enqueue against the explicit
+receiving `actor_id` (via `add_activity_to_outbox` / `record_outbox_item`)
+instead of the DL's own scope (`outbox_append`), matching
+`send_announce_log_entry` so a reject is delivered correctly even from a
+shared/differently-scoped DataLayer.
+
 ## Pre-SYNC-13 Upgrade Path
 
 Nodes that ran pre-SYNC-13 code may hold stale `{entry: stored, effects: not-applied}`

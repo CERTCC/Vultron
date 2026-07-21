@@ -10,7 +10,10 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_entry,
     _make_event,
 )
+import py_trees
+
 from vultron.core.behaviors.sync.nodes import (
+    BufferOutOfOrderEntryNode,
     CheckHashMatchesNode,
     CheckHashOrRejectOnMismatchNode,
     SendRejectLogEntryNode,
@@ -25,7 +28,14 @@ def test_check_hash_or_reject_on_mismatch_is_selector_with_condition_and_action(
     assert tree.name == "CheckHashOrRejectOnMismatch"
     assert len(tree.children) == 2
     assert isinstance(tree.children[0], CheckHashMatchesNode)
-    assert isinstance(tree.children[1], SendRejectLogEntryNode)
+    # Second child buffers a forward gap (so it is not dropped) and then
+    # always sends the reject as the loss backstop (issue #1556).
+    buffer_and_reject = tree.children[1]
+    assert isinstance(buffer_and_reject, py_trees.composites.Sequence)
+    buffer_decorator, reject_node = buffer_and_reject.children
+    assert isinstance(buffer_decorator, py_trees.decorators.FailureIsSuccess)
+    assert isinstance(buffer_decorator.children[0], BufferOutOfOrderEntryNode)
+    assert isinstance(reject_node, SendRejectLogEntryNode)
 
 
 def test_check_hash_matches_node_succeeds_when_hash_matches(
