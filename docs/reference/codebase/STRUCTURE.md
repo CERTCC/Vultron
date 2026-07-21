@@ -33,8 +33,8 @@
 - **Sub-app for dev/tests**: `vultron.adapters.driving.fastapi.app:app_v2`
 - **CLI scripts**:
   - `vultron-demo` → `vultron.demo.cli:main`
-  - `vultrabot` → `vultron.scripts.vultrabot:main`
-  - `vultrabot_cvd` → `vultron.demo.vultrabot:main`
+  - `vultrabot` → `vultron.bt.base.demo.cvd:main`
+  - `vultrabot_cvd` → `vultron.bt.base.demo.cvd:main`
   - `spec-dump` / `spec-dump-llm-json` → `vultron.metadata.specs.render:main_llm_json`
   - `spec-lint` → `vultron.metadata.specs.lint:main`
   - `append-history` → `vultron.metadata.history.cli:main`
