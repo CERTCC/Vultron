@@ -132,6 +132,47 @@ class TestAcceptCaseInvite:
         with pytest.raises(VultronValidationError):
             adapter.accept_case_invite(invite_id=invite_id, actor=_INVITEE)
 
+    def test_verbatim_reconstitution_preserves_invite_id(self, adapter, dl):
+        """Accept(Invite) must embed the original invite id in in_reply_to.
+
+        DL-06-004: envelope reconstitution reads the stored invite and embeds
+        the verbatim original as the ``object_`` of the Accept.  The
+        ``in_reply_to`` field (set automatically by the factory's
+        model_validator) MUST equal the original invite id.
+        """
+        invite_id = self._make_invite(dl)
+
+        activity_id, _ = adapter.accept_case_invite(
+            invite_id=invite_id,
+            actor=_INVITEE,
+        )
+
+        accept = dl.read(activity_id)
+        assert accept is not None
+        assert getattr(accept, "in_reply_to", None) == invite_id
+
+    def test_verbatim_reconstitution_preserves_inline_object(
+        self, adapter, dl
+    ):
+        """Accept(Invite) object_ must be a full inline object, not a bare URI.
+
+        DL-06-004: the original invite activity is reconstituted verbatim as
+        the ``object_`` of the Accept; it must have its own ``id`` field set
+        (i.e., not be a bare string reference).
+        """
+        invite_id = self._make_invite(dl)
+
+        _, activity_dict = adapter.accept_case_invite(
+            invite_id=invite_id,
+            actor=_INVITEE,
+        )
+
+        obj = activity_dict.get("object")
+        assert isinstance(
+            obj, dict
+        ), "object_ must be an inline dict, not a URI"
+        assert obj.get("id") == invite_id
+
 
 class TestSuggestActorToCase:
     def test_returns_id_and_dict(self, adapter):
