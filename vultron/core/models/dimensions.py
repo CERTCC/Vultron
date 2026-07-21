@@ -154,7 +154,7 @@ class EmDimension(BaseModel):
         new_state = _apply_transition(
             self.state, trigger, _em_transitions, "EmDimension"
         )
-        return self.model_copy(update={"state": EM(new_state)})
+        return self.model_copy(update={"state": EM(str(new_state))})
 
     def is_active(self) -> bool:
         return self.state in (EM.ACTIVE, EM.REVISE)
@@ -237,7 +237,7 @@ class RmDimension(BaseModel):
         new_state = _apply_transition(
             self.state, trigger, _rm_transitions, "RmDimension"
         )
-        return self.model_copy(update={"state": RM(new_state)})
+        return self.model_copy(update={"state": RM(str(new_state))})
 
     def is_validated(self) -> bool:
         return self.state in RM_VALIDATED
@@ -319,7 +319,7 @@ class PecDimension(BaseModel):
         new_state = _apply_transition(
             self.state, trigger, _pec_transitions, "PecDimension"
         )
-        return self.model_copy(update={"state": PEC(new_state)})
+        return self.model_copy(update={"state": PEC(str(new_state))})
 
     def is_signatory(self) -> bool:
         return self.state == PEC.SIGNATORY
