@@ -20,7 +20,7 @@ Read `docs/reference/glossary.md`.
 
 ### Step 2 — Load specs
 
-Run `uv run spec-dump 2>&1`. Capture the output. Do **not** read raw
+Run `PYTHONPATH= uv run spec-dump 2>&1`. Capture the output. Do **not** read raw
 `specs/*.yaml` files directly.
 
 ### Step 3 — Read agent rules, completeness doctrine, active notes index, and ADR index

@@ -46,16 +46,16 @@ Edge `rel_type` values: `constrains`, `depends_on`, `derives_from`, `implements`
 
 ```bash
 # Full dump
-uv run spec-dump
+PYTHONPATH= uv run spec-dump
 
 # Write to file
-uv run spec-dump > /tmp/specs.json
+PYTHONPATH= uv run spec-dump > /tmp/specs.json
 
 # Count requirements
-uv run spec-dump | python -c "import json,sys; r=json.load(sys.stdin); print(len(r['requirements']))"
+PYTHONPATH= uv run spec-dump | python -c "import json,sys; r=json.load(sys.stdin); print(len(r['requirements']))"
 
 # Filter MUST requirements
-uv run spec-dump | python -c "
+PYTHONPATH= uv run spec-dump | python -c "
 import json, sys
 data = json.load(sys.stdin)
 musts = [r for r in data['requirements'] if r['priority'] == 'MUST']

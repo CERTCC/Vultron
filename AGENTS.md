@@ -18,8 +18,8 @@ Agents MUST follow these rules when generating, modifying, or reviewing code.
 
 ## Agent Quickstart
 
-- **Load specs first**: `uv run spec-dump` (or `load-specs` skill) — never read
-  raw `specs/*.yaml`.
+- **Load specs first**: `PYTHONPATH= uv run spec-dump` — never read raw
+  `specs/*.yaml`. The `PYTHONPATH=` prefix is required; see pitfall below.
 - Pipeline: FastAPI inbox → AS2 parser → semantic extraction
   (`vultron/wire/as2/extractor.py`) → dispatcher → use-case callable
   (`vultron/core/use_cases/`).
@@ -158,7 +158,7 @@ See `notes/parallel-development.md`.
 
 ## Change Protocol
 
-For non-trivial changes: state assumptions → load specs (`uv run spec-dump`) →
+For non-trivial changes: state assumptions → load specs (`PYTHONPATH= uv run spec-dump`) →
 review `notes/` → describe intent → apply minimal diff → update/add tests →
 call out risks.
 
@@ -366,6 +366,12 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   [notes/datalayer-design.md](notes/datalayer-design.md).
 - **Always Use `uv run <tool>` in Devcontainer** — bare entrypoints use baked
   image, not mounted working tree. See #1460.
+- **`PYTHONPATH=/app` Contaminates Imports** — the devcontainer sets
+  `PYTHONPATH=/app`, which causes `uv run spec-dump` (and any other entry
+  point) to resolve `vultron` imports from the stale baked image at `/app`
+  instead of the editable install. Always prefix with `PYTHONPATH=` to clear
+  it: `PYTHONPATH= uv run spec-dump`. Same applies to any `uv run <entrypoint>`
+  that touches `vultron.*` modules.
 - **Walrus Operator for Single-Assignment Guard Blocks** —
   `if (f := self._require_factory()) is not None: return f`.
 - **Silent `None` Returns and Fake `SUCCESS` Are the Same Bug** — raise
