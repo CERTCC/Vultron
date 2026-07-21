@@ -2,7 +2,7 @@ id: MS
 title: Meta-Specification Style Guide
 description: Normative rules for authoring specification files in this project. Covers file structure, requirement format,
   IDs, writing rules, cross-references, lifecycle, quality criteria, and the delineation between spec files and ADRs.
-version: 1.0.0
+version: 1.1.0
 scope:
 - prototype
 - production
@@ -91,11 +91,20 @@ groups:
   - id: MS-04-003
     priority: MUST
     kind: general
-    statement: Requirement IDs MUST be stable; once assigned, an ID MUST NOT be renumbered. Superseded requirements MUST be
-      removed entirely rather than left in place as deprecated.
-    rationale: Stable IDs preserve traceability in git history; deprecated-but-present requirements create confusion for agents.
+    statement: Requirement IDs MUST be stable; once assigned, an ID MUST NOT be renumbered.
+    rationale: Stable IDs preserve traceability in git history.
     tags:
     - documentation
+  - id: MS-04-005
+    priority: MUST
+    kind: general
+    statement: Superseded requirements MUST be removed entirely rather than left in place as deprecated.
+    rationale: Deprecated-but-present requirements create confusion for agents and future implementers.
+    tags:
+    - documentation
+    relationships:
+    - rel_type: refines
+      spec_id: MS-04-003
   - id: MS-04-004
     priority: MUST
     kind: general

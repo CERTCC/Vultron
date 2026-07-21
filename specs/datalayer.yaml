@@ -170,11 +170,11 @@ groups:
   - id: DL-05-003
     priority: MUST_NOT
     kind: implementation
-    statement: Core code (`vultron/core/`) MUST NOT rely on structural duck-typing Protocols (e.g. the `CaseModel`,
-      `ParticipantModel`, `ParticipantStatusModel`, `LogEntryModel` Protocols and the `is_case_model()` /
-      `is_participant_model()` / `is_log_entry_model()` `TypeGuard` helpers in `vultron/core/models/protocols.py`) as a
-      means of accepting DataLayer results without importing concrete core types; once DL-05-001 holds, core MUST depend on
-      concrete core domain classes (real `isinstance` narrowing) and the workaround Protocols MUST be removed.
+    statement: >-
+      Core code (`vultron/core/`) MUST NOT use structural duck-typing Protocols to accept
+      DataLayer results without importing concrete core types. Core MUST depend on concrete
+      domain classes and use `isinstance` narrowing directly. Structural workaround Protocols
+      that evade ARCH-01-001 are prohibited.
     rationale: >
       The duck-typing Protocols exist solely to let core touch wire objects at runtime without a compile-time wire import,
       evading rather than honouring ARCH-01-001. When the read path returns core objects, the Protocols are dead weight

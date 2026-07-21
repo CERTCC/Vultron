@@ -6,7 +6,7 @@ description: >-
   Covers the commit authorization model, per-case genesis hash derivation, the canonical
   entry criteria that separate the case ledger from the process log, and the CaseActor
   inbox routing path that enables ledger entry authorship.
-version: 1.0.0
+version: 1.1.0
 scope:
 - prototype
 - production
@@ -503,19 +503,14 @@ groups:
     priority: MUST
     kind: domain
     statement: >-
-      A received-side use case's `execute()` method MUST do exactly three
-      things: build one BT via a tree-factory function in
-      `vultron/core/behaviors/`, call `BTBridge.execute_with_setup()` exactly
-      once with `actor_id=receiving_actor_id` to run it, and handle the
-      result (log/extract output per the existing Procedural Glue Exception).
-      `execute()` MUST NOT perform any other domain-significant work — no
-      direct DataLayer mutation, no second `execute_with_setup()` call, and
-      no direct import or call of `create_guarded_commit_case_ledger_entry_tree`
-      (or any other guarded-commit factory). Any operation that is currently
-      procedural code in `execute()` (including the use case's main
-      operation, if not already a BT) MUST be expressed as a node in the
-      single tree; the guarded-commit subtree MUST be composed as a child
-      of that same tree-factory function, not invoked separately
+      A received-side use case's `execute()` method MUST do exactly three things:
+      build one BT via a tree-factory function in `vultron/core/behaviors/`, call
+      `BTBridge.execute_with_setup()` exactly once with `actor_id=receiving_actor_id`
+      to run it, and handle the result (log/extract output per the existing Procedural
+      Glue Exception). `execute()` MUST NOT perform any other domain-significant work
+      — no direct DataLayer mutation, no second `execute_with_setup()` call, and no
+      direct import or call of `create_guarded_commit_case_ledger_entry_tree` (or any
+      other guarded-commit factory).
     rationale: >-
       CLP-10-002/CLP-10-003 (ADR-0021) correctly require a pre-flight guard
       before committing, and correctly require the guard to compare against
@@ -550,6 +545,27 @@ groups:
       it catches every known violation but a reviewer MUST still confirm no
       other domain-significant code remains in `execute()` when closing each
       migration.
+  - id: CLP-10-007
+    priority: MUST
+    kind: domain
+    statement: >-
+      Any operation that is procedural code in `execute()` (including the use case's
+      main operation) MUST be expressed as a node in the single BT tree built by the
+      tree-factory function.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-10-005
+  - id: CLP-10-008
+    priority: MUST
+    kind: domain
+    statement: >-
+      The guarded-commit subtree MUST be composed as a child of the tree-factory
+      function, not invoked as a separate `execute_with_setup()` call.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-10-005
+    - rel_type: refines
+      spec_id: CLP-10-002
   - id: CLP-10-006
     priority: MUST
     kind: domain

@@ -4,7 +4,7 @@ description: >-
   Defines the structure, location, entry format, and tooling for managing project history
   files using per-entry write-once files organized by month and type, managed by the
   `append-history` CLI tool.
-version: 1.2.0
+version: 1.3.0
 scope:
   - prototype
   - production
@@ -20,9 +20,12 @@ groups:
         priority: MUST
         kind: dev-process
         statement: >-
-          All project history files MUST reside under `plan/history/`. The
-          top-level `plan/` directory MUST NOT contain any new `*HISTORY.md`
-          files after this spec is adopted.
+          All project history files MUST reside under `plan/history/`.
+      - id: HM-01-006
+        priority: MUST_NOT
+        kind: dev-process
+        statement: >-
+          The top-level `plan/` directory MUST NOT contain any `*HISTORY.md` files.
       - id: HM-01-002
         priority: MUST
         kind: dev-process
@@ -42,16 +45,6 @@ groups:
           (see HM-03-006). This file is a **gitignored local cache** — it MUST
           NOT be committed to the repository. To view the history index, use
           `uv run show-history [--month YYMM | --all]`.
-      - id: HM-01-004
-        priority: MUST
-        kind: dev-process
-        statement: >-
-          The legacy monolithic history files (`plan/IMPLEMENTATION_HISTORY.md`,
-          `plan/IDEA-HISTORY.md`, `plan/PRIORITY_HISTORY.md`) MUST be moved
-          to `plan/history/` at their top level as static archives. A static
-          `plan/history/README.md` MUST be created explaining that these files
-          predate the structured format and were superseded on the migration
-          date.
       - id: HM-01-005
         priority: MUST_NOT
         kind: dev-process
@@ -88,9 +81,16 @@ groups:
           Valid `type` values MUST be defined as a `StrEnum` named
           `HistoryEntryType` in `vultron/metadata/history/types.py`. Current
           values are `idea`, `implementation`, `learning`, and `priority`.
-          Adding a new type MUST only require adding a member to this enum;
-          no other code changes are required for the tool to accept the new
-          type.
+      - id: HM-02-005
+        priority: MUST
+        kind: domain
+        statement: >-
+          Adding a new history entry type MUST only require adding a member to
+          the `HistoryEntryType` enum; no other code changes are required for
+          the tool to accept the new type.
+        relationships:
+        - rel_type: refines
+          spec_id: HM-02-002
       - id: HM-02-003
         priority: MUST
         kind: domain
@@ -117,9 +117,16 @@ groups:
         kind: implementation
         statement: >-
           The tool MUST be invokable as `uv run append-history <type>` where
-          `<type>` is one of the valid `HistoryEntryType` values (see
-          HM-02-002). Passing an unrecognised type MUST produce a clear error
-          message and exit non-zero.
+          `<type>` is one of the valid `HistoryEntryType` values (see HM-02-002).
+      - id: HM-03-009
+        priority: MUST
+        kind: implementation
+        statement: >-
+          Passing an unrecognised `<type>` to `append-history` MUST produce a
+          clear error message and exit non-zero.
+        relationships:
+        - rel_type: refines
+          spec_id: HM-03-001
       - id: HM-03-002
         priority: MUST
         kind: implementation
@@ -148,30 +155,36 @@ groups:
         priority: MUST
         kind: implementation
         statement: >-
-          The tool MUST create `plan/history/YYMM/<type>/` if it does not
-          already exist before writing the entry file. The `plan/history/YYMM/`
-          directory MUST also be created if it does not exist.
+          The tool MUST create `plan/history/YYMM/` and `plan/history/YYMM/<type>/`
+          if they do not already exist before writing the entry file.
       - id: HM-03-006
         priority: MUST
         kind: implementation
         statement: >-
-          After writing a new entry file, the tool MUST regenerate a local
-          `plan/history/YYMM/README.md` by scanning only the known-type
+          After writing a new entry file, the tool MUST regenerate
+          `plan/history/YYMM/README.md` by scanning the known-type
           subdirectories (`idea/`, `implementation/`, `learning/`, `priority/`),
           reading each entry file's frontmatter, and writing a summary table
-          sorted by timestamp descending. The file is gitignored — it MUST NOT
-          be staged or committed. Use `uv run show-history` to view the index.
+          sorted by timestamp descending.
         notes: >-
           The scan is restricted to known HistoryEntryType subdirectories to
           avoid parsing non-standard frontmatter in other subdirs (e.g.
-          report/).
+          report/). The gitignore constraint is specified in HM-01-003.
       - id: HM-03-007
         priority: MUST
         kind: implementation
         statement: >-
-          The tool's Python module MUST reside under `vultron/metadata/history/`
-          as a sibling of `vultron/metadata/specs/`. The entry point function
-          MUST be `vultron.metadata.history.cli:main`.
+          The `append-history` tool's Python module MUST reside under
+          `vultron/metadata/history/` as a sibling of `vultron/metadata/specs/`.
+      - id: HM-03-010
+        priority: MUST
+        kind: implementation
+        statement: >-
+          The `append-history` entry point function MUST be
+          `vultron.metadata.history.cli:main`.
+        relationships:
+        - rel_type: refines
+          spec_id: HM-03-007
       - id: HM-03-008
         priority: MUST
         kind: implementation
@@ -217,17 +230,13 @@ groups:
         kind: dev-process
         statement: >-
           The `build` skill MUST use `uv run append-history implementation`
-          to write completion summaries instead of directly appending to
-          `plan/IMPLEMENTATION_HISTORY.md`. References to direct file paths
-          for history files MUST be replaced with `append-history` invocations.
+          to write completion summaries.
       - id: HM-05-002
         priority: MUST
         kind: dev-process
         statement: >-
           The `ingest-idea` skill MUST use `uv run append-history idea` to
-          archive processed ideas instead of directly appending to
-          `plan/IDEA-HISTORY.md`. References to direct file paths MUST be
-          replaced with `append-history` invocations.
+          archive processed ideas.
       - id: HM-05-003
         priority: MUST
         kind: dev-process
@@ -255,25 +264,23 @@ groups:
         statement: >-
           Every new history entry MUST include a `timestamp` field containing a
           tz-aware ISO 8601 datetime string in UTC (e.g.,
-          `"2026-05-01T15:30:00+00:00"`). The `append-history` tool MUST
-          populate this field automatically from the current system clock when
-          creating new entries.
+          `"2026-05-01T15:30:00+00:00"`).
+      - id: HM-06-007
+        priority: MUST
+        kind: implementation
+        statement: >-
+          The `append-history` tool MUST populate the `timestamp` field
+          automatically from the current system clock when creating new entries.
+        relationships:
+        - rel_type: implements
+          spec_id: HM-06-001
       - id: HM-06-002
         priority: MUST
         kind: domain
         statement: >-
-          `HistoryEntryFrontmatter` MUST accept exactly one of `timestamp` or
-          the legacy `date` field. If both are present, validation MUST fail
-          with a clear error. If neither is present, validation MUST fail.
-      - id: HM-06-003
-        priority: MUST
-        kind: domain
-        statement: >-
-          When the legacy `date` field is present and `timestamp` is absent,
-          `HistoryEntryFrontmatter` MUST normalise the entry by converting
-          `date` to a `timestamp` equal to midnight UTC on that date
-          (e.g., `date: 2026-04-28` → `timestamp: 2026-04-28T00:00:00+00:00`).
-          After normalisation all downstream code MUST use `timestamp` only.
+          `HistoryEntryFrontmatter` MUST require a `timestamp` field
+          (timezone-aware ISO 8601 datetime in UTC). Validation MUST fail
+          with a clear error if `timestamp` is absent or malformed.
       - id: HM-06-004
         priority: MUST
         kind: domain
@@ -287,10 +294,24 @@ groups:
         priority: MUST
         kind: domain
         statement: >-
-          All `timestamp` values MUST be timezone-aware. Naive datetime values
-          (those without a UTC offset) MUST be rejected with a clear error
-          message. All stored and compared timestamps MUST be normalised to
-          UTC.
+          All `timestamp` values MUST be timezone-aware.
+      - id: HM-06-008
+        priority: MUST
+        kind: domain
+        statement: >-
+          Naive datetime values (those without a UTC offset) MUST be rejected
+          with a clear error message.
+        relationships:
+        - rel_type: refines
+          spec_id: HM-06-005
+      - id: HM-06-009
+        priority: MUST
+        kind: domain
+        statement: >-
+          All stored and compared timestamps MUST be normalised to UTC.
+        relationships:
+        - rel_type: refines
+          spec_id: HM-06-005
       - id: HM-06-006
         priority: MUST
         kind: domain
@@ -309,30 +330,57 @@ groups:
         kind: implementation
         statement: >-
           The `append-history <type>` command MUST accept `--title` and
-          `--source` as required named arguments. The tool MUST construct the
-          YAML frontmatter block internally from these arguments plus the
-          auto-generated `timestamp`.
+          `--source` as required named arguments.
+      - id: HM-07-005
+        priority: MUST
+        kind: implementation
+        statement: >-
+          The tool MUST construct the YAML frontmatter block internally from
+          the `--title`, `--source`, and auto-generated `timestamp` arguments;
+          callers MUST NOT supply frontmatter content.
+        relationships:
+        - rel_type: refines
+          spec_id: HM-07-001
       - id: HM-07-002
         priority: MUST_NOT
         kind: implementation
         statement: >-
-          Callers of `append-history` MUST NOT include a YAML frontmatter
-          block in the content they supply via stdin or `--file`. The content
-          MUST be the body text only; the tool prepends the generated
-          frontmatter.
+          Callers of `append-history` MUST NOT include a YAML frontmatter block
+          in the content they supply via stdin or `--file`.
+        relationships:
+        - rel_type: refines
+          spec_id: HM-07-005
       - id: HM-07-003
         priority: MUST
         kind: implementation
         statement: >-
           The tool MUST accept a hidden `--timestamp` argument for backfill
-          use only (e.g., migrating pre-existing entries). This argument MUST
-          accept an ISO 8601 datetime string with a UTC offset. The standard
-          future-date validation (HM-06-004) MUST apply to this override value.
+          use only (e.g., migrating pre-existing entries).
+      - id: HM-07-006
+        priority: MUST
+        kind: implementation
+        statement: >-
+          The `--timestamp` override argument MUST accept an ISO 8601 datetime
+          string with a UTC offset.
+        relationships:
+        - rel_type: refines
+          spec_id: HM-07-003
+      - id: HM-07-007
+        priority: MUST
+        kind: implementation
+        statement: >-
+          The standard future-date validation (HM-06-004) MUST apply to values
+          supplied via the `--timestamp` override argument.
+        relationships:
+        - rel_type: refines
+          spec_id: HM-07-003
+        - rel_type: implements
+          spec_id: HM-06-004
       - id: HM-07-004
         priority: MUST
         kind: implementation
         statement: >-
-          All existing skill documentation (`ingest-idea`, `build`, `learn`)
-          and `notes/history-management.md` MUST be updated to use the new
-          `--title`/`--source` interface. References to the old
-          frontmatter-in-stdin pattern MUST be removed.
+          Skill documentation (`ingest-idea`, `build`, `learn`) and
+          `notes/history-management.md` MUST use the `--title`/`--source`
+          interface for `append-history`. The frontmatter-in-stdin pattern
+          MUST NOT be used.

@@ -4,7 +4,7 @@ description: >-
   Requirements for the structured spec registry: YAML spec files governed by Pydantic models,
   with linting, pytest integration, and context-generation tooling. The registry provides a
   single source of truth for spec IDs, prefixes, titles, and cross-reference validation.
-version: 1.0.0
+version: 1.1.0
 scope:
 - prototype
 - production
@@ -18,7 +18,9 @@ groups:
   - id: SR-01-001
     priority: MUST
     kind: implementation
-    statement: Each `specs/*.md` file MUST be replaced by a `specs/*.yaml` file with the same kebab-case topic name.
+    statement: >-
+      Specifications MUST be maintained as YAML files in `specs/` following the topic-file naming
+      convention. Markdown spec files are not permitted.
   - id: SR-01-002
     priority: MUST
     kind: implementation
@@ -210,9 +212,23 @@ groups:
   - id: SR-04-003
     priority: MUST
     kind: implementation
-    statement: The linter MUST be invokable as a CLI command via the `spec-lint` console entry point (`uv run spec-lint`)
-      and via `python -m vultron.metadata.specs.lint [spec_dir]`. Both invocations MUST produce identical output. When `spec_dir`
-      is omitted from the module invocation, it defaults to `specs/` relative to the current working directory.
+    statement: The linter MUST be invokable both as `uv run spec-lint` (console entry point) and as
+      `python -m vultron.metadata.specs.lint [spec_dir]` (module invocation).
+  - id: SR-04-009
+    priority: MUST
+    kind: implementation
+    statement: Both invocation forms of the spec linter MUST produce identical output for the same input.
+    relationships:
+    - rel_type: refines
+      spec_id: SR-04-003
+  - id: SR-04-010
+    priority: MUST
+    kind: implementation
+    statement: When `spec_dir` is omitted from the module invocation, the linter MUST default to
+      `specs/` relative to the current working directory.
+    relationships:
+    - rel_type: refines
+      spec_id: SR-04-003
   - id: SR-04-004
     priority: MUST
     kind: implementation
@@ -343,14 +359,12 @@ groups:
     kind: implementation
     statement: All existing `specs/*.md` files MUST be migrated to `specs/*.yaml` using a lossless conversion that preserves
       all requirement text, IDs, and relationships.
-  - id: SR-08-002
-    priority: MUST
-    kind: implementation
-    statement: The migration MUST produce YAML files that pass the spec linter with zero errors.
   - id: SR-08-003
     priority: MUST
     kind: implementation
-    statement: After migration, the `specs/*.md` files MUST be deleted; the YAML files are the sole source of truth.
+    statement: >-
+      YAML files in `specs/` are the sole authoritative source for project specifications. No other
+      format or location holds normative spec content.
   - id: SR-08-004
     priority: MUST
     kind: implementation
@@ -366,10 +380,83 @@ groups:
   - id: SR-08-006
     priority: MUST_NOT
     kind: implementation
-    statement: The original `specs/*.md` requirement files MUST NOT be deleted until the YAML files have passed the spec linter
-      with zero errors and all agent/skill references have been updated to YAML paths.
+    statement: The original `specs/*.md` requirement files MUST NOT be deleted until the YAML files
+      have passed the spec linter with zero errors.
+  - id: SR-08-008
+    priority: MUST_NOT
+    kind: implementation
+    statement: The original `specs/*.md` requirement files MUST NOT be deleted until all agent and
+      skill references have been updated to use `specs/*.yaml` paths.
+    relationships:
+    - rel_type: refines
+      spec_id: SR-08-005
   - id: SR-08-007
     priority: SHOULD
     kind: implementation
     statement: A migration script SHOULD be provided to convert a single `specs/*.md` file to the YAML format as a starting
       point; manual review and cleanup is expected.
+- id: SR-10
+  title: Spec Statement Semantics
+  specs:
+  - id: SR-10-001
+    priority: MUST
+    kind: dev-process
+    statement: >-
+      A spec statement MUST describe an invariant property of the finished system — what it
+      must always be true, always do, or never do. It MUST NOT describe a migration step,
+      a one-time task, or a before/after transition.
+    rationale: >-
+      Specs are transferable knowledge for any implementer. A statement like "X must be
+      replaced by Y" is meaningless once the replacement is done, and misleading before it
+      is. The correct home for migration tasks is an issue tracker. If a migration produces
+      a lasting architectural rule, that rule — not the migration instruction — belongs in
+      the spec.
+    tags:
+    - documentation
+  - id: SR-10-002
+    priority: MUST
+    kind: dev-process
+    statement: >-
+      A spec statement MUST be written in the present tense and describe the system as it
+      must perpetually be.
+    rationale: >-
+      Temporal or conditional framing ("once X holds, Y must go away") creates specs whose
+      satisfaction is permanent after a single event. Such specs cannot be re-tested on
+      subsequent builds and do not communicate ongoing constraints to future maintainers
+      or implementers.
+    tags:
+    - documentation
+    relationships:
+    - rel_type: refines
+      spec_id: SR-10-001
+  - id: SR-10-004
+    priority: MUST_NOT
+    kind: dev-process
+    statement: >-
+      Phrases that signal migration-task framing — "must be replaced by", "must be removed",
+      "must be updated to", "once X is done", "after migration" — MUST NOT appear in a spec
+      statement unless they refer to a runtime state transition (e.g. a state machine trigger),
+      not a code change.
+    tags:
+    - documentation
+    relationships:
+    - rel_type: refines
+      spec_id: SR-10-002
+  - id: SR-10-003
+    priority: SHOULD
+    kind: dev-process
+    statement: >-
+      When a spec's statement has become vacuously satisfied (the migration it described is
+      complete and no ongoing constraint survives), the spec SHOULD be deleted. When a
+      residual constraint does survive, the statement SHOULD be rewritten to express only
+      that constraint, dropping all migration-task language.
+    rationale: >-
+      A vacuously satisfied spec creates false confidence: it always passes any check, so
+      it neither constrains nor informs. A partially-stale spec that mixes a completed
+      migration instruction with a surviving rule misleads readers about which clause is
+      still normative. Deletion or rewrite keeps the registry honest.
+    tags:
+    - documentation
+    relationships:
+    - rel_type: refines
+      spec_id: SR-10-001

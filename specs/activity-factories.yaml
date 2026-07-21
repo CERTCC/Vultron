@@ -157,15 +157,6 @@ groups:
 - id: AF-07
   title: TypeAlias Cleanup
   specs:
-  - id: AF-07-001
-    priority: MUST
-    kind: domain
-    statement: The unused `OfferRef` TypeAlias in `vocab/activities/report.py` MUST be removed
-  - id: AF-07-002
-    priority: MUST
-    kind: domain
-    statement: >-
-      The unused `RmInviteToCaseRef` TypeAlias in `vocab/activities/case.py` MUST be removed
   - id: AF-07-003
     priority: SHOULD
     kind: domain
