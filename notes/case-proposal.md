@@ -195,7 +195,7 @@ corresponding `MessageSemantics` value.
 
 Before dynamic case-actor spawning (#812) is implemented, the two-actor demo
 needs a way to route case-actor creation to the dedicated case-actor container
-rather than creating the actor locally in the vendor container (DEMAMA-01-001).
+rather than creating the actor locally in the vendor container (DEMOMA-01-001).
 
 `DemoCreateCaseActorNode` is an **Actuator** call-out point (ADR-0024, § Actuator
 shape): it receives a trigger (case initialization) and causes the side effect of

@@ -223,7 +223,7 @@ groups:
       using the pre-configured case-actor service URL, not create the case-actor record
       locally in the vendor container's DataLayer
     rationale: >-
-      Routing case-actor creation to its own container satisfies DEMAMA-01-001 (each actor
+      Routing case-actor creation to its own container satisfies DEMOMA-01-001 (each actor
       in its own container) and exercises the CaseProposal protocol (ADR-0023) in the
       two-actor scenario. The demo uses DemoCreateCaseActorNode as an Actuator-shape
       ADR-0024 stub: it reads the pre-configured case-actor URL and writes it to the BT
