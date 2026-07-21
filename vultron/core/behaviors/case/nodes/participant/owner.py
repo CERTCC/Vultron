@@ -31,6 +31,7 @@ from vultron.core.behaviors.case.nodes.participant.common import (
 )
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.config.actor import ActorConfig
+from vultron.core.models.dimensions import PecDimension, RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.vultron_types import VultronCase, VultronParticipant
@@ -66,17 +67,17 @@ def _build_owner_initial_status(
             return ParticipantStatus(
                 id_=status_id,
                 context=case_id,
-                rm_state=initial_rm_state,
+                rm=RmDimension(state=initial_rm_state),
                 attributed_to=actor_id,
-                em_consent_state=PEC.NO_EMBARGO,
+                consent=PecDimension(state=PEC.NO_EMBARGO),
                 cvd_role=[CVDRole.CASE_OWNER],
             )
 
     return ParticipantStatus(
         context=case_id,
-        rm_state=initial_rm_state,
+        rm=RmDimension(state=initial_rm_state),
         attributed_to=actor_id,
-        em_consent_state=PEC.NO_EMBARGO,
+        consent=PecDimension(state=PEC.NO_EMBARGO),
         cvd_role=[CVDRole.CASE_OWNER],
     )
 

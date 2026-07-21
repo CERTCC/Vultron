@@ -261,7 +261,7 @@ class TestRunMultiVendorDemo:
         )
 
         assert len(final_case.case_participants) == 3
-        assert demo.is_em_embargo_active(final_case.current_status.em_state)
+        assert demo.is_em_embargo_active(final_case.current_status.em.state)  # type: ignore[attr-defined]
         # Coordinator ownership was verified inside run_multi_vendor_demo
         # via verify_multi_vendor_case_state (would have raised on failure).
 

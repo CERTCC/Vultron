@@ -7,6 +7,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.use_cases.triggers.embargo import SvcTerminateEmbargoUseCase
@@ -16,9 +17,6 @@ from vultron.core.use_cases.triggers.requests import (
 from vultron.errors import VultronInvalidStateTransitionError
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
 
 from .conftest import (
     _build_active_embargo_case,
@@ -46,11 +44,11 @@ def test_terminate_embargo_transitions_case_to_exited_via_bt_path(
     ).execute()
 
     assert "activity" in result
-    updated_case = cast(as_VulnerabilityCase, finder_dl.read(case.id_))
+    updated_case = cast(VulnerabilityCase, finder_dl.read(case.id_))
     updated_participant = cast(
         as_CaseParticipant, finder_dl.read(participant_id)
     )
-    assert updated_case.current_status.em_state == EM.EXITED
+    assert updated_case.current_status.em.state == EM.EXITED
     assert updated_case.active_embargo is None
     assert updated_participant.embargo_consent_state == PEC.NO_EMBARGO.value
 

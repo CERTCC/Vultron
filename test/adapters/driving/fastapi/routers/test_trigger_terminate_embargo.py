@@ -163,7 +163,7 @@ def test_trigger_terminate_embargo_updates_em_state_to_exited(
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
     updated_case = dl.read(case_obj.id_)
-    assert updated_case.current_status.em_state == EM.EXITED
+    assert updated_case.current_status.em.state == EM.EXITED
 
 
 def test_trigger_terminate_embargo_clears_active_embargo(
@@ -193,7 +193,7 @@ def test_trigger_terminate_embargo_invalid_em_state_returns_409(
     """
     case_obj, _ = case_with_embargo
     stored = dl.read(case_obj.id_)
-    stored.current_status.em_state = EM.PROPOSED
+    stored.current_status.em.state = EM.PROPOSED
     dl.update(stored.id_, object_to_record(stored))
 
     resp = client_triggers.post(

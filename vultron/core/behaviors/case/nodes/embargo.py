@@ -45,6 +45,7 @@ from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
 )
+from vultron.core.models.dimensions import EmDimension
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.models._helpers import _as_id
@@ -344,7 +345,7 @@ class AttachEmbargoToCaseNode(DataLayerAction):
         active_embargo_id = _as_id(stored_case.active_embargo)
         if active_embargo_id is None:
             stored_case.active_embargo = embargo_id
-            stored_case.current_status.em_state = EM.ACTIVE
+            stored_case.current_status.em = EmDimension(state=EM.ACTIVE)
             self.datalayer.save(stored_case)
             self.logger.info(
                 "Attached embargo '%s' to case '%s' as active_embargo",

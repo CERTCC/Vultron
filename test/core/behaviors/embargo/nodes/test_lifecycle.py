@@ -31,6 +31,7 @@ from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -106,8 +107,8 @@ class TestTerminateEmbargoBT:
         result = bridge.execute_with_setup(tree, actor_id=ACTOR_ID)
 
         assert result.status == py_trees.common.Status.SUCCESS
-        updated = cast(as_VulnerabilityCase, dl.read(case.id_))
-        assert updated.current_status.em_state == EM.EXITED
+        updated = cast(VulnerabilityCase, dl.read(case.id_))
+        assert updated.current_status.em.state == EM.EXITED
         assert updated.active_embargo is None
         factory.terminate_embargo.assert_called_once()
 
@@ -133,8 +134,8 @@ class TestTerminateEmbargoBT:
         result = bridge.execute_with_setup(tree, actor_id=ACTOR_ID)
 
         assert result.status == py_trees.common.Status.SUCCESS
-        updated = cast(as_VulnerabilityCase, dl.read(case.id_))
-        assert updated.current_status.em_state == EM.EXITED
+        updated = cast(VulnerabilityCase, dl.read(case.id_))
+        assert updated.current_status.em.state == EM.EXITED
 
     def test_missing_case_manager_returns_failure_before_state_change(self):
         """AC-5: Missing CASE_MANAGER → FAILURE; EM state and active_embargo unchanged."""
@@ -162,8 +163,8 @@ class TestTerminateEmbargoBT:
 
         # BT fails at routing guard — no state mutation occurs (BT-19-001).
         assert result.status == py_trees.common.Status.FAILURE
-        updated = cast(as_VulnerabilityCase, dl.read(case.id_))
-        assert updated.current_status.em_state == EM.ACTIVE  # unchanged
+        updated = cast(VulnerabilityCase, dl.read(case.id_))
+        assert updated.current_status.em.state == EM.ACTIVE  # unchanged
         assert updated.active_embargo is not None  # unchanged
         factory.terminate_embargo.assert_not_called()
 
@@ -255,8 +256,8 @@ class TestTerminateEmbargoBT:
         result = bridge.execute_with_setup(tree, actor_id=ACTOR_ID)
 
         assert result.status == py_trees.common.Status.SUCCESS
-        updated = cast(as_VulnerabilityCase, dl.read(case.id_))
-        assert updated.current_status.em_state == EM.EXITED
+        updated = cast(VulnerabilityCase, dl.read(case.id_))
+        assert updated.current_status.em.state == EM.EXITED
         factory.terminate_embargo.assert_called_once()
         outbox = dl.outbox_list_for_actor(ACTOR_ID)
         assert "https://example.org/activities/act1" in outbox
@@ -280,8 +281,8 @@ class TestTerminateEmbargoBT:
         result = bridge.execute_with_setup(tree, actor_id=ACTOR_ID)
 
         assert result.status == py_trees.common.Status.FAILURE
-        updated = cast(as_VulnerabilityCase, dl.read(case.id_))
-        assert updated.current_status.em_state == EM.ACTIVE  # unchanged
+        updated = cast(VulnerabilityCase, dl.read(case.id_))
+        assert updated.current_status.em.state == EM.ACTIVE  # unchanged
         assert updated.active_embargo is not None  # unchanged
         factory.terminate_embargo.assert_not_called()
 

@@ -20,6 +20,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.vultron_types import VultronCaseActor
 from vultron.core.states.rm import RM
@@ -88,7 +89,7 @@ def reporter_accepted_status(datalayer, reporter_actor_id, report):
         ),
         context=report.id_,
         attributed_to=reporter_actor_id,
-        rm_state=RM.ACCEPTED,
+        rm=RmDimension(state=RM.ACCEPTED),
     )
     datalayer.create(status)
     return status
@@ -105,7 +106,7 @@ def vendor_received_status(datalayer, actor_id, report):
         id_=_report_phase_status_id(actor_id, report.id_, RM.RECEIVED.value),
         context=report.id_,
         attributed_to=actor_id,
-        rm_state=RM.RECEIVED,
+        rm=RmDimension(state=RM.RECEIVED),
     )
     datalayer.create(status)
     return status

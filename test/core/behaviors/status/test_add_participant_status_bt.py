@@ -731,13 +731,11 @@ class TestPublicDisclosureBranchNode:
 
         from typing import cast as c
 
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
+        from vultron.core.models.case import VulnerabilityCase
 
         # State was still applied before the broadcast attempt
-        updated = c(as_VulnerabilityCase, populated_dl.read(CASE_ID))
-        assert updated.current_status.em_state == EM.EXITED
+        updated = c(VulnerabilityCase, populated_dl.read(CASE_ID))
+        assert updated.current_status.em.state == EM.EXITED
         assert updated.active_embargo is None
 
 

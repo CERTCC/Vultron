@@ -91,6 +91,7 @@ def test_receive_report_case_bt_succeeds_without_conftest_imports(
         VultronReport,
     )
     from vultron.core.states.rm import RM
+    from vultron.core.models.dimensions import RmDimension
     from vultron.core.models._helpers import _report_phase_status_id
     from vultron.wire.as2.vocab.base.registry import VOCABULARY
 
@@ -136,7 +137,7 @@ def test_receive_report_case_bt_succeeds_without_conftest_imports(
         ),
         context=_report_id,
         attributed_to=_reporter_actor_id,
-        rm_state=RM.ACCEPTED,
+        rm=RmDimension(state=RM.ACCEPTED),
     )
     dl.create(reporter_status)
 
@@ -144,7 +145,7 @@ def test_receive_report_case_bt_succeeds_without_conftest_imports(
         id_=_report_phase_status_id(_actor_id, _report_id, RM.RECEIVED.value),
         context=_report_id,
         attributed_to=_actor_id,
-        rm_state=RM.RECEIVED,
+        rm=RmDimension(state=RM.RECEIVED),
     )
     dl.create(vendor_status)
 

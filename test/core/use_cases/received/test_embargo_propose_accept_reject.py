@@ -22,6 +22,7 @@ from vultron.adapters.driven.db_record import StorableRecord
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.em import EM
 from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
@@ -198,9 +199,9 @@ class TestEmbargoProposalLifecycle:
 
         case = dl.read(case.id_)
         assert case is not None
-        case = cast(as_VulnerabilityCase, case)
+        case = cast(VulnerabilityCase, case)
         assert case.active_embargo is not None
-        assert case.current_status.em_state == EM.ACTIVE
+        assert case.current_status.em.state == EM.ACTIVE
 
     def test_accept_invite_to_embargo_warns_on_non_standard_transition(
         self, monkeypatch, make_payload, caplog
@@ -249,8 +250,8 @@ class TestEmbargoProposalLifecycle:
         assert any("state-sync override" in r.message for r in caplog.records)
         case = dl.read(case.id_)
         assert case is not None
-        case = cast(as_VulnerabilityCase, case)
-        assert case.current_status.em_state == EM.ACTIVE
+        case = cast(VulnerabilityCase, case)
+        assert case.current_status.em.state == EM.ACTIVE
 
     def test_accept_invite_to_embargo_records_embargo_on_participant(
         self, monkeypatch, make_payload
@@ -551,13 +552,9 @@ class TestInviteToEmbargoReceivedPxaGuard:
         InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
 
         # BT was not run: EM state must remain NONE (no PROPOSED transition)
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
-
-        updated = cast(as_VulnerabilityCase, dl.read(case.id_))
+        updated = cast(VulnerabilityCase, dl.read(case.id_))
         assert updated is not None
-        assert updated.current_status.em_state == EM.NONE
+        assert updated.current_status.em.state == EM.NONE
 
     @pytest.mark.parametrize("pxa_state_name", _PXA_INELIGIBLE_STATES)
     def test_pxa_set_emits_er_when_trigger_activity_provided(
@@ -656,13 +653,9 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
         AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
 
         # BT was not run: EM state must remain PROPOSED (not ACTIVE)
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
-
-        updated = cast(as_VulnerabilityCase, dl.read(case.id_))
+        updated = cast(VulnerabilityCase, dl.read(case.id_))
         assert updated is not None
-        assert updated.current_status.em_state == EM.PROPOSED
+        assert updated.current_status.em.state == EM.PROPOSED
 
     @pytest.mark.parametrize("pxa_state_name", _PXA_INELIGIBLE_STATES)
     def test_pxa_set_emits_er_when_trigger_activity_provided(
@@ -734,10 +727,6 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
         AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
 
         # Embargo should be activated (BT ran SetEmbargoActiveNode)
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
-
-        updated = cast(as_VulnerabilityCase, dl.read(case.id_))
+        updated = cast(VulnerabilityCase, dl.read(case.id_))
         assert updated is not None
-        assert updated.current_status.em_state == EM.ACTIVE
+        assert updated.current_status.em.state == EM.ACTIVE

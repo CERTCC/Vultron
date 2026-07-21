@@ -48,6 +48,7 @@ from transitions import MachineError
 
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import EmDimension
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM, EM_Trigger, EMAdapter, create_em_machine
@@ -215,12 +216,12 @@ class EmbargoLifecycle:
         # directly; otherwise read from the case (legacy / non-BT callers).
         caller_owns_em_io = em_before is not None
         if not caller_owns_em_io:
-            em_before = EM(case.current_status.em_state)
+            em_before = case.current_status.em.state
         assert em_before is not None  # guaranteed by the branch above
 
         if transition_mode == TransitionMode.STRICT:
             self._assert_pxa_embargo_eligible(
-                CS_pxa(case.current_status.pxa_state),
+                case.current_status.pxa.state,
                 case_id,
                 "propose embargo",
             )
@@ -249,7 +250,7 @@ class EmbargoLifecycle:
         case_mutated = False
 
         if not caller_owns_em_io and em_after != em_before:
-            case.current_status.em_state = em_after
+            case.current_status.em = EmDimension(state=em_after)
             case_mutated = True
 
         # Idempotent append: normalise existing refs to strings before checking
@@ -337,7 +338,7 @@ class EmbargoLifecycle:
         # directly; otherwise read from the case (legacy / non-BT callers).
         caller_owns_em_io = em_before is not None
         if not caller_owns_em_io:
-            em_before = EM(case.current_status.em_state)
+            em_before = case.current_status.em.state
         assert em_before is not None  # guaranteed by the branch above
         em_after = em_before
         case_mutated = False
@@ -353,7 +354,7 @@ class EmbargoLifecycle:
             # Guard only applies when owner would drive the EM machine (EMB-02-002).
             if transition_mode == TransitionMode.STRICT:
                 self._assert_pxa_embargo_eligible(
-                    CS_pxa(case.current_status.pxa_state),
+                    case.current_status.pxa.state,
                     case_id,
                     "accept embargo invite",
                 )
@@ -368,7 +369,7 @@ class EmbargoLifecycle:
             # When the BT caller owns em I/O, skip the em_state write here —
             # the caller's WriteEmStateNode handles it.
             if not caller_owns_em_io and em_after != em_before:
-                case.current_status.em_state = em_after
+                case.current_status.em = EmDimension(state=em_after)
                 case_mutated = True
             # Sync active_embargo independently: handle OBSERVED mode where
             # em_after == em_before == ACTIVE but active_embargo points elsewhere
@@ -464,7 +465,7 @@ class EmbargoLifecycle:
         # directly; otherwise read from the case (legacy / non-BT callers).
         caller_owns_em_io = em_before is not None
         if not caller_owns_em_io:
-            em_before = EM(case.current_status.em_state)
+            em_before = case.current_status.em.state
         assert em_before is not None  # guaranteed by the branch above
         em_after = em_before
         case_mutated = False
@@ -479,7 +480,7 @@ class EmbargoLifecycle:
                 and em_before == EM.REVISE
             ):
                 self._assert_pxa_embargo_eligible(
-                    CS_pxa(case.current_status.pxa_state),
+                    case.current_status.pxa.state,
                     case_id,
                     "reject embargo revision (use terminate_active_embargo when P/X/A is set)",
                 )
@@ -496,7 +497,7 @@ class EmbargoLifecycle:
             # When the BT caller owns em I/O, skip the em_state write here —
             # the caller's WriteEmStateNode handles it.
             if not caller_owns_em_io and em_after != em_before:
-                case.current_status.em_state = em_after
+                case.current_status.em = EmDimension(state=em_after)
                 case_mutated = True
 
         participant_changes = self._record_actor_pec_rejection(
@@ -564,7 +565,7 @@ class EmbargoLifecycle:
         # directly; otherwise read from the case (legacy / non-BT callers).
         caller_owns_em_io = em_before is not None
         if not caller_owns_em_io:
-            em_before = EM(case.current_status.em_state)
+            em_before = case.current_status.em.state
         assert em_before is not None  # guaranteed by the branch above
 
         # In STRICT mode, require an active embargo to be identified
@@ -586,7 +587,7 @@ class EmbargoLifecycle:
         # When the BT caller owns em I/O, skip the em_state write here —
         # the caller's WriteEmStateNode handles it.
         if not caller_owns_em_io:
-            case.current_status.em_state = em_after
+            case.current_status.em = EmDimension(state=em_after)
         case.active_embargo = None
 
         participant_changes = self._cascade_pec_reset(case)
@@ -651,7 +652,7 @@ class EmbargoLifecycle:
         em_state = (
             em_before
             if em_before is not None
-            else EM(case.current_status.em_state)
+            else case.current_status.em.state
         )
 
         participant_id = case.actor_participant_index.get(actor_id)

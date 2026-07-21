@@ -40,6 +40,7 @@ except ImportError:
     from pydantic_core import ValidationError as PydanticValidationError
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models._helpers import _report_phase_status_id
 from vultron.core.states.em import EM
@@ -183,7 +184,7 @@ def closed_report(dl, report, actor):
         id_=_report_phase_status_id(actor.id_, report.id_, RM.CLOSED.value),
         context=report.id_,
         attributed_to=actor.id_,
-        rm_state=RM.CLOSED,
+        rm=RmDimension(state=RM.CLOSED),
     )
     dl.create(status)
     return report
@@ -565,7 +566,7 @@ def test_engage_case_trigger_updates_participant_rm_state(
             else getattr(actor_ref, "id_", str(actor_ref))
         )
         if p_actor_id == actor.id_ and p_obj.participant_statuses:
-            assert p_obj.participant_statuses[-1].rm_state == RM.ACCEPTED
+            assert p_obj.participant_statuses[-1].rm.state == RM.ACCEPTED
             return
     pytest.fail("Participant RM state was not updated to ACCEPTED")
 
@@ -639,7 +640,7 @@ def test_defer_case_trigger_updates_participant_rm_state(
             else getattr(actor_ref, "id_", str(actor_ref))
         )
         if p_actor_id == actor.id_ and p_obj.participant_statuses:
-            assert p_obj.participant_statuses[-1].rm_state == RM.DEFERRED
+            assert p_obj.participant_statuses[-1].rm.state == RM.DEFERRED
             return
     pytest.fail("Participant RM state was not updated to DEFERRED")
 
@@ -668,7 +669,7 @@ def test_propose_embargo_trigger_transitions_em_state_to_proposed(
         dl, trigger_activity=TriggerActivityAdapter(dl)
     ).propose_embargo(actor.id_, case_with_case_manager.id_, FUTURE_DATETIME)
     updated = dl.read(case_with_case_manager.id_)
-    assert updated.current_status.em_state == EM.PROPOSED
+    assert updated.current_status.em.state == EM.PROPOSED
 
 
 def test_propose_embargo_trigger_exited_raises_409(
@@ -676,7 +677,7 @@ def test_propose_embargo_trigger_exited_raises_409(
 ):
     """propose_embargo_trigger raises 409 when EM state is EXITED."""
     case_obj = dl.read(case_no_participant.id_)
-    case_obj.current_status.em_state = EM.EXITED
+    case_obj.current_status.em.state = EM.EXITED
     dl.update(case_obj.id_, object_to_record(case_obj))
 
     with pytest.raises(VultronInvalidStateTransitionError):
@@ -755,7 +756,7 @@ def test_evaluate_embargo_trigger_activates_embargo(
         dl, trigger_activity=TriggerActivityAdapter(dl)
     ).accept_embargo(actor.id_, case_obj.id_, proposal.id_)
     updated = dl.read(case_obj.id_)
-    assert updated.current_status.em_state == EM.ACTIVE
+    assert updated.current_status.em.state == EM.ACTIVE
     assert updated.active_embargo is not None
 
 
@@ -769,7 +770,7 @@ def test_evaluate_embargo_trigger_without_proposal_id_finds_first(
     ).accept_embargo(actor.id_, case_obj.id_, None)
     assert isinstance(result, dict)
     updated = dl.read(case_obj.id_)
-    assert updated.current_status.em_state == EM.ACTIVE
+    assert updated.current_status.em.state == EM.ACTIVE
 
 
 def test_evaluate_embargo_trigger_no_proposal_raises_404(
@@ -822,7 +823,7 @@ def test_terminate_embargo_trigger_sets_em_state_to_exited(
         dl, trigger_activity=TriggerActivityAdapter(dl)
     ).terminate_embargo(actor.id_, case_obj.id_)
     updated = dl.read(case_obj.id_)
-    assert updated.current_status.em_state == EM.EXITED
+    assert updated.current_status.em.state == EM.EXITED
 
 
 def test_terminate_embargo_trigger_clears_active_embargo(

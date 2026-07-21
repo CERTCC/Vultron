@@ -356,7 +356,9 @@ def test_create_case_tree_vendor_participant_seeded_with_rm_valid(
             continue
         statuses = participant.participant_statuses
         assert statuses, "Participant has no status history"
-        latest_rm = getattr(statuses[-1], "rm_state", None)
+        latest_rm = (
+            statuses[-1].rm.state if hasattr(statuses[-1], "rm") else None
+        )
         assert (
             latest_rm == RM.VALID
         ), f"Expected initial rm_state=RM.VALID, got {latest_rm}"

@@ -22,10 +22,10 @@ removed in favour of direct ``isinstance`` checks against core domain classes
 (ADR-0034, DL-05-003).
 """
 
-from typing import Any, Mapping, Protocol, TypeGuard
+from typing import TYPE_CHECKING, Any, Mapping, Protocol, TypeGuard
 
-from vultron.core.states.cs import CS_pxa
-from vultron.core.states.em import EM
+if TYPE_CHECKING:
+    from vultron.core.models.dimensions import EmDimension, PxaDimension
 
 
 class PersistableModel(Protocol):
@@ -43,8 +43,8 @@ class PersistableModel(Protocol):
 
 
 class CaseStatusModel(Protocol):
-    em_state: EM
-    pxa_state: CS_pxa
+    em: "EmDimension"
+    pxa: "PxaDimension"
 
 
 class OutboxCollectionModel(Protocol):

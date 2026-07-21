@@ -28,6 +28,7 @@ from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.dimensions import RmDimension
 from vultron.core.models._helpers import _report_phase_status_id
 from vultron.core.models.vultron_types import (
     VultronCaseActor,
@@ -355,7 +356,7 @@ def test_tree_execution_early_exit_already_valid(
         id_=_report_phase_status_id(actor_id, report.id_, RM.VALID.value),
         context=report.id_,
         attributed_to=actor_id,
-        rm_state=RM.VALID,
+        rm=RmDimension(state=RM.VALID),
     )
     datalayer.create(valid_status)
 
@@ -386,7 +387,7 @@ def test_tree_execution_invalid_state_transitions_to_valid(
         id_=_report_phase_status_id(actor_id, report.id_, RM.INVALID.value),
         context=report.id_,
         attributed_to=actor_id,
-        rm_state=RM.INVALID,
+        rm=RmDimension(state=RM.INVALID),
     )
     datalayer.create(invalid_status)
 

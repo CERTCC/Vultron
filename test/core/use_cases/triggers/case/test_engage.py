@@ -119,7 +119,7 @@ class TestEngageCaseRMTransitionViaBT:
         assert updated is not None
         assert isinstance(updated, CaseParticipant)
         assert updated.participant_statuses
-        assert updated.participant_statuses[-1].rm_state == RM.ACCEPTED
+        assert updated.participant_statuses[-1].rm.state == RM.ACCEPTED
 
     def test_engage_case_rm_not_updated_when_no_participant(self):
         case_solo = as_VulnerabilityCase(name="Solo Case")

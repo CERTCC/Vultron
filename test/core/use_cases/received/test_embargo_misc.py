@@ -18,6 +18,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.em import EM
 from vultron.core.use_cases.received.embargo import (
     AnnounceEmbargoEventToCaseReceivedUseCase,
@@ -65,10 +66,10 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
 
         AnnounceEmbargoEventToCaseReceivedUseCase(dl, event).execute()
 
-        updated = cast(as_VulnerabilityCase, dl.read(case.id_))
+        updated = cast(VulnerabilityCase, dl.read(case.id_))
         assert updated is not None
         # State is UNCHANGED — Announce is not the ET message
-        assert updated.current_status.em_state == EM.ACTIVE
+        assert updated.current_status.em.state == EM.ACTIVE
         assert updated.active_embargo is not None
 
     def test_announce_embargo_logs_info(self, make_payload, caplog):
@@ -162,10 +163,10 @@ class TestResetEmbargoConsentWithInlineParticipants:
         # Must not raise TypeError
         RemoveEmbargoEventFromCaseReceivedUseCase(dl, event).execute()
 
-        updated = cast(as_VulnerabilityCase, dl.read(case_id))
+        updated = cast(VulnerabilityCase, dl.read(case_id))
         assert updated is not None
         assert updated.active_embargo is None
-        assert updated.current_status.em_state == EM.EXITED
+        assert updated.current_status.em.state == EM.EXITED
 
     def test_reset_consent_with_inline_participant_resets_state(self):
         """_reset_case_participant_embargo_consent resets consent state even

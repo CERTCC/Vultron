@@ -20,6 +20,7 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.dimensions import EmDimension
 from vultron.core.states.em import EM, is_valid_em_transition
 from vultron.core.use_cases._helpers import (
     _as_id,
@@ -77,7 +78,7 @@ class ApplyEmbargoTeardownNode(DataLayerAction):
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
 
-        current_em = case.current_status.em_state
+        current_em = case.current_status.em.state
 
         if current_em == EM.EXITED:
             self.feedback_message = (
@@ -95,7 +96,7 @@ class ApplyEmbargoTeardownNode(DataLayerAction):
                 case_id,
             )
 
-        case.current_status.em_state = EM.EXITED
+        case.current_status.em = EmDimension(state=EM.EXITED)
         case.active_embargo = None
         reset_case_participant_embargo_consent(self.datalayer, case)
         self.datalayer.save(case)

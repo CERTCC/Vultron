@@ -41,6 +41,7 @@ from vultron.wire.as2.factories import (
 )
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -208,9 +209,9 @@ class TestAcceptInviteToEmbargoRoutingGuard:
         dl, case_actor, case, embargo = _make_embargo_case(
             self.CASE_ID, self.COORD_ID, self.CASE_ACTOR_ID
         )
-        case = cast(as_VulnerabilityCase, dl.read(case.id_))
+        case = cast(VulnerabilityCase, dl.read(case.id_))
         assert case is not None
-        case.current_status.em_state = EM.PROPOSED
+        case.current_status.em.state = EM.PROPOSED
         dl.save(case)
 
         proposal = em_propose_embargo_activity(

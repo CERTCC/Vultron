@@ -18,6 +18,7 @@
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.models.dimensions import PecDimension, RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.participant_embargo_consent import PEC
@@ -170,8 +171,8 @@ class TransitionRMtoValid(DataLayerAction):
                 ),
                 context=context,
                 attributed_to=actor_id,
-                rm_state=RM.VALID,
-                em_consent_state=PEC.NO_EMBARGO,
+                rm=RmDimension(state=RM.VALID),
+                consent=PecDimension(state=PEC.NO_EMBARGO),
                 cvd_role=[CVDRole.REPORTER],
             )
             _idempotent_create(
@@ -253,8 +254,8 @@ class TransitionRMtoInvalid(DataLayerAction):
                 ),
                 context=context,
                 attributed_to=self.actor_id,
-                rm_state=RM.INVALID,
-                em_consent_state=PEC.NO_EMBARGO,
+                rm=RmDimension(state=RM.INVALID),
+                consent=PecDimension(state=PEC.NO_EMBARGO),
                 cvd_role=[CVDRole.REPORTER],
             )
             _idempotent_create(
@@ -331,8 +332,8 @@ class TransitionRMtoClosed(DataLayerAction):
                 ),
                 context=context,
                 attributed_to=self.actor_id,
-                rm_state=RM.CLOSED,
-                em_consent_state=PEC.NO_EMBARGO,
+                rm=RmDimension(state=RM.CLOSED),
+                consent=PecDimension(state=PEC.NO_EMBARGO),
                 cvd_role=[CVDRole.REPORTER],
             )
             _idempotent_create(

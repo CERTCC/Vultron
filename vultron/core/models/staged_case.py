@@ -141,7 +141,7 @@ class EmbargoedCase(Case):
                 "(LST-02-003)."
             )
         try:
-            em_state = self.current_status.em_state
+            em_state = self.current_status.em.state
         except ValueError as exc:
             raise VultronValidationError(
                 "EmbargoedCase requires at least one materialized CaseStatus; "

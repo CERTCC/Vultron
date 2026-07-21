@@ -45,6 +45,7 @@ from vultron.core.behaviors.case.nodes import (
 from vultron.core.behaviors.case.receive_report_case_tree import (
     create_receive_report_case_tree,
 )
+from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.vultron_types import VultronCaseActor
 from vultron.core.states.em import EM
@@ -536,7 +537,7 @@ class TestParticipantCreation:
             statuses = participant.participant_statuses
             assert statuses, "Case-owner participant has no status history"
             latest = statuses[-1]
-            rm = getattr(latest, "rm_state", None)
+            rm = latest.rm.state if hasattr(latest, "rm") else None
             assert (
                 rm == RM.RECEIVED
             ), f"Expected case-owner rm_state=RM.RECEIVED, got {rm}"
@@ -589,7 +590,7 @@ class TestParticipantCreation:
             statuses = participant.participant_statuses
             assert statuses, "Finder participant has no status history"
             latest = statuses[-1]
-            rm = getattr(latest, "rm_state", None)
+            rm = latest.rm.state if hasattr(latest, "rm") else None
             assert (
                 rm == RM.ACCEPTED
             ), f"Expected reporter rm_state=RM.ACCEPTED, got {rm}"
@@ -684,7 +685,7 @@ class TestParticipantCreation:
                 continue
             statuses = participant.participant_statuses
             assert statuses
-            rm = getattr(statuses[-1], "rm_state", None)
+            rm = statuses[-1].rm.state if hasattr(statuses[-1], "rm") else None
             assert rm == RM.RECEIVED, f"Expected RM.RECEIVED, got {rm}"
             break
 
@@ -751,13 +752,13 @@ class TestEmbargoInitialization:
         case = datalayer.find_case_by_report_id(report.id_)
         assert case is not None
         assert case.active_embargo is not None
-        assert case.current_status.em_state != EM.NONE, (
+        assert case.current_status.em.state != EM.NONE, (
             f"Expected em_state != NONE after embargo init,"
-            f" got {case.current_status.em_state}"
+            f" got {case.current_status.em.state}"
         )
-        assert case.current_status.em_state == EM.ACTIVE, (
+        assert case.current_status.em.state == EM.ACTIVE, (
             f"Expected em_state == ACTIVE after embargo init,"
-            f" got {case.current_status.em_state}"
+            f" got {case.current_status.em.state}"
         )
 
     def test_tree_records_embargo_initialized_event(
@@ -1048,7 +1049,7 @@ class TestConcurrentExecution:
                 ),
                 context=report_id,
                 attributed_to=actor_to_seed,
-                rm_state=rm_val,
+                rm=RmDimension(state=rm_val),
             )
             datalayer.create(status)
 

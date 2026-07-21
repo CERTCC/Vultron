@@ -37,6 +37,7 @@ from vultron.core.models.case_ledger import (
 )
 from vultron.core.states.cs import CS_vfd
 from vultron.core.states.rm import RM
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 
 _FIXED_CREATED_AT = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
@@ -185,15 +186,15 @@ def test_apply_participant_status_roundtrip_preserves_vfd_state(
 
     # The last (newest) status in the list must carry the values from the
     # ledger snapshot, not Pydantic serialization defaults.
-    new_status = updated.participant_statuses[-1]
-    assert new_status.vfd_state == CS_vfd.VFd, (
-        f"vfd_state must be VFd, got {new_status.vfd_state!r} — "
+    new_status = cast(ParticipantStatus, updated.participant_statuses[-1])
+    assert new_status.vfd.state == CS_vfd.VFd, (
+        f"vfd.state must be VFd, got {new_status.vfd.state!r} — "
         "likely caused by CORE ParticipantStatus serialization mismatch "
-        "when appended to list[WireParticipantStatus]"
+        "when appended to participant_statuses"
     )
     assert (
-        new_status.rm_state == RM.ACCEPTED
-    ), f"rm_state must be ACCEPTED, got {new_status.rm_state!r}"
+        new_status.rm.state == RM.ACCEPTED
+    ), f"rm.state must be ACCEPTED, got {new_status.rm.state!r}"
 
 
 def test_apply_participant_status_idempotent(

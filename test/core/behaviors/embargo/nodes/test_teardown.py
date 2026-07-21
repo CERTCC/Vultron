@@ -28,6 +28,7 @@ from vultron.core.behaviors.embargo.nodes.teardown import (
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -54,8 +55,8 @@ class TestApplyEmbargoTeardownNode:
         bt.tick()
 
         assert node.status == py_trees.common.Status.SUCCESS
-        updated = cast(as_VulnerabilityCase, dl.read(case.id_))
-        assert updated.current_status.em_state == EM.EXITED
+        updated = cast(VulnerabilityCase, dl.read(case.id_))
+        assert updated.current_status.em.state == EM.EXITED
         assert updated.active_embargo is None
 
     def test_transitions_em_revise_to_exited(self):
@@ -71,8 +72,8 @@ class TestApplyEmbargoTeardownNode:
         bt.tick()
 
         assert node.status == py_trees.common.Status.SUCCESS
-        updated = cast(as_VulnerabilityCase, dl.read(case.id_))
-        assert updated.current_status.em_state == EM.EXITED
+        updated = cast(VulnerabilityCase, dl.read(case.id_))
+        assert updated.current_status.em.state == EM.EXITED
 
     def test_idempotent_when_already_exited(self):
         """Node returns SUCCESS without modifying state when already EXITED."""
@@ -88,8 +89,8 @@ class TestApplyEmbargoTeardownNode:
         bt.tick()
 
         assert node.status == py_trees.common.Status.SUCCESS
-        updated = cast(as_VulnerabilityCase, dl.read(case.id_))
-        assert updated.current_status.em_state == EM.EXITED
+        updated = cast(VulnerabilityCase, dl.read(case.id_))
+        assert updated.current_status.em.state == EM.EXITED
 
     def test_state_sync_override_for_unexpected_em_state(self, caplog):
         """Node logs WARNING and applies override for non-standard EM state."""
@@ -107,8 +108,8 @@ class TestApplyEmbargoTeardownNode:
 
         assert node.status == py_trees.common.Status.SUCCESS
         assert any("state-sync override" in r.message for r in caplog.records)
-        updated = cast(as_VulnerabilityCase, dl.read(case.id_))
-        assert updated.current_status.em_state == EM.EXITED
+        updated = cast(VulnerabilityCase, dl.read(case.id_))
+        assert updated.current_status.em.state == EM.EXITED
 
     def test_resets_participant_embargo_consent(self):
         """Node resets participant PEC state to NO_EMBARGO."""

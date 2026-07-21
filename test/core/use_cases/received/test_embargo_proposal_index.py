@@ -249,7 +249,7 @@ class TestAcceptRejectFromCoreState:
         assert "activity" in result
         updated_case = dl.read(case.id_)
         assert isinstance(updated_case, VulnerabilityCase)
-        assert updated_case.current_status.em_state == EM.ACTIVE
+        assert updated_case.current_status.em.state == EM.ACTIVE
 
     def test_accept_without_proposal_id_uses_first_pending(self):
         """SvcAcceptEmbargoUseCase finds first pending proposal from index when no proposal_id given."""
@@ -273,7 +273,7 @@ class TestAcceptRejectFromCoreState:
         assert "activity" in result
         updated_case = dl.read(case.id_)
         assert isinstance(updated_case, VulnerabilityCase)
-        assert updated_case.current_status.em_state == EM.ACTIVE
+        assert updated_case.current_status.em.state == EM.ACTIVE
 
     def test_reject_uses_core_state_index(self):
         """SvcRejectEmbargoUseCase resolves embargo from core state (no Invite DL read)."""
@@ -299,7 +299,7 @@ class TestAcceptRejectFromCoreState:
         updated_case = dl.read(case.id_)
         assert isinstance(updated_case, VulnerabilityCase)
         # Owner-reject drives EM to NONE; non-owner records rejection only.
-        assert updated_case.current_status.em_state in (EM.NONE, EM.PROPOSED)
+        assert updated_case.current_status.em.state in (EM.NONE, EM.PROPOSED)
 
     def test_accept_raises_notfound_when_index_empty(self):
         """SvcAcceptEmbargoUseCase raises VultronNotFoundError when no pending proposal in index."""

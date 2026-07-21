@@ -58,6 +58,7 @@ from vultron.core.models.events.report import (
     InvalidateReportReceivedEvent,
 )
 from vultron.core.models.participant import VultronParticipant
+from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VultronReport as CoreReport
 from vultron.core.states.rm import RM
@@ -134,7 +135,7 @@ def _setup_case_with_participant(
         context=CASE_ID,
         participant_statuses=[
             ParticipantStatus(
-                rm_state=initial_rm,
+                rm=RmDimension(state=initial_rm),
                 context=CASE_ID,
                 attributed_to=actor_id,
             )
@@ -282,7 +283,7 @@ class TestTransitionCaseParticipantRMtoClosed:
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
         participant = cast(VultronParticipant, dl.read(p_id))
-        assert participant.participant_statuses[-1].rm_state == RM.CLOSED
+        assert participant.participant_statuses[-1].rm.state == RM.CLOSED
 
     def test_no_case_is_soft_pass(self, dl, bridge, caplog):
         """No case for report → WARNING logged, SUCCESS returned (soft pass)."""
@@ -325,7 +326,7 @@ class TestTransitionCaseParticipantRMtoInvalid:
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
         participant = cast(VultronParticipant, dl.read(p_id))
-        assert participant.participant_statuses[-1].rm_state == RM.INVALID
+        assert participant.participant_statuses[-1].rm.state == RM.INVALID
 
     def test_no_case_is_soft_pass(self, dl, bridge, caplog):
         """No case for report → WARNING logged, SUCCESS returned (soft pass)."""
@@ -537,7 +538,7 @@ class TestCloseReportReceivedTree:
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
         participant = cast(VultronParticipant, dl.read(p_id))
-        assert participant.participant_statuses[-1].rm_state == RM.CLOSED
+        assert participant.participant_statuses[-1].rm.state == RM.CLOSED
 
     def test_no_case_soft_pass_with_warning(self, dl, caplog):
         """No case linked to report → WARNING, BT still SUCCESS."""
@@ -582,7 +583,7 @@ class TestCloseReportReceivedUseCase:
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
         participant = cast(VultronParticipant, dl.read(p_id))
-        assert participant.participant_statuses[-1].rm_state == RM.CLOSED
+        assert participant.participant_statuses[-1].rm.state == RM.CLOSED
 
     def test_use_case_warns_when_no_case(self, caplog):
         """Use case ledgers WARNING when no case is found for the report."""
@@ -620,7 +621,7 @@ class TestInvalidateReportReceivedTree:
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
         participant = cast(VultronParticipant, dl.read(p_id))
-        assert participant.participant_statuses[-1].rm_state == RM.INVALID
+        assert participant.participant_statuses[-1].rm.state == RM.INVALID
 
     def test_no_case_soft_pass_with_warning(self, dl, caplog):
         """No case linked to report → WARNING, BT still SUCCESS."""
@@ -665,7 +666,7 @@ class TestInvalidateReportReceivedUseCase:
         updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
         participant = cast(VultronParticipant, dl.read(p_id))
-        assert participant.participant_statuses[-1].rm_state == RM.INVALID
+        assert participant.participant_statuses[-1].rm.state == RM.INVALID
 
     def test_use_case_warns_when_no_case(self, caplog):
         """Use case ledgers WARNING when no case is found for the report."""

@@ -14,6 +14,7 @@
 
 from typing import cast
 
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.em import EM
 from vultron.core.use_cases.received.embargo import (
     AddEmbargoEventToCaseReceivedUseCase,
@@ -65,9 +66,9 @@ class TestEmbargoTermRevise:
 
         case = dl.read(case.id_)
         assert case is not None
-        case = cast(as_VulnerabilityCase, case)
+        case = cast(VulnerabilityCase, case)
         assert case.active_embargo is not None
-        assert case.current_status.em_state == EM.ACTIVE
+        assert case.current_status.em.state == EM.ACTIVE
 
     def test_add_embargo_event_to_case_warns_on_non_standard_transition(
         self, monkeypatch, make_payload, caplog
@@ -108,9 +109,9 @@ class TestEmbargoTermRevise:
         assert any("state-sync override" in r.message for r in caplog.records)
         case = dl.read(case.id_)
         assert case is not None
-        case = cast(as_VulnerabilityCase, case)
+        case = cast(VulnerabilityCase, case)
         # State is still updated (synchronization override proceeds).
-        assert case.current_status.em_state == EM.ACTIVE
+        assert case.current_status.em.state == EM.ACTIVE
 
     def test_remove_embargo_from_proposed_clears_proposed_list(
         self, make_payload
@@ -198,9 +199,9 @@ class TestEmbargoTermRevise:
 
         updated = dl.read(case.id_)
         assert updated is not None
-        updated = cast(as_VulnerabilityCase, updated)
+        updated = cast(VulnerabilityCase, updated)
         assert updated.active_embargo is None
-        assert updated.current_status.em_state == EM.EXITED
+        assert updated.current_status.em.state == EM.EXITED
 
     def test_remove_active_embargo_unusual_state_uses_override(
         self, caplog, make_payload
@@ -244,6 +245,6 @@ class TestEmbargoTermRevise:
 
         updated = dl.read(case.id_)
         assert updated is not None
-        updated = cast(as_VulnerabilityCase, updated)
+        updated = cast(VulnerabilityCase, updated)
         assert updated.active_embargo is None
-        assert updated.current_status.em_state == EM.EXITED
+        assert updated.current_status.em.state == EM.EXITED

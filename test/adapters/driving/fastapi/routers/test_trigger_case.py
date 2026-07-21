@@ -275,7 +275,7 @@ def test_trigger_engage_case_updates_participant_rm_state(
         )
         if p_actor_id == actor.id_ and p_obj.participant_statuses:
             latest = p_obj.participant_statuses[-1]
-            if latest.rm_state == RM.ACCEPTED:
+            if latest.rm.state == RM.ACCEPTED:
                 found_accepted = True
                 break
     assert found_accepted, "Participant RM state was not updated to ACCEPTED"
@@ -428,7 +428,7 @@ def test_trigger_defer_case_updates_participant_rm_state(
         )
         if p_actor_id == actor.id_ and p_obj.participant_statuses:
             latest = p_obj.participant_statuses[-1]
-            if latest.rm_state == RM.DEFERRED:
+            if latest.rm.state == RM.DEFERRED:
                 found_deferred = True
                 break
     assert found_deferred, "Participant RM state was not updated to DEFERRED"

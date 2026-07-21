@@ -19,6 +19,11 @@ import logging
 from typing import TYPE_CHECKING, Any, cast
 
 from vultron.core.models.enums import VultronObjectType
+from vultron.core.models.dimensions import (
+    PecDimension,
+    RmDimension,
+    VfdDimension,
+)
 from vultron.core.models.participant_status import (
     ParticipantStatus,
     coerce_cvd_roles,
@@ -124,8 +129,8 @@ def _get_or_create_accepted_status(
     if isinstance(existing, ParticipantStatus):
         should_update_role = existing.cvd_role != cvd_role
         should_backfill_consent = (
-            existing.em_consent_state is None and em_consent_state is not None
-        )
+            existing.consent.state if existing.consent is not None else None
+        ) is None and em_consent_state is not None
         # AC-3: backfill context if it still holds the report URI.
         should_backfill_context = (
             existing.context == report_id and context != report_id
@@ -136,8 +141,8 @@ def _get_or_create_accepted_status(
             or should_backfill_context
         ):
             existing.cvd_role = cvd_role
-            if should_backfill_consent:
-                existing.em_consent_state = em_consent_state
+            if should_backfill_consent and em_consent_state is not None:
+                existing.consent = PecDimension(state=em_consent_state)
             if should_backfill_context:
                 existing.context = context
             dl.save(existing)
@@ -148,11 +153,15 @@ def _get_or_create_accepted_status(
         return ParticipantStatus(
             id_=existing.id_,
             context=existing.context,
-            rm_state=existing.rm_state,
-            vfd_state=existing.vfd_state,
+            rm=RmDimension(state=existing.rm.state),
+            vfd=VfdDimension(state=existing.vfd.state),
             attributed_to=getattr(existing, "attributed_to", actor_id),
             cvd_role=existing.cvd_role,
-            em_consent_state=existing.em_consent_state,
+            consent=(
+                PecDimension(state=existing.consent.state)
+                if existing.consent is not None
+                else None
+            ),
         )
 
     node_logger.info(
@@ -164,10 +173,14 @@ def _get_or_create_accepted_status(
     accepted_status = ParticipantStatus(
         id_=accepted_status_id,
         context=context,
-        rm_state=RM.ACCEPTED,
+        rm=RmDimension(state=RM.ACCEPTED),
         attributed_to=actor_id,
         cvd_role=cvd_role,
-        em_consent_state=em_consent_state,
+        consent=(
+            PecDimension(state=em_consent_state)
+            if em_consent_state is not None
+            else None
+        ),
     )
     try:
         dl.create(accepted_status)
@@ -188,8 +201,10 @@ def resolve_participant_state_from_dl(
         statuses = getattr(participant_obj, "participant_statuses")
         if statuses:
             latest = statuses[-1]
-            raw_rm = getattr(latest, "rm_state", RM.START)
-            raw_vfd = getattr(latest, "vfd_state", CS_vfd.vfd)
+            raw_rm = latest.rm.state if hasattr(latest, "rm") else RM.START
+            raw_vfd = (
+                latest.vfd.state if hasattr(latest, "vfd") else CS_vfd.vfd
+            )
             rm_state = raw_rm if isinstance(raw_rm, RM) else RM.START
             vfd_state = raw_vfd if isinstance(raw_vfd, CS_vfd) else CS_vfd.vfd
             return rm_state, vfd_state
@@ -320,7 +335,7 @@ def _ensure_reporter_participant(
     existing = dl.read(participant_id)
     if existing is not None:
         statuses = getattr(existing, "participant_statuses", []) or []
-        latest_rm = statuses[-1].rm_state if statuses else RM.START
+        latest_rm = statuses[-1].rm.state if statuses else RM.START
         if is_rm_at_least(latest_rm, RM.ACCEPTED):
             logger.debug(
                 "ensure_reporter_participant: participant '%s' already "
@@ -334,10 +349,10 @@ def _ensure_reporter_participant(
         return
 
     status = ParticipantStatus(
-        rm_state=RM.ACCEPTED,
+        rm=RmDimension(state=RM.ACCEPTED),
         context=case_id,
         attributed_to=reporter_actor_id,
-        em_consent_state=PEC.NO_EMBARGO,
+        consent=PecDimension(state=PEC.NO_EMBARGO),
         cvd_role=[CVDRole.REPORTER],
     )
     participant = VultronParticipant(
@@ -378,12 +393,17 @@ def _upgrade_participant_to_accepted(
     appending to ``CaseParticipant.participant_statuses``.
     """
     logger = logging.getLogger(__name__)
+    _coerced_consent = coerce_em_consent_state(
+        getattr(existing, "embargo_consent_state", None)
+    )
     upgrade_status = ParticipantStatus(
-        rm_state=RM.ACCEPTED,
+        rm=RmDimension(state=RM.ACCEPTED),
         context=case_id,
         attributed_to=reporter_actor_id,
-        em_consent_state=coerce_em_consent_state(
-            getattr(existing, "embargo_consent_state", None)
+        consent=(
+            PecDimension(state=_coerced_consent)
+            if _coerced_consent is not None
+            else None
         ),
         cvd_role=coerce_cvd_roles(getattr(existing, "roles", [])),
     )

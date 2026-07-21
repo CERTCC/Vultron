@@ -26,6 +26,7 @@ from vultron.core.behaviors.embargo.nodes.em_state import (
 )
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.dimensions import EmDimension
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     EmbargoLifecycleResult,
@@ -430,7 +431,7 @@ class SetEmbargoActiveNode(DataLayerAction):
 
     def _apply_transition(self, case: Any) -> None:
         """Apply EM → ACTIVE transition and persist; warn on non-standard path."""
-        current_em = case.current_status.em_state
+        current_em = case.current_status.em.state
         if not is_valid_em_transition(current_em, EM.ACTIVE):
             self.logger.warning(
                 "%s: EM transition %s → ACTIVE is not a standard machine"
@@ -440,7 +441,7 @@ class SetEmbargoActiveNode(DataLayerAction):
                 self.case_id,
             )
         case.set_embargo(self.embargo_id)
-        case.current_status.em_state = EM.ACTIVE
+        case.current_status.em = EmDimension(state=EM.ACTIVE)
         assert self.datalayer is not None
         self.datalayer.save(case)
         self.feedback_message = (

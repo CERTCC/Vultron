@@ -37,6 +37,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerCondition,
 )
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.dimensions import EmDimension
 from vultron.core.states.em import EM
 from vultron.errors import VultronValidationError
 
@@ -87,8 +88,8 @@ class ReadEmStateNode(DataLayerCondition):
             return Status.FAILURE
 
         try:
-            em_state = EM(case.current_status.em_state)
-        except (ValueError, KeyError):
+            em_state = case.current_status.em.state
+        except (ValueError, KeyError, AttributeError):
             err = VultronValidationError(
                 f"Case '{self._case_id}' has no materialized CaseStatus"
                 f" or an invalid em_state value."
@@ -166,7 +167,7 @@ class WriteEmStateNode(DataLayerAction):
             )
             return Status.FAILURE
 
-        current_em = case.current_status.em_state
+        current_em = case.current_status.em.state
         if current_em == em_after:
             self.feedback_message = (
                 f"Case '{self._case_id}' em_state already"
@@ -175,7 +176,7 @@ class WriteEmStateNode(DataLayerAction):
             self.logger.debug("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
 
-        case.current_status.em_state = em_after
+        case.current_status.em = EmDimension(state=em_after)
         self.datalayer.save(case)
         self.feedback_message = (
             f"Case '{self._case_id}' em_state {current_em} → {em_after.value}"

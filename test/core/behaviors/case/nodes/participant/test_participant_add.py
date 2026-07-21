@@ -35,6 +35,7 @@ from vultron.core.behaviors.case.nodes.participant import (
     SeedParticipantAsSignatoryNode,
 )
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.dimensions import PecDimension, RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.vultron_types import (
     VultronCase,
@@ -200,8 +201,8 @@ class TestCreateCaseParticipantNode:
             id_=status_id,
             context=report_id,
             attributed_to=actor_id,
-            rm_state=RM.ACCEPTED,
-            em_consent_state=PEC.SIGNATORY,
+            rm=RmDimension(state=RM.ACCEPTED),
+            consent=PecDimension(state=PEC.SIGNATORY),
             cvd_role=[CVDRole.FINDER],
         )
         bt_scenario.dl.create(existing)
@@ -218,7 +219,9 @@ class TestCreateCaseParticipantNode:
 
         refreshed = cast(Any, bt_scenario.dl.read(status_id))
         assert refreshed is not None
-        assert refreshed.em_consent_state == PEC.SIGNATORY
+        assert (
+            refreshed.consent.state if refreshed.consent else None
+        ) == PEC.SIGNATORY
 
     def test_backfills_context_to_case_uri_for_existing_status(
         self,
@@ -241,8 +244,8 @@ class TestCreateCaseParticipantNode:
             id_=status_id,
             context=report.id_,
             attributed_to=actor_id,
-            rm_state=RM.ACCEPTED,
-            em_consent_state=PEC.NO_EMBARGO,
+            rm=RmDimension(state=RM.ACCEPTED),
+            consent=PecDimension(state=PEC.NO_EMBARGO),
             cvd_role=[CVDRole.FINDER],
         )
         bt_scenario.dl.create(stale)

@@ -219,6 +219,6 @@ class TestCreateCaseOwnerParticipant:
         participant_id = stored_case.actor_participant_index[actor_id]
         participant = cast(Any, bt_scenario.dl.read(participant_id))
         rm_states = [
-            status.rm_state for status in participant.participant_statuses
+            status.rm.state for status in participant.participant_statuses
         ]
         assert RM.ACCEPTED in rm_states

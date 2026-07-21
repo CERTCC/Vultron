@@ -176,7 +176,11 @@ class TestSubmitReportCreatesCase:
             for s in all_statuses
             if (s.get("data_", {}) or {}).get("attributed_to")
             == self.FINDER_ID
-            and (s.get("data_", {}) or {}).get("rm_state") == RM.ACCEPTED.value
+            and (
+                (s.get("data_", {}) or {}).get("rm_state") == RM.ACCEPTED.value
+                or (s.get("data_", {}) or {}).get("rm", {}).get("state")
+                == RM.ACCEPTED.value
+            )
         ]
         assert (
             len(finder_accepted) >= 1

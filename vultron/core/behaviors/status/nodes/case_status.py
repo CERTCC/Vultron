@@ -171,18 +171,20 @@ class ValidateCaseStatusTransitionNode(DataLayerCondition):
             )
             return Status.FAILURE
 
+        em_dim = getattr(status_obj, "em", None)
+        pxa_dim = getattr(status_obj, "pxa", None)
         if not self._check_transition(
             "EM",
-            current_status.em_state,
-            getattr(status_obj, "em_state", None),
+            current_status.em.state,
+            em_dim.state if em_dim is not None else None,
             is_valid_em_transition,
         ):
             return Status.FAILURE
 
         if not self._check_transition(
             "PXA",
-            current_status.pxa_state,
-            getattr(status_obj, "pxa_state", None),
+            current_status.pxa.state,
+            pxa_dim.state if pxa_dim is not None else None,
             is_valid_pxa_transition,
         ):
             return Status.FAILURE

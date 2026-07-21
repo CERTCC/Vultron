@@ -251,7 +251,7 @@ class TestSvcValidateReportUseCase:
         assert updated is not None
         assert isinstance(updated, CaseParticipant)
         assert updated.participant_statuses
-        assert updated.participant_statuses[-1].rm_state == RM.VALID
+        assert updated.participant_statuses[-1].rm.state == RM.VALID
 
     # --- AC-2: outbox effect -----------------------------------------------
 

@@ -34,6 +34,7 @@ from vultron.wire.as2.factories import (
     remove_embargo_from_case_activity,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -121,9 +122,9 @@ class TestEmbargoLogEntryCascade:
         dl, case_actor, case, embargo = _make_embargo_case_with_actor(
             case_id, author_id, case_manager_actor_id=author_id
         )
-        case_read = cast(as_VulnerabilityCase, dl.read(case.id_))
+        case_read = cast(VulnerabilityCase, dl.read(case.id_))
         assert case_read is not None
-        case_read.current_status.em_state = EM.PROPOSED
+        case_read.current_status.em.state = EM.PROPOSED
         dl.save(case_read)
 
         case_ref = as_VulnerabilityCase(id_=case_id)
@@ -159,9 +160,9 @@ class TestEmbargoLogEntryCascade:
         dl, case_actor, case, embargo = _make_embargo_case_with_actor(
             case_id, author_id
         )
-        case = cast(as_VulnerabilityCase, dl.read(case.id_))
+        case = cast(VulnerabilityCase, dl.read(case.id_))
         assert case is not None
-        case.current_status.em_state = EM.ACTIVE
+        case.current_status.em.state = EM.ACTIVE
         case.proposed_embargoes.append(embargo.id_)
         case.active_embargo = embargo.id_  # type: ignore[assignment]
         dl.save(case)
@@ -206,9 +207,9 @@ class TestEmbargoLogEntryCascade:
             case_id, author_id
         )
         # EM.NONE: no active embargo — BT will FAIL (IsActiveEmbargoNode)
-        case = cast(as_VulnerabilityCase, dl.read(case.id_))
+        case = cast(VulnerabilityCase, dl.read(case.id_))
         assert case is not None
-        case.current_status.em_state = EM.NONE
+        case.current_status.em.state = EM.NONE
         dl.save(case)
 
         activity = remove_embargo_from_case_activity(
@@ -285,9 +286,9 @@ class TestEmbargoLogEntryCascade:
         dl, case_actor, case, embargo = _make_embargo_case_with_actor(
             case_id, coordinator_id, case_manager_actor_id=coordinator_id
         )
-        case = cast(as_VulnerabilityCase, dl.read(case.id_))
+        case = cast(VulnerabilityCase, dl.read(case.id_))
         assert case is not None
-        case.current_status.em_state = EM.PROPOSED
+        case.current_status.em.state = EM.PROPOSED
         dl.save(case)
 
         proposal = em_propose_embargo_activity(
