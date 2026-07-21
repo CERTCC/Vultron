@@ -454,4 +454,5 @@ __all__ = [
     "EmitNoteDuplicateRecommendationToOwnerNode",
     "EmitOfferCaseParticipantToOwnerNode",
     "EmitRejectActorRecommendationNode",
+    "RecordRecommendationRecommenderNode",
 ]

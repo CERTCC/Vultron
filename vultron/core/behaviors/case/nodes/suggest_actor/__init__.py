@@ -17,8 +17,9 @@
 
 Submodules:
 
-- ``emit``: Outbound activity emission nodes
-  (``EmitOfferCaseParticipantToOwnerNode``,
+- ``emit``: Outbound activity emission nodes and state-write nodes
+  (``RecordRecommendationRecommenderNode``,
+  ``EmitOfferCaseParticipantToOwnerNode``,
   ``EmitAcceptActorRecommendationNode``,
   ``EmitRejectActorRecommendationNode``,
   ``EmitNoteDuplicateRecommendationToOwnerNode``)
