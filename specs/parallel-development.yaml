@@ -5,7 +5,7 @@ description: >-
   GitHub Issues. Defines the issue hierarchy, label taxonomy, task claiming protocol,
   size labeling, orphan recovery, and revised workflows for the build, ingest-idea,
   review-priorities, and update-plan skills.
-version: 1.0.0
+version: 1.1.0
 scope:
   - prototype
   - production
@@ -33,9 +33,23 @@ groups:
         priority: MUST
         kind: dev-process
         statement: >-
-          Epic Issues MUST correspond to a named priority group in
-          PRIORITIES.md. Task Issues MUST be sub-issues of their parent Epic.
+          Epic Issues MUST correspond to a named priority group in PRIORITIES.md.
+      - id: PAD-01-005
+        priority: MUST
+        kind: dev-process
+        statement: >-
+          Task Issues MUST be sub-issues of their parent Epic.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-01-002
+      - id: PAD-01-006
+        priority: MUST
+        kind: dev-process
+        statement: >-
           Subtask Issues MUST be sub-issues of their parent Task.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-01-002
       - id: PAD-01-004
         priority: SHOULD
         kind: dev-process
@@ -67,8 +81,15 @@ groups:
         statement: >-
           A `stale-claim` label MUST be applied by the sweeper job (PAD-10)
           when a claimed Issue has no open PR and the claim branch has not
-          received a commit within 3 days. Agents MUST skip Issues that carry
-          this label.
+          received a commit within 3 days.
+      - id: PAD-02-011
+        priority: MUST
+        kind: dev-process
+        statement: >-
+          Agents MUST skip Issues that carry the `stale-claim` label.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-04-003
       - id: PAD-02-005
         priority: MUST
         kind: dev-process
@@ -92,9 +113,17 @@ groups:
           priority group title (e.g., `group:architecture-hardening` for
           "Priority 473: Architecture Hardening"). Priority ordering is expressed
           in PRIORITIES.md; embedding numbers in label names causes conflicts
-          when priorities are reordered. When creating a new `group:` label on
-          GitHub, the label description MUST use the priority group title (not
-          the number) so it remains accurate if the priority number changes.
+          when priorities are reordered.
+      - id: PAD-02-012
+        priority: MUST
+        kind: dev-process
+        statement: >-
+          When creating a new `group:` label on GitHub, the label description
+          MUST use the priority group title (not the priority number) so it
+          remains accurate if the priority number changes.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-02-007
       - id: PAD-02-008
         priority: MUST
         kind: dev-process
@@ -108,9 +137,16 @@ groups:
         statement: >-
           Epic Issues MUST be created using the GitHub `Epic` issue type (via
           GraphQL `createIssue` with the appropriate `issueTypeId`) and MUST
-          carry the `group:<name>` label matching their priority group. The
-          `create-epic` skill MUST be used to create Epic Issues to ensure
-          consistent wiring of sub-issues.
+          carry the `group:<name>` label matching their priority group.
+      - id: PAD-02-013
+        priority: MUST
+        kind: dev-process
+        statement: >-
+          The `create-epic` skill MUST be used to create Epic Issues to ensure
+          consistent wiring of sub-issues and correct issue type assignment.
+        relationships:
+        - rel_type: implements
+          spec_id: PAD-02-009
       - id: PAD-02-010
         priority: MUST
         kind: dev-process
@@ -207,8 +243,16 @@ groups:
         kind: dev-process
         statement: >-
           The `build` skill MUST invoke the `code-review` agent before
-          opening a PR. The review MUST run against the current branch diff
+          opening a PR.
+      - id: PAD-07-005
+        priority: MUST
+        kind: dev-process
+        statement: >-
+          The `code-review` agent MUST run against the current branch diff
           relative to `main`.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-07-001
       - id: PAD-07-002
         priority: MUST
         kind: dev-process
@@ -223,8 +267,17 @@ groups:
         kind: dev-process
         statement: >-
           The `build` skill MUST resolve all `[BLOCKING]` findings before
-          opening a PR. After resolving, it MUST re-run the code review to
-          confirm no new `[BLOCKING]` findings were introduced.
+          opening a PR.
+      - id: PAD-07-006
+        priority: MUST
+        kind: dev-process
+        statement: >-
+          After resolving `[BLOCKING]` findings, the `build` skill MUST re-run
+          the code review to confirm no new `[BLOCKING]` findings were
+          introduced.
+        relationships:
+        - rel_type: refines
+          spec_id: PAD-07-003
       - id: PAD-07-004
         priority: SHOULD
         kind: dev-process
@@ -249,7 +302,12 @@ groups:
         statement: >-
           The `build` skill MUST open a GitHub Pull Request with "Closes #N"
           in the body after completing implementation and passing all
-          validations. It MUST NOT commit directly to `main`.
+          validations.
+      - id: PAD-08-004
+        priority: MUST_NOT
+        kind: dev-process
+        statement: >-
+          The `build` skill MUST NOT commit directly to `main`.
       - id: PAD-08-003
         priority: MUST
         kind: dev-process
