@@ -265,3 +265,65 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: TRIG-08-004
+
+- id: TRIG-11
+  title: Case Ownership Transfer Triggers
+  specs:
+  - id: TRIG-11-001
+    priority: MUST
+    kind: domain
+    statement: >-
+      The system MUST expose an `offer-case-ownership-transfer` trigger at
+      `POST /actors/{actor_id}/trigger/offer-case-ownership-transfer` that accepts
+      a `case_id` and `transferee_id` in its request body and emits an
+      `Offer(VulnerabilityCase)` (ownership transfer variant) from the requesting
+      actor to the specified transferee.
+    rationale: >-
+      Without this trigger, demo scripts must inject ownership-transfer offers
+      directly into the transferee's inbox, which bypasses the offering actor's BT
+      execution and violates DEMOMA-05-001. A trigger endpoint ensures the full
+      hexagonal stack is exercised for both sides of the handshake.
+    relationships:
+    - rel_type: refines
+      spec_id: TRIG-01-001
+    - rel_type: refines
+      spec_id: TRIG-02-004
+  - id: TRIG-11-002
+    priority: MUST
+    kind: domain
+    statement: >-
+      The system MUST expose an `accept-case-ownership-transfer` trigger at
+      `POST /actors/{actor_id}/trigger/accept-case-ownership-transfer` that accepts
+      an `offer_id` in its request body and emits an `Accept(Offer(VulnerabilityCase))`
+      (ownership transfer variant) from the requesting actor back to the offering actor.
+    rationale: >-
+      Symmetry with TRIG-11-001: the accepting actor must also be puppeteered through
+      a trigger so that its BT execution is exercised, consistent with DEMOMA-05-001.
+    relationships:
+    - rel_type: refines
+      spec_id: TRIG-01-001
+    - rel_type: refines
+      spec_id: TRIG-02-004
+  - id: TRIG-11-003
+    priority: SHOULD
+    kind: domain
+    statement: >-
+      The `offer-case-ownership-transfer` trigger request body SHOULD accept an
+      optional `content` field (free-text message) to include in the offer activity,
+      consistent with the factory function signature for
+      `offer_case_ownership_transfer_activity`.
+    relationships:
+    - rel_type: refines
+      spec_id: TRIG-11-001
+  - id: TRIG-11-004
+    priority: MUST
+    kind: domain
+    statement: >-
+      Both ownership-transfer triggers MUST return an `activity` field in their
+      response body containing the emitted ActivityStreams object, consistent with the
+      response contract for all other trigger endpoints (TRIG-05-001).
+    relationships:
+    - rel_type: refines
+      spec_id: TRIG-11-001
+    - rel_type: refines
+      spec_id: TRIG-11-002
