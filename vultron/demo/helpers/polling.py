@@ -270,7 +270,7 @@ def wait_for_contiguous_ledger_coverage(
     client: DataLayerClient,
     case_id: str,
     expected_tail_index: int,
-    timeout_seconds: float = 40.0,
+    timeout_seconds: float = 15.0,
     poll_interval: float = 0.5,
 ) -> None:
     """Poll *client*'s DataLayer until it holds all log indices 0…*expected_tail_index*.
@@ -282,15 +282,6 @@ def wait_for_contiguous_ledger_coverage(
 
     This helper closes that race by polling until the replica's local index
     set is the complete contiguous range ``{0, 1, …, expected_tail_index}``.
-
-    .. note::
-        The default timeout was raised from 15s to 40s to absorb the
-        out-of-order ``Announce(CaseLedgerEntry)`` replication lag observed for
-        late-joining replicas at case closure (a replica can drop an
-        out-of-order entry and must wait for the reject→re-announce backfill
-        loop; see issue #1363).  This is a mitigation, not a fix — the proper
-        remedy is to shorten convergence in the SYNC receive/backfill path so
-        the demos do not need a long wait (tracked in issue #1556).
 
     Args:
         client: DataLayerClient connected to the replica container.
