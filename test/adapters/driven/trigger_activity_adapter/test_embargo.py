@@ -90,6 +90,29 @@ class TestAcceptEmbargo:
 
         assert dl.read(activity_id) is not None
 
+    def test_verbatim_reconstitution_preserves_proposal_as_inline_object(
+        self, adapter, dl
+    ):
+        """Accept(Invite) object_ must embed the original proposal inline.
+
+        DL-06-004: the adapter reads the stored proposal activity and passes
+        it verbatim as ``object_`` of the Accept.  The serialised dict MUST
+        contain the proposal id as ``object.id``, not a bare URI string.
+        """
+        proposal_id, _ = _make_proposal(adapter, dl)
+
+        _, activity_dict = adapter.accept_embargo(
+            proposal_id=proposal_id,
+            case_id=_CASE_ID,
+            actor=_PEER,
+        )
+
+        obj = activity_dict.get("object")
+        assert isinstance(
+            obj, dict
+        ), "object_ must be an inline dict, not a URI"
+        assert obj.get("id") == proposal_id
+
 
 class TestRejectEmbargo:
     def test_returns_id_and_dict(self, adapter, dl):
@@ -115,6 +138,29 @@ class TestRejectEmbargo:
         )
 
         assert dl.read(activity_id) is not None
+
+    def test_verbatim_reconstitution_preserves_proposal_as_inline_object(
+        self, adapter, dl
+    ):
+        """Reject(Invite) object_ must embed the original proposal inline.
+
+        DL-06-004: the adapter reads the stored proposal activity and passes
+        it verbatim as ``object_`` of the Reject.  The serialised dict MUST
+        contain the proposal id as ``object.id``, not a bare URI string.
+        """
+        proposal_id, _ = _make_proposal(adapter, dl)
+
+        _, activity_dict = adapter.reject_embargo(
+            proposal_id=proposal_id,
+            case_id=_CASE_ID,
+            actor=_PEER,
+        )
+
+        obj = activity_dict.get("object")
+        assert isinstance(
+            obj, dict
+        ), "object_ must be an inline dict, not a URI"
+        assert obj.get("id") == proposal_id
 
 
 class TestAnnounceEmbargo:

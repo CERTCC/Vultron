@@ -292,11 +292,28 @@ domain fact — the ARCH-09-001 core violations):
 
 **C — envelope reconstitution** (verbatim original needed for a reply):
 
-- Reply factories (`rm_accept_invite_to_case_activity`, embargo/report/actor
-  Accept/Reject) require the full inline original activity in `object_`.
-- *Fix*: verify whether any live reply path actually needs verbatim
-  reconstitution today; if so, provide a wire/adapter-owned opaque envelope seam
-  (DL-06-004). May be near-empty in current code.
+Audited by #1521. Four live reply paths need the verbatim original activity
+inline in the reply's `object_`:
+
+- `TriggerActivityAdapter.accept_case_invite` (`actors.py`) — reads the
+  stored `Invite` and passes it verbatim to `rm_accept_invite_to_case_activity`.
+- `TriggerActivityAdapter.accept_embargo` (`embargo.py`) — reads the stored
+  embargo proposal `Invite` and passes it to `em_accept_embargo_activity`.
+- `TriggerActivityAdapter.reject_embargo` (`embargo.py`) — same pattern for
+  `em_reject_embargo_activity`.
+- `TriggerActivityAdapter.accept_case_participant_offer` (`actors.py`) —
+  reads the stored `Offer(CaseParticipant)` and passes it to
+  `accept_case_participant_offer_activity`.
+
+**All four reads are already in the adapter layer** (`vultron/adapters/driven/
+trigger_activity_adapter/`), not in `vultron/core/`. They satisfy DL-06-004:
+the payload is treated opaquely (passed straight to the factory without any
+semantic interpretation). No new seam is needed; the correct seam already
+exists. The DL-05-004 exemption set does not need modification for these sites
+because they are not core reads.
+
+Tests verifying verbatim reconstitution (id preserved in `in_reply_to` /
+`object.id`) are in `test/adapters/driven/trigger_activity_adapter/`.
 
 **D — not activities** (core entities, covered by DL-05 / #1503, out of scope):
 
