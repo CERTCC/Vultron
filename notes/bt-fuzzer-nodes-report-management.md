@@ -768,11 +768,10 @@ vulnerability, typically to support impact assessment or testing.
 - **Automation potential**: **High** — query against an internal exploit repository or threat-intelligence platform; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.acquire_exploit.HaveExploit`
 - **Call-out point shape**: Retriever — synchronous on-demand query to an internal exploit repository or threat-intelligence platform; returns SUCCESS if a working exploit is already available for this vulnerability, FAILURE otherwise. A boolean is the simplest structured fact (ADR-0024); the on-demand query pattern makes this a Retriever, not a Sentinel.
-- **Factory-fn placement**: FUTURE:
-  `vultron.core.behaviors.report.create_acquire_exploit_strategy_tree`
-  (issue #1249) — early-exit Retriever guard at the top of
-  `AcquireExploit` Selector; may collapse into `EvaluateExploitStrategy`
-  input context per production redesign (see Production Collapse 1 below)
+- **Factory-fn placement**: Implemented (PR #1566) —
+  `vultron.core.behaviors.report.acquire_exploit_strategy_tree.create_acquire_exploit_strategy_tree`
+  (`have_exploit_factory` param) — early-exit Retriever guard at the head of the
+  `AcquireExploitStrategyBT` Selector (Production Collapse 1, ADR-0027)
 
 ### `ExploitPrioritySet`
 
@@ -792,11 +791,9 @@ vulnerability, typically to support impact assessment or testing.
   during the same BT execution cycle; the flag lives on the BT blackboard (per-actor in-process).
   No external agent seam — the flag never crosses an actor boundary.
   (Category 3 per issue #1199 triage — reads a flag written by the protocol's own BT execution.)
-- **Factory-fn placement**: FUTURE:
-  `vultron.core.behaviors.report.create_acquire_exploit_strategy_tree`
-  (issue #1249) — ProtocolInternal condition check after `HaveExploit`;
-  collapses the loop if the priority decision is already on record for this cycle.
-  See Production Collapse 1 below.
+- **Factory-fn placement**: Eliminated (Production Collapse 1, PR #1566) —
+  collapsed into the `EvaluateExploitStrategy` Evaluator's output record;
+  no longer a separate BT leaf or factory parameter.
 
 ### `EvaluateExploitPriority`
 
@@ -813,14 +810,11 @@ vulnerability, typically to support impact assessment or testing.
 - **Automation potential**: **Medium** — SSVC/CVSS scoring inputs are automatable; the final exploit-acquisition priority decision often requires human analyst judgment given organizational and legal context.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.acquire_exploit.EvaluateExploitPriority`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
-  `vultron.core.behaviors.report.acquire_exploit_tree.create_acquire_exploit_tree`
-  (`evaluate_exploit_priority_factory` param). FUTURE full placement:
-  `vultron.core.behaviors.report.create_acquire_exploit_strategy_tree`
-  (issue #1249) — Evaluator action node in the priority-decision Sequence;
-  writes the `exploit_priority` decision to the blackboard for downstream
-  ProtocolInternal condition nodes (`ExploitDeferred`, `ExploitDesired`).
-  See Production Collapse 1 below — this is the core Evaluator that survives.
+- **Factory-fn placement**: Superseded by Production Collapse 1 (PR #1566) —
+  Phase 1 stub in `create_acquire_exploit_tree` (`evaluate_exploit_priority_factory`)
+  is replaced by `EvaluateExploitStrategy` in
+  `create_acquire_exploit_strategy_tree` (`evaluate_exploit_strategy_factory`).
+  The priority decision is now encoded in `ExploitStrategyDecision.acquire`.
 
 ### `ExploitDeferred`
 
@@ -840,11 +834,9 @@ vulnerability, typically to support impact assessment or testing.
   during the same BT execution cycle; the flag lives on the BT blackboard (per-actor in-process).
   No external agent seam — the flag never crosses an actor boundary.
   (Category 3 per issue #1199 triage — reads a flag written by the protocol's own BT execution.)
-- **Factory-fn placement**: FUTURE:
-  `vultron.core.behaviors.report.create_acquire_exploit_strategy_tree`
-  (issue #1249) — ProtocolInternal condition check after `EvaluateExploitPriority`;
-  early-exits the acquire-exploit Selector when deferral is recorded.
-  See Production Collapse 1 below.
+- **Factory-fn placement**: Eliminated (Production Collapse 1, PR #1566) —
+  collapsed into the `EvaluateExploitStrategy` Evaluator's output record;
+  no longer a separate BT leaf or factory parameter.
 
 ### `ExploitDesired`
 
@@ -863,11 +855,9 @@ vulnerability, typically to support impact assessment or testing.
   during the same BT execution cycle; the flag lives on the BT blackboard (per-actor in-process).
   No external agent seam — the flag never crosses an actor boundary.
   (Category 3 per issue #1199 triage — reads a flag written by the protocol's own BT execution.)
-- **Factory-fn placement**: FUTURE:
-  `vultron.core.behaviors.report.create_acquire_exploit_strategy_tree`
-  (issue #1249) — ProtocolInternal condition check before the acquisition
-  Fallback (`FindExploit → DevelopExploit → PurchaseExploit`).
-  See Production Collapse 1 below.
+- **Factory-fn placement**: Eliminated (Production Collapse 1, PR #1566) —
+  collapsed into the `EvaluateExploitStrategy` Evaluator's output record;
+  no longer a separate BT leaf or factory parameter.
 
 ### `FindExploit`
 
@@ -1957,42 +1947,36 @@ subtrees.
 `EvaluateExploitPriority`, `ExploitDeferred`, `ExploitDesired`
 (see Exploit Acquisition section above)
 
-**Tracked by**: implementation issue for collapse candidate 1 (blocked by #1200)
+**Implemented by**: issue #1309 (PR #1566)
 
 #### Production shape
 
-A single **Evaluator** call-out point — `EvaluateExploitStrategy` — replaces
-the five-node simulator sequence. The Evaluator receives case context
-(vulnerability state, org policy, threat landscape, and optionally the result
-of a prior `HaveExploit` Retriever query) and returns a structured decision
-record.
+The five-node simulator sequence is replaced by two independently-swappable
+call-out points (ADR-0027 Option 2):
 
-The five simulator nodes collapse to:
+1. **`HaveExploit`** (Retriever) — early-exit guard; queries whether a working
+   exploit already exists. Survives as a separate seam for independent swapability.
+2. **`EvaluateExploitStrategy`** (Evaluator) — receives case context and returns
+   a structured `ExploitStrategyDecision` record.
 
-1. One Evaluator call-out point: `EvaluateExploitStrategy`
-2. ProtocolInternal BT condition checks reading its structured output (no
-   external seam — these are internal decision reads, not new call-out points)
+The three ProtocolInternal nodes (`ExploitPrioritySet`, `ExploitDeferred`,
+`ExploitDesired`) are eliminated as separate BT leaves — their decisions become
+internal reads on the Evaluator's output record.
 
-**Open design question**: Does `HaveExploit` survive as a separate Retriever
-node that feeds context into the Evaluator (lean: yes), or does the Evaluator
-query the exploit repo internally as part of its evaluation? Both approaches
-are valid; the Retriever-feeds-Evaluator pattern is preferred because it keeps
-the exploit-repo query seam independently swappable.
-
-**Provisional output schema** (subject to revision — lean: Pydantic BaseModel):
+**Output schema** (Pydantic BaseModel, implemented in
+`vultron.core.behaviors.report.acquire_exploit_strategy_tree`):
 
 ```python
 class ExploitStrategyDecision(BaseModel):
-    have_exploit: bool       # whether a working exploit is already available
-    acquire: bool            # decision: pursue exploit acquisition
-    rationale: str           # reasoning for the decision
+    have_exploit: bool = False  # whether a working exploit is already available
+    acquire: bool = False       # decision: pursue exploit acquisition
+    rationale: str = ""         # reasoning for the decision
 ```
 
-**Target factory function**:
-`vultron.core.behaviors.report.create_acquire_exploit_strategy_tree`
+**Factory function**:
+`vultron.core.behaviors.report.acquire_exploit_strategy_tree.create_acquire_exploit_strategy_tree`
 
-**Spec requirements**: BT-20-001 (provisional — see
-`specs/behavior-tree-integration.yaml`)
+**Spec requirements**: BT-20-001 (see `specs/behavior-tree-integration.yaml`)
 
 ---
 

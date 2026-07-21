@@ -849,23 +849,24 @@ groups:
     kind: implementation
     statement: >-
       The production `create_acquire_exploit_strategy_tree` factory SHOULD
-      provide a single `EvaluateExploitStrategy` Evaluator call-out point in
-      place of the five simulator nodes (`HaveExploit`, `ExploitPrioritySet`,
-      `EvaluateExploitPriority`, `ExploitDeferred`, `ExploitDesired`). The
-      Evaluator SHOULD receive case context (vulnerability state, org policy,
-      threat landscape) and return a structured decision record containing at
-      minimum the acquire decision and rationale. Whether a separate
-      `HaveExploit` Retriever feeds into the Evaluator's context is an open
-      design question (lean: yes — keep as a separate seam for independent
-      swapability).
+      provide a `HaveExploit` Retriever and an `EvaluateExploitStrategy`
+      Evaluator call-out point in place of the five simulator nodes
+      (`HaveExploit`, `ExploitPrioritySet`, `EvaluateExploitPriority`,
+      `ExploitDeferred`, `ExploitDesired`). The Evaluator SHOULD receive case
+      context (vulnerability state, org policy, threat landscape, and the
+      `HaveExploit` query result) and return a structured
+      `ExploitStrategyDecision` record containing `have_exploit`, `acquire`,
+      and `rationale`. The `HaveExploit` Retriever is kept as a separate seam
+      for independent swapability (ADR-0027, Option 2).
     rationale: >-
-      PROVISIONAL. The five-node simulator sequence encodes a single
-      policy-driven decision ("should we acquire an exploit?") in granular
-      boolean flags that are unnecessary in production. Collapsing to one
-      Evaluator reduces the number of external seams and makes the decision
-      boundary explicit. See `notes/bt-fuzzer-nodes-report-management.md`
+      The five-node simulator sequence encodes a single policy-driven decision
+      ("should we acquire an exploit?") in granular boolean flags that are
+      unnecessary in production. Collapsing to two call-out points (Retriever +
+      Evaluator) reduces seam count while keeping the exploit-repo query
+      independently swappable. Implemented by issue #1309 (PR #1566). See
+      `notes/bt-fuzzer-nodes-report-management.md`
       § "Production Collapse 1: Exploit-strategy subtree" and ADR-0027.
-    tracking_issue: "#1200 (planning); implementation issue TBD (blocked by #1200)"
+    tracking_issue: "#1200 (planning); #1309 (implementation — closed by PR #1566)"
   - id: BT-20-002
     priority: SHOULD
     kind: implementation
