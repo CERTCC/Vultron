@@ -18,7 +18,9 @@ groups:
   - id: SR-01-001
     priority: MUST
     kind: implementation
-    statement: Each `specs/*.md` file MUST be replaced by a `specs/*.yaml` file with the same kebab-case topic name.
+    statement: >-
+      Specifications MUST be maintained as YAML files in `specs/` following the topic-file naming
+      convention. Markdown spec files are not permitted.
   - id: SR-01-002
     priority: MUST
     kind: implementation
@@ -350,7 +352,9 @@ groups:
   - id: SR-08-003
     priority: MUST
     kind: implementation
-    statement: After migration, the `specs/*.md` files MUST be deleted; the YAML files are the sole source of truth.
+    statement: >-
+      YAML files in `specs/` are the sole authoritative source for project specifications. No other
+      format or location holds normative spec content.
   - id: SR-08-004
     priority: MUST
     kind: implementation

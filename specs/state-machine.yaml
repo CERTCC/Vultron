@@ -145,9 +145,8 @@ groups:
     priority: MUST
     kind: domain
     statement: >-
-      Transient RM status for reports (e.g., `ReportStatus` in the in-memory `STATUS` dict)
-      MUST be replaced by persisted participant-level state once a report is associated with
-      a case and a `CaseParticipant` record exists
+      RM state for reports MUST be persisted as participant-level state in `CaseParticipant`
+      records. In-memory transient RM state is not permitted.
 - id: SM-07
   title: State Subsets and Guards
   specs:

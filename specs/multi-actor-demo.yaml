@@ -301,18 +301,11 @@ groups:
     priority: MUST
     kind: implementation
     statement: >-
-      The CASE_MANAGER role delegation (Vendor hands operational management to Case Actor)
-      MUST be implemented as a distinct protocol mechanism from OFFER_CASE_OWNERSHIP_TRANSFER;
-      CASE_MANAGER delegation allows the Vendor to retain CASE_OWNER while delegating
-      operational authority.
-      Wire vocab types (`_OfferCaseManagerRoleActivity`, `_AcceptCaseManagerRoleActivity`,
-      `_RejectCaseManagerRoleActivity`), extractor patterns, factory functions,
-      `MessageSemantics` values (`OFFER_CASE_MANAGER_ROLE`, `ACCEPT_CASE_MANAGER_ROLE`,
-      `REJECT_CASE_MANAGER_ROLE`), and received-side use cases are already implemented.
-      The remaining gaps are: (1) these use cases are not registered in the semantic
-      registry (`vultron/semantic_registry/__init__.py`), and
-      (2) trigger-side use cases (`SvcOfferCaseManagerRoleUseCase` and peers) are not yet
-      implemented. See DEMOMA-08-006 through DEMOMA-08-009 for the downstream specs.
+      CASE_MANAGER role delegation MUST be implemented as a distinct protocol mechanism from
+      OFFER_CASE_OWNERSHIP_TRANSFER. CASE_MANAGER delegation allows the Vendor to retain
+      CASE_OWNER while delegating operational authority to a service actor. The three-message
+      handshake (Offer/Accept/Reject) MUST use distinct `MessageSemantics` values:
+      `OFFER_CASE_MANAGER_ROLE`, `ACCEPT_CASE_MANAGER_ROLE`, `REJECT_CASE_MANAGER_ROLE`.
   - id: DEMOMA-08-006
     priority: MUST
     kind: implementation

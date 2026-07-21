@@ -42,16 +42,6 @@ groups:
           (see HM-03-006). This file is a **gitignored local cache** — it MUST
           NOT be committed to the repository. To view the history index, use
           `uv run show-history [--month YYMM | --all]`.
-      - id: HM-01-004
-        priority: MUST
-        kind: dev-process
-        statement: >-
-          The legacy monolithic history files (`plan/IMPLEMENTATION_HISTORY.md`,
-          `plan/IDEA-HISTORY.md`, `plan/PRIORITY_HISTORY.md`) MUST be moved
-          to `plan/history/` at their top level as static archives. A static
-          `plan/history/README.md` MUST be created explaining that these files
-          predate the structured format and were superseded on the migration
-          date.
       - id: HM-01-005
         priority: MUST_NOT
         kind: dev-process
@@ -262,18 +252,9 @@ groups:
         priority: MUST
         kind: domain
         statement: >-
-          `HistoryEntryFrontmatter` MUST accept exactly one of `timestamp` or
-          the legacy `date` field. If both are present, validation MUST fail
-          with a clear error. If neither is present, validation MUST fail.
-      - id: HM-06-003
-        priority: MUST
-        kind: domain
-        statement: >-
-          When the legacy `date` field is present and `timestamp` is absent,
-          `HistoryEntryFrontmatter` MUST normalise the entry by converting
-          `date` to a `timestamp` equal to midnight UTC on that date
-          (e.g., `date: 2026-04-28` → `timestamp: 2026-04-28T00:00:00+00:00`).
-          After normalisation all downstream code MUST use `timestamp` only.
+          `HistoryEntryFrontmatter` MUST require a `timestamp` field
+          (timezone-aware ISO 8601 datetime in UTC). Validation MUST fail
+          with a clear error if `timestamp` is absent or malformed.
       - id: HM-06-004
         priority: MUST
         kind: domain

@@ -247,8 +247,9 @@ groups:
     priority: MUST
     kind: domain
     statement: >-
-      `CreateInitialVendorParticipant` MUST be replaced by a `CreateCaseOwnerParticipant`
-      node that:
+      The BT node for creating the initial case participant MUST be role-agnostic. It MUST NOT
+      assume any specific CVD role (e.g., Vendor). It MUST treat the actor as the case owner
+      regardless of their CVD role(s). The correct node is `CreateCaseOwnerParticipant`.
     rationale: >-
       "Vendor" is a demo-specific assumption. In the general protocol a coordinator, deployer,
       or other role may equally receive a report and become the case owner. The node MUST
@@ -260,9 +261,8 @@ groups:
     priority: MUST
     kind: domain
     statement: >-
-      The `CreateFinderParticipantNode` backward-compatibility alias (currently `CreateFinderParticipantNode
-      = CreateCaseParticipantNode`) MUST be removed. All call sites MUST use `CreateCaseParticipantNode`
-      directly with an explicit `roles` parameter.
+      The generic participant creation node is `CreateCaseParticipantNode`. Callers MUST pass
+      an explicit `roles` parameter; no role-specific subclasses or alias names are permitted.
     rationale: >-
       Alias names carry the old "finder-specific" framing and mislead readers about the node's
       actual generality.

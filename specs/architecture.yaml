@@ -420,9 +420,10 @@ groups:
     kind: pattern
     statement: >
       Each domain helper function MUST have exactly one canonical copy.
-      Duplicate implementations of the same logic (e.g., multiple copies of
-      _as_id() or case-manager lookup functions) MUST be removed; all callers
-      MUST import from the canonical location in vultron/core/use_cases/_helpers.py.
+      Layer-neutral helpers (no dependencies above `models/`) MUST live in
+      `vultron/core/models/_helpers.py`. Use-case-specific helpers belong in
+      `vultron/core/use_cases/_helpers.py`. Duplicate implementations of the
+      same logic are prohibited.
     rationale: >
       Duplicate helper copies diverge silently over time. Two copies of
       _as_id() in use_cases/_helpers.py and services/embargo_lifecycle.py had
