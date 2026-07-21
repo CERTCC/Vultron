@@ -280,9 +280,14 @@ domain fact — the ARCH-09-001 core violations):
   `list_objects("Invite")` semantic reads in `received/embargo.py`,
   `triggers/_helpers.py`, and `dispatcher.py` removed. `Invite` removed from
   DL-05-004 exemptions.
-- *actor/participant*: `use_cases/received/actor/offer_case_participant.py:128,193`
-  (read the original recommendation `Offer` for the recommender's actor id);
-  `use_cases/triggers/actor.py:163` (read `Invite` for a type check).
+- ~~*actor/participant*~~: migrated (#1520). `recommendation_recommender_index:
+  dict[str, str]` (recommendation_id → recommender_actor_id) added to
+  `VulnerabilityCase`; populated in `OfferActorToCaseReceivedUseCase.execute()`.
+  `AcceptOfferCaseParticipantReceivedUseCase` and
+  `RejectOfferCaseParticipantReceivedUseCase` now read
+  `case.recommendation_recommender_index.get(recommendation_id)` instead of
+  `dl.read(recommendation_id)`. Redundant `invite_type != "Invite"` check
+  removed from `SvcAcceptCaseInviteUseCase._prepare()`.
 - *Fix*: capture the fact as core state at extraction time; read it from core.
 
 **C — envelope reconstitution** (verbatim original needed for a reply):

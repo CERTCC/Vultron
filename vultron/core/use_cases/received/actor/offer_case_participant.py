@@ -32,6 +32,7 @@ from vultron.core.behaviors.case.suggest_actor_tree import (
     create_receive_offer_case_participant_tree,
     create_reject_actor_recommendation_received_tree,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.actor import (
     AcceptOfferCaseParticipantReceivedEvent,
     OfferCaseParticipantReceivedEvent,
@@ -124,11 +125,12 @@ class AcceptOfferCaseParticipantReceivedUseCase:
         invitee_id = getattr(raw_invitee, "id_", raw_invitee)
         recommendation_id = getattr(inner_offer, "origin", None)
         recommender_id = None
-        if recommendation_id:
-            stored_offer = self._dl.read(recommendation_id)
-            if stored_offer is not None:
-                raw_actor = getattr(stored_offer, "actor", None)
-                recommender_id = getattr(raw_actor, "id_", raw_actor)
+        if recommendation_id and case_id:
+            case = self._dl.read(case_id)
+            if isinstance(case, VulnerabilityCase):
+                recommender_id = case.recommendation_recommender_index.get(
+                    recommendation_id
+                )
 
         if not case_id or not invitee_id:
             logger.warning(
@@ -189,11 +191,12 @@ class RejectOfferCaseParticipantReceivedUseCase:
         recommended_id = getattr(raw_invitee, "id_", None) or request.object_id
         recommendation_id = getattr(inner_offer, "origin", None)
         recommender_id = None
-        if recommendation_id:
-            stored_offer = self._dl.read(recommendation_id)
-            if stored_offer is not None:
-                raw_actor = getattr(stored_offer, "actor", None)
-                recommender_id = getattr(raw_actor, "id_", raw_actor)
+        if recommendation_id and case_id:
+            case = self._dl.read(case_id)
+            if isinstance(case, VulnerabilityCase):
+                recommender_id = case.recommendation_recommender_index.get(
+                    recommendation_id
+                )
 
         if not case_id:
             logger.warning(

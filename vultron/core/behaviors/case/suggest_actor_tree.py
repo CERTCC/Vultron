@@ -52,6 +52,7 @@ from vultron.core.behaviors.case.nodes.suggest_actor import (
     EmitRejectActorRecommendationNode,
     InviteInFlightNode,
     PendingOfferCaseParticipantNode,
+    RecordRecommendationRecommenderNode,
 )
 
 logger = logging.getLogger(__name__)
@@ -211,7 +212,14 @@ def create_recommend_actor_to_case_received_tree(
         name="RecommendActorToCaseBT",
         case_id=case_id,
         precondition_guards=[],
-        effect_nodes=[duplicate_or_fresh_selector],
+        effect_nodes=[
+            RecordRecommendationRecommenderNode(
+                recommendation_id=recommendation_id,
+                recommender_id=recommender_id,
+                case_id=case_id,
+            ),
+            duplicate_or_fresh_selector,
+        ],
     )
 
 
