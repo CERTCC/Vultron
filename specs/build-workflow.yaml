@@ -5,7 +5,7 @@ description: >-
   and bugfix skills to pass implementation observations upstream to the learn skill. Covers
   what belongs in the queue, what must not go there, file naming and format, how the learn
   skill processes and archives entries, and the learning history entry type.
-version: 2.0.0
+version: 2.1.0
 scope:
   - prototype
   - production
@@ -41,10 +41,17 @@ groups:
         statement: >-
           The `build` and `bugfix` skills MUST NOT write completion summaries
           or task-status narratives to `plan/incoming/learnings/`.
-          Completion summaries MUST be archived exclusively via
-          `uv run append-history implementation`.
         relationships:
           - rel_type: depends_on
+            spec_id: HM-05-001
+      - id: BW-01-005
+        priority: MUST
+        kind: dev-process
+        statement: >-
+          Completion summaries from the `build` and `bugfix` skills MUST be
+          archived exclusively via `uv run append-history implementation`.
+        relationships:
+          - rel_type: implements
             spec_id: HM-05-001
       - id: BW-01-003
         priority: MUST
@@ -53,27 +60,42 @@ groups:
           Each incoming learning file MUST be named `YYYYMMDD-SLUG.md`
           where `YYYYMMDD` is the creation date and `SLUG` is a short
           uppercase identifier matching the `source` frontmatter field
-          (e.g., `20260622-AST-RATCHET-LAMBDA.md`). The file MUST be
-          committed as part of the originating PR so the learning is
-          permanently linked to the work that produced it.
+          (e.g., `20260622-AST-RATCHET-LAMBDA.md`).
         rationale: >-
           Using individual files instead of a shared flat file eliminates
           merge conflicts when multiple PRs each have an observation to
           record. The date prefix provides filesystem sort order.
+      - id: BW-01-006
+        priority: MUST
+        kind: dev-process
+        statement: >-
+          Incoming learning files MUST be committed as part of the
+          originating PR so the learning is permanently linked to the
+          work that produced it.
+        relationships:
+          - rel_type: refines
+            spec_id: BW-01-003
       - id: BW-01-004
         priority: MUST_NOT
         kind: dev-process
         statement: >-
           Skills other than `build` and `bugfix` MUST NOT create files in
-          `plan/incoming/learnings/`. The `update-plan` skill MUST write
-          observations and open questions directly to appropriate
-          `notes/*.md` files. It MUST NOT use the incoming learnings queue
-          as an intermediate staging area.
+          `plan/incoming/learnings/`.
         rationale: >-
           `plan/incoming/learnings/` is specifically a channel for
           code-execution insights flowing from build/bugfix to learn.
           Gap-analysis observations from `update-plan` are a different
           signal and belong in notes directly.
+      - id: BW-01-007
+        priority: MUST
+        kind: dev-process
+        statement: >-
+          The `update-plan` skill MUST write observations and open questions
+          directly to appropriate `notes/*.md` files. It MUST NOT use
+          `plan/incoming/learnings/` as an intermediate staging area.
+        relationships:
+          - rel_type: refines
+            spec_id: BW-01-004
   - id: BW-02
     title: Incoming Learnings File Format
     kind: domain
@@ -98,13 +120,21 @@ groups:
         priority: MUST
         kind: domain
         statement: >-
-          The `source` field MUST match the filename stem
-          (`YYYYMMDD-SLUG`). The `timestamp` field MUST reflect the
-          actual creation time of the observation (not today's date if
-          the entry was written for a historical run).
+          The `source` field in an incoming learning file MUST match the
+          filename stem (`YYYYMMDD-SLUG`).
         relationships:
           - rel_type: depends_on
             spec_id: HM-02-001
+      - id: BW-02-003
+        priority: MUST
+        kind: domain
+        statement: >-
+          The `timestamp` field in an incoming learning file MUST reflect the
+          actual creation time of the observation (not the current date if the
+          entry was written for a historical run).
+        relationships:
+          - rel_type: depends_on
+            spec_id: HM-06-001
   - id: BW-03
     title: learn Skill Processing
     kind: dev-process
@@ -152,12 +182,19 @@ groups:
         kind: implementation
         statement: >-
           The `learning` entry type MUST exist in `HistoryEntryType` in
-          `vultron/metadata/history/types.py`.  The `learn` skill MUST
-          use `uv run append-history --from-file` to archive each
-          processed incoming learning file.
+          `vultron/metadata/history/types.py`.
         relationships:
           - rel_type: refines
             spec_id: HM-02-002
+      - id: BW-04-003
+        priority: MUST
+        kind: dev-process
+        statement: >-
+          The `learn` skill MUST use `uv run append-history --from-file`
+          to archive each processed incoming learning file.
+        relationships:
+          - rel_type: implements
+            spec_id: BW-04-001
       - id: BW-04-002
         priority: MUST
         kind: implementation
