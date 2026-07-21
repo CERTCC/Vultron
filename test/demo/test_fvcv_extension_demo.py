@@ -162,6 +162,105 @@ class TestResetContainersFvcv:
 
 
 # ---------------------------------------------------------------------------
+# Invite-finder helper tests (ADR-0026 Vendor2 accept step)
+# ---------------------------------------------------------------------------
+
+
+class TestFindCaseInviteForActor:
+    """Test the helper that locates the CaseActor's Invite for the invitee.
+
+    In the ADR-0026 flow the CaseActor auto-delivers an Invite(Actor, Case) to
+    the suggested actor; the demo must find it so it can drive Vendor2's
+    accept-case-invite step (MV-10-004 seeds the replica only after Accept).
+    """
+
+    CASE_ID = "urn:uuid:case-1"
+    INVITEE_ID = "http://vendor2:7999/api/v2/actors/v2"
+
+    def _invite(self, target, obj):
+        return {"type": "Invite", "target": target, "object": obj}
+
+    def test_matches_invite_with_dict_target_and_object(self):
+        client = MagicMock()
+        client.get.return_value = {
+            "urn:uuid:invite-1": self._invite(
+                {"id": self.CASE_ID}, {"id": self.INVITEE_ID}
+            )
+        }
+        result = demo._find_case_invite_for_actor(
+            client=client,
+            case_id=self.CASE_ID,
+            invitee_id=self.INVITEE_ID,
+            timeout_seconds=1.0,
+        )
+        assert result == "urn:uuid:invite-1"
+
+    def test_matches_invite_with_bare_string_target_and_object(self):
+        """Target/object may arrive as bare URI strings after wire round-trip."""
+        client = MagicMock()
+        client.get.return_value = {
+            "urn:uuid:invite-2": self._invite(self.CASE_ID, self.INVITEE_ID)
+        }
+        result = demo._find_case_invite_for_actor(
+            client=client,
+            case_id=self.CASE_ID,
+            invitee_id=self.INVITEE_ID,
+            timeout_seconds=1.0,
+        )
+        assert result == "urn:uuid:invite-2"
+
+    def test_ignores_invite_for_other_case(self):
+        client = MagicMock()
+        client.get.return_value = {
+            "urn:uuid:invite-3": self._invite(
+                {"id": "urn:uuid:other-case"}, {"id": self.INVITEE_ID}
+            )
+        }
+        with pytest.raises(AssertionError, match="Timed out waiting"):
+            demo._find_case_invite_for_actor(
+                client=client,
+                case_id=self.CASE_ID,
+                invitee_id=self.INVITEE_ID,
+                timeout_seconds=0.1,
+                poll_interval=0.05,
+            )
+
+    def test_ignores_invite_for_other_actor(self):
+        client = MagicMock()
+        client.get.return_value = {
+            "urn:uuid:invite-4": self._invite(
+                {"id": self.CASE_ID}, {"id": "http://elsewhere/actors/x"}
+            )
+        }
+        with pytest.raises(AssertionError, match="Timed out waiting"):
+            demo._find_case_invite_for_actor(
+                client=client,
+                case_id=self.CASE_ID,
+                invitee_id=self.INVITEE_ID,
+                timeout_seconds=0.1,
+                poll_interval=0.05,
+            )
+
+    def test_ignores_non_invite_activities(self):
+        client = MagicMock()
+        client.get.return_value = {
+            "urn:uuid:offer-1": {
+                "type": "Offer",
+                "target": {"id": self.CASE_ID},
+                "object": {"id": self.INVITEE_ID},
+            }
+        }
+        with pytest.raises(AssertionError, match="Timed out waiting"):
+            demo._find_case_invite_for_actor(
+                client=client,
+                case_id=self.CASE_ID,
+                invitee_id=self.INVITEE_ID,
+                timeout_seconds=0.1,
+                poll_interval=0.05,
+            )
+
+
+# ---------------------------------------------------------------------------
 # CLI integration test
 # ---------------------------------------------------------------------------
 

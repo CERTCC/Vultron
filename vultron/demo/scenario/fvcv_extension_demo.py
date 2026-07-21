@@ -207,6 +207,68 @@ def _find_cp_offer_for_case(
     )
 
 
+def _is_case_invite_for(obj_data: dict, case_id: str, invitee_id: str) -> bool:
+    """Return True if *obj_data* is an Invite(Actor, Case) to *invitee_id* for *case_id*."""
+    if obj_data.get("type") != "Invite":
+        return False
+    target_raw = obj_data.get("target")
+    target_id = (
+        target_raw.get("id") if isinstance(target_raw, dict) else target_raw
+    )
+    if target_id != case_id:
+        return False
+    inner = obj_data.get("object")
+    inner_id = inner.get("id") if isinstance(inner, dict) else inner
+    return inner_id == invitee_id
+
+
+def _find_case_invite_for_actor(
+    client: DataLayerClient,
+    case_id: str,
+    invitee_id: str,
+    timeout_seconds: float = 15.0,
+    poll_interval: float = 0.5,
+) -> str:
+    """Poll until the CaseActor's Invite(Actor, Case) for *invitee_id* arrives.
+
+    In the ADR-0026 flow the CaseActor emits the Invite to the suggested actor
+    after the Case Owner accepts; the invitee must then send Accept(Invite) to
+    trigger the trust-bootstrap Announce(VulnerabilityCase) that seeds its case
+    replica (MV-10-003/MV-10-004).  This helper polls the invitee's DataLayer
+    for that Invite so the demo can drive the accept step.
+
+    Returns the invite activity ID string.
+
+    Raises:
+        AssertionError: If no matching Invite is found within *timeout_seconds*.
+    """
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        try:
+            all_objects = client.get("/datalayer/")
+            if isinstance(all_objects, dict):
+                for raw_id, obj_data in all_objects.items():
+                    if not isinstance(obj_data, dict):
+                        continue
+                    if _is_case_invite_for(obj_data, case_id, invitee_id):
+                        obj_id = str(raw_id)
+                        logger.info(
+                            "Found Invite for actor %s on case %s: %s",
+                            invitee_id,
+                            case_id,
+                            obj_id,
+                        )
+                        return obj_id
+        except Exception:  # noqa: BLE001
+            pass
+        time.sleep(poll_interval)
+
+    raise AssertionError(
+        f"Timed out waiting for CaseActor Invite for actor {invitee_id!r} on"
+        f" case {case_id!r} to appear in DataLayer at {client.base_url}"
+    )
+
+
 def _find_case_actor_participant_id(
     vendor_client: DataLayerClient,
     case_id: str,
@@ -397,6 +459,7 @@ def _phase_coordinator_suggests_vendor2(
     vendor_in_vendor: as_Actor,
     coordinator_in_coordinator: as_Actor,
     vendor2: as_Actor,
+    vendor2_in_vendor2: as_Actor,
     case: as_VulnerabilityCase,
 ) -> None:
     """Coordinator suggests Vendor2 via ADR-0026; Vendor1 approves; Vendor2 joins."""
@@ -455,16 +518,40 @@ def _phase_coordinator_suggests_vendor2(
         )
     logger.info("Vendor1 sent Accept(Offer(CaseParticipant)) to CaseActor")
 
-    # CaseActor receives Accept → emits Invite to Vendor2.
-    # Poll Vendor2's container for the case replica (DEMOMA-10-005 / CM-16-006).
+    # CaseActor receives Accept → emits Invite(Actor, Case) to Vendor2.  Per
+    # MV-10-004 the Invite alone does NOT seed Vendor2's case replica; Vendor2
+    # must Accept(Invite) so the CaseActor sends the trust-bootstrap
+    # Announce(VulnerabilityCase) (MV-10-003).  Poll Vendor2's DataLayer for the
+    # arriving Invite, then puppeteer Vendor2's accept (ADR-0026 invite/accept/
+    # bootstrap chain; DEMOMA-10-005 / CM-16-006).
     with demo_check("Vendor2 received invite from CaseActor (ADR-0026 path)"):
+        invite_id = _find_case_invite_for_actor(
+            client=vendor2_client,
+            case_id=case.id_,
+            invitee_id=vendor2.id_,
+            timeout_seconds=20.0,
+        )
+    logger.info("Vendor2 received CaseActor invite: %s", invite_id)
+
+    with demo_step("Vendor2 accepts the CaseActor invitation"):
+        post_to_trigger(
+            client=vendor2_client,
+            actor_id=vendor2_in_vendor2.id_,
+            behavior="accept-case-invite",
+            body={"invite_id": invite_id},
+        )
+    logger.info("Vendor2 sent Accept(Invite) to CaseActor")
+
+    # Vendor2's replica is seeded by the CaseActor's Announce(VulnerabilityCase)
+    # sent in response to the Accept above.  Poll Vendor2's container for it.
+    with demo_check("Vendor2's DataLayer received case replica"):
         wait_for_case_on_container(
             client=vendor2_client,
             case_id=case.id_,
             timeout_seconds=20.0,
         )
     logger.info(
-        "Vendor2 received case replica via CaseActor invite (ADR-0026 path)"
+        "Vendor2 received case replica via CaseActor Announce (ADR-0026 path)"
     )
 
     # 5 participants: Finder + Vendor1 + Coordinator + Vendor2 + CaseActor
@@ -968,6 +1055,8 @@ def run_fvcv_extension_demo(
         vendor2_id,
     )
 
+    vendor2_in_vendor2 = get_actor_by_id(vendor2_client, vendor2.id_)
+
     _phase_coordinator_suggests_vendor2(
         vendor_client=vendor_client,
         coordinator_client=coordinator_client,
@@ -976,10 +1065,10 @@ def run_fvcv_extension_demo(
         vendor_in_vendor=vendor_in_vendor,
         coordinator_in_coordinator=coordinator_in_coordinator,
         vendor2=vendor2,
+        vendor2_in_vendor2=vendor2_in_vendor2,
         case=case,
     )
 
-    vendor2_in_vendor2 = get_actor_by_id(vendor2_client, vendor2.id_)
     finder_in_finder = get_actor_by_id(finder_client, finder.id_)
 
     _phase_sync_verification(
