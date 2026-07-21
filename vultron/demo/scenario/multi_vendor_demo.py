@@ -46,7 +46,7 @@ import os
 import sys
 import warnings
 
-from vultron.core.states.em import EM
+from vultron.core.states.em import is_em_embargo_active
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Create,
@@ -382,7 +382,7 @@ def _assert_multi_vendor_active_embargo(
     case: as_VulnerabilityCase,
     embargo_id: str,
 ) -> None:
-    if case.current_status.em_state != EM.ACTIVE:
+    if not is_em_embargo_active(case.current_status.em_state):
         raise AssertionError(
             f"Expected ACTIVE embargo state, found {case.current_status.em_state}"
         )

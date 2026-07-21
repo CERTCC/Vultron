@@ -23,8 +23,14 @@ from typing import Optional
 
 import httpx2 as httpx
 
-from vultron.core.states.cs import CS_pxa, CS_vfd
-from vultron.core.states.em import EM
+from vultron.core.states.cs import (
+    CS_pxa,
+    CS_vfd,
+    is_pxa_attacks_observed,
+    is_pxa_exploit_public,
+    is_pxa_public_aware,
+)
+from vultron.core.states.em import is_em_embargo_active
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.demo.helpers.seeding import _dl_key
@@ -153,15 +159,18 @@ def _assert_vendor_case_status(case: as_VulnerabilityCase) -> None:
     Raises:
         AssertionError: If either invariant is violated.
     """
-    if case.current_status.em_state != EM.ACTIVE:
+    if not is_em_embargo_active(case.current_status.em_state):
         raise AssertionError(
             f"Expected ACTIVE final EM state (default embargo activated at"
             f" case creation per EP-04-001), found {case.current_status.em_state}"
         )
-    if case.current_status.pxa_state != CS_pxa.pxa:
-        raise AssertionError(
-            f"Expected pxa final case state, found {case.current_status.pxa_state}"
-        )
+    pxa = case.current_status.pxa_state
+    if (
+        is_pxa_public_aware(pxa)
+        or is_pxa_exploit_public(pxa)
+        or is_pxa_attacks_observed(pxa)
+    ):
+        raise AssertionError(f"Expected pxa final case state, found {pxa}")
 
 
 def _assert_case_notes(

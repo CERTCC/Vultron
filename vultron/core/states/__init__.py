@@ -39,6 +39,7 @@ from vultron.core.states.em import (
     EM_EMBARGO_ACTIVE,
     EM_NEGOTIATING,
     is_em_embargo_active,
+    is_em_exited,
 )
 from vultron.core.states.rm import (
     RM,

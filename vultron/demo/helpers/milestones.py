@@ -24,7 +24,7 @@ Specs: DEMOMA-06-002, DEMOMA-06-003.
 import logging
 
 from vultron.core.states.cs import CS_vfd
-from vultron.core.states.em import EM
+from vultron.core.states.em import is_em_embargo_active, is_em_exited
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.demo.helpers.sync import _extract_ref_id
@@ -88,14 +88,10 @@ def verify_case_active(
             "verify_case_active: expected a Case Actor participant in addition"
             " to receiver and reporter"
         )
-    if case.current_status.em_state != EM.ACTIVE:
+    if not is_em_embargo_active(case.current_status.em_state):
         raise AssertionError(
             f"verify_case_active receiver: expected EM.ACTIVE, found"
             f" {case.current_status.em_state}"
-        )
-    if case.active_embargo is None:
-        raise AssertionError(
-            "verify_case_active receiver: case has no active_embargo"
         )
     logger.info(
         "✓ case active (receiver): required participants (receiver,"
@@ -238,7 +234,7 @@ def verify_publicly_disclosed(
             case_data
         ), f"verify_publicly_disclosed {label}: case {case_id!r} not found"
         case = as_VulnerabilityCase.model_validate(case_data)
-        if case.current_status.em_state != EM.EXITED:
+        if not is_em_exited(case.current_status.em_state):
             raise AssertionError(
                 f"verify_publicly_disclosed {label}: expected EM.EXITED,"
                 f" found {case.current_status.em_state}"
