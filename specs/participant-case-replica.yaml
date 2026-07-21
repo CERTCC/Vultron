@@ -4,7 +4,7 @@ description: >-
   Requirements for how each Vultron Actor maintains and manages its local copy (replica) of
   a VulnerabilityCase. Covers replica identity, bootstrap, update authority, case-context
   message routing, reporter case discovery, and unknown-context handling.
-version: 1.0.0
+version: 1.1.0
 scope:
 - prototype
 - production
@@ -227,9 +227,21 @@ groups:
     priority: MUST_NOT
     kind: domain
     statement: >-
-      The `CaseLedgerEntry + broadcast` cascade MUST NOT be manually triggered by demo scripts or
-      external clients. It MUST fire automatically as a consequence of the Case Actor processing
-      any accepted participant message, not only via explicit demo endpoint invocation.
+      The `CaseLedgerEntry + broadcast` cascade MUST NOT be manually triggered by demo
+      scripts or external clients.
+    relationships:
+    - rel_type: refines
+      spec_id: PCR-08-003
+  - id: PCR-08-013
+    priority: MUST
+    kind: domain
+    statement: >-
+      The `CaseLedgerEntry + broadcast` cascade MUST fire automatically as a consequence
+      of the Case Actor processing any accepted participant message, not only via explicit
+      demo endpoint invocation.
+    relationships:
+    - rel_type: refines
+      spec_id: PCR-08-003
   - id: PCR-08-005
     priority: MUST
     kind: domain
@@ -271,32 +283,45 @@ groups:
     kind: domain
     statement: >-
       The Case Actor MUST process `RmAcceptInviteToCaseActivity` and record the invitee's
-      RM state transition (VALID → ACCEPTED) in its own DataLayer. The case owner MUST NOT
-      author or emit any RM state-change activity on behalf of the invitee.
+      RM state transition (VALID → ACCEPTED) in its own DataLayer.
     relationships:
     - rel_type: refines
       spec_id: PCR-08-001
     - rel_type: refines
       spec_id: PCR-08-003
+  - id: PCR-08-014
+    priority: MUST_NOT
+    kind: domain
+    statement: >-
+      The case owner MUST NOT author or emit any RM state-change activity on behalf of
+      the invitee.
+    relationships:
+    - rel_type: refines
+      spec_id: PCR-08-010
   - id: PCR-08-010
     priority: MUST_NOT
     kind: domain
     statement: >-
       A received-side use case MUST NOT construct or emit an ActivityStreams activity with
-      `actor` set to a different actor's ID (identity spoofing). It MUST NOT execute a
-      Behavior Tree with `actor_id` set to any actor other than the one whose DataLayer
-      is active for that use case invocation.
+      `actor` set to a different actor's ID (identity spoofing).
     relationships:
     - rel_type: refines
       spec_id: PCR-08-001
+  - id: PCR-08-015
+    priority: MUST_NOT
+    kind: domain
+    statement: >-
+      A received-side use case MUST NOT execute a Behavior Tree with `actor_id` set to
+      any actor other than the one whose DataLayer is active for that use case invocation.
+    relationships:
+    - rel_type: refines
+      spec_id: PCR-08-010
   - id: PCR-08-011
     priority: MUST
     kind: domain
     statement: >-
       An emit node in a case-scoped trigger BT MUST resolve the CaseActor
-      recipient before enqueueing and MUST fail fast (return FAILURE or raise
-      immediately) when no routable CaseActor can be found. The node MUST NOT
-      silently enqueue an activity with a `None` or empty `to` field.
+      recipient before enqueueing the activity.
     rationale: >-
       When case-scoped trigger routing was changed from `case_addressees()` to
       CaseActor-only routing, emit nodes that returned without setting `to`
@@ -314,6 +339,24 @@ groups:
       spec_id: PCR-08-002
       note: Using case_addressees() or None as the recipient in a trigger BT is
         the specific violation this requirement prevents
+  - id: PCR-08-016
+    priority: MUST
+    kind: domain
+    statement: >-
+      An emit node in a case-scoped trigger BT MUST fail fast (return FAILURE or raise
+      immediately) when no routable CaseActor can be found.
+    relationships:
+    - rel_type: refines
+      spec_id: PCR-08-011
+  - id: PCR-08-017
+    priority: MUST_NOT
+    kind: domain
+    statement: >-
+      An emit node in a case-scoped trigger BT MUST NOT silently enqueue an activity
+      with a `None` or empty `to` field.
+    relationships:
+    - rel_type: refines
+      spec_id: PCR-08-011
   - id: PCR-08-012
     priority: MUST
     kind: domain
@@ -382,15 +425,21 @@ groups:
     priority: MUST
     kind: domain
     statement: >-
-      Integration tests MUST verify that `RmInviteToCaseActivity` carries `actor` set to the
-      Case Actor's ID, and that the invitee's `RmAcceptInviteToCaseActivity` is processed
-      by the Case Actor (not the case owner). Tests MUST assert that no RM state-change
-      activity is emitted with `actor` set to the invitee's ID from the case owner's context.
+      Integration tests MUST verify that `RmInviteToCaseActivity` carries `actor` set to
+      the Case Actor's ID, and that the invitee's `RmAcceptInviteToCaseActivity` is
+      processed by the Case Actor (not the case owner).
     relationships:
     - rel_type: verifies
       spec_id: PCR-08-007
     - rel_type: verifies
       spec_id: PCR-08-008
+  - id: PCR-07-009
+    priority: MUST
+    kind: domain
+    statement: >-
+      Integration tests MUST assert that no RM state-change activity is emitted with
+      `actor` set to the invitee's ID from the case owner's context.
+    relationships:
     - rel_type: verifies
       spec_id: PCR-08-009
     - rel_type: verifies
