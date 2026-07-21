@@ -4,7 +4,7 @@ description: >-
   Formal requirements for BT node parameterization, composability, and reuse in the core
   behaviors package. Covers node context injection, blackboard hygiene, module ownership,
   and the fractal composability pattern that applies at every depth of the tree hierarchy.
-version: 1.0.0
+version: 1.1.0
 scope:
 
 - prototype
@@ -140,18 +140,27 @@ groups:
     - rel_type: refines
       spec_id: BTND-03-001
   - id: BTND-03-005
+    priority: MUST_NOT
+    kind: language
+    statement: >-
+      Blackboard keys MUST NOT contain forward-slash characters.
+    rationale: >-
+      py_trees parses forward-slashes as namespacing separators; a key containing `/`
+      silently creates a sub-namespace and will not be found by flat-key readers.
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-03-004
+  - id: BTND-03-008
     priority: MUST
     kind: language
     statement: >-
-      Blackboard keys MUST NOT contain forward-slash characters. Keys MUST follow the
-      `{noun}_{id_segment}` naming convention where the noun names the value and `id_segment`
-      is the execution-scoped correlation ID (last path or colon-delimited segment). Flat,
-      unscoped keys (e.g., `result`, `status`) are only permitted for top-level handoff keys
-      that are consumed in the same tick cycle and cannot collide.
+      Blackboard keys MUST follow the `{noun}_{id_segment}` naming convention where the
+      noun names the value and `id_segment` is the execution-scoped correlation ID (last
+      path or colon-delimited segment). Flat, unscoped keys (e.g., `result`, `status`)
+      are only permitted for top-level handoff keys that are consumed in the same tick
+      cycle and cannot collide.
     rationale: >-
-      py_trees parses forward-slashes as namespacing separators; a key containing `/`
-      silently creates a sub-namespace and will not be found by flat-key readers. The
-      `{noun}_{id_segment}` convention generalizes BTND-03-004 to all keys, not just
+      The `{noun}_{id_segment}` convention generalizes BTND-03-004 to all keys, not just
       inter-node handoffs.
     relationships:
     - rel_type: refines
@@ -216,10 +225,8 @@ groups:
     priority: MUST_NOT
     kind: implementation
     statement: >-
-      `behaviors/` modules MUST NOT import from `use_cases/` modules. The import direction
-      is one-way: use-cases drive BT trees; BT nodes MUST NOT import use-case classes or
-      functions. Shared logic needed by both MUST be extracted to a common helper in
-      `vultron/core/` or `vultron/core/behaviors/helpers.py`.
+      `behaviors/` modules MUST NOT import from `use_cases/` modules. BT nodes MUST NOT
+      import use-case classes or functions.
     rationale: >-
       Importing use-cases from behaviors inverts the composition hierarchy (behaviors are
       the implementation layer of use-cases, not their consumers) and introduces circular
@@ -229,6 +236,15 @@ groups:
       spec_id: BTND-04-001
     - rel_type: refines
       spec_id: ARCH-04-001
+  - id: BTND-04-004
+    priority: MUST
+    kind: implementation
+    statement: >-
+      Logic shared between `behaviors/` and `use_cases/` MUST be extracted to a common
+      helper in `vultron/core/` or `vultron/core/behaviors/helpers.py`.
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-04-003
 - id: BTND-05
   title: Actor Configuration for Participant Nodes
   specs:
@@ -401,21 +417,13 @@ groups:
       BT node classes for a given protocol step MUST be organized into a `nodes/`
       subpackage rather than a single flat `nodes.py` module. This applies to all
       BT-bearing process areas in `vultron/core/behaviors/` regardless of current node
-      count or file size — the `nodes/` subpackage is the standard organizational unit
-      for leaf node implementations. Submodules MUST be grouped by semantic concern
-      (e.g., `conditions.py`, `case_setup.py`, `participant.py`, `embargo.py`,
-      `communication.py`, `lifecycle.py`). The package `__init__.py` MUST re-export all
-      public node names to preserve import compatibility with callers.
+      count or file size.
     rationale: >-
       A flat `nodes.py` becomes a high-churn, high-blast-radius file where every change
-      — regardless of which workflow step it touches — modifies the same module. This
-      makes code review shallow, increases the risk of duplicate method definitions
-      silently shadowing correct logic, and degrades test maintainability. Applying the
-      `nodes/` subpackage pattern uniformly (not just when a file grows large) keeps the
-      hierarchy consistent across all process areas and prevents gradual accumulation that
-      creates a large-file problem later. Grouping by semantic concern reduces diff scope,
-      improves discoverability, and lets reviewers focus on the affected concern in
-      isolation.
+      — regardless of which workflow step it touches — modifies the same module. Applying
+      the `nodes/` subpackage pattern uniformly (not just when a file grows large) keeps
+      the hierarchy consistent and prevents gradual accumulation that creates a large-file
+      problem later.
     relationships:
     - rel_type: refines
       spec_id: BT-06-004
@@ -424,6 +432,28 @@ groups:
       subpackage and does not retain a flat `nodes.py` module at the area root.
       Helper-only areas that do not define BT tree composition or BT leaf nodes are
       exempt.
+  - id: BTND-07-006
+    priority: MUST
+    kind: pattern
+    statement: >-
+      Within a `nodes/` subpackage, submodules MUST be grouped by semantic concern
+      (e.g., `conditions.py`, `case_setup.py`, `participant.py`, `embargo.py`,
+      `communication.py`, `lifecycle.py`).
+    rationale: >-
+      Grouping by semantic concern reduces diff scope, improves discoverability, and
+      lets reviewers focus on the affected concern in isolation.
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-07-001
+  - id: BTND-07-007
+    priority: MUST
+    kind: pattern
+    statement: >-
+      The `nodes/` subpackage `__init__.py` MUST re-export all public node names to
+      preserve import compatibility with callers.
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-07-001
   - id: BTND-07-002
     priority: SHOULD
     kind: pattern
