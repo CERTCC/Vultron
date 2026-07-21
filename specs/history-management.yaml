@@ -207,17 +207,13 @@ groups:
         kind: dev-process
         statement: >-
           The `build` skill MUST use `uv run append-history implementation`
-          to write completion summaries instead of directly appending to
-          `plan/IMPLEMENTATION_HISTORY.md`. References to direct file paths
-          for history files MUST be replaced with `append-history` invocations.
+          to write completion summaries.
       - id: HM-05-002
         priority: MUST
         kind: dev-process
         statement: >-
           The `ingest-idea` skill MUST use `uv run append-history idea` to
-          archive processed ideas instead of directly appending to
-          `plan/IDEA-HISTORY.md`. References to direct file paths MUST be
-          replaced with `append-history` invocations.
+          archive processed ideas.
       - id: HM-05-003
         priority: MUST
         kind: dev-process
@@ -313,7 +309,7 @@ groups:
         priority: MUST
         kind: implementation
         statement: >-
-          All existing skill documentation (`ingest-idea`, `build`, `learn`)
-          and `notes/history-management.md` MUST be updated to use the new
-          `--title`/`--source` interface. References to the old
-          frontmatter-in-stdin pattern MUST be removed.
+          Skill documentation (`ingest-idea`, `build`, `learn`) and
+          `notes/history-management.md` MUST use the `--title`/`--source`
+          interface for `append-history`. The frontmatter-in-stdin pattern
+          MUST NOT be used.
