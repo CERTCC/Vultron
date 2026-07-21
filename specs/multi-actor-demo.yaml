@@ -218,9 +218,32 @@ groups:
     priority: MUST
     kind: implementation
     statement: >-
-      The two-actor demo Docker topology MUST use exactly two containers (finder and vendor);
-      the Case Actor MUST be an actor record co-located in the vendor container with its own
-      actor ID and inbox URL, not a separate container
+      The two-actor demo Docker topology MUST use a dedicated case-actor container with its
+      own isolated DataLayer; the Vendor MUST route case-actor creation to that container
+      using the pre-configured case-actor service URL, not create the case-actor record
+      locally in the vendor container's DataLayer
+    rationale: >-
+      Routing case-actor creation to its own container satisfies DEMOMA-01-001 (each actor
+      in its own container) and exercises the CaseProposal protocol (ADR-0023) in the
+      two-actor scenario. The demo uses DemoCreateCaseActorNode as an Actuator-shape
+      ADR-0024 stub: it reads the pre-configured case-actor URL and writes it to the BT
+      blackboard as case_actor_id, then delegates to the standard registration sequence.
+      This is a temporary demo artifact; issue #812 will replace it with real dynamic
+      spawning.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-01-001
+  - id: DEMOMA-06-005
+    priority: MUST
+    kind: implementation
+    statement: >-
+      The two-actor demo MUST verify that the case-actor container's DataLayer holds the
+      canonical case ledger after the demo completes; the demo script MUST dump the
+      case-actor's ledger from the dedicated case-actor container, not from the vendor
+      container's co-located sub-actor
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-06-004
 - id: DEMOMA-07
   title: ParticipantStatus Trigger Pattern
   specs:

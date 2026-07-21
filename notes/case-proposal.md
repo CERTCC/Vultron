@@ -189,6 +189,46 @@ corresponding `MessageSemantics` value.
 
 ---
 
+## Demo Layer: `DemoCreateCaseActorNode` (Actuator stub for spawning)
+
+**Source**: 2026-07-21 planning session, issue #810.
+
+Before dynamic case-actor spawning (#812) is implemented, the two-actor demo
+needs a way to route case-actor creation to the dedicated case-actor container
+rather than creating the actor locally in the vendor container (DEMOMA-01-001).
+
+`DemoCreateCaseActorNode` is an **Actuator** call-out point (ADR-0024, § Actuator
+shape): it receives a trigger (case initialization) and causes the side effect of
+registering the pre-configured case-actor service in the vendor's DataLayer, then
+returns SUCCESS or FAILURE. It does not produce a content artifact.
+
+### What it does
+
+1. Reads the pre-configured case-actor URL from the environment
+   (`VULTRON_CASE_ACTOR_ID`, e.g.
+   `http://case-actor:7999/api/v2/actors/case-actor`) or from config.
+2. Writes that URL to the BT blackboard as `case_actor_id` — simulating what
+   the dynamic spawning protocol (#812) will eventually provide at runtime.
+3. Delegates to the standard `CreateCaseActorNode` registration sequence
+   (`CreateCaseActorServiceNode` + `RegisterCaseActorParticipantNode`) using the
+   pre-set `case_actor_id`.
+
+### Location
+
+`DemoCreateCaseActorNode` lives in `vultron/demo/` (demo layer), not in
+`vultron/core/`. The two-actor demo wires it in place of the core
+`CreateCaseActorNode` via the demo-level case-creation BT. Core
+`CreateCaseActorNode` is unchanged.
+
+### Temporary nature
+
+This node is a demo artifact. Issue #812 (dynamic spawning) will replace it with
+real spawning logic; at that point `DemoCreateCaseActorNode` can be removed and
+the core `CreateCaseActorNode` will receive the spawned URL via the spawning
+protocol's response.
+
+---
+
 ## Open Questions
 
 None — all design decisions were resolved in the planning session.
