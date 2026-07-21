@@ -4,7 +4,7 @@ description: >-
   Requirements for the structured spec registry: YAML spec files governed by Pydantic models,
   with linting, pytest integration, and context-generation tooling. The registry provides a
   single source of truth for spec IDs, prefixes, titles, and cross-reference validation.
-version: 1.0.0
+version: 1.1.0
 scope:
 - prototype
 - production
@@ -212,9 +212,23 @@ groups:
   - id: SR-04-003
     priority: MUST
     kind: implementation
-    statement: The linter MUST be invokable as a CLI command via the `spec-lint` console entry point (`uv run spec-lint`)
-      and via `python -m vultron.metadata.specs.lint [spec_dir]`. Both invocations MUST produce identical output. When `spec_dir`
-      is omitted from the module invocation, it defaults to `specs/` relative to the current working directory.
+    statement: The linter MUST be invokable both as `uv run spec-lint` (console entry point) and as
+      `python -m vultron.metadata.specs.lint [spec_dir]` (module invocation).
+  - id: SR-04-009
+    priority: MUST
+    kind: implementation
+    statement: Both invocation forms of the spec linter MUST produce identical output for the same input.
+    relationships:
+    - rel_type: refines
+      spec_id: SR-04-003
+  - id: SR-04-010
+    priority: MUST
+    kind: implementation
+    statement: When `spec_dir` is omitted from the module invocation, the linter MUST default to
+      `specs/` relative to the current working directory.
+    relationships:
+    - rel_type: refines
+      spec_id: SR-04-003
   - id: SR-04-004
     priority: MUST
     kind: implementation
@@ -345,10 +359,6 @@ groups:
     kind: implementation
     statement: All existing `specs/*.md` files MUST be migrated to `specs/*.yaml` using a lossless conversion that preserves
       all requirement text, IDs, and relationships.
-  - id: SR-08-002
-    priority: MUST
-    kind: implementation
-    statement: The migration MUST produce YAML files that pass the spec linter with zero errors.
   - id: SR-08-003
     priority: MUST
     kind: implementation
@@ -370,8 +380,16 @@ groups:
   - id: SR-08-006
     priority: MUST_NOT
     kind: implementation
-    statement: The original `specs/*.md` requirement files MUST NOT be deleted until the YAML files have passed the spec linter
-      with zero errors and all agent/skill references have been updated to YAML paths.
+    statement: The original `specs/*.md` requirement files MUST NOT be deleted until the YAML files
+      have passed the spec linter with zero errors.
+  - id: SR-08-008
+    priority: MUST_NOT
+    kind: implementation
+    statement: The original `specs/*.md` requirement files MUST NOT be deleted until all agent and
+      skill references have been updated to use `specs/*.yaml` paths.
+    relationships:
+    - rel_type: refines
+      spec_id: SR-08-005
   - id: SR-08-007
     priority: SHOULD
     kind: implementation
@@ -400,10 +418,7 @@ groups:
     kind: dev-process
     statement: >-
       A spec statement MUST be written in the present tense and describe the system as it
-      must perpetually be. Phrases that signal migration-task framing — "must be replaced
-      by", "must be removed", "must be updated to", "once X is done", "after migration" —
-      MUST NOT appear in a spec statement unless they refer to a runtime state transition
-      (e.g. a state machine trigger), not a code change.
+      must perpetually be.
     rationale: >-
       Temporal or conditional framing ("once X holds, Y must go away") creates specs whose
       satisfaction is permanent after a single event. Such specs cannot be re-tested on
@@ -414,6 +429,19 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: SR-10-001
+  - id: SR-10-004
+    priority: MUST_NOT
+    kind: dev-process
+    statement: >-
+      Phrases that signal migration-task framing — "must be replaced by", "must be removed",
+      "must be updated to", "once X is done", "after migration" — MUST NOT appear in a spec
+      statement unless they refer to a runtime state transition (e.g. a state machine trigger),
+      not a code change.
+    tags:
+    - documentation
+    relationships:
+    - rel_type: refines
+      spec_id: SR-10-002
   - id: SR-10-003
     priority: SHOULD
     kind: dev-process
