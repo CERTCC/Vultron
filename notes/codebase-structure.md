@@ -210,6 +210,33 @@ MUST NOT be confused with `vultron/bt/` or `vultron/core/behaviors/`.
 See `notes/bt-integration.md` for architectural decisions about the BT
 layer.
 
+### Demo layer MUST NOT import the legacy simulator (ARCH-01-006)
+
+`vultron/demo/` demonstrates the **production** protocol (API server, core, and
+wire layers). It MUST NOT import from the legacy `vultron/bt/` simulator, with
+one exception: the unified demo CLI aggregator `vultron/demo/cli.py`
+(mandated by DC-01-001) is permitted to import the standalone `vultron/bt/`
+behaviour-tree demos (pacman, robot, cvd) so it can surface them as a
+`vultrabot` sub-group. Demo *logic* modules — `scenario/`, `exchange/`,
+`helpers/`, `fuzzer/` — MUST stay free of any `vultron/bt/` import.
+
+The standalone behaviour-tree demos live **inside** the simulator tree, at
+`vultron/bt/base/demo/` (`pacman.py`, `robot.py`, `cvd.py`). The CVD
+self-simulation demo `cvd.py` was relocated there from `vultron/demo/vultrabot.py`
+(issue #1375); it is a demo *of* the legacy simulator, not of the production
+protocol, so it belongs with its siblings.
+
+**Relocate, don't re-launder.** When a `vultron/demo/` module genuinely needs
+legacy-simulator symbols (`CvdProtocolBt`, `CVDRolesFlag`, `show_graph`, etc.),
+the fix is to move that module into `vultron/bt/base/demo/` — NOT to re-export
+the legacy symbols through `vultron/core/`. Re-exporting simulator internals via
+the core domain would pull the frozen legacy engine into the production
+dependency graph, a worse layering violation than the one being fixed.
+
+Enforced by the AST ratchet `test/architecture/test_demo_no_bt_imports.py`
+(`KNOWN_VIOLATIONS` lists only `vultron/demo/cli.py`), following the ARCH-18
+bidirectional-equality pattern.
+
 ---
 
 ## Demo Script Lifecycle Logging: `demo_step` / `demo_check`
