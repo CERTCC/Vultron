@@ -30,6 +30,11 @@ Node classes:
 - :class:`EmitNoteDuplicateRecommendationToOwnerNode` — sends a
   ``Create(Note)`` + ``Add(Note, Case)`` to the Case Owner when a duplicate
   recommendation arrives (CM-16-008).
+
+The Case Owner owner-side Accept response
+(:class:`~vultron.core.behaviors.case.nodes.suggest_actor.accept_offer.EmitAcceptCaseParticipantOfferNode`)
+lives in the ``accept_offer`` submodule to keep this module under the
+BTND-07-004 line limit.
 """
 
 from typing import cast

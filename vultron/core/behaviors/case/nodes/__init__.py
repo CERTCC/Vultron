@@ -97,6 +97,7 @@ from vultron.core.behaviors.case.nodes.participant import (
 from vultron.core.behaviors.case.nodes.suggest_actor import (
     ActorAlreadyParticipantNode,
     EmitAcceptActorRecommendationNode,
+    EmitAcceptCaseParticipantOfferNode,
     EmitNoteDuplicateRecommendationToOwnerNode,
     EmitOfferCaseParticipantToOwnerNode,
     EmitRejectActorRecommendationNode,
@@ -168,6 +169,7 @@ __all__ = [
     # suggest_actor (leaf nodes)
     "ActorAlreadyParticipantNode",
     "EmitAcceptActorRecommendationNode",
+    "EmitAcceptCaseParticipantOfferNode",
     "EmitNoteDuplicateRecommendationToOwnerNode",
     "EmitOfferCaseParticipantToOwnerNode",
     "EmitRejectActorRecommendationNode",

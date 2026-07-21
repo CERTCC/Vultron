@@ -58,6 +58,7 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Accept", "Invite"),
     ("Reject", "Invite"),
     ("Announce", "VulnerabilityCase"),
+    ("Offer", "CaseParticipant"),
 )
 _CASE_AUTHORED_SIGNATURES: frozenset[tuple[str, str]] = frozenset(
     {
@@ -65,6 +66,7 @@ _CASE_AUTHORED_SIGNATURES: frozenset[tuple[str, str]] = frozenset(
         ("Add", "EmbargoEvent"),
         ("Remove", "EmbargoEvent"),
         ("Invite", "EmbargoEvent"),
+        ("Offer", "CaseParticipant"),
         ("Invite", "VulnerabilityCase"),
         ("Offer", "VulnerabilityCase"),
         # Leave(VulnerabilityCase): case-actor's AutoCloseBranchNode when all reach RM.CLOSED.
@@ -183,11 +185,9 @@ def _validate_canonical_entry(
     payload_snapshot: dict[str, Any],
     event_type: str,
 ) -> None:
-    # Validation runs before idempotency check so malformed entries are
-    # rejected outright and never reach the equivalence lookup (CLP-07).
+    # Runs before idempotency check so malformed entries never reach the
+    # equivalence lookup (CLP-07). Relaxed for non-recorded dispositions.
     if disposition != "recorded":
-        # Rejected entries carry the refused payload for audit purposes;
-        # structural validation is relaxed for non-recorded dispositions.
         return
     if not payload_snapshot:
         raise VultronCanonicalEntryError(

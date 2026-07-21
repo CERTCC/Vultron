@@ -202,7 +202,7 @@ def offer_case_participant_activity(
     actor_id = getattr(recommended, "id_", None) or str(recommended)
     participant = as_CaseParticipant(
         id_=f"{actor_id}#participant",
-        attributed_to=recommended,
+        attributed_to=actor_id,
         case_roles=effective_roles,
     )
     try:
@@ -236,9 +236,18 @@ def accept_case_participant_offer_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
+    # dl.read() returns the base as_Offer; coerce to the typed subclass so
+    # Pydantic accepts it (the subclass requires object_ to be as_CaseParticipant).
+    typed_offer = (
+        _OfferCaseParticipantActivity.model_validate(
+            offer.model_dump(by_alias=True)
+        )
+        if not isinstance(offer, _OfferCaseParticipantActivity)
+        else offer
+    )
     try:
         return _AcceptCaseParticipantOfferActivity(
-            object_=cast(_OfferCaseParticipantActivity, offer),
+            object_=typed_offer,
             target=target,
             **kwargs,
         )

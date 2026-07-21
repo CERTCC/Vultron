@@ -193,6 +193,17 @@ class AcceptCaseInviteTriggerRequest(TriggerRequest):
     invite_id: NonEmptyString
 
 
+class AcceptActorRecommendationTriggerRequest(TriggerRequest):
+    """Trigger request for the Case Owner to accept an actor recommendation.
+
+    Emits an Accept(Offer(CaseParticipant)) queued in the Case Owner's outbox
+    for delivery to the CaseActor (ADR-0026, CM-16-006).
+    """
+
+    cp_offer_id: NonEmptyString
+    case_actor_id: UriString
+
+
 class InviteActorToCaseTriggerRequest(CaseTriggerRequest):
     """Trigger request for the case owner to directly invite an actor.
 

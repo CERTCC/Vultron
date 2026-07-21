@@ -39,6 +39,9 @@ from vultron.core.behaviors.case.nodes.actor import (
     EmitAcceptCaseInviteNode,
     EmitInviteActorToCaseNode,
 )
+from vultron.core.behaviors.case.nodes.suggest_actor.accept_offer import (
+    EmitAcceptCaseParticipantOfferNode,
+)
 from vultron.core.behaviors.helpers import UpdateActorOutbox
 from vultron.core.behaviors.sender.send_tree import sender_side_bt
 
@@ -140,6 +143,43 @@ def accept_case_invite_trigger_bt(
         ],
     )
     logger.debug("Created AcceptCaseInviteTriggerBT for invite=%s", invite_id)
+    return root
+
+
+def accept_actor_recommendation_trigger_bt(
+    cp_offer_id: str,
+    case_actor_id: str,
+    captured: dict | None = None,
+) -> py_trees.behaviour.Behaviour:
+    """Return the trigger-side BT for the accept-actor-recommendation workflow.
+
+    Emits Accept(Offer(CaseParticipant)) from the Case Owner's identity to
+    the CaseActor, completing the ADR-0026 CM-16-006 approval step.
+
+    Args:
+        cp_offer_id: ID of the ``Offer(CaseParticipant)`` forwarded by CaseActor.
+        case_actor_id: URI of the CaseActor to route the Accept to.
+        captured: Optional dict; ``captured["activity"]`` is set on success.
+
+    Returns:
+        Sequence containing a single EmitAcceptCaseParticipantOfferNode.
+    """
+    root = py_trees.composites.Sequence(
+        name="AcceptActorRecommendationTriggerBT",
+        memory=False,
+        children=[
+            EmitAcceptCaseParticipantOfferNode(
+                cp_offer_id=cp_offer_id,
+                case_actor_id=case_actor_id,
+                captured=captured,
+            ),
+        ],
+    )
+    logger.debug(
+        "Created AcceptActorRecommendationTriggerBT for offer=%s case_actor=%s",
+        cp_offer_id,
+        case_actor_id,
+    )
     return root
 
 

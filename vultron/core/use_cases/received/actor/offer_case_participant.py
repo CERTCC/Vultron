@@ -118,12 +118,15 @@ class AcceptOfferCaseParticipantReceivedUseCase:
     def execute(self) -> None:
         request = self._request
         activity_id = request.activity_id
-        case_id = request.target_id
+        case_id = request.target_id or request.inner_target_id
         inner_offer = getattr(request.activity, "object_", None)
         participant_obj = getattr(inner_offer, "object_", None)
         raw_invitee = getattr(participant_obj, "attributed_to", None)
         invitee_id = getattr(raw_invitee, "id_", raw_invitee)
-        recommendation_id = getattr(inner_offer, "origin", None)
+        raw_recommendation_id = getattr(inner_offer, "origin", None)
+        recommendation_id = getattr(
+            raw_recommendation_id, "id_", raw_recommendation_id
+        )
         recommender_id = None
         if recommendation_id and case_id:
             case = self._dl.read(case_id)
@@ -189,7 +192,10 @@ class RejectOfferCaseParticipantReceivedUseCase:
         participant_obj = getattr(inner_offer, "object_", None)
         raw_invitee = getattr(participant_obj, "attributed_to", None)
         recommended_id = getattr(raw_invitee, "id_", None) or request.object_id
-        recommendation_id = getattr(inner_offer, "origin", None)
+        raw_recommendation_id = getattr(inner_offer, "origin", None)
+        recommendation_id = getattr(
+            raw_recommendation_id, "id_", raw_recommendation_id
+        )
         recommender_id = None
         if recommendation_id and case_id:
             case = self._dl.read(case_id)

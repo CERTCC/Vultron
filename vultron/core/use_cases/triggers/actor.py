@@ -25,6 +25,7 @@ from typing import Any, cast
 import py_trees.behaviour
 
 from vultron.core.behaviors.case.actor_trigger_trees import (
+    accept_actor_recommendation_trigger_bt,
     accept_case_invite_trigger_bt,
     invite_actor_to_case_trigger_bt,
     offer_case_manager_role_trigger_bt,
@@ -37,6 +38,7 @@ from vultron.core.use_cases.triggers._helpers import (
     resolve_case,
 )
 from vultron.core.use_cases.triggers.requests import (
+    AcceptActorRecommendationTriggerRequest,
     AcceptCaseInviteTriggerRequest,
     InviteActorToCaseTriggerRequest,
     OfferCaseManagerRoleTriggerRequest,
@@ -88,6 +90,36 @@ class SvcSuggestActorToCaseUseCase(SvcBTTriggerBase):
             self._actor_id,
             self._suggested_actor_id,
             self._case.id_,
+        )
+
+
+class SvcAcceptActorRecommendationUseCase(SvcBTTriggerBase):
+    """Accept an actor recommendation on behalf of the Case Owner.
+
+    Emits Accept(Offer(CaseParticipant)) queued in the Case Owner's outbox for
+    delivery to the CaseActor, completing ADR-0026 CM-16-006.
+    """
+
+    def _prepare(self) -> None:
+        request = cast(AcceptActorRecommendationTriggerRequest, self._request)
+        actor = resolve_actor(request.actor_id, self._dl)
+        self._actor_id = actor.id_
+        self._cp_offer_id = request.cp_offer_id
+        self._case_actor_id = request.case_actor_id
+
+    def _build_tree(self) -> py_trees.behaviour.Behaviour:
+        return accept_actor_recommendation_trigger_bt(
+            cp_offer_id=self._cp_offer_id,
+            case_actor_id=self._case_actor_id,
+            captured=self._captured,
+        )
+
+    def _handle_result(self) -> None:
+        logger.info(
+            "Actor '%s' accepted actor recommendation offer '%s' → CaseActor '%s'",
+            self._actor_id,
+            self._cp_offer_id,
+            self._case_actor_id,
         )
 
 

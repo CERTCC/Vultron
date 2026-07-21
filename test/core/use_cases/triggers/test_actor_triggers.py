@@ -16,12 +16,14 @@
 """
 Unit tests for actor-level trigger use cases.
 Covers SvcInviteActorToCaseUseCase, SvcSuggestActorToCaseUseCase,
-SvcAcceptCaseInviteUseCase, and SvcOfferCaseManagerRoleUseCase.
+SvcAcceptCaseInviteUseCase, SvcOfferCaseManagerRoleUseCase, and
+SvcAcceptActorRecommendationUseCase.
 Includes DR-09 regression tests verifying that short UUIDs in actor_id
 are normalised to full URIs before use.
 """
 
 import pytest
+from typing import cast
 
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -29,12 +31,14 @@ from vultron.adapters.driven.datalayer_sqlite import (
 )
 from vultron.enums.roles import CVDRole
 from vultron.core.use_cases.triggers.actor import (
+    SvcAcceptActorRecommendationUseCase,
     SvcAcceptCaseInviteUseCase,
     SvcInviteActorToCaseUseCase,
     SvcOfferCaseManagerRoleUseCase,
     SvcSuggestActorToCaseUseCase,
 )
 from vultron.core.use_cases.triggers.requests import (
+    AcceptActorRecommendationTriggerRequest,
     AcceptCaseInviteTriggerRequest,
     InviteActorToCaseTriggerRequest,
     OfferCaseManagerRoleTriggerRequest,
@@ -42,6 +46,7 @@ from vultron.core.use_cases.triggers.requests import (
 )
 from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.wire.as2.factories import rm_invite_to_case_activity
+from vultron.wire.as2.factories.actor import offer_case_participant_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Invite
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
@@ -899,3 +904,75 @@ class TestSvcOfferCaseManagerRoleUseCase:
         stored = dl.read(activity_id)
         assert stored is not None
         assert getattr(stored, "type_", None) == "Offer"
+
+
+class TestSvcAcceptActorRecommendationUseCase:
+    """Tests for the accept-actor-recommendation trigger use case."""
+
+    def _make_cp_offer(
+        self, dl: SqliteDataLayer, vendor_id: str, case_actor_id: str
+    ):
+        vendor = as_Service(id_=vendor_id, name="Vendor")
+        offer = offer_case_participant_activity(
+            recommended=vendor,
+            actor=case_actor_id,
+            to=["http://owner:7999/api/v2/actors/owner"],
+        )
+        dl.create(cast(as_CaseParticipant, offer.object_))
+        dl.create(offer)
+        return offer
+
+    def test_accept_creates_accept_activity(self):
+        owner, dl = _make_actor_dl("Owner")
+        case_actor = as_Service(name="CaseActor")
+        vendor = as_Service(name="Vendor")
+        dl.create(case_actor)
+        dl.create(vendor)
+
+        offer = self._make_cp_offer(dl, vendor.id_, case_actor.id_)
+
+        request = AcceptActorRecommendationTriggerRequest(
+            actor_id=owner.id_,
+            cp_offer_id=offer.id_,
+            case_actor_id=case_actor.id_,
+        )
+        result = SvcAcceptActorRecommendationUseCase(
+            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        assert result.get("activity") is not None
+        activity = result["activity"]
+        assert activity["type"] == "Accept"
+
+    def test_accept_raises_when_offer_not_found(self):
+        owner, dl = _make_actor_dl("Owner")
+        case_actor = as_Service(name="CaseActor")
+        dl.create(case_actor)
+
+        request = AcceptActorRecommendationTriggerRequest(
+            actor_id=owner.id_,
+            cp_offer_id="https://example.org/activities/no-such-offer",
+            case_actor_id=case_actor.id_,
+        )
+        with pytest.raises(Exception):
+            SvcAcceptActorRecommendationUseCase(
+                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
+
+    def test_accept_raises_when_actor_not_found(self):
+        _, dl = _make_actor_dl("Owner")
+        case_actor = as_Service(name="CaseActor")
+        vendor = as_Service(name="Vendor")
+        dl.create(case_actor)
+        dl.create(vendor)
+        offer = self._make_cp_offer(dl, vendor.id_, case_actor.id_)
+
+        request = AcceptActorRecommendationTriggerRequest(
+            actor_id="https://example.org/actors/ghost",
+            cp_offer_id=offer.id_,
+            case_actor_id=case_actor.id_,
+        )
+        with pytest.raises(VultronNotFoundError):
+            SvcAcceptActorRecommendationUseCase(
+                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()

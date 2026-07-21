@@ -40,6 +40,7 @@ from typing import TYPE_CHECKING, Any
 
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases.triggers.actor import (
+    SvcAcceptActorRecommendationUseCase,
     SvcAcceptCaseInviteUseCase,
     SvcInviteActorToCaseUseCase,
     SvcOfferCaseManagerRoleUseCase,
@@ -69,6 +70,7 @@ from vultron.core.use_cases.triggers.report import (
     SvcValidateReportUseCase,
 )
 from vultron.core.use_cases.triggers.requests import (
+    AcceptActorRecommendationTriggerRequest,
     AcceptCaseInviteTriggerRequest,
     AcceptEmbargoTriggerRequest,
     AddNoteToCaseTriggerRequest,
@@ -470,5 +472,25 @@ class TriggerService:
             case_id=case_id,
         )
         return SvcOfferCaseManagerRoleUseCase(
+            self._dl, req, trigger_activity=self._trigger_activity
+        ).execute()
+
+    def accept_actor_recommendation(
+        self,
+        actor_id: str,
+        cp_offer_id: str,
+        case_actor_id: str,
+    ) -> dict[str, Any]:
+        """Accept an actor recommendation as the Case Owner.
+
+        Emits Accept(Offer(CaseParticipant)) to the CaseActor (ADR-0026,
+        CM-16-006).
+        """
+        req = AcceptActorRecommendationTriggerRequest(
+            actor_id=actor_id,
+            cp_offer_id=cp_offer_id,
+            case_actor_id=case_actor_id,
+        )
+        return SvcAcceptActorRecommendationUseCase(
             self._dl, req, trigger_activity=self._trigger_activity
         ).execute()
