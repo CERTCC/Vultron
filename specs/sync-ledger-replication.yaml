@@ -203,6 +203,13 @@ groups:
     kind: domain
     statement: 'Reject-on-divergence: entries that do not extend the current hash chain MUST be rejected and MUST trigger
       resynchronization'
+    rationale: >-
+      "Rejected" means "not applied and not persisted as the current tail"; it
+      does NOT require discarding the entry. A forward-gap entry (a valid entry
+      whose predecessor has not yet arrived) MAY be retained in the non-ledger
+      holding area of SYNC-14 pending its predecessor, and MUST still trigger
+      resynchronization (the Reject remains the backstop for genuinely lost
+      entries). See ADR-0037 (docs/adr/0037-buffer-out-of-order-ledger-entries.md).
 - id: SYNC-10
   title: Catch-Up Gate Before New Actions
   specs:
@@ -357,3 +364,76 @@ groups:
       inline object obtained during parsing, without requiring a DataLayer round-trip; the
       SYNC-12-003 already-stored gate MUST remain the sole mechanism that distinguishes
       first delivery from repeat delivery.
+- id: SYNC-14
+  title: Out-of-Order Entry Buffering and Drain
+  description: >-
+    Announce(CaseLedgerEntry) is delivered over a transport with no ordering guarantee, and
+    Vultron may not be the only implementation on the wire, so a replica can receive an entry
+    before its hash-chain predecessor. Dropping such an entry and relying on a reject/replay
+    round-trip does not converge under adversarial reordering, because replay re-announces
+    entries individually over the same unordered transport (they can reorder and be dropped
+    again). These requirements make replica convergence independent of delivery order by
+    holding forward-gap entries in a non-ledger buffer and draining them in hash-chain order
+    once the entry that closes the gap is committed. Rationale: ADR-0037
+    (docs/adr/0037-buffer-out-of-order-ledger-entries.md).
+  specs:
+  - id: SYNC-14-001
+    priority: MUST
+    kind: domain
+    statement: >-
+      When a participant receives a valid Announce(CaseLedgerEntry) whose prev_log_hash does
+      not match its current chain tail but whose log_index is strictly greater than
+      tail_index + 1 (a forward gap), the participant MUST NOT permanently discard the entry;
+      it MUST retain the entry in a holding area pending arrival of its predecessor.
+    rationale: >-
+      The hash chain makes indefinite retention safe: a held entry is applied only when an
+      entry whose entry_hash equals the held entry's prev_log_hash is committed, so a
+      fork/rewrite cannot masquerade as the predecessor.
+  - id: SYNC-14-002
+    priority: MUST
+    kind: domain
+    statement: >-
+      A forward-gap entry that is buffered MUST still trigger resynchronization (SYNC-08-005)
+      — the participant MUST send Reject(CaseLedgerEntry) carrying its last accepted hash so
+      the CaseActor replays entries that are genuinely lost (never delivered) rather than
+      merely reordered.
+  - id: SYNC-14-003
+    priority: MUST
+    kind: domain
+    statement: >-
+      After a participant commits a CaseLedgerEntry, it MUST drain the holding area: for each
+      newly committed tail, it MUST locate the buffered entry (if any) whose prev_log_hash
+      equals the new tail's entry_hash, apply that entry, and repeat, cascading until no
+      buffered entry extends the current tail.
+  - id: SYNC-14-004
+    priority: MUST
+    kind: domain
+    statement: >-
+      Draining a buffered entry MUST apply the entry's domain effects before persisting it
+      (SYNC-12-001) and MUST NOT re-apply effects for an entry already present in the local
+      ledger (SYNC-12-003); the drain path MUST be the same apply-then-persist path used for
+      in-order delivery.
+    relationships:
+    - rel_type: depends_on
+      spec_id: SYNC-12-001
+      note: The drain MUST preserve the effects-before-persist invariant per applied entry
+  - id: SYNC-14-005
+    priority: MUST_NOT
+    kind: domain
+    statement: >-
+      The out-of-order holding area MUST NOT be the canonical ledger/DataLayer store; a
+      buffered entry MUST NOT be persisted as a CaseLedgerEntry until it is drained (i.e.
+      until its predecessor is present), so that presence of a CaseLedgerEntry in the
+      DataLayer continues to mean "committed and effects applied" (SYNC-13-001).
+    relationships:
+    - rel_type: depends_on
+      spec_id: SYNC-13-001
+      note: Buffering in the DataLayer would break the presence-means-committed invariant
+  - id: SYNC-14-006
+    priority: SHOULD
+    kind: domain
+    statement: >-
+      The holding area SHOULD be bounded in size per case; when full it SHOULD evict the
+      entry farthest ahead of the current gap (highest log_index) and log a warning. Eviction
+      is recoverable because SYNC-14-002 already sent a Reject, so eviction MUST NOT be relied
+      upon to trigger recovery by itself.

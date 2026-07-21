@@ -82,7 +82,10 @@ class SyncActivityAdapter:
             to=to,
         )
         self._dl.save(reject)
-        self._dl.outbox_append(reject.id_)
+        # Enqueue against *actor_id* explicitly (not the DL's own scope) so the
+        # reject is delivered correctly even when ``self._dl`` is a shared or
+        # differently-scoped DataLayer — matching send_announce_log_entry.
+        add_activity_to_outbox(actor_id, reject.id_, self._dl)
         logger.info(
             "sync adapter: queued Reject(CaseLedgerEntry) '%s' → %s",
             reject.id_,
