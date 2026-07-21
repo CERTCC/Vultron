@@ -66,8 +66,8 @@ dynamic = ["version",]
 [project.scripts]
 vultrabot_pacman="vultron.bt.base.demo.pacman:main"
 vultrabot_robot="vultron.bt.base.demo.robot:main"
-vultrabot_cvd="vultron.demo.vultrabot:main"
-vultrabot="vultron.scripts.vultrabot:main"
+vultrabot_cvd="vultron.bt.base.demo.cvd:main"
+vultrabot="vultron.bt.base.demo.cvd:main"
 vultron-demo="vultron.demo.cli:main"
 spec-dump="vultron.metadata.specs.render:main_llm_json"
 spec-dump-llm-json="vultron.metadata.specs.render:main_llm_json"

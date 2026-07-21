@@ -15,7 +15,7 @@ import unittest
 from io import StringIO
 from unittest.mock import patch
 
-from vultron.demo import vultrabot
+from vultron.bt.base.demo import cvd as vultrabot
 
 
 class MyTestCase(unittest.TestCase):

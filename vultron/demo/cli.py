@@ -55,7 +55,7 @@ from vultron.demo.seed_config import SeedConfig
 from vultron.demo.utils import DataLayerClient, BASE_URL, seed_actor
 import vultron.bt.base.demo.pacman as pacman_demo
 import vultron.bt.base.demo.robot as robot_demo
-import vultron.demo.vultrabot as cvd_vultrabot_demo
+import vultron.bt.base.demo.cvd as cvd_vultrabot_demo
 
 # Ordered list of (sub-command name, demo module) pairs.
 # Order defines execution sequence for the `all` sub-command (DC-01-003).

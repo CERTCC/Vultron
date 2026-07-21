@@ -85,6 +85,6 @@ Each script can be run standalone via
 
 ## vultrabot (CVD BT Demo)
 
-::: vultron.demo.vultrabot
-    options:
-        heading_level: 3
+The CVD behaviour-tree self-simulation demo now lives in the legacy simulator
+tree alongside its siblings (pacman, robot); see
+[Vultrabot Demo](../bt/vultrabot_demo.md) for its documentation and source.

@@ -35,7 +35,7 @@ pd.set_option("display.max_columns", 500)
 pd.set_option("display.width", 1000)
 
 
-def main(args) -> None:
+def main(args=None) -> None:
     """
     Instantiates a `CvdProtocolBt` object and runs it until either it closes or 1000 ticks have passed.
     This demo is basically simulating a CVD agent coordinating a CVD case with itself.
@@ -65,6 +65,8 @@ def main(args) -> None:
          This demo is not intended to be a fully realistic simulation of a CVD case. It is only intended
          to demonstrate the behavior of the Vultron behavior tree.
     """
+    if args is None:
+        args = _parse_args()
     _setup_logger(args)
 
     if args.print_tree:
