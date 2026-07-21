@@ -93,6 +93,8 @@ General information about architectural decision records is available at <https:
   Objects](0034-datalayer-returns-core-objects.md)
 - [ADR-0035 Core Activity Representation and Envelope
   Reconstitution](0035-core-activity-representation-and-envelope-reconstitution.md)
+- [ADR-0036 Per-Machine Dimension Objects for CaseStatus and
+  ParticipantStatus](0036-status-dimension-objects.md)
 
 ## Proposed ADRs
 

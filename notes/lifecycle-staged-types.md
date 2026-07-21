@@ -157,3 +157,7 @@ Where it gets messier: it is a wire- and persistence-visible schema change
 (rehydration, `CORE_VOCABULARY`, AS2 projection, and the append-only
 history model all interact), so it deserves its **own ADR** and must not be
 folded into the staged-types work. Tracked as a separate Idea issue.
+
+**Resolved**: ADR-0036 and `specs/status-dimension-objects.yaml` capture the
+design and normative requirements. See `notes/status-dimension-objects.md`
+for implementation guidance.
