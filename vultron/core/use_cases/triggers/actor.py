@@ -44,10 +44,7 @@ from vultron.core.use_cases.triggers.requests import (
     OfferCaseManagerRoleTriggerRequest,
     SuggestActorToCaseTriggerRequest,
 )
-from vultron.errors import (
-    VultronNotFoundError,
-    VultronValidationError,
-)
+from vultron.errors import VultronNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -192,16 +189,9 @@ class SvcAcceptCaseInviteUseCase(SvcBTTriggerBase):
         actor = resolve_actor(request.actor_id, self._dl)
         self._actor_id = actor.id_
 
-        raw_invite = self._dl.read(request.invite_id)
-        if raw_invite is None:
+        if self._dl.read(request.invite_id) is None:
             raise VultronNotFoundError(
                 "RmInviteToCaseActivity", request.invite_id
-            )
-
-        invite_type = getattr(raw_invite, "type_", "")
-        if invite_type != "Invite":
-            raise VultronValidationError(
-                f"'{request.invite_id}' is not an RmInviteToCaseActivity"
             )
 
         self._invite_id = request.invite_id

@@ -73,6 +73,19 @@ class _ReportsMixin:
                 "submit_report: offer record '%s' already exists — skipping",
                 offer_record.id_,
             )
+        except Exception:
+            # Compensating delete: remove the Offer activity so the pair is
+            # never left in a half-written state. If the delete itself fails,
+            # log and re-raise the original error so the caller sees it.
+            try:
+                self._dl.delete(activity.type_, activity.id_)
+            except Exception:
+                logger.exception(
+                    "submit_report: compensating delete of activity '%s' also"
+                    " failed; DataLayer may be in inconsistent state",
+                    activity.id_,
+                )
+            raise
         return activity.id_, activity.model_dump(**_DUMP_KWARGS)
 
     def validate_report(

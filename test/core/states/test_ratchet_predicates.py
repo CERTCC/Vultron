@@ -24,7 +24,12 @@ from vultron.core.states.cs import (
     is_vfd_fix_ready,
     is_vfd_vendor_aware,
 )
-from vultron.core.states.em import EM, EM_EMBARGO_ACTIVE, is_em_embargo_active
+from vultron.core.states.em import (
+    EM,
+    EM_EMBARGO_ACTIVE,
+    is_em_embargo_active,
+    is_em_exited,
+)
 from vultron.core.states.rm import RM, RM_VALIDATED, is_rm_validated
 
 # ---------------------------------------------------------------------------
@@ -136,6 +141,22 @@ class TestEmEmbargoActive:
 
     def test_exited_excluded(self):
         assert is_em_embargo_active(EM.EXITED) is False
+
+
+class TestEmExited:
+    def test_true_for_exited(self):
+        assert is_em_exited(EM.EXITED) is True
+
+    @pytest.mark.parametrize(
+        "state", [EM.NONE, EM.PROPOSED, EM.ACTIVE, EM.REVISE]
+    )
+    def test_false_for_non_exited(self, state):
+        assert is_em_exited(state) is False
+
+    def test_exhaustive(self):
+        """Exactly one EM state satisfies is_em_exited."""
+        exited_states = [s for s in EM if is_em_exited(s)]
+        assert exited_states == [EM.EXITED]
 
 
 # ---------------------------------------------------------------------------

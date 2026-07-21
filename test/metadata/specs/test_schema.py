@@ -52,6 +52,7 @@ def test_spec_id_str_valid(spec_id):
         priority=RFC2119Priority.MUST,
         statement="MUST do something",
         rationale="Because testing",
+        kind=SpecKind.GENERAL,
     )
     assert spec.id == spec_id
 
@@ -75,6 +76,7 @@ def test_spec_id_str_invalid(spec_id):
             priority=RFC2119Priority.MUST,
             statement="MUST do something",
             rationale="Because testing",
+            kind=SpecKind.GENERAL,
         )
 
 
@@ -84,15 +86,15 @@ def test_spec_id_str_invalid(spec_id):
 
 
 def test_statement_spec_absent_fields():
-    """Optional fields default to None when not provided."""
+    """Optional fields default to None when not provided; kind is required."""
     spec = StatementSpec(
         id="AB-01-001",
         priority=RFC2119Priority.MUST,
         statement="AB-01-001 MUST satisfy this",
+        kind=SpecKind.GENERAL,
     )
     assert spec.rationale is None
     assert spec.testable is True
-    assert spec.kind is None
     assert spec.scope is None
     assert spec.tags is None
     assert spec.relationships is None
@@ -133,6 +135,7 @@ def test_statement_spec_empty_statement_rejected():
             priority=RFC2119Priority.MUST,
             statement="",
             rationale="Because testing",
+            kind=SpecKind.GENERAL,
         )
 
 
@@ -143,6 +146,7 @@ def test_statement_spec_empty_rationale_rejected():
             priority=RFC2119Priority.MUST,
             statement="AB-01-001 MUST satisfy this",
             rationale="",
+            kind=SpecKind.GENERAL,
         )
 
 
@@ -151,6 +155,7 @@ def test_statement_spec_rationale_none_allowed():
         id="AB-01-001",
         priority=RFC2119Priority.MUST,
         statement="AB-01-001 MUST satisfy this",
+        kind=SpecKind.GENERAL,
     )
     assert spec.rationale is None
 
@@ -161,6 +166,7 @@ def test_statement_spec_rationale_omitted_allowed():
         priority=RFC2119Priority.MUST,
         statement="AB-01-001 MUST satisfy this",
         rationale=None,
+        kind=SpecKind.GENERAL,
     )
     assert spec.rationale is None
 
@@ -179,6 +185,7 @@ def test_empty_list_rejected(field: str) -> None:
         "id": "AB-01-001",
         "priority": RFC2119Priority.MUST,
         "statement": "AB-01-001 MUST pass",
+        "kind": SpecKind.GENERAL,
         field: [],
     }
     with pytest.raises(ValidationError, match="non-empty"):
@@ -196,6 +203,7 @@ def test_behavioral_spec_with_steps():
         priority=RFC2119Priority.MUST,
         statement="AB-01-001 MUST follow this workflow",
         rationale="Protocol requirement",
+        kind=SpecKind.GENERAL,
         preconditions=[Precondition(description="System is ready")],
         steps=[
             BehaviorStep(
@@ -219,6 +227,7 @@ def test_behavioral_spec_absent_steps_valid():
         priority=RFC2119Priority.MUST,
         statement="AB-01-001 MUST do something",
         rationale="Because testing",
+        kind=SpecKind.GENERAL,
     )
     assert spec.steps is None
 
@@ -229,6 +238,7 @@ def test_behavioral_spec_empty_list_rejected(field: str) -> None:
         "id": "AB-01-001",
         "priority": RFC2119Priority.MUST,
         "statement": "AB-01-001 MUST pass",
+        "kind": SpecKind.GENERAL,
         field: [],
     }
     with pytest.raises(ValidationError, match="non-empty"):
@@ -250,6 +260,7 @@ def test_spec_group_valid():
                 priority=RFC2119Priority.MUST,
                 statement="AB-01-001 MUST do the thing",
                 rationale="Rationale",
+                kind=SpecKind.GENERAL,
             )
         ],
     )
@@ -267,6 +278,7 @@ def test_spec_group_empty_title_rejected():
                     id="AB-01-001",
                     priority=RFC2119Priority.MUST,
                     statement="AB-01-001 MUST exist",
+                    kind=SpecKind.GENERAL,
                 )
             ],
         )
@@ -288,6 +300,7 @@ def test_spec_group_description_nonempty_if_present():
                     id="AB-01-001",
                     priority=RFC2119Priority.MUST,
                     statement="AB-01-001 MUST exist",
+                    kind=SpecKind.GENERAL,
                 )
             ],
         )
@@ -302,6 +315,7 @@ def test_spec_group_description_none_allowed():
                 id="AB-01-001",
                 priority=RFC2119Priority.MUST,
                 statement="AB-01-001 MUST exist",
+                kind=SpecKind.GENERAL,
             )
         ],
     )
@@ -319,6 +333,7 @@ def test_spec_group_empty_scope_rejected():
                     id="AB-01-001",
                     priority=RFC2119Priority.MUST,
                     statement="AB-01-001 MUST exist",
+                    kind=SpecKind.GENERAL,
                 )
             ],
         )
@@ -335,7 +350,6 @@ def test_spec_file_valid():
         title="Test File",
         description="A test file",
         version="0.1",
-        kind=SpecKind.GENERAL,
         scope=[Scope.PRODUCTION],
         groups=[
             SpecGroup(
@@ -347,6 +361,7 @@ def test_spec_file_valid():
                         priority=RFC2119Priority.MUST,
                         statement="AB-01-001 MUST work",
                         rationale="Because",
+                        kind=SpecKind.GENERAL,
                     )
                 ],
             )
@@ -356,28 +371,32 @@ def test_spec_file_valid():
     assert len(sf.groups) == 1
 
 
-def test_spec_file_requires_kind():
-    with pytest.raises(ValidationError):
-        SpecFile(  # type: ignore[call-arg]
-            id="AB",
-            title="Test File",
-            description="A test file",
-            version="0.1",
-            scope=[Scope.PRODUCTION],
-            groups=[
-                SpecGroup(
-                    id="AB-01",
-                    title="Group",
-                    specs=[
-                        StatementSpec(
-                            id="AB-01-001",
-                            priority=RFC2119Priority.MUST,
-                            statement="AB-01-001 MUST work",
-                        )
-                    ],
-                )
-            ],
-        )
+def test_spec_file_no_file_level_kind():
+    """SpecFile no longer has a kind field; file-level kind is removed."""
+    # SpecFile without kind= at file level is valid (kind lives on spec items)
+    sf = SpecFile(
+        id="AB",
+        title="Test File",
+        description="A test file",
+        version="0.1",
+        scope=[Scope.PRODUCTION],
+        groups=[
+            SpecGroup(
+                id="AB-01",
+                title="Group",
+                specs=[
+                    StatementSpec(
+                        id="AB-01-001",
+                        priority=RFC2119Priority.MUST,
+                        statement="AB-01-001 MUST work",
+                        kind=SpecKind.GENERAL,
+                    )
+                ],
+            )
+        ],
+    )
+    assert sf.id == "AB"
+    assert not hasattr(sf, "kind")
 
 
 def test_spec_file_requires_scope():
@@ -387,7 +406,6 @@ def test_spec_file_requires_scope():
             title="Test File",
             description="A test file",
             version="0.1",
-            kind=SpecKind.GENERAL,
             groups=[
                 SpecGroup(
                     id="AB-01",
@@ -397,6 +415,7 @@ def test_spec_file_requires_scope():
                             id="AB-01-001",
                             priority=RFC2119Priority.MUST,
                             statement="AB-01-001 MUST work",
+                            kind=SpecKind.GENERAL,
                         )
                     ],
                 )
@@ -411,7 +430,6 @@ def test_spec_file_empty_scope_rejected():
             title="Test File",
             description="A test file",
             version="0.1",
-            kind=SpecKind.GENERAL,
             scope=[],
             groups=[
                 SpecGroup(
@@ -422,6 +440,7 @@ def test_spec_file_empty_scope_rejected():
                             id="AB-01-001",
                             priority=RFC2119Priority.MUST,
                             statement="AB-01-001 MUST work",
+                            kind=SpecKind.GENERAL,
                         )
                     ],
                 )
@@ -436,7 +455,6 @@ def test_spec_file_empty_groups_rejected():
             title="Test File",
             description="A test file",
             version="0.1",
-            kind=SpecKind.GENERAL,
             scope=[Scope.PRODUCTION],
             groups=[],
         )
@@ -453,7 +471,6 @@ def test_registry_duplicate_spec_id_raises(tmp_path):
         "title": "Dup File",
         "description": "Duplicate spec IDs",
         "version": "0.1",
-        "kind": "general",
         "scope": ["production"],
         "groups": [
             {
@@ -463,12 +480,14 @@ def test_registry_duplicate_spec_id_raises(tmp_path):
                     {
                         "id": "DUP-01-001",
                         "priority": "MUST",
+                        "kind": "general",
                         "statement": "DUP-01-001 MUST be unique",
                         "rationale": "Uniqueness",
                     },
                     {
                         "id": "DUP-01-001",  # duplicate
                         "priority": "SHOULD",
+                        "kind": "general",
                         "statement": "DUP-01-001 SHOULD also exist",
                         "rationale": "But is duplicate",
                     },
@@ -530,7 +549,6 @@ def test_effective_tags_file_level_inherited(tmp_path):
         "title": "Test",
         "description": "Test",
         "version": "0.1",
-        "kind": "general",
         "scope": ["production"],
         "tags": ["protocol"],
         "groups": [
@@ -541,6 +559,7 @@ def test_effective_tags_file_level_inherited(tmp_path):
                     {
                         "id": "TST-01-001",
                         "priority": "MUST",
+                        "kind": "general",
                         "statement": "TST-01-001 MUST pass",
                     }
                 ],
@@ -558,7 +577,6 @@ def test_effective_tags_spec_overrides_file(tmp_path):
         "title": "Test",
         "description": "Test",
         "version": "0.1",
-        "kind": "general",
         "scope": ["production"],
         "tags": ["protocol"],
         "groups": [
@@ -569,6 +587,7 @@ def test_effective_tags_spec_overrides_file(tmp_path):
                     {
                         "id": "TST-01-001",
                         "priority": "MUST",
+                        "kind": "general",
                         "statement": "TST-01-001 MUST pass",
                         "tags": ["testing"],
                     }
@@ -587,7 +606,6 @@ def test_effective_tags_empty_when_neither_spec_nor_file(tmp_path):
         "title": "Test",
         "description": "Test",
         "version": "0.1",
-        "kind": "general",
         "scope": ["production"],
         "groups": [
             {
@@ -597,6 +615,7 @@ def test_effective_tags_empty_when_neither_spec_nor_file(tmp_path):
                     {
                         "id": "TST-01-001",
                         "priority": "MUST",
+                        "kind": "general",
                         "statement": "TST-01-001 MUST pass",
                     }
                 ],
@@ -614,7 +633,6 @@ def test_effective_tags_graph_node_populated(tmp_path):
         "title": "Test",
         "description": "Test",
         "version": "0.1",
-        "kind": "general",
         "scope": ["production"],
         "tags": ["protocol"],
         "groups": [
@@ -625,6 +643,7 @@ def test_effective_tags_graph_node_populated(tmp_path):
                     {
                         "id": "TST-01-001",
                         "priority": "MUST",
+                        "kind": "general",
                         "statement": "TST-01-001 MUST pass",
                     }
                 ],
@@ -643,7 +662,6 @@ def test_effective_kind_spec_override(tmp_path):
         "title": "Test",
         "description": "Test",
         "version": "0.1",
-        "kind": "general",
         "scope": ["production"],
         "groups": [
             {
@@ -655,34 +673,6 @@ def test_effective_kind_spec_override(tmp_path):
                         "priority": "MUST",
                         "statement": "TST-01-001 MUST pass",
                         "kind": "implementation",
-                    }
-                ],
-            }
-        ],
-    }
-    (tmp_path / "test.yaml").write_text(yaml.dump(data))
-    registry = load_registry(tmp_path)
-    assert registry.get_effective_kind("TST-01-001") == SpecKind.IMPLEMENTATION
-
-
-def test_effective_kind_group_override(tmp_path):
-    data = {
-        "id": "TST",
-        "title": "Test",
-        "description": "Test",
-        "version": "0.1",
-        "kind": "general",
-        "scope": ["production"],
-        "groups": [
-            {
-                "id": "TST-01",
-                "title": "Group",
-                "kind": "implementation",
-                "specs": [
-                    {
-                        "id": "TST-01-001",
-                        "priority": "MUST",
-                        "statement": "TST-01-001 MUST pass",
                     }
                 ],
             }
@@ -787,6 +777,7 @@ def test_spec_group_with_trigger():
                 id="AB-01-001",
                 priority=RFC2119Priority.MUST,
                 statement="AB-01-001 MUST transition EM to Proposed",
+                kind=SpecKind.GENERAL,
             )
         ],
     )
@@ -804,6 +795,7 @@ def test_spec_group_without_trigger():
                 id="AB-01-001",
                 priority=RFC2119Priority.MUST,
                 statement="AB-01-001 MUST exist",
+                kind=SpecKind.GENERAL,
             )
         ],
     )
@@ -820,6 +812,7 @@ def test_behavioral_spec_full_new_fields():
         id="AB-01-001",
         priority=RFC2119Priority.MUST,
         statement="On receiving EP while EM is NONE, MUST transition EM to PROPOSED",
+        kind=SpecKind.GENERAL,
         preconditions=[
             Precondition(
                 em_state=[EM.NONE],
@@ -866,7 +859,6 @@ def test_behavioral_spec_round_trips_through_yaml(tmp_path):
         "title": "Behavioral Test Spec",
         "description": "Tests BehavioralSpec fields round-trip through YAML",
         "version": "0.1",
-        "kind": "domain",
         "scope": ["prototype", "production"],
         "groups": [
             {
@@ -880,6 +872,7 @@ def test_behavioral_spec_round_trips_through_yaml(tmp_path):
                     {
                         "id": "BTB-01-001",
                         "priority": "MUST",
+                        "kind": "domain",
                         "statement": "MUST transition EM to PROPOSED on EP",
                         "preconditions": [
                             {
@@ -960,50 +953,15 @@ def test_spec_kind_contains_exactly_six_tiers():
                 "kind": SpecKind.DEV_PROCESS,
             },
         ),
-        (
-            SpecGroup,
-            {
-                "id": "DP-01",
-                "title": "Dev-process group",
-                "kind": SpecKind.DEV_PROCESS,
-                "specs": [
-                    StatementSpec(
-                        id="DP-01-001",
-                        priority=RFC2119Priority.MUST,
-                        statement="DP-01-001 MUST document the dev process",
-                    )
-                ],
-            },
-        ),
-        (
-            SpecFile,
-            {
-                "id": "DP",
-                "title": "Dev-process spec file",
-                "description": "A spec file with kind dev-process",
-                "version": "0.1",
-                "kind": SpecKind.DEV_PROCESS,
-                "scope": [Scope.PRODUCTION],
-                "groups": [
-                    SpecGroup(
-                        id="DP-01",
-                        title="Dev-process group",
-                        specs=[
-                            StatementSpec(
-                                id="DP-01-001",
-                                priority=RFC2119Priority.MUST,
-                                statement="DP-01-001 MUST document the dev process",
-                            )
-                        ],
-                    )
-                ],
-            },
-        ),
     ],
-    ids=["StatementSpec", "SpecGroup", "SpecFile"],
+    ids=["StatementSpec"],
 )
 def test_dev_process_kind_round_trip(model_cls, kwargs):
-    """kind: dev-process round-trips through each model layer (AC-1)."""
+    """kind: dev-process round-trips through StatementSpec (AC-1).
+
+    SpecGroup and SpecFile no longer carry a kind field; kind lives on
+    individual spec items only.
+    """
     obj = model_cls(**kwargs)
     assert obj.kind == SpecKind.DEV_PROCESS
     assert obj.kind == "dev-process"
@@ -1021,7 +979,6 @@ def test_load_registry_dev_process_kind(tmp_path):
         "title": "Dev-process spec file",
         "description": "Spec file for dev-process kind smoke test",
         "version": "0.1",
-        "kind": "dev-process",
         "scope": ["production"],
         "groups": [
             {
@@ -1031,6 +988,7 @@ def test_load_registry_dev_process_kind(tmp_path):
                     {
                         "id": "DP-01-001",
                         "priority": "MUST",
+                        "kind": "dev-process",
                         "statement": "DP-01-001 MUST document the dev process",
                         "rationale": "Ensures dev-process specs are loadable",
                     }

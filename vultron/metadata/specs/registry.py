@@ -30,15 +30,6 @@ except ImportError as exc:  # pragma: no cover
     ) from exc
 
 
-def effective_kind(spec: Spec, group: SpecGroup, file: SpecFile) -> SpecKind:
-    """Resolve the effective ``kind`` for *spec* via inheritance."""
-    if spec.kind is not None:
-        return spec.kind
-    if group.kind is not None:
-        return group.kind
-    return file.kind
-
-
 def effective_scope(
     spec: Spec, group: SpecGroup, file: SpecFile
 ) -> list[Scope]:
@@ -102,7 +93,7 @@ class SpecRegistry(BaseModel):
             g.add_node(
                 spec_id,
                 priority=spec.priority.value,
-                kind=effective_kind(spec, group, file).value,
+                kind=spec.kind.value,
                 scope=[s.value for s in effective_scope(spec, group, file)],
                 tags=[t.value for t in effective_tags(spec, file)],
                 file_id=file.id,
@@ -162,10 +153,8 @@ class SpecRegistry(BaseModel):
         return self._index[spec_id]
 
     def get_effective_kind(self, spec_id: SpecIdStr) -> SpecKind:
-        """Return the resolved ``kind`` for *spec_id* via inheritance."""
-        spec = self.get(spec_id)
-        group, file = self._spec_context[spec_id]
-        return effective_kind(spec, group, file)
+        """Return the ``kind`` for *spec_id* (required on every spec item)."""
+        return self.get(spec_id).kind
 
     def get_effective_scope(self, spec_id: SpecIdStr) -> list[Scope]:
         """Return the resolved ``scope`` for *spec_id* via inheritance."""

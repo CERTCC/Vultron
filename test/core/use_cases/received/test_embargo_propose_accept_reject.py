@@ -459,6 +459,7 @@ class TestEmbargoProposalLifecycle:
         )
         dl.create(cm_p)
         case.actor_participant_index[case_actor.id_] = cm_p.id_
+        case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
         dl.save(case)
 
         request = AcceptEmbargoTriggerRequest(

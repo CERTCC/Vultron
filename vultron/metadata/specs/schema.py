@@ -4,9 +4,8 @@ Schema requirements: specs/spec-registry.yaml SR-02.
 
 Design principle: YAML is the authoritative data source.  The schema
 validates what is present but does **not** silently inject defaults for
-absent fields.  Inheritable fields (``kind``, ``scope``) are required at
-the file level and optional at group/spec level; effective values are
-resolved by the registry loader, not by Pydantic defaults.
+absent fields.  ``kind`` is required on every individual spec item;
+``scope`` is required at the file level and optional at the group level.
 """
 
 from __future__ import annotations
@@ -186,17 +185,16 @@ def _check_nonempty_list(v: list | None, field_name: str) -> list | None:
 class StatementSpec(BaseModel):
     """A single normative statement requirement (SR-02-009).
 
-    Inheritable fields (``kind``, ``scope``) default to ``None``, meaning
-    "inherit from parent group or file."  The registry loader resolves
-    effective values after loading.
+    ``kind`` is required on every spec item.  ``scope`` is optional and
+    inherits from the containing file when absent.
     """
 
     id: SpecIdStr
     priority: RFC2119Priority
+    kind: SpecKind
     statement: NonEmptyStr
     rationale: NonEmptyStr | None = None
     testable: bool = True
-    kind: SpecKind | None = None
     scope: list[Scope] | None = None
     tags: list[SpecTag] | None = None
     relationships: list[Relationship] | None = None
@@ -268,8 +266,8 @@ Spec = Union[BehavioralSpec, StatementSpec]
 class SpecGroup(BaseModel):
     """A logical grouping of specs within a file (SR-02-012).
 
-    ``kind`` and ``scope`` are optional overrides; when absent, values are
-    inherited from the containing :class:`SpecFile`.
+    ``scope`` is an optional override; when absent, the value is inherited
+    from the containing :class:`SpecFile`.
 
     ``trigger`` annotates behavioral groups with the event that activates them,
     enabling conformance tooling to classify groups by trigger kind without
@@ -279,7 +277,6 @@ class SpecGroup(BaseModel):
     id: SpecIdStr
     title: NonEmptyStr
     description: NonEmptyStr | None = None
-    kind: SpecKind | None = None
     scope: list[Scope] | None = None
     trigger: Trigger | None = None
     specs: list[Spec]
@@ -303,15 +300,15 @@ class SpecGroup(BaseModel):
 class SpecFile(BaseModel):
     """One YAML spec file with its groups and file-level metadata (SR-02-013).
 
-    ``kind`` and ``scope`` are required at the file level and serve as
-    defaults for groups and specs that do not override them (SR-02-014).
+    ``scope`` is required at the file level and serves as the default for
+    groups and specs that do not override it (SR-02-014).  ``kind`` is now
+    required on each individual spec item rather than at the file level.
     """
 
     id: str
     title: NonEmptyStr
     description: NonEmptyStr
     version: NonEmptyStr
-    kind: SpecKind
     scope: list[Scope]
     tags: list[SpecTag] | None = None
     groups: list[SpecGroup]

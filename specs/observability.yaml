@@ -4,7 +4,6 @@ description: >-
   Requirements for health check endpoints and high-level observability architecture, enabling
   operators to understand system behavior, diagnose issues, and monitor health.
 version: 1.0.0
-kind: general
 scope:
 - prototype
 - production
@@ -16,7 +15,9 @@ groups:
   specs:
   - id: OB-05-001
     priority: MUST
+    kind: general
     statement: The system MUST provide liveness endpoint at `/health/live`
   - id: OB-05-002
     priority: MUST
+    kind: general
     statement: The system MUST provide readiness endpoint at `/health/ready`

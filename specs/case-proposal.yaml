@@ -6,7 +6,6 @@ description: >-
   the Create/Accept/Reject message flow, and the corresponding MessageSemantics values
   and received-side use cases.
 version: 1.0.0
-kind: domain
 scope:
   - prototype
   - production
@@ -19,6 +18,7 @@ groups:
     specs:
       - id: CP-01-001
         priority: MUST
+        kind: domain
         statement: >-
           The wire layer MUST define an `as_CaseProposal` object type that
           extends `VultronAS2Object`.
@@ -28,16 +28,19 @@ groups:
           proposal object from the eventual `VulnerabilityCase`.
       - id: CP-01-002
         priority: MUST
+        kind: domain
         statement: >-
           `as_CaseProposal` MUST include an `id_` field containing a full URI
           that uniquely identifies the proposal.
       - id: CP-01-003
         priority: MUST
+        kind: domain
         statement: >-
           `as_CaseProposal` MUST include an `attributed_to` field identifying
           the vendor actor (proposer) that originated the proposal.
       - id: CP-01-004
         priority: MUST
+        kind: domain
         statement: >-
           `as_CaseProposal` MUST include an `object_` field containing a fully
           inline `as_VulnerabilityReport` around which the case is to be created.
@@ -49,11 +52,13 @@ groups:
           specified (AKM-03-001).
       - id: CP-01-005
         priority: MUST
+        kind: domain
         statement: >-
           `as_CaseProposal` MUST include a `target` field containing the URI of
           the prospective case-actor service to which the proposal is addressed.
       - id: CP-01-006
         priority: MAY
+        kind: domain
         statement: >-
           `as_CaseProposal` MAY include an optional `summary` field with a
           human-readable description of the proposal.
@@ -62,16 +67,19 @@ groups:
     specs:
       - id: CP-02-001
         priority: MUST
+        kind: domain
         statement: >-
           The `MessageSemantics` enum MUST include `CREATE_CASE_PROPOSAL` for
           the pattern `Create(as_CaseProposal)`.
       - id: CP-02-002
         priority: MUST
+        kind: domain
         statement: >-
           The `MessageSemantics` enum MUST include `ACCEPT_CASE_PROPOSAL` for
           the pattern `Accept(as_CaseProposal)`.
       - id: CP-02-003
         priority: MUST
+        kind: domain
         statement: >-
           The `MessageSemantics` enum MUST include `REJECT_CASE_PROPOSAL` for
           the pattern `Reject(as_CaseProposal)`.
@@ -80,21 +88,25 @@ groups:
     specs:
       - id: CP-03-001
         priority: MUST
+        kind: domain
         statement: >-
           `SEMANTICS_ACTIVITY_PATTERNS` MUST contain a pattern entry for
           `(Create, as_CaseProposal) -> CREATE_CASE_PROPOSAL`.
       - id: CP-03-002
         priority: MUST
+        kind: domain
         statement: >-
           `SEMANTICS_ACTIVITY_PATTERNS` MUST contain a pattern entry for
           `(Accept, as_CaseProposal) -> ACCEPT_CASE_PROPOSAL`.
       - id: CP-03-003
         priority: MUST
+        kind: domain
         statement: >-
           `SEMANTICS_ACTIVITY_PATTERNS` MUST contain a pattern entry for
           `(Reject, as_CaseProposal) -> REJECT_CASE_PROPOSAL`.
       - id: CP-03-004
         priority: MUST
+        kind: domain
         statement: >-
           All three `CaseProposal` extractor patterns MUST appear before any
           more-general patterns that could match the same activity types (e.g.,
@@ -108,6 +120,7 @@ groups:
     specs:
       - id: CP-04-001
         priority: MUST
+        kind: domain
         statement: >-
           A vendor actor that wishes to request case initialization at a
           dedicated case-actor service MUST send `Create(as_CaseProposal)` to
@@ -124,6 +137,7 @@ groups:
             spec_id: CP-01-001
       - id: CP-04-002
         priority: MUST
+        kind: domain
         statement: >-
           The BT node responsible for sending `Create(as_CaseProposal)` MUST be
           a distinct node (`ProposeCaseToActorNode`) separate from
@@ -140,18 +154,21 @@ groups:
     specs:
       - id: CP-05-001
         priority: MUST
+        kind: domain
         statement: >-
           A `CreateCaseProposalReceivedUseCase` MUST be implemented on the
           case-actor side to handle incoming `Create(as_CaseProposal)`
           activities.
       - id: CP-05-002
         priority: MUST
+        kind: domain
         statement: >-
           `CreateCaseProposalReceivedUseCase` MUST evaluate the proposal and
           either accept or reject it, emitting the appropriate response
           activity.
       - id: CP-05-003
         priority: MUST
+        kind: domain
         statement: >-
           When accepting a proposal, the case-actor service MUST send two
           activities in sequence: first `Accept(as_CaseProposal)` (with the
@@ -166,12 +183,14 @@ groups:
           URI establishes the proximate causal link.
       - id: CP-05-004
         priority: MUST
+        kind: domain
         statement: >-
           When rejecting a proposal, the case-actor service MUST send
           `Reject(as_CaseProposal)` with the `as_CaseProposal` embedded inline
           as `object_`.
       - id: CP-05-005
         priority: MUST
+        kind: domain
         statement: >-
           If the case-actor service successfully sends `Accept(as_CaseProposal)`
           but fails to send `Create(VulnerabilityCase)`, it MUST retry
@@ -184,6 +203,7 @@ groups:
           and potentially re-enter the initialization flow.
       - id: CP-05-006
         priority: SHOULD
+        kind: domain
         statement: >-
           The case-actor service SHOULD handle duplicate `Create(as_CaseProposal)`
           idempotently: if a proposal for the same report has already been
@@ -198,16 +218,19 @@ groups:
     specs:
       - id: CP-06-001
         priority: MUST
+        kind: domain
         statement: >-
           An `AcceptCaseProposalReceivedUseCase` MUST be implemented on the
           vendor side to handle incoming `Accept(as_CaseProposal)` activities.
       - id: CP-06-002
         priority: MUST
+        kind: domain
         statement: >-
           A `RejectCaseProposalReceivedUseCase` MUST be implemented on the
           vendor side to handle incoming `Reject(as_CaseProposal)` activities.
       - id: CP-06-003
         priority: MUST
+        kind: domain
         statement: >-
           `AcceptCaseProposalReceivedUseCase` MUST update the vendor's local
           state to reflect that the case-actor service has accepted the
@@ -215,6 +238,7 @@ groups:
           `Create(VulnerabilityCase)`).
       - id: CP-06-004
         priority: MUST
+        kind: domain
         statement: >-
           `RejectCaseProposalReceivedUseCase` MUST update the vendor's local
           state to reflect the rejection (e.g., mark the pending case as
@@ -224,6 +248,7 @@ groups:
     specs:
       - id: CP-07-001
         priority: MUST
+        kind: domain
         statement: >-
           Unit tests MUST cover pattern matching for all three
           `CaseProposal` extractor patterns
@@ -231,12 +256,14 @@ groups:
           `REJECT_CASE_PROPOSAL`).
       - id: CP-07-002
         priority: MUST
+        kind: domain
         statement: >-
           Unit tests MUST cover `CreateCaseProposalReceivedUseCase`,
           `AcceptCaseProposalReceivedUseCase`, and
           `RejectCaseProposalReceivedUseCase` execute() paths.
       - id: CP-07-003
         priority: MUST
+        kind: domain
         statement: >-
           Integration tests MUST cover the full `Create(CaseProposal)` →
           `Accept(CaseProposal)` + `Create(VulnerabilityCase)` round-trip

@@ -197,13 +197,41 @@ class RecordParticipantAcceptanceNode(DataLayerAction):
             self.feedback_message = "actor_id not available"
             return Status.FAILURE
 
+        # AC-1: read em_state via named BT node before calling the service.
+        from vultron.core.behaviors.embargo.nodes.em_state import (
+            ReadEmStateNode,
+            WriteEmStateNode,
+        )
+
+        em_result_out: dict[str, object] = {}
+        read_node = ReadEmStateNode(
+            case_id=self.case_id, result_out=em_result_out
+        )
+        read_node.datalayer = self.datalayer
+        if read_node.update() != Status.SUCCESS:
+            self.feedback_message = read_node.feedback_message
+            return Status.FAILURE
+        em_before = em_result_out["em_before"]
+        assert isinstance(em_before, EM)
+
         service = EmbargoLifecycle(persistence=self.datalayer)
         result = service.accept_embargo_invite(
             case_id=self.case_id,
             embargo_id=self.embargo_id,
             actor_id=actor_id,
             transition_mode=TransitionMode.OBSERVED,
+            em_before=em_before,
         )
+
+        if result.em_after != em_before:
+            em_result_out["em_after"] = result.em_after
+            write_node = WriteEmStateNode(
+                case_id=self.case_id, result_out=em_result_out
+            )
+            write_node.datalayer = self.datalayer
+            if write_node.update() != Status.SUCCESS:
+                self.feedback_message = write_node.feedback_message
+                return Status.FAILURE
 
         if result.em_after == EM.ACTIVE and result.em_before not in (
             EM.PROPOSED,

@@ -17,8 +17,9 @@
 
 Submodules:
 
-- ``emit``: CaseActor-side outbound emission nodes
-  (``EmitOfferCaseParticipantToOwnerNode``,
+- ``emit``: CaseActor-side emission and state-write nodes
+  (``RecordRecommendationRecommenderNode``,
+  ``EmitOfferCaseParticipantToOwnerNode``,
   ``EmitAcceptActorRecommendationNode``,
   ``EmitRejectActorRecommendationNode``,
   ``EmitNoteDuplicateRecommendationToOwnerNode``)
@@ -43,6 +44,7 @@ from vultron.core.behaviors.case.nodes.suggest_actor.emit import (
     EmitNoteDuplicateRecommendationToOwnerNode,
     EmitOfferCaseParticipantToOwnerNode,
     EmitRejectActorRecommendationNode,
+    RecordRecommendationRecommenderNode,
 )
 
 __all__ = [
@@ -54,4 +56,5 @@ __all__ = [
     "EmitRejectActorRecommendationNode",
     "InviteInFlightNode",
     "PendingOfferCaseParticipantNode",
+    "RecordRecommendationRecommenderNode",
 ]

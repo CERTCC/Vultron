@@ -695,6 +695,47 @@ class TestSvcAcceptCaseInviteUseCase:
                 dl, request, trigger_activity=TriggerActivityAdapter(dl)
             ).execute()
 
+    def test_accept_no_type_check_on_invite(self):
+        """AC-2: type check removed — _prepare() only guards existence (ADR-0035 DL-06).
+
+        The semantic type-check ('invite_type != Invite') was removed.
+        _prepare() now only raises VultronNotFoundError when the invite is
+        absent; passing an existing invite_id must reach the BT execution
+        stage regardless of the stored object's type_.  Invites are always
+        stored as as_Invite objects by invite_actor_to_case(), so this test
+        uses a real Invite — it confirms no VultronValidationError is raised,
+        which was the removed guard's error type.
+        """
+        inviter, dl_inviter = _make_actor_dl("Coordinator")
+        invitee, dl_invitee = _make_actor_dl("Finder")
+        dl_inviter.create(invitee)
+
+        case = as_VulnerabilityCase(
+            attributed_to=inviter.id_, name="Test Case", content="Content"
+        )
+        dl_inviter.create(case)
+
+        invite = rm_invite_to_case_activity(
+            invitee,
+            target=VulnerabilityCaseStub(id_=case.id_),
+            actor=inviter.id_,
+            to=[invitee.id_],
+        )
+        dl_invitee.create(inviter)
+        dl_invitee.create(invite)
+
+        request = AcceptCaseInviteTriggerRequest(
+            actor_id=invitee.id_,
+            invite_id=invite.id_,
+        )
+        # Should not raise VultronValidationError (type check removed per DL-06)
+        result = SvcAcceptCaseInviteUseCase(
+            dl_invitee,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl_invitee),
+        ).execute()
+        assert "activity" in result
+
     def test_accept_normalises_short_uuid_actor_id(self):
         """DR-09: short UUID in actor_id is resolved to full URI."""
         inviter, dl_inviter = _make_actor_dl("Coordinator")

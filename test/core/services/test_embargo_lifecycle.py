@@ -15,6 +15,10 @@ Coverage added by #1454 (AC-1 to AC-3): P/X/A embargo-eligibility guards
   - propose_embargo OBSERVED bypasses guard
   - accept_embargo_invite STRICT raises when pxa_state != pxa
   - accept_embargo_invite OBSERVED bypasses guard
+
+Coverage added by #1474 (AC-1): caller_owns_em_io guard
+  - service does not write em_state when em_before is supplied (BT path)
+  - service still writes em_state when em_before is not supplied (legacy path)
 """
 
 from collections.abc import Generator
@@ -1097,3 +1101,101 @@ def test_reject_embargo_invite_observed_revise_pxa_bypasses_guard(
     )
 
     assert result.em_after == EM.ACTIVE
+
+
+# ---------------------------------------------------------------------------
+# #1474 AC-1: caller_owns_em_io guard tests
+# ---------------------------------------------------------------------------
+
+
+class TestCallerOwnsEmIo:
+    """When em_before is supplied, the service skips its own em_state read/write."""
+
+    def test_propose_does_not_write_em_state_when_em_before_supplied(
+        self,
+        owner_and_dl: tuple[as_Service, SqliteDataLayer],
+    ) -> None:
+        """propose_embargo does not mutate em_state when em_before is supplied."""
+        owner, dl = owner_and_dl
+        case, _ = _make_case(dl, owner.id_, em_state=EM.NONE)
+        embargo = _make_embargo(dl, case.id_)
+
+        lifecycle = EmbargoLifecycle(persistence=dl)
+        result = lifecycle.propose_embargo(
+            case_id=case.id_,
+            embargo_id=embargo.id_,
+            actor_id=owner.id_,
+            transition_mode=TransitionMode.STRICT,
+            em_before=EM.NONE,
+        )
+
+        assert result.em_after == EM.PROPOSED
+        # Service must NOT have written em_state; it stays at the initial value
+        refreshed = cast(as_VulnerabilityCase, dl.read(case.id_))
+        assert refreshed.current_status.em_state == EM.NONE
+
+    def test_propose_still_writes_em_state_on_legacy_path(
+        self,
+        owner_and_dl: tuple[as_Service, SqliteDataLayer],
+    ) -> None:
+        """propose_embargo writes em_state when em_before is not supplied (legacy)."""
+        owner, dl = owner_and_dl
+        case, _ = _make_case(dl, owner.id_, em_state=EM.NONE)
+        embargo = _make_embargo(dl, case.id_)
+
+        lifecycle = EmbargoLifecycle(persistence=dl)
+        result = lifecycle.propose_embargo(
+            case_id=case.id_,
+            embargo_id=embargo.id_,
+            actor_id=owner.id_,
+            transition_mode=TransitionMode.STRICT,
+        )
+
+        assert result.em_after == EM.PROPOSED
+        refreshed = cast(as_VulnerabilityCase, dl.read(case.id_))
+        assert refreshed.current_status.em_state == EM.PROPOSED
+
+    def test_reject_does_not_write_em_state_when_em_before_supplied(
+        self,
+        owner_and_dl: tuple[as_Service, SqliteDataLayer],
+    ) -> None:
+        """reject_embargo_invite does not mutate em_state when em_before is supplied."""
+        owner, dl = owner_and_dl
+        case, _ = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
+        embargo = _make_embargo(dl, case.id_)
+
+        lifecycle = EmbargoLifecycle(persistence=dl)
+        result = lifecycle.reject_embargo_invite(
+            case_id=case.id_,
+            embargo_id=embargo.id_,
+            actor_id=owner.id_,
+            transition_mode=TransitionMode.STRICT,
+            em_before=EM.PROPOSED,
+        )
+
+        assert result.em_after == EM.NONE
+        refreshed = cast(as_VulnerabilityCase, dl.read(case.id_))
+        assert refreshed.current_status.em_state == EM.PROPOSED
+
+    def test_terminate_does_not_write_em_state_when_em_before_supplied(
+        self,
+        owner_and_dl: tuple[as_Service, SqliteDataLayer],
+    ) -> None:
+        """terminate_active_embargo does not mutate em_state when em_before is supplied."""
+        owner, dl = owner_and_dl
+        case, _ = _make_case(dl, owner.id_, em_state=EM.ACTIVE)
+        embargo = _make_embargo(dl, case.id_)
+        case.active_embargo = embargo.id_
+        dl.save(case)
+
+        lifecycle = EmbargoLifecycle(persistence=dl)
+        result = lifecycle.terminate_active_embargo(
+            case_id=case.id_,
+            actor_id=owner.id_,
+            transition_mode=TransitionMode.STRICT,
+            em_before=EM.ACTIVE,
+        )
+
+        assert result.em_after == EM.EXITED
+        refreshed = cast(as_VulnerabilityCase, dl.read(case.id_))
+        assert refreshed.current_status.em_state == EM.ACTIVE

@@ -21,7 +21,6 @@ GENERAL_YAML = {
     "title": "General Test Specs",
     "description": "A general kind spec for testing docs_render",
     "version": "0.1",
-    "kind": "general",
     "scope": ["production"],
     "groups": [
         {
@@ -32,12 +31,14 @@ GENERAL_YAML = {
                 {
                     "id": "GEN-01-001",
                     "priority": "MUST",
+                    "kind": "general",
                     "statement": "GEN-01-001 MUST render correctly",
                     "rationale": "Required for docs coverage",
                 },
                 {
                     "id": "GEN-01-002",
                     "priority": "SHOULD",
+                    "kind": "general",
                     "statement": "GEN-01-002 SHOULD appear with a badge",
                     "relationships": [
                         {
@@ -49,16 +50,19 @@ GENERAL_YAML = {
                 {
                     "id": "GEN-01-003",
                     "priority": "MAY",
+                    "kind": "general",
                     "statement": "GEN-01-003 MAY be optional",
                 },
                 {
                     "id": "GEN-01-004",
                     "priority": "MUST_NOT",
+                    "kind": "general",
                     "statement": "GEN-01-004 MUST NOT do the bad thing",
                 },
                 {
                     "id": "GEN-01-005",
                     "priority": "SHOULD_NOT",
+                    "kind": "general",
                     "statement": "GEN-01-005 SHOULD NOT be used",
                 },
             ],
@@ -71,7 +75,6 @@ DOMAIN_YAML = {
     "title": "Domain Test Specs",
     "description": "A domain kind spec with relationships",
     "version": "0.1",
-    "kind": "domain",
     "scope": ["production"],
     "groups": [
         {
@@ -81,6 +84,7 @@ DOMAIN_YAML = {
                 {
                     "id": "DOM-01-001",
                     "priority": "MUST",
+                    "kind": "domain",
                     "statement": "DOM-01-001 MUST cross-reference GEN-01-001",
                     "relationships": [
                         {
@@ -100,7 +104,6 @@ BEHAVIORAL_YAML = {
     "title": "Behavioral Test Specs",
     "description": "A domain spec with BehavioralSpec items",
     "version": "0.1",
-    "kind": "domain",
     "tags": ["behavioral"],
     "scope": ["production"],
     "groups": [
@@ -112,6 +115,7 @@ BEHAVIORAL_YAML = {
                 {
                     "id": "BHV-01-001",
                     "priority": "MUST",
+                    "kind": "domain",
                     "statement": "BHV-01-001 MUST fire on EP",
                     "preconditions": [
                         {
@@ -360,6 +364,7 @@ def test_behavioral_spec_empty_scope_raises():
         BehavioralSpec(
             id="BHV-01-001",
             priority=RFC2119Priority.MUST,
+            kind=SpecKind.GENERAL,
             statement="test",
             scope=[],
         )
@@ -377,6 +382,7 @@ def test_behavioral_spec_empty_preconditions_raises():
         BehavioralSpec(
             id="BHV-01-001",
             priority=RFC2119Priority.MUST,
+            kind=SpecKind.GENERAL,
             statement="test",
             scope=[Scope.PRODUCTION],
             preconditions=[],
@@ -407,7 +413,6 @@ PIPE_YAML = {
     "title": "Pipe Test Specs",
     "description": "Spec with a pipe char in the statement",
     "version": "0.1",
-    "kind": "general",
     "scope": ["production"],
     "groups": [
         {
@@ -417,6 +422,7 @@ PIPE_YAML = {
                 {
                     "id": "PIP-01-001",
                     "priority": "MUST",
+                    "kind": "general",
                     "statement": "Do A | B",
                 }
             ],
@@ -446,7 +452,6 @@ MULTI_REL_YAML = {
     "title": "Multi-Rel Specs",
     "description": "Spec with two relationships",
     "version": "0.1",
-    "kind": "general",
     "scope": ["production"],
     "groups": [
         {
@@ -456,11 +461,13 @@ MULTI_REL_YAML = {
                 {
                     "id": "MRL-01-001",
                     "priority": "MUST",
+                    "kind": "general",
                     "statement": "MRL base requirement",
                 },
                 {
                     "id": "MRL-01-002",
                     "priority": "SHOULD",
+                    "kind": "general",
                     "statement": "MRL multi-rel spec",
                     "relationships": [
                         {"rel_type": "satisfies", "spec_id": "MRL-01-001"},
@@ -532,3 +539,183 @@ def test_render_for_kind_real_registry_produces_output(kind: SpecKind):
     assert re.search(
         r"[A-Z]{2,8}-\d{2}-\d{3}", md
     ), f"No spec IDs found in rendered output for kind={kind.value!r}"
+
+
+# ---------------------------------------------------------------------------
+# SR-09-001 / SR-09-002: effective-kind routing for mixed-kind files/groups
+# ---------------------------------------------------------------------------
+
+# A file-level kind=general file where one group has kind=implementation
+# and another inherits general.  The implementation page should show the
+# overriding group; the general page should show the inherited-kind group
+# but suppress the implementation item.
+MIXED_KIND_FILE_YAML = {
+    "id": "MIX",
+    "title": "Mixed Kind Specs",
+    "description": "File with general and implementation items",
+    "version": "0.1",
+    "scope": ["production"],
+    "groups": [
+        {
+            "id": "MIX-01",
+            "title": "General Group",
+            "specs": [
+                {
+                    "id": "MIX-01-001",
+                    "priority": "MUST",
+                    "kind": "general",
+                    "statement": "MIX-01-001 is general",
+                },
+            ],
+        },
+        {
+            "id": "MIX-02",
+            "title": "Implementation Group",
+            "specs": [
+                {
+                    "id": "MIX-02-001",
+                    "priority": "MUST",
+                    "kind": "implementation",
+                    "statement": "MIX-02-001 is implementation-specific",
+                },
+            ],
+        },
+    ],
+}
+
+# File kind=general with one group that has mixed-kind items.
+MIXED_KIND_GROUP_YAML = {
+    "id": "MGR",
+    "title": "Mixed Group Items",
+    "description": "File with a group containing items of mixed kinds",
+    "version": "0.1",
+    "scope": ["production"],
+    "groups": [
+        {
+            "id": "MGR-01",
+            "title": "Mixed Item Group",
+            "specs": [
+                {
+                    "id": "MGR-01-001",
+                    "priority": "MUST",
+                    "kind": "general",
+                    "statement": "MGR-01-001 is general",
+                },
+                {
+                    "id": "MGR-01-002",
+                    "priority": "SHOULD",
+                    "kind": "implementation",
+                    "statement": "MGR-01-002 is implementation",
+                },
+            ],
+        },
+    ],
+}
+
+# A second file that provides the implementation kind so render_for_kind
+# doesn't raise "No spec files with kind=implementation".
+IMPL_ANCHOR_YAML = {
+    "id": "IMP",
+    "title": "Implementation Anchor",
+    "description": "Provides implementation-kind items for the test registry",
+    "version": "0.1",
+    "scope": ["production"],
+    "groups": [
+        {
+            "id": "IMP-01",
+            "title": "Implementation Group",
+            "specs": [
+                {
+                    "id": "IMP-01-001",
+                    "priority": "MUST",
+                    "kind": "implementation",
+                    "statement": "IMP-01-001 is implementation",
+                },
+            ],
+        },
+    ],
+}
+
+
+@pytest.fixture
+def mixed_kind_file_registry(tmp_path):
+    (tmp_path / "mix.yaml").write_text(yaml.dump(MIXED_KIND_FILE_YAML))
+    (tmp_path / "imp.yaml").write_text(yaml.dump(IMPL_ANCHOR_YAML))
+    return load_registry(tmp_path)
+
+
+@pytest.fixture
+def mixed_kind_group_registry(tmp_path):
+    (tmp_path / "mgr.yaml").write_text(yaml.dump(MIXED_KIND_GROUP_YAML))
+    (tmp_path / "imp.yaml").write_text(yaml.dump(IMPL_ANCHOR_YAML))
+    return load_registry(tmp_path)
+
+
+def test_group_kind_override_appears_on_overridden_kind_page(
+    mixed_kind_file_registry,
+):
+    """SR-09-001: a group with kind=implementation must appear on the
+    implementation page even though its file has kind=general."""
+    md = render_for_kind("implementation", mixed_kind_file_registry)
+    assert "MIX-02-001" in md, (
+        "Item from group with kind=implementation should appear on "
+        "implementation page"
+    )
+
+
+def test_group_kind_override_absent_from_wrong_kind_page(
+    mixed_kind_file_registry,
+):
+    """SR-09-002: a group with kind=implementation must NOT appear on the
+    general page."""
+    md = render_for_kind("general", mixed_kind_file_registry)
+    assert "MIX-02-001" not in md, (
+        "Item from group with kind=implementation should NOT appear on "
+        "general page"
+    )
+
+
+def test_inherited_kind_group_appears_on_file_kind_page(
+    mixed_kind_file_registry,
+):
+    """SR-09-001: a group that inherits file kind=general appears on the
+    general page."""
+    md = render_for_kind("general", mixed_kind_file_registry)
+    assert (
+        "MIX-01-001" in md
+    ), "Item inheriting file kind=general should appear on general page"
+
+
+def test_item_kind_override_appears_on_overridden_page(
+    mixed_kind_group_registry,
+):
+    """SR-09-001: an item with kind=implementation appears on the
+    implementation page even though its group and file have kind=general."""
+    md = render_for_kind("implementation", mixed_kind_group_registry)
+    assert (
+        "MGR-01-002" in md
+    ), "Item with kind=implementation should appear on implementation page"
+
+
+def test_item_kind_override_suppressed_on_wrong_page(
+    mixed_kind_group_registry,
+):
+    """SR-09-002: an item with kind=implementation is suppressed on the
+    general page while the rest of the group still renders."""
+    md = render_for_kind("general", mixed_kind_group_registry)
+    assert (
+        "MGR-01-001" in md
+    ), "General item should still appear on general page"
+    assert (
+        "MGR-01-002" not in md
+    ), "Implementation item must be suppressed on the general page"
+
+
+def test_mixed_group_appears_on_both_kind_pages(mixed_kind_group_registry):
+    """SR-09-002: a group with mixed-kind items appears on both the general
+    and implementation pages (with different items visible on each)."""
+    gen_md = render_for_kind("general", mixed_kind_group_registry)
+    impl_md = render_for_kind("implementation", mixed_kind_group_registry)
+    # The group heading must appear on both pages
+    assert "MGR-01" in gen_md
+    assert "MGR-01" in impl_md

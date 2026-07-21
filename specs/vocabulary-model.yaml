@@ -6,7 +6,6 @@ description: >-
   of the inbound pipeline: every activity must be deserialized into a known vocabulary type
   before semantic extraction can assign it a domain meaning.
 version: 1.0.0
-kind: domain
 scope:
 - prototype
 - production
@@ -18,26 +17,31 @@ groups:
   specs:
   - id: VM-01-001
     priority: MUST
+    kind: domain
     statement: >-
       Every concrete wire-layer AS2 class (object, activity, or link) MUST be registered in
       the shared `VOCABULARY` registry automatically at class-definition time
   - id: VM-01-002
     priority: MUST
+    kind: domain
     statement: >-
       The `VOCABULARY` singleton MUST be the sole authoritative source for type lookup during
       dynamic deserialization
   - id: VM-01-003
     priority: MUST
+    kind: domain
     statement: >-
       New vocabulary types MUST be importable at startup without explicit registration calls
       in application code
   - id: VM-01-004
     priority: MUST
+    kind: domain
     statement: >-
       The `VOCABULARY` registry MUST be a flat `dict[str, type[as_Base]]` keyed by AS2 type
       name
   - id: VM-01-005
     priority: MUST
+    kind: domain
     statement: >-
       The `vocab/objects/__init__.py` and `vocab/activities/__init__.py` files MUST use `pkgutil.iter_modules`
       and `importlib.import_module` to dynamically import all sibling modules at package import
@@ -47,6 +51,7 @@ groups:
       spec_id: VM-01-001
   - id: VM-01-006
     priority: MUST
+    kind: domain
     statement: >-
       A `VocabNamespace` enum (values: `AS`, `VULTRON`) MUST be defined in `vultron/wire/as2/vocab/base/enums.py`
       and used to annotate the provenance of each vocabulary class
@@ -55,11 +60,13 @@ groups:
   specs:
   - id: VM-02-001
     priority: MUST
+    kind: domain
     statement: >-
       All wire-layer AS2 Pydantic models MUST inherit `model_config` from `as_Base` (or an
       intermediate class that inherits from `as_Base`), which provides:
   - id: VM-02-002
     priority: MUST
+    kind: domain
     statement: >-
       The `@context` field (`as_context`) MUST use explicit `validation_alias="@context"`
       and `serialization_alias="@context"` because `@` is not a valid Python identifier character
@@ -69,6 +76,7 @@ groups:
       spec_id: VM-02-001
   - id: VM-02-003
     priority: MUST
+    kind: domain
     statement: >-
       Wire-layer models MUST provide `to_json()`, `to_dict()`, and `from_json()` convenience
       methods that exclude `None` values and serialize using aliases by default
@@ -77,11 +85,13 @@ groups:
   specs:
   - id: VM-03-001
     priority: MUST
+    kind: domain
     statement: >-
       The `as_type` field on every concrete wire-layer class MUST be set automatically at
       construction time if not supplied by the caller
   - id: VM-03-002
     priority: SHOULD
+    kind: domain
     statement: >-
       Concrete subclasses SHOULD narrow the `as_type` field to a `Literal[...]` type matching
       the wire type name they represent
@@ -90,6 +100,7 @@ groups:
       spec_id: VM-03-001
   - id: VM-03-003
     priority: MUST_NOT
+    kind: domain
     statement: '`as_type` values MUST NOT start with `"as_"` in serialized wire output'
     relationships:
     - rel_type: constrains
@@ -99,6 +110,7 @@ groups:
   specs:
   - id: VM-04-001
     priority: MUST
+    kind: domain
     statement: >-
       All wire-layer objects MUST have a globally unique `as_id` field set at construction
       time by `generate_new_id()` if not supplied
@@ -110,6 +122,7 @@ groups:
   specs:
   - id: VM-05-001
     priority: MUST
+    kind: domain
     statement: >-
       When adding a new Vultron-specific object type, the new class MUST: 1. Inherit from
       `VultronObject` (or an appropriate AS2 base such as `as_Object`, `as_Activity`, etc.)
@@ -120,6 +133,7 @@ groups:
       the package directory)
   - id: VM-05-002
     priority: MUST
+    kind: domain
     statement: >-
       Adding a new vocabulary type that represents a domain concept MUST be accompanied by:
 - id: VM-06
@@ -127,6 +141,7 @@ groups:
   specs:
   - id: VM-06-001
     priority: MUST
+    kind: domain
     statement: >-
       Before any wire-layer activity is passed to semantic extraction, callers MUST attempt
       to rehydrate all nested URI string references into fully typed objects via `rehydrate(obj,
@@ -137,15 +152,18 @@ groups:
       note: semantic-extraction.md
   - id: VM-06-002
     priority: MUST
+    kind: domain
     statement: >-
       `rehydrate()` MUST receive the active `DataLayer` instance via the `dl` parameter
   - id: VM-06-003
     priority: MUST
+    kind: domain
     statement: >-
       Rehydration MUST be recursive: if a rehydrated object itself contains URI string references
       in its nested fields, those MUST also be rehydrated up to `MAX_REHYDRATION_DEPTH` levels
   - id: VM-06-004
     priority: MUST
+    kind: domain
     statement: >-
       If a URI string reference cannot be resolved (object not in DataLayer), rehydration
       MUST:
@@ -155,12 +173,14 @@ groups:
       note: semantic-extraction.md
   - id: VM-06-005
     priority: MUST
+    kind: domain
     statement: >-
       If a rehydrated object's `as_type` is not found in the vocabulary registry, rehydration
       MUST raise `KeyError` or `ValueError` rather than returning a partially constructed
       object
   - id: VM-06-006
     priority: MUST
+    kind: domain
     statement: >-
       A vocabulary override (replacing the default `VultronVocabulary` with a custom one)
       MUST preserve at least one registration from each base module that the production
@@ -179,20 +199,24 @@ groups:
   specs:
   - id: VM-07-001
     priority: MUST
+    kind: domain
     statement: >-
       Serialized wire-layer objects MUST exclude `None` fields and MUST exclude empty string
       fields
   - id: VM-07-002
     priority: MUST
+    kind: domain
     statement: >-
       Serialized wire-layer objects MUST use camelCase field aliases in output, not Python
       snake_case field names
   - id: VM-07-003
     priority: MUST_NOT
+    kind: domain
     statement: >-
       `object_to_record()` MUST NOT be called on an object whose `as_type` starts with `"as_"`
   - id: VM-07-004
     priority: MUST
+    kind: domain
     statement: >-
       `serialize_as_any=True` MUST be declared on any Pydantic model field that holds an
       object whose concrete runtime type is a subtype of the field's declared type, at
@@ -214,6 +238,7 @@ groups:
   specs:
   - id: VM-08-001
     priority: SHOULD
+    kind: domain
     statement: >-
       Objects intended to be static once created (e.g., vocabulary registry entries, canonical
       example objects) SHOULD use immutable (frozen) configuration so that any attempt to
@@ -223,6 +248,7 @@ groups:
   specs:
   - id: VM-09-001
     priority: MAY
+    kind: domain
     statement: >-
       Messages that cannot be parsed or whose semantics are unknown MAY still be forwarded
       to the case event log to create an entry for human or agent review

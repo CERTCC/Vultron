@@ -87,7 +87,7 @@ Check against `.agents/skills/shared/pr-body-guide.md`:
 1. Identify domains from changed file paths (e.g., `wire/as2/`, `core/behaviors/`,
    `adapters/`, `demo/`).
 2. Invoke `deepen-context` with hints matching those domains.
-3. Load specs relevant to the changed domains via `load-specs` or `uv run spec-dump`.
+3. Load specs relevant to the changed domains via `load-specs` or `PYTHONPATH= uv run spec-dump`.
 
 ### Phase 5 — Spec and Notes Conformance
 

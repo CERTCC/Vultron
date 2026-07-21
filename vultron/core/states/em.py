@@ -165,6 +165,18 @@ def is_em_embargo_active(state: EM) -> bool:
     return state in EM_EMBARGO_ACTIVE
 
 
+def is_em_exited(state: EM) -> bool:
+    """Return True if the embargo has been exited (terminated).
+
+    Examples::
+
+        is_em_exited(EM.EXITED)   # True
+        is_em_exited(EM.ACTIVE)   # False
+        is_em_exited(EM.PROPOSED) # False
+    """
+    return state == EM.EXITED
+
+
 if __name__ == "__main__":
     M = create_em_machine()
     print(mermaid_machine(M))

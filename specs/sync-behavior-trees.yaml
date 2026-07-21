@@ -6,7 +6,6 @@ description: >-
   case-actor vs non-case-actor branching), RejectLogEntryReceivedBT (replication state
   update and replay), and CommitLogEntryBT (append, persist, fan-out).
 version: 1.0.0
-kind: pattern
 scope:
   - prototype
   - production
@@ -34,6 +33,7 @@ groups:
     specs:
       - id: SBT-01-001
         priority: MUST
+        kind: implementation
         statement: >-
           All sync log entry protocol flows MUST be implemented as behavior
           trees, not procedural use-case code. Procedural sync logic in
@@ -49,6 +49,7 @@ groups:
 
       - id: SBT-01-002
         priority: MUST
+        kind: implementation
         statement: >-
           Sync BTs MUST be organized as three separate trees, each
           corresponding to a single message-type use case: (1)
@@ -58,6 +59,7 @@ groups:
 
       - id: SBT-01-003
         priority: MUST
+        kind: implementation
         statement: >-
           Sync BT nodes MUST reside in `vultron/core/behaviors/sync/` with
           separate modules for node definitions (`nodes.py`) and tree
@@ -65,6 +67,7 @@ groups:
 
       - id: SBT-01-004
         priority: MUST
+        kind: implementation
         statement: >-
           Driven ports (SyncActivityPort, DataLayer) MUST be injected into
           BT nodes via the blackboard context set up by BTBridge.setup_tree().
@@ -76,6 +79,7 @@ groups:
 
       - id: SBT-01-005
         priority: MUST
+        kind: implementation
         statement: >-
           Core use cases MUST NOT call trigger functions for sync operations.
           Triggers exist as external API entry points (demo puppeteering);
@@ -87,6 +91,7 @@ groups:
     specs:
       - id: SBT-02-001
         priority: MUST
+        kind: implementation
         statement: >-
           AnnounceLogEntryReceivedBT MUST include an explicit branch that
           determines whether the receiving actor is the case-actor for the
@@ -95,6 +100,7 @@ groups:
 
       - id: SBT-02-002
         priority: MUST
+        kind: implementation
         statement: >-
           The non-case-actor (participant) path MUST validate the received
           log entry's hash chain before persisting: `prev_log_hash` MUST
@@ -108,6 +114,7 @@ groups:
 
       - id: SBT-02-003
         priority: MUST
+        kind: implementation
         statement: >-
           The non-case-actor path MUST check for duplicate entries before
           persisting (idempotency). If the entry is already stored, the
@@ -119,6 +126,7 @@ groups:
 
       - id: SBT-02-004
         priority: MUST
+        kind: implementation
         statement: >-
           The case-actor path MUST verify that the log entry's sender
           matches the case-actor's own identity (actor-ID comparison).
@@ -128,6 +136,7 @@ groups:
 
       - id: SBT-02-005
         priority: SHOULD
+        kind: implementation
         statement: >-
           The case-actor path's sender verification SHOULD be designed
           as a replaceable condition node so that cryptographic signature
@@ -136,6 +145,7 @@ groups:
 
       - id: SBT-02-006
         priority: MUST
+        kind: implementation
         statement: >-
           When the case-actor receives a valid round-trip of its own
           log entry, the BT MUST log at DEBUG level (delivery round-trip
@@ -148,6 +158,7 @@ groups:
     specs:
       - id: SBT-03-001
         priority: MUST
+        kind: implementation
         statement: >-
           RejectLogEntryReceivedBT MUST update the VultronReplicationState
           for the rejecting peer with the last-accepted hash reported in
@@ -159,6 +170,7 @@ groups:
 
       - id: SBT-03-002
         priority: MUST
+        kind: implementation
         statement: >-
           After updating replication state, RejectLogEntryReceivedBT MUST
           replay all missing entries from the peer's last-accepted hash
@@ -171,6 +183,7 @@ groups:
 
       - id: SBT-03-003
         priority: MUST
+        kind: implementation
         statement: >-
           RejectLogEntryReceivedBT MUST resolve the case-actor for the
           referenced case and use the case-actor's identity as the sender
@@ -181,6 +194,7 @@ groups:
     specs:
       - id: SBT-04-001
         priority: MUST
+        kind: implementation
         statement: >-
           CommitLogEntryBT MUST compose as a Sequence of discrete BT nodes:
           (1) reconstruct chain tail hash, (2) create CaseLedgerEntry with
@@ -196,6 +210,7 @@ groups:
 
       - id: SBT-04-002
         priority: MUST
+        kind: implementation
         statement: >-
           Fan-out MUST be a separate BT action node (not inlined into the
           persist step) so that the commit and replication concerns are
@@ -203,6 +218,7 @@ groups:
 
       - id: SBT-04-003
         priority: MUST
+        kind: implementation
         statement: >-
           The existing `CommitCaseLedgerEntryNode` in `case/nodes.py` MUST be
           refactored to invoke CommitLogEntryBT as a subtree rather than
@@ -210,6 +226,7 @@ groups:
 
       - id: SBT-04-004
         priority: MUST
+        kind: implementation
         statement: >-
           Fan-out MUST only occur after the log entry is durably persisted
           (committed). External activities MUST NOT be emitted before the
@@ -224,6 +241,7 @@ groups:
     specs:
       - id: SBT-05-001
         priority: MUST
+        kind: implementation
         statement: >-
           All driven ports used by BT nodes (DataLayer, SyncActivityPort,
           and any future ports) MUST be injected via the BTBridge blackboard
@@ -232,6 +250,7 @@ groups:
 
       - id: SBT-05-002
         priority: MUST
+        kind: implementation
         statement: >-
           Blackboard keys for injected ports MUST follow the existing
           naming convention: `{noun}_{last_url_segment}` with no slashes.
@@ -240,6 +259,7 @@ groups:
 
       - id: SBT-05-003
         priority: MUST
+        kind: implementation
         statement: >-
           The port injection pattern MUST be documented in
           `notes/sync-behavior-trees.md` as a general reusable pattern

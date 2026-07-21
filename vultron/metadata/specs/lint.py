@@ -15,8 +15,14 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from vultron.metadata.specs.registry import SpecRegistry, load_registry
-from vultron.metadata.specs.schema import BehavioralSpec, LintWarningCode
+from vultron.metadata.specs.registry import (
+    SpecRegistry,
+    load_registry,
+)
+from vultron.metadata.specs.schema import (
+    BehavioralSpec,
+    LintWarningCode,
+)
 
 _RATIONALE_WARN_CHARS = 500
 _ADR_REF_RE = re.compile(r"\bADR-(\d{4})\b")
@@ -94,6 +100,22 @@ def _check_adr_references(
     return warnings
 
 
+def _check_missing_kind(registry: SpecRegistry) -> list[str]:
+    """Return hard errors for any spec item missing a ``kind:`` field (SR-09-003).
+
+    Pydantic already rejects ``kind: null`` at load time via the required
+    ``SpecKind`` field type, so this check is belt-and-suspenders for future
+    schema relaxations or registry manipulation outside the Pydantic validator.
+    """
+    errors: list[str] = []
+    for spec_id, spec in registry.all_specs.items():
+        if spec.kind is None:
+            errors.append(
+                f"{spec_id}: missing required 'kind' field on spec item"
+            )
+    return errors
+
+
 def lint(spec_dir: Path, adr_dir: Path | None = None) -> int:
     """Validate the spec registry in ``spec_dir``.
 
@@ -157,6 +179,7 @@ def lint(spec_dir: Path, adr_dir: Path | None = None) -> int:
             warnings.append(f"[WARN] {spec_id}: no tags defined")
 
     warnings.extend(_check_adr_references(registry, adr_dir))
+    hard_errors.extend(_check_missing_kind(registry))
 
     for w in warnings:
         print(w)

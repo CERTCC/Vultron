@@ -25,7 +25,6 @@ from typing import Any
 
 from vultron.metadata.specs.registry import (
     SpecRegistry,
-    effective_kind,
     effective_scope,
     effective_tags,
 )
@@ -53,7 +52,7 @@ def _spec_record(
         ),
         "priority": spec.priority.value,
         "statement": spec.statement,
-        "kind": effective_kind(spec, group, file).value,
+        "kind": spec.kind.value,
         "scope": [s.value for s in effective_scope(spec, group, file)],
     }
 
@@ -109,7 +108,6 @@ def _topic_record(file: SpecFile) -> dict[str, str]:
         "id": file.id,
         "title": file.title,
         "version": file.version,
-        "kind": file.kind,
     }
 
 
@@ -147,13 +145,12 @@ def _matches_filters(
     if selected_ids is not None and spec_id not in selected_ids:
         return False
 
-    eff_kind = effective_kind(spec, group, file)
     eff_scope_values = {
         item.value for item in effective_scope(spec, group, file)
     }
     eff_tag_values = {item.value for item in effective_tags(spec, file)}
 
-    if kind and eff_kind.value != kind:
+    if kind and spec.kind.value != kind:
         return False
     if scope and scope not in eff_scope_values:
         return False

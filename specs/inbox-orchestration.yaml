@@ -5,7 +5,6 @@ description: >-
   the InboxOutcome model, BT sequence invariants, adapter injection rules, caller
   interface constraints, and error/outcome behavior.
 version: 1.0.0
-kind: pattern
 scope:
 - prototype
 - production
@@ -18,6 +17,7 @@ groups:
   specs:
   - id: IO-01-001
     priority: MUST
+    kind: pattern
     statement: >-
       The inbox orchestration module MUST define an InboxOutcome Pydantic
       model as the sole return type of process_payload.
@@ -29,6 +29,7 @@ groups:
     - protocol
   - id: IO-01-002
     priority: MUST
+    kind: pattern
     statement: >-
       InboxOutcome MUST include a status field whose value is one of:
       processed, deferred, or rejected.
@@ -40,6 +41,7 @@ groups:
     - messaging
   - id: IO-01-003
     priority: MUST
+    kind: pattern
     statement: >-
       InboxOutcome MUST include a context_id field (nullable string) carrying
       the case or activity context identifier, when available.
@@ -50,6 +52,7 @@ groups:
     - messaging
   - id: IO-01-004
     priority: MUST
+    kind: pattern
     statement: >-
       InboxOutcome MUST include a failure_reason field (nullable string)
       carrying a human-readable explanation when status is rejected or
@@ -64,6 +67,7 @@ groups:
   specs:
   - id: IO-02-001
     priority: MUST
+    kind: pattern
     statement: >-
       The inbox orchestration module MUST live in
       vultron/core/behaviors/inbox/ and MUST NOT import from
@@ -80,6 +84,7 @@ groups:
     - docs/adr/0020-inbox-bt-orchestration.md
   - id: IO-02-002
     priority: MUST
+    kind: pattern
     statement: >-
       The BT implementation MUST enforce the following fixed node ordering
       via BT Sequence nodes: (1) parse inbound payload, (2) rehydrate
@@ -93,6 +98,7 @@ groups:
     - protocol
   - id: IO-02-003
     priority: MUST
+    kind: pattern
     statement: >-
       The process_payload function MUST be the sole caller-facing entry
       point; intermediate BT nodes MUST NOT be exported as public API.
@@ -103,6 +109,7 @@ groups:
     - protocol
   - id: IO-02-004
     priority: MUST
+    kind: pattern
     statement: >-
       The BT module MUST NOT instantiate or call a use-case class directly
       inside a BT node update() method.
@@ -117,6 +124,7 @@ groups:
   specs:
   - id: IO-03-001
     priority: MUST
+    kind: pattern
     statement: >-
       process_payload MUST accept exactly two injected adapters: an ingress
       payload adapter (raw input to as_Activity) and a dispatch adapter
@@ -131,6 +139,7 @@ groups:
     - docs/adr/0020-inbox-bt-orchestration.md
   - id: IO-03-002
     priority: MUST
+    kind: pattern
     statement: >-
       Pending-queue management MUST be provided to the BT module via an
       injected port dependency and MUST NOT be accessed directly from
@@ -144,6 +153,7 @@ groups:
     - code-style
   - id: IO-03-003
     priority: MUST
+    kind: pattern
     statement: >-
       The FastAPI inbox path MUST supply adapter implementations at
       construction time and MUST NOT contain any inbox policy logic.
@@ -158,6 +168,7 @@ groups:
   specs:
   - id: IO-04-001
     priority: MUST
+    kind: pattern
     statement: >-
       process_payload MUST always return an InboxOutcome; it MUST NOT raise
       exceptions for protocol-invalid payloads.
@@ -169,6 +180,7 @@ groups:
     - error-handling
   - id: IO-04-002
     priority: MUST
+    kind: pattern
     statement: >-
       Tests MUST assert on InboxOutcome.status and InboxOutcome.failure_reason;
       they MUST NOT patch internal BT node helpers to verify pipeline behavior.
@@ -179,6 +191,7 @@ groups:
     - testing
   - id: IO-04-003
     priority: SHOULD
+    kind: pattern
     statement: >-
       Both a production ASGI adapter and an in-memory test adapter SHOULD
       implement the ingress payload adapter interface, so that the same

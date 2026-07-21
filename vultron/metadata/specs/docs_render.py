@@ -15,7 +15,10 @@ Usage (in a markdown-exec Python block)::
 
 from __future__ import annotations
 
-from vultron.metadata.specs.registry import SpecRegistry, load_registry
+from vultron.metadata.specs.registry import (
+    SpecRegistry,
+    load_registry,
+)
 from vultron.metadata.specs.schema import (
     BehavioralSpec,
     RFC2119Priority,
@@ -201,7 +204,15 @@ def _render_group(
     registry: SpecRegistry,
     current_kind: SpecKind,
     heading: str = "###",
+    specs: list[Spec] | None = None,
 ) -> None:
+    """Render *group* to *lines*.
+
+    When *specs* is provided only those specs are rendered (used to suppress
+    items whose effective kind does not match *current_kind* — SR-09-002).
+    When *specs* is ``None`` all items in the group are rendered.
+    """
+    visible = specs if specs is not None else group.specs
     anchor = _spec_anchor(group.id)
     lines.append(f"{heading} {group.title} {{#{anchor}}}")
     lines.append("")
@@ -215,7 +226,7 @@ def _render_group(
     # Table header
     lines.append("| ID | Priority | Requirement | Related |")
     lines.append("|---|---|---|---|")
-    for spec in group.specs:
+    for spec in visible:
         lines.append(_render_spec_row(spec, registry, current_kind))
     lines.append("")
 
@@ -227,6 +238,12 @@ def _render_file(
     current_kind: SpecKind,
     is_behavioral_section: bool,
 ) -> None:
+    """Render *spec_file* groups that have at least one item matching
+    *current_kind* (SR-09-001, SR-09-002).
+
+    Groups appear here only when they contain at least one item whose
+    ``kind`` matches *current_kind*; non-matching items are suppressed.
+    """
     anchor = spec_file.id.lower()
     if is_behavioral_section:
         lines.append(f"### {spec_file.title} {{#{anchor}}}")
@@ -242,8 +259,19 @@ def _render_file(
     )
     lines.append("")
     for group in spec_file.groups:
+        # Collect items whose effective kind matches current_kind.
+        matching_specs = [
+            spec for spec in group.specs if spec.kind == current_kind
+        ]
+        if not matching_specs:
+            continue
         _render_group(
-            lines, group, registry, current_kind, heading=group_heading
+            lines,
+            group,
+            registry,
+            current_kind,
+            heading=group_heading,
+            specs=matching_specs,
         )
 
 
@@ -278,7 +306,17 @@ def render_for_kind(kind: str, registry: SpecRegistry) -> str:
         valid = [k.value for k in SpecKind]
         raise ValueError(f"Unknown SpecKind: {kind!r}. Valid values: {valid}")
 
-    matching = [f for f in registry.files if f.kind == target_kind]
+    # Route by effective kind: a file contributes to this page when it has at
+    # least one item whose effective kind matches target_kind (SR-09-001).
+    matching = [
+        f
+        for f in registry.files
+        if any(
+            spec.kind == target_kind
+            for group in f.groups
+            for spec in group.specs
+        )
+    ]
     if not matching:
         raise ValueError(
             f"No spec files with kind={kind!r} found in registry. "

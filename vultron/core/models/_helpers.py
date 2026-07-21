@@ -15,9 +15,14 @@
 
 """Shared helper utilities for core domain model types."""
 
+from __future__ import annotations
+
 import uuid
 from datetime import datetime, timezone
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from vultron.core.models.case import VulnerabilityCase
 
 
 def _now_utc() -> datetime:
@@ -44,6 +49,16 @@ def _as_id(obj: Any) -> str | None:
     if isinstance(id_, str):
         return id_
     return str(obj)
+
+
+def has_case_statuses(case: VulnerabilityCase) -> bool:
+    """Return True when *case* has at least one CaseStatus entry.
+
+    Use this as the single shared predicate wherever code must distinguish
+    "no status history yet" from "at least one status recorded" — in both
+    BT condition nodes and plain use-case guards (LST-05 / AC-5).
+    """
+    return bool(case.case_statuses)
 
 
 def _report_phase_status_id(

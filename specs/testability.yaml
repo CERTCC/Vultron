@@ -5,7 +5,6 @@ description: >-
   Testability enables confidence in correctness, supports refactoring, and documents expected
   behavior.
 version: 1.0.0
-kind: language
 scope:
 - prototype
 - production
@@ -14,47 +13,55 @@ tags:
 groups:
 - id: TB-01
   title: Testing Framework
-  kind: language
   specs:
   - id: TB-01-001
     priority: MUST
+    kind: language
     statement: The system MUST use pytest as the testing framework
   - id: TB-01-002
     priority: MUST
+    kind: language
     statement: Test configuration MUST be defined in `pyproject.toml`
 - id: TB-02
   title: Test Coverage
   specs:
   - id: TB-02-001
     priority: MUST
+    kind: language
     statement: Unit tests MUST achieve 80%+ line coverage
   - id: TB-02-002
     priority: MUST
+    kind: language
     statement: Critical paths MUST achieve 100% line coverage
 - id: TB-03
   title: Integration Test Coverage
-  kind: domain
   specs:
   - id: TB-03-001
     priority: MUST
+    kind: domain
     statement: Integration tests MUST cover inbox POST → handler invocation flow
   - id: TB-03-002
     priority: MUST
+    kind: domain
     statement: Integration tests MUST cover validation → error response flow
   - id: TB-03-003
     priority: MUST
+    kind: domain
     statement: Integration tests MUST verify async processing behavior
 - id: TB-04
   title: Test Organization
   specs:
   - id: TB-04-001
     priority: MUST
+    kind: language
     statement: Test structure MUST mirror source code structure
   - id: TB-04-002
     priority: MUST
+    kind: language
     statement: Test files MUST use descriptive names starting with `test_`
   - id: TB-04-003
     priority: MUST
+    kind: language
     statement: >-
       Unit and integration tests MUST be in separate directories or marked with pytest markers
 - id: TB-05
@@ -62,21 +69,26 @@ groups:
   specs:
   - id: TB-05-001
     priority: MUST
+    kind: language
     statement: The system MUST provide reusable test fixtures
   - id: TB-05-002
     priority: MUST
+    kind: language
     statement: Test data MUST be generated via factories, not hardcoded
   - id: TB-05-003
     priority: MUST
+    kind: language
     statement: Test fixtures MUST be defined in `conftest.py` files
   - id: TB-05-004
     priority: MUST
+    kind: language
     statement: Tests MUST use proper domain objects, not simplified mock data
     rationale: >-
       Tests with string IDs can pass while production code fails; proper objects exercise
       actual validation and serialization
   - id: TB-05-005
     priority: MUST
+    kind: language
     statement: Test semantic types MUST match the activity structure being tested
     rationale: >-
       Semantic type validation is enforced by the `USE_CASE_MAP` key lookup at dispatch time;
@@ -86,25 +98,31 @@ groups:
   specs:
   - id: TB-06-001
     priority: MUST
+    kind: language
     statement: Tests MUST be independent and runnable in any order
   - id: TB-06-002
     priority: MUST
+    kind: language
     statement: Tests MUST use test database or mocked database
   - id: TB-06-003
     priority: MUST
+    kind: language
     statement: Test state MUST be reset between tests
   - id: TB-06-004
     priority: MUST
+    kind: language
     statement: Test fixtures MUST clean up created data after test completion
     rationale: Prevents test database bloat and ensures isolation
   - id: TB-06-005
     priority: MUST
+    kind: language
     statement: Behavior Tree tests MUST clear the py_trees blackboard between tests
     rationale: >-
       py_trees blackboard is a global singleton; without clearing, state from one test leaks
       into subsequent tests
   - id: TB-06-006
     priority: MUST
+    kind: language
     statement: All tests MUST be deterministic and produce the same result on every run
     rationale: >-
       Flaky tests erode confidence in the test suite, mask real failures, and slow development.
@@ -146,43 +164,52 @@ groups:
   specs:
   - id: TB-07-001
     priority: MUST
+    kind: language
     statement: External services MUST be mocked in unit tests
   - id: TB-07-002
     priority: MUST
+    kind: language
     statement: Database access MUST be stubbed in unit tests
   - id: TB-07-003
     priority: MAY
+    kind: language
     statement: Integration tests MAY use real database with test data
 - id: TB-08
   title: Test Documentation
   specs:
   - id: TB-08-001
     priority: MUST
+    kind: language
     statement: Tests MUST use descriptive names explaining what is tested
   - id: TB-08-002
     priority: SHOULD
+    kind: language
     statement: Complex tests SHOULD include docstrings
   - id: TB-08-003
     priority: SHOULD
+    kind: language
     statement: Tests SHOULD serve as usage examples
 - id: TB-09
   title: Test Maintainability
   specs:
   - id: TB-09-001
     priority: MUST
+    kind: language
     statement: Tests MUST be kept simple and readable
   - id: TB-09-002
     priority: SHOULD
+    kind: language
     statement: Test duplication SHOULD be avoided via fixtures and helpers
   - id: TB-09-003
     priority: MUST
+    kind: language
     statement: Tests MUST be refactored along with production code
 - id: TB-11
   title: Test Infrastructure Consistency
-  kind: pattern
   specs:
   - id: TB-11-001
     priority: MUST
+    kind: language
     statement: >-
       When a pytest mark is renamed or added, ALL of the following MUST be
       updated in the same changeset: (a) the `markers` list in `pyproject.toml`,
@@ -209,10 +236,10 @@ groups:
         infrastructure correctness
 - id: TB-10
   title: Architecture Boundary Tests
-  kind: dev-process
   specs:
   - id: TB-10-001
     priority: SHOULD
+    kind: dev-process
     statement: >-
       Once the `core` and `wire` packages are fully separated (see `specs/architecture.md`
       and `archived_notes/architecture-review.md`), architecture boundary tests SHOULD be
@@ -223,6 +250,7 @@ groups:
     - production
   - id: TB-10-002
     priority: MUST
+    kind: dev-process
     statement: >-
       Architecture ratchet tests MUST use bidirectional equality: `assert actual_violations
       == KNOWN_VIOLATIONS`. A subset check (`assert actual ⊆ KNOWN`) is prohibited because
@@ -236,10 +264,10 @@ groups:
       spec_id: ARCH-18-001
 - id: TB-12
   title: BT Test Harness
-  kind: language
   specs:
   - id: TB-12-001
     priority: MUST
+    kind: language
     statement: >-
       BT leaf and composite node tests MUST use the `BTTestScenario` deep-module test
       harness. The `setup_node_blackboard()` helper is an anti-pattern for integration
@@ -255,6 +283,7 @@ groups:
       spec_id: TB-03-001
   - id: TB-12-002
     priority: MUST
+    kind: language
     statement: >-
       Each BT scenario test MUST run the BT tree exactly once per test case. Running the
       same tree instance multiple times in a single test produces accumulated blackboard
@@ -264,6 +293,7 @@ groups:
       spec_id: TB-12-001
   - id: TB-12-003
     priority: MUST
+    kind: language
     statement: >-
       BT integration tests MUST complete within 5 seconds per test case. Tests that
       exceed this limit MUST be redesigned (e.g., reducing dataset size, mocking
@@ -274,6 +304,7 @@ groups:
       spec_id: TB-12-001
   - id: TB-12-004
     priority: SHOULD
+    kind: language
     statement: >-
       When a BT test scenario produces a `SUBFAILED` status (partial-success in a
       `memory=True` Sequence), the test SHOULD explicitly assert the expected leaf

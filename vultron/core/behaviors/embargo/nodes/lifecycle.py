@@ -20,6 +20,10 @@ from typing import Any
 import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.embargo.nodes.em_state import (
+    ReadEmStateNode,
+    WriteEmStateNode,
+)
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.services.embargo_lifecycle import (
@@ -37,7 +41,6 @@ from vultron.core.use_cases._helpers import add_activity_to_outbox
 from vultron.errors import (
     VultronError,
     VultronInvalidStateTransitionError,
-    VultronValidationError,
 )
 
 
@@ -47,6 +50,9 @@ class ValidateEmbargoRevisionStateNode(DataLayerAction):
     Returns SUCCESS when EM state is ACTIVE or REVISE.  Returns FAILURE
     (with error in ``result_out``) for any other state — revision proposals
     require an active embargo; use propose-embargo for initial proposals.
+
+    Uses ``ReadEmStateNode`` to read the EM state (AC-1 of issue #1474) rather
+    than reading ``case.current_status.em_state`` inline.
     """
 
     def __init__(
@@ -64,20 +70,18 @@ class ValidateEmbargoRevisionStateNode(DataLayerAction):
             self.feedback_message = "DataLayer not available"
             return Status.FAILURE
 
-        case = self.datalayer.read(self._case_id)
-        if not isinstance(case, VulnerabilityCase):
-            not_found = VultronValidationError(
-                f"Case '{self._case_id}' not found or invalid."
-            )
-            self._result_out["error"] = not_found
-            self.feedback_message = str(not_found)
+        # AC-1: read em_state via named BT node, not inline.
+        read_node = ReadEmStateNode(
+            case_id=self._case_id, result_out=self._result_out
+        )
+        read_node.datalayer = self.datalayer
+        read_status = read_node.update()
+        if read_status != Status.SUCCESS:
+            self.feedback_message = read_node.feedback_message
             return Status.FAILURE
 
-        try:
-            em_state = case.current_status.em_state
-        except ValueError:
-            em_state = None
-        if em_state is None or not is_em_embargo_active(em_state):
+        em_state = self._result_out.get("em_before")
+        if not isinstance(em_state, EM) or not is_em_embargo_active(em_state):
             bad_state = VultronInvalidStateTransitionError(
                 f"Cannot propose embargo revision: case '{self._case_id}'"
                 f" EM state '{em_state}' does not allow a revision proposal."
@@ -91,7 +95,14 @@ class ValidateEmbargoRevisionStateNode(DataLayerAction):
 
 
 class _EmbargoLifecycleNode(DataLayerAction):
-    """Base node for EmbargoLifecycle strict-mode transitions."""
+    """Base node for EmbargoLifecycle strict-mode transitions.
+
+    Orchestrates the em_state read/compute/write cycle via named BT nodes
+    (AC-1 of issue #1474):
+    1. ``ReadEmStateNode`` reads ``em_state`` → ``result_out["em_before"]``.
+    2. The subclass ``_transition()`` calls the service with ``em_before``.
+    3. ``WriteEmStateNode`` writes ``result_out["em_after"]`` back to the case.
+    """
 
     def __init__(
         self, result_out: dict[str, object], name: str | None = None
@@ -99,8 +110,14 @@ class _EmbargoLifecycleNode(DataLayerAction):
         super().__init__(name=name or self.__class__.__name__)
         self._result_out = result_out
 
+    def _case_id(self) -> str:
+        raise NotImplementedError
+
     def _transition(
-        self, lifecycle: EmbargoLifecycle, actor_id: str
+        self,
+        _lifecycle: EmbargoLifecycle,
+        _actor_id: str,
+        _em_before: EM,
     ) -> EmbargoLifecycleResult:
         raise NotImplementedError
 
@@ -109,15 +126,40 @@ class _EmbargoLifecycleNode(DataLayerAction):
             self.feedback_message = "DataLayer or actor_id not available"
             return Status.FAILURE
 
+        # AC-1: read em_state via named BT node, not inline service code.
+        read_node = ReadEmStateNode(
+            case_id=self._case_id(), result_out=self._result_out
+        )
+        read_node.datalayer = self.datalayer
+        read_status = read_node.update()
+        if read_status != Status.SUCCESS:
+            self.feedback_message = read_node.feedback_message
+            return Status.FAILURE
+        em_before = self._result_out["em_before"]
+        assert isinstance(em_before, EM)
+
         lifecycle = EmbargoLifecycle(persistence=self.datalayer)
         try:
-            result = self._transition(lifecycle, self.actor_id)
+            result = self._transition(lifecycle, self.actor_id, em_before)
         except VultronError as exc:
             self._result_out["error"] = exc
             self.feedback_message = str(exc)
             return Status.FAILURE
 
         self._result_out["lifecycle_result"] = result
+        self._result_out["em_after"] = result.em_after
+
+        # AC-1: write em_state via named BT node, not inline service code.
+        if result.em_after != em_before:
+            write_node = WriteEmStateNode(
+                case_id=self._case_id(), result_out=self._result_out
+            )
+            write_node.datalayer = self.datalayer
+            write_status = write_node.update()
+            if write_status != Status.SUCCESS:
+                self.feedback_message = write_node.feedback_message
+                return Status.FAILURE
+
         return Status.SUCCESS
 
 
@@ -132,17 +174,24 @@ class ProposeEmbargoLifecycleNode(_EmbargoLifecycleNode):
         name: str | None = None,
     ) -> None:
         super().__init__(result_out=result_out, name=name)
-        self._case_id = case_id
+        self._case_id_value = case_id
         self._embargo_id = embargo_id
 
+    def _case_id(self) -> str:
+        return self._case_id_value
+
     def _transition(
-        self, lifecycle: EmbargoLifecycle, actor_id: str
+        self,
+        lifecycle: EmbargoLifecycle,
+        actor_id: str,
+        em_before: EM,
     ) -> EmbargoLifecycleResult:
         return lifecycle.propose_embargo(
-            case_id=self._case_id,
+            case_id=self._case_id_value,
             embargo_id=self._embargo_id,
             actor_id=actor_id,
             transition_mode=TransitionMode.STRICT,
+            em_before=em_before,
         )
 
 
@@ -157,17 +206,24 @@ class AcceptEmbargoLifecycleNode(_EmbargoLifecycleNode):
         name: str | None = None,
     ) -> None:
         super().__init__(result_out=result_out, name=name)
-        self._case_id = case_id
+        self._case_id_value = case_id
         self._embargo_id = embargo_id
 
+    def _case_id(self) -> str:
+        return self._case_id_value
+
     def _transition(
-        self, lifecycle: EmbargoLifecycle, actor_id: str
+        self,
+        lifecycle: EmbargoLifecycle,
+        actor_id: str,
+        em_before: EM,
     ) -> EmbargoLifecycleResult:
         return lifecycle.accept_embargo_invite(
-            case_id=self._case_id,
+            case_id=self._case_id_value,
             embargo_id=self._embargo_id,
             actor_id=actor_id,
             transition_mode=TransitionMode.STRICT,
+            em_before=em_before,
         )
 
 
@@ -182,22 +238,34 @@ class RejectEmbargoLifecycleNode(_EmbargoLifecycleNode):
         name: str | None = None,
     ) -> None:
         super().__init__(result_out=result_out, name=name)
-        self._case_id = case_id
+        self._case_id_value = case_id
         self._embargo_id = embargo_id
 
+    def _case_id(self) -> str:
+        return self._case_id_value
+
     def _transition(
-        self, lifecycle: EmbargoLifecycle, actor_id: str
+        self,
+        lifecycle: EmbargoLifecycle,
+        actor_id: str,
+        em_before: EM,
     ) -> EmbargoLifecycleResult:
         return lifecycle.reject_embargo_invite(
-            case_id=self._case_id,
+            case_id=self._case_id_value,
             embargo_id=self._embargo_id,
             actor_id=actor_id,
             transition_mode=TransitionMode.STRICT,
+            em_before=em_before,
         )
 
 
 class TerminateEmbargoLifecycleNode(_EmbargoLifecycleNode):
-    """Apply STRICT terminate-active-embargo transition."""
+    """Apply STRICT terminate-active-embargo transition.
+
+    AC-3: terminate semantics require an active embargo; the upstream
+    ``HasActiveEmbargoNode`` guard in ``terminate_embargo_bt`` enforces that
+    the case satisfies ``EmbargoedCase`` preconditions before this node runs.
+    """
 
     def __init__(
         self,
@@ -206,15 +274,22 @@ class TerminateEmbargoLifecycleNode(_EmbargoLifecycleNode):
         name: str | None = None,
     ) -> None:
         super().__init__(result_out=result_out, name=name)
-        self._case_id = case_id
+        self._case_id_value = case_id
+
+    def _case_id(self) -> str:
+        return self._case_id_value
 
     def _transition(
-        self, lifecycle: EmbargoLifecycle, actor_id: str
+        self,
+        lifecycle: EmbargoLifecycle,
+        actor_id: str,
+        em_before: EM,
     ) -> EmbargoLifecycleResult:
         return lifecycle.terminate_active_embargo(
-            case_id=self._case_id,
+            case_id=self._case_id_value,
             actor_id=actor_id,
             transition_mode=TransitionMode.STRICT,
+            em_before=em_before,
         )
 
 

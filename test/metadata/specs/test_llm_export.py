@@ -17,7 +17,6 @@ GRAPH_YAML_A = {
     "title": "Graph Test A",
     "description": "Spec file A for graph tests",
     "version": "1.0",
-    "kind": "general",
     "scope": ["prototype", "production"],
     "groups": [
         {
@@ -27,12 +26,14 @@ GRAPH_YAML_A = {
                 {
                     "id": "GA-01-001",
                     "priority": "MUST",
+                    "kind": "general",
                     "statement": "GA-01-001 MUST be foundational",
                     "tags": ["protocol"],
                 },
                 {
                     "id": "GA-01-002",
                     "priority": "SHOULD",
+                    "kind": "general",
                     "statement": "GA-01-002 SHOULD depend on GA-01-001",
                     "relationships": [
                         {
@@ -47,11 +48,11 @@ GRAPH_YAML_A = {
         {
             "id": "GA-02",
             "title": "Group A2",
-            "kind": "implementation",
             "specs": [
                 {
                     "id": "GA-02-001",
                     "priority": "MAY",
+                    "kind": "implementation",
                     "statement": "GA-02-001 MAY extend GA-01-002",
                     "scope": ["production"],
                     "relationships": [
@@ -71,7 +72,6 @@ GRAPH_YAML_B = {
     "title": "Graph Test B",
     "description": "Spec file B for graph tests",
     "version": "1.0",
-    "kind": "general",
     "scope": ["prototype"],
     "groups": [
         {
@@ -81,6 +81,7 @@ GRAPH_YAML_B = {
                 {
                     "id": "GB-01-001",
                     "priority": "MUST",
+                    "kind": "general",
                     "statement": "GB-01-001 MUST cross-reference GA-01-001",
                     "relationships": [
                         {

@@ -27,6 +27,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.outbox_monitor import OutboxMonitor
 
 # ---------------------------------------------------------------------------
@@ -389,10 +390,6 @@ def test_notify_is_safe_before_start():
 
 def test_register_new_actors_sets_callback_on_sqlite_dl():
     """_register_new_actors() calls set_enqueue_callback on SqliteDataLayer DLs."""
-    from unittest.mock import MagicMock
-
-    from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-
     sqlite_dl = MagicMock(spec=SqliteDataLayer)
     monitor = _make_monitor(actor_dls={"alice": sqlite_dl})
 
@@ -425,8 +422,6 @@ def test_register_new_actors_skips_non_sqlite_dl():
 
 def test_register_new_actors_idempotent():
     """_register_new_actors() only registers each actor once."""
-    from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-
     sqlite_dl = MagicMock(spec=SqliteDataLayer)
     monitor = _make_monitor(actor_dls={"alice": sqlite_dl})
 
@@ -451,8 +446,6 @@ def test_monitor_wakes_on_enqueue_not_on_poll_timeout():
 
     AC-4(a): monitor wakes within one event-loop tick after the callback fires.
     """
-    from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-
     sqlite_dl = MagicMock(spec=SqliteDataLayer)
     sqlite_dl.outbox_list.return_value = []
     shared = MagicMock()
@@ -538,8 +531,6 @@ def test_callback_injection_and_clearing_roundtrip():
     AC-4(c): After injection the DL notifies the monitor; after clearing
     (set_enqueue_callback(None)) no further notification occurs.
     """
-    from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-
     dl = SqliteDataLayer(
         "sqlite:///:memory:", actor_id="https://example.org/alice"
     )
@@ -588,3 +579,145 @@ def test_stop_clears_loop_reference():
         assert monitor._loop is None
 
     asyncio.run(_run())
+
+
+# ---------------------------------------------------------------------------
+# Queue-depth observability — OX-09-004 (DEBUG summary) and OX-09-005 (WARNING)
+# ---------------------------------------------------------------------------
+
+
+def _mock_dl_with_depth(depth: int) -> MagicMock:
+    """Return a mock DataLayer whose outbox_list returns `depth` items."""
+    dl = MagicMock()
+    dl.outbox_list.return_value = [f"urn:test:act-{i}" for i in range(depth)]
+    return dl
+
+
+def test_drain_all_logs_debug_summary_with_no_items(caplog):
+    """drain_all emits a DEBUG log with total=0 when all outboxes are empty."""
+    monitor = _make_monitor(actor_dls={"alice": _mock_dl_with_depth(0)})
+    with patch(
+        "vultron.adapters.driving.fastapi.outbox_monitor.outbox_handler",
+        new_callable=AsyncMock,
+    ):
+        with caplog.at_level("DEBUG"):
+            asyncio.run(monitor.drain_all())
+
+    debug_msgs = [r.message for r in caplog.records if r.levelname == "DEBUG"]
+    assert any(
+        "drain pass" in m and "total pending: 0" in m for m in debug_msgs
+    )
+
+
+def test_drain_all_logs_debug_summary_with_items(caplog):
+    """drain_all emits a DEBUG log showing total pending count across actors."""
+    monitor = _make_monitor(
+        actor_dls={
+            "alice": _mock_dl_with_depth(3),
+            "bob": _mock_dl_with_depth(2),
+        }
+    )
+    with patch(
+        "vultron.adapters.driving.fastapi.outbox_monitor.outbox_handler",
+        new_callable=AsyncMock,
+    ):
+        with caplog.at_level("DEBUG"):
+            asyncio.run(monitor.drain_all())
+
+    debug_msgs = [r.message for r in caplog.records if r.levelname == "DEBUG"]
+    assert any("total pending: 5" in m and "2 actors" in m for m in debug_msgs)
+
+
+def test_drain_all_no_warning_when_threshold_not_set(caplog):
+    """drain_all emits no WARNING when depth_warn_threshold is None (default)."""
+    monitor = _make_monitor(actor_dls={"alice": _mock_dl_with_depth(100)})
+    with patch(
+        "vultron.adapters.driving.fastapi.outbox_monitor.outbox_handler",
+        new_callable=AsyncMock,
+    ):
+        with caplog.at_level("WARNING"):
+            asyncio.run(monitor.drain_all())
+
+    warn_msgs = [r.message for r in caplog.records if r.levelname == "WARNING"]
+    assert not any("exceeds threshold" in m for m in warn_msgs)
+
+
+def test_drain_all_warns_when_depth_exceeds_threshold(caplog):
+    """drain_all emits a WARNING identifying the actor when depth > threshold."""
+    monitor = OutboxMonitor(
+        poll_interval=0.01,
+        actor_datalayers_factory=lambda: {"alice": _mock_dl_with_depth(5)},
+        shared_dl=MagicMock(),
+        depth_warn_threshold=3,
+    )
+    with patch(
+        "vultron.adapters.driving.fastapi.outbox_monitor.outbox_handler",
+        new_callable=AsyncMock,
+    ):
+        with caplog.at_level("WARNING"):
+            asyncio.run(monitor.drain_all())
+
+    warn_msgs = [r.message for r in caplog.records if r.levelname == "WARNING"]
+    assert any("alice" in m and "exceeds threshold" in m for m in warn_msgs)
+
+
+def test_drain_all_no_warning_when_depth_equals_threshold(caplog):
+    """drain_all does NOT warn when depth equals (not exceeds) the threshold."""
+    monitor = OutboxMonitor(
+        poll_interval=0.01,
+        actor_datalayers_factory=lambda: {"alice": _mock_dl_with_depth(3)},
+        shared_dl=MagicMock(),
+        depth_warn_threshold=3,
+    )
+    with patch(
+        "vultron.adapters.driving.fastapi.outbox_monitor.outbox_handler",
+        new_callable=AsyncMock,
+    ):
+        with caplog.at_level("WARNING"):
+            asyncio.run(monitor.drain_all())
+
+    warn_msgs = [r.message for r in caplog.records if r.levelname == "WARNING"]
+    assert not any("exceeds threshold" in m for m in warn_msgs)
+
+
+def test_drain_all_warns_only_for_actors_exceeding_threshold(caplog):
+    """drain_all warns only for actors whose depth exceeds the threshold."""
+    monitor = OutboxMonitor(
+        poll_interval=0.01,
+        actor_datalayers_factory=lambda: {
+            "alice": _mock_dl_with_depth(10),
+            "bob": _mock_dl_with_depth(2),
+        },
+        shared_dl=MagicMock(),
+        depth_warn_threshold=5,
+    )
+    with patch(
+        "vultron.adapters.driving.fastapi.outbox_monitor.outbox_handler",
+        new_callable=AsyncMock,
+    ):
+        with caplog.at_level("WARNING"):
+            asyncio.run(monitor.drain_all())
+
+    warn_msgs = [r.message for r in caplog.records if r.levelname == "WARNING"]
+    assert any("alice" in m and "exceeds threshold" in m for m in warn_msgs)
+    assert not any("bob" in m and "exceeds threshold" in m for m in warn_msgs)
+
+
+def test_depth_warn_threshold_negative_raises():
+    """Passing a negative depth_warn_threshold raises ValueError at construction."""
+    with pytest.raises(ValueError, match="non-negative"):
+        OutboxMonitor(depth_warn_threshold=-1)
+
+
+def test_drain_all_calls_outbox_list_exactly_once_per_actor():
+    """drain_all calls outbox_list() exactly once per actor, not twice."""
+    dl = _mock_dl_with_depth(2)
+    monitor = _make_monitor(actor_dls={"alice": dl})
+
+    with patch(
+        "vultron.adapters.driving.fastapi.outbox_monitor.outbox_handler",
+        new_callable=AsyncMock,
+    ):
+        asyncio.run(monitor.drain_all())
+
+    dl.outbox_list.assert_called_once()
