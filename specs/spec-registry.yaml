@@ -377,3 +377,58 @@ groups:
     kind: implementation
     statement: A migration script SHOULD be provided to convert a single `specs/*.md` file to the YAML format as a starting
       point; manual review and cleanup is expected.
+- id: SR-10
+  title: Spec Statement Semantics
+  specs:
+  - id: SR-10-001
+    priority: MUST
+    kind: dev-process
+    statement: >-
+      A spec statement MUST describe an invariant property of the finished system — what it
+      must always be true, always do, or never do. It MUST NOT describe a migration step,
+      a one-time task, or a before/after transition.
+    rationale: >-
+      Specs are transferable knowledge for any implementer. A statement like "X must be
+      replaced by Y" is meaningless once the replacement is done, and misleading before it
+      is. The correct home for migration tasks is an issue tracker. If a migration produces
+      a lasting architectural rule, that rule — not the migration instruction — belongs in
+      the spec.
+    tags:
+    - documentation
+  - id: SR-10-002
+    priority: MUST
+    kind: dev-process
+    statement: >-
+      A spec statement MUST be written in the present tense and describe the system as it
+      must perpetually be. Phrases that signal migration-task framing — "must be replaced
+      by", "must be removed", "must be updated to", "once X is done", "after migration" —
+      MUST NOT appear in a spec statement unless they refer to a runtime state transition
+      (e.g. a state machine trigger), not a code change.
+    rationale: >-
+      Temporal or conditional framing ("once X holds, Y must go away") creates specs whose
+      satisfaction is permanent after a single event. Such specs cannot be re-tested on
+      subsequent builds and do not communicate ongoing constraints to future maintainers
+      or implementers.
+    tags:
+    - documentation
+    relationships:
+    - rel_type: refines
+      spec_id: SR-10-001
+  - id: SR-10-003
+    priority: SHOULD
+    kind: dev-process
+    statement: >-
+      When a spec's statement has become vacuously satisfied (the migration it described is
+      complete and no ongoing constraint survives), the spec SHOULD be deleted. When a
+      residual constraint does survive, the statement SHOULD be rewritten to express only
+      that constraint, dropping all migration-task language.
+    rationale: >-
+      A vacuously satisfied spec creates false confidence: it always passes any check, so
+      it neither constrains nor informs. A partially-stale spec that mixes a completed
+      migration instruction with a surviving rule misleads readers about which clause is
+      still normative. Deletion or rewrite keeps the registry honest.
+    tags:
+    - documentation
+    relationships:
+    - rel_type: refines
+      spec_id: SR-10-001
