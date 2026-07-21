@@ -70,6 +70,27 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: ARCH-01-001
+  - id: ARCH-01-006
+    priority: MUST_NOT
+    kind: pattern
+    statement: >-
+      Demo-layer modules (`vultron/demo/**`) MUST NOT import from the legacy
+      simulator package (`vultron/bt/**`). The sole permitted exception is the
+      unified demo CLI aggregator (`vultron/demo/cli.py`, mandated by DC-01-001),
+      which surfaces the standalone `vultron/bt/`-based behaviour-tree demos
+      (pacman, robot, cvd) as a sub-group. Demo *logic* modules
+      (`vultron/demo/scenario/`, `vultron/demo/exchange/`, `vultron/demo/helpers/`,
+      `vultron/demo/fuzzer/`) MUST remain free of any `vultron/bt/` import.
+    rationale: >-
+      `vultron/demo/` demonstrates the production protocol; `vultron/bt/` is the
+      frozen legacy custom-engine simulator slated for retirement (see
+      `notes/codebase-structure.md` "Module Boundary"). Coupling demo logic to the
+      legacy simulator undermines the decoupling `vultron/demo/fuzzer/` was created
+      to achieve. `cli.py` is exempt as a thin aggregator entry point — the single
+      documented bridge to the bt-tree demos. Derives from ADR-0009 (hexagonal).
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-01-001
 - id: ARCH-02
   title: SemanticIntent Enum
   specs:

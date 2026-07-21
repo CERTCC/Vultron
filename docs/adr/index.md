@@ -95,6 +95,8 @@ General information about architectural decision records is available at <https:
   Reconstitution](0035-core-activity-representation-and-envelope-reconstitution.md)
 - [ADR-0036 Per-Machine Dimension Objects for CaseStatus and
   ParticipantStatus](0036-status-dimension-objects.md)
+- [ADR-0037 Buffer Out-of-Order `Announce(CaseLedgerEntry)` Instead of
+  Dropping](0037-buffer-out-of-order-ledger-entries.md)
 
 ## Proposed ADRs
 

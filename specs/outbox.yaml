@@ -37,6 +37,21 @@ groups:
     priority: MUST
     kind: implementation
     statement: Each outbox activity MUST conform to ActivityStreams 2.0 structure
+  - id: OX-02-003
+    priority: MUST
+    kind: implementation
+    statement: >-
+      When an adapter enqueues an activity on behalf of a specific emitting actor, it MUST
+      enqueue against that actor's outbox explicitly (e.g. record_outbox_item(actor_id, ...)),
+      NOT via a scope-dependent append that targets the DataLayer instance's own actor scope.
+      A scope-dependent append is correct only when the DataLayer is guaranteed to be scoped
+      to the emitting actor.
+    rationale: >-
+      SyncActivityAdapter.send_reject_log_entry used the scope-dependent outbox_append while
+      its sibling send_announce_log_entry used the explicit-actor record_outbox_item; from a
+      shared or differently-scoped DataLayer the reject could be queued to the wrong (or
+      empty-scope) outbox, so the CaseActor never received the participant's
+      Reject(CaseLedgerEntry). See ADR-0037 (docs/adr/0037-buffer-out-of-order-ledger-entries.md).
 - id: OX-03
   title: Outbox Delivery
   specs:
