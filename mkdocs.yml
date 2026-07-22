@@ -312,6 +312,7 @@ theme:
 plugins:
   - bibtex:
       bib_file: 'references.bib'
+      enable_inline_citations: false
   - include-markdown:
       comments: false
   - mkdocstrings:
