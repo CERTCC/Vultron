@@ -416,13 +416,39 @@ def _phase_ownership_handoff(
     with demo_step(
         "Coordinator accepts case ownership transfer (TRIG-11-002)"
     ):
-        post_to_trigger(
+        accept_result = post_to_trigger(
             client=coordinator_client,
             actor_id=coordinator_in_coordinator.id_,
             behavior="accept-case-ownership-transfer",
             body={"offer_id": ownership_offer_id},
         )
-    logger.info("Coordinator sent Accept(Offer(VulnerabilityCase))")
+    accept_ownership = as_TransitiveActivity.model_validate(
+        accept_result["activity"]
+    )
+    logger.info(
+        "Coordinator sent Accept(Offer(VulnerabilityCase)): %s",
+        accept_ownership.id_,
+    )
+
+    # Deliver the Accept to Vendor1's inbox so Vendor1 can update attributed_to
+    # (TRIG-11-002: the offerer receives the Accept and commits the ownership change).
+    with demo_step("Delivering ownership Accept to Vendor1's inbox"):
+        post_to_inbox_and_wait(
+            vendor_client, vendor_in_vendor.id_, accept_ownership
+        )
+    with demo_check("Accept activity stored in Vendor1's DataLayer"):
+        verify_object_stored(vendor_client, accept_ownership.id_)
+
+    # Also deliver to Coordinator's own inbox so its local DataLayer records the
+    # ownership change (attributed_to = Coordinator).
+    with demo_step("Delivering ownership Accept to Coordinator's inbox"):
+        post_to_inbox_and_wait(
+            coordinator_client,
+            coordinator_in_coordinator.id_,
+            accept_ownership,
+        )
+    with demo_check("Accept activity stored in Coordinator's DataLayer"):
+        verify_object_stored(coordinator_client, accept_ownership.id_)
 
     # Verify Vendor1's case now shows Coordinator as attributed_to.
     with demo_check(
