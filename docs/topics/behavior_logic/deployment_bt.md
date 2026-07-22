@@ -3,9 +3,9 @@
 ## Requirements
 
 The behavioral requirements for this tree are specified in the
-[Domain Specifications](../../reference/specs/domain.md):
+[Protocol Specifications](../../reference/specs/protocol.md):
 
-- [CSB-11](../../reference/specs/domain.md#csb-11) — Enter CS D (Fix Deployed)
+- [CSB-11](../../reference/specs/protocol.md#csb-11) — Enter CS D (Fix Deployed)
 
 !!! note "Implementation approach"
 

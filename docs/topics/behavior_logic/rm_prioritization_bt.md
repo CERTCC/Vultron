@@ -3,10 +3,10 @@
 ## Requirements
 
 The behavioral requirements for this tree are specified in the
-[Domain Specifications](../../reference/specs/domain.md):
+[Protocol Specifications](../../reference/specs/protocol.md):
 
-- [RMB-12](../../reference/specs/domain.md#rmb-12) — Enter RM Deferred
-- [RMB-13](../../reference/specs/domain.md#rmb-13) — Enter RM Accepted
+- [RMB-12](../../reference/specs/protocol.md#rmb-12) — Enter RM Deferred
+- [RMB-13](../../reference/specs/protocol.md#rmb-13) — Enter RM Accepted
 
 !!! note "Implementation approach"
 

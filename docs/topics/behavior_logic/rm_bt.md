@@ -3,14 +3,14 @@
 ## Requirements
 
 The behavioral requirements for this tree are specified in the
-[Domain Specifications](../../reference/specs/domain.md):
+[Protocol Specifications](../../reference/specs/protocol.md):
 
-- [RMB-09](../../reference/specs/domain.md#rmb-09) — Enter RM Received
-- [RMB-10](../../reference/specs/domain.md#rmb-10) — Enter RM Valid
-- [RMB-11](../../reference/specs/domain.md#rmb-11) — Enter RM Invalid
-- [RMB-12](../../reference/specs/domain.md#rmb-12) — Enter RM Deferred
-- [RMB-13](../../reference/specs/domain.md#rmb-13) — Enter RM Accepted
-- [RMB-14](../../reference/specs/domain.md#rmb-14) — Enter RM Closed
+- [RMB-09](../../reference/specs/protocol.md#rmb-09) — Enter RM Received
+- [RMB-10](../../reference/specs/protocol.md#rmb-10) — Enter RM Valid
+- [RMB-11](../../reference/specs/protocol.md#rmb-11) — Enter RM Invalid
+- [RMB-12](../../reference/specs/protocol.md#rmb-12) — Enter RM Deferred
+- [RMB-13](../../reference/specs/protocol.md#rmb-13) — Enter RM Accepted
+- [RMB-14](../../reference/specs/protocol.md#rmb-14) — Enter RM Closed
 
 !!! note "Implementation approach"
 

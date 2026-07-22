@@ -3,10 +3,10 @@
 ## Requirements
 
 The behavioral requirements for this tree are specified in the
-[Domain Specifications](../../reference/specs/domain.md):
+[Protocol Specifications](../../reference/specs/protocol.md):
 
-- [EMB-10](../../reference/specs/domain.md#emb-10) — Enter EM Proposed
-- [EMB-12](../../reference/specs/domain.md#emb-12) — Enter EM Revise
+- [EMB-10](../../reference/specs/protocol.md#emb-10) — Enter EM Proposed
+- [EMB-12](../../reference/specs/protocol.md#emb-12) — Enter EM Revise
 
 !!! note "Implementation approach"
 

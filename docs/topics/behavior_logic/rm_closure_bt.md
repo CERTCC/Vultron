@@ -3,9 +3,9 @@
 ## Requirements
 
 The behavioral requirements for this tree are specified in the
-[Domain Specifications](../../reference/specs/domain.md):
+[Protocol Specifications](../../reference/specs/protocol.md):
 
-- [RMB-14](../../reference/specs/domain.md#rmb-14) — Enter RM Closed
+- [RMB-14](../../reference/specs/protocol.md#rmb-14) — Enter RM Closed
 
 !!! note "Implementation approach"
 

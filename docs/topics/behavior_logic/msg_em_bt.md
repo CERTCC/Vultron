@@ -3,17 +3,17 @@
 ## Requirements
 
 The behavioral requirements for this tree are specified in the
-[Domain Specifications](../../reference/specs/domain.md):
+[Protocol Specifications](../../reference/specs/protocol.md):
 
-- [EMB-01](../../reference/specs/domain.md#emb-01) — Receive EP (Embargo Proposed)
-- [EMB-02](../../reference/specs/domain.md#emb-02) — Receive EA (Embargo Accepted)
-- [EMB-03](../../reference/specs/domain.md#emb-03) — Receive EV (Embargo Revision Proposed)
-- [EMB-04](../../reference/specs/domain.md#emb-04) — Receive EJ (Embargo Revision Rejected)
-- [EMB-05](../../reference/specs/domain.md#emb-05) — Receive EC (Embargo Revision Accepted)
-- [EMB-06](../../reference/specs/domain.md#emb-06) — Receive ER (Embargo Rejected)
-- [EMB-07](../../reference/specs/domain.md#emb-07) — Receive ET (Embargo Terminated)
-- [EMB-08](../../reference/specs/domain.md#emb-08) — Receive EE (Embargo Error)
-- [EMB-09](../../reference/specs/domain.md#emb-09) — Receive EK (Embargo Acknowledgment)
+- [EMB-01](../../reference/specs/protocol.md#emb-01) — Receive EP (Embargo Proposed)
+- [EMB-02](../../reference/specs/protocol.md#emb-02) — Receive EA (Embargo Accepted)
+- [EMB-03](../../reference/specs/protocol.md#emb-03) — Receive EV (Embargo Revision Proposed)
+- [EMB-04](../../reference/specs/protocol.md#emb-04) — Receive EJ (Embargo Revision Rejected)
+- [EMB-05](../../reference/specs/protocol.md#emb-05) — Receive EC (Embargo Revision Accepted)
+- [EMB-06](../../reference/specs/protocol.md#emb-06) — Receive ER (Embargo Rejected)
+- [EMB-07](../../reference/specs/protocol.md#emb-07) — Receive ET (Embargo Terminated)
+- [EMB-08](../../reference/specs/protocol.md#emb-08) — Receive EE (Embargo Error)
+- [EMB-09](../../reference/specs/protocol.md#emb-09) — Receive EK (Embargo Acknowledgment)
 
 !!! note "Implementation approach"
 
