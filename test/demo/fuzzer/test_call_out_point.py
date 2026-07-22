@@ -96,7 +96,6 @@ from vultron.demo.fuzzer.report_management.prioritize import (
 from vultron.demo.fuzzer.report_management.publication import (
     PrepareExploit,
     PrepareFix,
-    PrioritizePublicationIntents,
     Publish,
     ReprioritizeExploit,
     ReprioritizeFix,
@@ -416,7 +415,11 @@ _RM_EVALUATOR_NODES = [
     (DeployMitigation, "deploy_mitigation_verdict"),
     (MonitoringRequirement, "monitoring_requirement_verdict"),
     (DeployFix, "deploy_fix_verdict"),
-    (PrioritizePublicationIntents, "publication_intents_verdict"),
+    # NOTE: PrioritizePublicationIntents is intentionally absent here — its
+    # output is a structured PublicationIntentDecision (not a str verdict) as
+    # of Production Collapse 2 (ADR-0028). Its structured output is covered by
+    # test/core/behaviors/report/test_publication_tree.py, mirroring how
+    # EvaluateExploitStrategy (Collapse 1) is covered by its own tree test.
     (ReprioritizeExploit, "reprioritize_exploit_verdict"),
     (ReprioritizeFix, "reprioritize_fix_verdict"),
     (ReprioritizeReport, "reprioritize_report_verdict"),

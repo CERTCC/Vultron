@@ -658,13 +658,17 @@ groups:
     kind: project
     statement: The production `create_publication_tree` factory SHOULD use `PrioritizePublicationIntents` (Evaluator) output
       to gate per-artifact arms directly, without separate `NoPublish*` bypass leaves or a `PublicationIntentsSet` flag check.
-      The intent record SHOULD drive which of three named arms (exploit, fix, report) execute. Each arm SHOULD consist of
-      a Composer (prepare artifact) followed by a Publish pipeline (see BT-20-004).
-    rationale: 'PROVISIONAL. The `NoPublish*` bypass leaves and `PublicationIntentsSet` flag check are structural artifacts
-      of the simulator BT representation; they do not represent real call-out points. In production the `PrioritizePublicationIntents`
-      Evaluator output drives arm execution directly. See `notes/bt-fuzzer-nodes-report-management.md` § "Production Collapse
-      2: Publication-intent subtree" and ADR-0028.'
-    tracking_issue: '#1200 (planning); implementation issue TBD (blocked by #1200)'
+      The Evaluator SHOULD return a structured `PublicationIntentDecision` record containing `publish_exploit`, `publish_fix`,
+      `publish_report`, and `rationale`. The intent record SHOULD drive which of three named arms (exploit, fix, report) execute;
+      each arm SHOULD be a `Selector(Sequence(ShouldPublishX, PrepareX, Publish), Inverter(ShouldPublishX))` so a not-intended
+      arm is a graceful SUCCESS no-op. Each arm SHOULD consist of a Composer (prepare artifact) followed by a Publish pipeline
+      (see BT-20-004).
+    rationale: 'The `NoPublish*` bypass leaves and `PublicationIntentsSet` flag check are structural artifacts of the simulator
+      BT representation; they do not represent real call-out points. In production the `PrioritizePublicationIntents` Evaluator
+      output drives arm execution directly. The `ShouldPublishX` gate nodes are named positively per BTND-08-001. Implemented
+      by issue #1310. See `notes/bt-fuzzer-nodes-report-management.md` § "Production Collapse 2: Publication-intent subtree"
+      and ADR-0028.'
+    tracking_issue: '#1200 (planning); #1310 (implementation)'
   - id: BT-20-003
     priority: SHOULD
     kind: project

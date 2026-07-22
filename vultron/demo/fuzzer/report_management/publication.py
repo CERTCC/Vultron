@@ -24,15 +24,29 @@ Nodes are built on the probabilistic base types in
 nodes with semantic docstrings) and BT-16-005 (automation-potential
 categorization).
 
+The ``PrioritizePublicationIntents`` Evaluator is the surviving call-out point
+for Production Collapse 2 (ADR-0028 / BT-20-002): it writes a structured
+:class:`~vultron.core.behaviors.report.publication_tree.PublicationIntentDecision`
+record that gates the three per-artifact arms of
+``create_publication_tree``.  The ``PublicationIntentsSet`` flag check and the
+``NoPublish*`` bypass leaves remain here as catalogued simulator stand-ins but
+are no longer wired into the production tree (mirrors how the Production
+Collapse 1 flag nodes remain in ``acquire_exploit.py``).
+
 References
 ----------
 - Source: ``vultron/bt/report_management/fuzzer/publication.py``
-- Spec: ``specs/behavior-tree-integration.yaml`` BT-16-003, BT-16-004, BT-16-005
+- Spec: ``specs/behavior-tree-integration.yaml`` BT-16-003, BT-16-004, BT-16-005,
+  BT-20-002
 - Notes: ``notes/bt-fuzzer-nodes-report-management.md``
+- ADR: ``docs/adr/0028-publication-intent-bt-collapse.md``
 """
 
 from __future__ import annotations
 
+from vultron.core.behaviors.report.publication_tree import (
+    PublicationIntentDecision,
+)
 from vultron.demo.fuzzer.base import (
     AlmostAlwaysFail,
     AlmostAlwaysSucceed,
@@ -91,15 +105,24 @@ class PrioritizePublicationIntents(EvaluatorCallOutPoint, AlwaysSucceed):
     """Establish and record publication intentions for the case.
 
     Semantic function:
-        Action — establish and record publication intentions: what
-        artifacts to publish, their priority order, timing, and format.
-        In production this involves structured editorial or policy
-        decisions, potentially with human analyst input.  The fuzzer
-        always succeeds to keep the workflow progressing.
+        Action — establish and record publication intentions: which
+        artifacts (exploit, fix, report) to publish, and why.  In
+        production this involves structured editorial or policy decisions,
+        potentially with human analyst input.  The fuzzer always succeeds
+        to keep the workflow progressing.
+
+    This is the surviving Evaluator for Production Collapse 2 (ADR-0028 /
+    BT-20-002).  It writes a structured ``PublicationIntentDecision`` record
+    whose boolean fields gate the three per-artifact arms of
+    ``create_publication_tree``, replacing the ``PublicationIntentsSet`` flag
+    check and the ``NoPublish*`` bypass leaves.  The fuzzer backend writes a
+    default ``PublicationIntentDecision()`` (publish fix + report, withhold
+    exploit); a real backend overrides per case policy.
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — evaluates case context from caller's DataLayer)
-      Output keys: publication_intents_verdict: str  (SUCCESS only)
+      Output keys: publication_intent_decision: PublicationIntentDecision
+        (SUCCESS only; default instance written by fuzzer backend)
 
     Input category: Human decision.
 
@@ -110,7 +133,7 @@ class PrioritizePublicationIntents(EvaluatorCallOutPoint, AlwaysSucceed):
     editorial or legal exceptions require human judgment.
     """
 
-    output_keys = {"publication_intents_verdict": str}
+    output_keys = {"publication_intent_decision": PublicationIntentDecision}
 
 
 class Publish(ActuatorCallOutPoint, AlmostAlwaysSucceed):

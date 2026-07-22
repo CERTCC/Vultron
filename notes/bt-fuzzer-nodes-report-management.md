@@ -1046,11 +1046,12 @@ preparing them, and executing publication.
   local DataLayer / BT blackboard by the protocol's own BT execution (written by `Publish` nodes).
   No external agent seam — the flag is local and actor-scoped.
   (Category 3 per issue #1199 triage — reads a flag written by the protocol's own BT execution.)
-- **Factory-fn placement**: FUTURE:
-  `vultron.core.behaviors.report.create_publication_tree`
-  (issue #1251) — top-level early-exit ProtocolInternal condition check at the root
-  of the `Publication` Selector; short-circuits the entire subtree once
-  all artifacts are published
+- **Factory-fn placement**: FUTURE (not part of the Production Collapse 2 lean
+  shape, issue #1310) — a top-level early-exit ProtocolInternal condition check
+  that short-circuits the whole subtree once all artifacts are published. The
+  lean `create_publication_tree` omits this idempotency guard for now; if added,
+  it would wrap the `PublicationBT` Sequence in a `Selector(AllPublished, …)`.
+  Tracked with the broader publication workflow in issue #1251.
 
 ### `PublicationIntentsSet`
 
@@ -1071,11 +1072,10 @@ preparing them, and executing publication.
   during the same BT execution cycle; the flag lives on the local DataLayer / BT blackboard.
   No external agent seam — the flag is local and actor-scoped.
   (Category 3 per issue #1199 triage — reads a flag written by the protocol's own BT execution.)
-- **Factory-fn placement**: FUTURE:
-  `vultron.core.behaviors.report.create_publication_tree`
-  (issue #1251) — ProtocolInternal condition check before `PrioritizePublicationIntents`;
-  skips intent-setting if a publication plan is already on record.
-  See Production Collapse 2 below — this flag check disappears in production.
+- **Factory-fn placement**: Eliminated (Production Collapse 2, issue #1310) —
+  the flag check disappears in production; the BT reads the
+  `PublicationIntentDecision` record directly via `ShouldPublishX` gate nodes.
+  No longer a separate BT leaf or factory parameter.
 
 ### `PrioritizePublicationIntents`
 
@@ -1094,12 +1094,11 @@ preparing them, and executing publication.
 - **Automation potential**: **Medium** — standard policy-driven publication priorities (e.g., always publish report and fix) can be automated; editorial or legal exceptions require human judgment.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.PrioritizePublicationIntents`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: FUTURE:
-  `vultron.core.behaviors.report.create_publication_tree`
-  (issue #1251) — Evaluator action node that runs when
-  `PublicationIntentsSet` fails; writes the publication plan (artifacts,
-  priority order, timing) to case metadata.
-  See Production Collapse 2 below — this is the core Evaluator that survives.
+- **Factory-fn placement**: Implemented (Production Collapse 2, issue #1310) —
+  `vultron.core.behaviors.report.publication_tree.create_publication_tree`
+  (`prioritize_publication_intents_factory` param) — the surviving Evaluator;
+  runs first and writes a structured `PublicationIntentDecision` record that
+  gates the three per-artifact arms. See Production Collapse 2 below.
 
 ### `Publish`
 
@@ -1116,13 +1115,13 @@ preparing them, and executing publication.
 - **Automation potential**: **High** — advisory platform APIs (NVD, CVE.org, CMS, package repository) enable fully automated artifact publication.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.Publish`
 - **Call-out point shape**: Actuator — submits an already-prepared artifact to an external advisory platform (NVD, CVE.org, CMS, package repository, or equivalent) via an API call; the side effect is the externally visible published entry at the target platform. There is no new content artifact placed on the blackboard; the preceding Prepare* nodes produce the content.
-- **Factory-fn placement**: FUTURE:
-  `vultron.core.behaviors.report.create_publication_tree`
-  (issue #1251) — terminal Actuator action node at the end of each
-  per-artifact Sequence (`ExploitReady → Publish`, `PrepareFix → Publish`,
-  `PrepareReport → Publish`).
-  See Production Collapse 4 below — this single leaf expands into a
-  draft-review-submit pipeline in production.
+- **Factory-fn placement**: Wired (Production Collapse 2, issue #1310) —
+  `vultron.core.behaviors.report.publication_tree.create_publication_tree`
+  (`publish_factory` param, applied once per arm) — terminal Actuator node at
+  the end of each per-artifact `Do…` Sequence (`PrepareExploit → PublishExploit`,
+  `PrepareFix → PublishFix`, `PrepareReport → PublishReport`).
+  See Production Collapse 4 below — this single leaf still expands into a
+  draft-review-submit pipeline (ADR-0030 / BT-20-004), tracked separately.
 
 ### `NoPublishExploit`
 
@@ -1139,9 +1138,11 @@ preparing them, and executing publication.
 - **Automation potential**: **TerminalPlaceholder** — BT bypass fallback leaf; no decision logic required.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.NoPublishExploit`
 - **Call-out point shape**: ProtocolInternal — bypass fallback leaf that succeeds when the exploit is not intended for publication; exists purely so the BT succeeds gracefully on the no-op path; no external input, output, or monitoring seam. Analogous to `NoThreatsFound`.
-- **Factory-fn placement**: N/A — ProtocolInternal bypass leaf; the
-  `create_publication_tree` (issue #1251) exploit-arm Selector will
-  provide this as a hardcoded AlwaysSucceed no-op, not a call-out point
+- **Factory-fn placement**: Eliminated (Production Collapse 2, issue #1310) —
+  replaced by the positively-named `ShouldPublishExploit` gate node
+  (reads `PublicationIntentDecision.publish_exploit`) plus the exploit arm's
+  `Inverter(ShouldPublishExploit)` skip branch, which provides the graceful
+  no-op this leaf used to. Not a call-out point.
 
 ### `ExploitReady`
 
@@ -1159,11 +1160,9 @@ preparing them, and executing publication.
   `PrepareExploit` during the same BT execution cycle; the flag lives on the local DataLayer /
   BT blackboard. No external agent seam — the flag is local and actor-scoped.
   (Category 3 per issue #1199 triage — reads a flag written by the protocol's own BT execution.)
-- **Factory-fn placement**: FUTURE:
-  `vultron.core.behaviors.report.create_publication_tree`
-  (issue #1251) — ProtocolInternal condition check before `Publish` in the exploit-arm
-  Sequence; succeeds when the exploit artifact is already staged, avoiding
-  redundant `PrepareExploit` work
+- **Factory-fn placement**: Eliminated (Production Collapse 2, issue #1310) —
+  the lean per-artifact arm is `ShouldPublishExploit → PrepareExploit →
+  Publish` with no separate staging-readiness early-exit. Not a call-out point.
 
 ### `PrepareExploit`
 
@@ -1180,10 +1179,10 @@ preparing them, and executing publication.
 - **Automation potential**: **Low** — write-up and proof-of-concept packaging require human security researcher expertise; not automatable in the general case.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.PrepareExploit`
 - **Call-out point shape**: Composer
-- **Factory-fn placement**: FUTURE:
-  `vultron.core.behaviors.report.create_publication_tree`
-  (issue #1251) — Composer action node in the exploit-arm Sequence;
-  creates and stages the exploit artifact when `ExploitReady` fails
+- **Factory-fn placement**: Implemented (Production Collapse 2, issue #1310) —
+  `vultron.core.behaviors.report.publication_tree.create_publication_tree`
+  (`prepare_exploit_factory` param) — Composer node in the exploit arm's
+  `Do…` Sequence, between `ShouldPublishExploit` and `Publish`
 
 ### `ReprioritizeExploit`
 
@@ -1200,11 +1199,10 @@ preparing them, and executing publication.
 - **Automation potential**: **Medium** — embargo state changes and threat-level updates can trigger automated reprioritization rules; human override may be needed for unusual cases.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.ReprioritizeExploit`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: FUTURE:
-  `vultron.core.behaviors.report.create_publication_tree`
-  (issue #1251) — Evaluator action node in the exploit-arm fallback;
-  updates the exploit-publication priority in response to a changing threat
-  landscape or embargo state change
+- **Factory-fn placement**: Eliminated (Production Collapse 2, issue #1310) —
+  the single `PrioritizePublicationIntents` Evaluator now carries all
+  publish/withhold intent in its `PublicationIntentDecision` record; per-arm
+  reprioritization is not a separate call-out point in the lean shape.
 
 ### `NoPublishFix`
 
@@ -1220,9 +1218,11 @@ preparing them, and executing publication.
 - **Automation potential**: **TerminalPlaceholder** — BT bypass fallback leaf; no decision logic required.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.NoPublishFix`
 - **Call-out point shape**: ProtocolInternal — bypass fallback leaf that succeeds when the fix is not intended for publication; exists purely so the BT succeeds gracefully on the no-op path; no external input, output, or monitoring seam. Analogous to `NoThreatsFound`.
-- **Factory-fn placement**: N/A — ProtocolInternal bypass leaf; the
-  `create_publication_tree` (issue #1251) fix-arm Selector will
-  provide this as a hardcoded AlwaysSucceed no-op, not a call-out point
+- **Factory-fn placement**: Eliminated (Production Collapse 2, issue #1310) —
+  replaced by the positively-named `ShouldPublishFix` gate node
+  (reads `PublicationIntentDecision.publish_fix`) plus the fix arm's
+  `Inverter(ShouldPublishFix)` skip branch, which provides the graceful
+  no-op this leaf used to. Not a call-out point.
 
 ### `PrepareFix`
 
@@ -1238,10 +1238,10 @@ preparing them, and executing publication.
 - **Automation potential**: **Low–Medium** — CI/CD pipeline can automate patch build and packaging; advisory text and release notes typically require human authoring and review.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.PrepareFix`
 - **Call-out point shape**: Composer
-- **Factory-fn placement**: FUTURE:
-  `vultron.core.behaviors.report.create_publication_tree`
-  (issue #1251) — Composer action node in the fix-arm Sequence; creates
-  and stages the patch/advisory artifact when the fix is not yet ready
+- **Factory-fn placement**: Implemented (Production Collapse 2, issue #1310) —
+  `vultron.core.behaviors.report.publication_tree.create_publication_tree`
+  (`prepare_fix_factory` param) — Composer node in the fix arm's `Do…`
+  Sequence, between `ShouldPublishFix` and `Publish`
 
 ### `ReprioritizeFix`
 
@@ -1257,11 +1257,10 @@ preparing them, and executing publication.
 - **Automation potential**: **Medium** — embargo state changes and threat-level updates can trigger automated reprioritization rules; human override may be needed.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.ReprioritizeFix`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: FUTURE:
-  `vultron.core.behaviors.report.create_publication_tree`
-  (issue #1251) — Evaluator action node in the fix-arm fallback; updates
-  the fix-publication priority in response to embargo state changes or
-  threat escalation
+- **Factory-fn placement**: Eliminated (Production Collapse 2, issue #1310) —
+  the single `PrioritizePublicationIntents` Evaluator now carries all
+  publish/withhold intent in its `PublicationIntentDecision` record; per-arm
+  reprioritization is not a separate call-out point in the lean shape.
 
 ### `NoPublishReport`
 
@@ -1278,9 +1277,11 @@ preparing them, and executing publication.
 - **Automation potential**: **TerminalPlaceholder** — BT bypass fallback leaf; no decision logic required.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.NoPublishReport`
 - **Call-out point shape**: ProtocolInternal — bypass fallback leaf that succeeds when the vulnerability report is not intended for publication; exists purely so the BT succeeds gracefully on the no-op path; no external input, output, or monitoring seam. Analogous to `NoThreatsFound`.
-- **Factory-fn placement**: N/A — ProtocolInternal bypass leaf; the
-  `create_publication_tree` (issue #1251) report-arm Selector will
-  provide this as a hardcoded AlwaysSucceed no-op, not a call-out point
+- **Factory-fn placement**: Eliminated (Production Collapse 2, issue #1310) —
+  replaced by the positively-named `ShouldPublishReport` gate node
+  (reads `PublicationIntentDecision.publish_report`) plus the report arm's
+  `Inverter(ShouldPublishReport)` skip branch, which provides the graceful
+  no-op this leaf used to. Not a call-out point.
 
 ### `PrepareReport`
 
@@ -1296,10 +1297,10 @@ preparing them, and executing publication.
 - **Automation potential**: **Low** — advisory writing requires human expertise and editorial judgment; review and approval workflow also typically involves human stakeholders.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.PrepareReport`
 - **Call-out point shape**: Composer
-- **Factory-fn placement**: FUTURE:
-  `vultron.core.behaviors.report.create_publication_tree`
-  (issue #1251) — Composer action node in the report-arm Sequence; authors
-  and stages the vulnerability advisory artifact for external publication
+- **Factory-fn placement**: Implemented (Production Collapse 2, issue #1310) —
+  `vultron.core.behaviors.report.publication_tree.create_publication_tree`
+  (`prepare_report_factory` param) — Composer node in the report arm's `Do…`
+  Sequence, between `ShouldPublishReport` and `Publish`
 
 ### `ReprioritizeReport`
 
@@ -1315,11 +1316,10 @@ preparing them, and executing publication.
 - **Automation potential**: **Medium** — policy-triggered reprioritization (e.g., on embargo exit or threat escalation) is automatable; complex editorial decisions require human oversight.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.publication.ReprioritizeReport`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: FUTURE:
-  `vultron.core.behaviors.report.create_publication_tree`
-  (issue #1251) — Evaluator action node in the report-arm fallback; updates
-  the advisory publication priority in response to embargo exit or threat
-  escalation
+- **Factory-fn placement**: Eliminated (Production Collapse 2, issue #1310) —
+  the single `PrioritizePublicationIntents` Evaluator now carries all
+  publish/withhold intent in its `PublicationIntentDecision` record; per-arm
+  reprioritization is not a separate call-out point in the lean shape.
 
 ---
 
@@ -1988,7 +1988,7 @@ class ExploitStrategyDecision(BaseModel):
 `PrepareReport`, `ReprioritizeReport`
 (see Publication section above)
 
-**Tracked by**: implementation issue for collapse candidate 2 (blocked by #1200)
+**Implemented by**: issue #1310
 
 #### Production shape
 
@@ -1997,9 +1997,10 @@ The `PublicationIntentsSet` flag check and `NoPublish*` bypass leaves are
 they do not survive as call-out points. In production:
 
 1. **`PrioritizePublicationIntents`** (already an Evaluator) returns a
-   structured intent record: `{publish_exploit: bool, publish_fix: bool,
-   publish_report: bool}`. The `PublicationIntentsSet` flag check disappears —
-   the BT queries the intent record directly.
+   structured `PublicationIntentDecision` record: `{publish_exploit: bool,
+   publish_fix: bool, publish_report: bool, rationale: str}`. The
+   `PublicationIntentsSet` flag check disappears — the BT queries the intent
+   record directly via `ShouldPublishX` gate nodes.
 
 2. For each intended artifact: one **Composer** subtree
    (`PrepareExploit` / `PrepareFix` / `PrepareReport`) drafts and stages the
@@ -2008,26 +2009,36 @@ they do not survive as call-out points. In production:
 3. For each prepared artifact: one **Actuator** (`Publish`) submits to the
    external advisory platform.
 
-The `NoPublish*` bypass leaves and `ReprioritizeX` Evaluators become
-ProtocolInternal no-ops or disappear — the intent record from step 1 drives
-which arms execute.
+The `NoPublish*` bypass leaves and `ReprioritizeX` Evaluators disappear — the
+intent record from step 1 drives which arms execute. The removed `NoPublishX`
+leaves are replaced by positively-named `ShouldPublishX` gate nodes
+(BTND-08-001) that read the intent record; each arm's `Inverter(ShouldPublishX)`
+skip branch provides the graceful no-op that `NoPublishX` used to.
 
-**BT structure** (lean: three named arms — exploit arm, fix arm, report arm —
-rather than a unified loop; subject to revision at implementation time):
+**BT structure** (lean: three named arms — exploit arm, fix arm, report arm):
 
 ```text
 PublicationBT (Sequence)
-├── PrioritizePublicationIntents (Evaluator)       — sets intent record
-├── ExploitPublicationArm (Selector, if intended)  — PrepareExploit → Publish
-├── FixPublicationArm (Selector, if intended)      — PrepareFix → Publish
-└── ReportPublicationArm (Selector, if intended)   — PrepareReport → Publish
+├── PrioritizePublicationIntents (Evaluator)       — writes PublicationIntentDecision
+├── ExploitPublicationArm (Selector)
+│   ├── Sequence(ShouldPublishExploit, PrepareExploit, Publish)
+│   └── Inverter(ShouldPublishExploit)             — SUCCESS no-op if not intended
+├── FixPublicationArm (Selector)                   — same shape, publish_fix gate
+└── ReportPublicationArm (Selector)                — same shape, publish_report gate
 ```
 
-**Target factory function**:
-`vultron.core.behaviors.report.create_publication_tree` (issue #1251)
+The per-arm `Publish` Actuator is kept as a single leaf here; expanding it into
+a draft-review-submit pipeline is Production Collapse 4 (ADR-0030 / BT-20-004).
 
-**Spec requirements**: BT-20-002 (provisional — see
-`specs/behavior-tree-integration.yaml`)
+**Factory function**:
+`vultron.core.behaviors.report.publication_tree.create_publication_tree`
+
+**Output schema**: `PublicationIntentDecision(publish_exploit, publish_fix,
+publish_report, rationale)` (Pydantic BaseModel) in
+`vultron/core/behaviors/report/publication_tree.py`
+
+**Spec requirements**: BT-20-002 (see
+`specs/behavior-tree-integration.yaml`) and ADR-0028
 
 ---
 
