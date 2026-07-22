@@ -976,3 +976,248 @@ class TestSvcAcceptActorRecommendationUseCase:
             SvcAcceptActorRecommendationUseCase(
                 dl, request, trigger_activity=TriggerActivityAdapter(dl)
             ).execute()
+
+
+class TestSvcOfferCaseOwnershipTransferUseCase:
+    """Tests for the offer-case-ownership-transfer trigger use case (TRIG-11-001)."""
+
+    def test_offer_creates_activity(self):
+        owner, dl = _make_actor_dl("Vendor")
+        transferee, _ = _make_actor_dl("Coordinator")
+        dl.create(transferee)
+        case = as_VulnerabilityCase(
+            attributed_to=owner.id_, name="Test Case", content="Content"
+        )
+        dl.create(case)
+
+        from vultron.core.use_cases.triggers.actor import (
+            SvcOfferCaseOwnershipTransferUseCase,
+        )
+        from vultron.core.use_cases.triggers.requests import (
+            OfferCaseOwnershipTransferTriggerRequest,
+        )
+
+        request = OfferCaseOwnershipTransferTriggerRequest(
+            actor_id=owner.id_,
+            case_id=case.id_,
+            transferee_id=transferee.id_,
+        )
+        result = SvcOfferCaseOwnershipTransferUseCase(
+            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        assert "activity" in result
+        activity_data = result["activity"]
+        assert activity_data["type"] == "Offer"
+        assert activity_data["actor"] == owner.id_
+
+    def test_offer_persisted_in_datalayer(self):
+        owner, dl = _make_actor_dl("Vendor")
+        transferee, _ = _make_actor_dl("Coordinator")
+        dl.create(transferee)
+        case = as_VulnerabilityCase(
+            attributed_to=owner.id_, name="Test Case", content="Content"
+        )
+        dl.create(case)
+
+        from vultron.core.use_cases.triggers.actor import (
+            SvcOfferCaseOwnershipTransferUseCase,
+        )
+        from vultron.core.use_cases.triggers.requests import (
+            OfferCaseOwnershipTransferTriggerRequest,
+        )
+
+        request = OfferCaseOwnershipTransferTriggerRequest(
+            actor_id=owner.id_,
+            case_id=case.id_,
+            transferee_id=transferee.id_,
+        )
+        result = SvcOfferCaseOwnershipTransferUseCase(
+            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        offer_id = result["activity"]["id"]
+        stored = dl.read(offer_id)
+        assert stored is not None
+
+    def test_offer_raises_when_transferee_not_in_dl(self):
+        owner, dl = _make_actor_dl("Vendor")
+        missing_id = "https://example.org/actors/nobody"
+        case = as_VulnerabilityCase(
+            attributed_to=owner.id_, name="Test Case", content="Content"
+        )
+        dl.create(case)
+
+        from vultron.core.use_cases.triggers.actor import (
+            SvcOfferCaseOwnershipTransferUseCase,
+        )
+        from vultron.core.use_cases.triggers.requests import (
+            OfferCaseOwnershipTransferTriggerRequest,
+        )
+
+        request = OfferCaseOwnershipTransferTriggerRequest(
+            actor_id=owner.id_,
+            case_id=case.id_,
+            transferee_id=missing_id,
+        )
+        with pytest.raises(VultronNotFoundError):
+            SvcOfferCaseOwnershipTransferUseCase(
+                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
+
+    def test_offer_raises_when_case_not_in_dl(self):
+        owner, dl = _make_actor_dl("Vendor")
+        transferee, _ = _make_actor_dl("Coordinator")
+        dl.create(transferee)
+
+        from vultron.core.use_cases.triggers.actor import (
+            SvcOfferCaseOwnershipTransferUseCase,
+        )
+        from vultron.core.use_cases.triggers.requests import (
+            OfferCaseOwnershipTransferTriggerRequest,
+        )
+
+        request = OfferCaseOwnershipTransferTriggerRequest(
+            actor_id=owner.id_,
+            case_id="https://example.org/cases/nope",
+            transferee_id=transferee.id_,
+        )
+        with pytest.raises(Exception):
+            SvcOfferCaseOwnershipTransferUseCase(
+                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
+
+
+class TestSvcAcceptCaseOwnershipTransferUseCase:
+    """Tests for the accept-case-ownership-transfer trigger use case (TRIG-11-002)."""
+
+    def _make_ownership_offer(
+        self,
+        dl: SqliteDataLayer,
+        owner_id: str,
+        transferee_id: str,
+        case: as_VulnerabilityCase,
+    ):
+        from vultron.wire.as2.factories.case import (
+            offer_case_ownership_transfer_activity,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase as _VC,
+        )
+
+        case_wire = _VC.model_validate(
+            {"id": case.id_, "name": case.name or "Test"}
+        )
+        offer = offer_case_ownership_transfer_activity(
+            case=case_wire,
+            target=transferee_id,
+            actor=owner_id,
+            to=[transferee_id],
+        )
+        dl.create(offer)
+        return offer
+
+    def test_accept_creates_activity(self):
+        owner, dl = _make_actor_dl("Vendor")
+        transferee, _ = _make_actor_dl("Coordinator")
+        dl.create(transferee)
+        case = as_VulnerabilityCase(
+            attributed_to=owner.id_, name="Test Case", content="Content"
+        )
+        dl.create(case)
+        offer = self._make_ownership_offer(dl, owner.id_, transferee.id_, case)
+
+        from vultron.core.use_cases.triggers.actor import (
+            SvcAcceptCaseOwnershipTransferUseCase,
+        )
+        from vultron.core.use_cases.triggers.requests import (
+            AcceptCaseOwnershipTransferTriggerRequest,
+        )
+
+        request = AcceptCaseOwnershipTransferTriggerRequest(
+            actor_id=transferee.id_,
+            offer_id=offer.id_,
+        )
+        result = SvcAcceptCaseOwnershipTransferUseCase(
+            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        assert "activity" in result
+        activity_data = result["activity"]
+        assert activity_data["type"] == "Accept"
+        assert activity_data["actor"] == transferee.id_
+
+    def test_accept_persisted_in_datalayer(self):
+        owner, dl = _make_actor_dl("Vendor")
+        transferee, _ = _make_actor_dl("Coordinator")
+        dl.create(transferee)
+        case = as_VulnerabilityCase(
+            attributed_to=owner.id_, name="Test Case", content="Content"
+        )
+        dl.create(case)
+        offer = self._make_ownership_offer(dl, owner.id_, transferee.id_, case)
+
+        from vultron.core.use_cases.triggers.actor import (
+            SvcAcceptCaseOwnershipTransferUseCase,
+        )
+        from vultron.core.use_cases.triggers.requests import (
+            AcceptCaseOwnershipTransferTriggerRequest,
+        )
+
+        request = AcceptCaseOwnershipTransferTriggerRequest(
+            actor_id=transferee.id_,
+            offer_id=offer.id_,
+        )
+        result = SvcAcceptCaseOwnershipTransferUseCase(
+            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        accept_id = result["activity"]["id"]
+        stored = dl.read(accept_id)
+        assert stored is not None
+
+    def test_accept_raises_when_offer_not_in_dl(self):
+        owner, dl = _make_actor_dl("Vendor")
+        transferee, _ = _make_actor_dl("Coordinator")
+        dl.create(transferee)
+
+        from vultron.core.use_cases.triggers.actor import (
+            SvcAcceptCaseOwnershipTransferUseCase,
+        )
+        from vultron.core.use_cases.triggers.requests import (
+            AcceptCaseOwnershipTransferTriggerRequest,
+        )
+
+        request = AcceptCaseOwnershipTransferTriggerRequest(
+            actor_id=transferee.id_,
+            offer_id="https://example.org/activities/nope",
+        )
+        with pytest.raises(VultronNotFoundError):
+            SvcAcceptCaseOwnershipTransferUseCase(
+                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
+
+    def test_accept_raises_when_actor_not_found(self):
+        owner, dl = _make_actor_dl("Vendor")
+        case = as_VulnerabilityCase(
+            attributed_to=owner.id_, name="Test Case", content="Content"
+        )
+        dl.create(case)
+        transferee_id = "https://example.org/actors/coordinator"
+        offer = self._make_ownership_offer(dl, owner.id_, transferee_id, case)
+
+        from vultron.core.use_cases.triggers.actor import (
+            SvcAcceptCaseOwnershipTransferUseCase,
+        )
+        from vultron.core.use_cases.triggers.requests import (
+            AcceptCaseOwnershipTransferTriggerRequest,
+        )
+
+        request = AcceptCaseOwnershipTransferTriggerRequest(
+            actor_id="https://example.org/actors/ghost",
+            offer_id=offer.id_,
+        )
+        with pytest.raises(VultronNotFoundError):
+            SvcAcceptCaseOwnershipTransferUseCase(
+                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()

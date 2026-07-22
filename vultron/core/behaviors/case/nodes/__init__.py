@@ -104,6 +104,10 @@ from vultron.core.behaviors.case.nodes.suggest_actor import (
     InviteInFlightNode,
     PendingOfferCaseParticipantNode,
 )
+from vultron.core.behaviors.case.nodes.ownership_transfer import (
+    EmitAcceptCaseOwnershipTransferNode,
+    EmitOfferCaseOwnershipTransferNode,
+)
 from vultron.core.behaviors.case.nodes.update import (
     ApplyCaseUpdateNode,
     BroadcastCaseUpdateNode,
@@ -166,6 +170,9 @@ __all__ = [
     "CaptureCaseUpdateBroadcastExclusionsNode",
     "ApplyCaseUpdateNode",
     "BroadcastCaseUpdateNode",
+    # ownership_transfer (leaf nodes)
+    "EmitOfferCaseOwnershipTransferNode",
+    "EmitAcceptCaseOwnershipTransferNode",
     # suggest_actor (leaf nodes)
     "ActorAlreadyParticipantNode",
     "EmitAcceptActorRecommendationNode",

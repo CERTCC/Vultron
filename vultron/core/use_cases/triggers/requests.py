@@ -234,3 +234,24 @@ class OfferCaseManagerRoleTriggerRequest(CaseTriggerRequest):
     to itself, initiating the CASE_MANAGER delegation handshake.  The Case
     Actor must already exist in the DataLayer (DEMOMA-08-007).
     """
+
+
+class OfferCaseOwnershipTransferTriggerRequest(CaseTriggerRequest):
+    """Trigger request to offer case ownership to another actor.
+
+    Emits ``Offer(VulnerabilityCase)`` (ownership transfer variant) from the
+    requesting actor to ``transferee_id`` (TRIG-11-001).
+    """
+
+    transferee_id: str
+    content: str | None = None
+
+
+class AcceptCaseOwnershipTransferTriggerRequest(TriggerRequest):
+    """Trigger request to accept a case ownership transfer offer.
+
+    Emits ``Accept(Offer(VulnerabilityCase))`` from the requesting actor back
+    to the offering actor (TRIG-11-002).
+    """
+
+    offer_id: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]

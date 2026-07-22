@@ -558,6 +558,32 @@ class TriggerActivityPort(Protocol):
         """
         ...
 
+    def offer_case_ownership_transfer(
+        self,
+        case_id: str,
+        transferee_id: str,
+        actor: str,
+        content: str | None = None,
+        to: list[str] | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist an ``Offer(VulnerabilityCase)`` ownership-transfer activity.
+
+        Returns ``(activity_id, activity_dict)`` (TRIG-11-001).
+        """
+        ...
+
+    def accept_case_ownership_transfer(
+        self,
+        offer_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist an ``Accept(Offer(VulnerabilityCase))`` ownership-transfer activity.
+
+        Returns ``(activity_id, activity_dict)`` (TRIG-11-002).
+        """
+        ...
+
     def announce_vulnerability_case(
         self,
         case_id: str,
