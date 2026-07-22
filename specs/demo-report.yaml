@@ -6,7 +6,7 @@ description: >-
   report of who did what, with what activity, and in what order. Covers input discovery,
   the distilled intermediate data model, markdown and HTML rendering, the per-actor
   replica-presence matrix, friendly naming, and test requirements.
-version: 1.0.0
+version: 1.2.0
 scope:
 - prototype
 tags:
@@ -53,6 +53,24 @@ groups:
       The tool MUST exit with status code 0 on success and a non-zero status
       code when the input directory is missing, contains no matching JSONL
       files, or a file cannot be parsed.
+  - id: DRPT-01-005
+    priority: SHOULD
+    kind: project
+    statement: >-
+      The tool SHOULD also be exposed as a `vultron-demo-report` console-script
+      entry point in `pyproject.toml` (`[project.scripts]`), resolving to
+      `vultron.demo.report:main`. Its `main` MUST be invocable with no
+      arguments (defaulting to `sys.argv`) so the console-script wrapper works,
+      and MUST return the process exit code.
+    rationale: >-
+      A console script matches the convention of the other demo entry points
+      (`vultron-demo`, `vultrabot_*`) and makes the tool directly runnable after
+      install without the `python -m` prefix. Requiring a zero-argument `main`
+      guards against the latent console-script breakage seen for other demo
+      entry points whose `main` required a parsed-args positional.
+    relationships:
+    - rel_type: extends
+      spec_id: DRPT-01-001
 - id: DRPT-02
   title: Distilled Timeline Model
   specs:
@@ -102,6 +120,28 @@ groups:
       replica-presence indicator recording which discovered actors' replicas
       contain that entry (by `entry_hash`), so replica convergence and
       divergence are visible at a glance.
+  - id: DRPT-02-006
+    priority: MUST
+    kind: project
+    statement: >-
+      When the discovered entries span more than one case (distinct `case_id`
+      values — as when the default `devlogs/` root accumulates multiple demo
+      runs), the tool MUST partition the timeline by `case_id` and MUST NOT
+      interleave events from different cases. The distilled event model MUST
+      carry the `case_id`, ordering MUST be case-contiguous (group by `case_id`,
+      then by `log_index` ascending within each case), the replica-presence
+      matrix MUST be computed per case, and each renderer MUST present one
+      clearly labelled section (or table) per case.
+    rationale: >-
+      `log_index` restarts at 0 for each case and same-named actor directories
+      recur across demo runs, so a single merged timeline over multiple cases
+      interleaves unrelated events and conflates replica presence across cases.
+      DRPT-02-004's "single canonical timeline" is well-defined only within one
+      case; partitioning by `case_id` preserves that guarantee when the input
+      directory holds more than one.
+    relationships:
+    - rel_type: refines
+      spec_id: DRPT-02-004
 - id: DRPT-03
   title: Friendly Naming
   specs:
