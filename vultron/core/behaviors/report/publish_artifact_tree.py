@@ -185,6 +185,8 @@ class _NeedsRevisionGate(py_trees.behaviour.Behaviour):
 def _default_draft_advisory_artifact_factory(
     name: str,
 ) -> py_trees.behaviour.Behaviour:
+    # Deferred import: demo/publication.py imports AdvisoryReviewDecision from
+    # this module at module level, creating a circular dependency.
     from vultron.demo.fuzzer.report_management.publication import (
         DraftAdvisoryArtifact,
     )
@@ -195,6 +197,8 @@ def _default_draft_advisory_artifact_factory(
 def _default_review_advisory_draft_factory(
     name: str,
 ) -> py_trees.behaviour.Behaviour:
+    # Deferred import: avoids circular dependency — demo/publication.py imports
+    # AdvisoryReviewDecision from this module at module level.
     from vultron.demo.fuzzer.report_management.publication import (
         ReviewAdvisoryDraft,
     )
@@ -205,6 +209,8 @@ def _default_review_advisory_draft_factory(
 def _default_revise_advisory_draft_factory(
     name: str,
 ) -> py_trees.behaviour.Behaviour:
+    # Deferred import: avoids circular dependency — demo/publication.py imports
+    # AdvisoryReviewDecision from this module at module level.
     from vultron.demo.fuzzer.report_management.publication import (
         ReviseAdvisoryDraft,
     )
@@ -215,6 +221,8 @@ def _default_revise_advisory_draft_factory(
 def _default_submit_advisory_artifact_factory(
     name: str,
 ) -> py_trees.behaviour.Behaviour:
+    # Deferred import: avoids circular dependency — demo/publication.py imports
+    # AdvisoryReviewDecision from this module at module level.
     from vultron.demo.fuzzer.report_management.publication import (
         SubmitAdvisoryArtifact,
     )
