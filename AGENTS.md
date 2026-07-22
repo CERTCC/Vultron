@@ -89,7 +89,7 @@ Do NOT introduce alternative frameworks or package managers without approval.
 - **Collection defaults**: collection fields default to empty (`[]`, `{}`, `set()`),
   not `None`, unless absence is semantically distinct from empty.
 - **Core helpers raise, never return `None`**: helpers raise on failure; `update()`
-  is the sole `try/except` in BT nodes. See `notes/bt-integration.md` § BT-HELPER-01.
+  is the sole `try/except` in BT nodes. See `notes/bt-pitfalls.md` § BT-HELPER-01.
 - **Optional string fields MUST follow "if present, then non-empty"**: use shared
   `NonEmptyString`/`OptionalNonEmptyString` from `vultron/wire/as2/vocab/base/`
   (CS-08-002). Do NOT add per-field `@field_validator` stubs for empty-string
@@ -310,7 +310,7 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   pass `TriggerActivityAdapter(dl)` to every use case in chained integration tests.
 - **Routing Prerequisites Must Be Resolved Before State Mutation** — resolve Case
   Manager ID in a read-only guard node BEFORE state-mutation node. See BT-19-001,
-  BT-19-002. [notes/bt-integration.md](notes/bt-integration.md) § "Routing-Gated
+  BT-19-002. [notes/bt-pitfalls.md](notes/bt-pitfalls.md) § "Routing-Gated
   State Mutation".
 - **Superseded `notes/*.md` Files Must Move to `archived_notes/`** — use `git mv`;
   update both READMEs. See PD-03-004, PD-03-005.
@@ -385,23 +385,23 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
 - **`UnroutableActivityError` Must Be Caught Inside `_handle`, Not Above It** —
   see [notes/inbox-pipeline.md](notes/inbox-pipeline.md).
 - **Blackboard List Write-Back: Only Needed for New Lists** —
-  see [notes/bt-integration.md](notes/bt-integration.md).
+  see [notes/bt-pitfalls.md](notes/bt-pitfalls.md).
 - **Always Check `BTBridge.execute_with_setup` Return Value** —
   `if bridge.execute_with_setup(...) == Status.FAILURE: raise VultronBTError(...)`.
-  See [notes/bt-integration.md](notes/bt-integration.md).
+  See [notes/bt-pitfalls.md](notes/bt-pitfalls.md).
 - **Ledger Commit Must Precede Outbox Write** —
-  see [notes/bt-integration.md](notes/bt-integration.md).
+  see [notes/bt-pitfalls.md](notes/bt-pitfalls.md).
 - **`disposition="rejected"` for Local-Only Correlation Markers** —
-  see [notes/bt-integration.md](notes/bt-integration.md).
+  see [notes/bt-pitfalls.md](notes/bt-pitfalls.md).
 - **Semantic Registry Pattern Must Match Inbound Wire Format** —
-  see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md).
+  see [notes/activitystreams-state-update.md](notes/activitystreams-state-update.md).
 - **`offer_case_participant_activity`: `event.object_id` Has `#participant` Suffix**
   — extract `actor_id` from `event.attributed_to`.
-  See [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md).
+  See [notes/activitystreams-state-update.md](notes/activitystreams-state-update.md).
 - **Pre-Build Dedup Sets Before Fallback Loops** — `seen = set(d.values())`
   before the loop; O(n×m) → O(n+m).
 - **Consolidated Helper Needs One Test Per Distinct Lookup Path** —
-  see [notes/bt-integration.md](notes/bt-integration.md) § "Dual-Path
+  see [notes/bt-pitfalls.md](notes/bt-pitfalls.md) § "Dual-Path
   Consolidation Test Gap".
 - **Domain Sweep Audit: Catalog → Code, Then Factory Injection, Then
   `register_key`** — see
@@ -418,7 +418,7 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   [notes/bt-fuzzer-nodes-report-management.md](notes/bt-fuzzer-nodes-report-management.md).
 - **BT Integration Tests Must Use Deterministic Factories When the Default Is
   Probabilistic** — see `test/AGENTS.md` § "BT Factory Determinism" and
-  [notes/bt-integration.md](notes/bt-integration.md).
+  [notes/bt-pitfalls.md](notes/bt-pitfalls.md).
 - **Emit Nodes in Case-Scoped Trigger BTs Must Fail Fast on Missing CaseActor** —
   FAILURE/exception when no routable CaseActor. See PCR-08-011.
 - **Module Split: Re-Import Moved Names for `monkeypatch` Compatibility** —
@@ -448,12 +448,18 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
 
 See each subsystem AGENTS.md for additional pitfalls:
 
-- **BT-related**: [notes/bt-integration.md](notes/bt-integration.md) (all BT
-  node, blackboard, and concurrency pitfalls)
+- **BT design decisions**: [notes/bt-integration.md](notes/bt-integration.md)
+  (when to use BTs, actor isolation, concurrency model, composability)
+- **BT canonical reference**: [notes/bt-canonical-reference.md](notes/bt-canonical-reference.md)
+  (subtree map, BT-IDM anti-patterns, how to locate new behaviors)
+- **BT pitfalls**: [notes/bt-pitfalls.md](notes/bt-pitfalls.md)
+  (blackboard, idempotency, role guards, memory=False, routing-gated mutation)
 - **ActivityStreams/wire**: [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md)
+- **ActivityStreams state/DR bugs**: [notes/activitystreams-state-update.md](notes/activitystreams-state-update.md)
 - **Core layer**: [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md)
 - **Adapters**: [`vultron/adapters/AGENTS.md`](vultron/adapters/AGENTS.md)
 - **Codebase structure**: [notes/codebase-structure.md](notes/codebase-structure.md)
+- **FastAPI/test patterns**: [notes/codebase-structure-fastapi-patterns.md](notes/codebase-structure-fastapi-patterns.md)
 - **DataLayer**: [notes/datalayer-design.md](notes/datalayer-design.md)
 
 ## Skill Interaction Rules

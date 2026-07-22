@@ -228,6 +228,9 @@ See [notes/bt-integration.md](../../notes/bt-integration.md) for:
 - All Protocol-Significant Behavior MUST Be in the BT
 - Protocol Event Cascades (Cascading Automation)
 - Post-BT Procedural Cascade Anti-Pattern
+
+See [notes/bt-pitfalls.md](../../notes/bt-pitfalls.md) for:
+
 - py\_trees Blackboard Global State
 - py\_trees `blackboard.get()` Raises KeyError for Unwritten READ Keys
 - Duplicate Method Definitions Silently Shadow Correct BT Logic
@@ -235,3 +238,8 @@ See [notes/bt-integration.md](../../notes/bt-integration.md) for:
 - BT Failure Reason: Use `get_failure_reason()`, Not Generic Error Logs
 - Note Attachment Idempotency: Check `case.notes`, Not DataLayer Existence
 - Close Bugs With Evidence, Not Assumption
+
+See [notes/bt-canonical-reference.md](../../notes/bt-canonical-reference.md) for:
+
+- Canonical CVD Protocol BT subtree map
+- Anti-patterns: BT node calling use cases, importing from use_cases/
