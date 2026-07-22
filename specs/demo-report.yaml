@@ -6,7 +6,7 @@ description: >-
   report of who did what, with what activity, and in what order. Covers input discovery,
   the distilled intermediate data model, markdown and HTML rendering, the per-actor
   replica-presence matrix, friendly naming, and test requirements.
-version: 1.0.0
+version: 1.1.0
 scope:
 - prototype
 tags:
@@ -22,7 +22,8 @@ groups:
       The report tool MUST be implemented as a standalone module at
       `vultron/demo/report.py`, importable as `vultron.demo.report`, and MUST
       provide an `if __name__ == "__main__"` entry point so it is directly
-      invokable (`python -m vultron.demo.report ...`).
+      invokable (`python -m vultron.demo.report ...`). A console-script entry
+      point is also provided (see DRPT-01-005).
     rationale: >-
       A standalone module keeps the read-only reporting utility decoupled from
       the demo-run CLI (DC-01) while remaining colocated with the demo code that
@@ -53,6 +54,21 @@ groups:
       The tool MUST exit with status code 0 on success and a non-zero status
       code when the input directory is missing, contains no matching JSONL
       files, or a file cannot be parsed.
+  - id: DRPT-01-005
+    priority: SHOULD
+    kind: project
+    statement: >-
+      The tool SHOULD also be exposed as a `vultron-demo-report` console-script
+      entry point in `pyproject.toml` (`[project.scripts]`), resolving to
+      `vultron.demo.report:main`. Its `main` MUST be invocable with no
+      arguments (defaulting to `sys.argv`) so the console-script wrapper works,
+      and MUST return the process exit code.
+    rationale: >-
+      A console script matches the convention of the other demo entry points
+      (`vultron-demo`, `vultrabot_*`) and makes the tool directly runnable after
+      install without the `python -m` prefix. Requiring a zero-argument `main`
+      guards against the latent console-script breakage seen for other demo
+      entry points whose `main` required a parsed-args positional.
 - id: DRPT-02
   title: Distilled Timeline Model
   specs:

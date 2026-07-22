@@ -536,7 +536,7 @@ class TestCli:
 
 
 class TestConsoleScript:
-    """Guard the ``vultron-demo-report`` console-script wiring.
+    """Guard the ``vultron-demo-report`` console-script wiring (DRPT-01-005).
 
     Console-script wrappers invoke the target ``main`` with **no** arguments
     and propagate its return value via ``sys.exit`` — so the entry point must
