@@ -61,5 +61,5 @@ wip_notes
 .copilot
 .devcontainer
 
-# Docker build files (not needed in app images; individual files copied explicitly)
-docker
+# Dockerfile itself is not needed inside app images; demo-entrypoint.sh is still required
+docker/Dockerfile
