@@ -17,6 +17,9 @@ on:
       - "vultron/**"
       - "docker/**"
       - "integration_tests/**"
+      # Invariant harness / CI test changes must re-run the demos that feed
+      # them, else a broken assertion merges untested (see #1602 regression).
+      - "test/ci/**"
       - "pyproject.toml"
       - "uv.lock"
   workflow_dispatch:
