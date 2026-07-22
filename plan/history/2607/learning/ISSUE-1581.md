@@ -31,4 +31,4 @@ positives.
 - YouTube URL fragment (`@petterogren7535` in ADR-0002)
 
 **Promoted**: 2026-07-22 — captured in `mkdocs.yml config (one-line fix applied)`.
-Docs PR: TBD (fill in after PR is opened).
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1608>8>8>.

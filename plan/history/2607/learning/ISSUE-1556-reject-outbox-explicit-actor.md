@@ -26,4 +26,4 @@ and set `receiving_actor_id` on the event (the inbox pipeline always does this
 in production).
 
 **Promoted**: 2026-07-22 — captured in `notes/sync-ledger-replication.md (already present)`.
-Docs PR: TBD (fill in after PR is opened).
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1608>8>8>.

@@ -31,4 +31,4 @@ inherits `output_keys` from the production class, so any regression there is
 caught immediately.
 
 **Promoted**: 2026-07-22 — captured in `test/AGENTS.md`.
-Docs PR: TBD (fill in after PR is opened).
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1608>8>8>.

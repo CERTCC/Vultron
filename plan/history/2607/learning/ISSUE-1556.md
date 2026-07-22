@@ -38,4 +38,4 @@ redesign was needed. Keep sending the `Reject` at buffer time as the backstop
 for entries that are genuinely lost (never delivered) rather than reordered.
 
 **Promoted**: 2026-07-22 — captured in `notes/sync-ledger-replication.md (already present)`.
-Docs PR: TBD (fill in after PR is opened).
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1608>8>8>.

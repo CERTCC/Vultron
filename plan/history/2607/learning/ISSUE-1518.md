@@ -28,4 +28,4 @@ from origin/main as an alternative path. The rebase error is NOT evidence of
 uncommitted work.
 
 **Promoted**: 2026-07-22 — captured in `AGENTS.md (root)`.
-Docs PR: TBD (fill in after PR is opened).
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1608>8>8>.

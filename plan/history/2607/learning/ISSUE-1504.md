@@ -32,4 +32,4 @@ divergence. The build skill's Phase 0 (`git fetch && git reset --hard origin/mai
 should be run immediately before starting work to root the branch at current main.
 
 **Promoted**: 2026-07-22 — captured in `AGENTS.md (root)`.
-Docs PR: TBD (fill in after PR is opened).
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1608>8>8>.

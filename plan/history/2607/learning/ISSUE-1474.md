@@ -33,4 +33,4 @@ narrow the type from `EM | None` to `EM`; without it mypy keeps the union and
 flags downstream uses.
 
 **Promoted**: 2026-07-22 — captured in `vultron/core/AGENTS.md`.
-Docs PR: TBD (fill in after PR is opened).
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1608>8>8>.

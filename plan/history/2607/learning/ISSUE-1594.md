@@ -55,4 +55,4 @@ call-out point in the tick path. Never stub the node whose contract you are
 asserting.
 
 **Promoted**: 2026-07-22 — captured in `test/AGENTS.md`.
-Docs PR: TBD (fill in after PR is opened).
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1608>8>8>.

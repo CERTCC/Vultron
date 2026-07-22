@@ -47,4 +47,4 @@ baked image shadows the relocated module (see
 [[20260720-pythonpath-app-contaminates-uv-run]]).
 
 **Promoted**: 2026-07-22 — captured in `vultron/demo/AGENTS.md`.
-Docs PR: TBD (fill in after PR is opened).
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1608>8>8>.

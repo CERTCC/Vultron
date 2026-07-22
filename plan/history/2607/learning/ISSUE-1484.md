@@ -31,4 +31,4 @@ again. The embargo-lifecycle.md note file is a particularly reliable indicator
 since it is updated alongside implementation commits.
 
 **Promoted**: 2026-07-22 — captured in `AGENTS.md (root)`.
-Docs PR: TBD (fill in after PR is opened).
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1608>8>8>.

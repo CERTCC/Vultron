@@ -23,4 +23,4 @@ the demo step.  This surfaced for ISSUE-1535 when no
 part of the demo task, not a blocker to work around.
 
 **Promoted**: 2026-07-22 — captured in `vultron/demo/AGENTS.md`.
-Docs PR: TBD (fill in after PR is opened).
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1608>8>8>.

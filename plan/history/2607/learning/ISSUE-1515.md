@@ -37,4 +37,4 @@ which is always empty after ADR-0034. The actor object's `outbox` field is now
 only a URI pointer to the collection endpoint, not the collection itself.
 
 **Promoted**: 2026-07-22 — captured in `vultron/adapters/AGENTS.md`.
-Docs PR: TBD (fill in after PR is opened).
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1608>8>8>.

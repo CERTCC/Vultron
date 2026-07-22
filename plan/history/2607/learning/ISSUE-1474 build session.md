@@ -33,4 +33,4 @@ load-specs/REFERENCE.md have all been updated to use `PYTHONPATH= uv run
 spec-dump`.
 
 **Promoted**: 2026-07-22 — captured in `AGENTS.md (root, CONCERNS.md already)`.
-Docs PR: TBD (fill in after PR is opened).
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1608>8>8>.

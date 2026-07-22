@@ -32,4 +32,4 @@ Applies to `vultron/core/use_cases/received/actor/announce.py` and any future
 received-side use case that processes wire objects at the entry point.
 
 **Promoted**: 2026-07-22 — captured in `vultron/core/AGENTS.md`.
-Docs PR: TBD (fill in after PR is opened).
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1608>8>8>.
