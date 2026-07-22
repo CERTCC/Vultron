@@ -385,19 +385,19 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
 - **`UnroutableActivityError` Must Be Caught Inside `_handle`, Not Above It** —
   see [notes/inbox-pipeline.md](notes/inbox-pipeline.md).
 - **Blackboard List Write-Back: Only Needed for New Lists** —
-  see [notes/bt-integration.md](notes/bt-integration.md).
+  see [notes/bt-pitfalls.md](notes/bt-pitfalls.md).
 - **Always Check `BTBridge.execute_with_setup` Return Value** —
   `if bridge.execute_with_setup(...) == Status.FAILURE: raise VultronBTError(...)`.
-  See [notes/bt-integration.md](notes/bt-integration.md).
+  See [notes/bt-pitfalls.md](notes/bt-pitfalls.md).
 - **Ledger Commit Must Precede Outbox Write** —
-  see [notes/bt-integration.md](notes/bt-integration.md).
+  see [notes/bt-pitfalls.md](notes/bt-pitfalls.md).
 - **`disposition="rejected"` for Local-Only Correlation Markers** —
-  see [notes/bt-integration.md](notes/bt-integration.md).
+  see [notes/bt-pitfalls.md](notes/bt-pitfalls.md).
 - **Semantic Registry Pattern Must Match Inbound Wire Format** —
-  see [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md).
+  see [notes/activitystreams-state-update.md](notes/activitystreams-state-update.md).
 - **`offer_case_participant_activity`: `event.object_id` Has `#participant` Suffix**
   — extract `actor_id` from `event.attributed_to`.
-  See [notes/activitystreams-semantics.md](notes/activitystreams-semantics.md).
+  See [notes/activitystreams-state-update.md](notes/activitystreams-state-update.md).
 - **Pre-Build Dedup Sets Before Fallback Loops** — `seen = set(d.values())`
   before the loop; O(n×m) → O(n+m).
 - **Consolidated Helper Needs One Test Per Distinct Lookup Path** —
@@ -418,7 +418,7 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   [notes/bt-fuzzer-nodes-report-management.md](notes/bt-fuzzer-nodes-report-management.md).
 - **BT Integration Tests Must Use Deterministic Factories When the Default Is
   Probabilistic** — see `test/AGENTS.md` § "BT Factory Determinism" and
-  [notes/bt-integration.md](notes/bt-integration.md).
+  [notes/bt-pitfalls.md](notes/bt-pitfalls.md).
 - **Emit Nodes in Case-Scoped Trigger BTs Must Fail Fast on Missing CaseActor** —
   FAILURE/exception when no routable CaseActor. See PCR-08-011.
 - **Module Split: Re-Import Moved Names for `monkeypatch` Compatibility** —
