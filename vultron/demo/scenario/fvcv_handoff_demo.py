@@ -38,6 +38,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_TransitiveActivity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -63,6 +64,9 @@ from vultron.demo.helpers.actions import (
     actor_notifies_fix_deployed,
     actor_notifies_fix_ready,
     actor_notifies_published,
+)
+from vultron.demo.helpers.notes import (
+    participant_adds_note_to_case,
 )
 from vultron.demo.helpers.milestones import (
     verify_case_active,
@@ -426,10 +430,29 @@ def _phase_ownership_handoff(
             behavior="accept-case-ownership-transfer",
             body={"offer_id": ownership_offer_id},
         )
+    accept_ownership = as_TransitiveActivity.model_validate(
+        accept_result["activity"]
+    )
     logger.info(
         "Coordinator sent Accept(Offer(VulnerabilityCase)): %s",
-        accept_result["activity"].get("id"),
+        accept_ownership.id_,
     )
+
+    # The trigger-side BT (TRIG-11-002) queues the Accept in Coordinator's
+    # outbox addressed only to the offerer (Vendor1); Coordinator's own
+    # DataLayer copy is therefore never updated by that path.  Deliver the
+    # Accept to Coordinator's own inbox so AcceptCaseOwnershipTransferReceived-
+    # UseCase runs locally and sets case.attributed_to = Coordinator on
+    # Coordinator's replica.  (Vendor1's copy updates automatically when
+    # Coordinator's outbox delivers the Accept to Vendor1's inbox.)
+    with demo_step("Delivering ownership Accept to Coordinator's own inbox"):
+        post_to_inbox_and_wait(
+            coordinator_client,
+            coordinator_in_coordinator.id_,
+            accept_ownership,
+        )
+    with demo_check("Ownership Accept stored in Coordinator's DataLayer"):
+        verify_object_stored(coordinator_client, accept_ownership.id_)
 
     # Verify Vendor1's case now shows Coordinator as attributed_to.
     with demo_check(
@@ -606,6 +629,82 @@ def _phase_sync_verification(
         )
 
     logger.info("✓ All replicas synchronized")
+
+
+def _phase_notes_exchange(
+    finder_client: DataLayerClient,
+    vendor_client: DataLayerClient,
+    coordinator_client: DataLayerClient,
+    vendor2_client: DataLayerClient,
+    finder_in_finder: as_Actor,
+    vendor_in_vendor: as_Actor,
+    coordinator_in_coordinator: as_Actor,
+    vendor2_in_vendor2: as_Actor,
+    case: as_VulnerabilityCase,
+) -> tuple[as_Note, as_Note, as_Note, as_Note]:
+    """Run a four-way note exchange among all participants.
+
+    Emits ``add_note_to_case`` events into the canonical case ledger,
+    exercising the note-threading path and satisfying the universal
+    ``add_note_to_case`` invariant asserted by the case-ledger harness.
+    """
+    logger.info("─" * 80)
+    logger.info("Phase 4b: Notes exchange")
+    logger.info("─" * 80)
+
+    question_note = participant_adds_note_to_case(
+        posting_client=finder_client,
+        watching_client=vendor_client,
+        poster=finder_in_finder,
+        case=case,
+        note_name="Question from Finder",
+        note_content=(
+            "Is there a workaround available while the patch is being developed?"
+        ),
+    )
+
+    vendor_reply = participant_adds_note_to_case(
+        posting_client=vendor_client,
+        watching_client=vendor_client,
+        poster=vendor_in_vendor,
+        case=case,
+        note_name="Vendor1 Response",
+        note_content=(
+            "Yes, disabling the affected module is an effective interim workaround."
+        ),
+        in_reply_to=question_note.id_,
+    )
+
+    coordinator_note = participant_adds_note_to_case(
+        posting_client=coordinator_client,
+        watching_client=vendor_client,
+        poster=coordinator_in_coordinator,
+        case=case,
+        note_name="Coordinator Update",
+        note_content=(
+            "As the new case owner, I confirm both Vendor1 and Vendor2 are "
+            "engaged. Target disclosure in 30 days."
+        ),
+        in_reply_to=vendor_reply.id_,
+    )
+
+    vendor2_note = participant_adds_note_to_case(
+        posting_client=vendor2_client,
+        watching_client=vendor_client,
+        poster=vendor2_in_vendor2,
+        case=case,
+        note_name="Vendor2 Status Update",
+        note_content=(
+            "Vendor2 confirms the issue affects our component as well. "
+            "We will align our fix timeline with Vendor1."
+        ),
+        in_reply_to=coordinator_note.id_,
+    )
+
+    logger.info(
+        "✓ Notes exchange complete (four notes committed to case ledger)"
+    )
+    return question_note, vendor_reply, coordinator_note, vendor2_note
 
 
 def _phase_fix_lifecycle(
@@ -1026,6 +1125,17 @@ def run_fvcv_handoff_demo(
         finder,
         coordinator,
         vendor2,
+        case,
+    )
+    _phase_notes_exchange(
+        finder_client,
+        vendor_client,
+        coordinator_client,
+        vendor2_client,
+        finder_in_finder,
+        vendor_in_vendor,
+        coordinator_in_coordinator,
+        vendor2_in_vendor2,
         case,
     )
     _phase_fix_lifecycle(
