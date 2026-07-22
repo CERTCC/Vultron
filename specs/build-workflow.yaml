@@ -263,3 +263,52 @@ groups:
           The `update-plan` skill MUST NOT instruct agents to write to
           `plan/incoming/learnings/`. Observations discovered during gap
           analysis MUST be written directly to `notes/*.md` files.
+  - id: BW-07
+    title: Upward-Reflection Signal Taxonomy
+    kind: process
+    specs:
+      - id: BW-07-001
+        priority: MUST
+        kind: process
+        statement: >-
+          Before recording learning files at the end of a `build` or
+          `bugfix` session, the agent MUST run an upward-reflection
+          checklist that explicitly asks whether each of the following
+          signal types was encountered: `spec-gap`, `spec-ambiguity`,
+          `spec-contradiction`, `design-question`, `concern`,
+          `tooling-issue`, `process-issue`. A session with no learning
+          files is valid only if the checklist was completed and every
+          answer was "no".
+        rationale: >-
+          Without a mandatory checklist, agents default to recording
+          only tactical tips-and-tricks. The checklist ensures that
+          higher-signal problems (missing specs, contradictions,
+          architectural risks) are captured and flow upstream to `learn`.
+      - id: BW-07-002
+        priority: SHOULD
+        kind: protocol
+        statement: >-
+          Incoming learning files SHOULD include an optional `signal:`
+          frontmatter field set to one of the defined signal types
+          (`spec-gap`, `spec-ambiguity`, `spec-contradiction`,
+          `design-question`, `concern`, `tooling-issue`,
+          `process-issue`) when the entry represents one of those
+          categories. Entries that do not fit any category MAY omit the
+          field.
+        rationale: >-
+          Tagged entries allow the `learn` skill to triage by urgency
+          without reading every file body. `spec-gap` and
+          `spec-contradiction` entries are the highest priority.
+      - id: BW-07-003
+        priority: MUST
+        kind: process
+        statement: >-
+          The `learn` skill MUST process learning files tagged with
+          `signal: spec-gap` and `signal: spec-contradiction` before
+          processing untagged entries or entries with lower-urgency
+          signal types.
+        rationale: >-
+          These signal types represent cases where the specification
+          has diverged from reality or contains internal conflicts.
+          Deferring them risks future build sessions making the same
+          gap-driven interpretations independently.

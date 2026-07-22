@@ -235,9 +235,28 @@ draft commit and use `git diff main...HEAD` normally.
    BODY    = "## Issue #<N> — <title>\n\n<completion summary, PR link>"
    ```
 
-5. Record observations as individual learning files in `plan/incoming/learnings/`
-   (filename: `YYYYMMDD-SLUG.md`; frontmatter: `title`, `type: learning`,
-   `timestamp`, `source`). Do not write completion summaries here.
+5. Before writing learning files, run the **upward-reflection checklist** — a
+   mandatory scan for signals that belong in the upstream queue. For each item,
+   if the answer is "yes", a learning file with the matching `signal:` tag is
+   required:
+
+   | Signal type | Question to ask |
+   |---|---|
+   | `spec-gap` | Was any behaviour implemented that has no existing spec entry? |
+   | `spec-ambiguity` | Was any requirement unclear? What interpretation was made? |
+   | `spec-contradiction` | Did two requirements appear to conflict? |
+   | `design-question` | Was an architectural decision made beyond what the issue specified? |
+   | `concern` | Was any fragility, risk, or technical debt encountered that should be tracked as a GitHub Concern issue? |
+   | `tooling-issue` | Was any environment or tooling problem encountered? |
+   | `process-issue` | Was the issue body stale, the issue already implemented, or tracking otherwise broken? |
+
+   Record each triggered signal as an individual learning file in
+   `plan/incoming/learnings/` (filename: `YYYYMMDD-SLUG.md`; frontmatter:
+   `title`, `type: learning`, `timestamp`, `source`, and optionally
+   `signal: <type>`). Do not write completion summaries here.
+
+   A session with no learning files is valid only if the checklist was run and
+   every answer was "no". Skipping the checklist is not allowed.
 
 6. Invoke `commit` if any learning files were created in `plan/incoming/learnings/`.
 

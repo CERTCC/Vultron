@@ -116,16 +116,32 @@ on what constitutes a complete lesson — loaded by `orient-agent` in Phase 1.
 
 Identify what the build process and codebase scan have surfaced that is not
 yet captured in durable docs. Consider both incoming learning files and
-open GitHub Concern issues:
+open GitHub Concern issues.
 
-1. Missing requirements — behavior exists in code but has no spec.
-2. Ambiguous or untestable requirements — reality diverges from what's written.
-3. Redundant or contradictory requirements across spec files.
-4. Agent guidance patterns that keep recurring in `plan/incoming/learnings/`
-   but are not yet in `AGENTS.md`.
-5. Open GitHub `type:Concern` issues that reveal missing spec requirements or
+**Prioritise by signal type.** Learning files tagged with `signal:` in their
+frontmatter carry higher-urgency signals and MUST be addressed before general
+pattern promotion. Process in this order:
+
+1. `signal: spec-gap` — behaviour in code with no spec entry. Write the missing
+   spec requirement.
+2. `signal: spec-contradiction` — two requirements that conflict. Resolve the
+   conflict and update both affected spec entries.
+3. `signal: spec-ambiguity` — requirement was unclear; an interpretation was made
+   during build. Clarify the requirement so future agents don't have to guess.
+4. `signal: design-question` — architectural decision made mid-build. Determine
+   whether an ADR or notes update is warranted.
+5. `signal: concern` — fragility or risk. Create or update a GitHub Concern
+   issue if not already tracked.
+6. `signal: tooling-issue` / `signal: process-issue` — environment or tracking
+   problems. Update `AGENTS.md` or the affected skill with the fix.
+7. Untagged entries — general observations and patterns:
+   - Missing requirements — behavior exists in code but has no spec.
+   - Ambiguous or untestable requirements — reality diverges from what's written.
+   - Redundant or contradictory requirements across spec files.
+   - Agent guidance patterns that keep recurring but are not yet in `AGENTS.md`.
+8. Open GitHub `type:Concern` issues that reveal missing spec requirements or
    durable design notes.
-6. Recent completed-task insights — when needed, run `uv run show-history
+9. Recent completed-task insights — when needed, run `uv run show-history
    --month YYMM` to identify which history entries contain architectural
    lessons, then open those entry files.
 
