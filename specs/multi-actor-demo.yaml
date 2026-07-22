@@ -682,8 +682,8 @@ groups:
     statement: >-
       The Coordinator MUST receive the Finder's report (RM→RECEIVED), validate it
       (RM→VALID), and engage the case (RM→ACCEPTED), which triggers CaseActor
-      creation co-located on the Coordinator's container. The Coordinator MUST hold
-      `CVDRole.CASE_OWNER` throughout the entire scenario. Ownership MUST NOT
+      creation on the Coordinator's container. The Coordinator MUST hold
+      `CVDRole.CASE_OWNER` throughout the entire scenario; ownership MUST NOT
       transfer to any other actor.
     rationale: >-
       FCV is the canonical Coordinator-as-owner scenario: Finder reports to
@@ -691,6 +691,27 @@ groups:
       is owner) and FVCV-extension (Vendor retains ownership). The CaseActor
       service actor holds CASE_MANAGER alongside COORDINATOR role per glossary;
       the Coordinator human actor holds CASE_OWNER only.
+    preconditions:
+    - description: >-
+        Finder and Coordinator containers running; no VulnerabilityCase exists
+        for this report; Coordinator auto_create_case=True
+    steps:
+    - order: 1
+      actor: finder
+      action: POST submit-report trigger directed at Coordinator
+      expected: Report delivered to Coordinator inbox
+    - order: 2
+      actor: coordinator
+      action: BT processes inbound report; RM transitions RECEIVED→VALID→ACCEPTED
+      expected: VulnerabilityCase created; CaseActor spawned on Coordinator container
+    - order: 3
+      actor: coordinator
+      action: Coordinator assigned CVDRole.CASE_OWNER on the new case
+      expected: Coordinator holds CASE_OWNER; CaseActor holds CASE_MANAGER
+    postconditions:
+    - description: >-
+        VulnerabilityCase exists; Coordinator RM=ACCEPTED, CVDRole=CASE_OWNER;
+        CaseActor running with CASE_MANAGER; no ownership transfer has occurred
     relationships:
     - rel_type: refines
       spec_id: CM-02-001
@@ -702,6 +723,29 @@ groups:
       trigger after case creation. Finder MUST accept the invitation and become a
       full SIGNATORY participant with a case replica in their DataLayer before
       Vendor is invited.
+    preconditions:
+    - description: >-
+        VulnerabilityCase exists; Coordinator holds CASE_OWNER (DEMOMA-12-002
+        postconditions satisfied); Finder is not yet a case participant
+    steps:
+    - order: 1
+      actor: coordinator
+      action: POST invite-actor-to-case trigger for Finder
+      expected: Invite(Actor, Case) delivered to Finder inbox
+    - order: 2
+      actor: demo_script
+      action: Poll Finder DataLayer until Invite(Actor, Case) is visible
+      expected: Invitation record present in Finder replica
+    - order: 3
+      actor: finder
+      action: POST accept-case-invite trigger
+      expected: >-
+        Finder transitions to SIGNATORY; CaseActor emits Announce(VulnerabilityCase)
+        to seed Finder replica
+    postconditions:
+    - description: >-
+        Finder is SIGNATORY with a seeded case replica; Vendor invitation has
+        not yet been issued
     relationships:
     - rel_type: refines
       spec_id: CM-20-001
@@ -720,6 +764,30 @@ groups:
       the ADR-0026 suggest/approve chain is for participants recommending actors to
       the case owner, not for the owner inviting directly. Polling before accept
       is required for determinism (per DEMOMA-11-009 pattern).
+    preconditions:
+    - description: >-
+        Finder is SIGNATORY (DEMOMA-12-003 postconditions satisfied);
+        Vendor is not yet a case participant
+    steps:
+    - order: 1
+      actor: coordinator
+      action: POST invite-actor-to-case trigger for Vendor
+      expected: Invite(Actor, Case) delivered to Vendor inbox
+    - order: 2
+      actor: demo_script
+      action: Poll Vendor DataLayer until Invite(Actor, Case) is visible
+      expected: Invitation record present in Vendor replica
+    - order: 3
+      actor: vendor
+      action: POST accept-case-invite trigger
+      expected: >-
+        Vendor transitions to SIGNATORY; CaseActor emits Announce(VulnerabilityCase)
+        to seed Vendor replica with full case history
+    postconditions:
+    - description: >-
+        Vendor is SIGNATORY with a seeded case replica containing full history
+        from genesis; all three actors (Finder, Coordinator, Vendor) plus
+        CaseActor are now case participants
     relationships:
     - rel_type: refines
       spec_id: CM-17-001
@@ -761,21 +829,38 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The implementation MUST ship a dedicated per-scenario case-ledger invariant
-      test file (`test/ci/test_case_ledger_invariants_fcv.py`) built on the shared
-      invariant library introduced by the harness refactor issue. The FCV test MUST
-      assert the following invariants specific to this scenario in addition to the
-      universal chain/hash/RM-closed checks: (1) `validate_report` event present
-      in case-actor log; (2) `invite_actor_to_case` present at least twice (Finder
-      + Vendor invitations); (3) `close_case` present; (4) CS transitions VFd, VFD,
-      and public-aware (P) all observed in `add_participant_status_to_participant`
-      entries; (5) Vendor replica holds the complete log from genesis (full history
-      backfill required as Vendor is a late joiner).
+      The FCV implementation MUST ship a dedicated per-scenario case-ledger
+      invariant test file (`test/ci/invariants/test_fcv_invariants.py`) built
+      exclusively on the shared invariant library introduced by the harness
+      refactor issue (DEMOMA-12-008 is satisfied only when that shared library
+      exists). The test file MUST NOT duplicate universal invariant logic;
+      universal chain/hash/RM-closed checks MUST be imported from the shared
+      library, not re-implemented inline.
     rationale: >-
-      Scenario-specific invariants prevent the scenario from accidentally omitting
-      protocol steps that are not exercised by the universal invariants. Each
-      scenario MUST define its own event-type and late-joiner invariants so that
-      CI catches regressions in the steps unique to that scenario.
+      Requiring use of the shared library enforces the DRY constraint across
+      scenarios. A file that copies invariant logic is not compliant even if
+      it tests the correct things.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-12-006
+  - id: DEMOMA-12-009
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCV per-scenario invariant test file MUST assert the following
+      scenario-specific checks in addition to the universal library checks:
+      (1) `validate_report` event present in case-actor log; (2)
+      `invite_actor_to_case` present at least twice (Finder invitation +
+      Vendor invitation); (3) `close_case` present; (4) CS transitions VFd,
+      VFD, and public-aware (P) all observed in
+      `add_participant_status_to_participant` entries for the Vendor actor;
+      (5) Vendor replica holds the complete log from genesis (full history
+      backfill, as Vendor is a late joiner).
+    rationale: >-
+      Scenario-specific invariants prevent the FCV scenario from accidentally
+      omitting protocol steps not covered by universal checks. Explicitly
+      enumerating them here means CI will catch regressions in the steps
+      unique to FCV.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-12-008
