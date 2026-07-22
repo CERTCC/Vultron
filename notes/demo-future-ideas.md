@@ -44,7 +44,7 @@ be treated as working implementations.
 
 | Scenario | Issue | Description | Blocked by | Status |
 |----------|-------|-------------|------------|--------|
-| FCV | #1234 | F reports to C; C invites V; three-actor coordination | — | planned |
+| FCV | #1234 | F reports to C; C invites V; three-actor coordination | invariant harness refactor | planned (spec: DEMOMA-12) |
 | FVCV-handoff | #1214 | V1 transfers ownership to C; C invites V2 | — | planned (tracked in impl issue) |
 | FCCV-extension | #1215 | C1 retains case; C2 is participant; C2 asks C1 to invite V | — | planned |
 | FCCV-handoff | #1216 | C1 transfers to C2; C2 invites V | #1215 | planned |

@@ -656,3 +656,126 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-10-007
+
+- id: DEMOMA-12
+  title: FCV Scenario (Finder reports to Coordinator; Coordinator invites Vendor)
+  specs:
+  - id: DEMOMA-12-001
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCV scenario MUST involve four actor identities — Finder, Coordinator,
+      Vendor, and CaseActor — each with its own isolated DataLayer and separate
+      container. The CaseActor MUST run as a separate actor identity with its own
+      container and DataLayer, not co-located on the Coordinator container.
+    rationale: >-
+      FCV is the canonical three-party coordination baseline. Using four separate
+      containers (Finder, Coordinator, Vendor, CaseActor) matches the FVCV-extension
+      topology (DEMOMA-10-001) and ensures the demo exercises true multi-container
+      message delivery rather than in-process calls.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-01-001
+  - id: DEMOMA-12-002
+    priority: MUST
+    kind: project
+    statement: >-
+      The Coordinator MUST receive the Finder's report (RM→RECEIVED), validate it
+      (RM→VALID), and engage the case (RM→ACCEPTED), which triggers CaseActor
+      creation co-located on the Coordinator's container. The Coordinator MUST hold
+      `CVDRole.CASE_OWNER` throughout the entire scenario. Ownership MUST NOT
+      transfer to any other actor.
+    rationale: >-
+      FCV is the canonical Coordinator-as-owner scenario: Finder reports to
+      Coordinator, Coordinator creates the case. This contrasts with FVV (Vendor
+      is owner) and FVCV-extension (Vendor retains ownership). The CaseActor
+      service actor holds CASE_MANAGER alongside COORDINATOR role per glossary;
+      the Coordinator human actor holds CASE_OWNER only.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-02-001
+  - id: DEMOMA-12-003
+    priority: MUST
+    kind: project
+    statement: >-
+      The Coordinator MUST invite Finder to the case using the `invite-actor-to-case`
+      trigger after case creation. Finder MUST accept the invitation and become a
+      full SIGNATORY participant with a case replica in their DataLayer before
+      Vendor is invited.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-20-001
+  - id: DEMOMA-12-004
+    priority: MUST
+    kind: project
+    statement: >-
+      The Coordinator MUST invite Vendor to the case using the `invite-actor-to-case`
+      trigger directly (not via a suggestion/approval chain). Vendor MUST accept via
+      the `accept-case-invite` trigger. The CaseActor MUST then emit
+      `Announce(VulnerabilityCase)` to seed Vendor's case replica. The demo script
+      MUST poll Vendor's DataLayer for the arriving invitation before driving the
+      accept step.
+    rationale: >-
+      Coordinator is CASE_OWNER, so a direct `invite-actor-to-case` is correct;
+      the ADR-0026 suggest/approve chain is for participants recommending actors to
+      the case owner, not for the owner inviting directly. Polling before accept
+      is required for determinism (per DEMOMA-11-009 pattern).
+    relationships:
+    - rel_type: refines
+      spec_id: CM-17-001
+  - id: DEMOMA-12-005
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCV scenario MUST reach a final state with three participants — Finder,
+      Coordinator, and Vendor (plus the CaseActor) — and MUST advance to VFDPxa
+      CS with EM.EXITED and RM.CLOSED for all participants. Only Vendor's fix path
+      (VFD) is tracked; Coordinator and Finder have no VENDOR role and therefore
+      no vendor fix path.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-03-002
+  - id: DEMOMA-12-006
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCV scenario MUST run deterministically end-to-end and MUST verify SYNC-2
+      replica convergence for Finder and Vendor replicas against the authoritative
+      Coordinator/CaseActor state after each major protocol event.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-09-004
+  - id: DEMOMA-12-007
+    priority: MUST
+    kind: project
+    statement: >-
+      The implementation of the FCV scenario MUST add a dedicated parallel CI job
+      (`DEMO=fcv`) to `.github/workflows/demo-integration.yml` in the same PR, so
+      CI failures are independently reported per DEMOCI-03-003.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOCI-03-002
+    - rel_type: refines
+      spec_id: DEMOCI-03-003
+  - id: DEMOMA-12-008
+    priority: MUST
+    kind: project
+    statement: >-
+      The implementation MUST ship a dedicated per-scenario case-ledger invariant
+      test file (`test/ci/test_case_ledger_invariants_fcv.py`) built on the shared
+      invariant library introduced by the harness refactor issue. The FCV test MUST
+      assert the following invariants specific to this scenario in addition to the
+      universal chain/hash/RM-closed checks: (1) `validate_report` event present
+      in case-actor log; (2) `invite_actor_to_case` present at least twice (Finder
+      + Vendor invitations); (3) `close_case` present; (4) CS transitions VFd, VFD,
+      and public-aware (P) all observed in `add_participant_status_to_participant`
+      entries; (5) Vendor replica holds the complete log from genesis (full history
+      backfill required as Vendor is a late joiner).
+    rationale: >-
+      Scenario-specific invariants prevent the scenario from accidentally omitting
+      protocol steps that are not exercised by the universal invariants. Each
+      scenario MUST define its own event-type and late-joiner invariants so that
+      CI catches regressions in the steps unique to that scenario.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-12-006
