@@ -97,6 +97,8 @@ General information about architectural decision records is available at <https:
   ParticipantStatus](0036-status-dimension-objects.md)
 - [ADR-0037 Buffer Out-of-Order `Announce(CaseLedgerEntry)` Instead of
   Dropping](0037-buffer-out-of-order-ledger-entries.md)
+- [ADR-0028 Publication-Intent Subtree Collapse: Bypass Leaves →
+  Intent-Record-Driven Arms](0028-publication-intent-bt-collapse.md)
 
 ## Proposed ADRs
 
@@ -104,8 +106,6 @@ General information about architectural decision records is available at <https:
   `process_payload` Seam](0020-inbox-bt-orchestration.md)
 - [ADR-0027 Exploit-Strategy Subtree Collapse: Five Simulator Nodes →
   EvaluateExploitStrategy](0027-exploit-strategy-bt-collapse.md) *(provisional)*
-- [ADR-0028 Publication-Intent Subtree Collapse: Bypass Leaves →
-  Intent-Record-Driven Arms](0028-publication-intent-bt-collapse.md) *(provisional)*
 - [ADR-0029 Notification Loop Collapse: InjectParticipant →
   suggest-actor-to-case Protocol](0029-notification-loop-suggest-actor.md) *(provisional)*
 - [ADR-0030 Publish Leaf Expansion: Single Actuator →

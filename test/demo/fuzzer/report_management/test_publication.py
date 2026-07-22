@@ -102,6 +102,26 @@ def test_prioritize_publication_intents_base_type():
     assert issubclass(PrioritizePublicationIntents, AlwaysSucceed)
 
 
+def test_prioritize_publication_intents_is_evaluator():
+    """Surviving Collapse-2 Evaluator subclasses the Evaluator shape mixin."""
+    from vultron.demo.fuzzer.call_out_point import EvaluatorCallOutPoint
+
+    assert issubclass(PrioritizePublicationIntents, EvaluatorCallOutPoint)
+
+
+def test_prioritize_publication_intents_output_is_structured_record():
+    """AC-3: output key is the typed PublicationIntentDecision (not str)."""
+    from vultron.core.behaviors.report.publication_tree import (
+        INTENT_DECISION_KEY,
+        PublicationIntentDecision,
+    )
+
+    output_keys = PrioritizePublicationIntents.output_keys
+    assert INTENT_DECISION_KEY in output_keys
+    assert output_keys[INTENT_DECISION_KEY] is PublicationIntentDecision
+    assert "publication_intents_verdict" not in output_keys
+
+
 def test_publish_base_type():
     assert issubclass(Publish, AlmostAlwaysSucceed)
 
