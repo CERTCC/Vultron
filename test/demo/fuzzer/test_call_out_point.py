@@ -27,6 +27,7 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.call_out_point import CallOutBackendFactory
+from vultron.demo.fuzzer.base import AlwaysSucceed as _AlwaysSucceed
 from vultron.demo.fuzzer.call_out_point import (
     ActuatorCallOutPoint,
     ComposerCallOutPoint,
@@ -684,3 +685,63 @@ def test_actuator_node_does_not_write_blackboard_on_success():
 
     assert status == Status.SUCCESS
     assert "/actuator_test_key" not in py_trees.blackboard.Blackboard.storage
+
+
+# ---------------------------------------------------------------------------
+# BT-18-001 behavior contracts — acquire_exploit nodes write typed values to
+# the blackboard when ticked to SUCCESS inside a real py_trees Selector tree.
+#
+# EvaluateExploitStrategy (Collapse 1) is covered by its own tree test at
+# test/core/behaviors/report/test_acquire_exploit_strategy_tree.py.
+# The three nodes below are the remaining acquire_exploit call-out points
+# with non-empty output_keys: EvaluateExploitPriority (AlwaysSucceed base),
+# DevelopExploit (OftenSucceed — deterministic wrapper required per BT Factory
+# Determinism rule), and PurchaseExploit (RarelySucceed — same rule).
+# ---------------------------------------------------------------------------
+
+
+class _DeterministicDevelopExploit(DevelopExploit, _AlwaysSucceed):
+    """DevelopExploit with AlwaysSucceed override for deterministic test ticks."""
+
+
+class _DeterministicPurchaseExploit(PurchaseExploit, _AlwaysSucceed):
+    """PurchaseExploit with AlwaysSucceed override for deterministic test ticks."""
+
+
+def _make_always_succeed_selector(node):
+    """Wrap *node* in a minimal Selector so setup_with_descendants() applies."""
+    return py_trees.composites.Selector(
+        name="TestSelector", memory=False, children=[node]
+    )
+
+
+_ACQUIRE_EXPLOIT_CONTRACT_NODES = [
+    (EvaluateExploitPriority, "exploit_priority_verdict", str),
+    (_DeterministicDevelopExploit, "developed_exploit_artifact", str),
+    (_DeterministicPurchaseExploit, "purchase_exploit_verdict", str),
+]
+
+
+@pytest.mark.parametrize(
+    "node_cls, output_key, expected_type", _ACQUIRE_EXPLOIT_CONTRACT_NODES
+)
+def test_acquire_exploit_node_writes_blackboard_on_success(
+    node_cls, output_key, expected_type
+):
+    """BT-18-001: ticking a call-out point to SUCCESS writes the declared type.
+
+    Creates a real Selector tree, ticks it once to SUCCESS, and asserts that
+    the blackboard key holds an instance of the declared output type.
+    Probabilistic nodes (DevelopExploit, PurchaseExploit) use deterministic
+    subclasses that inherit production output_keys but override update() via
+    AlwaysSucceed.
+    """
+    node = node_cls(node_cls.__name__)
+    tree = _make_always_succeed_selector(node)
+    tree.setup_with_descendants()
+    tree.tick_once()
+
+    assert tree.status == Status.SUCCESS
+    assert f"/{output_key}" in py_trees.blackboard.Blackboard.storage
+    val = py_trees.blackboard.Blackboard.storage[f"/{output_key}"]
+    assert isinstance(val, expected_type)
