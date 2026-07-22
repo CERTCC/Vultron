@@ -691,11 +691,12 @@ groups:
       node reviews and approves the draft, and (3) an Actuator node submits the finalized artifact to the external advisory
       platform. An optional revision Composer MAY be included between the Evaluator and Actuator. Whether the review phase
       includes a broadcast-for-participant-comment step is an open design question to be resolved at implementation time.'
-    rationale: 'PROVISIONAL. The single `Publish` simulator leaf stands in for a full advisory publication workflow. In production,
-      drafting, review, and submission are distinct operations with separate external seams. The Actuator shape for submission
-      is confirmed by ADR-0024 (Actuator amendment, 2026-07-07). See `notes/bt-fuzzer-nodes-report-management.md` § "Production
-      Collapse 4: Publish leaf" and ADR-0030.'
-    tracking_issue: '#1200 (planning); implementation issue TBD (blocked by #1200 and implementation issue for BT-20-002)'
+    rationale: 'The single `Publish` simulator leaf stood in for a full advisory publication workflow. In production, drafting,
+      review, and submission are distinct operations with separate external seams. The Actuator shape for submission is confirmed
+      by ADR-0024 (Actuator amendment, 2026-07-07). See `notes/bt-fuzzer-nodes-report-management.md` § "Production Collapse 4:
+      Publish leaf" and ADR-0030 (accepted 2026-07-22). The participant-comment broadcast question in the review phase was deferred
+      to a follow-on issue (AC-4, issue #1312).'
+    tracking_issue: '#1200 (planning); #1312 (implemented)'
 - id: BT-21
   title: Fuzzer Node Replacement Lifecycle
   specs:

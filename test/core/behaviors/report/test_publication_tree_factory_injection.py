@@ -11,11 +11,12 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""End-to-end tick tests for create_publication_tree (Production Collapse 2).
+"""End-to-end tick tests for create_publication_tree (Production Collapses 2 + 4).
 
 Verifies that the intent record produced by the Evaluator actually gates which
-per-artifact arms perform Prepare→Publish work, and that a not-intended arm is
-a graceful SUCCESS no-op (ADR-0028 / BT-20-002, AC-4).
+per-artifact arms perform Prepare→Submit work, and that a not-intended arm is
+a graceful SUCCESS no-op (ADR-0028 / BT-20-002, AC-4).  The terminal publish
+leaf has been replaced by the draft-review-submit pipeline (ADR-0030 / BT-20-004).
 """
 
 import py_trees
@@ -51,7 +52,7 @@ class _RecordingPrepare(py_trees.behaviour.Behaviour):
         return Status.SUCCESS
 
 
-class _RecordingPublish(py_trees.behaviour.Behaviour):
+class _RecordingSubmit(py_trees.behaviour.Behaviour):
     """Actuator stand-in that records that it ran and always succeeds."""
 
     def __init__(self, name, ran):
@@ -90,6 +91,14 @@ def _tick_to_completion(tree):
     return bt.root.status
 
 
+def _always_succeed_factory(name):
+    class _AlwaysSucceed(py_trees.behaviour.Behaviour):
+        def update(self):
+            return Status.SUCCESS
+
+    return _AlwaysSucceed(name=name)
+
+
 def _build(decision, ran):
     return create_publication_tree(
         case_id=CASE_ID,
@@ -97,7 +106,10 @@ def _build(decision, ran):
         prepare_exploit_factory=lambda n: _RecordingPrepare(n, ran),
         prepare_fix_factory=lambda n: _RecordingPrepare(n, ran),
         prepare_report_factory=lambda n: _RecordingPrepare(n, ran),
-        publish_factory=lambda n: _RecordingPublish(n, ran),
+        draft_advisory_artifact_factory=lambda n: _always_succeed_factory(n),
+        review_advisory_draft_factory=lambda n: _always_succeed_factory(n),
+        revise_advisory_draft_factory=lambda n: _always_succeed_factory(n),
+        submit_advisory_artifact_factory=lambda n: _RecordingSubmit(n, ran),
     )
 
 
@@ -107,13 +119,20 @@ def test_default_intents_publish_fix_and_report_only():
     tree = _build(PublicationIntentDecision(), ran)
     assert _tick_to_completion(tree) == Status.SUCCESS
     assert "PrepareExploit" not in ran
-    assert "PublishExploit" not in ran
+    assert not any(
+        n.startswith("SubmitAdvisoryArtifact") and "Exploit" in n for n in ran
+    )
     assert {
         "PrepareFix",
-        "PublishFix",
         "PrepareReport",
-        "PublishReport",
     } <= ran
+    # The Submit nodes (not just Prepare) ran for the intended arms.
+    assert any(
+        n.startswith("SubmitAdvisoryArtifact") and "Fix" in n for n in ran
+    )
+    assert any(
+        n.startswith("SubmitAdvisoryArtifact") and "Report" in n for n in ran
+    )
 
 
 def test_all_intended_runs_every_arm():
@@ -128,12 +147,19 @@ def test_all_intended_runs_every_arm():
     assert _tick_to_completion(tree) == Status.SUCCESS
     assert {
         "PrepareExploit",
-        "PublishExploit",
         "PrepareFix",
-        "PublishFix",
         "PrepareReport",
-        "PublishReport",
     } <= ran
+    # All three submit nodes ran (names are e.g. "SubmitAdvisoryArtifact_Exploit")
+    assert any(
+        n.startswith("SubmitAdvisoryArtifact") and "Exploit" in n for n in ran
+    )
+    assert any(
+        n.startswith("SubmitAdvisoryArtifact") and "Fix" in n for n in ran
+    )
+    assert any(
+        n.startswith("SubmitAdvisoryArtifact") and "Report" in n for n in ran
+    )
 
 
 def test_none_intended_is_graceful_success_noop():
@@ -164,6 +190,9 @@ def test_prepare_failure_fails_intended_arm():
         ),
         prepare_fix_factory=lambda n: _FailingPrepare(name=n),
         prepare_report_factory=lambda n: _RecordingPrepare(n, ran),
-        publish_factory=lambda n: _RecordingPublish(n, ran),
+        draft_advisory_artifact_factory=lambda n: _always_succeed_factory(n),
+        review_advisory_draft_factory=lambda n: _always_succeed_factory(n),
+        revise_advisory_draft_factory=lambda n: _always_succeed_factory(n),
+        submit_advisory_artifact_factory=lambda n: _RecordingSubmit(n, ran),
     )
     assert _tick_to_completion(tree) == Status.FAILURE
