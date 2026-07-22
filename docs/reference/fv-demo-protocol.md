@@ -1,6 +1,6 @@
 # FV Demo — Protocol Reference
 
-This document is a **technical reference** for the fv
+This document is a **technical reference** for the FV
 (Finder + Vendor) CVD demo. It is written for developers who want to
 understand the message-level protocol interactions and build custom
 actors that interoperate with the Vultron protocol.
@@ -12,7 +12,7 @@ For a hands-on tutorial on running the demo, see
 
 ## Actors and Topology
 
-The fv demo uses **two Docker containers** and **three logical
+The FV demo uses **two Docker containers** and **three logical
 actors**:
 
 | Actor | CVD Role(s) | Container | Actor ID pattern |
@@ -473,7 +473,7 @@ RECEIVED → VALID → ACCEPTED → ... → CLOSED
 NONE → PROPOSED → ACTIVE → EXITED
 ```
 
-(In the fv demo, `PROPOSED` is skipped — both participants
+(In the FV demo, `PROPOSED` is skipped — both participants
 are set to `SIGNATORY` at case creation time, moving directly to
 `ACTIVE`.)
 
@@ -497,7 +497,7 @@ vfdpxa → Vfdpxa → VFdpxa → VFDpxa → VFDPxa
 ## Activity Types Used in the Demo
 
 The following table maps each ActivityStreams activity type used in
-the fv demo to its `MessageSemantics` value and the phase
+the FV demo to its `MessageSemantics` value and the phase
 where it appears:
 
 | AS2 Activity | MessageSemantics | Phase | Direction |

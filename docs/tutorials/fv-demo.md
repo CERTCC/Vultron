@@ -1,6 +1,6 @@
 # Tutorial: Run the FV Demo
 
-In this tutorial, we will run the **fv CVD demo** end-to-end using
+In this tutorial, we will run the **FV CVD demo** end-to-end using
 Docker Compose. This demo models a complete Coordinated Vulnerability
 Disclosure (CVD) workflow between a Finder (vulnerability reporter) and a
 Vendor (software maintainer).
@@ -17,7 +17,7 @@ By the end of this tutorial, we will have:
 
 !!! info "What we will learn"
 
-    The fv demo exercises the **full VFDPxa lifecycle**: a case moves
+    The FV demo exercises the **full VFDPxa lifecycle**: a case moves
     from report submission all the way through fix-ready, fix-deployed, public
     disclosure, embargo teardown, and case closure on both participant replicas.
 
@@ -82,7 +82,7 @@ docker compose -f docker/docker-compose-multi-actor.yml \
     up --abort-on-container-exit demo-runner
 ```
 
-The fv scenario is the **default** — no `DEMO` environment variable is
+The FV scenario is the **default** — no `DEMO` environment variable is
 required.
 
 Docker builds the images on the first run (this takes a few minutes). On
