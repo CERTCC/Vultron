@@ -1140,9 +1140,51 @@ groups:
       creates and owns a case. C1 acts as both the initial report recipient and
       the authority that approves all participant additions, in contrast to the
       FVCV-extension variant where a Vendor holds ownership.
+    preconditions:
+    - description: >-
+        All five containers running (Finder, C1, C2, Vendor, CaseActor);
+        no VulnerabilityCase exists for this report; C1 auto_create_case=True;
+        C1 pre-configured with the dedicated CaseActor container URL
+    steps:
+    - order: 1
+      actor: finder
+      action: POST submit-report trigger directed at C1
+      expected: Report delivered to C1 inbox
+    - order: 2
+      actor: c1
+      action: BT processes inbound report; RM transitions RECEIVED→VALID→ACCEPTED
+      expected: >-
+        VulnerabilityCase created; CaseActor registered on the separate
+        CaseActor container; default embargo initialized to EM.ACTIVE (EP-04-001)
+    - order: 3
+      actor: c1
+      action: C1 assigned CVDRole.CASE_OWNER on the new case
+      expected: C1 holds CASE_OWNER; CaseActor holds CASE_MANAGER
+    - order: 4
+      actor: c1
+      action: >-
+        C1 sends trust-bootstrap Create(VulnerabilityCase) to Finder (CBT-01-001);
+        Finder is the original report submitter and MUST receive this bootstrap to
+        trust the CaseActor identity
+      expected: >-
+        Finder receives Create(VulnerabilityCase) carrying C1 as CASE_OWNER and
+        CaseActor as COORDINATOR; Finder trusts CaseActor for this case
+    postconditions:
+    - description: >-
+        VulnerabilityCase exists; C1 RM=ACCEPTED, CVDRole=CASE_OWNER; CaseActor
+        running with CASE_MANAGER on its own container; EM.ACTIVE established;
+        trust bootstrap delivered to Finder; Finder is an initial participant via
+        the report-submission bootstrap (not via a separate invite-actor-to-case
+        trigger); no ownership transfer has occurred
     relationships:
     - rel_type: refines
       spec_id: CM-02-001
+    - rel_type: refines
+      spec_id: CBT-01-001
+    - rel_type: refines
+      spec_id: EP-04-001
+    - rel_type: refines
+      spec_id: DEMOMA-12-002
   - id: DEMOMA-13-003
     priority: MUST
     kind: project
@@ -1151,8 +1193,9 @@ groups:
       holding CVDRole.COORDINATOR and NOT CVDRole.CASE_MANAGER.
     preconditions:
     - description: >-
-        C1 RM state = ACCEPTED; VulnerabilityCase created with CaseActor;
-        Finder and C1 are participants; C2 container running
+        DEMOMA-13-002 postconditions satisfied: C1 RM=ACCEPTED, CVDRole=CASE_OWNER;
+        EM.ACTIVE; trust bootstrap delivered to Finder; Finder is an initial
+        participant; C2 container running
     steps:
     - order: 1
       actor: c1
