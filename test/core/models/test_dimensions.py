@@ -27,11 +27,11 @@ class TestEmDimension:
         assert d.state == EM.ACTIVE
 
     def test_construct_from_string(self):
-        d = EmDimension(state="ACTIVE")
+        d = EmDimension.model_validate({"state": "ACTIVE"})
         assert d.state == EM.ACTIVE
 
     def test_no_embargo_alias(self):
-        d = EmDimension(state="NO_EMBARGO")
+        d = EmDimension.model_validate({"state": "NO_EMBARGO"})
         assert d.state == EM.NO_EMBARGO
 
     def test_transition_returns_new_object(self):
@@ -84,7 +84,7 @@ class TestPxaDimension:
         assert d.state == CS_pxa.Pxa
 
     def test_construct_from_string(self):
-        d = PxaDimension(state="pxa")
+        d = PxaDimension.model_validate({"state": "pxa"})
         assert d.state == CS_pxa.pxa
 
     def test_is_embargo_eligible(self):
@@ -106,7 +106,7 @@ class TestRmDimension:
         assert d.state == RM.RECEIVED
 
     def test_construct_from_string(self):
-        d = RmDimension(state="RECEIVED")
+        d = RmDimension.model_validate({"state": "RECEIVED"})
         assert d.state == RM.RECEIVED
 
     def test_transition_returns_new_object(self):
@@ -149,7 +149,7 @@ class TestVfdDimension:
         assert d.state == CS_vfd.vfd
 
     def test_construct_from_string(self):
-        d = VfdDimension(state="Vfd")
+        d = VfdDimension.model_validate({"state": "Vfd"})
         assert d.state == CS_vfd.Vfd
 
     def test_is_vendor_aware(self):
@@ -175,7 +175,7 @@ class TestPecDimension:
         assert d.state == PEC.SIGNATORY
 
     def test_construct_from_string(self):
-        d = PecDimension(state="INVITED")
+        d = PecDimension.model_validate({"state": "INVITED"})
         assert d.state == PEC.INVITED
 
     def test_transition_returns_new_object(self):
