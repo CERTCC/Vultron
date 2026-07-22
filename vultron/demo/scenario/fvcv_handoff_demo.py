@@ -478,10 +478,12 @@ def _phase_coordinator_invites_vendor2(
     logger.info("Phase 3: Coordinator invites Vendor2 (AC-2)")
     logger.info("─" * 80)
 
-    # Coordinator directly invites Vendor2 as the new CASE_OWNER (AC-2).
+    # Trigger on vendor_client (the CaseActor's host container) so the invite is
+    # emitted as CaseActor.  Vendor2's Accept then routes to CaseActor, not to
+    # Coordinator, enabling AcceptInviteActorToCaseBT to run (PCR-08-008).
     with demo_step("Coordinator invites Vendor2 to the case"):
         invite_result = post_to_trigger(
-            client=coordinator_client,
+            client=vendor_client,
             actor_id=coordinator_in_coordinator.id_,
             behavior="invite-actor-to-case",
             body={
