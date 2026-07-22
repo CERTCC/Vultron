@@ -6,7 +6,7 @@ description: >-
   report of who did what, with what activity, and in what order. Covers input discovery,
   the distilled intermediate data model, markdown and HTML rendering, the per-actor
   replica-presence matrix, friendly naming, and test requirements.
-version: 1.1.0
+version: 1.2.0
 scope:
 - prototype
 tags:
@@ -120,6 +120,28 @@ groups:
       replica-presence indicator recording which discovered actors' replicas
       contain that entry (by `entry_hash`), so replica convergence and
       divergence are visible at a glance.
+  - id: DRPT-02-006
+    priority: MUST
+    kind: project
+    statement: >-
+      When the discovered entries span more than one case (distinct `case_id`
+      values — as when the default `devlogs/` root accumulates multiple demo
+      runs), the tool MUST partition the timeline by `case_id` and MUST NOT
+      interleave events from different cases. The distilled event model MUST
+      carry the `case_id`, ordering MUST be case-contiguous (group by `case_id`,
+      then by `log_index` ascending within each case), the replica-presence
+      matrix MUST be computed per case, and each renderer MUST present one
+      clearly labelled section (or table) per case.
+    rationale: >-
+      `log_index` restarts at 0 for each case and same-named actor directories
+      recur across demo runs, so a single merged timeline over multiple cases
+      interleaves unrelated events and conflates replica presence across cases.
+      DRPT-02-004's "single canonical timeline" is well-defined only within one
+      case; partitioning by `case_id` preserves that guarantee when the input
+      directory holds more than one.
+    relationships:
+    - rel_type: refines
+      spec_id: DRPT-02-004
 - id: DRPT-03
   title: Friendly Naming
   specs:

@@ -35,6 +35,7 @@ from vultron.demo.report import (
     friendly_actor_name,
     friendly_target_noun,
     generate_report,
+    group_events_by_case,
     main,
     render_html,
     render_markdown,
@@ -197,6 +198,27 @@ class TestCaseTimelineEventParsing:
         assert event.short_hash == ("c0ffee" + "0" * 58)[:12]
         assert len(event.short_hash) == 12
 
+    def test_non_integer_log_index_degrades_not_crashes(self):
+        """A corrupt logIndex coerces to -1 rather than raising ValueError."""
+        event = CaseTimelineEvent.from_raw(_camel_entry(logIndex="oops"))
+        assert event.log_index == -1
+
+    def test_inline_actor_object_tolerated(self):
+        """An inline actor object (not a bare URI) is normalized, not fatal."""
+        raw = _camel_entry(
+            payloadSnapshot={
+                "type": "Accept",
+                "actor": {
+                    "id": "http://vendor:7999/api/v2/actors/vendor",
+                    "type": "Service",
+                },
+                "object": {"id": "urn:uuid:r", "type": "VulnerabilityReport"},
+            }
+        )
+        event = CaseTimelineEvent.from_raw(raw)
+        assert event.actor_uri == "http://vendor:7999/api/v2/actors/vendor"
+        assert event.actor_label == "Vendor"
+
 
 class TestFriendlyNaming:
     def test_actor_name_from_uri(self):
@@ -298,6 +320,76 @@ class TestBuildTimeline:
 
 
 # ---------------------------------------------------------------------------
+# DRPT-02-006 — multi-case partitioning (no cross-case interleaving)
+# ---------------------------------------------------------------------------
+
+
+def _case_entry(case_id, log_index, entry_hash, **overrides):
+    """A camelCase entry scoped to an explicit case_id / log_index / hash."""
+    return _camel_entry(
+        caseId=case_id,
+        logIndex=log_index,
+        entryHash=entry_hash,
+        **overrides,
+    )
+
+
+class TestMultiCasePartitioning:
+    def test_case_id_extracted(self):
+        assert (
+            CaseTimelineEvent.from_raw(_camel_entry()).case_id == "urn:case:1"
+        )
+        assert (
+            CaseTimelineEvent.from_raw(_snake_entry()).case_id == "urn:case:1"
+        )
+
+    def test_events_not_interleaved_across_cases(self):
+        """Two cases whose log_index both restart at 0 stay contiguous."""
+        replicas = {
+            "vendor": [
+                _case_entry("urn:case:B", 0, "b0" + "0" * 62),
+                _case_entry("urn:case:A", 0, "a0" + "0" * 62),
+                _case_entry("urn:case:B", 1, "b1" + "0" * 62),
+                _case_entry("urn:case:A", 1, "a1" + "0" * 62),
+            ],
+        }
+        events = build_timeline(replicas)
+        # Case-contiguous ordering: all of A, then all of B — never 0,0,1,1.
+        assert [(e.case_id, e.log_index) for e in events] == [
+            ("urn:case:A", 0),
+            ("urn:case:A", 1),
+            ("urn:case:B", 0),
+            ("urn:case:B", 1),
+        ]
+
+    def test_group_events_by_case(self):
+        replicas = {
+            "vendor": [
+                _case_entry("urn:case:A", 0, "a0" + "0" * 62),
+                _case_entry("urn:case:B", 0, "b0" + "0" * 62),
+                _case_entry("urn:case:A", 1, "a1" + "0" * 62),
+            ],
+        }
+        grouped = group_events_by_case(build_timeline(replicas))
+        assert list(grouped) == ["urn:case:A", "urn:case:B"]
+        assert [e.log_index for e in grouped["urn:case:A"]] == [0, 1]
+        assert [e.log_index for e in grouped["urn:case:B"]] == [0]
+
+    def test_presence_matrix_is_per_case(self):
+        """Same actor dir name across cases must not conflate presence."""
+        replicas = {
+            "finder": [_case_entry("urn:case:A", 0, "a0" + "0" * 62)],
+            "vendor": [_case_entry("urn:case:B", 0, "b0" + "0" * 62)],
+        }
+        events = build_timeline(replicas)
+        by_case = {e.case_id: e for e in events}
+        # Case A only in finder's replica; case B only in vendor's — the two
+        # actor directories are NOT merged into a single shared presence set.
+        assert by_case["urn:case:A"].present_in == ["finder"]
+        assert by_case["urn:case:B"].present_in == ["vendor"]
+
+
+# ---------------------------------------------------------------------------
 # DRPT-04 — renderers
 # ---------------------------------------------------------------------------
 
@@ -347,6 +439,30 @@ class TestMarkdownRenderer:
         raw = _camel_entry(receivedAt="a|b")
         md = render_markdown(build_timeline({"vendor": [raw]}), ["vendor"])
         assert "a\\|b" in md
+
+    def test_pipe_in_actor_dir_name_is_escaped(self):
+        """Actor column headers must be cell-escaped like data cells."""
+        md = render_markdown(
+            build_timeline({"ven|dor": [_camel_entry()]}), ["ven|dor"]
+        )
+        header = next(ln for ln in md.splitlines() if ln.startswith("| #"))
+        assert "ven\\|dor" in header
+        assert "| ven|dor |" not in header  # no unescaped column-break
+
+    def test_one_section_per_case(self):
+        """Each distinct case_id gets its own ## Case … section (DRPT-02-006)."""
+        replicas = {
+            "vendor": [
+                _camel_entry(caseId="urn:case:A", entryHash="a" * 64),
+                _camel_entry(caseId="urn:case:B", entryHash="b" * 64),
+            ],
+        }
+        md = render_markdown(build_timeline(replicas), ["vendor"])
+        assert "## Case urn:case:A" in md
+        assert "## Case urn:case:B" in md
+        assert "- Cases: 2" in md
+        # Two header rows — one table per case.
+        assert sum(1 for ln in md.splitlines() if ln.startswith("| #")) == 2
 
 
 class TestHtmlRenderer:
@@ -399,6 +515,27 @@ class TestHtmlRenderer:
         out = render_html(build_timeline({"vendor": [raw]}), ["vendor"])
         # The malicious actor segment is escaped, not emitted as a live tag.
         assert "&lt;script&gt;" in out
+
+    def test_one_section_per_case(self):
+        """Each distinct case_id gets its own <h2>Case …</h2> (DRPT-02-006)."""
+        replicas = {
+            "vendor": [
+                _camel_entry(caseId="urn:case:A", entryHash="a" * 64),
+                _camel_entry(caseId="urn:case:B", entryHash="b" * 64),
+            ],
+        }
+        out = render_html(build_timeline(replicas), ["vendor"])
+        assert "<h2>Case urn:case:A</h2>" in out
+        assert "<h2>Case urn:case:B</h2>" in out
+        assert out.count("<table>") == 2
+        assert "Cases: 2" in out
+
+    def test_case_id_in_heading_is_escaped(self):
+        """A case_id carrying markup is escaped in the <h2> heading."""
+        raw = _camel_entry(caseId="urn:case:<x>", entryHash="a" * 64)
+        out = render_html(build_timeline({"vendor": [raw]}), ["vendor"])
+        assert "<h2>Case urn:case:&lt;x&gt;</h2>" in out
+        assert "<x>" not in out
 
 
 # ---------------------------------------------------------------------------

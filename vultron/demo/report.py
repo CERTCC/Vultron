@@ -32,10 +32,12 @@ Pipeline:
    directory name.
 2. :func:`build_timeline` distils each raw entry into a
    :class:`CaseTimelineEvent`, merges all replicas into one canonical
-   timeline (de-duplicated by ``entry_hash``, ordered by ``log_index``), and
+   timeline (de-duplicated by ``entry_hash``, grouped by ``case_id`` then
+   ordered by ``log_index`` so distinct cases are never interleaved), and
    computes a per-actor replica-presence indicator.
-3. :func:`render_markdown` / :func:`render_html` render the timeline; both
-   consume :class:`CaseTimelineEvent` objects, never raw JSONL dicts.
+3. :func:`render_markdown` / :func:`render_html` render the timeline as one
+   labelled section per case (DRPT-02-006); both consume
+   :class:`CaseTimelineEvent` objects, never raw JSONL dicts.
 
 Spec: ``specs/demo-report.yaml`` (DRPT-01 through DRPT-05).
 """
@@ -91,6 +93,34 @@ def _first(mapping: dict[str, Any], *names: str, default: Any = None) -> Any:
         if name in mapping and mapping[name] is not None:
             return mapping[name]
     return default
+
+
+def _coerce_int(value: Any, default: int) -> int:
+    """Best-effort ``int`` coercion; returns ``default`` on failure.
+
+    Keeps :meth:`CaseTimelineEvent.from_raw` tolerant of corrupt entries (e.g.
+    a non-numeric ``logIndex``) so a single malformed field degrades one row
+    rather than crashing the whole report (DRPT-01-004, DRPT-02-003).
+    """
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _actor_uri(actor: Any) -> str | None:
+    """Normalize a payload ``actor`` field to a string URI, or ``None``.
+
+    Tolerates both the bare-string spelling and an inline actor object
+    (``{"id": "...", "type": "..."}``) so a nested actor does not raise a
+    validation error out of the distiller (DRPT-02-003).
+    """
+    if isinstance(actor, str):
+        return actor or None
+    if isinstance(actor, dict):
+        ref = actor.get("id") or actor.get("id_")
+        return str(ref) if ref else None
+    return None
 
 
 def _candidate_dicts(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
@@ -283,6 +313,9 @@ class CaseTimelineEvent(BaseModel):
     rather than raw JSONL dicts (DRPT-02-001).
 
     Fields:
+        case_id: URI of the case this entry belongs to; the primary grouping
+            key so distinct cases discovered under one input directory are
+            never interleaved (DRPT-02-006).
         log_index: Monotonic per-case index; the canonical ordering key.
         entry_hash: Full SHA-256 hex hash of the entry (chain traceability).
         disposition: ``"recorded"`` or ``"rejected"``.
@@ -297,6 +330,7 @@ class CaseTimelineEvent(BaseModel):
             entry (the per-actor replica-presence indicator, DRPT-02-005).
     """
 
+    case_id: str = ""
     log_index: int = -1
     entry_hash: str = ""
     disposition: str = "recorded"
@@ -341,11 +375,14 @@ class CaseTimelineEvent(BaseModel):
         received = _first(raw, "received_at", "receivedAt")
 
         return cls(
-            log_index=int(_first(raw, "log_index", "logIndex", default=-1)),
+            case_id=str(_first(raw, "case_id", "caseId", default="")),
+            log_index=_coerce_int(
+                _first(raw, "log_index", "logIndex", default=-1), default=-1
+            ),
             entry_hash=str(_first(raw, "entry_hash", "entryHash", default="")),
             disposition=str(_first(raw, "disposition", default="recorded")),
             event_type=str(_first(raw, "event_type", "eventType", default="")),
-            actor_uri=payload.get("actor"),
+            actor_uri=_actor_uri(payload.get("actor")),
             target_ref=str(target_ref) if target_ref else None,
             target_type=str(target_type) if target_type else None,
             received_at=str(received) if received else None,
@@ -481,8 +518,26 @@ def build_timeline(
         event.present_in = sorted(presence[key])
         events.append(event)
 
-    events.sort(key=lambda e: (e.log_index, e.entry_hash))
+    # Group by case first so distinct cases discovered under one input
+    # directory are never interleaved, then order within a case by log_index
+    # (DRPT-02-006, DRPT-02-004).
+    events.sort(key=lambda e: (e.case_id, e.log_index, e.entry_hash))
     return events
+
+
+def group_events_by_case(
+    events: list[CaseTimelineEvent],
+) -> dict[str, list[CaseTimelineEvent]]:
+    """Partition an ordered timeline into one list per ``case_id``.
+
+    Preserves the incoming (case-contiguous, log-index-ordered) order both
+    across and within cases, so the result is a ready-to-render mapping of
+    ``case_id -> events`` (DRPT-02-006).
+    """
+    grouped: dict[str, list[CaseTimelineEvent]] = {}
+    for event in events:
+        grouped.setdefault(event.case_id, []).append(event)
+    return grouped
 
 
 def discovered_actors(replicas: dict[str, list[dict[str, Any]]]) -> list[str]:
@@ -512,23 +567,11 @@ def _md_cell(text: str) -> str:
     return text.replace("|", "\\|").replace("\n", " ")
 
 
-def render_markdown(events: list[CaseTimelineEvent], actors: list[str]) -> str:
-    """Render the timeline as a markdown table report (DRPT-04-001).
-
-    One row per canonical event over the distilled fields, followed by a
-    per-actor replica-presence matrix column group (``✓`` = present).
-    """
-    lines: list[str] = ["# Case Timeline Report", ""]
-    lines.append(f"- Events: {len(events)}")
-    lines.append(f"- Replicas: {', '.join(actors) if actors else '(none)'}")
-    lines.append("")
-    lines.append(
-        "The trailing per-actor columns are the replica-presence matrix: "
-        "`✓` marks the actor replicas that hold each canonical entry."
-    )
-    lines.append("")
-
-    headers = _TABLE_HEADERS + list(actors)
+def _render_markdown_case(
+    lines: list[str], events: list[CaseTimelineEvent], actors: list[str]
+) -> None:
+    """Append one case's markdown table (header + rows) to ``lines``."""
+    headers = _TABLE_HEADERS + [_md_cell(a) for a in actors]
     lines.append("| " + " | ".join(headers) + " |")
     lines.append("| " + " | ".join(["---"] * len(headers)) + " |")
 
@@ -547,7 +590,34 @@ def render_markdown(events: list[CaseTimelineEvent], actors: list[str]) -> str:
         row += ["✓" if a in event.present_in else "" for a in actors]
         lines.append("| " + " | ".join(row) + " |")
 
-    return "\n".join(lines) + "\n"
+
+def render_markdown(events: list[CaseTimelineEvent], actors: list[str]) -> str:
+    """Render the timeline as a markdown table report (DRPT-04-001).
+
+    Events are partitioned by ``case_id`` into one ``## Case …`` section each
+    (DRPT-02-006); within a section there is one row per canonical event over
+    the distilled fields, followed by a per-actor replica-presence matrix
+    column group (``✓`` = present).
+    """
+    by_case = group_events_by_case(events)
+    lines: list[str] = ["# Case Timeline Report", ""]
+    lines.append(f"- Events: {len(events)}")
+    lines.append(f"- Cases: {len(by_case)}")
+    lines.append(f"- Replicas: {', '.join(actors) if actors else '(none)'}")
+    lines.append("")
+    lines.append(
+        "The trailing per-actor columns are the replica-presence matrix: "
+        "`✓` marks the actor replicas that hold each canonical entry."
+    )
+    lines.append("")
+
+    for case_id, case_events in by_case.items():
+        lines.append(f"## Case {_md_cell(case_id or '(unknown)')}")
+        lines.append("")
+        _render_markdown_case(lines, case_events, actors)
+        lines.append("")
+
+    return "\n".join(lines).rstrip("\n") + "\n"
 
 
 def _html_cell(text: str, title: str | None = None) -> str:
@@ -577,6 +647,7 @@ body {
   margin: 2rem; line-height: 1.4;
 }
 h1 { margin-bottom: 0.25rem; }
+h2 { margin-top: 2rem; font-size: 1.1rem; }
 .meta { color: #666; margin-bottom: 1rem; }
 table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
 th, td {
@@ -591,15 +662,10 @@ code { font-family: ui-monospace, monospace; }
 """.strip()
 
 
-def render_html(events: list[CaseTimelineEvent], actors: list[str]) -> str:
-    """Render the timeline as a self-contained static HTML report.
-
-    All styling is inlined in a ``<style>`` block; the document references no
-    external CSS, JS, fonts, or network assets, so it renders identically
-    offline (DRPT-04-002). The per-actor replica-presence matrix is rendered
-    as a per-actor emoji cell per event (DRPT-04-003). Full URIs/ids are
-    retained only as ``title`` tooltips (DRPT-03-001).
-    """
+def _render_html_case_table(
+    events: list[CaseTimelineEvent], actors: list[str]
+) -> str:
+    """Return the ``<table>`` element for one case's events."""
     head_cells = "".join(f"<th>{html.escape(h)}</th>" for h in _TABLE_HEADERS)
     presence_head = "".join(
         f'<th class="presence-group" title="Replica presence: {html.escape(a)}">'
@@ -630,6 +696,33 @@ def render_html(events: list[CaseTimelineEvent], actors: list[str]) -> str:
             f"{_html_presence_row(event, actors)}</tr>"
         )
 
+    return (
+        "<table>\n<thead>\n<tr>"
+        f"{head_cells}{presence_head}</tr>\n</thead>\n<tbody>\n"
+        + "\n".join(body_rows)
+        + "\n</tbody>\n</table>"
+    )
+
+
+def render_html(events: list[CaseTimelineEvent], actors: list[str]) -> str:
+    """Render the timeline as a self-contained static HTML report.
+
+    All styling is inlined in a ``<style>`` block; the document references no
+    external CSS, JS, fonts, or network assets, so it renders identically
+    offline (DRPT-04-002). Events are partitioned by ``case_id`` into one
+    ``<h2>Case …</h2>`` + table section each (DRPT-02-006). The per-actor
+    replica-presence matrix is rendered as a per-actor emoji cell per event
+    (DRPT-04-003). Full URIs/ids are retained only as ``title`` tooltips
+    (DRPT-03-001).
+    """
+    by_case = group_events_by_case(events)
+    sections: list[str] = []
+    for case_id, case_events in by_case.items():
+        sections.append(
+            f"<h2>Case {html.escape(case_id or '(unknown)')}</h2>\n"
+            + _render_html_case_table(case_events, actors)
+        )
+
     replicas_label = html.escape(", ".join(actors) if actors else "(none)")
     return (
         "<!DOCTYPE html>\n"
@@ -641,13 +734,11 @@ def render_html(events: list[CaseTimelineEvent], actors: list[str]) -> str:
         "</head>\n<body>\n"
         "<h1>Case Timeline Report</h1>\n"
         f'<p class="meta">Events: {len(events)} &middot; '
-        f"Replicas: {replicas_label}</p>\n"
+        f"Cases: {len(by_case)} &middot; Replicas: {replicas_label}</p>\n"
         '<p class="meta">The trailing per-actor columns are the '
         "replica-presence matrix (✅ present, ⬜ absent).</p>\n"
-        "<table>\n<thead>\n<tr>"
-        f"{head_cells}{presence_head}</tr>\n</thead>\n<tbody>\n"
-        + "\n".join(body_rows)
-        + "\n</tbody>\n</table>\n</body>\n</html>\n"
+        + "\n".join(sections)
+        + "\n</body>\n</html>\n"
     )
 
 
