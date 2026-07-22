@@ -1,7 +1,7 @@
 ---
 title: "git rebase 'local changes would be overwritten' false positive"
 type: learning
-timestamp: "2026-07-20"
+timestamp: "2026-07-20T00:00:00+00:00"
 source: ISSUE-1518
 ---
 
@@ -26,3 +26,6 @@ then `cherry-pick --continue`.
 and the working tree is provably clean, try cherry-picking onto a fresh branch
 from origin/main as an alternative path. The rebase error is NOT evidence of
 uncommitted work.
+
+**Promoted**: 2026-07-22 — captured in `AGENTS.md (root)`.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1608>8>8>.

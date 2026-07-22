@@ -1,7 +1,7 @@
 ---
 title: MagicMock requires spec= when code uses isinstance() guards
 type: learning
-timestamp: 2026-07-20
+timestamp: "2026-07-20T00:00:00+00:00"
 source: ISSUE-1504
 ---
 
@@ -17,3 +17,6 @@ returns True. This applies to every test that:
 
 Symptom: test passes but verifies the wrong code path (e.g., "case not found"
 instead of the intended ValueError branch).
+
+**Promoted**: 2026-07-22 — captured in `test/AGENTS.md`.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1608>8>8>.

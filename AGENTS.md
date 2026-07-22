@@ -431,6 +431,18 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   See BT-17-005.
 - **Staged-Type `model_validate` Only Works on Core-Constructed Objects** — don't
   use on `dl.read()` results; check pre-conditions directly on returned object.
+- **`git rebase` "local changes would be overwritten" With a Clean Working Tree**
+  — this error can be a false positive when the rebased branch diverges far from
+  main and both sides touched the same files. Fix: cherry-pick onto a fresh branch
+  from `origin/main` (`git checkout -b temp origin/main && git cherry-pick <hash>`)
+  instead of rebasing. The error message is misleading — it is NOT evidence of
+  uncommitted work. See also: single large-commit branches with 70+ files trigger a
+  sequencer duplicate-pick bug; the cherry-pick workaround resolves both variants.
+  *Sources: ISSUE-1518, ISSUE-1504*
+- **Verify Issue ACs Against Current Code Before Starting** — an issue may already
+  be fully implemented by a prior PR that did not include a `Closes #N` footer.
+  Check current `main` against all ACs before writing any code; if satisfied, close
+  the issue with a reference comment instead. *Sources: ISSUE-1510, ISSUE-1484*
 
 ---
 

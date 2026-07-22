@@ -10,7 +10,8 @@
 | High | SQLite not suitable for multi-node/concurrent writes | `vultron/adapters/driven/datalayer_sqlite/` | Prototype-only scalability ceiling; federation requires a distributed or replicated store | Define migration plan to postgres or equivalent before production deployment |
 | Medium | No test coverage measurement | `pyproject.toml` `[dependency-groups].dev` (no `pytest-cov`) | Coverage gaps are invisible; regressions in untested code go undetected | Add `pytest-cov` and set a minimum coverage threshold in CI |
 | Medium | BT node `TODO` items: shared attributes vs subclass attributes | `vultron/bt/base/bt_node.py:267` | Shared mutable class attributes on `BtNode` could cause subtle state leakage across tree instances | Migrate to per-instance or subclass attributes |
-| Medium | 11 outstanding TODO/FIXME markers in production code (GitHub #505) | `vultron/wire/as2/vocab/activities/case_participant.py:18-19`, `vultron/bt/base/bt_node.py:267`, others | Partially-finished refactors and deferred design decisions in wire layer and BT core | Triage each into a tracked issue or remove; prioritise `vultron/wire/` and `vultron/core/` items first |
+| Medium | 11 outstanding TODO/FIXME markers in production code (issue #505 body says 15 — current count is 11) | `vultron/wire/as2/vocab/activities/case_participant.py:18-19`, `vultron/bt/base/bt_node.py:267`, `vultron/core/states/cs.py:251`, `vultron/core/use_cases/triggers/actor.py:273`, others | Partially-finished refactors and deferred design decisions in wire layer, BT core, and state machines | Triage each into a tracked issue or remove; prioritise `vultron/wire/` and `vultron/core/` items first |
+| Medium | DEMOMA spec groups use flat MUST statements instead of ECA format (issue #1595) | `specs/multi-actor-demo.yaml` groups DEMOMA-06 through DEMOMA-11 — no `trigger`, `preconditions`, `steps`, or `postconditions` fields; `specs/cs-behavior.yaml` shows the intended ECA shape | Scenario workflows remain ambiguous about start state, sequencing preconditions, and terminal conditions; invisible coverage gaps | Retrofit DEMOMA-06–11 to ECA format per `notes/behavioral-conformance-specs.md` |
 | Low | `pacman.py` demo uses pre-Pydantic idioms | `vultron/bt/base/demo/pacman.py:37` | Demo code mixing old and new patterns; misleading for new contributors | Convert to Pydantic idioms or annotate as legacy demo |
 
 ### 2) Technical Debt
@@ -20,6 +21,8 @@
 | `datalayer_sqlite.py` backward-compat shim | DataLayer was split into subpackage; shim keeps callers working | `vultron/adapters/driven/datalayer_sqlite.py` | Shim is low-risk but signals incomplete migration; shim should not accumulate more re-exports | Remove shim once all callers import from subpackage directly |
 | `transitions` state machine library in core | Core `vultron/core/states/` wraps `transitions`; third-party lib in domain layer | `vultron/core/states/em.py`, `rm.py`, `cs.py` | Library API changes affect core domain directly | Encapsulate behind a domain-owned state-machine port if transitions ever becomes a migration blocker |
 | `vultron/demo/` imports from adapters | Demo is intentionally a user of adapters, but boundary between demo and production code is fuzzy | `vultron/demo/` | Demo code mutating shared state could silently affect production code paths | Document or test which demo modules are safe to import in non-demo contexts |
+| Trigger use cases lack per-use-case tests | Incidental coverage from `test_trignotify.py` is insufficient; known gap | `vultron/core/use_cases/triggers/` | Trigger use-case regressions go undetected | Add targeted per-use-case tests; see `notes/triggers-test-coverage.md` |
+| `CaseOutboxPersistence` smell marker | Mixing inbound received-use-case processing with outbound broadcast | Any `ReceivedUseCase` depending on `CaseOutboxPersistence` | Architectural smell; hard to test inbound/outbound paths independently | Review each occurrence and split inbound/outbound concerns where possible |
 
 ### 3) Security Concerns
 
@@ -34,7 +37,7 @@
 | Concern | Evidence | Current symptom | Scaling risk | Suggested improvement |
 |---------|----------|-----------------|-------------|-----------------------|
 | SQLite serializes writes | SQLite architecture | Acceptable for prototype single-actor demo | Multi-actor or federated deployment cannot share one SQLite file | Plan data store migration for production (see risk #2 above) |
-| BT tree execution is synchronous | `vultron/bt/base/bt_node.py`, `py-trees` library | Acceptable for current use; no measured bottleneck | Long-running BT ticks block the event loop if called from async context | Ensure BT execution runs in `BackgroundTasks` (already used in FastAPI layer) |
+| BT tree execution is synchronous | `vultron/core/behaviors/bridge.py` (`BTBridge`), `py_trees` library; bridge serialises concurrent BT executions with a threading lock | Acceptable for current use; no measured bottleneck | Long-running BT ticks block the event loop if called from async context; lock contention under high concurrency | BT execution already runs in FastAPI `BackgroundTasks`; monitor lock contention under load |
 | High-churn files signal fragile areas | Scan: `plan/BUILD_LEARNINGS.md` (96), `AGENTS.md` (92), `plan/IMPLEMENTATION_PLAN.md` (88), `pyproject.toml` (71) | Frequent edits to planning files expected; `pyproject.toml` churn reflects active dependency management | Planning files are low-risk; `pyproject.toml` churn may indicate dependency pinning instability | Monitor `pyproject.toml` churn; pin critical deps once stabilized |
 
 ### 5) Fragile/High-Churn Areas
@@ -46,7 +49,21 @@
 | `vultron/core/behaviors/case/nodes/` | BT node refactoring converted `nodes.py` to a package | 21 commits on package + 18 on `__init__.py` | Test BT execution before any node reorganization |
 | `vultron/adapters/driving/fastapi/inbox_handler.py` | Inbox pipeline evolves with use-case changes | 21 commits in 90 days | Integration-test the inbox flow end-to-end after changes |
 
-### 6) `[ASK USER]` Questions
+### 6) Known Pitfalls (from AGENTS.md)
+
+These are non-obvious error patterns that have tripped developers before; listed here for discoverability:
+
+- **`dl.read()` returns core objects, not `as_`-prefixed wire types** for `CORE_VOCABULARY`-registered types (ADR-0034, DL-05-001). Never call `model_validate()` on `dl.read()` results.
+- **Core MUST NOT re-read a wire activity for semantic content** — capture domain fact as core state at extraction time (ADR-0035, DL-06-001).
+- **`Core→Wire` conversion: use `wire_cls.from_core()`**, never `model_dump()` + `model_validate()`.
+- **`outbox_list()` requires `clone_for_actor`** in tests; shared DataLayer does not have actor-scoped queue methods.
+- **`UnroutableActivityError` must be caught inside `_handle`, not above it** (see `notes/inbox-pipeline.md`).
+- **`BTBridge.execute_with_setup` return value must be checked** — if `bridge.execute_with_setup(...) == Status.FAILURE` raise `VultronBTError(...)`.
+- **Ledger commit must precede outbox write** (see `notes/bt-integration.md`).
+- **Semantic registry pattern must match inbound wire format** (`notes/activitystreams-semantics.md`); validate new patterns in `test/test_semantic_activity_patterns.py`.
+- **`PYTHONPATH=/app` contaminates imports** in devcontainer — always prefix entry points: `PYTHONPATH= uv run spec-dump`.
+
+### 7) `[ASK USER]` Questions
 
 1. [ASK USER] Is there an authentication/authorization mechanism on the FastAPI inbox endpoint in production? The source scan did not confirm an auth scheme.
 2. [ASK USER] What is the intended production database backend? SQLite is explicitly prototype-only; is a migration path to PostgreSQL or another server-based store planned?
@@ -54,11 +71,17 @@
 4. [ASK USER] Is there a minimum test coverage percentage target, or is coverage tracking not yet a goal?
 5. [ASK USER] Are the connector adapters (`vultron/adapters/connectors/example/`) production-ready or examples only? Their package name (`example`) suggests the latter.
 
-### 7) Evidence
+### 8) Evidence
 
 - `.codebase-scan.txt` "HIGH-CHURN FILES" and "TODO / FIXME / HACK" sections
+- `AGENTS.md` "Common Pitfalls" sections
+- `test/AGENTS.md`
 - `test/architecture/test_core_no_adapter_imports.py`
 - `vultron/bt/base/bt_node.py:267`
 - `vultron/wire/as2/vocab/activities/case_participant.py:18-19`
+- `vultron/core/states/cs.py:251`
+- `vultron/core/behaviors/bridge.py`
 - `vultron/adapters/driven/datalayer_sqlite/schema.py`
 - `pyproject.toml` `[dependency-groups].dev`
+- `notes/triggers-test-coverage.md`
+- `notes/datalayer-design.md`

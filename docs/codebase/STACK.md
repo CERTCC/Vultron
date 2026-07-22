@@ -16,12 +16,12 @@
 
 | Dependency | Version | Role in system | Evidence |
 |------------|---------|----------------|----------|
-| FastAPI | >=0.139.0 | HTTP API server (driving adapter) | `pyproject.toml` |
+| FastAPI | >=0.139.2 | HTTP API server (driving adapter) | `pyproject.toml` |
 | Pydantic v2 | ==2.13.4 | Data validation; domain + wire models | `pyproject.toml` |
 | pydantic-settings | >=2.14.2 | Layered settings (env, YAML, defaults) | `pyproject.toml` |
 | SQLModel | >=0.0.39 | SQLite-backed data layer (ORM/schema) | `pyproject.toml` |
 | uvicorn | >=0.51.0 | ASGI server for FastAPI | `pyproject.toml` |
-| py-trees | >=2.2.0 | Behavior tree execution engine | `pyproject.toml` |
+| py-trees | >=2.5.0 | Behavior tree execution engine | `pyproject.toml` |
 | networkx | >=3.5 | Graph operations for BT and case analysis | `pyproject.toml` |
 | transitions | >=0.9.3 | State machine definitions | `pyproject.toml` |
 | PyYAML | >=6.0 | YAML config + spec file parsing | `pyproject.toml` |
@@ -38,14 +38,15 @@
 |------|---------|----------|
 | black | Code formatter (line-length 79) | `pyproject.toml` `[tool.black]`, `[dependency-groups].dev` |
 | flake8 | Linter (E203/E501 ignored, max complexity 10) | `.flake8`, `[dependency-groups].dev` |
-| mypy | Static type checking | `pyproject.toml` `[dependency-groups].dev` |
-| pyright | Static type checking (second pass) | `pyrightconfig.json`, `[dependency-groups].dev` |
-| isort | Import ordering (black profile) | `pyproject.toml` `[tool.isort]` |
+| mypy | Static type checking (>=2.3.0) | `pyproject.toml` `[dependency-groups].dev` |
+| pyright | Static type checking (>=1.1.411, second pass) | `pyrightconfig.json`, `[dependency-groups].dev` |
+| isort | Import ordering (black profile, >=7.0.0) | `pyproject.toml` `[tool.isort]` |
 | pre-commit | Git hook runner | `[dependency-groups].dev` |
 | pytest | Test runner (>=9.1.1) | `pyproject.toml` `[dependency-groups].dev` |
-| pytest-timeout | Per-test timeout (5 s default) | `pyproject.toml` `[tool.pytest.ini_options]` |
-| pytest-xdist | Parallel test execution | `[dependency-groups].dev` |
+| pytest-timeout | Per-test timeout (5 s default, thread method) | `pyproject.toml` `[tool.pytest.ini_options]` |
+| pytest-xdist | Parallel test execution (>=3.8.0) | `[dependency-groups].dev` |
 | markdownlint-cli2 | Markdown linting | `mdlint.sh`, `Makefile` |
+| linkchecker | Link validation for docs | `[dependency-groups].dev` |
 
 ### 4) Key Commands
 

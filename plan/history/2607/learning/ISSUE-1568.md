@@ -45,3 +45,6 @@ script (`PYTHONPATH= uv run <script>`), not just the module import — and
 remember the devcontainer's `PYTHONPATH=/app` must be cleared or the stale
 baked image shadows the relocated module (see
 [[20260720-pythonpath-app-contaminates-uv-run]]).
+
+**Promoted**: 2026-07-22 — captured in `vultron/demo/AGENTS.md`.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1608>8>8>.

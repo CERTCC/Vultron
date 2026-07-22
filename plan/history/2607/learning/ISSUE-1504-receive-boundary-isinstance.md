@@ -1,7 +1,7 @@
 ---
 title: Receive-side boundary needs dual isinstance OR type_ check for wire objects
 type: learning
-timestamp: 2026-07-20
+timestamp: "2026-07-20T00:00:00+00:00"
 source: ISSUE-1504
 ---
 
@@ -30,3 +30,6 @@ This pattern:
 
 Applies to `vultron/core/use_cases/received/actor/announce.py` and any future
 received-side use case that processes wire objects at the entry point.
+
+**Promoted**: 2026-07-22 — captured in `vultron/core/AGENTS.md`.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1608>8>8>.

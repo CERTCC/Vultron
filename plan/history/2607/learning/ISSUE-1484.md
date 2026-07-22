@@ -29,3 +29,6 @@ When an issue's `notes/*.md` file describes the ACs as already implemented
 tests first before claiming — then close immediately rather than implementing
 again. The embargo-lifecycle.md note file is a particularly reliable indicator
 since it is updated alongside implementation commits.
+
+**Promoted**: 2026-07-22 — captured in `AGENTS.md (root)`.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1608>8>8>.

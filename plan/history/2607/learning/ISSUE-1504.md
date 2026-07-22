@@ -1,7 +1,7 @@
 ---
 title: git rebase fails with "local changes would be overwritten" when branch diverged far from main
 type: learning
-timestamp: 2026-07-20
+timestamp: "2026-07-20T00:00:00+00:00"
 source: ISSUE-1504
 ---
 
@@ -30,3 +30,6 @@ This creates the rebased state cleanly without the sequencer confusion.
 **Prevention**: Keep branches short-lived and rebase frequently to avoid large
 divergence. The build skill's Phase 0 (`git fetch && git reset --hard origin/main`)
 should be run immediately before starting work to root the branch at current main.
+
+**Promoted**: 2026-07-22 — captured in `AGENTS.md (root)`.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1608>8>8>.

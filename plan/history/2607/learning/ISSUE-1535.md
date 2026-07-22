@@ -1,7 +1,7 @@
 ---
 title: Demo scripts must puppeteer actors via trigger endpoints, never spoof via inbox injection
 type: learning
-timestamp: 2026-07-20
+timestamp: "2026-07-20T00:00:00+00:00"
 source: ISSUE-1535
 ---
 
@@ -21,3 +21,6 @@ exists.  If it doesn't, implement it first (full hexagonal stack) before writing
 the demo step.  This surfaced for ISSUE-1535 when no
 `accept-actor-recommendation` endpoint existed — implementing the endpoint was
 part of the demo task, not a blocker to work around.
+
+**Promoted**: 2026-07-22 — captured in `vultron/demo/AGENTS.md`.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1608>8>8>.

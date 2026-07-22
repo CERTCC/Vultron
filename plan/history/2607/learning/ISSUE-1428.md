@@ -18,3 +18,6 @@ Misplacing a layer-neutral helper in a higher layer creates silent transitive vi
 ## Pattern to apply
 
 Before placing a new utility in `use_cases/_helpers.py` or any layer-specific helpers module, ask: does this function depend on anything above `models/`? If no, put it in `core/models/_helpers.py`.
+
+**Promoted**: 2026-07-22 — captured in `vultron/core/AGENTS.md`.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1608>8>8>.
