@@ -11,14 +11,15 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Tests for the collapsed publication behavior tree (Production Collapse 2).
+"""Tests for the collapsed publication behavior tree (Production Collapses 2 + 4).
 
-Verifies ADR-0028 / BT-20-002:
+Verifies ADR-0028 / BT-20-002 and ADR-0030 / BT-20-004:
 - AC-1: PublicationIntentsSet flag check eliminated (not a leaf).
 - AC-2: NoPublishExploit / NoPublishFix / NoPublishReport bypass leaves eliminated.
 - AC-3: PrioritizePublicationIntents returns a typed PublicationIntentDecision.
 - AC-4: Three named per-artifact arms gated by the intent-record booleans.
 - AC-5: ADR-0025 factory pattern applied to every call-out point.
+- Collapse 4: single Publish leaf replaced by draft-review-submit pipeline subtree.
 """
 
 import pytest
@@ -34,11 +35,14 @@ from vultron.core.behaviors.report.publication_tree import (
     create_publication_tree,
 )
 from vultron.demo.fuzzer.report_management.publication import (
+    DraftAdvisoryArtifact,
     PrepareExploit,
     PrepareFix,
     PrepareReport,
     PrioritizePublicationIntents,
-    Publish,
+    ReviewAdvisoryDraft,
+    ReviseAdvisoryDraft,
+    SubmitAdvisoryArtifact,
 )
 
 CASE_ID = "https://example.org/cases/test-001"
@@ -145,16 +149,19 @@ def test_each_arm_is_selector(arm_name):
     arm = next(c for c in tree.children if c.name == arm_name)
     assert isinstance(arm, py_trees.composites.Selector)
     assert len(arm.children) == 2
-    # First child: the Do<Arm> Sequence (gate → prepare → publish).
+    # First child: the Do<Arm> Sequence (gate → prepare → PublishArtifactBT_*).
     do_seq = arm.children[0]
     assert isinstance(do_seq, py_trees.composites.Sequence)
     assert len(do_seq.children) == 3
+    # Third child of the Sequence is the publish pipeline subtree (Sequence).
+    assert isinstance(do_seq.children[2], py_trees.composites.Sequence)
+    assert do_seq.children[2].name.startswith("PublishArtifactBT_")
     # Second child: an Inverter skip guard.
     assert isinstance(arm.children[1], py_trees.decorators.Inverter)
 
 
-def test_default_prepare_and_publish_nodes_are_fuzzers():
-    """AC-5: default factories produce the fuzzer Composer/Actuator nodes."""
+def test_default_prepare_nodes_are_fuzzers():
+    """AC-5: default prepare factories produce the fuzzer Composer nodes."""
     tree = create_publication_tree(case_id=CASE_ID)
     exploit_seq = tree.children[1].children[0]
     fix_seq = tree.children[2].children[0]
@@ -162,15 +169,27 @@ def test_default_prepare_and_publish_nodes_are_fuzzers():
 
     assert isinstance(exploit_seq.children[0], ShouldPublishExploit)
     assert isinstance(exploit_seq.children[1], PrepareExploit)
-    assert isinstance(exploit_seq.children[2], Publish)
 
     assert isinstance(fix_seq.children[0], ShouldPublishFix)
     assert isinstance(fix_seq.children[1], PrepareFix)
-    assert isinstance(fix_seq.children[2], Publish)
 
     assert isinstance(report_seq.children[0], ShouldPublishReport)
     assert isinstance(report_seq.children[1], PrepareReport)
-    assert isinstance(report_seq.children[2], Publish)
+
+
+def test_default_publish_pipeline_nodes_are_fuzzers():
+    """Collapse 4: default pipeline factories produce fuzzer nodes per arm."""
+    tree = create_publication_tree(case_id=CASE_ID)
+    for arm, label in zip(tree.children[1:], ["Exploit", "Fix", "Report"]):
+        pipeline = arm.children[0].children[2]  # PublishArtifactBT_<label>
+        assert pipeline.name == f"PublishArtifactBT_{label}"
+        assert isinstance(pipeline.children[0], DraftAdvisoryArtifact)
+        assert isinstance(pipeline.children[1], ReviewAdvisoryDraft)
+        # children[2] is the RevisionArm Selector
+        revision_arm = pipeline.children[2]
+        do_revise = revision_arm.children[0]
+        assert isinstance(do_revise.children[1], ReviseAdvisoryDraft)
+        assert isinstance(pipeline.children[3], SubmitAdvisoryArtifact)
 
 
 # ---------------------------------------------------------------------------
@@ -203,7 +222,10 @@ def test_full_tick_with_default_evaluator_writes_intent_record():
         prepare_exploit_factory=_marker_factory("PrepExploit"),
         prepare_fix_factory=_marker_factory("PrepFix"),
         prepare_report_factory=_marker_factory("PrepReport"),
-        publish_factory=_marker_factory("Pub"),
+        draft_advisory_artifact_factory=_marker_factory("Draft"),
+        review_advisory_draft_factory=_marker_factory("Review"),
+        revise_advisory_draft_factory=_marker_factory("Revise"),
+        submit_advisory_artifact_factory=_marker_factory("Submit"),
     )
     # Guard: the Evaluator under test is the real default node, not a stub.
     assert isinstance(tree.children[0], PrioritizePublicationIntents)
@@ -282,16 +304,24 @@ def test_prepare_factories_used():
     assert tree.children[3].children[0].children[1].name == "CustomPrepReport"
 
 
-def test_publish_factory_used_in_every_arm():
-    """AC-5: the single publish_factory is applied to all three arms."""
+def test_publish_pipeline_factories_used_in_every_arm():
+    """AC-5 / Collapse 4: the four pipeline factories are applied to all arms."""
     tree = create_publication_tree(
         case_id=CASE_ID,
-        publish_factory=_marker_factory("CustomPublish"),
+        draft_advisory_artifact_factory=_marker_factory("CustomDraft"),
+        review_advisory_draft_factory=_marker_factory("CustomReview"),
+        revise_advisory_draft_factory=_marker_factory("CustomRevise"),
+        submit_advisory_artifact_factory=_marker_factory("CustomSubmit"),
     )
     for arm in tree.children[1:]:
-        do_seq = arm.children[0]
-        assert do_seq.children[2].name == "CustomPublish"
-        assert not isinstance(do_seq.children[2], Publish)
+        pipeline = arm.children[0].children[2]
+        assert pipeline.children[0].name == "CustomDraft"
+        assert pipeline.children[1].name == "CustomReview"
+        # pipeline.children[2] is RevisionArm; do_revise seq child[1] is revise node
+        do_revise = pipeline.children[2].children[0]
+        assert do_revise.children[1].name == "CustomRevise"
+        assert pipeline.children[3].name == "CustomSubmit"
+        assert not isinstance(pipeline.children[3], SubmitAdvisoryArtifact)
 
 
 # ---------------------------------------------------------------------------

@@ -3,7 +3,11 @@
 import pytest
 import py_trees
 
-from vultron.demo.fuzzer.call_out_point import ComposerCallOutPoint
+from vultron.demo.fuzzer.call_out_point import (
+    ActuatorCallOutPoint,
+    ComposerCallOutPoint,
+    EvaluatorCallOutPoint,
+)
 from vultron.demo.fuzzer.base import (
     AlmostAlwaysFail,
     AlmostAlwaysSucceed,
@@ -14,6 +18,7 @@ from vultron.demo.fuzzer.base import (
 )
 from vultron.demo.fuzzer.report_management.publication import (
     AllPublished,
+    DraftAdvisoryArtifact,
     ExploitReady,
     NoPublishExploit,
     NoPublishFix,
@@ -27,6 +32,9 @@ from vultron.demo.fuzzer.report_management.publication import (
     ReprioritizeExploit,
     ReprioritizeFix,
     ReprioritizeReport,
+    ReviewAdvisoryDraft,
+    ReviseAdvisoryDraft,
+    SubmitAdvisoryArtifact,
 )
 
 _ALL_NODES = [
@@ -44,6 +52,11 @@ _ALL_NODES = [
     NoPublishReport,
     PrepareReport,
     ReprioritizeReport,
+    # Production Collapse 4 nodes (ADR-0030 / BT-20-004)
+    DraftAdvisoryArtifact,
+    ReviewAdvisoryDraft,
+    ReviseAdvisoryDraft,
+    SubmitAdvisoryArtifact,
 ]
 
 
@@ -258,3 +271,98 @@ def test_prepare_report_success_rate():
 
 def test_reprioritize_report_success_rate():
     assert ReprioritizeReport.success_rate == pytest.approx(1.0)
+
+
+# ---------------------------------------------------------------------------
+# Production Collapse 4 nodes (ADR-0030 / BT-20-004)
+# ---------------------------------------------------------------------------
+
+
+def test_draft_advisory_artifact_is_composer():
+    assert issubclass(DraftAdvisoryArtifact, ComposerCallOutPoint)
+
+
+def test_draft_advisory_artifact_base_type():
+    assert issubclass(DraftAdvisoryArtifact, AlmostAlwaysSucceed)
+
+
+def test_draft_advisory_artifact_success_rate():
+    assert DraftAdvisoryArtifact.success_rate == pytest.approx(0.90)
+
+
+def test_draft_advisory_artifact_output_key_declared():
+    from vultron.core.behaviors.report.publish_artifact_tree import (
+        DRAFT_ARTIFACT_KEY,
+    )
+
+    assert DRAFT_ARTIFACT_KEY in DraftAdvisoryArtifact.output_keys
+
+
+def test_draft_advisory_artifact_output_key_type_is_str():
+    from vultron.core.behaviors.report.publish_artifact_tree import (
+        DRAFT_ARTIFACT_KEY,
+    )
+
+    assert DraftAdvisoryArtifact.output_keys[DRAFT_ARTIFACT_KEY] is str
+
+
+def test_review_advisory_draft_is_evaluator():
+    assert issubclass(ReviewAdvisoryDraft, EvaluatorCallOutPoint)
+
+
+def test_review_advisory_draft_base_type():
+    assert issubclass(ReviewAdvisoryDraft, AlwaysSucceed)
+
+
+def test_review_advisory_draft_success_rate():
+    assert ReviewAdvisoryDraft.success_rate == pytest.approx(1.0)
+
+
+def test_review_advisory_draft_output_key_declared():
+    from vultron.core.behaviors.report.publish_artifact_tree import (
+        REVIEW_DECISION_KEY,
+        AdvisoryReviewDecision,
+    )
+
+    assert REVIEW_DECISION_KEY in ReviewAdvisoryDraft.output_keys
+    assert (
+        ReviewAdvisoryDraft.output_keys[REVIEW_DECISION_KEY]
+        is AdvisoryReviewDecision
+    )
+
+
+def test_revise_advisory_draft_is_composer():
+    assert issubclass(ReviseAdvisoryDraft, ComposerCallOutPoint)
+
+
+def test_revise_advisory_draft_base_type():
+    assert issubclass(ReviseAdvisoryDraft, AlmostAlwaysSucceed)
+
+
+def test_revise_advisory_draft_success_rate():
+    assert ReviseAdvisoryDraft.success_rate == pytest.approx(0.90)
+
+
+def test_revise_advisory_draft_output_key_declared():
+    from vultron.core.behaviors.report.publish_artifact_tree import (
+        DRAFT_ARTIFACT_KEY,
+    )
+
+    assert DRAFT_ARTIFACT_KEY in ReviseAdvisoryDraft.output_keys
+
+
+def test_submit_advisory_artifact_is_actuator():
+    assert issubclass(SubmitAdvisoryArtifact, ActuatorCallOutPoint)
+
+
+def test_submit_advisory_artifact_base_type():
+    assert issubclass(SubmitAdvisoryArtifact, AlmostAlwaysSucceed)
+
+
+def test_submit_advisory_artifact_success_rate():
+    assert SubmitAdvisoryArtifact.success_rate == pytest.approx(0.90)
+
+
+def test_submit_advisory_artifact_no_output_keys():
+    """Actuator is a side-effect node — it declares no output keys."""
+    assert SubmitAdvisoryArtifact.output_keys == {}

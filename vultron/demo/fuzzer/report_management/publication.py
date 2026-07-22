@@ -44,6 +44,9 @@ References
 
 from __future__ import annotations
 
+from vultron.core.behaviors.report.publish_artifact_tree import (
+    AdvisoryReviewDecision,
+)
 from vultron.core.behaviors.report.publication_tree import (
     PublicationIntentDecision,
 )
@@ -389,3 +392,115 @@ class ReprioritizeReport(EvaluatorCallOutPoint, AlwaysSucceed):
     """
 
     output_keys = {"reprioritize_report_verdict": str}
+
+
+# ---------------------------------------------------------------------------
+# Production Collapse 4 (ADR-0030 / BT-20-004): Publish leaf pipeline nodes
+# ---------------------------------------------------------------------------
+
+
+class DraftAdvisoryArtifact(ComposerCallOutPoint, AlmostAlwaysSucceed):
+    """Draft the advisory artifact from case data.
+
+    Semantic function:
+        Action — generate a draft advisory artifact (CSAF JSON, CVE record,
+        advisory text, or equivalent) from case data.  In production this
+        would involve a templating engine or LLM-driven composition step
+        that pulls vulnerability details, fix information, and affected
+        product data from the case record.  The fuzzer succeeds almost
+        always, allowing the rest of the pipeline to be exercised.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — reads case context from caller's DataLayer)
+      Output keys: draft_advisory_artifact: str  (SUCCESS only)
+
+    Input category: System integration / Composer.
+
+    Success probability: 0.90 (``AlmostAlwaysSucceed``).
+
+    Automation potential: **Medium–High** — structured artifact generation
+    from well-formed case data (CSAF templates, CVE JSON schema) is
+    automatable; narrative advisory text may benefit from human review.
+    """
+
+    output_keys = {"draft_advisory_artifact": str}
+
+
+class ReviewAdvisoryDraft(EvaluatorCallOutPoint, AlwaysSucceed):
+    """Review and approve the advisory draft.
+
+    Semantic function:
+        Action — review the drafted advisory artifact and produce an
+        :class:`~vultron.core.behaviors.report.publish_artifact_tree.
+        AdvisoryReviewDecision` record indicating approval status and
+        whether revision is required.  The default fuzzer implementation
+        always approves (``needs_revision=False``) so the pipeline
+        functions end-to-end before a real review agent is available
+        (AC-3, ADR-0030).  A real backend may involve human editorial
+        review, automated QA checks, or both.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  draft_advisory_artifact: str  (reads the Composer output)
+      Output keys: advisory_review_decision: AdvisoryReviewDecision
+        (SUCCESS only; default instance written by fuzzer backend)
+
+    Input category: Human decision / QA integration.
+
+    Success probability: 1.00 (``AlwaysSucceed``).
+
+    Automation potential: **Medium** — automated schema validation and
+    completeness checks are feasible; editorial approval and legal review
+    typically require human judgment.
+    """
+
+    output_keys = {"advisory_review_decision": AdvisoryReviewDecision}
+
+
+class ReviseAdvisoryDraft(ComposerCallOutPoint, AlmostAlwaysSucceed):
+    """Revise the advisory draft based on review feedback.
+
+    Semantic function:
+        Action — incorporate feedback from ``ReviewAdvisoryDraft`` and
+        produce a revised advisory artifact.  This node runs only when the
+        Evaluator sets ``needs_revision=True``; when the Evaluator approves
+        without requesting changes the revision arm is a graceful no-op.
+        The fuzzer succeeds almost always.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  advisory_review_decision: AdvisoryReviewDecision
+        (reads the Evaluator output for feedback guidance)
+      Output keys: draft_advisory_artifact: str  (overwrites on SUCCESS)
+
+    Input category: Human decision / Composer.
+
+    Success probability: 0.90 (``AlmostAlwaysSucceed``).
+
+    Automation potential: **Low–Medium** — structured revision based on
+    machine-readable feedback is partially automatable; editorial revisions
+    typically require human involvement.
+    """
+
+    output_keys = {"draft_advisory_artifact": str}
+
+
+class SubmitAdvisoryArtifact(ActuatorCallOutPoint, AlmostAlwaysSucceed):
+    """Submit the finalized advisory artifact to the external advisory platform.
+
+    Semantic function:
+        Action — submit the reviewed (and optionally revised) advisory
+        artifact to the target advisory platform (NVD, CVE.org, CMS,
+        package repository, or equivalent) via an API call.  In production
+        this is the final side-effecting step; the fuzzer succeeds almost
+        always, matching the original ``Publish`` Actuator probability.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — artifact context from construction time)
+      Output keys: (none — side effect: publish artifact to advisory platform)
+
+    Input category: System integration / Actuator.
+
+    Success probability: 0.90 (``AlmostAlwaysSucceed``).
+
+    Automation potential: **High** — advisory platform APIs (NVD, CVE.org,
+    CMS, package repository) enable fully automated artifact submission.
+    """

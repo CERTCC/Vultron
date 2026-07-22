@@ -2117,7 +2117,7 @@ Tree structure::
 (see Publication section above; also see Production Collapse 2 for the
 per-artifact preparation context)
 
-**Tracked by**: implementation issue for collapse candidate 4 (blocked by #1200 and collapse candidate 2 impl issue)
+**Implemented by**: issue #1312 (`task/1607-signal-taxonomy` branch, 2026-07-22, ADR-0030 accepted)
 
 #### Production shape
 
@@ -2136,25 +2136,25 @@ PublishArtifactBT (Sequence)
 └── SubmitAdvisoryArtifact (Actuator)   — submit finalized artifact to advisory platform
 ```
 
-**Open design question**: Should the review phase include a
-"broadcast draft to case participants for comment" step before the Evaluator
-runs? This would involve emitting an outbound Activity (a protocol-visible
-action) and optionally waiting for participant responses — resembling the
-`Accept/Reject` question pattern used elsewhere in the protocol. This is
-captured here as an open question; the implementation issue should design
-the review-phase protocol before wiring the BT.
+**Open design question (deferred)**: Whether the review phase should include
+a "broadcast draft to case participants for comment" step was explicitly
+deferred in issue #1312 to a follow-on issue. The pipeline functions without
+it — the default `ReviewAdvisoryDraft` Evaluator is an auto-approve
+`AlwaysSucceed` stub (AC-3, ADR-0030). When the follow-on issue is addressed,
+the participant-comment broadcast would involve emitting an outbound Activity
+(a protocol-visible action) and optionally waiting for participant responses
+— resembling the `Accept/Reject` question pattern used elsewhere.
 
 **Impact on existing `Publish` Actuator nodes**: Each per-artifact arm in
 Production Collapse 2 (`ExploitReady → Publish`, `PrepareFix → Publish`,
 `PrepareReport → Publish`) has its own `Publish` Actuator. In production,
 those Actuators are each replaced by this full `PublishArtifactBT` subtree.
 
-**Target factory function**:
-`vultron.core.behaviors.report.create_publish_artifact_tree` (new; called
-from within `create_publication_tree`)
+**Implemented factory function**:
+`vultron.core.behaviors.report.publish_artifact_tree.create_publish_artifact_tree`
+(called from `create_publication_tree` per arm via `_make_artifact_arm`)
 
-**Spec requirements**: BT-20-004 (provisional — see
-`specs/behavior-tree-integration.yaml`)
+**Spec requirements**: BT-20-004 (see `specs/behavior-tree-integration.yaml`)
 
 ---
 

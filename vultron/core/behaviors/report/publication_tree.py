@@ -11,10 +11,13 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Collapsed publication behavior tree (Production Collapse 2).
+"""Collapsed publication behavior tree (Production Collapse 2 + 4).
 
-Implements ADR-0028 / BT-20-002.  Replaces the twelve simulator publication
-nodes (``PublicationIntentsSet``, ``PrioritizePublicationIntents``,
+Implements ADR-0028 / BT-20-002 (Production Collapse 2) and ADR-0030 /
+BT-20-004 (Production Collapse 4).
+
+Production Collapse 2 replaces the twelve simulator publication nodes
+(``PublicationIntentsSet``, ``PrioritizePublicationIntents``,
 ``NoPublishExploit``, ``ExploitReady``, ``PrepareExploit``,
 ``ReprioritizeExploit``, ``NoPublishFix``, ``PrepareFix``, ``ReprioritizeFix``,
 ``NoPublishReport``, ``PrepareReport``, ``ReprioritizeReport``) with a single
@@ -25,7 +28,7 @@ Evaluator that drives three named per-artifact arms:
 2. Three named per-artifact arms (exploit, fix, report).  Each arm is gated by
    a ``ShouldPublish*`` condition that reads the intent record; when the
    artifact is intended, the arm runs its ``Prepare*`` Composer followed by the
-   ``Publish`` Actuator, otherwise the arm is a graceful no-op.
+   publish pipeline, otherwise the arm is a graceful no-op.
 
 The ``PublicationIntentsSet`` flag check and the ``NoPublish*`` bypass leaves
 are eliminated — they were ProtocolInternal structural artifacts of the
@@ -36,19 +39,22 @@ single source of truth for which arms execute.
 Arm shape (positive-condition gate with Inverter skip, per BTND-08-001)::
 
     ExploitPublicationArm (Selector)
-    ├── Sequence(ShouldPublishExploit, PrepareExploit, Publish)
+    ├── Sequence(ShouldPublishExploit, PrepareExploit, PublishArtifactBT)
     └── Inverter(ShouldPublishExploit)   # SUCCESS no-op when not intended
 
-The ``Publish`` Actuator is kept as a single leaf per arm here; expanding it
-into a draft-review-submit pipeline is tracked separately by ADR-0030 /
-BT-20-004 (Production Collapse 4).
+Production Collapse 4 expands the single ``Publish`` Actuator in each arm
+into the draft-review-submit pipeline from
+:func:`~vultron.core.behaviors.report.publish_artifact_tree.create_publish_artifact_tree`
+(ADR-0030 / BT-20-004).  The per-arm ``Prepare*`` Composer still runs first;
+the publish pipeline follows it inside the same Sequence.
 
 References
 ----------
 - ADR-0028: ``docs/adr/0028-publication-intent-bt-collapse.md``
-- Spec: ``specs/behavior-tree-integration.yaml`` BT-20-002
+- ADR-0030: ``docs/adr/0030-publish-leaf-draft-review-submit-pipeline.md``
+- Spec: ``specs/behavior-tree-integration.yaml`` BT-20-002, BT-20-004
 - Notes: ``notes/bt-fuzzer-nodes-report-management.md``
-  § "Production Collapse 2: Publication-intent subtree → Evaluator + per-artifact arms"
+  § "Production Collapse 2" and "Production Collapse 4"
 - Precedent: ``vultron.core.behaviors.report.acquire_exploit_strategy_tree``
   (Production Collapse 1, ADR-0027)
 """
@@ -63,6 +69,13 @@ from py_trees.common import Access, Status
 from pydantic import BaseModel
 
 from vultron.core.behaviors.call_out_point import CallOutBackendFactory
+from vultron.core.behaviors.report.publish_artifact_tree import (
+    _default_draft_advisory_artifact_factory,
+    _default_review_advisory_draft_factory,
+    _default_revise_advisory_draft_factory,
+    _default_submit_advisory_artifact_factory,
+    create_publish_artifact_tree,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -233,33 +246,29 @@ def _default_prepare_report_factory(name: str) -> py_trees.behaviour.Behaviour:
     return PrepareReport(name)
 
 
-def _default_publish_factory(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.publication import Publish
-
-    return Publish(name)
-
-
 def _make_artifact_arm(
+    case_id: str,
     arm_name: str,
+    artifact_label: str,
     gate_cls: type[_ShouldPublishArtifactGate],
     prepare_factory: CallOutBackendFactory,
     prepare_node_name: str,
-    publish_factory: CallOutBackendFactory,
-    publish_node_name: str,
+    draft_advisory_artifact_factory: CallOutBackendFactory,
+    review_advisory_draft_factory: CallOutBackendFactory,
+    revise_advisory_draft_factory: CallOutBackendFactory,
+    submit_advisory_artifact_factory: CallOutBackendFactory,
 ) -> py_trees.behaviour.Behaviour:
     """Build one intent-gated per-artifact publication arm.
 
     Shape (positive-condition gate with Inverter skip, per BTND-08-001)::
 
         Selector(arm_name)
-        ├── Sequence(gate, Prepare, Publish)
+        ├── Sequence(gate, Prepare, PublishArtifactBT)
         └── Inverter(gate)   # SUCCESS no-op when the artifact is not intended
 
-    When the artifact IS intended, the Sequence runs; a genuine Prepare/Publish
-    failure fails the Sequence, the Inverter (gate is SUCCESS → FAILURE) also
-    fails, and the FAILURE propagates to the parent ``PublicationBT``.  When the
-    artifact is NOT intended, the Sequence short-circuits and the Inverter
-    (gate is FAILURE → SUCCESS) turns the arm into a graceful no-op.
+    The ``PublishArtifactBT`` subtree is the draft-review-submit pipeline from
+    :func:`~vultron.core.behaviors.report.publish_artifact_tree.create_publish_artifact_tree`
+    (Production Collapse 4, ADR-0030 / BT-20-004).
     """
     do_publish = py_trees.composites.Sequence(
         name=f"Do{arm_name}",
@@ -267,7 +276,14 @@ def _make_artifact_arm(
         children=[
             gate_cls(),
             prepare_factory(prepare_node_name),
-            publish_factory(publish_node_name),
+            create_publish_artifact_tree(
+                case_id=case_id,
+                artifact_label=artifact_label,
+                draft_advisory_artifact_factory=draft_advisory_artifact_factory,
+                review_advisory_draft_factory=review_advisory_draft_factory,
+                revise_advisory_draft_factory=revise_advisory_draft_factory,
+                submit_advisory_artifact_factory=submit_advisory_artifact_factory,
+            ),
         ],
     )
     skip_if_not_intended = py_trees.decorators.Inverter(
@@ -287,23 +303,35 @@ def create_publication_tree(
     prepare_exploit_factory: CallOutBackendFactory = _default_prepare_exploit_factory,
     prepare_fix_factory: CallOutBackendFactory = _default_prepare_fix_factory,
     prepare_report_factory: CallOutBackendFactory = _default_prepare_report_factory,
-    publish_factory: CallOutBackendFactory = _default_publish_factory,
+    draft_advisory_artifact_factory: CallOutBackendFactory = _default_draft_advisory_artifact_factory,
+    review_advisory_draft_factory: CallOutBackendFactory = _default_review_advisory_draft_factory,
+    revise_advisory_draft_factory: CallOutBackendFactory = _default_revise_advisory_draft_factory,
+    submit_advisory_artifact_factory: CallOutBackendFactory = _default_submit_advisory_artifact_factory,
 ) -> py_trees.behaviour.Behaviour:
-    """Create the collapsed publication behavior tree (Production Collapse 2).
+    """Create the collapsed publication behavior tree (Production Collapses 2 + 4).
 
-    Implements ADR-0028 / BT-20-002: a single ``PrioritizePublicationIntents``
-    Evaluator writes a :class:`PublicationIntentDecision` record whose boolean
-    fields gate three named per-artifact arms (exploit, fix, report).  The
-    ``PublicationIntentsSet`` flag check, the ``NoPublish*`` bypass leaves, and
-    the ``ReprioritizeX`` Evaluators are eliminated.
+    Implements ADR-0028 / BT-20-002 (Production Collapse 2) and ADR-0030 /
+    BT-20-004 (Production Collapse 4).
+
+    A single ``PrioritizePublicationIntents`` Evaluator writes a
+    :class:`PublicationIntentDecision` record whose boolean fields gate three
+    named per-artifact arms (exploit, fix, report).  Each arm runs a
+    ``Prepare*`` Composer followed by the draft-review-submit pipeline from
+    :func:`~vultron.core.behaviors.report.publish_artifact_tree.create_publish_artifact_tree`.
 
     Tree structure::
 
         PublicationBT (Sequence)
         ├── PrioritizePublicationIntents (Evaluator → writes intent record)
         ├── ExploitPublicationArm (Selector, gated on publish_exploit)
+        │   ├── Sequence(ShouldPublishExploit, PrepareExploit, PublishArtifactBT_Exploit)
+        │   └── Inverter(ShouldPublishExploit)
         ├── FixPublicationArm (Selector, gated on publish_fix)
+        │   ├── Sequence(ShouldPublishFix, PrepareFix, PublishArtifactBT_Fix)
+        │   └── Inverter(ShouldPublishFix)
         └── ReportPublicationArm (Selector, gated on publish_report)
+            ├── Sequence(ShouldPublishReport, PrepareReport, PublishArtifactBT_Report)
+            └── Inverter(ShouldPublishReport)
 
     Args:
         case_id: ID of the VulnerabilityCase to publish for.
@@ -318,11 +346,18 @@ def create_publication_tree(
         prepare_report_factory: Factory for the Composer call-out point that
             authors and stages the vulnerability advisory artifact.  Defaults to
             the fuzzer backend.
-        publish_factory: Factory for the Actuator call-out point that submits a
-            prepared artifact to the external advisory platform.  Called once
-            per arm; defaults to the fuzzer backend.  Expanding this single
-            Actuator into a draft-review-submit pipeline is tracked by ADR-0030
-            / BT-20-004.
+        draft_advisory_artifact_factory: Factory for the Composer that drafts
+            the advisory artifact in the publish pipeline.  Shared across all
+            three per-artifact arms.  Defaults to the fuzzer backend.
+        review_advisory_draft_factory: Factory for the Evaluator that reviews
+            and approves the draft.  Defaults to the auto-approve fuzzer
+            backend (AC-3, ADR-0030).
+        revise_advisory_draft_factory: Factory for the optional Composer that
+            revises the draft based on review feedback.  Defaults to the fuzzer
+            backend.
+        submit_advisory_artifact_factory: Factory for the Actuator that submits
+            the finalized artifact to the external advisory platform.  Defaults
+            to the fuzzer backend.
 
     Returns:
         Root Sequence node of the collapsed publication behavior tree.
@@ -335,32 +370,45 @@ def create_publication_tree(
                 "PrioritizePublicationIntents"
             ),
             _make_artifact_arm(
+                case_id=case_id,
                 arm_name="ExploitPublicationArm",
+                artifact_label="Exploit",
                 gate_cls=ShouldPublishExploit,
                 prepare_factory=prepare_exploit_factory,
                 prepare_node_name="PrepareExploit",
-                publish_factory=publish_factory,
-                publish_node_name="PublishExploit",
+                draft_advisory_artifact_factory=draft_advisory_artifact_factory,
+                review_advisory_draft_factory=review_advisory_draft_factory,
+                revise_advisory_draft_factory=revise_advisory_draft_factory,
+                submit_advisory_artifact_factory=submit_advisory_artifact_factory,
             ),
             _make_artifact_arm(
+                case_id=case_id,
                 arm_name="FixPublicationArm",
+                artifact_label="Fix",
                 gate_cls=ShouldPublishFix,
                 prepare_factory=prepare_fix_factory,
                 prepare_node_name="PrepareFix",
-                publish_factory=publish_factory,
-                publish_node_name="PublishFix",
+                draft_advisory_artifact_factory=draft_advisory_artifact_factory,
+                review_advisory_draft_factory=review_advisory_draft_factory,
+                revise_advisory_draft_factory=revise_advisory_draft_factory,
+                submit_advisory_artifact_factory=submit_advisory_artifact_factory,
             ),
             _make_artifact_arm(
+                case_id=case_id,
                 arm_name="ReportPublicationArm",
+                artifact_label="Report",
                 gate_cls=ShouldPublishReport,
                 prepare_factory=prepare_report_factory,
                 prepare_node_name="PrepareReport",
-                publish_factory=publish_factory,
-                publish_node_name="PublishReport",
+                draft_advisory_artifact_factory=draft_advisory_artifact_factory,
+                review_advisory_draft_factory=review_advisory_draft_factory,
+                revise_advisory_draft_factory=revise_advisory_draft_factory,
+                submit_advisory_artifact_factory=submit_advisory_artifact_factory,
             ),
         ],
     )
     logger.info(
-        f"Created PublicationBT (Production Collapse 2) for case={case_id}"
+        "Created PublicationBT (Production Collapses 2+4) for case=%s",
+        case_id,
     )
     return root
