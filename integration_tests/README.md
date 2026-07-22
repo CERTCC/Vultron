@@ -52,33 +52,33 @@ actor services defined in `docker/docker-compose-multi-actor.yml`, waits for
 every actor to pass its `/health/ready` health check, then runs the selected
 multi-actor demo scenario via the `demo-runner` service.
 
-Three scenarios are supported:
+Four scenarios are supported:
 
-| Scenario      | Actors                                      |
-|:--------------|:--------------------------------------------|
-| `fv`          | Finder + Vendor + CaseActor                 |
-| `three-actor` | Finder + Vendor + Coordinator + CaseActor   |
-| `multi-vendor`| Finder + Vendor + Coordinator + Vendor2 + CaseActor |
+| Scenario          | Actors                                                    |
+|:------------------|:----------------------------------------------------------|
+| `fv`              | Finder + Vendor + CaseActor                               |
+| `fvv`             | Finder + Vendor + Vendor2 (no Coordinator)                |
+| `fvcv-extension`  | Finder + Vendor + Coordinator + Vendor2 + CaseActor       |
+| `fvcv-handoff`    | Finder + Vendor + Coordinator + Vendor2 + CaseActor       |
 
 ### Running a specific scenario
 
-```bash
-# Two-actor scenario (default):
-make integration-test-multi-actor
-
-# Three-actor scenario:
-make integration-test-three-actor
-
-# Multi-vendor scenario:
-make integration-test-multi-vendor
-```
-
-Or directly, passing the scenario as a positional argument:
+Pass the scenario name as a positional argument:
 
 ```bash
 ./integration_tests/demo/run_multi_actor_integration_test.sh fv
-./integration_tests/demo/run_multi_actor_integration_test.sh three-actor
-./integration_tests/demo/run_multi_actor_integration_test.sh multi-vendor
+./integration_tests/demo/run_multi_actor_integration_test.sh fvv
+./integration_tests/demo/run_multi_actor_integration_test.sh fvcv-extension
+./integration_tests/demo/run_multi_actor_integration_test.sh fvcv-handoff
+```
+
+Or via Makefile targets:
+
+```bash
+make integration-test-multi-actor    # fv (default)
+make integration-test-fvv            # fvv
+make integration-test-fvcv-extension # fvcv-extension
+make integration-test-fvcv-handoff   # fvcv-handoff
 ```
 
 ### What success looks like
@@ -103,8 +103,8 @@ with a running development stack. Override it to run multiple scenarios in
 parallel:
 
 ```bash
-PROJECT_NAME=vultron-it-fv   DEMO=fv   ./integration_tests/demo/run_multi_actor_integration_test.sh
-PROJECT_NAME=vultron-it-three DEMO=three-actor ./integration_tests/demo/run_multi_actor_integration_test.sh
+PROJECT_NAME=vultron-it-fv  DEMO=fv  ./integration_tests/demo/run_multi_actor_integration_test.sh
+PROJECT_NAME=vultron-it-fvv DEMO=fvv ./integration_tests/demo/run_multi_actor_integration_test.sh
 ```
 
 **Host port conflicts** — by default each actor service binds container

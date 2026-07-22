@@ -155,7 +155,7 @@ DEMO=multi-vendor docker compose -f docker-compose-multi-actor.yml \
     up --abort-on-container-exit demo-runner
 ```
 
-### Automated multi-actor integration tests (D5-5)
+### Automated multi-actor integration tests
 
 Each scenario can also be run via the integration test script, which builds
 the images, runs the full stack, verifies the exit code, and removes all
@@ -164,16 +164,18 @@ volumes on exit for a clean baseline:
 ```bash
 # From the repository root:
 ./integration_tests/demo/run_multi_actor_integration_test.sh fv
-./integration_tests/demo/run_multi_actor_integration_test.sh three-actor
-./integration_tests/demo/run_multi_actor_integration_test.sh multi-vendor
+./integration_tests/demo/run_multi_actor_integration_test.sh fvv
+./integration_tests/demo/run_multi_actor_integration_test.sh fvcv-extension
+./integration_tests/demo/run_multi_actor_integration_test.sh fvcv-handoff
 ```
 
 Or via the Makefile targets:
 
 ```bash
 make integration-test-multi-actor    # fv
-make integration-test-three-actor    # three-actor
-make integration-test-multi-vendor   # multi-vendor
+make integration-test-fvv            # fvv
+make integration-test-fvcv-extension # fvcv-extension
+make integration-test-fvcv-handoff   # fvcv-handoff
 ```
 
 See `integration_tests/README.md` for full usage notes and isolation tips.
