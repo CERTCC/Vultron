@@ -30,3 +30,6 @@ This creates the rebased state cleanly without the sequencer confusion.
 **Prevention**: Keep branches short-lived and rebase frequently to avoid large
 divergence. The build skill's Phase 0 (`git fetch && git reset --hard origin/main`)
 should be run immediately before starting work to root the branch at current main.
+
+**Promoted**: 2026-07-22 — captured in `AGENTS.md (root)`.
+Docs PR: TBD (fill in after PR is opened).

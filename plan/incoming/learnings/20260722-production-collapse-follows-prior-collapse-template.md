@@ -45,3 +45,6 @@ used in `vultron/core/behaviors/sync/announce_tree.py`.
 See [[20260720-git-rebase-duplicate-pick-on-large-branch]] — the single-commit
 70+-file branch again hit the rebase duplicate-pick sequencer bug during
 create-pr; the cherry-pick-onto-fresh-branch workaround resolved it.
+
+**Promoted**: 2026-07-22 — captured in `notes/bt-integration.md`.
+Docs PR: TBD (fill in after PR is opened).

@@ -29,3 +29,6 @@ positives.
 - Turtle ontology `@prefix` / `@base` directives (five ontology reference pages
   each include a raw `.ttl`/`.owl` file via `include-markdown`)
 - YouTube URL fragment (`@petterogren7535` in ADR-0002)
+
+**Promoted**: 2026-07-22 — captured in `mkdocs.yml config (one-line fix applied)`.
+Docs PR: TBD (fill in after PR is opened).

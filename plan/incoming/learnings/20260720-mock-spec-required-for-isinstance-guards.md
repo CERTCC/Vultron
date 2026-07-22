@@ -17,3 +17,6 @@ returns True. This applies to every test that:
 
 Symptom: test passes but verifies the wrong code path (e.g., "case not found"
 instead of the intended ValueError branch).
+
+**Promoted**: 2026-07-22 — captured in `test/AGENTS.md`.
+Docs PR: TBD (fill in after PR is opened).

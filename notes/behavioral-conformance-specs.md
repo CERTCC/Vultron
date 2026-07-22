@@ -325,6 +325,26 @@ gate fails-safe without swallowing real failures.
 
 ---
 
+## Known Gap: DEMOMA Scenario Specs (issue #1595)
+
+`specs/multi-actor-demo.yaml` groups DEMOMA-06 through DEMOMA-11 describe demo
+scenario workflows as flat ordered MUST statements — no `trigger`,
+`preconditions`, `steps`, or `postconditions` fields. These groups have exactly
+the sequential, stateful process shape that ECA-style requirements are designed
+to capture.
+
+**Impact**: Scenario workflow specs are ambiguous about start state, sequencing
+preconditions, and terminal conditions. Implementers must infer context from
+adjacent prose. Coverage gaps are invisible because there is no machine-readable
+trigger/postcondition structure to check against.
+
+**Suggested action**: Audit all DEMOMA spec groups (DEMOMA-06 through DEMOMA-11)
+and retrofit to the ECA format shown in `specs/cs-behavior.yaml`: add `trigger`,
+typed `preconditions`, ordered `steps[]` (with `actor`/`action`/`expected`),
+and `postconditions`. Tracked in issue #1595.
+
+---
+
 ## PR Sequence
 
 **PR 1**: Schema changes (`schema.py`) + scaffolding (three empty spec files

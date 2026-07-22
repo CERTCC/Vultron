@@ -26,3 +26,6 @@ then `cherry-pick --continue`.
 and the working tree is provably clean, try cherry-picking onto a fresh branch
 from origin/main as an alternative path. The rebase error is NOT evidence of
 uncommitted work.
+
+**Promoted**: 2026-07-22 — captured in `AGENTS.md (root)`.
+Docs PR: TBD (fill in after PR is opened).

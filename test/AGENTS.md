@@ -175,6 +175,72 @@ Factories When BT Default Is Probabilistic".
 
 ---
 
+## MagicMock Requires `spec=` When Code Uses `isinstance()` Guards
+
+When migrating from duck-typing guards (TypeGuard helpers using `getattr`) to
+`isinstance()` checks, bare `MagicMock()` instances break silently: the
+`isinstance` check returns `False` and the test exercises the wrong branch.
+
+**Fix:** use `MagicMock(spec=ConcreteClass)` so
+`isinstance(mock, ConcreteClass)` returns `True`. This applies to every test
+that creates a mock case, participant, or ledger entry AND passes it through
+code that uses `isinstance(x, VulnerabilityCase)` etc.
+
+**Symptom:** test passes but verifies the wrong code path (e.g., "case not
+found" instead of the intended `ValueError` branch).
+
+<!-- Source: ISSUE-1504 -->
+
+---
+
+## BT Contract Tests: Inherit Production Node Class (Not Just the Mixin)
+
+When writing behavior-contract tests for probabilistic call-out-point nodes
+(e.g., `DevelopExploit(OftenSucceed)`, `PurchaseExploit(RarelySucceed)`), the
+deterministic wrapper MUST subclass the **production node** plus `AlwaysSucceed`
+as a secondary base — not a fresh class that only inherits from the abstract
+mixin and `AlwaysSucceed`:
+
+```python
+# ✅ CORRECT — inherits output_keys, annotations, etc. from DevelopExploit
+class _DeterministicDevelopExploit(DevelopExploit, AlwaysSucceed):
+    pass
+
+# ❌ WRONG — declares its own output_keys; won't catch regressions in DevelopExploit
+class _Wrapper(ComposerCallOutPoint, AlwaysSucceed):
+    output_keys = {"developed_exploit_artifact": str}  # duplicated, not inherited
+```
+
+The wrong form would pass even if `DevelopExploit.output_keys` was emptied or
+renamed. Inherit from the production class so any regression there is caught.
+
+<!-- Source: ISSUE-1565 -->
+
+---
+
+## Full-Tree Tick Tests: Stub Only the Probabilistic Nodes, Not the Node Under Test
+
+When ticking a collapsed FUZZ-08x tree to SUCCESS to verify one call-out
+point's contract, check each leaf's fuzzer base type:
+
+- **Leave the node under test at its default factory** — otherwise the test
+  proves nothing about that node's contract.
+- **Inject deterministic stubs for every other probabilistic call-out point**
+  in the tick path (e.g., `AlmostAlwaysSucceed` at 0.90 makes the full-tree
+  tick flaky).
+
+The existing `_marker_factory` helper in test files returns an unconditional-SUCCESS
+stub. Add an `isinstance` guard (e.g., `assert isinstance(tree.children[0], PrioritizePublicationIntents)`)
+so a future refactor that accidentally stubs the node under test fails loudly.
+
+The blackboard storage key carries a **leading slash** (`/publication_intent_decision`);
+assert against `py_trees.blackboard.Blackboard.storage` and rely on the
+`autouse clear_blackboard` fixture to keep the assertion non-vacuous.
+
+<!-- Source: ISSUE-1594 -->
+
+---
+
 ## Genesis-Hash Path Must Be Tested with a Stored Case (CLP-08-995)
 
 `is_ledger_fresh_for_case` skips genesis-hash check when no case is stored

@@ -36,3 +36,6 @@ Buffering also makes the `Reject → replay` recovery order-robust automatically
 because replayed entries flow through the same receive path — no separate replay
 redesign was needed. Keep sending the `Reject` at buffer time as the backstop
 for entries that are genuinely lost (never delivered) rather than reordered.
+
+**Promoted**: 2026-07-22 — captured in `notes/sync-ledger-replication.md (already present)`.
+Docs PR: TBD (fill in after PR is opened).

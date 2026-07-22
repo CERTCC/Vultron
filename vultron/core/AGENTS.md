@@ -145,6 +145,82 @@ directly. Editing `__init__.py` for individual entry additions defeats the
 purpose of the split (reducing merge conflicts) and risks silently corrupting
 the ordering invariant that keeps the `UNKNOWN` fallback last.
 
+### `caller_owns_em_io` Guard: BT/Service Layer Handoff for EM State
+
+When a BT node needs to read EM state before calling a service and write it
+after, use a `caller_owns_em_io` bool to distinguish two paths:
+
+- **BT path** (`em_before` passed): caller already read EM state and will write
+  it via named BT nodes. Service skips its own DataLayer read/write.
+- **Legacy path** (`em_before=None`): service reads and writes internally.
+
+```python
+caller_owns_em_io = em_before is not None
+if not caller_owns_em_io:
+    em_before = EM(case.current_status.em_state)
+assert em_before is not None  # narrows EM | None → EM for mypy
+# ...compute em_after...
+if not caller_owns_em_io and em_after != em_before:
+    case.current_status.em_state = em_after
+    case_mutated = True
+```
+
+The `assert em_before is not None` after the conditional is required for mypy
+to narrow the type; without it mypy keeps the `EM | None` union and flags
+downstream uses.
+
+<!-- Source: ISSUE-1474 -->
+
+---
+
+### Layer-Neutral Helpers Belong in `core/models/_helpers.py`, Not Use-Cases
+
+When a utility function has **no dependencies above `models/`** (no ports, no
+state machines, no use-case logic — only primitive types like `str`, `Any`,
+`uuid`), its correct home is `vultron/core/models/_helpers.py`. That module
+sits at the bottom of the hexagonal stack and is safely importable by **all**
+layers (`behaviors/`, `use_cases/`, `services/`, `adapters/`).
+
+Placing such a helper in `use_cases/_helpers.py` (or any higher-layer module)
+creates silent transitive layer violations everywhere the helper is used. The
+right fix is to move the helper down the stack, not to create a sidecar module
+at the same level.
+
+**How to apply:** Before placing a new utility in `use_cases/_helpers.py`, ask:
+does this function depend on anything above `models/`? If not, put it in
+`core/models/_helpers.py`.
+
+<!-- Source: ISSUE-1428 -->
+
+---
+
+### Receive-Side Wire Objects: Dual `isinstance` / `type_` Check for Core Types
+
+Core received-side use cases process incoming wire-layer activities before
+objects are stored in the DataLayer. At this boundary `case_obj` may be a
+wire-layer `as_VulnerabilityCase`, not a core `VulnerabilityCase` — so
+`isinstance(case_obj, VulnerabilityCase)` returns `False`.
+
+Without importing wire types in core (which would violate ARCH-01-001), use a
+dual check:
+
+```python
+if (
+    not isinstance(case_obj, VulnerabilityCase)
+    and getattr(case_obj, "type_", None) != "VulnerabilityCase"
+):
+    # reject — neither core type nor wire type claiming to be a VulnerabilityCase
+    return
+```
+
+This accepts both `VulnerabilityCase` objects from `dl.read()` and
+`as_VulnerabilityCase` objects from incoming activities, and rejects anything
+else, without importing from `vultron/wire/`.
+
+<!-- Source: ISSUE-1504 -->
+
+---
+
 ### BT-related pitfalls
 
 See [notes/bt-integration.md](../../notes/bt-integration.md) for:

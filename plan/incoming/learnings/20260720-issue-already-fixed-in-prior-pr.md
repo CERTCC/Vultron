@@ -25,3 +25,6 @@ No code changes were required.
 When an issue selected for build has all ACs satisfied on current main, close it
 immediately with a reference to the relevant commit/PR and record a learning.
 Do not attempt to re-implement already-merged work.
+
+**Promoted**: 2026-07-22 — captured in `AGENTS.md (root)`.
+Docs PR: TBD (fill in after PR is opened).

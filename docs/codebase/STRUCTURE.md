@@ -7,16 +7,16 @@
 | Path | Purpose | Evidence |
 |------|---------|----------|
 | `vultron/` | Main Python package — all production source | `pyproject.toml` `[tool.setuptools.packages.find]` |
-| `vultron/core/` | Domain layer: models, ports, use cases, states, behaviors | `notes/architecture-hexagonal.md` |
+| `vultron/core/` | Domain layer: models, ports, use cases, states, behaviors (py_trees BT nodes/trees) | `notes/architecture-hexagonal.md` |
 | `vultron/wire/` | Wire format layer: AS2 vocabulary, parser, extractor, factories | `notes/architecture-hexagonal.md` |
 | `vultron/adapters/` | Adapter layer: driving (HTTP/CLI/MCP), driven (SQLite, delivery), connectors | `notes/architecture-hexagonal.md` |
-| `vultron/bt/` | Behavior tree node library grouped by CVD domain area | `vultron/bt/` directory listing |
+| `vultron/bt/` | **Simulation** BT node library (custom engine, not py_trees); grouped by CVD domain area. MUST NOT be merged with prototype BTs in `vultron/core/behaviors/` | `vultron/bt/` directory listing, `notes/bt-integration.md` |
 | `vultron/config/` | Layer-neutral configuration models and loading logic | `vultron/config/app.py`, `vultron/config/actor.py` |
 | `vultron/enums/` | Shared CVD-domain enums (roles, states) imported by config and core | `vultron/enums/` |
 | `vultron/demo/` | Demo scenario runners and seed-config helpers | `pyproject.toml` entry points |
 | `vultron/metadata/` | Spec registry, history CLI, notes metadata tooling | `vultron/metadata/specs/`, `vultron/metadata/history/` |
 | `vultron/scripts/` | CLI entry points (`vultrabot`) | `pyproject.toml` `[project.scripts]` |
-| `vultron/semantic_registry/` | ActivityStreams semantic pattern registry | `vultron/semantic_registry/` |
+| `vultron/semantic_registry/` | Consolidated semantic dispatch registry (`SEMANTIC_REGISTRY`, `extract_event`, `use_case_map`) — neutral layer importable by wire, core, adapter, and test code | `vultron/semantic_registry/__init__.py` |
 | `test/` | Pytest test suite (mirrors `vultron/` layout) | `pyproject.toml` `[tool.pytest.ini_options]` |
 | `test/architecture/` | Architecture-boundary enforcement tests | `test/architecture/test_core_no_adapter_imports.py` |
 | `specs/` | Structured YAML specification files | `specs/README.md` |
@@ -31,6 +31,7 @@
 
 - **Main ASGI app** (uvicorn/production): `vultron.adapters.driving.fastapi.main:app`
 - **Sub-app for dev/tests**: `vultron.adapters.driving.fastapi.app:app_v2`
+- **Inbox routes** (actor-scoped): `vultron/adapters/driving/fastapi/routers/actors/_routes.py` (package; `_routes.py` defines POST /inbox)
 - **CLI scripts**:
   - `vultron-demo` → `vultron.demo.cli:main`
   - `vultrabot` → `vultron.scripts.vultrabot:main`
@@ -45,12 +46,13 @@
 
 | Boundary | What belongs here | What must not be here |
 |----------|-------------------|------------------------|
-| `vultron/core/` | Domain models, ports (Protocol classes), use cases, states, behaviors | FastAPI, wire-format (AS2), adapter imports |
-| `vultron/wire/as2/` | AS2 vocabulary (Pydantic models), parser, semantic extractor, factories | Core domain import of AS2 types; FastAPI |
+| `vultron/core/` | Domain models, ports (Protocol classes), use cases, states, py_trees BT nodes/trees (`core/behaviors/`) | FastAPI, wire-format (AS2), adapter imports |
+| `vultron/wire/as2/` | AS2 vocabulary (Pydantic models), parser, semantic extractor (`extractor/`), factories | Core domain import of AS2 types; FastAPI |
+| `vultron/semantic_registry/` | `SEMANTIC_REGISTRY` ordered list, `SemanticEntry` dataclass, `extract_event`, `use_case_map`, `_validate_registry_order` | Pattern definitions (those live in `extractor/_instances.py`) |
 | `vultron/adapters/` | HTTP handlers, SQLite data layer, outbound delivery, CLI, MCP, connectors | Core domain logic (no business rules) |
 | `vultron/config/` | Configuration models and loading only | Imports from `vultron.adapters` or `vultron.core` |
 | `vultron/enums/` | Shared CVD enums usable by `config/` and `core/` | Adapter or wire-specific types |
-| `vultron/bt/` | Behavior tree node definitions for CVD sub-protocols | Direct FastAPI or SQLite imports |
+| `vultron/bt/` | Simulation BT node definitions (custom engine) for CVD sub-protocols | Direct FastAPI or SQLite imports; MUST NOT use `py_trees` |
 
 Enforced by: `test/architecture/test_core_no_adapter_imports.py`, `test/architecture/test_core_no_wire_imports.py`
 

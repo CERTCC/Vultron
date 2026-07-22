@@ -31,3 +31,6 @@ PYTHONPATH= uv run pytest ...
 AGENTS.md, orient-agent/SKILL.md, load-specs/SKILL.md, and
 load-specs/REFERENCE.md have all been updated to use `PYTHONPATH= uv run
 spec-dump`.
+
+**Promoted**: 2026-07-22 — captured in `AGENTS.md (root, CONCERNS.md already)`.
+Docs PR: TBD (fill in after PR is opened).

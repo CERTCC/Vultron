@@ -53,3 +53,6 @@ contract, check each leaf's fuzzer base type: leave the node-under-test at its
 default factory, and inject deterministic stubs for every *other* probabilistic
 call-out point in the tick path. Never stub the node whose contract you are
 asserting.
+
+**Promoted**: 2026-07-22 — captured in `test/AGENTS.md`.
+Docs PR: TBD (fill in after PR is opened).

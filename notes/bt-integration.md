@@ -1727,6 +1727,60 @@ eliminates the risk entirely and is cheap.
 
 ---
 
+### Production Collapse (FUZZ-08x): Use the Prior Collapse as a Concrete Template
+
+(ISSUE-1310, 2026-07-22; see also `notes/bt-fuzzer-nodes-report-management.md`)
+
+When implementing a FUZZ-08x Production Collapse, read the most recently merged
+sibling collapse first and mirror its file layout, import structure, test-file
+shape, and doc-update checklist. The pattern is stable across collapses:
+
+**What survives:**
+
+- Outer loop structure (evaluators/retrievers/effort gates)
+- All factory call-out points (ADR-0025)
+- Typed sub-loops where relevant
+
+**What is replaced:**
+
+- Granular simulator Actuator nodes → a single `EvaluatorCallOutPoint` (or
+  `suggest-actor-to-case` trigger for notification loop collapses)
+- The eliminated `InjectX` / `BypassX` fuzzer classes remain in the demo
+  module as catalogued simulator stand-ins; they stop being wired into the
+  production tree
+
+**Import structure:**
+
+- Decision model lives in the core tree module
+  (`vultron/core/behaviors/*/…_tree.py`)
+- Demo fuzzer Evaluator imports the model at module level
+- Core tree module uses **deferred (function-local) imports** of the fuzzer to
+  avoid the circular dependency
+
+**Default field encoding:** the `EvaluatorCallOutPoint` mixin writes
+`typ()` (a default-constructed instance) on SUCCESS, so a decision model's
+field defaults MUST encode the sensible default outcome (e.g.,
+`PublicationIntentDecision` defaults to publish fix + report, withhold
+exploit).
+
+**Arm gating:** use the positively-named gate idiom (BTND-08-001):
+`Selector(Sequence(ShouldPublishX, Prepare, Publish), Inverter(ShouldPublishX))`
+— a not-intended arm is a graceful SUCCESS no-op while a genuine
+Prepare/Publish FAILURE still propagates.
+
+**Doc-update checklist per collapse:**
+
+1. ADR: `proposed` → `accepted`, remove `PROVISIONAL` marker
+2. `specs/behavior-tree-integration.yaml` BT-20-xxx: remove `PROVISIONAL` from
+   rationale, update `tracking_issue` to the implementing PR/issue
+3. `notes/bt-fuzzer-nodes-report-management.md`: rewrite the matching
+   "Production Collapse N" section and each affected node's "Factory-fn
+   placement" line
+
+<!-- Source: ISSUE-1310 -->
+
+---
+
 ### Dual-Path Consolidation Test Gap
 
 (ISSUE-1378, 2026-07-14)

@@ -35,3 +35,6 @@ Any endpoint that needs the *contents* of an actor's outbox queue must call
 `outbox_list_for_actor(actor_id)` directly — not look at `actor.outbox.items`,
 which is always empty after ADR-0034. The actor object's `outbox` field is now
 only a URI pointer to the collection endpoint, not the collection itself.
+
+**Promoted**: 2026-07-22 — captured in `vultron/adapters/AGENTS.md`.
+Docs PR: TBD (fill in after PR is opened).

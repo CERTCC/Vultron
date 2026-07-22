@@ -31,3 +31,6 @@ if not caller_owns_em_io and em_after != em_before:
 The `assert em_before is not None` after the conditional is required for mypy to
 narrow the type from `EM | None` to `EM`; without it mypy keeps the union and
 flags downstream uses.
+
+**Promoted**: 2026-07-22 — captured in `vultron/core/AGENTS.md`.
+Docs PR: TBD (fill in after PR is opened).

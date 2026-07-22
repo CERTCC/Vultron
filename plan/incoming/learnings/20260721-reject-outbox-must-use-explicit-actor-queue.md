@@ -24,3 +24,6 @@ Test impact: tests asserting the reject lands in `dl.outbox_list()` (the
 DL-scope queue) must switch to `dl.outbox_list_for_actor(receiving_actor_id)`
 and set `receiving_actor_id` on the event (the inbox pipeline always does this
 in production).
+
+**Promoted**: 2026-07-22 — captured in `notes/sync-ledger-replication.md (already present)`.
+Docs PR: TBD (fill in after PR is opened).

@@ -29,3 +29,6 @@ The second form would pass even if `DevelopExploit.output_keys` was emptied or
 renamed, because it declares its own independent `output_keys`. The first form
 inherits `output_keys` from the production class, so any regression there is
 caught immediately.
+
+**Promoted**: 2026-07-22 — captured in `test/AGENTS.md`.
+Docs PR: TBD (fill in after PR is opened).
