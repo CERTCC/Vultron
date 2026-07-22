@@ -59,3 +59,7 @@ wip_notes
 .agents
 .github
 .copilot
+.devcontainer
+
+# Docker build files (not needed in app images; individual files copied explicitly)
+docker
