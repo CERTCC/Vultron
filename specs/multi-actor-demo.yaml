@@ -611,7 +611,7 @@ groups:
     steps:
     - order: 1
       actor: vendor1
-      action: POST accept-case-participant-offer trigger for Vendor2
+      action: POST accept-actor-recommendation trigger for Vendor2
       expected: Vendor1 accepts Offer(CaseParticipant); CaseActor sends Invite(CaseStub+embargo) to Vendor2
     - order: 2
       actor: demo-script
@@ -1099,6 +1099,265 @@ groups:
       omitting protocol steps not covered by universal checks. Explicitly
       enumerating them here means CI will catch regressions in the steps
       unique to FCV.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-12-008
+
+- id: DEMOMA-13
+  title: FCCV-Extension Scenario (C1 retains ownership; C2 is participant; C2 suggests Vendor)
+  trigger:
+    type: scenario_start
+    value: fccv-extension
+  specs:
+  - id: DEMOMA-13-001
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCCV-extension scenario MUST involve four actor identities — Finder,
+      Coordinator1 (C1), Coordinator2 (C2), and Vendor — each with its own isolated
+      DataLayer; the CaseActor MUST run as a separate actor identity with its own
+      container and DataLayer, not co-located in the C1 container.
+    rationale: >-
+      FCCV-extension demonstrates inter-coordinator collaboration: C1 is the Case
+      Owner, C2 is a participating coordinator who can suggest new actors but cannot
+      independently invite them. The five-container topology (Finder, C1, C2, Vendor,
+      CaseActor) is the same as FVCV-extension (DEMOMA-10-001) with the C1 role
+      replacing Vendor1 as Case Owner.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-01-001
+    - rel_type: refines
+      spec_id: DEMOMA-10-001
+  - id: DEMOMA-13-002
+    priority: MUST
+    kind: project
+    statement: >-
+      C1 MUST receive the Finder's report (RM→RECEIVED), validate it (RM→VALID),
+      and engage the case (RM→ACCEPTED), retaining CVDRole.CASE_OWNER throughout
+      the entire scenario. Ownership MUST NOT transfer to C2 or Vendor.
+    rationale: >-
+      This scenario demonstrates the "extension" variant where a Coordinator
+      creates and owns a case. C1 acts as both the initial report recipient and
+      the authority that approves all participant additions, in contrast to the
+      FVCV-extension variant where a Vendor holds ownership.
+    preconditions:
+    - description: >-
+        All five containers running (Finder, C1, C2, Vendor, CaseActor);
+        no VulnerabilityCase exists for this report; C1 auto_create_case=True;
+        C1 pre-configured with the dedicated CaseActor container URL
+    steps:
+    - order: 1
+      actor: finder
+      action: POST submit-report trigger directed at C1
+      expected: Report delivered to C1 inbox
+    - order: 2
+      actor: c1
+      action: BT processes inbound report; RM transitions RECEIVED→VALID→ACCEPTED
+      expected: >-
+        VulnerabilityCase created; CaseActor registered on the separate
+        CaseActor container; default embargo initialized to EM.ACTIVE (EP-04-001)
+    - order: 3
+      actor: c1
+      action: C1 assigned CVDRole.CASE_OWNER on the new case
+      expected: C1 holds CASE_OWNER; CaseActor holds CASE_MANAGER
+    - order: 4
+      actor: c1
+      action: >-
+        C1 sends trust-bootstrap Create(VulnerabilityCase) to Finder (CBT-01-001);
+        Finder is the original report submitter and MUST receive this bootstrap to
+        trust the CaseActor identity
+      expected: >-
+        Finder receives Create(VulnerabilityCase) carrying C1 as CASE_OWNER and
+        CaseActor as COORDINATOR; Finder trusts CaseActor for this case
+    postconditions:
+    - description: >-
+        VulnerabilityCase exists; C1 RM=ACCEPTED, CVDRole=CASE_OWNER; CaseActor
+        running with CASE_MANAGER on its own container; EM.ACTIVE established;
+        trust bootstrap delivered to Finder; Finder is an initial participant via
+        the report-submission bootstrap (not via a separate invite-actor-to-case
+        trigger); no ownership transfer has occurred
+    relationships:
+    - rel_type: refines
+      spec_id: CM-02-001
+    - rel_type: refines
+      spec_id: CBT-01-001
+    - rel_type: refines
+      spec_id: EP-04-001
+    - rel_type: refines
+      spec_id: DEMOMA-12-002
+  - id: DEMOMA-13-003
+    priority: MUST
+    kind: project
+    statement: >-
+      C1 MUST invite C2 to the case and C2 MUST accept, becoming a participant
+      holding CVDRole.COORDINATOR and NOT CVDRole.CASE_MANAGER.
+    preconditions:
+    - description: >-
+        DEMOMA-13-002 postconditions satisfied: C1 RM=ACCEPTED, CVDRole=CASE_OWNER;
+        EM.ACTIVE; trust bootstrap delivered to Finder; Finder is an initial
+        participant; C2 container running
+    steps:
+    - order: 1
+      actor: c1
+      action: POST invite-actor-to-case trigger targeting C2
+      expected: CaseActor queues Invite(Actor, Case) for C2's inbox
+    - order: 2
+      actor: demo-script
+      action: Poll C2 DataLayer until Invite(Actor, Case) is visible
+      expected: Invite activity present in C2 DataLayer
+    - order: 3
+      actor: c2
+      action: POST accept-case-invite trigger
+      expected: >-
+        C2 becomes participant with CVDRole.COORDINATOR (not CASE_MANAGER);
+        CaseActor seeds C2 case replica
+    postconditions:
+    - description: >-
+        C2 is a participant with CVDRole.COORDINATOR and NOT CVDRole.CASE_MANAGER;
+        C2 holds a seeded case replica; case has four participants
+        (Finder, C1, C2, CaseActor)
+    relationships:
+    - rel_type: refines
+      spec_id: CM-20-001
+    - rel_type: refines
+      spec_id: DEMOMA-10-003
+  - id: DEMOMA-13-004
+    priority: MUST
+    kind: project
+    statement: >-
+      C2 MUST suggest Vendor to the case and the CaseActor MUST transform the
+      offer and forward it to C1 for approval.
+    preconditions:
+    - description: >-
+        C2 is an accepted participant (DEMOMA-13-003 complete); Vendor
+        container running; no existing suggestion for Vendor in the case
+    steps:
+    - order: 1
+      actor: c2
+      action: POST suggest-actor-to-case trigger for Vendor with roles=["vendor"]
+      expected: C2 sends Offer(Actor, Case) to CaseActor inbox
+    - order: 2
+      actor: case-actor
+      action: >-
+        Transform Offer(Actor, Case) to
+        Offer(CaseParticipant{Vendor, roles=[vendor]}, Case)
+      expected: Transformed offer forwarded to C1 (Case Owner) inbox
+    - order: 3
+      actor: demo-script
+      action: Poll C1 DataLayer until transformed Offer(CaseParticipant) is visible
+      expected: Transformed offer present in C1 DataLayer
+    postconditions:
+    - description: >-
+        C1 holds a pending Offer(CaseParticipant) for Vendor awaiting approval;
+        no invitation has been sent to Vendor yet
+    relationships:
+    - rel_type: refines
+      spec_id: CM-16-001
+    - rel_type: refines
+      spec_id: CM-20-003
+    - rel_type: refines
+      spec_id: DEMOMA-10-004
+  - id: DEMOMA-13-005
+    priority: MUST
+    kind: project
+    statement: >-
+      C1 MUST approve C2's suggestion and the CaseActor MUST then send
+      Invite(CaseStub+embargo) to Vendor on C1's behalf.
+    preconditions:
+    - description: >-
+        C1 DataLayer holds pending Offer(CaseParticipant) for Vendor
+        (DEMOMA-13-004 complete); Vendor container running
+    steps:
+    - order: 1
+      actor: c1
+      action: POST accept-actor-recommendation trigger for Vendor
+      expected: >-
+        C1 accepts Offer(CaseParticipant); CaseActor sends
+        Invite(CaseStub+embargo) to Vendor
+    - order: 2
+      actor: demo-script
+      action: Poll Vendor DataLayer until Invite(CaseStub+embargo) is visible
+      expected: Invite activity present in Vendor DataLayer
+    - order: 3
+      actor: vendor
+      action: POST accept-case-invite trigger
+      expected: >-
+        Vendor becomes participant with CVDRole.VENDOR;
+        CaseActor seeds Vendor case replica with full history
+    postconditions:
+    - description: >-
+        Vendor is a participant with CVDRole.VENDOR and a seeded case replica;
+        all five participants present (Finder, C1, C2, Vendor, CaseActor)
+    relationships:
+    - rel_type: refines
+      spec_id: CM-17-001
+    - rel_type: refines
+      spec_id: CM-20-002
+    - rel_type: refines
+      spec_id: DEMOMA-10-005
+  - id: DEMOMA-13-006
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCCV-extension scenario MUST reach a final state with four participants —
+      Finder, C1, C2, and Vendor (plus the CaseActor) — and MUST advance to
+      VFDPxa CS with EM.EXITED and RM.CLOSED for all participants.
+    rationale: >-
+      Only Vendor tracks a vendor fix path (VFD). C1 and C2 hold CVDRole.COORDINATOR
+      and have no VFD substate. Finder has no VFD substate. EM.EXITED is triggered
+      by CS.P (public disclosure). C1 (CASE_OWNER) is the actor that triggers
+      CS.P per DEMOMA-07-003(4).
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-03-002
+    - rel_type: refines
+      spec_id: DEMOMA-10-006
+  - id: DEMOMA-13-007
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCCV-extension scenario MUST run deterministically end-to-end and MUST
+      verify SYNC-2 replica convergence for Finder, C2, and Vendor replicas against
+      the authoritative C1/CaseActor state after each major protocol event.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-09-004
+    - rel_type: refines
+      spec_id: DEMOMA-10-007
+  - id: DEMOMA-13-008
+    priority: MUST
+    kind: project
+    statement: >-
+      The implementation of the FCCV-extension scenario MUST add a dedicated parallel
+      CI job (`DEMO=fccv-extension`) to `.github/workflows/demo-integration.yml`,
+      so CI failures are independently reported per DEMOCI-03-003.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-09-005
+    - rel_type: refines
+      spec_id: DEMOMA-10-008
+  - id: DEMOMA-13-009
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCCV-extension implementation MUST ship a dedicated per-scenario
+      case-ledger invariant test file
+      (`test/ci/invariants/test_fccv_extension_invariants.py`) built exclusively
+      on the shared invariant library (per DEMOMA-12-008 pattern). The test file
+      MUST assert the following scenario-specific checks in addition to universal
+      library checks: (1) `validate_report` event present in case-actor log;
+      (2) `invite_actor_to_case` present at least twice (C2 invitation + Vendor
+      invitation); (3) `close_case` present; (4) CS transitions VFd and VFD
+      observed in `add_participant_status_to_participant` entries for the Vendor
+      actor (Vendor fix path); public-aware (P) transition observed in
+      `add_participant_status_to_participant` entries for C1 (CASE_OWNER triggers
+      CS.P); (5) Vendor replica holds the complete log from genesis (full history
+      backfill, as Vendor is a late joiner).
+    rationale: >-
+      Scenario-specific invariants prevent the FCCV-extension scenario from
+      accidentally omitting protocol steps not covered by universal checks.
+      The Vendor-as-late-joiner invariant is shared with FVCV-extension
+      (DEMOMA-10) and FCCV-handoff (DEMOMA-14).
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-12-008
