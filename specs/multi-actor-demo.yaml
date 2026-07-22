@@ -611,7 +611,7 @@ groups:
     steps:
     - order: 1
       actor: vendor1
-      action: POST accept-case-participant-offer trigger for Vendor2
+      action: POST accept-actor-recommendation trigger for Vendor2
       expected: Vendor1 accepts Offer(CaseParticipant); CaseActor sends Invite(CaseStub+embargo) to Vendor2
     - order: 2
       actor: demo-script
