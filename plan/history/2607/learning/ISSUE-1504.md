@@ -1,7 +1,7 @@
 ---
 title: git rebase fails with "local changes would be overwritten" when branch diverged far from main
 type: learning
-timestamp: 2026-07-20
+timestamp: "2026-07-20T00:00:00+00:00"
 source: ISSUE-1504
 ---
 

@@ -1,7 +1,7 @@
 ---
 title: "git rebase 'local changes would be overwritten' false positive"
 type: learning
-timestamp: "2026-07-20"
+timestamp: "2026-07-20T00:00:00+00:00"
 source: ISSUE-1518
 ---
 

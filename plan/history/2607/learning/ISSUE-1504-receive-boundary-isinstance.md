@@ -1,7 +1,7 @@
 ---
 title: Receive-side boundary needs dual isinstance OR type_ check for wire objects
 type: learning
-timestamp: 2026-07-20
+timestamp: "2026-07-20T00:00:00+00:00"
 source: ISSUE-1504
 ---
 

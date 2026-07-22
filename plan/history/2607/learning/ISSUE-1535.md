@@ -1,7 +1,7 @@
 ---
 title: Demo scripts must puppeteer actors via trigger endpoints, never spoof via inbox injection
 type: learning
-timestamp: 2026-07-20
+timestamp: "2026-07-20T00:00:00+00:00"
 source: ISSUE-1535
 ---
 

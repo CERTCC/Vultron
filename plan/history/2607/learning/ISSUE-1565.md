@@ -1,7 +1,7 @@
 ---
 title: Deterministic BT test wrappers must inherit production node classes
 type: learning
-timestamp: 2026-07-22
+timestamp: "2026-07-22T00:00:00+00:00"
 source: ISSUE-1565
 ---
 

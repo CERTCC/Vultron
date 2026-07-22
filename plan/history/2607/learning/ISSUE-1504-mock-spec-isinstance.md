@@ -1,7 +1,7 @@
 ---
 title: MagicMock requires spec= when code uses isinstance() guards
 type: learning
-timestamp: 2026-07-20
+timestamp: "2026-07-20T00:00:00+00:00"
 source: ISSUE-1504
 ---
 

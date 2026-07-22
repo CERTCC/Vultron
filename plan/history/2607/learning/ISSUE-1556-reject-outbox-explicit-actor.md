@@ -1,7 +1,7 @@
 ---
 title: "Sync reject outbox must enqueue against explicit actor_id, not DL scope"
 type: learning
-timestamp: "2026-07-21"
+timestamp: "2026-07-21T00:00:00+00:00"
 source: ISSUE-1556
 ---
 

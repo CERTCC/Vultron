@@ -1,7 +1,7 @@
 ---
 title: "Buffer out-of-order ledger entries keyed on prev_log_hash for O(1) drain"
 type: learning
-timestamp: "2026-07-21"
+timestamp: "2026-07-21T00:00:00+00:00"
 source: ISSUE-1556
 ---
 
