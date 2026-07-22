@@ -35,7 +35,7 @@ from datetime import datetime, timedelta, timezone
 import logging
 import os
 import sys
-import warnings
+from warnings import deprecated
 
 from vultron.core.states.em import is_em_embargo_active
 from vultron.demo.scenario.fv_demo import (
@@ -73,14 +73,6 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 )
 from vultron.wire.as2.factories import (
     rm_submit_report_activity,
-)
-
-warnings.warn(
-    "three_actor_demo.py is based on older code and no longer works. "
-    "It is preserved for idea-mining only. "
-    "See GitHub issue #1234 for the planned replacement.",
-    DeprecationWarning,
-    stacklevel=1,
 )
 
 logger = logging.getLogger(__name__)
@@ -689,6 +681,11 @@ def run_three_actor_demo(
     logger.info("=" * 80)
 
 
+@deprecated(
+    "three_actor_demo.py is based on older code and no longer works. "
+    "It is preserved for idea-mining only. "
+    "See GitHub issue #1234 for the planned replacement."
+)
 def main(
     skip_health_check: bool = False,
     finder_url: str | None = None,

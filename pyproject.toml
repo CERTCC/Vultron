@@ -128,6 +128,7 @@ filterwarnings = [
     "always::vultron.metadata.specs.UnknownSpecIdWarning",
     "error",
     "ignore::DeprecationWarning:vultron.demo.scenario.three_actor_demo",
+    "ignore:three_actor_demo.py is based on older code:DeprecationWarning",
     "ignore::DeprecationWarning:vultron.demo.scenario.multi_vendor_demo",
 ]
 markers = [
