@@ -1,6 +1,6 @@
-# Two-Actor Demo — Protocol Reference
+# FV Demo — Protocol Reference
 
-This document is a **technical reference** for the two-actor
+This document is a **technical reference** for the fv
 (Finder + Vendor) CVD demo. It is written for developers who want to
 understand the message-level protocol interactions and build custom
 actors that interoperate with the Vultron protocol.
@@ -12,7 +12,7 @@ For a hands-on tutorial on running the demo, see
 
 ## Actors and Topology
 
-The two-actor demo uses **two Docker containers** and **three logical
+The fv demo uses **two Docker containers** and **three logical
 actors**:
 
 | Actor | CVD Role(s) | Container | Actor ID pattern |
@@ -473,7 +473,7 @@ RECEIVED → VALID → ACCEPTED → ... → CLOSED
 NONE → PROPOSED → ACTIVE → EXITED
 ```
 
-(In the two-actor demo, `PROPOSED` is skipped — both participants
+(In the fv demo, `PROPOSED` is skipped — both participants
 are set to `SIGNATORY` at case creation time, moving directly to
 `ACTIVE`.)
 
@@ -497,7 +497,7 @@ vfdpxa → Vfdpxa → VFdpxa → VFDpxa → VFDPxa
 ## Activity Types Used in the Demo
 
 The following table maps each ActivityStreams activity type used in
-the two-actor demo to its `MessageSemantics` value and the phase
+the fv demo to its `MessageSemantics` value and the phase
 where it appears:
 
 | AS2 Activity | MessageSemantics | Phase | Direction |
@@ -533,7 +533,7 @@ simulation — it is a live protocol run.
 
 | File | Role |
 |:-----|:-----|
-| `vultron/demo/scenario/two_actor_demo.py` | Demo orchestration script |
+| `vultron/demo/scenario/fv_demo.py` | Demo orchestration script |
 | `vultron/demo/helpers/` | Shared helper modules (actions, milestones, notes, polling, seeding, sync, verification, workflow) |
 | `vultron/adapters/driving/fastapi/routers/demo_triggers.py` | Demo trigger endpoints |
 | `vultron/adapters/driving/fastapi/routers/actors.py` | Inbox endpoint |

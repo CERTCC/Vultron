@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Two-actor (Finder + Vendor) multi-container CVD workflow demo.
+"""FV (Finder + Vendor) multi-container CVD workflow demo.
 
 Orchestrates the full VFDPxa lifecycle across separate Finder and Vendor
 containers. The scenario module now delegates common workflow, notes, and
@@ -150,7 +150,7 @@ def reset_containers(
     vendor_client: DataLayerClient,
     case_actor_client: DataLayerClient | None = None,
 ) -> None:
-    """Reset all containers used by the two-actor demo to a clean baseline.
+    """Reset all containers used by the FV demo to a clean baseline.
 
     D5-2 requires repeatable, single-command execution. Resetting each
     container's DataLayer at the start of the run ensures the demo does
@@ -786,7 +786,7 @@ def _phase_dump_case_ledgers(
     vendor: as_Actor,
     case: as_VulnerabilityCase,
     case_actor_client: DataLayerClient | None = None,
-    demo_name: str = "two-actor",
+    demo_name: str = "fv",
 ) -> None:
     """Dump case ledger entries from each actor container to JSONL files.
 
@@ -808,8 +808,7 @@ def _phase_dump_case_ledgers(
         vendor: Vendor actor object (used to derive the actor object ID).
         case: The as_VulnerabilityCase whose log entries are to be exported.
         case_actor_client: Optional DataLayerClient for the CaseActor container.
-        demo_name: Sub-directory name under the output root (default
-            ``"two-actor"``).
+        demo_name: Sub-directory name under the output root (default ``"fv"``).
     """
     logger.info("─" * 80)
     logger.info("Phase: Case log JSONL export")
@@ -894,16 +893,16 @@ def _phase_dump_case_ledgers(
             logger.info("Wrote %d log entries → %s", len(entries), out_file)
 
 
-def run_two_actor_demo(
+def run_fv_demo(
     finder_client: DataLayerClient,
     vendor_client: DataLayerClient,
     case_actor_client: DataLayerClient | None = None,
     finder_id: str | None = None,
     vendor_id: str | None = None,
 ) -> None:
-    """Orchestrate the complete two-actor (Finder + Vendor) CVD workflow."""
+    """Orchestrate the complete FV (Finder + Vendor) CVD workflow."""
     logger.info("=" * 80)
-    logger.info("TWO-ACTOR DEMO: Reporter + Coordinator CVD Workflow (VFDPxa)")
+    logger.info("FV DEMO: Finder + Vendor CVD Workflow (VFDPxa)")
     logger.info("=" * 80)
     logger.info("Finder container: %s", finder_client.base_url)
     logger.info("Vendor container: %s", vendor_client.base_url)
@@ -971,7 +970,7 @@ def run_two_actor_demo(
     )
 
     logger.info("=" * 80)
-    logger.info("TWO-ACTOR DEMO COMPLETE ✓  (VFDPxa full lifecycle)")
+    logger.info("FV DEMO COMPLETE ✓  (VFDPxa full lifecycle)")
     logger.info("=" * 80)
 
 
@@ -988,7 +987,7 @@ def main(
     finder_id: str | None = None,
     vendor_id: str | None = None,
 ) -> None:
-    """Entry point for the two-actor multi-container CVD workflow demo.
+    """Entry point for the FV (Finder + Vendor) multi-container CVD workflow demo.
 
     Args:
         skip_health_check: Skip the server availability check (useful for
@@ -1029,7 +1028,7 @@ def main(
                 sys.exit(1)
 
     try:
-        run_two_actor_demo(
+        run_fv_demo(
             finder_client=finder_client,
             vendor_client=vendor_client,
             case_actor_client=case_actor_client,

@@ -14,7 +14,7 @@
 """Scenario-verification primitives shared across demo workflows.
 
 Lower-level assertion helpers used by milestone verification functions in the
-individual scenario modules (e.g. ``two_actor_demo.py``).  Keeping them here
+individual scenario modules (e.g. ``fv_demo.py``).  Keeping them here
 avoids duplication when future multi-actor scenarios need the same checks.
 """
 

@@ -415,7 +415,7 @@ def reset_containers(
 
     Keeping the reset loop here (rather than in a scenario module) allows any
     multi-container scenario to reuse it without importing from
-    ``two_actor_demo``.  Callers are responsible for supplying the concrete
+    ``fv_demo``.  Callers are responsible for supplying the concrete
     ``reset_fn`` (typically ``reset_datalayer`` from their own module namespace
     so that test-suite mock patches continue to intercept the call).
 

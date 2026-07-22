@@ -40,7 +40,7 @@ distinct techniques:
 
 | Sub-command    | What it demonstrates                                      |
 |----------------|-----------------------------------------------------------|
-| `two-actor`    | Two-actor (Finder + Vendor) multi-container CVD workflow  |
+| `fv`           | FV (Finder + Vendor) multi-container CVD workflow         |
 | `three-actor`  | Three-actor (+ Coordinator) multi-container CVD workflow  |
 | `multi-vendor` | Ownership transfer + second vendor multi-container demo   |
 
@@ -125,7 +125,7 @@ Each demo script remains directly invokable as a Python module:
 
 ```bash
 uv run python -m vultron.demo.exchange.receive_report_demo
-uv run python -m vultron.demo.scenario.two_actor_demo
+uv run python -m vultron.demo.scenario.fv_demo
 ```
 
 ## Unified CLI (`vultron-demo`)

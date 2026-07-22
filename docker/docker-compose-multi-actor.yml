@@ -163,7 +163,7 @@ services:
 
   # ── CaseActor ─────────────────────────────────────────────────────────────
   # Hosts the VultronCaseActor that manages case state and broadcasts updates
-  # to all case participants.  For D5-2 (two-actor scenario), CaseActor MAY
+  # to all case participants.  For D5-2 (FV scenario), CaseActor MAY
   # run in the vendor container instead; this dedicated service is required
   # for D5-3 and later (three-actor scenarios).
   #
@@ -246,7 +246,7 @@ services:
       - VULTRON_VENDOR2_BASE_URL=http://vendor2:7999/api/v2
       # Run the selected multi-actor demo non-interactively. Override DEMO
       # at runtime (for example, DEMO=three-actor) to switch scenarios.
-      - DEMO=${DEMO:-two-actor}
+      - DEMO=${DEMO:-fv}
       - DEVLOGS_DIR=/app/devlogs
     volumes:
       - "../vultron:/app/vultron"

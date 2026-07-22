@@ -14,7 +14,7 @@
 """Workflow step helpers shared across demo scenarios.
 
 Provides generic CVD workflow actions — report submission, report validation,
-and case lookup — that can be reused across two-actor, three-actor, and
+and case lookup — that can be reused across FV, three-actor, and
 multi-vendor demo scenarios.  Each function is named after the CVD role that
 performs the action (reporter, coordinator) rather than any scenario-specific
 persona (finder, vendor).

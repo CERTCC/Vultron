@@ -1,6 +1,6 @@
-# Tutorial: Run the Two-Actor Demo
+# Tutorial: Run the FV Demo
 
-In this tutorial, we will run the **two-actor CVD demo** end-to-end using
+In this tutorial, we will run the **fv CVD demo** end-to-end using
 Docker Compose. This demo models a complete Coordinated Vulnerability
 Disclosure (CVD) workflow between a Finder (vulnerability reporter) and a
 Vendor (software maintainer).
@@ -17,7 +17,7 @@ By the end of this tutorial, we will have:
 
 !!! info "What we will learn"
 
-    The two-actor demo exercises the **full VFDPxa lifecycle**: a case moves
+    The fv demo exercises the **full VFDPxa lifecycle**: a case moves
     from report submission all the way through fix-ready, fix-deployed, public
     disclosure, embargo teardown, and case closure on both participant replicas.
 
@@ -82,7 +82,7 @@ docker compose -f docker/docker-compose-multi-actor.yml \
     up --abort-on-container-exit demo-runner
 ```
 
-The two-actor scenario is the **default** — no `DEMO` environment variable is
+The fv scenario is the **default** — no `DEMO` environment variable is
 required.
 
 Docker builds the images on the first run (this takes a few minutes). On
@@ -342,12 +342,12 @@ We have:
   [Running the Multi-Actor Container Demos](container_demos.md) to run
   three-actor and multi-vendor workflows.
 - **Understand the message-level protocol** — the
-  [Two-Actor Demo Protocol Reference](../reference/two-actor-demo-protocol.md)
+  [FV Demo Protocol Reference](../reference/fv-demo-protocol.md)
   documents every ActivityStreams activity exchanged during this demo,
   including sequence diagrams, per-phase narratives, and example AS2 JSON
   payloads.
 - **Read the scenario source** — the demo script is at
-  `vultron/demo/scenario/two_actor_demo.py`; shared helpers are in
+  `vultron/demo/scenario/fv_demo.py`; shared helpers are in
   `vultron/demo/helpers/`.
 - **Explore the single-container demos** — see
   [Run the Receive-Report Demo](receive_report_demo.md) and

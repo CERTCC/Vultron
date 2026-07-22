@@ -326,7 +326,7 @@ groups:
       while still routing the activity through the CaseActor''s inbox for archival. See OX-08-004 for the updated addressing
       policy and ADR-0021 for the full end-to-end path.'
     verification: For each entry in `EXPECTED_EVENT_TYPES`, a test verifies that the CaseActor's canonical ledger contains
-      at least one entry with that `eventType` after a full two-actor demo run.
+      at least one entry with that `eventType` after a full FV demo run.
   - id: CLP-10-002
     priority: MUST
     kind: project

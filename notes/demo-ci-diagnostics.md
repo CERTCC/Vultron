@@ -29,7 +29,7 @@ root cause with this guide.
 
 ## Overview
 
-The Demo Integration CI job runs a two-actor Vultron scenario end-to-end
+The Demo Integration CI job runs an FV (Finder + Vendor) Vultron scenario end-to-end
 inside Docker, collects JSONL case-ledger replica files, and then runs the
 `case_ledger_invariants` harness against those files. Failures come from
 one of three layers, each with its own diagnostic surface.
@@ -158,7 +158,7 @@ Implications for diagnostics:
 - Name test helpers accordingly (for example, `_fetch_case_log`, not
   `_fetch_case_actor_log`).
 - When you need per-replica assertions, use replica JSONL artifacts under
-  `devlogs/two-actor/<actor>/<case>-case-ledger.jsonl` instead of the demo
+  `devlogs/fv/<actor>/<case>-case-ledger.jsonl` instead of the demo
   endpoint.
 
 ---
@@ -174,7 +174,7 @@ cd docker
 docker compose -f docker-compose-multi-actor.yml build
 cd ..
 mkdir -p devlogs
-DEMO=two-actor \
+DEMO=fv \
 VULTRON_SERVER__LOG_LEVEL=DEBUG \
   docker compose -f docker/docker-compose-multi-actor.yml \
   up --abort-on-container-exit --exit-code-from demo-runner
@@ -217,16 +217,16 @@ docker compose -f docker/docker-compose-multi-actor.yml down -v
 CI uploads two artifact bundles on failure. Both are available from the
 Actions run summary page under **Artifacts**.
 
-### `two-actor-case-logs` (always uploaded)
+### `fv-case-logs` (always uploaded)
 
 Path in artifact: `devlogs/`
 
 JSONL file layout:
 
 ```text
-devlogs/two-actor/finder/<case-id-slug>-case-ledger.jsonl
-devlogs/two-actor/vendor/<case-id-slug>-case-ledger.jsonl
-devlogs/two-actor/case-actor/<case-id-slug>-case-ledger.jsonl
+devlogs/fv/finder/<case-id-slug>-case-ledger.jsonl
+devlogs/fv/vendor/<case-id-slug>-case-ledger.jsonl
+devlogs/fv/case-actor/<case-id-slug>-case-ledger.jsonl
 ```
 
 These are the replica files the invariant harness reads. Download and place

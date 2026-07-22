@@ -40,7 +40,7 @@ required.
 
 | Scenario       | DEMO value     | Actors                                               |
 |:---------------|:---------------|:-----------------------------------------------------|
-| Two-actor      | `two-actor`    | Finder + Vendor + CaseActor                          |
+| FV             | `fv`            | Finder + Vendor + CaseActor                          |
 | Three-actor    | `three-actor`  | Finder + Vendor + Coordinator + CaseActor            |
 | Multi-vendor   | `multi-vendor` | Finder + Vendor + Coordinator + Vendor2 + CaseActor  |
 
@@ -66,9 +66,9 @@ cd Vultron
 
 ---
 
-## Step 2 — Run the two-actor scenario
+## Step 2 — Run the FV scenario
 
-The **two-actor** scenario (D5-2) is the simplest: a Finder discovers a
+The **FV** scenario (D5-2) is the simplest: a Finder discovers a
 vulnerability and submits a report to a Vendor, who validates it, engages the
 case, adds the Finder as a participant, and exchanges notes with them. The
 CaseActor is co-located in the Vendor container.
@@ -92,10 +92,10 @@ Docker builds the images on the first run (this takes a few minutes) and then:
 A successful run ends with:
 
 ```text
-[multi-actor-integration] SUCCESS: scenario 'two-actor' passed.
+[multi-actor-integration] SUCCESS: scenario 'fv' passed.
 ```
 
-### What the two-actor demo does
+### What the FV demo does
 
 | Step | Actor     | Action                                               |
 |:-----|:----------|:-----------------------------------------------------|
@@ -273,7 +273,7 @@ verifies the exit code, and removes all volumes automatically:
 
 ```bash
 # From the repository root:
-./integration_tests/demo/run_multi_actor_integration_test.sh two-actor
+./integration_tests/demo/run_multi_actor_integration_test.sh fv
 ./integration_tests/demo/run_multi_actor_integration_test.sh three-actor
 ./integration_tests/demo/run_multi_actor_integration_test.sh multi-vendor
 ```
@@ -281,7 +281,7 @@ verifies the exit code, and removes all volumes automatically:
 Or via the Makefile targets:
 
 ```bash
-make integration-test-multi-actor    # two-actor
+make integration-test-multi-actor    # fv
 make integration-test-three-actor    # three-actor
 make integration-test-multi-vendor   # multi-vendor
 ```
@@ -293,7 +293,7 @@ make integration-test-multi-vendor   # multi-vendor
     `PROJECT_NAME` to run multiple scenarios in parallel:
 
     ```bash
-    PROJECT_NAME=vultron-it-two   DEMO=two-actor   \
+    PROJECT_NAME=vultron-it-two   DEMO=fv   \
         ./integration_tests/demo/run_multi_actor_integration_test.sh
     PROJECT_NAME=vultron-it-three DEMO=three-actor \
         ./integration_tests/demo/run_multi_actor_integration_test.sh

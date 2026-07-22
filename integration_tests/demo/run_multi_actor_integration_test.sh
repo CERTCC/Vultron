@@ -16,7 +16,7 @@
 #               services use a bind mount) to save significant startup time.
 #               Run without --no-build at least once, or after changing
 #               pyproject.toml, uv.lock, or docker/Dockerfile.
-#   SCENARIO    One of: two-actor (default), three-actor, multi-vendor
+#   SCENARIO    One of: fv (default), three-actor, multi-vendor
 #
 # Environment variables:
 #   DEMO                  Alternative way to specify the scenario (overridden by
@@ -79,9 +79,9 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
-DEMO="${SCENARIO_ARG:-${DEMO:-two-actor}}"
+DEMO="${SCENARIO_ARG:-${DEMO:-fv}}"
 
-VALID_SCENARIOS="two-actor three-actor multi-vendor"
+VALID_SCENARIOS="fv three-actor multi-vendor"
 if ! echo "${VALID_SCENARIOS}" | grep -qw "${DEMO}"; then
     echo "ERROR: unknown scenario '${DEMO}'. Valid options: ${VALID_SCENARIOS}" >&2
     exit 1

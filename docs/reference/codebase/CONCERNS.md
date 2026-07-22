@@ -41,7 +41,7 @@
 
 | Area | Why fragile | Churn signal | Safe change strategy |
 |------|-------------|-------------|----------------------|
-| `vultron/demo/scenario/two_actor_demo.py` | Demo exercises many layers; any layer change can break it | 35 commits in 90 days (highest churn in production source) | Run `uv run pytest -m integration` before touching demo scenarios |
+| `vultron/demo/scenario/fv_demo.py` | Demo exercises many layers; any layer change can break it | 35 commits in 90 days (highest churn in production source) | Run `uv run pytest -m integration` before touching demo scenarios |
 | `vultron/core/use_cases/received/` | Received-side use cases are actively evolving | `status.py` 23, `embargo.py` 22, `case.py` 20, `actor.py` 18 commits in 90 days | Add tests for each received use case before modifying; verify with architecture tests |
 | `vultron/core/behaviors/case/nodes/` | BT node refactoring converted `nodes.py` to a package | 21 commits on package + 18 on `__init__.py` | Test BT execution before any node reorganization |
 | `vultron/adapters/driving/fastapi/inbox_handler.py` | Inbox pipeline evolves with use-case changes | 21 commits in 90 days | Integration-test the inbox flow end-to-end after changes |

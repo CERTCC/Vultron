@@ -147,8 +147,8 @@ groups:
         kind: project
         statement: >-
           The demo workflow MUST build the Docker images using
-          docker/docker-compose-multi-actor.yml and run the two-actor demo
-          scenario (DEMO=two-actor) as the initial CI scenario.
+          docker/docker-compose-multi-actor.yml and run the FV demo
+          scenario (DEMO=fv) as the initial CI scenario.
 
       - id: DEMOCI-02-006
         priority: MUST
@@ -183,7 +183,7 @@ groups:
           The demo workflow job MUST have a timeout of 15 minutes
           (timeout-minutes: 15).
         rationale: >-
-          The two-actor demo currently takes 3–5 minutes; a 15-minute cap
+          The FV demo currently takes 3–5 minutes; a 15-minute cap
           prevents an indefinite CI hang if a container gets stuck, while
           providing sufficient headroom for slow runners.
 
@@ -209,7 +209,7 @@ groups:
           scenarios (e.g., three-actor, multi-vendor) as each scenario
           reaches a stable, reproducible state.
         rationale: >-
-          Starting with the two-actor scenario lets CI run reliably while
+          Starting with the FV scenario lets CI run reliably while
           more complex scenarios are still being developed. Additional
           scenarios add coverage without blocking CI on unstable demos.
 
@@ -238,7 +238,7 @@ groups:
           PR that introduces the scenario script; the job MUST use
           `--abort-on-container-exit --exit-code-from demo-runner`,
           `timeout-minutes: 15`, and the same teardown and log-upload steps
-          as the two-actor job (DEMOCI-02-006, DEMOCI-02-009, DEMOCI-02-010)
+          as the FV job (DEMOCI-02-006, DEMOCI-02-009, DEMOCI-02-010)
         rationale: >-
           Running scenarios in series would make CI proportionally slower with
           each scenario added. Parallel jobs keep wall-clock time bounded and

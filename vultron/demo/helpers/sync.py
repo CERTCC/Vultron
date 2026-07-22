@@ -18,7 +18,7 @@ all case participants, and :func:`verify_replica_state` to assert that a
 replica actor's case state matches the authoritative actor.
 
 ``verify_finder_replica_state`` is a backward-compatible wrapper that maps
-the two-actor demo roles (Vendor = authoritative, Finder = replica) onto
+the FV demo roles (Vendor = authoritative, Finder = replica) onto
 the generic ``verify_replica_state`` parameters.
 """
 
@@ -226,7 +226,7 @@ def verify_finder_replica_state(
 ) -> None:
     """Backward-compatible wrapper for :func:`verify_replica_state`.
 
-    In the two-actor demo the Vendor is the authoritative case owner and the
+    In the FV demo the Vendor is the authoritative case owner and the
     Finder holds a replicated copy, so *vendor_client* maps to *auth_client*
     and *finder_client* maps to *replica_client*.
 

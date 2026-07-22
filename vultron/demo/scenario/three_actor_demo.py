@@ -15,7 +15,7 @@
 
 """Three-actor (Finder + Vendor + Coordinator) multi-container CVD demo.
 
-This scenario extends the D5-2 two-actor workflow by introducing a dedicated
+This scenario extends the D5-2 FV workflow by introducing a dedicated
 Coordinator and an authoritative CaseActor container. The workflow remains
 fully deterministic for repeatable acceptance runs:
 
@@ -38,7 +38,7 @@ import sys
 import warnings
 
 from vultron.core.states.em import is_em_embargo_active
-from vultron.demo.scenario.two_actor_demo import (
+from vultron.demo.scenario.fv_demo import (
     get_actor_by_id,
     wait_for_case_participants,
 )

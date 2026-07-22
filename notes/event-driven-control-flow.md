@@ -266,7 +266,7 @@ are bypassed by design.
 Demonstrate full multi-actor workflows. These MUST use trigger endpoints
 ("puppeteering") so the system's own BT and outbox logic is exercised.
 
-- **Examples**: `two_actor_demo.py`, `three_actor_demo.py`,
+- **Examples**: `fv_demo.py`, `three_actor_demo.py`,
   `multi_vendor_demo.py`
 - **Pattern**: Call trigger endpoint on sending actor's container → actor's
   BT runs → activity added to outbox → outbox handler delivers to recipient

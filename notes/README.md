@@ -444,11 +444,11 @@ implementation guidance. Implementation is tracked in issue #1156.
 inbox/outbox pipeline (see issue #1156 and its children).
 
 **`demo-future-ideas.md`**
-Extended multi-actor demo scenario sketches: Two-Actor (Finder + Vendor),
+Extended multi-actor demo scenario sketches: FV (Finder + Vendor),
 Three-Actor (Finder + Vendor + Coordinator), MultiParty (ownership transfer).
 Describes what each scenario would demonstrate and open design questions.
 **Load when**: designing new demo scripts or extending the existing demo suite
-beyond the current two-actor scenario.
+beyond the current FV scenario.
 
 **`vultron/core/use_cases/triggers/AGENTS.md`**
 Trigger classification guidance: demo-specific vs general-purpose
