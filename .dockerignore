@@ -60,6 +60,7 @@ wip_notes
 .github
 .copilot
 .devcontainer
+!.devcontainer/certs
 
 # Dockerfile itself is not needed inside app images; demo-entrypoint.sh is still required
 docker/Dockerfile
