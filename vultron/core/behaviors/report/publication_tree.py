@@ -151,7 +151,21 @@ class _ShouldPublishArtifactGate(py_trees.behaviour.Behaviour):
             return Status.FAILURE
 
         decision = self.blackboard.get(INTENT_DECISION_KEY)
-        if getattr(decision, self._intent_field, False):
+        if not isinstance(decision, PublicationIntentDecision):
+            # A present-but-wrong-type value is a call-out-point contract
+            # violation (the Evaluator must write a PublicationIntentDecision on
+            # SUCCESS, BT-18-002).  Fail loudly rather than silently degrading
+            # to "do not publish" — a bare getattr() default would mask the bug.
+            self.logger.warning(
+                "%s: %s holds %s, not a PublicationIntentDecision — "
+                "treating as 'do not publish'",
+                self.name,
+                INTENT_DECISION_KEY,
+                type(decision).__name__,
+            )
+            return Status.FAILURE
+
+        if getattr(decision, self._intent_field):
             self.logger.debug(
                 "%s: %s is intended for publication",
                 self.name,

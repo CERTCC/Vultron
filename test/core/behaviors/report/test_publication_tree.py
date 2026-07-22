@@ -302,3 +302,27 @@ def test_should_publish_gate_missing_record_is_failure(gate_cls):
     gate = gate_cls()
     gate.setup()
     assert gate.update() == Status.FAILURE
+
+
+@pytest.mark.parametrize(
+    "gate_cls",
+    [ShouldPublishExploit, ShouldPublishFix, ShouldPublishReport],
+)
+@pytest.mark.parametrize(
+    "bad_value", ["publish_exploit", {"publish_fix": True}, 42]
+)
+def test_should_publish_gate_wrong_type_record_is_failure(gate_cls, bad_value):
+    """A gate FAILS (not silently) when the record is not a decision object.
+
+    A present-but-wrong-type value on the intent key is a call-out-point
+    contract violation; the gate must fail rather than let ``getattr(..., False)``
+    silently degrade a truthy string/dict into a spurious skip-or-publish.
+    """
+    bb = py_trees.blackboard.Client(name="bad-writer")
+    bb.register_key(
+        key=INTENT_DECISION_KEY, access=py_trees.common.Access.WRITE
+    )
+    setattr(bb, INTENT_DECISION_KEY, bad_value)
+    gate = gate_cls()
+    gate.setup()
+    assert gate.update() == Status.FAILURE

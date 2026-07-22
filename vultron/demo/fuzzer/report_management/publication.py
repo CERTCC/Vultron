@@ -25,7 +25,7 @@ nodes with semantic docstrings) and BT-16-005 (automation-potential
 categorization).
 
 The ``PrioritizePublicationIntents`` Evaluator is the surviving call-out point
-for Production Collapse 2 (ADR-0028 / BT-20-001): it writes a structured
+for Production Collapse 2 (ADR-0028 / BT-20-002): it writes a structured
 :class:`~vultron.core.behaviors.report.publication_tree.PublicationIntentDecision`
 record that gates the three per-artifact arms of
 ``create_publication_tree``.  The ``PublicationIntentsSet`` flag check and the
