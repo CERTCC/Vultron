@@ -17,13 +17,13 @@ groups:
     specs:
       - id: PAD-01-001
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           Tasks MUST be represented as GitHub Issues in the CERTCC/Vultron
           repository. All work is tracked exclusively as GitHub Issues.
       - id: PAD-01-002
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           Issues MUST be organized in up to three levels: Epic (Priority
           Group), Task (coherent unit of work), and Subtask (atomic PR-sized
@@ -31,12 +31,12 @@ groups:
           work units.
       - id: PAD-01-003
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           Epic Issues MUST correspond to a named priority group in PRIORITIES.md.
       - id: PAD-01-005
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           Task Issues MUST be sub-issues of their parent Epic.
         relationships:
@@ -44,7 +44,7 @@ groups:
           spec_id: PAD-01-002
       - id: PAD-01-006
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           Subtask Issues MUST be sub-issues of their parent Task.
         relationships:
@@ -52,7 +52,7 @@ groups:
           spec_id: PAD-01-002
       - id: PAD-01-004
         priority: SHOULD
-        kind: dev-process
+        kind: process
         statement: >-
           The minimum depth that produces right-sized leaf issues SHOULD be
           used. Not every Epic requires Task or Subtask children.
@@ -62,14 +62,14 @@ groups:
     specs:
       - id: PAD-02-001
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           Every Issue MUST carry a `group:<name>` label whose value matches
           the corresponding priority group name in PRIORITIES.md (e.g.,
           `group:architecture-hardening`).
       - id: PAD-02-002
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           Issues that have not yet been slotted into PRIORITIES.md MUST carry
           the label `group:unscheduled`. Only humans (and the
@@ -77,14 +77,14 @@ groups:
           to a named group label.
       - id: PAD-02-004
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           A `stale-claim` label MUST be applied by the sweeper job (PAD-10)
           when a claimed Issue has no open PR and the claim branch has not
           received a commit within 3 days.
       - id: PAD-02-011
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           Agents MUST skip Issues that carry the `stale-claim` label.
         relationships:
@@ -92,21 +92,21 @@ groups:
           spec_id: PAD-04-003
       - id: PAD-02-005
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           A `needs-rebase` label MUST be applied when an open PR has merge
           conflicts that cannot be automatically resolved (PAD-11). Human
           intervention is required before the label is removed.
       - id: PAD-02-006
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           Docs-only PRs (containing only `specs/` and `notes/` changes) MUST
           carry the `specs-notes` label to identify them as docs-only for
           reviewers.
       - id: PAD-02-007
         priority: MUST_NOT
-        kind: dev-process
+        kind: process
         statement: >-
           The `group:` label name MUST NOT include a priority number. The label
           name MUST be a short, descriptive kebab-case slug derived from the
@@ -116,7 +116,7 @@ groups:
           when priorities are reordered.
       - id: PAD-02-012
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           When creating a new `group:` label on GitHub, the label description
           MUST use the priority group title (not the priority number) so it
@@ -126,21 +126,21 @@ groups:
           spec_id: PAD-02-007
       - id: PAD-02-008
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           Every priority group that has two or more open leaf Issues MUST have
           exactly one open Epic Issue. A leaf Issue is any Issue with no open
           sub-issues.
       - id: PAD-02-009
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           Epic Issues MUST be created using the GitHub `Epic` issue type (via
           GraphQL `createIssue` with the appropriate `issueTypeId`) and MUST
           carry the `group:<name>` label matching their priority group.
       - id: PAD-02-013
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           The `create-epic` skill MUST be used to create Epic Issues to ensure
           consistent wiring of sub-issues and correct issue type assignment.
@@ -149,7 +149,7 @@ groups:
           spec_id: PAD-02-009
       - id: PAD-02-010
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           The Epic Issue number for each priority group MUST be recorded in
           `PRIORITIES.md` next to the group heading, e.g.
@@ -162,7 +162,7 @@ groups:
     specs:
       - id: PAD-03-001
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           PRIORITIES.md MUST remain the authoritative ordering document for
           work priority. Priority changes MUST be made by editing PRIORITIES.md
@@ -170,13 +170,13 @@ groups:
           issues in the GitHub tracker.
       - id: PAD-03-002
         priority: MUST_NOT
-        kind: dev-process
+        kind: process
         statement: >-
           Agents MUST NOT write to PRIORITIES.md. Only humans and the
           `review-priorities` skill may modify it.
       - id: PAD-03-003
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           When the `build` skill selects a task, it MUST read PRIORITIES.md
           once to determine the current top-priority group name, then query
@@ -187,7 +187,7 @@ groups:
     specs:
       - id: PAD-04-001
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           An agent MUST claim a task by creating a branch named
           `task/<issue-number>-<slug>` before beginning any implementation
@@ -195,14 +195,14 @@ groups:
           branch already exists, the task is already claimed.
       - id: PAD-04-002
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           After creating the claim branch, the agent MUST assign the Issue to
           the triggering user and MUST post a comment on the Issue identifying
           the agent session and branch name.
       - id: PAD-04-003
         priority: MUST_NOT
-        kind: dev-process
+        kind: process
         statement: >-
           Agents MUST NOT begin implementation work on an Issue whose claim
           branch already exists, whose `stale-claim` label is set, or that
@@ -213,14 +213,14 @@ groups:
     specs:
       - id: PAD-05-001
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           At Issue creation, the initial size label MUST be set based on the
           count of acceptance-criteria (AC) checkboxes in the Issue body:
           1–2 ACs → `size:S`; 3–6 ACs → `size:M`; 7+ ACs → `size:L`.
       - id: PAD-05-002
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           At PR open time, the agent MUST measure the actual diff (total lines
           added plus removed across all changed files) and update the size
@@ -229,7 +229,7 @@ groups:
           the work was smaller than the AC-count estimate predicted.
       - id: PAD-05-003
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           The size label at PR-open time (after the diff-based update per
           PAD-05-002) is the authoritative size for the PR, not the
@@ -240,13 +240,13 @@ groups:
     specs:
       - id: PAD-07-001
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           The `build` skill MUST invoke the `code-review` agent before
           opening a PR.
       - id: PAD-07-005
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           The `code-review` agent MUST run against the current branch diff
           relative to `main`.
@@ -255,7 +255,7 @@ groups:
           spec_id: PAD-07-001
       - id: PAD-07-002
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           Every finding produced by the `code-review` agent MUST be tagged
           either `[BLOCKING]` or `[ADVISORY]`. `[BLOCKING]` findings are bugs
@@ -264,13 +264,13 @@ groups:
           block PR creation.
       - id: PAD-07-003
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           The `build` skill MUST resolve all `[BLOCKING]` findings before
           opening a PR.
       - id: PAD-07-006
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           After resolving `[BLOCKING]` findings, the `build` skill MUST re-run
           the code review to confirm no new `[BLOCKING]` findings were
@@ -280,7 +280,7 @@ groups:
           spec_id: PAD-07-003
       - id: PAD-07-004
         priority: SHOULD
-        kind: dev-process
+        kind: process
         statement: >-
           After a PR is opened, `[ADVISORY]` findings SHOULD be posted as a
           comment on the PR for human review.
@@ -290,7 +290,7 @@ groups:
     specs:
       - id: PAD-08-001
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           The `build` skill MUST select work by querying GitHub for open,
           unblocked leaf Issues in the top-priority group (as determined by
@@ -298,19 +298,19 @@ groups:
           `stale-claim` or that are already assigned.
       - id: PAD-08-002
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           The `build` skill MUST open a GitHub Pull Request with "Closes #N"
           in the body after completing implementation and passing all
           validations.
       - id: PAD-08-004
         priority: MUST_NOT
-        kind: dev-process
+        kind: process
         statement: >-
           The `build` skill MUST NOT commit directly to `main`.
       - id: PAD-08-003
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           After implementation, the `build` skill MUST compute the diff size
           and update the size label on both the Issue and the PR per
@@ -321,7 +321,7 @@ groups:
     specs:
       - id: PAD-09-001
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           After writing `specs/<topic>.yaml` and `notes/<topic>.md`, the
           `ingest-idea` skill MUST open a docs-only PR carrying the
@@ -330,7 +330,7 @@ groups:
           from Issues before any implementation work begins.
       - id: PAD-09-002
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           After the docs-only PR is opened, `ingest-idea` MUST create a
           GitHub Issue with: a title and description derived from the spec,
@@ -338,7 +338,7 @@ groups:
           AC count per PAD-05-001), and a link to the spec file in the body.
       - id: PAD-09-003
         priority: MUST_NOT
-        kind: dev-process
+        kind: process
         statement: >-
           `ingest-idea` MUST NOT begin implementation work. It MUST stop after
           creating the Issue. Implementation work begins only when a human runs
@@ -349,7 +349,7 @@ groups:
     specs:
       - id: PAD-10-001
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           A scheduled GitHub Actions workflow (weekly cadence, also
           triggerable on `workflow_dispatch`) MUST scan for Issues that are
@@ -357,14 +357,14 @@ groups:
           not received a branch commit within 3 days.
       - id: PAD-10-002
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           When the sweeper identifies an orphaned claim, it MUST apply the
           `stale-claim` label to the Issue and MUST post a comment identifying
           the orphaned branch and requesting human review.
       - id: PAD-10-003
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           A human MUST review the orphaned branch, clean it up, unassign the
           Issue, and remove the `stale-claim` label before the Issue becomes
@@ -375,19 +375,19 @@ groups:
     specs:
       - id: PAD-11-001
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           When a PR has merge conflicts, the `build` skill MUST attempt an
           automatic rebase of the task branch onto `main`.
       - id: PAD-11-002
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           If the automatic rebase succeeds, the agent MUST force-push the
           rebased branch. CI re-runs automatically on the updated head.
       - id: PAD-11-003
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           If the automatic rebase fails, the agent MUST post a comment on the
           PR explaining the conflict, MUST apply the `needs-rebase` label, and
@@ -399,21 +399,21 @@ groups:
     specs:
       - id: PAD-12-001
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           The `review-priorities` skill MUST fetch all open GitHub Issues
           carrying the `group:unscheduled` label and surface them as a triage
           list alongside any untracked PRIORITIES.md items.
       - id: PAD-12-002
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           For each `group:unscheduled` Issue, the `review-priorities` skill
           MUST use `ask_user` to determine where to slot it in PRIORITIES.md
           or whether to close or defer it.
       - id: PAD-12-003
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           After the user confirms a placement, the `review-priorities` skill
           MUST update the Issue's `group:` label from `group:unscheduled` to
@@ -424,14 +424,14 @@ groups:
     specs:
       - id: PAD-13-001
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           When the `update-plan` skill identifies a new implementation gap (a
           spec requirement with no corresponding code or test), it MUST create
           a GitHub Issue for the gap.
       - id: PAD-13-002
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           Issues created by `update-plan` MUST carry the `group:unscheduled`
           label and the appropriate initial `size:` label (from AC count per
@@ -442,7 +442,7 @@ groups:
     specs:
       - id: PAD-14-003
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           A GitHub Actions workflow MUST be created to implement the
           stale-claim sweeper (PAD-10): run on `schedule` (weekly) and

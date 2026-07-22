@@ -1,8 +1,9 @@
-# Dev Process Specifications
+# Architecture Specifications
 
-This project's development and maintenance process requirements. These cover
-skill workflows, history management, spec authoring conventions, and parallel
-agentic development practices.
+Implementation-independent structural guidance transferable across languages and
+frameworks. Covers hexagonal boundaries, event-driven dispatch, port/adapter
+patterns, and fail-fast principles. Not required for Vultron compliance per se,
+but recommended for any conformant implementation.
 
 ```python exec="true" idprefix=""
 import sys
@@ -16,5 +17,5 @@ for _k in list(sys.modules.keys()):
 from vultron.metadata.specs import load_registry
 from vultron.metadata.specs.docs_render import render_for_kind
 registry = load_registry(_repo / "specs")
-print(render_for_kind("dev-process", registry))
+print(render_for_kind("architecture", registry))
 ```

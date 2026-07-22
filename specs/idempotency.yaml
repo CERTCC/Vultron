@@ -15,41 +15,41 @@ groups:
   specs:
   - id: ID-01-001
     priority: MUST
-    kind: general
+    kind: architecture
     statement: All activities MUST have globally unique `id` field (URI)
   - id: ID-01-002
     priority: MUST
-    kind: general
+    kind: architecture
     statement: Activity IDs MUST remain stable (same activity = same ID)
 - id: ID-02
   title: Duplicate Detection
   specs:
   - id: ID-02-001
     priority: MUST
-    kind: general
+    kind: architecture
     statement: System MUST detect duplicate activity submissions by ID
   - id: ID-02-002
     priority: SHOULD
-    kind: general
+    kind: architecture
     statement: System SHOULD track processed activity IDs in DataLayer
   - id: ID-02-003
     priority: MUST
-    kind: general
+    kind: architecture
     statement: Detection MUST occur before handler business logic execution
 - id: ID-03
   title: Idempotent Response
   specs:
   - id: ID-03-001
     priority: MUST
-    kind: general
+    kind: architecture
     statement: Duplicate submissions MUST return same HTTP status as original
   - id: ID-03-002
     priority: MUST_NOT
-    kind: general
+    kind: architecture
     statement: Duplicate detection MUST NOT delay response beyond 100ms
   - id: ID-03-003
     priority: SHOULD
-    kind: general
+    kind: architecture
     statement: System SHOULD log duplicate submissions at WARNING level
     relationships:
     - rel_type: depends_on
@@ -59,22 +59,22 @@ groups:
   specs:
   - id: ID-04-001
     priority: SHOULD
-    kind: general
+    kind: architecture
     statement: Handlers SHOULD be idempotent (same input → same output)
   - id: ID-04-002
     priority: SHOULD
-    kind: general
+    kind: architecture
     statement: Handlers SHOULD check existing state before state transitions
     relationships:
     - rel_type: implements
       spec_id: VP-03-013
   - id: ID-04-003
     priority: SHOULD
-    kind: general
+    kind: architecture
     statement: Handlers SHOULD log attempted re-execution at INFO level
   - id: ID-04-004
     priority: MUST
-    kind: general
+    kind: architecture
     statement: State-changing handlers MUST be idempotent
     rationale: >-
       Duplicate processing of state-change messages causes data corruption; SHOULD-level idempotency
@@ -84,13 +84,13 @@ groups:
   specs:
   - id: ID-05-001
     priority: SHOULD
-    kind: general
+    kind: architecture
     statement: Validation layer SHOULD reject exact duplicates (same ID, same content)
   - id: ID-05-002
     priority: MAY
-    kind: general
+    kind: architecture
     statement: HTTP layer MAY implement early duplicate filtering for performance
   - id: ID-05-003
     priority: SHOULD
-    kind: general
+    kind: architecture
     statement: Handlers provide final idempotency guarantee via state checks

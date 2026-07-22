@@ -15,9 +15,9 @@ groups:
   specs:
   - id: OB-05-001
     priority: MUST
-    kind: general
+    kind: architecture
     statement: The system MUST provide liveness endpoint at `/health/live`
   - id: OB-05-002
     priority: MUST
-    kind: general
+    kind: architecture
     statement: The system MUST provide readiness endpoint at `/health/ready`

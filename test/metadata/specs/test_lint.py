@@ -22,7 +22,7 @@ def _minimal_spec(spec_id="TST-01-001", priority="MUST", extra=None):
     spec = {
         "id": spec_id,
         "priority": priority,
-        "kind": "general",
+        "kind": "protocol",
         "statement": f"{spec_id} MUST do the thing",
         "rationale": "Because testing",
         "tags": ["testing"],
@@ -109,7 +109,7 @@ def test_lint_prefix_mismatch(tmp_path, capsys):
                     {
                         "id": "OTHER-01-001",
                         "priority": "MUST",
-                        "kind": "general",
+                        "kind": "protocol",
                         "statement": "OTHER-01-001 MUST be consistent",
                         "rationale": "Consistency",
                         "tags": ["testing"],
@@ -226,7 +226,7 @@ def test_lint_spec_id_prefix_mismatch(tmp_path, capsys):
                     {
                         "id": "TST-01-001",  # prefix TST-01 != group TST-02
                         "priority": "MUST",
-                        "kind": "general",
+                        "kind": "protocol",
                         "statement": "TST-01-001 MUST be in group TST-01",
                         "rationale": "Prefix consistency",
                         "tags": ["testing"],

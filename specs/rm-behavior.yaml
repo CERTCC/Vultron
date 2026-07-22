@@ -23,7 +23,7 @@ groups:
   specs:
   - id: RMB-01-001
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in RM Start (q^rm ∈ S) receiving RS MUST transition their
       RM state to Received (q^rm S → R).
@@ -56,7 +56,7 @@ groups:
 
   - id: RMB-01-002
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       A Vendor Participant in RM Start receiving RS that introduces a
       previously unknown vulnerability (q^cs ∈ vfd···) MUST transition their
@@ -106,7 +106,7 @@ groups:
 
   - id: RMB-01-003
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: >-
       A Vendor Participant already in an active RM state (q^rm ∈ {R,I,V,D,A})
       receiving RS for a vulnerability they were previously unaware of
@@ -156,7 +156,7 @@ groups:
 
   - id: RMB-01-004
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in an active RM state (q^rm ∈ {R,I,V,D,A}) receiving a
       duplicate RS (already Vendor-aware, q^cs ∈ V···) SHOULD emit RK to
@@ -190,7 +190,7 @@ groups:
 
   - id: RMB-01-005
     priority: MAY
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in RM Closed (q^rm ∈ C) receiving any R* message MAY
       ignore it without sending a response.
@@ -221,7 +221,7 @@ groups:
   specs:
   - id: RMB-02-001
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in an active RM state (q^rm ∈ {R,I,V,D,A}) receiving RI
       SHOULD update their record of the sender's RM state to Invalid and emit
@@ -265,7 +265,7 @@ groups:
 
   - id: RMB-02-002
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in RM Start (q^rm ∈ S) receiving RI SHOULD respond with
       both RE (to signal the unexpected message) and GI (to inquire what the
@@ -311,7 +311,7 @@ groups:
   specs:
   - id: RMB-03-001
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in an active RM state (q^rm ∈ {R,I,V,D,A}) receiving RV
       SHOULD update their record of the sender's RM state to Valid and emit
@@ -354,7 +354,7 @@ groups:
 
   - id: RMB-03-002
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in RM Start (q^rm ∈ S) receiving RV SHOULD respond with
       RE and GI to signal the error and inquire what the sender expected, in
@@ -400,7 +400,7 @@ groups:
   specs:
   - id: RMB-04-001
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in an active RM state (q^rm ∈ {R,I,V,D,A}) receiving RD
       SHOULD update their record of the sender's RM state to Deferred and
@@ -443,7 +443,7 @@ groups:
 
   - id: RMB-04-002
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in RM Start (q^rm ∈ S) receiving RD SHOULD respond with
       RE and GI to signal the error and inquire what the sender expected, in
@@ -488,7 +488,7 @@ groups:
   specs:
   - id: RMB-05-001
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in an active RM state (q^rm ∈ {R,I,V,D,A}) receiving RA
       SHOULD update their record of the sender's RM state to Accepted and
@@ -532,7 +532,7 @@ groups:
 
   - id: RMB-05-002
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in RM Start (q^rm ∈ S) receiving RA SHOULD respond with
       RE and GI to signal the error and inquire what the sender expected, in
@@ -578,7 +578,7 @@ groups:
   specs:
   - id: RMB-06-001
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in an active RM state (q^rm ∈ {R,I,V,D,A}) receiving RC
       SHOULD update their record of the sender's RM state to Closed and emit
@@ -622,7 +622,7 @@ groups:
 
   - id: RMB-06-002
     priority: MAY
-    kind: domain
+    kind: protocol
     statement: >-
       After receiving RC from all other active Participants, a Participant
       MAY evaluate whether local closure criteria are satisfied and, if so,
@@ -650,7 +650,7 @@ groups:
 
   - id: RMB-06-003
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in RM Start (q^rm ∈ S) receiving RC SHOULD respond with
       RE and GI to signal the error and inquire what the sender expected, in
@@ -695,7 +695,7 @@ groups:
   specs:
   - id: RMB-07-001
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in an active RM state (q^rm ∈ {R,I,V,D,A}) receiving RE
       SHOULD emit GI (to inquire about the nature of the error) and RK (to
@@ -735,7 +735,7 @@ groups:
 
   - id: RMB-07-002
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in RM Start (q^rm ∈ S) receiving RE SHOULD respond with
       RE (to signal the unexpected message), GI (to inquire what the sender
@@ -783,7 +783,7 @@ groups:
   specs:
   - id: RMB-08-001
     priority: MAY
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in an active RM state (q^rm ∈ {R,I,V,D,A}) receiving RK
       MAY take no further action; RK is an acknowledgment and requires no
@@ -813,7 +813,7 @@ groups:
 
   - id: RMB-08-002
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in RM Start (q^rm ∈ S) receiving RK SHOULD respond with
       RE and GI to signal the unexpected message and inquire what the sender
@@ -859,7 +859,7 @@ groups:
   specs:
   - id: RMB-09-001
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant entering RM Received SHOULD initiate a report validation
       process to determine whether the report is Valid or Invalid.
@@ -896,7 +896,7 @@ groups:
 
   - id: RMB-09-002
     priority: MAY
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant entering RM Received MAY temporarily hold the report
       pending additional information if the initial validation cannot be
@@ -928,7 +928,7 @@ groups:
   specs:
   - id: RMB-10-001
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant entering RM Valid MUST initiate a prioritization evaluation
       to determine whether to Accept or Defer the report.
@@ -958,7 +958,7 @@ groups:
 
   - id: RMB-10-002
     priority: MUST_NOT
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in RM Valid MUST NOT close the report directly from the
       Valid state (q^rm V → C) without first transitioning through Accepted
@@ -981,7 +981,7 @@ groups:
 
   - id: RMB-10-003
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant entering RM Valid SHOULD emit RV to announce the
       validation result to other Participants.
@@ -1011,7 +1011,7 @@ groups:
 
   - id: RMB-10-004
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant entering RM Valid SHOULD create or update a case object
       to track the report's progress through the CVD process.
@@ -1042,7 +1042,7 @@ groups:
   specs:
   - id: RMB-11-001
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant entering RM Invalid SHOULD emit RI to announce the
       invalid determination to other Participants.
@@ -1072,7 +1072,7 @@ groups:
 
   - id: RMB-11-002
     priority: SHOULD_NOT
-    kind: domain
+    kind: protocol
     statement: >-
       Participants SHOULD NOT mark duplicate reports as Invalid.
     rationale: >-
@@ -1096,7 +1096,7 @@ groups:
 
   - id: RMB-11-003
     priority: MAY
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in RM Invalid MAY revalidate the report when new
       information becomes available, transitioning back through the validation
@@ -1122,7 +1122,7 @@ groups:
 
   - id: RMB-11-004
     priority: MAY
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in RM Invalid MAY close the report if no further action
       is expected and no active embargo is in force (q^em ∉ {A,R}).
@@ -1152,7 +1152,7 @@ groups:
   specs:
   - id: RMB-12-001
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant entering RM Deferred SHOULD emit RD to announce the
       deferral decision to other Participants.
@@ -1185,7 +1185,7 @@ groups:
 
   - id: RMB-12-002
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in RM Deferred SHOULD monitor for new information
       (updated threat intelligence, exploitation activity, or vendor progress)
@@ -1207,7 +1207,7 @@ groups:
 
   - id: RMB-12-003
     priority: MAY
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in RM Deferred MAY set a policy timer to automatically
       move the report to Closed after a defined period of inactivity.
@@ -1235,7 +1235,7 @@ groups:
   specs:
   - id: RMB-13-001
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant MUST be in RM Accepted (q^rm ∈ A) before sending RS to
       another Participant to initiate CVD coordination (constraint C-04).
@@ -1261,7 +1261,7 @@ groups:
 
   - id: RMB-13-002
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant entering RM Accepted SHOULD emit RA to announce the
       accept decision to other Participants.
@@ -1294,7 +1294,7 @@ groups:
 
   - id: RMB-13-003
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in RM Accepted SHOULD perform active work on the report
       (e.g., fix development, remediation guidance, coordination with other
@@ -1323,7 +1323,7 @@ groups:
   specs:
   - id: RMB-14-001
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant entering RM Closed SHOULD emit RC to announce the closure
       to other Participants.
@@ -1353,7 +1353,7 @@ groups:
 
   - id: RMB-14-002
     priority: MAY
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in RM Closed (q^rm ∈ C) MAY ignore further R* messages
       received on the closed report without sending a response.
@@ -1374,7 +1374,7 @@ groups:
 
   - id: RMB-14-003
     priority: SHOULD_NOT
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant SHOULD NOT close a report (q^rm ∈ {I,D,A} → C) while an
       active embargo is in force (q^em ∈ {A,R}) unless they first communicate

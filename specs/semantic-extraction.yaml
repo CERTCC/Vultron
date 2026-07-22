@@ -17,21 +17,21 @@ groups:
   specs:
   - id: SE-01-001
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: The system MUST match activities using activity type and object type patterns
   - id: SE-01-002
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       The semantic extraction algorithm MUST handle both fully expanded objects and URI string
       references defensively
   - id: SE-01-003
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: 'If rehydration fails for any nested object, the system MUST:'
   - id: SE-01-004
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       Pattern matching MUST support type/subclass matching semantics for actor/object classes
     relationships:
@@ -42,33 +42,33 @@ groups:
   specs:
   - id: SE-02-001
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       The system MUST assign MessageSemantics enum value via `find_matching_semantics()`
   - id: SE-02-002
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: The function MUST return the first matching semantic type
   - id: SE-02-003
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: The function MUST return MessageSemantics.UNKNOWN if no patterns match
 - id: SE-03
   title: Pattern Registry
   specs:
   - id: SE-03-001
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       SEMANTICS_ACTIVITY_PATTERNS MUST contain patterns for all supported MessageSemantics
       values except UNKNOWN
   - id: SE-03-002
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: Pattern registry MUST be ordered from most specific to least specific
   - id: SE-03-003
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       Every `ActivityPattern` entry in `SEMANTICS_ACTIVITY_PATTERNS` MUST discriminate on
       at minimum both Activity type AND Object type
@@ -81,11 +81,11 @@ groups:
   specs:
   - id: SE-04-001
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: The system MUST log unrecognized activities at WARNING level
   - id: SE-04-002
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       The system MUST distinguish two causes of `MessageSemantics.UNKNOWN`: 1. **No pattern
       match**: No registered `ActivityPattern` matched the activity structure → raise `VultronApiHandlerMissingSemanticError`
@@ -98,14 +98,14 @@ groups:
       and fail legitimate protocol flows.
   - id: SE-04-003
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       Dead-letter records for unresolvable-object_ activities MUST include: the full activity
       JSON, the unresolvable URI, the actor ID, and a timestamp. They MUST be stored in a
       DataLayer collection accessible for administrative review and retry.
   - id: SE-04-004
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       For any future synchronous processing path (non-background), UNKNOWN due to unresolvable
       `object_` MUST return HTTP 422 with an explanatory error body identifying the unresolvable
@@ -115,22 +115,22 @@ groups:
   specs:
   - id: SE-05-001
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: All patterns MUST have corresponding MessageSemantics enum value
   - id: SE-05-002
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: All patterns MUST have corresponding use-case class in USE_CASE_MAP
     relationships:
     - rel_type: derives_from
       spec_id: DR-02-002
   - id: SE-05-003
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: All patterns MUST have unit test coverage
   - id: SE-05-004
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: >-
       Pattern matching SHOULD be actor-subtype-aware where the semantics of an activity
       differ based on whether the sender is a `Vendor`, `Coordinator`, `Researcher`, or
@@ -147,7 +147,7 @@ groups:
   specs:
   - id: SE-06-001
     priority: MUST
-    kind: implementation
+    kind: project
     statement: >-
       The `ActivityPatternRegistry` MUST include an import-time guard function
       `_validate_registry_order()` that raises `RegistryOrderError` if any registered
@@ -164,7 +164,7 @@ groups:
       spec_id: SE-05-001
   - id: SE-06-002
     priority: MUST
-    kind: implementation
+    kind: project
     statement: >-
       `RegistryOrderError` MUST be a named exception class in the semantic extraction
       module. It MUST NOT be raised as a generic `ValueError` or `AssertionError`.
@@ -173,7 +173,7 @@ groups:
       spec_id: SE-06-001
   - id: SE-06-003
     priority: MUST
-    kind: implementation
+    kind: project
     statement: >-
       The registry order guard MUST have a companion unit test that asserts correct ordering
       is maintained for all registered patterns. The test MUST fail if the guard raises

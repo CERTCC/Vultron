@@ -13,24 +13,22 @@ groups:
   specs:
   - id: HTTP-01-001
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: Inbox endpoint MUST accept `application/activity+json` Content-Type
   - id: HTTP-01-002
     priority: MUST
-    kind: domain
-    statement: >-
-      Inbox endpoint MUST accept `application/ld+json; profile="https://www.w3.org/ns/activitystreams"`
-      Content-Type
+    kind: protocol
+    statement: Inbox endpoint MUST accept `application/ld+json; profile="https://www.w3.org/ns/activitystreams"` Content-Type
   - id: HTTP-01-003
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: Inbox endpoint MUST reject requests with invalid Content-Type using HTTP 415
 - id: HTTP-02
   title: Request Size Limits
   specs:
   - id: HTTP-02-001
     priority: MUST
-    kind: pattern
+    kind: architecture
     statement: Inbox endpoint MUST reject requests exceeding 1 MB with HTTP 413
     scope:
     - production
@@ -39,46 +37,34 @@ groups:
   specs:
   - id: HTTP-03-001
     priority: MUST
-    kind: pattern
-    statement: >-
-      API MUST use standard HTTP status codes with consistent semantics per table below
+    kind: architecture
+    statement: API MUST use standard HTTP status codes with consistent semantics per table below
 - id: HTTP-04
   title: Response Headers
   specs:
   - id: HTTP-04-001
     priority: MUST
-    kind: pattern
-    statement: >-
-      Endpoints returning ActivityStreams objects MUST use
-      `Content-Type: application/activity+json`. Endpoints returning non-AS2
-      JSON (e.g., health checks, error bodies) MUST use
-      `Content-Type: application/json`.
-    rationale: >-
-      The ActivityStreams 2.0 specification defines `application/activity+json`
-      as the normative media type for AS2 documents. Using plain
-      `application/json` is ambiguous for federation clients that discover
-      capabilities via Content-Type. The previous requirement
-      (`application/json` for all responses) is superseded by this entry.
-    verification: >-
-      Integration test asserts that `GET /actors/{id}/profile` and
-      `GET /cases/{id}` responses carry
-      `Content-Type: application/activity+json`. Health-check response carries
-      `Content-Type: application/json`.
+    kind: protocol
+    statement: 'Endpoints returning ActivityStreams objects MUST use `Content-Type: application/activity+json`. Endpoints
+      returning non-AS2 JSON (e.g., health checks, error bodies) MUST use `Content-Type: application/json`.'
+    rationale: The ActivityStreams 2.0 specification defines `application/activity+json` as the normative media type for AS2
+      documents. Using plain `application/json` is ambiguous for federation clients that discover capabilities via Content-Type.
+      The previous requirement (`application/json` for all responses) is superseded by this entry.
+    verification: 'Integration test asserts that `GET /actors/{id}/profile` and `GET /cases/{id}` responses carry `Content-Type:
+      application/activity+json`. Health-check response carries `Content-Type: application/json`.'
 - id: HTTP-05
   title: Correlation ID Propagation
   specs:
   - id: HTTP-05-001
     priority: SHOULD
-    kind: pattern
-    statement: >-
-      API SHOULD accept `X-Correlation-ID` or `X-Request-ID` headers for request tracing
+    kind: architecture
+    statement: API SHOULD accept `X-Correlation-ID` or `X-Request-ID` headers for request tracing
     scope:
     - production
   - id: HTTP-05-002
     priority: SHOULD
-    kind: pattern
-    statement: >-
-      API SHOULD generate correlation ID from activity `id` field if header not provided
+    kind: architecture
+    statement: API SHOULD generate correlation ID from activity `id` field if header not provided
     scope:
     - production
 - id: HTTP-06
@@ -86,17 +72,16 @@ groups:
   specs:
   - id: HTTP-06-001
     priority: SHOULD
-    kind: pattern
+    kind: architecture
     statement: Inbox endpoints SHOULD respond with HTTP headers within 100ms
     rationale: Ensures responsive UX for ActivityPub federation
   - id: HTTP-06-002
     priority: SHOULD
-    kind: pattern
-    statement: >-
-      Processing exceeding 100ms SHOULD return HTTP 202 and queue for background processing
+    kind: architecture
+    statement: Processing exceeding 100ms SHOULD return HTTP 202 and queue for background processing
   - id: HTTP-06-003
     priority: SHOULD
-    kind: pattern
+    kind: architecture
     statement: Timeout occurrences SHOULD be logged at WARNING level
     scope:
     - production
@@ -105,28 +90,27 @@ groups:
   specs:
   - id: HTTP-07-001
     priority: MAY
-    kind: pattern
+    kind: architecture
     statement: API MAY include `X-RateLimit-Limit` header (maximum requests per window)
     scope:
     - production
   - id: HTTP-07-002
     priority: MAY
-    kind: pattern
+    kind: architecture
     statement: API MAY include `X-RateLimit-Remaining` header (requests remaining)
     scope:
     - production
   - id: HTTP-07-003
     priority: MAY
-    kind: pattern
+    kind: architecture
     statement: API MAY include `X-RateLimit-Reset` header (UTC timestamp for window reset)
     scope:
     - production
   - id: HTTP-07-004
     priority: MUST
-    kind: pattern
-    statement: >-
-      Transient error responses (HTTP 429, 503) MUST include a `Retry-After` header indicating
-      when the client should retry
+    kind: architecture
+    statement: Transient error responses (HTTP 429, 503) MUST include a `Retry-After` header indicating when the client should
+      retry
     scope:
     - production
 - id: HTTP-08
@@ -134,62 +118,40 @@ groups:
   specs:
   - id: HTTP-08-001
     priority: MUST
-    kind: language
-    statement: >-
-      API responses MUST include all fields of the actual returned object type, not only fields
-      declared on the annotated base class
+    kind: project
+    statement: API responses MUST include all fields of the actual returned object type, not only fields declared on the annotated
+      base class
 - id: HTTP-09
   title: AS2 Response Class Convention
-  rationale: >-
-    FastAPI's `response_model=` serves two purposes: OpenAPI schema generation
-    and runtime response filtering. When a route returns a wire AS2 object
-    (e.g., `as_VulnerabilityCase`), using `response_model=` for both purposes
-    risks silently stripping subclass fields (HTTP-08-001 violation). The
-    canonical fix is to separate the two concerns: use `response_model=` for
-    OpenAPI docs only, and return an `AS2JSONResponse` instance for actual
-    serialization (FastAPI skips response_model filtering when a `Response`
-    subclass is returned directly).
+  rationale: 'FastAPI''s `response_model=` serves two purposes: OpenAPI schema generation and runtime response filtering.
+    When a route returns a wire AS2 object (e.g., `as_VulnerabilityCase`), using `response_model=` for both purposes risks
+    silently stripping subclass fields (HTTP-08-001 violation). The canonical fix is to separate the two concerns: use `response_model=`
+    for OpenAPI docs only, and return an `AS2JSONResponse` instance for actual serialization (FastAPI skips response_model
+    filtering when a `Response` subclass is returned directly).'
   specs:
   - id: HTTP-09-001
     priority: MUST
-    kind: implementation
-    statement: >-
-      Wire vocabulary objects (`as_VulnerabilityCase`, `as_CaseParticipant`,
-      etc.) are the canonical response type for Vultron HTTP endpoints — they
-      define the AS2-formatted JSON shape returned to clients. No separate
-      "response model" layer is needed; the wire model IS the response model.
-    rationale: >-
-      Vultron is an AS2-over-HTTP protocol. Every substantive response body is
-      an ActivityStreams object. The wire vocabulary already defines the correct
-      serialization shape (camelCase aliases, `@context`, `type`).
+    kind: project
+    statement: Wire vocabulary objects (`as_VulnerabilityCase`, `as_CaseParticipant`, etc.) are the canonical response type
+      for Vultron HTTP endpoints — they define the AS2-formatted JSON shape returned to clients. No separate "response model"
+      layer is needed; the wire model IS the response model.
+    rationale: Vultron is an AS2-over-HTTP protocol. Every substantive response body is an ActivityStreams object. The wire
+      vocabulary already defines the correct serialization shape (camelCase aliases, `@context`, `type`).
   - id: HTTP-09-002
     priority: MUST
-    kind: implementation
-    statement: >-
-      FastAPI route handlers that return an AS2 object MUST return an
-      `AS2JSONResponse` instance (defined in
-      `vultron/adapters/driving/fastapi/responses.py`). They MUST NOT return a
-      raw dict from `model_dump()`, a plain `JSONResponse`, or the wire model
-      object directly. The `response_model=` decorator argument is used for
-      OpenAPI schema generation only.
-    rationale: >-
-      Returning a `Response` subclass bypasses FastAPI's `response_model`
-      filtering while preserving its use for OpenAPI schema generation (per
-      FastAPI docs). This eliminates the subtype-field-stripping bug
-      (HTTP-08-001) and ensures consistent `Content-Type: application/activity+json`
-      across all AS2 endpoints.
-    verification: >-
-      Architecture test or grep confirms no route in
-      `vultron/adapters/driving/fastapi/routers/` calls `model_dump()` and
-      returns a plain dict instead of `AS2JSONResponse`.
+    kind: project
+    statement: FastAPI route handlers that return an AS2 object MUST return an `AS2JSONResponse` instance (defined in `vultron/adapters/driving/fastapi/responses.py`).
+      They MUST NOT return a raw dict from `model_dump()`, a plain `JSONResponse`, or the wire model object directly. The
+      `response_model=` decorator argument is used for OpenAPI schema generation only.
+    rationale: 'Returning a `Response` subclass bypasses FastAPI''s `response_model` filtering while preserving its use for
+      OpenAPI schema generation (per FastAPI docs). This eliminates the subtype-field-stripping bug (HTTP-08-001) and ensures
+      consistent `Content-Type: application/activity+json` across all AS2 endpoints.'
+    verification: Architecture test or grep confirms no route in `vultron/adapters/driving/fastapi/routers/` calls `model_dump()`
+      and returns a plain dict instead of `AS2JSONResponse`.
   - id: HTTP-09-003
     priority: MUST
-    kind: implementation
-    statement: >-
-      `AS2JSONResponse` MUST serialize using
-      `model_dump(mode="json", by_alias=True, exclude_none=True)` and set
-      `Content-Type: application/activity+json`.
-    verification: >-
-      Unit test confirms `AS2JSONResponse(as_VulnerabilityCase(...)).body`
-      includes camelCase field names and the response headers contain
-      `Content-Type: application/activity+json`.
+    kind: project
+    statement: '`AS2JSONResponse` MUST serialize using `model_dump(mode="json", by_alias=True, exclude_none=True)` and set
+      `Content-Type: application/activity+json`.'
+    verification: 'Unit test confirms `AS2JSONResponse(as_VulnerabilityCase(...)).body` includes camelCase field names and
+      the response headers contain `Content-Type: application/activity+json`.'

@@ -16,7 +16,7 @@ groups:
   specs:
   - id: ENC-01-001
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: Each CaseActor MUST generate an asymmetric key pair at instantiation
     scope:
     - production
@@ -25,7 +25,7 @@ groups:
       spec_id: VP-15-003
   - id: ENC-01-002
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       The CaseActor MUST publish its public key in its ActivityPub actor profile using the
       `publicKey` property per ActivityPub HTTP Signatures conventions
@@ -33,7 +33,7 @@ groups:
     - production
   - id: ENC-01-003
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       The CaseActor MUST share its public key with each case participant when they are added
       to the case
@@ -41,7 +41,7 @@ groups:
     - production
   - id: ENC-01-004
     priority: MUST_NOT
-    kind: domain
+    kind: protocol
     statement: >-
       Private keys MUST be stored securely and MUST NOT be logged or included in API responses
     scope:
@@ -51,7 +51,7 @@ groups:
   specs:
   - id: ENC-02-001
     priority: MAY
-    kind: domain
+    kind: protocol
     statement: >-
       Case participants MAY encrypt messages sent to the CaseActor using the CaseActor's published
       public key
@@ -64,7 +64,7 @@ groups:
       spec_id: VP-15-004
   - id: ENC-02-002
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: >-
       When sending messages to case participants, the CaseActor SHOULD encrypt each outbound
       message to the recipient's public key individually (one encrypted payload per recipient)
@@ -78,7 +78,7 @@ groups:
   specs:
   - id: ENC-03-001
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       Decryption of inbound encrypted activities MUST occur in the inbox handler before the
       activity is passed to semantic extraction or dispatch
@@ -93,7 +93,7 @@ groups:
       spec_id: VP-15-003
   - id: ENC-03-002
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       If decryption fails, the inbox handler MUST return HTTP 400 with a structured error
       indicating decryption failure
@@ -106,7 +106,7 @@ groups:
       spec_id: HTTP-03-001
   - id: ENC-03-003
     priority: MUST_NOT
-    kind: domain
+    kind: protocol
     statement: >-
       The decryption layer MUST be separate from semantic extraction logic; the two concerns
       MUST NOT be mixed

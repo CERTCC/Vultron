@@ -19,7 +19,7 @@ MINIMAL_YAML = {
                 {
                     "id": "TST-01-001",
                     "priority": "MUST",
-                    "kind": "general",
+                    "kind": "protocol",
                     "statement": "TST-01-001 MUST satisfy the test",
                     "rationale": "Required for test coverage",
                     "tags": ["testing"],
@@ -43,7 +43,7 @@ SECOND_YAML = {
                 {
                     "id": "MOR-01-001",
                     "priority": "SHOULD",
-                    "kind": "general",
+                    "kind": "protocol",
                     "statement": "MOR-01-001 SHOULD also work correctly",
                     "rationale": "Multi-file registry testing",
                     "tags": ["testing"],

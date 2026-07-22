@@ -14,11 +14,11 @@ tags:
 groups:
   - id: BW-01
     title: Incoming Learnings Queue Content Policy
-    kind: dev-process
+    kind: process
     specs:
       - id: BW-01-001
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           `plan/incoming/learnings/` MUST contain only implementation
           observations, open questions, constraints, and insights discovered
@@ -37,7 +37,7 @@ groups:
               not in the incoming learnings queue.
       - id: BW-01-002
         priority: MUST_NOT
-        kind: dev-process
+        kind: process
         statement: >-
           The `build` and `bugfix` skills MUST NOT write completion summaries
           or task-status narratives to `plan/incoming/learnings/`.
@@ -46,7 +46,7 @@ groups:
             spec_id: HM-05-001
       - id: BW-01-005
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           Completion summaries from the `build` and `bugfix` skills MUST be
           archived exclusively via `uv run append-history implementation`.
@@ -55,7 +55,7 @@ groups:
             spec_id: HM-05-001
       - id: BW-01-003
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           Each incoming learning file MUST be named `YYYYMMDD-SLUG.md`
           where `YYYYMMDD` is the creation date and `SLUG` is a short
@@ -67,7 +67,7 @@ groups:
           record. The date prefix provides filesystem sort order.
       - id: BW-01-006
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           Incoming learning files MUST be committed as part of the
           originating PR so the learning is permanently linked to the
@@ -77,7 +77,7 @@ groups:
             spec_id: BW-01-003
       - id: BW-01-004
         priority: MUST_NOT
-        kind: dev-process
+        kind: process
         statement: >-
           Skills other than `build` and `bugfix` MUST NOT create files in
           `plan/incoming/learnings/`.
@@ -88,7 +88,7 @@ groups:
           signal and belong in notes directly.
       - id: BW-01-007
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           The `update-plan` skill MUST write observations and open questions
           directly to appropriate `notes/*.md` files. It MUST NOT use
@@ -98,11 +98,11 @@ groups:
             spec_id: BW-01-004
   - id: BW-02
     title: Incoming Learnings File Format
-    kind: domain
+    kind: protocol
     specs:
       - id: BW-02-001
         priority: MUST
-        kind: domain
+        kind: protocol
         statement: >-
           Every file in `plan/incoming/learnings/` MUST use the same YAML
           frontmatter format as history entry files: required fields
@@ -118,7 +118,7 @@ groups:
             spec_id: HM-02-001
       - id: BW-02-002
         priority: MUST
-        kind: domain
+        kind: protocol
         statement: >-
           The `source` field in an incoming learning file MUST match the
           filename stem (`YYYYMMDD-SLUG`).
@@ -127,7 +127,7 @@ groups:
             spec_id: HM-02-001
       - id: BW-02-003
         priority: MUST
-        kind: domain
+        kind: protocol
         statement: >-
           The `timestamp` field in an incoming learning file MUST reflect the
           actual creation time of the observation (not the current date if the
@@ -137,11 +137,11 @@ groups:
             spec_id: HM-06-001
   - id: BW-03
     title: learn Skill Processing
-    kind: dev-process
+    kind: process
     specs:
       - id: BW-03-001
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           When the `learn` skill processes `plan/incoming/learnings/`, each
           file MUST be promoted to the appropriate durable destination
@@ -152,7 +152,7 @@ groups:
             spec_id: HM-02-002
       - id: BW-03-002
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           `uv run append-history --from-file <path>` MUST be used to
           archive each processed incoming learning file. This command
@@ -168,18 +168,18 @@ groups:
             spec_id: HM-01-002
       - id: BW-03-003
         priority: SHOULD
-        kind: dev-process
+        kind: process
         statement: >-
           After a complete `learn` cycle, `plan/incoming/learnings/` SHOULD
           contain only a `.gitkeep` file. The queue SHOULD be empty after
           every learning session that fully drains it.
   - id: BW-04
     title: learning History Entry Type
-    kind: implementation
+    kind: project
     specs:
       - id: BW-04-001
         priority: MUST
-        kind: implementation
+        kind: project
         statement: >-
           The `learning` entry type MUST exist in `HistoryEntryType` in
           `vultron/metadata/history/types.py`.
@@ -188,7 +188,7 @@ groups:
             spec_id: HM-02-002
       - id: BW-04-003
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           The `learn` skill MUST use `uv run append-history --from-file`
           to archive each processed incoming learning file.
@@ -197,7 +197,7 @@ groups:
             spec_id: BW-04-001
       - id: BW-04-002
         priority: MUST
-        kind: implementation
+        kind: project
         statement: >-
           History entries of type `learning` MUST follow the same
           frontmatter and body format as all other `append-history` entry
@@ -208,11 +208,11 @@ groups:
             spec_id: HM-02-001
   - id: BW-05
     title: append-history --from-file Behaviour
-    kind: implementation
+    kind: project
     specs:
       - id: BW-05-001
         priority: MUST
-        kind: implementation
+        kind: project
         statement: >-
           `uv run append-history --from-file <path>` MUST read the
           complete file content (frontmatter + body), parse the
@@ -222,7 +222,7 @@ groups:
           It MUST delete the source file after a successful write.
       - id: BW-05-002
         priority: MUST
-        kind: implementation
+        kind: project
         statement: >-
           `uv run append-history --from-file` MUST be mutually exclusive
           with the positional `type` argument, `--title`, `--source`,
@@ -230,7 +230,7 @@ groups:
           non-zero with an error message listing the conflicting flags.
       - id: BW-05-003
         priority: MUST
-        kind: implementation
+        kind: project
         statement: >-
           `uv run append-history --from-file` MUST reject files whose
           frontmatter `timestamp` is more than 60 seconds in the future
@@ -238,11 +238,11 @@ groups:
           frontmatter fields (HM-02-001).
   - id: BW-06
     title: Skill Documentation Updates
-    kind: dev-process
+    kind: process
     specs:
       - id: BW-06-001
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           The `build` skill documentation MUST distinguish between
           learnings (observations and constraints recorded as individual
@@ -251,14 +251,14 @@ groups:
           outputs are required; neither may be omitted or combined.
       - id: BW-06-002
         priority: MUST
-        kind: dev-process
+        kind: process
         statement: >-
           The `learn` skill documentation MUST reference
           `plan/incoming/learnings/` as its primary input source and MUST
           describe the `append-history --from-file` archiving lifecycle.
       - id: BW-06-003
         priority: MUST_NOT
-        kind: dev-process
+        kind: process
         statement: >-
           The `update-plan` skill MUST NOT instruct agents to write to
           `plan/incoming/learnings/`. Observations discovered during gap

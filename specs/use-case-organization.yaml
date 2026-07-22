@@ -16,7 +16,7 @@ groups:
   specs:
   - id: UCORG-01-001
     priority: MUST
-    kind: implementation
+    kind: project
     statement: >-
       Use-case classes that process inbound received messages MUST reside under `vultron/core/use_cases/received/`
     relationships:
@@ -25,7 +25,7 @@ groups:
       note: code-style.md
   - id: UCORG-01-002
     priority: MUST
-    kind: implementation
+    kind: project
     statement: >-
       Trigger use-case classes that implement actor-initiated behaviors MUST reside under
       `vultron/core/use_cases/triggers/`
@@ -35,7 +35,7 @@ groups:
       note: code-style.md
   - id: UCORG-01-003
     priority: MUST_NOT
-    kind: implementation
+    kind: project
     statement: >-
       The `vultron/core/use_cases/` package root MUST contain only `__init__.py` and `use_case_map.py`;
       use-case implementations MUST NOT be placed at the root level
@@ -44,13 +44,13 @@ groups:
   specs:
   - id: UCORG-02-001
     priority: MUST
-    kind: implementation
+    kind: project
     statement: >-
       Any relocation or rename of a use-case class MUST update `USE_CASE_MAP` in `vultron/core/use_cases/use_case_map.py`
       in the same commit
   - id: UCORG-02-002
     priority: MUST
-    kind: implementation
+    kind: project
     statement: >-
       A dispatch coverage test MUST verify that every `MessageSemantics` value registered
       in `USE_CASE_MAP` resolves to a callable class and that dispatch succeeds for a representative
@@ -60,7 +60,7 @@ groups:
   specs:
   - id: UCORG-03-001
     priority: MUST
-    kind: implementation
+    kind: project
     statement: 'Tests MUST mirror the source layout:'
     relationships:
     - rel_type: refines
@@ -71,7 +71,7 @@ groups:
   specs:
   - id: UCORG-04-001
     priority: SHOULD
-    kind: implementation
+    kind: project
     statement: >-
       The trigger → received → sync information flow pattern SHOULD be documented in `notes/`
       and summarized in a `README.md` under `vultron/core/use_cases/`

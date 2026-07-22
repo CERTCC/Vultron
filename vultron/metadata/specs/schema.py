@@ -79,45 +79,37 @@ class Trigger(BaseModel):
 class SpecKind(StrEnum):
     """Portability tier for a spec requirement (SR-02-005).
 
-    The six tiers form a portability hierarchy.  Use them to filter which
+    The four tiers form a portability hierarchy.  Use them to filter which
     specs apply to your project:
 
-    - ``general``        — Universal: any project, any language.
-                           Examples: idempotency, linter discipline, CI
-                           security.
-    - ``pattern``        — Architectural / framework approach: language-agnostic
-                           and not CVD-specific.
-                           Examples: hexagonal architecture, BT composability,
-                           event-driven dispatch.
-    - ``domain``         — Vultron / CVD protocol: language-agnostic.
-                           Examples: embargo lifecycle, case management, AS2
-                           semantics, MPCVD state machines.
-    - ``language``       — Python ecosystem: any Python project.
-                           Examples: pydantic conventions, py_trees API, pytest,
-                           FastAPI patterns.
-    - ``implementation`` — This specific codebase.
-                           Examples: file paths under ``vultron/``, class names
-                           in ``vultron/core/``, notes frontmatter schema.
-    - ``dev-process``    — This project's development and maintenance process.
-                           Examples: skill workflows, history management,
-                           spec authoring conventions, parallel agentic dev.
+    - ``protocol``     — Required for Vultron compliance — any implementation
+                         in any language must satisfy this.  Covers wire
+                         behaviour, state machine invariants, behavioural
+                         contracts, message semantics, and protocol rules.
+    - ``architecture`` — Implementation-independent structural guidance —
+                         transferable across languages and frameworks, but not
+                         required for Vultron compliance per se.  Covers
+                         hexagonal boundaries, event-driven dispatch,
+                         port/adapter patterns, fail-fast principles.
+    - ``project``      — Specific to this codebase — Python paths, BT nodes,
+                         py_trees, pydantic, factory names, module
+                         organisation, endpoint conventions.
+    - ``process``      — How we run this project — CI config, GitHub workflow,
+                         agent conventions, docs standards, spec authoring
+                         rules.
 
     Portability use cases
     ~~~~~~~~~~~~~~~~~~~~~
-    - Implementing Vultron in Python          → general + pattern + domain + language + implementation
-    - Implementing Vultron in another language → general + pattern + domain
-    - Different domain, Python/BT/hex stack   → general + pattern + language
-    - BT / hexagonal wisdom, any language      → general + pattern
-    - Universal wisdom only                    → general
-    - Contributing to this project            → all six tiers (include dev-process)
+    - Implement Vultron in any language          → ``protocol``
+    - Understand the reference architecture      → ``protocol`` + ``architecture``
+    - Contribute to this Python codebase         → ``protocol`` + ``architecture`` + ``project``
+    - Contribute to this project (incl. process) → all four tiers
     """
 
-    GENERAL = "general"
-    PATTERN = "pattern"
-    DOMAIN = "domain"
-    LANGUAGE = "language"
-    IMPLEMENTATION = "implementation"
-    DEV_PROCESS = "dev-process"
+    PROTOCOL = "protocol"
+    ARCHITECTURE = "architecture"
+    PROJECT = "project"
+    PROCESS = "process"
 
 
 class Scope(StrEnum):

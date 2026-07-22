@@ -1,10 +1,8 @@
 id: VAM
 title: Vultron Semantic–AS2 Mapping
-description: >-
-  Defines the authoritative mapping from each Vultron semantic message type (MessageSemantics
-  enum value) to its ActivityStreams 2.0 wire representation. This is the single source of
-  truth for how Vultron domain semantics are encoded as AS2 activity structures, isolating
-  transport and wire-encoding concerns from the core domain logic and case-state machines.
+description: Defines the authoritative mapping from each Vultron semantic message type (MessageSemantics enum value) to its
+  ActivityStreams 2.0 wire representation. This is the single source of truth for how Vultron domain semantics are encoded
+  as AS2 activity structures, isolating transport and wire-encoding concerns from the core domain logic and case-state machines.
 version: 1.0.0
 scope:
 - prototype
@@ -18,81 +16,62 @@ groups:
   specs:
   - id: VAM-01-001
     priority: MUST
-    kind: domain
-    statement: >-
-      Every `MessageSemantics` enum value except `UNKNOWN` MUST have exactly one entry in
-      `SEMANTICS_ACTIVITY_PATTERNS` that defines its AS2 wire representation
+    kind: protocol
+    statement: Every `MessageSemantics` enum value except `UNKNOWN` MUST have exactly one entry in `SEMANTICS_ACTIVITY_PATTERNS`
+      that defines its AS2 wire representation
   - id: VAM-01-002
     priority: MUST_NOT
-    kind: domain
-    statement: >-
-      The AS2 activity patterns defined in this document MUST be implemented in `vultron/wire/as2/extractor.py`
-      as `ActivityPattern` objects and MUST NOT be duplicated in any other module
+    kind: project
+    statement: The AS2 activity patterns defined in this document MUST be implemented in `vultron/wire/as2/extractor.py` as
+      `ActivityPattern` objects and MUST NOT be duplicated in any other module
   - id: VAM-01-003
     priority: MUST
-    kind: domain
-    statement: >-
-      Pattern entries in `SEMANTICS_ACTIVITY_PATTERNS` MUST be ordered from most-specific
-      to least-specific so that `find_matching_semantics()` returns the correct semantic for
-      overlapping patterns
+    kind: protocol
+    statement: Pattern entries in `SEMANTICS_ACTIVITY_PATTERNS` MUST be ordered from most-specific to least-specific so that
+      `find_matching_semantics()` returns the correct semantic for overlapping patterns
   - id: VAM-01-004
     priority: MUST_NOT
-    kind: domain
-    statement: >-
-      An AS2 activity MUST be rehydrated (URI string references expanded to full objects via
-      the DataLayer) before pattern matching; pattern matching MUST NOT rely on unhydrated
-      string fields for type discrimination
+    kind: protocol
+    statement: An AS2 activity MUST be rehydrated (URI string references expanded to full objects via the DataLayer) before
+      pattern matching; pattern matching MUST NOT rely on unhydrated string fields for type discrimination
   - id: VAM-01-005
     priority: MUST
-    kind: domain
-    statement: >-
-      When a pattern specifies a nested activity as the `object` field, the outer activity's
-      `object` MUST be a fully rehydrated AS2 activity object matching the inner `ActivityPattern`
+    kind: protocol
+    statement: When a pattern specifies a nested activity as the `object` field, the outer activity's `object` MUST be a fully
+      rehydrated AS2 activity object matching the inner `ActivityPattern`
   - id: VAM-01-006
     priority: MUST
-    kind: domain
-    statement: >-
-      Pattern matching MUST be conservative when a non-`object_` field is a non-rehydratable
-      URI string: such a field MUST be treated as matching any expected type rather than failing
-      the match
-    rationale: >-
-      Peripheral reference fields (`actor`, `target`, `context`, etc.) do not drive semantic
-      dispatch; conservatively matching them avoids false negatives when the DataLayer cannot
-      expand every reference
+    kind: protocol
+    statement: 'Pattern matching MUST be conservative when a non-`object_` field is a non-rehydratable URI string: such a
+      field MUST be treated as matching any expected type rather than failing the match'
+    rationale: Peripheral reference fields (`actor`, `target`, `context`, etc.) do not drive semantic dispatch; conservatively
+      matching them avoids false negatives when the DataLayer cannot expand every reference
   - id: VAM-01-009
     priority: MUST
-    kind: domain
-    statement: >-
-      If the `object_` field of an activity remains a bare string URI after rehydration (i.e.,
-      the DataLayer does not have a record for that URI), `find_matching_semantics()` MUST
-      return `MessageSemantics.UNKNOWN`
-    rationale: >-
-      Semantic dispatch depends on the object type. A bare string in `object_` makes the object
-      type unknowable; proceeding as if the pattern matches would route the activity to the
-      wrong handler
+    kind: protocol
+    statement: If the `object_` field of an activity remains a bare string URI after rehydration (i.e., the DataLayer does
+      not have a record for that URI), `find_matching_semantics()` MUST return `MessageSemantics.UNKNOWN`
+    rationale: Semantic dispatch depends on the object type. A bare string in `object_` makes the object type unknowable;
+      proceeding as if the pattern matches would route the activity to the wrong handler
   - id: VAM-01-007
     priority: MUST
-    kind: domain
-    statement: >-
-      `MessageSemantics.UNKNOWN` MUST be returned when no registered pattern matches the incoming
-      activity
+    kind: protocol
+    statement: '`MessageSemantics.UNKNOWN` MUST be returned when no registered pattern matches the incoming activity'
   - id: VAM-01-008
     priority: MUST
-    kind: domain
-    statement: >-
-      Inbound activities represent state-change notifications, not commands; the AS2 activity
-      type used for each semantic MUST reflect the completed state transition, not a requested
-      action
+    kind: protocol
+    statement: Inbound activities represent state-change notifications, not commands; the AS2 activity type used for each
+      semantic MUST reflect the completed state transition, not a requested action
 - id: VAM-02
   title: Report Management Messages
   specs:
   - id: VAM-02-001
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: '`CREATE_REPORT` MUST be represented as `Create(VulnerabilityReport)`'
   - id: VAM-02-002
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: '`SUBMIT_REPORT` MUST be represented as `Offer(VulnerabilityReport)`'
     relationships:
     - rel_type: satisfies
@@ -100,7 +79,7 @@ groups:
       note: RS shorthand → SUBMIT_REPORT → this wire form
   - id: VAM-02-003
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: '`ACK_REPORT` MUST be represented as `Read(Offer(VulnerabilityReport))`'
     relationships:
     - rel_type: satisfies
@@ -108,7 +87,7 @@ groups:
       note: RK shorthand → ACK_REPORT → this wire form
   - id: VAM-02-004
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: '`VALIDATE_REPORT` MUST be represented as `Accept(Offer(VulnerabilityReport))`'
     relationships:
     - rel_type: satisfies
@@ -116,16 +95,15 @@ groups:
       note: RV shorthand → VALIDATE_REPORT → this wire form
   - id: VAM-02-005
     priority: MUST
-    kind: domain
-    statement: >-
-      `INVALIDATE_REPORT` MUST be represented as `TentativeReject(Offer(VulnerabilityReport))`
+    kind: protocol
+    statement: '`INVALIDATE_REPORT` MUST be represented as `TentativeReject(Offer(VulnerabilityReport))`'
     relationships:
     - rel_type: satisfies
       spec_id: MSM-01-002
       note: RI shorthand → INVALIDATE_REPORT → this wire form
   - id: VAM-02-006
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: '`CLOSE_REPORT` MUST be represented as `Reject(Offer(VulnerabilityReport))`'
     relationships:
     - rel_type: satisfies
@@ -136,15 +114,15 @@ groups:
   specs:
   - id: VAM-03-001
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: '`CREATE_CASE` MUST be represented as `Create(VulnerabilityCase)`'
   - id: VAM-03-002
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: '`UPDATE_CASE` MUST be represented as `Update(VulnerabilityCase)`'
   - id: VAM-03-003
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: '`ENGAGE_CASE` MUST be represented as `Join(VulnerabilityCase)`'
     relationships:
     - rel_type: satisfies
@@ -152,7 +130,7 @@ groups:
       note: RA shorthand → ENGAGE_CASE → this wire form
   - id: VAM-03-004
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: '`DEFER_CASE` MUST be represented as `Ignore(VulnerabilityCase)`'
     relationships:
     - rel_type: satisfies
@@ -160,76 +138,65 @@ groups:
       note: RD shorthand → DEFER_CASE → this wire form
   - id: VAM-03-005
     priority: MUST
-    kind: domain
-    statement: >-
-      `ADD_REPORT_TO_CASE` MUST be represented as `Add(VulnerabilityReport)[target=VulnerabilityCase]`
+    kind: protocol
+    statement: '`ADD_REPORT_TO_CASE` MUST be represented as `Add(VulnerabilityReport)[target=VulnerabilityCase]`'
   - id: VAM-03-006
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: '`CLOSE_CASE` MUST be represented as `Leave(VulnerabilityCase)`'
 - id: VAM-04
   title: Actor Suggestion and Invitation Messages
   specs:
   - id: VAM-04-001
     priority: MUST
-    kind: domain
-    statement: >-
-      `SUGGEST_ACTOR_TO_CASE` MUST be represented as `Offer(Actor)[target=VulnerabilityCase]`
+    kind: protocol
+    statement: '`SUGGEST_ACTOR_TO_CASE` MUST be represented as `Offer(Actor)[target=VulnerabilityCase]`'
   - id: VAM-04-002
     priority: MUST
-    kind: domain
-    statement: >-
-      `ACCEPT_SUGGEST_ACTOR_TO_CASE` MUST be represented as `Accept(Offer(Actor)[target=VulnerabilityCase])`
+    kind: protocol
+    statement: '`ACCEPT_SUGGEST_ACTOR_TO_CASE` MUST be represented as `Accept(Offer(Actor)[target=VulnerabilityCase])`'
   - id: VAM-04-003
     priority: MUST
-    kind: domain
-    statement: >-
-      `REJECT_SUGGEST_ACTOR_TO_CASE` MUST be represented as `Reject(Offer(Actor)[target=VulnerabilityCase])`
+    kind: protocol
+    statement: '`REJECT_SUGGEST_ACTOR_TO_CASE` MUST be represented as `Reject(Offer(Actor)[target=VulnerabilityCase])`'
   - id: VAM-04-004
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: '`INVITE_ACTOR_TO_CASE` MUST be represented as `Invite[target=VulnerabilityCase]`'
   - id: VAM-04-005
     priority: MUST
-    kind: domain
-    statement: >-
-      `ACCEPT_INVITE_ACTOR_TO_CASE` MUST be represented as `Accept(Invite[target=VulnerabilityCase])`
+    kind: protocol
+    statement: '`ACCEPT_INVITE_ACTOR_TO_CASE` MUST be represented as `Accept(Invite[target=VulnerabilityCase])`'
   - id: VAM-04-006
     priority: MUST
-    kind: domain
-    statement: >-
-      `REJECT_INVITE_ACTOR_TO_CASE` MUST be represented as `Reject(Invite[target=VulnerabilityCase])`
+    kind: protocol
+    statement: '`REJECT_INVITE_ACTOR_TO_CASE` MUST be represented as `Reject(Invite[target=VulnerabilityCase])`'
   - id: VAM-04-007
     priority: MUST
-    kind: domain
-    statement: >-
-      `OFFER_CASE_OWNERSHIP_TRANSFER` MUST be represented as `Offer(VulnerabilityCase)`
+    kind: protocol
+    statement: '`OFFER_CASE_OWNERSHIP_TRANSFER` MUST be represented as `Offer(VulnerabilityCase)`'
   - id: VAM-04-008
     priority: MUST
-    kind: domain
-    statement: >-
-      `ACCEPT_CASE_OWNERSHIP_TRANSFER` MUST be represented as `Accept(Offer(VulnerabilityCase))`
+    kind: protocol
+    statement: '`ACCEPT_CASE_OWNERSHIP_TRANSFER` MUST be represented as `Accept(Offer(VulnerabilityCase))`'
   - id: VAM-04-009
     priority: MUST
-    kind: domain
-    statement: >-
-      `REJECT_CASE_OWNERSHIP_TRANSFER` MUST be represented as `Reject(Offer(VulnerabilityCase))`
+    kind: protocol
+    statement: '`REJECT_CASE_OWNERSHIP_TRANSFER` MUST be represented as `Reject(Offer(VulnerabilityCase))`'
 - id: VAM-05
   title: Embargo Management Messages
   specs:
   - id: VAM-05-001
     priority: MUST
-    kind: domain
-    statement: >-
-      `CREATE_EMBARGO_EVENT` MUST be represented as `Create(Event)[context=VulnerabilityCase]`
+    kind: protocol
+    statement: '`CREATE_EMBARGO_EVENT` MUST be represented as `Create(Event)[context=VulnerabilityCase]`'
   - id: VAM-05-002
     priority: MUST
-    kind: domain
-    statement: >-
-      `ADD_EMBARGO_EVENT_TO_CASE` MUST be represented as `Add(Event)[target=VulnerabilityCase]`
+    kind: protocol
+    statement: '`ADD_EMBARGO_EVENT_TO_CASE` MUST be represented as `Add(Event)[target=VulnerabilityCase]`'
   - id: VAM-05-003
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: '`REMOVE_EMBARGO_EVENT_FROM_CASE` MUST be represented as `Remove(Event)`'
     relationships:
     - rel_type: satisfies
@@ -237,14 +204,12 @@ groups:
       note: ET shorthand → REMOVE_EMBARGO_EVENT_FROM_CASE → this wire form
   - id: VAM-05-004
     priority: MUST
-    kind: domain
-    statement: >-
-      `ANNOUNCE_EMBARGO_EVENT_TO_CASE` MUST be represented as `Announce(Event)[context=VulnerabilityCase]`
+    kind: protocol
+    statement: '`ANNOUNCE_EMBARGO_EVENT_TO_CASE` MUST be represented as `Announce(Event)[context=VulnerabilityCase]`'
   - id: VAM-05-005
     priority: MUST
-    kind: domain
-    statement: >-
-      `INVITE_TO_EMBARGO_ON_CASE` MUST be represented as `Invite(Event)[context=VulnerabilityCase]`
+    kind: protocol
+    statement: '`INVITE_TO_EMBARGO_ON_CASE` MUST be represented as `Invite(Event)[context=VulnerabilityCase]`'
     relationships:
     - rel_type: satisfies
       spec_id: MSM-02-001
@@ -254,9 +219,8 @@ groups:
       note: EV shorthand (revision) → same wire form as EP
   - id: VAM-05-006
     priority: MUST
-    kind: domain
-    statement: >-
-      `ACCEPT_INVITE_TO_EMBARGO_ON_CASE` MUST be represented as `Accept(Invite(Event)[context=VulnerabilityCase])`
+    kind: protocol
+    statement: '`ACCEPT_INVITE_TO_EMBARGO_ON_CASE` MUST be represented as `Accept(Invite(Event)[context=VulnerabilityCase])`'
     relationships:
     - rel_type: satisfies
       spec_id: MSM-02-002
@@ -266,9 +230,8 @@ groups:
       note: EC shorthand (revision accepted) → same wire form as EA
   - id: VAM-05-007
     priority: MUST
-    kind: domain
-    statement: >-
-      `REJECT_INVITE_TO_EMBARGO_ON_CASE` MUST be represented as `Reject(Invite(Event)[context=VulnerabilityCase])`
+    kind: protocol
+    statement: '`REJECT_INVITE_TO_EMBARGO_ON_CASE` MUST be represented as `Reject(Invite(Event)[context=VulnerabilityCase])`'
     relationships:
     - rel_type: satisfies
       spec_id: MSM-02-006
@@ -281,48 +244,42 @@ groups:
   specs:
   - id: VAM-06-001
     priority: MUST
-    kind: domain
-    statement: >-
-      `CREATE_CASE_PARTICIPANT` MUST be represented as `Create(CaseParticipant)[context=VulnerabilityCase]`
+    kind: protocol
+    statement: '`CREATE_CASE_PARTICIPANT` MUST be represented as `Create(CaseParticipant)[context=VulnerabilityCase]`'
   - id: VAM-06-002
     priority: MUST
-    kind: domain
-    statement: >-
-      `ADD_CASE_PARTICIPANT_TO_CASE` MUST be represented as `Add(CaseParticipant)[target=VulnerabilityCase]`
+    kind: protocol
+    statement: '`ADD_CASE_PARTICIPANT_TO_CASE` MUST be represented as `Add(CaseParticipant)[target=VulnerabilityCase]`'
   - id: VAM-06-003
     priority: MUST
-    kind: domain
-    statement: >-
-      `REMOVE_CASE_PARTICIPANT_FROM_CASE` MUST be represented as `Remove(CaseParticipant)[target=VulnerabilityCase]`
+    kind: protocol
+    statement: '`REMOVE_CASE_PARTICIPANT_FROM_CASE` MUST be represented as `Remove(CaseParticipant)[target=VulnerabilityCase]`'
 - id: VAM-07
   title: Note Management Messages
   specs:
   - id: VAM-07-001
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: '`CREATE_NOTE` MUST be represented as `Create(Note)`'
   - id: VAM-07-002
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: '`ADD_NOTE_TO_CASE` MUST be represented as `Add(Note)[target=VulnerabilityCase]`'
   - id: VAM-07-003
     priority: MUST
-    kind: domain
-    statement: >-
-      `REMOVE_NOTE_FROM_CASE` MUST be represented as `Remove(Note)[target=VulnerabilityCase]`
+    kind: protocol
+    statement: '`REMOVE_NOTE_FROM_CASE` MUST be represented as `Remove(Note)[target=VulnerabilityCase]`'
 - id: VAM-08
   title: Status Tracking Messages
   specs:
   - id: VAM-08-001
     priority: MUST
-    kind: domain
-    statement: >-
-      `CREATE_CASE_STATUS` MUST be represented as `Create(CaseStatus)[context=VulnerabilityCase]`
+    kind: protocol
+    statement: '`CREATE_CASE_STATUS` MUST be represented as `Create(CaseStatus)[context=VulnerabilityCase]`'
   - id: VAM-08-002
     priority: MUST
-    kind: domain
-    statement: >-
-      `ADD_CASE_STATUS_TO_CASE` MUST be represented as `Add(CaseStatus)[target=VulnerabilityCase]`
+    kind: protocol
+    statement: '`ADD_CASE_STATUS_TO_CASE` MUST be represented as `Add(CaseStatus)[target=VulnerabilityCase]`'
     relationships:
     - rel_type: satisfies
       spec_id: MSM-03-001
@@ -344,26 +301,21 @@ groups:
       note: CA shorthand → ADD_CASE_STATUS_TO_CASE → this wire form
   - id: VAM-08-003
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: '`CREATE_PARTICIPANT_STATUS` MUST be represented as `Create(ParticipantStatus)`'
   - id: VAM-08-004
     priority: MUST
-    kind: domain
-    statement: >-
-      `ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` MUST be represented as `Add(ParticipantStatus)[target=CaseParticipant]`
+    kind: protocol
+    statement: '`ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` MUST be represented as `Add(ParticipantStatus)[target=CaseParticipant]`'
 - id: VAM-09
   title: Unrecognized Activities
   specs:
   - id: VAM-09-001
     priority: MUST
-    kind: domain
-    statement: >-
-      An inbound AS2 activity that does not match any registered pattern MUST be assigned
-      `MessageSemantics.UNKNOWN`
+    kind: protocol
+    statement: An inbound AS2 activity that does not match any registered pattern MUST be assigned `MessageSemantics.UNKNOWN`
   - id: VAM-09-002
     priority: MUST_NOT
-    kind: domain
-    statement: >-
-      `MessageSemantics.UNKNOWN` MUST NOT have an entry in `SEMANTICS_ACTIVITY_PATTERNS`;
-      the fallback is implemented by `find_matching_semantics()` returning `UNKNOWN` when
-      the pattern loop exhausts all entries without a match
+    kind: protocol
+    statement: '`MessageSemantics.UNKNOWN` MUST NOT have an entry in `SEMANTICS_ACTIVITY_PATTERNS`; the fallback is implemented
+      by `find_matching_semantics()` returning `UNKNOWN` when the pattern loop exhausts all entries without a match'

@@ -17,7 +17,7 @@ groups:
   specs:
   - id: PCR-01-001
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       Each Vultron Actor MUST maintain its local case replica as an internal concern — there
       is exactly one externally-addressable Actor identity per participant, regardless of
@@ -29,7 +29,7 @@ groups:
       spec_id: AKM-01-002
   - id: PCR-01-002
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: There is exactly one CaseActor per case, operated by the case creator/owner.
     relationships:
     - rel_type: refines
@@ -39,7 +39,7 @@ groups:
   specs:
   - id: PCR-02-001
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       `Announce(VulnerabilityCase)` is the unified mechanism for delivering a full case snapshot
       to a participant, at every lifecycle stage.
@@ -50,7 +50,7 @@ groups:
       spec_id: SYNC-02-001
   - id: PCR-02-002
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       When a new participant is added to a case (whether at case creation or later), the CaseActor
       MUST send `Announce(VulnerabilityCase)` to that participant to deliver their initial
@@ -60,20 +60,20 @@ groups:
       spec_id: CM-06-001
   - id: PCR-02-003
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       When a participant actor receives `Announce(VulnerabilityCase)` and has no existing
       local copy for that case ID, it MUST create a local replica from the received case object.
   - id: PCR-02-004
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       When a participant actor receives `Announce(VulnerabilityCase)` and already has a local
       replica for that case ID, it MUST apply the received case state as an authoritative
       update, subject to PCR-03-001.
   - id: PCR-02-005
     priority: MUST_NOT
-    kind: domain
+    kind: protocol
     statement: >-
       `Create(VulnerabilityCase)` retains its semantic meaning ("a case was created") but
       MUST NOT be used as the mechanism for delivering a full case snapshot to participants.
@@ -82,7 +82,7 @@ groups:
   specs:
   - id: PCR-03-001
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       A participant actor's local case replica MUST only accept case-state updates that originate
       from the CaseActor for that case.
@@ -91,7 +91,7 @@ groups:
       spec_id: CM-06-002
   - id: PCR-03-002
     priority: MUST_NOT
-    kind: domain
+    kind: protocol
     statement: >-
       The case owner actor MUST follow the same replica rules as all other participants: it
       MUST NOT write directly to its own local case copy; it MUST route all case-state changes
@@ -101,7 +101,7 @@ groups:
       spec_id: CM-02-010
   - id: PCR-03-003
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       A participant actor MUST authenticate `Announce(VulnerabilityCase)` activities before
       accepting them as authoritative updates to its local replica.
@@ -109,7 +109,7 @@ groups:
     - production
   - id: PCR-03-004
     priority: MUST_NOT
-    kind: domain
+    kind: protocol
     statement: >-
       A participant actor MUST NOT create a local case replica from an `Announce(VulnerabilityCase)`
       message unless prior trust for that case has been established: either (a) the actor has
@@ -127,7 +127,7 @@ groups:
   specs:
   - id: PCR-04-001
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       The `context` field of an ActivityStreams activity is the canonical mechanism for routing
       a case-scoped message to the correct local case replica handler within a participant
@@ -137,13 +137,13 @@ groups:
       spec_id: CM-01-002
   - id: PCR-04-002
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       All case-scoped protocol activities sent by the CaseActor to participants MUST carry
       `context` set to the case ID.
   - id: PCR-04-003
     priority: MUST_NOT
-    kind: domain
+    kind: protocol
     statement: >-
       The participant actor MUST be the only externally-addressable entity for receiving case-scoped
       messages on behalf of all cases it participates in; there MUST NOT be a separate per-case
@@ -153,13 +153,13 @@ groups:
   specs:
   - id: PCR-05-001
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       Each actor's DataLayer MUST maintain a mapping from `VulnerabilityReport.id_` to `VulnerabilityCase.id_`
       for reports the actor has submitted.
   - id: PCR-05-002
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       When a participant actor receives `Announce(VulnerabilityCase)` and the case references
       a report in the actor's local report-to-case map, the actor MUST link the local case
@@ -169,25 +169,25 @@ groups:
   specs:
   - id: PCR-06-001
     priority: MUST_NOT
-    kind: domain
+    kind: protocol
     statement: >-
       When a participant actor receives an activity whose `context` field does not match any
       known local case replica, the actor MUST NOT silently discard the activity.
   - id: PCR-06-002
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: >-
       When an activity with an unknown case context arrives, the actor SHOULD queue the activity
       briefly and request a case snapshot from the CaseActor.
   - id: PCR-06-003
     priority: MUST_NOT
-    kind: domain
+    kind: protocol
     statement: >-
       Activities with unknown case context MUST NOT update any local state until a valid case
       replica has been established.
   - id: PCR-06-004
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       The pending-activity queue for unknown case contexts MUST be actor-scoped: deferred
       activities for a given case ID MUST be keyed by both the receiving actor's ID and the
@@ -201,7 +201,7 @@ groups:
   specs:
   - id: PCR-08-001
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       After a case is created and the Case Actor is introduced, a participant actor MUST address
       all case-scoped outbound messages (notes, status updates, embargo proposals, RM transitions,
@@ -209,7 +209,7 @@ groups:
       case. A participant actor MUST NOT send these messages directly to other participants.
   - id: PCR-08-002
     priority: MUST_NOT
-    kind: domain
+    kind: protocol
     statement: >-
       A participant actor MUST NOT assume that other participants will receive its case-scoped
       messages through any channel other than the Case Actor's `Announce(CaseLedgerEntry)` broadcast.
@@ -217,7 +217,7 @@ groups:
       is a violation of this rule.
   - id: PCR-08-003
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       The Case Actor MUST, for every participant message it receives and accepts, commit a
       `CaseLedgerEntry` recording the outcome and broadcast `Announce(CaseLedgerEntry)` to all case
@@ -225,7 +225,7 @@ groups:
       learn of accepted case-state changes.
   - id: PCR-08-004
     priority: MUST_NOT
-    kind: domain
+    kind: protocol
     statement: >-
       The `CaseLedgerEntry + broadcast` cascade MUST NOT be manually triggered by demo
       scripts or external clients.
@@ -234,7 +234,7 @@ groups:
       spec_id: PCR-08-003
   - id: PCR-08-013
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       The `CaseLedgerEntry + broadcast` cascade MUST fire automatically as a consequence
       of the Case Actor processing any accepted participant message, not only via explicit
@@ -244,7 +244,7 @@ groups:
       spec_id: PCR-08-003
   - id: PCR-08-005
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       Trigger use cases and their supporting BTs that cause a participant to send a case-scoped
       message MUST resolve the Case Actor's actor ID from the case's participant list (the
@@ -253,13 +253,13 @@ groups:
       the sole source of recipients for outbound participant activities.
   - id: PCR-08-006
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       Unit and integration tests MUST verify that a participant's outbound activity is addressed
       only to the Case Actor, and that no direct peer-to-peer delivery is attempted.
   - id: PCR-08-007
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       `RmInviteToCaseActivity` MUST be sent with `actor` set to the Case Actor's ID, not
       the case owner's ID. The case owner triggers the invite action, but the Case Actor
@@ -270,7 +270,7 @@ groups:
       spec_id: PCR-08-001
   - id: PCR-08-008
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       The invitee's `RmAcceptInviteToCaseActivity` MUST be addressed to the Case Actor
       (not the case owner). The Case Actor is the authoritative recipient and processor of
@@ -280,7 +280,7 @@ groups:
       spec_id: PCR-08-001
   - id: PCR-08-009
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       The Case Actor MUST process `RmAcceptInviteToCaseActivity` and record the invitee's
       RM state transition (VALID → ACCEPTED) in its own DataLayer.
@@ -291,7 +291,7 @@ groups:
       spec_id: PCR-08-003
   - id: PCR-08-014
     priority: MUST_NOT
-    kind: domain
+    kind: protocol
     statement: >-
       The case owner MUST NOT author or emit any RM state-change activity on behalf of
       the invitee.
@@ -300,7 +300,7 @@ groups:
       spec_id: PCR-08-010
   - id: PCR-08-010
     priority: MUST_NOT
-    kind: domain
+    kind: protocol
     statement: >-
       A received-side use case MUST NOT construct or emit an ActivityStreams activity with
       `actor` set to a different actor's ID (identity spoofing).
@@ -309,7 +309,7 @@ groups:
       spec_id: PCR-08-001
   - id: PCR-08-015
     priority: MUST_NOT
-    kind: domain
+    kind: protocol
     statement: >-
       A received-side use case MUST NOT execute a Behavior Tree with `actor_id` set to
       any actor other than the one whose DataLayer is active for that use case invocation.
@@ -318,7 +318,7 @@ groups:
       spec_id: PCR-08-010
   - id: PCR-08-011
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       An emit node in a case-scoped trigger BT MUST resolve the CaseActor
       recipient before enqueueing the activity.
@@ -341,7 +341,7 @@ groups:
         the specific violation this requirement prevents
   - id: PCR-08-016
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       An emit node in a case-scoped trigger BT MUST fail fast (return FAILURE or raise
       immediately) when no routable CaseActor can be found.
@@ -350,7 +350,7 @@ groups:
       spec_id: PCR-08-011
   - id: PCR-08-017
     priority: MUST_NOT
-    kind: domain
+    kind: protocol
     statement: >-
       An emit node in a case-scoped trigger BT MUST NOT silently enqueue an activity
       with a `None` or empty `to` field.
@@ -359,7 +359,7 @@ groups:
       spec_id: PCR-08-011
   - id: PCR-08-012
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       The invitee's `Accept(Invite)` activity IS the invitee's RM engagement decision.
       The Case Actor MUST derive the `RmAcceptInviteToCaseActivity` domain event from
@@ -379,51 +379,51 @@ groups:
   specs:
   - id: PCR-07-001
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       Unit tests MUST verify that `Announce(VulnerabilityCase)` from the CaseActor creates
       a local replica when none exists.
   - id: PCR-07-002
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       Unit tests MUST verify that `Announce(VulnerabilityCase)` from the CaseActor updates
       the local replica when one exists.
   - id: PCR-07-003
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       Unit tests MUST verify that `Announce(VulnerabilityCase)` from an actor that is NOT
       the CaseActor is rejected and logged at WARNING.
   - id: PCR-07-004
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       Unit tests MUST verify that the `context` field is used to route incoming activities
       to the correct case handler.
   - id: PCR-07-005
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       Unit tests MUST verify that activities with an unknown case context are queued, a resync
       request is emitted, and the activity is dropped after timeout without updating any state.
   - id: PCR-07-006
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       Integration tests MUST verify the full bootstrap sequence: case creation → CaseActor
       sends `Announce(VulnerabilityCase)` → participant creates local replica → subsequent
       case-scoped activities are routed correctly.
   - id: PCR-07-007
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       Integration tests MUST verify the late-joiner sequence: `Invite` → `Accept` → CaseActor
       sends `Announce(VulnerabilityCase)` to new participant → new participant creates local
       replica.
   - id: PCR-07-008
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       Integration tests MUST verify that `RmInviteToCaseActivity` carries `actor` set to
       the Case Actor's ID, and that the invitee's `RmAcceptInviteToCaseActivity` is
@@ -435,7 +435,7 @@ groups:
       spec_id: PCR-08-008
   - id: PCR-07-009
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       Integration tests MUST assert that no RM state-change activity is emitted with
       `actor` set to the invitee's ID from the case owner's context.
