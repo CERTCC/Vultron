@@ -351,3 +351,46 @@ groups:
       are checked before the compliance test, preventing misclassification.
     tags:
     - documentation
+- id: MS-13
+  title: Spec Item Format Selection (StatementSpec vs BehavioralSpec)
+  specs:
+  - id: MS-13-001
+    priority: MUST
+    kind: process
+    statement: >-
+      A spec item MUST use BehavioralSpec format (with preconditions, steps[], and
+      postconditions fields) when it describes a sequential, stateful process that has a
+      defined start state, ordered actions, and terminal conditions.
+    rationale: >-
+      StatementSpec statement text is a single normative sentence. Encoding ordered
+      sub-steps as numbered lists inside that sentence violates MS-05-001 (no inline
+      prose explanations) and makes the start state, step ordering, and terminal
+      conditions invisible to conformance tooling.
+    tags:
+    - documentation
+  - id: MS-13-002
+    priority: MUST
+    kind: process
+    statement: >-
+      A spec item MUST use StatementSpec format when it expresses a capability
+      constraint, behavioral property, or structural rule that does not depend on
+      step ordering — i.e., it specifies a required outcome or invariant, not a
+      prescribed sequence of actions.
+    rationale: >-
+      BehavioralSpec's steps[] field implies ordering that is not meaningful for
+      property requirements; StatementSpec is simpler and more appropriate.
+    tags:
+    - documentation
+  - id: MS-13-003
+    priority: MUST
+    kind: process
+    statement: >-
+      A spec group whose items describe a demo scenario workflow MUST include a
+      trigger field with type: scenario_start to indicate to conformance tooling that
+      the group is a process workflow, not a property group.
+    rationale: >-
+      The trigger field allows tooling to classify groups by activation kind without
+      parsing item content. scenario_start distinguishes demo-script-triggered
+      workflows from message_received and state_entered behavioral groups.
+    tags:
+    - documentation

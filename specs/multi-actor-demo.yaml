@@ -185,6 +185,9 @@ groups:
       spec_id: DEMOMA-05-001
 - id: DEMOMA-06
   title: Two-Actor Scenario Workflow
+  trigger:
+    type: scenario_start
+    value: two-actor
   specs:
   - id: DEMOMA-06-001
     priority: MUST
@@ -197,16 +200,56 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The two-actor demo MUST verify the following milestones in order, checking both the
-      Vendor and Finder DataLayers at each checkpoint:
-      M1 (case + 3 participants + EM.ACTIVE),
-      M2 (Finder has case replica with matching participant index and active embargo),
-      M3 (notes exchange complete: question note + reply note present in canonical case
-      state on both replicas),
-      M4 (CS.VF on all replicas),
-      M5 (CS.VFD on all replicas),
-      M6 (CS.VFDPxa + EM terminated on all replicas),
-      M7 (all participants RM.CLOSED, case closed)
+      The two-actor scenario script MUST verify milestones M1 through M7 in order,
+      checking both the Vendor and Finder DataLayers at each checkpoint.
+    preconditions:
+    - description: Two-actor scenario executing; Vendor, Finder, and CaseActor containers
+        running and reachable; report submitted by Finder to Vendor
+    steps:
+    - order: 1
+      actor: demo-script
+      action: >-
+        Verify M1 — case created with 3 participants (Vendor, Reporter, CaseActor) and
+        EM.ACTIVE; check Vendor DataLayer
+      expected: >-
+        Vendor DataLayer holds VulnerabilityCase with 3 participants and
+        EM state = ACTIVE
+    - order: 2
+      actor: demo-script
+      action: >-
+        Verify M2 — Finder has case replica with matching participant index and active
+        embargo; check Finder DataLayer
+      expected: >-
+        Finder DataLayer holds case replica; participant index matches Vendor's; embargo
+        state = ACTIVE
+    - order: 3
+      actor: demo-script
+      action: >-
+        Verify M3 — notes exchange complete; check both DataLayers for question note and
+        reply note
+      expected: >-
+        Question note and reply note both present in canonical case state on Vendor and
+        Finder replicas
+    - order: 4
+      actor: demo-script
+      action: Verify M4 — CS.VF on all replicas
+      expected: Vendor and Finder replicas both show CS = VF (vendor aware, fix ready)
+    - order: 5
+      actor: demo-script
+      action: Verify M5 — CS.VFD on all replicas
+      expected: Vendor and Finder replicas both show CS = VFD (fix deployed)
+    - order: 6
+      actor: demo-script
+      action: Verify M6 — CS.VFDPxa and EM terminated on all replicas
+      expected: All replicas show CS = VFDPxa; EM state = EXITED
+    - order: 7
+      actor: demo-script
+      action: Verify M7 — all participants RM.CLOSED and case closed
+      expected: All participants RM state = CLOSED; case record marked closed
+    postconditions:
+    - description: >-
+        All milestones M1-M7 verified; two-actor scenario complete in final state
+        VFDPxa with EM.EXITED and all participants RM.CLOSED
   - id: DEMOMA-06-003
     priority: MUST
     kind: project
@@ -397,6 +440,9 @@ groups:
       spec_id: CBT-01-007
 - id: DEMOMA-09
   title: FVV Scenario (Finder → Vendor1 → Vendor2, no Coordinator)
+  trigger:
+    type: scenario_start
+    value: fvv
   specs:
   - id: DEMOMA-09-001
     priority: MUST
@@ -410,8 +456,27 @@ groups:
     kind: project
     statement: >-
       Vendor1 MUST invite Vendor2 to the case after accepting the report (RM→ACCEPTED),
-      using the standard invite-actor trigger path; Vendor2 MUST accept and become a
-      full SIGNATORY participant before the scenario advances to fix tracking
+      and Vendor2 MUST accept and become a full SIGNATORY participant before the scenario
+      advances to fix tracking.
+    preconditions:
+    - description: Vendor1 RM state = ACCEPTED; VulnerabilityCase created with CaseActor
+        co-located in Vendor1 container; Vendor2 container running
+    steps:
+    - order: 1
+      actor: vendor1
+      action: POST invite-actor-to-case trigger for Vendor2
+      expected: CaseActor receives and queues Invite(Actor, Case) for Vendor2
+    - order: 2
+      actor: demo-script
+      action: Poll Vendor2 DataLayer until Invite(Actor, Case) is visible
+      expected: Invite activity present in Vendor2 DataLayer
+    - order: 3
+      actor: vendor2
+      action: POST accept-case-invite trigger
+      expected: Vendor2 becomes SIGNATORY participant; CaseActor seeds Vendor2 case replica
+    postconditions:
+    - description: Vendor2 is a SIGNATORY participant with EM consent; Vendor2 holds a
+        seeded case replica; scenario may advance to fix tracking
   - id: DEMOMA-09-003
     priority: MUST
     kind: project
@@ -442,6 +507,9 @@ groups:
 
 - id: DEMOMA-10
   title: FVCV-Extension Scenario (Vendor1 retains ownership; Coordinator is participant; Coordinator suggests Vendor2)
+  trigger:
+    type: scenario_start
+    value: fvcv-extension
   specs:
   - id: DEMOMA-10-001
     priority: MUST
@@ -471,9 +539,30 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      Vendor1 MUST invite the Coordinator to the case using the standard
-      `invite-actor-to-case` trigger; the Coordinator MUST accept and become a
-      participant holding `CVDRole.COORDINATOR` and NOT `CVDRole.CASE_MANAGER`.
+      Vendor1 MUST invite the Coordinator to the case and the Coordinator MUST accept
+      and become a participant holding CVDRole.COORDINATOR and NOT CVDRole.CASE_MANAGER.
+    preconditions:
+    - description: Vendor1 RM state = ACCEPTED; VulnerabilityCase created with CaseActor;
+        Coordinator container running
+    steps:
+    - order: 1
+      actor: vendor1
+      action: POST invite-actor-to-case trigger targeting Coordinator
+      expected: CaseActor queues Invite(Actor, Case) for Coordinator inbox
+    - order: 2
+      actor: demo-script
+      action: Poll Coordinator DataLayer until Invite(Actor, Case) is visible
+      expected: Invite activity present in Coordinator DataLayer
+    - order: 3
+      actor: coordinator
+      action: POST accept-case-invite trigger
+      expected: >-
+        Coordinator becomes participant with CVDRole.COORDINATOR (not CASE_MANAGER);
+        CaseActor seeds Coordinator case replica
+    postconditions:
+    - description: >-
+        Coordinator is a participant with CVDRole.COORDINATOR and NOT CVDRole.CASE_MANAGER;
+        Coordinator holds a seeded case replica
     relationships:
     - rel_type: refines
       spec_id: CM-20-001
@@ -481,10 +570,29 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The Coordinator MUST suggest Vendor2 to the case via `Offer(Actor, Case)` routed
-      to the CaseActor inbox (ADR-0026, CM-16-001). The CaseActor MUST transform the
-      offer into `Offer(CaseParticipant{actor=Vendor2, roles=[vendor]}, Case)` and
-      forward it to Vendor1 (the Case Owner) for approval.
+      The Coordinator MUST suggest Vendor2 to the case and the CaseActor MUST
+      transform the offer and forward it to Vendor1 for approval.
+    preconditions:
+    - description: >-
+        Coordinator is an accepted participant (DEMOMA-10-003 complete); Vendor2
+        container running; no existing suggestion for Vendor2 in the case
+    steps:
+    - order: 1
+      actor: coordinator
+      action: POST suggest-actor-to-case trigger for Vendor2
+      expected: Coordinator sends Offer(Actor, Case) to CaseActor inbox
+    - order: 2
+      actor: case-actor
+      action: Transform Offer(Actor, Case) to Offer(CaseParticipant{Vendor2, roles=[vendor]}, Case)
+      expected: Transformed offer forwarded to Vendor1 (Case Owner) inbox
+    - order: 3
+      actor: demo-script
+      action: Poll Vendor1 DataLayer until transformed Offer(CaseParticipant) is visible
+      expected: Transformed offer present in Vendor1 DataLayer
+    postconditions:
+    - description: >-
+        Vendor1 holds a pending Offer(CaseParticipant) for Vendor2 awaiting approval;
+        no invitation has been sent to Vendor2 yet
     relationships:
     - rel_type: refines
       spec_id: CM-16-001
@@ -494,9 +602,25 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      Vendor1 MUST approve the Coordinator's suggestion by accepting the transformed
-      `Offer(CaseParticipant)` from the CaseActor. The CaseActor MUST then send
-      `Invite(CaseStub+embargo)` to Vendor2 on Vendor1's behalf (CM-17).
+      Vendor1 MUST approve the Coordinator's suggestion and the CaseActor MUST then
+      send Invite(CaseStub+embargo) to Vendor2 on Vendor1's behalf.
+    preconditions:
+    - description: >-
+        Vendor1 DataLayer holds pending Offer(CaseParticipant) for Vendor2
+        (DEMOMA-10-004 complete); Vendor2 container running
+    steps:
+    - order: 1
+      actor: vendor1
+      action: POST accept-case-participant-offer trigger for Vendor2
+      expected: Vendor1 accepts Offer(CaseParticipant); CaseActor sends Invite(CaseStub+embargo) to Vendor2
+    - order: 2
+      actor: demo-script
+      action: Poll Vendor2 DataLayer until Invite(CaseStub+embargo) is visible
+      expected: Invite activity present in Vendor2 DataLayer
+    postconditions:
+    - description: >-
+        Vendor2 holds an invitation to the case; scenario may advance to Vendor2
+        acceptance
     relationships:
     - rel_type: refines
       spec_id: CM-17-001
@@ -535,6 +659,9 @@ groups:
 
 - id: DEMOMA-11
   title: FVCV-Handoff Scenario (Vendor1 transfers ownership to Coordinator; Coordinator invites Vendor2)
+  trigger:
+    type: scenario_start
+    value: fvcv-handoff
   specs:
   - id: DEMOMA-11-001
     priority: MUST
@@ -549,19 +676,41 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      Vendor1 MUST create the case as CASE_OWNER and MUST invite Coordinator as a
-      participant. Coordinator MUST accept the invitation and hold a case replica in
-      their DataLayer before the ownership-transfer handshake begins.
-      Vendor1 then MUST transfer ownership via `offer-case-ownership-transfer` and
-      `accept-case-ownership-transfer` trigger endpoints (TRIG-11-001, TRIG-11-002).
-      After the handoff, Coordinator MUST hold `CVDRole.CASE_OWNER` and Vendor1
-      MUST become a plain participant.
+      Vendor1 MUST transfer case ownership to the Coordinator via the
+      offer-case-ownership-transfer / accept-case-ownership-transfer handshake; after the
+      handoff, Coordinator MUST hold CVDRole.CASE_OWNER and Vendor1 MUST become a plain
+      participant.
     rationale: >-
       This is the defining contrast with FVCV-extension (DEMOMA-10-002): ownership
       transfers mid-scenario rather than staying with Vendor1 throughout.
       The Coordinator must already hold a case replica before accepting ownership,
-      because `AcceptCaseOwnershipTransferNode` reads the case from the DataLayer
+      because AcceptCaseOwnershipTransferNode reads the case from the DataLayer
       and returns FAILURE if the case is not found.
+    preconditions:
+    - description: >-
+        Vendor1 RM state = ACCEPTED; Coordinator is an existing SIGNATORY participant
+        with a seeded case replica in their DataLayer; no pending ownership-transfer offer
+        exists
+    steps:
+    - order: 1
+      actor: vendor1
+      action: POST offer-case-ownership-transfer trigger targeting Coordinator
+      expected: Offer(VulnerabilityCase) queued for Coordinator inbox
+    - order: 2
+      actor: demo-script
+      action: Poll Coordinator DataLayer until Offer(VulnerabilityCase) is visible
+      expected: Offer activity present in Coordinator DataLayer
+    - order: 3
+      actor: coordinator
+      action: POST accept-case-ownership-transfer trigger
+      expected: >-
+        Coordinator CVDRole updated to CASE_OWNER; Vendor1 role updated to plain
+        participant; CaseActor attributed_to updated to Coordinator actor ID
+    postconditions:
+    - description: >-
+        Coordinator holds CVDRole.CASE_OWNER; Vendor1 is a plain participant;
+        CaseActor.attributed_to = Coordinator actor ID; all participants' case
+        replicas reflect the updated ownership
     relationships:
     - rel_type: refines
       spec_id: TRIG-11-001
@@ -571,17 +720,41 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      After becoming CASE_OWNER, the Coordinator MUST invite Vendor2 directly using
-      the `invite-actor-to-case` trigger, not via a recommendation/approval chain.
-      Vendor2 MUST receive and accept the invitation via the `accept-case-invite`
-      trigger; the CaseActor MUST then emit `Announce(VulnerabilityCase)` to seed
-      Vendor2's case replica (MV-10-003/MV-10-004). The demo script MUST poll
-      Vendor2's DataLayer for the arriving invitation before driving the accept step.
+      After becoming CASE_OWNER, the Coordinator MUST invite Vendor2 directly using the
+      invite-actor-to-case trigger, and Vendor2 MUST accept the invitation before the
+      scenario advances; the CaseActor MUST seed Vendor2's case replica on acceptance.
     rationale: >-
       In FVCV-extension, Vendor1 approves a Coordinator suggestion. In FVCV-handoff,
       the Coordinator is the owner and invites directly — no approval step is needed.
       The Vendor2 accept-invite step is mandatory: per MV-10-004 an Invite alone does
       not seed the replica; the CaseActor's Announce fires only after Accept(Invite).
+    preconditions:
+    - description: >-
+        Coordinator holds CVDRole.CASE_OWNER (DEMOMA-11-002 complete); Vendor2 container
+        running; no existing Invite for Vendor2 in the case
+    steps:
+    - order: 1
+      actor: coordinator
+      action: POST invite-actor-to-case trigger for Vendor2
+      expected: CaseActor queues Invite(Actor, Case) for Vendor2
+    - order: 2
+      actor: demo-script
+      action: Poll Vendor2 DataLayer until Invite(Actor, Case) is visible
+      expected: Invite activity present in Vendor2 DataLayer
+    - order: 3
+      actor: vendor2
+      action: POST accept-case-invite trigger directed to CaseActor
+      expected: >-
+        Vendor2 becomes SIGNATORY participant; CaseActor emits
+        Announce(VulnerabilityCase) to seed Vendor2 case replica
+    - order: 4
+      actor: demo-script
+      action: Poll Vendor2 DataLayer until case replica is seeded
+      expected: VulnerabilityCase record present in Vendor2 DataLayer
+    postconditions:
+    - description: >-
+        Vendor2 is a SIGNATORY participant with a seeded case replica; scenario may
+        advance to fix tracking and final state
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-10-003
@@ -639,20 +812,47 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The demo script MUST include polling wait steps between asynchronous protocol
-      boundaries: (a) after emitting the ownership-transfer offer, poll Coordinator's
-      DataLayer for the stored `Offer(VulnerabilityCase)` before driving the accept
-      trigger; (b) after Coordinator accepts, poll Vendor1's case replica until
-      `attributed_to` reflects the Coordinator's ID before proceeding; (c) after
-      Coordinator invites Vendor2, poll Vendor2's DataLayer for the arriving
-      `Invite(Actor, Case)` before driving the accept trigger; (d) after Vendor2
-      accepts the invitation, poll Vendor2's DataLayer for the case replica seeded
-      by the CaseActor's `Announce(VulnerabilityCase)`.
+      The FVCV-handoff scenario script MUST include polling wait steps at each
+      asynchronous protocol boundary before driving the next trigger.
     rationale: >-
       Each of these polling steps was required in FVCV-extension (see ISSUE-1535
       post-review fixes). Omitting any wait step causes the scenario to proceed on
       state that has not yet been committed to the target actor's DataLayer,
       producing consistent CI failures rather than intermittent flakes.
+    preconditions:
+    - description: >-
+        FVCV-handoff scenario executing; Vendor1 has just emitted the ownership-transfer
+        offer and the script is driving subsequent async steps
+    steps:
+    - order: 1
+      actor: demo-script
+      action: >-
+        After emitting the ownership-transfer offer: poll Coordinator's DataLayer until
+        Offer(VulnerabilityCase) is visible
+      expected: Offer activity present in Coordinator DataLayer
+    - order: 2
+      actor: demo-script
+      action: >-
+        After Coordinator accepts the offer: poll Vendor1's case replica until
+        attributed_to reflects the Coordinator's actor ID
+      expected: Vendor1 case replica shows CaseActor.attributed_to = Coordinator actor ID
+    - order: 3
+      actor: demo-script
+      action: >-
+        After Coordinator invites Vendor2: poll Vendor2's DataLayer until
+        Invite(Actor, Case) is visible
+      expected: Invite activity present in Vendor2 DataLayer
+    - order: 4
+      actor: demo-script
+      action: >-
+        After Vendor2 accepts the invitation: poll Vendor2's DataLayer until the case
+        replica seeded by CaseActor's Announce(VulnerabilityCase) is present
+      expected: VulnerabilityCase record present in Vendor2 DataLayer
+    postconditions:
+    - description: >-
+        All four async boundaries confirmed; each actor's DataLayer reflects the
+        expected state before the next trigger is driven; scenario proceeds
+        deterministically
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-10-007
