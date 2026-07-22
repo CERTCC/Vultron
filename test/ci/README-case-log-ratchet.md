@@ -14,6 +14,7 @@ universal invariant check functions live in
 | FV (two-actor) | `test/ci/invariants/test_fv_invariants.py` |
 | FVV (three-actor) | `test/ci/invariants/test_fvv_invariants.py` |
 | FVCV-extension | `test/ci/invariants/test_fvcv_extension_invariants.py` |
+| FVCV-handoff | `test/ci/invariants/test_fvcv_handoff_invariants.py` |
 
 ---
 
@@ -44,6 +45,7 @@ Or target a specific scenario directly:
 uv run pytest test/ci/invariants/test_fv_invariants.py -v
 uv run pytest test/ci/invariants/test_fvv_invariants.py -v
 uv run pytest test/ci/invariants/test_fvcv_extension_invariants.py -v
+uv run pytest test/ci/invariants/test_fvcv_handoff_invariants.py -v
 ```
 
 ### Locally (without demo artifacts)

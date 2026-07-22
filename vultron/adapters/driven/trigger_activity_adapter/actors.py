@@ -40,7 +40,9 @@ from vultron.wire.as2.factories import (
 )
 from vultron.wire.as2.factories.case import (
     accept_case_manager_role_activity,
+    accept_case_ownership_transfer_activity,
     offer_case_manager_role_activity,
+    offer_case_ownership_transfer_activity,
     reject_case_manager_role_activity,
 )
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
@@ -545,3 +547,76 @@ class _ActorsMixin:
                 activity.id_,
             )
         return activity.id_
+
+    def offer_case_ownership_transfer(
+        self,
+        case_id: str,
+        transferee_id: str,
+        actor: str,
+        content: str | None = None,
+        to: list[str] | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist an ``Offer(VulnerabilityCase)`` ownership transfer.
+
+        Emits the offer from ``actor`` to ``transferee_id``.  The case is read
+        from the DataLayer and passed inline so the recipient can distinguish
+        this from a ``SUBMIT_REPORT`` offer (TRIG-11-001).
+        """
+        case = _to_wire(self._dl.read(case_id), as_VulnerabilityCase)
+        extra: dict[str, Any] = {
+            "actor": actor,
+            "to": to or [transferee_id],
+        }
+        if content is not None:
+            extra["content"] = content
+        activity = offer_case_ownership_transfer_activity(
+            case=case,
+            target=transferee_id,
+            **extra,
+        )
+        try:
+            self._dl.create(activity)
+        except ValueError:
+            logger.warning(
+                "offer_case_ownership_transfer: activity '%s' already exists"
+                " — skipping",
+                activity.id_,
+            )
+        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+
+    def accept_case_ownership_transfer(
+        self,
+        offer_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist an ``Accept(Offer(VulnerabilityCase))`` ownership transfer.
+
+        Reads the stored offer from the DataLayer, derives the ``to:`` field
+        from the offer's ``actor`` when not supplied, and persists the Accept
+        (TRIG-11-002).
+        """
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (  # noqa: PLC0415
+            as_Offer,
+        )
+
+        raw = self._dl.read(offer_id)
+        if raw is None:
+            raise VultronNotFoundError("Offer(VulnerabilityCase)", offer_id)
+        offer = cast(as_Offer, raw)
+        if to is None:
+            offer_actor_id = _as_id(getattr(offer, "actor", None))
+            if offer_actor_id:
+                to = [offer_actor_id]
+        activity = accept_case_ownership_transfer_activity(
+            offer=offer, actor=actor, to=to
+        )
+        try:
+            self._dl.create(activity)
+        except ValueError:
+            logger.warning(
+                "accept_case_ownership_transfer: activity '%s' already exists"
+                " — skipping",
+                activity.id_,
+            )
+        return activity.id_, activity.model_dump(**_DUMP_KWARGS)

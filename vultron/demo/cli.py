@@ -45,6 +45,7 @@ import vultron.demo.exchange.receive_report_demo as receive_report_demo
 import vultron.demo.exchange.status_updates_demo as status_updates_demo
 import vultron.demo.exchange.suggest_actor_demo as suggest_actor_demo
 import vultron.demo.scenario.fvcv_extension_demo as fvcv_extension_demo
+import vultron.demo.scenario.fvcv_handoff_demo as fvcv_handoff_demo
 import vultron.demo.scenario.fvv_demo as fvv_demo
 import vultron.demo.scenario.multi_vendor_demo as multi_vendor_demo
 import vultron.demo.scenario.three_actor_demo as three_actor_demo
@@ -754,6 +755,133 @@ def fvcv_extension(
         finder_id=finder_id,
         vendor_id=vendor_id,
         coordinator_id=coordinator_id,
+        vendor2_id=vendor2_id,
+    )
+
+
+# ---------------------------------------------------------------------------
+# FVCV-handoff sub-command — Vendor1 transfers ownership to Coordinator (D5-7)
+# ---------------------------------------------------------------------------
+
+
+@main.command(name="fvcv-handoff")
+@click.option(
+    "--finder-url",
+    envvar="VULTRON_FINDER_BASE_URL",
+    default=fvcv_handoff_demo.FINDER_BASE_URL,
+    show_default=True,
+    help="Base URL of the Finder container API "
+    "(env: VULTRON_FINDER_BASE_URL).",
+)
+@click.option(
+    "--vendor-url",
+    envvar="VULTRON_VENDOR_BASE_URL",
+    default=fvcv_handoff_demo.VENDOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the Vendor1 container API "
+    "(env: VULTRON_VENDOR_BASE_URL).",
+)
+@click.option(
+    "--coordinator-url",
+    envvar="VULTRON_COORDINATOR_BASE_URL",
+    default=fvcv_handoff_demo.COORDINATOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the Coordinator container API "
+    "(env: VULTRON_COORDINATOR_BASE_URL).",
+)
+@click.option(
+    "--case-actor-url",
+    envvar="VULTRON_CASE_ACTOR_BASE_URL",
+    default=fvcv_handoff_demo.CASE_ACTOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the CaseActor container API "
+    "(env: VULTRON_CASE_ACTOR_BASE_URL).",
+)
+@click.option(
+    "--vendor2-url",
+    envvar="VULTRON_VENDOR2_BASE_URL",
+    default=fvcv_handoff_demo.VENDOR2_BASE_URL,
+    show_default=True,
+    help="Base URL of the Vendor2 container API "
+    "(env: VULTRON_VENDOR2_BASE_URL).",
+)
+@click.option(
+    "--finder-id",
+    default=None,
+    help="Deterministic full URI for the Finder actor (optional).",
+)
+@click.option(
+    "--vendor-id",
+    default=None,
+    help="Deterministic full URI for the Vendor1 actor (optional).",
+)
+@click.option(
+    "--coordinator-id",
+    default=None,
+    help="Deterministic full URI for the Coordinator actor (optional).",
+)
+@click.option(
+    "--case-actor-id",
+    default=None,
+    help="Deterministic full URI for the CaseActor actor (optional).",
+)
+@click.option(
+    "--vendor2-id",
+    default=None,
+    help="Deterministic full URI for the Vendor2 actor (optional).",
+)
+@click.option(
+    "--skip-health-check",
+    is_flag=True,
+    default=False,
+    help="Skip container availability checks.",
+)
+def fvcv_handoff(
+    finder_url: str,
+    vendor_url: str,
+    coordinator_url: str,
+    case_actor_url: str,
+    vendor2_url: str,
+    finder_id: str | None,
+    vendor_id: str | None,
+    coordinator_id: str | None,
+    case_actor_id: str | None,
+    vendor2_id: str | None,
+    skip_health_check: bool,
+) -> None:
+    """Run the FVCV-handoff (Vendor1 → Coordinator ownership transfer) demo (D5-7).
+
+    Vendor1 creates the case and invites Coordinator, then transfers case
+    ownership to Coordinator via the trigger endpoints (TRIG-11-001/002).
+    Coordinator (now CASE_OWNER) invites Vendor2.  Both vendors independently
+    advance through the full fix and publication lifecycle.
+
+    \b
+    Workflow:
+      1. Seed all five containers (actor records + peer registration).
+      2. Finder submits a vulnerability report to Vendor1's inbox.
+      3. Vendor1 validates and engages the case.
+      4. Vendor1 invites Coordinator; Coordinator accepts.
+      5. Vendor1 offers case ownership transfer to Coordinator (TRIG-11-001).
+      6. Coordinator accepts the ownership transfer (TRIG-11-002).
+      7. Verify case attributed_to updated to Coordinator.
+      8. Coordinator invites Vendor2; Vendor2 accepts and Accept routed to CaseActor.
+      9. Verify SYNC-2 replication on all replicas.
+     10. Both vendors independently advance through fix-ready → fix-deployed.
+     11. All participants report publication; embargo terminates.
+     12. All participants close the case.
+    """
+    fvcv_handoff_demo.main(
+        skip_health_check=skip_health_check,
+        finder_url=finder_url,
+        vendor_url=vendor_url,
+        coordinator_url=coordinator_url,
+        case_actor_url=case_actor_url,
+        vendor2_url=vendor2_url,
+        finder_id=finder_id,
+        vendor_id=vendor_id,
+        coordinator_id=coordinator_id,
+        case_actor_id=case_actor_id,
         vendor2_id=vendor2_id,
     )
 

@@ -278,12 +278,9 @@ def test_invariant_15_cs_state_transitions_observed(
 # ---------------------------------------------------------------------------
 # FV-specific invariants
 # ---------------------------------------------------------------------------
-
-
-@pytest.mark.case_ledger_invariants
-def test_fv_invite_actor_to_case_present(
-    fv_replicas: dict[str, list[dict]],
-) -> None:
-    """``invite_actor_to_case`` appears at least once (Finder invitation)."""
-    violations = check_event_type_present(fv_replicas, "invite_actor_to_case")
-    assert not violations, violations[0] if violations else ""
+#
+# The two-actor (FV) scenario has no scenario-specific ledger invariant beyond
+# the universal set: the Finder joins by submitting a report (which creates the
+# case), never via an ``invite_actor_to_case`` activity, so no invite event is
+# expected in this ledger.  Scenarios that invite a mid-case participant (FVV,
+# FVCV-extension, FVCV-handoff) assert the invite event in their own files.

@@ -17,6 +17,9 @@ on:
       - "vultron/**"
       - "docker/**"
       - "integration_tests/**"
+      # Invariant harness / CI test changes must re-run the demos that feed
+      # them, else a broken assertion merges untested (see #1602 regression).
+      - "test/ci/**"
       - "pyproject.toml"
       - "uv.lock"
   workflow_dispatch:
@@ -242,6 +245,75 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: fvcv-extension-container-logs
+          path: /tmp/demo-logs/
+          retention-days: 7
+
+      - name: Tear down containers and volumes
+        if: always()
+        run: |
+          docker compose -f docker/docker-compose-multi-actor.yml down -v
+
+  fvcv-handoff:
+    name: FVCV-Handoff Demo Integration
+    runs-on: ubuntu-latest
+    # DEMOCI-02-009: 15-minute cap to prevent indefinite hangs.
+    timeout-minutes: 15
+    # DEMOCI-02-004: skip Dependabot PRs; python-app.yml guards broken deps.
+    if: "!startsWith(github.head_ref, 'dependabot/')"
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+
+      - name: Build Docker images
+        uses: ./.github/actions/build-demo-images
+        with:
+          cache-scope: demo-integration
+          cache-from-extra-scope: demo-integration-main
+
+      - name: Create devlogs directory
+        run: mkdir -p devlogs
+
+      - name: Run FVCV-handoff demo
+        run: |
+          DEMO=fvcv-handoff \
+          VULTRON_SERVER__LOG_LEVEL=DEBUG \
+            docker compose -f docker/docker-compose-multi-actor.yml \
+            up --abort-on-container-exit --exit-code-from demo-runner
+
+      - name: Upload case log JSONL files
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: fvcv-handoff-case-logs
+          path: devlogs/
+          retention-days: 30
+
+      - name: Set up Python and uv for invariant harness
+        if: always()
+        id: setup-invariant-harness
+        uses: ./.github/actions/setup-python-uv
+
+      - name: Run case-ledger invariant harness
+        if: always() && steps.setup-invariant-harness.outcome == 'success'
+        run: uv run pytest -m case_ledger_invariants -v --tb=short
+
+      - name: Collect container logs
+        if: failure()
+        run: |
+          COMPOSE_FILE=docker/docker-compose-multi-actor.yml
+          mkdir -p /tmp/demo-logs
+          docker compose -f "$COMPOSE_FILE" logs \
+            > /tmp/demo-logs/combined.log 2>&1
+          for svc in finder vendor coordinator case-actor vendor2 demo-runner; do
+            docker compose -f "$COMPOSE_FILE" logs "$svc" \
+              > "/tmp/demo-logs/${svc}.log" 2>&1 || true
+          done
+
+      - name: Upload container logs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: fvcv-handoff-container-logs
           path: /tmp/demo-logs/
           retention-days: 7
 

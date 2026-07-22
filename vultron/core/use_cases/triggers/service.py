@@ -42,8 +42,10 @@ from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases.triggers.actor import (
     SvcAcceptActorRecommendationUseCase,
     SvcAcceptCaseInviteUseCase,
+    SvcAcceptCaseOwnershipTransferUseCase,
     SvcInviteActorToCaseUseCase,
     SvcOfferCaseManagerRoleUseCase,
+    SvcOfferCaseOwnershipTransferUseCase,
     SvcSuggestActorToCaseUseCase,
 )
 from vultron.core.use_cases.triggers.case import (
@@ -72,6 +74,7 @@ from vultron.core.use_cases.triggers.report import (
 from vultron.core.use_cases.triggers.requests import (
     AcceptActorRecommendationTriggerRequest,
     AcceptCaseInviteTriggerRequest,
+    AcceptCaseOwnershipTransferTriggerRequest,
     AcceptEmbargoTriggerRequest,
     AddNoteToCaseTriggerRequest,
     AddObjectToCaseTriggerRequest,
@@ -84,6 +87,7 @@ from vultron.core.use_cases.triggers.requests import (
     InvalidateReportTriggerRequest,
     InviteActorToCaseTriggerRequest,
     OfferCaseManagerRoleTriggerRequest,
+    OfferCaseOwnershipTransferTriggerRequest,
     ProposeEmbargoRevisionTriggerRequest,
     ProposeEmbargoTriggerRequest,
     RejectEmbargoTriggerRequest,
@@ -492,5 +496,45 @@ class TriggerService:
             case_actor_id=case_actor_id,
         )
         return SvcAcceptActorRecommendationUseCase(
+            self._dl, req, trigger_activity=self._trigger_activity
+        ).execute()
+
+    def offer_case_ownership_transfer(
+        self,
+        actor_id: str,
+        case_id: str,
+        transferee_id: str,
+        content: str | None = None,
+    ) -> dict[str, Any]:
+        """Offer case ownership to another actor (TRIG-11-001).
+
+        Emits ``Offer(VulnerabilityCase)`` (ownership transfer variant) from
+        the offering actor to ``transferee_id``.
+        """
+        req = OfferCaseOwnershipTransferTriggerRequest(
+            actor_id=actor_id,
+            case_id=case_id,
+            transferee_id=transferee_id,
+            content=content,
+        )
+        return SvcOfferCaseOwnershipTransferUseCase(
+            self._dl, req, trigger_activity=self._trigger_activity
+        ).execute()
+
+    def accept_case_ownership_transfer(
+        self,
+        actor_id: str,
+        offer_id: str,
+    ) -> dict[str, Any]:
+        """Accept a case ownership transfer offer (TRIG-11-002).
+
+        Emits ``Accept(Offer(VulnerabilityCase))`` from the accepting actor
+        back to the offering actor.
+        """
+        req = AcceptCaseOwnershipTransferTriggerRequest(
+            actor_id=actor_id,
+            offer_id=offer_id,
+        )
+        return SvcAcceptCaseOwnershipTransferUseCase(
             self._dl, req, trigger_activity=self._trigger_activity
         ).execute()

@@ -27,8 +27,10 @@ import py_trees.behaviour
 from vultron.core.behaviors.case.actor_trigger_trees import (
     accept_actor_recommendation_trigger_bt,
     accept_case_invite_trigger_bt,
+    accept_case_ownership_transfer_trigger_bt,
     invite_actor_to_case_trigger_bt,
     offer_case_manager_role_trigger_bt,
+    offer_case_ownership_transfer_trigger_bt,
     suggest_actor_to_case_trigger_bt,
 )
 from vultron.core.use_cases._helpers import _find_case_actor_id
@@ -40,8 +42,10 @@ from vultron.core.use_cases.triggers._helpers import (
 from vultron.core.use_cases.triggers.requests import (
     AcceptActorRecommendationTriggerRequest,
     AcceptCaseInviteTriggerRequest,
+    AcceptCaseOwnershipTransferTriggerRequest,
     InviteActorToCaseTriggerRequest,
     OfferCaseManagerRoleTriggerRequest,
+    OfferCaseOwnershipTransferTriggerRequest,
     SuggestActorToCaseTriggerRequest,
 )
 from vultron.errors import VultronNotFoundError
@@ -259,6 +263,77 @@ class SvcOfferCaseManagerRoleUseCase(SvcBTTriggerBase):
         logger.info(
             "CASE_MANAGER role offered for case '%s'",
             self._case.id_,
+        )
+
+
+class SvcOfferCaseOwnershipTransferUseCase(SvcBTTriggerBase):
+    """Offer case ownership to another actor (trigger-side path).
+
+    Emits ``Offer(VulnerabilityCase)`` (ownership transfer variant) from the
+    requesting actor to ``transferee_id`` (TRIG-11-001).
+    """
+
+    def _prepare(self) -> None:
+        request = cast(OfferCaseOwnershipTransferTriggerRequest, self._request)
+        actor = resolve_actor(request.actor_id, self._dl)
+        self._actor_id = actor.id_
+        self._case = resolve_case(request.case_id, self._dl)
+
+        if self._dl.read(request.transferee_id) is None:
+            raise VultronNotFoundError("Actor", request.transferee_id)
+
+        self._transferee_id = request.transferee_id
+        self._content = request.content
+
+    def _build_tree(self) -> py_trees.behaviour.Behaviour:
+        return offer_case_ownership_transfer_trigger_bt(
+            case_id=self._case.id_,
+            transferee_id=self._transferee_id,
+            content=self._content,
+            captured=self._captured,
+        )
+
+    def _handle_result(self) -> None:
+        logger.info(
+            "Actor '%s' offered case ownership transfer for case '%s' to '%s'",
+            self._actor_id,
+            self._case.id_,
+            self._transferee_id,
+        )
+
+
+class SvcAcceptCaseOwnershipTransferUseCase(SvcBTTriggerBase):
+    """Accept a case ownership transfer offer (trigger-side path).
+
+    Emits ``Accept(Offer(VulnerabilityCase))`` from the accepting actor back
+    to the offering actor (TRIG-11-002).
+    """
+
+    def _prepare(self) -> None:
+        request = cast(
+            AcceptCaseOwnershipTransferTriggerRequest, self._request
+        )
+        actor = resolve_actor(request.actor_id, self._dl)
+        self._actor_id = actor.id_
+
+        if self._dl.read(request.offer_id) is None:
+            raise VultronNotFoundError(
+                "_OfferCaseOwnershipTransferActivity", request.offer_id
+            )
+
+        self._offer_id = request.offer_id
+
+    def _build_tree(self) -> py_trees.behaviour.Behaviour:
+        return accept_case_ownership_transfer_trigger_bt(
+            offer_id=self._offer_id,
+            captured=self._captured,
+        )
+
+    def _handle_result(self) -> None:
+        logger.info(
+            "Actor '%s' accepted case ownership transfer offer '%s'",
+            self._actor_id,
+            self._offer_id,
         )
 
 
