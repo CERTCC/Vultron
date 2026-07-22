@@ -16,6 +16,27 @@ groups:
     priority: SHOULD
     kind: project
     statement: Large modules with multiple responsibilities SHOULD be refactored into smaller cohesive modules
+  - id: PD-01-002
+    priority: SHOULD
+    kind: project
+    statement: >-
+      `notes/*.md` files SHOULD NOT exceed 500 lines. Files that outgrow this limit SHOULD be split
+      along topic-cluster boundaries into separate focused files, each covering a single coherent "Load
+      when" scenario.
+    rationale: >-
+      Large notes files force agents to filter through irrelevant content to find the specific context
+      they need, increasing context window waste and the risk of missing relevant guidance. Splitting
+      at topic-cluster boundaries keeps each file narrowly focused on one "Load when" scenario.
+  - id: PD-01-003
+    priority: SHOULD
+    kind: project
+    statement: >-
+      A `notes/*.md` file whose content spans multiple "Load when" scenarios that never co-occur in
+      the same task context SHOULD be split into separate files, one per scenario cluster.
+    rationale: >-
+      When a notes file covers several distinct agent tasks, any single load brings in guidance
+      irrelevant to the current task. Single-scenario files make context loading precise and
+      predictable.
 - id: PD-03
   title: Documentation Currency
   specs:
