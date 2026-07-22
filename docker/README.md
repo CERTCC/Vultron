@@ -131,27 +131,28 @@ docker compose -f docker-compose-multi-actor.yml up --abort-on-container-exit de
 This is the canonical single-command acceptance run for the current
 FV scenario.
 
-### Run the D5-3 three-actor acceptance scenario
+### Run the FVV scenario
 
-The same compose file can also run the coordinator-based D5-3 flow:
+The FVV scenario (Finder + Vendor + Vendor2, no Coordinator) runs all three
+vendor containers:
 
 ```bash
 # From the docker/ directory:
-DEMO=three-actor docker compose -f docker-compose-multi-actor.yml \
+DEMO=fvv docker compose -f docker-compose-multi-actor.yml \
     up --abort-on-container-exit demo-runner
 ```
 
-This starts Finder, Vendor, Coordinator, and CaseActor, resets their
-DataLayers, seeds all peers, and runs the deterministic three-actor scenario
-end to end.
+### Run the FVCV-extension or FVCV-handoff scenario
 
-### Run the D5-4 multi-vendor acceptance scenario
-
-The multi-vendor (ownership-transfer) scenario uses all five actor services:
+The FVCV scenarios use all five actor services (Finder, Vendor, Coordinator,
+Vendor2, CaseActor):
 
 ```bash
 # From the docker/ directory:
-DEMO=multi-vendor docker compose -f docker-compose-multi-actor.yml \
+DEMO=fvcv-extension docker compose -f docker-compose-multi-actor.yml \
+    up --abort-on-container-exit demo-runner
+
+DEMO=fvcv-handoff docker compose -f docker-compose-multi-actor.yml \
     up --abort-on-container-exit demo-runner
 ```
 
@@ -216,7 +217,7 @@ docker compose -f docker-compose-multi-actor.yml run --rm \
     vultron-demo seed
 ```
 
-The D5-2 and D5-3 demos reset state and handle peer registration
+The current demo scenarios reset state and handle peer registration
 automatically. Manual seeding remains useful for debugging or for future
 scenarios that do not use the `demo-runner` workflow.
 
