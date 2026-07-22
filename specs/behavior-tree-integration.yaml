@@ -722,3 +722,51 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: BT-21-001
+- id: BT-22
+  title: BT Layer Dependency Model
+  description: Rules governing the dependency direction between BT nodes and use-case classes. Violations
+    of these rules create circular dependency risk, un-auditable call chains, and excessively large update() methods.
+  specs:
+  - id: BT-22-001
+    priority: MUST
+    kind: architecture
+    statement: A BT leaf node's `update()` method MUST NOT directly instantiate or call a use-case class. Use-case
+      classes are the handlers that create BTs; they are not work items to be called from within a BT node. Calling
+      a use case from inside a BT node creates a BT→UseCase→BT→UseCase call chain that cannot be audited or preempted.
+      Multi-step workflows needed by a BT leaf MUST be modeled as a child subtree of the current tree, not as a use-case
+      call embedded in `update()`.
+    rationale: The BT tree structure is the source of truth for protocol behavior; any logic that executes outside it
+      is invisible to analysis and audit. An in-tree child subtree keeps the full behavior visible in the tree and lets
+      it be preempted by a parent Selector. Identified as BT-IDM-01 in notes/bt-canonical-reference.md.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-06-001
+  - id: BT-22-002
+    priority: MUST
+    kind: architecture
+    statement: BT nodes in `vultron/core/behaviors/` MUST NOT import private helpers or functions from
+      `vultron/core/use_cases/`. The dependency direction MUST be `use_cases/ → behaviors/` (use cases create BTs),
+      never `behaviors/ → use_cases/` (BT nodes importing from use cases). If a helper is needed by both a use case
+      and a BT node it MUST be extracted to a shared utility module (e.g., `vultron/core/behaviors/shared/` or a
+      domain-model method) that neither layer owns.
+    rationale: Importing a use-case helper into a BT node inverts the hexagonal layer boundary and creates circular
+      dependency risk. The import direction is the enforcement mechanism for the layer rule. Identified as BT-IDM-02
+      in notes/bt-canonical-reference.md.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-06-001
+  - id: BT-22-003
+    priority: SHOULD
+    kind: architecture
+    statement: A BT leaf node's `update()` method SHOULD NOT exceed approximately 30 lines of logic. Nodes whose
+      `update()` grows to 60–100+ lines typically encode multiple responsibilities (read, validate, create, persist,
+      broadcast) that are better expressed as distinct leaf nodes in a named subtree. Smell signals include more than
+      3–4 distinct responsibilities, multiple `dl.save()` calls, Boolean constructor parameters that silently activate
+      optional branches, and internal `if/else` chains that should be separate `Sequence`/`Selector` children.
+    rationale: Long `update()` methods defeat the core purpose of behavior trees — simple, auditable, composable leaves
+      whose complexity is visible in tree structure rather than in individual nodes. Decomposing a god node into a named
+      subtree factory makes the workflow readable by inspection. Identified as BT-IDM-03 in notes/bt-canonical-reference.md;
+      see also `specs/behavior-tree-node-design.yaml` BTND-02-001.
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-02-001

@@ -34,7 +34,7 @@
   not declared on the model when the route returns a non-Response value. The
   `AS2JSONResponse` pattern above bypasses this filtering entirely (FastAPI
   docs: returning a `Response` subclass skips response_model filtering).
-  See [notes/codebase-structure.md](../../notes/codebase-structure.md)
+  See [notes/codebase-structure-fastapi-patterns.md](../../notes/codebase-structure-fastapi-patterns.md)
   § FastAPI response\_model Filtering.
 
 ---
@@ -88,15 +88,18 @@ for:
   segment. Violating this causes outbound activities to be silently dropped
   (BUG-2026040901).
 
-See [notes/codebase-structure.md](../../notes/codebase-structure.md) for:
+See [notes/codebase-structure-fastapi-patterns.md](../../notes/codebase-structure-fastapi-patterns.md) for:
 
 - Circular Imports
 - FastAPI response\_model Filtering
 - Health Check Readiness Gap
 - Docker Health Check Coordination
+- Black Can Invalidate Inline pyright Suppressions on Wrapped Fields
+
+See [notes/codebase-structure.md](../../notes/codebase-structure.md) for:
+
 - Actor IDs Must Always Be Full URIs
 - Actor ID Normalization in Trigger Paths: Resolve Path Params Before Outbox
-- Black Can Invalidate Inline pyright Suppressions on Wrapped Fields
 
 ### Actor Outbox Endpoint Must Query the DataLayer Queue, Not `actor.outbox.items`
 
@@ -141,4 +144,4 @@ that specific literal routes (`/Offers/`, `/Actors/`) are matched first.
 
 See
 [notes/codebase-structure.md](../../notes/codebase-structure.md)
-§ Starlette Path-Type Parameters for URL-Keyed Endpoints.
+§ "Starlette Path-Type Parameters for URL-Keyed Endpoints".

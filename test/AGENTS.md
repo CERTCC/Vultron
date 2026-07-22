@@ -170,7 +170,7 @@ def _always_succeed_factory(name: str) -> py_trees.behaviour.Behaviour:
 ```
 
 Structure tests and FAILURE-path tests are unaffected.
-See `notes/bt-integration.md` § "Integration Tests Must Use Deterministic
+See `notes/bt-pitfalls.md` § "Integration Tests Must Use Deterministic
 Factories When BT Default Is Probabilistic".
 
 ---
