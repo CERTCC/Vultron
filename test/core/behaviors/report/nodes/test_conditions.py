@@ -27,6 +27,7 @@ from vultron.core.behaviors.report.nodes.conditions import (
 from vultron.core.models.case import VultronCase
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.participant import VultronParticipant
+from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VultronReport
 from vultron.core.states.rm import RM
@@ -44,7 +45,7 @@ def test_check_rm_state_valid_when_valid(
         id_=_report_phase_status_id(actor.id_, report.id_, RM.VALID.value),
         context=report.id_,
         attributed_to=actor.id_,
-        rm_state=RM.VALID,
+        rm=RmDimension(state=RM.VALID),
     )
     bt_scenario.seed(status)
 
@@ -64,7 +65,7 @@ def test_check_rm_state_valid_when_received(
         id_=_report_phase_status_id(actor.id_, report.id_, RM.RECEIVED.value),
         context=report.id_,
         attributed_to=actor.id_,
-        rm_state=RM.RECEIVED,
+        rm=RmDimension(state=RM.RECEIVED),
     )
     bt_scenario.seed(status)
 
@@ -96,7 +97,7 @@ def test_check_rm_state_received_or_invalid_when_received(
         id_=_report_phase_status_id(actor.id_, report.id_, RM.RECEIVED.value),
         context=report.id_,
         attributed_to=actor.id_,
-        rm_state=RM.RECEIVED,
+        rm=RmDimension(state=RM.RECEIVED),
     )
     bt_scenario.seed(status)
 
@@ -117,7 +118,7 @@ def test_check_rm_state_received_or_invalid_when_invalid(
         id_=_report_phase_status_id(actor.id_, report.id_, RM.INVALID.value),
         context=report.id_,
         attributed_to=actor.id_,
-        rm_state=RM.INVALID,
+        rm=RmDimension(state=RM.INVALID),
     )
     bt_scenario.seed(status)
 
@@ -138,7 +139,7 @@ def test_check_rm_state_received_or_invalid_when_valid(
         id_=_report_phase_status_id(actor.id_, report.id_, RM.VALID.value),
         context=report.id_,
         attributed_to=actor.id_,
-        rm_state=RM.VALID,
+        rm=RmDimension(state=RM.VALID),
     )
     bt_scenario.seed(status)
 

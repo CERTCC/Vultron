@@ -108,7 +108,11 @@ def _project_case_to_stub(
         current_status = case.current_status
     except (ValueError, AttributeError):
         return VulnerabilityCaseStub(id_=case_id)
-    em_state = getattr(current_status, "em_state", None)
+    # Support both core CaseStatus (.em.state) and wire as_CaseStatus (.em_state)
+    if hasattr(current_status, "em") and hasattr(current_status.em, "state"):
+        em_state = current_status.em.state
+    else:
+        em_state = getattr(current_status, "em_state", None)
     active_embargo_uri = getattr(case, "active_embargo", None)
     if em_state != EM.ACTIVE or active_embargo_uri is None:
         return VulnerabilityCaseStub(id_=case_id)

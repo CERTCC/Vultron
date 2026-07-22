@@ -39,6 +39,7 @@ from typing import Literal
 from pydantic import Field, field_serializer, field_validator, model_validator
 
 from vultron.core.models.base import CoreObject, NonEmptyString
+from vultron.core.models.dimensions import PecDimension, RmDimension
 from vultron.core.models.participant_status import (
     ParticipantStatus,
     coerce_cvd_roles,
@@ -102,12 +103,15 @@ class CaseParticipant(CoreObject):
         """Seed ``participant_statuses`` with a default entry when empty."""
         if self.participant_statuses:
             return self
+        _consent_state = coerce_em_consent_state(self.embargo_consent_state)
         self.participant_statuses = [
             ParticipantStatus(
                 context=self.context or self.id_,
                 attributed_to=self.attributed_to,
-                em_consent_state=coerce_em_consent_state(
-                    self.embargo_consent_state
+                consent=(
+                    PecDimension(state=_consent_state)
+                    if _consent_state is not None
+                    else None
                 ),
                 cvd_role=coerce_cvd_roles(self.case_roles),
             ),
@@ -119,8 +123,11 @@ class CaseParticipant(CoreObject):
             return
         latest = self.participant_statuses[-1]
         latest.cvd_role = coerce_cvd_roles(self.case_roles)
-        latest.em_consent_state = coerce_em_consent_state(
-            self.embargo_consent_state
+        _consent_state = coerce_em_consent_state(self.embargo_consent_state)
+        latest.consent = (
+            PecDimension(state=_consent_state)
+            if _consent_state is not None
+            else None
         )
 
     @property
@@ -149,7 +156,7 @@ class CaseParticipant(CoreObject):
             ``True`` when the status was appended, ``False`` when blocked.
         """
         current = (
-            self.participant_statuses[-1].rm_state
+            self.participant_statuses[-1].rm.state
             if self.participant_statuses
             else RM.START
         )
@@ -161,13 +168,16 @@ class CaseParticipant(CoreObject):
                 self.id_,
             )
             return False
+        _consent_state = coerce_em_consent_state(self.embargo_consent_state)
         self.participant_statuses.append(
             ParticipantStatus(
-                rm_state=rm_state,
+                rm=RmDimension(state=rm_state),
                 context=context,
                 attributed_to=actor,
-                em_consent_state=coerce_em_consent_state(
-                    self.embargo_consent_state
+                consent=(
+                    PecDimension(state=_consent_state)
+                    if _consent_state is not None
+                    else None
                 ),
                 cvd_role=coerce_cvd_roles(self.case_roles),
             )
@@ -280,13 +290,16 @@ class ReporterParticipant(CaseParticipant):
 
     @model_validator(mode="after")
     def _set_accepted_status(self) -> ReporterParticipant:
+        _consent_state = coerce_em_consent_state(self.embargo_consent_state)
         self.participant_statuses = [
             ParticipantStatus(
                 context=self.context or self.id_,
                 attributed_to=self.attributed_to,
-                rm_state=RM.ACCEPTED,
-                em_consent_state=coerce_em_consent_state(
-                    self.embargo_consent_state
+                rm=RmDimension(state=RM.ACCEPTED),
+                consent=(
+                    PecDimension(state=_consent_state)
+                    if _consent_state is not None
+                    else None
                 ),
                 cvd_role=coerce_cvd_roles(self.case_roles),
             )
@@ -309,13 +322,16 @@ class FinderReporterParticipant(CaseParticipant):
 
     @model_validator(mode="after")
     def _set_accepted_status(self) -> FinderReporterParticipant:
+        _consent_state = coerce_em_consent_state(self.embargo_consent_state)
         self.participant_statuses = [
             ParticipantStatus(
                 context=self.context or self.id_,
                 attributed_to=self.attributed_to,
-                rm_state=RM.ACCEPTED,
-                em_consent_state=coerce_em_consent_state(
-                    self.embargo_consent_state
+                rm=RmDimension(state=RM.ACCEPTED),
+                consent=(
+                    PecDimension(state=_consent_state)
+                    if _consent_state is not None
+                    else None
                 ),
                 cvd_role=coerce_cvd_roles(self.case_roles),
             )

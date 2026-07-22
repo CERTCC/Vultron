@@ -194,7 +194,7 @@ class TestWriteEmStateNode:
 
         updated_case = dl.read(case.id_)
         assert isinstance(updated_case, VulnerabilityCase)
-        assert updated_case.current_status.em_state == EM.ACTIVE
+        assert updated_case.current_status.em.state == EM.ACTIVE
 
     def test_idempotent_when_already_at_target(self):
         """SUCCESS without saving when em_state already equals em_after."""
@@ -296,4 +296,4 @@ class TestReadWriteEmStateIntegration:
 
         updated_case = dl.read(case.id_)
         assert isinstance(updated_case, VulnerabilityCase)
-        assert updated_case.current_status.em_state == EM.ACTIVE
+        assert updated_case.current_status.em.state == EM.ACTIVE

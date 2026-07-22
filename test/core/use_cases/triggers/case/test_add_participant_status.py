@@ -27,6 +27,7 @@ from typing import cast
 
 import pytest
 
+from vultron.core.models.dimensions import RmDimension, VfdDimension
 from vultron.core.states.cs import CS_vfd
 from vultron.core.states.rm import RM
 
@@ -39,8 +40,8 @@ class _FakeParticipantStatus:
     """Minimal stand-in for as_ParticipantStatus."""
 
     def __init__(self, rm_state: RM, vfd_state: CS_vfd) -> None:
-        self.rm_state = rm_state
-        self.vfd_state = vfd_state
+        self.rm = RmDimension(state=rm_state)
+        self.vfd = VfdDimension(state=vfd_state)
 
 
 class _FakeParticipantWithStatuses:
@@ -161,9 +162,12 @@ def test_resolve_participant_state_defaults_when_participant_not_found():
 def test_resolve_participant_state_defaults_when_invalid_rm_type():
     """Falls back to RM.START when rm_state is not an RM enum value."""
 
+    class _BadRmAttr:
+        state = "not-an-rm"
+
     class _BadStatus:
-        rm_state = "not-an-rm"
-        vfd_state = CS_vfd.VFd
+        rm = _BadRmAttr()
+        vfd = VfdDimension(state=CS_vfd.VFd)
 
     participant = _FakeParticipantWithStatuses([_BadStatus()])
     dl = _FakeDL(stored=participant)
@@ -180,9 +184,12 @@ def test_resolve_participant_state_defaults_when_invalid_rm_type():
 def test_resolve_participant_state_defaults_when_invalid_vfd_type():
     """Falls back to CS_vfd.vfd when vfd_state is not a CS_vfd enum value."""
 
+    class _BadVfdAttr:
+        state = "not-a-cs-vfd"
+
     class _BadStatus:
-        rm_state = RM.VALID
-        vfd_state = "not-a-cs-vfd"
+        rm = RmDimension(state=RM.VALID)
+        vfd = _BadVfdAttr()
 
     participant = _FakeParticipantWithStatuses([_BadStatus()])
     dl = _FakeDL(stored=participant)
@@ -485,7 +492,7 @@ class TestCreateParticipantStatusNode:
         assert isinstance(status_id, str), "result_out must contain status_id"
         stored = self.dl.read(status_id)
         assert isinstance(stored, ParticipantStatus)
-        assert stored.rm_state == RM.ACCEPTED
+        assert stored.rm.state == RM.ACCEPTED
 
     def test_node_appends_status_to_participant(self):
         """CreateParticipantStatusNode appends the status to participant_statuses."""
@@ -542,4 +549,4 @@ class TestCreateParticipantStatusNode:
         stored = self.dl.read(status_id)
         assert isinstance(stored, ParticipantStatus)
         # No prior statuses → defaults to RM.START
-        assert stored.rm_state == RM.START
+        assert stored.rm.state == RM.START

@@ -14,6 +14,7 @@ from vultron.core.models.case_participant import (
     VendorParticipant,
     VultronParticipant,
 )
+from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole, validate_roles
@@ -126,18 +127,18 @@ class TestInitParticipantStatusIfEmpty:
     def test_seeded_status_rm_start(self):
         """The seeded status starts at RM.START."""
         p = _make()
-        assert p.participant_statuses[0].rm_state == RM.START
+        assert p.participant_statuses[0].rm.state == RM.START
 
     def test_pre_populated_list_preserved(self):
         """When participant_statuses is non-empty the validator does not replace it."""
         existing = ParticipantStatus(
             context=_CONTEXT,
             attributed_to=_ACTOR,
-            rm_state=RM.ACCEPTED,
+            rm=RmDimension(state=RM.ACCEPTED),
         )
         p = _make(participant_statuses=[existing])
         assert len(p.participant_statuses) == 1
-        assert p.participant_statuses[0].rm_state == RM.ACCEPTED
+        assert p.participant_statuses[0].rm.state == RM.ACCEPTED
 
 
 # ---------------------------------------------------------------------------
@@ -154,7 +155,7 @@ class TestParticipantStatusProperty:
         second = ParticipantStatus(
             context=_CONTEXT,
             attributed_to=_ACTOR,
-            rm_state=RM.ACCEPTED,
+            rm=RmDimension(state=RM.ACCEPTED),
         )
         p.participant_statuses.append(second)
         assert p.participant_status is second
@@ -185,7 +186,7 @@ class TestAppendRmState:
         assert p.append_rm_state(RM.RECEIVED, _ACTOR, _CONTEXT) is True
         assert len(p.participant_statuses) == 2
         assert p.participant_status is not None
-        assert p.participant_status.rm_state == RM.RECEIVED
+        assert p.participant_status.rm.state == RM.RECEIVED
 
     def test_invalid_transition_blocked(self):
         """An invalid RM transition (START → ACCEPTED) is rejected and returns False."""
@@ -261,7 +262,7 @@ class TestAcceptedStatusOnReporterSubclasses:
         """Subclass starts with RM.ACCEPTED participant status."""
         p = cls(attributed_to=_ACTOR, context=_CONTEXT)
         assert p.participant_status is not None
-        assert p.participant_status.rm_state == RM.ACCEPTED
+        assert p.participant_status.rm.state == RM.ACCEPTED
 
     @pytest.mark.parametrize(
         "cls", [FinderParticipant, VendorParticipant, CoordinatorParticipant]
@@ -270,7 +271,7 @@ class TestAcceptedStatusOnReporterSubclasses:
         """Non-reporter subclasses start at RM.START."""
         p = cls(attributed_to=_ACTOR, context=_CONTEXT)
         assert p.participant_status is not None
-        assert p.participant_status.rm_state == RM.START
+        assert p.participant_status.rm.state == RM.START
 
 
 # ---------------------------------------------------------------------------

@@ -193,8 +193,8 @@ class ResolveAndPersistStatusObjectNode(DataLayerAction):
     Tries the DataLayer first; if not found, uses ``status_obj_fallback``,
     saves it, then re-reads the canonical wire-format record.
 
-    Validates that the resolved object is a ParticipantStatus (has rm_state and
-    vfd_state attributes).
+    Validates that the resolved object is a ParticipantStatus (has rm and
+    vfd attributes).
 
     Writes the resolved status object to the blackboard under the key
     ``append_status_status_obj``.
@@ -240,9 +240,7 @@ class ResolveAndPersistStatusObjectNode(DataLayerAction):
             )
             return Status.FAILURE
 
-        if not hasattr(status_obj, "rm_state") or not hasattr(
-            status_obj, "vfd_state"
-        ):
+        if not hasattr(status_obj, "rm") or not hasattr(status_obj, "vfd"):
             self.feedback_message = (
                 f"Object '{self.status_id}' is not a ParticipantStatus"
             )
@@ -301,7 +299,9 @@ class ValidateRMTransitionNode(DataLayerCondition):
             )
             return Status.FAILURE
 
-        new_rm_state = getattr(status_obj, "rm_state", None)
+        new_rm_state = (
+            status_obj.rm.state if hasattr(status_obj, "rm") else None
+        )
         current_status = getattr(participant, "participant_status", None)
 
         if new_rm_state is None or current_status is None:
@@ -311,7 +311,7 @@ class ValidateRMTransitionNode(DataLayerCondition):
             )
             return Status.SUCCESS
 
-        current_rm = current_status.rm_state
+        current_rm = current_status.rm.state
         if current_rm == RM.CLOSED:
             self.feedback_message = (
                 "Participant is already in terminal RM.CLOSED state"
@@ -464,7 +464,9 @@ class CheckParticipantRMNotClosedNode(DataLayerCondition):
         if current_status is None:
             return Status.SUCCESS
 
-        current_rm = getattr(current_status, "rm_state", None)
+        current_rm = (
+            current_status.rm.state if hasattr(current_status, "rm") else None
+        )
         if current_rm != RM.CLOSED:
             return Status.SUCCESS
 

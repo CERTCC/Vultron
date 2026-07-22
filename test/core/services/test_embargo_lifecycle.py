@@ -35,6 +35,7 @@ from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     EmbargoLifecycleResult,
@@ -164,8 +165,8 @@ def test_propose_embargo_none_to_proposed(
     assert result.pec_reset is False
     assert result.participant_changes == []
 
-    updated = cast(as_VulnerabilityCase, dl.read(case.id_))
-    assert updated.current_status.em_state == EM.PROPOSED
+    updated = cast(VulnerabilityCase, dl.read(case.id_))
+    assert updated.current_status.em.state == EM.PROPOSED
     assert embargo.id_ in updated.proposed_embargoes
 
 
@@ -197,7 +198,7 @@ def test_propose_embargo_idempotent_repropse(
     # EM state did not change, embargo_id already present → nothing mutated
     assert result.case_changed is False
 
-    updated = cast(as_VulnerabilityCase, dl.read(case.id_))
+    updated = cast(VulnerabilityCase, dl.read(case.id_))
     # Must not have been duplicated
     assert updated.proposed_embargoes.count(embargo.id_) == 1
 
@@ -237,8 +238,8 @@ def test_propose_embargo_active_to_revise_cascades_pec(
         assert change.pec_after == PEC.LAPSED.value
 
     # DataLayer state matches
-    updated = cast(as_VulnerabilityCase, dl.read(case.id_))
-    assert updated.current_status.em_state == EM.REVISE
+    updated = cast(VulnerabilityCase, dl.read(case.id_))
+    assert updated.current_status.em.state == EM.REVISE
     for p in participants:
         updated_p = cast(CaseParticipant, dl.read(p.id_))
         assert updated_p.embargo_consent_state == PEC.LAPSED.value
@@ -486,7 +487,7 @@ def test_accept_embargo_invite_observed_already_active_syncs_embargo(
     # EM stays ACTIVE (already there)
     assert result.em_after == EM.ACTIVE
     # But active_embargo must be updated to point at the new embargo
-    refreshed_case = cast(as_VulnerabilityCase, dl.read(case.id_))
+    refreshed_case = cast(VulnerabilityCase, dl.read(case.id_))
     assert _as_id(refreshed_case.active_embargo) == new_embargo.id_
 
 
@@ -1131,8 +1132,8 @@ class TestCallerOwnsEmIo:
 
         assert result.em_after == EM.PROPOSED
         # Service must NOT have written em_state; it stays at the initial value
-        refreshed = cast(as_VulnerabilityCase, dl.read(case.id_))
-        assert refreshed.current_status.em_state == EM.NONE
+        refreshed = cast(VulnerabilityCase, dl.read(case.id_))
+        assert refreshed.current_status.em.state == EM.NONE
 
     def test_propose_still_writes_em_state_on_legacy_path(
         self,
@@ -1152,8 +1153,8 @@ class TestCallerOwnsEmIo:
         )
 
         assert result.em_after == EM.PROPOSED
-        refreshed = cast(as_VulnerabilityCase, dl.read(case.id_))
-        assert refreshed.current_status.em_state == EM.PROPOSED
+        refreshed = cast(VulnerabilityCase, dl.read(case.id_))
+        assert refreshed.current_status.em.state == EM.PROPOSED
 
     def test_reject_does_not_write_em_state_when_em_before_supplied(
         self,
@@ -1174,8 +1175,8 @@ class TestCallerOwnsEmIo:
         )
 
         assert result.em_after == EM.NONE
-        refreshed = cast(as_VulnerabilityCase, dl.read(case.id_))
-        assert refreshed.current_status.em_state == EM.PROPOSED
+        refreshed = cast(VulnerabilityCase, dl.read(case.id_))
+        assert refreshed.current_status.em.state == EM.PROPOSED
 
     def test_terminate_does_not_write_em_state_when_em_before_supplied(
         self,
@@ -1197,5 +1198,5 @@ class TestCallerOwnsEmIo:
         )
 
         assert result.em_after == EM.EXITED
-        refreshed = cast(as_VulnerabilityCase, dl.read(case.id_))
-        assert refreshed.current_status.em_state == EM.ACTIVE
+        refreshed = cast(VulnerabilityCase, dl.read(case.id_))
+        assert refreshed.current_status.em.state == EM.ACTIVE

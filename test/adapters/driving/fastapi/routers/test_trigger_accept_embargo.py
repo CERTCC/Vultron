@@ -192,7 +192,7 @@ def test_trigger_accept_embargo_activates_embargo(
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
     updated_case = dl.read(case_obj.id_)
-    assert updated_case.current_status.em_state == EM.ACTIVE
+    assert updated_case.current_status.em.state == EM.ACTIVE
     assert updated_case.active_embargo is not None
 
 
@@ -209,7 +209,7 @@ def test_trigger_accept_embargo_without_proposal_id_uses_first_proposal(
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
     updated_case = dl.read(case_obj.id_)
-    assert updated_case.current_status.em_state == EM.ACTIVE
+    assert updated_case.current_status.em.state == EM.ACTIVE
 
 
 def test_accept_embargo_schedules_outbox_handler(

@@ -179,8 +179,8 @@ class TestEngageCaseRMTransitionViaBT:
             updated.participant_statuses
         ), "Expected at least one as_ParticipantStatus after engage"
         assert (
-            updated.participant_statuses[-1].rm_state == RM.ACCEPTED
-        ), f"Expected RM.ACCEPTED, got {updated.participant_statuses[-1].rm_state}"
+            updated.participant_statuses[-1].rm.state == RM.ACCEPTED
+        ), f"Expected RM.ACCEPTED, got {updated.participant_statuses[-1].rm.state}"
 
     def test_engage_case_rm_not_updated_when_no_participant(self):
         """When participant is NOT in case_participants, the BT transitions
@@ -256,8 +256,8 @@ class TestDeferCaseRMTransitionViaBT:
             updated.participant_statuses
         ), "Expected at least one as_ParticipantStatus after defer"
         assert (
-            updated.participant_statuses[-1].rm_state == RM.DEFERRED
-        ), f"Expected RM.DEFERRED, got {updated.participant_statuses[-1].rm_state}"
+            updated.participant_statuses[-1].rm.state == RM.DEFERRED
+        ), f"Expected RM.DEFERRED, got {updated.participant_statuses[-1].rm.state}"
 
 
 # ---------------------------------------------------------------------------

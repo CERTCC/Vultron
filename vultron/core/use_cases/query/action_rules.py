@@ -103,16 +103,16 @@ class GetActionRulesUseCase:
         vfd_state: CS_vfd = CS_vfd.vfd
         if participant.participant_statuses:
             latest = participant.participant_statuses[-1]
-            rm_state = latest.rm_state
-            vfd_state = latest.vfd_state
+            rm_state = latest.rm.state
+            vfd_state = latest.vfd.state
 
         # 4. Get shared case states from the current CaseStatus
         em_state: EM = EM.EMBARGO_MANAGEMENT_NONE
         pxa_state: CS_pxa = CS_pxa.pxa
         if has_case_statuses(case):
             current_cs = case.current_status
-            em_state = current_cs.em_state
-            pxa_state = current_cs.pxa_state
+            em_state = current_cs.em.state
+            pxa_state = current_cs.pxa.state
 
         # 5. Build the combined 6-character CS state string (VFD + PXA)
         cs_state = vfd_state.name + pxa_state.name

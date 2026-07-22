@@ -23,7 +23,6 @@ from vultron.core.use_cases._helpers import (
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.states.cs import (
-    CS_pxa,
     is_pxa_attacks_observed,
     is_pxa_exploit_public,
     is_pxa_public_aware,
@@ -45,10 +44,7 @@ def _pxa_embargo_ineligible(dl: CasePersistence, case_id: str) -> bool:
     case = dl.read(case_id)
     if not isinstance(case, VulnerabilityCase):
         return False
-    try:
-        pxa_state = CS_pxa(case.current_status.pxa_state)
-    except ValueError:
-        return False
+    pxa_state = case.current_status.pxa.state
     return (
         is_pxa_public_aware(pxa_state)
         or is_pxa_exploit_public(pxa_state)

@@ -298,7 +298,7 @@ class TestInviteActorUseCases:
         participant_id = updated_case.actor_participant_index.get(invitee_id)
         participant_obj = cast(Any, dl.get(id_=participant_id))
         latest_status = participant_obj.participant_statuses[-1]
-        assert latest_status.rm_state == RM.ACCEPTED
+        assert latest_status.rm.state == RM.ACCEPTED
 
     def test_accept_invite_no_identity_spoofing(self, make_payload):
         """PCR-07-008: AcceptInviteActorToCaseReceivedUseCase MUST NOT emit
@@ -377,9 +377,9 @@ class TestInviteActorUseCases:
         participant_obj = cast(Any, dl.get(id_=participant_id))
         assert participant_obj is not None
         latest_status = participant_obj.participant_statuses[-1]
-        assert latest_status.rm_state == RM.ACCEPTED, (
+        assert latest_status.rm.state == RM.ACCEPTED, (
             f"Expected RM.ACCEPTED after BT transition, "
-            f"got {latest_status.rm_state}"
+            f"got {latest_status.rm.state}"
         )
 
     def test_accept_invite_actor_to_case_records_case_event(

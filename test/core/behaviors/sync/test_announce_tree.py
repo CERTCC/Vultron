@@ -225,7 +225,7 @@ class TestAnnounceLogEntryAppliesEmbargoTeardown:
         assert result.status == Status.SUCCESS
         updated = datalayer.read(CASE_ID)
         assert updated is not None
-        assert updated.current_status.em_state == EM.EXITED
+        assert updated.current_status.em.state == EM.EXITED
 
     def test_already_stored_entry_early_exits_successfully(
         self, bridge, datalayer, case_actor
@@ -287,7 +287,7 @@ class TestAnnounceLogEntryAppliesEmbargoTeardown:
         assert result.status == Status.SUCCESS
         updated = datalayer.read(CASE_ID)
         assert updated is not None
-        assert updated.current_status.em_state == EM.EXITED
+        assert updated.current_status.em.state == EM.EXITED
 
 
 NOTE_ID = "https://example.org/notes/test-note-1"

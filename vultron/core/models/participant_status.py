@@ -15,17 +15,26 @@
 
 """Domain representation of a participant RM-state status record."""
 
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import ConfigDict, Field, field_serializer, field_validator
+from pydantic import (
+    ConfigDict,
+    Field,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
 from pydantic.alias_generators import to_camel
 
-from vultron.core.states.rm import RM
-from vultron.core.states.cs import CS_vfd
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.enums.roles import CVDRole
 from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.dimensions import (
+    PecDimension,
+    RmDimension,
+    VfdDimension,
+)
 
 
 def coerce_em_consent_state(value: object) -> PEC | None:
@@ -76,7 +85,10 @@ class ParticipantStatus(CoreObject):
     associated with a specific case.
 
     ``case_status`` embeds the participant's perspective on the case-level
-    state (em_state and pxa_state) via a nested :class:`CaseStatus` object.
+    state (em and pxa) via a nested :class:`CaseStatus` object.
+
+    ``rm``, ``vfd``, and ``consent`` are dimension objects that own the RM,
+    VFD, and PEC state machines respectively (ADR-0036, SDO-03-002).
     """
 
     model_config = ConfigDict(alias_generator=to_camel)
@@ -87,45 +99,53 @@ class ParticipantStatus(CoreObject):
         serialization_alias="type",
     )
     context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
-    rm_state: RM = RM.START
-    vfd_state: CS_vfd = CS_vfd.vfd
+    rm: RmDimension = Field(default_factory=RmDimension)
+    vfd: VfdDimension = Field(default_factory=VfdDimension)
     case_engagement: bool = True
     embargo_adherence: bool = True
-    em_consent_state: PEC | None = None
+    consent: PecDimension | None = None
     cvd_role: list[CVDRole] = Field(default_factory=lambda: [CVDRole.OTHER])
     tracking_id: NonEmptyString | None = None
     case_status: CaseStatus | None = None
 
-    @field_serializer("rm_state")
-    def _serialize_rm_state(self, v: RM) -> str:
-        return v.name
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_flat_fields(cls, data: Any) -> Any:
+        """Accept legacy flat ``rm_state``/``vfd_state``/``em_consent_state`` wire-format inputs.
 
-    @field_serializer("vfd_state")
-    def _serialize_vfd_state(self, v: CS_vfd) -> str:
-        return v.name
+        Handles both snake_case (``rm_state``) and camelCase alias (``rmState``) keys
+        since ``model_validator(mode='before')`` runs before alias normalization.
+        """
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        _SENTINEL = object()
+        rm_raw = data.pop("rm_state", _SENTINEL)
+        if rm_raw is _SENTINEL:
+            rm_raw = data.pop("rmState", _SENTINEL)
+        if rm_raw is not _SENTINEL and rm_raw is not None and "rm" not in data:
+            data["rm"] = {"state": rm_raw}
+        vfd_raw = data.pop("vfd_state", _SENTINEL)
+        if vfd_raw is _SENTINEL:
+            vfd_raw = data.pop("vfdState", _SENTINEL)
+        if (
+            vfd_raw is not _SENTINEL
+            and vfd_raw is not None
+            and "vfd" not in data
+        ):
+            data["vfd"] = {"state": vfd_raw}
+        pec_raw = data.pop("em_consent_state", _SENTINEL)
+        if pec_raw is _SENTINEL:
+            pec_raw = data.pop("emConsentState", _SENTINEL)
+        if pec_raw is not _SENTINEL and "consent" not in data:
+            data["consent"] = (
+                {"state": pec_raw} if pec_raw is not None else None
+            )
+        return data
 
     @field_serializer("cvd_role")
     def _serialize_cvd_role(self, roles: list[CVDRole]) -> list[str]:
         return [role.name for role in roles]
-
-    @field_validator("rm_state", mode="before")
-    @classmethod
-    def _validate_rm_state(cls, v: object) -> RM:
-        if isinstance(v, str):
-            return RM[v]
-        return v  # type: ignore[return-value]
-
-    @field_validator("vfd_state", mode="before")
-    @classmethod
-    def _validate_vfd_state(cls, v: object) -> CS_vfd:
-        if isinstance(v, str):
-            return CS_vfd[v]
-        return v  # type: ignore[return-value]
-
-    @field_validator("em_consent_state", mode="before")
-    @classmethod
-    def _validate_em_consent_state(cls, v: object) -> PEC | None:
-        return coerce_em_consent_state(v)
 
     @field_validator("cvd_role", mode="before")
     @classmethod

@@ -27,6 +27,7 @@ from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
 from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.dimensions import RmDimension
 from vultron.core.models._helpers import _report_phase_status_id
 from vultron.adapters.driving.fastapi.deps import (
     get_canonical_actor_dl,
@@ -188,7 +189,7 @@ def closed_report(dl, report, actor):
         id_=_report_phase_status_id(actor.id_, report.id_, RM.CLOSED.value),
         context=report.id_,
         attributed_to=actor.id_,
-        rm_state=RM.CLOSED,
+        rm=RmDimension(state=RM.CLOSED),
     )
     dl.create(status)
     return report

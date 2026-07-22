@@ -280,4 +280,4 @@ def test_extract_intent_participant_status_vfd_state():
 
     s = cast(Any, event).status
     assert s is not None
-    assert s.vfd_state == CS_vfd.Vfd
+    assert s.vfd.state == CS_vfd.Vfd

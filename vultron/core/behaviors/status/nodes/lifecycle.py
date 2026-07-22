@@ -78,8 +78,15 @@ class _PublicDisclosureSkipConditionNode(DataLayerCondition):
         """Return True if the status signals public awareness (CS.P is set)."""
         from vultron.core.states.cs import CS_pxa
 
-        case_status = getattr(self.status_obj, "case_status", None)
-        pxa_state = getattr(case_status, "pxa_state", None)
+        case_status: object = getattr(self.status_obj, "case_status", None)
+        if case_status is None:
+            pxa_state = None
+        elif hasattr(case_status, "pxa"):
+            pxa_state = getattr(case_status, "pxa").state
+        elif hasattr(case_status, "pxa_state"):
+            pxa_state = getattr(case_status, "pxa_state")
+        else:
+            pxa_state = None
         if pxa_state is None:
             return False
         try:
@@ -232,7 +239,9 @@ class AutoCloseBranchNode(DataLayerAction):
                 latest = latest_ref
             if latest is None:
                 return False
-            rm_state = getattr(latest, "rm_state", None)
+            rm_state = (
+                getattr(latest, "rm").state if hasattr(latest, "rm") else None
+            )
             if rm_state is None or rm_state != RM.CLOSED:
                 return False
         return True

@@ -118,7 +118,7 @@ class TestDeferCaseRMTransitionViaBT:
         assert updated is not None
         assert isinstance(updated, CaseParticipant)
         assert updated.participant_statuses
-        assert updated.participant_statuses[-1].rm_state == RM.DEFERRED
+        assert updated.participant_statuses[-1].rm.state == RM.DEFERRED
 
     def test_defer_case_actor_not_found_raises_error(self):
         request = DeferCaseTriggerRequest(

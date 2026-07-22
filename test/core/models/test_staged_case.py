@@ -26,6 +26,7 @@ from vultron.core.models.case_participant import (
     VendorParticipant,
 )
 from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.dimensions import EmDimension
 from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.core.models.staged_case import Case, EmbargoedCase, IncomingReport
 from vultron.core.states.em import EM
@@ -72,7 +73,7 @@ def _embargoed_case_data() -> VulnerabilityCase:
         CaseStatus(
             context=vc.id_,
             attributed_to=_ACTOR,
-            em_state=EM.ACTIVE,
+            em=EmDimension(state=EM.ACTIVE),
         )
     ]
     return vc
@@ -247,7 +248,7 @@ class TestEmbargoedCase:
     def test_valid_with_active_embargo_and_active_em_state(self):
         ec = EmbargoedCase.model_validate(_embargoed_case_data())
         assert ec.active_embargo == _EMBARGO_ID
-        assert ec.current_status.em_state == EM.ACTIVE
+        assert ec.current_status.em.state == EM.ACTIVE
 
     def test_valid_with_revise_em_state(self):
         vc = _embargoed_case_data()
@@ -255,11 +256,11 @@ class TestEmbargoedCase:
             CaseStatus(
                 context=vc.id_,
                 attributed_to=_ACTOR,
-                em_state=EM.REVISE,
+                em=EmDimension(state=EM.REVISE),
             )
         ]
         ec = EmbargoedCase.model_validate(vc)
-        assert ec.current_status.em_state == EM.REVISE
+        assert ec.current_status.em.state == EM.REVISE
 
     def test_raises_when_active_embargo_is_none(self):
         vc = _minimal_case()
@@ -273,7 +274,7 @@ class TestEmbargoedCase:
             CaseStatus(
                 context=vc.id_,
                 attributed_to=_ACTOR,
-                em_state=EM.NO_EMBARGO,
+                em=EmDimension(state=EM.NO_EMBARGO),
             )
         ]
         with pytest.raises(VultronValidationError, match="em_state"):
@@ -285,7 +286,7 @@ class TestEmbargoedCase:
             CaseStatus(
                 context=vc.id_,
                 attributed_to=_ACTOR,
-                em_state=EM.PROPOSED,
+                em=EmDimension(state=EM.PROPOSED),
             )
         ]
         with pytest.raises(VultronValidationError, match="em_state"):
@@ -297,7 +298,7 @@ class TestEmbargoedCase:
             CaseStatus(
                 context=vc.id_,
                 attributed_to=_ACTOR,
-                em_state=EM.EXITED,
+                em=EmDimension(state=EM.EXITED),
             )
         ]
         with pytest.raises(VultronValidationError, match="em_state"):

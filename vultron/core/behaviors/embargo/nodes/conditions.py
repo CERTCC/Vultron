@@ -303,7 +303,7 @@ class HasCaseStatusesNode(DataLayerCondition):
     the ``EMBARGO_MANAGEMENT_NONE`` / ``pxa`` defaults (LST-05 / AC-5).
 
     Use this as a precondition node in BT sequences that read
-    ``case.current_status.em_state`` or ``case.current_status.pxa_state``
+    ``case.current_status.em.state`` or ``case.current_status.pxa.state``
     to avoid a ``ValueError`` from an empty status list.
     """
 

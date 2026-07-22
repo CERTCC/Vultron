@@ -36,6 +36,7 @@ from vultron.core.models.case_participant import (
     VultronParticipant,
 )
 from vultron.core.models.participant_status import (
+    ParticipantStatus as CoreParticipantStatus,
     coerce_cvd_roles,
     coerce_em_consent_state,
 )
@@ -304,7 +305,27 @@ class as_CaseParticipant(VultronAS2Object):
 
     @classmethod
     def from_core(cls, core_obj: CoreCaseParticipant) -> "as_CaseParticipant":
-        return cast("as_CaseParticipant", super().from_core(core_obj))
+        data = core_obj.model_dump(mode="json")
+        from vultron.wire.as2.vocab.objects.base import _strip_core_context
+
+        _strip_core_context(data)
+        # Project each CoreParticipantStatus via as_ParticipantStatus.from_core
+        # so that dimension objects are flattened to wire flat fields.
+        data["participant_statuses"] = [
+            (
+                WireParticipantStatus.from_core(
+                    CoreParticipantStatus.model_validate(ps)
+                )
+                if isinstance(ps, dict)
+                else (
+                    WireParticipantStatus.from_core(ps)
+                    if isinstance(ps, CoreParticipantStatus)
+                    else ps
+                )
+            )
+            for ps in (data.get("participant_statuses") or [])
+        ]
+        return cast("as_CaseParticipant", cls.model_validate(data))
 
     def to_core(self) -> CoreCaseParticipant:
         data = self._to_core_data()

@@ -33,6 +33,7 @@ from vultron.core.behaviors.report.trigger_report_trees import (
 from vultron.core.models.activity import VultronOffer
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.offer_record import VultronOfferRecord
+from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VultronReport
 from vultron.core.states.rm import RM
@@ -101,7 +102,7 @@ def closed_status(
         id_=_report_phase_status_id(ACTOR_ID, report.id_, RM.CLOSED.value),
         context=report.id_,
         attributed_to=ACTOR_ID,
-        rm_state=RM.CLOSED,
+        rm=RmDimension(state=RM.CLOSED),
     )
     scenario.dl.create(status)
     return status

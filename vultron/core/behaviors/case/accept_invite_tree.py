@@ -446,7 +446,7 @@ class _CheckEmbargoActiveStateNode(DataLayerAction):
             return Status.FAILURE
 
         active_embargo_id = _as_id(case.active_embargo)
-        em_state = case.current_status.em_state
+        em_state = case.current_status.em.state
         if active_embargo_id and em_state == EM.ACTIVE:
             self.blackboard.active_embargo_id = active_embargo_id
             return Status.SUCCESS

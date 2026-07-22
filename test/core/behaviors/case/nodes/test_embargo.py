@@ -127,7 +127,7 @@ class TestInitializeDefaultEmbargoNode:
         )
 
         stored_case = cast(Any, bt_scenario.dl.read(case_obj.id_))
-        assert stored_case.current_status.em_state == EM.ACTIVE
+        assert stored_case.current_status.em.state == EM.ACTIVE
 
     def test_fails_without_case_id(
         self,

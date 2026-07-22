@@ -275,7 +275,7 @@ def update_participant_rm_state(
         if p_actor_id == actor_id:
             if participant.participant_statuses:
                 latest = participant.participant_statuses[-1]
-                if latest.rm_state == new_rm_state:
+                if latest.rm.state == new_rm_state:
                     logger.info(
                         "Participant '%s' already in RM state %s in case '%s' "
                         "(idempotent)",

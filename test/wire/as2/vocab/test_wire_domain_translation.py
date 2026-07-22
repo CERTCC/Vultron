@@ -27,6 +27,7 @@ from vultron.core.models.participant_status import (
     ParticipantStatus as CoreParticipantStatus,
 )
 from vultron.core.models.report import VultronReport
+from vultron.core.models.dimensions import EmDimension, RmDimension
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.objects.case_actor import as_CaseActor
@@ -65,7 +66,7 @@ def test_case_status_round_trips_between_core_and_wire():
         id_="https://example.org/cases/1/status/1",
         attributed_to="https://example.org/actors/vendor",
         context="https://example.org/cases/1",
-        em_state=EM.PROPOSED,
+        em=EmDimension(state=EM.PROPOSED),
     )
 
     wire = as_CaseStatus.from_core(core)
@@ -76,8 +77,8 @@ def test_case_status_round_trips_between_core_and_wire():
     assert round_tripped.id_ == core.id_
     assert round_tripped.attributed_to == core.attributed_to
     assert round_tripped.context == core.context
-    assert round_tripped.em_state == core.em_state
-    assert round_tripped.pxa_state == core.pxa_state
+    assert round_tripped.em.state == core.em.state
+    assert round_tripped.pxa.state == core.pxa.state
 
 
 def test_participant_status_from_core_materializes_case_status_reference():
@@ -85,13 +86,13 @@ def test_participant_status_from_core_materializes_case_status_reference():
         id_="https://example.org/cases/1/status/1",
         context="https://example.org/cases/1",
         attributed_to="https://example.org/actors/vendor",
-        em_state=EM.NO_EMBARGO,
+        em=EmDimension(state=EM.NO_EMBARGO),
     )
     core = CoreParticipantStatus(
         id_="https://example.org/cases/1/participants/1/status/1",
         attributed_to="https://example.org/actors/vendor",
         context="https://example.org/cases/1",
-        rm_state=RM.ACCEPTED,
+        rm=RmDimension(state=RM.ACCEPTED),
         case_status=core_case_status,
     )
 
@@ -103,11 +104,11 @@ def test_participant_status_from_core_materializes_case_status_reference():
     assert round_tripped.id_ == core.id_
     assert round_tripped.attributed_to == core.attributed_to
     assert round_tripped.context == core.context
-    assert round_tripped.rm_state == core.rm_state
-    assert round_tripped.vfd_state == core.vfd_state
+    assert round_tripped.rm.state == core.rm.state
+    assert round_tripped.vfd.state == core.vfd.state
     assert isinstance(round_tripped.case_status, CoreCaseStatus)
     assert round_tripped.case_status.id_ == core_case_status.id_
-    assert round_tripped.case_status.em_state == core_case_status.em_state
+    assert round_tripped.case_status.em.state == core_case_status.em.state
 
 
 def test_case_participant_round_trips_between_core_and_wire():
@@ -121,7 +122,7 @@ def test_case_participant_round_trips_between_core_and_wire():
                 id_="https://example.org/cases/1/participants/vendor/status/1",
                 attributed_to="https://example.org/actors/vendor",
                 context="https://example.org/cases/1",
-                rm_state=RM.ACCEPTED,
+                rm=RmDimension(state=RM.ACCEPTED),
             )
         ],
         accepted_embargo_ids=["https://example.org/embargoes/1"],
@@ -137,7 +138,7 @@ def test_case_participant_round_trips_between_core_and_wire():
     assert round_tripped.attributed_to == core.attributed_to
     assert round_tripped.context == core.context
     assert round_tripped.accepted_embargo_ids == core.accepted_embargo_ids
-    assert round_tripped.participant_statuses[0].rm_state == RM.ACCEPTED
+    assert round_tripped.participant_statuses[0].rm.state == RM.ACCEPTED
 
 
 def test_vulnerability_case_round_trips_between_core_and_wire():
@@ -145,7 +146,7 @@ def test_vulnerability_case_round_trips_between_core_and_wire():
         id_="https://example.org/cases/1/status/1",
         attributed_to="https://example.org/actors/vendor",
         context="https://example.org/cases/1",
-        em_state=EM.PROPOSED,
+        em=EmDimension(state=EM.PROPOSED),
     )
     participant = VultronParticipant(
         id_="https://example.org/cases/1/participants/vendor",
