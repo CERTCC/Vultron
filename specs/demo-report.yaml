@@ -22,8 +22,7 @@ groups:
       The report tool MUST be implemented as a standalone module at
       `vultron/demo/report.py`, importable as `vultron.demo.report`, and MUST
       provide an `if __name__ == "__main__"` entry point so it is directly
-      invokable (`python -m vultron.demo.report ...`). A console-script entry
-      point is also provided (see DRPT-01-005).
+      invokable (`python -m vultron.demo.report ...`).
     rationale: >-
       A standalone module keeps the read-only reporting utility decoupled from
       the demo-run CLI (DC-01) while remaining colocated with the demo code that
@@ -69,6 +68,9 @@ groups:
       install without the `python -m` prefix. Requiring a zero-argument `main`
       guards against the latent console-script breakage seen for other demo
       entry points whose `main` required a parsed-args positional.
+    relationships:
+    - rel_type: extends
+      spec_id: DRPT-01-001
 - id: DRPT-02
   title: Distilled Timeline Model
   specs:
