@@ -3,11 +3,11 @@
 ## Related Requirements
 
 This top-level tree integrates all CVD behavioral requirements.
-See the [Domain Specifications](../../reference/specs/domain.md) for the full specification:
+See the [Protocol Specifications](../../reference/specs/protocol.md) for the full specification:
 
-- [RMB](../../reference/specs/domain.md#rmb) — Report Management behavioral requirements
-- [EMB](../../reference/specs/domain.md#emb) — Embargo Management behavioral requirements
-- [CSB](../../reference/specs/domain.md#csb) — Case State behavioral requirements
+- [RMB](../../reference/specs/protocol.md#rmb) — Report Management behavioral requirements
+- [EMB](../../reference/specs/protocol.md#emb) — Embargo Management behavioral requirements
+- [CSB](../../reference/specs/protocol.md#csb) — Case State behavioral requirements
 
 We begin at the root node of the CVD Behavior Tree shown in the figure below.
 The root node is a simple loop that continues until an interrupt condition is met, representing the idea

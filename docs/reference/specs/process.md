@@ -1,8 +1,7 @@
-# Implementation Specifications
+# Process Specifications
 
-Requirements specific to this codebase. These cover file paths under
-`vultron/`, class names in `vultron/core/`, notes frontmatter schema, and
-other implementation-specific details.
+How we run this project. Covers CI configuration, GitHub workflow, agent
+conventions, documentation standards, and spec authoring rules.
 
 ```python exec="true" idprefix=""
 import sys
@@ -16,5 +15,5 @@ for _k in list(sys.modules.keys()):
 from vultron.metadata.specs import load_registry
 from vultron.metadata.specs.docs_render import render_for_kind
 registry = load_registry(_repo / "specs")
-print(render_for_kind("implementation", registry))
+print(render_for_kind("process", registry))
 ```

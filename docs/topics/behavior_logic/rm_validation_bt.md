@@ -3,10 +3,10 @@
 ## Requirements
 
 The behavioral requirements for this tree are specified in the
-[Domain Specifications](../../reference/specs/domain.md):
+[Protocol Specifications](../../reference/specs/protocol.md):
 
-- [RMB-10](../../reference/specs/domain.md#rmb-10) — Enter RM Valid
-- [RMB-11](../../reference/specs/domain.md#rmb-11) — Enter RM Invalid
+- [RMB-10](../../reference/specs/protocol.md#rmb-10) — Enter RM Valid
+- [RMB-11](../../reference/specs/protocol.md#rmb-11) — Enter RM Invalid
 
 !!! note "Implementation approach"
 

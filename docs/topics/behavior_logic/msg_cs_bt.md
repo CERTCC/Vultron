@@ -3,16 +3,16 @@
 ## Requirements
 
 The behavioral requirements for this tree are specified in the
-[Domain Specifications](../../reference/specs/domain.md):
+[Protocol Specifications](../../reference/specs/protocol.md):
 
-- [CSB-01](../../reference/specs/domain.md#csb-01) — Receive CV (Vendor Aware)
-- [CSB-02](../../reference/specs/domain.md#csb-02) — Receive CF (Fix Ready)
-- [CSB-03](../../reference/specs/domain.md#csb-03) — Receive CD (Fix Deployed)
-- [CSB-04](../../reference/specs/domain.md#csb-04) — Receive CP (Public Aware)
-- [CSB-05](../../reference/specs/domain.md#csb-05) — Receive CX (Exploit Public)
-- [CSB-06](../../reference/specs/domain.md#csb-06) — Receive CA (Attacks Observed)
-- [CSB-07](../../reference/specs/domain.md#csb-07) — Receive CE (CS Error)
-- [CSB-08](../../reference/specs/domain.md#csb-08) — Receive CK (CS Acknowledgment)
+- [CSB-01](../../reference/specs/protocol.md#csb-01) — Receive CV (Vendor Aware)
+- [CSB-02](../../reference/specs/protocol.md#csb-02) — Receive CF (Fix Ready)
+- [CSB-03](../../reference/specs/protocol.md#csb-03) — Receive CD (Fix Deployed)
+- [CSB-04](../../reference/specs/protocol.md#csb-04) — Receive CP (Public Aware)
+- [CSB-05](../../reference/specs/protocol.md#csb-05) — Receive CX (Exploit Public)
+- [CSB-06](../../reference/specs/protocol.md#csb-06) — Receive CA (Attacks Observed)
+- [CSB-07](../../reference/specs/protocol.md#csb-07) — Receive CE (CS Error)
+- [CSB-08](../../reference/specs/protocol.md#csb-08) — Receive CK (CS Acknowledgment)
 
 !!! note "Implementation approach"
 

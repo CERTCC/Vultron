@@ -3,9 +3,9 @@
 ## Requirements
 
 The behavioral requirements for this tree are specified in the
-[Domain Specifications](../../reference/specs/domain.md):
+[Protocol Specifications](../../reference/specs/protocol.md):
 
-- [EMB-11](../../reference/specs/domain.md#emb-11) — Enter EM Active
+- [EMB-11](../../reference/specs/protocol.md#emb-11) — Enter EM Active
 
 !!! note "Implementation approach"
 

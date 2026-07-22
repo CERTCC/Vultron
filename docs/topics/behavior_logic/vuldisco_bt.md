@@ -3,9 +3,9 @@
 ## Requirements
 
 The behavioral requirements for this tree are specified in the
-[Domain Specifications](../../reference/specs/domain.md):
+[Protocol Specifications](../../reference/specs/protocol.md):
 
-- [CSB-09](../../reference/specs/domain.md#csb-09) — Enter CS V (Vendor Aware)
+- [CSB-09](../../reference/specs/protocol.md#csb-09) — Enter CS V (Vendor Aware)
 
 !!! note "Implementation approach"
 

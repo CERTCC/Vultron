@@ -97,6 +97,8 @@ General information about architectural decision records is available at <https:
   ParticipantStatus](0036-status-dimension-objects.md)
 - [ADR-0037 Buffer Out-of-Order `Announce(CaseLedgerEntry)` Instead of
   Dropping](0037-buffer-out-of-order-ledger-entries.md)
+- [ADR-0038 Replace Six-Kind Spec Taxonomy with Four-Tier Portability
+  Hierarchy](0038-four-tier-specification-taxonomy.md)
 - [ADR-0028 Publication-Intent Subtree Collapse: Bypass Leaves →
   Intent-Record-Driven Arms](0028-publication-intent-bt-collapse.md)
 

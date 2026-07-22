@@ -1,12 +1,10 @@
 id: BTND
 title: Behavior Tree Node Design
-description: >-
-  Formal requirements for BT node parameterization, composability, and reuse in the core
-  behaviors package. Covers node context injection, blackboard hygiene, module ownership,
-  and the fractal composability pattern that applies at every depth of the tree hierarchy.
+description: Formal requirements for BT node parameterization, composability, and reuse in the core behaviors package. Covers
+  node context injection, blackboard hygiene, module ownership, and the fractal composability pattern that applies at every
+  depth of the tree hierarchy.
 version: 1.1.0
 scope:
-
 - prototype
 - production
 tags:
@@ -17,30 +15,24 @@ groups:
   specs:
   - id: BTND-01-001
     priority: MUST_NOT
-    kind: pattern
-    statement: >-
-      BT nodes MUST NOT hard-code actor identities, CVD roles, case IDs, or any context that
-      varies by usage site; these values MUST be constructor parameters.
-    rationale: >-
-      Hard-coded context values prevent reuse across actors or scenarios and couple the node
-      to a single workflow.
+    kind: project
+    statement: BT nodes MUST NOT hard-code actor identities, CVD roles, case IDs, or any context that varies by usage site;
+      these values MUST be constructor parameters.
+    rationale: Hard-coded context values prevent reuse across actors or scenarios and couple the node to a single workflow.
     relationships:
     - rel_type: refines
       spec_id: BT-06-004
   - id: BTND-01-002
     priority: MUST_NOT
-    kind: pattern
-    statement: >-
-      BT nodes MUST NOT read actor identity, case ID, or CVD role from environment variables,
-      module-level globals, or any implicit ambient context. All variable inputs MUST arrive
-      via constructor parameters or the documented blackboard interface.
+    kind: project
+    statement: BT nodes MUST NOT read actor identity, case ID, or CVD role from environment variables, module-level globals,
+      or any implicit ambient context. All variable inputs MUST arrive via constructor parameters or the documented blackboard
+      interface.
   - id: BTND-01-003
     priority: MUST
-    kind: pattern
-    statement: >-
-      When a BT node name is derived from a parameterized value (e.g., role or actor ID),
-      the name MUST be constructed from that parameter at instantiation time, not hard-coded
-      as a string literal.
+    kind: project
+    statement: When a BT node name is derived from a parameterized value (e.g., role or actor ID), the name MUST be constructed
+      from that parameter at instantiation time, not hard-coded as a string literal.
     relationships:
     - rel_type: refines
       spec_id: BT-06-004
@@ -49,151 +41,118 @@ groups:
   specs:
   - id: BTND-02-001
     priority: MUST
-    kind: pattern
-    statement: >-
-      Logic that appears in two or more BT nodes or subtrees MUST be extracted into a shared,
-      parameterized node or factory function in a neutral shared module (see `BTND-04-001`).
+    kind: project
+    statement: Logic that appears in two or more BT nodes or subtrees MUST be extracted into a shared, parameterized node
+      or factory function in a neutral shared module (see `BTND-04-001`).
     relationships:
     - rel_type: refines
       spec_id: BT-06-004
   - id: BTND-02-002
     priority: SHOULD
-    kind: pattern
-    statement: >-
-      Each BT subtree SHOULD be independently triggerable as a use-case entry point AND composable
-      as a child of a larger subtree.
-    rationale: >-
-      This is the "fractal composability" pattern. Subtrees that can only be used one way
-      are candidates for refactoring.
+    kind: project
+    statement: Each BT subtree SHOULD be independently triggerable as a use-case entry point AND composable as a child of
+      a larger subtree.
+    rationale: This is the "fractal composability" pattern. Subtrees that can only be used one way are candidates for refactoring.
     relationships:
     - rel_type: refines
       spec_id: BT-06-002
   - id: BTND-02-003
     priority: SHOULD
-    kind: pattern
-    statement: >-
-      New BT subtrees SHOULD be verified against `notes/vultron-bt.txt` (the canonical simulation
-      BT structure) to confirm structural correspondence before committing.
+    kind: project
+    statement: New BT subtrees SHOULD be verified against `notes/vultron-bt.txt` (the canonical simulation BT structure) to
+      confirm structural correspondence before committing.
     relationships:
     - rel_type: refines
       spec_id: BT-06-002
   - id: BTND-02-004
     priority: SHOULD
-    kind: pattern
-    statement: >-
-      A shared BT node or subtree that models a generic operation (e.g., "create a case participant
-      with any role") SHOULD replace all role-specific one-off variants (e.g., `CreateFinderParticipantNode`,
-      `CreateVendorParticipantNode`) once the shared version is available.
-    rationale: >-
-      Reduces maintenance surface; fixes and improvements apply consistently across all use
-      sites.
+    kind: project
+    statement: A shared BT node or subtree that models a generic operation (e.g., "create a case participant with any role")
+      SHOULD replace all role-specific one-off variants (e.g., `CreateFinderParticipantNode`, `CreateVendorParticipantNode`)
+      once the shared version is available.
+    rationale: Reduces maintenance surface; fixes and improvements apply consistently across all use sites.
 - id: BTND-03
   title: Blackboard Interface Contracts
   specs:
   - id: BTND-03-001
     priority: MUST
-    kind: language
-    statement: >-
-      Each BT node that reads from or writes to the py_trees blackboard MUST declare all blackboard
-      keys it uses in its `setup()` method via `register_key()`.
-    rationale: >-
-      Undeclared blackboard reads create hidden dependencies that break composability and
-      make tests fragile.
+    kind: project
+    statement: Each BT node that reads from or writes to the py_trees blackboard MUST declare all blackboard keys it uses
+      in its `setup()` method via `register_key()`.
+    rationale: Undeclared blackboard reads create hidden dependencies that break composability and make tests fragile.
     relationships:
     - rel_type: refines
       spec_id: BT-03-003
   - id: BTND-03-002
     priority: MUST_NOT
-    kind: language
-    statement: >-
-      A BT node MUST NOT read a blackboard key that was not registered with at least `READ`
-      access in `setup()`.
+    kind: project
+    statement: A BT node MUST NOT read a blackboard key that was not registered with at least `READ` access in `setup()`.
     relationships:
     - rel_type: refines
       spec_id: BT-03-003
   - id: BTND-03-003
     priority: SHOULD
-    kind: language
-    statement: >-
-      A BT node's docstring SHOULD document all blackboard keys it reads and writes, including
-      the expected type and the node that produces the value for each READ key.
+    kind: project
+    statement: A BT node's docstring SHOULD document all blackboard keys it reads and writes, including the expected type
+      and the node that produces the value for each READ key.
   - id: BTND-03-004
     priority: MUST
-    kind: language
-    statement: >-
-      A BT node that writes an inter-node handoff key (a blackboard key written by one node
-      and consumed by a downstream sibling within the same tree) MUST namespace the key by
-      the execution-scoped correlation ID of the tree instance, using the `{noun}_{id_segment}`
-      convention (`id_segment` = `recommendation_id.split('/')[-1]` for HTTP URIs, or the
-      last colon-delimited segment for URN IDs). The same namespaced key MUST be used
-      consistently by all nodes in the tree that read or write that value.
-    rationale: >-
-      The py_trees blackboard is process-global. When a tree factory is called concurrently
-      (e.g., two `Offer(Actor, Case)` messages arriving in parallel futures), two tree
-      instances share the same blackboard namespace. A flat key like `suggested_roles` written
-      by the first instance is silently overwritten by the second before the first instance
-      reads it — causing the wrong role list to be emitted to the Case Owner. Namespacing by
-      the execution-scoped ID (e.g., `suggested_roles_abc123`) guarantees collision-free
-      per-execution storage. See `notes/bt-integration.md` §
-      "Namespaced Inter-Node Handoff Keys". Discovered in CONCERN-1335.
+    kind: project
+    statement: A BT node that writes an inter-node handoff key (a blackboard key written by one node and consumed by a downstream
+      sibling within the same tree) MUST namespace the key by the execution-scoped correlation ID of the tree instance, using
+      the `{noun}_{id_segment}` convention (`id_segment` = `recommendation_id.split('/')[-1]` for HTTP URIs, or the last colon-delimited
+      segment for URN IDs). The same namespaced key MUST be used consistently by all nodes in the tree that read or write
+      that value.
+    rationale: The py_trees blackboard is process-global. When a tree factory is called concurrently (e.g., two `Offer(Actor,
+      Case)` messages arriving in parallel futures), two tree instances share the same blackboard namespace. A flat key like
+      `suggested_roles` written by the first instance is silently overwritten by the second before the first instance reads
+      it — causing the wrong role list to be emitted to the Case Owner. Namespacing by the execution-scoped ID (e.g., `suggested_roles_abc123`)
+      guarantees collision-free per-execution storage. See `notes/bt-integration.md` § "Namespaced Inter-Node Handoff Keys".
+      Discovered in CONCERN-1335.
     relationships:
     - rel_type: refines
       spec_id: BTND-03-001
   - id: BTND-03-005
     priority: MUST_NOT
-    kind: language
-    statement: >-
-      Blackboard keys MUST NOT contain forward-slash characters.
-    rationale: >-
-      py_trees parses forward-slashes as namespacing separators; a key containing `/`
-      silently creates a sub-namespace and will not be found by flat-key readers.
+    kind: project
+    statement: Blackboard keys MUST NOT contain forward-slash characters.
+    rationale: py_trees parses forward-slashes as namespacing separators; a key containing `/` silently creates a sub-namespace
+      and will not be found by flat-key readers.
     relationships:
     - rel_type: refines
       spec_id: BTND-03-004
   - id: BTND-03-008
     priority: MUST
-    kind: language
-    statement: >-
-      Blackboard keys MUST follow the `{noun}_{id_segment}` naming convention where the
-      noun names the value and `id_segment` is the execution-scoped correlation ID (last
-      path or colon-delimited segment). Flat, unscoped keys (e.g., `result`, `status`)
-      are only permitted for top-level handoff keys that are consumed in the same tick
-      cycle and cannot collide.
-    rationale: >-
-      The `{noun}_{id_segment}` convention generalizes BTND-03-004 to all keys, not just
-      inter-node handoffs.
+    kind: project
+    statement: Blackboard keys MUST follow the `{noun}_{id_segment}` naming convention where the noun names the value and
+      `id_segment` is the execution-scoped correlation ID (last path or colon-delimited segment). Flat, unscoped keys (e.g.,
+      `result`, `status`) are only permitted for top-level handoff keys that are consumed in the same tick cycle and cannot
+      collide.
+    rationale: The `{noun}_{id_segment}` convention generalizes BTND-03-004 to all keys, not just inter-node handoffs.
     relationships:
     - rel_type: refines
       spec_id: BTND-03-004
   - id: BTND-03-006
     priority: MUST
-    kind: language
-    statement: >-
-      A decomposed BT leaf node that encounters a domain-layer error MUST write the error
-      to the `result_out["error"]` blackboard key before returning `FAILURE`, and MUST
-      re-raise the original exception in `execute()` after the write so that the bridge
-      layer can translate it into an appropriate HTTP or protocol response.
-    rationale: >-
-      Without a written error key the bridge layer sees only `FAILURE` with no diagnostic
-      context; the error is silently swallowed. Writing to `result_out["error"]` ensures
-      the error propagates to the caller via the result channel even when the BT stops
-      traversal at the failing leaf.
+    kind: project
+    statement: A decomposed BT leaf node that encounters a domain-layer error MUST write the error to the `result_out["error"]`
+      blackboard key before returning `FAILURE`, and MUST re-raise the original exception in `execute()` after the write so
+      that the bridge layer can translate it into an appropriate HTTP or protocol response.
+    rationale: Without a written error key the bridge layer sees only `FAILURE` with no diagnostic context; the error is silently
+      swallowed. Writing to `result_out["error"]` ensures the error propagates to the caller via the result channel even when
+      the BT stops traversal at the failing leaf.
     relationships:
     - rel_type: refines
       spec_id: BTND-03-001
   - id: BTND-03-007
     priority: MUST
-    kind: language
-    statement: >-
-      A decomposed BT leaf node MUST convert `KeyError` (missing blackboard key) to a
-      `FAILURE` status and MUST NOT allow the `KeyError` to propagate uncaught to the
-      bridge layer. The leaf is responsible for catching `KeyError` in its `update()`
-      method and returning `FAILURE` with an appropriate diagnostic message.
-    rationale: >-
-      A `KeyError` propagating to the bridge results in an unhandled 500-level error for
-      the caller. At the leaf level the semantics of "key not present" are known —
-      this is a precondition failure, not an unexpected crash, so `FAILURE` is the
-      correct BT response.
+    kind: project
+    statement: A decomposed BT leaf node MUST convert `KeyError` (missing blackboard key) to a `FAILURE` status and MUST NOT
+      allow the `KeyError` to propagate uncaught to the bridge layer. The leaf is responsible for catching `KeyError` in its
+      `update()` method and returning `FAILURE` with an appropriate diagnostic message.
+    rationale: A `KeyError` propagating to the bridge results in an unhandled 500-level error for the caller. At the leaf
+      level the semantics of "key not present" are known — this is a precondition failure, not an unexpected crash, so `FAILURE`
+      is the correct BT response.
     relationships:
     - rel_type: refines
       spec_id: BTND-03-001
@@ -202,35 +161,27 @@ groups:
   specs:
   - id: BTND-04-001
     priority: MUST_NOT
-    kind: implementation
-    statement: >-
-      BT nodes or subtrees that are used by more than one domain module (e.g., by both `case/`
-      and `report/`) MUST be defined in the shared `vultron/core/behaviors/helpers.py` module
-      or a purpose-built shared module within `vultron/core/behaviors/`. Domain-specific modules
-      MUST NOT import BT nodes from sibling domain modules.
-    rationale: >-
-      Cross-domain node imports create tight coupling and circular-import risk. Neutral shared
-      ownership makes the dependency structure explicit.
+    kind: project
+    statement: BT nodes or subtrees that are used by more than one domain module (e.g., by both `case/` and `report/`) MUST
+      be defined in the shared `vultron/core/behaviors/helpers.py` module or a purpose-built shared module within `vultron/core/behaviors/`.
+      Domain-specific modules MUST NOT import BT nodes from sibling domain modules.
+    rationale: Cross-domain node imports create tight coupling and circular-import risk. Neutral shared ownership makes the
+      dependency structure explicit.
     relationships:
     - rel_type: refines
       spec_id: ARCH-04-001
   - id: BTND-04-002
     priority: MUST_NOT
-    kind: implementation
-    statement: >-
-      BT nodes MUST NOT import from `vultron/demo/` or any other demo-layer module. Demo-specific
-      context (step descriptions, demo loggers, demo flags) belongs in demo scripts, not in
-      BT nodes.
+    kind: project
+    statement: BT nodes MUST NOT import from `vultron/demo/` or any other demo-layer module. Demo-specific context (step descriptions,
+      demo loggers, demo flags) belongs in demo scripts, not in BT nodes.
   - id: BTND-04-003
     priority: MUST_NOT
-    kind: implementation
-    statement: >-
-      `behaviors/` modules MUST NOT import from `use_cases/` modules. BT nodes MUST NOT
-      import use-case classes or functions.
-    rationale: >-
-      Importing use-cases from behaviors inverts the composition hierarchy (behaviors are
-      the implementation layer of use-cases, not their consumers) and introduces circular
-      imports when use-cases inject behaviors via factories.
+    kind: project
+    statement: '`behaviors/` modules MUST NOT import from `use_cases/` modules. BT nodes MUST NOT import use-case classes
+      or functions.'
+    rationale: Importing use-cases from behaviors inverts the composition hierarchy (behaviors are the implementation layer
+      of use-cases, not their consumers) and introduces circular imports when use-cases inject behaviors via factories.
     relationships:
     - rel_type: refines
       spec_id: BTND-04-001
@@ -238,10 +189,9 @@ groups:
       spec_id: ARCH-04-001
   - id: BTND-04-004
     priority: MUST
-    kind: implementation
-    statement: >-
-      Logic shared between `behaviors/` and `use_cases/` MUST be extracted to a common
-      helper in `vultron/core/` or `vultron/core/behaviors/helpers.py`.
+    kind: project
+    statement: Logic shared between `behaviors/` and `use_cases/` MUST be extracted to a common helper in `vultron/core/`
+      or `vultron/core/behaviors/helpers.py`.
     relationships:
     - rel_type: refines
       spec_id: BTND-04-003
@@ -250,53 +200,41 @@ groups:
   specs:
   - id: BTND-05-001
     priority: MUST
-    kind: domain
-    statement: >-
-      The `CVDRoles` enum MUST include a `CASE_OWNER` flag value representing the actor who
-      owns and manages a `VulnerabilityCase`.
-    rationale: >-
-      Case ownership is a protocol-significant relationship distinct from the CVD roles (VENDOR,
-      COORDINATOR, etc.). When a vendor or coordinator receives a report and creates a case,
-      they are both the receiving CVD actor (VENDOR or COORDINATOR) and the case owner. Representing
-      this explicitly avoids hardcoding the assumption that the case creator is always a vendor.
+    kind: protocol
+    statement: The `CVDRoles` enum MUST include a `CASE_OWNER` flag value representing the actor who owns and manages a `VulnerabilityCase`.
+    rationale: Case ownership is a protocol-significant relationship distinct from the CVD roles (VENDOR, COORDINATOR, etc.).
+      When a vendor or coordinator receives a report and creates a case, they are both the receiving CVD actor (VENDOR or
+      COORDINATOR) and the case owner. Representing this explicitly avoids hardcoding the assumption that the case creator
+      is always a vendor.
   - id: BTND-05-002
     priority: MUST
-    kind: domain
-    statement: >-
-      The BT node for creating the initial case participant MUST be role-agnostic. It MUST NOT
-      assume any specific CVD role (e.g., Vendor). It MUST treat the actor as the case owner
-      regardless of their CVD role(s). The correct node is `CreateCaseOwnerParticipant`.
-    rationale: >-
-      "Vendor" is a demo-specific assumption. In the general protocol a coordinator, deployer,
-      or other role may equally receive a report and become the case owner. The node MUST
-      NOT know or care which CVD role the actor plays — only that they are the case owner.
+    kind: project
+    statement: The BT node for creating the initial case participant MUST be role-agnostic. It MUST NOT assume any specific
+      CVD role (e.g., Vendor). It MUST treat the actor as the case owner regardless of their CVD role(s). The correct node
+      is `CreateCaseOwnerParticipant`.
+    rationale: '"Vendor" is a demo-specific assumption. In the general protocol a coordinator, deployer, or other role may
+      equally receive a report and become the case owner. The node MUST NOT know or care which CVD role the actor plays —
+      only that they are the case owner.'
     relationships:
     - rel_type: refines
       spec_id: BTND-01-001
   - id: BTND-05-003
     priority: MUST
-    kind: domain
-    statement: >-
-      The generic participant creation node is `CreateCaseParticipantNode`. Callers MUST pass
-      an explicit `roles` parameter; no role-specific subclasses or alias names are permitted.
-    rationale: >-
-      Alias names carry the old "finder-specific" framing and mislead readers about the node's
-      actual generality.
+    kind: protocol
+    statement: The generic participant creation node is `CreateCaseParticipantNode`. Callers MUST pass an explicit `roles`
+      parameter; no role-specific subclasses or alias names are permitted.
+    rationale: Alias names carry the old "finder-specific" framing and mislead readers about the node's actual generality.
   - id: BTND-05-004
     priority: MUST
-    kind: domain
-    statement: >-
-      The `CVDRole` enum MUST include a `CVE_NUMBERING_AUTHORITY` value representing a
-      participant that holds CVE Numbering Authority (CNA) status.
-    rationale: >-
-      Multiple participants in an MPCVD case may independently be CNAs (e.g., a vendor CNA and
-      a coordinator CNA). The `IsIDAssignmentAuthority` BT node checks whether a participant
-      holds this role as a static capability check; `IdAssignable` evaluates whether the CNA's
-      scope rules cover the specific vulnerability. Without a `CVE_NUMBERING_AUTHORITY` role in
-      `CVDRole`, the protocol has no way to represent CNA status, route ID-assignment decision
-      nodes to the correct participant(s), or distinguish CNA participants from non-CNA
-      participants in case actor lists. `CVE_NUMBERING_AUTHORITY` is orthogonal to all other
-      CVD roles — a VENDOR, COORDINATOR, or any participant may independently hold it.
+    kind: project
+    statement: The `CVDRole` enum MUST include a `CVE_NUMBERING_AUTHORITY` value representing a participant that holds CVE
+      Numbering Authority (CNA) status.
+    rationale: Multiple participants in an MPCVD case may independently be CNAs (e.g., a vendor CNA and a coordinator CNA).
+      The `IsIDAssignmentAuthority` BT node checks whether a participant holds this role as a static capability check; `IdAssignable`
+      evaluates whether the CNA's scope rules cover the specific vulnerability. Without a `CVE_NUMBERING_AUTHORITY` role in
+      `CVDRole`, the protocol has no way to represent CNA status, route ID-assignment decision nodes to the correct participant(s),
+      or distinguish CNA participants from non-CNA participants in case actor lists. `CVE_NUMBERING_AUTHORITY` is orthogonal
+      to all other CVD roles — a VENDOR, COORDINATOR, or any participant may independently hold it.
     relationships:
     - rel_type: refines
       spec_id: BTND-05-001
@@ -305,105 +243,85 @@ groups:
   specs:
   - id: BTND-06-001
     priority: SHOULD
-    kind: language
-    statement: >-
-      (**SHOULD**) Stateful BT nodes SHOULD use the **implicit sequence** pattern: a Fallback
-      whose first child checks whether the goal is already achieved (the postcondition), and
-      whose remaining children perform the work only when the goal has not yet been reached.
-    rationale: >-
-      Automatically makes nodes idempotent and reactive. Re-ticking a satisfied node costs
-      only a cheap condition check. This is the dominant pattern throughout `vultron/bt/`.
+    kind: project
+    statement: '(**SHOULD**) Stateful BT nodes SHOULD use the **implicit sequence** pattern: a Fallback whose first child
+      checks whether the goal is already achieved (the postcondition), and whose remaining children perform the work only
+      when the goal has not yet been reached.'
+    rationale: Automatically makes nodes idempotent and reactive. Re-ticking a satisfied node costs only a cheap condition
+      check. This is the dominant pattern throughout `vultron/bt/`.
     relationships:
     - rel_type: refines
       spec_id: BT-06-003
   - id: BTND-06-002
     priority: SHOULD
-    kind: language
-    statement: >-
-      (**SHOULD**) When a Sequence contains multiple actions, each action that may already
-      be complete SHOULD be paired with its success condition via a Fallback, making the **explicit
-      success condition** visible in the tree.
-    rationale: >-
-      Improves readability and correctness. Readers can determine the success criterion of
-      each step from the tree alone, without reading action implementations.
+    kind: project
+    statement: (**SHOULD**) When a Sequence contains multiple actions, each action that may already be complete SHOULD be
+      paired with its success condition via a Fallback, making the **explicit success condition** visible in the tree.
+    rationale: Improves readability and correctness. Readers can determine the success criterion of each step from the tree
+      alone, without reading action implementations.
     relationships:
     - rel_type: refines
       spec_id: BT-06-004
   - id: BTND-06-003
     priority: SHOULD
-    kind: language
-    statement: >-
-      (**SHOULD**) Every BT node that performs a protocol state transition (RM/EM/CS state
-      machine update, emitting an AS2 activity, or creating/updating a domain object) SHOULD
-      follow the **PPA (Postcondition–Precondition–Action)** structure: `Fallback(Postcondition,
-      Sequence(Precondition1, …, PreconditionN, Action))`.
-    rationale: >-
-      PPA is the canonical "unit cell" of idiomatic BT design. It makes the node's contract
-      (what it requires and what it guarantees) explicit and machine-readable from the tree
-      structure.
+    kind: project
+    statement: '(**SHOULD**) Every BT node that performs a protocol state transition (RM/EM/CS state machine update, emitting
+      an AS2 activity, or creating/updating a domain object) SHOULD follow the **PPA (Postcondition–Precondition–Action)**
+      structure: `Fallback(Postcondition, Sequence(Precondition1, …, PreconditionN, Action))`.'
+    rationale: PPA is the canonical "unit cell" of idiomatic BT design. It makes the node's contract (what it requires and
+      what it guarantees) explicit and machine-readable from the tree structure.
     relationships:
     - rel_type: refines
       spec_id: BT-06-004
   - id: BTND-06-004
     priority: MAY
-    kind: language
-    statement: >-
-      (**MAY**) Multi-step workflows where each step has its own preconditions that may need
-      to be achieved MAY be constructed using **back-chaining**: start with the goal condition,
-      find the PPA whose postcondition matches, and recursively substitute failing preconditions
-      with their own PPAs.
-    rationale: >-
-      Back-chaining produces fully reactive, goal-directed trees where intermediate states
-      are automatically recovered on failure.
+    kind: project
+    statement: '(**MAY**) Multi-step workflows where each step has its own preconditions that may need to be achieved MAY
+      be constructed using **back-chaining**: start with the goal condition, find the PPA whose postcondition matches, and
+      recursively substitute failing preconditions with their own PPAs.'
+    rationale: Back-chaining produces fully reactive, goal-directed trees where intermediate states are automatically recovered
+      on failure.
     relationships:
     - rel_type: refines
       spec_id: BT-06-002
   - id: BTND-06-005
     priority: MUST
-    kind: language
-    statement: >-
-      (**SHOULD**) Before any irreversible or protocol-significant action, a **safety guard
-      condition** MUST be the first child of the enclosing Sequence, so that the action is
-      skipped when the guard fails.
-    rationale: >-
-      Prevents unsafe state transitions when the world changes between ticks. In a multi-party
-      protocol, another actor may change shared state at any time.
+    kind: project
+    statement: (**SHOULD**) Before any irreversible or protocol-significant action, a **safety guard condition** MUST be the
+      first child of the enclosing Sequence, so that the action is skipped when the guard fails.
+    rationale: Prevents unsafe state transitions when the world changes between ticks. In a multi-party protocol, another
+      actor may change shared state at any time.
     relationships:
     - rel_type: refines
       spec_id: BT-06-003
   - id: BTND-06-006
     priority: MAY
-    kind: language
-    statement: >-
-      (**MAY**) Memory composites (`memory=True` in py_trees) MAY be used **only** in contexts
-      that are fully deterministic and non-reactive: no external actor can undo a child's
-      outcome between ticks, and the agent operates in a closed-loop, human-supervised environment.
+    kind: project
+    statement: '(**MAY**) Memory composites (`memory=True` in py_trees) MAY be used **only** in contexts that are fully deterministic
+      and non-reactive: no external actor can undo a child''s outcome between ticks, and the agent operates in a closed-loop,
+      human-supervised environment.'
     relationships:
     - rel_type: refines
       spec_id: BT-06-003
   - id: BTND-06-007
     priority: SHOULD
-    kind: language
-    statement: >-
-      (**SHOULD**) Use the following **granularity guidelines** when deciding whether a behavior
-      should be a leaf node or a subtree:
+    kind: project
+    statement: '(**SHOULD**) Use the following **granularity guidelines** when deciding whether a behavior should be a leaf
+      node or a subtree:'
     relationships:
     - rel_type: refines
       spec_id: BT-06-004
   - id: BTND-06-008
     priority: MUST
-    kind: language
-    statement: >-
-      Code that writes to a `memory=False` py_trees Sequence MUST be written assuming that
-      any child's writes to the blackboard are immediately visible to subsequent children
-      but are NOT rolled back if a later child returns `FAILURE`. A `memory=False` Sequence
-      is non-transactional: partial side-effects from earlier children survive the composite's
-      final `FAILURE` status.
-    rationale: >-
-      The py_trees `memory=False` Sequence restarts from the first child on each tick, but it
-      does NOT undo blackboard writes made by children in previous ticks or earlier in the same
-      tick. This surprises developers who expect Sequence failure to be atomic. The correct
-      pattern for atomic multi-write operations is a single leaf node that performs all writes.
+    kind: project
+    statement: 'Code that writes to a `memory=False` py_trees Sequence MUST be written assuming that any child''s writes to
+      the blackboard are immediately visible to subsequent children but are NOT rolled back if a later child returns `FAILURE`.
+      A `memory=False` Sequence is non-transactional: partial side-effects from earlier children survive the composite''s
+      final `FAILURE` status.'
+    rationale: The py_trees `memory=False` Sequence restarts from the first child on each tick, but it does NOT undo blackboard
+      writes made by children in previous ticks or earlier in the same tick. This surprises developers who expect Sequence
+      failure to be atomic. The correct pattern for atomic multi-write operations is a single leaf node that performs all
+      writes.
     relationships:
     - rel_type: refines
       spec_id: BTND-06-001
@@ -412,202 +330,146 @@ groups:
   specs:
   - id: BTND-07-001
     priority: MUST
-    kind: pattern
-    statement: >-
-      BT node classes for a given protocol step MUST be organized into a `nodes/`
-      subpackage rather than a single flat `nodes.py` module. This applies to all
-      BT-bearing process areas in `vultron/core/behaviors/` regardless of current node
-      count or file size.
-    rationale: >-
-      A flat `nodes.py` becomes a high-churn, high-blast-radius file where every change
-      — regardless of which workflow step it touches — modifies the same module. Applying
-      the `nodes/` subpackage pattern uniformly (not just when a file grows large) keeps
-      the hierarchy consistent and prevents gradual accumulation that creates a large-file
-      problem later.
+    kind: project
+    statement: BT node classes for a given protocol step MUST be organized into a `nodes/` subpackage rather than a single
+      flat `nodes.py` module. This applies to all BT-bearing process areas in `vultron/core/behaviors/` regardless of current
+      node count or file size.
+    rationale: A flat `nodes.py` becomes a high-churn, high-blast-radius file where every change — regardless of which workflow
+      step it touches — modifies the same module. Applying the `nodes/` subpackage pattern uniformly (not just when a file
+      grows large) keeps the hierarchy consistent and prevents gradual accumulation that creates a large-file problem later.
     relationships:
     - rel_type: refines
       spec_id: BT-06-004
-    verification: >-
-      Every BT-bearing process area under `vultron/core/behaviors/` has a `nodes/`
-      subpackage and does not retain a flat `nodes.py` module at the area root.
-      Helper-only areas that do not define BT tree composition or BT leaf nodes are
-      exempt.
+    verification: Every BT-bearing process area under `vultron/core/behaviors/` has a `nodes/` subpackage and does not retain
+      a flat `nodes.py` module at the area root. Helper-only areas that do not define BT tree composition or BT leaf nodes
+      are exempt.
   - id: BTND-07-006
     priority: MUST
-    kind: pattern
-    statement: >-
-      Within a `nodes/` subpackage, submodules MUST be grouped by semantic concern
-      (e.g., `conditions.py`, `case_setup.py`, `participant.py`, `embargo.py`,
-      `communication.py`, `lifecycle.py`).
-    rationale: >-
-      Grouping by semantic concern reduces diff scope, improves discoverability, and
-      lets reviewers focus on the affected concern in isolation.
+    kind: project
+    statement: Within a `nodes/` subpackage, submodules MUST be grouped by semantic concern (e.g., `conditions.py`, `case_setup.py`,
+      `participant.py`, `embargo.py`, `communication.py`, `lifecycle.py`).
+    rationale: Grouping by semantic concern reduces diff scope, improves discoverability, and lets reviewers focus on the
+      affected concern in isolation.
     relationships:
     - rel_type: refines
       spec_id: BTND-07-001
   - id: BTND-07-007
     priority: MUST
-    kind: pattern
-    statement: >-
-      The `nodes/` subpackage `__init__.py` MUST re-export all public node names to
-      preserve import compatibility with callers.
+    kind: project
+    statement: The `nodes/` subpackage `__init__.py` MUST re-export all public node names to preserve import compatibility
+      with callers.
     relationships:
     - rel_type: refines
       spec_id: BTND-07-001
   - id: BTND-07-002
     priority: SHOULD
-    kind: pattern
-    statement: >-
-      (**SHOULD**) The test suite for a `nodes/` subpackage SHOULD mirror the subpackage
-      structure: a `test/…/nodes/` directory with one `test_<submodule>.py` per submodule,
-      so that each concern's tests are co-located and independently runnable.
-    rationale: >-
-      A monolithic `test_nodes.py` grows in parallel with the flat `nodes.py` and
-      inherits the same blast-radius problem. Mirrored test files scope test failures to
-      the affected concern and make it easier to add focused per-node unit tests.
+    kind: project
+    statement: '(**SHOULD**) The test suite for a `nodes/` subpackage SHOULD mirror the subpackage structure: a `test/…/nodes/`
+      directory with one `test_<submodule>.py` per submodule, so that each concern''s tests are co-located and independently
+      runnable.'
+    rationale: A monolithic `test_nodes.py` grows in parallel with the flat `nodes.py` and inherits the same blast-radius
+      problem. Mirrored test files scope test failures to the affected concern and make it easier to add focused per-node
+      unit tests.
     relationships:
     - rel_type: refines
       spec_id: BTND-07-001
-    verification: >-
-      For any `nodes/` subpackage, confirm that a matching `test/…/nodes/` directory
-      exists with per-submodule test files.
+    verification: For any `nodes/` subpackage, confirm that a matching `test/…/nodes/` directory exists with per-submodule
+      test files.
   - id: BTND-07-003
     priority: MUST
-    kind: pattern
-    statement: >-
-      Each BT-bearing process area directory under `vultron/core/behaviors/` MUST
-      maintain a clear structural split between tree factory modules and leaf node
-      modules. Tree factory modules (files named `*_tree.py` at the area root) define
-      BT composition and structure. Leaf node modules (files in the `nodes/`
-      subpackage) define BT `Behaviour` subclasses. Supporting files (e.g., `policy.py`,
-      `update_support.py`) MAY exist at the area root alongside tree modules. This
-      two-level hierarchy MAY be deepened further: a `nodes/` subpackage MAY itself
-      contain sub-subpackages when a semantic concern grows large, following the same
-      split pattern recursively.
-    rationale: >-
-      Mixing tree factory functions and leaf node class definitions in the same module
-      conflates two separate concerns: composition/structure (how the tree is assembled)
-      and implementation/detail (what each leaf node does). Keeping them in separate
-      modules makes the tree structure immediately readable without navigating past
-      implementation details, and lets each concern evolve independently without
-      cross-contaminating diffs.
+    kind: project
+    statement: 'Each BT-bearing process area directory under `vultron/core/behaviors/` MUST maintain a clear structural split
+      between tree factory modules and leaf node modules. Tree factory modules (files named `*_tree.py` at the area root)
+      define BT composition and structure. Leaf node modules (files in the `nodes/` subpackage) define BT `Behaviour` subclasses.
+      Supporting files (e.g., `policy.py`, `update_support.py`) MAY exist at the area root alongside tree modules. This two-level
+      hierarchy MAY be deepened further: a `nodes/` subpackage MAY itself contain sub-subpackages when a semantic concern
+      grows large, following the same split pattern recursively.'
+    rationale: 'Mixing tree factory functions and leaf node class definitions in the same module conflates two separate concerns:
+      composition/structure (how the tree is assembled) and implementation/detail (what each leaf node does). Keeping them
+      in separate modules makes the tree structure immediately readable without navigating past implementation details, and
+      lets each concern evolve independently without cross-contaminating diffs.'
     relationships:
     - rel_type: refines
       spec_id: BTND-07-001
-    verification: >-
-      For each BT-bearing process area under `vultron/core/behaviors/`, confirm that
-      `*_tree.py` modules do not define `Behaviour` subclasses inline (except trivial
-      one-off composites), and that `nodes/` submodules do not define top-level tree
-      factory functions.
+    verification: For each BT-bearing process area under `vultron/core/behaviors/`, confirm that `*_tree.py` modules do not
+      define `Behaviour` subclasses inline (except trivial one-off composites), and that `nodes/` submodules do not define
+      top-level tree factory functions.
   - id: BTND-07-004
     priority: MUST
-    kind: pattern
-    statement: >-
-      BT leaf node modules under `vultron/core/behaviors/**/nodes/` MUST stay under
-      500 lines each. A leaf module that exceeds 500 lines MUST be further decomposed
-      into concern-focused modules or subpackages.
-    rationale: >-
-      Subpackage splits fail when they recreate the same god-module risk in a new file.
-      A hard per-module cap keeps decomposition recursive and auditable.
+    kind: project
+    statement: BT leaf node modules under `vultron/core/behaviors/**/nodes/` MUST stay under 500 lines each. A leaf module
+      that exceeds 500 lines MUST be further decomposed into concern-focused modules or subpackages.
+    rationale: Subpackage splits fail when they recreate the same god-module risk in a new file. A hard per-module cap keeps
+      decomposition recursive and auditable.
     relationships:
     - rel_type: refines
       spec_id: CS-18-002
-    verification: >-
-      For each BT-bearing area, scan `nodes/` modules and fail compliance when any leaf
-      module exceeds 500 lines.
+    verification: For each BT-bearing area, scan `nodes/` modules and fail compliance when any leaf module exceeds 500 lines.
   - id: BTND-07-005
     priority: MUST
-    kind: pattern
-    statement: >-
-      Before implementing guard, validation, or factory-call boilerplate in a new BT
-      leaf node's `update()` method, the implementer MUST search `vultron/core/behaviors/`
-      for an existing base class or helper that already provides that boilerplate and
-      inherit or reuse it. In particular: (1) `DataLayerAction` already provides
-      `self.datalayer`, `self.actor_id`, and `self.trigger_activity_factory`
-      resolution — do not re-implement these lookups inline; (2) existing emit-node
-      base classes (e.g., `_EmitCaseActorReportActivityBase`) already implement the
-      standard guard + factory-dispatch + outbox-write pattern — subclass them and
-      override `_call_factory()` rather than writing a new `update()` from scratch;
-      (3) if no suitable base class exists, extract the shared pattern into one and
-      document it for future reuse.
-    rationale: >-
-      The most common cause of god-node `update()` methods is copy-paste of guard and
-      factory-call boilerplate from prior nodes. Each copy drifts independently,
-      accumulates line count, and must be fixed separately. A shared base class keeps
-      `update()` methods to a single try-block orchestration with all logic in
-      overridable hooks, satisfying BTND-07-003 and the DRY principle simultaneously.
+    kind: project
+    statement: 'Before implementing guard, validation, or factory-call boilerplate in a new BT leaf node''s `update()` method,
+      the implementer MUST search `vultron/core/behaviors/` for an existing base class or helper that already provides that
+      boilerplate and inherit or reuse it. In particular: (1) `DataLayerAction` already provides `self.datalayer`, `self.actor_id`,
+      and `self.trigger_activity_factory` resolution — do not re-implement these lookups inline; (2) existing emit-node base
+      classes (e.g., `_EmitCaseActorReportActivityBase`) already implement the standard guard + factory-dispatch + outbox-write
+      pattern — subclass them and override `_call_factory()` rather than writing a new `update()` from scratch; (3) if no
+      suitable base class exists, extract the shared pattern into one and document it for future reuse.'
+    rationale: The most common cause of god-node `update()` methods is copy-paste of guard and factory-call boilerplate from
+      prior nodes. Each copy drifts independently, accumulates line count, and must be fixed separately. A shared base class
+      keeps `update()` methods to a single try-block orchestration with all logic in overridable hooks, satisfying BTND-07-003
+      and the DRY principle simultaneously.
     relationships:
     - rel_type: refines
       spec_id: BTND-07-003
-    verification: >-
-      When reviewing a new or modified BT leaf node, confirm that its `update()` method
-      does not re-implement boilerplate already available in a parent class or shared
-      helper. Flag any inline `if self.datalayer is None`, `if self.actor_id is None`,
-      or `if self.trigger_activity_factory is None` guard blocks that duplicate logic
-      already present in an existing base class.
+    verification: When reviewing a new or modified BT leaf node, confirm that its `update()` method does not re-implement
+      boilerplate already available in a parent class or shared helper. Flag any inline `if self.datalayer is None`, `if self.actor_id
+      is None`, or `if self.trigger_activity_factory is None` guard blocks that duplicate logic already present in an existing
+      base class.
 - id: BTND-08
   title: Positive-Precondition Condition Node Naming
   specs:
   - id: BTND-08-001
     priority: SHOULD
-    kind: pattern
-    statement: >-
-      Condition nodes used as type-dispatch guards in a
-      `Selector(Sequence(Condition, Action), AlwaysSuccess)` composite MUST use
-      positive names (e.g., `IsFooEventNode`) that return SUCCESS when the
-      condition IS true and FAILURE otherwise.  Negative-guard names
-      (e.g., `IsNotFooEventNode`) that return SUCCESS to *skip* an effect and
-      FAILURE to *trigger* it are a readability anti-pattern and MUST NOT be
-      introduced in new code.
-    rationale: >-
-      The `Selector(IsNotFoo, ApplyFoo)` pattern requires readers to mentally
-      invert the condition to understand when the effect fires, and the
-      `IsNotFoo` naming implies a guard against `Foo` when the intent is to
-      *apply* `Foo`.  Positive-precondition Sequences make intent immediately
-      readable: "if this IS a remove-embargo entry, apply embargo teardown;
-      otherwise skip".
+    kind: project
+    statement: Condition nodes used as type-dispatch guards in a `Selector(Sequence(Condition, Action), AlwaysSuccess)` composite
+      MUST use positive names (e.g., `IsFooEventNode`) that return SUCCESS when the condition IS true and FAILURE otherwise.  Negative-guard
+      names (e.g., `IsNotFooEventNode`) that return SUCCESS to *skip* an effect and FAILURE to *trigger* it are a readability
+      anti-pattern and MUST NOT be introduced in new code.
+    rationale: 'The `Selector(IsNotFoo, ApplyFoo)` pattern requires readers to mentally invert the condition to understand
+      when the effect fires, and the `IsNotFoo` naming implies a guard against `Foo` when the intent is to *apply* `Foo`.  Positive-precondition
+      Sequences make intent immediately readable: "if this IS a remove-embargo entry, apply embargo teardown; otherwise skip".'
     relationships:
     - rel_type: refines
       spec_id: BT-06-004
-    verification: >-
-      Search `vultron/core/behaviors/` for `IsNot*Node` class definitions used
-      as the first child of a `Selector` composite; flag any found.
+    verification: Search `vultron/core/behaviors/` for `IsNot*Node` class definitions used as the first child of a `Selector`
+      composite; flag any found.
   - id: BTND-08-002
     priority: SHOULD
-    kind: pattern
-    statement: >-
-      The `AlwaysSuccess` fallback in a `Selector(Sequence(IsFoo, ApplyFoo),
-      AlwaysSuccess)` composite MUST be given a descriptive `name` of the form
-      `"<Effect>Skipped"` (e.g., `"EmbargoEffectsSkipped"`) so the no-op path
-      is identifiable in BT visualizations and logs.
-    rationale: >-
-      An unnamed or generically-named `AlwaysSuccess` node is invisible in tree
-      dumps and log output, making it harder to trace which effect was skipped
-      and why.  A descriptive `<Effect>Skipped` name makes the no-op path
-      explicit and consistent with the existing codebase convention
-      (e.g., `"AutoCloseSkippedNotCaseManager"`, `"ValidationSkipped"`).
+    kind: project
+    statement: The `AlwaysSuccess` fallback in a `Selector(Sequence(IsFoo, ApplyFoo), AlwaysSuccess)` composite MUST be given
+      a descriptive `name` of the form `"<Effect>Skipped"` (e.g., `"EmbargoEffectsSkipped"`) so the no-op path is identifiable
+      in BT visualizations and logs.
+    rationale: An unnamed or generically-named `AlwaysSuccess` node is invisible in tree dumps and log output, making it harder
+      to trace which effect was skipped and why.  A descriptive `<Effect>Skipped` name makes the no-op path explicit and consistent
+      with the existing codebase convention (e.g., `"AutoCloseSkippedNotCaseManager"`, `"ValidationSkipped"`).
     relationships:
     - rel_type: refines
       spec_id: BTND-08-001
-    verification: >-
-      In each `Selector(Sequence(IsFoo, ApplyFoo), AlwaysSuccess)` composite,
-      confirm the `AlwaysSuccess` node's `name` ends with `"Skipped"`.
+    verification: In each `Selector(Sequence(IsFoo, ApplyFoo), AlwaysSuccess)` composite, confirm the `AlwaysSuccess` node's
+      `name` ends with `"Skipped"`.
 - id: BTND-09
   title: BT Error Handling Contract
   specs:
   - id: BTND-09-001
     priority: MUST
-    kind: language
-    statement: >-
-      BT helper functions MUST raise exceptions on error — they MUST NOT catch exceptions
-      and return a sentinel value. The `update()` method of the owning leaf node is the
-      sole try/except boundary: it calls helpers, catches any exceptions they raise,
-      writes to the error result channel (BTND-03-006), and returns `FAILURE`.
-    rationale: >-
-      If helpers catch their own errors and return sentinels (e.g., `None`, `False`), the
-      leaf's `update()` method cannot distinguish a legitimate `None` return from a hidden
-      failure. All error information travels via Python's exception mechanism so that
-      the single boundary point (`update()`) has complete diagnostic context.
+    kind: project
+    statement: 'BT helper functions MUST raise exceptions on error — they MUST NOT catch exceptions and return a sentinel
+      value. The `update()` method of the owning leaf node is the sole try/except boundary: it calls helpers, catches any
+      exceptions they raise, writes to the error result channel (BTND-03-006), and returns `FAILURE`.'
+    rationale: If helpers catch their own errors and return sentinels (e.g., `None`, `False`), the leaf's `update()` method
+      cannot distinguish a legitimate `None` return from a hidden failure. All error information travels via Python's exception
+      mechanism so that the single boundary point (`update()`) has complete diagnostic context.
     relationships:
     - rel_type: implements
       spec_id: BTND-03-006

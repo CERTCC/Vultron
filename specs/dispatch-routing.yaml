@@ -16,17 +16,17 @@ groups:
   specs:
   - id: DR-01-001
     priority: MUST
-    kind: implementation
+    kind: project
     statement: All dispatcher implementations MUST implement ActivityDispatcher protocol
   - id: DR-01-002
     priority: MUST
-    kind: implementation
+    kind: project
     statement: >-
       Dispatchers MUST construct use-case instances with the complete `VultronEvent` and `DataLayer`
       before calling `execute()`, so that `execute()` takes no arguments
   - id: DR-01-003
     priority: MUST
-    kind: implementation
+    kind: project
     statement: >-
       Dispatchers MUST perform semantic type validation at dispatch time using the configured
       semantics-to-use-case mapping
@@ -35,14 +35,14 @@ groups:
   specs:
   - id: DR-02-001
     priority: MUST
-    kind: implementation
+    kind: project
     statement: The system MUST look up use-case classes by semantic type using `USE_CASE_MAP`
     relationships:
     - rel_type: derives_from
       spec_id: HP-03-001
   - id: DR-02-002
     priority: MUST
-    kind: implementation
+    kind: project
     statement: '`USE_CASE_MAP` MUST contain entries for all MessageSemantics values'
     relationships:
     - rel_type: derives_from
@@ -52,11 +52,11 @@ groups:
   specs:
   - id: DR-03-001
     priority: MUST
-    kind: implementation
+    kind: project
     statement: The DirectActivityDispatcher MUST execute handlers synchronously
   - id: DR-03-002
     priority: MUST
-    kind: implementation
+    kind: project
     statement: >-
       The DirectActivityDispatcher MUST catch and log handler exceptions at ERROR level
     relationships:
@@ -69,9 +69,9 @@ groups:
   specs:
   - id: DR-04-001
     priority: SHOULD
-    kind: implementation
+    kind: project
     statement: An async dispatcher SHOULD queue activities for processing
   - id: DR-04-002
     priority: SHOULD
-    kind: implementation
+    kind: project
     statement: An async dispatcher SHOULD process activities in FIFO order

@@ -123,12 +123,10 @@ nav:
       - Protocol Summary: 'reference/formal_protocol/conclusion.md'
     - Specifications:
       - 'reference/specs/index.md'
-      - General: 'reference/specs/general.md'
-      - Pattern: 'reference/specs/pattern.md'
-      - Domain: 'reference/specs/domain.md'
-      - Language: 'reference/specs/language.md'
-      - Implementation: 'reference/specs/implementation.md'
-      - Dev Process: 'reference/specs/dev-process.md'
+      - Protocol: 'reference/specs/protocol.md'
+      - Architecture: 'reference/specs/architecture.md'
+      - Project: 'reference/specs/project.md'
+      - Process: 'reference/specs/process.md'
     - Case States:
       - 'reference/case_states/index.md'
       - vfdpxa: 'reference/case_states/state_vfdpxa.md'
@@ -257,6 +255,7 @@ nav:
       - Core Activity Representation and Envelope Reconstitution: 'adr/0035-core-activity-representation-and-envelope-reconstitution.md'
       - Per-Machine Dimension Objects for CaseStatus and ParticipantStatus: 'adr/0036-status-dimension-objects.md'
       - Buffer Out-of-Order Announce(CaseLedgerEntry) Instead of Dropping: 'adr/0037-buffer-out-of-order-ledger-entries.md'
+      - Replace Six-Kind Spec Taxonomy with Four-Tier Portability Hierarchy: 'adr/0038-four-tier-specification-taxonomy.md'
   - About:
     - Contributing: 'about/contributing.md'
     - FAQ: 'about/faq.md'
@@ -313,6 +312,7 @@ theme:
 plugins:
   - bibtex:
       bib_file: 'references.bib'
+      enable_inline_citations: false
   - include-markdown:
       comments: false
   - mkdocstrings:

@@ -57,12 +57,10 @@ _REL_LABEL: dict[RelationType, str] = {
 
 # SpecKind → URL slug for cross-kind anchor links
 _KIND_SLUG: dict[SpecKind, str] = {
-    SpecKind.GENERAL: "general",
-    SpecKind.PATTERN: "pattern",
-    SpecKind.DOMAIN: "domain",
-    SpecKind.LANGUAGE: "language",
-    SpecKind.IMPLEMENTATION: "implementation",
-    SpecKind.DEV_PROCESS: "dev-process",
+    SpecKind.PROTOCOL: "protocol",
+    SpecKind.ARCHITECTURE: "architecture",
+    SpecKind.PROJECT: "project",
+    SpecKind.PROCESS: "process",
 }
 
 

@@ -16,30 +16,30 @@ groups:
   specs:
   - id: OX-01-001
     priority: MUST
-    kind: implementation
+    kind: project
     statement: Each actor MUST have an outbox collection
   - id: OX-01-002
     priority: MUST
-    kind: implementation
+    kind: project
     statement: Outbox MUST preserve insertion order (FIFO)
   - id: OX-01-003
     priority: MUST
-    kind: implementation
+    kind: project
     statement: Activities added to outbox MUST be persisted to DataLayer immediately
 - id: OX-02
   title: Outbox Population
   specs:
   - id: OX-02-001
     priority: MUST
-    kind: implementation
+    kind: project
     statement: Handlers that generate response activities MUST add them to the actor's outbox
   - id: OX-02-002
     priority: MUST
-    kind: implementation
+    kind: project
     statement: Each outbox activity MUST conform to ActivityStreams 2.0 structure
   - id: OX-02-003
     priority: MUST
-    kind: implementation
+    kind: project
     statement: >-
       When an adapter enqueues an activity on behalf of a specific emitting actor, it MUST
       enqueue against that actor's outbox explicitly (e.g. record_outbox_item(actor_id, ...)),
@@ -57,35 +57,35 @@ groups:
   specs:
   - id: OX-03-001
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: Activities in an actor's outbox MUST be delivered to recipient inboxes
   - id: OX-03-002
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: Delivery MUST occur after the generating handler completes
   - id: OX-03-003
     priority: MUST_NOT
-    kind: domain
+    kind: protocol
     statement: Delivery MUST NOT block inbox HTTP response
 - id: OX-04
   title: Local Delivery
   specs:
   - id: OX-04-001
     priority: MUST
-    kind: implementation
+    kind: project
     statement: >-
       For actors on the same server, delivery MUST write directly to the recipient actor's
       inbox collection in the DataLayer
   - id: OX-04-002
     priority: MUST
-    kind: implementation
+    kind: project
     statement: Local delivery MUST persist the inbox update immediately
 - id: OX-05
   title: Federation Delivery
   specs:
   - id: OX-05-001
     priority: MAY
-    kind: implementation
+    kind: project
     statement: >-
       For remote actors, the system MAY deliver via HTTP POST to the remote actor's inbox
       URL
@@ -93,7 +93,7 @@ groups:
     - production
   - id: OX-05-002
     priority: SHOULD
-    kind: implementation
+    kind: project
     statement: Remote delivery failures SHOULD be logged at WARNING level and retried
     scope:
     - production
@@ -102,7 +102,7 @@ groups:
   specs:
   - id: OX-06-001
     priority: MUST
-    kind: implementation
+    kind: project
     statement: Outbox delivery MUST be idempotent
     relationships:
     - rel_type: depends_on
@@ -112,7 +112,7 @@ groups:
   specs:
   - id: OX-07-001
     priority: MUST
-    kind: implementation
+    kind: project
     statement: >-
       The outbox handler MUST dehydrate the following ActivityStreams reference fields to
       URI strings before wire delivery: `actor`, `target`, `to`, `cc`, `bto`, `bcc`, `origin`,
@@ -123,7 +123,7 @@ groups:
       federation convention)
   - id: OX-07-002
     priority: MUST_NOT
-    kind: implementation
+    kind: project
     statement: The `object_` field of outbound activities MUST NOT be dehydrated
     relationships:
     - rel_type: depends_on
@@ -133,25 +133,25 @@ groups:
   specs:
   - id: OX-08-001
     priority: MUST
-    kind: implementation
+    kind: project
     statement: Every activity posted to an actor's outbox MUST have a non-empty `to:` field
     rationale: >-
       Vultron exchanges are direct messages; there are no public or broadcast activities in
       the protocol
   - id: OX-08-002
     priority: MUST
-    kind: implementation
+    kind: project
     statement: >-
       The `to:` field on outbound activities MUST be a list containing at least one URI string
   - id: OX-08-003
     priority: MUST
-    kind: implementation
+    kind: project
     statement: >-
       `handle_outbox_item` MUST raise `VultronOutboxToFieldMissingError` when it detects a
       missing or empty `to:` field
   - id: OX-08-004
     priority: SHOULD
-    kind: implementation
+    kind: project
     statement: >-
       If an outbound activity carries non-empty `cc:`, `bto:`, or `bcc:` fields
       AND the `cc:`/`bto:`/`bcc:` list is not solely the originating actor's own
@@ -174,7 +174,7 @@ groups:
   specs:
   - id: OX-09-001
     priority: SHOULD
-    kind: implementation
+    kind: project
     statement: >-
       The outbox monitor SHOULD use event-driven wakeup so that it drains actor outboxes
       immediately when an activity is enqueued, rather than waiting for the next fixed
@@ -184,27 +184,27 @@ groups:
       CPU cost
   - id: OX-09-002
     priority: MUST
-    kind: implementation
+    kind: project
     statement: >-
       Even when event-driven wakeup is enabled, the outbox monitor MUST retain a
       safety-net polling interval so that outbox items are eventually delivered even if
       an enqueue notification is missed
   - id: OX-09-003
     priority: SHOULD
-    kind: implementation
+    kind: project
     statement: >-
       The enqueue notification mechanism SHOULD be injected into the DataLayer adapter as
       a callback so that the DataLayer does not import from the monitor layer
     rationale: Preserves the hexagonal architecture boundary between driven adapters
   - id: OX-09-004
     priority: SHOULD
-    kind: implementation
+    kind: project
     statement: >-
       The outbox monitor SHOULD log the total number of pending outbox items across all
       actors at DEBUG level on each drain pass
   - id: OX-09-005
     priority: SHOULD
-    kind: implementation
+    kind: project
     statement: >-
       If any single actor's outbox depth exceeds a configurable threshold, the outbox
       monitor SHOULD emit a WARNING-level log entry identifying the actor and depth
@@ -220,7 +220,7 @@ groups:
   specs:
   - id: OX-10-001
     priority: SHOULD
-    kind: implementation
+    kind: project
     statement: >-
       For remote actor delivery, the outgoing HTTP POST SHOULD be signed using HTTP
       Message Signatures (RFC 9421) with the sending actor's private key
@@ -228,7 +228,7 @@ groups:
     - production
   - id: OX-10-002
     priority: MUST
-    kind: implementation
+    kind: project
     statement: >-
       The signing key pair MUST be per-actor and MUST NOT be shared across actors
     scope:
@@ -238,7 +238,7 @@ groups:
       spec_id: OX-10-001
   - id: OX-10-003
     priority: MUST
-    kind: implementation
+    kind: project
     statement: >-
       The signed delivery adapter MUST be transport-only: it MUST NOT construct or
       inspect ActivityStreams objects; serialization happens before the payload reaches
@@ -249,7 +249,7 @@ groups:
       spec_id: OX-10-001
   - id: OX-10-004
     priority: MUST
-    kind: implementation
+    kind: project
     statement: >-
       Until signed delivery is implemented, adapters/driven/prod_http_delivery.py MUST
       raise NotImplementedError if instantiated, so that callers receive an explicit
@@ -268,7 +268,7 @@ groups:
   specs:
   - id: OX-11-001
     priority: MAY
-    kind: implementation
+    kind: project
     statement: >-
       The system MAY expose a shared inbox endpoint that accepts activities addressed
       to multiple local actors in a single HTTP request
@@ -276,7 +276,7 @@ groups:
     - production
   - id: OX-11-002
     priority: MUST
-    kind: implementation
+    kind: project
     statement: >-
       If a shared inbox is implemented, it MUST validate the HTTP Signature on the
       inbound request before any fan-out processing
@@ -287,7 +287,7 @@ groups:
       spec_id: OX-11-001
   - id: OX-11-003
     priority: MUST
-    kind: implementation
+    kind: project
     statement: >-
       If a shared inbox is implemented, it MUST enqueue one per-actor inbox delivery
       for each addressed local actor identified in the activity to/cc fields
@@ -298,7 +298,7 @@ groups:
       spec_id: OX-11-001
   - id: OX-11-004
     priority: MUST
-    kind: implementation
+    kind: project
     statement: >-
       Until shared-inbox is implemented, adapters/driving/shared_inbox.py MUST raise
       NotImplementedError if instantiated, so that callers receive an explicit signal

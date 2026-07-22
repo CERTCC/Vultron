@@ -16,32 +16,32 @@ groups:
   specs:
   - id: RF-01-001
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: Response activities MUST conform to ActivityStreams 2.0
 - id: RF-02
   title: Accept Response
   specs:
   - id: RF-02-001
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: Accept responses MUST use `Accept` activity type
     relationships:
     - rel_type: implements
       spec_id: VP-06-004
   - id: RF-02-002
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       Accept responses MUST include `object` field referencing accepted activity or object
   - id: RF-02-003
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       Accepting an Offer of an object MUST reference the Offer activity in the `object` field
       of the Accept response
   - id: RF-02-004
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       When accepting an offered object, the `object` field of the `Accept` activity MUST reference
       the Offer activity itself (e.g., `OfferCaseOwnershipTransfer`, `RecommendActor`), not
@@ -50,7 +50,7 @@ groups:
       bare string ID — bare string IDs are rejected at construction time
   - id: RF-02-005
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       When accepting an Invite, the `object` field of the `Accept` activity MUST reference
       the Invite activity itself as a full inline typed object (e.g., `RmInviteToCaseActivity`,
@@ -63,24 +63,24 @@ groups:
   specs:
   - id: RF-03-001
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: Reject responses MUST use `Reject` activity type
     relationships:
     - rel_type: implements
       spec_id: VP-06-004
   - id: RF-03-002
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: Reject responses SHOULD include reason in `content` field
   - id: RF-03-003
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       Rejecting an Offer of an object MUST reference the Offer activity in the `object` field
       of the Reject response
   - id: RF-03-004
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       When rejecting an offered object, the `object` field of the `Reject` activity MUST reference
       the Offer activity itself, not the underlying object being offered. The Offer activity
@@ -91,24 +91,24 @@ groups:
   specs:
   - id: RF-04-001
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: TentativeReject responses MUST use `TentativeReject` activity type
     relationships:
     - rel_type: implements
       spec_id: VP-06-004
   - id: RF-04-002
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: TentativeReject responses SHOULD include reason in `content` field
   - id: RF-04-003
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       Tentatively Rejecting an Offer of an object MUST reference the Offer activity in the
       `object` field of the TentativeReject response
   - id: RF-04-004
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       When tentatively rejecting an offered object, the `object` field of the `Tentative Reject`
       activity MUST reference the Offer activity itself, not the underlying object being offered.
@@ -119,7 +119,7 @@ groups:
   specs:
   - id: RF-05-001
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: Error responses SHOULD use ActivityStreams error extensions
     relationships:
     - rel_type: implements
@@ -133,11 +133,11 @@ groups:
   specs:
   - id: RF-06-001
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: Response activities MUST be delivered to the relevant actors' inboxes
   - id: RF-06-002
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       Response activities MUST be addressed to the INITIATING actor's inbox, not to the inbox
       that received the original activity
@@ -149,14 +149,14 @@ groups:
   specs:
   - id: RF-07-001
     priority: MUST_NOT
-    kind: domain
+    kind: protocol
     statement: Response generation MUST NOT delay inbox acknowledgment
 - id: RF-08
   title: Response Correlation
   specs:
   - id: RF-08-001
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: Response activities MUST include `inReplyTo` field
     relationships:
     - rel_type: implements
@@ -167,7 +167,7 @@ groups:
       spec_id: VP-11-005
   - id: RF-08-002
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       The `inReplyTo` field requirement MUST be enforced at the Pydantic model level via a
       `model_validator` on `Accept`, `Reject`, and other response activity classes, not by
@@ -186,7 +186,7 @@ groups:
   specs:
   - id: RF-09-001
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: Response generation MUST be idempotent
     relationships:
     - rel_type: depends_on

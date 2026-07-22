@@ -3,16 +3,16 @@
 ## Requirements
 
 The behavioral requirements for this tree are specified in the
-[Domain Specifications](../../reference/specs/domain.md):
+[Protocol Specifications](../../reference/specs/protocol.md):
 
-- [RMB-01](../../reference/specs/domain.md#rmb-01) — Receive RS (Report Submission)
-- [RMB-02](../../reference/specs/domain.md#rmb-02) — Receive RI (Report Invalid)
-- [RMB-03](../../reference/specs/domain.md#rmb-03) — Receive RV (Report Valid)
-- [RMB-04](../../reference/specs/domain.md#rmb-04) — Receive RD (Report Deferred)
-- [RMB-05](../../reference/specs/domain.md#rmb-05) — Receive RA (Report Accepted)
-- [RMB-06](../../reference/specs/domain.md#rmb-06) — Receive RC (Report Closed)
-- [RMB-07](../../reference/specs/domain.md#rmb-07) — Receive RE (Report Error)
-- [RMB-08](../../reference/specs/domain.md#rmb-08) — Receive RK (Report Acknowledgment)
+- [RMB-01](../../reference/specs/protocol.md#rmb-01) — Receive RS (Report Submission)
+- [RMB-02](../../reference/specs/protocol.md#rmb-02) — Receive RI (Report Invalid)
+- [RMB-03](../../reference/specs/protocol.md#rmb-03) — Receive RV (Report Valid)
+- [RMB-04](../../reference/specs/protocol.md#rmb-04) — Receive RD (Report Deferred)
+- [RMB-05](../../reference/specs/protocol.md#rmb-05) — Receive RA (Report Accepted)
+- [RMB-06](../../reference/specs/protocol.md#rmb-06) — Receive RC (Report Closed)
+- [RMB-07](../../reference/specs/protocol.md#rmb-07) — Receive RE (Report Error)
+- [RMB-08](../../reference/specs/protocol.md#rmb-08) — Receive RK (Report Acknowledgment)
 
 !!! note "Implementation approach"
 
