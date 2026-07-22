@@ -693,8 +693,10 @@ groups:
       the Coordinator human actor holds CASE_OWNER only.
     preconditions:
     - description: >-
-        Finder and Coordinator containers running; no VulnerabilityCase exists
-        for this report; Coordinator auto_create_case=True
+        All four containers running (Finder, Coordinator, Vendor, CaseActor);
+        no VulnerabilityCase exists for this report; Coordinator
+        auto_create_case=True; Coordinator pre-configured with the dedicated
+        CaseActor container URL
     steps:
     - order: 1
       actor: finder
@@ -703,18 +705,39 @@ groups:
     - order: 2
       actor: coordinator
       action: BT processes inbound report; RM transitions RECEIVED→VALID→ACCEPTED
-      expected: VulnerabilityCase created; CaseActor spawned on Coordinator container
+      expected: >-
+        VulnerabilityCase created; CaseActor registered on the separate
+        CaseActor container (not co-located on the Coordinator container,
+        per DEMOMA-12-001); default embargo initialized to EM.ACTIVE
+        (EP-04-001); EM.ACTIVE is established at case creation before
+        any participant invitation
     - order: 3
       actor: coordinator
       action: Coordinator assigned CVDRole.CASE_OWNER on the new case
       expected: Coordinator holds CASE_OWNER; CaseActor holds CASE_MANAGER
+    - order: 4
+      actor: coordinator
+      action: >-
+        Coordinator sends trust-bootstrap Create(VulnerabilityCase) to Finder
+        (CBT-01-001); Finder is the original report submitter so MUST receive
+        this one-time bootstrap to trust the CaseActor identity
+      expected: >-
+        Finder receives Create(VulnerabilityCase) carrying Coordinator as
+        CASE_OWNER and CaseActor as COORDINATOR; Finder trusts CaseActor
+        for this case
     postconditions:
     - description: >-
         VulnerabilityCase exists; Coordinator RM=ACCEPTED, CVDRole=CASE_OWNER;
-        CaseActor running with CASE_MANAGER; no ownership transfer has occurred
+        CaseActor running with CASE_MANAGER on its own container; EM.ACTIVE
+        established; trust bootstrap delivered to Finder; no ownership
+        transfer has occurred
     relationships:
     - rel_type: refines
       spec_id: CM-02-001
+    - rel_type: refines
+      spec_id: CBT-01-001
+    - rel_type: refines
+      spec_id: EP-04-001
   - id: DEMOMA-12-003
     priority: MUST
     kind: project
@@ -725,23 +748,28 @@ groups:
       Vendor is invited.
     preconditions:
     - description: >-
-        VulnerabilityCase exists; Coordinator holds CASE_OWNER (DEMOMA-12-002
-        postconditions satisfied); Finder is not yet a case participant
+        DEMOMA-12-002 postconditions satisfied: VulnerabilityCase exists,
+        Coordinator RM=ACCEPTED, CVDRole=CASE_OWNER, EM.ACTIVE, trust bootstrap
+        Create(VulnerabilityCase) already delivered to Finder (CBT-01-001);
+        Finder has trusted CaseActor identity but is not yet a formal case
+        participant (no Invite/Accept exchange has occurred)
     steps:
     - order: 1
       actor: coordinator
       action: POST invite-actor-to-case trigger for Finder
-      expected: Invite(Actor, Case) delivered to Finder inbox
+      expected: >-
+        Invite(Actor, Case) sent from CaseActor (not Coordinator) to Finder
+        inbox (PCR-08-007); invitation record present in Finder DataLayer
     - order: 2
       actor: demo_script
       action: Poll Finder DataLayer until Invite(Actor, Case) is visible
       expected: Invitation record present in Finder replica
     - order: 3
       actor: finder
-      action: POST accept-case-invite trigger
+      action: POST accept-case-invite trigger directed to CaseActor (PCR-08-008)
       expected: >-
-        Finder transitions to SIGNATORY; CaseActor emits Announce(VulnerabilityCase)
-        to seed Finder replica
+        Finder transitions to SIGNATORY (MV-10-006); CaseActor emits
+        Announce(VulnerabilityCase) to seed Finder replica (PCR-02-002)
     postconditions:
     - description: >-
         Finder is SIGNATORY with a seeded case replica; Vendor invitation has
@@ -799,10 +827,15 @@ groups:
       Coordinator, and Vendor (plus the CaseActor) — and MUST advance to VFDPxa
       CS with EM.EXITED and RM.CLOSED for all participants. Only Vendor's fix path
       (VFD) is tracked; Coordinator and Finder have no VENDOR role and therefore
-      no vendor fix path.
+      no vendor fix path. EM.EXITED is the terminal state; the causal chain is
+      EM.ACTIVE (established at case creation per EP-04-001) → triggered by CS.P
+      (DEMOMA-07-003(4)) → EM.EXITED. Demo scripts MUST verify EM.ACTIVE
+      at the case-creation milestone and EM.EXITED at the final milestone.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-03-002
+    - rel_type: refines
+      spec_id: EP-04-001
   - id: DEMOMA-12-006
     priority: MUST
     kind: project
@@ -832,10 +865,11 @@ groups:
       The FCV implementation MUST ship a dedicated per-scenario case-ledger
       invariant test file (`test/ci/invariants/test_fcv_invariants.py`) built
       exclusively on the shared invariant library introduced by the harness
-      refactor issue (DEMOMA-12-008 is satisfied only when that shared library
-      exists). The test file MUST NOT duplicate universal invariant logic;
-      universal chain/hash/RM-closed checks MUST be imported from the shared
-      library, not re-implemented inline.
+      refactor (issue #1592). DEMOMA-12-008 is satisfied only when that shared
+      library exists; the FCV invariant test file is blocked by #1592. The test
+      file MUST NOT duplicate universal invariant logic; universal
+      chain/hash/RM-closed checks MUST be imported from the shared library,
+      not re-implemented inline.
     rationale: >-
       Requiring use of the shared library enforces the DRY constraint across
       scenarios. A file that copies invariant logic is not compliant even if
@@ -851,9 +885,13 @@ groups:
       scenario-specific checks in addition to the universal library checks:
       (1) `validate_report` event present in case-actor log; (2)
       `invite_actor_to_case` present at least twice (Finder invitation +
-      Vendor invitation); (3) `close_case` present; (4) CS transitions VFd,
-      VFD, and public-aware (P) all observed in
-      `add_participant_status_to_participant` entries for the Vendor actor;
+      Vendor invitation); (3) `close_case` present; (4) CS transitions VFd
+      and VFD observed in `add_participant_status_to_participant` entries for
+      the Vendor actor (Vendor fix path); public-aware (P) transition observed
+      in `add_participant_status_to_participant` entries for the Coordinator
+      actor, since the Coordinator (as CASE_OWNER) is the party that triggers
+      CS.P (DEMOMA-07-003(4)); the P-set CS state MUST also be visible in all
+      replicas via Announce(CaseLedgerEntry) fan-out;
       (5) Vendor replica holds the complete log from genesis (full history
       backfill, as Vendor is a late joiner).
     rationale: >-
