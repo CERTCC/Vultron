@@ -144,24 +144,9 @@ focus hints from Phase 2 (e.g., `"wire layer"`, `"BT integration"`), then:
      BODY    = issue number, symptoms, root cause, fix summary, PR link
      ```
 
-   - Before writing learning files, run the **upward-reflection checklist**. For
-     each item, if the answer is "yes", a learning file with the matching
-     `signal:` tag is required:
-
-     | Signal type | Question to ask |
-     |---|---|
-     | `spec-gap` | Was any behaviour fixed/tested that has no existing spec entry? |
-     | `spec-ambiguity` | Was any requirement unclear during root-cause analysis? |
-     | `spec-contradiction` | Did two requirements appear to conflict? |
-     | `design-question` | Was any structural decision made beyond the fix scope? |
-     | `concern` | Was a deeper fragility or risk encountered beyond this bug? |
-     | `tooling-issue` | Was any environment or tooling problem encountered? |
-     | `process-issue` | Was the issue body stale or the bug already fixed? |
-
-     Record each triggered signal as an individual learning file in
-     `plan/incoming/learnings/` (filename: `YYYYMMDD-SLUG.md`; frontmatter:
-     `title`, `type: learning`, `timestamp`, `source`, and optionally
-     `signal: <type>`).
+   - Run the **upward-reflection checklist** per
+     `.agents/skills/shared/upward-reflection.md`. Record each triggered signal
+     as a learning file.
    - Compute diff size: ≤50 → `size:S`; 51–300 → `size:M`; 301+ → `size:L`.
      Update the `size:` label.
    - Invoke the `create-pr` skill to push and open the PR:
