@@ -62,6 +62,7 @@ class TriggerType(StrEnum):
 
     MESSAGE_RECEIVED = "message_received"
     STATE_ENTERED = "state_entered"
+    SCENARIO_START = "scenario_start"
 
 
 class Trigger(BaseModel):
@@ -69,7 +70,8 @@ class Trigger(BaseModel):
 
     ``type`` identifies the category of trigger; ``value`` names the specific
     message (e.g. ``"EP"``) or state (e.g. ``"RM.VALID"``) within that
-    category.
+    category. For ``scenario_start`` triggers, ``value`` names the scenario
+    (e.g. ``"two-actor"``, ``"fvv"``).
     """
 
     type: TriggerType

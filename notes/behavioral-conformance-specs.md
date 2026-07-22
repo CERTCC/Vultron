@@ -325,23 +325,37 @@ gate fails-safe without swallowing real failures.
 
 ---
 
-## Known Gap: DEMOMA Scenario Specs (issue #1595)
+## StatementSpec vs BehavioralSpec Selection
 
-`specs/multi-actor-demo.yaml` groups DEMOMA-06 through DEMOMA-11 describe demo
-scenario workflows as flat ordered MUST statements — no `trigger`,
-`preconditions`, `steps`, or `postconditions` fields. These groups have exactly
-the sequential, stateful process shape that ECA-style requirements are designed
-to capture.
+Use the MS-13 decision tree (from `specs/meta-specifications.yaml`) when choosing
+between `StatementSpec` and `BehavioralSpec` for a spec item:
 
-**Impact**: Scenario workflow specs are ambiguous about start state, sequencing
-preconditions, and terminal conditions. Implementers must infer context from
-adjacent prose. Coverage gaps are invisible because there is no machine-readable
-trigger/postcondition structure to check against.
+- **Use `BehavioralSpec`** when the item describes a **sequential, stateful process**
+  with a defined start state, ordered actions, and terminal conditions — e.g., a demo
+  scenario workflow, a received-message handler sequence, or a multi-step handshake.
+- **Use `StatementSpec`** when the item expresses a capability constraint, behavioral
+  property, or structural rule where step ordering is not part of the requirement.
 
-**Suggested action**: Audit all DEMOMA spec groups (DEMOMA-06 through DEMOMA-11)
-and retrofit to the ECA format shown in `specs/cs-behavior.yaml`: add `trigger`,
-typed `preconditions`, ordered `steps[]` (with `actor`/`action`/`expected`),
-and `postconditions`. Tracked in issue #1595.
+A common anti-pattern: embedding numbered sub-steps inside a `StatementSpec` statement
+field (e.g., `M1 (…), M2 (…), M3 (…)` milestone lists, or `(1) do A; (2) do B` handler
+sequences). This violates MS-05-001 (no inline prose explanations) and hides start
+states, ordering, and terminal conditions from conformance tooling. Extract those steps
+into `BehavioralSpec.steps[]` instead.
+
+### Demo scenario groups
+
+Demo scenario workflow groups (e.g., `DEMOMA-06`, `-09`, `-10`, `-11`) follow the
+`BehavioralSpec` pattern established in `DEMOMA-12`. The group carries
+`trigger: {type: scenario_start, value: <scenario-name>}` (per MS-13-003). Individual
+items describing ordered protocol exchanges use `BehavioralSpec`; items expressing
+terminal-state requirements or infrastructure constraints (`MUST reach final state X`,
+`MUST add a CI job`) remain `StatementSpec`.
+
+### Protocol behavioral groups
+
+Protocol behavioral groups (RMB, EMB, CSB) always use `BehavioralSpec`. See the
+`cs-behavior.yaml` reference for the trigger-at-group / ECA-at-item pattern with
+typed `Precondition` fields (`rm_state`, `em_state`, `cs_pattern`, `role`).
 
 ---
 
