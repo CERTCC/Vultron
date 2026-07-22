@@ -20,7 +20,8 @@ renders a selective, human-readable report — "who did what to whom, with what
 activity, in what order."
 
 The tool is intentionally standalone (its own ``__main__`` entry point,
-invokable as ``python -m vultron.demo.report``) so it stays decoupled from the
+invokable as ``python -m vultron.demo.report`` or via the
+``vultron-demo-report`` console script) so it stays decoupled from the
 demo-run CLI (DC-01) while remaining colocated with the demo code that
 produces the ledger files.
 
@@ -689,7 +690,9 @@ def default_output_path(input_dir: Path, fmt: str) -> Path:
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse command-line arguments for the report tool."""
     parser = argparse.ArgumentParser(
-        prog="python -m vultron.demo.report",
+        # prog defaults to sys.argv[0], so --help shows the correct name for
+        # both `python -m vultron.demo.report` and the `vultron-demo-report`
+        # console-script entry point.
         description=(
             "Render a readable report from demo scenario case-ledger JSONL "
             "replica files."

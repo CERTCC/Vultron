@@ -528,3 +528,38 @@ class TestCli:
         rc = main(["--output", str(out_file)])
         assert rc == 0
         assert out_file.exists()
+
+
+# ---------------------------------------------------------------------------
+# Console-script entry point (pyproject [project.scripts])
+# ---------------------------------------------------------------------------
+
+
+class TestConsoleScript:
+    """Guard the ``vultron-demo-report`` console-script wiring.
+
+    Console-script wrappers invoke the target ``main`` with **no** arguments
+    and propagate its return value via ``sys.exit`` — so the entry point must
+    resolve to a real callable that accepts zero args. This has been a latent
+    breakage source for other demo entry points (see the BT-demo learning on
+    zero-arg ``main``); assert it directly rather than only via ``python -m``.
+    """
+
+    def test_entry_point_registered_and_resolves_to_main(self):
+        from importlib.metadata import entry_points
+
+        scripts = entry_points(group="console_scripts")
+        matches = [e for e in scripts if e.name == "vultron-demo-report"]
+        assert matches, "vultron-demo-report console script is not registered"
+        assert matches[0].value == "vultron.demo.report:main"
+        # Resolving the entry point must yield our main() callable.
+        assert matches[0].load() is main
+
+    def test_main_callable_with_no_args(self, tmp_path, monkeypatch):
+        """main() must run with zero positional args (console-script contract)."""
+        _write_replicas(tmp_path, {"vendor": [_camel_entry()]})
+        monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
+        monkeypatch.setattr("sys.argv", ["vultron-demo-report"])
+        rc = main()
+        assert rc == 0
+        assert (tmp_path / "case-timeline-report.md").exists()
