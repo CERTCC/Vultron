@@ -790,6 +790,14 @@ def fvcv_extension(
     "(env: VULTRON_COORDINATOR_BASE_URL).",
 )
 @click.option(
+    "--case-actor-url",
+    envvar="VULTRON_CASE_ACTOR_BASE_URL",
+    default=fvcv_handoff_demo.CASE_ACTOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the CaseActor container API "
+    "(env: VULTRON_CASE_ACTOR_BASE_URL).",
+)
+@click.option(
     "--vendor2-url",
     envvar="VULTRON_VENDOR2_BASE_URL",
     default=fvcv_handoff_demo.VENDOR2_BASE_URL,
@@ -813,6 +821,11 @@ def fvcv_extension(
     help="Deterministic full URI for the Coordinator actor (optional).",
 )
 @click.option(
+    "--case-actor-id",
+    default=None,
+    help="Deterministic full URI for the CaseActor actor (optional).",
+)
+@click.option(
     "--vendor2-id",
     default=None,
     help="Deterministic full URI for the Vendor2 actor (optional).",
@@ -827,10 +840,12 @@ def fvcv_handoff(
     finder_url: str,
     vendor_url: str,
     coordinator_url: str,
+    case_actor_url: str,
     vendor2_url: str,
     finder_id: str | None,
     vendor_id: str | None,
     coordinator_id: str | None,
+    case_actor_id: str | None,
     vendor2_id: str | None,
     skip_health_check: bool,
 ) -> None:
@@ -843,14 +858,14 @@ def fvcv_handoff(
 
     \b
     Workflow:
-      1. Seed all four containers (actor records + peer registration).
+      1. Seed all five containers (actor records + peer registration).
       2. Finder submits a vulnerability report to Vendor1's inbox.
       3. Vendor1 validates and engages the case.
       4. Vendor1 invites Coordinator; Coordinator accepts.
       5. Vendor1 offers case ownership transfer to Coordinator (TRIG-11-001).
       6. Coordinator accepts the ownership transfer (TRIG-11-002).
       7. Verify case attributed_to updated to Coordinator.
-      8. Coordinator invites Vendor2; Vendor2 accepts.
+      8. Coordinator invites Vendor2; Vendor2 accepts and Accept routed to CaseActor.
       9. Verify SYNC-2 replication on all replicas.
      10. Both vendors independently advance through fix-ready → fix-deployed.
      11. All participants report publication; embargo terminates.
@@ -861,10 +876,12 @@ def fvcv_handoff(
         finder_url=finder_url,
         vendor_url=vendor_url,
         coordinator_url=coordinator_url,
+        case_actor_url=case_actor_url,
         vendor2_url=vendor2_url,
         finder_id=finder_id,
         vendor_id=vendor_id,
         coordinator_id=coordinator_id,
+        case_actor_id=case_actor_id,
         vendor2_id=vendor2_id,
     )
 

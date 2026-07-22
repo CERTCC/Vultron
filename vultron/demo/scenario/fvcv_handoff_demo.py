@@ -107,6 +107,9 @@ VENDOR_BASE_URL = os.environ.get(
 COORDINATOR_BASE_URL = os.environ.get(
     "VULTRON_COORDINATOR_BASE_URL", "http://localhost:7903/api/v2"
 )
+CASE_ACTOR_BASE_URL = os.environ.get(
+    "VULTRON_CASE_ACTOR_BASE_URL", "http://localhost:7905/api/v2"
+)
 VENDOR2_BASE_URL = os.environ.get(
     "VULTRON_VENDOR2_BASE_URL", "http://localhost:7904/api/v2"
 )
@@ -115,6 +118,7 @@ VENDOR2_BASE_URL = os.environ.get(
 FINDER_ACTOR_ID = "http://finder:7999/api/v2/actors/finder"
 VENDOR_ACTOR_ID = "http://vendor:7999/api/v2/actors/vendor"
 COORDINATOR_ACTOR_ID = "http://coordinator:7999/api/v2/actors/coordinator"
+CASE_ACTOR_ACTOR_ID = "http://case-actor:7999/api/v2/actors/case-actor"
 VENDOR2_ACTOR_ID = "http://vendor2:7999/api/v2/actors/vendor2"
 
 
@@ -122,13 +126,15 @@ def reset_containers(
     finder_client: DataLayerClient,
     vendor_client: DataLayerClient,
     coordinator_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
     vendor2_client: DataLayerClient,
 ) -> None:
-    """Reset all four FVCV-handoff containers to a clean baseline."""
+    """Reset all five FVCV-handoff containers to a clean baseline."""
     targets: list[tuple[str, DataLayerClient]] = [
         ("Finder", finder_client),
         ("Vendor1", vendor_client),
         ("Coordinator", coordinator_client),
+        ("CaseActor", case_actor_client),
         ("Vendor2", vendor2_client),
     ]
     _reset_containers(targets, reset_fn=reset_datalayer)
@@ -185,6 +191,7 @@ def _phase_report_submission(
     finder_client: DataLayerClient,
     vendor_client: DataLayerClient,
     coordinator_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
     vendor2_client: DataLayerClient,
     finder_id: str | None,
     vendor_id: str | None,
@@ -210,6 +217,7 @@ def _phase_report_submission(
         finder_client=finder_client,
         vendor_client=vendor_client,
         coordinator_client=coordinator_client,
+        case_actor_client=case_actor_client,
         vendor2_client=vendor2_client,
     )
 
@@ -430,9 +438,11 @@ def _phase_ownership_handoff(
 def _phase_coordinator_invites_vendor2(
     vendor_client: DataLayerClient,
     coordinator_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
     vendor2_client: DataLayerClient,
     coordinator: as_Actor,
     coordinator_in_coordinator: as_Actor,
+    case_actor: as_Actor,
     vendor2: as_Actor,
     vendor2_in_vendor2: as_Actor,
     case: as_VulnerabilityCase,
@@ -465,13 +475,24 @@ def _phase_coordinator_invites_vendor2(
 
     # Vendor2 accepts the invite.
     with demo_step("Vendor2 accepts the case invitation"):
-        post_to_trigger(
+        accept_result = post_to_trigger(
             client=vendor2_client,
             actor_id=vendor2_in_vendor2.id_,
             behavior="accept-case-invite",
             body={"invite_id": invite.id_},
         )
-    logger.info("Vendor2 sent Accept(Invite) to CaseActor")
+    accept = as_TransitiveActivity.model_validate(accept_result["activity"])
+    logger.info("Vendor2 sent Accept(Invite): %s", accept.id_)
+
+    # Deliver Accept to CaseActor so it can commit the join ledger entry
+    # and fan out to all existing participants (including Vendor1/Finder).
+    # The invite.actor is Coordinator which lacks trusted_case_actor_id, so
+    # we explicitly route the Accept to the CaseActor container (PCR-08-008).
+    with demo_step("Delivering Vendor2 accept to CaseActor inbox"):
+        post_to_inbox_and_wait(case_actor_client, case_actor.id_, accept)
+    with demo_check("Accept activity stored in CaseActor DataLayer"):
+        verify_object_stored(case_actor_client, accept.id_)
+    logger.info("Vendor2 Accept delivered to CaseActor")
 
     # Wait for Vendor2's case replica.
     with demo_check("Vendor2's DataLayer received case replica (AC-2)"):
@@ -877,10 +898,12 @@ def run_fvcv_handoff_demo(
     finder_client: DataLayerClient,
     vendor_client: DataLayerClient,
     coordinator_client: DataLayerClient,
+    case_actor_client: DataLayerClient,
     vendor2_client: DataLayerClient,
     finder_id: str | None = None,
     vendor_id: str | None = None,
     coordinator_id: str | None = None,
+    case_actor_id: str | None = None,
     vendor2_id: str | None = None,
 ) -> None:
     """Orchestrate the FVCV-handoff CVD workflow."""
@@ -892,6 +915,7 @@ def run_fvcv_handoff_demo(
     logger.info("Finder container:      %s", finder_client.base_url)
     logger.info("Vendor1 container:     %s", vendor_client.base_url)
     logger.info("Coordinator container: %s", coordinator_client.base_url)
+    logger.info("CaseActor container:   %s", case_actor_client.base_url)
     logger.info("Vendor2 container:     %s", vendor2_client.base_url)
 
     (
@@ -908,6 +932,7 @@ def run_fvcv_handoff_demo(
         finder_client,
         vendor_client,
         coordinator_client,
+        case_actor_client,
         vendor2_client,
         finder_id,
         vendor_id,
@@ -915,6 +940,9 @@ def run_fvcv_handoff_demo(
         vendor2_id,
     )
 
+    case_actor = get_actor_by_id(
+        case_actor_client, case_actor_id or CASE_ACTOR_ACTOR_ID
+    )
     vendor2_in_vendor2 = get_actor_by_id(vendor2_client, vendor2.id_)
     finder_in_finder = get_actor_by_id(finder_client, finder.id_)
 
@@ -931,9 +959,11 @@ def run_fvcv_handoff_demo(
     _phase_coordinator_invites_vendor2(
         vendor_client=vendor_client,
         coordinator_client=coordinator_client,
+        case_actor_client=case_actor_client,
         vendor2_client=vendor2_client,
         coordinator=coordinator,
         coordinator_in_coordinator=coordinator_in_coordinator,
+        case_actor=case_actor,
         vendor2=vendor2,
         vendor2_in_vendor2=vendor2_in_vendor2,
         case=case,
@@ -1031,10 +1061,12 @@ def main(
     finder_url: str | None = None,
     vendor_url: str | None = None,
     coordinator_url: str | None = None,
+    case_actor_url: str | None = None,
     vendor2_url: str | None = None,
     finder_id: str | None = None,
     vendor_id: str | None = None,
     coordinator_id: str | None = None,
+    case_actor_id: str | None = None,
     vendor2_id: str | None = None,
 ) -> None:
     """Entry point for the FVCV-handoff CVD workflow demo.
@@ -1044,10 +1076,12 @@ def main(
         finder_url: Override base URL for the Finder container.
         vendor_url: Override base URL for the Vendor1 container.
         coordinator_url: Override base URL for the Coordinator container.
+        case_actor_url: Override base URL for the CaseActor container.
         vendor2_url: Override base URL for the Vendor2 container.
         finder_id: Optional deterministic URI for the Finder actor.
         vendor_id: Optional deterministic URI for the Vendor1 actor.
         coordinator_id: Optional deterministic URI for the Coordinator actor.
+        case_actor_id: Optional deterministic URI for the CaseActor actor.
         vendor2_id: Optional deterministic URI for the Vendor2 actor.
     """
     reset_demo_failures()
@@ -1055,11 +1089,13 @@ def main(
     f_url = finder_url or FINDER_BASE_URL
     v_url = vendor_url or VENDOR_BASE_URL
     c_url = coordinator_url or COORDINATOR_BASE_URL
+    ca_url = case_actor_url or CASE_ACTOR_BASE_URL
     v2_url = vendor2_url or VENDOR2_BASE_URL
 
     finder_client = DataLayerClient(base_url=f_url)
     vendor_client = DataLayerClient(base_url=v_url)
     coordinator_client = DataLayerClient(base_url=c_url)
+    case_actor_client = DataLayerClient(base_url=ca_url)
     vendor2_client = DataLayerClient(base_url=v2_url)
 
     if not skip_health_check:
@@ -1067,6 +1103,7 @@ def main(
             ("Finder", finder_client),
             ("Vendor1", vendor_client),
             ("Coordinator", coordinator_client),
+            ("CaseActor", case_actor_client),
             ("Vendor2", vendor2_client),
         ]
         for label, client in targets:
@@ -1086,10 +1123,12 @@ def main(
             finder_client=finder_client,
             vendor_client=vendor_client,
             coordinator_client=coordinator_client,
+            case_actor_client=case_actor_client,
             vendor2_client=vendor2_client,
             finder_id=finder_id,
             vendor_id=vendor_id,
             coordinator_id=coordinator_id,
+            case_actor_id=case_actor_id,
             vendor2_id=vendor2_id,
         )
     finally:
