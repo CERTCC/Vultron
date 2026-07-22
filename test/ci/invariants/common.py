@@ -342,11 +342,9 @@ def check_no_rm_state_oscillation(
 
     rm_history: dict[str, list[str]] = {}
     for e in status_entries:
-        snap = payload(e)
-        p_id = snap.get("attributedTo") or snap.get("attributed_to")
-        rm_state = snap.get("rmState") or snap.get("rm_state")
+        p_id, rm_state = participant_status_identity_and_rm(payload(e))
         if p_id and rm_state:
-            rm_history.setdefault(str(p_id), []).append(str(rm_state))
+            rm_history.setdefault(p_id, []).append(rm_state)
 
     return [
         f"Participant {p_id!r} changed RM state after CLOSED: {states}"
