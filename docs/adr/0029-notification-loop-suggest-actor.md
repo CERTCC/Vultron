@@ -1,14 +1,10 @@
 ---
-status: proposed
-date: 2026-07-09
+status: accepted
+date: 2026-07-22
 deciders: [adh]
 ---
 
 # Notification Loop Collapse: InjectParticipant → suggest-actor-to-case Protocol
-
-> **PROVISIONAL** — formed at planning time (issue #1200). Subject to revision
-> when the implementation issue for this collapse candidate is worked.
-> Implementation tracked by the issue blocked by #1200 and #1298.
 
 ## Context and Problem Statement
 

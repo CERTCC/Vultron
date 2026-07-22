@@ -677,12 +677,12 @@ groups:
       trigger in place of `InjectParticipant` family nodes. The `suggest-actor-to-case` trigger MUST be called with an explicit
       role parameter (`CVDRole.VENDOR`, `CVDRole.COORDINATOR`, or `CVDRole.OTHER`) matching the sub-loop type; the current
       assumption that all suggestions use `CVDRole.VENDOR` MUST be generalized.
-    rationale: 'PROVISIONAL. The `InjectParticipant` family is a direct case-management write that bypasses the protocol''s
+    rationale: 'The `InjectParticipant` family is a direct case-management write that bypasses the protocol''s
       invite/accept handshake. In production the `suggest-actor-to-case` protocol (Offer → Invite → Accept → Record cascade)
       replaces it. The outer loop remains because the BT must still ask "should we notify additional parties?" and iterate
       through identified candidates. See `notes/bt-fuzzer-nodes-report-management.md` § "Production Collapse 3: Notification
       loop" and ADR-0029.'
-    tracking_issue: '#1200 (planning); implementation issue TBD (blocked by #1200 and #1298 suggest-actor redesign)'
+    tracking_issue: '#1311 (implemented)'
   - id: BT-20-004
     priority: SHOULD
     kind: project
