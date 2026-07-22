@@ -191,7 +191,9 @@ def test_revision_arm_is_third_child():
     assert isinstance(do_revise.children[0], _NeedsRevisionGate)
     assert isinstance(do_revise.children[1], ReviseAdvisoryDraft)
     # Second: Inverter(NeedsRevisionGate) skip guard
-    assert isinstance(revision_arm.children[1], py_trees.decorators.Inverter)
+    skip_guard = revision_arm.children[1]
+    assert isinstance(skip_guard, py_trees.decorators.Inverter)
+    assert isinstance(skip_guard.children[0], _NeedsRevisionGate)
 
 
 def test_submit_is_fourth_child():
@@ -200,11 +202,17 @@ def test_submit_is_fourth_child():
 
 
 def test_artifact_label_applied_to_all_node_names():
-    """artifact_label suffix appears in child node names."""
+    """artifact_label suffix appears in all node names including internal revision arm nodes."""
     tree = create_publish_artifact_tree(case_id=CASE_ID, artifact_label="Fix")
     assert tree.children[0].name == "DraftAdvisoryArtifact_Fix"
     assert tree.children[1].name == "ReviewAdvisoryDraft_Fix"
-    assert tree.children[2].name == "RevisionArm_Fix"
+    revision_arm = tree.children[2]
+    assert revision_arm.name == "RevisionArm_Fix"
+    do_revise = revision_arm.children[0]
+    assert do_revise.name == "DoRevise_Fix"
+    assert do_revise.children[0].name == "NeedsRevision_Fix"
+    skip_guard = revision_arm.children[1]
+    assert skip_guard.children[0].name == "NeedsRevisionSkip_Fix"
     assert tree.children[3].name == "SubmitAdvisoryArtifact_Fix"
 
 
@@ -391,6 +399,24 @@ def test_revise_failure_fails_pipeline():
     status = _tick_tree(tree)
     assert status == Status.FAILURE
     assert "SubmitAdvisoryArtifact" not in ran
+
+
+def test_submit_failure_fails_pipeline():
+    """When Submit fails, the root Sequence returns FAILURE."""
+
+    class _Fail(py_trees.behaviour.Behaviour):
+        def update(self):
+            return Status.FAILURE
+
+    tree = create_publish_artifact_tree(
+        case_id=CASE_ID,
+        draft_advisory_artifact_factory=_marker_factory("Draft"),
+        review_advisory_draft_factory=_marker_factory("Review"),
+        revise_advisory_draft_factory=_marker_factory("Revise"),
+        submit_advisory_artifact_factory=lambda n: _Fail(name=n),
+    )
+    status = _tick_tree(tree)
+    assert status == Status.FAILURE
 
 
 # ---------------------------------------------------------------------------
