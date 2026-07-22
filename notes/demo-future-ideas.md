@@ -35,7 +35,7 @@ be treated as working implementations.
 
 | Scenario | File | Notes |
 |----------|------|-------|
-| FCV | `vultron/demo/scenario/three_actor_demo.py` | Obsolete; see planned scenarios below |
+| FCV | `vultron/demo/scenario/three_actor_demo.py` | Obsolete; superseded by `fcv_demo.py` (PR #1623) |
 | FVCV (handoff) | `vultron/demo/scenario/multi_vendor_demo.py` | Obsolete; see #1214 for the planned replacement |
 
 ## Planned scenarios (from #1131 planning, 2026-07-06)
@@ -44,7 +44,7 @@ be treated as working implementations.
 
 | Scenario | Issue | Description | Blocked by | Status |
 |----------|-------|-------------|------------|--------|
-| FCV | #1234 | F reports to C; C invites V; three-actor coordination | invariant harness refactor | planned (spec: DEMOMA-12) |
+| FCV | #1593 | F reports to C; C invites V; three-actor coordination | — | **implemented** (#1623) — `fcv` CLI command + CI job |
 | FVCV-handoff | #1214 | V1 transfers ownership to C; C invites V2 | — | **implemented** (#1561) — `fvcv-handoff` CLI command + CI job |
 | FCCV-extension | #1215 | C1 retains case; C2 is participant; C2 asks C1 to invite V | — | planned |
 | FCCV-handoff | #1216 | C1 transfers to C2; C2 invites V | #1215 | planned |
@@ -148,6 +148,6 @@ instantiated when a case is created.
 
 > **Note (2026-07-06)**: These sketch descriptions are superseded by the
 > structured scenario table above. The FV scenario is implemented.
-> Three-Actor (FCV) is planned for re-implementation in #1234 (the existing
-> file is deprecated). MultiParty corresponds to FVCV-handoff (#1214).
+> Three-Actor (FCV) is implemented in #1593 (PR #1623); `three_actor_demo.py`
+> is deprecated. MultiParty corresponds to FVCV-handoff (#1214).
 > See epic #1093 for the full planned scenario set.
