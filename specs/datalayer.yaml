@@ -141,7 +141,7 @@ groups:
       vocabulary registry (`vultron.core.models.registry.CORE_VOCABULARY`) so that the returned instance is a
       `vultron.core.models` type (e.g. core `VulnerabilityCase`), never a `vultron.wire.as2.vocab` type
       (e.g. `as_VulnerabilityCase`), whenever the persisted `type_` has a registered core counterpart.'
-    rationale: >
+    rationale: >-
       Core code MUST receive core domain objects so that core validators run and static analysis sees the real type
       (ARCH-01-002). Reconstructing via the wire `VOCABULARY` returns wire objects that only work in core by structural
       coincidence of field names. Decided in ADR-0034; derived from ARCH-01-002 and DL-03-002.
@@ -157,7 +157,7 @@ groups:
     statement: The DataLayer adapter MUST own the wire↔core translation for persistence and MUST maintain its own
       `type_`→core-class mapping (via `CORE_VOCABULARY`) that is independent of the wire `VOCABULARY` registry; the wire
       vocabulary registry MUST NOT be the mechanism by which core objects are reconstructed on the read path.
-    rationale: >
+    rationale: >-
       The wire registry is a wire-layer concern (DL-03-002). Making the adapter reconstruct core objects from a core
       registry decouples DataLayer storage from the wire type system so the wire layer can evolve without breaking
       persistence.
@@ -175,7 +175,7 @@ groups:
       DataLayer results without importing concrete core types. Core MUST depend on concrete
       domain classes and use `isinstance` narrowing directly. Structural workaround Protocols
       that evade ARCH-01-001 are prohibited.
-    rationale: >
+    rationale: >-
       The duck-typing Protocols exist solely to let core touch wire objects at runtime without a compile-time wire import,
       evading rather than honouring ARCH-01-001. When the read path returns core objects, the Protocols are dead weight
       and mask the boundary from mypy/pyright.
@@ -191,7 +191,7 @@ groups:
     statement: An architecture ratchet test MUST assert that no `vultron.wire.as2` vocabulary type is returned from
       `dl.read()` / `dl.list_objects()` into `vultron/core/`; the test MAY exempt persisted AS2 Activity types that have no
       registered core counterpart, and any such exemption MUST be enumerated explicitly so the exemption set can only shrink.
-    rationale: >
+    rationale: >-
       Prevents regression back to wire-object leakage. Activity read-back from core is itself a boundary violation tracked
       separately; the enumerated exemption set documents the remaining debt and ratchets toward zero.
     tags:
@@ -200,7 +200,7 @@ groups:
     - wire-format
 - id: DL-06
   title: Activity Read-Back and the Semantic/Envelope Split
-  description: >
+  description: >-
     Core code MUST NOT read a persisted wire AS2 Activity back from the DataLayer to recover its semantic content. AS2
     protocol Activities are wire-only envelopes with no registered core counterpart (the DL-05-004 exemption set); the
     domain fact each carries MUST live as core state. Reading a stored activity is permitted only to reconstitute the
@@ -210,11 +210,11 @@ groups:
   - id: DL-06-001
     priority: MUST_NOT
     kind: project
-    statement: >
+    statement: >-
       Core code (`vultron/core/`) MUST NOT call `dl.read(activity_id)` or `dl.list_objects(<activity_type>)` to recover
       the semantic content of a persisted wire AS2 Activity (e.g. reading a stored `Offer` to obtain the embedded report,
       or a stored `Invite` to obtain its case or embargo id). The domain fact MUST be obtained from core state instead.
-    rationale: >
+    rationale: >-
       AS2 protocol Activities are wire-only envelopes with no core counterpart, so reading one back into core hands a
       `vultron.wire.as2` type to core code (ARCH-01-002) and re-interprets an activity the semantic extractor already
       interpreted once (ARCH-03-001). The activity is being used as the system of record for a domain fact, inverting the
@@ -230,11 +230,11 @@ groups:
   - id: DL-06-002
     priority: MUST
     kind: project
-    statement: >
+    statement: >-
       Every domain fact an actor must remember from a received protocol message MUST be recorded as core state — either a
       state transition on an existing core entity or a purpose-built core record — at the point the semantic extractor
       first interprets the inbound activity. Core MUST NOT reconstruct such a fact by re-reading the stored activity later.
-    rationale: >
+    rationale: >-
       Core is the sole system of record for domain facts (the Actor Knowledge Model bounds an actor's knowledge to what it
       has received, and that knowledge is held as core state). Capturing the fact once at extraction time removes the need
       for core to reach back through the wire envelope. This does NOT mean cloning each AS2 Activity into a 1:1 core
@@ -249,11 +249,11 @@ groups:
   - id: DL-06-003
     priority: MUST
     kind: project
-    statement: >
+    statement: >-
       When an inbound protocol message references a prior message (e.g. an Accept answering an Invite, a counter-offer
       answering an Offer), core MUST correlate them through a core-entity relationship (e.g. "the pending embargo proposal
       for this case", "the invitation for this actor"), NOT by re-reading the referenced wire activity from the DataLayer.
-    rationale: >
+    rationale: >-
       Correlation is a domain relationship between core facts. Recovering it by re-reading the referenced activity
       reintroduces the DL-06-001 violation and depends on the wire envelope surviving as a semantic record. When the prior
       message was first received it MUST have created or updated the core entity that the later message now correlates to.
@@ -264,13 +264,13 @@ groups:
   - id: DL-06-004
     priority: MUST
     kind: project
-    statement: >
+    statement: >-
       Reconstituting the verbatim original activity for an outbound reply's inline `object_` / `in_reply_to` field (as the
       Actor Knowledge Model requires) MAY read a stored activity payload back, but this retrieval MUST be owned by the
       wire/adapter layer and treat the stored activity as an opaque envelope; core code MUST NOT read the activity to
       interpret its meaning. Such a wire/adapter-owned envelope seam is NOT counted as a core boundary violation under
       DL-05-004.
-    rationale: >
+    rationale: >-
       Activity IDs are non-regenerable random `urn:uuid:` values and the Actor Knowledge Model requires a reply to embed
       the full inline original activity, so verbatim reconstitution cannot be produced by re-projecting core state — the
       original envelope (with its original id) must be retained and read back. Confining that read to a wire/adapter seam
@@ -285,12 +285,12 @@ groups:
   - id: DL-06-005
     priority: MUST
     kind: project
-    statement: >
+    statement: >-
       As each core semantic read is migrated off activity read-back (per DL-06-001 through DL-06-003), the corresponding
       AS2 Activity type MUST be removed from the DL-05-004 ratchet exemption set. The exemption set MUST reach zero once
       all core semantic activity reads are migrated; the only remaining sanctioned activity reads are the wire/adapter
       envelope-reconstitution seam of DL-06-004.
-    rationale: >
+    rationale: >-
       Ties the migration to an enforceable, monotonically shrinking ratchet so progress is measurable and regressions are
       blocked. Decided in ADR-0035; source concern #1506.
     relationships:

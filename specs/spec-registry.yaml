@@ -13,7 +13,7 @@ tags:
 - documentation
 groups:
 - id: SR-01
-  title: YAML File Format (MUST)
+  title: YAML File Format
   specs:
   - id: SR-01-001
     priority: MUST
@@ -83,7 +83,7 @@ groups:
     - documentation
     - tooling
 - id: SR-02
-  title: Pydantic Schema (MUST)
+  title: Pydantic Schema
   specs:
   - id: SR-02-001
     priority: MUST
@@ -161,7 +161,7 @@ groups:
     statement: '`BehaviorStep` SHOULD include fields: `order` (int), `actor` (str), `action` (str), and optional `expected`
       (str).'
 - id: SR-03
-  title: Registry Loader (MUST)
+  title: Registry Loader
   specs:
   - id: SR-03-001
     priority: MUST
@@ -197,7 +197,7 @@ groups:
     statement: The loader SHOULD provide a `_find_repo_root()` helper (mirroring the notes loader) for callers that do not
       supply an explicit path.
 - id: SR-04
-  title: Linter (MUST)
+  title: Linter
   specs:
   - id: SR-04-001
     priority: MUST
@@ -248,7 +248,7 @@ groups:
     kind: project
     statement: The linter SHOULD check that `scope` at the spec level is not broader than the containing group or file scope.
 - id: SR-05
-  title: Pytest Integration (MUST)
+  title: Pytest Integration
   specs:
   - id: SR-05-001
     priority: MUST
@@ -269,7 +269,7 @@ groups:
     statement: Tests SHOULD use `@pytest.mark.spec` to assert which requirement they verify, enabling coverage reporting by
       spec ID.
 - id: SR-06
-  title: Pre-commit Hook (MUST)
+  title: Pre-commit Hook
   specs:
   - id: SR-06-001
     priority: MUST
@@ -285,7 +285,7 @@ groups:
     statement: 'The hook MUST be configured with `pass_filenames: false` so the full registry is always validated, not just
       the changed file.'
 - id: SR-07
-  title: Context Generation Tool (MUST)
+  title: Context Generation Tool
   specs:
   - id: SR-07-001
     priority: MUST
@@ -310,7 +310,7 @@ groups:
     statement: The JSON exporter SHOULD support filtering by `kind`, `scope`, `tags`, or `priority` to allow agents to request
       only relevant subsets.
 - id: SR-09
-  title: Docs Renderer Kind Routing (MUST)
+  title: Docs Renderer Kind Routing
   specs:
   - id: SR-09-001
     priority: MUST
@@ -352,7 +352,7 @@ groups:
     - documentation
     - tooling
 - id: SR-08
-  title: Migration (MUST)
+  title: Migration
   specs:
   - id: SR-08-001
     priority: MUST

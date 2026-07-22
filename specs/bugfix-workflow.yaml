@@ -11,7 +11,7 @@ tags:
 - tooling
 groups:
 - id: BFW-01
-  title: Phase 2 — Clarification (MUST)
+  title: Phase 2 — Clarification
   specs:
   - id: BFW-01-001
     priority: MUST
@@ -44,7 +44,7 @@ groups:
       The agent MUST NOT proceed to Phase 3 implementation until the user has explicitly confirmed
       or corrected every point in BFW-01-001 through BFW-01-004.
 - id: BFW-02
-  title: Phase 2b — Root Cause Depth (MUST)
+  title: Phase 2b — Root Cause Depth
   specs:
   - id: BFW-02-001
     priority: MUST
@@ -71,7 +71,7 @@ groups:
       Phase 2b questions SHOULD reference specific code paths, data flows, or invariants the
       agent has identified as plausible root causes, rather than asking open-ended questions.
 - id: BFW-03
-  title: Escalation (MUST)
+  title: Escalation
   specs:
   - id: BFW-03-001
     priority: MUST
@@ -93,7 +93,7 @@ groups:
       The PR description for the fix SHOULD reference any new bug issues filed during analysis
       (e.g., `Also filed: #NNN`).
 - id: BFW-04
-  title: Bug Archiving (MUST)
+  title: Bug Archiving
   specs:
   - id: BFW-04-001
     priority: MUST

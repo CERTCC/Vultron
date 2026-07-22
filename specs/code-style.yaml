@@ -282,17 +282,12 @@ groups:
     kind: project
     statement: Methods and class-level variables MUST NOT be named after Python built-in types (`list`, `dict`, `set`, `tuple`,
       `type`, `object`, `int`, `str`, `float`, `bool`, `bytes`, etc.)
-    rationale: 'Defining `def list(self, ...)` in a class body shadows the built-in `list` type for all
-
-      subsequent annotations and expressions in that class scope. Any annotation like `list[str]`
-
-      that appears after the method definition resolves to the method (a function), producing a
-
-      `TypeError` at runtime ("''function'' object is not subscriptable"). A `# type: ignore`
-
-      comment suppresses mypy but does NOT prevent the runtime error. Rename the method to avoid
-
-      the collision (e.g., `list_objects`).'
+    rationale: >-
+      Defining `def list(self, ...)` in a class body shadows the built-in `list` type for all
+      subsequent annotations and expressions in that class scope. Any annotation like `list[str]` that
+      appears after the method definition resolves to the method (a function), producing a `TypeError`
+      at runtime. A `# type: ignore` comment suppresses mypy but does NOT prevent the runtime error.
+      Rename the method to avoid the collision (e.g., `list_objects`).
 - id: CS-17
   title: Pydantic Models for Structured Data
   specs:

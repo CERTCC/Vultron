@@ -117,7 +117,7 @@ groups:
     - rel_type: depends_on
       spec_id: DUR-04-001
 - id: EP-04
-  title: Default Embargo Semantics (MUST)
+  title: Default Embargo Semantics
   specs:
   - id: EP-04-001
     priority: MUST
