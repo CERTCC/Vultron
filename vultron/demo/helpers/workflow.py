@@ -28,17 +28,30 @@ from vultron.demo.utils import (
     DataLayerClient,
     demo_check,
     demo_step,
+    get_offer_from_datalayer,
+    log_case_state,
     post_to_inbox_and_wait,
     post_to_trigger,
     ref_id,
     verify_object_stored,
 )
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
+    add_participant_to_case_activity,
+    add_report_to_case_activity,
+    create_case_activity,
     parse_submit_report_offer,
+    rm_accept_invite_to_case_activity,
+    rm_invite_to_case_activity,
     rm_submit_report_activity,
+    rm_validate_report_activity,
 )
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Create,
+    as_Offer,
+)
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -292,3 +305,188 @@ def find_case_for_offer(
         if report_id in report_ids:
             return case
     return None
+
+
+def setup_initialized_case(
+    client: DataLayerClient,
+    finder: as_Actor,
+    vendor: as_Actor,
+) -> as_VulnerabilityCase:
+    """Create a fully initialised case ready for invitation/suggestion workflows.
+
+    Performs the standard 7-step setup shared by ``invite_actor_demo``,
+    ``suggest_actor_demo``, and ``transfer_ownership_demo``:
+
+    1. Finder submits report → vendor inbox
+    2. Vendor validates the report
+    3. Vendor creates the case
+    4. Vendor adds the report to the case
+    5. Vendor creates the finder participant record
+    6. Vendor adds the finder participant to the case
+    7. Logs final case state
+
+    Args:
+        client: DataLayerClient for the shared (or single) container.
+        finder: The finder/reporter ``as_Actor``.
+        vendor: The receiving vendor ``as_Actor`` who creates the case.
+
+    Returns:
+        The newly created ``as_VulnerabilityCase``.
+    """
+    report = as_VulnerabilityReport(
+        attributed_to=finder.id_,
+        content="A remote code execution vulnerability in the web framework.",
+        name="Remote Code Execution Vulnerability",
+    )
+    report_offer = rm_submit_report_activity(
+        report, actor=finder.id_, to=vendor.id_
+    )
+    post_to_inbox_and_wait(client, vendor.id_, report_offer)
+    verify_object_stored(client, report.id_)
+
+    offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
+    validate_activity = rm_validate_report_activity(
+        offer,
+        actor=vendor.id_,
+        content="Confirmed — remote code execution via unsanitized input.",
+    )
+    post_to_inbox_and_wait(client, vendor.id_, validate_activity)
+
+    case = as_VulnerabilityCase(
+        attributed_to=vendor.id_,
+        name="RCE Case — Web Framework",
+        content="Tracking the RCE vulnerability in the web framework.",
+    )
+    create_case_act = create_case_activity(case, actor=vendor.id_)
+    post_to_inbox_and_wait(client, vendor.id_, create_case_act)
+    verify_object_stored(client, case.id_)
+
+    add_report_activity = add_report_to_case_activity(
+        report, actor=vendor.id_, target=case.id_
+    )
+    post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
+
+    participant = as_CaseParticipant(
+        case_roles=[CVDRole.FINDER, CVDRole.REPORTER],
+        attributed_to=finder.id_,
+        context=case.id_,
+    )
+    create_participant_activity = as_Create(
+        actor=vendor.id_,
+        object_=participant,
+        context=case.id_,
+    )
+    post_to_inbox_and_wait(client, vendor.id_, create_participant_activity)
+    verify_object_stored(client, participant.id_)
+
+    add_participant_activity = add_participant_to_case_activity(
+        participant, actor=vendor.id_, target=case.id_
+    )
+    post_to_inbox_and_wait(client, vendor.id_, add_participant_activity)
+
+    log_case_state(client, case.id_, "after setup")
+    logger.info("✓ Setup: Case initialized with report and finder participant")
+    return case
+
+
+def setup_two_participant_case(
+    client: DataLayerClient,
+    finder: as_Actor,
+    vendor: as_Actor,
+    coordinator: as_Actor,
+) -> as_VulnerabilityCase:
+    """Create a case with two participants (vendor + coordinator) as a precondition.
+
+    Performs the 6-step shared setup used by ``establish_embargo_demo`` and
+    ``manage_embargo_demo``:
+
+    1. Finder submits report → vendor inbox
+    2. Vendor validates the report
+    3. Vendor creates the case
+    4. Vendor adds the report to the case
+    5. Vendor creates and adds the finder participant
+    6. Vendor invites coordinator; coordinator accepts → coordinator added
+
+    Args:
+        client: DataLayerClient for the shared (or single) container.
+        finder: The finder/reporter ``as_Actor``.
+        vendor: The receiving vendor ``as_Actor`` who creates the case.
+        coordinator: The coordinator ``as_Actor`` to invite.
+
+    Returns:
+        The newly created ``as_VulnerabilityCase`` with vendor and coordinator
+        as participants.
+    """
+    report = as_VulnerabilityReport(
+        attributed_to=finder.id_,
+        content="A use-after-free vulnerability in the network stack.",
+        name="Use-After-Free in Network Stack",
+    )
+    report_offer = rm_submit_report_activity(
+        report, actor=finder.id_, to=vendor.id_
+    )
+    post_to_inbox_and_wait(client, vendor.id_, report_offer)
+    verify_object_stored(client, report.id_)
+
+    offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
+    validate_activity = rm_validate_report_activity(
+        offer,
+        actor=vendor.id_,
+        content="Confirmed — use-after-free via unsanitized network input.",
+    )
+    post_to_inbox_and_wait(client, vendor.id_, validate_activity)
+
+    case = as_VulnerabilityCase(
+        attributed_to=vendor.id_,
+        name="UAF Case — Network Stack",
+        content="Tracking the use-after-free vulnerability in the network stack.",
+    )
+    create_case_act = create_case_activity(case, actor=vendor.id_)
+    post_to_inbox_and_wait(client, vendor.id_, create_case_act)
+    verify_object_stored(client, case.id_)
+
+    add_report_activity = add_report_to_case_activity(
+        report, actor=vendor.id_, target=case.id_
+    )
+    post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
+
+    participant = as_CaseParticipant(
+        case_roles=[CVDRole.FINDER, CVDRole.REPORTER],
+        attributed_to=finder.id_,
+        context=case.id_,
+    )
+    create_participant_activity = as_Create(
+        actor=vendor.id_,
+        object_=participant,
+        context=case.id_,
+    )
+    post_to_inbox_and_wait(client, vendor.id_, create_participant_activity)
+    verify_object_stored(client, participant.id_)
+
+    add_participant_activity = add_participant_to_case_activity(
+        participant, actor=vendor.id_, target=case.id_
+    )
+    post_to_inbox_and_wait(client, vendor.id_, add_participant_activity)
+
+    invite = rm_invite_to_case_activity(
+        coordinator,
+        actor=vendor.id_,
+        target=case.id_,
+        to=[coordinator.id_],
+        content=f"Inviting you to participate in {case.name}.",
+    )
+    post_to_inbox_and_wait(client, coordinator.id_, invite)
+
+    accept = rm_accept_invite_to_case_activity(
+        invite,
+        actor=coordinator.id_,
+        to=[vendor.id_],
+        content=f"Accepting invitation to {case.name}.",
+    )
+    post_to_inbox_and_wait(client, vendor.id_, accept)
+
+    log_case_state(client, case.id_, "after setup (two participants)")
+    logger.info(
+        "✓ Setup: Case initialized with vendor and coordinator participants"
+    )
+    return case

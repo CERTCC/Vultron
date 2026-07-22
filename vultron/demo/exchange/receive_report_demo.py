@@ -50,7 +50,6 @@ The BT logs will show tree structure before execution and final state after comp
 # Standard library imports
 import json
 import logging
-import sys
 from typing import Callable, Optional, Sequence, Tuple
 
 # Vultron imports
@@ -64,17 +63,20 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
+from vultron.demo.helpers.runner import run_exchange_demos
+from vultron.demo.helpers.verification import (
+    verify_activity_in_inbox,
+)  # noqa: F401
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
-    check_server_availability,
+    check_server_availability,  # noqa: F401 — imported by test_health_check_retry
     demo_check,
     demo_step,
     get_offer_from_datalayer,
     logfmt,
     post_to_inbox_and_wait,
     ref_id,
-    demo_environment,
     postfmt,
     verify_object_stored,
     setup_demo_logging,
@@ -110,99 +112,6 @@ def submit_to_inbox(
     )
 
     return client.post(f"/actors/{vendor_id}/inbox/", json=postfmt(activity))
-
-
-def get_actor_by_id(
-    client: DataLayerClient, actor_id: str
-) -> Optional[as_Actor]:
-    """
-    Retrieves an actor by ID from the API.
-
-    Args:
-        client: DataLayerClient instance
-        actor_id: Full URI of the actor
-
-    Returns:
-        as_Actor or None: The actor if found, None otherwise
-    """
-    actors_data = client.get("/actors/")
-    for actor_data in actors_data:
-        actor = as_Actor(**actor_data)
-        if actor.id_ == actor_id:
-            return actor
-    return None
-
-
-def get_item_id(item: Optional[str | object]) -> Optional[str]:
-    """
-    Extract ID from an ActivityStreams collection item.
-
-    Per ActivityStreams spec, collection items can be:
-    - Full objects (with id_ attribute)
-    - Links (with id_ attribute)
-    - String URIs (the string IS the ID)
-    - None (for optional fields)
-
-    Args:
-        item: Collection item (object, link, string, or None)
-
-    Returns:
-        str: The ID of the item, or None if item is None
-    """
-    if item is None:
-        return None
-    if isinstance(item, str):
-        return item  # String IS the ID
-    return getattr(item, "id_", None)
-
-
-def verify_activity_in_inbox(
-    client: DataLayerClient, actor_id: str, activity_id: str
-) -> bool:
-    """
-    Verifies that an activity appears in an actor's inbox.
-
-    Args:
-        client: DataLayerClient instance
-        actor_id: Full URI of the actor
-        activity_id: Full URI of the activity to find
-
-    Returns:
-        bool: True if activity found in inbox, False otherwise
-
-    Raises:
-        ValueError: If actor not found or has no inbox
-    """
-    actor = get_actor_by_id(client, actor_id)
-    if not actor or not actor.inbox:
-        raise ValueError(f"Actor {actor_id} not found or has no inbox")
-
-    logger.info(
-        f"Actor {parse_id(actor_id)['object_id']} inbox has {len(actor.inbox.items)} items"
-    )
-
-    # Log all inbox items for debugging
-    logger.debug(f"Looking for activity ID: {activity_id}")
-    for item in actor.inbox.items:
-        item_id = get_item_id(item)
-        logger.debug(f"Inbox item ID: {item_id}")
-        if item_id == activity_id:
-            logger.info(f"✓ Found activity in inbox: {logfmt(item)}")
-            return True
-
-    # If not found, log what we have for debugging
-    logger.warning(f"Activity {activity_id} not found in inbox")
-    logger.warning(f"Inbox contains {len(actor.inbox.items)} items:")
-    for item in actor.inbox.items:
-        item_id = get_item_id(item)
-        # Handle both string items and object items for logging
-        if isinstance(item, str):
-            logger.warning(f"  - {item_id} (type: string URI)")
-        else:
-            item_type = getattr(item, "type_", "unknown")
-            logger.warning(f"  - {item_id} (type: {item_type})")
-
-    return False
 
 
 def find_case_by_report(
@@ -254,7 +163,10 @@ def find_case_by_report(
 
 
 def demo_validate_report(
-    client: DataLayerClient, finder: as_Actor, vendor: as_Actor
+    client: DataLayerClient,
+    finder: as_Actor,
+    vendor: as_Actor,
+    coordinator: Optional[as_Actor] = None,
 ):
     """
     Demonstrates the workflow where a vendor validates a report and creates a case.
@@ -332,7 +244,10 @@ def demo_validate_report(
 
 
 def demo_invalidate_report(
-    client: DataLayerClient, finder: as_Actor, vendor: as_Actor
+    client: DataLayerClient,
+    finder: as_Actor,
+    vendor: as_Actor,
+    coordinator: Optional[as_Actor] = None,
 ):
     """
     Demonstrates the workflow where a vendor invalidates a report.
@@ -411,7 +326,10 @@ def demo_invalidate_report(
 
 
 def demo_invalidate_and_close_report(
-    client: DataLayerClient, finder: as_Actor, vendor: as_Actor
+    client: DataLayerClient,
+    finder: as_Actor,
+    vendor: as_Actor,
+    coordinator: Optional[as_Actor] = None,
 ):
     """
     Demonstrates the workflow where a vendor invalidates a report and closes it.
@@ -525,76 +443,10 @@ def main(
     skip_health_check: bool = False,
     demos: Optional[Sequence] = None,
 ):
-    """
-    Main entry point for the demo script.
-
-    Args:
-        skip_health_check: Skip the server availability check (useful for testing)
-        demos: Optional sequence of demo functions to run. Defaults to all three.
-            Pass a subset (e.g. ``[demo_validate_report]``) to run only those demos.
-
-    Runs demonstration workflows to showcase the different outcomes
-    when processing vulnerability reports.
-    """
-    client = DataLayerClient()
-
-    # Check if server is available before proceeding
-    if not skip_health_check and not check_server_availability(client):
-        logger.error("=" * 80)
-        logger.error("ERROR: API server is not available")
-        logger.error("=" * 80)
-        logger.error(f"Cannot connect to: {client.base_url}")
-        logger.error("")
-        logger.error("Please ensure the Vultron API server is running.")
-        logger.error("You can start it with:")
-        logger.error(
-            "  uv run uvicorn vultron.api.main:app --host localhost --port 7999"
-        )
-        logger.error("=" * 80)
-        sys.exit(1)
-
-    selected = (
-        _ALL_DEMOS
-        if demos is None
-        else [(name, fn) for name, fn in _ALL_DEMOS if fn in demos]
+    """Main entry point for the receive_report demo script."""
+    run_exchange_demos(
+        _ALL_DEMOS, skip_health_check=skip_health_check, demos=demos
     )
-    total = len(selected)
-
-    # Track errors for summary
-    errors = []
-
-    # Run selected demos with different reports, each with clean environment
-    for demo_name, demo_fn in selected:
-        try:
-            with demo_environment(client) as (finder, vendor, coordinator):
-                demo_fn(client, finder, vendor)
-        except Exception as e:
-            logger.error(f"{demo_name} failed: {e}", exc_info=True)
-            errors.append((demo_name, str(e)))
-
-    logger.info("=" * 80)
-    logger.info("ALL DEMOS COMPLETE")
-    logger.info("=" * 80)
-
-    # Display error summary
-    if errors:
-        logger.error("")
-        logger.error("=" * 80)
-        logger.error("ERROR SUMMARY")
-        logger.error("=" * 80)
-        logger.error(f"Total demos: {total}")
-        logger.error(f"Failed demos: {len(errors)}")
-        logger.error(f"Successful demos: {total - len(errors)}")
-        logger.error("")
-        for demo_name, error in errors:
-            logger.error(f"{demo_name}:")
-            logger.error(f"  {error}")
-            logger.error("")
-        logger.error("=" * 80)
-    else:
-        logger.info("")
-        logger.info(f"✓ All {total} demos completed successfully!")
-        logger.info("")
 
 
 if __name__ == "__main__":

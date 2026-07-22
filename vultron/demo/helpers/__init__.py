@@ -22,16 +22,20 @@ Sub-modules
   ``wait_for_*`` helpers.
 - :mod:`~vultron.demo.helpers.actions` — ``actor_notifies_state_change``
   and named CVD lifecycle action wrappers.
+- :mod:`~vultron.demo.helpers.embargo` — ``make_embargo_event`` factory.
+- :mod:`~vultron.demo.helpers.runner` — ``run_exchange_demos`` and
+  ``check_all_containers``.
 - :mod:`~vultron.demo.helpers.seeding` — ``_dl_key``, ``get_actor_by_id``,
   ``seed_containers``, ``seed_containers_fvv``, and ``reset_containers``.
 - :mod:`~vultron.demo.helpers.sync` — SYNC-2 ``trigger_log_commit`` and
   ``verify_replica_state``.
 - :mod:`~vultron.demo.helpers.verification` — lower-level participant and
-  case-state assertion primitives, plus ``verify_receiver_case_state``
-  and ``verify_case_actor_unused``.
+  case-state assertion primitives, plus ``verify_activity_in_inbox``,
+  ``verify_receiver_case_state``, and ``verify_case_actor_unused``.
 - :mod:`~vultron.demo.helpers.workflow` — ``reporter_submits_report``,
-  ``receiver_validates_report``, ``receiver_engages_case``, and
-  ``find_case_for_offer``.
+  ``receiver_validates_report``, ``receiver_engages_case``,
+  ``find_case_for_offer``, ``setup_initialized_case``, and
+  ``setup_two_participant_case``.
 - :mod:`~vultron.demo.helpers.notes` — ``participant_adds_note_to_case``.
 - :mod:`~vultron.demo.helpers.milestones` — lifecycle milestone verifiers
   (``verify_case_active``, ``verify_fix_ready``, ``verify_fix_deployed``,
@@ -44,6 +48,13 @@ from vultron.demo.helpers.actions import (  # noqa: F401
     actor_notifies_fix_ready,
     actor_notifies_published,
     actor_notifies_state_change,
+)
+from vultron.demo.helpers.embargo import (  # noqa: F401
+    make_embargo_event,
+)
+from vultron.demo.helpers.runner import (  # noqa: F401
+    check_all_containers,
+    run_exchange_demos,
 )
 from vultron.demo.helpers.milestones import (  # noqa: F401
     verify_case_active,
@@ -91,6 +102,7 @@ from vultron.demo.helpers.verification import (  # noqa: F401
     _fetch_participant,
     _fetch_participant_data,
     _require_case_participant_id,
+    verify_activity_in_inbox,
     verify_case_actor_unused,
     verify_receiver_case_state,
 )
@@ -101,4 +113,6 @@ from vultron.demo.helpers.workflow import (  # noqa: F401
     receiver_engages_case,
     receiver_validates_report,
     reporter_submits_report,
+    setup_initialized_case,
+    setup_two_participant_case,
 )

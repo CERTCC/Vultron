@@ -39,7 +39,6 @@ the response body and that the vendor's outbox is updated accordingly.
 
 import json
 import logging
-import sys
 from typing import Callable, Optional, Sequence, Tuple
 
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
@@ -52,9 +51,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 )
 from vultron.demo.utils import (
     DataLayerClient,
-    check_server_availability,
     demo_check,
-    demo_environment,
     demo_step,
     get_offer_from_datalayer,
     post_to_inbox_and_wait,
@@ -65,6 +62,8 @@ from vultron.demo.utils import (
 from vultron.wire.as2.factories import (
     rm_submit_report_activity,
 )
+
+from vultron.demo.helpers.runner import run_exchange_demos
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +129,10 @@ def _find_case_for_report(
 
 
 def demo_validate_and_engage(
-    client: DataLayerClient, finder: as_Actor, vendor: as_Actor
+    client: DataLayerClient,
+    finder: as_Actor,
+    vendor: as_Actor,
+    coordinator: Optional[as_Actor] = None,
 ) -> None:
     """Demonstrate proactive validation and case engagement via trigger endpoints.
 
@@ -211,7 +213,10 @@ def demo_validate_and_engage(
 
 
 def demo_invalidate_and_close(
-    client: DataLayerClient, finder: as_Actor, vendor: as_Actor
+    client: DataLayerClient,
+    finder: as_Actor,
+    vendor: as_Actor,
+    coordinator: Optional[as_Actor] = None,
 ) -> None:
     """Demonstrate proactive invalidation and report closure via trigger endpoints.
 
@@ -299,68 +304,10 @@ def main(
     skip_health_check: bool = False,
     demos: Optional[Sequence] = None,
 ) -> None:
-    """Main entry point for the trigger demo.
-
-    Args:
-        skip_health_check: Skip the server availability check (useful for
-            testing).
-        demos: Optional sequence of demo functions to run.  Defaults to all
-            two.
-    """
-    client = DataLayerClient()
-
-    if not skip_health_check and not check_server_availability(client):
-        logger.error("=" * 80)
-        logger.error("ERROR: API server is not available")
-        logger.error("=" * 80)
-        logger.error(f"Cannot connect to: {client.base_url}")
-        logger.error("Please ensure the Vultron API server is running.")
-        logger.error("You can start it with:")
-        logger.error(
-            "  uv run uvicorn vultron.api.main:app --host localhost --port 7999"
-        )
-        logger.error("=" * 80)
-        sys.exit(1)
-
-    selected = (
-        _ALL_DEMOS
-        if demos is None
-        else [(name, fn) for name, fn in _ALL_DEMOS if fn in demos]
+    """Main entry point for the trigger demo demo script."""
+    run_exchange_demos(
+        _ALL_DEMOS, skip_health_check=skip_health_check, demos=demos
     )
-    total = len(selected)
-    errors = []
-
-    for demo_name, demo_fn in selected:
-        try:
-            with demo_environment(client) as (finder, vendor, _coordinator):
-                demo_fn(client, finder, vendor)
-        except Exception as exc:
-            logger.error("%s failed: %s", demo_name, exc, exc_info=True)
-            errors.append((demo_name, str(exc)))
-
-    logger.info("=" * 80)
-    logger.info("ALL TRIGGER DEMOS COMPLETE")
-    logger.info("=" * 80)
-
-    if errors:
-        logger.error("")
-        logger.error("=" * 80)
-        logger.error("ERROR SUMMARY")
-        logger.error("=" * 80)
-        logger.error("Total demos: %d", total)
-        logger.error("Failed demos: %d", len(errors))
-        logger.error("Successful demos: %d", total - len(errors))
-        logger.error("")
-        for demo_name, error in errors:
-            logger.error("%s:", demo_name)
-            logger.error("  %s", error)
-            logger.error("")
-        logger.error("=" * 80)
-        sys.exit(1)
-    else:
-        logger.info("")
-        logger.info("✓ All %d trigger demos completed successfully!", total)
-        logger.info("")
 
 
 if __name__ == "__main__":
