@@ -76,10 +76,9 @@ class PersistCase(DataLayerAction):
         self.case_obj = case_obj
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error(f"{self.name}: DataLayer not available")
-            return Status.FAILURE
-
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         try:
             self.datalayer.save(self.case_obj)
             self.logger.info(
@@ -143,10 +142,9 @@ class RecordOfferReceivedEventNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error(f"{self.name}: DataLayer not available")
-            return Status.FAILURE
-
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         try:
             case_id = self.blackboard.get("case_id")
         except KeyError:
@@ -184,9 +182,9 @@ class RecordCaseCreatedEventNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error(f"{self.name}: DataLayer not available")
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         try:
             case_id = self.blackboard.get("case_id")
@@ -286,9 +284,9 @@ class ReuseExistingCaseActorParticipantNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         participant_id = self.blackboard.get("case_actor_participant_id")
         case_actor_id = self.blackboard.get("case_actor_id")
         if not isinstance(participant_id, str) or not isinstance(
@@ -333,12 +331,10 @@ class CreateCaseActorServiceNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                "%s: DataLayer or actor_id not available",
-                self.name,
-            )
-            return Status.FAILURE
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
         case_id = self.blackboard.get("case_id")
         case_actor_id = self.blackboard.get("case_actor_id")
         if not isinstance(case_id, str) or not isinstance(case_actor_id, str):
@@ -389,9 +385,9 @@ class RegisterCaseActorParticipantNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         case_id = self.blackboard.get("case_id")
         case_actor_id = self.blackboard.get("case_actor_id")

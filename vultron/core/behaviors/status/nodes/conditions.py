@@ -69,9 +69,8 @@ class VerifySenderIsParticipantNode(FindParticipantByActorIdNode):
         return str(context) if context else None
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
 
         case_id = self._resolve_case_id()
         if case_id is None:

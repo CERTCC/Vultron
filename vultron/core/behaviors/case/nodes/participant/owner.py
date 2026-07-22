@@ -115,13 +115,10 @@ class ResolveOwnerInitialStatusNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                "%s: DataLayer or actor_id not available",
-                self.name,
-            )
-            return Status.FAILURE
-
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
         try:
             case_id = _resolve_case_id(self.blackboard, self.case_obj)
         except KeyError:
@@ -235,12 +232,10 @@ class AttachOwnerParticipantToCaseNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                "%s: DataLayer or actor_id not available",
-                self.name,
-            )
-            return Status.FAILURE
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
         try:
             case_id_obj = self.blackboard.get("case_id")
         except KeyError:
@@ -296,9 +291,9 @@ class PersistOwnerCaseNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         stored_case = self.blackboard.get(self._participant_case_key)
         if not isinstance(stored_case, VulnerabilityCase):
             self.logger.error(
@@ -344,12 +339,10 @@ class AdvanceOwnerRmToAcceptedNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                "%s: DataLayer or actor_id not available",
-                self.name,
-            )
-            return Status.FAILURE
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
         try:
             case_id_obj = self.blackboard.get("case_id")
         except KeyError:
@@ -413,9 +406,9 @@ class RecordOwnerJoinedEventNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         stored_case = self.blackboard.get(self._participant_case_key)
         participant = self.blackboard.get(self._new_case_participant_key)

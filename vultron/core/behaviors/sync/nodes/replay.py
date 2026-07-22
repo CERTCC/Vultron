@@ -103,10 +103,9 @@ class FindCaseActorNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
-
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         entry = _require_rejected_entry(self.blackboard.activity, self.name)
         case_actor = _find_case_actor(self.datalayer, entry.case_id)
         if case_actor is None:
@@ -141,10 +140,9 @@ class CollectAndSortCaseLedgerEntriesNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
-
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         activity = self.blackboard.activity
         entry = _require_rejected_entry(activity, self.name)
         peer_id = activity.actor_id
@@ -231,9 +229,9 @@ class SendMissingEntriesNode(DataLayerAction):
             self._sync_port = None
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         if self._sync_port is None:
             raise VultronError(
                 f"{self.name}: sync_port must be injected to replay entries"
@@ -297,11 +295,10 @@ class CollectLogEntryRecipientsNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                "%s: DataLayer or actor_id not available", self.name
-            )
-            return Status.FAILURE
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
 
         entry = cast(VultronCaseLedgerEntry, self.blackboard.log_entry)
         case_obj = self.datalayer.read(self.case_id)

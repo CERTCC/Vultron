@@ -60,11 +60,9 @@ class SeedAnnouncedCaseNode(DataLayerAction):
         self._request = request
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
-
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         # Local import avoids a behaviors → use_cases circular dependency.
         # The helpers are pure utility functions with no BT knowledge.
         from vultron.core.use_cases.received.actor.announce import (

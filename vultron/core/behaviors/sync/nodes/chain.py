@@ -259,10 +259,9 @@ class ReconstructChainTailNode(DataLayerAction):
             )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
-
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         if self._case_id is not None:
             case_id = self._case_id
         else:
@@ -302,10 +301,9 @@ class UpdateReplicationStateNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
-
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         from vultron.core.models.replication_state import (
             VultronReplicationState,
         )
@@ -388,9 +386,9 @@ class CreateLogEntryNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         from vultron.core.use_cases._helpers import _find_case_actor_id
 
@@ -460,9 +458,9 @@ class PersistLogEntryNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         entry = cast(VultronCaseLedgerEntry, self.blackboard.log_entry)
         try:

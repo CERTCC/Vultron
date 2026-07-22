@@ -85,12 +85,10 @@ class CheckIsOwnCaseActorNode(DataLayerCondition):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                "%s: DataLayer or actor_id not available", self.name
-            )
-            return Status.FAILURE
-
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
         entry = _require_log_entry(self.blackboard.activity, self.name)
         case_actor = _find_case_actor(
             self.datalayer, entry.case_id, self.actor_id
@@ -118,11 +116,10 @@ class CheckIsNotOwnCaseActorNode(DataLayerCondition):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                "%s: DataLayer or actor_id not available", self.name
-            )
-            return Status.FAILURE
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
 
         entry = _require_log_entry(self.blackboard.activity, self.name)
         case_actor = _find_case_actor(
@@ -166,9 +163,9 @@ class CheckLedgerEntryAlreadyStoredNode(DataLayerCondition):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         entry = _require_log_entry(self.blackboard.activity, self.name)
         if self.datalayer.read(entry.id_) is None:
@@ -357,9 +354,9 @@ class CheckLedgerFreshnessNode(DataLayerCondition):
             )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         if self._case_id is not None:
             case_id = self._case_id

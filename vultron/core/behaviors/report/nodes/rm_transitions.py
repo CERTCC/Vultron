@@ -142,11 +142,9 @@ class TransitionRMtoValid(DataLayerAction):
         Returns:
             SUCCESS if status updated, FAILURE on error
         """
-        if self.datalayer is None:
-            self.logger.error(
-                f"{self.name}: DataLayer or actor_id not available"
-            )
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         actor_id = (
             self.sender_actor_id if self.sender_actor_id else self.actor_id
         )
@@ -233,12 +231,10 @@ class TransitionRMtoInvalid(DataLayerAction):
         Returns:
             SUCCESS if status updated, FAILURE on error
         """
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                f"{self.name}: DataLayer or actor_id not available"
-            )
-            return Status.FAILURE
-
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
         try:
             # CLP-07-007: context must use the case URI once a case exists.
             case = self.datalayer.find_case_by_report_id(self.report_id)
@@ -311,12 +307,10 @@ class TransitionRMtoClosed(DataLayerAction):
         Returns:
             SUCCESS if status updated, FAILURE on error
         """
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                "%s: DataLayer or actor_id not available", self.name
-            )
-            return Status.FAILURE
-
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
         try:
             # CLP-07-007: context must use the case URI once a case exists.
             case = self.datalayer.find_case_by_report_id(self.report_id)
@@ -386,12 +380,10 @@ class TransitionCaseParticipantRMtoClosed(DataLayerAction):
             FAILURE if the DataLayer is unavailable or the transition is
             blocked.
         """
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                "%s: DataLayer or actor_id not available", self.name
-            )
-            return Status.FAILURE
-
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
         return _transition_case_participant_rm(self, self.report_id, RM.CLOSED)
 
 
@@ -424,12 +416,10 @@ class TransitionCaseParticipantRMtoInvalid(DataLayerAction):
             FAILURE if the DataLayer is unavailable or the transition is
             blocked.
         """
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                "%s: DataLayer or actor_id not available", self.name
-            )
-            return Status.FAILURE
-
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
         return _transition_case_participant_rm(
             self, self.report_id, RM.INVALID
         )

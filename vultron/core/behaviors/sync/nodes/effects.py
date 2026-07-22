@@ -97,10 +97,9 @@ class ApplyParticipantStatusFromLedgerNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.FAILURE
-
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         from vultron.core.behaviors.sync.nodes.conditions import (
             _require_log_entry,
         )
@@ -227,10 +226,9 @@ class ApplyNoteFromLedgerNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.FAILURE
-
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         from vultron.core.behaviors.sync.nodes.conditions import (
             _require_log_entry,
         )
@@ -307,9 +305,9 @@ class ApplyInviteAcceptFromLedgerNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         from vultron.core.behaviors.sync.nodes.conditions import (
             _require_log_entry,

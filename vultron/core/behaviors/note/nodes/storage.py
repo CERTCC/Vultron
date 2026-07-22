@@ -33,9 +33,9 @@ class SaveNoteNode(DataLayerAction):
         self.note_obj = note_obj
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error(f"{self.name}: DataLayer not available")
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         try:
             self.datalayer.save(self.note_obj)
@@ -68,9 +68,9 @@ class AttachNoteToCaseNode(DataLayerAction):
             )
             return Status.SUCCESS
 
-        if self.datalayer is None:
-            self.logger.error(f"{self.name}: DataLayer not available")
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         case: Any = self.datalayer.read(self.case_id)
         if not isinstance(case, VulnerabilityCase):

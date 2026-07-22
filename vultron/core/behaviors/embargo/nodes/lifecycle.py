@@ -67,9 +67,9 @@ class ValidateEmbargoRevisionStateNode(DataLayerAction):
         self._result_out = result_out
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         # AC-1: read em_state via named BT node, not inline.
         read_node = ReadEmStateNode(
@@ -123,9 +123,10 @@ class _EmbargoLifecycleNode(DataLayerAction):
         raise NotImplementedError
 
     def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.feedback_message = "DataLayer or actor_id not available"
-            return Status.FAILURE
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
 
         # AC-1: read em_state via named BT node, not inline service code.
         read_node = ReadEmStateNode(
@@ -314,9 +315,9 @@ class ReadEmbargoIdNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         case = self.datalayer.read(self._case_id)
         if not isinstance(case, VulnerabilityCase):
@@ -361,17 +362,18 @@ class SendTerminateEmbargoActivityNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.trigger_activity_factory is None:
+        if (f := self._require_factory()) is not None:
             self.feedback_message = (
                 "trigger_activity_factory not available"
                 " — broadcast FAILURE (BT-14-001)"
             )
             self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-
-        if self.datalayer is None or self.actor_id is None:
-            self.feedback_message = "DataLayer or actor_id not available"
-            return Status.FAILURE
+            return f
+        assert self.trigger_activity_factory is not None
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
 
         try:
             embargo_id: str = self.blackboard.embargo_id
@@ -451,9 +453,9 @@ class SetEmbargoActiveNode(DataLayerAction):
         self.logger.info("%s: %s", self.name, self.feedback_message)
 
     def update(self) -> Status:
-        fail = self._require_datalayer()
-        if fail is not None:
-            return fail
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         case = self._read_case()
         if case is None:

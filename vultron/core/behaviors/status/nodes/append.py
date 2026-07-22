@@ -111,9 +111,9 @@ class LoadParticipantNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         participant = self.datalayer.read(self.participant_id)
         if not isinstance(participant, CaseParticipant):
@@ -221,9 +221,9 @@ class ResolveAndPersistStatusObjectNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         status_obj = self.datalayer.read(self.status_id)
         if not hasattr(status_obj, "id_"):
@@ -391,9 +391,9 @@ class AppendStatusAndSaveParticipantNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         participant = self.blackboard.get("append_status_participant")
         status_obj = self.blackboard.get("append_status_status_obj")
@@ -447,9 +447,9 @@ class CheckParticipantRMNotClosedNode(DataLayerCondition):
         self.status_id = status_id
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         participant = self.datalayer.read(self.participant_id)
         if not isinstance(participant, CaseParticipant):

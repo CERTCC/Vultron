@@ -92,10 +92,9 @@ class ResolveEmbargoDurationNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
-
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         duration = _preferred_embargo_duration(
             self.datalayer, self.name, self.logger
         )
@@ -124,10 +123,9 @@ class CreateEmbargoEventNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
-
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         case_id = self.blackboard.get("case_id")
         if not isinstance(case_id, str):
             self.logger.error("%s: case_id not found in blackboard", self.name)
@@ -184,11 +182,10 @@ class AdvanceEMStateToActiveNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                "%s: DataLayer or actor_id not available", self.name
-            )
-            return Status.FAILURE
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
 
         case_id = self.blackboard.get("case_id")
         embargo_id = self.blackboard.get("default_embargo_id")
@@ -322,9 +319,9 @@ class AttachEmbargoToCaseNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         case_id = self.blackboard.get("case_id")
         embargo_id = self.blackboard.get("default_embargo_id")
@@ -383,11 +380,10 @@ class SeedOwnerAsSignatoryNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                "%s: DataLayer or actor_id not available", self.name
-            )
-            return Status.FAILURE
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
 
         case_id = self.blackboard.get("case_id")
         if not isinstance(case_id, str):
