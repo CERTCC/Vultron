@@ -17,18 +17,19 @@ Provides a backend API router for basic Vultron data layer operations.
 """
 
 import logging
-from typing import Any, cast
+from copy import deepcopy
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from vultron.adapters.driven.datalayer import get_shared_dl
 from vultron.adapters.driven.db_record import Record, record_to_object
 from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.ports.datalayer import DataLayer
 from vultron.wire.as2.rehydration import rehydrate
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.objects.collections import (
     as_OrderedCollection,
 )
@@ -258,17 +259,20 @@ def get_actor_outbox(
     if not actor_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
-    # dl.read() now returns a CoreActor whose outbox field is a plain URI
-    # string (ADR-0034 / PR #1512).  The old as_Actor.model_validate() path
-    # converted that URI to an empty as_OrderedCollection with no items.
-    # Instead, query the DataLayer queue directly for the actor's outbox IDs.
-    activity_ids = cast(
-        CaseOutboxPersistence, datalayer
-    ).outbox_list_for_actor(actor_id)
+    actor = as_Actor.model_validate(
+        actor_obj.model_dump(by_alias=True, serialize_as_any=True)
+    )
 
-    outbox = as_OrderedCollection(id_=f"{actor_id}/outbox")
+    if not actor.outbox:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    # make a copy
+    outbox = deepcopy(actor.outbox)
+
     outbox.items = [
-        rehydrate(activity_id, dl=datalayer) for activity_id in activity_ids
+        rehydrate(item, dl=datalayer)
+        for item in outbox.items
+        if isinstance(item, str) or isinstance(item, as_Object)
     ]
 
     return AS2JSONResponse(outbox)
