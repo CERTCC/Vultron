@@ -145,6 +145,26 @@ def reset_containers(
 # ---------------------------------------------------------------------------
 
 
+def _find_case_actor_participant_id(
+    vendor_client: DataLayerClient,
+    case_id: str,
+) -> str | None:
+    """Return the CaseActor participant URI for *case_id* from Vendor1's DataLayer.
+
+    Scans ``actor_participant_index`` for an actor ID starting with "case-actor".
+    Returns ``None`` if not found.
+    """
+    try:
+        case_data = vendor_client.get(f"/datalayer/{case_id}")
+        case = as_VulnerabilityCase.model_validate(case_data)
+        for actor_id in case.actor_participant_index:
+            if strip_id_prefix(actor_id).startswith("case-actor"):
+                return actor_id
+    except Exception:  # noqa: BLE001
+        pass
+    return None
+
+
 def _wait_for_case_attributed_to(
     client: DataLayerClient,
     case_id: str,
@@ -438,11 +458,10 @@ def _phase_ownership_handoff(
 def _phase_coordinator_invites_vendor2(
     vendor_client: DataLayerClient,
     coordinator_client: DataLayerClient,
-    case_actor_client: DataLayerClient,
     vendor2_client: DataLayerClient,
     coordinator: as_Actor,
     coordinator_in_coordinator: as_Actor,
-    case_actor: as_Actor,
+    case_actor_id: str,
     vendor2: as_Actor,
     vendor2_in_vendor2: as_Actor,
     case: as_VulnerabilityCase,
@@ -486,12 +505,13 @@ def _phase_coordinator_invites_vendor2(
 
     # Deliver Accept to CaseActor so it can commit the join ledger entry
     # and fan out to all existing participants (including Vendor1/Finder).
-    # The invite.actor is Coordinator which lacks trusted_case_actor_id, so
-    # we explicitly route the Accept to the CaseActor container (PCR-08-008).
+    # The CaseActor is a dynamic sub-actor on the vendor container
+    # (http://vendor:7999/api/v2/actors/case-actor-{uuid}), so route Accept
+    # to vendor_client at the dynamic CaseActor ID (PCR-08-008).
     with demo_step("Delivering Vendor2 accept to CaseActor inbox"):
-        post_to_inbox_and_wait(case_actor_client, case_actor.id_, accept)
-    with demo_check("Accept activity stored in CaseActor DataLayer"):
-        verify_object_stored(case_actor_client, accept.id_)
+        post_to_inbox_and_wait(vendor_client, case_actor_id, accept)
+    with demo_check("Accept activity stored in Vendor1/CaseActor DataLayer"):
+        verify_object_stored(vendor_client, accept.id_)
     logger.info("Vendor2 Accept delivered to CaseActor")
 
     # Wait for Vendor2's case replica.
@@ -940,9 +960,17 @@ def run_fvcv_handoff_demo(
         vendor2_id,
     )
 
-    case_actor = get_actor_by_id(
-        case_actor_client, case_actor_id or CASE_ACTOR_ACTOR_ID
+    # The CaseActor is a dynamic sub-actor on the vendor container (not the
+    # case-actor service).  Discover its ID from the case data before proceeding.
+    dynamic_case_actor_id = _find_case_actor_participant_id(
+        vendor_client, case.id_
     )
+    if dynamic_case_actor_id is None:
+        raise AssertionError(
+            "CaseActor participant not found in case — cannot route Vendor2 Accept"
+        )
+    logger.info("CaseActor participant ID: %s", dynamic_case_actor_id)
+
     vendor2_in_vendor2 = get_actor_by_id(vendor2_client, vendor2.id_)
     finder_in_finder = get_actor_by_id(finder_client, finder.id_)
 
@@ -959,11 +987,10 @@ def run_fvcv_handoff_demo(
     _phase_coordinator_invites_vendor2(
         vendor_client=vendor_client,
         coordinator_client=coordinator_client,
-        case_actor_client=case_actor_client,
         vendor2_client=vendor2_client,
         coordinator=coordinator,
         coordinator_in_coordinator=coordinator_in_coordinator,
-        case_actor=case_actor,
+        case_actor_id=dynamic_case_actor_id,
         vendor2=vendor2,
         vendor2_in_vendor2=vendor2_in_vendor2,
         case=case,
