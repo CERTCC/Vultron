@@ -193,9 +193,10 @@ def test_full_tick_with_default_evaluator_writes_intent_record():
 
     Only the probabilistic ``Prepare*``/``Publish`` arm call-out points are
     replaced with deterministic marker stubs, so the tree ticks to SUCCESS on
-    every run; the Evaluator factory is left at its default.  Mirrors the
-    ``*_writes_blackboard_on_success`` pattern in
-    ``test/demo/fuzzer/test_call_out_point.py`` (AC-2).
+    every run; the Evaluator factory is left at its default.  Follows the
+    ``test_evaluate_exploit_strategy_writes_blackboard_on_success`` pattern in
+    ``test_acquire_exploit_strategy_tree.py`` (AC-2): both tick the real
+    ``create_*_tree`` builder and stub only the otherwise-probabilistic arms.
     """
     tree = create_publication_tree(
         case_id=CASE_ID,
