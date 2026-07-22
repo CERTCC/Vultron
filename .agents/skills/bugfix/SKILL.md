@@ -144,9 +144,9 @@ focus hints from Phase 2 (e.g., `"wire layer"`, `"BT integration"`), then:
      BODY    = issue number, symptoms, root cause, fix summary, PR link
      ```
 
-   - Record observations as individual learning files in `plan/incoming/learnings/`
-     (filename: `YYYYMMDD-SLUG.md`; frontmatter: `title`, `type: learning`,
-     `timestamp`, `source`).
+   - Run the **upward-reflection checklist** per
+     `.agents/skills/shared/upward-reflection.md`. Record each triggered signal
+     as a learning file.
    - Compute diff size: ≤50 → `size:S`; 51–300 → `size:M`; 301+ → `size:L`.
      Update the `size:` label.
    - Invoke the `create-pr` skill to push and open the PR:

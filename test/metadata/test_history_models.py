@@ -10,7 +10,7 @@ import datetime
 import pytest
 from pydantic import ValidationError
 
-from vultron.metadata.history.types import HistoryEntryType
+from vultron.metadata.history.types import HistoryEntryType, LearningSignalType
 
 _UTC = datetime.timezone.utc
 
@@ -183,6 +183,47 @@ class TestHistoryEntryFrontmatter:
                     "type": "bogus",
                     "timestamp": ts,
                     "source": "SRC-4",
+                }
+            )
+
+    def test_signal_field_accepted(self, model_cls) -> None:  # type: ignore[no-untyped-def]
+        """Optional signal field is parsed and stored (BW-07-002)."""
+        ts = datetime.datetime(2026, 4, 28, 12, 0, 0, tzinfo=_UTC)
+        m = model_cls.model_validate(
+            {
+                "title": "T",
+                "type": "learning",
+                "timestamp": ts,
+                "source": "SRC-7",
+                "signal": "spec-gap",
+            }
+        )
+        assert m.signal == LearningSignalType.spec_gap
+
+    def test_signal_field_optional(self, model_cls) -> None:  # type: ignore[no-untyped-def]
+        """Entries without signal: are valid; signal defaults to None."""
+        ts = datetime.datetime(2026, 4, 28, 12, 0, 0, tzinfo=_UTC)
+        m = model_cls.model_validate(
+            {
+                "title": "T",
+                "type": "learning",
+                "timestamp": ts,
+                "source": "SRC-8",
+            }
+        )
+        assert m.signal is None
+
+    def test_invalid_signal_rejected(self, model_cls) -> None:  # type: ignore[no-untyped-def]
+        """Unknown signal values are rejected by Pydantic."""
+        ts = datetime.datetime(2026, 4, 28, 12, 0, 0, tzinfo=_UTC)
+        with pytest.raises(ValidationError):
+            model_cls.model_validate(
+                {
+                    "title": "T",
+                    "type": "learning",
+                    "timestamp": ts,
+                    "source": "SRC-9",
+                    "signal": "not-a-signal",
                 }
             )
 

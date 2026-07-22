@@ -235,9 +235,9 @@ draft commit and use `git diff main...HEAD` normally.
    BODY    = "## Issue #<N> — <title>\n\n<completion summary, PR link>"
    ```
 
-5. Record observations as individual learning files in `plan/incoming/learnings/`
-   (filename: `YYYYMMDD-SLUG.md`; frontmatter: `title`, `type: learning`,
-   `timestamp`, `source`). Do not write completion summaries here.
+5. Run the **upward-reflection checklist** per
+   `.agents/skills/shared/upward-reflection.md`. Record each triggered signal
+   as a learning file. Do not write completion summaries here.
 
 6. Invoke `commit` if any learning files were created in `plan/incoming/learnings/`.
 
