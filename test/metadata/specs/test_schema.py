@@ -706,6 +706,7 @@ def test_relationship_with_satisfies():
 def test_trigger_type_values():
     assert TriggerType.MESSAGE_RECEIVED == "message_received"
     assert TriggerType.STATE_ENTERED == "state_entered"
+    assert TriggerType.SCENARIO_START == "scenario_start"
 
 
 def test_trigger_message_received():
@@ -718,6 +719,12 @@ def test_trigger_state_entered():
     t = Trigger(type=TriggerType.STATE_ENTERED, value="RM.VALID")
     assert t.type == TriggerType.STATE_ENTERED
     assert t.value == "RM.VALID"
+
+
+def test_trigger_scenario_start():
+    t = Trigger(type=TriggerType.SCENARIO_START, value="two-actor")
+    assert t.type == TriggerType.SCENARIO_START
+    assert t.value == "two-actor"
 
 
 # ---------------------------------------------------------------------------

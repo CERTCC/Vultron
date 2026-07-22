@@ -539,9 +539,30 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      Vendor1 MUST invite the Coordinator to the case using the standard
-      `invite-actor-to-case` trigger; the Coordinator MUST accept and become a
-      participant holding `CVDRole.COORDINATOR` and NOT `CVDRole.CASE_MANAGER`.
+      Vendor1 MUST invite the Coordinator to the case and the Coordinator MUST accept
+      and become a participant holding CVDRole.COORDINATOR and NOT CVDRole.CASE_MANAGER.
+    preconditions:
+    - description: Vendor1 RM state = ACCEPTED; VulnerabilityCase created with CaseActor;
+        Coordinator container running
+    steps:
+    - order: 1
+      actor: vendor1
+      action: POST invite-actor-to-case trigger targeting Coordinator
+      expected: CaseActor queues Invite(Actor, Case) for Coordinator inbox
+    - order: 2
+      actor: demo-script
+      action: Poll Coordinator DataLayer until Invite(Actor, Case) is visible
+      expected: Invite activity present in Coordinator DataLayer
+    - order: 3
+      actor: coordinator
+      action: POST accept-case-invite trigger
+      expected: >-
+        Coordinator becomes participant with CVDRole.COORDINATOR (not CASE_MANAGER);
+        CaseActor seeds Coordinator case replica
+    postconditions:
+    - description: >-
+        Coordinator is a participant with CVDRole.COORDINATOR and NOT CVDRole.CASE_MANAGER;
+        Coordinator holds a seeded case replica
     relationships:
     - rel_type: refines
       spec_id: CM-20-001
@@ -549,10 +570,29 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The Coordinator MUST suggest Vendor2 to the case via `Offer(Actor, Case)` routed
-      to the CaseActor inbox (ADR-0026, CM-16-001). The CaseActor MUST transform the
-      offer into `Offer(CaseParticipant{actor=Vendor2, roles=[vendor]}, Case)` and
-      forward it to Vendor1 (the Case Owner) for approval.
+      The Coordinator MUST suggest Vendor2 to the case and the CaseActor MUST
+      transform the offer and forward it to Vendor1 for approval.
+    preconditions:
+    - description: >-
+        Coordinator is an accepted participant (DEMOMA-10-003 complete); Vendor2
+        container running; no existing suggestion for Vendor2 in the case
+    steps:
+    - order: 1
+      actor: coordinator
+      action: POST suggest-actor-to-case trigger for Vendor2
+      expected: Coordinator sends Offer(Actor, Case) to CaseActor inbox
+    - order: 2
+      actor: case-actor
+      action: Transform Offer(Actor, Case) to Offer(CaseParticipant{Vendor2, roles=[vendor]}, Case)
+      expected: Transformed offer forwarded to Vendor1 (Case Owner) inbox
+    - order: 3
+      actor: demo-script
+      action: Poll Vendor1 DataLayer until transformed Offer(CaseParticipant) is visible
+      expected: Transformed offer present in Vendor1 DataLayer
+    postconditions:
+    - description: >-
+        Vendor1 holds a pending Offer(CaseParticipant) for Vendor2 awaiting approval;
+        no invitation has been sent to Vendor2 yet
     relationships:
     - rel_type: refines
       spec_id: CM-16-001
@@ -562,9 +602,25 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      Vendor1 MUST approve the Coordinator's suggestion by accepting the transformed
-      `Offer(CaseParticipant)` from the CaseActor. The CaseActor MUST then send
-      `Invite(CaseStub+embargo)` to Vendor2 on Vendor1's behalf (CM-17).
+      Vendor1 MUST approve the Coordinator's suggestion and the CaseActor MUST then
+      send Invite(CaseStub+embargo) to Vendor2 on Vendor1's behalf.
+    preconditions:
+    - description: >-
+        Vendor1 DataLayer holds pending Offer(CaseParticipant) for Vendor2
+        (DEMOMA-10-004 complete); Vendor2 container running
+    steps:
+    - order: 1
+      actor: vendor1
+      action: POST accept-case-participant-offer trigger for Vendor2
+      expected: Vendor1 accepts Offer(CaseParticipant); CaseActor sends Invite(CaseStub+embargo) to Vendor2
+    - order: 2
+      actor: demo-script
+      action: Poll Vendor2 DataLayer until Invite(CaseStub+embargo) is visible
+      expected: Invite activity present in Vendor2 DataLayer
+    postconditions:
+    - description: >-
+        Vendor2 holds an invitation to the case; scenario may advance to Vendor2
+        acceptance
     relationships:
     - rel_type: refines
       spec_id: CM-17-001
