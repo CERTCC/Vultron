@@ -24,7 +24,7 @@ groups:
   specs:
   - id: CSB-01-001
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) receiving CV MUST
       update their model of the sending Participant's CS state to Vendor Aware
@@ -69,7 +69,7 @@ groups:
   specs:
   - id: CSB-02-001
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) receiving CF MUST
       update their model of the sending Participant's CS state to Fix Ready
@@ -113,7 +113,7 @@ groups:
   specs:
   - id: CSB-03-001
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) receiving CD MUST
       update their model of the sending Participant's CS state to Fix Deployed
@@ -157,7 +157,7 @@ groups:
   specs:
   - id: CSB-04-001
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
       (q^cs ∈ ···p··) and EM None or Exited (q^em ∈ {N, X}) receiving CP MUST
@@ -192,7 +192,7 @@ groups:
 
   - id: CSB-04-002
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
       (q^cs ∈ ···p··) and EM Proposed (q^em ∈ P) receiving CP MUST transition
@@ -232,7 +232,7 @@ groups:
 
   - id: CSB-04-003
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
       (q^cs ∈ ···p··) and EM Active or Revise (q^em ∈ {A, R}) receiving CP MUST
@@ -286,7 +286,7 @@ groups:
 
   - id: CSB-04-004
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) already in CS Public
       Aware (q^cs ∈ ···P··) receiving a duplicate CP MUST emit CK without any
@@ -319,7 +319,7 @@ groups:
   specs:
   - id: CSB-05-001
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
       and not yet exploit-public (q^cs ∈ ···px·) and EM None or Exited
@@ -355,7 +355,7 @@ groups:
 
   - id: CSB-05-002
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
       and not yet exploit-public (q^cs ∈ ···px·) and EM Proposed
@@ -395,7 +395,7 @@ groups:
 
   - id: CSB-05-003
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
       and not yet exploit-public (q^cs ∈ ···px·) and EM Active or Revise
@@ -442,7 +442,7 @@ groups:
 
   - id: CSB-05-004
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) with CS already public
       but not yet exploit-public (q^cs ∈ ···Px·) receiving CX MUST transition
@@ -473,7 +473,7 @@ groups:
 
   - id: CSB-05-005
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) with CS already
       exploit-public (q^cs ∈ ···PX·) receiving a duplicate CX MUST emit CK
@@ -506,7 +506,7 @@ groups:
   specs:
   - id: CSB-06-001
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
       and attacks not yet observed (q^cs ∈ ···p·a) and EM None or Exited
@@ -542,7 +542,7 @@ groups:
 
   - id: CSB-06-002
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
       and attacks not yet observed (q^cs ∈ ···p·a) and EM Proposed
@@ -583,7 +583,7 @@ groups:
 
   - id: CSB-06-003
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
       and attacks not yet observed (q^cs ∈ ···p·a) and EM Active or Revise
@@ -632,7 +632,7 @@ groups:
 
   - id: CSB-06-004
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) with CS already public
       but attacks not yet observed (q^cs ∈ ···P·a) receiving CA MUST
@@ -663,7 +663,7 @@ groups:
 
   - id: CSB-06-005
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) with CS attacks already
       observed (q^cs ∈ ···P·A) receiving a duplicate CA MUST emit CK without
@@ -696,7 +696,7 @@ groups:
   specs:
   - id: CSB-07-001
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant in a non-Closed RM state (q^rm ∉ C) receiving CE SHOULD
       emit CK to acknowledge receipt and SHOULD emit GI to inquire about the
@@ -739,7 +739,7 @@ groups:
   specs:
   - id: CSB-08-001
     priority: MAY
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant receiving CK MAY process it as a passthrough acknowledgment
       with no state transition and no required response.
@@ -764,7 +764,7 @@ groups:
   specs:
   - id: CSB-09-001
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: >-
       A Vendor Participant entering CS Vendor Aware (q^cs ∈ Vfdpxa) with EM
       None (q^em ∈ N) SHOULD begin embargo negotiations promptly.
@@ -791,7 +791,7 @@ groups:
 
   - id: CSB-09-002
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant entering CS Vendor Aware SHOULD emit CV to announce the
       transition to other case Participants.
@@ -825,7 +825,7 @@ groups:
   specs:
   - id: CSB-10-001
     priority: SHOULD_NOT
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant entering CS Fix Ready (q^cs ∈ VFd···) SHOULD NOT start new
       embargo negotiations. If an embargo proposal is pending (q^em ∈ P), the
@@ -849,7 +849,7 @@ groups:
 
   - id: CSB-10-002
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant entering CS Fix Ready SHOULD emit CF to announce the
       transition to other case Participants.
@@ -877,7 +877,7 @@ groups:
   specs:
   - id: CSB-11-001
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant entering CS Fix Deployed (q^cs ∈ VFD···) with an active
       embargo (q^em ∈ {A, R}) SHOULD terminate the embargo by emitting ET.
@@ -908,7 +908,7 @@ groups:
 
   - id: CSB-11-002
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant entering CS Fix Deployed SHOULD emit CD to announce the
       transition to other case Participants.
@@ -936,7 +936,7 @@ groups:
   specs:
   - id: CSB-12-001
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant entering CS Public Aware (q^cs → ···P··) with an active
       embargo (q^em ∈ {A, R}) SHALL terminate the embargo immediately by
@@ -978,7 +978,7 @@ groups:
 
   - id: CSB-12-002
     priority: MUST_NOT
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant entering CS Public Aware MUST NOT seek new embargoes or
       accept new embargo proposals for this case.
@@ -998,7 +998,7 @@ groups:
 
   - id: CSB-12-003
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant entering CS Public Aware SHOULD emit CP to announce the
       transition to other case Participants if CP was not already the triggering
@@ -1029,7 +1029,7 @@ groups:
   specs:
   - id: CSB-13-001
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant entering CS in state ···px· (public not yet set, exploit
       now set) MUST also trigger CS→P (the pX→PX invariant) before or
@@ -1066,7 +1066,7 @@ groups:
 
   - id: CSB-13-002
     priority: MUST
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant entering CS Exploit Public (q^cs → ···PX·) with an active
       embargo (q^em ∈ {A, R}) SHALL terminate the embargo immediately by
@@ -1107,7 +1107,7 @@ groups:
 
   - id: CSB-13-003
     priority: MUST_NOT
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant entering CS Exploit Public MUST NOT seek new embargoes or
       accept new embargo proposals for this case.
@@ -1133,7 +1133,7 @@ groups:
   specs:
   - id: CSB-14-001
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant entering CS Attacks Observed (q^cs → ·····A) with an
       active embargo (q^em ∈ {A, R}) SHOULD terminate the embargo by emitting
@@ -1177,7 +1177,7 @@ groups:
 
   - id: CSB-14-002
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant entering CS Attacks Observed with CS not yet public
       (q^cs ∈ ···p·A) SHOULD also trigger CS→P and emit CP to announce public
@@ -1208,7 +1208,7 @@ groups:
 
   - id: CSB-14-003
     priority: MUST_NOT
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant entering CS Attacks Observed MUST NOT seek new embargoes
       for this case.
@@ -1227,7 +1227,7 @@ groups:
 
   - id: CSB-14-004
     priority: SHOULD
-    kind: domain
+    kind: protocol
     statement: >-
       A Participant entering CS Attacks Observed SHOULD emit CA to announce the
       transition to other case Participants.

@@ -20,13 +20,13 @@ groups:
     specs:
       - id: DOCBW-01-001
         priority: MUST
-        kind: implementation
+        kind: project
         statement: >
           The workflow file MUST be named
           `.github/workflows/docs-build-check.yml`.
       - id: DOCBW-01-002
         priority: MUST
-        kind: implementation
+        kind: project
         statement: >
           The workflow `name:` field MUST be `Docs Build and Link Check`.
 
@@ -35,7 +35,7 @@ groups:
     specs:
       - id: DOCBW-02-001
         priority: MUST
-        kind: implementation
+        kind: project
         statement: >
           The workflow MUST trigger on `pull_request` events whose changed
           paths include at least one of: `docs/**`, `mkdocs.yml`,
@@ -48,13 +48,13 @@ groups:
           trigger the workflow.
       - id: DOCBW-02-002
         priority: MUST
-        kind: implementation
+        kind: project
         statement: >
           The workflow MUST trigger on `workflow_dispatch` events to allow
           manual runs at any time.
       - id: DOCBW-02-003
         priority: MUST_NOT
-        kind: implementation
+        kind: project
         statement: >
           The `pull_request` trigger MUST NOT use `**/*.md` as a path
           pattern, as this would cause the workflow to run on changes to
@@ -66,14 +66,14 @@ groups:
     specs:
       - id: DOCBW-03-001
         priority: MUST
-        kind: implementation
+        kind: project
         statement: >
           The workflow MUST contain a single job that runs both the
           build-site and link-check phases sequentially, sharing the same
           runner filesystem to avoid artifact upload/download overhead.
       - id: DOCBW-03-002
         priority: MUST
-        kind: implementation
+        kind: project
         statement: >
           The Build Site step MUST run on every workflow trigger regardless
           of which paths changed, so that Python-macro and plugin failures
@@ -81,7 +81,7 @@ groups:
           caught.
       - id: DOCBW-03-003
         priority: MUST
-        kind: implementation
+        kind: project
         statement: >
           The Check Links step MUST carry a step-level `if:` condition that
           skips it unless the `docs_changed` filter output is `'true'`.
@@ -92,7 +92,7 @@ groups:
           without providing additional safety.
       - id: DOCBW-03-004
         priority: SHOULD
-        kind: implementation
+        kind: project
         statement: >
           The workflow SHOULD include a second MkDocs build step that validates
           `mkdocs.dev.yml` in addition to the publish build (`mkdocs.yml`),
@@ -107,21 +107,21 @@ groups:
     specs:
       - id: DOCBW-04-001
         priority: MUST
-        kind: implementation
+        kind: project
         statement: >
           A filter step MUST appear before the Build Site step. It MUST
           set a step output `docs_changed` to `true` or `false` using
           `echo "docs_changed=<value>" >> "$GITHUB_OUTPUT"`.
       - id: DOCBW-04-002
         priority: MUST
-        kind: implementation
+        kind: project
         statement: >
           On `workflow_dispatch` events the filter step MUST set
           `docs_changed=true` unconditionally, ensuring that manual runs
           always execute the full link-check.
       - id: DOCBW-04-003
         priority: MUST
-        kind: implementation
+        kind: project
         statement: >
           On `pull_request` events the filter step MUST use
           `git diff --name-only origin/${{ github.base_ref }}...HEAD`
@@ -138,14 +138,14 @@ groups:
     specs:
       - id: DOCBW-05-001
         priority: MUST
-        kind: implementation
+        kind: project
         statement: >
           All `uses:` references in `docs-build-check.yml` MUST be pinned
           to a specific commit SHA with an inline human-readable version
           comment, per CISEC-01-001 and CISEC-01-002.
       - id: DOCBW-05-002
         priority: MUST
-        kind: implementation
+        kind: project
         statement: >
           The workflow MUST declare `permissions: contents: read` at the
           workflow level and no additional permissions, per CISEC-02-002.

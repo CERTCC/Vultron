@@ -3,9 +3,9 @@
 ## Requirements
 
 The behavioral requirements for this tree are specified in the
-[Domain Specifications](../../reference/specs/domain.md):
+[Protocol Specifications](../../reference/specs/protocol.md):
 
-- [CSB-12](../../reference/specs/domain.md#csb-12) — Enter CS P (Public Aware)
+- [CSB-12](../../reference/specs/protocol.md#csb-12) — Enter CS P (Public Aware)
 
 !!! note "Implementation approach"
 

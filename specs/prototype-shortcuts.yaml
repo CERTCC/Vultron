@@ -15,7 +15,7 @@ groups:
   specs:
   - id: PROTO-01-001
     priority: MAY
-    kind: implementation
+    kind: project
     statement: Omit cryptographic authentication for agent-to-agent communication.
     relationships:
     - rel_type: constrains
@@ -25,11 +25,11 @@ groups:
   specs:
   - id: PROTO-02-001
     priority: MAY
-    kind: implementation
+    kind: project
     statement: Assume all actors are local to a single ActivityPub server.
   - id: PROTO-02-002
     priority: MAY
-    kind: implementation
+    kind: project
     statement: >-
       Post direct messages to an actor's inbox without federation or cross-server routing.
 - id: PROTO-03
@@ -37,21 +37,21 @@ groups:
   specs:
   - id: PROTO-03-001
     priority: SHOULD_NOT
-    kind: implementation
+    kind: project
     statement: Use algorithms with exponential or worse time complexity.
   - id: PROTO-03-002
     priority: SHOULD
-    kind: implementation
+    kind: project
     statement: >-
       Prefer the simplest algorithm when multiple options exist, even if less efficient.
   - id: PROTO-03-003
     priority: SHOULD
-    kind: implementation
+    kind: project
     statement: >-
       Implement straightforward optimizations that do not significantly increase complexity.
   - id: PROTO-03-004
     priority: SHOULD
-    kind: implementation
+    kind: project
     statement: >-
       Document known unimplemented optimizations in implementation notes for future reference.
 - id: PROTO-04
@@ -59,13 +59,13 @@ groups:
   specs:
   - id: PROTO-04-001
     priority: SHOULD
-    kind: implementation
+    kind: project
     statement: >-
       Specification files SHOULD tag production-only requirements with `PROD_ONLY` so they
       can be systematically identified and deferred during the prototype stage.
   - id: PROTO-04-002
     priority: SHOULD
-    kind: implementation
+    kind: project
     statement: >-
       Review specifications to identify requirements that should carry the `PROD_ONLY` tag.
 - id: PROTO-05
@@ -73,7 +73,7 @@ groups:
   specs:
   - id: PROTO-05-001
     priority: MAY
-    kind: implementation
+    kind: project
     statement: >-
       Use a stub always-engage policy (`AlwaysPrioritizePolicy`) in place of a real prioritization
       framework.
@@ -82,7 +82,7 @@ groups:
   specs:
   - id: PROTO-08-001
     priority: MUST_NOT
-    kind: implementation
+    kind: project
     statement: >-
       Add backward-compatibility shims when refactoring, renaming, moving, or removing code.
       Shims include re-export stubs, import aliases, wrapper functions, and deprecation stubs
@@ -92,19 +92,19 @@ groups:
       missed update is invisible and accumulates as technical debt
   - id: PROTO-08-002
     priority: MUST
-    kind: implementation
+    kind: project
     statement: >-
       Complete every code change fully — all call sites for a renamed, moved, or removed symbol
       MUST be updated in the same commit as the symbol change.
   - id: PROTO-08-003
     priority: MUST_NOT
-    kind: implementation
+    kind: project
     statement: >-
       Preserve an old API, import path, field name, or function signature solely for backward
       compatibility.
   - id: PROTO-08-004
     priority: SHOULD
-    kind: implementation
+    kind: project
     statement: >-
       Follow a documented deprecation cycle with migration guidance when external consumers
       of the API exist.
@@ -115,7 +115,7 @@ groups:
   specs:
   - id: PROTO-07-001
     priority: MAY
-    kind: implementation
+    kind: project
     statement: >-
       Performance tests and performance assertions MAY be skipped or marked as expected failures
       during the prototype stage

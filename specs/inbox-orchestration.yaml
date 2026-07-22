@@ -1,9 +1,7 @@
 id: IO
 title: Inbox Orchestration
-description: >-
-  Testable requirements for the core BT-backed inbox orchestration module, covering
-  the InboxOutcome model, BT sequence invariants, adapter injection rules, caller
-  interface constraints, and error/outcome behavior.
+description: Testable requirements for the core BT-backed inbox orchestration module, covering the InboxOutcome model, BT
+  sequence invariants, adapter injection rules, caller interface constraints, and error/outcome behavior.
 version: 1.0.0
 scope:
 - prototype
@@ -17,48 +15,34 @@ groups:
   specs:
   - id: IO-01-001
     priority: MUST
-    kind: pattern
-    statement: >-
-      The inbox orchestration module MUST define an InboxOutcome Pydantic
-      model as the sole return type of process_payload.
-    rationale: >-
-      A typed return model makes outcome inspection safe and self-documenting
-      for all callers (FastAPI, CLI, tests).
+    kind: project
+    statement: The inbox orchestration module MUST define an InboxOutcome Pydantic model as the sole return type of process_payload.
+    rationale: A typed return model makes outcome inspection safe and self-documenting for all callers (FastAPI, CLI, tests).
     tags:
     - messaging
     - protocol
   - id: IO-01-002
     priority: MUST
-    kind: pattern
-    statement: >-
-      InboxOutcome MUST include a status field whose value is one of:
-      processed, deferred, or rejected.
-    rationale: >-
-      Three distinct statuses cover the full protocol outcome space: a
-      successfully dispatched activity, an activity held for replay, and an
-      activity that cannot be processed.
+    kind: project
+    statement: 'InboxOutcome MUST include a status field whose value is one of: processed, deferred, or rejected.'
+    rationale: 'Three distinct statuses cover the full protocol outcome space: a successfully dispatched activity, an activity
+      held for replay, and an activity that cannot be processed.'
     tags:
     - messaging
   - id: IO-01-003
     priority: MUST
-    kind: pattern
-    statement: >-
-      InboxOutcome MUST include a context_id field (nullable string) carrying
-      the case or activity context identifier, when available.
-    rationale: >-
-      Callers need context identity for logging, telemetry, and pending-queue
-      management.
+    kind: project
+    statement: InboxOutcome MUST include a context_id field (nullable string) carrying the case or activity context identifier,
+      when available.
+    rationale: Callers need context identity for logging, telemetry, and pending-queue management.
     tags:
     - messaging
   - id: IO-01-004
     priority: MUST
-    kind: pattern
-    statement: >-
-      InboxOutcome MUST include a failure_reason field (nullable string)
-      carrying a human-readable explanation when status is rejected or
-      deferred.
-    rationale: >-
-      Explicit failure reasons support triage without log scraping.
+    kind: project
+    statement: InboxOutcome MUST include a failure_reason field (nullable string) carrying a human-readable explanation when
+      status is rejected or deferred.
+    rationale: Explicit failure reasons support triage without log scraping.
     tags:
     - messaging
     - observability
@@ -67,15 +51,11 @@ groups:
   specs:
   - id: IO-02-001
     priority: MUST
-    kind: pattern
-    statement: >-
-      The inbox orchestration module MUST live in
-      vultron/core/behaviors/inbox/ and MUST NOT import from
-      vultron/adapters/ or any web framework.
-    rationale: >-
-      Placement in core/ satisfies the hexagonal architecture constraint
-      (ADR-0009 Rule 1) and enables the module to be used by FastAPI, CLI,
-      and test adapters equally.
+    kind: project
+    statement: The inbox orchestration module MUST live in vultron/core/behaviors/inbox/ and MUST NOT import from vultron/adapters/
+      or any web framework.
+    rationale: Placement in core/ satisfies the hexagonal architecture constraint (ADR-0009 Rule 1) and enables the module
+      to be used by FastAPI, CLI, and test adapters equally.
     tags:
     - code-style
     - code-style
@@ -84,38 +64,29 @@ groups:
     - docs/adr/0020-inbox-bt-orchestration.md
   - id: IO-02-002
     priority: MUST
-    kind: pattern
-    statement: >-
-      The BT implementation MUST enforce the following fixed node ordering
-      via BT Sequence nodes: (1) parse inbound payload, (2) rehydrate
-      Activity, (3) extract MessageSemantics, (4) defer-eligibility check,
-      (5) dispatch to use-case path, (6) build typed outcome.
-    rationale: >-
-      Fixed BT ordering makes the inbound pipeline auditable and prevents
-      callers from accidentally invoking steps out of order.
+    kind: project
+    statement: 'The BT implementation MUST enforce the following fixed node ordering via BT Sequence nodes: (1) parse inbound
+      payload, (2) rehydrate Activity, (3) extract MessageSemantics, (4) defer-eligibility check, (5) dispatch to use-case
+      path, (6) build typed outcome.'
+    rationale: Fixed BT ordering makes the inbound pipeline auditable and prevents callers from accidentally invoking steps
+      out of order.
     tags:
     - behavior-tree
     - protocol
   - id: IO-02-003
     priority: MUST
-    kind: pattern
-    statement: >-
-      The process_payload function MUST be the sole caller-facing entry
-      point; intermediate BT nodes MUST NOT be exported as public API.
-    rationale: >-
-      Encapsulating intermediate steps preserves depth and prevents shallow
-      reimplementations of parts of the pipeline.
+    kind: project
+    statement: The process_payload function MUST be the sole caller-facing entry point; intermediate BT nodes MUST NOT be
+      exported as public API.
+    rationale: Encapsulating intermediate steps preserves depth and prevents shallow reimplementations of parts of the pipeline.
     tags:
     - protocol
   - id: IO-02-004
     priority: MUST
-    kind: pattern
-    statement: >-
-      The BT module MUST NOT instantiate or call a use-case class directly
-      inside a BT node update() method.
-    rationale: >-
-      Use cases create BTs; BT nodes are leaves. Calling a use case from a
-      node creates a prohibited BT-UseCase-BT chain (BT-06-006).
+    kind: project
+    statement: The BT module MUST NOT instantiate or call a use-case class directly inside a BT node update() method.
+    rationale: Use cases create BTs; BT nodes are leaves. Calling a use case from a node creates a prohibited BT-UseCase-BT
+      chain (BT-06-006).
     tags:
     - behavior-tree
     - code-style
@@ -124,14 +95,11 @@ groups:
   specs:
   - id: IO-03-001
     priority: MUST
-    kind: pattern
-    statement: >-
-      process_payload MUST accept exactly two injected adapters: an ingress
-      payload adapter (raw input to as_Activity) and a dispatch adapter
-      (VultronEvent to use-case execution).
-    rationale: >-
-      Two well-named adapters keep the seam explicit and prevent the adapter
-      matrix from growing large enough to make the module shallow again.
+    kind: project
+    statement: 'process_payload MUST accept exactly two injected adapters: an ingress payload adapter (raw input to as_Activity)
+      and a dispatch adapter (VultronEvent to use-case execution).'
+    rationale: Two well-named adapters keep the seam explicit and prevent the adapter matrix from growing large enough to
+      make the module shallow again.
     tags:
     - tooling
     - tooling
@@ -139,27 +107,21 @@ groups:
     - docs/adr/0020-inbox-bt-orchestration.md
   - id: IO-03-002
     priority: MUST
-    kind: pattern
-    statement: >-
-      Pending-queue management MUST be provided to the BT module via an
-      injected port dependency and MUST NOT be accessed directly from
-      vultron/adapters/.
-    rationale: >-
-      Injecting the pending-queue port keeps core/ free of adapter
-      dependencies and aligns with hexagonal architecture.
+    kind: project
+    statement: Pending-queue management MUST be provided to the BT module via an injected port dependency and MUST NOT be
+      accessed directly from vultron/adapters/.
+    rationale: Injecting the pending-queue port keeps core/ free of adapter dependencies and aligns with hexagonal architecture.
     tags:
     - tooling
     - tooling
     - code-style
   - id: IO-03-003
     priority: MUST
-    kind: pattern
-    statement: >-
-      The FastAPI inbox path MUST supply adapter implementations at
-      construction time and MUST NOT contain any inbox policy logic.
-    rationale: >-
-      Policy logic in the router violates ADR-0009 Rule 1 and makes the
-      orchestration untestable without a running FastAPI app.
+    kind: project
+    statement: The FastAPI inbox path MUST supply adapter implementations at construction time and MUST NOT contain any inbox
+      policy logic.
+    rationale: Policy logic in the router violates ADR-0009 Rule 1 and makes the orchestration untestable without a running
+      FastAPI app.
     tags:
     - tooling
     - tooling
@@ -168,37 +130,29 @@ groups:
   specs:
   - id: IO-04-001
     priority: MUST
-    kind: pattern
-    statement: >-
-      process_payload MUST always return an InboxOutcome; it MUST NOT raise
-      exceptions for protocol-invalid payloads.
-    rationale: >-
-      Typed outcomes allow callers to handle all cases uniformly without
-      exception-driven control flow at the integration boundary.
+    kind: project
+    statement: process_payload MUST always return an InboxOutcome; it MUST NOT raise exceptions for protocol-invalid payloads.
+    rationale: Typed outcomes allow callers to handle all cases uniformly without exception-driven control flow at the integration
+      boundary.
     tags:
     - protocol
     - error-handling
   - id: IO-04-002
     priority: MUST
-    kind: pattern
-    statement: >-
-      Tests MUST assert on InboxOutcome.status and InboxOutcome.failure_reason;
-      they MUST NOT patch internal BT node helpers to verify pipeline behavior.
-    rationale: >-
-      Interface-level test assertions are resilient to internal refactors and
-      validate the contract rather than the implementation.
+    kind: project
+    statement: Tests MUST assert on InboxOutcome.status and InboxOutcome.failure_reason; they MUST NOT patch internal BT node
+      helpers to verify pipeline behavior.
+    rationale: Interface-level test assertions are resilient to internal refactors and validate the contract rather than the
+      implementation.
     tags:
     - testing
   - id: IO-04-003
     priority: SHOULD
-    kind: pattern
-    statement: >-
-      Both a production ASGI adapter and an in-memory test adapter SHOULD
-      implement the ingress payload adapter interface, so that the same
-      process_payload seam is used in both runtime and test contexts.
-    rationale: >-
-      Shared interface across runtime and test adapters validates real-world
-      behavior and reduces adapter-specific test scaffolding.
+    kind: project
+    statement: Both a production ASGI adapter and an in-memory test adapter SHOULD implement the ingress payload adapter interface,
+      so that the same process_payload seam is used in both runtime and test contexts.
+    rationale: Shared interface across runtime and test adapters validates real-world behavior and reduces adapter-specific
+      test scaffolding.
     tags:
     - testing
     - tooling

@@ -37,7 +37,7 @@ BEHAVIORAL_YAML = {
                 {
                     "id": "BEH-01-001",
                     "priority": "MUST",
-                    "kind": "domain",
+                    "kind": "protocol",
                     "statement": "BEH-01-001 MUST behave correctly",
                     "preconditions": [
                         {
@@ -129,7 +129,7 @@ def test_export_json_filter_by_priority_no_match(loaded_registry):
 
 
 def test_export_json_filter_by_kind(loaded_registry):
-    json_str = export_json(loaded_registry, kind="general")
+    json_str = export_json(loaded_registry, kind="protocol")
     data = json.loads(json_str)
     assert "TST-01-001" in data
 
@@ -169,7 +169,7 @@ def test_export_json_inherited_tags_present_in_output(tmp_path):
                     {
                         "id": "TST-01-001",
                         "priority": "MUST",
-                        "kind": "general",
+                        "kind": "protocol",
                         "statement": "TST-01-001 MUST pass",
                     }
                 ],

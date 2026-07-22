@@ -1,8 +1,8 @@
-# Language Specifications
+# Project Specifications
 
-Python ecosystem requirements applicable to any Python project. These cover
-Pydantic conventions, py_trees API usage, pytest patterns, FastAPI patterns,
-and similar language-specific concerns.
+Specific to this Python codebase. Covers Python paths, Behavior Tree nodes,
+py_trees, pydantic models, factory names, module organisation, and endpoint
+conventions.
 
 ```python exec="true" idprefix=""
 import sys
@@ -16,5 +16,5 @@ for _k in list(sys.modules.keys()):
 from vultron.metadata.specs import load_registry
 from vultron.metadata.specs.docs_render import render_for_kind
 registry = load_registry(_repo / "specs")
-print(render_for_kind("language", registry))
+print(render_for_kind("project", registry))
 ```

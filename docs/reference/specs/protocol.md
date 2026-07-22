@@ -1,8 +1,8 @@
-# Domain Specifications
+# Protocol Specifications
 
-Vultron and CVD protocol requirements that are language-agnostic. These cover
-embargo lifecycle, case management, ActivityStreams semantics, MPCVD state
-machines, and other domain-specific behavioral requirements.
+Required for Vultron compliance in any implementation and any language. Covers
+wire behaviour, state machine invariants, behavioral contracts, message
+semantics, and protocol rules.
 
 ```python exec="true" idprefix=""
 import sys
@@ -16,5 +16,5 @@ for _k in list(sys.modules.keys()):
 from vultron.metadata.specs import load_registry
 from vultron.metadata.specs.docs_render import render_for_kind
 registry = load_registry(_repo / "specs")
-print(render_for_kind("domain", registry))
+print(render_for_kind("protocol", registry))
 ```

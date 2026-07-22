@@ -104,21 +104,21 @@ The Vultron Protocol defines four levels, each building on the previous:
 
 **L1 — Syntax**
 : Well-formed messages that conform to the wire format.
-  This level is covered by the [wire format specifications](../reference/specs/language.md).
+  This level is covered by the [wire format specifications](../reference/specs/protocol.md).
 
 **L2 — Semantic**
 : Correct state transitions in response to received messages and local events.
-  This level is covered by the [Vultron Protocol spec (VP)](../reference/specs/general.md) and the
+  This level is covered by the [Vultron Protocol spec (VP)](../reference/specs/protocol.md) and the
   [Transition Functions](../reference/formal_protocol/transitions.md).
 
 **L3 — Behavioral**
 : Correct observable outputs — the right messages emitted and the right states reached
   in response to a given (input state + received message/event) combination.
-  This level is covered by the domain behavioral specifications:
+  This level is covered by the protocol behavioral specifications:
 
-    - [RMB — Report Management Behavioral Requirements](../reference/specs/domain.md#rmb)
-    - [EMB — Embargo Management Behavioral Requirements](../reference/specs/domain.md#emb)
-    - [CSB — CVD Case State Behavioral Requirements](../reference/specs/domain.md#csb)
+    - [RMB — Report Management Behavioral Requirements](../reference/specs/protocol.md#rmb)
+    - [EMB — Embargo Management Behavioral Requirements](../reference/specs/protocol.md#emb)
+    - [CSB — CVD Case State Behavioral Requirements](../reference/specs/protocol.md#csb)
 
 **L4 — Process**
 : Correct internal decision structure — for example, precondition checks before state writes
