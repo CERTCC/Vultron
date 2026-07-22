@@ -174,6 +174,55 @@ def test_default_prepare_and_publish_nodes_are_fuzzers():
 
 
 # ---------------------------------------------------------------------------
+# Behavior-contract integration (BT-18-001): the DEFAULT
+# PrioritizePublicationIntents Evaluator writes a PublicationIntentDecision to
+# the blackboard when the full tree is ticked to SUCCESS.
+# ---------------------------------------------------------------------------
+
+
+def test_full_tick_with_default_evaluator_writes_intent_record():
+    """AC-1: a full tick with the default Evaluator writes the intent record.
+
+    Unlike the structure tests above (and unlike the arm-gating tests, which
+    write the record manually via ``_write_intent``), this exercises the real
+    default ``PrioritizePublicationIntents`` factory — a deterministic
+    ``AlwaysSucceed`` Evaluator — rather than a stub.  It therefore verifies
+    the node's actual blackboard-write contract (BT-18-001): on SUCCESS the
+    Evaluator writes a :class:`PublicationIntentDecision` to
+    :data:`INTENT_DECISION_KEY`.
+
+    Only the probabilistic ``Prepare*``/``Publish`` arm call-out points are
+    replaced with deterministic marker stubs, so the tree ticks to SUCCESS on
+    every run; the Evaluator factory is left at its default.  Mirrors the
+    ``*_writes_blackboard_on_success`` pattern in
+    ``test/demo/fuzzer/test_call_out_point.py`` (AC-2).
+    """
+    tree = create_publication_tree(
+        case_id=CASE_ID,
+        prepare_exploit_factory=_marker_factory("PrepExploit"),
+        prepare_fix_factory=_marker_factory("PrepFix"),
+        prepare_report_factory=_marker_factory("PrepReport"),
+        publish_factory=_marker_factory("Pub"),
+    )
+    # Guard: the Evaluator under test is the real default node, not a stub.
+    assert isinstance(tree.children[0], PrioritizePublicationIntents)
+
+    tree.setup_with_descendants()
+    tree.tick_once()
+
+    # AC-1: the full tree reaches SUCCESS deterministically.  With the default
+    # decision (publish fix + report, withhold exploit) the exploit arm is a
+    # graceful Inverter no-op while the fix and report arms run their stubs.
+    assert tree.status == Status.SUCCESS
+
+    # AC-1: the Evaluator wrote a PublicationIntentDecision to the blackboard.
+    storage_key = f"/{INTENT_DECISION_KEY}"
+    assert storage_key in py_trees.blackboard.Blackboard.storage
+    decision = py_trees.blackboard.Blackboard.storage[storage_key]
+    assert isinstance(decision, PublicationIntentDecision)
+
+
+# ---------------------------------------------------------------------------
 # AC-1 + AC-2: eliminated nodes are absent as leaves anywhere in the tree
 # ---------------------------------------------------------------------------
 
