@@ -106,6 +106,13 @@ class DataLayerCondition(py_trees.behaviour.Behaviour):
             return Status.FAILURE
         return None
 
+    def _require_datalayer_and_actor(self) -> Status | None:
+        """Return FAILURE if ``datalayer`` or ``actor_id`` is not set, else None."""
+        if self.datalayer is None or self.actor_id is None:
+            self.feedback_message = "DataLayer or actor_id not available"
+            return Status.FAILURE
+        return None
+
     def update(self) -> Status:
         """
         Evaluate condition. Override in subclasses.

@@ -64,9 +64,9 @@ class CheckRMStateValid(DataLayerCondition):
         Returns:
             SUCCESS if report is RM.VALID, FAILURE otherwise
         """
-        if self.datalayer is None:
-            self.logger.error(f"{self.name}: DataLayer not available")
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         actor_id = (
             self.sender_actor_id if self.sender_actor_id else self.actor_id
         )
@@ -126,9 +126,9 @@ class CheckRMStateReceivedOrInvalid(DataLayerCondition):
         Returns:
             SUCCESS if report is in acceptable state, FAILURE otherwise
         """
-        if self.datalayer is None:
-            self.logger.error(f"{self.name}: DataLayer not available")
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         actor_id = (
             self.sender_actor_id if self.sender_actor_id else self.actor_id
         )
@@ -183,10 +183,9 @@ class EnsureEmbargoExists(DataLayerCondition):
         Returns:
             SUCCESS if case has active_embargo, FAILURE otherwise
         """
-        if self.datalayer is None:
-            self.logger.error(f"{self.name}: DataLayer not available")
-            return Status.FAILURE
-
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         case = self.datalayer.find_case_by_report_id(self.report_id)
         if case is None:
             self.logger.warning(
@@ -390,9 +389,9 @@ class CheckReportNotClosed(DataLayerCondition):
             FAILURE (+ ``result_out["error"]``) when already closed or
             the DataLayer/actor_id is unavailable.
         """
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         if self.actor_id is None:
             self.logger.error("%s: actor_id not available", self.name)
             return Status.FAILURE

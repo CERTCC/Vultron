@@ -52,11 +52,9 @@ class AddCaseParticipantToCaseReceivedNode(DataLayerAction):
         self.case_id = case_id
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
-
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         participant = self.datalayer.read(self.participant_id)
         case = self.datalayer.read(self.case_id)
 
@@ -114,10 +112,9 @@ class RemoveCaseParticipantFromCaseReceivedNode(DataLayerAction):
         self.case_id = case_id
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         case = self.datalayer.read(self.case_id)
 

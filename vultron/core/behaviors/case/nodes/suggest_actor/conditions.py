@@ -57,9 +57,9 @@ class ActorAlreadyParticipantNode(DataLayerAction):
         self.case_id = case_id
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         case_obj = self.datalayer.read(self.case_id)
         index = getattr(case_obj, "actor_participant_index", {}) or {}
         if self.recommended_id in index:
@@ -96,9 +96,9 @@ class InviteInFlightNode(DataLayerAction):
         self.case_id = case_id
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         pair = self.datalayer.find_protocol_pair(
             case_id=self.case_id,
             request_event_type="invite_actor_to_case",
@@ -140,9 +140,9 @@ class PendingOfferCaseParticipantNode(DataLayerAction):
         self.case_id = case_id
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         pair = self.datalayer.find_protocol_pair(
             case_id=self.case_id,
             request_event_type="offer_case_participant",

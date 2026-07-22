@@ -74,10 +74,9 @@ class PersistReceivedLogEntryNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
-
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         entry = _require_log_entry(self.blackboard.activity, self.name)
         self.datalayer.save(entry)
         self.logger.info(

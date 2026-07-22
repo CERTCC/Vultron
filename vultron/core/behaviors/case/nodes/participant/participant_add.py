@@ -71,10 +71,9 @@ class ResolveParticipantAcceptedStatusNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
-
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         result = _get_or_create_accepted_status(
             self.datalayer,
             self.participant_actor_id,
@@ -190,10 +189,9 @@ class AttachParticipantToCaseNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
-
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         case_id = self.blackboard.get("case_id")
         participant = self.blackboard.get(self._new_case_participant_key)
         if not isinstance(case_id, str):
@@ -249,9 +247,9 @@ class RecordParticipantAddedEventNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         stored_case = self.blackboard.get(self._participant_case_key)
         participant_id = self.blackboard.get(self._new_participant_id_key)
@@ -363,9 +361,9 @@ class SeedParticipantAsSignatoryNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         stored_case = self.blackboard.get(self._participant_case_key)
         participant = self.blackboard.get(self._new_case_participant_key)
@@ -427,11 +425,10 @@ class QueueAddParticipantNotificationNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                "%s: DataLayer or actor_id not available", self.name
-            )
-            return Status.FAILURE
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
 
         case_id = self.blackboard.get("case_id")
         participant_id = self.blackboard.get(self._new_participant_id_key)
