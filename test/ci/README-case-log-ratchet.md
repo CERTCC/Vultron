@@ -1,17 +1,29 @@
 # Case-Log Invariant Ratchet Workflow
 
 This document describes the ratchet workflow for the CI case-ledger invariant
-harness (`test/ci/test_case_ledger_invariants.py`), satisfying AC-6 of issue
+harness, satisfying AC-6 of issue
 [#925](https://github.com/CERTCC/Vultron/issues/925).
+
+The harness is modular (issue [#1592](https://github.com/CERTCC/Vultron/issues/1592)):
+universal invariant check functions live in
+`test/ci/invariants/common.py`; each scenario has its own test file under
+`test/ci/invariants/`.
+
+| Scenario | Test file |
+|----------|-----------|
+| FV (two-actor) | `test/ci/invariants/test_fv_invariants.py` |
+| FVV (three-actor) | `test/ci/invariants/test_fvv_invariants.py` |
+| FVCV-extension | `test/ci/invariants/test_fvcv_extension_invariants.py` |
 
 ---
 
 ## Overview
 
-The harness parses JSONL case-ledger replica files produced by the two-actor
-demo and asserts a fixed set of canonical-log invariants. All invariants
-that are not yet passing are decorated with `pytest.mark.xfail` so the CI
-build stays green while fix PRs land one at a time.
+Each scenario test file parses JSONL case-ledger replica files produced by
+the corresponding demo and asserts universal invariants (via `common.py`)
+plus scenario-specific checks. All invariants that are not yet passing are
+decorated with `pytest.mark.xfail` so the CI build stays green while fix
+PRs land one at a time.
 
 Each fix PR ratchets exactly one invariant from "expected failure" to
 "permanent regression guard" by removing its `xfail` decorator.
@@ -26,10 +38,12 @@ Each fix PR ratchets exactly one invariant from "expected failure" to
 uv run pytest -m case_ledger_invariants -v
 ```
 
-Or target the file directly:
+Or target a specific scenario directly:
 
 ```bash
-uv run pytest test/ci/test_case_ledger_invariants.py -v
+uv run pytest test/ci/invariants/test_fv_invariants.py -v
+uv run pytest test/ci/invariants/test_fvv_invariants.py -v
+uv run pytest test/ci/invariants/test_fvcv_extension_invariants.py -v
 ```
 
 ### Locally (without demo artifacts)
@@ -59,7 +73,7 @@ Per-actor parametrized tests (1, 12–14) show status per actor role.
 | 11 | `payloadSnapshot.context` uses case URI | ✅ | n/a | n/a | #936 |
 | 12 | `logIndex=0` entry is present in actor's log | ✅ | ✅ | ✅ | #937 |
 | 13 | First entry in sorted log has `logIndex=0` | ✅ | ✅ | ✅ | #937 |
-| 14 | No gaps in `logIndex` sequence (0 to max) | ✅ | ✅ | ✅ | #937 |
+| 14 | No gaps in held `logIndex` range (`min`–`max`) | ✅ | ✅ | ✅ | #937 |
 | 15 | All key CS transitions observed (`VFd`, `VFD`, `Pxa`) | ✅ | n/a | n/a | #1020 |
 
 ---
@@ -78,7 +92,7 @@ When a fix PR lands that resolves one of the `xfail` invariants:
    now passes:
 
    ```bash
-   uv run pytest test/ci/test_case_ledger_invariants.py -v
+   uv run pytest test/ci/invariants/ -v
    ```
 
 4. **Commit the decorator removal** in the same PR as (or immediately
@@ -91,10 +105,21 @@ When a fix PR lands that resolves one of the `xfail` invariants:
 
 ## Adding a New Invariant
 
-1. Open `test/ci/test_case_ledger_invariants.py`.
+### Universal invariant (applies to all scenarios)
 
-2. Write a new `test_invariant_<N>_<slug>` function following the
-   existing pattern.
+1. Add a `check_<name>` function to `test/ci/invariants/common.py`
+   following the existing pattern (returns `list[str]` of violations).
+
+2. Add a `test_invariant_<N>_<slug>` function to each scenario test file
+   that calls the new check function.
+
+### Scenario-specific invariant
+
+1. Open the appropriate per-scenario file (e.g.,
+   `test/ci/invariants/test_fv_invariants.py`).
+
+2. Write a new `test_<scenario>_<slug>` function using helpers from
+   `common.py` rather than duplicating logic inline.
 
 3. If the invariant is expected to pass today, add no `xfail` decorator.
 
@@ -106,10 +131,10 @@ When a fix PR lands that resolves one of the `xfail` invariants:
        strict=False,
        reason="<description>; will pass when #<issue> lands",
    )
-   def test_invariant_<N>_<slug>(
-       case_ledger_replicas: dict[str, list[dict]],
+   def test_<scenario>_<slug>(
+       <fixture>: dict[str, list[dict]],
    ) -> None:
-       """<One-line summary> (AC-4.N).
+       """<One-line summary>.
 
        When this xfail is unexpectedly promoted to XPASS, remove the
        ``xfail`` decorator to make it a permanent regression guard.
@@ -119,9 +144,21 @@ When a fix PR lands that resolves one of the `xfail` invariants:
 
 5. Add a row to the invariant table above.
 
-6. Run `uv run pytest test/ci/test_case_ledger_invariants.py -v` (with demo
-   artifacts) to confirm the new test appears with the expected
-   `XFAIL` status.
+6. Run `uv run pytest test/ci/invariants/ -v` (with demo artifacts) to
+   confirm the new test appears with the expected `XFAIL` status.
+
+### Adding a new scenario
+
+1. Create `test/ci/invariants/test_<scenario>_invariants.py`.
+
+2. Define a module-scoped fixture that calls `load_devlogs(demo_name=...)`.
+
+3. Add the universal invariants by importing from `common.py` and calling
+   the check helpers.
+
+4. Add scenario-specific invariants below the universal section.
+
+5. Update the scenario table at the top of this document.
 
 ---
 
