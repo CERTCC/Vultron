@@ -12,7 +12,7 @@ tags:
 - tooling
 groups:
 - id: NF-01
-  title: Frontmatter Schema (MUST)
+  title: Frontmatter Schema
   specs:
   - id: NF-01-001
     priority: MUST
@@ -64,7 +64,7 @@ groups:
       The optional `relevant_packages` field, when present, MUST be a non-empty list of non-empty
       strings naming packages relevant to the note's topic. Each entry is either:
 - id: NF-02
-  title: Pydantic Schema Module (MUST)
+  title: Pydantic Schema Module
   specs:
   - id: NF-02-001
     priority: MUST
@@ -92,7 +92,7 @@ groups:
       or `vultron/adapters/`; it is a standalone tooling layer with no dependency on application
       code.
 - id: NF-03
-  title: Loader (MUST)
+  title: Loader
   specs:
   - id: NF-03-001
     priority: MUST
@@ -124,7 +124,7 @@ groups:
       directory for a `pyproject.toml` file, so it works correctly regardless of where it
       is called from.
 - id: NF-04
-  title: Validation Enforcement (MUST)
+  title: Validation Enforcement
   specs:
   - id: NF-04-001
     priority: MUST
@@ -139,7 +139,7 @@ groups:
       A pre-commit hook MUST validate the frontmatter of any changed `notes/*.md` file before
       the commit is accepted.
 - id: NF-05
-  title: Migration (MUST)
+  title: Migration
   specs:
   - id: NF-05-001
     priority: MUST
@@ -154,7 +154,7 @@ groups:
       The `status` field added during migration MUST accurately reflect the current state
       of each file's content.
 - id: NF-06
-  title: Maintenance (SHOULD)
+  title: Maintenance
   specs:
   - id: NF-06-001
     priority: SHOULD
@@ -170,7 +170,7 @@ groups:
       `AGENTS.md` MUST document the frontmatter maintenance rule so that AI coding agents
       apply it consistently.
 - id: NF-07
-  title: 'Future: Registry and Query Tool (MAY)'
+  title: 'Future: Registry and Query Tool'
   specs:
   - id: NF-07-001
     priority: MAY

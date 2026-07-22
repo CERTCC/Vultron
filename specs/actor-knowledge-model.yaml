@@ -16,7 +16,7 @@ tags:
 - federation
 groups:
 - id: AKM-01
-  title: DataLayer Isolation (MUST)
+  title: DataLayer Isolation
   specs:
   - id: AKM-01-001
     priority: MUST_NOT
@@ -32,7 +32,7 @@ groups:
       interact via the wire protocol and MUST NOT communicate via direct DataLayer access
       or in-process calls bypassing the inbox/outbox API.
 - id: AKM-02
-  title: Knowledge Boundaries (MUST)
+  title: Knowledge Boundaries
   specs:
   - id: AKM-02-001
     priority: MUST_NOT
@@ -53,7 +53,7 @@ groups:
       The sole exception to the full-inline-object rule is the `target` field of an `Invite`
       activity in selective-disclosure scenarios.
 - id: AKM-03
-  title: Outbound Activity Object Integrity (MUST)
+  title: Outbound Activity Object Integrity
   specs:
   - id: AKM-03-001
     priority: MUST
@@ -68,7 +68,7 @@ groups:
       The outbox handler MUST enforce object integrity at delivery time as a last-resort runtime
       guard.
 - id: AKM-04
-  title: 'Future: Known-Object Tracking (MAY)'
+  title: 'Future: Known-Object Tracking'
   specs:
   - id: AKM-04-001
     priority: MAY

@@ -100,13 +100,14 @@ groups:
   - id: ARCH-04-002
     priority: MUST
     kind: project
-    statement: "`SyncActivityPort` MUST be defined as a `typing.Protocol` in `vultron/core/ports/sync_activity_port.py` with\
-      \ two fire-and-forget methods:\n  - `send_reject_log_entry(entry: VultronCaseLedgerEntry, tail_hash: str, actor_id:\
-      \ str, to: str) -> None`\n  - `send_announce_log_entry(entry: VultronCaseLedgerEntry, actor_id: str, to: str) -> None`\n\
-      The concrete adapter (`SyncActivityAdapter`) MUST be implemented in `vultron/adapters/driven/sync_activity_adapter.py`\
-      \ and own the full domain → wire → persist → outbox pipeline. Core use cases and BT nodes MUST call only the port methods\
-      \ and MUST NOT import wire types (`CaseLedgerEntry`, `WireCaseLedgerEntry`) or wire factory functions (`announce_log_entry_activity`,\
-      \ `reject_log_entry_activity`)."
+    statement: >-
+      `SyncActivityPort` MUST be defined as a `typing.Protocol` in `vultron/core/ports/sync_activity_port.py`
+      with two fire-and-forget methods: `send_reject_log_entry(entry, tail_hash, actor_id, to)` and
+      `send_announce_log_entry(entry, actor_id, to)`. The concrete adapter (`SyncActivityAdapter`)
+      MUST be implemented in `vultron/adapters/driven/sync_activity_adapter.py` and own the full
+      domain → wire → persist → outbox pipeline. Core use cases and BT nodes MUST call only the port
+      methods and MUST NOT import wire types (`CaseLedgerEntry`, `WireCaseLedgerEntry`) or wire factory
+      functions (`announce_log_entry_activity`, `reject_log_entry_activity`).
     rationale: 'The incremental fix for ARCH-01-001 violations in `received/sync.py` and `triggers/sync.py`. The "baton-pass"
       pattern: core hands domain objects to the port; the adapter handles wire conversion unidirectionally.'
     relationships:
@@ -285,14 +286,10 @@ groups:
     kind: project
     statement: 'A BT node''s update() MUST return Status.FAILURE when a required blackboard key is absent or resolves to None.
       It MUST NOT return Status.SUCCESS in this case, as doing so misleads the enclosing BT sequence and silently drops protocol
-      behavior (e.g., ledger entries not written).
-
-      '
+      behavior (e.g., ledger entries not written).'
     rationale: 'Status.SUCCESS on a missing required input causes the BT sequence to continue as if the node succeeded, masking
       the failure and producing ledger gaps, dropped broadcasts, and mis-routed activities. See notes/domain-validation.md
-      and ADR-0032.
-
-      '
+      and ADR-0032.'
     relationships:
     - rel_type: refines
       spec_id: ARCH-10-001
@@ -302,13 +299,9 @@ groups:
     kind: project
     statement: 'A helper function that requires a non-None ID MUST check the result and raise VultronValidationError (or UnroutableActivityError
       for routing failures) immediately. The strict guarantee lives in the caller or the helper itself — never deferred silently
-      to downstream code.
-
-      '
+      to downstream code.'
     rationale: 'Returning None from a helper that conceptually requires a valid ID moves the error from the point of failure
-      to the point of use, making stack traces and logs point to the wrong location. See notes/domain-validation.md and ADR-0032.
-
-      '
+      to the point of use, making stack traces and logs point to the wrong location. See notes/domain-validation.md and ADR-0032.'
     relationships:
     - rel_type: refines
       spec_id: ARCH-10-001
@@ -317,14 +310,10 @@ groups:
     priority: MUST
     kind: project
     statement: 'The dispatcher MUST raise UnroutableActivityError when no case_id can be extracted from an inbound event.
-      It MUST NOT return None and silently drop the activity from ledger indexing.
-
-      '
+      It MUST NOT return None and silently drop the activity from ledger indexing.'
     rationale: 'A silently dropped activity produces an invisible gap in the canonical case ledger and leaves no audit trail.
       The dispatcher caller must make an explicit decision about how to handle unroutable activities. See notes/domain-validation.md
-      and ADR-0032.
-
-      '
+      and ADR-0032.'
     relationships:
     - rel_type: refines
       spec_id: ARCH-10-001
@@ -334,14 +323,10 @@ groups:
     kind: architecture
     statement: 'Each domain helper function MUST have exactly one canonical copy. Layer-neutral helpers (no dependencies above
       `models/`) MUST live in `vultron/core/models/_helpers.py`. Use-case-specific helpers belong in `vultron/core/use_cases/_helpers.py`.
-      Duplicate implementations of the same logic are prohibited.
-
-      '
+      Duplicate implementations of the same logic are prohibited.'
     rationale: 'Duplicate helper copies diverge silently over time. Two copies of _as_id() in use_cases/_helpers.py and services/embargo_lifecycle.py
       had already diverged in docstring accuracy. Three copies of the case-manager lookup produced inconsistent None-handling
-      behavior across callers. See notes/domain-validation.md and ADR-0032.
-
-      '
+      behavior across callers. See notes/domain-validation.md and ADR-0032.'
     relationships:
     - rel_type: refines
       spec_id: ARCH-10-001
@@ -399,62 +384,42 @@ groups:
     priority: MUST
     kind: project
     statement: 'The base `DataLayer` protocol MUST be used only for shared object storage operations (read, write, save, list).
-      It MUST NOT be passed to functions that perform inbox or outbox queue operations.
-
-      '
+      It MUST NOT be passed to functions that perform inbox or outbox queue operations.'
     rationale: 'Inbox and outbox queue operations are actor-scoped; using the shared DataLayer (actor_id=None) silently operates
       on a phantom queue keyed by the empty string ("") rather than the actor''s real queue, causing reads to appear empty
-      and writes to be unreadable by the correct actor.
-
-      '
+      and writes to be unreadable by the correct actor.'
   - id: ARCH-13-002
     priority: MUST
     kind: project
     statement: 'Inbox and outbox queue operations (inbox_list, inbox_pop, inbox_append, outbox_list, outbox_pop, outbox_append)
       MUST be performed on an `ActorScopedDataLayer` instance — a DataLayer whose actor_id is set to a non-empty canonical
-      URI.
-
-      '
+      URI.'
     rationale: 'Queue rows are stored with actor_id as a column key; an unscoped DataLayer (actor_id=None) cannot address
-      per-actor queue rows correctly.
-
-      '
+      per-actor queue rows correctly.'
   - id: ARCH-13-003
     priority: MUST
     kind: project
     statement: 'The actor_id used when constructing an `ActorScopedDataLayer` MUST be the actor''s canonical URI (the value
-      of actor.id_), not a short ID, UUID path segment, or any other derived identifier.
-
-      '
+      of actor.id_), not a short ID, UUID path segment, or any other derived identifier.'
     rationale: 'record_outbox_item writes queue rows keyed by the actor_id string it receives. If outbox_list is called on
       a DataLayer scoped to a different string (e.g., a short UUID when the writer used a full URI), the queue appears empty
-      and outbound activities are silently dropped (see BUG-2026040901).
-
-      '
+      and outbound activities are silently dropped (see BUG-2026040901).'
   - id: ARCH-13-004
     priority: MUST
     kind: project
     statement: 'The actor_id argument passed to record_outbox_item MUST match exactly the actor_id used to construct the `ActorScopedDataLayer`
-      that will later call outbox_list or outbox_pop for that actor.
-
-      '
+      that will later call outbox_list or outbox_pop for that actor.'
     rationale: 'The queue key is a plain string equality check. Any mismatch — including full-URI vs. short-UUID — produces
-      a silent empty read.
-
-      '
+      a silent empty read.'
   - id: ARCH-13-005
     priority: SHOULD
     kind: project
     statement: 'The `ActorScopedDataLayer` protocol type SHOULD be defined in `vultron/core/ports/datalayer.py` as a refinement
       of `DataLayer` so that type-checkers (mypy, pyright) can enforce scope boundaries at function-signature level. It is
       currently implemented there with methods: `inbox_append(activity_id: str) -> None`, `inbox_list() -> list[str]`, `inbox_pop()
-      -> str | None`, `outbox_append(activity_id: str) -> None`, `outbox_list() -> list[str]`, `outbox_pop() -> str | None`.
-
-      '
+      -> str | None`, `outbox_append(activity_id: str) -> None`, `outbox_list() -> list[str]`, `outbox_pop() -> str | None`.'
     rationale: 'An explicit Protocol type converts a convention-only rule into a compile-time-enforced boundary, making violations
-      visible without running the code.
-
-      '
+      visible without running the code.'
 - id: ARCH-16
   title: App State Isolation
   specs:
