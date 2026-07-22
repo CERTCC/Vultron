@@ -245,7 +245,7 @@ services:
       - VULTRON_CASE_ACTOR_BASE_URL=http://case-actor:7999/api/v2
       - VULTRON_VENDOR2_BASE_URL=http://vendor2:7999/api/v2
       # Run the selected multi-actor demo non-interactively. Override DEMO
-      # at runtime (for example, DEMO=three-actor) to switch scenarios.
+      # at runtime (for example, DEMO=fvv) to switch scenarios.
       - DEMO=${DEMO:-fv}
       - DEVLOGS_DIR=/app/devlogs
     volumes:
