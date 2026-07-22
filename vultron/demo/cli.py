@@ -44,6 +44,7 @@ import vultron.demo.exchange.manage_participants_demo as manage_participants_dem
 import vultron.demo.exchange.receive_report_demo as receive_report_demo
 import vultron.demo.exchange.status_updates_demo as status_updates_demo
 import vultron.demo.exchange.suggest_actor_demo as suggest_actor_demo
+import vultron.demo.scenario.fccv_handoff_demo as fccv_handoff_demo
 import vultron.demo.scenario.fcv_demo as fcv_demo
 import vultron.demo.scenario.fvcv_extension_demo as fvcv_extension_demo
 import vultron.demo.scenario.fvcv_handoff_demo as fvcv_handoff_demo
@@ -794,6 +795,133 @@ def fvcv_handoff(
         coordinator_id=coordinator_id,
         case_actor_id=case_actor_id,
         vendor2_id=vendor2_id,
+    )
+
+
+# ---------------------------------------------------------------------------
+# FCCV-handoff sub-command — C1 transfers ownership to C2; C2 invites Vendor
+# ---------------------------------------------------------------------------
+
+
+@main.command(name="fccv-handoff")
+@click.option(
+    "--finder-url",
+    envvar="VULTRON_FINDER_BASE_URL",
+    default=fccv_handoff_demo.FINDER_BASE_URL,
+    show_default=True,
+    help="Base URL of the Finder container API "
+    "(env: VULTRON_FINDER_BASE_URL).",
+)
+@click.option(
+    "--c1-url",
+    envvar="VULTRON_VENDOR_BASE_URL",
+    default=fccv_handoff_demo.C1_BASE_URL,
+    show_default=True,
+    help="Base URL of the C1 (Coordinator1) container API "
+    "(env: VULTRON_VENDOR_BASE_URL).",
+)
+@click.option(
+    "--c2-url",
+    envvar="VULTRON_COORDINATOR_BASE_URL",
+    default=fccv_handoff_demo.C2_BASE_URL,
+    show_default=True,
+    help="Base URL of the C2 (Coordinator2) container API "
+    "(env: VULTRON_COORDINATOR_BASE_URL).",
+)
+@click.option(
+    "--case-actor-url",
+    envvar="VULTRON_CASE_ACTOR_BASE_URL",
+    default=fccv_handoff_demo.CASE_ACTOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the CaseActor container API "
+    "(env: VULTRON_CASE_ACTOR_BASE_URL).",
+)
+@click.option(
+    "--vendor-url",
+    envvar="VULTRON_VENDOR2_BASE_URL",
+    default=fccv_handoff_demo.VENDOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the Vendor container API "
+    "(env: VULTRON_VENDOR2_BASE_URL).",
+)
+@click.option(
+    "--finder-id",
+    default=None,
+    help="Deterministic full URI for the Finder actor (optional).",
+)
+@click.option(
+    "--c1-id",
+    default=None,
+    help="Deterministic full URI for the C1 (Coordinator1) actor (optional).",
+)
+@click.option(
+    "--c2-id",
+    default=None,
+    help="Deterministic full URI for the C2 (Coordinator2) actor (optional).",
+)
+@click.option(
+    "--case-actor-id",
+    default=None,
+    help="Deterministic full URI for the CaseActor actor (optional).",
+)
+@click.option(
+    "--vendor-id",
+    default=None,
+    help="Deterministic full URI for the Vendor actor (optional).",
+)
+@click.option(
+    "--skip-health-check",
+    is_flag=True,
+    default=False,
+    help="Skip container availability checks.",
+)
+def fccv_handoff(
+    finder_url: str,
+    c1_url: str,
+    c2_url: str,
+    case_actor_url: str,
+    vendor_url: str,
+    finder_id: str | None,
+    c1_id: str | None,
+    c2_id: str | None,
+    case_actor_id: str | None,
+    vendor_id: str | None,
+    skip_health_check: bool,
+) -> None:
+    """Run the FCCV-handoff (C1 → C2 ownership transfer) demo (DEMOMA-14).
+
+    C1 (Coordinator1) creates the case as CASE_OWNER and invites C2
+    (Coordinator2).  C1 then transfers case ownership to C2 via the trigger
+    endpoints (TRIG-11-001/002).  C2 (now CASE_OWNER) invites Vendor.  All
+    four actors coordinate to closure.
+
+    \b
+    Workflow:
+      1. Seed all five containers (actor records + peer registration).
+      2. Finder submits a vulnerability report to C1's inbox.
+      3. C1 validates and engages the case (retains CASE_OWNER for now).
+      4. C1 invites C2 (Coordinator); C2 accepts.
+      5. C1 offers case ownership transfer to C2 (TRIG-11-001).
+      6. C2 accepts the ownership transfer (TRIG-11-002).
+      7. Verify case attributed_to updated to C2 on both C1 and C2 replicas.
+      8. C2 invites Vendor; Vendor accepts and Accept routed to CaseActor.
+      9. Verify SYNC-2 replication on all replicas.
+     10. Vendor advances through fix-ready → fix-deployed.
+     11. All participants report publication; embargo terminates.
+     12. All participants close the case.
+    """
+    fccv_handoff_demo.main(
+        skip_health_check=skip_health_check,
+        finder_url=finder_url,
+        c1_url=c1_url,
+        c2_url=c2_url,
+        case_actor_url=case_actor_url,
+        vendor_url=vendor_url,
+        finder_id=finder_id,
+        c1_id=c1_id,
+        c2_id=c2_id,
+        case_actor_id=case_actor_id,
+        vendor_id=vendor_id,
     )
 
 
