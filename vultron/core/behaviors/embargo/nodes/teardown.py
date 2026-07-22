@@ -59,9 +59,9 @@ class ApplyEmbargoTeardownNode(DataLayerAction):
             )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         if self.case_id is not None:
             case_id = self.case_id
@@ -124,9 +124,9 @@ class RemoveFromProposedEmbargoesNode(DataLayerAction):
         self.embargo_id = embargo_id
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         case = self.datalayer.read(self.case_id)
         if not isinstance(case, VulnerabilityCase):

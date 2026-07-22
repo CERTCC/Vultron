@@ -41,9 +41,10 @@ class ResolveCaseManagerNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.feedback_message = "DataLayer or actor_id not available"
-            return Status.FAILURE
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
 
         case = self.datalayer.read(self.case_id)
         if not isinstance(case, VulnerabilityCase):
@@ -123,9 +124,10 @@ class QueueToOutboxNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.feedback_message = "DataLayer or actor_id not available"
-            return Status.FAILURE
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
 
         try:
             activity_ids: list[str] = self.blackboard.activity_ids

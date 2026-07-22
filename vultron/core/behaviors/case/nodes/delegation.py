@@ -62,11 +62,8 @@ class ResolveCaseManagerOfferContextNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                f"{self.name}: DataLayer or actor_id not available"
-            )
-            return Status.FAILURE
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
 
         case_id = self.blackboard.get("case_id")
         case_actor_id = self.blackboard.get("case_actor_id")

@@ -181,9 +181,9 @@ class RecordParticipantAcceptanceNode(DataLayerAction):
     def update(self) -> Status:
         from vultron.core.states.em import EM
 
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         # Use accepting_actor_id when provided (ADR-0022 single-BT pattern:
         # tree executes under receiving_actor_id but acceptance is recorded

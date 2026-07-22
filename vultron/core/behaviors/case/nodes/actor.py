@@ -145,13 +145,11 @@ class EmitInviteActorToCaseNode(DataLayerAction):
         return activity_id, activity_dict
 
     def update(self) -> Status:
-        fail = self._require_datalayer_and_actor()
-        if fail is not None:
-            return fail
-        fail = self._require_factory()
-        if fail is not None:
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        if (f := self._require_factory()) is not None:
             self.logger.error(self.feedback_message)
-            return fail
+            return f
 
         try:
             activity_id, activity_dict = self._emit(
@@ -201,13 +199,11 @@ class EmitAcceptCaseInviteNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        fail = self._require_datalayer_and_actor()
-        if fail is not None:
-            return fail
-        fail = self._require_factory()
-        if fail is not None:
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        if (f := self._require_factory()) is not None:
             self.logger.error(self.feedback_message)
-            return fail
+            return f
 
         try:
             activity_id, activity_dict = self._emit()
@@ -260,10 +256,9 @@ class AcceptCaseOwnershipTransferNode(DataLayerAction):
         return case
 
     def update(self) -> Status:
-        fail = self._require_datalayer()
-        if fail is not None:
+        if (f := self._require_datalayer()) is not None:
             self.logger.error("%s: DataLayer not available", self.name)
-            return fail
+            return f
 
         case = self._read_case()
         if case is None:
@@ -410,13 +405,11 @@ class ProposeCaseToActorNode(DataLayerAction):
         return activity_id
 
     def update(self) -> Status:
-        fail = self._require_datalayer_and_actor()
-        if fail is not None:
-            return fail
-        fail = self._require_factory()
-        if fail is not None:
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        if (f := self._require_factory()) is not None:
             self.logger.error("%s: %s", self.name, self.feedback_message)
-            return fail
+            return f
 
         ids = self._read_blackboard_ids()
         if ids is None:

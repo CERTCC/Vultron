@@ -176,9 +176,9 @@ class CheckInviteeNotAlreadyParticipantNode(DataLayerCondition):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         case = self.datalayer.read(self.case_id)
         if not isinstance(case, VulnerabilityCase):
@@ -317,9 +317,9 @@ class CreateInviteeParticipantAtAcceptedNode(DataLayerAction):
             return []
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         case = self.blackboard.get("invitee_case")
         if not isinstance(case, VulnerabilityCase):
@@ -552,9 +552,9 @@ class PersistInviteeParticipantNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         if self.blackboard.get("invitee_already_participant"):
             return Status.SUCCESS
@@ -631,12 +631,10 @@ class BackfillCanonicalLedgerToInviteeNode(DataLayerAction):
         return entries[-1].log_index if entries else -1
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
-        if self.actor_id is None:
-            self.logger.error("%s: actor_id not available", self.name)
-            return Status.FAILURE
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
         if self._sync_port is None:
             self.logger.error(
                 "%s: sync_port not injected; cannot perform join-time backfill",
@@ -751,11 +749,10 @@ class EmitAnnounceCaseToInviteeNode(DataLayerAction):
         self.invitee_id = invitee_id
 
     def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                "%s: DataLayer or actor_id not available", self.name
-            )
-            return Status.FAILURE
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
 
         factory = self.trigger_activity_factory
         if factory is None:

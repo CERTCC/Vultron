@@ -44,22 +44,13 @@ class CreateNoteNode(DataLayerAction):
         self.in_reply_to = in_reply_to
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            self.logger.error(f"{self.name}: {self.feedback_message}")
-            return Status.FAILURE
-
-        if self.trigger_activity_factory is None:
-            self.feedback_message = (
-                "trigger_activity_factory not available in blackboard"
-            )
-            self.logger.error(f"{self.name}: {self.feedback_message}")
-            return Status.FAILURE
-
-        if self.actor_id is None:
-            self.feedback_message = "actor_id not available in blackboard"
-            self.logger.error(f"{self.name}: {self.feedback_message}")
-            return Status.FAILURE
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
+        if (f := self._require_factory()) is not None:
+            return f
+        assert self.trigger_activity_factory is not None
 
         try:
             note_id, note_dict = self.trigger_activity_factory.create_note(
@@ -105,10 +96,9 @@ class AttachNoteFromResultNode(DataLayerAction):
         if note_id is None:
             return Status.FAILURE
 
-        fail = self._require_datalayer()
-        if fail is not None:
+        if (f := self._require_datalayer()) is not None:
             self.logger.error(f"{self.name}: {self.feedback_message}")
-            return fail
+            return f
 
         case: Any = self.datalayer.read(self.case_id)  # type: ignore[union-attr]
         if not isinstance(case, VulnerabilityCase):

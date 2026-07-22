@@ -65,9 +65,9 @@ class CheckCaseStatusIdempotencyNode(DataLayerCondition):
         self.status_id = status_id
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         case = self.datalayer.read(self.case_id)
         if not isinstance(case, VulnerabilityCase):
@@ -146,9 +146,9 @@ class ValidateCaseStatusTransitionNode(DataLayerCondition):
         return False
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         case = self.datalayer.read(self.case_id)
         if not isinstance(case, VulnerabilityCase):
@@ -227,9 +227,9 @@ class AppendCaseStatusToCaseNode(DataLayerAction):
         return status_obj if hasattr(status_obj, "id_") else None
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         case = self.datalayer.read(self.case_id)
         if not isinstance(case, VulnerabilityCase):

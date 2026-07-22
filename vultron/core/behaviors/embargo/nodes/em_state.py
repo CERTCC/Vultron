@@ -73,9 +73,9 @@ class ReadEmStateNode(DataLayerCondition):
         self._result_out = result_out
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         case = self.datalayer.read(self._case_id)
         if not isinstance(case, VulnerabilityCase):
@@ -146,9 +146,9 @@ class WriteEmStateNode(DataLayerAction):
         self._result_out = result_out
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         em_after = self._result_out.get("em_after")
         if not isinstance(em_after, EM):

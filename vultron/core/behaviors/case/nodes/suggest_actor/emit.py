@@ -153,18 +153,16 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerAction):
         return [CVDRole.VENDOR]
 
     def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.feedback_message = "DataLayer or actor_id not available"
-            return Status.FAILURE
-
-        factory = self.trigger_activity_factory
-        if factory is None:
-            self.feedback_message = (
-                "trigger_activity_factory not in blackboard"
-            )
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
+        if (f := self._require_factory()) is not None:
             self.logger.error(self.feedback_message)
-            return Status.FAILURE
+            return f
+        assert self.trigger_activity_factory is not None
 
+        factory = self.trigger_activity_factory  # guaranteed non-None
         roles = self._read_suggested_roles()
         if not roles:
             self.feedback_message = (
@@ -257,18 +255,16 @@ class EmitAcceptActorRecommendationNode(DataLayerAction):
         self.case_id = case_id
 
     def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.feedback_message = "DataLayer or actor_id not available"
-            return Status.FAILURE
-
-        factory = self.trigger_activity_factory
-        if factory is None:
-            self.feedback_message = (
-                "trigger_activity_factory not in blackboard"
-            )
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
+        if (f := self._require_factory()) is not None:
             self.logger.error(self.feedback_message)
-            return Status.FAILURE
+            return f
+        assert self.trigger_activity_factory is not None
 
+        factory = self.trigger_activity_factory  # guaranteed non-None
         try:
             activity_id, _ = factory.emit_accept_actor_recommendation(
                 recommender_id=self.recommender_id,
@@ -316,18 +312,16 @@ class EmitRejectActorRecommendationNode(DataLayerAction):
         self.case_id = case_id
 
     def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.feedback_message = "DataLayer or actor_id not available"
-            return Status.FAILURE
-
-        factory = self.trigger_activity_factory
-        if factory is None:
-            self.feedback_message = (
-                "trigger_activity_factory not in blackboard"
-            )
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
+        if (f := self._require_factory()) is not None:
             self.logger.error(self.feedback_message)
-            return Status.FAILURE
+            return f
+        assert self.trigger_activity_factory is not None
 
+        factory = self.trigger_activity_factory  # guaranteed non-None
         try:
             activity_id, _ = factory.emit_reject_actor_recommendation(
                 recommender_id=self.recommender_id,
@@ -387,18 +381,16 @@ class EmitNoteDuplicateRecommendationToOwnerNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.feedback_message = "DataLayer or actor_id not available"
-            return Status.FAILURE
-
-        factory = self.trigger_activity_factory
-        if factory is None:
-            self.feedback_message = (
-                "trigger_activity_factory not in blackboard"
-            )
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
+        if (f := self._require_factory()) is not None:
             self.logger.error(self.feedback_message)
-            return Status.FAILURE
+            return f
+        assert self.trigger_activity_factory is not None
 
+        factory = self.trigger_activity_factory  # guaranteed non-None
         try:
             case_obj = self.datalayer.read(self.case_id)
             raw_owner = getattr(case_obj, "attributed_to", None)
