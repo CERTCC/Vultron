@@ -218,6 +218,7 @@ def _phase_report_submission(
     as_Actor,
     as_Actor,
     as_Actor,
+    as_Actor,
     as_VulnerabilityReport,
     as_Offer,
     as_VulnerabilityCase,
@@ -235,7 +236,7 @@ def _phase_report_submission(
     )
 
     with demo_step("Seeding Finder, Coordinator, and Vendor containers"):
-        finder, coordinator, _ = seed_containers_fcv(
+        finder, coordinator, vendor = seed_containers_fcv(
             finder_client=finder_client,
             coordinator_client=coordinator_client,
             vendor_client=vendor_client,
@@ -302,6 +303,7 @@ def _phase_report_submission(
         finder_in_finder,
         coordinator,
         coordinator_in_coordinator,
+        vendor,
         report,
         offer,
         case,
@@ -794,6 +796,7 @@ def run_fcv_demo(
         finder_in_finder,
         coordinator,
         coordinator_in_coordinator,
+        vendor_obj,
         _report,
         _offer,
         case,
@@ -805,11 +808,6 @@ def run_fcv_demo(
         finder_id=finder_id,
         coordinator_id=coordinator_id,
         vendor_id=vendor_id,
-    )
-
-    vendor_obj = get_actor_by_id(
-        vendor_client,
-        vendor_id or VENDOR_ACTOR_ID,
     )
 
     vendor_in_vendor = _phase_invite_vendor(

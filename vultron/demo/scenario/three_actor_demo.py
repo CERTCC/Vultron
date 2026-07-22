@@ -35,7 +35,7 @@ from datetime import datetime, timedelta, timezone
 import logging
 import os
 import sys
-from warnings import deprecated
+from warnings import deprecated  # type: ignore[attr-defined]
 
 from vultron.core.states.em import is_em_embargo_active
 from vultron.demo.scenario.fv_demo import (
