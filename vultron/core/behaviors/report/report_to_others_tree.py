@@ -11,41 +11,120 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Report-to-others behavior tree composition (Phase 1 stub).
+"""Report-to-others behavior tree composition (Production Collapse 3).
 
-This module provides :func:`create_report_to_others_tree`, which hosts the
-report-to-others call-out points wired per ADR-0025 / BT-18-004:
+Implements ADR-0029 / BT-20-003: replaces the ``InjectParticipant``/
+``InjectVendor``/``InjectCoordinator``/``InjectOther`` Actuator nodes with
+calls to the ``suggest-actor-to-case`` trigger, while retaining the outer
+loop structure (typed sub-loops, party-identification Retrievers,
+effort-gate Evaluators).
 
-Evaluator nodes:
-- ``AllPartiesKnown``
-- ``RecipientEffortExceeded``
-- ``PolicyCompatible``
-- ``TotalEffortLimitMet``
+Tree structure::
 
-Actuator nodes (reserved for Phase 2 — accepted but not yet wired):
-- ``RemoveRecipient``
-- ``SetRcptQrmR``
-- ``InjectParticipant`` (covers ``InjectVendor``, ``InjectCoordinator``,
-  ``InjectOther`` via MRO; one factory parameter for the family)
+    ReportToOthersBT (Sequence, memory=False)
+    ├── AllPartiesKnown            (Evaluator factory)
+    ├── TotalEffortLimitMet        (Evaluator factory)
+    ├── VendorSubLoop              (Selector, memory=False)
+    │   ├── Inverter(MoreVendors)  — skip arm when queue empty
+    │   └── Sequence(MoreVendors, WriteVendorRoles, SuggestVendorTrigger)
+    ├── CoordinatorSubLoop         (Selector, memory=False)
+    │   ├── Inverter(MoreCoordinators)
+    │   └── Sequence(MoreCoordinators, WriteCoordinatorRoles, SuggestCoordinatorTrigger)
+    └── OtherSubLoop               (Selector, memory=False)
+        ├── Inverter(MoreOthers)
+        └── Sequence(MoreOthers, WriteOtherRoles, SuggestOtherTrigger)
 
-Phase 1 contains only the four Evaluator call-out points as a stub Sequence.
-The full notification workflow (party identification loop, recipient
-selection, effort-limit checks, RM state management, participant injection)
-is deferred to a future issue.
+Each sub-loop follows the BTND-08-001 positive-precondition pattern: the
+``More*`` guard appears in both the Sequence (execute arm) and the Inverter
+(skip arm).  When the queue is empty, ``MoreX`` returns FAILURE →
+``Inverter(MoreX)`` returns SUCCESS → arm is a graceful no-op.  When the
+queue is non-empty, the Sequence executes ``WriteXRoles`` then the trigger.
+
+``WriteXRolesNode`` is a ProtocolInternal node (BTND-03-004) that writes
+``suggested_roles_{case_id_segment}`` to the blackboard so the downstream
+``suggest-actor-to-case`` trigger carries the correct ``CVDRole`` when the
+CaseActor processes the received Offer(Actor, Case).
+
+The Evaluator call-out points from Phase 1 (``RecipientEffortExceeded``,
+``PolicyCompatible``) are removed from the outer Sequence; effort-gating
+and policy checks are handled per-recipient inside the sub-loops by the
+production trigger rather than as outer-loop guards (BT-20-003 collapse
+decision).  ``AllPartiesKnown`` and ``TotalEffortLimitMet`` remain as outer
+guards per the simulator structure.
 
 References
 ----------
-- ADR-0025: ``docs/adr/0025-call-out-point-abstraction-layer.md``
-- Spec: ``specs/behavior-tree-integration.yaml`` BT-18-004
+- ADR-0029: ``docs/adr/0029-notification-loop-suggest-actor.md``
+- Spec: ``specs/behavior-tree-integration.yaml`` BT-20-003
+- Notes: ``notes/bt-fuzzer-nodes-report-management.md``
+  § "Production Collapse 3: Notification loop"
 """
 
+from __future__ import annotations
+
 import logging
+from typing import Any
 
 import py_trees
+from py_trees.common import Access, Status
 
 from vultron.core.behaviors.call_out_point import CallOutBackendFactory
+from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
+
+
+class _WriteRolesNode(py_trees.behaviour.Behaviour):
+    """ProtocolInternal: write ``suggested_roles_{case_id_segment}`` to the blackboard.
+
+    Written before each sub-loop's ``suggest-actor-to-case`` trigger so the
+    downstream CaseActor receive path carries the correct CVD role when
+    forwarding ``Offer(CaseParticipant)`` to the Case Owner (AC-2, BTND-03-004).
+
+    This node is constructed directly by the tree builder (not via a factory)
+    because it is a ProtocolInternal handoff write — not a call-out point to
+    an external system (ADR-0025).
+    """
+
+    logger: logging.Logger  # type: ignore[assignment]
+
+    def __init__(
+        self,
+        roles: list[CVDRole],
+        case_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.roles = roles
+        self.case_id = case_id
+        self.logger = logging.getLogger(  # type: ignore[assignment]
+            f"{self.__class__.__module__}.{self.__class__.__name__}"
+        )
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard = self.attach_blackboard_client(name=self.name)
+        id_segment = self.case_id.split("/")[-1]
+        self.blackboard_key = f"suggested_roles_{id_segment}"
+        self.blackboard.register_key(
+            key=self.blackboard_key, access=Access.WRITE
+        )
+
+    def update(self) -> Status:
+        setattr(self.blackboard, self.blackboard_key, list(self.roles))
+        self.logger.debug(
+            "%s: wrote suggested_roles %s for case '%s'",
+            self.name,
+            self.roles,
+            self.case_id,
+        )
+        return Status.SUCCESS
+
+
+# ---------------------------------------------------------------------------
+# Default factories — deferred imports avoid circular dependency (demo fuzzer
+# imports CVDRole/enums from this module's layer at module level).
+# ---------------------------------------------------------------------------
 
 
 def _default_all_parties_known_factory(
@@ -58,26 +137,6 @@ def _default_all_parties_known_factory(
     return AllPartiesKnown(name)
 
 
-def _default_recipient_effort_exceeded_factory(
-    name: str,
-) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.report_to_others import (
-        RecipientEffortExceeded,
-    )
-
-    return RecipientEffortExceeded(name)
-
-
-def _default_policy_compatible_factory(
-    name: str,
-) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.report_to_others import (
-        PolicyCompatible,
-    )
-
-    return PolicyCompatible(name)
-
-
 def _default_total_effort_limit_factory(
     name: str,
 ) -> py_trees.behaviour.Behaviour:
@@ -88,102 +147,207 @@ def _default_total_effort_limit_factory(
     return TotalEffortLimitMet(name)
 
 
-# ---------------------------------------------------------------------------
-# Actuator default factories (Phase 2 reserved)
-# ---------------------------------------------------------------------------
-
-
-def _default_remove_recipient_factory(
+def _default_more_vendors_factory(
     name: str,
 ) -> py_trees.behaviour.Behaviour:
     from vultron.demo.fuzzer.report_management.report_to_others import (
-        RemoveRecipient,
+        MoreVendors,
     )
 
-    return RemoveRecipient(name)
+    return MoreVendors(name)
 
 
-def _default_set_rcpt_qrm_r_factory(
+def _default_more_coordinators_factory(
     name: str,
 ) -> py_trees.behaviour.Behaviour:
     from vultron.demo.fuzzer.report_management.report_to_others import (
-        SetRcptQrmR,
+        MoreCoordinators,
     )
 
-    return SetRcptQrmR(name)
+    return MoreCoordinators(name)
 
 
-def _default_inject_participant_factory(
+def _default_more_others_factory(
     name: str,
 ) -> py_trees.behaviour.Behaviour:
     from vultron.demo.fuzzer.report_management.report_to_others import (
-        InjectParticipant,
+        MoreOthers,
     )
 
-    return InjectParticipant(name)
+    return MoreOthers(name)
+
+
+def _default_suggest_vendor_factory(
+    name: str,
+) -> py_trees.behaviour.Behaviour:
+    from vultron.demo.fuzzer.report_management.report_to_others import (
+        InjectVendor,
+    )
+
+    return InjectVendor(name)
+
+
+def _default_suggest_coordinator_factory(
+    name: str,
+) -> py_trees.behaviour.Behaviour:
+    from vultron.demo.fuzzer.report_management.report_to_others import (
+        InjectCoordinator,
+    )
+
+    return InjectCoordinator(name)
+
+
+def _default_suggest_other_factory(
+    name: str,
+) -> py_trees.behaviour.Behaviour:
+    from vultron.demo.fuzzer.report_management.report_to_others import (
+        InjectOther,
+    )
+
+    return InjectOther(name)
+
+
+def _make_role_sub_loop(
+    loop_name: str,
+    more_factory: CallOutBackendFactory,
+    more_node_name: str,
+    roles: list[CVDRole],
+    suggest_factory: CallOutBackendFactory,
+    suggest_node_name: str,
+    case_id: str,
+    write_roles_node_name: str,
+) -> py_trees.behaviour.Behaviour:
+    """Build one typed sub-loop arm (vendor, coordinator, or other).
+
+    Shape (positive-precondition with Inverter skip, per BTND-08-001)::
+
+        Selector(loop_name, memory=False)
+        ├── Inverter(MoreX)   — SUCCESS no-op when queue empty
+        └── Sequence(MoreX, WriteXRoles, SuggestXTrigger)  — execute path
+
+    When the role queue is empty, ``MoreX`` returns FAILURE →
+    ``Inverter(MoreX)`` returns SUCCESS → graceful no-op.
+    When non-empty: Sequence executes ``WriteXRoles`` then the trigger.
+    """
+    more_guard_exec = more_factory(more_node_name)
+    more_guard_skip = more_factory(f"{more_node_name}Skip")
+
+    execute_seq = py_trees.composites.Sequence(
+        name=f"Do{loop_name}",
+        memory=False,
+        children=[
+            more_guard_exec,
+            _WriteRolesNode(
+                roles=roles,
+                case_id=case_id,
+                name=write_roles_node_name,
+            ),
+            suggest_factory(suggest_node_name),
+        ],
+    )
+    skip_if_empty = py_trees.decorators.Inverter(
+        name=f"Skip{loop_name}IfEmpty",
+        child=more_guard_skip,
+    )
+    return py_trees.composites.Selector(
+        name=loop_name,
+        memory=False,
+        children=[skip_if_empty, execute_seq],
+    )
 
 
 def create_report_to_others_tree(
     case_id: str,
     all_parties_known_factory: CallOutBackendFactory = _default_all_parties_known_factory,
-    recipient_effort_exceeded_factory: CallOutBackendFactory = _default_recipient_effort_exceeded_factory,
-    policy_compatible_factory: CallOutBackendFactory = _default_policy_compatible_factory,
     total_effort_limit_factory: CallOutBackendFactory = _default_total_effort_limit_factory,
-    remove_recipient_factory: CallOutBackendFactory = _default_remove_recipient_factory,
-    set_rcpt_qrm_r_factory: CallOutBackendFactory = _default_set_rcpt_qrm_r_factory,
-    inject_participant_factory: CallOutBackendFactory = _default_inject_participant_factory,
+    more_vendors_factory: CallOutBackendFactory = _default_more_vendors_factory,
+    more_coordinators_factory: CallOutBackendFactory = _default_more_coordinators_factory,
+    more_others_factory: CallOutBackendFactory = _default_more_others_factory,
+    suggest_vendor_factory: CallOutBackendFactory = _default_suggest_vendor_factory,
+    suggest_coordinator_factory: CallOutBackendFactory = _default_suggest_coordinator_factory,
+    suggest_other_factory: CallOutBackendFactory = _default_suggest_other_factory,
 ) -> py_trees.behaviour.Behaviour:
-    """Create behavior tree for the report-to-others workflow (Phase 1 stub).
+    """Create the notification loop behavior tree (Production Collapse 3).
 
-    Phase 1 exposes the four Evaluator call-out points as a stub Sequence.
-    The three Actuator factories (remove_recipient_factory,
-    set_rcpt_qrm_r_factory, inject_participant_factory) are accepted for
-    BT-18-004 compliance but reserved for Phase 2 when the full notification
-    loop (recipient selection, RM state transitions, participant injection)
-    is built.  ``inject_participant_factory`` covers ``InjectVendor``,
-    ``InjectCoordinator``, and ``InjectOther`` via MRO.
+    Replaces the ``InjectParticipant`` family with ``suggest-actor-to-case``
+    trigger calls per ADR-0029 / BT-20-003.  Three typed sub-loops iterate
+    over identified vendors, coordinators, and other parties; each sub-loop
+    writes the appropriate ``CVDRole`` to the blackboard before invoking its
+    trigger factory (AC-2).
 
     Args:
-        case_id: ID of VulnerabilityCase being processed.
+        case_id: ID of the VulnerabilityCase being processed.
         all_parties_known_factory: Factory for the Evaluator call-out point
             that checks whether all relevant notification parties have been
             identified.  Defaults to the fuzzer backend (BT-18-004).
-        recipient_effort_exceeded_factory: Factory for the Evaluator call-out
-            point that checks whether per-recipient notification effort has
-            exceeded the policy threshold.  Defaults to the fuzzer backend
-            (BT-18-004).
-        policy_compatible_factory: Factory for the Evaluator call-out point
-            that checks whether a recipient's disclosure policy is compatible
-            with the case embargo.  Defaults to the fuzzer backend (BT-18-004).
         total_effort_limit_factory: Factory for the Evaluator call-out point
             that checks whether total notification effort has reached the
             organizational ceiling.  Defaults to the fuzzer backend (BT-18-004).
-        remove_recipient_factory: Factory for the Actuator call-out point that
-            removes a recipient from the pending notification queue.  Reserved
-            for Phase 2; accepted but not yet wired (BT-18-004).
-        set_rcpt_qrm_r_factory: Factory for the Actuator call-out point that
-            transitions a recipient's RM state to RECEIVED.  Reserved for Phase
-            2; accepted but not yet wired (BT-18-004).
-        inject_participant_factory: Factory for the Actuator call-out point
-            that adds a new participant to the case.  Covers ``InjectVendor``,
-            ``InjectCoordinator``, and ``InjectOther`` via MRO.  Reserved for
-            Phase 2; accepted but not yet wired (BT-18-004).
+        more_vendors_factory: Factory for the ProtocolInternal guard that
+            checks whether the identified-vendors queue is non-empty.  Defaults
+            to the fuzzer backend.
+        more_coordinators_factory: Factory for the ProtocolInternal guard that
+            checks whether the identified-coordinators queue is non-empty.
+            Defaults to the fuzzer backend.
+        more_others_factory: Factory for the ProtocolInternal guard that
+            checks whether the identified-others queue is non-empty.  Defaults
+            to the fuzzer backend.
+        suggest_vendor_factory: Factory for the Actuator call-out point that
+            suggests a vendor actor to the case via ``suggest-actor-to-case``
+            with ``CVDRole.VENDOR``.  Defaults to the fuzzer backend
+            (``InjectVendor``).
+        suggest_coordinator_factory: Factory for the Actuator call-out point
+            that suggests a coordinator actor with ``CVDRole.COORDINATOR``.
+            Defaults to the fuzzer backend (``InjectCoordinator``).
+        suggest_other_factory: Factory for the Actuator call-out point that
+            suggests an other-party actor with ``CVDRole.OTHER``.  Defaults to
+            the fuzzer backend (``InjectOther``).
 
     Returns:
-        Root node of the report-to-others behavior tree (Phase 1 stub Sequence).
+        Root Sequence node of the notification-loop behavior tree.
     """
-    # Phase 2: remove_recipient_factory, set_rcpt_qrm_r_factory, and
-    # inject_participant_factory are reserved for the full notification loop.
-    # Accepting them here satisfies BT-18-004 without breaking callers.
+    vendor_sub_loop = _make_role_sub_loop(
+        loop_name="VendorSubLoop",
+        more_factory=more_vendors_factory,
+        more_node_name="MoreVendors",
+        roles=[CVDRole.VENDOR],
+        suggest_factory=suggest_vendor_factory,
+        suggest_node_name="SuggestVendor",
+        case_id=case_id,
+        write_roles_node_name="WriteVendorRoles",
+    )
+    coordinator_sub_loop = _make_role_sub_loop(
+        loop_name="CoordinatorSubLoop",
+        more_factory=more_coordinators_factory,
+        more_node_name="MoreCoordinators",
+        roles=[CVDRole.COORDINATOR],
+        suggest_factory=suggest_coordinator_factory,
+        suggest_node_name="SuggestCoordinator",
+        case_id=case_id,
+        write_roles_node_name="WriteCoordinatorRoles",
+    )
+    other_sub_loop = _make_role_sub_loop(
+        loop_name="OtherSubLoop",
+        more_factory=more_others_factory,
+        more_node_name="MoreOthers",
+        roles=[CVDRole.OTHER],
+        suggest_factory=suggest_other_factory,
+        suggest_node_name="SuggestOther",
+        case_id=case_id,
+        write_roles_node_name="WriteOtherRoles",
+    )
     root = py_trees.composites.Sequence(
         name="ReportToOthersBT",
         memory=False,
         children=[
             all_parties_known_factory("AllPartiesKnown"),
-            recipient_effort_exceeded_factory("RecipientEffortExceeded"),
-            policy_compatible_factory("PolicyCompatible"),
             total_effort_limit_factory("TotalEffortLimitMet"),
+            vendor_sub_loop,
+            coordinator_sub_loop,
+            other_sub_loop,
         ],
     )
-    logger.info(f"Created ReportToOthersBT (Phase 1 stub) for case={case_id}")
+    logger.info(
+        "Created ReportToOthersBT (Production Collapse 3) for case=%s", case_id
+    )
     return root

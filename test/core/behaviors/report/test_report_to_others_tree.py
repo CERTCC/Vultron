@@ -11,37 +11,114 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Tests for the report-to-others behavior tree (Phase 1 stub).
+"""Tests for the notification-loop behavior tree (Production Collapse 3).
 
-Verifies BT-18-004: factory params are accepted and used; defaults are the
-correct fuzzer classes.
+Verifies ADR-0029 / BT-20-003:
+- AC-1: InjectParticipant/InjectVendor/InjectCoordinator/InjectOther eliminated
+  as separate leaves; replaced by suggest_*_factory call-out points.
+- AC-2: Each sub-loop writes the appropriate suggested_roles_{case_id_segment}
+  blackboard key before invoking its trigger factory.
+- AC-3: Outer loop structure (typed sub-loops, AllPartiesKnown, TotalEffortLimitMet)
+  preserved.
+- AC-4: ADR-0025 factory pattern applied to every call-out point.
 """
 
 import pytest
 import py_trees
+from py_trees.common import Status
 
 from vultron.core.behaviors.report.report_to_others_tree import (
+    _WriteRolesNode,
     create_report_to_others_tree,
 )
 from vultron.demo.fuzzer.report_management.report_to_others import (
     AllPartiesKnown,
-    PolicyCompatible,
-    RecipientEffortExceeded,
+    InjectCoordinator,
+    InjectOther,
+    InjectVendor,
+    MoreCoordinators,
+    MoreOthers,
+    MoreVendors,
     TotalEffortLimitMet,
 )
+from vultron.enums.roles import CVDRole
 
 CASE_ID = "https://example.org/cases/test-001"
+CASE_ID_SEGMENT = CASE_ID.split("/")[-1]
+
+
+@pytest.fixture(autouse=True)
+def clear_blackboard():
+    """Clear py_trees global blackboard state between tests."""
+    py_trees.blackboard.Blackboard.storage.clear()
+    yield
+    py_trees.blackboard.Blackboard.storage.clear()
 
 
 def _marker_factory(label):
     def factory(name):
         class _Marker(py_trees.behaviour.Behaviour):
             def update(self):
-                return py_trees.common.Status.SUCCESS
+                return Status.SUCCESS
 
         return _Marker(name=label)
 
     return factory
+
+
+# ---------------------------------------------------------------------------
+# _WriteRolesNode unit tests
+# ---------------------------------------------------------------------------
+
+
+def test_write_roles_node_defaults():
+    node = _WriteRolesNode(roles=[CVDRole.VENDOR], case_id=CASE_ID)
+    assert node.roles == [CVDRole.VENDOR]
+    assert node.case_id == CASE_ID
+
+
+def test_write_vendor_roles_writes_blackboard():
+    """WriteRolesNode writes suggested_roles_{id_segment} on tick."""
+    node = _WriteRolesNode(
+        roles=[CVDRole.VENDOR],
+        case_id=CASE_ID,
+        name="WriteVendorRoles",
+    )
+    node.setup()
+    status = node.update()
+    assert status == Status.SUCCESS
+    key = f"/suggested_roles_{CASE_ID_SEGMENT}"
+    assert key in py_trees.blackboard.Blackboard.storage
+    assert py_trees.blackboard.Blackboard.storage[key] == [CVDRole.VENDOR]
+
+
+def test_write_coordinator_roles_writes_blackboard():
+    node = _WriteRolesNode(
+        roles=[CVDRole.COORDINATOR],
+        case_id=CASE_ID,
+        name="WriteCoordinatorRoles",
+    )
+    node.setup()
+    node.update()
+    key = f"/suggested_roles_{CASE_ID_SEGMENT}"
+    assert py_trees.blackboard.Blackboard.storage[key] == [CVDRole.COORDINATOR]
+
+
+def test_write_other_roles_writes_blackboard():
+    node = _WriteRolesNode(
+        roles=[CVDRole.OTHER],
+        case_id=CASE_ID,
+        name="WriteOtherRoles",
+    )
+    node.setup()
+    node.update()
+    key = f"/suggested_roles_{CASE_ID_SEGMENT}"
+    assert py_trees.blackboard.Blackboard.storage[key] == [CVDRole.OTHER]
+
+
+# ---------------------------------------------------------------------------
+# Tree structure — AC-3
+# ---------------------------------------------------------------------------
 
 
 def test_create_report_to_others_tree_returns_behaviour():
@@ -54,26 +131,79 @@ def test_create_report_to_others_tree_root_name():
     assert tree.name == "ReportToOthersBT"
 
 
-def test_default_children_are_fuzzer_nodes():
+def test_root_is_sequence():
     tree = create_report_to_others_tree(case_id=CASE_ID)
-    assert len(tree.children) == 4
-    assert isinstance(tree.children[0], AllPartiesKnown)
-    assert isinstance(tree.children[1], RecipientEffortExceeded)
-    assert isinstance(tree.children[2], PolicyCompatible)
-    assert isinstance(tree.children[3], TotalEffortLimitMet)
+    assert isinstance(tree, py_trees.composites.Sequence)
+
+
+def test_root_has_five_direct_children():
+    """AC-3: AllPartiesKnown, TotalEffortLimitMet, and three sub-loops."""
+    tree = create_report_to_others_tree(case_id=CASE_ID)
+    assert len(tree.children) == 5
+
+
+def test_root_children_names():
+    tree = create_report_to_others_tree(case_id=CASE_ID)
+    names = [c.name for c in tree.children]
+    assert names[0] == "AllPartiesKnown"
+    assert names[1] == "TotalEffortLimitMet"
+    assert names[2] == "VendorSubLoop"
+    assert names[3] == "CoordinatorSubLoop"
+    assert names[4] == "OtherSubLoop"
+
+
+def test_sub_loops_are_selectors():
+    tree = create_report_to_others_tree(case_id=CASE_ID)
+    for sub_loop in tree.children[2:]:
+        assert isinstance(
+            sub_loop, py_trees.composites.Selector
+        ), f"{sub_loop.name} should be a Selector"
+
+
+# ---------------------------------------------------------------------------
+# AC-1: eliminated nodes absent as separate leaves
+# ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
-    "param,label,index",
+    "eliminated_class_name",
     [
-        ("all_parties_known_factory", "APK", 0),
-        ("recipient_effort_exceeded_factory", "REE", 1),
-        ("policy_compatible_factory", "PC", 2),
-        ("total_effort_limit_factory", "TEL", 3),
+        "InjectParticipant",
+        "InjectVendor",
+        "InjectCoordinator",
+        "InjectOther",
+        "RemoveRecipient",
+        "SetRcptQrmR",
     ],
 )
-def test_each_factory_is_wired(param, label, index):
-    """Each factory parameter is individually wired into the tree."""
+def test_eliminated_actuator_nodes_not_top_level_leaves(eliminated_class_name):
+    """AC-1: eliminated nodes are not direct children of the root."""
+    tree = create_report_to_others_tree(case_id=CASE_ID)
+    direct_class_names = [c.__class__.__name__ for c in tree.children]
+    assert eliminated_class_name not in direct_class_names
+
+
+def test_default_children_are_fuzzer_nodes():
+    """Default factories produce correct fuzzer nodes for outer guards."""
+    tree = create_report_to_others_tree(case_id=CASE_ID)
+    assert isinstance(tree.children[0], AllPartiesKnown)
+    assert isinstance(tree.children[1], TotalEffortLimitMet)
+
+
+# ---------------------------------------------------------------------------
+# AC-4: Factory pattern — Evaluator factories
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "param,label,child_index",
+    [
+        ("all_parties_known_factory", "APK", 0),
+        ("total_effort_limit_factory", "TEL", 1),
+    ],
+)
+def test_evaluator_factory_wired(param, label, child_index):
+    """AC-4: each Evaluator factory is wired into the root Sequence."""
     sentinel = {"called": False}
 
     def custom_factory(name):
@@ -81,7 +211,7 @@ def test_each_factory_is_wired(param, label, index):
 
         class _Marker(py_trees.behaviour.Behaviour):
             def update(self):
-                return py_trees.common.Status.SUCCESS
+                return Status.SUCCESS
 
         return _Marker(name=label)
 
@@ -89,75 +219,283 @@ def test_each_factory_is_wired(param, label, index):
         case_id=CASE_ID, **{param: custom_factory}
     )
     assert sentinel["called"]
-    assert tree.children[index].name == label
+    assert tree.children[child_index].name == label
+
+
+# ---------------------------------------------------------------------------
+# AC-3/AC-4: Sub-loop factory wiring
+# ---------------------------------------------------------------------------
+
+
+def _find_node_by_name_recursive(root, name):
+    """DFS search for a node by name."""
+    if root.name == name:
+        return root
+    children = getattr(root, "children", [])
+    for child in children:
+        found = _find_node_by_name_recursive(child, name)
+        if found is not None:
+            return found
+    if hasattr(root, "child"):
+        return _find_node_by_name_recursive(root.child, name)
+    return None
+
+
+@pytest.mark.parametrize(
+    "more_param,more_label,suggest_param,suggest_label,loop_name",
+    [
+        (
+            "more_vendors_factory",
+            "MV",
+            "suggest_vendor_factory",
+            "SV",
+            "VendorSubLoop",
+        ),
+        (
+            "more_coordinators_factory",
+            "MC",
+            "suggest_coordinator_factory",
+            "SC",
+            "CoordinatorSubLoop",
+        ),
+        (
+            "more_others_factory",
+            "MO",
+            "suggest_other_factory",
+            "SO",
+            "OtherSubLoop",
+        ),
+    ],
+)
+def test_sub_loop_factories_wired(
+    more_param, more_label, suggest_param, suggest_label, loop_name
+):
+    """AC-3/AC-4: each sub-loop factory pair is wired into the correct sub-loop."""
+    tree = create_report_to_others_tree(
+        case_id=CASE_ID,
+        **{
+            more_param: _marker_factory(more_label),
+            suggest_param: _marker_factory(suggest_label),
+        },
+    )
+    sub_loop = _find_node_by_name_recursive(tree, loop_name)
+    assert sub_loop is not None
+    tree_str = py_trees.display.ascii_tree(sub_loop)
+    assert more_label in tree_str
+    assert suggest_label in tree_str
+
+
+# ---------------------------------------------------------------------------
+# AC-2: WriteRolesNode is present and correctly placed before trigger factory
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "loop_name,write_node_name,expected_role",
+    [
+        ("VendorSubLoop", "WriteVendorRoles", CVDRole.VENDOR),
+        ("CoordinatorSubLoop", "WriteCoordinatorRoles", CVDRole.COORDINATOR),
+        ("OtherSubLoop", "WriteOtherRoles", CVDRole.OTHER),
+    ],
+)
+def test_write_roles_node_present_in_sub_loop(
+    loop_name, write_node_name, expected_role
+):
+    """AC-2: each sub-loop contains a WriteRolesNode before the trigger."""
+    tree = create_report_to_others_tree(case_id=CASE_ID)
+    write_node = _find_node_by_name_recursive(tree, write_node_name)
+    assert (
+        write_node is not None
+    ), f"WriteRolesNode '{write_node_name}' not found in {loop_name}"
+    assert isinstance(write_node, _WriteRolesNode)
+    assert write_node.roles == [expected_role]
+
+
+def test_vendor_write_roles_node_precedes_trigger():
+    """AC-2: WriteVendorRoles is an earlier sibling of SuggestVendor in DoVendorSubLoop."""
+    tree = create_report_to_others_tree(case_id=CASE_ID)
+    execute_seq = _find_node_by_name_recursive(tree, "DoVendorSubLoop")
+    assert execute_seq is not None
+    child_names = [c.name for c in execute_seq.children]
+    write_idx = child_names.index("WriteVendorRoles")
+    suggest_idx = child_names.index("SuggestVendor")
+    assert write_idx < suggest_idx
+
+
+def test_coordinator_write_roles_node_precedes_trigger():
+    """AC-2: WriteCoordinatorRoles is an earlier sibling of SuggestCoordinator."""
+    tree = create_report_to_others_tree(case_id=CASE_ID)
+    execute_seq = _find_node_by_name_recursive(tree, "DoCoordinatorSubLoop")
+    assert execute_seq is not None
+    child_names = [c.name for c in execute_seq.children]
+    write_idx = child_names.index("WriteCoordinatorRoles")
+    suggest_idx = child_names.index("SuggestCoordinator")
+    assert write_idx < suggest_idx
+
+
+def test_other_write_roles_node_precedes_trigger():
+    """AC-2: WriteOtherRoles is an earlier sibling of SuggestOther."""
+    tree = create_report_to_others_tree(case_id=CASE_ID)
+    execute_seq = _find_node_by_name_recursive(tree, "DoOtherSubLoop")
+    assert execute_seq is not None
+    child_names = [c.name for c in execute_seq.children]
+    write_idx = child_names.index("WriteOtherRoles")
+    suggest_idx = child_names.index("SuggestOther")
+    assert write_idx < suggest_idx
+
+
+# ---------------------------------------------------------------------------
+# AC-2 behavioral: WriteRolesNode writes correct role on sub-loop execution
+# ---------------------------------------------------------------------------
+
+
+def _make_always_succeed_factory(name):
+    class _AS(py_trees.behaviour.Behaviour):
+        def update(self):
+            return Status.SUCCESS
+
+    return _AS(name=name)
+
+
+def _make_always_fail_factory(name):
+    class _AF(py_trees.behaviour.Behaviour):
+        def update(self):
+            return Status.FAILURE
+
+    return _AF(name=name)
+
+
+@pytest.mark.parametrize(
+    "more_param,suggest_param,expected_role",
+    [
+        ("more_vendors_factory", "suggest_vendor_factory", CVDRole.VENDOR),
+        (
+            "more_coordinators_factory",
+            "suggest_coordinator_factory",
+            CVDRole.COORDINATOR,
+        ),
+        ("more_others_factory", "suggest_other_factory", CVDRole.OTHER),
+    ],
+)
+def test_write_roles_key_written_when_sub_loop_executes(
+    more_param, suggest_param, expected_role
+):
+    """AC-2 behavioral: ticking a sub-loop with MoreX=SUCCESS writes the correct roles key.
+
+    All other sub-loops' more-factories are forced to always-fail so their
+    Inverter arms succeed as graceful no-ops — the test target sub-loop is the
+    only one that executes, keeping the blackboard key unambiguous.
+    """
+    _all_params = [
+        "more_vendors_factory",
+        "more_coordinators_factory",
+        "more_others_factory",
+    ]
+    more_kwargs = {
+        k: (
+            _make_always_succeed_factory
+            if k == more_param
+            else _make_always_fail_factory
+        )
+        for k in _all_params
+    }
+    tree = create_report_to_others_tree(
+        case_id=CASE_ID,
+        all_parties_known_factory=_make_always_succeed_factory,
+        total_effort_limit_factory=_make_always_succeed_factory,
+        **more_kwargs,
+        **{suggest_param: _make_always_succeed_factory},
+    )
+    tree.setup_with_descendants()
+    tree.tick_once()
+
+    key = f"/suggested_roles_{CASE_ID_SEGMENT}"
+    assert key in py_trees.blackboard.Blackboard.storage
+    assert py_trees.blackboard.Blackboard.storage[key] == [expected_role]
+
+
+# ---------------------------------------------------------------------------
+# AC-3: Default more_* factories use correct fuzzer node types
+# ---------------------------------------------------------------------------
+
+
+def test_default_more_vendors_factory():
+    from vultron.core.behaviors.report.report_to_others_tree import (
+        _default_more_vendors_factory,
+    )
+
+    node = _default_more_vendors_factory("MoreVendors")
+    assert isinstance(node, MoreVendors)
+
+
+def test_default_more_coordinators_factory():
+    from vultron.core.behaviors.report.report_to_others_tree import (
+        _default_more_coordinators_factory,
+    )
+
+    node = _default_more_coordinators_factory("MoreCoordinators")
+    assert isinstance(node, MoreCoordinators)
+
+
+def test_default_more_others_factory():
+    from vultron.core.behaviors.report.report_to_others_tree import (
+        _default_more_others_factory,
+    )
+
+    node = _default_more_others_factory("MoreOthers")
+    assert isinstance(node, MoreOthers)
+
+
+# ---------------------------------------------------------------------------
+# AC-1/AC-4: Default suggest_* factories use InjectX fuzzer stubs
+# ---------------------------------------------------------------------------
+
+
+def test_default_suggest_vendor_factory():
+    from vultron.core.behaviors.report.report_to_others_tree import (
+        _default_suggest_vendor_factory,
+    )
+
+    node = _default_suggest_vendor_factory("SuggestVendor")
+    assert isinstance(node, InjectVendor)
+
+
+def test_default_suggest_coordinator_factory():
+    from vultron.core.behaviors.report.report_to_others_tree import (
+        _default_suggest_coordinator_factory,
+    )
+
+    node = _default_suggest_coordinator_factory("SuggestCoordinator")
+    assert isinstance(node, InjectCoordinator)
+
+
+def test_default_suggest_other_factory():
+    from vultron.core.behaviors.report.report_to_others_tree import (
+        _default_suggest_other_factory,
+    )
+
+    node = _default_suggest_other_factory("SuggestOther")
+    assert isinstance(node, InjectOther)
+
+
+# ---------------------------------------------------------------------------
+# AC-4: All factories replaceable simultaneously
+# ---------------------------------------------------------------------------
 
 
 def test_all_factories_replaceable():
+    """AC-4: every factory parameter can be replaced simultaneously."""
     tree = create_report_to_others_tree(
         case_id=CASE_ID,
         all_parties_known_factory=_marker_factory("APK"),
-        recipient_effort_exceeded_factory=_marker_factory("REE"),
-        policy_compatible_factory=_marker_factory("PC"),
         total_effort_limit_factory=_marker_factory("TEL"),
+        more_vendors_factory=_marker_factory("MV"),
+        more_coordinators_factory=_marker_factory("MC"),
+        more_others_factory=_marker_factory("MO"),
+        suggest_vendor_factory=_marker_factory("SV"),
+        suggest_coordinator_factory=_marker_factory("SC"),
+        suggest_other_factory=_marker_factory("SO"),
     )
     tree_str = py_trees.display.ascii_tree(tree)
-    for label in ("APK", "REE", "PC", "TEL"):
+    for label in ("APK", "TEL", "MV", "MC", "MO", "SV", "SC", "SO"):
         assert label in tree_str
-
-
-# ---------------------------------------------------------------------------
-# Actuator factory params — Phase 2 reserved (BT-18-004)
-# ---------------------------------------------------------------------------
-
-
-def test_actuator_factories_accepted():
-    """All three Actuator factory params are accepted (Phase 2 reserved)."""
-    tree = create_report_to_others_tree(case_id=CASE_ID)
-    assert tree is not None
-
-
-def test_remove_recipient_default_factory_produces_correct_node():
-    from vultron.core.behaviors.report.report_to_others_tree import (
-        _default_remove_recipient_factory,
-    )
-    from vultron.demo.fuzzer.report_management.report_to_others import (
-        RemoveRecipient,
-    )
-
-    node = _default_remove_recipient_factory("RemoveRecipient")
-    assert isinstance(node, RemoveRecipient)
-
-
-def test_set_rcpt_qrm_r_default_factory_produces_correct_node():
-    from vultron.core.behaviors.report.report_to_others_tree import (
-        _default_set_rcpt_qrm_r_factory,
-    )
-    from vultron.demo.fuzzer.report_management.report_to_others import (
-        SetRcptQrmR,
-    )
-
-    node = _default_set_rcpt_qrm_r_factory("SetRcptQrmR")
-    assert isinstance(node, SetRcptQrmR)
-
-
-def test_inject_participant_default_factory_produces_correct_node():
-    from vultron.core.behaviors.report.report_to_others_tree import (
-        _default_inject_participant_factory,
-    )
-    from vultron.demo.fuzzer.report_management.report_to_others import (
-        InjectParticipant,
-    )
-
-    node = _default_inject_participant_factory("InjectParticipant")
-    assert isinstance(node, InjectParticipant)
-
-
-def test_actuator_custom_factories_accepted():
-    """Custom Actuator factories are accepted without error."""
-    tree = create_report_to_others_tree(
-        case_id=CASE_ID,
-        remove_recipient_factory=_marker_factory("RR"),
-        set_rcpt_qrm_r_factory=_marker_factory("SRQR"),
-        inject_participant_factory=_marker_factory("IP"),
-    )
-    assert tree is not None

@@ -1634,11 +1634,10 @@ coordinated disclosure.
 - **Automation potential**: **High** — RM state write on the case participant record; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.SetRcptQrmR`
 - **Call-out point shape**: Actuator — writes a recipient RM-state transition (START → RECEIVED) to the case management system; the side-effect state write is the seam, not a content artifact placed on the blackboard.
-- **Factory-fn placement**: FUTURE:
-  `vultron.core.behaviors.report.create_report_to_others_tree`
-  (issue #1252) — Actuator node after `RcptNotInQrmS` in the notification
-  Sequence; records the state transition confirming the recipient was
-  notified, before `RemoveRecipient` dequeues them
+- **Factory-fn placement**: `vultron.core.behaviors.report.create_report_to_others_tree`
+  (collapsed in #1311) — eliminated from the production tree; RM-state
+  transition to RECEIVED is handled by the `AcceptInviteToCase` cascade
+  triggered by `suggest-actor-to-case` (Production Collapse 3, ADR-0029).
 
 ### `MoreVendors`
 
@@ -1743,11 +1742,12 @@ coordinated disclosure.
 - **Automation potential**: **High** — case management system write; fully automatable once participant details are known.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.InjectParticipant`
 - **Call-out point shape**: Actuator — writes a new participant record to the case management system; the side-effect state write is the seam. Production replacement: InviteParticipantToCase protocol subtree (not yet implemented).
-- **Factory-fn placement**: FUTURE:
-  `vultron.core.behaviors.report.create_report_to_others_tree`
-  (issue #1252) — base Actuator node; production replacement is the
-  `suggest-actor-to-case` trigger (see Production Collapse 3 below);
-  the call-out point seam lives here at the case-management write boundary
+- **Factory-fn placement**: `vultron.core.behaviors.report.create_report_to_others_tree`
+  (implemented in #1311) — collapsed; the base `InjectParticipant` family is
+  replaced by `WriteRolesNode` + `suggest_*_factory` in each typed sub-loop.
+  Role-specific sub-classes (`InjectVendor`, `InjectCoordinator`, `InjectOther`)
+  serve as the default fuzzer backends for their respective `suggest_*_factory`
+  parameters (Production Collapse 3, ADR-0029).
 
 ### `InjectVendor`
 
@@ -1775,11 +1775,10 @@ coordinated disclosure.
 - **Call-out point shape**: Actuator — pops from `identified_vendors` and appends to
   `potential_participants`; the side-effect state write is the seam. Production
   replacement: InviteParticipantToCase protocol subtree.
-- **Factory-fn placement**: FUTURE:
-  `vultron.core.behaviors.report.create_report_to_others_tree`
-  (issue #1252) — Actuator node in the vendor sub-loop, after `MoreVendors`
-  succeeds and the notification Sequence completes; replaced by
-  `suggest-actor-to-case` with `CVDRole.VENDOR` (see Production Collapse 3)
+- **Factory-fn placement**: `vultron.core.behaviors.report.create_report_to_others_tree`
+  (implemented in #1311) — default fuzzer backend for `suggest_vendor_factory`
+  parameter; the production trigger replaces it with `suggest-actor-to-case`
+  with `CVDRole.VENDOR` (Production Collapse 3, ADR-0029).
 
 ### `InjectCoordinator`
 
@@ -1807,12 +1806,10 @@ coordinated disclosure.
 - **Call-out point shape**: Actuator — pops from `identified_coordinators` and appends to
   `potential_participants`; the side-effect state write is the seam. Production
   replacement: InviteParticipantToCase protocol subtree.
-- **Factory-fn placement**: FUTURE:
-  `vultron.core.behaviors.report.create_report_to_others_tree`
-  (issue #1252) — Actuator node in the coordinator sub-loop, after
-  `MoreCoordinators` succeeds and the notification Sequence completes;
-  replaced by `suggest-actor-to-case` with `CVDRole.COORDINATOR`
-  (see Production Collapse 3)
+- **Factory-fn placement**: `vultron.core.behaviors.report.create_report_to_others_tree`
+  (implemented in #1311) — default fuzzer backend for `suggest_coordinator_factory`
+  parameter; the production trigger replaces it with `suggest-actor-to-case`
+  with `CVDRole.COORDINATOR` (Production Collapse 3, ADR-0029).
 
 ### `InjectOther`
 
@@ -1829,12 +1826,10 @@ coordinated disclosure.
 - **Automation potential**: **High** — case management system write for other-party role; fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.report_to_others.InjectOther`
 - **Call-out point shape**: Actuator — inherits InjectParticipant; writes an other-party participant record to the case management system; the side-effect state write is the seam. Production replacement: InviteParticipantToCase protocol subtree.
-- **Factory-fn placement**: FUTURE:
-  `vultron.core.behaviors.report.create_report_to_others_tree`
-  (issue #1252) — Actuator node in the other-parties sub-loop, after
-  `MoreOthers` succeeds and the notification Sequence completes;
-  replaced by `suggest-actor-to-case` with `CVDRole.OTHER`
-  (see Production Collapse 3)
+- **Factory-fn placement**: `vultron.core.behaviors.report.create_report_to_others_tree`
+  (implemented in #1311) — default fuzzer backend for `suggest_other_factory`
+  parameter; the production trigger replaces it with `suggest-actor-to-case`
+  with `CVDRole.OTHER` (Production Collapse 3, ADR-0029).
 
 ---
 
@@ -2042,7 +2037,7 @@ publish_report, rationale)` (Pydantic BaseModel) in
 
 ---
 
-### Production Collapse 3: Notification loop → InviteParticipantToCase protocol
+### Production Collapse 3: Notification loop → suggest-actor-to-case protocol
 
 **Simulator nodes involved**: `HaveReportToOthersCapability`, `AllPartiesKnown`,
 `IdentifyVendors`, `IdentifyCoordinators`, `IdentifyOthers`,
@@ -2053,54 +2048,66 @@ publish_report, rationale)` (Pydantic BaseModel) in
 `InjectCoordinator`, `InjectOther`
 (see Reporting to Other Parties section above)
 
-**Tracked by**: implementation issue for collapse candidate 3 (blocked by #1200 and #1298 suggest-actor redesign)
+**Implemented by**: issue #1311 (PR see ADR-0029)
 
 #### Production shape
 
-The **outer loop structure survives** — `MaybeReportToOthers` remains a BT
-subtree that asks "should we notify additional parties?" and iterates through
-identified parties. What changes is **what happens at the end of each
-iteration**: instead of `InjectParticipant` (a direct case-management write),
-the BT calls the `suggest-actor-to-case` trigger, which initiates the full
+The **outer loop structure survives** — `create_report_to_others_tree` builds a
+BT that asks "should we notify additional parties?" and iterates through
+identified parties grouped by role. What changes is **what happens at the end
+of each iteration**: instead of `InjectParticipant` (a direct case-management
+write), the BT writes the appropriate `CVDRole` to the blackboard and calls
+the `suggest-actor-to-case` trigger, which initiates the full
 `RecommendActor → Invite → Accept → Record` cascade automatically.
 
-**Nodes that survive** (as call-out points or ProtocolInternal guards):
+Tree structure::
 
-- `HaveReportToOthersCapability` — TBD shape; likely resolves to a
-  `CVDRole.CASE_MANAGER` membership check (ProtocolInternal) once the
-  invite-participant-to-case protocol is finalized
-- `AllPartiesKnown` — Evaluator (unchanged)
-- `IdentifyVendors`, `IdentifyCoordinators`, `IdentifyOthers` — Retrievers
-  (unchanged)
-- `NotificationsComplete` — ProtocolInternal (unchanged)
-- `ChooseRecipient`, `FindContact` — Retrievers (unchanged; feed context into
-  the suggest-actor call)
-- `RecipientEffortExceeded`, `TotalEffortLimitMet` — Evaluators (unchanged)
-- `PolicyCompatible` — Evaluator (unchanged)
-- `RcptNotInQrmS` — ProtocolInternal idempotency check (unchanged)
-- `MoreVendors`, `MoreCoordinators`, `MoreOthers` — ProtocolInternal
-  iteration guards (unchanged; three typed sub-loops survive)
+    ReportToOthersBT (Sequence, memory=False)
+    ├── AllPartiesKnown            (Evaluator factory)
+    ├── TotalEffortLimitMet        (Evaluator factory)
+    ├── VendorSubLoop              (Selector — skip-or-execute, BTND-08-001)
+    │   ├── Inverter(MoreVendors)
+    │   └── Sequence(MoreVendors, WriteVendorRoles, SuggestVendor)
+    ├── CoordinatorSubLoop         (Selector)
+    │   ├── Inverter(MoreCoordinators)
+    │   └── Sequence(MoreCoordinators, WriteCoordinatorRoles, SuggestCoordinator)
+    └── OtherSubLoop               (Selector)
+        ├── Inverter(MoreOthers)
+        └── Sequence(MoreOthers, WriteOtherRoles, SuggestOther)
+
+**Nodes that survive** (as call-out points or ProtocolInternal):
+
+- `AllPartiesKnown` — Evaluator factory (outer guard)
+- `TotalEffortLimitMet` — Evaluator factory (outer effort-limit guard)
+- `MoreVendors`, `MoreCoordinators`, `MoreOthers` — factory-backed
+  ProtocolInternal iteration guards; each appears in both the skip arm
+  (Inverter) and execute arm (Sequence) of its sub-loop (BTND-08-001)
 
 **Nodes that collapse**:
 
-- `SetRcptQrmR` — the RM-state write is now handled by the `AcceptInviteToCase`
-  cascade; no standalone Actuator needed at this layer
+- `HaveReportToOthersCapability`, `NotificationsComplete`, `ChooseRecipient`,
+  `FindContact`, `RcptNotInQrmS`, `RecipientEffortExceeded`, `PolicyCompatible`,
+  `RemoveRecipient`, `SetRcptQrmR` — eliminated from the outer loop; per-
+  recipient effort gating and RM-state writes are now managed by the
+  `suggest-actor-to-case` cascade (SetRcptQrmR is handled by AcceptInviteToCase)
 - `InjectParticipant`, `InjectVendor`, `InjectCoordinator`, `InjectOther` —
-  replaced by a call to the `suggest-actor-to-case` trigger endpoint (or
-  equivalently, emitting an `Offer(Actor)` to the CaseActor). The full
-  `RecommendActor → Invite → Accept → Record` cascade follows automatically.
+  replaced by the `WriteXRoles` + `suggest_*_factory` pair in each sub-loop.
+  `InjectVendor`/`InjectCoordinator`/`InjectOther` remain in the demo layer
+  as the **default fuzzer backends** for `suggest_vendor_factory`,
+  `suggest_coordinator_factory`, and `suggest_other_factory` respectively.
 
-**Key design note**: `suggest-actor-to-case` currently assumes
-`CVDRole.VENDOR` for the invited party. Collapse candidate 3 implementation
-**MUST** extend `suggest-actor-to-case` to accept an explicit role parameter
-(VENDOR / COORDINATOR / OTHER), since the three typed sub-loops each map to
-a different CVD role.
+**New ProtocolInternal node**:
 
-**Target factory function**:
-`vultron.core.behaviors.report.create_report_to_others_tree` (issue #1252)
+- `_WriteRolesNode` — writes `suggested_roles_{case_id_segment}` = [CVDRole.X]
+  to the blackboard before the trigger fires, so the downstream CaseActor
+  receive path carries the correct role when forwarding
+  `Offer(CaseParticipant)` to the Case Owner (BTND-03-004, AC-2).
 
-**Spec requirements**: BT-20-003 (provisional — see
-`specs/behavior-tree-integration.yaml`)
+**Factory function**:
+`vultron.core.behaviors.report.create_report_to_others_tree`
+(module: `vultron/core/behaviors/report/report_to_others_tree.py`)
+
+**Spec requirements**: BT-20-003 — see `specs/behavior-tree-integration.yaml`
 
 ---
 
