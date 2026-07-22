@@ -19,5 +19,9 @@ Record each triggered signal as an individual learning file in
 `title`, `type: learning`, `timestamp`, `source`, and optionally
 `signal: <type>`). Do not write completion summaries here.
 
+When archiving a tagged entry with `append-history`, pass the signal type via
+`--signal <type>` (e.g. `uv run append-history learning --signal spec-gap ...`).
+For `--from-file` archiving, the `signal:` frontmatter field is preserved verbatim.
+
 A session with no learning files is valid only if this checklist was run and
 every answer was "no". Skipping the checklist is not allowed.
