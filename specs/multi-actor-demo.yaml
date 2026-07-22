@@ -184,23 +184,23 @@ groups:
     - rel_type: refines
       spec_id: DEMOMA-05-001
 - id: DEMOMA-06
-  title: Two-Actor Scenario Workflow
+  title: FV Scenario Workflow
   trigger:
     type: scenario_start
-    value: two-actor
+    value: fv
   specs:
   - id: DEMOMA-06-001
     priority: MUST
     kind: project
     statement: >-
-      The two-actor (Reporter + Vendor) demo scenario MUST execute a complete CVD lifecycle
+      The FV (Finder + Vendor) demo scenario MUST execute a complete CVD lifecycle
       ending in final case state VFDPxa (Vendor aware, Fix ready, Fix Deployed, Public aware,
       no exploit public, no active attacks)
   - id: DEMOMA-06-002
     priority: MUST
     kind: project
     statement: >-
-      The two-actor scenario script MUST verify milestones M1 through M7 in order,
+      The FV scenario script MUST verify milestones M1 through M7 in order,
       checking both the Vendor and Finder DataLayers at each checkpoint.
     preconditions:
     - description: Two-actor scenario executing; Vendor, Finder, and CaseActor containers
@@ -248,7 +248,7 @@ groups:
       expected: All participants RM state = CLOSED; case record marked closed
     postconditions:
     - description: >-
-        All milestones M1-M7 verified; two-actor scenario complete in final state
+        All milestones M1-M7 verified; FV scenario complete in final state
         VFDPxa with EM.EXITED and all participants RM.CLOSED
   - id: DEMOMA-06-003
     priority: MUST
@@ -261,14 +261,14 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The two-actor demo Docker topology MUST use a dedicated case-actor container with its
+      The FV demo Docker topology MUST use a dedicated case-actor container with its
       own isolated DataLayer; the Vendor MUST route case-actor creation to that container
       using the pre-configured case-actor service URL, not create the case-actor record
       locally in the vendor container's DataLayer
     rationale: >-
       Routing case-actor creation to its own container satisfies DEMOMA-01-001 (each actor
       in its own container) and exercises the CaseProposal protocol (ADR-0023) in the
-      two-actor scenario. The demo uses DemoCreateCaseActorNode as an Actuator-shape
+      FV scenario. The demo uses DemoCreateCaseActorNode as an Actuator-shape
       ADR-0024 stub: it reads the pre-configured case-actor URL and writes it to the BT
       blackboard as case_actor_id, then delegates to the standard registration sequence.
       This is a temporary demo artifact; issue #812 will replace it with real dynamic
@@ -280,7 +280,7 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The two-actor demo MUST verify that the case-actor container's DataLayer holds the
+      The FV demo MUST verify that the case-actor container's DataLayer holds the
       canonical case ledger after the demo completes; the demo script MUST dump the
       case-actor's ledger from the dedicated case-actor container, not from the vendor
       container's co-located sub-actor
@@ -499,7 +499,7 @@ groups:
     statement: >-
       The PR that introduces the FVV scenario script MUST also add a dedicated parallel
       CI job to `.github/workflows/demo-integration.yml` that runs the FVV scenario
-      using `DEMO=fvv`; the job MUST run concurrently with (not after) the two-actor
+      using `DEMO=fvv`; the job MUST run concurrently with (not after) the FV
       job so that total CI wall-clock time does not grow linearly with scenario count
     relationships:
     - rel_type: refines

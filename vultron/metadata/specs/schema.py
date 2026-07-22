@@ -71,7 +71,7 @@ class Trigger(BaseModel):
     ``type`` identifies the category of trigger; ``value`` names the specific
     message (e.g. ``"EP"``) or state (e.g. ``"RM.VALID"``) within that
     category. For ``scenario_start`` triggers, ``value`` names the scenario
-    (e.g. ``"two-actor"``, ``"fvv"``).
+    (e.g. ``"fv"``, ``"fvv"``).
     """
 
     type: TriggerType

@@ -30,7 +30,7 @@ permissions:
 
 jobs:
   demo:
-    name: Two-Actor Demo Integration
+    name: FV Demo Integration
     runs-on: ubuntu-latest
     # DEMOCI-02-009: 15-minute cap to prevent indefinite hangs.
     timeout-minutes: 15
@@ -53,16 +53,16 @@ jobs:
           cache-scope: demo-integration
           cache-from-extra-scope: demo-integration-main
 
-      # DEMOCI-02-005, DEMOCI-02-006: run two-actor demo; detect failure via
+      # DEMOCI-02-005, DEMOCI-02-006: run FV demo; detect failure via
       # exit code of the demo-runner container.
       # DEMOCI-02-008: set DEBUG log level at CI runtime so actor containers
       # emit full tracebacks and state-machine detail.
       - name: Create devlogs directory
         run: mkdir -p devlogs
 
-      - name: Run two-actor demo
+      - name: Run FV demo
         run: |
-          DEMO=two-actor \
+          DEMO=fv \
           VULTRON_SERVER__LOG_LEVEL=DEBUG \
             docker compose -f docker/docker-compose-multi-actor.yml \
             up --abort-on-container-exit --exit-code-from demo-runner
@@ -71,7 +71,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
-          name: two-actor-case-logs
+          name: fv-case-logs
           path: devlogs/
           retention-days: 30
 

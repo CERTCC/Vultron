@@ -56,7 +56,7 @@ Three scenarios are supported:
 
 | Scenario      | Actors                                      |
 |:--------------|:--------------------------------------------|
-| `two-actor`   | Finder + Vendor + CaseActor                 |
+| `fv`          | Finder + Vendor + CaseActor                 |
 | `three-actor` | Finder + Vendor + Coordinator + CaseActor   |
 | `multi-vendor`| Finder + Vendor + Coordinator + Vendor2 + CaseActor |
 
@@ -76,7 +76,7 @@ make integration-test-multi-vendor
 Or directly, passing the scenario as a positional argument:
 
 ```bash
-./integration_tests/demo/run_multi_actor_integration_test.sh two-actor
+./integration_tests/demo/run_multi_actor_integration_test.sh fv
 ./integration_tests/demo/run_multi_actor_integration_test.sh three-actor
 ./integration_tests/demo/run_multi_actor_integration_test.sh multi-vendor
 ```
@@ -103,7 +103,7 @@ with a running development stack. Override it to run multiple scenarios in
 parallel:
 
 ```bash
-PROJECT_NAME=vultron-it-two   DEMO=two-actor   ./integration_tests/demo/run_multi_actor_integration_test.sh
+PROJECT_NAME=vultron-it-fv   DEMO=fv   ./integration_tests/demo/run_multi_actor_integration_test.sh
 PROJECT_NAME=vultron-it-three DEMO=three-actor ./integration_tests/demo/run_multi_actor_integration_test.sh
 ```
 

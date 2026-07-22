@@ -116,7 +116,7 @@ variable to use a fixed host port, or inspect the assigned port with
 | `VULTRON_ACTOR_ID`    | *(set per service)*       | Deterministic full actor URI          |
 | `VULTRON_SEED_CONFIG` | *(set per service)*       | Seed config JSON for local + peers    |
 
-### Run the D5-2 two-actor acceptance scenario
+### Run the D5-2 FV acceptance scenario
 
 The `demo-runner` service now performs the D5-2 scenario end to end:
 it waits for healthy actor services, resets container state to a clean
@@ -129,7 +129,7 @@ docker compose -f docker-compose-multi-actor.yml up --abort-on-container-exit de
 ```
 
 This is the canonical single-command acceptance run for the current
-two-actor scenario.
+FV scenario.
 
 ### Run the D5-3 three-actor acceptance scenario
 
@@ -163,7 +163,7 @@ volumes on exit for a clean baseline:
 
 ```bash
 # From the repository root:
-./integration_tests/demo/run_multi_actor_integration_test.sh two-actor
+./integration_tests/demo/run_multi_actor_integration_test.sh fv
 ./integration_tests/demo/run_multi_actor_integration_test.sh three-actor
 ./integration_tests/demo/run_multi_actor_integration_test.sh multi-vendor
 ```
@@ -171,7 +171,7 @@ volumes on exit for a clean baseline:
 Or via the Makefile targets:
 
 ```bash
-make integration-test-multi-actor    # two-actor
+make integration-test-multi-actor    # fv
 make integration-test-three-actor    # three-actor
 make integration-test-multi-vendor   # multi-vendor
 ```

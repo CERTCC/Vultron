@@ -10,11 +10,11 @@
   and the full RM case lifecycle using the remaining `vultron-demo`
   sub-commands.
 - [Running the Multi-Actor Container Demos](container_demos.md) — run the
-  two-actor, three-actor, and multi-vendor container scenarios to see the
+  FV, three-actor, and multi-vendor container scenarios to see the
   full Vultron Protocol in action across isolated participant containers.
-- [Run the Two-Actor Demo](two-actor-demo.md) — step through the full
+- [Run the FV Demo](fv-demo.md) — step through the full
   VFDPxa CVD lifecycle (report → case creation → fix lifecycle → public
-  disclosure → case closure) with the two-actor scenario.
+  disclosure → case closure) with the FV scenario.
 
 ## Further reading
 

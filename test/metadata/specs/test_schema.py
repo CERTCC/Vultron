@@ -722,9 +722,9 @@ def test_trigger_state_entered():
 
 
 def test_trigger_scenario_start():
-    t = Trigger(type=TriggerType.SCENARIO_START, value="two-actor")
+    t = Trigger(type=TriggerType.SCENARIO_START, value="fv")
     assert t.type == TriggerType.SCENARIO_START
-    assert t.value == "two-actor"
+    assert t.value == "fv"
 
 
 # ---------------------------------------------------------------------------

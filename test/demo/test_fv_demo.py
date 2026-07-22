@@ -11,7 +11,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Unit tests for the two-actor (Finder + Vendor) multi-container demo (D5-1-G5).
+"""Unit tests for the FV (Finder + Vendor) multi-container demo (D5-1-G5).
 
 Uses a single TestClient (one FastAPI app instance) to simulate two containers.
 Both DataLayerClient instances route through the same TestClient but address
@@ -31,7 +31,7 @@ from _pytest.monkeypatch import MonkeyPatch
 from click.testing import CliRunner
 from fastapi.testclient import TestClient
 
-import vultron.demo.scenario.two_actor_demo as demo
+import vultron.demo.scenario.fv_demo as demo
 from test.demo._helpers import make_client, make_testclient_call
 from vultron.adapters.utils import strip_id_prefix
 from vultron.demo.cli import main
@@ -151,7 +151,7 @@ class TestResetContainers:
         case_actor_client.get.return_value = {}
 
         with patch(
-            "vultron.demo.scenario.two_actor_demo.reset_datalayer",
+            "vultron.demo.scenario.fv_demo.reset_datalayer",
             return_value={"status": "ok"},
         ) as reset_mock:
             demo.reset_containers(
@@ -960,7 +960,7 @@ class TestVerifyM1State:
 
 @pytest.mark.timeout(30)
 class TestRunTwoActorDemo:
-    """Test the complete two-actor workflow via run_two_actor_demo."""
+    """Test the complete FV workflow via run_fv_demo."""
 
     def test_full_workflow_succeeds(
         self, client: TestClient, base: str, caplog
@@ -972,7 +972,7 @@ class TestRunTwoActorDemo:
         vendor_id = f"{base}/actors/vendor-full-test"
 
         with caplog.at_level(logging.ERROR):
-            demo.run_two_actor_demo(
+            demo.run_fv_demo(
                 finder_client=finder_client,
                 vendor_client=vendor_client,
                 finder_id=finder_id,
@@ -1031,22 +1031,13 @@ class TestDumpCaseLogs:
 
         case_slug = "https_example.org_cases_case-dump-fallback"
         assert (
-            tmp_path
-            / "two-actor"
-            / "finder"
-            / f"{case_slug}-case-ledger.jsonl"
+            tmp_path / "fv" / "finder" / f"{case_slug}-case-ledger.jsonl"
         ).exists()
         assert (
-            tmp_path
-            / "two-actor"
-            / "vendor"
-            / f"{case_slug}-case-ledger.jsonl"
+            tmp_path / "fv" / "vendor" / f"{case_slug}-case-ledger.jsonl"
         ).exists()
         assert (
-            tmp_path
-            / "two-actor"
-            / "case-actor"
-            / f"{case_slug}-case-ledger.jsonl"
+            tmp_path / "fv" / "case-actor" / f"{case_slug}-case-ledger.jsonl"
         ).exists()
         assert any(
             "/actors/case-actor-demo/demo/cases/case-dump-fallback/log"
@@ -1137,15 +1128,14 @@ class TestDumpCaseLogs:
 
 
 class TestTwoActorCLI:
-    """Test the two-actor CLI sub-command registration and invocation."""
+    """Test the fv CLI sub-command registration and invocation."""
 
     def test_cli_command_registered(self):
         runner = CliRunner()
-        result = runner.invoke(main, ["two-actor", "--help"])
+        result = runner.invoke(main, ["fv", "--help"])
         assert result.exit_code == 0
         assert (
-            "two-actor" in result.output.lower()
-            or "finder" in result.output.lower()
+            "fv" in result.output.lower() or "finder" in result.output.lower()
         )
 
     def test_cli_runs_demo(self, client: TestClient, base: str):
@@ -1155,14 +1145,14 @@ class TestTwoActorCLI:
 
         patched_run = MagicMock()
         with patch(
-            "vultron.demo.scenario.two_actor_demo.run_two_actor_demo",
+            "vultron.demo.scenario.fv_demo.run_fv_demo",
             patched_run,
         ):
             runner = CliRunner()
             result = runner.invoke(
                 main,
                 [
-                    "two-actor",
+                    "fv",
                     "--skip-health-check",
                     "--finder-url",
                     base,
@@ -1475,7 +1465,7 @@ def _fetch_case_log(
 def completed_workflow(
     client: TestClient, base: str
 ) -> tuple[demo.DataLayerClient, demo.as_VulnerabilityCase]:
-    """Run the full two-actor workflow and return (vendor_client, case).
+    """Run the full FV workflow and return (vendor_client, case).
 
     Uses deterministic actor IDs (``finder-ledger-inv`` /
     ``vendor-ledger-inv``) to avoid collisions with other test classes
@@ -1546,7 +1536,7 @@ def completed_workflow(
 
 
 class TestCaseLedgerInvariants:
-    """In-process case-ledger invariant checks for the two-actor scenario.
+    """In-process case-ledger invariant checks for the FV scenario.
 
     Adapts invariants 5 and 7 from ``test/ci/test_case_ledger_invariants.py``
     to run against the live in-process DataLayer state rather than parsed JSONL
@@ -1560,7 +1550,7 @@ class TestCaseLedgerInvariants:
     """
 
     #: Baseline event types that must appear in the combined case log after a
-    #: complete two-actor CVD run.  These are the types observed in the
+    #: complete FV CVD run.  These are the types observed in the
     #: single-DataLayer in-process test environment and do not correspond
     #: directly to CI invariant 5 (whose full set requires CaseActor
     #: commit-path completeness — see issue #789).

@@ -51,7 +51,7 @@ import vultron.demo.scenario.multi_vendor_demo as multi_vendor_demo
 import vultron.demo.scenario.three_actor_demo as three_actor_demo
 import vultron.demo.exchange.transfer_ownership_demo as transfer_ownership_demo
 import vultron.demo.exchange.trigger_demo as trigger_demo
-import vultron.demo.scenario.two_actor_demo as two_actor_demo
+import vultron.demo.scenario.fv_demo as fv_demo
 from vultron.demo.seed_config import SeedConfig
 from vultron.demo.utils import DataLayerClient, BASE_URL, seed_actor
 import vultron.bt.base.demo.pacman as pacman_demo
@@ -264,15 +264,15 @@ def seed(
 
 
 # ---------------------------------------------------------------------------
-# Two-actor sub-command — multi-container Finder + Vendor demo (D5-1-G5)
+# FV sub-command — multi-container Finder + Vendor demo (D5-1-G5)
 # ---------------------------------------------------------------------------
 
 
-@main.command(name="two-actor")
+@main.command(name="fv")
 @click.option(
     "--finder-url",
     envvar="VULTRON_FINDER_BASE_URL",
-    default=two_actor_demo.FINDER_BASE_URL,
+    default=fv_demo.FINDER_BASE_URL,
     show_default=True,
     help="Base URL of the Finder container API "
     "(env: VULTRON_FINDER_BASE_URL).",
@@ -280,7 +280,7 @@ def seed(
 @click.option(
     "--vendor-url",
     envvar="VULTRON_VENDOR_BASE_URL",
-    default=two_actor_demo.VENDOR_BASE_URL,
+    default=fv_demo.VENDOR_BASE_URL,
     show_default=True,
     help="Base URL of the Vendor container API "
     "(env: VULTRON_VENDOR_BASE_URL).",
@@ -298,7 +298,7 @@ def seed(
 @click.option(
     "--case-actor-url",
     envvar="VULTRON_CASE_ACTOR_BASE_URL",
-    default=two_actor_demo.CASE_ACTOR_BASE_URL,
+    default=fv_demo.CASE_ACTOR_BASE_URL,
     show_default=True,
     help="Base URL of the CaseActor container API "
     "(env: VULTRON_CASE_ACTOR_BASE_URL).",
@@ -309,7 +309,7 @@ def seed(
     default=False,
     help="Skip container availability checks.",
 )
-def two_actor(
+def fv(
     finder_url: str,
     vendor_url: str,
     finder_id: str | None,
@@ -317,7 +317,7 @@ def two_actor(
     case_actor_url: str,
     skip_health_check: bool,
 ) -> None:
-    """Run the two-actor (Finder + Vendor) multi-container CVD demo (D5-1-G5).
+    """Run the FV (Finder + Vendor) multi-container CVD demo (D5-1-G5).
 
     Orchestrates a complete CVD workflow across two separate API server
     containers.  Requires both containers to be running and reachable at
@@ -337,7 +337,7 @@ def two_actor(
       6. Finder accepts the invitation (Vendor's inbox).
       7. Verify final state on both containers.
     """
-    two_actor_demo.main(
+    fv_demo.main(
         skip_health_check=skip_health_check,
         finder_url=finder_url,
         vendor_url=vendor_url,

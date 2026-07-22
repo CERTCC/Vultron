@@ -11,7 +11,7 @@ universal invariant check functions live in
 
 | Scenario | Test file |
 |----------|-----------|
-| FV (two-actor) | `test/ci/invariants/test_fv_invariants.py` |
+| FV | `test/ci/invariants/test_fv_invariants.py` |
 | FVV (three-actor) | `test/ci/invariants/test_fvv_invariants.py` |
 | FVCV-extension | `test/ci/invariants/test_fvcv_extension_invariants.py` |
 | FVCV-handoff | `test/ci/invariants/test_fvcv_handoff_invariants.py` |
@@ -182,18 +182,18 @@ exit code.
 
 ## JSONL Artifact Location
 
-The two-actor demo writes one JSONL file per actor under:
+The FV demo writes one JSONL file per actor under:
 
 ```text
 devlogs/<demo_name>/<actor_name>/<case_id_slug>-case-ledger.jsonl
 ```
 
-For the standard two-actor run this produces:
+For the standard FV run this produces:
 
 ```text
-devlogs/two-actor/finder/...jsonl
-devlogs/two-actor/vendor/...jsonl
-devlogs/two-actor/case-actor/...jsonl
+devlogs/fv/finder/...jsonl
+devlogs/fv/vendor/...jsonl
+devlogs/fv/case-actor/...jsonl
 ```
 
 These files are collected by the `Upload case ledger JSONL files` step in

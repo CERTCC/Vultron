@@ -61,7 +61,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
-from vultron.demo.scenario.two_actor_demo import (
+from vultron.demo.scenario.fv_demo import (
     finder_submits_report,
     get_actor_by_id,
     vendor_validates_report,

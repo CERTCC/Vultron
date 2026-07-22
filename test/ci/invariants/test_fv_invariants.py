@@ -1,11 +1,11 @@
-"""Case-ledger invariant tests for the two-actor FV (Finder + Vendor) scenario.
+"""Case-ledger invariant tests for the FV (Finder + Vendor) scenario.
 
-Reads JSONL case-ledger replica files from ``devlogs/two-actor/`` and
+Reads JSONL case-ledger replica files from ``devlogs/fv/`` and
 asserts all universal invariants via the shared ``common`` library plus
 FV-specific checks.
 
 All tests are tagged ``@pytest.mark.case_ledger_invariants``.  They skip
-automatically when ``devlogs/`` or ``devlogs/two-actor/`` is absent, so they
+automatically when ``devlogs/`` or ``devlogs/fv/`` is absent, so they
 are safe to include in the regular unit-test collection.
 
 Spec: CLP-07.
@@ -34,7 +34,7 @@ from test.ci.invariants.common import (
     load_devlogs,
 )
 
-_DEMO_NAME = "two-actor"
+_DEMO_NAME = "fv"
 
 #: Expected protocol eventTypes in a complete FV run.
 _FV_EXPECTED_EVENT_TYPES = [
@@ -132,7 +132,7 @@ def test_invariant_5_expected_event_types_present(
 ) -> None:
     """Each expected protocol eventType appears at least once.
 
-    Note: ``ack_report`` is intentionally excluded — the two-actor demo uses
+    Note: ``ack_report`` is intentionally excluded — the FV demo uses
     ``auto_create_case=True``, so no pre-case ACK is emitted (see #1133).
     """
     violations = check_event_type_present(fv_replicas, event_type_val)
@@ -279,7 +279,7 @@ def test_invariant_15_cs_state_transitions_observed(
 # FV-specific invariants
 # ---------------------------------------------------------------------------
 #
-# The two-actor (FV) scenario has no scenario-specific ledger invariant beyond
+# The FV scenario has no scenario-specific ledger invariant beyond
 # the universal set: the Finder joins by submitting a report (which creates the
 # case), never via an ``invite_actor_to_case`` activity, so no invite event is
 # expected in this ledger.  Scenarios that invite a mid-case participant (FVV,

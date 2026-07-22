@@ -183,7 +183,7 @@ corresponding `MessageSemantics` value.
 
 | Issue | Relationship |
 |-------|-------------|
-| #810 | **Blocked by this**: demo routing to dedicated case-actor container requires the CaseProposal protocol to be in place before `CreateCaseActorNode` can be adapted for the demo layer. Note: the current two-actor demo passes all convergence invariants (all 26 invariants PASS as of #1025 review), confirming that #810 is architectural improvement work rather than a blocking bug. |
+| #810 | **Blocked by this**: demo routing to dedicated case-actor container requires the CaseProposal protocol to be in place before `CreateCaseActorNode` can be adapted for the demo layer. Note: the current FV demo passes all convergence invariants (all 26 invariants PASS as of #1025 review), confirming that #810 is architectural improvement work rather than a blocking bug. |
 | #811 | Spec + ADR for CaseActor dynamic spawning — a broader concern; CaseProposal is a prerequisite input. |
 | #812 | Implementation of CaseActor dynamic spawning — blocked by #811 and this work. |
 
@@ -193,7 +193,7 @@ corresponding `MessageSemantics` value.
 
 **Source**: 2026-07-21 planning session, issue #810.
 
-Before dynamic case-actor spawning (#812) is implemented, the two-actor demo
+Before dynamic case-actor spawning (#812) is implemented, the FV demo
 needs a way to route case-actor creation to the dedicated case-actor container
 rather than creating the actor locally in the vendor container (DEMOMA-01-001).
 
@@ -216,7 +216,7 @@ returns SUCCESS or FAILURE. It does not produce a content artifact.
 ### Location
 
 `DemoCreateCaseActorNode` lives in `vultron/demo/` (demo layer), not in
-`vultron/core/`. The two-actor demo wires it in place of the core
+`vultron/core/`. The FV demo wires it in place of the core
 `CreateCaseActorNode` via the demo-level case-creation BT. Core
 `CreateCaseActorNode` is unchanged.
 

@@ -23,7 +23,7 @@ Scenarios are named by the sequence of actor roles involved:
 
 | Scenario | File | Description |
 |----------|------|-------------|
-| FV | `vultron/demo/scenario/two_actor_demo.py` | Finder + Vendor; simple coordination |
+| FV | `vultron/demo/scenario/fv_demo.py` | Finder + Vendor; simple coordination |
 | FVV | `vultron/demo/scenario/fvv_demo.py` | Finder → Vendor1 → Vendor2; no coordinator; independent fix paths (implements #1265) |
 | FVCV-extension | `vultron/demo/scenario/fvcv_extension_demo.py` | V1 retains ownership; C is participant; C suggests V2 via ADR-0026 flow; Vendor1 approves; CaseActor invites V2 (implements #1535) |
 
@@ -91,7 +91,7 @@ See also: #1079 (multi-coordinator motivation from FIRSTCON 2026)
 
 ---
 
-## Two-Actor Demo: Finder, Vendor coordinate in separate containers
+## FV Demo: Finder, Vendor coordinate in separate containers
 
 Two actors, a finder and vendor, running in separate containers,
 communicating through the Vultron Protocol. Finder reports vulnerability to
@@ -120,7 +120,7 @@ published, which triggers a case status update reflecting public
 awareness. Finder reports they have published as well. Then the
 coordinator closes the case.
 
-## MultiParty Demo: Two-Actor expands to Coordinator and more Vendors
+## MultiParty Demo: FV expands to Coordinator and more Vendors
 
 A demo in which the process initially looks like scenario 1 above and an
 embargo is established, but
@@ -147,7 +147,7 @@ CaseActor is probably also a "spin up on demand" container that gets
 instantiated when a case is created.
 
 > **Note (2026-07-06)**: These sketch descriptions are superseded by the
-> structured scenario table above. The Two-Actor scenario is implemented.
+> structured scenario table above. The FV scenario is implemented.
 > Three-Actor (FCV) is planned for re-implementation in #1234 (the existing
 > file is deprecated). MultiParty corresponds to FVCV-handoff (#1214).
 > See epic #1093 for the full planned scenario set.

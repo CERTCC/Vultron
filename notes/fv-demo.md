@@ -1,8 +1,8 @@
 ---
-title: Two-Actor Demo Design
+title: FV Demo Design
 status: active
 description: >
-  Authoritative design note for the two-actor (Reporter + Vendor) CVD demo.
+  Authoritative design note for the FV (Finder + Vendor) CVD demo.
   Covers the complete workflow from report submission through case closure,
   the Case Actor handoff mechanism, the CASE_MANAGER role, milestone
   verifications, and the puppeteering-only trigger constraint.
@@ -29,7 +29,7 @@ relevant_packages:
   - vultron/core/behaviors/case
 ---
 
-# Two-Actor Demo Design
+# FV Demo Design
 
 **Source**: 2026-05-07 design session (grill-me).
 
@@ -37,7 +37,7 @@ relevant_packages:
 
 ## Purpose
 
-The two-actor demo is the foundational scenario for the Vultron prototype.
+The FV demo is the foundational scenario for the Vultron prototype.
 It demonstrates a complete, clean CVD workflow between a Reporter (Finder) and
 a Vendor, with a dedicated Case Actor managing case state. All other demo
 scenarios build on this one — if it fails, nothing else works.
@@ -59,7 +59,7 @@ aware, no exploit public, no active attacks.
 is an actor record co-located in the vendor container with its own distinct
 actor ID and inbox URL (e.g.,
 `http://vendor:7999/api/v2/actors/{case_actor_uuid}`). No separate
-`case-actor` container is used for the two-actor demo.
+`case-actor` container is used for the FV demo.
 
 ### CASE_MANAGER vs CASE_ACTOR terminology
 
@@ -294,5 +294,5 @@ Do not close these issues before implementation confirms their status.
 
 - `archived_notes/demo-review-26042001.md` — archived; point-in-time bug analysis
   from 2026-04-20 that informed the demo redesign
-- `archived_notes/two-actor-feedback.md` — detailed bug feedback from
+- `archived_notes/FV-feedback.md` — detailed bug feedback from
   earlier demo runs
