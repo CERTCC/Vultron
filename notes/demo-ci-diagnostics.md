@@ -29,10 +29,11 @@ root cause with this guide.
 
 ## Overview
 
-The Demo Integration CI job runs an FV (Finder + Vendor) Vultron scenario end-to-end
-inside Docker, collects JSONL case-ledger replica files, and then runs the
-`case_ledger_invariants` harness against those files. Failures come from
-one of three layers, each with its own diagnostic surface.
+The Demo Integration CI workflow runs each demo scenario (FV, FVV, FVCV-Extension,
+FVCV-Handoff, FCCV-Handoff, FCV) as an independent matrix job inside Docker,
+collects JSONL case-ledger replica files, and then runs the scenario-specific
+invariant test file against those files. Failures come from one of three layers,
+each with its own diagnostic surface.
 
 ---
 
@@ -93,11 +94,12 @@ from the `vultron.core.behaviors.sync` logger in the `case-actor` container.
 
 ## Per-Invariant Diagnostic Map
 
-All tests are in `test/ci/test_case_ledger_invariants.py` and tagged
-`@pytest.mark.case_ledger_invariants`. Run them with:
+Invariant tests live under `test/ci/invariants/`, one file per scenario. Run
+a specific scenario's tests with:
 
 ```bash
-uv run pytest -m case_ledger_invariants -v --tb=short
+uv run pytest test/ci/invariants/test_fv_invariants.py -v --tb=short
+# or fvv, fvcv_extension, fvcv_handoff, fccv_handoff, fcv
 ```
 
 ### Invariant Status and Diagnostic Focus
@@ -184,12 +186,15 @@ A non-zero exit code means the demo runner itself failed (Layer 1 or 2).
 
 ### Step 2 — Run the invariant harness
 
+Replace `<scenario>` with the scenario you're diagnosing (`fv`, `fvv`,
+`fvcv_extension`, `fvcv_handoff`, `fccv_handoff`, or `fcv`):
+
 ```bash
-uv run pytest -m case_ledger_invariants -v --tb=short
+uv run pytest test/ci/invariants/test_<scenario>_invariants.py -v --tb=short
 ```
 
 Tests skip automatically when `devlogs/` is absent. With artifacts
-present, this is the same command CI runs.
+present, this matches the command CI runs for that matrix entry.
 
 ### Step 3 — Collect per-service logs
 
@@ -214,14 +219,17 @@ docker compose -f docker/docker-compose-multi-actor.yml down -v
 
 ## Interpreting CI Artifacts
 
-CI uploads two artifact bundles on failure. Both are available from the
-Actions run summary page under **Artifacts**.
+CI uploads two artifact bundles per matrix entry. Both are available from the
+Actions run summary page under **Artifacts**, named after the scenario.
 
-### `fv-case-logs` (always uploaded)
+### `<demo>-case-logs` (always uploaded)
+
+Where `<demo>` is the scenario name: `fv`, `fvv`, `fvcv-extension`,
+`fvcv-handoff`, `fccv-handoff`, or `fcv`.
 
 Path in artifact: `devlogs/`
 
-JSONL file layout:
+JSONL file layout (example for `fv`):
 
 ```text
 devlogs/fv/finder/<case-id-slug>-case-ledger.jsonl
@@ -234,7 +242,7 @@ under the repo root `devlogs/` to re-run the harness locally against the CI
 artifacts:
 
 ```bash
-uv run pytest -m case_ledger_invariants -v --tb=short
+uv run pytest test/ci/invariants/test_<scenario>_invariants.py -v --tb=short
 ```
 
 Each JSONL line is a `CaseLedgerEntry` object. Key fields:
@@ -249,7 +257,7 @@ Each JSONL line is a `CaseLedgerEntry` object. Key fields:
 | `disposition` | `recorded` (accepted) or `rejected` |
 | `case_id` | Case URI this entry belongs to |
 
-### `demo-container-logs` (uploaded on failure only)
+### `<demo>-container-logs` (uploaded on failure only)
 
 Path in artifact: `/tmp/demo-logs/`
 
