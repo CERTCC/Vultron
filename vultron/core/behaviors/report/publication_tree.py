@@ -62,7 +62,7 @@ References
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import py_trees
 from py_trees.common import Access, Status
@@ -70,12 +70,13 @@ from pydantic import BaseModel
 
 from vultron.core.behaviors.call_out_point import CallOutBackendFactory
 from vultron.core.behaviors.report.publish_artifact_tree import (
-    _default_draft_advisory_artifact_factory,
-    _default_review_advisory_draft_factory,
-    _default_revise_advisory_draft_factory,
-    _default_submit_advisory_artifact_factory,
     create_publish_artifact_tree,
 )
+
+if TYPE_CHECKING:
+    from vultron.demo.fuzzer.bundles.publication import (
+        PublicationCallOutBundle,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -212,40 +213,6 @@ class ShouldPublishReport(_ShouldPublishArtifactGate):
     _intent_field = "publish_report"
 
 
-def _default_prioritize_publication_intents_factory(
-    name: str,
-) -> py_trees.behaviour.Behaviour:
-    # Deferred import: the demo fuzzer module imports PublicationIntentDecision
-    # from this module at module level (mirrors acquire_exploit.py / ADR-0027).
-    from vultron.demo.fuzzer.report_management.publication import (
-        PrioritizePublicationIntents,
-    )
-
-    return PrioritizePublicationIntents(name)
-
-
-def _default_prepare_exploit_factory(
-    name: str,
-) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.publication import (
-        PrepareExploit,
-    )
-
-    return PrepareExploit(name)
-
-
-def _default_prepare_fix_factory(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.publication import PrepareFix
-
-    return PrepareFix(name)
-
-
-def _default_prepare_report_factory(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.publication import PrepareReport
-
-    return PrepareReport(name)
-
-
 def _make_artifact_arm(
     case_id: str,
     arm_name: str,
@@ -299,14 +266,7 @@ def _make_artifact_arm(
 
 def create_publication_tree(
     case_id: str,
-    prioritize_publication_intents_factory: CallOutBackendFactory = _default_prioritize_publication_intents_factory,
-    prepare_exploit_factory: CallOutBackendFactory = _default_prepare_exploit_factory,
-    prepare_fix_factory: CallOutBackendFactory = _default_prepare_fix_factory,
-    prepare_report_factory: CallOutBackendFactory = _default_prepare_report_factory,
-    draft_advisory_artifact_factory: CallOutBackendFactory = _default_draft_advisory_artifact_factory,
-    review_advisory_draft_factory: CallOutBackendFactory = _default_review_advisory_draft_factory,
-    revise_advisory_draft_factory: CallOutBackendFactory = _default_revise_advisory_draft_factory,
-    submit_advisory_artifact_factory: CallOutBackendFactory = _default_submit_advisory_artifact_factory,
+    call_out: "PublicationCallOutBundle | None" = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the collapsed publication behavior tree (Production Collapses 2 + 4).
 
@@ -335,38 +295,23 @@ def create_publication_tree(
 
     Args:
         case_id: ID of the VulnerabilityCase to publish for.
-        prioritize_publication_intents_factory: Factory for the Evaluator
-            call-out point that writes the :class:`PublicationIntentDecision`
-            record.  Defaults to the fuzzer backend (ADR-0025).
-        prepare_exploit_factory: Factory for the Composer call-out point that
-            drafts and stages the exploit artifact.  Defaults to the fuzzer
-            backend.
-        prepare_fix_factory: Factory for the Composer call-out point that drafts
-            and stages the fix artifact.  Defaults to the fuzzer backend.
-        prepare_report_factory: Factory for the Composer call-out point that
-            authors and stages the vulnerability advisory artifact.  Defaults to
-            the fuzzer backend.
-        draft_advisory_artifact_factory: Factory for the Composer that drafts
-            the advisory artifact in the publish pipeline.  Shared across all
-            three per-artifact arms.  Defaults to the fuzzer backend.
-        review_advisory_draft_factory: Factory for the Evaluator that reviews
-            and approves the draft.  Defaults to the auto-approve fuzzer
-            backend (AC-3, ADR-0030).
-        revise_advisory_draft_factory: Factory for the optional Composer that
-            revises the draft based on review feedback.  Defaults to the fuzzer
-            backend.
-        submit_advisory_artifact_factory: Factory for the Actuator that submits
-            the finalized artifact to the external advisory platform.  Defaults
-            to the fuzzer backend.
+        call_out: Bundle of call-out backend factories for this domain.
+            Defaults to :data:`~vultron.demo.fuzzer.bundles.publication.PUBLICATION_DETERMINISTIC`
+            (BT-23-003, BT-23-005).
 
     Returns:
         Root Sequence node of the collapsed publication behavior tree.
     """
+    from vultron.demo.fuzzer.bundles.publication import (
+        PUBLICATION_DETERMINISTIC,
+    )
+
+    bundle = call_out if call_out is not None else PUBLICATION_DETERMINISTIC
     root = py_trees.composites.Sequence(
         name="PublicationBT",
         memory=False,
         children=[
-            prioritize_publication_intents_factory(
+            bundle.prioritize_publication_intents_factory(
                 "PrioritizePublicationIntents"
             ),
             _make_artifact_arm(
@@ -374,36 +319,36 @@ def create_publication_tree(
                 arm_name="ExploitPublicationArm",
                 artifact_label="Exploit",
                 gate_cls=ShouldPublishExploit,
-                prepare_factory=prepare_exploit_factory,
+                prepare_factory=bundle.prepare_exploit_factory,
                 prepare_node_name="PrepareExploit",
-                draft_advisory_artifact_factory=draft_advisory_artifact_factory,
-                review_advisory_draft_factory=review_advisory_draft_factory,
-                revise_advisory_draft_factory=revise_advisory_draft_factory,
-                submit_advisory_artifact_factory=submit_advisory_artifact_factory,
+                draft_advisory_artifact_factory=bundle.draft_advisory_artifact_factory,
+                review_advisory_draft_factory=bundle.review_advisory_draft_factory,
+                revise_advisory_draft_factory=bundle.revise_advisory_draft_factory,
+                submit_advisory_artifact_factory=bundle.submit_advisory_artifact_factory,
             ),
             _make_artifact_arm(
                 case_id=case_id,
                 arm_name="FixPublicationArm",
                 artifact_label="Fix",
                 gate_cls=ShouldPublishFix,
-                prepare_factory=prepare_fix_factory,
+                prepare_factory=bundle.prepare_fix_factory,
                 prepare_node_name="PrepareFix",
-                draft_advisory_artifact_factory=draft_advisory_artifact_factory,
-                review_advisory_draft_factory=review_advisory_draft_factory,
-                revise_advisory_draft_factory=revise_advisory_draft_factory,
-                submit_advisory_artifact_factory=submit_advisory_artifact_factory,
+                draft_advisory_artifact_factory=bundle.draft_advisory_artifact_factory,
+                review_advisory_draft_factory=bundle.review_advisory_draft_factory,
+                revise_advisory_draft_factory=bundle.revise_advisory_draft_factory,
+                submit_advisory_artifact_factory=bundle.submit_advisory_artifact_factory,
             ),
             _make_artifact_arm(
                 case_id=case_id,
                 arm_name="ReportPublicationArm",
                 artifact_label="Report",
                 gate_cls=ShouldPublishReport,
-                prepare_factory=prepare_report_factory,
+                prepare_factory=bundle.prepare_report_factory,
                 prepare_node_name="PrepareReport",
-                draft_advisory_artifact_factory=draft_advisory_artifact_factory,
-                review_advisory_draft_factory=review_advisory_draft_factory,
-                revise_advisory_draft_factory=revise_advisory_draft_factory,
-                submit_advisory_artifact_factory=submit_advisory_artifact_factory,
+                draft_advisory_artifact_factory=bundle.draft_advisory_artifact_factory,
+                review_advisory_draft_factory=bundle.review_advisory_draft_factory,
+                revise_advisory_draft_factory=bundle.revise_advisory_draft_factory,
+                submit_advisory_artifact_factory=bundle.submit_advisory_artifact_factory,
             ),
         ],
     )

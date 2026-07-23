@@ -57,10 +57,10 @@ Future enhancements (Phase 2+):
 """
 
 import logging
+from typing import TYPE_CHECKING
 
 import py_trees
 
-from vultron.core.behaviors.call_out_point import CallOutBackendFactory
 from vultron.core.behaviors.report.nodes import (
     CheckRMStateReceivedOrInvalid,
     CheckRMStateValid,
@@ -69,44 +69,17 @@ from vultron.core.behaviors.report.nodes import (
 )
 from vultron.core.behaviors.report.nodes.emit import EmitValidateReportActivity
 
+if TYPE_CHECKING:
+    from vultron.demo.fuzzer.bundles.validation import ValidationCallOutBundle
+
 logger = logging.getLogger(__name__)
-
-
-# Fuzzer defaults are imported lazily inside the default lambda to avoid
-# importing vultron.demo from core at module load time (BT-16-001).
-#
-# Phase 1: both policy nodes are deterministic stubs that always succeed.
-# The probabilistic EvaluateReportCredibility / EvaluateReportValidity fuzzer
-# classes exist for simulation scenarios (e.g. random-sampling runs) and can be
-# injected via the factory parameters; they are NOT used as defaults because the
-# ~81% two-node series success rate makes integrate-test workflows non-deterministic.
-def _default_credibility_factory(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.base import AlwaysSucceed
-
-    return AlwaysSucceed(name)
-
-
-def _default_validity_factory(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.base import AlwaysSucceed
-
-    return AlwaysSucceed(name)
-
-
-def _default_gather_info_factory(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.validate import (
-        GatherValidationInfo,
-    )
-
-    return GatherValidationInfo(name)
 
 
 def create_validate_report_tree(
     report_id: str,
     offer_id: str,
     captured: dict | None = None,
-    credibility_factory: CallOutBackendFactory = _default_credibility_factory,
-    validity_factory: CallOutBackendFactory = _default_validity_factory,
-    gather_info_factory: CallOutBackendFactory = _default_gather_info_factory,
+    call_out: "ValidationCallOutBundle | None" = None,
 ) -> py_trees.behaviour.Behaviour:
     """
     Create behavior tree for report validation workflow.
@@ -157,9 +130,13 @@ def create_validate_report_tree(
         >>> print(result.status)
         Status.SUCCESS
     """
+    from vultron.demo.fuzzer.bundles.validation import VALIDATION_DETERMINISTIC
+
+    bundle = call_out if call_out is not None else VALIDATION_DETERMINISTIC
+
     # Phase 1: Match procedural handler logic
     # Future: Add InvalidateReport fallback per simulation BT
-    # Future (Phase 2): wire gather_info_factory into an EnoughInfoOrGather
+    # Future (Phase 2): wire call_out.gather_info_factory into an EnoughInfoOrGather
     # Selector guarding the info-gathering loop.
 
     # Child sequence: All validation actions (status update + embargo check)
@@ -178,8 +155,8 @@ def create_validate_report_tree(
         memory=False,
         children=[
             CheckRMStateReceivedOrInvalid(report_id=report_id),
-            credibility_factory("EvaluateReportCredibility"),
-            validity_factory("EvaluateReportValidity"),
+            bundle.credibility_factory("EvaluateReportCredibility"),
+            bundle.validity_factory("EvaluateReportValidity"),
             validation_actions,
         ],
     )
@@ -223,8 +200,8 @@ def create_validate_report_tree(
                 memory=False,
                 children=[
                     CheckRMStateReceivedOrInvalid(report_id=report_id),
-                    credibility_factory("EvaluateReportCredibility"),
-                    validity_factory("EvaluateReportValidity"),
+                    bundle.credibility_factory("EvaluateReportCredibility"),
+                    bundle.validity_factory("EvaluateReportValidity"),
                     py_trees.composites.Sequence(
                         name="ValidationActions",
                         memory=False,

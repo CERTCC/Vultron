@@ -63,13 +63,18 @@ References
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import py_trees
 from py_trees.common import Access, Status
 from pydantic import BaseModel
 
 from vultron.core.behaviors.call_out_point import CallOutBackendFactory
+
+if TYPE_CHECKING:
+    from vultron.demo.fuzzer.bundles.publication import (
+        PublicationCallOutBundle,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -237,6 +242,7 @@ def create_publish_artifact_tree(
     review_advisory_draft_factory: CallOutBackendFactory = _default_review_advisory_draft_factory,
     revise_advisory_draft_factory: CallOutBackendFactory = _default_revise_advisory_draft_factory,
     submit_advisory_artifact_factory: CallOutBackendFactory = _default_submit_advisory_artifact_factory,
+    call_out: "PublicationCallOutBundle | None" = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the publish-artifact pipeline (Production Collapse 4).
 
@@ -280,6 +286,16 @@ def create_publish_artifact_tree(
     Returns:
         Root Sequence node of the publish-artifact pipeline.
     """
+    if call_out is not None:
+        draft_advisory_artifact_factory = (
+            call_out.draft_advisory_artifact_factory
+        )
+        review_advisory_draft_factory = call_out.review_advisory_draft_factory
+        revise_advisory_draft_factory = call_out.revise_advisory_draft_factory
+        submit_advisory_artifact_factory = (
+            call_out.submit_advisory_artifact_factory
+        )
+
     suffix = f"_{artifact_label}" if artifact_label else ""
 
     needs_revision_do = py_trees.composites.Sequence(

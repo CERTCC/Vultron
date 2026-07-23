@@ -63,13 +63,18 @@ References
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import py_trees
 from py_trees.common import Access, Status
 
 from vultron.core.behaviors.call_out_point import CallOutBackendFactory
 from vultron.enums.roles import CVDRole
+
+if TYPE_CHECKING:
+    from vultron.demo.fuzzer.bundles.report_to_others import (
+        ReportToOthersCallOutBundle,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -122,91 +127,6 @@ class _WriteRolesNode(py_trees.behaviour.Behaviour):
 
 
 # ---------------------------------------------------------------------------
-# Default factories — deferred imports avoid circular dependency (demo fuzzer
-# imports CVDRole/enums from this module's layer at module level).
-# ---------------------------------------------------------------------------
-
-
-def _default_all_parties_known_factory(
-    name: str,
-) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.report_to_others import (
-        AllPartiesKnown,
-    )
-
-    return AllPartiesKnown(name)
-
-
-def _default_total_effort_limit_factory(
-    name: str,
-) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.report_to_others import (
-        TotalEffortLimitMet,
-    )
-
-    return TotalEffortLimitMet(name)
-
-
-def _default_more_vendors_factory(
-    name: str,
-) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.report_to_others import (
-        MoreVendors,
-    )
-
-    return MoreVendors(name)
-
-
-def _default_more_coordinators_factory(
-    name: str,
-) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.report_to_others import (
-        MoreCoordinators,
-    )
-
-    return MoreCoordinators(name)
-
-
-def _default_more_others_factory(
-    name: str,
-) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.report_to_others import (
-        MoreOthers,
-    )
-
-    return MoreOthers(name)
-
-
-def _default_suggest_vendor_factory(
-    name: str,
-) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.report_to_others import (
-        InjectVendor,
-    )
-
-    return InjectVendor(name)
-
-
-def _default_suggest_coordinator_factory(
-    name: str,
-) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.report_to_others import (
-        InjectCoordinator,
-    )
-
-    return InjectCoordinator(name)
-
-
-def _default_suggest_other_factory(
-    name: str,
-) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.report_to_others import (
-        InjectOther,
-    )
-
-    return InjectOther(name)
-
-
 def _make_role_sub_loop(
     loop_name: str,
     more_factory: CallOutBackendFactory,
@@ -258,14 +178,7 @@ def _make_role_sub_loop(
 
 def create_report_to_others_tree(
     case_id: str,
-    all_parties_known_factory: CallOutBackendFactory = _default_all_parties_known_factory,
-    total_effort_limit_factory: CallOutBackendFactory = _default_total_effort_limit_factory,
-    more_vendors_factory: CallOutBackendFactory = _default_more_vendors_factory,
-    more_coordinators_factory: CallOutBackendFactory = _default_more_coordinators_factory,
-    more_others_factory: CallOutBackendFactory = _default_more_others_factory,
-    suggest_vendor_factory: CallOutBackendFactory = _default_suggest_vendor_factory,
-    suggest_coordinator_factory: CallOutBackendFactory = _default_suggest_coordinator_factory,
-    suggest_other_factory: CallOutBackendFactory = _default_suggest_other_factory,
+    call_out: "ReportToOthersCallOutBundle | None" = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the notification loop behavior tree (Production Collapse 3).
 
@@ -277,61 +190,46 @@ def create_report_to_others_tree(
 
     Args:
         case_id: ID of the VulnerabilityCase being processed.
-        all_parties_known_factory: Factory for the Evaluator call-out point
-            that checks whether all relevant notification parties have been
-            identified.  Defaults to the fuzzer backend (BT-18-004).
-        total_effort_limit_factory: Factory for the Evaluator call-out point
-            that checks whether total notification effort has reached the
-            organizational ceiling.  Defaults to the fuzzer backend (BT-18-004).
-        more_vendors_factory: Factory for the ProtocolInternal guard that
-            checks whether the identified-vendors queue is non-empty.  Defaults
-            to the fuzzer backend.
-        more_coordinators_factory: Factory for the ProtocolInternal guard that
-            checks whether the identified-coordinators queue is non-empty.
-            Defaults to the fuzzer backend.
-        more_others_factory: Factory for the ProtocolInternal guard that
-            checks whether the identified-others queue is non-empty.  Defaults
-            to the fuzzer backend.
-        suggest_vendor_factory: Factory for the Actuator call-out point that
-            suggests a vendor actor to the case via ``suggest-actor-to-case``
-            with ``CVDRole.VENDOR``.  Defaults to the fuzzer backend
-            (``InjectVendor``).
-        suggest_coordinator_factory: Factory for the Actuator call-out point
-            that suggests a coordinator actor with ``CVDRole.COORDINATOR``.
-            Defaults to the fuzzer backend (``InjectCoordinator``).
-        suggest_other_factory: Factory for the Actuator call-out point that
-            suggests an other-party actor with ``CVDRole.OTHER``.  Defaults to
-            the fuzzer backend (``InjectOther``).
+        call_out: Bundle of call-out backend factories for this domain.
+            Defaults to :data:`~vultron.demo.fuzzer.bundles.report_to_others.REPORT_TO_OTHERS_DETERMINISTIC`
+            (BT-23-003, BT-23-005).
 
     Returns:
         Root Sequence node of the notification-loop behavior tree.
     """
+    from vultron.demo.fuzzer.bundles.report_to_others import (
+        REPORT_TO_OTHERS_DETERMINISTIC,
+    )
+
+    bundle = (
+        call_out if call_out is not None else REPORT_TO_OTHERS_DETERMINISTIC
+    )
     vendor_sub_loop = _make_role_sub_loop(
         loop_name="VendorSubLoop",
-        more_factory=more_vendors_factory,
+        more_factory=bundle.more_vendors_factory,
         more_node_name="MoreVendors",
         roles=[CVDRole.VENDOR],
-        suggest_factory=suggest_vendor_factory,
+        suggest_factory=bundle.suggest_vendor_factory,
         suggest_node_name="SuggestVendor",
         case_id=case_id,
         write_roles_node_name="WriteVendorRoles",
     )
     coordinator_sub_loop = _make_role_sub_loop(
         loop_name="CoordinatorSubLoop",
-        more_factory=more_coordinators_factory,
+        more_factory=bundle.more_coordinators_factory,
         more_node_name="MoreCoordinators",
         roles=[CVDRole.COORDINATOR],
-        suggest_factory=suggest_coordinator_factory,
+        suggest_factory=bundle.suggest_coordinator_factory,
         suggest_node_name="SuggestCoordinator",
         case_id=case_id,
         write_roles_node_name="WriteCoordinatorRoles",
     )
     other_sub_loop = _make_role_sub_loop(
         loop_name="OtherSubLoop",
-        more_factory=more_others_factory,
+        more_factory=bundle.more_others_factory,
         more_node_name="MoreOthers",
         roles=[CVDRole.OTHER],
-        suggest_factory=suggest_other_factory,
+        suggest_factory=bundle.suggest_other_factory,
         suggest_node_name="SuggestOther",
         case_id=case_id,
         write_roles_node_name="WriteOtherRoles",
@@ -340,8 +238,8 @@ def create_report_to_others_tree(
         name="ReportToOthersBT",
         memory=False,
         children=[
-            all_parties_known_factory("AllPartiesKnown"),
-            total_effort_limit_factory("TotalEffortLimitMet"),
+            bundle.all_parties_known_factory("AllPartiesKnown"),
+            bundle.total_effort_limit_factory("TotalEffortLimitMet"),
             vendor_sub_loop,
             coordinator_sub_loop,
             other_sub_loop,

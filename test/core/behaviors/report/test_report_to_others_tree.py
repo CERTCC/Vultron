@@ -13,14 +13,15 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Tests for the notification-loop behavior tree (Production Collapse 3).
 
-Verifies ADR-0029 / BT-20-003:
+Verifies ADR-0029 / BT-20-003 and BT-23-003:
 - AC-1: InjectParticipant/InjectVendor/InjectCoordinator/InjectOther eliminated
   as separate leaves; replaced by suggest_*_factory call-out points.
 - AC-2: Each sub-loop writes the appropriate suggested_roles_{case_id_segment}
   blackboard key before invoking its trigger factory.
 - AC-3: Outer loop structure (typed sub-loops, AllPartiesKnown, TotalEffortLimitMet)
   preserved.
-- AC-4: ADR-0025 factory pattern applied to every call-out point.
+- AC-4: ADR-0025 factory pattern applied to every call-out point (via bundle).
+- BT-23-003: DETERMINISTIC default uses AlwaysSucceed/AlwaysFail per ceiling/floor rule.
 """
 
 import pytest
@@ -30,6 +31,12 @@ from py_trees.common import Status
 from vultron.core.behaviors.report.report_to_others_tree import (
     _WriteRolesNode,
     create_report_to_others_tree,
+)
+from vultron.demo.fuzzer.base import AlwaysFail, AlwaysSucceed
+from vultron.demo.fuzzer.bundles.report_to_others import (
+    REPORT_TO_OTHERS_DETERMINISTIC,
+    REPORT_TO_OTHERS_STOCHASTIC,
+    ReportToOthersCallOutBundle,
 )
 from vultron.demo.fuzzer.report_management.report_to_others import (
     AllPartiesKnown,
@@ -183,27 +190,36 @@ def test_eliminated_actuator_nodes_not_top_level_leaves(eliminated_class_name):
     assert eliminated_class_name not in direct_class_names
 
 
-def test_default_children_are_fuzzer_nodes():
-    """Default factories produce correct fuzzer nodes for outer guards."""
+def test_default_outer_guards_are_deterministic():
+    """DETERMINISTIC default: AllPartiesKnown(p=0.5)→Succeed, TotalEffortLimitMet(p=0.1)→Fail."""
     tree = create_report_to_others_tree(case_id=CASE_ID)
+    assert isinstance(tree.children[0], AlwaysSucceed)
+    assert isinstance(tree.children[1], AlwaysFail)
+
+
+def test_stochastic_bundle_outer_guards_are_fuzzer_nodes():
+    """STOCHASTIC bundle: outer guard nodes are the correct fuzzer classes."""
+    tree = create_report_to_others_tree(
+        case_id=CASE_ID, call_out=REPORT_TO_OTHERS_STOCHASTIC
+    )
     assert isinstance(tree.children[0], AllPartiesKnown)
     assert isinstance(tree.children[1], TotalEffortLimitMet)
 
 
 # ---------------------------------------------------------------------------
-# AC-4: Factory pattern — Evaluator factories
+# AC-4: Factory pattern — Evaluator factories via bundle
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
-    "param,label,child_index",
+    "field,label,child_index",
     [
         ("all_parties_known_factory", "APK", 0),
         ("total_effort_limit_factory", "TEL", 1),
     ],
 )
-def test_evaluator_factory_wired(param, label, child_index):
-    """AC-4: each Evaluator factory is wired into the root Sequence."""
+def test_evaluator_factory_wired(field, label, child_index):
+    """AC-4: each Evaluator factory field is wired into the root Sequence via bundle."""
     sentinel = {"called": False}
 
     def custom_factory(name):
@@ -215,9 +231,8 @@ def test_evaluator_factory_wired(param, label, child_index):
 
         return _Marker(name=label)
 
-    tree = create_report_to_others_tree(
-        case_id=CASE_ID, **{param: custom_factory}
-    )
+    bundle = ReportToOthersCallOutBundle(**{field: custom_factory})  # type: ignore[arg-type]
+    tree = create_report_to_others_tree(case_id=CASE_ID, call_out=bundle)
     assert sentinel["called"]
     assert tree.children[child_index].name == label
 
@@ -242,7 +257,7 @@ def _find_node_by_name_recursive(root, name):
 
 
 @pytest.mark.parametrize(
-    "more_param,more_label,suggest_param,suggest_label,loop_name",
+    "more_field,more_label,suggest_field,suggest_label,loop_name",
     [
         (
             "more_vendors_factory",
@@ -268,16 +283,16 @@ def _find_node_by_name_recursive(root, name):
     ],
 )
 def test_sub_loop_factories_wired(
-    more_param, more_label, suggest_param, suggest_label, loop_name
+    more_field, more_label, suggest_field, suggest_label, loop_name
 ):
-    """AC-3/AC-4: each sub-loop factory pair is wired into the correct sub-loop."""
-    tree = create_report_to_others_tree(
-        case_id=CASE_ID,
+    """AC-3/AC-4: each sub-loop factory pair is wired into the correct sub-loop via bundle."""
+    bundle = ReportToOthersCallOutBundle(
         **{
-            more_param: _marker_factory(more_label),
-            suggest_param: _marker_factory(suggest_label),
-        },
+            more_field: _marker_factory(more_label),  # type: ignore[arg-type]
+            suggest_field: _marker_factory(suggest_label),  # type: ignore[arg-type]
+        }
     )
+    tree = create_report_to_others_tree(case_id=CASE_ID, call_out=bundle)
     sub_loop = _find_node_by_name_recursive(tree, loop_name)
     assert sub_loop is not None
     tree_str = py_trees.display.ascii_tree(sub_loop)
@@ -366,7 +381,7 @@ def _make_always_fail_factory(name):
 
 
 @pytest.mark.parametrize(
-    "more_param,suggest_param,expected_role",
+    "more_field,suggest_field,expected_role",
     [
         ("more_vendors_factory", "suggest_vendor_factory", CVDRole.VENDOR),
         (
@@ -378,7 +393,7 @@ def _make_always_fail_factory(name):
     ],
 )
 def test_write_roles_key_written_when_sub_loop_executes(
-    more_param, suggest_param, expected_role
+    more_field, suggest_field, expected_role
 ):
     """AC-2 behavioral: ticking a sub-loop with MoreX=SUCCESS writes the correct roles key.
 
@@ -386,7 +401,7 @@ def test_write_roles_key_written_when_sub_loop_executes(
     Inverter arms succeed as graceful no-ops — the test target sub-loop is the
     only one that executes, keeping the blackboard key unambiguous.
     """
-    _all_params = [
+    _all_more_fields = [
         "more_vendors_factory",
         "more_coordinators_factory",
         "more_others_factory",
@@ -394,18 +409,18 @@ def test_write_roles_key_written_when_sub_loop_executes(
     more_kwargs = {
         k: (
             _make_always_succeed_factory
-            if k == more_param
+            if k == more_field
             else _make_always_fail_factory
         )
-        for k in _all_params
+        for k in _all_more_fields
     }
-    tree = create_report_to_others_tree(
-        case_id=CASE_ID,
-        all_parties_known_factory=_make_always_succeed_factory,
-        total_effort_limit_factory=_make_always_succeed_factory,
-        **more_kwargs,
-        **{suggest_param: _make_always_succeed_factory},
+    bundle = ReportToOthersCallOutBundle(
+        all_parties_known_factory=_make_always_succeed_factory,  # type: ignore[arg-type]
+        total_effort_limit_factory=_make_always_succeed_factory,  # type: ignore[arg-type]
+        **{suggest_field: _make_always_succeed_factory},  # type: ignore[arg-type]
+        **more_kwargs,  # type: ignore[arg-type]
     )
+    tree = create_report_to_others_tree(case_id=CASE_ID, call_out=bundle)
     tree.setup_with_descendants()
     tree.tick_once()
 
@@ -415,87 +430,80 @@ def test_write_roles_key_written_when_sub_loop_executes(
 
 
 # ---------------------------------------------------------------------------
-# AC-3: Default more_* factories use correct fuzzer node types
+# AC-3: STOCHASTIC bundle uses correct fuzzer node types
 # ---------------------------------------------------------------------------
 
 
-def test_default_more_vendors_factory():
-    from vultron.core.behaviors.report.report_to_others_tree import (
-        _default_more_vendors_factory,
-    )
-
-    node = _default_more_vendors_factory("MoreVendors")
+def test_stochastic_more_vendors_factory():
+    """STOCHASTIC bundle more_vendors_factory produces a MoreVendors node."""
+    node = REPORT_TO_OTHERS_STOCHASTIC.more_vendors_factory("MoreVendors")
     assert isinstance(node, MoreVendors)
 
 
-def test_default_more_coordinators_factory():
-    from vultron.core.behaviors.report.report_to_others_tree import (
-        _default_more_coordinators_factory,
+def test_stochastic_more_coordinators_factory():
+    """STOCHASTIC bundle more_coordinators_factory produces a MoreCoordinators node."""
+    node = REPORT_TO_OTHERS_STOCHASTIC.more_coordinators_factory(
+        "MoreCoordinators"
     )
-
-    node = _default_more_coordinators_factory("MoreCoordinators")
     assert isinstance(node, MoreCoordinators)
 
 
-def test_default_more_others_factory():
-    from vultron.core.behaviors.report.report_to_others_tree import (
-        _default_more_others_factory,
-    )
-
-    node = _default_more_others_factory("MoreOthers")
+def test_stochastic_more_others_factory():
+    """STOCHASTIC bundle more_others_factory produces a MoreOthers node."""
+    node = REPORT_TO_OTHERS_STOCHASTIC.more_others_factory("MoreOthers")
     assert isinstance(node, MoreOthers)
 
 
 # ---------------------------------------------------------------------------
-# AC-1/AC-4: Default suggest_* factories use InjectX fuzzer stubs
+# AC-1/AC-4: STOCHASTIC bundle suggest_* factories use InjectX fuzzer stubs
 # ---------------------------------------------------------------------------
 
 
-def test_default_suggest_vendor_factory():
-    from vultron.core.behaviors.report.report_to_others_tree import (
-        _default_suggest_vendor_factory,
-    )
-
-    node = _default_suggest_vendor_factory("SuggestVendor")
+def test_stochastic_suggest_vendor_factory():
+    """STOCHASTIC bundle suggest_vendor_factory produces an InjectVendor node."""
+    node = REPORT_TO_OTHERS_STOCHASTIC.suggest_vendor_factory("SuggestVendor")
     assert isinstance(node, InjectVendor)
 
 
-def test_default_suggest_coordinator_factory():
-    from vultron.core.behaviors.report.report_to_others_tree import (
-        _default_suggest_coordinator_factory,
+def test_stochastic_suggest_coordinator_factory():
+    """STOCHASTIC bundle suggest_coordinator_factory produces an InjectCoordinator node."""
+    node = REPORT_TO_OTHERS_STOCHASTIC.suggest_coordinator_factory(
+        "SuggestCoordinator"
     )
-
-    node = _default_suggest_coordinator_factory("SuggestCoordinator")
     assert isinstance(node, InjectCoordinator)
 
 
-def test_default_suggest_other_factory():
-    from vultron.core.behaviors.report.report_to_others_tree import (
-        _default_suggest_other_factory,
-    )
-
-    node = _default_suggest_other_factory("SuggestOther")
+def test_stochastic_suggest_other_factory():
+    """STOCHASTIC bundle suggest_other_factory produces an InjectOther node."""
+    node = REPORT_TO_OTHERS_STOCHASTIC.suggest_other_factory("SuggestOther")
     assert isinstance(node, InjectOther)
 
 
 # ---------------------------------------------------------------------------
-# AC-4: All factories replaceable simultaneously
+# AC-4: All factories replaceable simultaneously via bundle
 # ---------------------------------------------------------------------------
 
 
 def test_all_factories_replaceable():
-    """AC-4: every factory parameter can be replaced simultaneously."""
-    tree = create_report_to_others_tree(
-        case_id=CASE_ID,
-        all_parties_known_factory=_marker_factory("APK"),
-        total_effort_limit_factory=_marker_factory("TEL"),
-        more_vendors_factory=_marker_factory("MV"),
-        more_coordinators_factory=_marker_factory("MC"),
-        more_others_factory=_marker_factory("MO"),
-        suggest_vendor_factory=_marker_factory("SV"),
-        suggest_coordinator_factory=_marker_factory("SC"),
-        suggest_other_factory=_marker_factory("SO"),
+    """AC-4: every factory field can be replaced simultaneously via a bundle."""
+    bundle = ReportToOthersCallOutBundle(
+        all_parties_known_factory=_marker_factory("APK"),  # type: ignore[arg-type]
+        total_effort_limit_factory=_marker_factory("TEL"),  # type: ignore[arg-type]
+        more_vendors_factory=_marker_factory("MV"),  # type: ignore[arg-type]
+        more_coordinators_factory=_marker_factory("MC"),  # type: ignore[arg-type]
+        more_others_factory=_marker_factory("MO"),  # type: ignore[arg-type]
+        suggest_vendor_factory=_marker_factory("SV"),  # type: ignore[arg-type]
+        suggest_coordinator_factory=_marker_factory("SC"),  # type: ignore[arg-type]
+        suggest_other_factory=_marker_factory("SO"),  # type: ignore[arg-type]
     )
+    tree = create_report_to_others_tree(case_id=CASE_ID, call_out=bundle)
     tree_str = py_trees.display.ascii_tree(tree)
     for label in ("APK", "TEL", "MV", "MC", "MO", "SV", "SC", "SO"):
         assert label in tree_str
+
+
+def test_deterministic_singleton_accepted():
+    tree = create_report_to_others_tree(
+        case_id=CASE_ID, call_out=REPORT_TO_OTHERS_DETERMINISTIC
+    )
+    assert isinstance(tree, py_trees.behaviour.Behaviour)

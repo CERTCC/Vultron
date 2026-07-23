@@ -28,6 +28,7 @@ from vultron.core.behaviors.report.publication_tree import (
     PublicationIntentDecision,
     create_publication_tree,
 )
+from vultron.demo.fuzzer.bundles.publication import PublicationCallOutBundle
 
 CASE_ID = "https://example.org/cases/test-001"
 
@@ -100,17 +101,17 @@ def _always_succeed_factory(name):
 
 
 def _build(decision, ran):
-    return create_publication_tree(
-        case_id=CASE_ID,
-        prioritize_publication_intents_factory=_intent_factory(decision),
-        prepare_exploit_factory=lambda n: _RecordingPrepare(n, ran),
-        prepare_fix_factory=lambda n: _RecordingPrepare(n, ran),
-        prepare_report_factory=lambda n: _RecordingPrepare(n, ran),
-        draft_advisory_artifact_factory=lambda n: _always_succeed_factory(n),
-        review_advisory_draft_factory=lambda n: _always_succeed_factory(n),
-        revise_advisory_draft_factory=lambda n: _always_succeed_factory(n),
-        submit_advisory_artifact_factory=lambda n: _RecordingSubmit(n, ran),
+    bundle = PublicationCallOutBundle(
+        prioritize_publication_intents_factory=_intent_factory(decision),  # type: ignore[arg-type]
+        prepare_exploit_factory=lambda n: _RecordingPrepare(n, ran),  # type: ignore[arg-type]
+        prepare_fix_factory=lambda n: _RecordingPrepare(n, ran),  # type: ignore[arg-type]
+        prepare_report_factory=lambda n: _RecordingPrepare(n, ran),  # type: ignore[arg-type]
+        draft_advisory_artifact_factory=lambda n: _always_succeed_factory(n),  # type: ignore[arg-type]
+        review_advisory_draft_factory=lambda n: _always_succeed_factory(n),  # type: ignore[arg-type]
+        revise_advisory_draft_factory=lambda n: _always_succeed_factory(n),  # type: ignore[arg-type]
+        submit_advisory_artifact_factory=lambda n: _RecordingSubmit(n, ran),  # type: ignore[arg-type]
     )
+    return create_publication_tree(case_id=CASE_ID, call_out=bundle)
 
 
 def test_default_intents_publish_fix_and_report_only():
@@ -183,16 +184,16 @@ def test_prepare_failure_fails_intended_arm():
         def update(self):
             return Status.FAILURE
 
-    tree = create_publication_tree(
-        case_id=CASE_ID,
-        prioritize_publication_intents_factory=_intent_factory(
+    bundle = PublicationCallOutBundle(
+        prioritize_publication_intents_factory=_intent_factory(  # type: ignore[arg-type]
             PublicationIntentDecision(publish_fix=True, publish_report=True)
         ),
-        prepare_fix_factory=lambda n: _FailingPrepare(name=n),
-        prepare_report_factory=lambda n: _RecordingPrepare(n, ran),
-        draft_advisory_artifact_factory=lambda n: _always_succeed_factory(n),
-        review_advisory_draft_factory=lambda n: _always_succeed_factory(n),
-        revise_advisory_draft_factory=lambda n: _always_succeed_factory(n),
-        submit_advisory_artifact_factory=lambda n: _RecordingSubmit(n, ran),
+        prepare_fix_factory=lambda n: _FailingPrepare(name=n),  # type: ignore[arg-type]
+        prepare_report_factory=lambda n: _RecordingPrepare(n, ran),  # type: ignore[arg-type]
+        draft_advisory_artifact_factory=lambda n: _always_succeed_factory(n),  # type: ignore[arg-type]
+        review_advisory_draft_factory=lambda n: _always_succeed_factory(n),  # type: ignore[arg-type]
+        revise_advisory_draft_factory=lambda n: _always_succeed_factory(n),  # type: ignore[arg-type]
+        submit_advisory_artifact_factory=lambda n: _RecordingSubmit(n, ran),  # type: ignore[arg-type]
     )
+    tree = create_publication_tree(case_id=CASE_ID, call_out=bundle)
     assert _tick_to_completion(tree) == Status.FAILURE
