@@ -5,7 +5,7 @@ description: >-
   containers on pull requests, and for hardening the demo runner to exit non-zero
   when the demo fails — closing the gap where tests pass while the demo produces
   silent failures.
-version: 1.0.0
+version: 1.1.0
 scope:
   - prototype
   - production
@@ -250,3 +250,23 @@ groups:
             spec_id: DEMOCI-03-003
           - rel_type: refines
             spec_id: DEMOCI-03-002
+
+      - id: DEMOCI-03-005
+        priority: MUST
+        kind: project
+        statement: >-
+          Each matrix entry in the demo CI workflow MUST declare an explicit
+          `test_file` field naming the scenario-specific invariant test file
+          (e.g. `test/ci/invariants/test_fv_invariants.py`). The case-ledger
+          invariant step MUST invoke pytest with that file path directly rather
+          than using the `-m case_ledger_invariants` marker alone.
+        rationale: >-
+          Using the marker alone relies on each test file skipping when its
+          devlogs directory is absent — an implicit, fragile coupling between
+          the filesystem state and test selection. An explicit file path makes
+          the scenario-to-test relationship declarative and visible in the
+          workflow definition, so adding a new matrix entry also requires
+          explicitly naming the test file that validates it.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-03-004
