@@ -2,8 +2,9 @@ id: DEMOMA
 title: Multi-Actor Demo
 description: >-
   Requirements for multi-actor demo scenarios, Docker Compose orchestration, actor isolation,
-  acceptance testing, and reproducibility.
-version: 1.0.0
+  acceptance testing, and reproducibility. Includes per-scenario required
+  event-type lists for the case-ledger invariant harness.
+version: 1.1.0
 scope:
 
 - prototype
@@ -1642,3 +1643,137 @@ groups:
       spec_id: DEMOMA-06-002
     - rel_type: refines
       spec_id: DEMOMA-12-005
+- id: DEMOMA-16
+  title: Per-Scenario Required Event Types for the Invariant Harness
+  description: >-
+    Each scenario defines a minimum set of protocol event types that MUST
+    appear in the authoritative (case-actor) case-ledger log for a complete,
+    correct run. These lists are implemented as the per-scenario
+    `_XXX_EXPECTED_EVENT_TYPES` constants in the corresponding
+    `test/ci/invariants/test_XXX_invariants.py` file and are checked by
+    Invariant 5 (test_invariant_5_expected_event_types_present). They
+    complement, and do not replace, the scenario-specific invariant test
+    functions that use `check_event_type_count` for events that must appear
+    multiple times.
+  specs:
+  - id: DEMOMA-16-001
+    priority: MUST
+    kind: project
+    statement: >-
+      The four universal event types — `validate_report`,
+      `add_participant_status_to_participant`, `close_case`, and
+      `add_note_to_case` — MUST appear at least once in the authoritative
+      case-actor log for every multi-actor demo scenario.
+    rationale: >-
+      These four types represent the minimal protocol coverage shared by all
+      scenarios: report validation, participant state tracking, case
+      closure, and at least one note (notes-exchange phase). Any scenario
+      that does not produce all four has not completed the basic CVD
+      lifecycle.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-03-002
+
+  - id: DEMOMA-16-002
+    priority: MUST
+    kind: project
+    statement: >-
+      In addition to the four universal types (DEMOMA-16-001), the FV scenario
+      MUST verify that its expected-event-types list is restricted to types that
+      the FV scenario actually produces. FV does not include an
+      `invite_actor_to_case` phase; the Finder joins by submitting a report,
+      not via an invitation.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-16-001
+    - rel_type: refines
+      spec_id: DEMOMA-06-002
+
+  - id: DEMOMA-16-003
+    priority: MUST
+    kind: project
+    statement: >-
+      The FVV scenario expected-event-types list MUST include
+      `invite_actor_to_case` in addition to the four universal types
+      (DEMOMA-16-001), because Vendor1 invites Vendor2 into the case.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-16-001
+    - rel_type: refines
+      spec_id: DEMOMA-09-002
+
+  - id: DEMOMA-16-004
+    priority: MUST
+    kind: project
+    statement: >-
+      The FVCV-extension scenario expected-event-types list MUST include
+      `invite_actor_to_case` and `offer_case_participant` in addition to the
+      four universal types (DEMOMA-16-001), because Vendor1 invites
+      Coordinator, and Coordinator uses the ADR-0026 suggest-actor flow
+      (`offer_case_participant`) to propose Vendor2.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-16-001
+    - rel_type: refines
+      spec_id: DEMOMA-10-001
+
+  - id: DEMOMA-16-005
+    priority: MUST
+    kind: project
+    statement: >-
+      The FVCV-handoff scenario expected-event-types list MUST include
+      `invite_actor_to_case` and `accept_invite_actor_to_case` in addition
+      to the four universal types (DEMOMA-16-001), because Vendor1 invites
+      Coordinator, the Coordinator accepts and becomes the new CASE_OWNER,
+      and Coordinator then invites Vendor2 who also accepts.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-16-001
+    - rel_type: refines
+      spec_id: DEMOMA-11-001
+
+  - id: DEMOMA-16-006
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCCV-handoff scenario expected-event-types list MUST include
+      `invite_actor_to_case` and `accept_invite_actor_to_case` in addition
+      to the four universal types (DEMOMA-16-001), because C1 invites C2,
+      C2 accepts and becomes the new CASE_OWNER, and C2 then invites the
+      Vendor who also accepts.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-16-001
+    - rel_type: refines
+      spec_id: DEMOMA-14-009
+
+  - id: DEMOMA-16-007
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCV scenario expected-event-types list MUST include
+      `invite_actor_to_case` in addition to the four universal types
+      (DEMOMA-16-001), because the Coordinator invites both the Finder
+      and the Vendor into the case.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-16-001
+    - rel_type: refines
+      spec_id: DEMOMA-12-008
+
+  - id: DEMOMA-16-008
+    priority: MUST
+    kind: project
+    statement: >-
+      The per-scenario expected-event-types list in each
+      `test/ci/invariants/test_XXX_invariants.py` file MUST be kept in
+      sync with the corresponding DEMOMA-16-XXX spec requirement; when a
+      new scenario phase is added or removed, both the spec and the test
+      list MUST be updated in the same PR.
+    rationale: >-
+      The test list is the code-level implementation of the spec requirement.
+      Allowing them to drift reintroduces the silent-failure risk that
+      motivated issue #1649.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOCI-04-004

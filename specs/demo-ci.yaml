@@ -4,8 +4,9 @@ description: >-
   Requirements for a GitHub Actions workflow that builds and runs Vultron demo
   containers on pull requests, and for hardening the demo runner to exit non-zero
   when the demo fails — closing the gap where tests pass while the demo produces
-  silent failures.
-version: 1.1.0
+  silent failures. Includes requirements for the invariant harness to run as an
+  independent CI gate so failures are visible even when the demo itself also fails.
+version: 1.2.0
 scope:
   - prototype
   - production
@@ -270,3 +271,73 @@ groups:
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-03-004
+
+  - id: DEMOCI-04
+    title: Invariant Harness as an Independent CI Gate
+    specs:
+      - id: DEMOCI-04-001
+        priority: MUST
+        kind: project
+        statement: >-
+          The case-ledger invariant harness for each demo scenario MUST run as
+          a separate CI job (distinct from the demo-runner job), so that
+          invariant failures produce an independent pass/fail status on the
+          pull request that is visible even when the demo job also fails.
+        rationale: >-
+          When both the demo run and the invariant harness are co-located in the
+          same CI job, a primary demo failure draws reviewer attention away from
+          invariant failures. In PR #1590, a missing notes-exchange phase failed
+          silently across multiple fix cycles because the invariant failure was
+          masked by the demo failure in the same job output.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-03-003
+
+      - id: DEMOCI-04-002
+        priority: MUST
+        kind: project
+        statement: >-
+          The invariant-harness job MUST declare a `needs:` dependency on the
+          demo job for the same scenario matrix entry, and MUST use
+          `if: always()` so it runs regardless of whether the demo job passed
+          or failed.
+        rationale: >-
+          The purpose of the separate invariant job is to provide a signal even
+          when the demo itself fails. Using `if: always()` and `needs:` on the
+          demo job ensures the invariant job runs after artifacts are uploaded
+          and never skips due to a demo failure.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-04-001
+
+      - id: DEMOCI-04-003
+        priority: MUST
+        kind: project
+        statement: >-
+          The invariant-harness job MUST download the scenario's case-log
+          JSONL artifact produced by the demo job before running pytest, so
+          that the harness reads the actual output of the demo run that
+          completed in that workflow execution.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-04-001
+
+      - id: DEMOCI-04-004
+        priority: MUST
+        kind: project
+        statement: >-
+          Each demo scenario's invariant test file (e.g.
+          `test/ci/invariants/test_fv_invariants.py`) MUST include a
+          per-scenario expected-event-types list that is comprehensive for that
+          scenario: it MUST cover all protocol phases that the scenario is
+          designed to exercise, not only the four universal phases shared by
+          all scenarios.
+        rationale: >-
+          A shared minimal list (validate_report, add_participant_status_to_participant,
+          close_case, add_note_to_case) does not guard against a scenario-specific
+          phase (e.g. notes-exchange) regressing silently. Each scenario's
+          expected-event-types list must reflect what that scenario is designed
+          to prove end-to-end.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-03-005

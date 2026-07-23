@@ -241,6 +241,27 @@ assert against `py_trees.blackboard.Blackboard.storage` and rely on the
 
 ---
 
+## Invariant Harness Failures Are Independent of Demo Failures (DEMOCI-04)
+
+The case-ledger invariant harness (`test/ci/invariants/`) runs as a **separate
+CI job** from the demo run. When adding or modifying a scenario test file:
+
+- Do NOT add the invariant harness step back into the demo job — the two must
+  stay in separate jobs so each gets its own PR status check.
+- When a demo run and its invariants both fail, **always check the invariant
+  job separately** — invariant failures can point to a different root cause
+  than the demo failure.
+
+**Per-scenario expected-event-types**: each `_XXX_EXPECTED_EVENT_TYPES` list
+must be comprehensive for its scenario (see `notes/demo-ci-invariants.md` and
+DEMOMA-16-001 through DEMOMA-16-008). When adding a new scenario phase that
+produces a new `event_type`, update both the spec requirement and the test
+constant in the same PR.
+
+<!-- Source: CONCERN-1649, PR-1590 -->
+
+---
+
 ## Genesis-Hash Path Must Be Tested with a Stored Case (CLP-08-995)
 
 `is_ledger_fresh_for_case` skips genesis-hash check when no case is stored

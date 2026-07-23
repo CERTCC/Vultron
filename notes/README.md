@@ -493,6 +493,16 @@ bulk module-rename lessons, and known documentation gaps.
 **Load when**: adding or moving modules, following established code
 organization conventions, or orienting to the module boundary rules.
 
+**`demo-ci-invariants.md`**
+Design notes for the case-ledger invariant harness in demo CI: the
+separate-job pattern (DEMOCI-04) that gives the invariant harness its own
+independent pass/fail status even when the demo itself fails, the per-scenario
+required event-type lists (DEMOMA-16), the table of required types per
+scenario, and the spec-test sync rule.
+**Load when**: modifying the demo CI workflow (`demo-integration.yml`),
+adding or changing a scenario's expected event types, or debugging a silent
+invariant harness failure in CI.
+
 **`codebase-structure-fastapi-patterns.md`**
 FastAPI and test infrastructure patterns: router test override pattern
 (`_shared_dl`, `dependency_overrides`), circular import fix pattern
