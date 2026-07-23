@@ -3,6 +3,7 @@ import type { DemoState } from './types'
 import './App.css'
 import { LANE_HEIGHT, LANE_HEIGHT_COLLAPSED, ACTOR_PANEL_WIDTH, NODE_COLORS, NODE_HEIGHT, NODE_WIDTH, NODE_HEIGHT_COLLAPSED, NODE_ANIMATION_MS, INITIAL_X_POSITION, X_INCREMENT, getVendorNodeColors } from './constants'
 import { ActorPanel, AnimatedNode } from './components'
+import { initialState } from './protocol'
 import { getActiveLanes } from './state/participantHelpers'
 import {
   parseCaseLedger,
@@ -482,7 +483,6 @@ function AppLogReplay() {
   // step you've stepped/played to — not the final end-state. `timelineEvents` holds
   // several nodes per visual step (decision + consequences) that share an `x`, while
   // `stepSnapshots` is indexed by STEP; convert the current node's `x` to its step.
-  // Falls back to the final demoState if snapshots are absent (defensive).
   const snapshots = demoState.stepSnapshots
   const currentEvent = demoState.timelineEvents[currentEventIndex]
   const currentStep = currentEvent
@@ -490,10 +490,25 @@ function AppLogReplay() {
     : 0
   const currentSnapshot = snapshots?.[currentStep]
   // Per-participant / case-level state readers keyed off the current snapshot.
-  const rmStateOf = (id: string) => currentSnapshot?.rm[id] ?? demoState.participants.get(id)?.rmState ?? 'START'
-  const vfdStateOf = (id: string) => currentSnapshot?.vfd[id] ?? demoState.participants.get(id)?.vfdState ?? 'vfd'
-  const emStateNow = currentSnapshot?.emState ?? demoState.emState
-  const pxaStateNow = currentSnapshot?.pxaState ?? demoState.pxaState
+  // A participant ABSENT from the snapshot hasn't entered the shadow at this step
+  // yet (e.g. in the FVV sample, only vendor-1 is seeded at step 0 — the finder,
+  // vendor-2 and case actor join later). Such a participant must read as the
+  // machine's INITIAL state (not started), NOT the end-state: falling back to
+  // `demoState` (the terminal snapshot) was the bug that made panels show CLOSED /
+  // EXITED / VFD from the very first step.
+  // The Case Actor has no RM/VFD machine (coordinator role — makeParticipant marks
+  // it 'N/A'); the shadow never tracks it, so honor that sentinel rather than
+  // reporting a bogus machine state.
+  const rmStateOf = (id: string) => {
+    if (demoState.participants.get(id)?.rmState === 'N/A') return 'N/A'
+    return currentSnapshot?.rm[id] ?? initialState('rm')
+  }
+  const vfdStateOf = (id: string) => {
+    if (demoState.participants.get(id)?.vfdState === 'N/A') return 'N/A'
+    return currentSnapshot?.vfd[id] ?? initialState('vfd')
+  }
+  const emStateNow = currentSnapshot?.emState ?? initialState('em')
+  const pxaStateNow = currentSnapshot?.pxaState ?? initialState('pxa')
 
   return (
     <div style={{
