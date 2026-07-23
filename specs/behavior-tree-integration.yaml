@@ -4,7 +4,7 @@ description: Requirements for integrating py_trees behavior trees into Vultron h
   model, state management via the DataLayer, handler integration patterns, actor isolation, concurrency constraints, and failure
   diagnosis. Complex protocol workflows such as report validation, case creation, and embargo management must be implemented
   as BT nodes or subtrees.
-version: 1.0.0
+version: 1.1.0
 scope:
 - prototype
 - production
@@ -770,3 +770,119 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: BTND-02-001
+- id: BT-23
+  title: Call-Out Point Backend Selection
+  description: >
+    Requirements for how running code selects and injects backend factories into
+    BT tree builders. Covers the three-mode model (deterministic / stochastic /
+    real), the domain bundle dataclass pattern, pre-built singletons, the
+    CallOutBackendFactory Protocol, and the default direction rule. Derived from
+    the planning session for issue #1631.
+  specs:
+  - id: BT-23-001
+    priority: MUST
+    kind: project
+    statement: >
+      Call-out point backends MUST be organised into three logical modes:
+      DETERMINISTIC (AlwaysSucceed/AlwaysFail derived from the ceiling/floor of
+      stochastic probabilities), STOCHASTIC (probabilistic fuzzer classes), and
+      REAL (production implementations — currently deferred to FUZZ-08d through
+      FUZZ-08h). The DETERMINISTIC mode MUST be the default for all tree
+      builders, integration tests, and demo scenarios that do not explicitly
+      opt into STOCHASTIC or REAL.
+    rationale: >
+      Deterministic defaults make integration tests and demo scenarios
+      repeatable without per-call-site configuration. The probabilistic
+      (stochastic) mode is useful only for simulation and fuzz-testing; making
+      it the default (as in the original fuzzer heritage) causes non-determinism
+      in CI. The three-mode naming also documents the intended migration path:
+      DETERMINISTIC → REAL as production implementations are built.
+    relationships:
+    - rel_type: extends
+      spec_id: BT-18-004
+      note: >
+        BT-18-004 requires factory injection; BT-23-001 specifies that the
+        default factory must be the DETERMINISTIC backend, not the stochastic
+        fuzzer.
+  - id: BT-23-002
+    priority: MUST
+    kind: project
+    statement: >
+      The DETERMINISTIC backend for each call-out point MUST be derived from
+      its STOCHASTIC counterpart using the ceiling/floor rule: if the stochastic
+      success probability p > 0.5, the deterministic backend is AlwaysSucceed;
+      if p < 0.5, AlwaysFail; if p == 0.5, AlwaysSucceed (happy-path default).
+    rationale: >
+      Grounding the deterministic backend in the stochastic probability
+      preserves the semantic intent of each node. Nodes that the simulation
+      expects to usually succeed (high p) map to AlwaysSucceed; nodes that
+      usually fail map to AlwaysFail. The p==0.5 tie-breaking rule selects the
+      happy-path direction so that deterministic demo scenarios make forward
+      protocol progress.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-23-001
+  - id: BT-23-003
+    priority: MUST
+    kind: project
+    statement: >
+      Call-out point factories for a domain area MUST be collected into a
+      domain bundle — a frozen @dataclass (one per domain area) whose fields are
+      typed CallOutBackendFactory values. Each bundle class MUST provide
+      module-level singleton instances for the DETERMINISTIC and STOCHASTIC
+      modes (e.g. VALIDATION_DETERMINISTIC, VALIDATION_STOCHASTIC). Tree
+      builders that accept call-out factories MUST accept the bundle as a single
+      typed parameter (e.g. call_out: ValidationCallOutBundle) rather than
+      individual per-node factory kwargs.
+    rationale: >
+      Individual per-node factory kwargs accumulate quickly (a tree builder may
+      have 5–10 call-out points); a bundle dataclass keeps the tree builder
+      signature clean while enforcing completeness (all fields must be supplied).
+      Pre-built singletons avoid non-DRY construction in every demo script and
+      test fixture that wants the standard deterministic or stochastic behaviour.
+      The frozen constraint prevents accidental mutation after construction.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-23-001
+    - rel_type: extends
+      spec_id: BT-18-004
+      note: Replaces the individual factory-kwarg API with the bundle API.
+  - id: BT-23-004
+    priority: MUST
+    kind: project
+    statement: >
+      The CallOutBackendFactory type MUST be defined as a typing.Protocol (not
+      a bare Callable type alias). The Protocol MUST declare a single __call__
+      method accepting name: str and returning py_trees.behaviour.Behaviour.
+      Static type checking (mypy/pyright) is the validation mechanism; no
+      central registration or base class inheritance is required.
+    rationale: >
+      A Protocol produces IDE completion and pyright/mypy enforcement of the
+      factory signature without requiring runtime registration overhead. Duck-
+      typing via Protocol is consistent with how other ports in the codebase are
+      typed (vultron/core/ports/use_case.py), and avoids the coupling risk of a
+      central registry (name-key typos are silent runtime failures rather than
+      static errors).
+    relationships:
+    - rel_type: refines
+      spec_id: BT-23-003
+    - rel_type: extends
+      spec_id: BT-18-004
+  - id: BT-23-005
+    priority: SHOULD
+    kind: project
+    statement: >
+      Domain bundle classes SHOULD follow the naming convention
+      <Domain>CallOutBundle (e.g. ValidationCallOutBundle,
+      EmbargoCallOutBundle) and SHOULD be defined in
+      vultron/demo/fuzzer/bundles/<domain>.py. The pre-built singletons SHOULD
+      be named <DOMAIN>_DETERMINISTIC and <DOMAIN>_STOCHASTIC (e.g.
+      VALIDATION_DETERMINISTIC, EMBARGO_STOCHASTIC).
+    rationale: >
+      Consistent naming makes the available bundles discoverable without reading
+      the implementation. The bundles/ sub-package is co-located with the fuzzer
+      nodes they reference, respecting the BT-16-001 rule that simulation
+      artefacts stay in vultron/demo/ and do not appear in vultron/core/.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-23-003

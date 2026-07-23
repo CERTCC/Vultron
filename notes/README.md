@@ -267,6 +267,17 @@ Operationalizes `specs/behavior-tree-node-design.yaml` (BTND-01 through BTND-04)
 **Load when**: designing a new BT node or subtree, auditing existing nodes for
 composability violations, or refactoring near-duplicate BT implementations.
 
+**`call-out-configuration.md`**
+Design decisions for how running code selects backend factories for call-out
+point nodes in BT tree builders: three-mode model (DETERMINISTIC /
+STOCHASTIC / REAL), domain bundle dataclasses, pre-built singletons,
+`CallOutBackendFactory` Protocol, default direction rule (ceiling/floor of
+stochastic p), and the extension points for YAML/CLI config and personality
+bundles. Derived from #1631 planning; implemented by #1152.
+**Load when**: implementing or extending call-out point backend injection in
+demo scenarios or tests; designing the bundle/singleton layout in
+`vultron/demo/fuzzer/bundles/`; understanding the three-mode backend model.
+
 **`bt-fuzzer-nodes.md`**
 Index and background for the fuzzer node catalog. Fuzzer nodes are stub
 implementations in the legacy BT simulation (`vultron/bt/`) that stand in for

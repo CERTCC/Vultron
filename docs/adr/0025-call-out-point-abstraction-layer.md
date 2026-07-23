@@ -189,16 +189,89 @@ The concrete form:
 - `specs/behavior-tree-integration.yaml` BT-18 captures the blackboard
   contract requirements that every call-out point implementation must satisfy.
 
+## Bundle Selection Mechanism (2026-07-23 amendment)
+
+The original ADR left open the question of **how running code chooses which
+factory to inject**. Issue #1631 (planning session 2026-07-23) resolved this
+design gap. The resulting mechanism is implemented by #1152 (FUZZ-08c).
+
+### Three-mode model
+
+There are three logical backend modes:
+
+| Mode | Backends | Default? |
+|---|---|---|
+| `DETERMINISTIC` | `AlwaysSucceed` / `AlwaysFail` (ceiling/floor of stochastic p) | **Yes** |
+| `STOCHASTIC` | Probabilistic fuzzer classes | No — explicit opt-in |
+| `REAL` | Production implementations | No — deferred to FUZZ-08d–08h |
+
+Deterministic is the default everywhere. The p=0.5 tie-breaking direction is
+`AlwaysSucceed` (happy-path forward progress).
+
+### Domain bundle dataclasses
+
+Individual per-node factory kwargs on tree builders are replaced by a single
+**typed bundle parameter** (`call_out: <Domain>CallOutBundle`). Each bundle is
+a `frozen @dataclass` that holds all `CallOutBackendFactory` fields for a
+domain area. Two pre-built module-level singletons exist per domain:
+`<DOMAIN>_DETERMINISTIC` and `<DOMAIN>_STOCHASTIC`.
+
+```python
+@dataclass(frozen=True)
+class ValidationCallOutBundle:
+    credibility_factory: CallOutBackendFactory = AlwaysSucceed
+    validity_factory: CallOutBackendFactory = AlwaysSucceed
+    gather_info_factory: CallOutBackendFactory = AlwaysSucceed
+
+VALIDATION_DETERMINISTIC = ValidationCallOutBundle()
+VALIDATION_STOCHASTIC = ValidationCallOutBundle(
+    credibility_factory=EvaluateReportCredibility,
+    validity_factory=EvaluateReportValidity,
+    gather_info_factory=GatherValidationInfo,
+)
+```
+
+### CallOutBackendFactory as a Protocol
+
+`CallOutBackendFactory` is promoted from a `Callable` type alias to a
+`typing.Protocol` for static type checking:
+
+```python
+class CallOutBackendFactory(Protocol):
+    def __call__(self, name: str) -> py_trees.behaviour.Behaviour: ...
+```
+
+Duck-typing suffices; no central registration or base class is required.
+
+### Extensibility and future production surface
+
+A new backend is any callable matching `CallOutBackendFactory` that honours the
+blackboard contract (BT-18-001 through BT-18-004). Pass it to the relevant
+bundle field. No registry or decorator is needed.
+
+YAML/CLI configuration of backends is deferred to the production path (a future
+issue in the FUZZ-08d–08h series or a production-config successor issue). The
+bundle dataclass structure is the natural target for that mapping.
+
+### Personality / bias bundles (future)
+
+The bundle pattern supports actor-level behavioural variation in multi-actor
+simulation (e.g. a "recalcitrant embargo negotiator" vs. a "cooperative" one)
+by instantiating bundles with biased probability factories. This is a future
+design question tracked as a separate type:Idea issue.
+
 ## More Information
 
 - ADR-0024: Coordination Agent Taxonomy (call-out point concept and the four
   agent shapes)
 - `notes/coordination-agents.md`: design notes for coordination agents
   including the two integration surfaces (call-in vs. call-out)
+- `notes/call-out-configuration.md`: bundle/mode design decisions (2026-07-23)
 - `notes/bt-fuzzer-nodes.md` and sub-files: per-node catalog with automation
   potential ratings and agent-shape classifications (completed by #1150)
 - Implementation chain: #1150 (catalog update) → #1151 (exemplars) →
   #1152 (demo scenario wiring) → FUZZ-08d–08g (shape rollout)
 
 Generated spec requirements: `specs/behavior-tree-integration.yaml`
-BT-18-001 through BT-18-004.
+BT-18-001 through BT-18-004 (factory injection seam);
+BT-23-001 through BT-23-005 (bundle selection mechanism, added 2026-07-23).
