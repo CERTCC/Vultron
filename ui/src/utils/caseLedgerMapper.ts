@@ -29,7 +29,7 @@
  *     and the event log.
  */
 
-import type { DemoState, ParticipantState, TimelineEvent } from '../types'
+import type { DemoState, ParticipantState, TimelineEvent, StepSnapshot } from '../types'
 import {
   PARTICIPANT_COLORS,
   PARTICIPANT_ROLES,
@@ -489,10 +489,19 @@ export function buildTimelineFromCaseLedger(entries: CaseLedgerEntry[]): DemoSta
   }
   const timelineEvents: TimelineEvent[] = []
   const eventLog: string[] = []
+  const stepSnapshots: StepSnapshot[] = []
   let visualEventIndex = 0
 
   const timeLabel = (entry: CaseLedgerEntry) =>
     new Date(entry.receivedAt).toLocaleTimeString()
+
+  // Snapshot the current shadow (deep-copied) for step-by-step panel replay.
+  const snapshotShadow = (): StepSnapshot => ({
+    rm: { ...shadow.rm },
+    vfd: { ...shadow.vfd },
+    emState: shadow.emState,
+    pxaState: shadow.pxaState,
+  })
 
   for (const entry of entries) {
     const x = INITIAL_X_POSITION + visualEventIndex * X_INCREMENT
@@ -506,6 +515,10 @@ export function buildTimelineFromCaseLedger(entries: CaseLedgerEntry[]): DemoSta
       eventLog.push(`[${timeLabel(entry)}] ${result.nodes[0].label}`)
       for (const line of result.logLines) eventLog.push(line)
       visualEventIndex++
+      // Record the state as of this visual step. `timelineEvents` may hold several
+      // nodes per step (decision + consequences), so snapshots are indexed by
+      // visual STEP, not by node index — the app maps a node's step to its snapshot.
+      stepSnapshots.push(snapshotShadow())
     } else if (result.logLines.length > 0) {
       // Seed-only / no-op entries: record the note without consuming a column.
       for (const line of result.logLines) eventLog.push(line)
@@ -524,6 +537,7 @@ export function buildTimelineFromCaseLedger(entries: CaseLedgerEntry[]): DemoSta
     nextXPosition: INITIAL_X_POSITION + visualEventIndex * X_INCREMENT,
     invitedVendors: new Set<string>(),
     hasPendingFinderNote: shadow.pendingQuestionBy !== null,
+    stepSnapshots,
   }
 }
 

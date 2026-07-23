@@ -61,6 +61,23 @@ export interface DemoState {
   invitedVendors: Set<string>  // Track all invited vendors (e.g., 'vendor-2', 'vendor-3')
   embargoProposerId?: string  // Track who proposed current embargo/revision (e.g., 'finder', 'vendor-1', 'caseactor')
   hasPendingFinderNote?: boolean  // Case-level: an unanswered Finder question exists. Independent of `phase` so RM transitions (e.g. defer) don't hide the reply option (see actionFilters reply gating)
+  stepSnapshots?: StepSnapshot[]  // Log Replay only: machine states as of each visual
+                                  // step (index i = state after timeline column i is
+                                  // revealed). The side panels index this by the
+                                  // playback position so status reflects the current
+                                  // step, not the final end-state. See caseLedgerMapper.
+}
+
+/**
+ * A snapshot of all machine states at one Log Replay step, so the side panels can
+ * show state as-of the current playback position rather than the terminal state.
+ * `rm`/`vfd` are keyed by participant lane id; `emState`/`pxaState` are case-level.
+ */
+export interface StepSnapshot {
+  rm: Record<string, string>
+  vfd: Record<string, string>
+  emState: string
+  pxaState: string
 }
 
 export interface Action {

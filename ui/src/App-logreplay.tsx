@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react'
 import type { DemoState } from './types'
 import './App.css'
-import { LANE_HEIGHT, LANE_HEIGHT_COLLAPSED, ACTOR_PANEL_WIDTH, NODE_COLORS, NODE_HEIGHT, NODE_WIDTH, NODE_HEIGHT_COLLAPSED, NODE_ANIMATION_MS, getVendorNodeColors } from './constants'
+import { LANE_HEIGHT, LANE_HEIGHT_COLLAPSED, ACTOR_PANEL_WIDTH, NODE_COLORS, NODE_HEIGHT, NODE_WIDTH, NODE_HEIGHT_COLLAPSED, NODE_ANIMATION_MS, INITIAL_X_POSITION, X_INCREMENT, getVendorNodeColors } from './constants'
 import { ActorPanel, AnimatedNode } from './components'
 import { getActiveLanes } from './state/participantHelpers'
 import {
@@ -478,6 +478,23 @@ function AppLogReplay() {
     return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`
   }
 
+  // Machine states AS OF the current playback step, so the side panels reflect the
+  // step you've stepped/played to — not the final end-state. `timelineEvents` holds
+  // several nodes per visual step (decision + consequences) that share an `x`, while
+  // `stepSnapshots` is indexed by STEP; convert the current node's `x` to its step.
+  // Falls back to the final demoState if snapshots are absent (defensive).
+  const snapshots = demoState.stepSnapshots
+  const currentEvent = demoState.timelineEvents[currentEventIndex]
+  const currentStep = currentEvent
+    ? Math.round((currentEvent.x - INITIAL_X_POSITION) / X_INCREMENT)
+    : 0
+  const currentSnapshot = snapshots?.[currentStep]
+  // Per-participant / case-level state readers keyed off the current snapshot.
+  const rmStateOf = (id: string) => currentSnapshot?.rm[id] ?? demoState.participants.get(id)?.rmState ?? 'START'
+  const vfdStateOf = (id: string) => currentSnapshot?.vfd[id] ?? demoState.participants.get(id)?.vfdState ?? 'vfd'
+  const emStateNow = currentSnapshot?.emState ?? demoState.emState
+  const pxaStateNow = currentSnapshot?.pxaState ?? demoState.pxaState
+
   return (
     <div style={{
       display: 'flex',
@@ -669,10 +686,14 @@ function AppLogReplay() {
               name={participant.name}
               role={participant.role}
               color={participant.color}
-              rmState={participant.rmState}
-              emState={demoState.emState}
-              vfdState={participant.vfdState}
-              pxaState={demoState.pxaState}
+              // State AS OF the current playback step (currentSnapshot), not the
+              // final end-state. Guards match App-multivendor: VFD is vendor-only
+              // (the Finder/Case Actor have no fix to develop); PXA is case-level,
+              // shown on the Case Actor; EM is case-level, shown on all.
+              rmState={rmStateOf(participant.id)}
+              emState={emStateNow}
+              vfdState={participant.id.startsWith('vendor-') ? vfdStateOf(participant.id) : undefined}
+              pxaState={participant.id === 'caseactor' ? pxaStateNow : undefined}
               actions={[]} // No actions in replay mode
               onActionClick={() => {}}
               isCollapsed={collapsedParticipants.has(participant.id)}
