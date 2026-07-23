@@ -728,7 +728,7 @@ def _phase_fix_lifecycle(
             receiver_client=c1_client,
             reporter_client=finder_client,
             case_id=case.id_,
-            receiver_actor_id=c1.id_,
+            receiver_actor_id=vendor.id_,
         )
 
     actor_notifies_fix_deployed(
@@ -750,7 +750,7 @@ def _phase_fix_lifecycle(
             receiver_client=c1_client,
             reporter_client=finder_client,
             case_id=case.id_,
-            receiver_actor_id=c1.id_,
+            receiver_actor_id=vendor.id_,
         )
 
 
