@@ -123,6 +123,15 @@ export function ActorPanel({
         <div
           style={{
             flex: 1,
+            // minHeight:0 is REQUIRED for overflowY:auto to actually scroll here.
+            // A flex item defaults to min-height:auto, which refuses to shrink below
+            // its content's intrinsic height — so with many buttons this div grows
+            // past the panel's fixed height and the buttons overflow instead of
+            // scrolling. Whether that overflow is visible/clipped depends on tiny
+            // per-system height differences (font rendering, zoom), which is why it
+            // scrolled on some machines but not others. minHeight:0 lets the flex
+            // item shrink to the available space so the scrollbar engages.
+            minHeight: 0,
             display: 'flex',
             flexDirection: 'column',
             gap: '0.5rem',
