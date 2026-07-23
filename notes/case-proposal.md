@@ -189,43 +189,52 @@ corresponding `MessageSemantics` value.
 
 ---
 
-## Demo Layer: `DemoCreateCaseActorNode` (Actuator stub for spawning)
+## CaseActor Service URL Configuration
 
-**Source**: 2026-07-21 planning session, issue #810.
+**Source**: Issue #1633 (2026-07-23).
 
-Before dynamic case-actor spawning (#812) is implemented, the FV demo
-needs a way to route case-actor creation to the dedicated case-actor container
-rather than creating the actor locally in the vendor container (DEMOMA-01-001).
+`ResolveCaseActorUrlsNode` derives the CaseActor service identity
+by combining `case_actor_service_url` from `ActorConfig` with a
+per-case slug. The URL source MUST be `ActorConfig.case_actor_service_url`
+(`get_config().actor.case_actor_service_url`); it MUST NOT be derived from
+`server_base_url` on the blackboard (that would hard-wire a co-location
+assumption that breaks multi-container topologies).
 
-`DemoCreateCaseActorNode` is an **Actuator** call-out point (ADR-0024, § Actuator
-shape): it receives a trigger (case initialization) and causes the side effect of
-registering the pre-configured case-actor service in the vendor's DataLayer, then
-returns SUCCESS or FAILURE. It does not produce a content artifact.
+In Docker Compose deployments, actors that create cases MUST supply:
 
-### What it does
+```yaml
+environment:
+  - VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://case-actor:7999/api/v2
+```
 
-1. Reads the pre-configured case-actor URL from the environment
-   (`VULTRON_CASE_ACTOR_ID`, e.g.
-   `http://case-actor:7999/api/v2/actors/case-actor`) or from config.
-2. Writes that URL to the BT blackboard as `case_actor_id` — simulating what
-   the dynamic spawning protocol (#812) will eventually provide at runtime.
-3. Delegates to the standard `CreateCaseActorNode` registration sequence
-   (`CreateCaseActorServiceNode` + `RegisterCaseActorParticipantNode`) using the
-   pre-set `case_actor_id`.
+This is a TEMPORARY per-actor config field pending a proper actor-ID-to-endpoint
+resolution mechanism (issues #1189, #1092). Normative requirements: CP-08-001
+through CP-08-003.
 
-### Location
+### Pitfall: `server_base_url` is NOT the CaseActor service URL
 
-`DemoCreateCaseActorNode` lives in `vultron/demo/` (demo layer), not in
-`vultron/core/`. The FV demo wires it in place of the core
-`CreateCaseActorNode` via the demo-level case-creation BT. Core
-`CreateCaseActorNode` is unchanged.
+The co-location assumption manifests as:
 
-### Temporary nature
+```python
+# WRONG — uses the running container's own base URL
+server_base_url = _resolve_server_base_url(self.blackboard)
+case_actor_id = f"{server_base_url}/actors/case-actor-{case_slug}"
+```
 
-This node is a demo artifact. Issue #812 (dynamic spawning) will replace it with
-real spawning logic; at that point `DemoCreateCaseActorNode` can be removed and
-the core `CreateCaseActorNode` will receive the spawned URL via the spawning
-protocol's response.
+This silently works in single-container demos but produces a mis-routed
+proposal in multi-container topologies (the Vendor proposes to itself
+instead of the dedicated CaseActor container). The fix:
+
+```python
+# CORRECT — reads from explicit config
+from vultron.config import get_config
+cfg = get_config().actor
+if cfg.case_actor_service_url is None:
+    self.logger.error("%s: case_actor_service_url not configured", self.name)
+    return Status.FAILURE
+base_url = str(cfg.case_actor_service_url).rstrip("/")
+case_actor_id = f"{base_url}/actors/case-actor-{case_slug}"
+```
 
 ---
 

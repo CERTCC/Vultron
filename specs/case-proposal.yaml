@@ -171,6 +171,64 @@ groups:
     kind: protocol
     statement: '`RejectCaseProposalReceivedUseCase` MUST update the vendor''s local state to reflect the rejection (e.g.,
       mark the pending case as rejected and surface the rejection reason if present).'
+- id: CP-08
+  title: Case-Actor Service URL Configuration
+  specs:
+  - id: CP-08-001
+    priority: MUST
+    kind: project
+    statement: >-
+      Every actor that may trigger the `engage-case` BT path (i.e., any actor that
+      creates a `VulnerabilityCase` on behalf of another actor) MUST supply a
+      `case_actor_service_url` value in its `ActorConfig`. The field MUST be a valid
+      `HttpUrl`; absence MUST produce a runtime `FAILURE` at `ResolveCaseActorUrlsNode`
+      with a clear error message identifying the missing configuration, not a
+      silently mis-routed proposal.
+    rationale: >-
+      `ResolveCaseActorUrlsNode` previously derived the CaseActor service URL by
+      prepending `server_base_url` (the running container's own base URL) to a
+      case slug. This hard-wires a co-location assumption: the CaseActor is assumed
+      to live on the same host as the BT executor. In a multi-container topology
+      (DEMOMA-01-001), the CaseActor has its own container and URL; using
+      `server_base_url` routes proposals to the wrong endpoint. Actor URLs are
+      opaque endpoint identifiers; whether they are host-local or host-remote is
+      irrelevant to callers. The only correct source for the CaseActor service URL
+      is explicit configuration. This is a TEMPORARY per-actor config field pending
+      a proper actor-ID-to-endpoint resolution mechanism (see issues #1189, #1092).
+    relationships:
+    - rel_type: implements
+      spec_id: CP-01-005
+  - id: CP-08-002
+    priority: MUST
+    kind: project
+    statement: >-
+      `ResolveCaseActorUrlsNode` MUST read `case_actor_service_url` from
+      `ActorConfig` (via `get_config().actor.case_actor_service_url`) to derive the
+      CaseActor service URL. It MUST NOT use `server_base_url` from the blackboard
+      or from the server configuration to construct `case_actor_id`. The
+      `server_base_url` blackboard key MUST NOT be registered or read in
+      `ResolveCaseActorUrlsNode.setup()`.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-08-001
+  - id: CP-08-003
+    priority: MUST
+    kind: project
+    statement: >-
+      In all multi-container demo scenarios, every actor whose BT may run the
+      `engage-case` path MUST have `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL` set
+      in its Docker Compose environment block (or equivalent config mechanism).
+      The value MUST be the full base URL of the dedicated CaseActor container
+      (e.g., `http://case-actor:7999/api/v2`). Demo scripts MUST NOT rely on
+      `server_base_url` derivation for the CaseActor identity.
+    rationale: >-
+      Demo containers are "omniscient" about all actor URLs in the deployment at
+      boot time (in lieu of a directory service, issues #1189, #1092). The env-var
+      approach mirrors the `VULTRON_SERVER__BASE_URL` pattern and requires no new
+      discovery mechanism.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-08-001
 - id: CP-07
   title: Testing
   specs:
