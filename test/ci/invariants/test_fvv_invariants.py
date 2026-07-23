@@ -11,6 +11,7 @@ Universal invariants (1–15) are applied via ``common.py``.
 FVV-specific invariants:
 - ``invite_actor_to_case`` appears at least once (Vendor1 invites Vendor2).
 - Vendor2 replica holds the complete log from genesis (late-joiner backfill).
+- Finder replica holds the complete log from genesis (late-joiner backfill).
 
 All tests are tagged ``@pytest.mark.case_ledger_invariants``.  They skip
 automatically when ``devlogs/fvv/`` is absent.
@@ -287,5 +288,26 @@ def test_fvv_vendor2_late_joiner_has_full_history(
         )
     violations = check_late_joiner_has_full_history(
         fvv_replicas, early_actor="vendor", late_actor="vendor2"
+    )
+    assert not violations, "\n".join(violations)
+
+
+@pytest.mark.case_ledger_invariants
+def test_fvv_finder_late_joiner_has_full_history(
+    fvv_replicas: dict[str, list[dict]],
+) -> None:
+    """Finder replica contains all logIndex values present in vendor replica.
+
+    Finder is seeded by the CaseActor's trust-bootstrap Announce after
+    Vendor1 validates the report; the CaseActor must backfill all prior
+    entries to Finder.
+    Spec: DEMOMA-09-004 (SYNC-2 convergence).
+    """
+    if not fvv_replicas.get("vendor") or not fvv_replicas.get("finder"):
+        pytest.skip(
+            "vendor or finder replica absent; cannot check late-joiner invariant"
+        )
+    violations = check_late_joiner_has_full_history(
+        fvv_replicas, early_actor="vendor", late_actor="finder"
     )
     assert not violations, "\n".join(violations)

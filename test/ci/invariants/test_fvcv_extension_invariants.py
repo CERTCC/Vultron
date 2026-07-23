@@ -10,6 +10,8 @@ Actor set: ``finder``, ``vendor``, ``coordinator``, ``vendor2``,
 FVCV-extension-specific invariants:
 - ``invite_actor_to_case`` appears at least twice (Finder, then Vendor2).
 - Vendor2 is a late joiner — replica holds the complete log from genesis.
+- Finder is a late joiner — replica holds the complete log from genesis.
+- Coordinator is a late joiner — replica holds the complete log from genesis.
 - CS transitions VFd and VFD observed in vendor-actor status entries.
 
 All tests are tagged ``@pytest.mark.case_ledger_invariants``.  They skip
@@ -303,5 +305,49 @@ def test_fvcv_extension_vendor2_late_joiner_has_full_history(
         )
     violations = check_late_joiner_has_full_history(
         fvcv_extension_replicas, early_actor="vendor", late_actor="vendor2"
+    )
+    assert not violations, "\n".join(violations)
+
+
+@pytest.mark.case_ledger_invariants
+def test_fvcv_extension_finder_late_joiner_has_full_history(
+    fvcv_extension_replicas: dict[str, list[dict]],
+) -> None:
+    """Finder replica contains all logIndex values present in vendor replica.
+
+    Finder is seeded by the CaseActor's trust-bootstrap Announce; the
+    CaseActor must backfill all prior entries to Finder.
+    Spec: DEMOMA-10-007 (SYNC-2 convergence).
+    """
+    if not fvcv_extension_replicas.get(
+        "vendor"
+    ) or not fvcv_extension_replicas.get("finder"):
+        pytest.skip(
+            "vendor or finder replica absent; cannot check late-joiner invariant"
+        )
+    violations = check_late_joiner_has_full_history(
+        fvcv_extension_replicas, early_actor="vendor", late_actor="finder"
+    )
+    assert not violations, "\n".join(violations)
+
+
+@pytest.mark.case_ledger_invariants
+def test_fvcv_extension_coordinator_late_joiner_has_full_history(
+    fvcv_extension_replicas: dict[str, list[dict]],
+) -> None:
+    """Coordinator replica contains all logIndex values present in vendor replica.
+
+    Coordinator joins after case creation when Vendor1 invites them; the
+    CaseActor must backfill all prior entries to Coordinator.
+    Spec: DEMOMA-10-007 (SYNC-2 convergence).
+    """
+    if not fvcv_extension_replicas.get(
+        "vendor"
+    ) or not fvcv_extension_replicas.get("coordinator"):
+        pytest.skip(
+            "vendor or coordinator replica absent; cannot check late-joiner invariant"
+        )
+    violations = check_late_joiner_has_full_history(
+        fvcv_extension_replicas, early_actor="vendor", late_actor="coordinator"
     )
     assert not violations, "\n".join(violations)
