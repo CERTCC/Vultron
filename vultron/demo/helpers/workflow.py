@@ -264,6 +264,41 @@ def _load_case_from_datalayer(
         return None
 
 
+def find_case_by_report_id(
+    client: DataLayerClient,
+    report_id: str,
+) -> Optional[as_VulnerabilityCase]:
+    """Find the first ``as_VulnerabilityCase`` referencing *report_id*.
+
+    Args:
+        client: DataLayerClient connected to the container holding the case.
+        report_id: Full URI of the ``as_VulnerabilityReport``.
+
+    Returns:
+        The matching ``as_VulnerabilityCase``, or ``None`` if not found.
+    """
+    cases_data = client.get("/datalayer/VulnerabilityCases/")
+    if not cases_data:
+        return None
+
+    for item in cases_data:
+        case = _load_case_from_datalayer(client, item)
+        if case is None:
+            continue
+
+        report_ids = [
+            (
+                report
+                if isinstance(report, str)
+                else getattr(report, "id_", str(report))
+            )
+            for report in (case.vulnerability_reports or [])
+        ]
+        if report_id in report_ids:
+            return case
+    return None
+
+
 def find_case_for_offer(
     client: DataLayerClient,
     offer_id: str,
@@ -285,26 +320,7 @@ def find_case_for_offer(
     if not report_id:
         return None
 
-    cases_data = client.get("/datalayer/VulnerabilityCases/")
-    if not cases_data:
-        return None
-
-    for item in cases_data:
-        case = _load_case_from_datalayer(client, item)
-        if case is None:
-            continue
-
-        report_ids = [
-            (
-                report
-                if isinstance(report, str)
-                else getattr(report, "id_", str(report))
-            )
-            for report in (case.vulnerability_reports or [])
-        ]
-        if report_id in report_ids:
-            return case
-    return None
+    return find_case_by_report_id(client, report_id)
 
 
 def setup_initialized_case(

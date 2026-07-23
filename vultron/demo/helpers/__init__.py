@@ -34,8 +34,8 @@ Sub-modules
   ``verify_receiver_case_state``, and ``verify_case_actor_unused``.
 - :mod:`~vultron.demo.helpers.workflow` — ``reporter_submits_report``,
   ``receiver_validates_report``, ``receiver_engages_case``,
-  ``find_case_for_offer``, ``setup_initialized_case``, and
-  ``setup_two_participant_case``.
+  ``find_case_by_report_id``, ``find_case_for_offer``,
+  ``setup_initialized_case``, and ``setup_two_participant_case``.
 - :mod:`~vultron.demo.helpers.notes` — ``participant_adds_note_to_case``.
 - :mod:`~vultron.demo.helpers.milestones` — lifecycle milestone verifiers
   (``verify_case_active``, ``verify_fix_ready``, ``verify_fix_deployed``,
@@ -109,6 +109,7 @@ from vultron.demo.helpers.verification import (  # noqa: F401
 from vultron.demo.helpers.workflow import (  # noqa: F401
     _load_case_from_datalayer,
     _report_id_from_offer_data,
+    find_case_by_report_id,
     find_case_for_offer,
     receiver_engages_case,
     receiver_validates_report,

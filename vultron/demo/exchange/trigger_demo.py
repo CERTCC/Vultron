@@ -43,9 +43,6 @@ from typing import Callable, Optional, Sequence, Tuple
 
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
@@ -64,6 +61,7 @@ from vultron.wire.as2.factories import (
 )
 
 from vultron.demo.helpers.runner import run_exchange_demos
+from vultron.demo.helpers.workflow import find_case_for_offer
 
 logger = logging.getLogger(__name__)
 
@@ -95,32 +93,6 @@ def _submit_report(
         verify_object_stored(client, report.id_)
         verify_object_stored(client, offer.id_)
     return report, offer
-
-
-def _find_case_for_report(
-    client: DataLayerClient, report_id: str
-) -> Optional[as_VulnerabilityCase]:
-    """Return the first as_VulnerabilityCase referencing *report_id*, or None."""
-    cases = client.get("/datalayer/VulnerabilityCases/")
-    if not cases:
-        return None
-    for item in cases:
-        if isinstance(item, str):
-            try:
-                data = client.get(f"/datalayer/{item}")
-                case = as_VulnerabilityCase(**data)
-            except Exception as exc:
-                logger.warning("Could not fetch case %s: %s", item, exc)
-                continue
-        else:
-            case = as_VulnerabilityCase(**item)
-        report_ids = [
-            r if isinstance(r, str) else getattr(r, "id_", str(r))
-            for r in (case.vulnerability_reports or [])
-        ]
-        if report_id in report_ids:
-            return case
-    return None
 
 
 # ---------------------------------------------------------------------------
@@ -177,11 +149,9 @@ def demo_validate_and_engage(
             logger.info("Resulting activity type: %s", activity.get("type"))
 
     with demo_step("Step 3: Vendor triggers engage-case"):
-        case = _find_case_for_report(client, report.id_)
+        case = find_case_for_offer(client, stored_offer.id_)
         with demo_check("Case created by validate-report BT"):
-            assert (
-                case is not None
-            ), f"No as_VulnerabilityCase found for report {report.id_}"
+            assert case is not None, f"No case found for report {report.id_}"
             logger.info("Found case: %s", case.id_)
 
         response = post_to_trigger(

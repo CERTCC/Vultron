@@ -67,6 +67,7 @@ from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.verification import (
     verify_activity_in_inbox,
 )  # noqa: F401
+from vultron.demo.helpers.workflow import find_case_by_report_id
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
@@ -76,7 +77,6 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     get_offer_from_datalayer,
     logfmt,
     post_to_inbox_and_wait,
-    ref_id,
     postfmt,
     verify_object_stored,
     setup_demo_logging,
@@ -117,49 +117,19 @@ def submit_to_inbox(
 def find_case_by_report(
     client: DataLayerClient, report_id: str
 ) -> Optional[as_VulnerabilityCase]:
-    """
-    Finds a as_VulnerabilityCase that references a specific report.
+    """Find the ``as_VulnerabilityCase`` that references *report_id*.
+
+    Public name kept for backward compatibility — imported by
+    ``test/demo/test_find_case_by_report.py``.
 
     Args:
         client: DataLayerClient instance
         report_id: Full URI of the vulnerability report
 
     Returns:
-        as_VulnerabilityCase or None: The case if found, None otherwise
+        The matching case, or ``None`` if not found.
     """
-    cases = client.get("/datalayer/VulnerabilityCases/")
-    if not cases:
-        return None
-
-    for case_data in cases:
-        # Handle case where API returns list of IDs instead of full objects
-        if isinstance(case_data, str):
-            # Fetch the full case object
-            try:
-                case_obj_data = client.get(f"/datalayer/{case_data}")
-                case_obj = as_VulnerabilityCase(**case_obj_data)
-            except Exception as e:
-                logger.warning(f"Failed to fetch case {case_data}: {e}")
-                continue
-        else:
-            # API returned full object
-            case_obj = as_VulnerabilityCase(**case_data)
-
-        # Check if this case references our report
-        if case_obj.vulnerability_reports:
-            # Extract IDs from reports (handle both string IDs and full objects)
-            report_ids = []
-            for r in case_obj.vulnerability_reports:
-                if isinstance(r, str):
-                    report_ids.append(r)
-                else:
-                    report_ids.append(ref_id(r) or str(r))
-
-            if report_id in report_ids:
-                logger.info(f"Found case for report: {logfmt(case_obj)}")
-                return case_obj
-
-    return None
+    return find_case_by_report_id(client, report_id)
 
 
 def demo_validate_report(
