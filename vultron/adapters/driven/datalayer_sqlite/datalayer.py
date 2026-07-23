@@ -379,6 +379,14 @@ class SqliteDataLayer:
         """Persist a domain object, overwriting any existing record."""
         crud.save(self, obj)
 
+    def save_many(self, objs: list[PersistableModel]) -> None:
+        """Persist multiple domain objects in a single atomic transaction.
+
+        All writes commit together; a failure in any serialisation rolls back
+        the entire set so no partial state reaches storage (CM-21-004).
+        """
+        crud.save_many(self, objs)
+
     def delete(self, table: str, id_: str) -> bool:
         """Delete a record by type and ID."""
         return crud.delete(self, table, id_)

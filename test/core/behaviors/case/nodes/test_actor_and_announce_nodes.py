@@ -140,6 +140,138 @@ class TestAcceptCaseOwnershipTransferNode:
         assert refreshed_participant is not None
         assert CVDRole.CASE_OWNER in refreshed_participant.case_roles
 
+    def test_strips_case_owner_role_from_previous_owner(
+        self, bridge, dl
+    ) -> None:
+        """Previous owner's participant loses CVDRole.CASE_OWNER on transfer (CM-21-003)."""
+        old_owner_participant = CaseParticipant(
+            id_="https://example.org/participants/p-old-owner",
+            attributed_to=ACTOR_ID,
+            context=CASE_ID,
+            case_roles=[CVDRole.CASE_OWNER, CVDRole.COORDINATOR],
+        )
+        new_owner_participant = CaseParticipant(
+            id_="https://example.org/participants/p-new-owner",
+            attributed_to=NEW_OWNER_ID,
+            context=CASE_ID,
+            case_roles=[CVDRole.COORDINATOR],
+        )
+        dl.create(old_owner_participant)
+        dl.create(new_owner_participant)
+        case = as_VulnerabilityCase(
+            id_=CASE_ID,
+            name="OT Role Strip Test",
+            attributed_to=ACTOR_ID,
+            actor_participant_index={
+                ACTOR_ID: old_owner_participant.id_,
+                NEW_OWNER_ID: new_owner_participant.id_,
+            },
+        )
+        dl.create(case)
+        tree = AcceptCaseOwnershipTransferNode(
+            case_id=CASE_ID, new_owner_id=NEW_OWNER_ID
+        )
+        result = bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
+        assert result.status == Status.SUCCESS
+        refreshed_old = cast(Any, dl.read(old_owner_participant.id_))
+        assert refreshed_old is not None
+        assert CVDRole.CASE_OWNER not in refreshed_old.case_roles
+        # Other roles are preserved — CM-21-003
+        assert CVDRole.COORDINATOR in refreshed_old.case_roles
+
+    def test_at_most_one_case_owner_after_transfer(self, bridge, dl) -> None:
+        """Exactly one participant holds CVDRole.CASE_OWNER after transfer (CM-21-001)."""
+        old_owner_participant = CaseParticipant(
+            id_="https://example.org/participants/p-old-owner",
+            attributed_to=ACTOR_ID,
+            context=CASE_ID,
+            case_roles=[CVDRole.CASE_OWNER],
+        )
+        new_owner_participant = CaseParticipant(
+            id_="https://example.org/participants/p-new-owner",
+            attributed_to=NEW_OWNER_ID,
+            context=CASE_ID,
+            case_roles=[CVDRole.COORDINATOR],
+        )
+        dl.create(old_owner_participant)
+        dl.create(new_owner_participant)
+        case = as_VulnerabilityCase(
+            id_=CASE_ID,
+            name="OT At-Most-One Test",
+            attributed_to=ACTOR_ID,
+            actor_participant_index={
+                ACTOR_ID: old_owner_participant.id_,
+                NEW_OWNER_ID: new_owner_participant.id_,
+            },
+        )
+        dl.create(case)
+        tree = AcceptCaseOwnershipTransferNode(
+            case_id=CASE_ID, new_owner_id=NEW_OWNER_ID
+        )
+        result = bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
+        assert result.status == Status.SUCCESS
+        all_participants = [
+            cast(Any, dl.read(old_owner_participant.id_)),
+            cast(Any, dl.read(new_owner_participant.id_)),
+        ]
+        owners = [
+            p for p in all_participants if CVDRole.CASE_OWNER in p.case_roles
+        ]
+        assert len(owners) == 1
+        assert owners[0].id_ == new_owner_participant.id_
+
+    def test_atomic_rollback_on_save_failure(self, bridge, dl) -> None:
+        """Failed save_many leaves both participants unchanged (CM-21-004)."""
+        from unittest.mock import patch
+
+        old_owner_participant = CaseParticipant(
+            id_="https://example.org/participants/p-old-owner",
+            attributed_to=ACTOR_ID,
+            context=CASE_ID,
+            case_roles=[CVDRole.CASE_OWNER],
+        )
+        new_owner_participant = CaseParticipant(
+            id_="https://example.org/participants/p-new-owner",
+            attributed_to=NEW_OWNER_ID,
+            context=CASE_ID,
+            case_roles=[CVDRole.COORDINATOR],
+        )
+        dl.create(old_owner_participant)
+        dl.create(new_owner_participant)
+        case = as_VulnerabilityCase(
+            id_=CASE_ID,
+            name="OT Atomic Test",
+            attributed_to=ACTOR_ID,
+            actor_participant_index={
+                ACTOR_ID: old_owner_participant.id_,
+                NEW_OWNER_ID: new_owner_participant.id_,
+            },
+        )
+        dl.create(case)
+
+        # Patch save_many to raise, simulating a storage failure mid-commit.
+        # BTBridge catches and logs the exception rather than re-raising it, so
+        # we assert on DataLayer state — not on the raised exception.
+        with patch.object(
+            dl, "save_many", side_effect=RuntimeError("db down")
+        ):
+            tree = AcceptCaseOwnershipTransferNode(
+                case_id=CASE_ID, new_owner_id=NEW_OWNER_ID
+            )
+            bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
+
+        # Because save_many was never called, no write reached the DataLayer.
+        # Both participants must be exactly as they were before the attempt.
+        old_refreshed = cast(Any, dl.read(old_owner_participant.id_))
+        new_refreshed = cast(Any, dl.read(new_owner_participant.id_))
+        assert (
+            CVDRole.CASE_OWNER in old_refreshed.case_roles
+        ), "CM-21-004: old owner should still hold CASE_OWNER after failed transfer"
+        assert (
+            CVDRole.CASE_OWNER not in new_refreshed.case_roles
+        ), "CM-21-004: new owner must not gain CASE_OWNER from a failed transfer"
+
+
 
 # ---------------------------------------------------------------------------
 # SeedAnnouncedCaseNode
