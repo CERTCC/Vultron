@@ -486,7 +486,7 @@ def _phase_fix_lifecycle(
             receiver_client=coordinator_client,
             reporter_client=vendor_client,
             case_id=case.id_,
-            receiver_actor_id=coordinator.id_,
+            receiver_actor_id=vendor.id_,
         )
 
     actor_notifies_fix_deployed(
@@ -508,7 +508,7 @@ def _phase_fix_lifecycle(
             receiver_client=coordinator_client,
             reporter_client=vendor_client,
             case_id=case.id_,
-            receiver_actor_id=coordinator.id_,
+            receiver_actor_id=vendor.id_,
         )
 
 
@@ -643,7 +643,6 @@ def _phase_dump_case_ledgers(
     finder_client: DataLayerClient,
     coordinator_client: DataLayerClient,
     vendor_client: DataLayerClient,
-    case_actor_client: DataLayerClient | None,
     case: as_VulnerabilityCase,
     demo_name: str = "fcv",
 ) -> None:
@@ -675,11 +674,7 @@ def _phase_dump_case_ledgers(
         ("coordinator", coordinator_client, "coordinator"),
         ("vendor", vendor_client, "vendor"),
     ]
-    if case_actor_client is not None and case_actor_sub_actor_key is not None:
-        actors.append(
-            ("case-actor", case_actor_client, case_actor_sub_actor_key)
-        )
-    elif case_actor_sub_actor_key is not None:
+    if case_actor_sub_actor_key is not None:
         actors.append(
             ("case-actor", coordinator_client, case_actor_sub_actor_key)
         )
@@ -814,7 +809,6 @@ def run_fcv_demo(
         finder_client=finder_client,
         coordinator_client=coordinator_client,
         vendor_client=vendor_client,
-        case_actor_client=case_actor_client,
         case=case,
     )
 
