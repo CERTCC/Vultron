@@ -203,7 +203,7 @@ mkdir -p /tmp/demo-logs
 docker compose -f docker/docker-compose-multi-actor.yml logs \
   > /tmp/demo-logs/combined.log 2>&1
 
-for svc in finder vendor coordinator case-actor vendor2 demo-runner; do
+for svc in finder vendor coordinator case-actor actor5 demo-runner; do
   docker compose -f docker/docker-compose-multi-actor.yml logs "$svc" \
     > "/tmp/demo-logs/${svc}.log" 2>&1 || true
 done
@@ -262,7 +262,7 @@ Each JSONL line is a `CaseLedgerEntry` object. Key fields:
 Path in artifact: `/tmp/demo-logs/`
 
 Files: `combined.log`, `finder.log`, `vendor.log`, `coordinator.log`,
-`case-actor.log`, `vendor2.log`, `demo-runner.log`.
+`case-actor.log`, `actor5.log`, `demo-runner.log`.
 
 **Correlating JSONL artifacts with container logs**: Use the `case_id`
 from a failing JSONL entry as a grep anchor in the container logs, then
