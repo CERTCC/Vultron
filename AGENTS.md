@@ -106,6 +106,11 @@ and dispatcher routing.
 - Raise domain-specific exceptions; do not swallow errors
 - Keep formatting and linting aligned with tooling; do not reformat
   unnecessarily
+- **Prefer extracting shared logic over duplicating it.** Three similar lines
+  of code is a signal to extract; copy-pasting a function body is not
+  acceptable. DRY is a project standard. This applies project-wide; for demo
+  scenarios the rule is stricter — see `vultron/demo/AGENTS.md` §
+  "Extract Before Reuse" and `specs/multi-actor-demo.yaml` DEMOMA-17-001.
 
 ### Markdown Formatting
 

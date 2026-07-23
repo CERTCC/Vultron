@@ -59,3 +59,38 @@ just the module import — and clear `PYTHONPATH=/app` devcontainer contaminatio
 (see root `AGENTS.md` § "PYTHONPATH=/app contaminates imports").
 
 <!-- Source: ISSUE-1568 -->
+
+---
+
+### Extract Before Reuse: No Copy-Paste from Existing Scenario Files
+
+Before writing a **second use** of a pattern from an existing scenario file,
+extract it to `vultron/demo/helpers/` first. Do not copy-paste a function body,
+a polling loop, a verification block, or any other logical unit from an
+existing scenario file into a new one.
+
+**Why:** Every demo scenario written by copying the previous one propagates
+latent bugs alongside valid patterns. Issue #1632 documented residual
+duplication remaining after PR #1629 reactively extracted five helper modules.
+Copy-paste is the root cause; extraction-first prevents the problem from
+recurring.
+
+**How to apply:**
+
+1. Before writing a new scenario step, grep `vultron/demo/helpers/` for an
+   existing helper that covers the same pattern.
+2. If one exists, import and call it. Do not inline a copy.
+3. If none exists and this is the second occurrence of the pattern, extract it
+   to the appropriate `helpers/` module first, then call it from both places.
+4. A pattern that appears only once may stay inline, but add a comment marking
+   it as a candidate for extraction when a second use arises.
+
+This rule applies to scenario files in `vultron/demo/scenario/`. Exchange demos
+under `vultron/demo/exchange/` are lower-level and may duplicate less when a
+full helper would add more abstraction than value.
+
+See `specs/multi-actor-demo.yaml` DEMOMA-17-001 for the normative requirement
+(a MUST-level specialisation of the project-wide SHOULD rule CS-22-001 in
+`specs/code-style.yaml`).
+
+<!-- Source: ISSUE-1652 -->
