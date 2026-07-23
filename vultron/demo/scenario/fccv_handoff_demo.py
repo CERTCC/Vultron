@@ -13,14 +13,19 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Finder → Vendor1 → Coordinator (ownership transfer) → Vendor2 (FVCV-handoff) demo.
+"""Finder → C1 (CASE_OWNER) → C2 (ownership transfer) → Vendor (FCCV-handoff) demo.
 
-Orchestrates the FVCV-handoff CVD workflow across four separate containers:
-Finder, Vendor1 (initial CASE_OWNER), Coordinator (new CASE_OWNER after handoff),
-and Vendor2.  Vendor1 transfers case ownership to Coordinator via the new
-trigger endpoints (TRIG-11-001/TRIG-11-002), then Coordinator invites Vendor2.
+Orchestrates the FCCV-handoff CVD workflow across four separate containers:
+Finder, Coordinator1 (C1, initial CASE_OWNER), Coordinator2 (C2, new
+CASE_OWNER after handoff), and Vendor.  C1 transfers case ownership to C2 via
+the trigger endpoints (TRIG-11-001/TRIG-11-002), then C2 invites Vendor.
 
-Spec: GitHub issue #1561.
+Container mapping (reuses docker-compose-multi-actor.yml services):
+  VULTRON_VENDOR_BASE_URL      → C1 container
+  VULTRON_COORDINATOR_BASE_URL → C2 container
+  VULTRON_VENDOR2_BASE_URL     → Vendor container
+
+Spec: GitHub issue #1216 (DEMOMA-14).
 """
 
 import json
@@ -65,9 +70,6 @@ from vultron.demo.helpers.actions import (
     actor_notifies_fix_ready,
     actor_notifies_published,
 )
-from vultron.demo.helpers.notes import (
-    participant_adds_note_to_case,
-)
 from vultron.demo.helpers.milestones import (
     verify_case_active,
     verify_case_closed,
@@ -75,6 +77,7 @@ from vultron.demo.helpers.milestones import (
     verify_fix_ready,
     verify_publicly_disclosed,
 )
+from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.helpers.polling import (
     wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
@@ -86,7 +89,7 @@ from vultron.demo.helpers.polling import (
 from vultron.demo.helpers.seeding import (
     get_actor_by_id,
     reset_containers as _reset_containers,
-    seed_containers_fvcv,
+    seed_containers_fccv,
 )
 from vultron.demo.helpers.sync import (
     _get_log_entries_for_case,
@@ -101,45 +104,48 @@ from vultron.demo.helpers.workflow import (
 
 logger = logging.getLogger(__name__)
 
-# Default container base URLs — override via environment variables.
+# Default container base URLs.
+# C1 reuses the docker-compose "vendor" container; C2 reuses "coordinator";
+# Vendor reuses "vendor2".  Override via environment variables.
 FINDER_BASE_URL = os.environ.get(
     "VULTRON_FINDER_BASE_URL", "http://localhost:7901/api/v2"
 )
-VENDOR_BASE_URL = os.environ.get(
+C1_BASE_URL = os.environ.get(
     "VULTRON_VENDOR_BASE_URL", "http://localhost:7902/api/v2"
 )
-COORDINATOR_BASE_URL = os.environ.get(
+C2_BASE_URL = os.environ.get(
     "VULTRON_COORDINATOR_BASE_URL", "http://localhost:7903/api/v2"
 )
 CASE_ACTOR_BASE_URL = os.environ.get(
     "VULTRON_CASE_ACTOR_BASE_URL", "http://localhost:7905/api/v2"
 )
-VENDOR2_BASE_URL = os.environ.get(
+VENDOR_BASE_URL = os.environ.get(
     "VULTRON_VENDOR2_BASE_URL", "http://localhost:7904/api/v2"
 )
 
-# Deterministic actor IDs from docker-compose-multi-actor.yml (D5-1-G3).
+# Deterministic actor IDs — match docker-compose-multi-actor.yml service names
+# (D5-1-G3) remapped for FCCV roles.
 FINDER_ACTOR_ID = "http://finder:7999/api/v2/actors/finder"
-VENDOR_ACTOR_ID = "http://vendor:7999/api/v2/actors/vendor"
-COORDINATOR_ACTOR_ID = "http://coordinator:7999/api/v2/actors/coordinator"
+C1_ACTOR_ID = "http://vendor:7999/api/v2/actors/vendor"
+C2_ACTOR_ID = "http://coordinator:7999/api/v2/actors/coordinator"
 CASE_ACTOR_ACTOR_ID = "http://case-actor:7999/api/v2/actors/case-actor"
-VENDOR2_ACTOR_ID = "http://vendor2:7999/api/v2/actors/vendor2"
+VENDOR_ACTOR_ID = "http://vendor2:7999/api/v2/actors/vendor2"
 
 
 def reset_containers(
     finder_client: DataLayerClient,
-    vendor_client: DataLayerClient,
-    coordinator_client: DataLayerClient,
+    c1_client: DataLayerClient,
+    c2_client: DataLayerClient,
     case_actor_client: DataLayerClient,
-    vendor2_client: DataLayerClient,
+    vendor_client: DataLayerClient,
 ) -> None:
-    """Reset all five FVCV-handoff containers to a clean baseline."""
+    """Reset all five FCCV-handoff containers to a clean baseline."""
     targets: list[tuple[str, DataLayerClient]] = [
         ("Finder", finder_client),
-        ("Vendor1", vendor_client),
-        ("Coordinator", coordinator_client),
+        ("C1", c1_client),
+        ("C2", c2_client),
         ("CaseActor", case_actor_client),
-        ("Vendor2", vendor2_client),
+        ("Vendor", vendor_client),
     ]
     _reset_containers(targets, reset_fn=reset_datalayer)
 
@@ -150,16 +156,16 @@ def reset_containers(
 
 
 def _find_case_actor_participant_id(
-    vendor_client: DataLayerClient,
+    c1_client: DataLayerClient,
     case_id: str,
 ) -> str | None:
-    """Return the CaseActor participant URI for *case_id* from Vendor1's DataLayer.
+    """Return the CaseActor participant URI for *case_id* from C1's DataLayer.
 
-    Scans ``actor_participant_index`` for an actor ID starting with "case-actor".
-    Returns ``None`` if not found.
+    Scans ``actor_participant_index`` for an actor ID starting with
+    "case-actor".  Returns ``None`` if not found.
     """
     try:
-        case_data = vendor_client.get(f"/datalayer/{case_id}")
+        case_data = c1_client.get(f"/datalayer/{case_id}")
         case = as_VulnerabilityCase.model_validate(case_data)
         for actor_id in case.actor_participant_index:
             if strip_id_prefix(actor_id).startswith("case-actor"):
@@ -176,7 +182,7 @@ def _wait_for_case_attributed_to(
     timeout_seconds: float = 20.0,
     poll_interval: float = 0.5,
 ) -> None:
-    """Poll until *case_id*'s ``attributed_to`` field equals *expected_attributed_to*.
+    """Poll until *case_id*'s ``attributed_to`` equals *expected_attributed_to*.
 
     Raises:
         AssertionError: If the field does not match within *timeout_seconds*.
@@ -205,7 +211,8 @@ def _wait_for_case_attributed_to(
         time.sleep(poll_interval)
 
     raise AssertionError(
-        f"Timed out waiting for case {case_id!r} attributed_to={expected_attributed_to!r}"
+        f"Timed out waiting for case {case_id!r}"
+        f" attributed_to={expected_attributed_to!r}"
         f" on container {client.base_url}"
     )
 
@@ -217,14 +224,14 @@ def _wait_for_case_attributed_to(
 
 def _phase_report_submission(
     finder_client: DataLayerClient,
-    vendor_client: DataLayerClient,
-    coordinator_client: DataLayerClient,
+    c1_client: DataLayerClient,
+    c2_client: DataLayerClient,
     case_actor_client: DataLayerClient,
-    vendor2_client: DataLayerClient,
+    vendor_client: DataLayerClient,
     finder_id: str | None,
+    c1_id: str | None,
+    c2_id: str | None,
     vendor_id: str | None,
-    coordinator_id: str | None,
-    vendor2_id: str | None,
 ) -> tuple[
     as_Actor,
     as_Actor,
@@ -243,43 +250,41 @@ def _phase_report_submission(
 
     reset_containers(
         finder_client=finder_client,
-        vendor_client=vendor_client,
-        coordinator_client=coordinator_client,
+        c1_client=c1_client,
+        c2_client=c2_client,
         case_actor_client=case_actor_client,
-        vendor2_client=vendor2_client,
+        vendor_client=vendor_client,
     )
 
-    with demo_step("Seeding all four containers with actor records"):
-        finder, vendor, coordinator, vendor2 = seed_containers_fvcv(
+    with demo_step("Seeding all five containers with actor records"):
+        finder, c1, c2, vendor = seed_containers_fccv(
             finder_client=finder_client,
+            c1_client=c1_client,
+            c2_client=c2_client,
             vendor_client=vendor_client,
-            coordinator_client=coordinator_client,
-            vendor2_client=vendor2_client,
             reporter_actor_id=finder_id,
+            c1_actor_id=c1_id,
+            c2_actor_id=c2_id,
             vendor_actor_id=vendor_id,
-            coordinator_actor_id=coordinator_id,
-            vendor2_actor_id=vendor2_id,
         )
 
-    vendor_in_vendor = get_actor_by_id(vendor_client, vendor.id_)
-    coordinator_in_coordinator = get_actor_by_id(
-        coordinator_client, coordinator.id_
-    )
+    c1_in_c1 = get_actor_by_id(c1_client, c1.id_)
+    c2_in_c2 = get_actor_by_id(c2_client, c2.id_)
 
     report, offer = reporter_submits_report(
-        receiver_client=vendor_client,
+        receiver_client=c1_client,
         reporter=finder,
-        receiver=vendor_in_vendor,
+        receiver=c1_in_c1,
         reporter_client=finder_client,
     )
     receiver_validates_report(
-        receiver_client=vendor_client,
-        receiver=vendor_in_vendor,
+        receiver_client=c1_client,
+        receiver=c1_in_c1,
         offer_id=offer.id_,
     )
 
-    with demo_check("VulnerabilityCase exists in Vendor1's DataLayer"):
-        case = find_case_for_offer(vendor_client, offer.id_)
+    with demo_check("VulnerabilityCase exists in C1's DataLayer"):
+        case = find_case_for_offer(c1_client, offer.id_)
         if case is None:
             raise AssertionError(
                 "Expected VulnerabilityCase to be created after validate-report"
@@ -287,28 +292,28 @@ def _phase_report_submission(
         logger.info("Case created: %s", case.id_)
 
     receiver_engages_case(
-        receiver_client=vendor_client,
-        receiver=vendor_in_vendor,
+        receiver_client=c1_client,
+        receiver=c1_in_c1,
         case_id=case.id_,
     )
 
-    # Wait for initial participants (Finder + Vendor1 + CaseActor).
+    # Wait for initial participants (Finder + C1 + CaseActor).
     wait_for_case_participants(
-        vendor_client=vendor_client,
+        vendor_client=c1_client,
         case_id=case.id_,
         expected_count=3,
     )
 
     case = as_VulnerabilityCase.model_validate(
-        vendor_client.get(f"/datalayer/{case.id_}")
+        c1_client.get(f"/datalayer/{case.id_}")
     )
     return (
         finder,
+        c1,
+        c1_in_c1,
+        c2,
+        c2_in_c2,
         vendor,
-        vendor_in_vendor,
-        coordinator,
-        coordinator_in_coordinator,
-        vendor2,
         report,
         offer,
         case,
@@ -316,117 +321,107 @@ def _phase_report_submission(
 
 
 def _phase_ownership_handoff(
-    vendor_client: DataLayerClient,
-    coordinator_client: DataLayerClient,
-    vendor: as_Actor,
-    vendor_in_vendor: as_Actor,
-    coordinator: as_Actor,
-    coordinator_in_coordinator: as_Actor,
+    c1_client: DataLayerClient,
+    c2_client: DataLayerClient,
+    c1: as_Actor,
+    c1_in_c1: as_Actor,
+    c2: as_Actor,
+    c2_in_c2: as_Actor,
     case: as_VulnerabilityCase,
 ) -> as_VulnerabilityCase:
-    """Vendor1 invites Coordinator then transfers case ownership to Coordinator.
+    """C1 invites C2 then transfers case ownership to C2.
 
-    Returns the updated case (with Coordinator as attributed_to).
+    Returns the updated case (with C2 as attributed_to).
     """
     logger.info("─" * 80)
     logger.info(
-        "Phase 2: Ownership handoff — Vendor1 invites Coordinator then transfers ownership"
+        "Phase 2: Ownership handoff — C1 invites C2 then transfers ownership"
     )
     logger.info("─" * 80)
 
-    # Vendor1 invites Coordinator with COORDINATOR role.
-    with demo_step("Vendor1 invites Coordinator with CVDRole.COORDINATOR"):
+    # C1 invites C2 with COORDINATOR role.
+    with demo_step("C1 invites C2 with CVDRole.COORDINATOR"):
         invite_result = post_to_trigger(
-            client=vendor_client,
-            actor_id=vendor_in_vendor.id_,
+            client=c1_client,
+            actor_id=c1_in_c1.id_,
             behavior="invite-actor-to-case",
             body={
                 "case_id": case.id_,
-                "invitee_id": coordinator.id_,
+                "invitee_id": c2.id_,
                 "roles": ["coordinator"],
             },
         )
     invite = as_TransitiveActivity.model_validate(invite_result["activity"])
-    logger.info("Coordinator invite created: %s", invite.id_)
+    logger.info("C2 invite created: %s", invite.id_)
 
-    # Deliver the invite to Coordinator's inbox.
-    with demo_step("Delivering invite to Coordinator's inbox"):
-        post_to_inbox_and_wait(
-            coordinator_client, coordinator_in_coordinator.id_, invite
-        )
+    # Deliver the invite to C2's inbox.
+    with demo_step("Delivering invite to C2's inbox"):
+        post_to_inbox_and_wait(c2_client, c2_in_c2.id_, invite)
 
-    with demo_check("Coordinator invite stored in Coordinator's DataLayer"):
-        verify_object_stored(coordinator_client, invite.id_)
+    with demo_check("C2 invite stored in C2's DataLayer"):
+        verify_object_stored(c2_client, invite.id_)
 
-    # Coordinator accepts the invite.
-    with demo_step("Coordinator accepts the case invitation"):
+    # C2 accepts the invite.
+    with demo_step("C2 accepts the case invitation"):
         post_to_trigger(
-            client=coordinator_client,
-            actor_id=coordinator_in_coordinator.id_,
+            client=c2_client,
+            actor_id=c2_in_c2.id_,
             behavior="accept-case-invite",
             body={"invite_id": invite.id_},
         )
 
-    # Wait for Coordinator's case replica.
-    with demo_check("Coordinator's DataLayer received case replica"):
+    # Wait for C2's case replica.
+    with demo_check("C2's DataLayer received case replica"):
         wait_for_case_on_container(
-            client=coordinator_client,
+            client=c2_client,
             case_id=case.id_,
         )
 
-    # 4 participants: Finder + Vendor1 + Coordinator + CaseActor
+    # 4 participants: Finder + C1 + C2 + CaseActor
     wait_for_case_participants(
-        vendor_client=vendor_client,
+        vendor_client=c1_client,
         case_id=case.id_,
         expected_count=4,
     )
-    logger.info("Coordinator has joined the case")
+    logger.info("C2 has joined the case")
 
-    # Vendor1 offers ownership transfer to Coordinator (TRIG-11-001).
-    with demo_step(
-        "Vendor1 offers case ownership transfer to Coordinator (TRIG-11-001)"
-    ):
+    # C1 offers ownership transfer to C2 (TRIG-11-001).
+    with demo_step("C1 offers case ownership transfer to C2 (TRIG-11-001)"):
         ownership_offer_result = post_to_trigger(
-            client=vendor_client,
-            actor_id=vendor_in_vendor.id_,
+            client=c1_client,
+            actor_id=c1_in_c1.id_,
             behavior="offer-case-ownership-transfer",
             body={
                 "case_id": case.id_,
-                "transferee_id": coordinator.id_,
-                "content": "Transferring case ownership to Coordinator for CVD management.",
+                "transferee_id": c2.id_,
+                "content": "Transferring case ownership to C2 for CVD management.",
             },
         )
     ownership_offer = as_TransitiveActivity.model_validate(
         ownership_offer_result["activity"]
     )
     logger.info(
-        "Vendor1 sent Offer(VulnerabilityCase) ownership transfer: %s",
+        "C1 sent Offer(VulnerabilityCase) ownership transfer: %s",
         ownership_offer.id_,
     )
 
-    # Deliver the ownership transfer offer to Coordinator's inbox.
-    with demo_step(
-        "Delivering ownership transfer offer to Coordinator's inbox"
-    ):
-        post_to_inbox_and_wait(
-            coordinator_client, coordinator_in_coordinator.id_, ownership_offer
-        )
+    # Deliver the ownership transfer offer to C2's inbox.
+    with demo_step("Delivering ownership transfer offer to C2's inbox"):
+        post_to_inbox_and_wait(c2_client, c2_in_c2.id_, ownership_offer)
 
     with demo_check(
-        "Ownership transfer offer arrived in Coordinator's DataLayer (TRIG-11-001)"
+        "Ownership transfer offer arrived in C2's DataLayer (TRIG-11-001)"
     ):
-        verify_object_stored(coordinator_client, ownership_offer.id_)
+        verify_object_stored(c2_client, ownership_offer.id_)
 
     ownership_offer_id = ownership_offer.id_
     logger.info("Ownership transfer offer ID: %s", ownership_offer_id)
 
-    # Coordinator accepts the ownership transfer (TRIG-11-002).
-    with demo_step(
-        "Coordinator accepts case ownership transfer (TRIG-11-002)"
-    ):
+    # C2 accepts the ownership transfer (TRIG-11-002).
+    with demo_step("C2 accepts case ownership transfer (TRIG-11-002)"):
         accept_result = post_to_trigger(
-            client=coordinator_client,
-            actor_id=coordinator_in_coordinator.id_,
+            client=c2_client,
+            actor_id=c2_in_c2.id_,
             behavior="accept-case-ownership-transfer",
             body={"offer_id": ownership_offer_id},
         )
@@ -434,197 +429,187 @@ def _phase_ownership_handoff(
         accept_result["activity"]
     )
     logger.info(
-        "Coordinator sent Accept(Offer(VulnerabilityCase)): %s",
+        "C2 sent Accept(Offer(VulnerabilityCase)): %s",
         accept_ownership.id_,
     )
 
-    # The trigger-side BT (TRIG-11-002) queues the Accept in Coordinator's
-    # outbox addressed only to the offerer (Vendor1); Coordinator's own
-    # DataLayer copy is therefore never updated by that path.  Deliver the
-    # Accept to Coordinator's own inbox so AcceptCaseOwnershipTransferReceived-
-    # UseCase runs locally and sets case.attributed_to = Coordinator on
-    # Coordinator's replica.  (Vendor1's copy updates automatically when
-    # Coordinator's outbox delivers the Accept to Vendor1's inbox.)
-    with demo_step("Delivering ownership Accept to Coordinator's own inbox"):
-        post_to_inbox_and_wait(
-            coordinator_client,
-            coordinator_in_coordinator.id_,
-            accept_ownership,
-        )
-    with demo_check("Ownership Accept stored in Coordinator's DataLayer"):
-        verify_object_stored(coordinator_client, accept_ownership.id_)
+    # Deliver the Accept to C2's own inbox so AcceptCaseOwnershipTransfer-
+    # ReceivedUseCase runs locally and sets case.attributed_to = C2 on C2's
+    # replica.  C1's copy updates when C2's outbox delivers the Accept to C1's
+    # inbox (same pattern as FVCV-handoff).
+    with demo_step("Delivering ownership Accept to C2's own inbox"):
+        post_to_inbox_and_wait(c2_client, c2_in_c2.id_, accept_ownership)
+    with demo_check("Ownership Accept stored in C2's DataLayer"):
+        verify_object_stored(c2_client, accept_ownership.id_)
 
-    # Verify Vendor1's case now shows Coordinator as attributed_to.
+    # Verify C1's case now shows C2 as attributed_to.
     with demo_check(
-        "Case attributed_to updated to Coordinator on Vendor1's DataLayer (AC-1)"
+        "Case attributed_to updated to C2 on C1's DataLayer (AC-1)"
     ):
         _wait_for_case_attributed_to(
-            client=vendor_client,
+            client=c1_client,
             case_id=case.id_,
-            expected_attributed_to=coordinator.id_,
+            expected_attributed_to=c2.id_,
         )
 
-    # Also verify on Coordinator's side.
-    with demo_check(
-        "Case attributed_to updated to Coordinator on Coordinator's DataLayer"
-    ):
+    # Also verify on C2's side.
+    with demo_check("Case attributed_to updated to C2 on C2's DataLayer"):
         _wait_for_case_attributed_to(
-            client=coordinator_client,
+            client=c2_client,
             case_id=case.id_,
-            expected_attributed_to=coordinator.id_,
+            expected_attributed_to=c2.id_,
         )
 
     logger.info(
-        "✓ Ownership transfer complete: Coordinator is now CASE_OWNER for %s",
+        "✓ Ownership transfer complete: C2 is now CASE_OWNER for %s",
         case.id_,
     )
 
     case = as_VulnerabilityCase.model_validate(
-        vendor_client.get(f"/datalayer/{case.id_}")
+        c1_client.get(f"/datalayer/{case.id_}")
     )
     return case
 
 
-def _phase_coordinator_invites_vendor2(
+def _phase_c2_invites_vendor(
+    c1_client: DataLayerClient,
+    c2_client: DataLayerClient,
     vendor_client: DataLayerClient,
-    coordinator_client: DataLayerClient,
-    vendor2_client: DataLayerClient,
-    coordinator: as_Actor,
-    coordinator_in_coordinator: as_Actor,
+    c2: as_Actor,
+    c2_in_c2: as_Actor,
     case_actor_id: str,
-    vendor2: as_Actor,
-    vendor2_in_vendor2: as_Actor,
+    vendor: as_Actor,
+    vendor_in_vendor: as_Actor,
     case: as_VulnerabilityCase,
 ) -> None:
-    """Coordinator (new CASE_OWNER) invites Vendor2 and Vendor2 joins the case."""
+    """C2 (new CASE_OWNER) invites Vendor and Vendor joins the case (AC-2)."""
     logger.info("─" * 80)
-    logger.info("Phase 3: Coordinator invites Vendor2 (AC-2)")
+    logger.info("Phase 3: C2 invites Vendor (AC-2)")
     logger.info("─" * 80)
 
-    # Trigger on vendor_client (the CaseActor's host container) so the invite is
-    # emitted as CaseActor.  Vendor2's Accept then routes to CaseActor, not to
-    # Coordinator, enabling AcceptInviteActorToCaseBT to run (PCR-08-008).
-    with demo_step("Coordinator invites Vendor2 to the case"):
+    # Trigger on c1_client (the CaseActor's host container) so the invite is
+    # emitted as CaseActor.  Vendor's Accept then routes to CaseActor,
+    # enabling AcceptInviteActorToCaseBT to run (PCR-08-008).
+    with demo_step("C2 invites Vendor to the case"):
         invite_result = post_to_trigger(
-            client=vendor_client,
-            actor_id=coordinator_in_coordinator.id_,
+            client=c1_client,
+            actor_id=c2_in_c2.id_,
             behavior="invite-actor-to-case",
             body={
                 "case_id": case.id_,
-                "invitee_id": vendor2.id_,
+                "invitee_id": vendor.id_,
             },
         )
     invite = as_TransitiveActivity.model_validate(invite_result["activity"])
-    logger.info("Vendor2 invite created by Coordinator: %s", invite.id_)
+    logger.info("Vendor invite created by C2: %s", invite.id_)
 
-    # Deliver the invite to Vendor2's inbox.
-    with demo_step("Delivering invite to Vendor2's inbox"):
-        post_to_inbox_and_wait(vendor2_client, vendor2_in_vendor2.id_, invite)
+    # Deliver the invite to Vendor's inbox.
+    with demo_step("Delivering invite to Vendor's inbox"):
+        post_to_inbox_and_wait(vendor_client, vendor_in_vendor.id_, invite)
 
-    with demo_check("Vendor2 invite stored in Vendor2's DataLayer"):
-        verify_object_stored(vendor2_client, invite.id_)
+    with demo_check("Vendor invite stored in Vendor's DataLayer"):
+        verify_object_stored(vendor_client, invite.id_)
 
-    # Vendor2 accepts the invite.
-    with demo_step("Vendor2 accepts the case invitation"):
+    # Vendor accepts the invite.
+    with demo_step("Vendor accepts the case invitation"):
         accept_result = post_to_trigger(
-            client=vendor2_client,
-            actor_id=vendor2_in_vendor2.id_,
+            client=vendor_client,
+            actor_id=vendor_in_vendor.id_,
             behavior="accept-case-invite",
             body={"invite_id": invite.id_},
         )
     accept = as_TransitiveActivity.model_validate(accept_result["activity"])
-    logger.info("Vendor2 sent Accept(Invite): %s", accept.id_)
+    logger.info("Vendor sent Accept(Invite): %s", accept.id_)
 
     # Deliver Accept to CaseActor so it can commit the join ledger entry
-    # and fan out to all existing participants (including Vendor1/Finder).
-    # The CaseActor is a dynamic sub-actor on the vendor container
-    # (http://vendor:7999/api/v2/actors/case-actor-{uuid}), so route Accept
-    # to vendor_client at the dynamic CaseActor ID (PCR-08-008).
-    with demo_step("Delivering Vendor2 accept to CaseActor inbox"):
-        post_to_inbox_and_wait(vendor_client, case_actor_id, accept)
-    with demo_check("Accept activity stored in Vendor1/CaseActor DataLayer"):
-        verify_object_stored(vendor_client, accept.id_)
-    logger.info("Vendor2 Accept delivered to CaseActor")
+    # and fan out to all existing participants.  The CaseActor is a dynamic
+    # sub-actor on the C1 container; route Accept to c1_client at the
+    # dynamic CaseActor ID (PCR-08-008).
+    with demo_step("Delivering Vendor accept to CaseActor inbox"):
+        post_to_inbox_and_wait(c1_client, case_actor_id, accept)
+    with demo_check("Accept activity stored in C1/CaseActor DataLayer"):
+        verify_object_stored(c1_client, accept.id_)
+    logger.info("Vendor Accept delivered to CaseActor")
 
-    # Wait for Vendor2's case replica.
-    with demo_check("Vendor2's DataLayer received case replica (AC-2)"):
+    # Wait for Vendor's case replica.
+    with demo_check("Vendor's DataLayer received case replica (AC-2)"):
         wait_for_case_on_container(
-            client=vendor2_client,
+            client=vendor_client,
             case_id=case.id_,
             timeout_seconds=20.0,
         )
-    logger.info("Vendor2 received case replica")
+    logger.info("Vendor received case replica")
 
-    # 5 participants: Finder + Vendor1 + Coordinator + Vendor2 + CaseActor
+    # 5 participants: Finder + C1 + C2 + Vendor + CaseActor
     wait_for_case_participants(
-        vendor_client=vendor_client,
+        vendor_client=c1_client,
         case_id=case.id_,
         expected_count=5,
         timeout_seconds=20.0,
     )
-    logger.info("✓ Vendor2 joined case (%d participants)", 5)
+    logger.info("✓ Vendor joined case (%d participants)", 5)
 
 
 def _phase_sync_verification(
     finder_client: DataLayerClient,
+    c1_client: DataLayerClient,
+    c2_client: DataLayerClient,
     vendor_client: DataLayerClient,
-    coordinator_client: DataLayerClient,
-    vendor2_client: DataLayerClient,
-    vendor: as_Actor,
+    c1: as_Actor,
     finder: as_Actor,
-    coordinator: as_Actor,
-    vendor2: as_Actor,
+    c2: as_Actor,
+    vendor: as_Actor,
     case: as_VulnerabilityCase,
 ) -> None:
-    """Verify replica synchronization for all four containers."""
+    """Verify replica synchronization for all four actor containers."""
     logger.info("─" * 80)
     logger.info("Phase 4: Replica synchronization verification")
     logger.info("─" * 80)
 
-    vendor_entries = _get_log_entries_for_case(vendor_client, case.id_)
-    if vendor_entries:
-        vendor_tail = max(vendor_entries, key=lambda e: e["log_index"])
-        vendor_tail_index: int = vendor_tail["log_index"]
-        vendor_tail_hash: str = vendor_tail["entry_hash"]
+    c1_entries = _get_log_entries_for_case(c1_client, case.id_)
+    if c1_entries:
+        c1_tail = max(c1_entries, key=lambda e: e["log_index"])
+        c1_tail_index: int = c1_tail["log_index"]
+        c1_tail_hash: str = c1_tail["entry_hash"]
         logger.info(
-            "Waiting for replicas to sync Vendor1 tail (hash=%s… index=%d)",
-            vendor_tail_hash[:16],
-            vendor_tail_index,
+            "Waiting for replicas to sync C1 tail (hash=%s… index=%d)",
+            c1_tail_hash[:16],
+            c1_tail_index,
         )
         for replica_client, label in [
             (finder_client, "Finder"),
-            (coordinator_client, "Coordinator"),
-            (vendor2_client, "Vendor2"),
+            (c2_client, "C2"),
+            (vendor_client, "Vendor"),
         ]:
             wait_for_contiguous_ledger_coverage(
                 client=replica_client,
                 case_id=case.id_,
-                expected_tail_index=vendor_tail_index,
+                expected_tail_index=c1_tail_index,
             )
             logger.info("  %s ledger synchronized", label)
 
-    for replica_client in (finder_client, coordinator_client, vendor2_client):
+    for replica_client in (finder_client, c2_client, vendor_client):
         wait_for_case_participants(
             vendor_client=replica_client,
             case_id=case.id_,
             expected_count=5,
         )
 
-    with demo_check("Finder replica matches authoritative Vendor1 state"):
+    with demo_check("Finder replica matches authoritative C1 state"):
         verify_replica_state(
-            auth_client=vendor_client,
+            auth_client=c1_client,
             replica_client=finder_client,
             case_id=case.id_,
-            vendor_actor_id=vendor.id_,
+            vendor_actor_id=c1.id_,
             reporter_actor_id=finder.id_,
         )
 
-    with demo_check("Vendor2 replica matches authoritative Vendor1 state"):
+    with demo_check("Vendor replica matches authoritative C1 state"):
         verify_replica_state(
-            auth_client=vendor_client,
-            replica_client=vendor2_client,
+            auth_client=c1_client,
+            replica_client=vendor_client,
             case_id=case.id_,
-            vendor_actor_id=vendor.id_,
+            vendor_actor_id=c1.id_,
             reporter_actor_id=finder.id_,
         )
 
@@ -633,28 +618,23 @@ def _phase_sync_verification(
 
 def _phase_notes_exchange(
     finder_client: DataLayerClient,
+    c1_client: DataLayerClient,
+    c2_client: DataLayerClient,
     vendor_client: DataLayerClient,
-    coordinator_client: DataLayerClient,
-    vendor2_client: DataLayerClient,
     finder_in_finder: as_Actor,
+    c1_in_c1: as_Actor,
+    c2_in_c2: as_Actor,
     vendor_in_vendor: as_Actor,
-    coordinator_in_coordinator: as_Actor,
-    vendor2_in_vendor2: as_Actor,
     case: as_VulnerabilityCase,
 ) -> tuple[as_Note, as_Note, as_Note, as_Note]:
-    """Run a four-way note exchange among all participants.
-
-    Emits ``add_note_to_case`` events into the canonical case ledger,
-    exercising the note-threading path and satisfying the universal
-    ``add_note_to_case`` invariant asserted by the case-ledger harness.
-    """
+    """Run a four-way note exchange among all participants."""
     logger.info("─" * 80)
     logger.info("Phase 4b: Notes exchange")
     logger.info("─" * 80)
 
     question_note = participant_adds_note_to_case(
         posting_client=finder_client,
-        watching_client=vendor_client,
+        watching_client=c1_client,
         poster=finder_in_finder,
         case=case,
         note_name="Question from Finder",
@@ -663,64 +643,63 @@ def _phase_notes_exchange(
         ),
     )
 
-    vendor_reply = participant_adds_note_to_case(
-        posting_client=vendor_client,
-        watching_client=vendor_client,
-        poster=vendor_in_vendor,
+    c1_reply = participant_adds_note_to_case(
+        posting_client=c1_client,
+        watching_client=c1_client,
+        poster=c1_in_c1,
         case=case,
-        note_name="Vendor1 Response",
+        note_name="C1 Response",
         note_content=(
             "Yes, disabling the affected module is an effective interim workaround."
         ),
         in_reply_to=question_note.id_,
     )
 
-    coordinator_note = participant_adds_note_to_case(
-        posting_client=coordinator_client,
-        watching_client=vendor_client,
-        poster=coordinator_in_coordinator,
+    c2_note = participant_adds_note_to_case(
+        posting_client=c2_client,
+        watching_client=c1_client,
+        poster=c2_in_c2,
         case=case,
-        note_name="Coordinator Update",
+        note_name="C2 Update (new Case Owner)",
         note_content=(
-            "As the new case owner, I confirm both Vendor1 and Vendor2 are "
-            "engaged. Target disclosure in 30 days."
+            "As the new case owner, I confirm Vendor is engaged. "
+            "Target disclosure in 30 days."
         ),
-        in_reply_to=vendor_reply.id_,
+        in_reply_to=c1_reply.id_,
     )
 
-    vendor2_note = participant_adds_note_to_case(
-        posting_client=vendor2_client,
-        watching_client=vendor_client,
-        poster=vendor2_in_vendor2,
+    vendor_note = participant_adds_note_to_case(
+        posting_client=vendor_client,
+        watching_client=c1_client,
+        poster=vendor_in_vendor,
         case=case,
-        note_name="Vendor2 Status Update",
+        note_name="Vendor Status Update",
         note_content=(
-            "Vendor2 confirms the issue affects our component as well. "
-            "We will align our fix timeline with Vendor1."
+            "Vendor confirms the issue and will align fix timeline with the "
+            "coordinated disclosure window."
         ),
-        in_reply_to=coordinator_note.id_,
+        in_reply_to=c2_note.id_,
     )
 
     logger.info(
         "✓ Notes exchange complete (four notes committed to case ledger)"
     )
-    return question_note, vendor_reply, coordinator_note, vendor2_note
+    return question_note, c1_reply, c2_note, vendor_note
 
 
 def _phase_fix_lifecycle(
     finder_client: DataLayerClient,
+    c1_client: DataLayerClient,
     vendor_client: DataLayerClient,
-    vendor2_client: DataLayerClient,
+    c1: as_Actor,
     vendor: as_Actor,
     vendor_in_vendor: as_Actor,
-    vendor2: as_Actor,
-    vendor2_in_vendor2: as_Actor,
     case: as_VulnerabilityCase,
 ) -> None:
-    """Advance both vendors through fix-ready and fix-deployed paths."""
+    """Advance Vendor through the fix-ready and fix-deployed paths."""
     logger.info("─" * 80)
     logger.info(
-        "Phase 5: Fix lifecycle — both vendors: VFd (fix ready) → VFD (fix deployed)"
+        "Phase 5: Fix lifecycle — Vendor: VFd (fix ready) → VFD (fix deployed)"
     )
     logger.info("─" * 80)
 
@@ -730,7 +709,7 @@ def _phase_fix_lifecycle(
         case_id=case.id_,
     )
 
-    with demo_check("Vendor1 participant vfd_state transitions to VFd or VFD"):
+    with demo_check("Vendor participant vfd_state transitions to VFd or VFD"):
         wait_for_participant_vfd_state(
             client=vendor_client,
             case_id=case.id_,
@@ -738,23 +717,7 @@ def _phase_fix_lifecycle(
             expected_states={CS_vfd.VFd, CS_vfd.VFD},
         )
 
-    actor_notifies_fix_ready(
-        client=vendor2_client,
-        actor=vendor2_in_vendor2,
-        case_id=case.id_,
-    )
-
-    with demo_check("Vendor2 participant vfd_state transitions to VFd or VFD"):
-        wait_for_participant_vfd_state(
-            client=vendor2_client,
-            case_id=case.id_,
-            actor_id=vendor2.id_,
-            expected_states={CS_vfd.VFd, CS_vfd.VFD},
-        )
-
-    with demo_check(
-        "Finder replica shows both vendors CS include F (fix ready)"
-    ):
+    with demo_check("Finder replica shows Vendor CS includes F (fix ready)"):
         wait_for_participant_vfd_state(
             client=finder_client,
             case_id=case.id_,
@@ -762,7 +725,7 @@ def _phase_fix_lifecycle(
             expected_states={CS_vfd.VFd, CS_vfd.VFD},
         )
         verify_fix_ready(
-            receiver_client=vendor_client,
+            receiver_client=c1_client,
             reporter_client=finder_client,
             case_id=case.id_,
             receiver_actor_id=vendor.id_,
@@ -773,14 +736,9 @@ def _phase_fix_lifecycle(
         actor=vendor_in_vendor,
         case_id=case.id_,
     )
-    actor_notifies_fix_deployed(
-        client=vendor2_client,
-        actor=vendor2_in_vendor2,
-        case_id=case.id_,
-    )
 
     with demo_check(
-        "Finder replica shows both vendors CS include D (fix deployed)"
+        "Finder replica shows Vendor CS includes D (fix deployed)"
     ):
         wait_for_participant_vfd_state(
             client=finder_client,
@@ -789,7 +747,7 @@ def _phase_fix_lifecycle(
             expected_states={CS_vfd.VFD},
         )
         verify_fix_deployed(
-            receiver_client=vendor_client,
+            receiver_client=c1_client,
             reporter_client=finder_client,
             case_id=case.id_,
             receiver_actor_id=vendor.id_,
@@ -798,17 +756,17 @@ def _phase_fix_lifecycle(
 
 def _phase_publication(
     finder_client: DataLayerClient,
+    c1_client: DataLayerClient,
+    c2_client: DataLayerClient,
     vendor_client: DataLayerClient,
-    coordinator_client: DataLayerClient,
-    vendor2_client: DataLayerClient,
-    vendor: as_Actor,
-    vendor_in_vendor: as_Actor,
-    vendor2: as_Actor,
-    vendor2_in_vendor2: as_Actor,
+    c1: as_Actor,
+    c1_in_c1: as_Actor,
+    c2: as_Actor,
+    c2_in_c2: as_Actor,
     finder: as_Actor,
     finder_in_finder: as_Actor,
-    coordinator: as_Actor,
-    coordinator_in_coordinator: as_Actor,
+    vendor: as_Actor,
+    vendor_in_vendor: as_Actor,
     case: as_VulnerabilityCase,
 ) -> None:
     """Run publication notifications and verify public disclosure state."""
@@ -818,19 +776,17 @@ def _phase_publication(
     )
     logger.info("─" * 80)
 
-    # Coordinator is the CASE_OWNER after the Phase 2 handoff; only the
-    # CASE_OWNER's notify-published triggers embargo teardown (DEMOMA-07-003 step 4).
     actor_notifies_published(
-        client=coordinator_client,
-        actor=coordinator_in_coordinator,
+        client=c2_client,
+        actor=c2_in_c2,
         case_id=case.id_,
     )
 
     with demo_check(
-        "Embargo terminated (EM.EXITED) after Coordinator (CASE_OWNER) reports published"
+        "Embargo terminated (EM.EXITED) after C2 reports published"
     ):
         wait_for_case_em_terminated(
-            client=coordinator_client,
+            client=c1_client,
             case_id=case.id_,
         )
 
@@ -840,8 +796,8 @@ def _phase_publication(
         case_id=case.id_,
     )
     actor_notifies_published(
-        client=vendor2_client,
-        actor=vendor2_in_vendor2,
+        client=c1_client,
+        actor=c1_in_c1,
         case_id=case.id_,
     )
     actor_notifies_published(
@@ -853,37 +809,31 @@ def _phase_publication(
     with demo_check(
         "All replicas CS.VFDPxa, EM.EXITED, all participants public-aware"
     ):
-        for label, client in [
-            ("coordinator", coordinator_client),
-            ("vendor", vendor_client),
-            ("vendor2", vendor2_client),
-            ("finder", finder_client),
-        ]:
-            wait_for_case_em_terminated(
-                client=client,
-                case_id=case.id_,
-            )
+        wait_for_case_em_terminated(
+            client=finder_client,
+            case_id=case.id_,
+        )
         verify_publicly_disclosed(
-            receiver_client=vendor_client,
+            receiver_client=c1_client,
             reporter_client=finder_client,
             case_id=case.id_,
-            receiver_actor_id=vendor.id_,
+            receiver_actor_id=c1.id_,
         )
 
 
 def _phase_case_closure(
     finder_client: DataLayerClient,
+    c1_client: DataLayerClient,
+    c2_client: DataLayerClient,
     vendor_client: DataLayerClient,
-    coordinator_client: DataLayerClient,
-    vendor2_client: DataLayerClient,
-    vendor: as_Actor,
-    vendor_in_vendor: as_Actor,
-    vendor2: as_Actor,
-    vendor2_in_vendor2: as_Actor,
+    c1: as_Actor,
+    c1_in_c1: as_Actor,
+    c2: as_Actor,
+    c2_in_c2: as_Actor,
     finder: as_Actor,
     finder_in_finder: as_Actor,
-    coordinator: as_Actor,
-    coordinator_in_coordinator: as_Actor,
+    vendor: as_Actor,
+    vendor_in_vendor: as_Actor,
     case: as_VulnerabilityCase,
 ) -> None:
     """Close the case from all four participants and verify terminal state."""
@@ -892,18 +842,18 @@ def _phase_case_closure(
     logger.info("─" * 80)
 
     actor_closes_case(
+        client=c1_client,
+        actor=c1_in_c1,
+        case_id=case.id_,
+    )
+    actor_closes_case(
+        client=c2_client,
+        actor=c2_in_c2,
+        case_id=case.id_,
+    )
+    actor_closes_case(
         client=vendor_client,
         actor=vendor_in_vendor,
-        case_id=case.id_,
-    )
-    actor_closes_case(
-        client=vendor2_client,
-        actor=vendor2_in_vendor2,
-        case_id=case.id_,
-    )
-    actor_closes_case(
-        client=coordinator_client,
-        actor=coordinator_in_coordinator,
         case_id=case.id_,
     )
     actor_closes_case(
@@ -914,7 +864,7 @@ def _phase_case_closure(
 
     with demo_check("All participants RM.CLOSED on all replicas"):
         wait_for_all_participants_rm_closed(
-            client=vendor_client,
+            client=c1_client,
             case_id=case.id_,
         )
         wait_for_all_participants_rm_closed(
@@ -922,45 +872,41 @@ def _phase_case_closure(
             case_id=case.id_,
         )
         verify_case_closed(
-            receiver_client=vendor_client,
+            receiver_client=c1_client,
             reporter_client=finder_client,
             case_id=case.id_,
         )
 
-    vendor_entries = _get_log_entries_for_case(vendor_client, case.id_)
-    if vendor_entries:
-        vendor_tail = max(vendor_entries, key=lambda e: e["log_index"])
-        vendor_tail_index: int = vendor_tail["log_index"]
-        vendor_tail_hash: str = vendor_tail["entry_hash"]
+    c1_entries = _get_log_entries_for_case(c1_client, case.id_)
+    if c1_entries:
+        c1_tail = max(c1_entries, key=lambda e: e["log_index"])
+        c1_tail_index: int = c1_tail["log_index"]
+        c1_tail_hash: str = c1_tail["entry_hash"]
         logger.info(
-            "Waiting for replicas to receive vendor1 tail after closure"
+            "Waiting for replicas to receive C1 tail after closure"
             " (hash=%s… index=%d)",
-            vendor_tail_hash[:16],
-            vendor_tail_index,
+            c1_tail_hash[:16],
+            c1_tail_index,
         )
-        for replica_client in (
-            finder_client,
-            coordinator_client,
-            vendor2_client,
-        ):
+        for replica_client in (finder_client, c2_client, vendor_client):
             wait_for_contiguous_ledger_coverage(
                 client=replica_client,
                 case_id=case.id_,
-                expected_tail_index=vendor_tail_index,
+                expected_tail_index=c1_tail_index,
             )
 
 
 def _phase_dump_case_ledgers(
     finder_client: DataLayerClient,
+    c1_client: DataLayerClient,
+    c2_client: DataLayerClient,
     vendor_client: DataLayerClient,
-    coordinator_client: DataLayerClient,
-    vendor2_client: DataLayerClient,
     finder: as_Actor,
+    c1: as_Actor,
+    c2: as_Actor,
     vendor: as_Actor,
-    coordinator: as_Actor,
-    vendor2: as_Actor,
     case: as_VulnerabilityCase,
-    demo_name: str = "fvcv-handoff",
+    demo_name: str = "fccv-handoff",
 ) -> None:
     """Dump case ledger entries from each actor container to JSONL files."""
     logger.info("─" * 80)
@@ -987,12 +933,12 @@ def _phase_dump_case_ledgers(
 
     actors: list[tuple[str, DataLayerClient, str]] = [
         ("finder", finder_client, "finder"),
-        ("vendor", vendor_client, "vendor"),
-        ("coordinator", coordinator_client, "coordinator"),
-        ("vendor2", vendor2_client, "vendor2"),
+        ("vendor", c1_client, "vendor"),
+        ("coordinator", c2_client, "coordinator"),
+        ("vendor2", vendor_client, "vendor2"),
     ]
     if case_actor_sub_actor_key is not None:
-        actors.append(("case-actor", vendor_client, case_actor_sub_actor_key))
+        actors.append(("case-actor", c1_client, case_actor_sub_actor_key))
 
     for actor_name, client, actor_route_key in actors:
         with demo_step(f"Dumping case ledger for {actor_name}"):
@@ -1030,177 +976,173 @@ def _phase_dump_case_ledgers(
 # ---------------------------------------------------------------------------
 
 
-def run_fvcv_handoff_demo(
+def run_fccv_handoff_demo(
     finder_client: DataLayerClient,
-    vendor_client: DataLayerClient,
-    coordinator_client: DataLayerClient,
+    c1_client: DataLayerClient,
+    c2_client: DataLayerClient,
     case_actor_client: DataLayerClient,
-    vendor2_client: DataLayerClient,
+    vendor_client: DataLayerClient,
     finder_id: str | None = None,
-    vendor_id: str | None = None,
-    coordinator_id: str | None = None,
+    c1_id: str | None = None,
+    c2_id: str | None = None,
     case_actor_id: str | None = None,
-    vendor2_id: str | None = None,
+    vendor_id: str | None = None,
 ) -> None:
-    """Orchestrate the FVCV-handoff CVD workflow."""
+    """Orchestrate the FCCV-handoff CVD workflow."""
     logger.info("=" * 80)
-    logger.info(
-        "FVCV-HANDOFF DEMO: Finder + Vendor1 → Coordinator (ownership) + Vendor2"
-    )
+    logger.info("FCCV-HANDOFF DEMO: Finder + C1 → C2 (ownership) + Vendor")
     logger.info("=" * 80)
-    logger.info("Finder container:      %s", finder_client.base_url)
-    logger.info("Vendor1 container:     %s", vendor_client.base_url)
-    logger.info("Coordinator container: %s", coordinator_client.base_url)
-    logger.info("CaseActor container:   %s", case_actor_client.base_url)
-    logger.info("Vendor2 container:     %s", vendor2_client.base_url)
+    logger.info("Finder container:    %s", finder_client.base_url)
+    logger.info("C1 container:        %s", c1_client.base_url)
+    logger.info("C2 container:        %s", c2_client.base_url)
+    logger.info("CaseActor container: %s", case_actor_client.base_url)
+    logger.info("Vendor container:    %s", vendor_client.base_url)
 
     (
         finder,
+        c1,
+        c1_in_c1,
+        c2,
+        c2_in_c2,
         vendor,
-        vendor_in_vendor,
-        coordinator,
-        coordinator_in_coordinator,
-        vendor2,
         report,
         offer,
         case,
     ) = _phase_report_submission(
         finder_client,
-        vendor_client,
-        coordinator_client,
+        c1_client,
+        c2_client,
         case_actor_client,
-        vendor2_client,
+        vendor_client,
         finder_id,
+        c1_id,
+        c2_id,
         vendor_id,
-        coordinator_id,
-        vendor2_id,
     )
 
-    # The CaseActor is a dynamic sub-actor on the vendor container (not the
-    # case-actor service).  Discover its ID from the case data before proceeding.
+    # Discover the CaseActor's dynamic sub-actor ID before the handoff phase.
     dynamic_case_actor_id = _find_case_actor_participant_id(
-        vendor_client, case.id_
+        c1_client, case.id_
     )
     if dynamic_case_actor_id is None:
         raise AssertionError(
-            "CaseActor participant not found in case — cannot route Vendor2 Accept"
+            "CaseActor participant not found in case — cannot route Vendor Accept"
         )
     logger.info("CaseActor participant ID: %s", dynamic_case_actor_id)
 
-    vendor2_in_vendor2 = get_actor_by_id(vendor2_client, vendor2.id_)
+    vendor_in_vendor = get_actor_by_id(vendor_client, vendor.id_)
     finder_in_finder = get_actor_by_id(finder_client, finder.id_)
 
     case = _phase_ownership_handoff(
-        vendor_client=vendor_client,
-        coordinator_client=coordinator_client,
-        vendor=vendor,
-        vendor_in_vendor=vendor_in_vendor,
-        coordinator=coordinator,
-        coordinator_in_coordinator=coordinator_in_coordinator,
+        c1_client=c1_client,
+        c2_client=c2_client,
+        c1=c1,
+        c1_in_c1=c1_in_c1,
+        c2=c2,
+        c2_in_c2=c2_in_c2,
         case=case,
     )
 
-    _phase_coordinator_invites_vendor2(
+    _phase_c2_invites_vendor(
+        c1_client=c1_client,
+        c2_client=c2_client,
         vendor_client=vendor_client,
-        coordinator_client=coordinator_client,
-        vendor2_client=vendor2_client,
-        coordinator=coordinator,
-        coordinator_in_coordinator=coordinator_in_coordinator,
+        c2=c2,
+        c2_in_c2=c2_in_c2,
         case_actor_id=dynamic_case_actor_id,
-        vendor2=vendor2,
-        vendor2_in_vendor2=vendor2_in_vendor2,
+        vendor=vendor,
+        vendor_in_vendor=vendor_in_vendor,
         case=case,
     )
 
     # Verify case active now that all participants have joined.
     with demo_check(
-        "M1: required participants (≥5), EM.ACTIVE, finder + coordinator have replicas"
+        "M1: required participants (≥5), EM.ACTIVE, finder + c2 have replicas"
     ):
         verify_case_active(
-            receiver_client=vendor_client,
+            receiver_client=c1_client,
             reporter_client=finder_client,
             case_id=case.id_,
-            receiver_actor_id=vendor.id_,
+            receiver_actor_id=c1.id_,
             reporter_actor_id=finder.id_,
         )
 
     _phase_sync_verification(
         finder_client,
+        c1_client,
+        c2_client,
         vendor_client,
-        coordinator_client,
-        vendor2_client,
-        vendor,
+        c1,
         finder,
-        coordinator,
-        vendor2,
+        c2,
+        vendor,
         case,
     )
     _phase_notes_exchange(
         finder_client,
+        c1_client,
+        c2_client,
         vendor_client,
-        coordinator_client,
-        vendor2_client,
         finder_in_finder,
+        c1_in_c1,
+        c2_in_c2,
         vendor_in_vendor,
-        coordinator_in_coordinator,
-        vendor2_in_vendor2,
         case,
     )
     _phase_fix_lifecycle(
         finder_client,
+        c1_client,
         vendor_client,
-        vendor2_client,
+        c1,
         vendor,
         vendor_in_vendor,
-        vendor2,
-        vendor2_in_vendor2,
         case,
     )
     _phase_publication(
         finder_client,
+        c1_client,
+        c2_client,
         vendor_client,
-        coordinator_client,
-        vendor2_client,
-        vendor,
-        vendor_in_vendor,
-        vendor2,
-        vendor2_in_vendor2,
+        c1,
+        c1_in_c1,
+        c2,
+        c2_in_c2,
         finder,
         finder_in_finder,
-        coordinator,
-        coordinator_in_coordinator,
+        vendor,
+        vendor_in_vendor,
         case,
     )
     _phase_case_closure(
         finder_client,
+        c1_client,
+        c2_client,
         vendor_client,
-        coordinator_client,
-        vendor2_client,
-        vendor,
-        vendor_in_vendor,
-        vendor2,
-        vendor2_in_vendor2,
+        c1,
+        c1_in_c1,
+        c2,
+        c2_in_c2,
         finder,
         finder_in_finder,
-        coordinator,
-        coordinator_in_coordinator,
+        vendor,
+        vendor_in_vendor,
         case,
     )
     _phase_dump_case_ledgers(
         finder_client=finder_client,
+        c1_client=c1_client,
+        c2_client=c2_client,
         vendor_client=vendor_client,
-        coordinator_client=coordinator_client,
-        vendor2_client=vendor2_client,
         finder=finder,
-        vendor=vendor,
-        coordinator=coordinator,
-        vendor2=vendor2_in_vendor2,
+        c1=c1,
+        c2=c2,
+        vendor=vendor_in_vendor,
         case=case,
     )
 
     logger.info("=" * 80)
     logger.info(
-        "FVCV-HANDOFF DEMO COMPLETE ✓  (ownership transfer + VFDPxa full lifecycle)"
+        "FCCV-HANDOFF DEMO COMPLETE ✓  (ownership transfer + VFDPxa full lifecycle)"
     )
     logger.info("=" * 80)
 
@@ -1213,52 +1155,52 @@ def run_fvcv_handoff_demo(
 def main(
     skip_health_check: bool = False,
     finder_url: str | None = None,
-    vendor_url: str | None = None,
-    coordinator_url: str | None = None,
+    c1_url: str | None = None,
+    c2_url: str | None = None,
     case_actor_url: str | None = None,
-    vendor2_url: str | None = None,
+    vendor_url: str | None = None,
     finder_id: str | None = None,
-    vendor_id: str | None = None,
-    coordinator_id: str | None = None,
+    c1_id: str | None = None,
+    c2_id: str | None = None,
     case_actor_id: str | None = None,
-    vendor2_id: str | None = None,
+    vendor_id: str | None = None,
 ) -> None:
-    """Entry point for the FVCV-handoff CVD workflow demo.
+    """Entry point for the FCCV-handoff CVD workflow demo.
 
     Args:
         skip_health_check: Skip the server availability check.
         finder_url: Override base URL for the Finder container.
-        vendor_url: Override base URL for the Vendor1 container.
-        coordinator_url: Override base URL for the Coordinator container.
+        c1_url: Override base URL for the C1 (Coordinator1) container.
+        c2_url: Override base URL for the C2 (Coordinator2) container.
         case_actor_url: Override base URL for the CaseActor container.
-        vendor2_url: Override base URL for the Vendor2 container.
+        vendor_url: Override base URL for the Vendor container.
         finder_id: Optional deterministic URI for the Finder actor.
-        vendor_id: Optional deterministic URI for the Vendor1 actor.
-        coordinator_id: Optional deterministic URI for the Coordinator actor.
+        c1_id: Optional deterministic URI for the C1 actor.
+        c2_id: Optional deterministic URI for the C2 actor.
         case_actor_id: Optional deterministic URI for the CaseActor actor.
-        vendor2_id: Optional deterministic URI for the Vendor2 actor.
+        vendor_id: Optional deterministic URI for the Vendor actor.
     """
     reset_demo_failures()
 
     f_url = finder_url or FINDER_BASE_URL
-    v_url = vendor_url or VENDOR_BASE_URL
-    c_url = coordinator_url or COORDINATOR_BASE_URL
+    _c1_url = c1_url or C1_BASE_URL
+    _c2_url = c2_url or C2_BASE_URL
     ca_url = case_actor_url or CASE_ACTOR_BASE_URL
-    v2_url = vendor2_url or VENDOR2_BASE_URL
+    v_url = vendor_url or VENDOR_BASE_URL
 
     finder_client = DataLayerClient(base_url=f_url)
-    vendor_client = DataLayerClient(base_url=v_url)
-    coordinator_client = DataLayerClient(base_url=c_url)
+    c1_client = DataLayerClient(base_url=_c1_url)
+    c2_client = DataLayerClient(base_url=_c2_url)
     case_actor_client = DataLayerClient(base_url=ca_url)
-    vendor2_client = DataLayerClient(base_url=v2_url)
+    vendor_client = DataLayerClient(base_url=v_url)
 
     if not skip_health_check:
         targets: list[tuple[str, DataLayerClient]] = [
             ("Finder", finder_client),
-            ("Vendor1", vendor_client),
-            ("Coordinator", coordinator_client),
+            ("C1", c1_client),
+            ("C2", c2_client),
             ("CaseActor", case_actor_client),
-            ("Vendor2", vendor2_client),
+            ("Vendor", vendor_client),
         ]
         for label, client in targets:
             if not check_server_availability(client):
@@ -1273,17 +1215,17 @@ def main(
                 sys.exit(1)
 
     try:
-        run_fvcv_handoff_demo(
+        run_fccv_handoff_demo(
             finder_client=finder_client,
-            vendor_client=vendor_client,
-            coordinator_client=coordinator_client,
+            c1_client=c1_client,
+            c2_client=c2_client,
             case_actor_client=case_actor_client,
-            vendor2_client=vendor2_client,
+            vendor_client=vendor_client,
             finder_id=finder_id,
-            vendor_id=vendor_id,
-            coordinator_id=coordinator_id,
+            c1_id=c1_id,
+            c2_id=c2_id,
             case_actor_id=case_actor_id,
-            vendor2_id=vendor2_id,
+            vendor_id=vendor_id,
         )
     finally:
         assert_demo_success()
