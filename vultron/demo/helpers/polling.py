@@ -153,20 +153,19 @@ def wait_for_case_participants(
         AssertionError: If the participant count is not reached within
             *timeout_seconds*.
     """
-    deadline = time.monotonic() + timeout_seconds
-    while time.monotonic() < deadline:
+
+    def _check() -> bool:
         case_data = vendor_client.get(f"/datalayer/{case_id}")
         case = as_VulnerabilityCase(**case_data)
-        if len(case.case_participants) >= expected_count:
-            return
-        time.sleep(poll_interval)
+        return len(case.case_participants) >= expected_count
 
-    final_case = as_VulnerabilityCase(
-        **vendor_client.get(f"/datalayer/{case_id}")
-    )
-    raise AssertionError(
-        "Timed out waiting for participant count "
-        f"{expected_count}; found {len(final_case.case_participants)}"
+    _poll_until(
+        _check,
+        timeout_seconds,
+        poll_interval,
+        f"Timed out waiting for participant count {expected_count} in case "
+        f"{case_id!r}",
+        swallow_exceptions=True,
     )
 
 

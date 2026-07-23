@@ -38,7 +38,6 @@ When run as a script, this module will:
 """
 
 import logging
-import sys
 from typing import Optional, Sequence, Tuple
 
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -59,21 +58,15 @@ from vultron.wire.as2.vocab.objects.case_status import (
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    as_VulnerabilityReport,
-)
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.core.states.cs import CS_pxa, CS_vfd
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
-    check_server_availability,
     demo_check,
     demo_step,
-    get_offer_from_datalayer,
     log_case_state,
-    demo_environment,
     post_to_inbox_and_wait,
     ref_id,
     verify_object_stored,
@@ -81,16 +74,15 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
 )
 from vultron.wire.as2.factories import (
     add_note_to_case_activity,
-    add_participant_to_case_activity,
-    add_report_to_case_activity,
     add_status_to_case_activity,
     add_status_to_participant_activity,
-    create_case_activity,
     create_case_status_activity,
     create_status_for_participant_activity,
-    rm_submit_report_activity,
-    rm_validate_report_activity,
 )
+
+from vultron.demo.helpers.runner import run_exchange_demos
+from vultron.demo.helpers.verification import _fetch_participant
+from vultron.demo.helpers.workflow import setup_initialized_case
 
 logger = logging.getLogger(__name__)
 
@@ -100,71 +92,17 @@ def _setup_initialized_case(
     finder: as_Actor,
     vendor: as_Actor,
 ) -> Tuple[as_VulnerabilityCase, as_CaseParticipant]:
+    """Set up a case with one FinderReporter participant.
+
+    Delegates to the shared :func:`~vultron.demo.helpers.workflow.setup_initialized_case`
+    and then looks up the finder's participant record for callers that need it.
     """
-    Set up a case with one FinderReporter participant as a precondition
-    for the status updates workflow.
-
-    Steps:
-    1. Finder submits report to vendor
-    2. Vendor validates report
-    3. Vendor creates case
-    4. Vendor adds report to case
-    5. Vendor creates FinderReporter participant
-    6. Vendor adds participant to case
-    """
-    report = as_VulnerabilityReport(
-        attributed_to=finder.id_,
-        content="A heap buffer overflow in the image parsing library.",
-        name="Heap Buffer Overflow in Image Parser",
-    )
-    report_offer = rm_submit_report_activity(
-        report, actor=finder.id_, to=vendor.id_
-    )
-    post_to_inbox_and_wait(client, vendor.id_, report_offer)
-    verify_object_stored(client, report.id_)
-
-    offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
-    validate_activity = rm_validate_report_activity(
-        offer,
-        actor=vendor.id_,
-        content="Confirmed — heap buffer overflow via malformed image input.",
-    )
-    post_to_inbox_and_wait(client, vendor.id_, validate_activity)
-
-    case = as_VulnerabilityCase(
-        attributed_to=vendor.id_,
-        name="Heap Overflow Case — Image Parser",
-        content="Tracking the heap buffer overflow in the image parsing library.",
-    )
-    create_case_act = create_case_activity(case, actor=vendor.id_)
-    post_to_inbox_and_wait(client, vendor.id_, create_case_act)
-    verify_object_stored(client, case.id_)
-
-    add_report_activity = add_report_to_case_activity(
-        report, actor=vendor.id_, target=case.id_
-    )
-    post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
-
-    participant = as_CaseParticipant(
-        case_roles=[CVDRole.FINDER, CVDRole.REPORTER],
-        attributed_to=finder.id_,
-        context=case.id_,
-    )
-    create_participant_activity = as_Create(
-        actor=vendor.id_,
-        object_=participant,
-        context=case.id_,
-    )
-    post_to_inbox_and_wait(client, vendor.id_, create_participant_activity)
-    verify_object_stored(client, participant.id_)
-
-    add_participant_activity = add_participant_to_case_activity(
-        participant, actor=vendor.id_, target=case.id_
-    )
-    post_to_inbox_and_wait(client, vendor.id_, add_participant_activity)
-
-    log_case_state(client, case.id_, "after setup")
-    logger.info("✓ Setup: Case initialized with one participant")
+    case = setup_initialized_case(client, finder, vendor)
+    participant = _fetch_participant(client, case.id_, finder.id_)
+    if participant is None:
+        raise ValueError(
+            f"Finder participant not found in case {case.id_} after setup"
+        )
     return case, participant
 
 
@@ -339,66 +277,10 @@ def main(
     skip_health_check: bool = False,
     demos: Optional[Sequence] = None,
 ) -> None:
-    """
-    Main entry point for the status_updates demo script.
-
-    Args:
-        skip_health_check: Skip server availability check (useful for testing)
-        demos: Optional sequence of demo functions to run. Defaults to all.
-    """
-    client = DataLayerClient()
-
-    if not skip_health_check and not check_server_availability(client):
-        logger.error("=" * 80)
-        logger.error("ERROR: API server is not available")
-        logger.error("=" * 80)
-        logger.error(f"Cannot connect to: {client.base_url}")
-        logger.error("")
-        logger.error("Please ensure the Vultron API server is running:")
-        logger.error(
-            "  uv run uvicorn vultron.api.main:app --host localhost --port 7999"
-        )
-        logger.error("=" * 80)
-        sys.exit(1)
-
-    selected = (
-        _ALL_DEMOS
-        if demos is None
-        else [(name, fn) for name, fn in _ALL_DEMOS if fn in demos]
+    """Main entry point for the status updates demo demo script."""
+    run_exchange_demos(
+        _ALL_DEMOS, skip_health_check=skip_health_check, demos=demos
     )
-    total = len(selected)
-    errors = []
-
-    for demo_name, demo_fn in selected:
-        try:
-            with demo_environment(client) as (finder, vendor, coordinator):
-                demo_fn(client, finder, vendor, coordinator)
-        except Exception as e:
-            logger.error(f"{demo_name} failed: {e}", exc_info=True)
-            errors.append((demo_name, str(e)))
-
-    logger.info("=" * 80)
-    logger.info("ALL DEMOS COMPLETE")
-    logger.info("=" * 80)
-
-    if errors:
-        logger.error("")
-        logger.error("=" * 80)
-        logger.error("ERROR SUMMARY")
-        logger.error("=" * 80)
-        logger.error(f"Total demos: {total}")
-        logger.error(f"Failed demos: {len(errors)}")
-        logger.error(f"Successful demos: {total - len(errors)}")
-        logger.error("")
-        for demo_name, error in errors:
-            logger.error(f"{demo_name}:")
-            logger.error(f"  {error}")
-            logger.error("")
-        logger.error("=" * 80)
-    else:
-        logger.info("")
-        logger.info(f"✓ All {total} demos completed successfully!")
-        logger.info("")
 
 
 if __name__ == "__main__":

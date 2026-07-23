@@ -43,169 +43,33 @@ inboxes.
 """
 
 import logging
-import sys
-from datetime import datetime, timedelta
 from typing import Callable, Optional, Sequence, Tuple
 
 from vultron.core.states.em import is_em_embargo_active
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.case_participant import (
-    as_CaseParticipant,
-)
-from vultron.enums.roles import CVDRole
-from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    as_VulnerabilityReport,
-)
+from vultron.demo.helpers.embargo import make_embargo_event
+from vultron.demo.helpers.runner import run_exchange_demos
+from vultron.demo.helpers.workflow import setup_two_participant_case
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
-    check_server_availability,
     demo_check,
     demo_step,
-    get_offer_from_datalayer,
     log_case_state,
     logfmt,
-    demo_environment,
     post_to_inbox_and_wait,
-    verify_object_stored,
     setup_demo_logging,
 )
 from vultron.wire.as2.factories import (
     activate_embargo_activity,
-    add_participant_to_case_activity,
-    add_report_to_case_activity,
     announce_embargo_activity,
-    create_case_activity,
     em_accept_embargo_activity,
     em_propose_embargo_activity,
     em_reject_embargo_activity,
-    rm_accept_invite_to_case_activity,
-    rm_invite_to_case_activity,
-    rm_submit_report_activity,
-    rm_validate_report_activity,
 )
 
 logger = logging.getLogger(__name__)
-
-
-def _make_embargo_event(
-    case: as_VulnerabilityCase, days: int = 90
-) -> as_EmbargoEvent:
-    """Create a deterministic as_EmbargoEvent for a given case."""
-    now = datetime.now().astimezone()
-    now = now.replace(second=0, microsecond=0)
-    end_at = (now + timedelta(days=days)).replace(
-        hour=0, minute=0, second=0, microsecond=0
-    )
-    # Use a URL-safe date string (no colons) for the ID path segment
-    end_date_str = end_at.strftime("%Y-%m-%d")
-    return as_EmbargoEvent(
-        id_=f"{case.id_}/embargo_events/{days}d-{end_date_str}",
-        name=f"Embargo for {case.name}",
-        context=case.id_,
-        start_time=now,
-        end_time=end_at,
-        content=f"Proposed {days}-day embargo for {case.name}.",
-    )
-
-
-def _setup_two_participant_case(
-    client: DataLayerClient,
-    finder: as_Actor,
-    vendor: as_Actor,
-    coordinator: as_Actor,
-) -> as_VulnerabilityCase:
-    """
-    Set up a case with two participants (vendor + coordinator) as a
-    precondition for the embargo workflow.
-
-    Steps:
-    1. Finder submits report to vendor
-    2. Vendor validates report
-    3. Vendor creates case
-    4. Vendor adds report to case
-    5. Vendor adds finder as FinderReporter participant
-    6. Vendor invites coordinator; coordinator accepts → coordinator added
-    """
-    report = as_VulnerabilityReport(
-        attributed_to=finder.id_,
-        content="A use-after-free vulnerability in the network stack.",
-        name="Use-After-Free in Network Stack",
-    )
-    report_offer = rm_submit_report_activity(
-        report, actor=finder.id_, to=vendor.id_
-    )
-    post_to_inbox_and_wait(client, vendor.id_, report_offer)
-    verify_object_stored(client, report.id_)
-
-    offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
-    validate_activity = rm_validate_report_activity(
-        offer,
-        actor=vendor.id_,
-        content="Confirmed — use-after-free via unsanitized network input.",
-    )
-    post_to_inbox_and_wait(client, vendor.id_, validate_activity)
-
-    case = as_VulnerabilityCase(
-        attributed_to=vendor.id_,
-        name="UAF Case — Network Stack",
-        content="Tracking the use-after-free vulnerability in the network stack.",
-    )
-    create_case_act = create_case_activity(case, actor=vendor.id_)
-    post_to_inbox_and_wait(client, vendor.id_, create_case_act)
-    verify_object_stored(client, case.id_)
-
-    add_report_activity = add_report_to_case_activity(
-        report, actor=vendor.id_, target=case.id_
-    )
-    post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
-
-    participant = as_CaseParticipant(
-        case_roles=[CVDRole.FINDER, CVDRole.REPORTER],
-        attributed_to=finder.id_,
-        context=case.id_,
-    )
-    create_participant_activity = as_Create(
-        actor=vendor.id_,
-        object_=participant,
-        context=case.id_,
-    )
-    post_to_inbox_and_wait(client, vendor.id_, create_participant_activity)
-    verify_object_stored(client, participant.id_)
-
-    add_participant_activity = add_participant_to_case_activity(
-        participant, actor=vendor.id_, target=case.id_
-    )
-    post_to_inbox_and_wait(client, vendor.id_, add_participant_activity)
-
-    # Invite coordinator and have them accept
-    invite = rm_invite_to_case_activity(
-        coordinator,
-        actor=vendor.id_,
-        target=case.id_,
-        to=[coordinator.id_],
-        content=f"Inviting you to participate in {case.name}.",
-    )
-    post_to_inbox_and_wait(client, coordinator.id_, invite)
-
-    accept = rm_accept_invite_to_case_activity(
-        invite,
-        actor=coordinator.id_,
-        to=[vendor.id_],
-        content=f"Accepting invitation to {case.name}.",
-    )
-    post_to_inbox_and_wait(client, vendor.id_, accept)
-
-    log_case_state(client, case.id_, "after setup (two participants)")
-    logger.info(
-        "✓ Setup: Case initialized with vendor and coordinator participants"
-    )
-    return case
 
 
 def demo_propose_embargo_accept(
@@ -232,10 +96,10 @@ def demo_propose_embargo_accept(
     logger.info("DEMO: Establish Embargo — Propose/Accept Path")
     logger.info("=" * 80)
 
-    case = _setup_two_participant_case(client, finder, vendor, coordinator)
+    case = setup_two_participant_case(client, finder, vendor, coordinator)
 
     with demo_step("Step 2: Coordinator proposes embargo"):
-        embargo = _make_embargo_event(case, days=90)
+        embargo = make_embargo_event(case, days=90)
         create_embargo = as_Create(
             actor=vendor.id_,
             object_=embargo,
@@ -329,10 +193,10 @@ def demo_propose_embargo_reject(
     logger.info("DEMO: Establish Embargo — Propose/Reject Path")
     logger.info("=" * 80)
 
-    case = _setup_two_participant_case(client, finder, vendor, coordinator)
+    case = setup_two_participant_case(client, finder, vendor, coordinator)
 
     with demo_step("Step 2: Coordinator proposes embargo"):
-        embargo = _make_embargo_event(case, days=45)
+        embargo = make_embargo_event(case, days=45)
         create_embargo = as_Create(
             actor=vendor.id_,
             object_=embargo,
@@ -396,66 +260,10 @@ def main(
     skip_health_check: bool = False,
     demos: Optional[Sequence] = None,
 ) -> None:
-    """
-    Main entry point for the establish_embargo demo script.
-
-    Args:
-        skip_health_check: Skip server availability check (useful for testing)
-        demos: Optional sequence of demo functions to run. Defaults to all.
-    """
-    client = DataLayerClient()
-
-    if not skip_health_check and not check_server_availability(client):
-        logger.error("=" * 80)
-        logger.error("ERROR: API server is not available")
-        logger.error("=" * 80)
-        logger.error(f"Cannot connect to: {client.base_url}")
-        logger.error("")
-        logger.error("Please ensure the Vultron API server is running:")
-        logger.error(
-            "  uv run uvicorn vultron.api.main:app --host localhost --port 7999"
-        )
-        logger.error("=" * 80)
-        sys.exit(1)
-
-    selected = (
-        _ALL_DEMOS
-        if demos is None
-        else [(name, fn) for name, fn in _ALL_DEMOS if fn in demos]
+    """Main entry point for the establish_embargo demo script."""
+    run_exchange_demos(
+        _ALL_DEMOS, skip_health_check=skip_health_check, demos=demos
     )
-    total = len(selected)
-    errors = []
-
-    for demo_name, demo_fn in selected:
-        try:
-            with demo_environment(client) as (finder, vendor, coordinator):
-                demo_fn(client, finder, vendor, coordinator)
-        except Exception as e:
-            logger.error(f"{demo_name} failed: {e}", exc_info=True)
-            errors.append((demo_name, str(e)))
-
-    logger.info("=" * 80)
-    logger.info("ALL DEMOS COMPLETE")
-    logger.info("=" * 80)
-
-    if errors:
-        logger.error("")
-        logger.error("=" * 80)
-        logger.error("ERROR SUMMARY")
-        logger.error("=" * 80)
-        logger.error(f"Total demos: {total}")
-        logger.error(f"Failed demos: {len(errors)}")
-        logger.error(f"Successful demos: {total - len(errors)}")
-        logger.error("")
-        for demo_name, error in errors:
-            logger.error(f"{demo_name}:")
-            logger.error(f"  {error}")
-            logger.error("")
-        logger.error("=" * 80)
-    else:
-        logger.info("")
-        logger.info(f"✓ All {total} demos completed successfully!")
-        logger.info("")
 
 
 if __name__ == "__main__":

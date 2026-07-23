@@ -45,29 +45,16 @@ inboxes.
 
 # Standard library imports
 import logging
-import sys
 from typing import Callable, Optional, Sequence, Tuple
 
 # Vultron imports
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.case_participant import (
-    as_CaseParticipant,
-)
-from vultron.enums.roles import CVDRole
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
-)
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    as_VulnerabilityReport,
-)
+from vultron.demo.helpers.runner import run_exchange_demos
+from vultron.demo.helpers.workflow import setup_initialized_case
 from vultron.demo.utils import (
     DataLayerClient,
-    check_server_availability,
     demo_check,
     demo_step,
-    demo_environment,
-    get_offer_from_datalayer,
     log_case_state,
     logfmt,
     post_to_inbox_and_wait,
@@ -76,83 +63,11 @@ from vultron.demo.utils import (
 )
 from vultron.wire.as2.factories import (
     accept_case_ownership_transfer_activity,
-    add_participant_to_case_activity,
-    add_report_to_case_activity,
-    create_case_activity,
     offer_case_ownership_transfer_activity,
     reject_case_ownership_transfer_activity,
-    rm_submit_report_activity,
-    rm_validate_report_activity,
 )
 
 logger = logging.getLogger(__name__)
-
-
-def _setup_initialized_case(
-    client: DataLayerClient,
-    finder: as_Actor,
-    vendor: as_Actor,
-) -> as_VulnerabilityCase:
-    """
-    Set up an initialized case as a precondition for the transfer workflow.
-
-    Mirrors the setup helper in invite_actor_demo but returns the
-    as_VulnerabilityCase so subsequent steps can reference it.
-    """
-    report = as_VulnerabilityReport(
-        attributed_to=finder.id_,
-        content="A remote code execution vulnerability in the web framework.",
-        name="Remote Code Execution Vulnerability",
-    )
-    report_offer = rm_submit_report_activity(
-        report, actor=finder.id_, to=vendor.id_
-    )
-    post_to_inbox_and_wait(client, vendor.id_, report_offer)
-    verify_object_stored(client, report.id_)
-
-    offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
-    validate_activity = rm_validate_report_activity(
-        offer,
-        actor=vendor.id_,
-        content="Confirmed — remote code execution via unsanitized input.",
-    )
-    post_to_inbox_and_wait(client, vendor.id_, validate_activity)
-
-    case = as_VulnerabilityCase(
-        attributed_to=vendor.id_,
-        name="RCE Case — Web Framework",
-        content="Tracking the RCE vulnerability in the web framework.",
-    )
-    create_case_act = create_case_activity(case, actor=vendor.id_)
-    post_to_inbox_and_wait(client, vendor.id_, create_case_act)
-    verify_object_stored(client, case.id_)
-
-    add_report_activity = add_report_to_case_activity(
-        report, actor=vendor.id_, target=case.id_
-    )
-    post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
-
-    participant = as_CaseParticipant(
-        case_roles=[CVDRole.FINDER, CVDRole.REPORTER],
-        attributed_to=finder.id_,
-        context=case.id_,
-    )
-    create_participant_activity = as_Create(
-        actor=vendor.id_,
-        object_=participant,
-        context=case.id_,
-    )
-    post_to_inbox_and_wait(client, vendor.id_, create_participant_activity)
-    verify_object_stored(client, participant.id_)
-
-    add_participant_activity = add_participant_to_case_activity(
-        participant, actor=vendor.id_, target=case.id_
-    )
-    post_to_inbox_and_wait(client, vendor.id_, add_participant_activity)
-
-    log_case_state(client, case.id_, "after setup")
-    logger.info("✓ Setup: Case initialized with report and finder participant")
-    return case
 
 
 def demo_transfer_ownership_accept(
@@ -179,7 +94,7 @@ def demo_transfer_ownership_accept(
     logger.info("DEMO: Transfer Ownership — Accept Path")
     logger.info("=" * 80)
 
-    case = _setup_initialized_case(client, finder, vendor)
+    case = setup_initialized_case(client, finder, vendor)
 
     # Confirm initial owner is vendor
     initial_case = log_case_state(client, case.id_, "initial")
@@ -250,7 +165,7 @@ def demo_transfer_ownership_reject(
     logger.info("DEMO: Transfer Ownership — Reject Path")
     logger.info("=" * 80)
 
-    case = _setup_initialized_case(client, finder, vendor)
+    case = setup_initialized_case(client, finder, vendor)
 
     initial_case = log_case_state(client, case.id_, "initial")
     if initial_case is None:
@@ -309,66 +224,10 @@ def main(
     skip_health_check: bool = False,
     demos: Optional[Sequence] = None,
 ) -> None:
-    """
-    Main entry point for the transfer_ownership demo script.
-
-    Args:
-        skip_health_check: Skip server availability check (useful for testing)
-        demos: Optional sequence of demo functions to run. Defaults to all.
-    """
-    client = DataLayerClient()
-
-    if not skip_health_check and not check_server_availability(client):
-        logger.error("=" * 80)
-        logger.error("ERROR: API server is not available")
-        logger.error("=" * 80)
-        logger.error(f"Cannot connect to: {client.base_url}")
-        logger.error("")
-        logger.error("Please ensure the Vultron API server is running:")
-        logger.error(
-            "  uv run uvicorn vultron.api.main:app --host localhost --port 7999"
-        )
-        logger.error("=" * 80)
-        sys.exit(1)
-
-    selected = (
-        _ALL_DEMOS
-        if demos is None
-        else [(name, fn) for name, fn in _ALL_DEMOS if fn in demos]
+    """Main entry point for the transfer_ownership demo script."""
+    run_exchange_demos(
+        _ALL_DEMOS, skip_health_check=skip_health_check, demos=demos
     )
-    total = len(selected)
-    errors = []
-
-    for demo_name, demo_fn in selected:
-        try:
-            with demo_environment(client) as (finder, vendor, coordinator):
-                demo_fn(client, finder, vendor, coordinator)
-        except Exception as e:
-            logger.error(f"{demo_name} failed: {e}", exc_info=True)
-            errors.append((demo_name, str(e)))
-
-    logger.info("=" * 80)
-    logger.info("ALL DEMOS COMPLETE")
-    logger.info("=" * 80)
-
-    if errors:
-        logger.error("")
-        logger.error("=" * 80)
-        logger.error("ERROR SUMMARY")
-        logger.error("=" * 80)
-        logger.error(f"Total demos: {total}")
-        logger.error(f"Failed demos: {len(errors)}")
-        logger.error(f"Successful demos: {total - len(errors)}")
-        logger.error("")
-        for demo_name, error in errors:
-            logger.error(f"{demo_name}:")
-            logger.error(f"  {error}")
-            logger.error("")
-        logger.error("=" * 80)
-    else:
-        logger.info("")
-        logger.info(f"✓ All {total} demos completed successfully!")
-        logger.info("")
 
 
 if __name__ == "__main__":

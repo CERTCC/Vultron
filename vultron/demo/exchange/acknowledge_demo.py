@@ -44,22 +44,22 @@ When run as a script, this module will:
 
 # Standard library imports
 import logging
-import sys
 from typing import Callable, Optional, Sequence, Tuple
 
 # Vultron imports
-from vultron.adapters.utils import parse_id
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
+from vultron.demo.helpers.runner import run_exchange_demos
+from vultron.demo.helpers.verification import (
+    verify_activity_in_inbox,
+)  # noqa: F401
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
-    check_server_availability,
     demo_check,
     demo_step,
-    demo_environment,
     logfmt,
     post_to_inbox_and_wait,
     verify_object_stored,
@@ -75,56 +75,11 @@ from vultron.wire.as2.factories import (
 logger = logging.getLogger(__name__)
 
 
-def get_actor_by_id(
-    client: DataLayerClient, actor_id: str
-) -> Optional[as_Actor]:
-    """Retrieve an actor by ID from the DataLayer, or ``None`` if not found."""
-    actors_data = client.get("/actors/")
-    for actor_data in actors_data:
-        actor = as_Actor(**actor_data)
-        if actor.id_ == actor_id:
-            return actor
-    return None
-
-
-def get_item_id(item):
-    """Extract the ``id_`` string from an activity item or return the item as-is."""
-    if item is None:
-        return None
-    if isinstance(item, str):
-        return item
-    return getattr(item, "id_", None)
-
-
-def verify_activity_in_inbox(
-    client: DataLayerClient, actor_id: str, activity_id: str
-) -> bool:
-    """Check whether ``activity_id`` appears in the actor's inbox.
-
-    Returns:
-        ``True`` if found; ``False`` otherwise.
-
-    Raises:
-        ValueError: If the actor cannot be found or has no inbox.
-    """
-    actor = get_actor_by_id(client, actor_id)
-    if not actor or not actor.inbox:
-        raise ValueError(f"Actor {actor_id} not found or has no inbox")
-    logger.info(
-        f"Actor {parse_id(actor_id)['object_id']} inbox has "
-        f"{len(actor.inbox.items)} items"
-    )
-    for item in actor.inbox.items:
-        item_id = get_item_id(item)
-        if item_id == activity_id:
-            logger.info(f"✓ Found activity in inbox: {logfmt(item)}")
-            return True
-    logger.warning(f"Activity {activity_id} not found in inbox")
-    return False
-
-
 def demo_acknowledge_only(
-    client: DataLayerClient, finder: as_Actor, vendor: as_Actor
+    client: DataLayerClient,
+    finder: as_Actor,
+    vendor: as_Actor,
+    coordinator: Optional[as_Actor] = None,
 ):
     """
     Demonstrates a bare acknowledgement: the vendor reads the report without
@@ -187,7 +142,10 @@ def demo_acknowledge_only(
 
 
 def demo_acknowledge_then_validate(
-    client: DataLayerClient, finder: as_Actor, vendor: as_Actor
+    client: DataLayerClient,
+    finder: as_Actor,
+    vendor: as_Actor,
+    coordinator: Optional[as_Actor] = None,
 ):
     """
     Demonstrates acknowledge followed by validation.
@@ -265,7 +223,10 @@ def demo_acknowledge_then_validate(
 
 
 def demo_acknowledge_then_invalidate(
-    client: DataLayerClient, finder: as_Actor, vendor: as_Actor
+    client: DataLayerClient,
+    finder: as_Actor,
+    vendor: as_Actor,
+    coordinator: Optional[as_Actor] = None,
 ):
     """
     Demonstrates acknowledge followed by invalidation.
@@ -359,66 +320,10 @@ def main(
     skip_health_check: bool = False,
     demos: Optional[Sequence] = None,
 ):
-    """
-    Main entry point for the acknowledge demo script.
-
-    Args:
-        skip_health_check: Skip the server availability check (useful for testing)
-        demos: Optional sequence of demo functions to run. Defaults to all three.
-    """
-    client = DataLayerClient()
-
-    if not skip_health_check and not check_server_availability(client):
-        logger.error("=" * 80)
-        logger.error("ERROR: API server is not available")
-        logger.error("=" * 80)
-        logger.error(f"Cannot connect to: {client.base_url}")
-        logger.error("Please ensure the Vultron API server is running.")
-        logger.error("You can start it with:")
-        logger.error(
-            "  uv run uvicorn vultron.api.main:app --host localhost --port 7999"
-        )
-        logger.error("=" * 80)
-        sys.exit(1)
-
-    selected = (
-        _ALL_DEMOS
-        if demos is None
-        else [(name, fn) for name, fn in _ALL_DEMOS if fn in demos]
+    """Main entry point for the acknowledge demo script."""
+    run_exchange_demos(
+        _ALL_DEMOS, skip_health_check=skip_health_check, demos=demos
     )
-    total = len(selected)
-    errors = []
-
-    for demo_name, demo_fn in selected:
-        try:
-            with demo_environment(client) as (finder, vendor, coordinator):
-                demo_fn(client, finder, vendor)
-        except Exception as e:
-            logger.error(f"{demo_name} failed: {e}", exc_info=True)
-            errors.append((demo_name, str(e)))
-
-    logger.info("=" * 80)
-    logger.info("ALL DEMOS COMPLETE")
-    logger.info("=" * 80)
-
-    if errors:
-        logger.error("")
-        logger.error("=" * 80)
-        logger.error("ERROR SUMMARY")
-        logger.error("=" * 80)
-        logger.error(f"Total demos: {total}")
-        logger.error(f"Failed demos: {len(errors)}")
-        logger.error(f"Successful demos: {total - len(errors)}")
-        logger.error("")
-        for demo_name, error in errors:
-            logger.error(f"{demo_name}:")
-            logger.error(f"  {error}")
-            logger.error("")
-        logger.error("=" * 80)
-    else:
-        logger.info("")
-        logger.info(f"✓ All {total} demos completed successfully!")
-        logger.info("")
 
 
 if __name__ == "__main__":
