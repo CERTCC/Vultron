@@ -272,7 +272,7 @@ This enables scenarios such as a "recalcitrant embargo negotiator" paired
 with a "cooperative embargo negotiator" to explore interaction dynamics.
 
 Personality/bias bundles are tracked as a separate design question in
-issue #PERSONALITY_ISSUE_PLACEHOLDER (type:Idea, to be created). The bundle
+issue #1646 (type:Idea). The bundle
 dataclass structure defined here is sufficient to support personality variants
 without modification; no new mechanism is needed.
 
