@@ -1357,7 +1357,7 @@ groups:
       Scenario-specific invariants prevent the FCCV-extension scenario from
       accidentally omitting protocol steps not covered by universal checks.
       The Vendor-as-late-joiner invariant is shared with FVCV-extension
-      (DEMOMA-10) and FCCV-handoff (DEMOMA-14).
+      (DEMOMA-10) and FCCV-handoff (DEMOMA-15).
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-12-008
@@ -1555,3 +1555,33 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-12-008
+- id: DEMOMA-15
+  title: Demo Helper Preconditions
+  specs:
+  - id: DEMOMA-15-001
+    priority: MUST
+    kind: project
+    statement: >-
+      The `receiver_actor_id` argument passed to `verify_fix_ready` and
+      `verify_fix_deployed` in `vultron/demo/helpers/milestones.py` MUST be the
+      full URI of an actor that holds `CVDRole.VENDOR` in the case's participant
+      index. Passing the ID of an actor that does not hold `CVDRole.VENDOR` (e.g.,
+      a COORDINATOR or CASE_OWNER) is a caller error. Both helpers MUST enforce
+      this precondition at runtime by fetching the participant record and asserting
+      `CVDRole.VENDOR in participant.case_roles`, raising `AssertionError` with the
+      actor ID and its actual roles if the assertion fails.
+    rationale: >-
+      Only actors holding `CVDRole.VENDOR` participate in the VFD fix lifecycle
+      (vfd → Vfd → VFd → VFD). Actors holding only `CVDRole.COORDINATOR` or
+      `CVDRole.CASE_OWNER` have no fix path and their `vfd_state` will never
+      advance beyond `vfd`. Without the precondition guard, a caller that
+      accidentally passes a Coordinator actor ID will observe `vfd_state=vfd` and
+      receive a misleading failure that reports an unexpected state rather than
+      identifying the wrong actor as the root cause. This was the root cause of
+      the M4/M5 CI failures in PR #1623 (issue #1593), where `fcv_demo.py`
+      passed `coordinator.id_` instead of `vendor.id_`.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-06-002
+    - rel_type: refines
+      spec_id: DEMOMA-12-005
