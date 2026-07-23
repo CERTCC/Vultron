@@ -818,28 +818,30 @@ def _phase_publication(
     )
     logger.info("─" * 80)
 
+    # Coordinator is the CASE_OWNER after the Phase 2 handoff; only the
+    # CASE_OWNER's notify-published triggers embargo teardown (DEMOMA-07-003 step 4).
+    actor_notifies_published(
+        client=coordinator_client,
+        actor=coordinator_in_coordinator,
+        case_id=case.id_,
+    )
+
+    with demo_check(
+        "Embargo terminated (EM.EXITED) after Coordinator (CASE_OWNER) reports published"
+    ):
+        wait_for_case_em_terminated(
+            client=coordinator_client,
+            case_id=case.id_,
+        )
+
     actor_notifies_published(
         client=vendor_client,
         actor=vendor_in_vendor,
         case_id=case.id_,
     )
-
-    with demo_check(
-        "Embargo terminated (EM.EXITED) after Vendor1 reports published"
-    ):
-        wait_for_case_em_terminated(
-            client=vendor_client,
-            case_id=case.id_,
-        )
-
     actor_notifies_published(
         client=vendor2_client,
         actor=vendor2_in_vendor2,
-        case_id=case.id_,
-    )
-    actor_notifies_published(
-        client=coordinator_client,
-        actor=coordinator_in_coordinator,
         case_id=case.id_,
     )
     actor_notifies_published(
@@ -851,10 +853,16 @@ def _phase_publication(
     with demo_check(
         "All replicas CS.VFDPxa, EM.EXITED, all participants public-aware"
     ):
-        wait_for_case_em_terminated(
-            client=finder_client,
-            case_id=case.id_,
-        )
+        for label, client in [
+            ("coordinator", coordinator_client),
+            ("vendor", vendor_client),
+            ("vendor2", vendor2_client),
+            ("finder", finder_client),
+        ]:
+            wait_for_case_em_terminated(
+                client=client,
+                case_id=case.id_,
+            )
         verify_publicly_disclosed(
             receiver_client=vendor_client,
             reporter_client=finder_client,
