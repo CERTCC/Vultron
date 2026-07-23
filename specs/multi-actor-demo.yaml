@@ -263,19 +263,20 @@ groups:
     statement: >-
       The FV demo Docker topology MUST use a dedicated case-actor container with its
       own isolated DataLayer; the Vendor MUST route case-actor creation to that container
-      using the pre-configured case-actor service URL, not create the case-actor record
-      locally in the vendor container's DataLayer
+      using the pre-configured `case_actor_service_url` from `ActorConfig`, not derive
+      the case-actor URL from `server_base_url` (per CP-08-001 through CP-08-003).
     rationale: >-
       Routing case-actor creation to its own container satisfies DEMOMA-01-001 (each actor
       in its own container) and exercises the CaseProposal protocol (ADR-0023) in the
-      FV scenario. The demo uses DemoCreateCaseActorNode as an Actuator-shape
-      ADR-0024 stub: it reads the pre-configured case-actor URL and writes it to the BT
-      blackboard as case_actor_id, then delegates to the standard registration sequence.
-      This is a temporary demo artifact; issue #812 will replace it with real dynamic
-      spawning.
+      FV scenario. `ResolveCaseActorUrlsNode` reads `case_actor_service_url` from
+      `ActorConfig`; the Vendor container MUST supply
+      `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL` pointing to the dedicated CaseActor
+      container (CP-08-003).
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-01-001
+    - rel_type: refines
+      spec_id: CP-08-001
   - id: DEMOMA-06-005
     priority: MUST
     kind: project
@@ -656,6 +657,20 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-09-005
+  - id: DEMOMA-10-009
+    priority: MUST
+    kind: project
+    statement: >-
+      The Vendor1 actor container MUST supply `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL`
+      in its Docker Compose environment pointing to the dedicated CaseActor container
+      base URL (e.g., `http://case-actor:7999/api/v2`). `ResolveCaseActorUrlsNode`
+      MUST derive `case_actor_id` from this configured URL, not from
+      `server_base_url` (per CP-08-001 through CP-08-003).
+    relationships:
+    - rel_type: refines
+      spec_id: CP-08-003
+    - rel_type: refines
+      spec_id: DEMOMA-10-001
 
 - id: DEMOMA-11
   title: FVCV-Handoff Scenario (Vendor1 transfers ownership to Coordinator; Coordinator invites Vendor2)
@@ -856,6 +871,20 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-10-007
+  - id: DEMOMA-11-010
+    priority: MUST
+    kind: project
+    statement: >-
+      The Vendor1 actor container MUST supply `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL`
+      in its Docker Compose environment pointing to the dedicated CaseActor container
+      base URL (e.g., `http://case-actor:7999/api/v2`). `ResolveCaseActorUrlsNode`
+      MUST derive `case_actor_id` from this configured URL, not from `server_base_url`
+      (per CP-08-001 through CP-08-003).
+    relationships:
+    - rel_type: refines
+      spec_id: CP-08-003
+    - rel_type: refines
+      spec_id: DEMOMA-10-009
 
 - id: DEMOMA-12
   title: FCV Scenario (Finder reports to Coordinator; Coordinator invites Vendor)
@@ -1102,6 +1131,20 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-12-008
+  - id: DEMOMA-12-010
+    priority: MUST
+    kind: project
+    statement: >-
+      The Coordinator actor container MUST supply `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL`
+      in its Docker Compose environment pointing to the dedicated CaseActor container
+      base URL (e.g., `http://case-actor:7999/api/v2`). `ResolveCaseActorUrlsNode`
+      MUST derive `case_actor_id` from this configured URL, not from `server_base_url`
+      (per CP-08-001 through CP-08-003).
+    relationships:
+    - rel_type: refines
+      spec_id: CP-08-003
+    - rel_type: refines
+      spec_id: DEMOMA-12-001
 
 - id: DEMOMA-13
   title: FCCV-Extension Scenario (C1 retains ownership; C2 is participant; C2 suggests Vendor)
@@ -1361,6 +1404,20 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-12-008
+  - id: DEMOMA-13-010
+    priority: MUST
+    kind: project
+    statement: >-
+      The C1 actor container MUST supply `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL`
+      in its Docker Compose environment pointing to the dedicated CaseActor container
+      base URL (e.g., `http://case-actor:7999/api/v2`). `ResolveCaseActorUrlsNode`
+      MUST derive `case_actor_id` from this configured URL, not from `server_base_url`
+      (per CP-08-001 through CP-08-003).
+    relationships:
+    - rel_type: refines
+      spec_id: CP-08-003
+    - rel_type: refines
+      spec_id: DEMOMA-13-001
 
 - id: DEMOMA-14
   title: FCCV-Handoff Scenario (C1 transfers case ownership to C2; C2 invites Vendor)

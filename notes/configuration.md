@@ -197,6 +197,7 @@ database:
 actor:
   auto_create_case: true
   default_case_roles: []
+  case_actor_service_url: "http://case-actor:7999/api/v2"
 ```
 
 The `actor:` section maps to `AppConfig.actor` (`ActorConfig`). It controls
@@ -210,6 +211,12 @@ actor-policy defaults used by BT nodes and the production adapter:
   assigned to the local actor when it creates or takes ownership of a case.
   `CVDRole.CASE_OWNER` is always appended at participant-creation time
   (BTND-05-002) and does not need to be listed here.
+- `case_actor_service_url`: base URL of the dedicated CaseActor container
+  (e.g., `http://case-actor:7999/api/v2`). Required for any actor whose BT
+  may run the `engage-case` path (i.e., case-creating actors). Absence causes
+  `ResolveCaseActorUrlsNode` to return `FAILURE` with a clear error message.
+  `None` by default; MUST be supplied via `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL`
+  or the `config.yaml` `actor:` block. See CP-08-001, `notes/case-proposal.md`.
 
 ---
 
@@ -223,6 +230,7 @@ actor-policy defaults used by BT nodes and the production adapter:
 | `VULTRON_DATABASE__DB_URL` | `database.db_url` | `sqlite:///vultron.db` |
 | `VULTRON_ACTOR__AUTO_CREATE_CASE` | `actor.auto_create_case` | `true` |
 | `VULTRON_ACTOR__DEFAULT_CASE_ROLES` | `actor.default_case_roles` | `[]` |
+| `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL` | `actor.case_actor_service_url` | `None` |
 
 ### Legacy env var migration
 
