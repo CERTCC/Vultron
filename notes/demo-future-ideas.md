@@ -47,7 +47,7 @@ be treated as working implementations.
 | FCV | #1593 | F reports to C; C invites V; three-actor coordination | — | **implemented** (#1623) — `fcv` CLI command + CI job |
 | FVCV-handoff | #1214 | V1 transfers ownership to C; C invites V2 | — | **implemented** (#1561) — `fvcv-handoff` CLI command + CI job |
 | FCCV-extension | #1215 | C1 retains case; C2 is participant; C2 asks C1 to invite V | — | planned |
-| FCCV-handoff | #1216 | C1 transfers to C2; C2 invites V | #1215 | planned |
+| FCCV-handoff | #1216 | C1 transfers to C2; C2 invites V | — | **implemented** (#1216) — `fccv-handoff` CLI command + CI job |
 | FCVCV | #1217 | F+C1+V1+C2+V2 (5 actors) | #1212, #1215 | planned |
 
 ### Role-expansion scenarios

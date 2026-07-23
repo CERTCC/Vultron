@@ -966,3 +966,98 @@ groups:
       spec_id: CM-16-001
     - rel_type: refines
       spec_id: CM-20-001
+- id: CM-21
+  title: Ownership Transfer Protocol Effects
+  specs:
+  - id: CM-21-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A `VulnerabilityCase` MUST have at most one participant holding
+      `CVDRole.CASE_OWNER` at any point in time.  If a participant already
+      holds `CVDRole.CASE_OWNER` when a new owner is designated, the system
+      MUST remove `CVDRole.CASE_OWNER` from the previous owner's
+      `CaseParticipant` record before or atomically with granting it to the
+      new owner.
+    rationale: >-
+      `CASE_OWNER` confers exclusive case administration authority
+      (CM-02-004, CM-02-005).  Two simultaneous holders would create
+      conflicting authority: both could terminate embargoes, authorise
+      invitations, and mutate case state independently.  The invariant must
+      be enforced at the data-layer level, not just assumed by convention.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-02-004
+    - rel_type: refines
+      spec_id: CM-02-005
+  - id: CM-21-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When an `Accept(Offer(VulnerabilityCase))` ownership-transfer activity
+      is processed, the system MUST add `CVDRole.CASE_OWNER` to the accepting
+      actor's `CaseParticipant.case_roles` and MUST update
+      `VulnerabilityCase.attributed_to` to the accepting actor's ID.
+    rationale: >-
+      `PublicDisclosureBranchNode` (and any other role-gated protocol node)
+      determines case-owner authority by reading `CaseParticipant.case_roles`,
+      not by comparing actor IDs against `attributed_to`.  Updating only
+      `attributed_to` without also updating the participant record leaves the
+      new owner unable to trigger embargo teardown, case closure, and other
+      CASE_OWNER-gated operations.  Both fields MUST be kept in sync.
+    rationale_detail: >-
+      This was the root cause of the FCCV-handoff CI failure (2026-07-23):
+      `AcceptCaseOwnershipTransferNode` updated `attributed_to` but did not
+      add `CVDRole.CASE_OWNER` to C2's participant record, so
+      `_sender_is_case_owner()` returned False and embargo teardown was
+      skipped.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-21-001
+    - rel_type: refines
+      spec_id: TRIG-11-002
+  - id: CM-21-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When an `Accept(Offer(VulnerabilityCase))` ownership-transfer activity
+      is processed, the system MUST remove `CVDRole.CASE_OWNER` from the
+      previous owner's `CaseParticipant.case_roles`.  The previous owner
+      MUST retain any other roles they held (e.g. `CVDRole.COORDINATOR`,
+      `CVDRole.VENDOR`) and MUST remain a participant in the case.
+    rationale: >-
+      Transferring ownership does not evict the previous owner from the case;
+      they continue to participate but no longer hold administrative authority.
+      Stripping only `CASE_OWNER` (and not other roles) preserves their
+      standing as a Coordinator, Vendor, or other role while satisfying the
+      at-most-one invariant (CM-21-001).
+    relationships:
+    - rel_type: refines
+      spec_id: CM-21-001
+    - rel_type: refines
+      spec_id: TRIG-11-002
+  - id: CM-21-004
+    priority: MUST
+    kind: project
+    statement: >-
+      The strip of `CVDRole.CASE_OWNER` from the previous holder (CM-21-003),
+      the update of `VulnerabilityCase.attributed_to`, and the grant of
+      `CVDRole.CASE_OWNER` to the new holder (CM-21-002) MUST be committed to
+      storage as a single atomic transaction.  If any part of the write fails,
+      the entire set MUST be rolled back so that no partial state is observable.
+    rationale: >-
+      Without atomicity a crash or exception between the strip and the grant
+      produces a case with zero `CASE_OWNER` holders — a state worse than two
+      simultaneous holders because it cannot be recovered by any subsequent
+      normal protocol message.  The invariant in CM-21-001 ("at most one at any
+      point in time") logically implies that the case MUST have exactly one
+      `CASE_OWNER` at all times; this spec makes the storage-transaction
+      requirement explicit so that DataLayer implementations cannot satisfy
+      CM-21-001 through sequential saves.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-21-001
+    - rel_type: refines
+      spec_id: CM-21-002
+    - rel_type: refines
+      spec_id: CM-21-003

@@ -45,7 +45,6 @@ from vultron.core.behaviors.sync.commit_tree import (
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.enums.roles import CVDRole, serialize_roles
-from vultron.core.models._helpers import _as_id
 
 
 class EmitInviteActorToCaseNode(DataLayerAction):
@@ -222,68 +221,6 @@ class EmitAcceptCaseInviteNode(DataLayerAction):
             self.feedback_message = f"EmitAcceptCaseInvite failed: {e}"
             self.logger.error(self.feedback_message)
             return Status.FAILURE
-
-
-class AcceptCaseOwnershipTransferNode(DataLayerAction):
-    """Apply an ownership-transfer acceptance to the case record.
-
-    Reads the case from the DataLayer, updates ``case.attributed_to`` to
-    the new owner, and persists the updated case.  Idempotent: when the
-    case is already owned by ``new_owner_id``, returns ``SUCCESS`` without
-    mutation.
-
-    Returns ``SUCCESS`` on success or when already idempotent, ``FAILURE``
-    when the DataLayer is unavailable or the case is not found.
-    """
-
-    def __init__(
-        self,
-        case_id: str,
-        new_owner_id: str,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self.case_id = case_id
-        self.new_owner_id = new_owner_id
-
-    def _read_case(self) -> Any | None:
-        assert self.datalayer is not None
-        case = self.datalayer.read(self.case_id)
-        if not isinstance(case, VulnerabilityCase):
-            self.feedback_message = f"case '{self.case_id}' not found"
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return None
-        return case
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return f
-
-        case = self._read_case()
-        if case is None:
-            return Status.FAILURE
-
-        current_owner_id = _as_id(case.attributed_to)
-        if current_owner_id == self.new_owner_id:
-            self.logger.info(
-                "%s: case '%s' already owned by '%s' — skipping (idempotent)",
-                self.name,
-                self.case_id,
-                self.new_owner_id,
-            )
-            return Status.SUCCESS
-
-        case.attributed_to = self.new_owner_id  # type: ignore[assignment]
-        self.datalayer.save(case)  # type: ignore[union-attr]
-        self.logger.info(
-            "%s: transferred ownership of case '%s' from '%s' to '%s'",
-            self.name,
-            self.case_id,
-            current_owner_id,
-            self.new_owner_id,
-        )
-        return Status.SUCCESS
 
 
 class ProposeCaseToActorNode(DataLayerAction):

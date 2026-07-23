@@ -1418,3 +1418,197 @@ groups:
       spec_id: CP-08-003
     - rel_type: refines
       spec_id: DEMOMA-13-001
+
+- id: DEMOMA-14
+  title: FCCV-Handoff Scenario (C1 transfers case ownership to C2; C2 invites Vendor)
+  trigger:
+    type: scenario_start
+    value: fccv-handoff
+  specs:
+  - id: DEMOMA-14-001
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCCV-handoff scenario MUST involve four actor identities — Finder,
+      Coordinator1 (C1), Coordinator2 (C2), and Vendor — each with its own
+      isolated DataLayer; the CaseActor MUST run as a separate actor identity
+      with its own container and DataLayer.
+    rationale: >-
+      FCCV-handoff demonstrates the case-ownership-transfer flow between two
+      coordinators.  C1 starts as CASE_OWNER, then transfers ownership to C2
+      via TRIG-11-001/002.  The five-container topology (Finder, C1, C2,
+      Vendor, CaseActor) reuses the existing docker-compose-multi-actor.yml
+      services (vendor→C1, coordinator→C2, vendor2→Vendor).
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-01-001
+    - rel_type: refines
+      spec_id: DEMOMA-13-001
+  - id: DEMOMA-14-002
+    priority: MUST
+    kind: project
+    statement: >-
+      C1 MUST receive the Finder's report (RM→RECEIVED), validate it
+      (RM→VALID), and engage the case (RM→ACCEPTED), holding
+      CVDRole.CASE_OWNER until it completes the ownership transfer to C2.
+    rationale: >-
+      C1 acts as the initial entry point for Finder's report and establishes
+      the case before delegating ownership.  This mirrors the FVCV-handoff
+      pattern (DEMOMA-10) except the initial owner is a Coordinator, not a
+      Vendor.
+    preconditions:
+    - description: >-
+        All five containers running (Finder, C1, C2, Vendor, CaseActor);
+        all actors seeded and cross-registered.
+    steps:
+    - description: Finder submits a VulnerabilityReport to C1's inbox.
+    - description: C1 validates the report and engages the case.
+    postconditions:
+    - description: C1 holds CVDRole.CASE_OWNER and case attributed_to=C1.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-13-002
+  - id: DEMOMA-14-003
+    priority: MUST
+    kind: project
+    statement: >-
+      C1 MUST invite C2 to the case (CVDRole.COORDINATOR), and C2 MUST
+      accept.  C2 MUST then be a participant with CVDRole.COORDINATOR before
+      the ownership transfer is initiated.
+    rationale: >-
+      C2 must be a known participant before C1 can offer ownership transfer.
+      The invite-accept flow establishes C2's presence in the case ledger.
+    preconditions:
+    - description: C1 is CASE_OWNER; case attributed_to=C1.
+    steps:
+    - description: C1 invites C2 to the case with CVDRole.COORDINATOR.
+    - description: C2 accepts the invitation; becomes a participant.
+    postconditions:
+    - description: C2 is a participant; CVDRole.COORDINATOR; case attributed_to=C1.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-14-002
+  - id: DEMOMA-14-004
+    priority: MUST
+    kind: project
+    statement: >-
+      C1 MUST offer case ownership transfer to C2 (TRIG-11-001) and C2 MUST
+      accept (TRIG-11-002).  After acceptance the case's attributed_to MUST
+      reflect C2 on C1's DataLayer, C2's DataLayer, and CaseActor's
+      canonical ledger.  C1's CVDRole MUST become CVDRole.COORDINATOR
+      (no longer CASE_OWNER).
+    rationale: >-
+      This is the core FCCV-handoff invariant.  The ownership-transfer
+      trigger pair (TRIG-11-001/002) is the same mechanism as FVCV-handoff
+      (DEMOMA-10-006/007) and must be validated end-to-end.
+    preconditions:
+    - description: C2 is a participant; case attributed_to=C1.
+    steps:
+    - description: >-
+        C1 triggers offer-case-ownership-transfer (TRIG-11-001) targeting C2.
+    - description: C1 delivers the Offer activity to C2's inbox.
+    - description: >-
+        C2 triggers accept-case-ownership-transfer (TRIG-11-002) referencing
+        the Offer.
+    - description: C2 delivers the Accept activity to C2's own inbox (local use case).
+    postconditions:
+    - description: case attributed_to=C2 on C1's and C2's DataLayers.
+    - description: C2 holds CVDRole.CASE_OWNER; C1 holds CVDRole.COORDINATOR.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-14-003
+  - id: DEMOMA-14-005
+    priority: MUST
+    kind: project
+    statement: >-
+      C2 (the new CASE_OWNER) MUST invite Vendor to the case (NOT C1), and
+      Vendor MUST accept.  The Vendor Accept MUST be delivered to the
+      CaseActor so AcceptInviteActorToCaseBT runs and the join is committed
+      to the canonical ledger (PCR-08-008).
+    rationale: >-
+      This invariant confirms that the new CASE_OWNER (C2) has the authority
+      to extend the case to additional actors after the handoff, and that the
+      four-actor coordination path works end-to-end.
+    preconditions:
+    - description: case attributed_to=C2; C2 is CASE_OWNER.
+    steps:
+    - description: C2 invites Vendor to the case.
+    - description: Vendor accepts the invitation.
+    - description: Vendor's Accept is delivered to CaseActor's inbox.
+    postconditions:
+    - description: Vendor is a participant; all five actors have case replicas.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-14-004
+  - id: DEMOMA-14-006
+    priority: MUST
+    kind: project
+    statement: >-
+      After Vendor joins, all four actor containers (Finder, C1, C2, Vendor)
+      MUST converge to the same case ledger state (SYNC-2 invariant).  Vendor
+      MUST receive the complete ledger backfill from genesis.
+    rationale: >-
+      Late-joiner backfill is a shared invariant across FVCV-extension,
+      FVCV-handoff, and FCCV-handoff.  Verifying it here ensures the
+      ownership-transfer workflow does not break SYNC-2 convergence.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-10-007
+  - id: DEMOMA-14-007
+    priority: MUST
+    kind: project
+    statement: >-
+      Vendor MUST advance through the full fix lifecycle: CS.VFd (fix ready)
+      and CS.VFD (fix deployed).  All participants MUST then report
+      publication (CS.VFDPx or CS.VFDPxa), the embargo MUST terminate
+      (EM.EXITED), and all participants MUST close the case (RM.CLOSED).
+    rationale: >-
+      End-to-end completion is required to exercise the full CVD coordination
+      workflow in the FCCV-handoff variant.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-11-006
+  - id: DEMOMA-14-008
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCCV-handoff implementation MUST ship a dedicated CLI command
+      (`vultron-demo fccv-handoff`) wired into `vultron/demo/cli.py`
+      and registered in the `DEMOS` list.  The command MUST expose
+      `--finder-url`, `--c1-url`, `--c2-url`, `--vendor-url`,
+      `--case-actor-url`, `--finder-id`, `--c1-id`, `--c2-id`,
+      `--vendor-id`, `--case-actor-id`, and `--skip-health-check`
+      options with appropriate env-var bindings.
+    rationale: >-
+      CLI consistency and Docker-entrypoint compatibility require the
+      `DEMO=fccv-handoff` env var to map to `vultron-demo fccv-handoff`
+      (demo-entrypoint.sh forwards the DEMO value directly).
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-04-001
+  - id: DEMOMA-14-009
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCCV-handoff implementation MUST ship a dedicated per-scenario
+      case-ledger invariant test file
+      (`test/ci/invariants/test_fccv_handoff_invariants.py`) built
+      exclusively on the shared invariant library (per DEMOMA-12-008
+      pattern).  The test file MUST assert the following
+      scenario-specific checks in addition to universal library checks:
+      (1) `validate_report` event present in case-actor log;
+      (2) `invite_actor_to_case` present at least twice (C2 invitation +
+      Vendor invitation); (3) `accept_invite_actor_to_case` present at
+      least twice (C2 accept + Vendor accept); (4) `close_case` present;
+      (5) CS transitions VFd and VFD observed in
+      `add_participant_status_to_participant` entries for the Vendor actor;
+      (6) Vendor replica holds the complete log from genesis (late-joiner
+      full-history backfill).
+    rationale: >-
+      Scenario-specific invariants prevent the FCCV-handoff scenario from
+      accidentally omitting protocol steps not covered by universal checks.
+      The Vendor-as-late-joiner invariant is shared with FVCV-extension
+      (DEMOMA-10) and FCCV-extension (DEMOMA-13).
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-12-008
