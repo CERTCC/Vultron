@@ -117,7 +117,7 @@ jobs:
           mkdir -p /tmp/demo-logs
           docker compose -f "$COMPOSE_FILE" logs \
             > /tmp/demo-logs/combined.log 2>&1
-          for svc in finder vendor coordinator case-actor vendor2 demo-runner; do
+          for svc in finder vendor coordinator case-actor actor5 demo-runner; do
             docker compose -f "$COMPOSE_FILE" logs "$svc" \
               > "/tmp/demo-logs/${svc}.log" 2>&1 || true
           done

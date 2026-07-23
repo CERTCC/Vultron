@@ -123,7 +123,7 @@ FINDER_ACTOR_ID = "http://finder:7999/api/v2/actors/finder"
 VENDOR_ACTOR_ID = "http://vendor:7999/api/v2/actors/vendor"
 COORDINATOR_ACTOR_ID = "http://coordinator:7999/api/v2/actors/coordinator"
 CASE_ACTOR_ACTOR_ID = "http://case-actor:7999/api/v2/actors/case-actor"
-VENDOR2_ACTOR_ID = "http://vendor2:7999/api/v2/actors/vendor2"
+VENDOR2_ACTOR_ID = "http://actor5:7999/api/v2/actors/vendor2"
 
 
 def reset_containers(
