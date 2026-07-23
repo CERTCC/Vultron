@@ -25,14 +25,18 @@ from py_trees.common import Status
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.actor import (
-    AcceptCaseOwnershipTransferNode,
     EmitInviteActorToCaseNode,
 )
+from vultron.core.behaviors.case.nodes.ownership_transfer import (
+    AcceptCaseOwnershipTransferNode,
+)
 from vultron.core.behaviors.case.nodes.announce import SeedAnnouncedCaseNode
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
 )
+from vultron.enums.roles import CVDRole
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import announce_vulnerability_case_activity
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -108,6 +112,33 @@ class TestAcceptCaseOwnershipTransferNode:
         )
         result = bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
         assert result.status == Status.FAILURE
+
+    def test_grants_case_owner_role_to_participant(self, bridge, dl) -> None:
+        """New owner's participant record gains CVDRole.CASE_OWNER on transfer."""
+        participant = CaseParticipant(
+            id_="https://example.org/participants/p-new-owner",
+            attributed_to=NEW_OWNER_ID,
+            context=CASE_ID,
+            case_roles=[CVDRole.COORDINATOR],
+        )
+        dl.create(participant)
+        case = as_VulnerabilityCase(
+            id_=CASE_ID,
+            name="OT Role Grant Test",
+            attributed_to=ACTOR_ID,
+            actor_participant_index={
+                NEW_OWNER_ID: participant.id_,
+            },
+        )
+        dl.create(case)
+        tree = AcceptCaseOwnershipTransferNode(
+            case_id=CASE_ID, new_owner_id=NEW_OWNER_ID
+        )
+        result = bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
+        assert result.status == Status.SUCCESS
+        refreshed_participant = cast(Any, dl.read(participant.id_))
+        assert refreshed_participant is not None
+        assert CVDRole.CASE_OWNER in refreshed_participant.case_roles
 
 
 # ---------------------------------------------------------------------------

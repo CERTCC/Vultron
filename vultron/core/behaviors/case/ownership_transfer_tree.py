@@ -23,7 +23,7 @@ import logging
 
 import py_trees
 
-from vultron.core.behaviors.case.nodes.actor import (
+from vultron.core.behaviors.case.nodes.ownership_transfer import (
     AcceptCaseOwnershipTransferNode,
 )
 

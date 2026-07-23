@@ -13,7 +13,8 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Trigger-side emit nodes for the ownership-transfer workflow (TRIG-11).
+"""Trigger-side emit nodes and receive-side application nodes for the
+ownership-transfer workflow (TRIG-11 / OT-02).
 
 Provides:
 
@@ -23,9 +24,13 @@ Provides:
 - :class:`EmitAcceptCaseOwnershipTransferNode` — emits
   ``Accept(Offer(VulnerabilityCase))`` from the accepting actor back to
   the offering actor.
+- :class:`AcceptCaseOwnershipTransferNode` — applies the accepted
+  ownership transfer to the DataLayer: updates ``case.attributed_to``
+  and grants ``CVDRole.CASE_OWNER`` to the new owner's participant record.
 
-These leaf nodes are assembled into trigger trees in the parent
-``actor_trigger_trees.py`` module per BTND-07-003.
+These leaf nodes are assembled into trigger/receive trees in the parent
+``actor_trigger_trees.py`` and ``ownership_transfer_tree.py`` modules per
+BTND-07-003.
 """
 
 import logging
@@ -34,7 +39,11 @@ from typing import Any, cast
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models._helpers import _as_id
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
 
@@ -158,3 +167,106 @@ class EmitAcceptCaseOwnershipTransferNode(DataLayerAction):
             )
             self.logger.error(self.feedback_message)
             return Status.FAILURE
+
+
+class AcceptCaseOwnershipTransferNode(DataLayerAction):
+    """Apply an ownership-transfer acceptance to the case record.
+
+    Reads the case from the DataLayer, updates ``case.attributed_to`` to
+    the new owner, persists the updated case, and grants
+    ``CVDRole.CASE_OWNER`` to the new owner's participant record so that
+    :class:`PublicDisclosureBranchNode` correctly triggers embargo teardown
+    when the new owner reports public disclosure (OT-02-001).
+
+    Idempotent: when the case is already owned by ``new_owner_id``, returns
+    ``SUCCESS`` without mutation.
+
+    Returns ``SUCCESS`` on success or when already idempotent, ``FAILURE``
+    when the DataLayer is unavailable or the case is not found.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        new_owner_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.new_owner_id = new_owner_id
+
+    def _read_case(self) -> Any | None:
+        assert self.datalayer is not None
+        case = self.datalayer.read(self.case_id)
+        if not isinstance(case, VulnerabilityCase):
+            self.feedback_message = f"case '{self.case_id}' not found"
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return None
+        return case
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            self.logger.error("%s: DataLayer not available", self.name)
+            return f
+
+        case = self._read_case()
+        if case is None:
+            return Status.FAILURE
+
+        current_owner_id = _as_id(case.attributed_to)
+        if current_owner_id == self.new_owner_id:
+            self.logger.info(
+                "%s: case '%s' already owned by '%s' — skipping (idempotent)",
+                self.name,
+                self.case_id,
+                self.new_owner_id,
+            )
+            return Status.SUCCESS
+
+        case.attributed_to = self.new_owner_id  # type: ignore[assignment]
+        self.datalayer.save(case)  # type: ignore[union-attr]
+        self.logger.info(
+            "%s: transferred ownership of case '%s' from '%s' to '%s'",
+            self.name,
+            self.case_id,
+            current_owner_id,
+            self.new_owner_id,
+        )
+
+        # Grant CASE_OWNER role to new owner's participant record so that
+        # PublicDisclosureBranchNode triggers embargo teardown when the new
+        # owner reports public disclosure (OT-02-001).
+        new_owner_participant_id = case.actor_participant_index.get(
+            self.new_owner_id
+        )
+        if new_owner_participant_id is not None:
+            new_owner_participant = self.datalayer.read(  # type: ignore[union-attr]
+                new_owner_participant_id
+            )
+            if isinstance(new_owner_participant, CaseParticipant):
+                new_owner_participant.add_role(CVDRole.CASE_OWNER)
+                self.datalayer.save(new_owner_participant)  # type: ignore[union-attr]
+                self.logger.info(
+                    "%s: granted CASE_OWNER role to participant '%s' for case '%s'",
+                    self.name,
+                    new_owner_participant_id,
+                    self.case_id,
+                )
+            else:
+                self.logger.warning(
+                    "%s: new owner '%s' has no participant record in case '%s'"
+                    " — CASE_OWNER role not granted",
+                    self.name,
+                    self.new_owner_id,
+                    self.case_id,
+                )
+        else:
+            self.logger.warning(
+                "%s: new owner '%s' not found in actor_participant_index for case '%s'"
+                " — CASE_OWNER role not granted",
+                self.name,
+                self.new_owner_id,
+                self.case_id,
+            )
+
+        return Status.SUCCESS
