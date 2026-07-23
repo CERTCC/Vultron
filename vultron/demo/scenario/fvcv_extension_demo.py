@@ -76,6 +76,7 @@ from vultron.demo.helpers.milestones import (
 )
 from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.helpers.polling import (
+    find_case_invite_for_actor,
     wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
     wait_for_case_on_container,
@@ -204,68 +205,6 @@ def _find_cp_offer_for_case(
     raise AssertionError(
         f"Timed out waiting for Offer(CaseParticipant) for case {case_id!r}"
         f" to appear in DataLayer at {client.base_url}"
-    )
-
-
-def _is_case_invite_for(obj_data: dict, case_id: str, invitee_id: str) -> bool:
-    """Return True if *obj_data* is an Invite(Actor, Case) to *invitee_id* for *case_id*."""
-    if obj_data.get("type") != "Invite":
-        return False
-    target_raw = obj_data.get("target")
-    target_id = (
-        target_raw.get("id") if isinstance(target_raw, dict) else target_raw
-    )
-    if target_id != case_id:
-        return False
-    inner = obj_data.get("object")
-    inner_id = inner.get("id") if isinstance(inner, dict) else inner
-    return inner_id == invitee_id
-
-
-def _find_case_invite_for_actor(
-    client: DataLayerClient,
-    case_id: str,
-    invitee_id: str,
-    timeout_seconds: float = 15.0,
-    poll_interval: float = 0.5,
-) -> str:
-    """Poll until the CaseActor's Invite(Actor, Case) for *invitee_id* arrives.
-
-    In the ADR-0026 flow the CaseActor emits the Invite to the suggested actor
-    after the Case Owner accepts; the invitee must then send Accept(Invite) to
-    trigger the trust-bootstrap Announce(VulnerabilityCase) that seeds its case
-    replica (MV-10-003/MV-10-004).  This helper polls the invitee's DataLayer
-    for that Invite so the demo can drive the accept step.
-
-    Returns the invite activity ID string.
-
-    Raises:
-        AssertionError: If no matching Invite is found within *timeout_seconds*.
-    """
-    deadline = time.monotonic() + timeout_seconds
-    while time.monotonic() < deadline:
-        try:
-            all_objects = client.get("/datalayer/")
-            if isinstance(all_objects, dict):
-                for raw_id, obj_data in all_objects.items():
-                    if not isinstance(obj_data, dict):
-                        continue
-                    if _is_case_invite_for(obj_data, case_id, invitee_id):
-                        obj_id = str(raw_id)
-                        logger.info(
-                            "Found Invite for actor %s on case %s: %s",
-                            invitee_id,
-                            case_id,
-                            obj_id,
-                        )
-                        return obj_id
-        except Exception:  # noqa: BLE001
-            pass
-        time.sleep(poll_interval)
-
-    raise AssertionError(
-        f"Timed out waiting for CaseActor Invite for actor {invitee_id!r} on"
-        f" case {case_id!r} to appear in DataLayer at {client.base_url}"
     )
 
 
@@ -525,7 +464,7 @@ def _phase_coordinator_suggests_vendor2(
     # arriving Invite, then puppeteer Vendor2's accept (ADR-0026 invite/accept/
     # bootstrap chain; DEMOMA-10-005 / CM-16-006).
     with demo_check("Vendor2 received invite from CaseActor (ADR-0026 path)"):
-        invite_id = _find_case_invite_for_actor(
+        invite_id = find_case_invite_for_actor(
             client=vendor2_client,
             case_id=case.id_,
             invitee_id=vendor2.id_,

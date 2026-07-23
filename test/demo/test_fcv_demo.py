@@ -11,14 +11,14 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Unit tests for the FVCV-extension four-actor CVD demo (D5-6).
+"""Unit tests for the FCV three-actor CVD demo (DEMOMA-12).
 
-Uses a single TestClient (one FastAPI app instance) to simulate four containers.
-All four DataLayerClient instances route through the same TestClient but address
+Uses a single TestClient (one FastAPI app instance) to simulate three containers.
+All three DataLayerClient instances route through the same TestClient but address
 different actor namespaces via their respective actor IDs.
 
 True multi-container isolation is validated by the acceptance test runnable via:
-    DEMO=fvcv-extension docker compose -f docker/docker-compose-multi-actor.yml up --abort-on-container-exit
+    DEMO=fcv docker compose -f docker/docker-compose-multi-actor.yml up --abort-on-container-exit
 """
 
 import importlib
@@ -29,9 +29,10 @@ from _pytest.monkeypatch import MonkeyPatch
 from click.testing import CliRunner
 from fastapi.testclient import TestClient
 
-import vultron.demo.scenario.fvcv_extension_demo as demo
+import vultron.demo.scenario.fcv_demo as demo
 from test.demo._helpers import make_client, make_testclient_call
 from vultron.demo.cli import main
+from vultron.demo.helpers.polling import find_case_invite_for_actor
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -59,67 +60,58 @@ def patch_datalayer_call(client: TestClient, base: str):
 
 
 # ---------------------------------------------------------------------------
-# Unit tests for seed_containers_fvcv
+# Unit tests for seed_containers_fcv
 # ---------------------------------------------------------------------------
 
 
-class TestSeedContainersFvcv:
-    """Test that seeding creates actors on all four containers."""
+class TestSeedContainersFcv:
+    """Test that seeding creates actors on all three containers."""
 
-    def test_seed_creates_all_four_actors(self, base: str):
-        finder, vendor, coordinator, vendor2 = demo.seed_containers_fvcv(
+    def test_seed_creates_all_three_actors(self, base: str):
+        finder, coordinator, vendor = demo.seed_containers_fcv(
             finder_client=make_client(base),
-            vendor_client=make_client(base),
             coordinator_client=make_client(base),
-            vendor2_client=make_client(base),
+            vendor_client=make_client(base),
         )
         assert finder.id_ is not None
         assert finder.name == "Finder"
-        assert vendor.id_ is not None
-        assert vendor.name == "Vendor"
         assert coordinator.id_ is not None
         assert coordinator.name == "Coordinator"
-        assert vendor2.id_ is not None
-        assert vendor2.name == "Vendor2"
+        assert vendor.id_ is not None
+        assert vendor.name == "Vendor"
 
     def test_seed_registers_cross_container_peers(self, base: str):
         finder_client = make_client(base)
 
-        demo.seed_containers_fvcv(
+        demo.seed_containers_fcv(
             finder_client=finder_client,
-            vendor_client=make_client(base),
             coordinator_client=make_client(base),
-            vendor2_client=make_client(base),
+            vendor_client=make_client(base),
         )
 
         actors = finder_client.get("/actors/")
         actor_names = {a.get("name") for a in actors if isinstance(a, dict)}
         assert "Finder" in actor_names
-        assert "Vendor" in actor_names
         assert "Coordinator" in actor_names
-        assert "Vendor2" in actor_names
+        assert "Vendor" in actor_names
 
     def test_seed_with_deterministic_ids(self, base: str):
-        finder_id = f"{base}/actors/finder-fvcv-det-test"
-        vendor_id = f"{base}/actors/vendor-fvcv-det-test"
-        coordinator_id = f"{base}/actors/coordinator-fvcv-det-test"
-        vendor2_id = f"{base}/actors/vendor2-fvcv-det-test"
+        finder_id = f"{base}/actors/finder-fcv-det-test"
+        coordinator_id = f"{base}/actors/coordinator-fcv-det-test"
+        vendor_id = f"{base}/actors/vendor-fcv-det-test"
 
-        finder, vendor, coordinator, vendor2 = demo.seed_containers_fvcv(
+        finder, coordinator, vendor = demo.seed_containers_fcv(
             finder_client=make_client(base),
-            vendor_client=make_client(base),
             coordinator_client=make_client(base),
-            vendor2_client=make_client(base),
+            vendor_client=make_client(base),
             reporter_actor_id=finder_id,
-            vendor_actor_id=vendor_id,
             coordinator_actor_id=coordinator_id,
-            vendor2_actor_id=vendor2_id,
+            vendor_actor_id=vendor_id,
         )
 
         assert finder.id_ == finder_id
-        assert vendor.id_ == vendor_id
         assert coordinator.id_ == coordinator_id
-        assert vendor2.id_ == vendor2_id
+        assert vendor.id_ == vendor_id
 
 
 # ---------------------------------------------------------------------------
@@ -127,55 +119,68 @@ class TestSeedContainersFvcv:
 # ---------------------------------------------------------------------------
 
 
-class TestResetContainersFvcv:
-    """Test container reset orchestration for FVCV-extension scenario."""
+class TestResetContainersFcv:
+    """Test container reset orchestration for FCV scenario."""
 
     def test_reset_containers_calls_reset_for_all_targets(self):
         finder_client = MagicMock()
-        vendor_client = MagicMock()
         coordinator_client = MagicMock()
-        vendor2_client = MagicMock()
+        vendor_client = MagicMock()
         finder_client.get.return_value = {}
-        vendor_client.get.return_value = {}
         coordinator_client.get.return_value = {}
-        vendor2_client.get.return_value = {}
+        vendor_client.get.return_value = {}
 
         with patch(
-            "vultron.demo.scenario.fvcv_extension_demo.reset_datalayer",
+            "vultron.demo.scenario.fcv_demo.reset_datalayer",
             return_value={"status": "ok"},
         ) as reset_mock:
             demo.reset_containers(
                 finder_client=finder_client,
-                vendor_client=vendor_client,
                 coordinator_client=coordinator_client,
-                vendor2_client=vendor2_client,
+                vendor_client=vendor_client,
             )
 
         reset_mock.assert_has_calls(
             [
                 call(client=finder_client, init=False),
-                call(client=vendor_client, init=False),
                 call(client=coordinator_client, init=False),
-                call(client=vendor2_client, init=False),
+                call(client=vendor_client, init=False),
             ]
         )
 
+    def test_reset_includes_case_actor_when_provided(self):
+        finder_client = MagicMock()
+        coordinator_client = MagicMock()
+        vendor_client = MagicMock()
+        case_actor_client = MagicMock()
+
+        with patch(
+            "vultron.demo.scenario.fcv_demo.reset_datalayer",
+            return_value={"status": "ok"},
+        ) as reset_mock:
+            demo.reset_containers(
+                finder_client=finder_client,
+                coordinator_client=coordinator_client,
+                vendor_client=vendor_client,
+                case_actor_client=case_actor_client,
+            )
+
+        called_clients = [
+            c.kwargs["client"] for c in reset_mock.call_args_list
+        ]
+        assert case_actor_client in called_clients
+
 
 # ---------------------------------------------------------------------------
-# Invite-finder helper tests (ADR-0026 Vendor2 accept step)
+# find_case_invite_for_actor tests
 # ---------------------------------------------------------------------------
 
 
 class TestFindCaseInviteForActor:
-    """Test the helper that locates the CaseActor's Invite for the invitee.
-
-    In the ADR-0026 flow the CaseActor auto-delivers an Invite(Actor, Case) to
-    the suggested actor; the demo must find it so it can drive Vendor2's
-    accept-case-invite step (MV-10-004 seeds the replica only after Accept).
-    """
+    """Test the shared polling helper that locates the CaseActor Invite for the invitee."""
 
     CASE_ID = "urn:uuid:case-1"
-    INVITEE_ID = "http://vendor2:7999/api/v2/actors/v2"
+    INVITEE_ID = "http://vendor:7999/api/v2/actors/vendor"
 
     def _invite(self, target, obj):
         return {"type": "Invite", "target": target, "object": obj}
@@ -187,7 +192,7 @@ class TestFindCaseInviteForActor:
                 {"id": self.CASE_ID}, {"id": self.INVITEE_ID}
             )
         }
-        result = demo.find_case_invite_for_actor(
+        result = find_case_invite_for_actor(
             client=client,
             case_id=self.CASE_ID,
             invitee_id=self.INVITEE_ID,
@@ -196,12 +201,11 @@ class TestFindCaseInviteForActor:
         assert result == "urn:uuid:invite-1"
 
     def test_matches_invite_with_bare_string_target_and_object(self):
-        """Target/object may arrive as bare URI strings after wire round-trip."""
         client = MagicMock()
         client.get.return_value = {
             "urn:uuid:invite-2": self._invite(self.CASE_ID, self.INVITEE_ID)
         }
-        result = demo.find_case_invite_for_actor(
+        result = find_case_invite_for_actor(
             client=client,
             case_id=self.CASE_ID,
             invitee_id=self.INVITEE_ID,
@@ -217,7 +221,7 @@ class TestFindCaseInviteForActor:
             )
         }
         with pytest.raises(AssertionError, match="Timed out waiting"):
-            demo.find_case_invite_for_actor(
+            find_case_invite_for_actor(
                 client=client,
                 case_id=self.CASE_ID,
                 invitee_id=self.INVITEE_ID,
@@ -233,7 +237,7 @@ class TestFindCaseInviteForActor:
             )
         }
         with pytest.raises(AssertionError, match="Timed out waiting"):
-            demo.find_case_invite_for_actor(
+            find_case_invite_for_actor(
                 client=client,
                 case_id=self.CASE_ID,
                 invitee_id=self.INVITEE_ID,
@@ -251,7 +255,7 @@ class TestFindCaseInviteForActor:
             }
         }
         with pytest.raises(AssertionError, match="Timed out waiting"):
-            demo.find_case_invite_for_actor(
+            find_case_invite_for_actor(
                 client=client,
                 case_id=self.CASE_ID,
                 invitee_id=self.INVITEE_ID,
@@ -261,30 +265,49 @@ class TestFindCaseInviteForActor:
 
 
 # ---------------------------------------------------------------------------
-# CLI integration test
+# CLI integration tests
 # ---------------------------------------------------------------------------
 
 
-class TestFvcvExtensionCliCommand:
-    """Test that the 'fvcv-extension' CLI sub-command is registered and reachable."""
+class TestFcvCliCommand:
+    """Test that the 'fcv' CLI sub-command is registered and reachable."""
 
-    def test_fvcv_extension_command_exists(self):
+    def test_fcv_command_exists(self):
         runner = CliRunner()
-        result = runner.invoke(main, ["fvcv-extension", "--help"])
+        result = runner.invoke(main, ["fcv", "--help"])
         assert result.exit_code == 0, result.output
-        assert "Finder" in result.output or "fvcv" in result.output.lower()
 
-    def test_fvcv_extension_command_skip_health_check_option(self):
+    def test_fcv_command_skip_health_check_option(self):
         runner = CliRunner()
-        result = runner.invoke(main, ["fvcv-extension", "--help"])
+        result = runner.invoke(main, ["fcv", "--help"])
         assert "--skip-health-check" in result.output
 
-    def test_fvcv_extension_command_vendor2_url_option(self):
+    def test_fcv_command_finder_url_option(self):
         runner = CliRunner()
-        result = runner.invoke(main, ["fvcv-extension", "--help"])
-        assert "--vendor2-url" in result.output
+        result = runner.invoke(main, ["fcv", "--help"])
+        assert "--finder-url" in result.output
 
-    def test_fvcv_extension_command_coordinator_url_option(self):
+    def test_fcv_command_coordinator_url_option(self):
         runner = CliRunner()
-        result = runner.invoke(main, ["fvcv-extension", "--help"])
+        result = runner.invoke(main, ["fcv", "--help"])
         assert "--coordinator-url" in result.output
+
+    def test_fcv_command_vendor_url_option(self):
+        runner = CliRunner()
+        result = runner.invoke(main, ["fcv", "--help"])
+        assert "--vendor-url" in result.output
+
+    def test_fcv_command_finder_id_option(self):
+        runner = CliRunner()
+        result = runner.invoke(main, ["fcv", "--help"])
+        assert "--finder-id" in result.output
+
+    def test_fcv_command_coordinator_id_option(self):
+        runner = CliRunner()
+        result = runner.invoke(main, ["fcv", "--help"])
+        assert "--coordinator-id" in result.output
+
+    def test_fcv_command_vendor_id_option(self):
+        runner = CliRunner()
+        result = runner.invoke(main, ["fcv", "--help"])
+        assert "--vendor-id" in result.output

@@ -341,6 +341,81 @@ def wait_for_contiguous_ledger_coverage(
 
 
 # ---------------------------------------------------------------------------
+# Invite polling helpers
+# ---------------------------------------------------------------------------
+
+
+def _is_case_invite_for(obj_data: dict, case_id: str, invitee_id: str) -> bool:
+    """Return True if *obj_data* is an Invite(Actor, Case) for *invitee_id*/*case_id*."""
+    if obj_data.get("type") != "Invite":
+        return False
+    target_raw = obj_data.get("target")
+    target_id = (
+        target_raw.get("id") if isinstance(target_raw, dict) else target_raw
+    )
+    if target_id != case_id:
+        return False
+    inner = obj_data.get("object")
+    inner_id = inner.get("id") if isinstance(inner, dict) else inner
+    return inner_id == invitee_id
+
+
+def find_case_invite_for_actor(
+    client: DataLayerClient,
+    case_id: str,
+    invitee_id: str,
+    timeout_seconds: float = 15.0,
+    poll_interval: float = 0.5,
+) -> str:
+    """Poll until the CaseActor's Invite(Actor, Case) for *invitee_id* arrives.
+
+    In the ADR-0026 flow the CaseActor emits the Invite to the suggested actor
+    after the Case Owner accepts; the invitee must then send Accept(Invite) to
+    trigger the trust-bootstrap Announce(VulnerabilityCase) that seeds its case
+    replica (MV-10-003/MV-10-004).  This helper polls the invitee's DataLayer
+    for that Invite so the demo can drive the accept step.
+
+    Args:
+        client: DataLayerClient connected to the invitee container.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        invitee_id: Full URI of the actor being invited.
+        timeout_seconds: Maximum time to wait before raising.
+        poll_interval: Seconds between DataLayer poll attempts.
+
+    Returns:
+        The invite activity ID string.
+
+    Raises:
+        AssertionError: If no matching Invite is found within *timeout_seconds*.
+    """
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        try:
+            all_objects = client.get("/datalayer/")
+            if isinstance(all_objects, dict):
+                for raw_id, obj_data in all_objects.items():
+                    if not isinstance(obj_data, dict):
+                        continue
+                    if _is_case_invite_for(obj_data, case_id, invitee_id):
+                        obj_id = str(raw_id)
+                        logger.info(
+                            "Found Invite for actor %s on case %s: %s",
+                            invitee_id,
+                            case_id,
+                            obj_id,
+                        )
+                        return obj_id
+        except Exception:  # noqa: BLE001
+            pass
+        time.sleep(poll_interval)
+
+    raise AssertionError(
+        f"Timed out waiting for CaseActor Invite for actor {invitee_id!r} on"
+        f" case {case_id!r} to appear in DataLayer at {client.base_url}"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Participant-state polling helpers
 # ---------------------------------------------------------------------------
 
