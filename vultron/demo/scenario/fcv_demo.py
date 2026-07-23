@@ -40,6 +40,7 @@ from vultron.adapters.utils import strip_id_prefix
 from vultron.core.states.cs import CS_vfd
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Offer,
+    as_TransitiveActivity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -55,10 +56,12 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     check_server_availability,
     demo_check,
     demo_step,
+    post_to_inbox_and_wait,
     post_to_trigger,
     reset_datalayer,
     reset_demo_failures,
     setup_demo_logging,
+    verify_object_stored,
 )
 from vultron.demo.helpers.actions import (
     actor_closes_case,
@@ -75,7 +78,6 @@ from vultron.demo.helpers.milestones import (
 )
 from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.helpers.polling import (
-    find_case_invite_for_actor,
     wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
     wait_for_case_on_container,
@@ -271,7 +273,7 @@ def _phase_invite_vendor(
     logger.info("─" * 80)
 
     with demo_step("Coordinator invites Vendor with CVDRole.VENDOR"):
-        post_to_trigger(
+        invite_result = post_to_trigger(
             client=coordinator_client,
             actor_id=coordinator_in_coordinator.id_,
             behavior="invite-actor-to-case",
@@ -281,26 +283,23 @@ def _phase_invite_vendor(
                 "roles": ["vendor"],
             },
         )
-    logger.info("Vendor invite sent")
-
-    # Poll Vendor's DataLayer for the arriving Invite before driving accept.
-    with demo_check("Vendor received invite from CaseActor"):
-        invite_id = find_case_invite_for_actor(
-            client=vendor_client,
-            case_id=case.id_,
-            invitee_id=vendor.id_,
-            timeout_seconds=20.0,
-        )
-    logger.info("Vendor received invite: %s", invite_id)
+    invite = as_TransitiveActivity.model_validate(invite_result["activity"])
+    logger.info("Vendor invite created: %s", invite.id_)
 
     vendor_in_vendor = get_actor_by_id(vendor_client, vendor.id_)
+
+    with demo_step("Delivering invite to Vendor's inbox"):
+        post_to_inbox_and_wait(vendor_client, vendor_in_vendor.id_, invite)
+
+    with demo_check("Vendor invite stored in Vendor's DataLayer"):
+        verify_object_stored(vendor_client, invite.id_)
 
     with demo_step("Vendor accepts the case invitation"):
         post_to_trigger(
             client=vendor_client,
             actor_id=vendor_in_vendor.id_,
             behavior="accept-case-invite",
-            body={"invite_id": invite_id},
+            body={"invite_id": invite.id_},
         )
     logger.info("Vendor sent Accept(Invite) to CaseActor")
 
