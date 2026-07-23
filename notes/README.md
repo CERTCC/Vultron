@@ -190,10 +190,13 @@ bugs, working on transitive activity dispatch, or tracing case-state divergence.
 Design rationale, protocol flow, and implementation guidance for the
 `CaseProposal` mechanism: new `as_CaseProposal` AS2 object type, the
 `Create(CaseProposal)` / `Accept(CaseProposal)` / `Reject(CaseProposal)` flow,
-`ProposeCaseToActorNode` vs `CreateCaseActorNode` responsibilities, and the
-three received-side use cases. ADR: `docs/adr/0023-case-proposal-protocol.md`.
-**Load when**: implementing `as_CaseProposal`, `ProposeCaseToActorNode`, or
-the received-side use cases; or working on issues #810, #811, #812.
+`ProposeCaseToActorNode` vs `CreateCaseActorNode` responsibilities, the
+three received-side use cases, and the `case_actor_service_url` configuration
+invariant for `ResolveCaseActorUrlsNode` (CP-08-001 through CP-08-003).
+ADR: `docs/adr/0023-case-proposal-protocol.md`.
+**Load when**: implementing `as_CaseProposal`, `ProposeCaseToActorNode`,
+`ResolveCaseActorUrlsNode`, or the received-side use cases; or working on
+issues #810, #811, #812, #1633, #1640.
 
 **`vocabulary-registry.md`**
 Design decisions and migration path for the AS2 vocabulary registry refactor:

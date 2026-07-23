@@ -171,6 +171,24 @@ groups:
     kind: protocol
     statement: '`RejectCaseProposalReceivedUseCase` MUST update the vendor''s local state to reflect the rejection (e.g.,
       mark the pending case as rejected and surface the rejection reason if present).'
+- id: CP-07
+  title: Testing
+  specs:
+  - id: CP-07-001
+    priority: MUST
+    kind: protocol
+    statement: Unit tests MUST cover pattern matching for all three `CaseProposal` extractor patterns (`CREATE_CASE_PROPOSAL`,
+      `ACCEPT_CASE_PROPOSAL`, `REJECT_CASE_PROPOSAL`).
+  - id: CP-07-002
+    priority: MUST
+    kind: protocol
+    statement: Unit tests MUST cover `CreateCaseProposalReceivedUseCase`, `AcceptCaseProposalReceivedUseCase`, and `RejectCaseProposalReceivedUseCase`
+      execute() paths.
+  - id: CP-07-003
+    priority: MUST
+    kind: protocol
+    statement: Integration tests MUST cover the full `Create(CaseProposal)` → `Accept(CaseProposal)` + `Create(VulnerabilityCase)`
+      round-trip between a vendor actor and a case-actor service.
 - id: CP-08
   title: Case-Actor Service URL Configuration
   specs:
@@ -229,21 +247,3 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CP-08-001
-- id: CP-07
-  title: Testing
-  specs:
-  - id: CP-07-001
-    priority: MUST
-    kind: protocol
-    statement: Unit tests MUST cover pattern matching for all three `CaseProposal` extractor patterns (`CREATE_CASE_PROPOSAL`,
-      `ACCEPT_CASE_PROPOSAL`, `REJECT_CASE_PROPOSAL`).
-  - id: CP-07-002
-    priority: MUST
-    kind: protocol
-    statement: Unit tests MUST cover `CreateCaseProposalReceivedUseCase`, `AcceptCaseProposalReceivedUseCase`, and `RejectCaseProposalReceivedUseCase`
-      execute() paths.
-  - id: CP-07-003
-    priority: MUST
-    kind: protocol
-    statement: Integration tests MUST cover the full `Create(CaseProposal)` → `Accept(CaseProposal)` + `Create(VulnerabilityCase)`
-      round-trip between a vendor actor and a case-actor service.
