@@ -287,4 +287,4 @@ the bundle/singleton/Protocol pattern as the resolved design. See
 `docs/adr/0025-call-out-point-abstraction-layer.md` § "Bundle Selection
 Mechanism (2026-07-23 amendment)".
 
-Normative requirements: `specs/behavior-tree-integration.yaml` BT-21.
+Normative requirements: `specs/behavior-tree-integration.yaml` BT-23.
