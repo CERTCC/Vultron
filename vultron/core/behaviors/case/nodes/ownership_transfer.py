@@ -246,7 +246,6 @@ class AcceptCaseOwnershipTransferNode(DataLayerAction):
             return None
         return participant
 
-
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             self.logger.error("%s: DataLayer not available", self.name)

@@ -272,7 +272,6 @@ class TestAcceptCaseOwnershipTransferNode:
         ), "CM-21-004: new owner must not gain CASE_OWNER from a failed transfer"
 
 
-
 # ---------------------------------------------------------------------------
 # SeedAnnouncedCaseNode
 # ---------------------------------------------------------------------------
