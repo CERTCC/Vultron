@@ -116,7 +116,7 @@ VENDOR2_BASE_URL = os.environ.get(
 # Deterministic actor IDs from docker-compose-multi-actor.yml (D5-1-G3).
 FINDER_ACTOR_ID = "http://finder:7999/api/v2/actors/finder"
 VENDOR_ACTOR_ID = "http://vendor:7999/api/v2/actors/vendor"
-VENDOR2_ACTOR_ID = "http://vendor2:7999/api/v2/actors/vendor2"
+VENDOR2_ACTOR_ID = "http://actor5:7999/api/v2/actors/vendor2"
 
 
 def reset_containers(

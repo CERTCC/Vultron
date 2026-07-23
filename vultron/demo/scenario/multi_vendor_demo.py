@@ -123,7 +123,7 @@ FINDER_ACTOR_ID = "http://finder:7999/api/v2/actors/finder"
 VENDOR_ACTOR_ID = "http://vendor:7999/api/v2/actors/vendor"
 CASE_ACTOR_ID = "http://case-actor:7999/api/v2/actors/case-actor"
 COORDINATOR_ACTOR_ID = "http://coordinator:7999/api/v2/actors/coordinator"
-VENDOR2_ACTOR_ID = "http://vendor2:7999/api/v2/actors/vendor2"
+VENDOR2_ACTOR_ID = "http://actor5:7999/api/v2/actors/vendor2"
 
 
 def seed_containers(

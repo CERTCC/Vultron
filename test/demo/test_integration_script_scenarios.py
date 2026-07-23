@@ -17,7 +17,7 @@ When a new demo scenario is added to .github/workflows/demo-integration.yml
 (per DEMOCI-02-003), the shell script's VALID_SCENARIOS list must be updated
 in the same PR.  This test catches the drift that triggered issue #1585.
 
-Source of truth: the DEMO=<name> values in demo-integration.yml.
+Source of truth: the ``demo:`` matrix entries in demo-integration.yml.
 Checked artifact: VALID_SCENARIOS in run_multi_actor_integration_test.sh.
 """
 
@@ -35,8 +35,10 @@ _INTEGRATION_SCRIPT = (
     / "run_multi_actor_integration_test.sh"
 )
 
-# Matches lines like:   DEMO=fvcv-extension \
-_CI_DEMO_RE = re.compile(r"^\s+DEMO=([a-z][a-z0-9-]+)\s", re.MULTILINE)
+# Matches matrix include entries like:   - demo: fvcv-extension
+_CI_DEMO_RE = re.compile(
+    r"^\s+-\s+demo:\s+([a-z][a-z0-9-]+)\s*$", re.MULTILINE
+)
 
 # Matches the assignment line:  VALID_SCENARIOS="fv fvv fvcv-extension fvcv-handoff"
 _VALID_SCENARIOS_RE = re.compile(r'^VALID_SCENARIOS="([^"]+)"')
@@ -71,7 +73,7 @@ class TestIntegrationScriptScenarios:
         ), f"Integration script not found: {_INTEGRATION_SCRIPT}"
 
     def test_valid_scenarios_matches_ci(self):
-        """VALID_SCENARIOS must equal the DEMO= values in demo-integration.yml.
+        """VALID_SCENARIOS must equal the demo: matrix entries in demo-integration.yml.
 
         Failure here means a new scenario was added to CI without updating the
         script (or vice versa).  Fix both files in the same PR per DEMOCI-02-003.
