@@ -1,17 +1,17 @@
 ---
 name: pr-review
 description: >
-  Comprehensive pull request review for the Vultron project. Verifies that
-  a PR addresses its originating GitHub issue(s), conforms to Vultron specs
-  and notes, follows AGENTS.md coding rules and naming conventions, has
-  adequate test coverage, and passes linting requirements. Produces a
-  structured PASS/FAIL/IMPROVE/DEFER report, attempts fixes for FAIL and
-  IMPROVE findings, and posts results as a GitHub PR review comment. Use
-  when the user asks to review a PR, validate a PR before merge, or audit
-  a PR against project standards.
+  DEPRECATED — use /pr-ship (full pipeline) or /pr-triage (discovery only)
+  instead. Kept as canonical prose reference for the 11 inspection phases;
+  do not invoke directly for new work.
 ---
 
 # Skill: PR Review
+
+> **Deprecated.** This skill has been superseded by the `pr-triage` →
+> `pr-execute` → `pr-verify` pipeline, invoked via `/pr-ship`. The phase
+> descriptions below remain the authoritative reference for what `pr-triage`
+> inspects. Do not invoke `/pr-review` for new work.
 
 ## Finding Severity
 

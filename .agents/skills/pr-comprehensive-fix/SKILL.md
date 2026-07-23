@@ -1,14 +1,17 @@
 ---
 name: pr-comprehensive-fix
 description: >
-  Complete PR fix workflow that addresses review comments, CI failures, and test issues
-  holistically. Inventory all problems first, fix code batch, run full test suite intelligently
-  (integration tests for demo/adapter changes), and mark comments resolved individually.
-  Use when a PR has multiple problems (review feedback + CI failures) and you want to ensure
-  nothing gets missed.
+  DEPRECATED — use /pr-ship (full pipeline) or /pr-execute (fix phase only)
+  instead. Kept as reference for testing logic and comment resolution strategies
+  absorbed into pr-execute/REFERENCE.md; do not invoke directly for new work.
 ---
 
 # Comprehensive PR Fix Workflow
+
+> **Deprecated.** This skill has been superseded by `pr-execute`, which reads
+> a triage artifact rather than re-discovering problems. `TESTING-LOGIC.md`
+> and `RESOLUTION-GUIDE.md` remain authoritative references consumed by
+> `pr-execute/REFERENCE.md`. Do not invoke `/pr-comprehensive-fix` for new work.
 
 ## Purpose
 
