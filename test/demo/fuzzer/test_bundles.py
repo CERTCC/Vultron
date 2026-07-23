@@ -117,7 +117,7 @@ def test_bundle_is_frozen_dataclass(module_path, class_name):
     assert dataclasses.is_dataclass(cls), f"{class_name} must be a dataclass"
     params = dataclasses.fields(cls)
     # Frozen = attempting mutation on an instance raises FrozenInstanceError.
-    instance = cls()
+    instance = cls()  # type: ignore[call-arg]
     _assert_frozen(instance)
     # All fields must be CallOutBackendFactory-typed
     from vultron.core.behaviors.call_out_point import CallOutBackendFactory
