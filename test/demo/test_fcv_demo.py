@@ -32,6 +32,7 @@ from fastapi.testclient import TestClient
 import vultron.demo.scenario.fcv_demo as demo
 from test.demo._helpers import make_client, make_testclient_call
 from vultron.demo.cli import main
+from vultron.demo.helpers.polling import find_case_invite_for_actor
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -171,12 +172,12 @@ class TestResetContainersFcv:
 
 
 # ---------------------------------------------------------------------------
-# _find_case_invite_for_actor tests
+# find_case_invite_for_actor tests
 # ---------------------------------------------------------------------------
 
 
 class TestFindCaseInviteForActor:
-    """Test the helper that locates the CaseActor Invite for the invitee."""
+    """Test the shared polling helper that locates the CaseActor Invite for the invitee."""
 
     CASE_ID = "urn:uuid:case-1"
     INVITEE_ID = "http://vendor:7999/api/v2/actors/vendor"
@@ -191,7 +192,7 @@ class TestFindCaseInviteForActor:
                 {"id": self.CASE_ID}, {"id": self.INVITEE_ID}
             )
         }
-        result = demo._find_case_invite_for_actor(
+        result = find_case_invite_for_actor(
             client=client,
             case_id=self.CASE_ID,
             invitee_id=self.INVITEE_ID,
@@ -204,7 +205,7 @@ class TestFindCaseInviteForActor:
         client.get.return_value = {
             "urn:uuid:invite-2": self._invite(self.CASE_ID, self.INVITEE_ID)
         }
-        result = demo._find_case_invite_for_actor(
+        result = find_case_invite_for_actor(
             client=client,
             case_id=self.CASE_ID,
             invitee_id=self.INVITEE_ID,
@@ -220,7 +221,7 @@ class TestFindCaseInviteForActor:
             )
         }
         with pytest.raises(AssertionError, match="Timed out waiting"):
-            demo._find_case_invite_for_actor(
+            find_case_invite_for_actor(
                 client=client,
                 case_id=self.CASE_ID,
                 invitee_id=self.INVITEE_ID,
@@ -236,7 +237,7 @@ class TestFindCaseInviteForActor:
             )
         }
         with pytest.raises(AssertionError, match="Timed out waiting"):
-            demo._find_case_invite_for_actor(
+            find_case_invite_for_actor(
                 client=client,
                 case_id=self.CASE_ID,
                 invitee_id=self.INVITEE_ID,
@@ -254,7 +255,7 @@ class TestFindCaseInviteForActor:
             }
         }
         with pytest.raises(AssertionError, match="Timed out waiting"):
-            demo._find_case_invite_for_actor(
+            find_case_invite_for_actor(
                 client=client,
                 case_id=self.CASE_ID,
                 invitee_id=self.INVITEE_ID,
