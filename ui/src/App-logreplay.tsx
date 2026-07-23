@@ -10,24 +10,26 @@ import {
   type CaseLedgerEntry,
 } from './utils/caseLedgerParser'
 import { buildTimelineFromCaseLedger } from './utils/caseLedgerMapper'
-// The committed sample case ledger, imported raw from the repo root (Vite serves
-// it via `server.fs.allow`, the same mechanism protocol.ts uses for
-// protocol_states.json — see vite.config.ts / ui/CLAUDE.md §9). A plain
-// fetch('/devlogs/…') would resolve against ui/ as the web root and 404, so we
-// import the text at build time instead. All three folders hold the byte-identical
-// shared ledger; dedup-by-entryHash (in normalizeLedger) makes loading all safe,
-// so importing one copy is sufficient and avoids redundant bundling.
-import sampleLedgerRaw from '../../devlogs/two-actor/case-actor/urn_uuid_b9e6d36c-8f90-46bc-8bf7-a36446738f39-case-ledger.jsonl?raw'
+// Committed sample ledgers the "Load …" buttons import at build time via `?raw`.
+// These live under `ui/src/sample-logs/` — COMMITTED fixtures that ship with the
+// app — deliberately separate from the repo-root `devlogs/`, which is a gitignored
+// runtime-output dir the container demo writes to (see ui/CLAUDE.md §7). Keeping
+// them in-tree means a fresh clone builds without needing devlogs/, and no reliance
+// on Vite's `server.fs.allow` reaching outside ui/.
+//
+// two-actor: the happy-path sample (one shared ledger across finder/vendor/case-
+// actor; one copy suffices).
+import sampleLedgerRaw from './sample-logs/two-actor/urn_uuid_b9e6d36c-8f90-46bc-8bf7-a36446738f39-case-ledger.jsonl?raw'
 // Hand-authored fixture with two deliberate protocol violations (RM re-validate,
 // EM re-terminate) to exercise the red ⚠️ violation flagging. See
-// devlogs/synthetic/README.md for the entry-by-entry expected result.
-import violationLedgerRaw from '../../devlogs/synthetic/violations-case-ledger.jsonl?raw'
+// sample-logs/synthetic/README.md for the entry-by-entry expected result.
+import violationLedgerRaw from './sample-logs/synthetic/violations-case-ledger.jsonl?raw'
 // Three-party container demo: finder + two vendors (vendor invites vendor2). These
 // logs are NOT verified for protocol validity — a good stress test for the
 // violation flagging. The case-actor copy is the coordinator's authoritative view
 // (all four folder copies carry the same 19 entries; they differ only per
 // perspective, so we load one copy rather than relying on entryHash dedup).
-import fvvLedgerRaw from '../../devlogs/fvv/case-actor/urn_uuid_4e4ee04a-6503-495d-ba34-50bcce4ebc18-case-ledger.jsonl?raw'
+import fvvLedgerRaw from './sample-logs/fvv/urn_uuid_4e4ee04a-6503-495d-ba34-50bcce4ebc18-case-ledger.jsonl?raw'
 
 type NodePalette = { decision: string; decisionHover: string; consequence: string; consequenceHover: string }
 
@@ -275,7 +277,7 @@ function AppLogReplay() {
             ▶ Load Sample Case
           </button>
           <p style={{ fontSize: '0.8rem', color: '#888', margin: '0 0 0.5rem' }}>
-            Loads <code style={{ background: '#fff', padding: '0.125rem 0.375rem', borderRadius: '3px' }}>devlogs/two-actor/</code> — or upload your own below
+            Loads the committed <code style={{ background: '#fff', padding: '0.125rem 0.375rem', borderRadius: '3px' }}>two-actor</code> sample — or upload your own below
           </p>
 
           {/* Secondary action: load the synthetic fixture that deliberately
@@ -299,7 +301,7 @@ function AppLogReplay() {
             ⚠️ Load Violation Sample
           </button>
           <p style={{ fontSize: '0.8rem', color: '#888', margin: '0 0 0.5rem' }}>
-            Loads <code style={{ background: '#fff', padding: '0.125rem 0.375rem', borderRadius: '3px' }}>devlogs/synthetic/</code> — two illegal transitions flagged in red
+            Loads the committed <code style={{ background: '#fff', padding: '0.125rem 0.375rem', borderRadius: '3px' }}>synthetic</code> fixture — two illegal transitions flagged in red
           </p>
 
           {/* Three-party case: finder + two vendors. Unverified logs — any
@@ -323,7 +325,7 @@ function AppLogReplay() {
             ▶ Load FVV Case (finder + 2 vendors)
           </button>
           <p style={{ fontSize: '0.8rem', color: '#888', margin: '0 0 0.5rem' }}>
-            Loads <code style={{ background: '#fff', padding: '0.125rem 0.375rem', borderRadius: '3px' }}>devlogs/fvv/</code> — unverified 3-party case; violations (if any) flagged in red
+            Loads the committed <code style={{ background: '#fff', padding: '0.125rem 0.375rem', borderRadius: '3px' }}>fvv</code> sample — unverified 3-party case; violations (if any) flagged in red
           </p>
 
           <div style={{

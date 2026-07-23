@@ -221,10 +221,10 @@ the real logs — it's the §9 deferral idea applied to replay.
   log's snapshot so replay continues (the protocol is the *validating function*; see
   §6). Emits the standard decision/consequence + `causedBy` + same-X grammar (§2).
 - **`App-logreplay.tsx`** — three "Load …" buttons import committed ledgers via `?raw`
-  (repo-root files served through `server.fs.allow`, the same trick `protocol.ts`
-  uses for `protocol_states.json`): **Load Sample Case** (`devlogs/two-actor/`),
-  **Load Violation Sample** (`devlogs/synthetic/`, hand-authored illegal transitions),
-  and **Load FVV Case** (`devlogs/fvv/`, finder + 2 vendors). Manual `.jsonl` upload
+  from **`ui/src/sample-logs/`** (in-tree, so a fresh clone builds; see §7):
+  **Load Sample Case** (`sample-logs/two-actor/`), **Load Violation Sample**
+  (`sample-logs/synthetic/`, hand-authored illegal transitions), and **Load FVV
+  Case** (`sample-logs/fvv/`, finder + 2 vendors). Manual `.jsonl` upload
   still works. Violation nodes render with a red outline + ⚠️; hovering any node shows
   a tooltip (label + detail bullets, plus the `violationReason` for flagged nodes).
   Node/arrow colors resolve per participant via `nodeColorsFor()` (any `vendor-N` →
@@ -325,17 +325,22 @@ view) rather than relying on `entryHash` dedup across differing copies.
 
 - **`node` and `python3` are NOT available** in this dev environment. Do not try
   to run JSONL through node/python scripts.
-- **`jq`** is available (`/usr/bin/jq`) — use it to inspect `*.jsonl` logs.
 - `node_modules/.bin` tools (eslint, tsc, vite) work via `npm run *`.
-- `devlogs/` holds the committed sample ledgers each Log Replay button loads:
-  - `two-actor/{finder,vendor,case-actor}/` — the happy-path sample; all three
-    copies byte-identical (one shared ledger).
-  - `synthetic/violations-case-ledger.jsonl` — hand-authored fixture with two
-    deliberate illegal transitions (see `synthetic/README.md`).
-  - `fvv/{finder,vendor,vendor2,case-actor}/` — finder + 2 vendors; the four
-    copies DIFFER per perspective but carry the same 19 entries (see §6). Traced
-    clean (no violations) despite being unverified when added.
-  Each button imports the **case-actor** copy via `?raw`.
+- **Two different log locations — don't confuse them:**
+  - **`ui/src/sample-logs/`** — the COMMITTED sample ledgers the Log Replay
+    "Load …" buttons import via `?raw`. In-tree (tracked in git), so a fresh clone
+    builds without needing the container demo. Contains `two-actor/` (happy path),
+    `synthetic/` (hand-authored violation + inferred-multistep fixtures + README),
+    and `fvv/` (finder + 2 vendors). Each button imports the **case-actor** copy.
+  - **`devlogs/` (repo root)** — GITIGNORED runtime output. The container
+    multi-actor demo bind-mounts and writes fresh `*-case-ledger.jsonl` here on
+    every run (`DEVLOGS_DIR`, docker-compose-multi-actor.yml). NOT tracked; a fresh
+    clone has none. It was the original home of the samples until 2026-07, when the
+    committed fixtures were moved into `ui/src/sample-logs/` so the `ui/` build no
+    longer depends on a gitignored dir (a colleague hit "no Logs to follow" on a
+    clean checkout). For **manual upload** testing you can still point the uploader
+    at your own freshly-generated `devlogs/…` files.
+- **`jq`** is available (`/usr/bin/jq`) — use it to inspect `*.jsonl` logs in either location.
 
 ---
 
