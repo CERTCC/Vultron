@@ -187,7 +187,7 @@ class TestFindCaseInviteForActor:
                 {"id": self.CASE_ID}, {"id": self.INVITEE_ID}
             )
         }
-        result = demo._find_case_invite_for_actor(
+        result = demo.find_case_invite_for_actor(
             client=client,
             case_id=self.CASE_ID,
             invitee_id=self.INVITEE_ID,
@@ -201,7 +201,7 @@ class TestFindCaseInviteForActor:
         client.get.return_value = {
             "urn:uuid:invite-2": self._invite(self.CASE_ID, self.INVITEE_ID)
         }
-        result = demo._find_case_invite_for_actor(
+        result = demo.find_case_invite_for_actor(
             client=client,
             case_id=self.CASE_ID,
             invitee_id=self.INVITEE_ID,
@@ -217,7 +217,7 @@ class TestFindCaseInviteForActor:
             )
         }
         with pytest.raises(AssertionError, match="Timed out waiting"):
-            demo._find_case_invite_for_actor(
+            demo.find_case_invite_for_actor(
                 client=client,
                 case_id=self.CASE_ID,
                 invitee_id=self.INVITEE_ID,
@@ -233,7 +233,7 @@ class TestFindCaseInviteForActor:
             )
         }
         with pytest.raises(AssertionError, match="Timed out waiting"):
-            demo._find_case_invite_for_actor(
+            demo.find_case_invite_for_actor(
                 client=client,
                 case_id=self.CASE_ID,
                 invitee_id=self.INVITEE_ID,
@@ -251,7 +251,7 @@ class TestFindCaseInviteForActor:
             }
         }
         with pytest.raises(AssertionError, match="Timed out waiting"):
-            demo._find_case_invite_for_actor(
+            demo.find_case_invite_for_actor(
                 client=client,
                 case_id=self.CASE_ID,
                 invitee_id=self.INVITEE_ID,
