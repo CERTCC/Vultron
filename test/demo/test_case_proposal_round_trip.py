@@ -156,6 +156,12 @@ def two_app_setup(monkeypatch):
     from vultron.config import get_config, reload_config
 
     monkeypatch.setenv("VULTRON_SERVER__BASE_URL", f"{_VENDOR_BASE}/api/v2")
+    # ResolveCaseActorUrlsNode reads case_actor_service_url from ActorConfig
+    # (CP-08-002); in this single-vendor test setup the vendor IS the case-actor
+    # service, so we point it at the same base URL.
+    monkeypatch.setenv(
+        "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL", f"{_VENDOR_BASE}/api/v2"
+    )
     reload_config()
 
     router = _TestASGIRouter()

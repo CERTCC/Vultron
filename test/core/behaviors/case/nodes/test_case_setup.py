@@ -20,6 +20,7 @@ Covers:
 - UpdateActorOutbox re-export via case.nodes and report.nodes (P360-FIX-1)
 - RecordCaseCreationEvents blackboard key contract (P360-FIX-3)
 - CreateCaseActorNode blackboard variant
+- ResolveCaseActorUrlsNode: reads case_actor_service_url from ActorConfig (CP-08-002)
 
 Per specs/behavior-tree-node-design.yaml BTND-02-001, BTND-03-001, BTND-04-001
 and GitHub issue #401.
@@ -57,9 +58,26 @@ from vultron.core.models.vultron_types import (
 )
 from test.core.behaviors.bt_harness import BTTestScenario
 
+# The URL used by tests as the CaseActor service base URL (CP-08-001).
+_CASE_ACTOR_SERVICE_URL = "http://case-actor:7999/api/v2"
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def configure_case_actor_url(monkeypatch):
+    """Set VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL for tests that exercise
+    ResolveCaseActorUrlsNode so the node finds a configured URL."""
+    monkeypatch.setenv(
+        "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL", _CASE_ACTOR_SERVICE_URL
+    )
+    from vultron.config.app import reload_config
+
+    reload_config()
+    yield
+    reload_config()
 
 
 @pytest.fixture
@@ -379,16 +397,14 @@ class TestCreateCaseActorNodeBlackboard:
             case_id=case_obj.id_,
         )
 
-        # Case Actor participant ID uses flat HTTP URL, not URN-based path.
+        # Participant ID is derived from case_actor_service_url (CP-08-002).
         case_id = case_obj.id_
         if case_id.startswith("urn:uuid:"):
             case_slug = case_id[len("urn:uuid:") :]
         else:
             case_slug = hashlib.sha256(case_id.encode()).hexdigest()[:12]
 
-        from vultron.config import get_config
-
-        base_url = get_config().server.base_url.rstrip("/")
+        base_url = _CASE_ACTOR_SERVICE_URL.rstrip("/")
         expected_participant_id = (
             f"{base_url}/actors/case-actor-{case_slug}/participant"
         )
@@ -408,6 +424,203 @@ class TestCreateCaseActorNodeBlackboard:
             # No case_id supplied
         )
         assert result.status == py_trees.common.Status.FAILURE
+
+
+# ---------------------------------------------------------------------------
+# ResolveCaseActorUrlsNode — CP-08-002/003 unit tests (AC-7)
+# ---------------------------------------------------------------------------
+
+
+class TestResolveCaseActorUrlsNode:
+    """ResolveCaseActorUrlsNode reads case_actor_service_url from ActorConfig."""
+
+    def test_succeeds_with_configured_url(
+        self,
+        bt_scenario: BTTestScenario,
+        actor_id: str,
+        case_obj: VultronCase,
+    ) -> None:
+        """Returns SUCCESS and writes case_actor_id when URL is configured."""
+        result = bt_scenario.run(
+            ResolveCaseActorUrlsNode(),
+            actor_id=actor_id,
+            case_id=case_obj.id_,
+        )
+        assert result.status == py_trees.common.Status.SUCCESS
+
+        stored_id = py_trees.blackboard.Blackboard.storage.get(
+            "/case_actor_id"
+        )
+        assert stored_id is not None
+        assert isinstance(stored_id, str)
+        assert stored_id.startswith(_CASE_ACTOR_SERVICE_URL)
+
+    def test_actor_id_uses_case_actor_service_url_not_server_base_url(
+        self,
+        bt_scenario: BTTestScenario,
+        actor_id: str,
+        case_obj: VultronCase,
+        monkeypatch,
+    ) -> None:
+        """case_actor_id is derived from case_actor_service_url, not server.base_url."""
+        from vultron.config.app import reload_config
+
+        monkeypatch.setenv(
+            "VULTRON_SERVER__BASE_URL", "http://vendor:7999/api/v2"
+        )
+        reload_config()
+
+        result = bt_scenario.run(
+            ResolveCaseActorUrlsNode(),
+            actor_id=actor_id,
+            case_id=case_obj.id_,
+        )
+        assert result.status == py_trees.common.Status.SUCCESS
+
+        stored_id = py_trees.blackboard.Blackboard.storage.get(
+            "/case_actor_id"
+        )
+        assert stored_id is not None
+        assert stored_id.startswith(_CASE_ACTOR_SERVICE_URL)
+        assert "vendor" not in stored_id
+
+    def test_fails_when_case_actor_service_url_is_none(
+        self,
+        bt_scenario: BTTestScenario,
+        actor_id: str,
+        case_obj: VultronCase,
+        monkeypatch,
+    ) -> None:
+        """Returns FAILURE with a log message when case_actor_service_url is None."""
+        from vultron.config.app import reload_config
+
+        monkeypatch.delenv(
+            "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL", raising=False
+        )
+        reload_config()
+
+        result = bt_scenario.run(
+            ResolveCaseActorUrlsNode(),
+            actor_id=actor_id,
+            case_id=case_obj.id_,
+        )
+        assert result.status == py_trees.common.Status.FAILURE
+
+    def test_fails_without_case_id(
+        self,
+        bt_scenario: BTTestScenario,
+        actor_id: str,
+    ) -> None:
+        """Returns FAILURE when case_id is absent from blackboard."""
+        result = bt_scenario.run(
+            ResolveCaseActorUrlsNode(),
+            actor_id=actor_id,
+        )
+        assert result.status == py_trees.common.Status.FAILURE
+
+    def test_server_base_url_not_registered_in_setup(
+        self,
+        actor_id: str,
+        case_obj: VultronCase,
+    ) -> None:
+        """setup() must NOT register server_base_url as a blackboard key."""
+        import py_trees
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.behaviors.bridge import BTBridge
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        bridge = BTBridge(datalayer=dl)
+        node = ResolveCaseActorUrlsNode()
+        bt = bridge.setup_tree(node, actor_id=actor_id, case_id=case_obj.id_)
+        bt.setup()
+
+        # server_base_url must not be registered after setup.
+        all_keys = {
+            k.lstrip("/") for k in py_trees.blackboard.Blackboard.storage
+        }
+        assert "server_base_url" not in all_keys
+
+
+# ---------------------------------------------------------------------------
+# ActorConfig — case_actor_service_url field tests (AC-7a)
+# ---------------------------------------------------------------------------
+
+
+class TestActorConfigCaseActorServiceUrl:
+    """ActorConfig.case_actor_service_url field validation (CP-08-001)."""
+
+    def test_defaults_to_none(self) -> None:
+        """case_actor_service_url defaults to None when not configured."""
+        from vultron.config.actor import ActorConfig
+
+        cfg = ActorConfig()
+        assert cfg.case_actor_service_url is None
+
+    def test_accepts_valid_http_url(self) -> None:
+        """case_actor_service_url accepts a valid HttpUrl string via model_validate."""
+        from vultron.config.actor import ActorConfig
+
+        cfg = ActorConfig.model_validate(
+            {"case_actor_service_url": "http://case-actor:7999/api/v2"}
+        )
+        assert cfg.case_actor_service_url is not None
+        assert "case-actor" in str(cfg.case_actor_service_url)
+
+    def test_roundtrip_through_env_var(self, monkeypatch) -> None:
+        """VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL sets case_actor_service_url."""
+        from vultron.config.app import reload_config
+
+        monkeypatch.setenv(
+            "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL",
+            "http://case-actor:7999/api/v2",
+        )
+        reload_config()
+        from vultron.config import get_config
+
+        cfg = get_config().actor
+        assert cfg.case_actor_service_url is not None
+        assert "case-actor" in str(cfg.case_actor_service_url)
+        reload_config()
+
+    def test_construction_succeeds_without_field(self) -> None:
+        """ActorConfig construction succeeds when case_actor_service_url absent."""
+        from vultron.config.actor import ActorConfig
+
+        cfg = ActorConfig(auto_create_case=True)
+        assert cfg.case_actor_service_url is None
+
+
+# ---------------------------------------------------------------------------
+# ResolveCaseActorUrlsNode — trailing-slash normalisation (AC-2)
+# ---------------------------------------------------------------------------
+
+
+class TestResolveCaseActorUrlsNodeTrailingSlash:
+    """case_actor_service_url with a trailing slash must not produce double-slash IDs."""
+
+    CASE_ID = "urn:uuid:trailing-slash-test"
+
+    def test_trailing_slash_in_url_does_not_double_slash_actor_id(
+        self, bt_scenario: BTTestScenario, monkeypatch
+    ) -> None:
+        from vultron.config.app import reload_config
+
+        monkeypatch.setenv(
+            "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL",
+            "http://case-actor:7999/api/v2/",  # trailing slash
+        )
+        reload_config()
+        result = bt_scenario.run(
+            ResolveCaseActorUrlsNode(case_id=self.CASE_ID),
+        )
+        bt_scenario.assert_success(result)
+        case_actor_id = py_trees.blackboard.Blackboard.storage.get(
+            "/case_actor_id"
+        )
+        assert case_actor_id is not None
+        assert (
+            "//" not in case_actor_id.split("://", 1)[-1]
+        ), f"Double-slash in actor ID: {case_actor_id!r}"
 
 
 # ---------------------------------------------------------------------------
