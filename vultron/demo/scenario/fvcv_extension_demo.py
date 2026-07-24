@@ -777,6 +777,15 @@ def _phase_publication(
         actor=coordinator_in_coordinator,
         case_id=case.id_,
     )
+
+    with demo_check(
+        "Embargo terminated (EM.EXITED) propagated to Finder before notify-published"
+    ):
+        wait_for_case_em_terminated(
+            client=finder_client,
+            case_id=case.id_,
+        )
+
     actor_notifies_published(
         client=finder_client,
         actor=finder_in_finder,

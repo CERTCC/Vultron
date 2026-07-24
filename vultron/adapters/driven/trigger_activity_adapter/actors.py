@@ -480,12 +480,16 @@ class _ActorsMixin:
         vendor_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> str:
+    ) -> tuple[str, dict[str, Any]]:
         """Create and persist an ``Accept(_OfferCaseManagerRoleActivity)``.
 
         Ephemerally reconstructs the original Offer from ``offer_id``,
         ``case_id``, ``participant_id``, and ``vendor_id`` so that
         ``Accept.object_`` is a typed ``_OfferCaseManagerRoleActivity``.
+
+        Returns ``(activity_id, activity_dict)`` where ``activity_dict`` is
+        the full inline serialization captured before the activity is stored,
+        suitable for use as a canonical payload snapshot.
         """
         case = _to_wire(self._dl.read(case_id), as_VulnerabilityCase)
         participant = _to_wire(
@@ -500,6 +504,7 @@ class _ActorsMixin:
         activity = accept_case_manager_role_activity(
             offer=offer, actor=actor, to=to
         )
+        activity_dict = activity.model_dump(**_DUMP_KWARGS)
         try:
             self._dl.create(activity)
         except ValueError:
@@ -508,7 +513,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_
+        return activity.id_, activity_dict
 
     def reject_case_manager_role(
         self,

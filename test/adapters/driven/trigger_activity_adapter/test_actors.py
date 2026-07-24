@@ -315,7 +315,7 @@ class TestAcceptCaseManagerRole:
             actor=_ACTOR,
         )
 
-        activity_id = adapter.accept_case_manager_role(
+        activity_id, _ = adapter.accept_case_manager_role(
             offer_id=offer_id,
             case_id=case.id_,
             participant_id=participant.id_,
@@ -335,7 +335,7 @@ class TestAcceptCaseManagerRole:
             actor=_ACTOR,
         )
 
-        activity_id = adapter.accept_case_manager_role(
+        activity_id, _ = adapter.accept_case_manager_role(
             offer_id=offer_id,
             case_id=case.id_,
             participant_id=participant.id_,
