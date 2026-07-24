@@ -1,0 +1,37 @@
+# Spec registry linter — runs when specs/ changes.
+#
+# Validates ECA format enforcement (MS-13-004) and all other spec-lint hard
+# errors. Kept separate from python-app.yml so spec-only PRs don't trigger
+# the full test/lint suite unnecessarily, and so spec changes always get an
+# independent status check. See CONCERN-1650.
+
+name: Spec Check
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "specs/**"
+      - "vultron/metadata/specs/**"
+      - ".github/workflows/spec-check.yml"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "specs/**"
+      - "vultron/metadata/specs/**"
+      - ".github/workflows/spec-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  spec-lint:
+    name: Spec Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Python and uv
+        uses: ./.github/actions/setup-python-uv
+      - name: Run spec-lint
+        run: PYTHONPATH= uv run spec-lint specs/

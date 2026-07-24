@@ -351,6 +351,13 @@ items describing ordered protocol exchanges use `BehavioralSpec`; items expressi
 terminal-state requirements or infrastructure constraints (`MUST reach final state X`,
 `MUST add a CI job`) remain `StatementSpec`.
 
+Since MS-13-004 (CONCERN-1650), `spec-lint` hard-errors when a `scenario_start`
+group contains no `BehavioralSpec` item with non-empty `steps`. The
+`.github/workflows/spec-check.yml` CI workflow enforces this on every `specs/**`
+change. New scenario spec authors should ensure at least one `BehavioralSpec`
+item with a non-empty `steps` list is present, or the spec-lint CI check will
+fail.
+
 ### Protocol behavioral groups
 
 Protocol behavioral groups (RMB, EMB, CSB) always use `BehavioralSpec`. See the
