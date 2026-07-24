@@ -71,6 +71,8 @@ _CASE_AUTHORED_SIGNATURES: frozenset[tuple[str, str]] = frozenset(
         ("Offer", "VulnerabilityCase"),
         # Leave(VulnerabilityCase): case-actor's AutoCloseBranchNode when all reach RM.CLOSED.
         ("Leave", "VulnerabilityCase"),
+        # Accept(Offer): case-actor accepts CaseManagerRole delegation offer.
+        ("Accept", "Offer"),
     }
 )
 _INLINE_OBJECT_KEYS: frozenset[str] = frozenset(

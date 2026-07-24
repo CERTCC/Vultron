@@ -434,3 +434,152 @@ class TestEmitRejectCaseManagerRoleNode:
             actor=self._CASE_ACTOR_ID,
             to=[self._VENDOR_ID],
         )
+
+
+# ---------------------------------------------------------------------------
+# TestAutoAcceptCaseManagerRoleNode
+# ---------------------------------------------------------------------------
+
+
+class TestAutoAcceptCaseManagerRoleNode:
+    """AutoAcceptCaseManagerRoleNode commits ledger entry before enqueuing."""
+
+    _OFFER_ID = "https://example.org/activities/offer-cm-002"
+    _CASE_ID = "https://example.org/cases/case-cm-002"
+    _PARTICIPANT_ID = (
+        "https://example.org/participants/urn:uuid:case-actor-cm-002"
+    )
+    _VENDOR_ID = "https://example.org/actors/vendor-cm2"
+    _CASE_ACTOR_ID = "https://example.org/actors/case-actor-cm2"
+
+    def _make_node(self) -> AutoAcceptCaseManagerRoleNode:
+        return AutoAcceptCaseManagerRoleNode(
+            offer_id=self._OFFER_ID,
+            case_id=self._CASE_ID,
+            participant_id=self._PARTICIPANT_ID,
+            vendor_id=self._VENDOR_ID,
+        )
+
+    def _seed_dl(self, bt_scenario: BTTestScenario) -> None:
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        # attributed_to triggers genesis_hash computation (CLP-08-001).
+        case = as_VulnerabilityCase(
+            id_=self._CASE_ID,
+            name="CM-TEST-2",
+            attributed_to=self._VENDOR_ID,
+        )
+        participant = as_CaseParticipant(
+            id_=self._PARTICIPANT_ID,
+            attributed_to=self._CASE_ACTOR_ID,
+            context=self._CASE_ID,
+        )
+        bt_scenario.dl.create(case)
+        bt_scenario.dl.create(participant)
+
+    def test_succeeds_and_records_outbox_item(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """Returns SUCCESS and records accept activity ID in actor's outbox."""
+        self._seed_dl(bt_scenario)
+
+        result = bt_scenario.run(
+            self._make_node(),
+            actor_id=self._CASE_ACTOR_ID,
+        )
+        bt_scenario.assert_success(result)
+        outbox = bt_scenario.dl.outbox_list_for_actor(self._CASE_ACTOR_ID)
+        assert (
+            len(outbox) >= 1
+        ), "Expected at least one outbox item after auto-accept"
+
+    def test_ledger_entry_created_with_correct_event_type(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """A CaseLedgerEntry with event_type 'accept_case_manager_role' is committed."""
+        from vultron.core.models.case_ledger_entry import (
+            VultronCaseLedgerEntry,
+        )
+
+        self._seed_dl(bt_scenario)
+
+        bt_scenario.run(
+            self._make_node(),
+            actor_id=self._CASE_ACTOR_ID,
+        )
+
+        entries = bt_scenario.dl.list_objects("CaseLedgerEntry")
+        accept_entries = [
+            e
+            for e in entries
+            if isinstance(e, VultronCaseLedgerEntry)
+            and e.event_type == "accept_case_manager_role"
+        ]
+        assert len(accept_entries) == 1, (
+            "Expected exactly one 'accept_case_manager_role' ledger entry, "
+            f"found {len(accept_entries)}"
+        )
+
+    def test_ledger_entry_is_recorded_not_rejected(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """The committed ledger entry has disposition 'recorded' (canonical)."""
+        from vultron.core.models.case_ledger_entry import (
+            VultronCaseLedgerEntry,
+        )
+
+        self._seed_dl(bt_scenario)
+
+        bt_scenario.run(
+            self._make_node(),
+            actor_id=self._CASE_ACTOR_ID,
+        )
+
+        entries = bt_scenario.dl.list_objects("CaseLedgerEntry")
+        accept_entries = [
+            e
+            for e in entries
+            if isinstance(e, VultronCaseLedgerEntry)
+            and e.event_type == "accept_case_manager_role"
+        ]
+        assert (
+            accept_entries
+        ), "Expected at least one 'accept_case_manager_role' ledger entry"
+        assert accept_entries[0].disposition == "recorded"
+
+    def test_accept_activity_persisted_to_datalayer(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """The Accept activity is stored in the DataLayer after SUCCESS."""
+        self._seed_dl(bt_scenario)
+
+        bt_scenario.run(
+            self._make_node(),
+            actor_id=self._CASE_ACTOR_ID,
+        )
+
+        stored_accepts = bt_scenario.dl.list_objects("Accept")
+        assert len(stored_accepts) >= 1
+
+    def test_fails_when_trigger_factory_is_none(self) -> None:
+        """Returns FAILURE when trigger_activity_factory is not available."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.behaviors.bridge import BTBridge
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        bridge = BTBridge(
+            datalayer=dl,
+            is_leader=lambda: True,
+            trigger_activity=None,
+        )
+        py_trees.blackboard.Blackboard.storage.clear()
+        result = bridge.execute_with_setup(
+            tree=self._make_node(),
+            actor_id=self._CASE_ACTOR_ID,
+        )
+        assert result.status == py_trees.common.Status.FAILURE
