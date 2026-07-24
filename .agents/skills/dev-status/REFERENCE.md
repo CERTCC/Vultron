@@ -166,9 +166,9 @@ gh pr list --repo CERTCC/Vultron \
   --jq '.[] | "\(.number): \(.title) [review=\(.reviewDecision // "NONE")] [ci=\(.statusCheckRollup // [] | map(.conclusion) | unique | join(","))]"'
 ```
 
-Use `pr-comprehensive-fix` when any PR has failing checks or pending review
+Use `pr-ship` when any PR has failing checks or pending review
 comments. When all PRs are green and approved, the count is still shown but
-the row skill column should list `pr-comprehensive-fix` (it handles review
+the row skill column should list `pr-ship` (it handles review
 preparation too).
 
 ## Query: Incoming Learnings File Count
@@ -191,7 +191,7 @@ empty (only `.gitkeep` present or directory missing).
 | Ideas (open)          |  {n}  | plan-issue           |
 | Bugs (open)           |  {n}  | bugfix               |
 | Concerns (open)       |  {n}  | process-concerns     |
-| Open PRs              |  {n}  | pr-comprehensive-fix |
+| Open PRs              |  {n}  | pr-ship |
 | Triage (Someday)      |  {n}  | review-priorities    |
 | Ready to build        |  {n}  | build                |
 

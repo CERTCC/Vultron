@@ -49,9 +49,9 @@ comment.
 2. Read `.claude/pr-{number}-execute.json`; validate `schema_version == "1.0"`.
 3. Read `.claude/pr-{number}-triage.json` if present.
 4. **Integrity check**: verify `len(execute.results) == len(triage.findings)`.
-   If counts diverge, flag as `INCOMPLETE-EXECUTE` in the verdict comment —
-   execute was likely interrupted. Do not proceed to Phase 3; skip to Phase 5
-   with an overall verdict of `GAPS-FOUND`.
+   If counts diverge, flag `INCOMPLETE-EXECUTE` and **continue to Phase 2**
+   (CI status must still be checked). After Phase 2, skip Phases 3–4 and go
+   directly to Phase 5 with an overall verdict of `GAPS-FOUND`.
 
 ### Phase 2 — CI and Test Suite Check
 
@@ -59,8 +59,9 @@ comment.
 2. If `execute.integration_tests_run == true`: confirm the integration test CI
    job is green, not just unit tests.
 3. If CI is still failing after execute's pushes: mark all findings as
-   `UNVERIFIED-CI-FAILING` — the code changes may be correct but CI must be
-   green before the PR can be considered ready.
+   `UNVERIFIED-CI-FAILING` and set overall verdict to `GAPS-FOUND` — the code
+   changes may be correct but CI must be green before the PR can be considered
+   ready.
 4. If CI is pending: note it; proceed with spot-checks but mark overall verdict
    as `PENDING-CI`.
 
@@ -98,11 +99,11 @@ For findings with `outcome: filed`, `skipped`, or `deferred-ask`: assign
 
 1. Build the per-finding verdict table.
 2. Determine overall verdict:
-   - `READY-TO-MERGE` — all FAIL findings `CONFIRMED`, CI green or pending,
-     no `INCOMPLETE-EXECUTE`
+   - `READY-TO-MERGE` — all FAIL findings `CONFIRMED`, CI green,
+     no `INCOMPLETE-EXECUTE`, no `UNVERIFIED-CI-FAILING`
    - `GAPS-FOUND` — any FAIL finding is `UNRESOLVED` or `MISSING-COMMIT`, or
-     `INCOMPLETE-EXECUTE` was flagged
-   - `PENDING-CI` — all findings confirmed but CI not yet green
+     `INCOMPLETE-EXECUTE` was flagged, or any finding is `UNVERIFIED-CI-FAILING`
+   - `PENDING-CI` — all findings confirmed but CI not yet complete (pending)
 3. If `deferred-ask` items exist: list them explicitly for user decision.
 4. Post comment: `gh pr review <number> --comment --body "<verdict>"`
 

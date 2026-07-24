@@ -51,6 +51,9 @@ Run /pr-triage first (or /pr-ship to run the full pipeline).
 For each finding where `decision_outcome` is `fix-now` or `fix-now-expand-scope`
 and `severity` is `FAIL` or `IMPROVE`:
 
+> Note: findings with `severity: NEW-ISSUE` are handled exclusively in Phase 5,
+> regardless of their `decision_outcome`. Do not process them here.
+
 1. Apply the fix (edit files as needed).
 2. Do not commit yet — batch all fixes, then commit once at the end of this phase.
 3. After all fixes are applied: `uv run black <changed files>` then commit:
@@ -64,6 +67,7 @@ and `severity` is `FAIL` or `IMPROVE`:
    ```
 
 4. Record `commit_ref` (short SHA) for each finding addressed in this commit.
+5. Push the branch: `git push` — CI must see the new commits before Phase 4.
 
 ### Phase 3 — CI Remediation
 
@@ -75,7 +79,8 @@ For findings from Phase 11 (CI failures) in the triage artifact:
 3. Fix lint/type/format failures directly (these are always branch-owned).
 4. For test failures: apply the branch-ownership rule from [REFERENCE.md](REFERENCE.md)
    § "Test Failure Rules" before classifying anything as pre-existing.
-5. Commit CI fixes separately from Phase 2 fixes:
+5. Run `uv run black <changed files>` before committing — mirroring Phase 2.
+6. Commit CI fixes separately from Phase 2 fixes:
 
    ```text
    fix(ci): resolve CI failures — <summary>
@@ -83,7 +88,8 @@ For findings from Phase 11 (CI failures) in the triage artifact:
    Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
    ```
 
-6. Record `commit_ref` for each CI finding addressed.
+7. Push the branch: `git push`.
+8. Record `commit_ref` for each CI finding addressed.
 
 ### Phase 4 — Run Test Suite
 

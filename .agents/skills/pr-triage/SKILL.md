@@ -35,8 +35,8 @@ but does NOT act on it — `pr-execute` acts.
 
 | Outcome | Condition | What execute does |
 |---|---|---|
-| `fix-now` | Trivial fix, any conceptual distance | Fix inline, mention in comment |
-| `fix-now-expand-scope` | Non-trivial, same family | Fix inline, expand PR scope |
+| `fix-now` | Trivial fix, any conceptual distance; OR non-trivial but same family (does not meaningfully expand PR scope) | Fix inline, mention in comment |
+| `fix-now-expand-scope` | Non-trivial, same family, and the fix meaningfully expands the PR's stated scope | Fix inline, expand PR scope |
 | `new-issue-ask` | Non-trivial, distant cousin | File issue, stop and ask user whether to fold in |
 | `new-issue-no-ask` | Requires separate design effort | File issue, continue without asking |
 

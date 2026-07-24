@@ -47,11 +47,12 @@ this PR. Please decide whether to fold them in before merge:
 | ❌ MISSING-COMMIT | Commit ref not found on branch |
 | 📋 NOTED | filed/skipped/deferred-ask — no code check; issue confirmed open |
 | ⚠️ INCOMPLETE-EXECUTE | Finding count mismatch; execute likely interrupted |
+| ⚠️ UNVERIFIED-CI-FAILING | CI still failing after execute's push; fix may be correct but cannot be confirmed |
 
 ### Overall Verdict Rules
 
 | Verdict | Condition |
 |---|---|
-| `READY-TO-MERGE` | All FAIL findings CONFIRMED; CI green; no INCOMPLETE-EXECUTE |
-| `GAPS-FOUND` | Any FAIL finding UNRESOLVED or MISSING-COMMIT; or INCOMPLETE-EXECUTE |
-| `PENDING-CI` | All findings CONFIRMED but CI not yet green (still running) |
+| `READY-TO-MERGE` | All FAIL findings CONFIRMED; CI green; no INCOMPLETE-EXECUTE; no UNVERIFIED-CI-FAILING |
+| `GAPS-FOUND` | Any FAIL finding UNRESOLVED or MISSING-COMMIT; or INCOMPLETE-EXECUTE; or any UNVERIFIED-CI-FAILING |
+| `PENDING-CI` | All findings CONFIRMED but CI not yet complete (still running/pending) |

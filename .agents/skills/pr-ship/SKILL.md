@@ -62,7 +62,8 @@ Before running any phase, check for existing artifacts:
 |---|---|
 | No artifacts exist | Run full pipeline: triage → execute → verify |
 | `pr-{N}-triage.json` exists, `pr-{N}-execute.json` absent | Skip triage; start at execute |
-| Both artifacts exist | Skip triage and execute; start at verify |
+| Both artifacts exist AND last verify verdict was not GAPS-FOUND | Skip triage and execute; start at verify |
+| Both artifacts exist AND last verify verdict was GAPS-FOUND | Delete `.claude/pr-{N}-execute.json`; re-run execute then verify |
 | Verify ran and cleaned up (no artifacts) | Pipeline already completed; report last comment URL if available |
 
 When resuming, print which phase is being skipped and why.
@@ -82,7 +83,19 @@ Confirm state is `OPEN`. If no PR exists, stop:
 Create a PR first, then re-run /pr-ship.
 ```
 
-### Step 2 — Worktree Check
+### Step 2 — Gitignore Check
+
+As described in Preconditions above. **Run this before the worktree check** —
+adding `.claude/pr-*.json` to `.gitignore` (when missing) creates a dirty file.
+Commit the `.gitignore` change immediately if it was written:
+
+```bash
+git add .gitignore && git commit -m "chore: gitignore pr-*.json session artifacts
+
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
+```
+
+### Step 3 — Worktree Check
 
 ```bash
 git status --porcelain
@@ -94,10 +107,6 @@ If output is non-empty, stop:
 ❌ Working tree is not clean. Stash or commit your changes before running /pr-ship.
 Uncommitted files: <list>
 ```
-
-### Step 3 — Gitignore Check
-
-As described in Preconditions above.
 
 ### Step 4 — Run pr-triage (or skip)
 
@@ -136,8 +145,12 @@ Overall verdict: READY-TO-MERGE / GAPS-FOUND / PENDING-CI
 PR URL: https://github.com/CERTCC/Vultron/pull/N
 ```
 
-If `GAPS-FOUND`: print which findings are unresolved and suggest re-running
-`/pr-execute` after addressing them manually.
+If `GAPS-FOUND`: print which findings are unresolved. To retry:
+
+1. Address the gaps manually (or re-run `/pr-execute` after deleting
+   `.claude/pr-{N}-execute.json` to force re-execution).
+2. Then re-run `/pr-ship` — the resume logic will detect the missing execute
+   artifact and re-run execute before verify.
 
 If `PENDING-CI`: print the PR URL and note that CI is still running. Re-run
 `/pr-ship` (or `/pr-verify`) after CI completes to get the final verdict and
