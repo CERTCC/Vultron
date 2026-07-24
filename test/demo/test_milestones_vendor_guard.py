@@ -132,6 +132,45 @@ class TestVerifyFixReadyVendorGuard:
 
         assert _VENDOR_ACTOR_ID in str(exc_info.value)
 
+    def test_case_owner_only_raises_assertionerror(self):
+        """CASE_OWNER alone raises AssertionError (the CI regression scenario)."""
+        participant = _make_participant_mock([CVDRole.CASE_OWNER])
+
+        with patch(
+            "vultron.demo.helpers.milestones._fetch_participant",
+            return_value=participant,
+        ):
+            with pytest.raises(AssertionError) as exc_info:
+                verify_fix_ready(
+                    MagicMock(),
+                    MagicMock(),
+                    _CASE_ID,
+                    _VENDOR_ACTOR_ID,
+                )
+
+        msg = str(exc_info.value)
+        assert _VENDOR_ACTOR_ID in msg
+        assert "CVDRole.VENDOR" in msg
+
+    def test_vendor_with_case_owner_passes_guard(self):
+        """VENDOR + CASE_OWNER (the real demo scenario after the fix) passes."""
+        participant = _make_participant_mock(
+            [CVDRole.VENDOR, CVDRole.CASE_OWNER]
+        )
+
+        with patch(
+            "vultron.demo.helpers.milestones._fetch_participant",
+            return_value=participant,
+        ), patch(
+            "vultron.demo.helpers.milestones._check_participant_vfd_state_in"
+        ):
+            verify_fix_ready(
+                MagicMock(),
+                MagicMock(),
+                _CASE_ID,
+                _VENDOR_ACTOR_ID,
+            )
+
 
 # ---------------------------------------------------------------------------
 # Tests for verify_fix_deployed
@@ -213,3 +252,42 @@ class TestVerifyFixDeployedVendorGuard:
                 )
 
         assert _VENDOR_ACTOR_ID in str(exc_info.value)
+
+    def test_case_owner_only_raises_assertionerror(self):
+        """CASE_OWNER alone raises AssertionError (the CI regression scenario)."""
+        participant = _make_participant_mock([CVDRole.CASE_OWNER])
+
+        with patch(
+            "vultron.demo.helpers.milestones._fetch_participant",
+            return_value=participant,
+        ):
+            with pytest.raises(AssertionError) as exc_info:
+                verify_fix_deployed(
+                    MagicMock(),
+                    MagicMock(),
+                    _CASE_ID,
+                    _VENDOR_ACTOR_ID,
+                )
+
+        msg = str(exc_info.value)
+        assert _VENDOR_ACTOR_ID in msg
+        assert "CVDRole.VENDOR" in msg
+
+    def test_vendor_with_case_owner_passes_guard(self):
+        """VENDOR + CASE_OWNER (the real demo scenario after the fix) passes."""
+        participant = _make_participant_mock(
+            [CVDRole.VENDOR, CVDRole.CASE_OWNER]
+        )
+
+        with patch(
+            "vultron.demo.helpers.milestones._fetch_participant",
+            return_value=participant,
+        ), patch(
+            "vultron.demo.helpers.milestones._check_participant_vfd_state_in"
+        ):
+            verify_fix_deployed(
+                MagicMock(),
+                MagicMock(),
+                _CASE_ID,
+                _VENDOR_ACTOR_ID,
+            )

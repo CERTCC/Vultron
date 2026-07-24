@@ -137,6 +137,9 @@ services:
       - VULTRON_ACTOR_ID=http://vendor:7999/api/v2/actors/vendor
       - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-vendor.yaml
       - VULTRON_SERVER__LOG_LEVEL=${VULTRON_SERVER__LOG_LEVEL:-INFO}
+      # DEMOMA-15-001: vendor actors must hold CVDRole.VENDOR so verify_fix_ready
+      # and verify_fix_deployed can confirm the fix lifecycle precondition.
+      - VULTRON_ACTOR__DEFAULT_CASE_ROLES=["vendor"]
     volumes:
       - "../vultron:/app/vultron"
       - vendor-data:/app/data
@@ -209,6 +212,9 @@ services:
       - VULTRON_ACTOR_ID=http://actor5:7999/api/v2/actors/vendor2
       - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-actor5.yaml
       - VULTRON_SERVER__LOG_LEVEL=${VULTRON_SERVER__LOG_LEVEL:-INFO}
+      # DEMOMA-15-001: actor5 defaults to Vendor2 in fvv/fvcv-* scenarios;
+      # seed with CVDRole.VENDOR so fix-lifecycle helpers can validate it.
+      - VULTRON_ACTOR__DEFAULT_CASE_ROLES=["vendor"]
     volumes:
       - "../vultron:/app/vultron"
       - actor5-data:/app/data

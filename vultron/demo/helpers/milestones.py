@@ -149,11 +149,10 @@ def _assert_vendor_role(
             f"{label}: actor {actor_id!r} not found as a participant in case"
             f" {case_id!r}"
         )
-    actual_roles = participant.case_roles or []
-    if CVDRole.VENDOR not in actual_roles:
+    if CVDRole.VENDOR not in participant.case_roles:
         raise AssertionError(
             f"{label}: actor {actor_id!r} does not hold CVDRole.VENDOR;"
-            f" actual roles: {actual_roles!r}"
+            f" actual roles: {participant.case_roles!r}"
         )
 
 
