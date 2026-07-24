@@ -1663,5 +1663,8 @@ groups:
       prevent recurrence.
     relationships:
     - rel_type: refines
+      spec_id: CS-22-001
+      note: MUST-level specialisation of the project-wide SHOULD rule for demo scenario files
+    - rel_type: refines
       spec_id: DEMOMA-03-001
       note: acceptance test scenario files are also subject to this rule

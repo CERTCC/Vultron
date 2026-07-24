@@ -89,6 +89,8 @@ This rule applies to scenario files in `vultron/demo/scenario/`. Exchange demos
 under `vultron/demo/exchange/` are lower-level and may duplicate less when a
 full helper would add more abstraction than value.
 
-See `specs/multi-actor-demo.yaml` DEMOMA-16-001 for the normative requirement.
+See `specs/multi-actor-demo.yaml` DEMOMA-16-001 for the normative requirement
+(a MUST-level specialisation of the project-wide SHOULD rule CS-22-001 in
+`specs/code-style.yaml`).
 
 <!-- Source: ISSUE-1652 -->
