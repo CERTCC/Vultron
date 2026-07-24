@@ -1462,8 +1462,14 @@ groups:
         All five containers running (Finder, C1, C2, Vendor, CaseActor);
         all actors seeded and cross-registered.
     steps:
-    - description: Finder submits a VulnerabilityReport to C1's inbox.
-    - description: C1 validates the report and engages the case.
+    - order: 1
+      actor: finder
+      action: POST submit-report trigger to C1
+      expected: C1 creates VulnerabilityCase; RM→RECEIVED on C1
+    - order: 2
+      actor: demo-script
+      action: POST validate-report and engage-case triggers on C1
+      expected: C1 RM→VALID then RM→ACCEPTED; C1 holds CVDRole.CASE_OWNER
     postconditions:
     - description: C1 holds CVDRole.CASE_OWNER and case attributed_to=C1.
     relationships:
@@ -1482,8 +1488,14 @@ groups:
     preconditions:
     - description: C1 is CASE_OWNER; case attributed_to=C1.
     steps:
-    - description: C1 invites C2 to the case with CVDRole.COORDINATOR.
-    - description: C2 accepts the invitation; becomes a participant.
+    - order: 1
+      actor: c1
+      action: POST invite-actor-to-case trigger targeting C2 (CVDRole.COORDINATOR)
+      expected: C1 sends Invite activity to CaseActor; CaseActor forwards to C2
+    - order: 2
+      actor: c2
+      action: POST accept-case-invite trigger
+      expected: C2 becomes a participant with CVDRole.COORDINATOR
     postconditions:
     - description: C2 is a participant; CVDRole.COORDINATOR; case attributed_to=C1.
     relationships:
@@ -1505,13 +1517,16 @@ groups:
     preconditions:
     - description: C2 is a participant; case attributed_to=C1.
     steps:
-    - description: >-
-        C1 triggers offer-case-ownership-transfer (TRIG-11-001) targeting C2.
-    - description: C1 delivers the Offer activity to C2's inbox.
-    - description: >-
-        C2 triggers accept-case-ownership-transfer (TRIG-11-002) referencing
-        the Offer.
-    - description: C2 delivers the Accept activity to C2's own inbox (local use case).
+    - order: 1
+      actor: c1
+      action: POST offer-case-ownership-transfer trigger targeting C2
+      expected: C1 sends Offer activity to C2's inbox via CaseActor
+    - order: 2
+      actor: c2
+      action: POST accept-case-ownership-transfer trigger referencing the Offer
+      expected: >-
+        case attributed_to=C2 on C1's and C2's DataLayers; C2 holds
+        CVDRole.CASE_OWNER; C1 holds CVDRole.COORDINATOR
     postconditions:
     - description: case attributed_to=C2 on C1's and C2's DataLayers.
     - description: C2 holds CVDRole.CASE_OWNER; C1 holds CVDRole.COORDINATOR.
@@ -1533,9 +1548,14 @@ groups:
     preconditions:
     - description: case attributed_to=C2; C2 is CASE_OWNER.
     steps:
-    - description: C2 invites Vendor to the case.
-    - description: Vendor accepts the invitation.
-    - description: Vendor's Accept is delivered to CaseActor's inbox.
+    - order: 1
+      actor: c2
+      action: POST invite-actor-to-case trigger for Vendor
+      expected: C2 sends Invite activity to CaseActor; CaseActor forwards to Vendor
+    - order: 2
+      actor: vendor
+      action: POST accept-case-invite trigger directed to CaseActor
+      expected: Vendor becomes a participant; Accept delivered to CaseActor inbox
     postconditions:
     - description: Vendor is a participant; all five actors have case replicas.
     relationships:

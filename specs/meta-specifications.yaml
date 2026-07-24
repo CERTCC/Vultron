@@ -394,3 +394,19 @@ groups:
       workflows from message_received and state_entered behavioral groups.
     tags:
     - documentation
+  - id: MS-13-004
+    priority: MUST
+    kind: process
+    statement: >-
+      A spec group with trigger type scenario_start MUST contain at least one
+      BehavioralSpec item with a non-empty steps field describing the ordered
+      protocol exchange.
+    rationale: >-
+      Mixed groups are permitted — terminal-state assertions and infrastructure
+      constraints MAY remain StatementSpec — but the sequential workflow itself
+      MUST be expressed as BehavioralSpec so that conformance tooling and CI can
+      verify ECA structure without parsing prose. This requirement is enforced by
+      spec-lint (SR-04-003); a group with only StatementSpec items causes a hard
+      error. See CONCERN-1650 for the regression that prompted this rule.
+    tags:
+    - documentation

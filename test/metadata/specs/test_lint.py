@@ -341,3 +341,94 @@ def test_lint_missing_item_kind_is_hard_error(tmp_path):
     _write_yaml(tmp_path, data)
     result = lint(tmp_path)
     assert result == 1
+
+
+# ---------------------------------------------------------------------------
+# scenario_start group must contain a BehavioralSpec with steps (MS-13-004)
+# ---------------------------------------------------------------------------
+
+
+def _scenario_start_group(with_behavioral_spec: bool):
+    """Return a minimal spec file with one scenario_start group.
+
+    When ``with_behavioral_spec`` is True the group contains a BehavioralSpec
+    item with steps; otherwise it contains only a StatementSpec item.
+    """
+    if with_behavioral_spec:
+        workflow_item = {
+            "id": "SCN-01-002",
+            "priority": "MUST",
+            "kind": "project",
+            "statement": "SCN-01-002 MUST execute the scenario workflow",
+            "rationale": "ECA required",
+            "tags": ["demo"],
+            "preconditions": [{"description": "Actors running"}],
+            "steps": [
+                {"order": 1, "actor": "finder", "action": "Submit report"}
+            ],
+            "postconditions": [{"description": "Case created"}],
+        }
+    else:
+        workflow_item = {
+            "id": "SCN-01-002",
+            "priority": "MUST",
+            "kind": "project",
+            "statement": "SCN-01-002 MUST reach final state VFDPxa",
+            "rationale": "Terminal state required",
+            "tags": ["demo"],
+        }
+
+    return {
+        "id": "SCN",
+        "title": "Scenario Spec",
+        "description": "Scenario spec file",
+        "version": "0.1",
+        "scope": ["prototype"],
+        "groups": [
+            {
+                "id": "SCN-01",
+                "title": "FV Scenario",
+                "trigger": {"type": "scenario_start", "value": "fv"},
+                "specs": [
+                    {
+                        "id": "SCN-01-001",
+                        "priority": "MUST",
+                        "kind": "project",
+                        "statement": "SCN-01-001 MUST reach VFDPxa",
+                        "rationale": "Terminal state",
+                        "tags": ["demo"],
+                    },
+                    workflow_item,
+                ],
+            }
+        ],
+    }
+
+
+def test_scenario_start_with_behavioral_spec_passes(tmp_path, capsys):
+    """scenario_start group with a BehavioralSpec+steps item must pass."""
+    _write_yaml(tmp_path, _scenario_start_group(with_behavioral_spec=True))
+    result = lint(tmp_path)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "MS-13-004" not in captured.err
+
+
+def test_scenario_start_without_behavioral_spec_fails(tmp_path, capsys):
+    """scenario_start group with only StatementSpec items must be a hard error."""
+    _write_yaml(tmp_path, _scenario_start_group(with_behavioral_spec=False))
+    result = lint(tmp_path)
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "SCN-01" in captured.err
+    assert "MS-13-004" in captured.err
+
+
+def test_non_scenario_start_group_not_checked(tmp_path, capsys):
+    """Groups without a scenario_start trigger are not subject to MS-13-004."""
+    data = _minimal_spec()  # no trigger on group TST-01
+    _write_yaml(tmp_path, data)
+    result = lint(tmp_path)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "MS-13-004" not in captured.err

@@ -22,6 +22,7 @@ from vultron.metadata.specs.registry import (
 from vultron.metadata.specs.schema import (
     BehavioralSpec,
     LintWarningCode,
+    TriggerType,
 )
 
 _RATIONALE_WARN_CHARS = 500
@@ -116,6 +117,32 @@ def _check_missing_kind(registry: SpecRegistry) -> list[str]:
     return errors
 
 
+def _check_scenario_start_groups(registry: SpecRegistry) -> list[str]:
+    """Hard error when a scenario_start group has no BehavioralSpec with steps.
+
+    Enforces MS-13-004: mixed groups are permitted, but at least one item must
+    be a BehavioralSpec with a non-empty steps list.
+    """
+    errors: list[str] = []
+    for spec_file in registry.files:
+        for group in spec_file.groups:
+            if (
+                group.trigger is None
+                or group.trigger.type != TriggerType.SCENARIO_START
+            ):
+                continue
+            has_eca = any(
+                isinstance(spec, BehavioralSpec) and bool(spec.steps)
+                for spec in group.specs
+            )
+            if not has_eca:
+                errors.append(
+                    f"Group '{group.id}' has trigger type scenario_start but "
+                    f"contains no BehavioralSpec item with steps (MS-13-004)"
+                )
+    return errors
+
+
 def lint(spec_dir: Path, adr_dir: Path | None = None) -> int:
     """Validate the spec registry in ``spec_dir``.
 
@@ -148,6 +175,7 @@ def lint(spec_dir: Path, adr_dir: Path | None = None) -> int:
     hard_errors.extend(registry.validate_cross_references())
     hard_errors.extend(_check_prefix_consistency(registry))
     hard_errors.extend(_check_spec_id_prefix_consistency(registry))
+    hard_errors.extend(_check_scenario_start_groups(registry))
 
     for spec_id, spec in registry.all_specs.items():
         suppressed = set(spec.lint_suppress or [])
