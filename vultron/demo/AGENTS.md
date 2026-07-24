@@ -94,3 +94,51 @@ See `specs/multi-actor-demo.yaml` DEMOMA-17-001 for the normative requirement
 `specs/code-style.yaml`).
 
 <!-- Source: ISSUE-1652 -->
+
+---
+
+### Ownership-Transfer Trigger: Always Self-Deliver the Accept to the Accepting Actor's Inbox
+
+When the accepting actor triggers `accept-case-ownership-transfer`, the
+trigger-side BT (`AcceptCaseOwnershipTransferTriggerBT`) queues the
+`Accept(Offer(VulnerabilityCase))` activity addressed only to the **offering**
+actor. The accepting actor's own DataLayer replica is therefore **not** updated
+by that path.
+
+After queuing the trigger, the demo script **MUST** also POST the Accept
+activity to the accepting actor's own inbox so that
+`AcceptCaseOwnershipTransferReceivedUseCase` runs locally and updates
+`case.attributed_to` on the accepting actor's replica.
+
+```python
+# ✅ Correct — trigger first, then self-deliver
+accept_result = post_to_trigger(
+    client=accepting_client,
+    actor_id=accepting_actor_id,
+    behavior="accept-case-ownership-transfer",
+    body={"offer_id": offer_id},
+)
+accept_activity = as_TransitiveActivity.model_validate(accept_result["activity"])
+post_to_inbox_and_wait(accepting_client, accepting_participant_id, accept_activity)
+
+# ❌ Wrong — skips local replica update; attributed_to never changes on accepting actor
+accept_result = post_to_trigger(
+    client=accepting_client,
+    actor_id=accepting_actor_id,
+    behavior="accept-case-ownership-transfer",
+    body={"offer_id": offer_id},
+)
+# missing: extract accept_activity and post_to_inbox_and_wait(...)
+```
+
+**Why:** PR #1590 silently deleted this self-delivery step in a commit that
+appeared to only change a field accessor. The omission only surfaced under
+the CI integration test — functional tests passed because the offering actor's
+replica updated correctly via the normal outbox delivery path. The demo CI
+integration tests (`test/ci/invariants/`) are the authoritative runtime
+enforcement for this invariant.
+
+See `vultron/demo/scenario/fvcv_handoff_demo.py` and
+`vultron/demo/scenario/fccv_handoff_demo.py` for the correct pattern.
+
+<!-- Source: CONCERN-1653 -->
