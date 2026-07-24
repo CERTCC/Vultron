@@ -171,11 +171,12 @@ it cannot revert. This forms a 64-state lattice (2^6 combinations).
 | **Cascading Consequences** | Automated downstream behaviors triggered by primary protocol events via BT subtrees; examples include submit-report → case creation → participant setup → embargo initialization → notifications (anti-pattern: post-BT procedural calls) | Event cascade, automation chain |
 | **Call-Out Point** | A BT node location where automated protocol execution cannot proceed without external input from a human, skill, or LLM agent; implemented as a **Fuzzer Node** stub in the simulator layer | Decision point, human-in-the-loop seam |
 | **Fuzzer Node** | A stub BT node in the legacy simulation (`vultron/bt/`) that stands in for unimplemented real-world decision logic by returning probabilistic SUCCESS/FAILURE; each represents a **Call-Out Point** awaiting a real **Coordination Agent** | Stub node, random node |
-| **Coordination Agent** | An external capability (human, skill, or LLM agent) that fulfills a **Call-Out Point** by providing a decision, data, or content; four subtypes: **Sentinel**, **Evaluator**, **Retriever**, **Composer** | External agent, decision agent |
+| **Coordination Agent** | An external capability (human, skill, or LLM agent) that fulfills a **Call-Out Point** by providing a decision, data, or content; five subtypes: **Sentinel**, **Evaluator**, **Retriever**, **Composer**, **Actuator** | External agent, decision agent |
 | **Sentinel** | A **Coordination Agent** subtype that checks external state and returns SUCCESS/FAILURE without side effects; used as a BT precondition guard | Guard agent, check agent |
 | **Evaluator** | A **Coordination Agent** subtype that makes a domain decision and records it (e.g., `ReviewAdvisoryDraft`); its `update()` method gates downstream BT execution | Decision agent, reviewer agent |
 | **Retriever** | A **Coordination Agent** subtype that fetches external data needed by the BT (e.g., CVE ID lookup, SSVC scoring) | Fetch agent, lookup agent |
 | **Composer** | A **Coordination Agent** subtype that assembles content from domain state (e.g., drafting advisory text) | Generator agent, authoring agent |
+| **Actuator** | A **Coordination Agent** subtype that invokes an external system to cause a side effect (notification dispatch, state write, queue mutation, API call); returns SUCCESS when the side effect is confirmed, FAILURE otherwise; produces no content artifact | Side-effect agent, executor |
 
 ## Domain Model — CVD Coordination
 
@@ -364,7 +365,7 @@ it cannot revert. This forms a 64-state lattice (2^6 combinations).
 
 - A **Fuzzer Node** in the simulator is the placeholder form of a **Call-Out Point**.
 - A **Call-Out Point** is fulfilled in production by a **Coordination Agent** of the appropriate subtype.
-- A **Sentinel** answers a yes/no check; an **Evaluator** records a domain decision; a **Retriever** fetches external data; a **Composer** generates content.
+- A **Sentinel** answers a yes/no check; an **Evaluator** records a domain decision; a **Retriever** fetches external data; a **Composer** generates content; an **Actuator** fires a side effect in an external system.
 - An **Advisory Review Decision** is produced by a **Reviewer** (an **Evaluator** subtype) and determines whether an **Advisory** draft requires revision before the BT submits it.
 
 **Status and Dimensions:**
@@ -460,7 +461,13 @@ it cannot revert. This forms a 64-state lattice (2^6 combinations).
      - A **Fuzzer Node** is the concrete simulator-layer stub that occupies that location until a real **Coordination Agent** is wired in.
      - **Recommendation**: Use "**Call-Out Point**" when discussing design or integration seams; use "**Fuzzer Node**" only when discussing the simulator implementation.
 
-18. **"Dimension Object" vs. "status field"**:
+18. **"Composer" vs. "Actuator"**:
+     - A **Composer** reads context, runs a generation process, and writes a content artifact to the blackboard (e.g., advisory draft text).
+     - An **Actuator** receives a trigger, calls an external system, and confirms the side effect; no artifact is placed on the blackboard.
+     - Misclassification risk: nodes that "do something" to an external system look like Composers if you only notice they dispatch outbound calls. The discriminator is whether a content artifact lands on the blackboard. If not, it is an **Actuator**.
+     - **Recommendation**: Before classifying a node as Composer, verify it writes a content artifact to the blackboard. If the only output is a SUCCESS/FAILURE confirming an external side effect, it is an **Actuator**.
+
+19. **"Dimension Object" vs. "status field"**:
      - A **Dimension Object** (per ADR-0036) is an immutable `BaseModel` containing the state of one machine; it is a first-class structured type, not a flat field.
      - "Status field" is informal language that may mean a flat scalar (`rmState: "ACCEPTED"`) or a **Dimension Object** (`rm: {"state": "ACCEPTED"}`); both appear in real ledger snapshots.
      - **Recommendation**: Say "**Dimension Object**" when referring to the structured sub-model; say "flat legacy field" when referring to the pre-ADR-0036 serialization. When extracting state from JSONL, probe both shapes (see 2026-07-22 learning on three nesting shapes).
