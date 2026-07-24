@@ -55,6 +55,10 @@ _FVCV_EXPECTED_EVENT_TYPES = [
     ),
     pytest.param("close_case", id="close_case"),
     pytest.param("add_note_to_case", id="add_note_to_case"),
+    # DEMOMA-16-004: Vendor1 invites Coordinator and Coordinator
+    # uses the suggest-actor flow to propose Vendor2.
+    pytest.param("invite_actor_to_case", id="invite_actor_to_case"),
+    pytest.param("offer_case_participant", id="offer_case_participant"),
 ]
 
 #: Actors with per-actor chain / contiguity / completeness checks.
@@ -284,6 +288,20 @@ def test_fvcv_extension_invite_actor_to_case_at_least_twice(
     """
     violations = check_event_type_count(
         fvcv_extension_replicas, "invite_actor_to_case", min_count=2
+    )
+    assert not violations, violations[0] if violations else ""
+
+
+@pytest.mark.case_ledger_invariants
+def test_fvcv_extension_offer_case_participant_present(
+    fvcv_extension_replicas: dict[str, list[dict]],
+) -> None:
+    """``offer_case_participant`` appears at least once (Coordinator suggests Vendor2).
+
+    Spec: DEMOMA-16-004 (Coordinator uses the ADR-0026 suggest-actor flow).
+    """
+    violations = check_event_type_present(
+        fvcv_extension_replicas, "offer_case_participant"
     )
     assert not violations, violations[0] if violations else ""
 
