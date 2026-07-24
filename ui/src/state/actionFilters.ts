@@ -47,9 +47,34 @@ import { isLegalTransition, canStartEmbargo, embargoViable } from '../protocol'
  * has RM.CLOSED). The individual caller has already confirmed IT is active.
  */
 function buildInviteAction(state: DemoState): Action | null {
-  // Case is closed only when every visible participant has closed.
+  // The case is done once every REPORT-MANAGING participant (finder + vendors) has
+  // closed — the protocol's M7 ("all participants RM.CLOSED → close case"; the Case
+  // Actor auto-closes at that point; see two-actor-demo.md / fvv-demo.md).
+  //
+  // DELIBERATE DEMO OVERLAY (not artifact-driven, and cannot be — read this before
+  // "fixing" it to defer to protocol_states.json):
+  //   1. "The case is done" is NOT a stored/exported fact. The protocol models no
+  //      case-level `closed` flag — CaseStatus tracks only em_state + pxa_state.
+  //      Case closure is PER-PARTICIPANT (each runs its own RM machine to CLOSED),
+  //      so "case done" is a DERIVED fold over participants, computed on demand —
+  //      exactly like the protocol's own `_all_participants_closed()` BT node
+  //      (vultron/core/behaviors/status/nodes/lifecycle.py).
+  //   2. That node EXCLUDES the coordinator: `if CVDRole.CASE_MANAGER in roles:
+  //      continue`. We mirror that here — the Case Actor has no RM lifecycle
+  //      (rmState 'N/A') and never sets hasClosed, so without excluding it the case
+  //      would never read as done and this invite option would never disappear.
+  //      We key on `rmState !== 'N/A'` (the demo's coordinator marker) rather than
+  //      a CVDRole, because demo participants don't carry protocol roles.
+  //
+  // We do NOT export this rule: the CASE_MANAGER's behavior isn't a declarative
+  // state machine (like RM/EM/VFD/PXA or embargo_viability) — it's procedural
+  // behavior-tree logic scattered across many trees, with no single canonical
+  // definition to defer to. Exporting a scraped copy would be MORE fragile than an
+  // honest overlay (it'd silently break if Allen refactors the BT). If a future
+  // protocol change centralizes CASE_MANAGER rules into a declarative form, THEN
+  // revisit exporting it. Until then: this mirrors lifecycle.py — keep them in sync.
   const anyStillOpen = Array.from(state.participants.values())
-    .some(p => p.visible && !p.hasClosed)
+    .some(p => p.visible && !p.hasClosed && p.rmState !== 'N/A')
   if (!anyStillOpen) return null
 
   const nextVendorNumber = getVendors(state).length + 1

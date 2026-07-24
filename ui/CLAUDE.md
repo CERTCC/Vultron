@@ -422,6 +422,31 @@ This is the pattern to follow for any future cross-machine rule: **put it in the
 artifact (extend the exporter), read it in `protocol.ts`, defer to it in the
 demos** — never hand-code a second copy in the UI.
 
+**The boundary of "defer to the artifact" — declarative vs. procedural rules
+(2026-07).** The artifact-deferral principle applies to possibilities the protocol
+models **declaratively** — enumerable state machines (RM/EM/VFD/PXA) and pattern
+tables (`embargo_viability`). Those have a single canonical definition in the
+protocol source, so the exporter can capture them and the demo can defer wholesale.
+It does NOT apply — and structurally *cannot* — to rules the protocol models
+**procedurally**, i.e. as behavior-tree logic. The clearest case: the **CASE_MANAGER
+(Case Actor / coordinator) role.** There is no one place defining "what a
+CASE_MANAGER can do"; `CVDRole.CASE_MANAGER` is *checked* situationally across many
+BTs (note attach, embargo teardown, message routing, auto-close, participant
+counting…). Related: there is **no case-level `closed` flag** — `CaseStatus` holds
+only `em_state`/`pxa_state`; case closure is per-participant, and "case done" is a
+DERIVED fold over participants' RM states (the protocol's own
+`_all_participants_closed()` BT node in
+[`lifecycle.py`](../vultron/core/behaviors/status/nodes/lifecycle.py), which
+excludes CASE_MANAGER). Such rules legitimately stay as **explicit, documented demo
+overlays** (the bucket notes/invites/phase-routing are already in). When you write
+one, comment it as a deliberate mirror of the specific protocol source (file +
+rule) so it's traceable, and do NOT try to export a scraped copy — an export of a
+procedural rule is *more* fragile than an honest overlay (it breaks silently if the
+BT is refactored). Concrete instance: `buildInviteAction` in
+[`actionFilters.ts`](src/state/actionFilters.ts) mirrors `lifecycle.py`'s
+CASE_MANAGER exclusion via the demo's `rmState === 'N/A'` coordinator marker. Only
+revisit exporting if a future protocol change gives the rule a declarative home.
+
 **Optional, deferred:** add `data/json/**` to the `paths:` triggers in
 `.github/workflows/python-app.yml` to also catch hand-edits of the artifact.
 
