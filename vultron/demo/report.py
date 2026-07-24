@@ -348,6 +348,11 @@ class CaseTimelineEvent(BaseModel):
         actor_uri: Full URI of the acting actor (secondary detail).
         target_ref: Full id of the target object (secondary detail).
         target_type: Wire type of the target object.
+        activity_target_ref: Full id of the ActivityStreams destination/target
+            object — the case or participant that is the *destination* of an
+            Offer/Invite (e.g. the case in
+            ``Accept(Invite(object=Org, target=Case))``).
+        activity_target_type: Wire type of the destination/target object.
         received_at: Server-generated receipt timestamp (``receivedAt``).
         rm_state / em_state / vfd_state / pxa_state: Resulting state-machine
             dimensions extracted from the payload snapshot, where present.
