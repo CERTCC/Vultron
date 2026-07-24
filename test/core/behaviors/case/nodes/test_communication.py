@@ -493,6 +493,10 @@ class TestAutoAcceptCaseManagerRoleNode:
             actor_id=self._CASE_ACTOR_ID,
         )
         bt_scenario.assert_success(result)
+        outbox = bt_scenario.dl.outbox_list_for_actor(self._CASE_ACTOR_ID)
+        assert (
+            len(outbox) >= 1
+        ), "Expected at least one outbox item after auto-accept"
 
     def test_ledger_entry_created_with_correct_event_type(
         self, bt_scenario: BTTestScenario
