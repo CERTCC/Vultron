@@ -79,6 +79,10 @@ def _has_attributed_to_assignment(scope: ast.AST) -> bool:
     ``self.x.attributed_to = ...`` (any depth).  Keyword arguments in
     constructor calls (``attributed_to=...``) are NOT matched because they
     are ``ast.keyword`` nodes, not assignment targets.
+
+    Only attribute nodes in Store context are matched; Load-context occurrences
+    (e.g. the inner node in ``obj.attributed_to.sub_field = x``) are skipped.
+    Augmented assignments (``obj.attributed_to += ...``) are also detected.
     """
     for node in _walk_own_scope(scope):
         if isinstance(node, ast.Assign):
@@ -87,9 +91,17 @@ def _has_attributed_to_assignment(scope: ast.AST) -> bool:
                     if (
                         isinstance(tnode, ast.Attribute)
                         and tnode.attr == "attributed_to"
+                        and isinstance(tnode.ctx, ast.Store)
                     ):
                         return True
         elif isinstance(node, ast.AnnAssign):
+            if (
+                isinstance(node.target, ast.Attribute)
+                and node.target.attr == "attributed_to"
+                and isinstance(node.target.ctx, ast.Store)
+            ):
+                return True
+        elif isinstance(node, ast.AugAssign):
             if (
                 isinstance(node.target, ast.Attribute)
                 and node.target.attr == "attributed_to"
@@ -323,3 +335,44 @@ def test_detector_catches_local_dl_rebind_with_save(tmp_path: Path) -> None:
     assert _has_attributed_to_with_save_in_update(
         violation_file
     ), "Detector did not flag attributed_to + dl.save() via local rebind"
+
+
+def test_detector_does_not_flag_subfield_assignment(tmp_path: Path) -> None:
+    """False-positive: assigning to a sub-field of attributed_to is NOT flagged.
+
+    In ``obj.attributed_to.sub_field = x`` the ``attributed_to`` attribute node
+    appears in the Load context (it is read, not stored).  Only the outer
+    ``sub_field`` node has Store context.  The detector must not match this.
+    """
+    clean_file = tmp_path / "synthetic_subfield.py"
+    clean_file.write_text(
+        "class FakeNode:\n"
+        "    def update(self):\n"
+        "        obj.attributed_to.sub_field = new_value\n"
+        "        self.datalayer.save(obj)\n",
+        encoding="utf-8",
+    )
+    assert not _has_attributed_to_with_save_in_update(
+        clean_file
+    ), "Detector falsely flagged sub-field assignment on attributed_to as a violation"
+
+
+def test_detector_catches_augmented_assignment_to_attributed_to(
+    tmp_path: Path,
+) -> None:
+    """True-positive: ``obj.attributed_to += [extra]`` + save() is flagged.
+
+    Augmented assignments (AugAssign) also mutate attributed_to and violate the
+    atomic-write requirement of CM-21-004.
+    """
+    violation_file = tmp_path / "synthetic_augassign.py"
+    violation_file.write_text(
+        "class FakeNode:\n"
+        "    def update(self):\n"
+        "        case.attributed_to += [self.new_owner_id]\n"
+        "        self.datalayer.save(case)\n",
+        encoding="utf-8",
+    )
+    assert _has_attributed_to_with_save_in_update(
+        violation_file
+    ), "Detector did not flag augmented assignment to attributed_to + save()"
