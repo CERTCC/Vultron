@@ -123,6 +123,40 @@ def verify_case_active(
     )
 
 
+def _assert_vendor_role(
+    client: DataLayerClient,
+    case_id: str,
+    actor_id: str,
+    label: str,
+) -> None:
+    """Assert that *actor_id* holds ``CVDRole.VENDOR`` in the case.
+
+    Spec: DEMOMA-15-001.
+
+    Args:
+        client: DataLayerClient for the target container.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        actor_id: Full URI of the actor to check.
+        label: Human-readable label for the ``AssertionError`` message.
+
+    Raises:
+        AssertionError: If the participant is not found or does not hold
+            ``CVDRole.VENDOR``.
+    """
+    participant = _fetch_participant(client, case_id, actor_id)
+    if participant is None:
+        raise AssertionError(
+            f"{label}: actor {actor_id!r} not found as a participant in case"
+            f" {case_id!r}"
+        )
+    actual_roles = participant.case_roles or []
+    if CVDRole.VENDOR not in actual_roles:
+        raise AssertionError(
+            f"{label}: actor {actor_id!r} does not hold CVDRole.VENDOR;"
+            f" actual roles: {actual_roles!r}"
+        )
+
+
 def verify_fix_ready(
     receiver_client: DataLayerClient,
     reporter_client: DataLayerClient,
@@ -131,7 +165,12 @@ def verify_fix_ready(
 ) -> None:
     """Verify that both replicas show CS includes F (fix ready).
 
-    Spec: DEMOMA-06-002.
+    The ``receiver_actor_id`` MUST be the full URI of an actor holding
+    ``CVDRole.VENDOR`` in the case.  Passing any other actor (e.g. a
+    Coordinator) is a caller error and will raise ``AssertionError`` before
+    the state check runs.
+
+    Specs: DEMOMA-06-002, DEMOMA-15-001.
 
     Args:
         receiver_client: Client connected to the receiver container.
@@ -141,8 +180,13 @@ def verify_fix_ready(
             participant vfd_state to check.
 
     Raises:
-        AssertionError: If either replica does not reflect fix-ready state.
+        AssertionError: If ``receiver_actor_id`` does not hold
+            ``CVDRole.VENDOR``, or if either replica does not reflect
+            fix-ready state.
     """
+    _assert_vendor_role(
+        receiver_client, case_id, receiver_actor_id, "verify_fix_ready"
+    )
     fix_ready_states = {CS_vfd.VFd, CS_vfd.VFD}
     _check_participant_vfd_state_in(
         receiver_client,
@@ -169,7 +213,12 @@ def verify_fix_deployed(
 ) -> None:
     """Verify that both replicas show CS includes D (fix deployed).
 
-    Spec: DEMOMA-06-002.
+    The ``receiver_actor_id`` MUST be the full URI of an actor holding
+    ``CVDRole.VENDOR`` in the case.  Passing any other actor (e.g. a
+    Coordinator) is a caller error and will raise ``AssertionError`` before
+    the state check runs.
+
+    Specs: DEMOMA-06-002, DEMOMA-15-001.
 
     Args:
         receiver_client: Client connected to the receiver container.
@@ -179,8 +228,13 @@ def verify_fix_deployed(
             participant vfd_state to check.
 
     Raises:
-        AssertionError: If either replica does not reflect fix-deployed state.
+        AssertionError: If ``receiver_actor_id`` does not hold
+            ``CVDRole.VENDOR``, or if either replica does not reflect
+            fix-deployed state.
     """
+    _assert_vendor_role(
+        receiver_client, case_id, receiver_actor_id, "verify_fix_deployed"
+    )
     deployed_state = {CS_vfd.VFD}
     _check_participant_vfd_state_in(
         receiver_client,
