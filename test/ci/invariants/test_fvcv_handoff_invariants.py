@@ -62,6 +62,12 @@ _FVCV_HANDOFF_EXPECTED_EVENT_TYPES = [
     ),
     pytest.param("close_case", id="close_case"),
     pytest.param("add_note_to_case", id="add_note_to_case"),
+    # DEMOMA-16-005: Vendor1 invites Coordinator (and later Vendor2);
+    # Coordinator and Vendor2 both accept.
+    pytest.param("invite_actor_to_case", id="invite_actor_to_case"),
+    pytest.param(
+        "accept_invite_actor_to_case", id="accept_invite_actor_to_case"
+    ),
 ]
 
 #: Actors with per-actor chain / contiguity / completeness checks.

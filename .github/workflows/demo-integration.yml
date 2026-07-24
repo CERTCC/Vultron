@@ -7,6 +7,13 @@
 # Triggers: PRs to main (path-filtered) and workflow_dispatch.
 # Dependabot PRs are skipped — python-app.yml still guards broken deps.
 # See DEMOCI-02-002, DEMOCI-02-003, DEMOCI-02-004.
+#
+# Job structure per matrix entry (DEMOCI-04-001 through DEMOCI-04-003):
+#   demo           — builds images, runs docker-compose, uploads JSONL artifacts
+#   invariant-harness  — downloads JSONL, runs pytest; needs: demo, if: always()
+#
+# This gives each scenario two independent pass/fail statuses on the PR so
+# invariant failures are visible even when the demo job itself fails.
 
 name: Demo Integration
 
@@ -94,21 +101,6 @@ jobs:
           path: devlogs/
           retention-days: 30
 
-      # AC-925-1: run canonical-log invariant harness against JSONL artifacts.
-      # Invariants not yet passing are marked xfail so the build stays green;
-      # unexpected passes appear as XPASS (visible but not failing).
-      # See test/ci/README-case-log-ratchet.md for the ratchet workflow.
-      - name: Set up Python and uv for invariant harness
-        if: always()
-        id: setup-invariant-harness
-        uses: ./.github/actions/setup-python-uv
-
-      - name: Run case-ledger invariant harness
-        if: always() && steps.setup-invariant-harness.outcome == 'success'
-        env:
-          TEST_FILE: ${{ matrix.test_file }}
-        run: uv run pytest "$TEST_FILE" -v --tb=short
-
       # DEMOCI-02-008: collect combined stream and per-service logs on failure.
       - name: Collect container logs
         if: failure()
@@ -135,6 +127,55 @@ jobs:
         if: always()
         run: |
           docker compose -f docker/docker-compose-multi-actor.yml down -v
+
+  # DEMOCI-04-001, DEMOCI-04-002, DEMOCI-04-003: separate invariant-harness job
+  # so invariant failures produce an independent pass/fail status on the PR even
+  # when the demo job itself fails.
+  invariant-harness:
+    name: "${{ matrix.demo }} Invariant Harness"
+    runs-on: ubuntu-latest
+    # DEMOCI-04-002: always run after the demo job, even on demo failure.
+    # DEMOCI-02-004: skip Dependabot PRs (demo is skipped, no artifact exists).
+    needs: demo
+    if: always() && !startsWith(github.head_ref, 'dependabot/')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - demo: fv
+            test_file: test/ci/invariants/test_fv_invariants.py
+          - demo: fvv
+            test_file: test/ci/invariants/test_fvv_invariants.py
+          - demo: fvcv-extension
+            test_file: test/ci/invariants/test_fvcv_extension_invariants.py
+          - demo: fvcv-handoff
+            test_file: test/ci/invariants/test_fvcv_handoff_invariants.py
+          - demo: fccv-handoff
+            test_file: test/ci/invariants/test_fccv_handoff_invariants.py
+          - demo: fcv
+            test_file: test/ci/invariants/test_fcv_invariants.py
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      # DEMOCI-04-003: download the JSONL artifact produced by the demo job.
+      - name: Download case log JSONL files
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc889  # v4.2.1
+        with:
+          name: ${{ matrix.demo }}-case-logs
+          path: devlogs/
+
+      # AC-925-1: run canonical-log invariant harness against JSONL artifacts.
+      # Invariants not yet passing are marked xfail so the build stays green;
+      # unexpected passes appear as XPASS (visible but not failing).
+      # See test/ci/README-case-log-ratchet.md for the ratchet workflow.
+      - name: Set up Python and uv
+        uses: ./.github/actions/setup-python-uv
+
+      - name: Run case-ledger invariant harness
+        env:
+          TEST_FILE: ${{ matrix.test_file }}
+        run: uv run pytest "$TEST_FILE" -v --tb=short
 
 # Future scenarios to add when stable:
 #   - three-actor  (multi-coordinator; add as matrix entry per DEMOCI-03-003)

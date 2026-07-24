@@ -58,6 +58,8 @@ _FCV_EXPECTED_EVENT_TYPES = [
     ),
     pytest.param("close_case", id="close_case"),
     pytest.param("add_note_to_case", id="add_note_to_case"),
+    # DEMOMA-16-007: Coordinator invites both Finder and Vendor.
+    pytest.param("invite_actor_to_case", id="invite_actor_to_case"),
 ]
 
 #: Actors with per-actor chain / contiguity / completeness checks.
