@@ -1,7 +1,7 @@
 id: CS
 title: Code Style Specifications
 description: Defines code formatting, import organization, and coding style standards for Python code in the Vultron project.
-version: 1.0.0
+version: 1.1.0
 scope:
 - prototype
 - production
@@ -431,3 +431,25 @@ groups:
       provided the distinction is observable in the model''s behaviour or serialisation (e.g., `BTExecutionResult.errors:
       list[str] | None` where `None` means "no error list was collected" vs `[]` meaning "errors were collected but none occurred").
       AS2 wire-layer fields that use `None` to omit keys from the serialised payload are a common example.'
+
+- id: CS-22
+  title: Extract Before Reuse
+  specs:
+  - id: CS-22-001
+    priority: SHOULD
+    kind: project
+    statement: >-
+      Shared logic SHOULD be extracted to a dedicated helper module before it
+      is used in a second location. Three similar lines of code is a signal to
+      extract; copy-pasting a function body is not acceptable. DRY is a project
+      standard.
+    rationale: >-
+      Every piece of code written by copying an existing implementation
+      propagates latent bugs alongside valid patterns. Reactive DRY-up (e.g.,
+      PR #1629 extracting five helper modules after five scenarios had already
+      been written) is more expensive and less reliable than proactive
+      extraction. Extraction-first keeps the codebase clean incrementally.
+    relationships:
+    - rel_type: constrains
+      spec_id: DEMOMA-17-001
+      note: DEMOMA-17-001 is the MUST-level specialisation of this rule for demo scenario files

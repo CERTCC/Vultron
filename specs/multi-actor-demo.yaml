@@ -1777,3 +1777,29 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOCI-04-004
+
+- id: DEMOMA-17
+  title: Demo Code Reuse and DRY
+  specs:
+  - id: DEMOMA-17-001
+    priority: MUST
+    kind: project
+    statement: >-
+      Before writing a second use of a pattern in a scenario file under
+      `vultron/demo/scenario/`, the pattern MUST be extracted to
+      `vultron/demo/helpers/` first. Scenario files MUST NOT copy-paste
+      function bodies, polling loops, verification blocks, or any other
+      logical unit from an existing scenario file.
+    rationale: >-
+      Every scenario written by copying the previous one propagates latent bugs
+      alongside valid patterns. Issue #1632 documented residual duplication
+      remaining after PR #1629 reactively extracted five helper modules from
+      five already-written scenarios. The rule enforces extraction-first to
+      prevent recurrence.
+    relationships:
+    - rel_type: refines
+      spec_id: CS-22-001
+      note: MUST-level specialisation of the project-wide SHOULD rule for demo scenario files
+    - rel_type: refines
+      spec_id: DEMOMA-03-001
+      note: acceptance test scenario files are also subject to this rule
