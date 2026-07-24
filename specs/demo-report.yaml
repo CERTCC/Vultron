@@ -227,6 +227,30 @@ groups:
       browser via `webbrowser.open()`, and MUST provide a flag (e.g.
       `--no-open`) that suppresses the browser launch (required for
       non-interactive and CI use).
+  - id: DRPT-04-006
+    priority: SHOULD
+    kind: project
+    statement: >-
+      Each per-case section SHOULD display the time range of its events as
+      `Time range: {first} – {last}`, where `{first}` and `{last}` are the
+      minimum and maximum `receivedAt` timestamps (full ISO 8601 strings) among
+      the case's canonical events. The line MUST be omitted when no events in
+      the case carry a `receivedAt` timestamp. When all events share the same
+      timestamp, both bounds MUST be shown (`{ts} – {ts}`). In markdown, the
+      time range MUST appear as a bullet line between the case heading and the
+      event table. In HTML, it MUST appear as a `<p class="meta">` element
+      between the `<h2>` heading and the `<table>`.
+    rationale: >-
+      When reviewing reports from CI runs or comparing across scenarios,
+      knowing the time range at a glance (e.g. "15:31:20Z – 15:31:27Z") is
+      more useful than counting rows. Per-case placement is necessary because
+      `log_index` restarts at 0 per case and cases may span non-overlapping
+      time windows (DRPT-02-006).
+    relationships:
+    - rel_type: extends
+      spec_id: DRPT-04-001
+    - rel_type: extends
+      spec_id: DRPT-04-002
 - id: DRPT-05
   title: Testing
   specs:
