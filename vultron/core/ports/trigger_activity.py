@@ -456,7 +456,7 @@ class TriggerActivityPort(Protocol):
         vendor_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> str:
+    ) -> tuple[str, dict[str, Any]]:
         """Create and persist an ``Accept(_OfferCaseManagerRoleActivity)``.
 
         Ephemerally reconstructs the original Offer (using ``offer_id``,
@@ -464,7 +464,9 @@ class TriggerActivityPort(Protocol):
         the Accept so that ``Accept.object_`` is a typed
         ``_OfferCaseManagerRoleActivity``, not a bare string IRI.
 
-        Returns the activity ID.
+        Returns ``(activity_id, activity_dict)`` where ``activity_dict`` is
+        the full inline serialization of the Accept (with nested Offer
+        inlined), suitable for use as a canonical payload snapshot.
         """
         ...
 

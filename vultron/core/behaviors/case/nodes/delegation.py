@@ -33,7 +33,11 @@ from typing import Any, cast
 import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.sync.commit_tree import (
+    create_commit_log_entry_tree,
+)
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 
 logger = logging.getLogger(__name__)
@@ -237,8 +241,8 @@ class AutoAcceptCaseManagerRoleNode(DataLayerAction):
         self.participant_id = participant_id
         self.vendor_id = vendor_id
 
-    def _call_factory(self) -> str:
-        """Create the Accept activity. Raises on failure (safe to catch)."""
+    def _call_factory(self) -> tuple[str, dict]:
+        """Create the Accept activity. Returns (id, inline_dict). Raises on failure."""
         assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
         return self.trigger_activity_factory.accept_case_manager_role(
@@ -281,11 +285,53 @@ class AutoAcceptCaseManagerRoleNode(DataLayerAction):
             return Status.FAILURE
         return None
 
+    def _commit_accept_to_ledger(
+        self, accept_id: str, payload_snapshot: dict
+    ) -> bool:
+        """Commit the Accept(CaseManagerRole) activity to the case ledger.
+
+        ``payload_snapshot`` is the inline serialization of the Accept captured
+        at creation time (before DL storage may flatten nested objects).
+
+        Returns True on success.  Callers MUST check the return value and
+        propagate FAILURE when False — a missing ledger entry breaks the
+        hash chain and violates DEMOMA-08-009.
+        """
+        assert self.datalayer is not None
+        assert self.actor_id is not None
+        # Normalize context to case_id (CLP-10-006: payloadSnapshot.context
+        # must equal the case URI for canonical recorded entries).
+        if payload_snapshot.get("context") != self.case_id:
+            payload_snapshot = dict(payload_snapshot)
+            payload_snapshot["context"] = self.case_id
+        commit_tree = create_commit_log_entry_tree(
+            case_id=self.case_id,
+            object_id=accept_id,
+            event_type="accept_case_manager_role",
+            payload_snapshot=payload_snapshot,
+            disposition="recorded",
+        )
+        result = BTBridge(
+            datalayer=cast(CaseOutboxPersistence, self.datalayer)
+        ).execute_with_setup(
+            tree=commit_tree,
+            actor_id=self.actor_id,
+        )
+        if result.status != Status.SUCCESS:
+            self.logger.error(
+                "%s: ledger commit failed for Accept '%s' on offer '%s'",
+                self.name,
+                accept_id,
+                self.offer_id,
+            )
+            return False
+        return True
+
     def update(self) -> Status:
         if (f := self._validate_context()) is not None:
             return f
         try:
-            accept_id = self._call_factory()
+            accept_id, payload_snapshot = self._call_factory()
         except Exception as exc:
             self.logger.error(
                 "%s: error creating Accept for offer '%s': %s",
@@ -294,9 +340,12 @@ class AutoAcceptCaseManagerRoleNode(DataLayerAction):
                 exc,
             )
             return Status.FAILURE
+        if not self._commit_accept_to_ledger(accept_id, payload_snapshot):
+            return Status.FAILURE
         self._enqueue_accept(accept_id)
         self.logger.info(
-            "%s: auto-accepted offer '%s' as '%s'; queued Accept '%s'",
+            "%s: auto-accepted offer '%s' as '%s'; ledgered and queued"
+            " Accept '%s'",
             self.name,
             self.offer_id,
             self.actor_id,

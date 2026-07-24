@@ -148,7 +148,8 @@ class TestCaseManagerRoleDelegationUseCases:
 
         trigger = MagicMock()
         trigger.accept_case_manager_role.return_value = (
-            "https://example.org/activities/accept-1"
+            "https://example.org/activities/accept-1",
+            {"type": "Accept", "actor": self._CASE_ACTOR_URI},
         )
 
         OfferCaseManagerRoleReceivedUseCase(
@@ -369,8 +370,12 @@ class TestCaseManagerRoleDelegationUseCases:
         )
 
         dl = SqliteDataLayer("sqlite:///:memory:")
+        # attributed_to triggers genesis_hash computation (CLP-08-001); required
+        # for the ledger commit that precedes the outbox enqueue.
         case = as_VulnerabilityCase(
-            id_=self._CASE_URI, name="OUTBOX-FAIL-TEST"
+            id_=self._CASE_URI,
+            name="OUTBOX-FAIL-TEST",
+            attributed_to=self._VENDOR_URI,
         )
         participant = as_CaseParticipant(
             id_=self._PARTICIPANT_URI,
@@ -385,7 +390,24 @@ class TestCaseManagerRoleDelegationUseCases:
 
         trigger = MagicMock()
         trigger.accept_case_manager_role.return_value = (
-            "https://example.org/activities/accept-outbox-fail"
+            "https://example.org/activities/accept-outbox-fail",
+            {
+                "type": "Accept",
+                "actor": self._CASE_ACTOR_URI,
+                "context": self._CASE_URI,
+                "object": {
+                    "type": "Offer",
+                    "id": "https://example.org/activities/offer-placeholder",
+                    "object": {
+                        "type": "VulnerabilityCase",
+                        "id": self._CASE_URI,
+                    },
+                    "target": {
+                        "type": "CaseParticipant",
+                        "id": self._PARTICIPANT_URI,
+                    },
+                },
+            },
         )
 
         # Accept creation succeeds, but outbox enqueue fails.
