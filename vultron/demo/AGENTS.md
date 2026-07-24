@@ -112,11 +112,23 @@ activity to the accepting actor's own inbox so that
 
 ```python
 # ✅ Correct — trigger first, then self-deliver
-trigger_accept_ownership_transfer(accepting_client, offer_id)
+accept_result = post_to_trigger(
+    client=accepting_client,
+    actor_id=accepting_actor_id,
+    behavior="accept-case-ownership-transfer",
+    body={"offer_id": offer_id},
+)
+accept_activity = as_TransitiveActivity.model_validate(accept_result["activity"])
 post_to_inbox_and_wait(accepting_client, accepting_participant_id, accept_activity)
 
 # ❌ Wrong — skips local replica update; attributed_to never changes on accepting actor
-trigger_accept_ownership_transfer(accepting_client, offer_id)
+accept_result = post_to_trigger(
+    client=accepting_client,
+    actor_id=accepting_actor_id,
+    behavior="accept-case-ownership-transfer",
+    body={"offer_id": offer_id},
+)
+# missing: extract accept_activity and post_to_inbox_and_wait(...)
 ```
 
 **Why:** PR #1590 silently deleted this self-delivery step in a commit that
