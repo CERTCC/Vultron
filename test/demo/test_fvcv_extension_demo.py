@@ -261,6 +261,104 @@ class TestFindCaseInviteForActor:
 
 
 # ---------------------------------------------------------------------------
+# Publication phase ordering tests
+# ---------------------------------------------------------------------------
+
+
+class TestPhasePublicationEmWaitOrdering:
+    """Verify that wait_for_case_em_terminated is called on finder's client
+    before actor_notifies_published is called for finder.
+
+    Regression test for issue #1690: finder previously called notify-published
+    before the EM teardown had propagated to its replica, producing an
+    out-of-causal-order EM=ACTIVE ledger entry after embargo removal.
+    """
+
+    def _make_actor(self, id_: str = "urn:test:actor"):
+        actor = MagicMock()
+        actor.id_ = id_
+        return actor
+
+    def _make_client(self):
+        return MagicMock()
+
+    def test_finder_em_wait_precedes_finder_notify_published(self):
+        """wait_for_case_em_terminated(finder) must be called before
+        actor_notifies_published for finder.
+        """
+        case_id = "urn:test:case-1"
+        call_log: list[str] = []
+
+        finder_client = self._make_client()
+        vendor_client = self._make_client()
+        coordinator_client = self._make_client()
+        vendor2_client = self._make_client()
+
+        finder = self._make_actor("urn:test:finder")
+        finder_in_finder = self._make_actor("urn:test:finder")
+        vendor = self._make_actor("urn:test:vendor")
+        vendor_in_vendor = self._make_actor("urn:test:vendor")
+        vendor2 = self._make_actor("urn:test:vendor2")
+        vendor2_in_vendor2 = self._make_actor("urn:test:vendor2")
+        coordinator = self._make_actor("urn:test:coordinator")
+        coordinator_in_coordinator = self._make_actor("urn:test:coordinator")
+
+        case = MagicMock()
+        case.id_ = case_id
+
+        def track_em_wait(client, case_id, **kwargs):
+            if client is finder_client:
+                call_log.append("em_wait_finder")
+
+        def track_notify_published(client, actor, case_id, **kwargs):
+            if client is finder_client:
+                call_log.append("notify_published_finder")
+
+        with (
+            patch.object(
+                demo,
+                "wait_for_case_em_terminated",
+                side_effect=track_em_wait,
+            ),
+            patch.object(
+                demo,
+                "actor_notifies_published",
+                side_effect=track_notify_published,
+            ),
+            patch.object(demo, "verify_publicly_disclosed"),
+            patch.object(demo, "demo_check"),
+        ):
+            demo._phase_publication(
+                finder_client=finder_client,
+                vendor_client=vendor_client,
+                coordinator_client=coordinator_client,
+                vendor2_client=vendor2_client,
+                vendor=vendor,
+                vendor_in_vendor=vendor_in_vendor,
+                vendor2=vendor2,
+                vendor2_in_vendor2=vendor2_in_vendor2,
+                finder=finder,
+                finder_in_finder=finder_in_finder,
+                coordinator=coordinator,
+                coordinator_in_coordinator=coordinator_in_coordinator,
+                case=case,
+            )
+
+        assert (
+            "em_wait_finder" in call_log
+        ), "wait_for_case_em_terminated was not called for finder_client"
+        assert (
+            "notify_published_finder" in call_log
+        ), "actor_notifies_published was not called for finder"
+        em_idx = call_log.index("em_wait_finder")
+        pub_idx = call_log.index("notify_published_finder")
+        assert em_idx < pub_idx, (
+            f"wait_for_case_em_terminated (pos {em_idx}) must precede "
+            f"actor_notifies_published for finder (pos {pub_idx})"
+        )
+
+
+# ---------------------------------------------------------------------------
 # CLI integration test
 # ---------------------------------------------------------------------------
 
