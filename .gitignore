@@ -159,3 +159,5 @@ devlogs
 plan/history/*/README.md
 .devcontainer/devcontainer.env
 .claude/settings.local.json
+.claude/pr-*.json
+.idea/

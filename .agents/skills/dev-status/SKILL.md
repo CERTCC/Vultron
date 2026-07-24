@@ -56,7 +56,7 @@ Print a single table followed by a "Next up" callout:
 | Ideas (open)           |   1   | plan-issue           |
 | Bugs (open)            |   3   | bugfix               |
 | Concerns (open)        |   0   | —                    |
-| Open PRs               |   2   | pr-comprehensive-fix |
+| Open PRs               |   2   | pr-ship              |
 | Triage (Someday)       |   5   | review-priorities    |
 | Ready to build         |   4   | build                |
 
@@ -81,7 +81,7 @@ list all non-zero conditions as `ask_user` choices):
 2. `process-concerns` — open Concern issues
 3. `plan-issue` — open Idea or Concern issues
 4. `bugfix` — open Bug issues
-5. `pr-comprehensive-fix` — open PRs > 0
+5. `pr-ship` — open PRs > 0
 6. `review-priorities` — triage items > 0 (Schedule=Someday with no Epic)
 7. `build` — ready-to-build count > 0
 8. *(stop)* — all queues empty, nothing actionable

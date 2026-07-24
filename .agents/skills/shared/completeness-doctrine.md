@@ -39,7 +39,7 @@ domain, or design space) requires a judgment call:
 When unattended: choose whatever seems most correct, document the reasoning
 explicitly in a learning file, and let the user review and override.
 
-## Finding Severity (build, pr-review, bugfix)
+## Finding Severity (build, pr-triage, bugfix)
 
 Both FAIL and IMPROVE require action before the PR merges:
 
