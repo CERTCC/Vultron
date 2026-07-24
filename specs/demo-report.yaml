@@ -142,6 +142,22 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DRPT-02-004
+  - id: DRPT-02-007
+    priority: MUST
+    kind: project
+    statement: >-
+      `build_timeline` MUST skip entries whose `disposition` field is not
+      `"recorded"` (e.g. `"rejected"`). Rejected entries are local-only
+      correlation markers with empty `payloadSnapshot` values; including them
+      in the report produces `—` actor labels and empty target columns that
+      violate the CLP spec and mislead readers.
+    rationale: >-
+      The AGENTS.md pitfall "disposition=rejected for Local-Only Correlation
+      Markers" documents that rejected entries must not appear in output
+      intended for human consumption.
+    relationships:
+    - rel_type: refines
+      spec_id: DRPT-02-004
 - id: DRPT-03
   title: Friendly Naming
   specs:
