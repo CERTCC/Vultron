@@ -168,6 +168,21 @@ sub-module layout):
 | `AssignVulIdCallOutBundle` | Vulnerability ID assignment | `create_assign_vul_id_tree` |
 | `CloseReportCallOutBundle` | Report closure | `create_close_report_tree` |
 
+### PrioritizationCallOutBundle fields
+
+| Field | Node replaced | p (stochastic) | Deterministic default |
+|---|---|---|---|
+| `evaluate_priority_factory` | `EvaluateCasePriority` | 1.0 → `AlwaysSucceed` | `AlwaysSucceed` (always engage; SSVC deferred — PROTO-05-001) |
+| `on_accept_factory` | `OnAccept` | 1.0 → `AlwaysSucceed` | `AlwaysSucceed` |
+| `on_defer_factory` | `OnDefer` | 1.0 → `AlwaysSucceed` | `AlwaysSucceed` |
+| `enough_info_factory` | `EnoughPrioritizationInfo` | 0.75 → `AlwaysSucceed` | `AlwaysSucceed` (Phase 2 reserved) |
+| `gather_info_factory` | `GatherPrioritizationInfo` | 0.90 → `AlwaysSucceed` | `AlwaysSucceed` (Phase 2 reserved) |
+
+`evaluate_priority_factory` is the production SSVC seam (PROTO-05-001). In DETERMINISTIC
+mode it resolves `AlwaysSucceed` so all cases are engaged. In STOCHASTIC mode it uses the
+`EvaluateCasePriority` fuzzer node. A real SSVC evaluator would implement
+`CallOutBackendFactory` and be passed here — no other code change required.
+
 ### Module layout
 
 ```text
