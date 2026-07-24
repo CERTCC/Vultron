@@ -6,7 +6,7 @@ description: >-
   when the demo fails — closing the gap where tests pass while the demo produces
   silent failures. Includes requirements for the invariant harness to run as an
   independent CI gate so failures are visible even when the demo itself also fails.
-version: 1.2.0
+version: 1.3.0
 scope:
   - prototype
   - production
@@ -341,3 +341,23 @@ groups:
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-03-005
+
+      - id: DEMOCI-04-005
+        priority: MUST
+        kind: project
+        statement: >-
+          The invariant-harness job MUST carry the same Dependabot exclusion
+          guard as the demo job (DEMOCI-02-004): its `if:` condition MUST
+          include `!startsWith(github.head_ref, 'dependabot/')` in addition
+          to `always()`.
+        rationale: >-
+          Without the guard, a Dependabot PR skips the demo job (correct) but
+          triggers the invariant-harness job, which immediately fails because
+          `actions/download-artifact` finds no artifact — producing spurious
+          failing status checks on every Dependabot PR. The guard prevents this
+          by matching the skip condition of the upstream demo job.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-04-002
+          - rel_type: refines
+            spec_id: DEMOCI-02-004
