@@ -496,6 +496,10 @@ def build_timeline(
     per-source key for degenerate hashless entries), records which actors'
     replicas hold each entry, and orders the result by ``log_index`` ascending
     (DRPT-02-004, DRPT-02-005).
+
+    Entries with ``disposition != "recorded"`` are silently skipped; they are
+    local-only correlation markers with empty payloads that must not appear in
+    the report (DRPT-02-007).
     """
     by_key: dict[str, CaseTimelineEvent] = {}
     presence: dict[str, set[str]] = {}
@@ -503,6 +507,8 @@ def build_timeline(
     for actor_name in sorted(replicas):
         for raw in replicas[actor_name]:
             event = CaseTimelineEvent.from_raw(raw)
+            if event.disposition != "recorded":
+                continue
             if event.entry_hash:
                 key = event.entry_hash
             else:
