@@ -94,6 +94,28 @@ logic — check for existing records before creating (HP-07-001). Data Layer
 provides unique ID constraints. Report handlers (`create_report`,
 `submit_report`) already follow this pattern.
 
+### Multi-Object Mutations Touching `attributed_to` MUST Use `save_many()`
+
+Any BT node `update()` that mutates `VulnerabilityCase.attributed_to` alongside
+other objects (e.g., stripping/granting `CVDRole.CASE_OWNER` on participant
+records) **MUST** commit all changes via a single `self.datalayer.save_many()`
+call — never via sequential `self.datalayer.save()` calls.
+
+**Why:** Sequential saves create a window where the DataLayer holds partial
+state (e.g., the old owner's `CASE_OWNER` role stripped but the new owner's
+role not yet granted). A crash in that window leaves the case with zero
+`CASE_OWNER` holders — unrecoverable via normal protocol messages. `save_many()`
+wraps all writes in one SQLite transaction that either commits fully or rolls
+back entirely (CM-21-004). See `AcceptCaseOwnershipTransferNode` in
+`vultron/core/behaviors/case/nodes/ownership_transfer.py` for the canonical
+implementation pattern. An AST ratchet in
+`test/architecture/test_attributed_to_requires_save_many.py` enforces this
+(tracked in #1661).
+
+<!-- Source: CONCERN-1653 -->
+
+---
+
 ### Use `isinstance` for Pyright Attribute Narrowing, Not `# type: ignore`
 
 When accessing an attribute that exists on a subtype but not its base type
