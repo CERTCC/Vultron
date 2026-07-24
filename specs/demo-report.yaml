@@ -6,7 +6,7 @@ description: >-
   report of who did what, with what activity, and in what order. Covers input discovery,
   the distilled intermediate data model, markdown and HTML rendering, the per-actor
   replica-presence matrix, friendly naming, and test requirements.
-version: 1.2.0
+version: 1.3.0
 scope:
 - prototype
 tags:
