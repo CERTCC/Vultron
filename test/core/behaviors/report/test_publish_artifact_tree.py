@@ -306,12 +306,12 @@ def test_auto_approve_skips_revision_arm():
     ran: set[str] = set()
     tree = create_publish_artifact_tree(
         case_id=CASE_ID,
-        draft_advisory_artifact_factory=lambda n: _Recording(n, ran),
-        review_advisory_draft_factory=lambda n: _WritingReview(
-            n, AdvisoryReviewDecision(needs_revision=False)
+        draft_advisory_artifact_factory=lambda name: _Recording(name, ran),
+        review_advisory_draft_factory=lambda name: _WritingReview(
+            name, AdvisoryReviewDecision(needs_revision=False)
         ),
-        revise_advisory_draft_factory=lambda n: _Recording(n, ran),
-        submit_advisory_artifact_factory=lambda n: _Recording(n, ran),
+        revise_advisory_draft_factory=lambda name: _Recording(name, ran),
+        submit_advisory_artifact_factory=lambda name: _Recording(name, ran),
     )
     status = _tick_tree(tree)
     assert status == Status.SUCCESS
@@ -325,12 +325,12 @@ def test_needs_revision_runs_revision_arm():
     ran: set[str] = set()
     tree = create_publish_artifact_tree(
         case_id=CASE_ID,
-        draft_advisory_artifact_factory=lambda n: _Recording(n, ran),
-        review_advisory_draft_factory=lambda n: _WritingReview(
-            n, AdvisoryReviewDecision(needs_revision=True)
+        draft_advisory_artifact_factory=lambda name: _Recording(name, ran),
+        review_advisory_draft_factory=lambda name: _WritingReview(
+            name, AdvisoryReviewDecision(needs_revision=True)
         ),
-        revise_advisory_draft_factory=lambda n: _Recording(n, ran),
-        submit_advisory_artifact_factory=lambda n: _Recording(n, ran),
+        revise_advisory_draft_factory=lambda name: _Recording(name, ran),
+        submit_advisory_artifact_factory=lambda name: _Recording(name, ran),
     )
     status = _tick_tree(tree)
     assert status == Status.SUCCESS
@@ -349,10 +349,10 @@ def test_draft_failure_fails_pipeline():
 
     tree = create_publish_artifact_tree(
         case_id=CASE_ID,
-        draft_advisory_artifact_factory=lambda n: _Fail(name=n),
+        draft_advisory_artifact_factory=lambda name: _Fail(name=name),
         review_advisory_draft_factory=_marker_factory("Review"),
         revise_advisory_draft_factory=_marker_factory("Revise"),
-        submit_advisory_artifact_factory=lambda n: _Recording(n, ran),
+        submit_advisory_artifact_factory=lambda name: _Recording(name, ran),
     )
     status = _tick_tree(tree)
     assert status == Status.FAILURE
@@ -370,9 +370,9 @@ def test_review_failure_fails_pipeline():
     tree = create_publish_artifact_tree(
         case_id=CASE_ID,
         draft_advisory_artifact_factory=_marker_factory("Draft"),
-        review_advisory_draft_factory=lambda n: _Fail(name=n),
+        review_advisory_draft_factory=lambda name: _Fail(name=name),
         revise_advisory_draft_factory=_marker_factory("Revise"),
-        submit_advisory_artifact_factory=lambda n: _Recording(n, ran),
+        submit_advisory_artifact_factory=lambda name: _Recording(name, ran),
     )
     status = _tick_tree(tree)
     assert status == Status.FAILURE
@@ -390,11 +390,11 @@ def test_revise_failure_fails_pipeline():
     tree = create_publish_artifact_tree(
         case_id=CASE_ID,
         draft_advisory_artifact_factory=_marker_factory("Draft"),
-        review_advisory_draft_factory=lambda n: _WritingReview(
-            n, AdvisoryReviewDecision(needs_revision=True)
+        review_advisory_draft_factory=lambda name: _WritingReview(
+            name, AdvisoryReviewDecision(needs_revision=True)
         ),
-        revise_advisory_draft_factory=lambda n: _Fail(name=n),
-        submit_advisory_artifact_factory=lambda n: _Recording(n, ran),
+        revise_advisory_draft_factory=lambda name: _Fail(name=name),
+        submit_advisory_artifact_factory=lambda name: _Recording(name, ran),
     )
     status = _tick_tree(tree)
     assert status == Status.FAILURE
@@ -413,7 +413,7 @@ def test_submit_failure_fails_pipeline():
         draft_advisory_artifact_factory=_marker_factory("Draft"),
         review_advisory_draft_factory=_marker_factory("Review"),
         revise_advisory_draft_factory=_marker_factory("Revise"),
-        submit_advisory_artifact_factory=lambda n: _Fail(name=n),
+        submit_advisory_artifact_factory=lambda name: _Fail(name=name),
     )
     status = _tick_tree(tree)
     assert status == Status.FAILURE

@@ -34,6 +34,7 @@ from vultron.core.behaviors.report.publication_tree import (
     ShouldPublishReport,
     create_publication_tree,
 )
+from vultron.demo.fuzzer.bundles.publication import PublicationCallOutBundle
 from vultron.demo.fuzzer.report_management.publication import (
     DraftAdvisoryArtifact,
     PrepareExploit,
@@ -129,11 +130,21 @@ def test_root_is_sequence():
 
 
 def test_root_has_evaluator_plus_three_arms():
-    """AC-4: PrioritizePublicationIntents + exactly three named arms."""
+    """AC-4: four children — intents evaluator + exactly three named arms."""
     tree = create_publication_tree(case_id=CASE_ID)
     assert len(tree.children) == 4
-    assert isinstance(tree.children[0], PrioritizePublicationIntents)
+    assert tree.children[0].name == "PrioritizePublicationIntents"
     assert [c.name for c in tree.children[1:]] == _ARM_NAMES
+
+
+def test_stochastic_bundle_evaluator_is_fuzzer_node():
+    """STOCHASTIC bundle: first child is PrioritizePublicationIntents fuzzer node."""
+    from vultron.demo.fuzzer.bundles.publication import PUBLICATION_STOCHASTIC
+
+    tree = create_publication_tree(
+        case_id=CASE_ID, call_out=PUBLICATION_STOCHASTIC
+    )
+    assert isinstance(tree.children[0], PrioritizePublicationIntents)
 
 
 def test_evaluator_is_first_child():
@@ -160,26 +171,61 @@ def test_each_arm_is_selector(arm_name):
     assert isinstance(arm.children[1], py_trees.decorators.Inverter)
 
 
-def test_default_prepare_nodes_are_fuzzers():
-    """AC-5: default prepare factories produce the fuzzer Composer nodes."""
+def test_default_prepare_nodes_are_deterministic():
+    """DETERMINISTIC default: prepare nodes use AlwaysSucceed (BT-23-002)."""
+    from vultron.demo.fuzzer.base import AlwaysSucceed
+
     tree = create_publication_tree(case_id=CASE_ID)
     exploit_seq = tree.children[1].children[0]
     fix_seq = tree.children[2].children[0]
     report_seq = tree.children[3].children[0]
 
     assert isinstance(exploit_seq.children[0], ShouldPublishExploit)
-    assert isinstance(exploit_seq.children[1], PrepareExploit)
+    assert isinstance(exploit_seq.children[1], AlwaysSucceed)
 
     assert isinstance(fix_seq.children[0], ShouldPublishFix)
-    assert isinstance(fix_seq.children[1], PrepareFix)
+    assert isinstance(fix_seq.children[1], AlwaysSucceed)
 
     assert isinstance(report_seq.children[0], ShouldPublishReport)
+    assert isinstance(report_seq.children[1], AlwaysSucceed)
+
+
+def test_stochastic_prepare_nodes_are_fuzzers():
+    """STOCHASTIC bundle: prepare factories produce the fuzzer Composer nodes."""
+    from vultron.demo.fuzzer.bundles.publication import PUBLICATION_STOCHASTIC
+
+    tree = create_publication_tree(
+        case_id=CASE_ID, call_out=PUBLICATION_STOCHASTIC
+    )
+    exploit_seq = tree.children[1].children[0]
+    fix_seq = tree.children[2].children[0]
+    report_seq = tree.children[3].children[0]
+
+    assert isinstance(exploit_seq.children[1], PrepareExploit)
+    assert isinstance(fix_seq.children[1], PrepareFix)
     assert isinstance(report_seq.children[1], PrepareReport)
 
 
-def test_default_publish_pipeline_nodes_are_fuzzers():
-    """Collapse 4: default pipeline factories produce fuzzer nodes per arm."""
+def test_default_publish_pipeline_nodes_are_deterministic():
+    """DETERMINISTIC default: pipeline factories produce AlwaysSucceed per arm."""
+    from vultron.demo.fuzzer.base import AlwaysSucceed
+
     tree = create_publication_tree(case_id=CASE_ID)
+    for arm, label in zip(tree.children[1:], ["Exploit", "Fix", "Report"]):
+        pipeline = arm.children[0].children[2]  # PublishArtifactBT_<label>
+        assert pipeline.name == f"PublishArtifactBT_{label}"
+        assert isinstance(pipeline.children[0], AlwaysSucceed)
+        assert isinstance(pipeline.children[1], AlwaysSucceed)
+        assert isinstance(pipeline.children[3], AlwaysSucceed)
+
+
+def test_stochastic_publish_pipeline_nodes_are_fuzzers():
+    """STOCHASTIC bundle: Collapse 4 pipeline factories produce fuzzer nodes per arm."""
+    from vultron.demo.fuzzer.bundles.publication import PUBLICATION_STOCHASTIC
+
+    tree = create_publication_tree(
+        case_id=CASE_ID, call_out=PUBLICATION_STOCHASTIC
+    )
     for arm, label in zip(tree.children[1:], ["Exploit", "Fix", "Report"]):
         pipeline = arm.children[0].children[2]  # PublishArtifactBT_<label>
         assert pipeline.name == f"PublishArtifactBT_{label}"
@@ -199,35 +245,29 @@ def test_default_publish_pipeline_nodes_are_fuzzers():
 # ---------------------------------------------------------------------------
 
 
-def test_full_tick_with_default_evaluator_writes_intent_record():
-    """AC-1: a full tick with the default Evaluator writes the intent record.
+def test_full_tick_with_stochastic_evaluator_writes_intent_record():
+    """AC-1: a full tick with the real PrioritizePublicationIntents Evaluator writes the intent record.
 
-    Unlike the structure tests above (and unlike the arm-gating tests, which
-    write the record manually via ``_write_intent``), this exercises the real
-    default ``PrioritizePublicationIntents`` factory — a deterministic
-    ``AlwaysSucceed`` Evaluator — rather than a stub.  It therefore verifies
-    the node's actual blackboard-write contract (BT-18-001): on SUCCESS the
-    Evaluator writes a :class:`PublicationIntentDecision` to
+    Uses the STOCHASTIC bundle (which provides the real PrioritizePublicationIntents
+    evaluator) with stub Prepare*/Publish factories so the tree ticks to SUCCESS
+    deterministically.  Verifies the node's actual blackboard-write contract (BT-18-001):
+    on SUCCESS the Evaluator writes a :class:`PublicationIntentDecision` to
     :data:`INTENT_DECISION_KEY`.
-
-    Only the probabilistic ``Prepare*``/``Publish`` arm call-out points are
-    replaced with deterministic marker stubs, so the tree ticks to SUCCESS on
-    every run; the Evaluator factory is left at its default.  Follows the
-    ``test_evaluate_exploit_strategy_writes_blackboard_on_success`` pattern in
-    ``test_acquire_exploit_strategy_tree.py`` (AC-2): both tick the real
-    ``create_*_tree`` builder and stub only the otherwise-probabilistic arms.
     """
-    tree = create_publication_tree(
-        case_id=CASE_ID,
-        prepare_exploit_factory=_marker_factory("PrepExploit"),
-        prepare_fix_factory=_marker_factory("PrepFix"),
-        prepare_report_factory=_marker_factory("PrepReport"),
-        draft_advisory_artifact_factory=_marker_factory("Draft"),
-        review_advisory_draft_factory=_marker_factory("Review"),
-        revise_advisory_draft_factory=_marker_factory("Revise"),
-        submit_advisory_artifact_factory=_marker_factory("Submit"),
+    from vultron.demo.fuzzer.bundles.publication import PUBLICATION_STOCHASTIC
+
+    bundle = PublicationCallOutBundle(
+        prioritize_publication_intents_factory=PUBLICATION_STOCHASTIC.prioritize_publication_intents_factory,
+        prepare_exploit_factory=_marker_factory("PrepExploit"),  # type: ignore[arg-type]
+        prepare_fix_factory=_marker_factory("PrepFix"),  # type: ignore[arg-type]
+        prepare_report_factory=_marker_factory("PrepReport"),  # type: ignore[arg-type]
+        draft_advisory_artifact_factory=_marker_factory("Draft"),  # type: ignore[arg-type]
+        review_advisory_draft_factory=_marker_factory("Review"),  # type: ignore[arg-type]
+        revise_advisory_draft_factory=_marker_factory("Revise"),  # type: ignore[arg-type]
+        submit_advisory_artifact_factory=_marker_factory("Submit"),  # type: ignore[arg-type]
     )
-    # Guard: the Evaluator under test is the real default node, not a stub.
+    tree = create_publication_tree(case_id=CASE_ID, call_out=bundle)
+    # Guard: the Evaluator under test is the real stochastic node, not a stub.
     assert isinstance(tree.children[0], PrioritizePublicationIntents)
 
     tree.setup_with_descendants()
@@ -282,37 +322,37 @@ def test_eliminated_nodes_absent(eliminated_class_name):
 
 
 def test_prioritize_intents_factory_used():
-    """AC-5: custom prioritize_publication_intents_factory is wired in."""
-    tree = create_publication_tree(
-        case_id=CASE_ID,
-        prioritize_publication_intents_factory=_marker_factory("CustomPPI"),
+    """AC-5: custom prioritize_publication_intents_factory is wired in via bundle."""
+    bundle = PublicationCallOutBundle(
+        prioritize_publication_intents_factory=_marker_factory("CustomPPI"),  # type: ignore[arg-type]
     )
+    tree = create_publication_tree(case_id=CASE_ID, call_out=bundle)
     assert tree.children[0].name == "CustomPPI"
     assert not isinstance(tree.children[0], PrioritizePublicationIntents)
 
 
 def test_prepare_factories_used():
-    """AC-5: custom prepare_* factories are wired into their arms."""
-    tree = create_publication_tree(
-        case_id=CASE_ID,
-        prepare_exploit_factory=_marker_factory("CustomPrepExploit"),
-        prepare_fix_factory=_marker_factory("CustomPrepFix"),
-        prepare_report_factory=_marker_factory("CustomPrepReport"),
+    """AC-5: custom prepare_* factories are wired into their arms via bundle."""
+    bundle = PublicationCallOutBundle(
+        prepare_exploit_factory=_marker_factory("CustomPrepExploit"),  # type: ignore[arg-type]
+        prepare_fix_factory=_marker_factory("CustomPrepFix"),  # type: ignore[arg-type]
+        prepare_report_factory=_marker_factory("CustomPrepReport"),  # type: ignore[arg-type]
     )
+    tree = create_publication_tree(case_id=CASE_ID, call_out=bundle)
     assert tree.children[1].children[0].children[1].name == "CustomPrepExploit"
     assert tree.children[2].children[0].children[1].name == "CustomPrepFix"
     assert tree.children[3].children[0].children[1].name == "CustomPrepReport"
 
 
 def test_publish_pipeline_factories_used_in_every_arm():
-    """AC-5 / Collapse 4: the four pipeline factories are applied to all arms."""
-    tree = create_publication_tree(
-        case_id=CASE_ID,
-        draft_advisory_artifact_factory=_marker_factory("CustomDraft"),
-        review_advisory_draft_factory=_marker_factory("CustomReview"),
-        revise_advisory_draft_factory=_marker_factory("CustomRevise"),
-        submit_advisory_artifact_factory=_marker_factory("CustomSubmit"),
+    """AC-5 / Collapse 4: the four pipeline factories are applied to all arms via bundle."""
+    bundle = PublicationCallOutBundle(
+        draft_advisory_artifact_factory=_marker_factory("CustomDraft"),  # type: ignore[arg-type]
+        review_advisory_draft_factory=_marker_factory("CustomReview"),  # type: ignore[arg-type]
+        revise_advisory_draft_factory=_marker_factory("CustomRevise"),  # type: ignore[arg-type]
+        submit_advisory_artifact_factory=_marker_factory("CustomSubmit"),  # type: ignore[arg-type]
     )
+    tree = create_publication_tree(case_id=CASE_ID, call_out=bundle)
     for arm in tree.children[1:]:
         pipeline = arm.children[0].children[2]
         assert pipeline.children[0].name == "CustomDraft"

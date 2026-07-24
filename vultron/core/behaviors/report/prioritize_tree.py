@@ -51,7 +51,6 @@ from typing import TYPE_CHECKING
 
 import py_trees
 
-from vultron.core.behaviors.call_out_point import CallOutBackendFactory
 from vultron.core.behaviors.case.engage_defer_trigger_tree import (
     defer_case_trigger_bt,
     engage_case_trigger_bt,
@@ -72,34 +71,9 @@ from vultron.core.behaviors.report.nodes import (
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
-
-
-def _default_on_accept_factory(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.prioritize import OnAccept
-
-    return OnAccept(name)
-
-
-def _default_on_defer_factory(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.prioritize import OnDefer
-
-    return OnDefer(name)
-
-
-def _default_enough_info_factory(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.prioritize import (
-        EnoughPrioritizationInfo,
+    from vultron.demo.fuzzer.bundles.prioritization import (
+        PrioritizationCallOutBundle,
     )
-
-    return EnoughPrioritizationInfo(name)
-
-
-def _default_gather_info_factory(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.prioritize import (
-        GatherPrioritizationInfo,
-    )
-
-    return GatherPrioritizationInfo(name)
 
 
 logger = logging.getLogger(__name__)
@@ -184,10 +158,7 @@ def create_prioritize_subtree(
     case_id: str,
     actor_id: str,
     trigger_activity: "TriggerActivityPort | None" = None,
-    on_accept_factory: CallOutBackendFactory = _default_on_accept_factory,
-    on_defer_factory: CallOutBackendFactory = _default_on_defer_factory,
-    enough_info_factory: CallOutBackendFactory = _default_enough_info_factory,
-    gather_info_factory: CallOutBackendFactory = _default_gather_info_factory,
+    call_out: "PrioritizationCallOutBundle | None" = None,
 ) -> py_trees.behaviour.Behaviour:
     """
     Create behavior tree subtree for case prioritization (engage or defer).
@@ -232,27 +203,20 @@ def create_prioritize_subtree(
             When ``None``, the sender-side subtrees will fail at execution
             time with a descriptive error (consistent with the behaviour
             when the blackboard does not carry a factory).
-        on_accept_factory: Factory for the Actuator call-out point that
-            fires integration hooks when the report is accepted.  Defaults
-            to the fuzzer backend (BT-18-004).
-        on_defer_factory: Factory for the Actuator call-out point that
-            fires integration hooks when the report is deferred.  Defaults
-            to the fuzzer backend (BT-18-004).
-        enough_info_factory: Factory for the Evaluator call-out point that
-            checks whether sufficient prioritization information is available.
-            Reserved for Phase 2 info-gathering loop; accepted but not yet
-            wired into the Phase 1 tree body (BT-18-004).
-        gather_info_factory: Factory for the Retriever call-out point that
-            collects additional prioritization information.  Reserved for
-            Phase 2 info-gathering loop; accepted but not yet wired into
-            the Phase 1 tree body (BT-18-004).
+        call_out: Bundle of call-out backend factories for this domain.
+            Defaults to :data:`~vultron.demo.fuzzer.bundles.prioritization.PRIORITIZATION_DETERMINISTIC`
+            (BT-23-003, BT-23-005).
 
     Returns:
         Root node of the prioritize behavior tree (Selector)
     """
-    # Phase 2: enough_info_factory and gather_info_factory are reserved for
-    # the prioritization info-gathering loop and are not wired into the Phase 1
-    # tree body.  Accepting them here satisfies BT-18-004 without breaking callers.
+    from vultron.demo.fuzzer.bundles.prioritization import (
+        PRIORITIZATION_DETERMINISTIC,
+    )
+
+    bundle = call_out if call_out is not None else PRIORITIZATION_DETERMINISTIC
+    # Phase 2: bundle.enough_info_factory and bundle.gather_info_factory are reserved for
+    # the prioritization info-gathering loop and are not wired into the Phase 1 tree.
     factory = trigger_activity
 
     def _build_engage(case_manager_id: str) -> list[str]:
@@ -291,7 +255,7 @@ def create_prioritize_subtree(
                 actor_id=actor_id,
                 activity_builder=_build_engage,
             ),
-            on_accept_factory("OnAccept"),
+            bundle.on_accept_factory("OnAccept"),
         ],
     )
     defer_path = py_trees.composites.Sequence(
@@ -303,7 +267,7 @@ def create_prioritize_subtree(
                 actor_id=actor_id,
                 activity_builder=_build_defer,
             ),
-            on_defer_factory("OnDefer"),
+            bundle.on_defer_factory("OnDefer"),
         ],
     )
     root = py_trees.composites.Selector(

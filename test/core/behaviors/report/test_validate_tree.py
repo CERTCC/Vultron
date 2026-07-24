@@ -40,6 +40,7 @@ from vultron.core.behaviors.report.validate_tree import (
     create_validate_report_tree,
 )
 from vultron.core.states.rm import RM
+from vultron.demo.fuzzer.bundles.validation import ValidationCallOutBundle
 
 
 def _always_succeed_factory(name: str) -> py_trees.behaviour.Behaviour:
@@ -50,6 +51,12 @@ def _always_succeed_factory(name: str) -> py_trees.behaviour.Behaviour:
             return py_trees.common.Status.SUCCESS
 
     return _AlwaysSucceed(name)
+
+
+_ALWAYS_SUCCEED_BUNDLE = ValidationCallOutBundle(
+    credibility_factory=_always_succeed_factory,  # type: ignore[arg-type]
+    validity_factory=_always_succeed_factory,  # type: ignore[arg-type]
+)
 
 
 @pytest.fixture
@@ -271,8 +278,7 @@ def test_tree_execution_success_new_report(
     tree = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        credibility_factory=_always_succeed_factory,
-        validity_factory=_always_succeed_factory,
+        call_out=_ALWAYS_SUCCEED_BUNDLE,
     )
 
     # Act: Execute tree
@@ -305,8 +311,7 @@ def test_tree_execution_does_not_create_case(
     tree = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        credibility_factory=_always_succeed_factory,
-        validity_factory=_always_succeed_factory,
+        call_out=_ALWAYS_SUCCEED_BUNDLE,
     )
     result = bridge.execute_with_setup(
         tree=tree,
@@ -330,8 +335,7 @@ def test_tree_execution_transitions_vendor_to_valid(
     tree = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        credibility_factory=_always_succeed_factory,
-        validity_factory=_always_succeed_factory,
+        call_out=_ALWAYS_SUCCEED_BUNDLE,
     )
 
     result = bridge.execute_with_setup(
@@ -363,8 +367,7 @@ def test_tree_execution_early_exit_already_valid(
     tree = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        credibility_factory=_always_succeed_factory,
-        validity_factory=_always_succeed_factory,
+        call_out=_ALWAYS_SUCCEED_BUNDLE,
     )
 
     # Act: Execute tree
@@ -394,8 +397,7 @@ def test_tree_execution_invalid_state_transitions_to_valid(
     tree = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        credibility_factory=_always_succeed_factory,
-        validity_factory=_always_succeed_factory,
+        call_out=_ALWAYS_SUCCEED_BUNDLE,
     )
 
     # Act: Execute tree
@@ -423,8 +425,7 @@ def test_tree_execution_no_prior_status_succeeds(
     tree = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        credibility_factory=_always_succeed_factory,
-        validity_factory=_always_succeed_factory,
+        call_out=_ALWAYS_SUCCEED_BUNDLE,
     )
 
     # Act: Execute tree
@@ -449,8 +450,7 @@ def test_tree_execution_policy_stubs_always_accept(
     tree = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        credibility_factory=_always_succeed_factory,
-        validity_factory=_always_succeed_factory,
+        call_out=_ALWAYS_SUCCEED_BUNDLE,
     )
 
     # Act: Execute tree
@@ -555,15 +555,13 @@ def test_tree_execution_idempotency(
     tree1 = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        credibility_factory=_always_succeed_factory,
-        validity_factory=_always_succeed_factory,
+        call_out=_ALWAYS_SUCCEED_BUNDLE,
     )
 
     tree2 = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        credibility_factory=_always_succeed_factory,
-        validity_factory=_always_succeed_factory,
+        call_out=_ALWAYS_SUCCEED_BUNDLE,
     )
 
     # Act: Execute tree twice
@@ -603,8 +601,7 @@ def test_tree_execution_actor_isolation(
     tree_a = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        credibility_factory=_always_succeed_factory,
-        validity_factory=_always_succeed_factory,
+        call_out=_ALWAYS_SUCCEED_BUNDLE,
     )
     result_a = bridge.execute_with_setup(
         tree=tree_a,
@@ -616,8 +613,7 @@ def test_tree_execution_actor_isolation(
     tree_b = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        credibility_factory=_always_succeed_factory,
-        validity_factory=_always_succeed_factory,
+        call_out=_ALWAYS_SUCCEED_BUNDLE,
     )
     result_b = bridge.execute_with_setup(
         tree=tree_b,
@@ -680,10 +676,11 @@ def test_validate_tree_custom_credibility_factory_used(report, offer):
 
         return _Marker(name="CustomCredibility")
 
+    bundle = ValidationCallOutBundle(credibility_factory=custom_factory)  # type: ignore[arg-type]
     tree = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        credibility_factory=custom_factory,
+        call_out=bundle,
     )
 
     assert sentinel["called"]
@@ -692,7 +689,7 @@ def test_validate_tree_custom_credibility_factory_used(report, offer):
 
 
 def test_validate_tree_custom_validity_factory_used(report, offer):
-    """validity_factory node appears in the tree when a custom factory is passed."""
+    """validity_factory node appears in the tree when a custom bundle is passed."""
     import py_trees
 
     def custom_factory(name):
@@ -702,10 +699,11 @@ def test_validate_tree_custom_validity_factory_used(report, offer):
 
         return _Marker(name="CustomValidity")
 
+    bundle = ValidationCallOutBundle(validity_factory=custom_factory)  # type: ignore[arg-type]
     tree = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        validity_factory=custom_factory,
+        call_out=bundle,
     )
 
     tree_str = py_trees.display.ascii_tree(tree)
@@ -713,7 +711,7 @@ def test_validate_tree_custom_validity_factory_used(report, offer):
 
 
 def test_validate_tree_gather_info_factory_signature_accepted(report, offer):
-    """gather_info_factory parameter is accepted without error (Phase 2 hook).
+    """gather_info_factory is accepted via bundle without error (Phase 2 hook).
 
     The factory is NOT called in Phase 1 (not wired into the tree body yet).
     This test verifies only that the parameter is accepted without raising.
@@ -728,11 +726,11 @@ def test_validate_tree_gather_info_factory_signature_accepted(report, offer):
 
         return _Marker(name="CustomGather")
 
-    # Should not raise; factory is accepted even if not yet wired in Phase 1
+    bundle = ValidationCallOutBundle(gather_info_factory=gather_factory)  # type: ignore[arg-type]
     tree = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        gather_info_factory=gather_factory,
+        call_out=bundle,
     )
     assert tree is not None
 
@@ -751,8 +749,7 @@ def test_validate_report_tree_case_has_active_embargo(
     tree = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
-        credibility_factory=_always_succeed_factory,
-        validity_factory=_always_succeed_factory,
+        call_out=_ALWAYS_SUCCEED_BUNDLE,
     )
     bridge.execute_with_setup(
         tree=tree,

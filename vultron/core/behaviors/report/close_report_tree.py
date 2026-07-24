@@ -33,38 +33,21 @@ References
 """
 
 import logging
+from typing import TYPE_CHECKING
 
 import py_trees
 
-from vultron.core.behaviors.call_out_point import CallOutBackendFactory
+if TYPE_CHECKING:
+    from vultron.demo.fuzzer.bundles.close_report import (
+        CloseReportCallOutBundle,
+    )
 
 logger = logging.getLogger(__name__)
 
 
-def _default_other_close_criteria_factory(
-    name: str,
-) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.close_report import (
-        OtherCloseCriteriaMet,
-    )
-
-    return OtherCloseCriteriaMet(name)
-
-
-def _default_pre_close_action_factory(
-    name: str,
-) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.close_report import (
-        PreCloseAction,
-    )
-
-    return PreCloseAction(name)
-
-
 def create_close_report_tree(
     case_id: str,
-    other_close_criteria_factory: CallOutBackendFactory = _default_other_close_criteria_factory,
-    pre_close_action_factory: CallOutBackendFactory = _default_pre_close_action_factory,
+    call_out: "CloseReportCallOutBundle | None" = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create behavior tree for the report closure workflow (Phase 1 stub).
 
@@ -77,19 +60,20 @@ def create_close_report_tree(
 
     Args:
         case_id: ID of VulnerabilityCase being processed.
-        other_close_criteria_factory: Factory for the Evaluator call-out point
-            that checks whether site-specific closure criteria have been met.
-            Defaults to the fuzzer backend (BT-18-004).
-        pre_close_action_factory: Factory for the Actuator call-out point that
-            performs required actions before closing the report.  Reserved for
-            Phase 2; accepted but not yet wired into the Phase 1 tree body
-            (BT-18-004).
+        call_out: Bundle of call-out backend factories for this domain.
+            Defaults to :data:`~vultron.demo.fuzzer.bundles.close_report.CLOSE_REPORT_DETERMINISTIC`
+            (BT-23-003, BT-23-005).
 
     Returns:
         Root node of the close-report behavior tree (Phase 1 stub).
     """
-    # Phase 2: pre_close_action_factory is reserved for the full pre-close
-    # sequence.  Accepting it here satisfies BT-18-004 without breaking callers.
-    root = other_close_criteria_factory("OtherCloseCriteriaMet")
+    from vultron.demo.fuzzer.bundles.close_report import (
+        CLOSE_REPORT_DETERMINISTIC,
+    )
+
+    bundle = call_out if call_out is not None else CLOSE_REPORT_DETERMINISTIC
+    # Phase 2: bundle.pre_close_action_factory is reserved for the full pre-close
+    # sequence.
+    root = bundle.other_close_criteria_factory("OtherCloseCriteriaMet")
     logger.info(f"Created CloseReportBT (Phase 1 stub) for case={case_id}")
     return root

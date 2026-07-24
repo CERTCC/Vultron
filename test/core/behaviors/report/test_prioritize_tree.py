@@ -644,8 +644,12 @@ def test_prioritize_subtree_engages_by_default(
 def test_prioritize_subtree_custom_on_accept_factory_used(
     case_with_participant, actor_id, trigger_activity
 ):
-    """on_accept_factory node appears in the engage path when custom factory is passed."""
+    """on_accept_factory node appears in the engage path when custom bundle is passed."""
     import py_trees
+
+    from vultron.demo.fuzzer.bundles.prioritization import (
+        PrioritizationCallOutBundle,
+    )
 
     def custom_on_accept(name):
         class _Marker(py_trees.behaviour.Behaviour):
@@ -654,11 +658,12 @@ def test_prioritize_subtree_custom_on_accept_factory_used(
 
         return _Marker(name="CustomOnAccept")
 
+    bundle = PrioritizationCallOutBundle(on_accept_factory=custom_on_accept)  # type: ignore[arg-type]
     tree = create_prioritize_subtree(
         case_id=case_with_participant.id_,
         actor_id=actor_id,
         trigger_activity=trigger_activity,
-        on_accept_factory=custom_on_accept,
+        call_out=bundle,
     )
 
     engage_path = tree.children[0]
@@ -668,8 +673,12 @@ def test_prioritize_subtree_custom_on_accept_factory_used(
 def test_prioritize_subtree_custom_on_defer_factory_used(
     case_with_participant, actor_id, trigger_activity
 ):
-    """on_defer_factory node appears in the defer path when custom factory is passed."""
+    """on_defer_factory node appears in the defer path when custom bundle is passed."""
     import py_trees
+
+    from vultron.demo.fuzzer.bundles.prioritization import (
+        PrioritizationCallOutBundle,
+    )
 
     def custom_on_defer(name):
         class _Marker(py_trees.behaviour.Behaviour):
@@ -678,11 +687,12 @@ def test_prioritize_subtree_custom_on_defer_factory_used(
 
         return _Marker(name="CustomOnDefer")
 
+    bundle = PrioritizationCallOutBundle(on_defer_factory=custom_on_defer)  # type: ignore[arg-type]
     tree = create_prioritize_subtree(
         case_id=case_with_participant.id_,
         actor_id=actor_id,
         trigger_activity=trigger_activity,
-        on_defer_factory=custom_on_defer,
+        call_out=bundle,
     )
 
     defer_path = tree.children[1]

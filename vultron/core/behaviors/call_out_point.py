@@ -13,13 +13,14 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Call-out point factory type for the Vultron BT port/adapter seam.
 
-This module defines the :data:`CallOutBackendFactory` type alias used by tree
-builder functions to accept swappable call-out point backends (ADR-0025).
+This module defines the :class:`CallOutBackendFactory` Protocol used by tree
+builder functions to accept swappable call-out point backends (ADR-0025,
+BT-23-004).
 
-The type alias lives here (in ``vultron.core.behaviors``) so that tree
-builders in ``vultron.core.behaviors.report`` can reference it without
-importing from ``vultron.demo``, maintaining the hexagonal-architecture
-layering rule (BT-16-001: simulation artifacts stay out of core).
+The Protocol lives here (in ``vultron.core.behaviors``) so that tree builders
+in ``vultron.core.behaviors.report`` can reference it without importing from
+``vultron.demo``, maintaining the hexagonal-architecture layering rule
+(BT-16-001: simulation artifacts stay out of core).
 
 The shape mixin classes and illustrative examples live in
 ``vultron.demo.fuzzer.call_out_point``.
@@ -27,40 +28,45 @@ The shape mixin classes and illustrative examples live in
 References
 ----------
 - ADR-0025: ``docs/adr/0025-call-out-point-abstraction-layer.md``
-- Spec: ``specs/behavior-tree-integration.yaml`` BT-18-004
+- Spec: ``specs/behavior-tree-integration.yaml`` BT-18-004, BT-23-004
 """
 
 from __future__ import annotations
 
-from typing import Callable
+from typing import Protocol, runtime_checkable
 
 import py_trees as _py_trees
 
-CallOutBackendFactory = Callable[[str], _py_trees.behaviour.Behaviour]
-"""Factory callable type for swappable call-out point backends.
 
-Each call-out point in a BT tree builder is constructed by calling a factory
-of this type, passing the node's display name as the sole argument.  Tree
-builder functions accept one factory parameter per injected call-out point
-and default to the corresponding fuzzer factory (BT-18-004).
+@runtime_checkable
+class CallOutBackendFactory(Protocol):
+    """Protocol for swappable call-out point backend factories (BT-23-004).
 
-The returned Behaviour must honour the call-out point's declared blackboard
-contract (BT-18-001, BT-18-002): it must write all declared output keys on
-SUCCESS, with type-conformant values.
+    A factory must accept a single ``name: str`` argument (the BT node's
+    display name) and return a ``py_trees.behaviour.Behaviour`` that honours
+    the call-out point's declared blackboard contract (BT-18-001 through
+    BT-18-004).
 
-Example::
+    Any callable satisfying this signature is a valid backend — plain lambda
+    functions, module-level functions, and classes with ``__call__`` all
+    qualify.  No central registration, inheritance, or decorator is required.
+    Static type checking via pyright/mypy is the validation mechanism.
 
-    from vultron.core.behaviors.call_out_point import CallOutBackendFactory
-    from vultron.demo.fuzzer.report_management.validate import (
-        EvaluateReportCredibility as _FuzzerCredibility,
-    )
+    Example::
 
-    def create_my_tree(
-        report_id: str,
-        credibility_factory: CallOutBackendFactory = (
-            lambda n: _FuzzerCredibility(n)
-        ),
-    ) -> py_trees.behaviour.Behaviour:
-        node = credibility_factory("EvaluateReportCredibility")
-        ...
-"""
+        from vultron.core.behaviors.call_out_point import CallOutBackendFactory
+        from vultron.demo.fuzzer.report_management.validate import (
+            EvaluateReportCredibility as _FuzzerCredibility,
+        )
+
+        def create_my_tree(
+            report_id: str,
+            credibility_factory: CallOutBackendFactory = (
+                lambda n: _FuzzerCredibility(n)
+            ),
+        ) -> py_trees.behaviour.Behaviour:
+            node = credibility_factory("EvaluateReportCredibility")
+            ...
+    """
+
+    def __call__(self, name: str) -> _py_trees.behaviour.Behaviour: ...
