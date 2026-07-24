@@ -68,6 +68,14 @@ Before running any phase, check for existing artifacts:
 
 When resuming, print which phase is being skipped and why.
 
+## Execution Model
+
+**Run all steps in a single uninterrupted pass.** Do not end your turn or wait
+for user input between steps. When a sub-skill returns, proceed immediately to
+the next step without pausing. The only valid mid-pipeline stop is a
+`new-issue-ask` prompt inside pr-execute. Every other step transition is
+automatic.
+
 ## Workflow
 
 ### Step 1 — Detect PR
@@ -117,6 +125,8 @@ Otherwise: invoke the `pr-triage` skill with the PR number.
 If triage fails (no findings written, error reported): stop. Do not proceed
 to execute with a missing or malformed artifact.
 
+When pr-triage returns successfully, proceed immediately to Step 5.
+
 ### Step 5 — Run pr-execute (or skip)
 
 If resuming past execute: print `⏩ Skipping execute — artifact found at .claude/pr-{N}-execute.json`
@@ -130,9 +140,13 @@ If execute stops due to a blocking test failure (pre-existing with linked Bug
 issue): report the blocked status and stop pr-ship. The user must resolve the
 blocker before re-running.
 
+When pr-execute returns successfully, proceed immediately to Step 6.
+
 ### Step 6 — Run pr-verify
 
 Invoke the `pr-verify` skill with the PR number.
+
+When pr-verify returns, proceed immediately to Step 7.
 
 ### Step 7 — Final Report
 
