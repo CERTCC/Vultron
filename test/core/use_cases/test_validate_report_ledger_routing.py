@@ -143,6 +143,21 @@ def _ledger_event_types(dl: SqliteDataLayer) -> list[str]:
 # Fixtures
 # ---------------------------------------------------------------------------
 
+_CASE_ACTOR_SERVICE_URL = "http://case-actor:7999/api/v2"
+
+
+@pytest.fixture(autouse=True)
+def _configure_case_actor_url(monkeypatch):
+    """Set VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL for ResolveCaseActorUrlsNode."""
+    monkeypatch.setenv(
+        "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL", _CASE_ACTOR_SERVICE_URL
+    )
+    from vultron.config.app import reload_config
+
+    reload_config()
+    yield
+    reload_config()
+
 
 @pytest.fixture(autouse=True)
 def _clear_blackboard():

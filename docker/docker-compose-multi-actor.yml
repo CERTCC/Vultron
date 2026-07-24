@@ -137,6 +137,8 @@ services:
       - VULTRON_ACTOR_ID=http://vendor:7999/api/v2/actors/vendor
       - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-vendor.yaml
       - VULTRON_SERVER__LOG_LEVEL=${VULTRON_SERVER__LOG_LEVEL:-INFO}
+      # CP-08-003: case-creating actors must supply the CaseActor service URL.
+      - VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://case-actor:7999/api/v2
     volumes:
       - "../vultron:/app/vultron"
       - vendor-data:/app/data
@@ -154,6 +156,8 @@ services:
       - VULTRON_ACTOR_ID=http://coordinator:7999/api/v2/actors/coordinator
       - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-coordinator.yaml
       - VULTRON_SERVER__LOG_LEVEL=${VULTRON_SERVER__LOG_LEVEL:-INFO}
+      # CP-08-003: case-creating actors must supply the CaseActor service URL.
+      - VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://case-actor:7999/api/v2
     volumes:
       - "../vultron:/app/vultron"
       - coordinator-data:/app/data
@@ -209,6 +213,8 @@ services:
       - VULTRON_ACTOR_ID=http://actor5:7999/api/v2/actors/vendor2
       - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-actor5.yaml
       - VULTRON_SERVER__LOG_LEVEL=${VULTRON_SERVER__LOG_LEVEL:-INFO}
+      # CP-08-003: actor5 is seeded as Vendor2 (case-creating role) in fvv/fvcv-* scenarios.
+      - VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://case-actor:7999/api/v2
     volumes:
       - "../vultron:/app/vultron"
       - actor5-data:/app/data
