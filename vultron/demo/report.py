@@ -171,6 +171,14 @@ def _dimension_state(
 # Friendly naming (DRPT-03)
 # ---------------------------------------------------------------------------
 
+#: Activity-Streams wrapper types whose ``object`` child is the real semantic target.
+_WRAPPER_TYPES = frozenset({"Accept", "Reject", "Offer", "Invite"})
+
+#: Wire types that resolve to actor names; use friendly_actor_name on their id instead of a generic noun.
+_ACTOR_LIKE_TYPES = frozenset(
+    {"Organization", "Actor", "Service", "Person", "Group", "CaseParticipant"}
+)
+
 #: Wire object type → friendly noun for event summaries and the target column.
 _TARGET_NOUNS: dict[str, str] = {
     "VulnerabilityReport": "report",
@@ -291,6 +299,23 @@ def friendly_target_noun(target_type: str | None) -> str | None:
     return " ".join(w.lower() for w in words) if words else target_type.lower()
 
 
+def friendly_object_label(
+    obj_type: str | None, obj_ref: str | None
+) -> str | None:
+    """Return a friendly label for a target object.
+
+    Actor-like types (Organization, Actor, …) are resolved via
+    :func:`friendly_actor_name` using their URI so the label reads "Vendor"
+    rather than "organization".  All other types fall back to
+    :func:`friendly_target_noun`.
+    """
+    if not obj_type:
+        return friendly_actor_name(obj_ref) if obj_ref else None
+    if obj_type in _ACTOR_LIKE_TYPES:
+        return friendly_actor_name(obj_ref)
+    return friendly_target_noun(obj_type)
+
+
 def event_phrase(event_type: str) -> str:
     """Map an event type to an active-voice verb phrase (DRPT-03-002)."""
     phrase = _EVENT_PHRASES.get(event_type)
@@ -338,6 +363,8 @@ class CaseTimelineEvent(BaseModel):
     actor_uri: str | None = None
     target_ref: str | None = None
     target_type: str | None = None
+    activity_target_ref: str | None = None
+    activity_target_type: str | None = None
     received_at: str | None = None
     rm_state: str | None = None
     em_state: str | None = None
@@ -357,19 +384,57 @@ class CaseTimelineEvent(BaseModel):
         if not isinstance(payload, dict):
             payload = {}
 
-        target = payload.get("object")
-        if target is None:
-            target = payload.get("object_")
-        if target is None:
-            target = payload.get("target")
+        raw_object = payload.get("object") or payload.get("object_")
+        # Unwrap AS wrapper activities (Accept, Reject, Offer, Invite) until we
+        # reach the innermost non-wrapper object (handles Accept(Offer(X))
+        # and Accept(Invite(object=X, target=Y)) chains).  Track the innermost
+        # wrapper's own ``target`` field so callers of nested wrappers (e.g.
+        # accept_invite_actor_to_case) still surface the destination.
+        _inner_target = None
+        while (
+            isinstance(raw_object, dict)
+            and (raw_object.get("type") or raw_object.get("type_"))
+            in _WRAPPER_TYPES
+        ):
+            _inner_target = raw_object.get("target") or _inner_target
+            inner = raw_object.get("object") or raw_object.get("object_")
+            if not isinstance(inner, (dict, str)):
+                break
+            raw_object = inner
 
         target_ref: str | None = None
         target_type: str | None = None
-        if isinstance(target, dict):
-            target_ref = target.get("id") or target.get("id_")
-            target_type = target.get("type") or target.get("type_")
-        elif isinstance(target, str):
-            target_ref = target
+        if isinstance(raw_object, dict):
+            target_ref = raw_object.get("id") or raw_object.get("id_")
+            target_type = raw_object.get("type") or raw_object.get("type_")
+            # CaseParticipant is a proxy; use attributedTo for name resolution.
+            if target_type == "CaseParticipant":
+                target_ref = (
+                    raw_object.get("attributedTo")
+                    or raw_object.get("attributed_to")
+                    or target_ref
+                )
+        elif isinstance(raw_object, str):
+            target_ref = raw_object
+
+        # ActivityStreams ``target`` field — top-level payload wins; fall back
+        # to the innermost wrapper's target captured during unwrapping.
+        raw_dest = payload.get("target") or _inner_target
+        activity_target_ref: str | None = None
+        activity_target_type: str | None = None
+        if isinstance(raw_dest, dict):
+            activity_target_ref = raw_dest.get("id") or raw_dest.get("id_")
+            activity_target_type = raw_dest.get("type") or raw_dest.get(
+                "type_"
+            )
+            if activity_target_type == "CaseParticipant":
+                activity_target_ref = (
+                    raw_dest.get("attributedTo")
+                    or raw_dest.get("attributed_to")
+                    or activity_target_ref
+                )
+        elif isinstance(raw_dest, str):
+            activity_target_ref = raw_dest
 
         candidates = _candidate_dicts(payload)
         received = _first(raw, "received_at", "receivedAt")
@@ -385,6 +450,12 @@ class CaseTimelineEvent(BaseModel):
             actor_uri=_actor_uri(payload.get("actor")),
             target_ref=str(target_ref) if target_ref else None,
             target_type=str(target_type) if target_type else None,
+            activity_target_ref=(
+                str(activity_target_ref) if activity_target_ref else None
+            ),
+            activity_target_type=(
+                str(activity_target_type) if activity_target_type else None
+            ),
             received_at=str(received) if received else None,
             rm_state=_dimension_state(candidates, "rm", "rmState", "rm_state"),
             em_state=_dimension_state(candidates, "em", "emState", "em_state"),
@@ -403,8 +474,18 @@ class CaseTimelineEvent(BaseModel):
 
     @property
     def target_label(self) -> str | None:
-        """Friendly target noun, or ``None`` when there is no target."""
-        return friendly_target_noun(self.target_type)
+        """Friendly target label; ``object → destination`` when both are present.
+
+        Actor-like object types (Organization, …) resolve to a name via the
+        URI rather than a generic type noun.
+        """
+        obj_label = friendly_object_label(self.target_type, self.target_ref)
+        dest_label = friendly_object_label(
+            self.activity_target_type, self.activity_target_ref
+        )
+        if obj_label and dest_label:
+            return f"{obj_label} → {dest_label}"
+        return obj_label or dest_label
 
     @property
     def short_hash(self) -> str:

@@ -193,6 +193,93 @@ class TestCaseTimelineEventParsing:
         assert event.target_ref == "urn:uuid:rep-bare"
         assert event.target_type is None
 
+    def test_accept_wrapper_unwrapped_to_inner_object(self):
+        """Accept(object=VulnerabilityReport) → target_type is the report, not Accept."""
+        raw = _camel_entry(
+            payloadSnapshot={
+                "type": "Add",
+                "actor": "http://vendor/actors/vendor",
+                "object": {
+                    "type": "Accept",
+                    "object": {
+                        "id": "urn:uuid:rep2",
+                        "type": "VulnerabilityReport",
+                    },
+                },
+            }
+        )
+        event = CaseTimelineEvent.from_raw(raw)
+        assert event.target_type == "VulnerabilityReport"
+        assert event.target_ref == "urn:uuid:rep2"
+
+    def test_nested_wrapper_unwrapped_two_levels(self):
+        """Accept(Offer(VulnerabilityReport)) → unwrap both wrappers."""
+        raw = _camel_entry(
+            payloadSnapshot={
+                "type": "Accept",
+                "actor": "http://vendor/actors/vendor",
+                "object": {
+                    "type": "Offer",
+                    "object": {
+                        "id": "urn:uuid:rep3",
+                        "type": "VulnerabilityReport",
+                    },
+                },
+            }
+        )
+        event = CaseTimelineEvent.from_raw(raw)
+        assert event.target_type == "VulnerabilityReport"
+        assert event.target_ref == "urn:uuid:rep3"
+
+    def test_invite_wrapper_surfaces_inner_target(self):
+        """Accept(Invite(object=Org, target=Case)) → org → case arrow label."""
+        raw = _camel_entry(
+            eventType="accept_invite_actor_to_case",
+            payloadSnapshot={
+                "type": "Accept",
+                "actor": "http://coordinator/actors/coordinator",
+                "object": {
+                    "type": "Invite",
+                    "object": {
+                        "id": "http://coordinator/actors/coordinator",
+                        "type": "Organization",
+                    },
+                    "target": {
+                        "id": "urn:uuid:case1",
+                        "type": "VulnerabilityCase",
+                    },
+                },
+            },
+        )
+        event = CaseTimelineEvent.from_raw(raw)
+        assert event.target_type == "Organization"
+        assert event.target_ref == "http://coordinator/actors/coordinator"
+        assert event.activity_target_type == "VulnerabilityCase"
+        assert event.target_label == "Coordinator → case"
+
+    def test_offer_with_as_target_populates_activity_target(self):
+        """Offer(object=VulnerabilityCase, target=CaseParticipant) → arrow label."""
+        raw = _camel_entry(
+            eventType="offer_case_manager_role",
+            payloadSnapshot={
+                "type": "Offer",
+                "actor": "http://vendor/actors/case-actor",
+                "object": {
+                    "id": "urn:uuid:case1",
+                    "type": "VulnerabilityCase",
+                },
+                "target": {
+                    "id": "urn:uuid:p1",
+                    "type": "CaseParticipant",
+                    "attributedTo": "http://vendor/actors/case-actor",
+                },
+            },
+        )
+        event = CaseTimelineEvent.from_raw(raw)
+        assert event.target_type == "VulnerabilityCase"
+        assert event.activity_target_type == "CaseParticipant"
+        assert event.target_label == "case → Case Actor"
+
     def test_short_hash_truncation(self):
         event = CaseTimelineEvent.from_raw(_camel_entry())
         assert event.short_hash == ("c0ffee" + "0" * 58)[:12]
