@@ -33,6 +33,7 @@ from typing import Any
 import py_trees
 from py_trees.common import Status
 
+from vultron.config import get_config
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.vultron_types import (
@@ -49,16 +50,6 @@ def _derive_case_slug(case_id: str) -> str:
     if case_id.startswith("urn:uuid:"):
         return case_id[len("urn:uuid:") :]
     return hashlib.sha256(case_id.encode()).hexdigest()[:12]
-
-
-def _resolve_server_base_url(blackboard: Any) -> str:
-    """Read server_base_url from blackboard or fall back to config."""
-    try:
-        return str(blackboard.get("server_base_url")).rstrip("/")
-    except KeyError:
-        from vultron.config import get_config
-
-        return get_config().server.base_url.rstrip("/")
 
 
 class PersistCase(DataLayerAction):
@@ -212,7 +203,11 @@ class RecordCaseCreatedEventNode(DataLayerAction):
 
 
 class ResolveCaseActorUrlsNode(DataLayerAction):
-    """Resolve case_id + deterministic CaseActor IDs and publish to blackboard."""
+    """Resolve case_id + deterministic CaseActor IDs and publish to blackboard.
+
+    Reads ``case_actor_service_url`` from ``ActorConfig`` (CP-08-002).
+    Returns ``FAILURE`` when the field is not configured (CP-08-003).
+    """
 
     def __init__(self, case_id: str | None = None, name: str | None = None):
         super().__init__(name=name or self.__class__.__name__)
@@ -228,9 +223,6 @@ class ResolveCaseActorUrlsNode(DataLayerAction):
             self.blackboard.register_key(
                 key="case_id", access=py_trees.common.Access.WRITE
             )
-        self.blackboard.register_key(
-            key="server_base_url", access=py_trees.common.Access.READ
-        )
         self.blackboard.register_key(
             key="case_actor_id", access=py_trees.common.Access.WRITE
         )
@@ -253,11 +245,20 @@ class ResolveCaseActorUrlsNode(DataLayerAction):
             )
             return Status.FAILURE
 
+        cfg = get_config().actor
+        if cfg.case_actor_service_url is None:
+            self.logger.error(
+                "%s: case_actor_service_url is not configured in ActorConfig"
+                " (set VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL)",
+                self.name,
+            )
+            return Status.FAILURE
+
+        base_url = str(cfg.case_actor_service_url).rstrip("/")
         case_slug = _derive_case_slug(case_id)
-        server_base_url = _resolve_server_base_url(self.blackboard)
-        case_actor_id = f"{server_base_url}/actors/case-actor-{case_slug}"
+        case_actor_id = f"{base_url}/actors/case-actor-{case_slug}"
         participant_id = (
-            f"{server_base_url}/actors/case-actor-{case_slug}/participant"
+            f"{base_url}/actors/case-actor-{case_slug}/participant"
         )
 
         if self._case_id_arg is not None:

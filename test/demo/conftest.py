@@ -21,6 +21,7 @@ import logging
 
 import httpx2 as httpx
 import pytest
+from _pytest.monkeypatch import MonkeyPatch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -233,6 +234,31 @@ def pytest_collection_modifyitems(
             p.name == "demo" and p.parent.name == "test" for p in path.parents
         ):
             item.add_marker(pytest.mark.integration)
+
+
+_CASE_ACTOR_SERVICE_URL = "http://localhost:7999"
+
+
+@pytest.fixture(scope="session", autouse=True)
+def configure_case_actor_url_for_demo():
+    """Set VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL for all demo tests.
+
+    ResolveCaseActorUrlsNode returns FAILURE when case_actor_service_url
+    is None (CP-08-002/003).  Demo tests run the engage-case BT path, so
+    they need the URL configured to reach the case-setup success branch.
+    """
+    from vultron.config.app import reload_config
+
+    mp = MonkeyPatch()
+    try:
+        mp.setenv(
+            "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL", _CASE_ACTOR_SERVICE_URL
+        )
+        reload_config()
+        yield
+    finally:
+        mp.undo()
+        reload_config()
 
 
 @pytest.fixture(scope="module", autouse=True)
