@@ -59,6 +59,8 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     setup_demo_logging,
     verify_object_stored,
 )
+
+# post_to_inbox_and_wait is retained for self-delivery (CONCERN-1653 exception).
 from vultron.demo.helpers.actions import (
     actor_closes_case,
     actor_notifies_fix_deployed,
@@ -76,11 +78,13 @@ from vultron.demo.helpers.milestones import (
     verify_publicly_disclosed,
 )
 from vultron.demo.helpers.polling import (
+    find_case_invite_for_actor,
     wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
     wait_for_case_on_container,
     wait_for_case_participants,
     wait_for_contiguous_ledger_coverage,
+    wait_for_object_stored,
     wait_for_participant_vfd_state,
 )
 from vultron.demo.helpers.seeding import (
@@ -349,14 +353,13 @@ def _phase_ownership_handoff(
     invite = as_TransitiveActivity.model_validate(invite_result["activity"])
     logger.info("Coordinator invite created: %s", invite.id_)
 
-    # Deliver the invite to Coordinator's inbox.
-    with demo_step("Delivering invite to Coordinator's inbox"):
-        post_to_inbox_and_wait(
-            coordinator_client, coordinator_in_coordinator.id_, invite
+    with demo_check("Coordinator invite delivered to Coordinator's DataLayer"):
+        find_case_invite_for_actor(
+            client=coordinator_client,
+            case_id=case.id_,
+            invitee_id=coordinator.id_,
+            timeout_seconds=20.0,
         )
-
-    with demo_check("Coordinator invite stored in Coordinator's DataLayer"):
-        verify_object_stored(coordinator_client, invite.id_)
 
     # Coordinator accepts the invite.
     with demo_step("Coordinator accepts the case invitation"):
@@ -404,18 +407,14 @@ def _phase_ownership_handoff(
         ownership_offer.id_,
     )
 
-    # Deliver the ownership transfer offer to Coordinator's inbox.
-    with demo_step(
-        "Delivering ownership transfer offer to Coordinator's inbox"
-    ):
-        post_to_inbox_and_wait(
-            coordinator_client, coordinator_in_coordinator.id_, ownership_offer
-        )
-
     with demo_check(
-        "Ownership transfer offer arrived in Coordinator's DataLayer (TRIG-11-001)"
+        "Ownership transfer offer delivered to Coordinator's DataLayer (TRIG-11-001)"
     ):
-        verify_object_stored(coordinator_client, ownership_offer.id_)
+        wait_for_object_stored(
+            client=coordinator_client,
+            obj_id=ownership_offer.id_,
+            timeout_seconds=20.0,
+        )
 
     ownership_offer_id = ownership_offer.id_
     logger.info("Ownership transfer offer ID: %s", ownership_offer_id)
@@ -517,12 +516,13 @@ def _phase_coordinator_invites_vendor2(
     invite = as_TransitiveActivity.model_validate(invite_result["activity"])
     logger.info("Vendor2 invite created by Coordinator: %s", invite.id_)
 
-    # Deliver the invite to Vendor2's inbox.
-    with demo_step("Delivering invite to Vendor2's inbox"):
-        post_to_inbox_and_wait(vendor2_client, vendor2_in_vendor2.id_, invite)
-
-    with demo_check("Vendor2 invite stored in Vendor2's DataLayer"):
-        verify_object_stored(vendor2_client, invite.id_)
+    with demo_check("Vendor2 invite delivered to Vendor2's DataLayer"):
+        find_case_invite_for_actor(
+            client=vendor2_client,
+            case_id=case.id_,
+            invitee_id=vendor2.id_,
+            timeout_seconds=20.0,
+        )
 
     # Vendor2 accepts the invite.
     with demo_step("Vendor2 accepts the case invitation"):
@@ -535,17 +535,9 @@ def _phase_coordinator_invites_vendor2(
     accept = as_TransitiveActivity.model_validate(accept_result["activity"])
     logger.info("Vendor2 sent Accept(Invite): %s", accept.id_)
 
-    # Deliver Accept to CaseActor so it can commit the join ledger entry
-    # and fan out to all existing participants (including Vendor1/Finder).
-    # The CaseActor is a dynamic sub-actor on the vendor container
-    # (http://vendor:7999/api/v2/actors/case-actor-{uuid}), so route Accept
-    # to vendor_client at the dynamic CaseActor ID (PCR-08-008).
-    with demo_step("Delivering Vendor2 accept to CaseActor inbox"):
-        post_to_inbox_and_wait(vendor_client, case_actor_id, accept)
-    with demo_check("Accept activity stored in Vendor1/CaseActor DataLayer"):
-        verify_object_stored(vendor_client, accept.id_)
-    logger.info("Vendor2 Accept delivered to CaseActor")
-
+    # DemoHttpDeliveryAdapter delivers Vendor2's Accept to the CaseActor inbox
+    # via the real HTTP path (PCR-08-008).  Poll for the case replica as proof
+    # that CaseActor processed the Accept and fanned out Announce(VulnerabilityCase).
     # Wait for Vendor2's case replica.
     with demo_check("Vendor2's DataLayer received case replica (AC-2)"):
         wait_for_case_on_container(

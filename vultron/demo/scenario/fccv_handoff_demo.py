@@ -64,6 +64,8 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     setup_demo_logging,
     verify_object_stored,
 )
+
+# post_to_inbox_and_wait is retained for self-delivery (CONCERN-1653 exception).
 from vultron.demo.helpers.actions import (
     actor_closes_case,
     actor_notifies_fix_deployed,
@@ -79,11 +81,13 @@ from vultron.demo.helpers.milestones import (
 )
 from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.helpers.polling import (
+    find_case_invite_for_actor,
     wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
     wait_for_case_on_container,
     wait_for_case_participants,
     wait_for_contiguous_ledger_coverage,
+    wait_for_object_stored,
     wait_for_participant_vfd_state,
 )
 from vultron.demo.helpers.seeding import (
@@ -354,12 +358,13 @@ def _phase_ownership_handoff(
     invite = as_TransitiveActivity.model_validate(invite_result["activity"])
     logger.info("C2 invite created: %s", invite.id_)
 
-    # Deliver the invite to C2's inbox.
-    with demo_step("Delivering invite to C2's inbox"):
-        post_to_inbox_and_wait(c2_client, c2_in_c2.id_, invite)
-
-    with demo_check("C2 invite stored in C2's DataLayer"):
-        verify_object_stored(c2_client, invite.id_)
+    with demo_check("C2 invite delivered to C2's DataLayer"):
+        find_case_invite_for_actor(
+            client=c2_client,
+            case_id=case.id_,
+            invitee_id=c2.id_,
+            timeout_seconds=20.0,
+        )
 
     # C2 accepts the invite.
     with demo_step("C2 accepts the case invitation"):
@@ -405,14 +410,14 @@ def _phase_ownership_handoff(
         ownership_offer.id_,
     )
 
-    # Deliver the ownership transfer offer to C2's inbox.
-    with demo_step("Delivering ownership transfer offer to C2's inbox"):
-        post_to_inbox_and_wait(c2_client, c2_in_c2.id_, ownership_offer)
-
     with demo_check(
-        "Ownership transfer offer arrived in C2's DataLayer (TRIG-11-001)"
+        "Ownership transfer offer delivered to C2's DataLayer (TRIG-11-001)"
     ):
-        verify_object_stored(c2_client, ownership_offer.id_)
+        wait_for_object_stored(
+            client=c2_client,
+            obj_id=ownership_offer.id_,
+            timeout_seconds=20.0,
+        )
 
     ownership_offer_id = ownership_offer.id_
     logger.info("Ownership transfer offer ID: %s", ownership_offer_id)
@@ -504,12 +509,13 @@ def _phase_c2_invites_vendor(
     invite = as_TransitiveActivity.model_validate(invite_result["activity"])
     logger.info("Vendor invite created by C2: %s", invite.id_)
 
-    # Deliver the invite to Vendor's inbox.
-    with demo_step("Delivering invite to Vendor's inbox"):
-        post_to_inbox_and_wait(vendor_client, vendor_in_vendor.id_, invite)
-
-    with demo_check("Vendor invite stored in Vendor's DataLayer"):
-        verify_object_stored(vendor_client, invite.id_)
+    with demo_check("Vendor invite delivered to Vendor's DataLayer"):
+        find_case_invite_for_actor(
+            client=vendor_client,
+            case_id=case.id_,
+            invitee_id=vendor.id_,
+            timeout_seconds=20.0,
+        )
 
     # Vendor accepts the invite.
     with demo_step("Vendor accepts the case invitation"):
@@ -522,16 +528,9 @@ def _phase_c2_invites_vendor(
     accept = as_TransitiveActivity.model_validate(accept_result["activity"])
     logger.info("Vendor sent Accept(Invite): %s", accept.id_)
 
-    # Deliver Accept to CaseActor so it can commit the join ledger entry
-    # and fan out to all existing participants.  The CaseActor is a dynamic
-    # sub-actor on the C1 container; route Accept to c1_client at the
-    # dynamic CaseActor ID (PCR-08-008).
-    with demo_step("Delivering Vendor accept to CaseActor inbox"):
-        post_to_inbox_and_wait(c1_client, case_actor_id, accept)
-    with demo_check("Accept activity stored in C1/CaseActor DataLayer"):
-        verify_object_stored(c1_client, accept.id_)
-    logger.info("Vendor Accept delivered to CaseActor")
-
+    # DemoHttpDeliveryAdapter delivers Vendor's Accept to the CaseActor inbox
+    # via the real HTTP path (PCR-08-008).  Poll for the case replica as proof
+    # that CaseActor processed the Accept and fanned out Announce(VulnerabilityCase).
     # Wait for Vendor's case replica.
     with demo_check("Vendor's DataLayer received case replica (AC-2)"):
         wait_for_case_on_container(

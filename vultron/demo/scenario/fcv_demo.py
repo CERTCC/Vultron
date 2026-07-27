@@ -56,7 +56,6 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     check_server_availability,
     demo_check,
     demo_step,
-    post_to_inbox_and_wait,
     post_to_trigger,
     reset_datalayer,
     reset_demo_failures,
@@ -78,6 +77,7 @@ from vultron.demo.helpers.milestones import (
 )
 from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.helpers.polling import (
+    find_case_invite_for_actor,
     wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
     wait_for_case_on_container,
@@ -288,11 +288,13 @@ def _phase_invite_vendor(
 
     vendor_in_vendor = get_actor_by_id(vendor_client, vendor.id_)
 
-    with demo_step("Delivering invite to Vendor's inbox"):
-        post_to_inbox_and_wait(vendor_client, vendor_in_vendor.id_, invite)
-
-    with demo_check("Vendor invite stored in Vendor's DataLayer"):
-        verify_object_stored(vendor_client, invite.id_)
+    with demo_check("Vendor invite delivered to Vendor's DataLayer"):
+        find_case_invite_for_actor(
+            client=vendor_client,
+            case_id=case.id_,
+            invitee_id=vendor.id_,
+            timeout_seconds=20.0,
+        )
 
     with demo_step("Vendor accepts the case invitation"):
         post_to_trigger(
