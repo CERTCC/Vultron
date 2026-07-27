@@ -340,7 +340,7 @@ We have:
 
 - **Run the other container scenarios** — see
   [Running the Multi-Actor Container Demos](container_demos.md) to run
-  three-actor and multi-vendor workflows.
+  FCV, FVCV-Handoff, and other multi-actor workflows.
 - **Understand the message-level protocol** — the
   [FV Demo Protocol Reference](../reference/fv-demo-protocol.md)
   documents every ActivityStreams activity exchanged during this demo,
