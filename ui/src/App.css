@@ -198,24 +198,24 @@
   animation: fadeInDirectional 1.5s ease-out forwards;
 }
 
-/* Always-visible scrollbar for overflowing scroll regions (e.g. the ActorPanel
-   actions list). On macOS, Chrome/Safari use OVERLAY scrollbars that stay hidden
-   until you actively scroll — so an overflowing region looks un-scrollable and its
-   lower items appear unreachable (this is the "scrolls on my machine but not my
-   colleague's" symptom). Styling ::-webkit-scrollbar also opts WebKit out of overlay
-   mode into a persistent track, making the overflow both visible and obviously
-   scrollable. `scrollbar-width`/`scrollbar-gutter` cover Firefox + reserve space so
-   content doesn't shift when the bar appears. */
+/* Force a persistent (non-overlay) scrollbar so overflow is discoverable — on
+   macOS, Chrome/Safari hide overlay scrollbars until you actively scroll, which
+   made overflowing regions look un-scrollable.
+
+   CRITICAL: do NOT set the standard `scrollbar-width` property on this element.
+   Modern Chrome (121+) treats the standard properties (`scrollbar-width` /
+   `scrollbar-color`) and the legacy `::-webkit-scrollbar` pseudo-elements as
+   MUTUALLY EXCLUSIVE — if `scrollbar-width` is present, Chrome ignores ALL the
+   `::-webkit-scrollbar` rules below and just uses `scrollbar-width` (which alone
+   does NOT defeat overlay mode). That mix was the earlier bug: the pseudo-element
+   styling was silently ignored and the bar stayed overlay-only. Styling the
+   pseudo-elements (with a defined width + a visible thumb) is what actually forces
+   a classic, always-rendered scrollbar on macOS Chrome/Safari — both users are on
+   Mac/Chrome, so the WebKit path is the right one. `scrollbar-gutter` is a separate,
+   compatible property (reserves space; does not switch rendering modes) — safe to keep. */
 .always-show-scrollbar {
-  scrollbar-width: thin;                /* Firefox */
-  scrollbar-gutter: stable;             /* reserve space so layout doesn't jump */
+  scrollbar-gutter: stable;
 }
-/* Merely DEFINING a width + a visible thumb/track on the ::-webkit-scrollbar
-   pseudo-elements opts WebKit (Chrome/Safari) out of macOS overlay mode into a
-   persistent, always-rendered scrollbar. Do NOT add `appearance: none` here — on
-   recent WebKit that suppresses the bar entirely (the previous attempt's bug).
-   The thumb/track need non-transparent colors or the track renders but the thumb
-   is invisible. */
 .always-show-scrollbar::-webkit-scrollbar {
   width: 12px;
   height: 12px;                         /* also style horizontal bars */
