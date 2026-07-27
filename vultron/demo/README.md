@@ -41,8 +41,6 @@ distinct techniques:
 | Sub-command    | What it demonstrates                                      |
 |----------------|-----------------------------------------------------------|
 | `fv`           | FV (Finder + Vendor) multi-container CVD workflow         |
-| `three-actor`  | Three-actor (+ Coordinator) multi-container CVD workflow  |
-| `multi-vendor` | Ownership transfer + second vendor multi-container demo   |
 
 The `vultrabot` sub-group provides standalone behavior-tree demos (pacman,
 robot, cvd) that do not require a running API server.

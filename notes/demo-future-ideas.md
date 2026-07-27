@@ -35,8 +35,8 @@ be treated as working implementations.
 
 | Scenario | File | Notes |
 |----------|------|-------|
-| FCV | `vultron/demo/scenario/three_actor_demo.py` | Obsolete; superseded by `fcv_demo.py` (PR #1623) |
-| FVCV (handoff) | `vultron/demo/scenario/multi_vendor_demo.py` | Obsolete; see #1214 for the planned replacement |
+| FCV | ~~`vultron/demo/scenario/three_actor_demo.py`~~ (deleted PR #1720) | Superseded by `fcv_demo.py` (PR #1623) |
+| FVCV (handoff) | ~~`vultron/demo/scenario/multi_vendor_demo.py`~~ (deleted PR #1720) | Superseded by `fvcv_handoff_demo.py`; see #1214 |
 
 ## Planned scenarios (from #1131 planning, 2026-07-06)
 
