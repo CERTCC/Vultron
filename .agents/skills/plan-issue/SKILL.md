@@ -156,18 +156,16 @@ Do **not** write anything until grill-me is complete.
 If the interview surfaces focus areas not covered in Phase 3, invoke
 `deepen-context` again with those additional hints before proceeding.
 
-### Phase 4b — Create Task Branch (if docs changes are expected)
+### Phase 4b — Create Task Branch
 
-If grill-me established that Phase 5 will produce file writes, re-sync to
-catch any updates that landed during the planning session, then create the
-branch:
+Always create a `plan/` branch, regardless of whether Phase 5 will produce
+doc changes. Re-sync first to catch any updates that landed during the
+planning session:
 
 ```bash
 git fetch origin main && git reset --hard origin/main
 git switch -c "plan/${ISSUE_NUMBER}-<slug>"
 ```
-
-If no doc gaps were found (Phase 5 will be skipped), skip this step.
 
 ### Phase 5 — Update Docs (conditional)
 
@@ -197,11 +195,12 @@ NOTES_FILE=""   # e.g., "actor-discovery.md"; empty if no notes created
 Invoke the `format-markdown` skill on all new/modified markdown files.
 Fix all errors before proceeding.
 
-### Phase 7 — Open Docs-Only PR (if docs changed)
+### Phase 7 — Open PR
 
-Only if Phase 5 produced file changes:
+Always open a PR. If Phase 5 produced doc changes, commit them first:
 
 ```bash
+# Only if Phase 5 produced file changes:
 git add specs/ notes/ docs/adr/ AGENTS.md
 git commit -m "docs: plan issue #${ISSUE_NUMBER} — <short title>
 
@@ -226,6 +225,10 @@ returns the PR URL. Use the returned URL in the `archive-history` call (Phase 9)
 > For Ideas and Concerns, include `issue_number` so the PR body contains
 > `Closes #N`. For Epics, omit `issue_number` — the Epic must not be closed
 > by the docs PR.
+>
+> Even when Phase 5 produced no doc changes the PR must still be opened — the
+> history entry (Phase 9) will be committed to this branch and ride along with
+> it to main.
 
 ### Phase 8 — Create Implementation Issues
 
@@ -288,10 +291,10 @@ See the loaded companion file for the type-specific completion step:
 - [ ] All grill-me branches resolved (shared + type-specific)
 - [ ] `deepen-context` re-invoked if new focus areas emerged during grilling
 - [ ] Worktree re-synced to `origin/main` before branch creation (Phase 4b — catches updates during planning session)
-- [ ] Task branch created (`plan/<N>-<slug>`) — if docs changes expected
+- [ ] Task branch created (`plan/<N>-<slug>`) — always
 - [ ] Docs updated — optional for all types (or consciously skipped with a note)
 - [ ] Markdown lint clean (if docs changed)
-- [ ] Docs-only PR opened with `specs-notes` label — or skipped (no doc changes)
+- [ ] PR opened with `specs-notes` label — always
 - [ ] Implementation issue(s) created via `manage-github-issue` + `add-to-project.sh`
 - [ ] Impl issues wired per type (blocked-by for Ideas/Concerns; sub-issue for Epics)
 - [ ] Completion step executed per type (archive+close for Ideas/Concerns; annotate for Epics)
@@ -300,7 +303,7 @@ See the loaded companion file for the type-specific completion step:
 
 ## Conventions
 
-- **Branch name**: `plan/<N>-<slug>` (only created if docs changed)
+- **Branch name**: `plan/<N>-<slug>` (always created in Phase 4b)
 - **History source**: `IDEA-<N>` for Ideas; `CONCERN-<N>` for Concerns (not used for Epics)
 - **History type**: `idea` for Ideas; `learning` for Concerns (not used for Epics)
 - **Spec file names**: lowercase hyphenated `.yaml` in `specs/`
