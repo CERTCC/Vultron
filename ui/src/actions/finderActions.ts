@@ -165,7 +165,7 @@ export function handleFinderAcceptEmbargo(state: DemoState): DemoState {
       timestamp: now,
       consequences: [
         'EmAcceptEmbargoActivity created',
-        'Finder accepts 90-day embargo',
+        'Finder accepts embargo',
         allParticipantsAccepted ? 'All participants accepted - embargo is now ACTIVE' : `Awaiting ${allVendors.filter(v => !v.embargoAccepted).length} vendor acceptance(s)`,
       ],
     },
@@ -213,7 +213,7 @@ export function handleFinderAcceptEmbargo(state: DemoState): DemoState {
       consequences: allParticipantsAccepted ? [
         'AnnounceEmbargoActivity received',
         'All participants accepted - EM state → ACTIVE',
-        '90-day embargo now in effect',
+        'Embargo now in effect',
         `✓ M1 REACHED: Case active with ${allVendors.length + 1} participants, embargo established`,
       ] : [
         'Finder has accepted embargo',

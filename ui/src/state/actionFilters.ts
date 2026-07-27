@@ -129,7 +129,7 @@ export function getFinderActions(state: DemoState): Action[] {
     actions.push({
       id: 'finder-accept-embargo',
       label: 'Accept Embargo',
-      description: 'Accept the 90-day embargo proposal',
+      description: 'Accept the embargo proposal',
       enabled: true,
     }, {
       id: 'finder-reject-embargo',
@@ -286,7 +286,7 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
     actions.push({
       id: 'accept-embargo',
       label: 'Accept Embargo',
-      description: 'Accept the 90-day embargo proposal',
+      description: 'Accept the embargo proposal',
       enabled: true,
     }, {
       id: 'reject-embargo',
@@ -467,7 +467,7 @@ export function getCaseActorActions(state: DemoState): Action[] {
     actions.push({
       id: 'propose-embargo',
       label: 'Propose Embargo',
-      description: 'Propose a 90-day coordinated disclosure embargo',
+      description: 'Propose a coordinated disclosure embargo',
       enabled: true,
     })
   }

@@ -374,7 +374,7 @@ export function handleAcceptEmbargo(state: DemoState, vendorId: string): DemoSta
         `${vendor.name} can now fully participate`,
       ] : [
         'EmAcceptEmbargoActivity created',
-        `${vendor.name} accepts 90-day embargo`,
+        `${vendor.name} accepts embargo`,
         allParticipantsAccepted ? 'All participants accepted - embargo is now ACTIVE' : 'Awaiting other participants to accept',
       ]),
     },

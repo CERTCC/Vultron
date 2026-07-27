@@ -50,7 +50,7 @@ export function handleProposeEmbargo(state: DemoState): DemoState {
     type: 'decision' as const,
     timestamp: now,
     consequences: [
-      'EmbargoEvent created (90-day proposal)',
+      'EmbargoEvent created (embargo proposal)',
       'EmProposeEmbargoActivity created',
       'Proposal sent to all participants',
       'EM state → PROPOSED',
@@ -74,7 +74,7 @@ export function handleProposeEmbargo(state: DemoState): DemoState {
       enablesNext: true,
       consequences: [
         'EmProposeEmbargoActivity received',
-        'Finder sees 90-day embargo proposal',
+        'Finder sees embargo proposal',
         'EM state → PROPOSED',
         'Must accept or reject',
       ],
@@ -98,7 +98,7 @@ export function handleProposeEmbargo(state: DemoState): DemoState {
       consequences: [
         'EmProposeEmbargoActivity received',
         'EmbargoEvent stored in DataLayer',
-        `${vendor.name} sees 90-day embargo proposal`,
+        `${vendor.name} sees embargo proposal`,
         'Must accept or reject',
       ],
     })
@@ -106,7 +106,7 @@ export function handleProposeEmbargo(state: DemoState): DemoState {
   }
 
   newState = addTimelineEvents(newState, events)
-  newState = addEventLogEntries(newState, ['CaseActor proposed 90-day embargo'])
+  newState = addEventLogEntries(newState, ['CaseActor proposed embargo'])
   newState = incrementXPosition(newState)
 
   return newState
