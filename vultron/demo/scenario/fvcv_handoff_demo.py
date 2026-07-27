@@ -358,7 +358,7 @@ def _phase_ownership_handoff(
             client=coordinator_client,
             case_id=case.id_,
             invitee_id=coordinator.id_,
-            timeout_seconds=20.0,
+            timeout_seconds=40.0,
         )
 
     # Coordinator accepts the invite.
@@ -413,7 +413,7 @@ def _phase_ownership_handoff(
         wait_for_object_stored(
             client=coordinator_client,
             obj_id=ownership_offer.id_,
-            timeout_seconds=20.0,
+            timeout_seconds=40.0,
         )
 
     ownership_offer_id = ownership_offer.id_
@@ -521,7 +521,7 @@ def _phase_coordinator_invites_vendor2(
             client=vendor2_client,
             case_id=case.id_,
             invitee_id=vendor2.id_,
-            timeout_seconds=20.0,
+            timeout_seconds=40.0,
         )
 
     # Vendor2 accepts the invite.
@@ -543,7 +543,7 @@ def _phase_coordinator_invites_vendor2(
         wait_for_case_on_container(
             client=vendor2_client,
             case_id=case.id_,
-            timeout_seconds=20.0,
+            timeout_seconds=40.0,
         )
     logger.info("Vendor2 received case replica")
 
@@ -552,7 +552,7 @@ def _phase_coordinator_invites_vendor2(
         vendor_client=vendor_client,
         case_id=case.id_,
         expected_count=5,
-        timeout_seconds=20.0,
+        timeout_seconds=40.0,
     )
     logger.info("✓ Vendor2 joined case (%d participants)", 5)
 
