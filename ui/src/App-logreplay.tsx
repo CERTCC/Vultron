@@ -55,6 +55,7 @@ function AppLogReplay() {
   const [error, setError] = useState<string | null>(null)
   const [hoveredEvent, setHoveredEvent] = useState<string | null>(null)
   const [eventLogCollapsed, setEventLogCollapsed] = useState(false)
+  const [eventLogCopied, setEventLogCopied] = useState(false)
   const [currentEventIndex, setCurrentEventIndex] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
   const [collapsedParticipants, setCollapsedParticipants] = useState<Set<string>>(new Set())
@@ -178,6 +179,23 @@ function AppLogReplay() {
     }
     setIsPlaying(false)
   }, [])
+
+  // Copy the full event log to the clipboard. Uses the browser-native Clipboard
+  // API (no library needed); shows a brief "Copied!" confirmation.
+  const handleCopyEventLog = useCallback(() => {
+    if (!demoState) return
+    const text = demoState.eventLog.join('\n')
+    navigator.clipboard.writeText(text).then(
+      () => {
+        setEventLogCopied(true)
+        window.setTimeout(() => setEventLogCopied(false), 1500)
+      },
+      () => {
+        // Clipboard write can be rejected (e.g. insecure context / permissions);
+        // fail quietly rather than throwing — the log is still readable on screen.
+      }
+    )
+  }, [demoState])
 
   const handleStepForward = useCallback(() => {
     if (!demoState) return
@@ -1079,7 +1097,27 @@ function AppLogReplay() {
             }}
           >
             <span>Event Log ({demoState.eventLog.length} entries)</span>
-            <span style={{ marginLeft: 'auto' }}>
+            <button
+              onClick={(e) => {
+                e.stopPropagation() // don't toggle collapse when copying
+                handleCopyEventLog()
+              }}
+              disabled={demoState.eventLog.length === 0}
+              title="Copy the full event log to the clipboard"
+              style={{
+                marginLeft: 'auto',
+                padding: '0.2rem 0.6rem',
+                fontSize: '0.75rem',
+                background: eventLogCopied ? '#4caf50' : 'rgba(255,255,255,0.15)',
+                color: 'white',
+                border: '1px solid rgba(255,255,255,0.4)',
+                borderRadius: '4px',
+                cursor: demoState.eventLog.length === 0 ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {eventLogCopied ? '✓ Copied' : '📋 Copy'}
+            </button>
+            <span style={{ marginLeft: '0.75rem' }}>
               {eventLogCollapsed ? '▲' : '▼'}
             </span>
           </div>

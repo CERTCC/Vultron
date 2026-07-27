@@ -83,6 +83,7 @@ function App() {
   const [hoveredEvent, setHoveredEvent] = useState<string | null>(null)
   const [stateHistory, setStateHistory] = useState<DemoState[]>([])
   const [eventLogCollapsed, setEventLogCollapsed] = useState(false)
+  const [eventLogCopied, setEventLogCopied] = useState(false)
   const [collapsedParticipants, setCollapsedParticipants] = useState<Set<string>>(new Set())
   const timelineScrollRef = useRef<HTMLDivElement>(null)
   const sidebarScrollRef = useRef<HTMLDivElement>(null)
@@ -224,6 +225,19 @@ function App() {
       timelineScrollRef.current.scrollTop = sidebarScrollRef.current.scrollTop
     }
   }, [])
+
+  // Copy the full event log to the clipboard (browser-native Clipboard API, no
+  // library); brief "Copied!" confirmation. Fails quietly if the write is rejected.
+  const handleCopyEventLog = useCallback(() => {
+    const text = demoState.eventLog.join('\n')
+    navigator.clipboard.writeText(text).then(
+      () => {
+        setEventLogCopied(true)
+        window.setTimeout(() => setEventLogCopied(false), 1500)
+      },
+      () => {}
+    )
+  }, [demoState])
 
   // Auto-scroll to show the most recent event
   useEffect(() => {
@@ -999,6 +1013,25 @@ function App() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <span style={{ fontSize: '0.75rem' }}>{eventLogCollapsed ? '▶' : '▼'}</span>
             <h3 style={{ margin: 0, fontSize: '0.875rem', fontWeight: 'bold' }}>Event Log</h3>
+            <button
+              onClick={(e) => {
+                e.stopPropagation() // don't toggle collapse when copying
+                handleCopyEventLog()
+              }}
+              disabled={demoState.eventLog.length === 0}
+              title="Copy the full event log to the clipboard"
+              style={{
+                padding: '0.15rem 0.5rem',
+                fontSize: '0.7rem',
+                background: eventLogCopied ? '#4caf50' : '#e0e0e0',
+                color: eventLogCopied ? 'white' : '#333',
+                border: '1px solid #bbb',
+                borderRadius: '4px',
+                cursor: demoState.eventLog.length === 0 ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {eventLogCopied ? '✓ Copied' : '📋 Copy'}
+            </button>
           </div>
           <div style={{ fontSize: '0.75rem', color: '#666' }}>
             <strong>Current Phase:</strong> {demoState.phase} | <strong>Active Participants:</strong> {totalLanes}
