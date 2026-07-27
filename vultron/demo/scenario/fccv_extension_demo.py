@@ -634,7 +634,6 @@ def _phase_notes_exchange(
 def _phase_fix_lifecycle(
     c1_client: DataLayerClient,
     vendor_client: DataLayerClient,
-    c1: as_Actor,
     vendor: as_Actor,
     vendor_in_vendor: as_Actor,
     case: as_VulnerabilityCase,
@@ -1004,7 +1003,6 @@ def run_fccv_extension_demo(
     _phase_fix_lifecycle(
         c1_client,
         vendor_client,
-        c1,
         vendor,
         vendor_in_vendor,
         case,
