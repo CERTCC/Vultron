@@ -158,4 +158,29 @@ models the process of deciding whether to accept (engage with) or defer
   `create_engage_case_tree`), after `TransitionParticipantRMtoAccepted` and
   the sender-side subtree
 
+### `EvaluateCasePriority`
+
+- **Node name**: `EvaluateCasePriority`
+- **btz type**: `AlwaysSucceed` (p=1.00)
+- **Source file**: `vultron/demo/fuzzer/report_management/prioritize.py`
+- **Parent tree**: `RMPrioritizeBt`
+- **Semantic function**: Decision — evaluate case priority to determine
+  whether the local actor should engage (accept) or defer the case. This
+  is the SSVC integration seam: a production backend replaces this stub
+  with a real priority evaluator.
+- **Input dependency**: Human decision / Policy engine; SSVC scoring,
+  asset inventory lookups, and policy-based engage/defer decisions.
+- **Notes**: Always succeeds in simulation (always engage); SSVC
+  evaluation deferred to PROTO-05-001.
+- **Automation potential**: **High** — SSVC scoring, asset inventory
+  lookups, and policy-based engage/defer decisions are fully automatable.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.prioritize.EvaluateCasePriority`
+- **Call-out point shape**: Evaluator — `EvaluatorCallOutPoint`; outputs
+  `evaluate_case_priority_verdict: str` on SUCCESS.
+- **Factory-fn placement**:
+  `vultron.core.behaviors.report.prioritize_tree.create_prioritize_subtree` —
+  injected via `bundle.evaluate_priority_factory("EvaluateCasePriority")`
+  in the engage path (first child of `EngageCaseTriggerBT` Sequence),
+  replacing the former hardcoded direct instantiation (BT-18-004).
+
 ---

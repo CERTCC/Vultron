@@ -41,9 +41,9 @@ Structure:
     ├─ GuardedCommitCaseLedgerEntryBT         # Record receipt before effects (CLP-10-006)
     └─ TransitionParticipantRMtoDeferred   # Update RM state to DEFERRED
 
-Note: EvaluateCasePriority (in nodes.py) is the stub node for the outgoing
-direction — when the local actor decides whether to engage or defer. It is
-not used in these receive-side trees but is exported for future use.
+EvaluateCasePriority is now injected via bundle.evaluate_priority_factory
+in create_prioritize_subtree (BT-18-004). The core class in
+nodes/conditions.py is no longer instantiated directly here.
 """
 
 import logging
@@ -64,7 +64,6 @@ from vultron.core.behaviors.case.nodes.update import (
 )
 from vultron.core.behaviors.report.nodes import (
     CheckParticipantExists,
-    EvaluateCasePriority,
     TransitionParticipantRMtoAccepted,
     TransitionParticipantRMtoDeferred,
 )
@@ -249,7 +248,7 @@ def create_prioritize_subtree(
         name="EngagePath",
         memory=False,
         children=[
-            EvaluateCasePriority(case_id=case_id),
+            bundle.evaluate_priority_factory("EvaluateCasePriority"),
             engage_case_trigger_bt(
                 case_id=case_id,
                 actor_id=actor_id,

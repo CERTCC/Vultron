@@ -13,10 +13,10 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Factory injection tests for create_prioritize_subtree (BT-18-004/BT-23-003).
 
-Verifies the two Phase 2 reserved factory parameters (enough_info_factory,
-gather_info_factory) are accepted via bundle without error.  The two wired
-params (on_accept_factory, on_defer_factory) are covered by the existing
-test_prioritize_tree.py tests.
+Verifies that evaluate_priority_factory is injected into the engage path and
+that custom factories replace the default node in the tree (AC-4 for #1671).
+Also verifies the two Phase 2 reserved factory parameters (enough_info_factory,
+gather_info_factory) are accepted via bundle without error.
 """
 
 import py_trees
@@ -41,6 +41,36 @@ def _marker_factory(label):
         return _Marker(name=label)
 
     return factory
+
+
+def test_evaluate_priority_factory_replaces_default_node():
+    """Custom evaluate_priority_factory replaces the default node in the engage path (AC-4)."""
+    CUSTOM_LABEL = "CustomEvaluator-sentinel"
+    bundle = PrioritizationCallOutBundle(
+        evaluate_priority_factory=_marker_factory(CUSTOM_LABEL),  # type: ignore[arg-type]
+    )
+    tree = create_prioritize_subtree(
+        case_id=CASE_ID,
+        actor_id=ACTOR_ID,
+        call_out=bundle,
+    )
+    # Engage path is tree.children[0]; its first child is the evaluate_priority node
+    engage_path = tree.children[0]
+    assert engage_path.children[0].name == CUSTOM_LABEL
+
+
+def test_evaluate_priority_factory_default_is_always_succeed():
+    """Default evaluate_priority_factory produces an AlwaysSucceed node named EvaluateCasePriority."""
+    from vultron.demo.fuzzer.base import AlwaysSucceed
+
+    tree = create_prioritize_subtree(
+        case_id=CASE_ID,
+        actor_id=ACTOR_ID,
+    )
+    engage_path = tree.children[0]
+    node = engage_path.children[0]
+    assert node.name == "EvaluateCasePriority"
+    assert isinstance(node, AlwaysSucceed)
 
 
 def test_enough_info_factory_accepted():
