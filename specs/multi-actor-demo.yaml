@@ -4,7 +4,7 @@ description: >-
   Requirements for multi-actor demo scenarios, Docker Compose orchestration, actor isolation,
   acceptance testing, and reproducibility. Includes per-scenario required
   event-type lists for the case-ledger invariant harness.
-version: 1.1.0
+version: 1.2.0
 scope:
 
 - prototype
@@ -311,18 +311,86 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The Case Actor received handler for ADD_PARTICIPANT_STATUS_TO_PARTICIPANT MUST:
-      (1) verify the activity actor is a known case participant,
+      The Case Actor received handler for ADD_PARTICIPANT_STATUS_TO_PARTICIPANT MUST
+      implement the following ordered steps as a BT Sequence:
+      (1) verify the activity actor is a known case participant (precondition guard),
       (2) update the participant status record,
       (3) propagate the update to all other case participants via Announce(CaseLedgerEntry)
       fan-out (per ADR-0019 and SYNC-02-002) — NOT via a direct raw Add(ParticipantStatus)
       re-broadcast,
       (4) if CS.P is newly set by the Case Owner, trigger embargo teardown automatically,
-      (5) if all participants are RM.CLOSED, close the case automatically
+      (5) if all participants are RM.CLOSED, close the case automatically.
+      Each step MUST be implemented as a distinct BT node or subtree so that the protocol
+      logic is visible in the tree structure and not hidden inside node update() methods.
+    testable: true
+    trigger:
+      type: message_received
+      value: ADD_PARTICIPANT_STATUS_TO_PARTICIPANT
+    preconditions:
+    - description: Receiving actor is CASE_MANAGER (Case Actor)
+    - description: Inbound activity actor is a known case participant
+    steps:
+    - order: 1
+      actor: case_actor
+      action: Verify inbound activity actor is a known case participant
+      expected: >-
+        Actor found in case.actor_participant_index; FAILURE if unknown sender
+    - order: 2
+      actor: case_actor
+      action: Append ParticipantStatus to the participant record
+      expected: Participant's latest status reflects the newly received state
+    - order: 3
+      actor: case_actor
+      action: >-
+        Commit a canonical CaseLedgerEntry and fan-out Announce(CaseLedgerEntry)
+        to all known case participants
+      expected: >-
+        All peers receive the status update via the canonical log path
+        (ADR-0019, SYNC-02-002); no raw Add(ParticipantStatus) re-broadcast emitted
+    - order: 4
+      actor: case_actor
+      action: >-
+        If the new ParticipantStatus indicates CS.P (public awareness) and the
+        sender holds CASE_OWNER role and an active embargo exists,
+        emit ET (Embargo Termination) to initiate teardown
+      expected: Embargo teardown triggered; EM transitions to EXITED
+    - order: 5
+      actor: case_actor
+      action: >-
+        If all non-CASE_MANAGER participants have RM.CLOSED as their latest status
+        and no Leave(VulnerabilityCase) has already been emitted for this case,
+        emit Leave(VulnerabilityCase) to the Case Actor to close the case
+      expected: close_case activity queued; case closure initiated
+    postconditions:
+    - description: >-
+        Participant record updated; CaseLedgerEntry committed and broadcast;
+        embargo teardown triggered if CS.P+CASE_OWNER; case closed if all RM.CLOSED
     relationships:
     - rel_type: refines
       spec_id: SYNC-02-002
       note: step 3 propagation must use canonical Announce(CaseLedgerEntry) fan-out
+  - id: DEMOMA-07-006
+    priority: MUST
+    kind: project
+    statement: >-
+      The all-participants-RM-CLOSED check (DEMOMA-07-003 step 5) MUST be implemented
+      as a DataLayerCondition BT node (not as procedural logic inside a DataLayerAction
+      node's update() method). The condition node MUST: (a) iterate all
+      actor_participant_index entries, (b) skip participants holding CVDRole.CASE_MANAGER,
+      and (c) return FAILURE if any remaining participant's latest status rm_state is not
+      RM.CLOSED. The emit step that follows MUST also check that no Leave(VulnerabilityCase)
+      has already been written to the outbox for the case (idempotency via DataLayer
+      query, not via a process-level in-memory set).
+    testable: true
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-07-003
+      note: >-
+        Mandates BT node decomposition for step 5 close-ready precondition;
+        prohibits god-node pattern (BT-IDM-03)
+    - rel_type: refines
+      spec_id: BT-06-001
+      note: all protocol-significant behavior must be in the BT
   - id: DEMOMA-07-004
     priority: SHOULD
     kind: project
