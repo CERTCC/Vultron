@@ -194,9 +194,14 @@ export function getFinderActions(state: DemoState): Action[] {
     })
   }
 
-  // Close — `close` legal from the Finder's RM state (ACCEPTED/DEFERRED); overlay:
-  // the demo lets the Finder close only after publication (P present).
-  if (isLegalTransition('rm', finder.rmState, 'close') && state.pxaState.includes('P')) {
+  // Close — gated PURELY by RM-transition legality read from the artifact
+  // (protocol_states.json: `close` is legal from ACCEPTED/DEFERRED/INVALID, with no
+  // publication/VFD precondition — RM close means "no further action will be taken",
+  // independent of PXA). The Finder is seeded ACCEPTED, so this is available whenever
+  // the artifact permits it. (Previously gated on `pxaState.includes('P')` too — an
+  // overlay the artifact doesn't sanction, which left dead-end cases — e.g. the sole
+  // vendor invalidated then closed, nothing published — permanently un-closable.)
+  if (isLegalTransition('rm', finder.rmState, 'close')) {
     actions.push({
       id: 'finder-close-case',
       label: 'Close Case',
@@ -408,27 +413,27 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
   }
 
   // ---- Close ----
-  // `close` legal from ACCEPTED/DEFERRED/INVALID (artifact). Overlay differs by
-  // source: an INVALID or DEFERRED report can be closed immediately (dead-ends);
-  // an ACCEPTED report only closes after the vendor has deployed a fix (VFD) and
-  // the vuln is public (P) — the demo's "finished coordinating" rule.
+  // Gated PURELY by RM-transition legality read from the artifact
+  // (protocol_states.json: `close` legal from ACCEPTED/DEFERRED/INVALID, no
+  // publication/VFD precondition). RM close means "no further action will be taken"
+  // (rm/index.md), independent of PXA/VFD — so a vendor may close from ANY of those
+  // states whenever the artifact permits, not only after fix-deployed+published.
+  // (Previously an ACCEPTED close additionally required VFD && P — an overlay the
+  // artifact doesn't sanction. The `VFDP..` states in potential_actions.py are where
+  // CLOSE_CASE is a *suggested* action for analysis/scoring; that advisory table is
+  // NOT the legality authority and must not gate the option — see this thread /
+  // ui/CLAUDE.md.) The source-specific label below is cosmetic only.
   if (isLegalTransition('rm', vendor.rmState, 'close')) {
-    const closeableNow =
-      vendor.rmState === 'INVALID' ||
-      vendor.rmState === 'DEFERRED' ||
-      (vendor.vfdState === 'VFD' && state.pxaState.includes('P'))
-    if (closeableNow) {
-      const label =
-        vendor.rmState === 'INVALID' ? 'Close Invalid Report'
-        : vendor.rmState === 'DEFERRED' ? 'Close Deferred Report'
-        : 'Close Case'
-      actions.push({
-        id: 'vendor-close-case',
-        label,
-        description: 'Vendor closes their participation in the case',
-        enabled: true,
-      })
-    }
+    const label =
+      vendor.rmState === 'INVALID' ? 'Close Invalid Report'
+      : vendor.rmState === 'DEFERRED' ? 'Close Deferred Report'
+      : 'Close Case'
+    actions.push({
+      id: 'vendor-close-case',
+      label,
+      description: 'Vendor closes their participation in the case',
+      enabled: true,
+    })
   }
 
   // ---- Invite: onboard another vendor while the case is open (demo overlay) ----
