@@ -24,7 +24,9 @@ from vultron.core.models.dimensions import EmDimension
 from vultron.core.states.em import EM, is_valid_em_transition
 from vultron.core.use_cases._helpers import (
     _as_id,
+    add_activity_to_outbox,
     reset_case_participant_embargo_consent,
+    _resolve_case_manager_id,
 )
 
 
@@ -104,6 +106,91 @@ class ApplyEmbargoTeardownNode(DataLayerAction):
         self.feedback_message = (
             f"Embargo teardown applied on case '{case_id}'"
             f" (EM {current_em} → EXITED)"
+        )
+        self.logger.info("%s: %s", self.name, self.feedback_message)
+        return Status.SUCCESS
+
+
+class SendAnnounceEmbargoEventNode(DataLayerAction):
+    """Emit an ``Announce(EmbargoEvent)`` after embargo teardown.
+
+    Resolves the Case Manager actor ID from the case, builds the outbound
+    ``Announce(EmbargoEvent)`` activity via ``trigger_activity_factory``,
+    and queues it to the actor's outbox.
+
+    Best-effort semantics: returns SUCCESS with a WARNING log when the
+    factory is unavailable or no Case Manager can be resolved — teardown
+    must not be blocked by notification gaps.  Returns FAILURE only on
+    hard data errors (case not found, factory dispatch raises).
+
+    Used immediately after ``ApplyEmbargoTeardownNode`` in the
+    ``ActiveTeardown`` sequence of ``remove_embargo_from_case_tree`` so
+    that all participants receive a protocol-level announcement of the
+    embargo termination.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        embargo_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._case_id = case_id
+        self._embargo_id = embargo_id
+
+    def update(self) -> Status:
+        if self.trigger_activity_factory is None:
+            self.feedback_message = (
+                "trigger_activity_factory not available"
+                " — Announce(EmbargoEvent) skipped"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.SUCCESS
+
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
+
+        case = self.datalayer.read(self._case_id)
+        if not isinstance(case, VulnerabilityCase):
+            self.feedback_message = f"Case '{self._case_id}' not found"
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        case_manager_id = _resolve_case_manager_id(case, self.datalayer)
+        if case_manager_id is None:
+            self.feedback_message = (
+                f"No Case Manager found for case '{self._case_id}'"
+                " — Announce(EmbargoEvent) skipped"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.SUCCESS
+
+        try:
+            announce_id, _ = self.trigger_activity_factory.announce_embargo(
+                embargo_id=self._embargo_id,
+                case_id=self._case_id,
+                actor=self.actor_id,
+                to=[case_manager_id],
+            )
+            add_activity_to_outbox(
+                self.actor_id,
+                announce_id,
+                self.datalayer,  # type: ignore[arg-type]
+            )
+        except Exception as exc:
+            self.feedback_message = (
+                f"Announce(EmbargoEvent) dispatch failed for"
+                f" case '{self._case_id}': {exc}"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        self.feedback_message = (
+            f"Queued Announce(EmbargoEvent) '{announce_id}'"
+            f" for case '{self._case_id}'"
         )
         self.logger.info("%s: %s", self.name, self.feedback_message)
         return Status.SUCCESS

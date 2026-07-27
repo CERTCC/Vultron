@@ -24,6 +24,8 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.states.em import EM
+from vultron.enums.roles import CVDRole
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
@@ -46,6 +48,29 @@ def make_case_and_embargo(
     case.active_embargo = embargo.id_
     case.current_status.em_state = em_state
     return case, embargo
+
+
+CASE_MANAGER_ACTOR = "https://example.org/actors/case-manager"
+
+
+def make_case_with_manager(
+    suffix: str,
+    em_state: EM = EM.ACTIVE,
+    case_manager_actor: str = CASE_MANAGER_ACTOR,
+) -> tuple[as_VulnerabilityCase, as_CaseParticipant, SqliteDataLayer]:
+    """Return a DataLayer with a case + CASE_MANAGER participant."""
+    dl = SqliteDataLayer("sqlite:///:memory:")
+    case, _ = make_case_and_embargo(suffix, em_state=em_state)
+    cm_participant = as_CaseParticipant(
+        id_=f"{case.id_}/participants/cm",
+        attributed_to=case_manager_actor,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    case.case_participants.append(cm_participant.id_)
+    case.actor_participant_index[case_manager_actor] = cm_participant.id_
+    dl.create(case)
+    dl.create(cm_participant)
+    return case, cm_participant, dl
 
 
 def setup_blackboard(
