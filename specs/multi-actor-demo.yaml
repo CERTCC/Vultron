@@ -1894,6 +1894,118 @@ groups:
     - rel_type: refines
       spec_id: DEMOCI-04-004
 
+- id: DEMOMA-18
+  title: In-Process Fuzz Simulation Scenario
+  specs:
+  - id: DEMOMA-18-001
+    priority: MUST
+    kind: project
+    statement: >-
+      The fuzz simulation scenario MUST run entirely in-process with no
+      HTTP servers, containers, or network I/O required; each actor MUST
+      have its own isolated in-memory DataLayer.
+    rationale: >-
+      The scenario is a simulation tool for exploring the protocol state
+      space probabilistically. Container setup would make it unsuitable
+      for local development and CI smoke-testing. Derived from issue #1178
+      planning decisions.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-01-001
+  - id: DEMOMA-18-002
+    priority: MUST
+    kind: project
+    statement: >-
+      The fuzz simulation scenario MUST support a configurable number of
+      iterations N (default 10); each iteration MUST start with fresh
+      in-memory DataLayers for all actors (no state carried across
+      iterations).
+    rationale: >-
+      Each iteration is an independent probabilistic sample of the
+      protocol state space. Shared state would cause later iterations to
+      depend on earlier ones, undermining the exploration goal.
+  - id: DEMOMA-18-003
+    priority: MUST
+    kind: project
+    statement: >-
+      The fuzz simulation scenario MUST use STOCHASTIC call-out point
+      bundles for all actors so that each call-out decision is drawn
+      from the fuzzer node probability distribution rather than a
+      deterministic default.
+    rationale: >-
+      The scenario's purpose is probabilistic state-space exploration.
+      DETERMINISTIC bundles would produce an identical path on every
+      iteration, defeating the simulation goal.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-18-001
+  - id: DEMOMA-18-004
+    priority: MUST
+    kind: project
+    statement: >-
+      The fuzz simulation scenario MUST simulate in-process message
+      delivery between actors by directly invoking the receiving actor's
+      dispatcher with the emitted activity; no HTTP, ASGIEmitter, or
+      real network transport is permitted.
+    rationale: >-
+      Direct DataLayer injection allows the simulation to run without
+      network infrastructure while still exercising the full
+      trigger-endpoint→BT→outbox→peer-inbox cascade.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-18-001
+  - id: DEMOMA-18-005
+    priority: MUST
+    kind: project
+    statement: >-
+      Each iteration MUST log structured output at INFO level including:
+      the iteration number, each call-out point node name and its
+      SUCCESS/FAILURE outcome, and the final RM/EM/CS state per actor.
+    rationale: >-
+      Per-run logging is the primary diagnostic output of the scenario;
+      it allows users to observe which protocol paths were exercised
+      across iterations.
+  - id: DEMOMA-18-006
+    priority: MUST
+    kind: project
+    statement: >-
+      The fuzz simulation scenario MUST be accessible via the
+      ``vultron demo fuzz`` CLI sub-command, accepting at minimum an
+      ``--iterations N`` option; the default number of iterations MUST
+      be documented in the CLI help text.
+    rationale: >-
+      Consistent with the existing ``vultron demo`` CLI structure
+      (DC-01-001 through DC-01-005); the ``fuzz`` sub-command makes the
+      scenario discoverable alongside other demo commands.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-18-001
+  - id: DEMOMA-18-007
+    priority: MUST
+    kind: project
+    statement: >-
+      Existing deterministic demo scenarios MUST NOT be modified by the
+      fuzz simulation scenario; the fuzz scenario MUST NOT import from
+      or depend on any existing ``vultron/demo/scenario/`` module.
+    rationale: >-
+      The fuzz scenario is a standalone simulation tool; coupling it to
+      deterministic scenario files would break their repeatability and
+      make the fuzz scenario harder to isolate.
+  - id: DEMOMA-18-008
+    priority: MUST
+    kind: project
+    statement: >-
+      A unit test in ``test/demo/`` MUST verify that the fuzz simulation
+      scenario completes a single iteration without raising an exception;
+      the test MUST run with a seeded RNG where possible.
+    rationale: >-
+      The test provides a regression guard confirming the scenario still
+      runs after code changes, independent of the specific protocol path
+      taken.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-18-001
+
 - id: DEMOMA-17
   title: Demo Code Reuse and DRY
   specs:
