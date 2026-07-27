@@ -184,4 +184,17 @@ complete; the demo just needs to wait long enough.
    investigation (retry parameters, health checks, container startup order)
    — not a workaround in the demo script.
 
+**Exception — self-delivery (CONCERN-1653):** A demo script MAY call
+`post_to_inbox_and_wait` when an actor needs to deliver an activity to its
+*own* inbox to update its own replica — for example, after triggering
+`accept-case-ownership-transfer`, the accepting actor must self-deliver the
+resulting `Accept` activity so that `AcceptCaseOwnershipTransferReceivedUseCase`
+runs locally. This is not mail-carrying: the actor is posting to its own inbox,
+not acting as a surrogate for the transport layer.
+
+The rule this section prohibits is **cross-actor delivery**: a demo using
+*Actor A's* credentials to POST a message into *Actor B's* inbox. That is the
+pattern to eliminate; CONCERN-1653's self-delivery pattern is orthogonal and
+remains correct.
+
 <!-- Source: CONCERN-1635 -->
