@@ -27,7 +27,7 @@ check, but this is post-hoc assertion, not a BT-level guard.
 ## Resolution
 
 - Added CSB-15 group to `specs/cs-behavior.yaml` (v0.1.0 → v0.1.1):
-  - CSB-15-001: VENDOR or DEPLOYER required for f→F (notify-fix-ready)
+  - CSB-15-001: VENDOR required for f→F (notify-fix-ready); Deployers do not produce fixes
   - CSB-15-002: DEPLOYER required for d→D (notify-fix-deployed)
   - CSB-15-003: `notify-published` MUST_NOT set `vfd_state=VFD`
 
