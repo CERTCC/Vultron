@@ -36,7 +36,27 @@ export function updateMultipleParticipants(
   return newState
 }
 
+/**
+ * Drop CONSEQUENCE nodes aimed at a participant who has already closed: a closed
+ * participant receives no further notifications, so it should not sprout new
+ * consequence nodes (e.g. a Finder who closed before an embargo was accepted must
+ * not show a "Vendor Accepted Embargo" node). Applied centrally here rather than in
+ * each handler — many handlers hardcode an "always create the Finder consequence"
+ * node, and this is the single choke point they all commit through.
+ *
+ * Only consequence nodes are filtered. Decision nodes are never dropped — they
+ * represent the acting participant's own action (a closed participant can't act, so
+ * this never suppresses a legitimate decision), and dropping one would lose the
+ * event entirely.
+ */
+function keepEventForOpenTarget(state: DemoState, event: TimelineEvent): boolean {
+  if (event.type !== 'consequence') return true
+  const target = event.participantId ? state.participants.get(event.participantId) : undefined
+  return !(target && target.hasClosed)
+}
+
 export function addTimelineEvent(state: DemoState, event: TimelineEvent): DemoState {
+  if (!keepEventForOpenTarget(state, event)) return state
   return {
     ...state,
     timelineEvents: [...state.timelineEvents, event],
@@ -44,9 +64,10 @@ export function addTimelineEvent(state: DemoState, event: TimelineEvent): DemoSt
 }
 
 export function addTimelineEvents(state: DemoState, events: TimelineEvent[]): DemoState {
+  const kept = events.filter((e) => keepEventForOpenTarget(state, e))
   return {
     ...state,
-    timelineEvents: [...state.timelineEvents, ...events],
+    timelineEvents: [...state.timelineEvents, ...kept],
   }
 }
 
