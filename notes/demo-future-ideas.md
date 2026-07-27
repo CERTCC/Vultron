@@ -50,6 +50,18 @@ be treated as working implementations.
 | FCCV-handoff | #1216 | C1 transfers to C2; C2 invites V | — | **implemented** (#1216) — `fccv-handoff` CLI command + CI job |
 | FCVCV | #1217 | F+C1+V1+C2+V2 (5 actors) | #1212, #1215 | planned |
 
+### Fuzz simulation scenarios
+
+| Scenario | Issue | Description | Status |
+|----------|-------|-------------|--------|
+| In-process fuzz | #1178 | FCV in-process; STOCHASTIC bundles; N configurable iterations; `vultron demo fuzz` CLI command | planned |
+| Multi-container fuzz | *(future Idea under "stochastic demos" Epic)* | Containerised variant of #1178; each actor in its own container; STOCHASTIC bundles configurable via environment; container state reset between iterations | idea-stage |
+
+The multi-container variant is deferred until container reset and STOCHASTIC
+bundle configuration via environment variables are designed. See
+`notes/call-out-configuration.md` § "Multi-Actor In-Process Simulation" for
+the design decisions reached in the #1178 planning session.
+
 ### Role-expansion scenarios
 
 | Scenario | Issue | Description |

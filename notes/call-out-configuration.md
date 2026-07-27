@@ -303,3 +303,56 @@ the bundle/singleton/Protocol pattern as the resolved design. See
 Mechanism (2026-07-23 amendment)".
 
 Normative requirements: `specs/behavior-tree-integration.yaml` BT-23.
+
+---
+
+## Multi-Actor In-Process Simulation
+
+The three-mode model and STOCHASTIC bundles are the foundation for the
+**fully-fuzzed in-process simulation scenario** tracked in issue #1178 (see
+spec `DEMOMA-18`).
+
+### Design decisions (from #1178 planning)
+
+**In-process delivery via direct DataLayer injection** was chosen over two
+alternatives:
+
+- *ASGIEmitter loopback* — more realistic wire path, but requires spinning up
+  a FastAPI ASGI application per actor and routing inbound AS2 JSON through
+  the full HTTP pipeline; significant setup overhead for a simulation tool.
+- *In-memory message queue* — closest to the conceptual worker model in
+  `notes/event-driven-control-flow.md`, but requires new infrastructure
+  (a queue type + delivery scheduler) with no benefit over direct injection
+  for an in-process simulation.
+
+Direct injection: when actor A's BT emits an activity to actor B, the
+simulation controller intercepts A's outbox and directly calls B's dispatcher
+with the activity object. No network, no serialisation round-trip. The full
+trigger→BT→outbox→peer-inbox cascade is exercised within the single Python
+process.
+
+**Finder + Coordinator + Vendor (3 actors)** was chosen as the minimum
+meaningful configuration. FV (2 actors) omits coordinator role interactions;
+FCV (3) covers the core multi-party CVD pattern exercised by existing
+deterministic scenario demos.
+
+**Fresh in-memory DataLayer per iteration** ensures each iteration is an
+independent probabilistic sample. Persisting state across iterations would
+cause later runs to depend on earlier ones.
+
+**Multi-container variant deferred** — a future Idea under a new "stochastic
+demos" Epic should scope a containerised fuzz scenario once container reset
+and STOCHASTIC bundle configuration via environment variables are designed.
+
+### Termination model
+
+The simulation controller drives each iteration forward by:
+
+1. Calling a trigger on one actor (Finder submits report).
+2. Processing each outbox emission as an inbound activity on the target actor.
+3. Repeating until all actors reach `RM.CLOSED` or no state change occurs
+   over a configurable number of rounds (stall detection).
+
+A tick-count-only limit was rejected because many use-case BTs only activate
+on incoming activities; "ticks" have no direct meaning in the event-driven
+prototype. Progress is measured by RM state advancement across actors.
