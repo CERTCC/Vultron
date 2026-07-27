@@ -139,6 +139,12 @@ def _build_add_participant_status_snapshot(
     case_id: str,
 ) -> dict[str, Any]:
     status_dict = _obj_to_inline_dict(status)
+    # model_dump renders the PEC dimension as {"consent": {"state": "VALUE"}}.
+    # Invariant 9 (and the wire schema) expect the flat key "emConsentState".
+    if "consent" in status_dict and "emConsentState" not in status_dict:
+        pec_state = status_dict.pop("consent", {}).get("state")
+        if pec_state is not None:
+            status_dict["emConsentState"] = pec_state
     status_dict.setdefault("type", "ParticipantStatus")
     participant_dict = _obj_to_inline_dict(participant)
     participant_dict.setdefault("type", "CaseParticipant")
