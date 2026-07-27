@@ -21,16 +21,17 @@ submodules so that existing import paths
 without modification.
 
 Submodules:
-- ``conditions``: Participant verification condition nodes
+- ``conditions``: Participant verification, all-participants-closed precondition,
+  and close-not-yet-emitted idempotency guard nodes
 - ``broadcast``: (removed — case-manager lookup consolidated into
   ``_resolve_case_manager_id`` in ``vultron.core.use_cases._helpers``)
 - ``append``: Load, validate RM transition, and append action nodes
   (SkipIfIdempotentNode, LoadParticipantNode,
   CheckStatusNotAlreadyAppendedNode, ResolveAndPersistStatusObjectNode,
   ValidateRMTransitionNode, AppendStatusAndSaveParticipantNode)
-- ``lifecycle``: Public disclosure and auto-close lifecycle nodes
+- ``lifecycle``: Public disclosure and auto-close emit lifecycle nodes
   (_PublicDisclosureSkipConditionNode, PublicDisclosureBranchNode,
-  AutoCloseBranchNode)
+  EmitCloseCaseNode)
 - ``case_status``: Idempotency guard, EM/PXA transition validation, and
   append nodes for the AddCaseStatusToCase workflow
 """
@@ -42,6 +43,8 @@ from vultron.core.behaviors.status.nodes.case_status import (
     ValidateCaseStatusTransitionNode,
 )
 from vultron.core.behaviors.status.nodes.conditions import (
+    AllParticipantsRMClosedConditionNode,
+    CloseNotYetEmittedConditionNode,
     VerifySenderIsParticipantNode,
 )
 from vultron.core.behaviors.status.nodes.append import (
@@ -54,13 +57,15 @@ from vultron.core.behaviors.status.nodes.append import (
     ValidateRMTransitionNode,
 )
 from vultron.core.behaviors.status.nodes.lifecycle import (
-    AutoCloseBranchNode,
+    EmitCloseCaseNode,
     PublicDisclosureBranchNode,
     _PublicDisclosureSkipConditionNode,
 )
 
 __all__ = [
     # conditions
+    "AllParticipantsRMClosedConditionNode",
+    "CloseNotYetEmittedConditionNode",
     "VerifySenderIsParticipantNode",
     # append
     "LoadParticipantNode",
@@ -73,7 +78,7 @@ __all__ = [
     # lifecycle
     "_PublicDisclosureSkipConditionNode",
     "PublicDisclosureBranchNode",
-    "AutoCloseBranchNode",
+    "EmitCloseCaseNode",
     # case_status
     "CASE_STATUS_ALREADY_PRESENT",
     "CheckCaseStatusIdempotencyNode",
