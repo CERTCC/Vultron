@@ -128,7 +128,9 @@ def _candidate_dicts(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
 
     A ``ParticipantStatus``/``CaseStatus`` may be encoded directly in the
     payload snapshot or nested under an ``Add`` activity's ``object`` (and a
-    ``CaseStatus`` may itself nest under ``caseStatus``). This flattens those
+    ``CaseStatus`` may itself nest under ``caseStatus``). ``VulnerabilityCase``
+    payloads carry a ``caseStatuses`` array; each item in that list is also
+    added so EM/CS state on early rows is not missed. This flattens all those
     layers so dimension-state extraction can search all of them.
     """
     seen: list[dict[str, Any]] = []
@@ -139,6 +141,11 @@ def _candidate_dicts(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
         seen.append(node)
         for key in ("object", "object_", "caseStatus", "case_status"):
             _add(node.get(key))
+        for list_key in ("caseStatuses", "case_statuses"):
+            items = node.get(list_key)
+            if isinstance(items, list):
+                for item in items:
+                    _add(item)
 
     _add(snapshot)
     return seen
