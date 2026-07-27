@@ -88,6 +88,9 @@ from vultron.core.behaviors.case.nodes.lifecycle import (
     create_guarded_commit_case_ledger_entry_tree,
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.case.nodes.prologue import (
+    WritePrologueLedgerEntriesNode,
+)
 from vultron.core.behaviors.case.nodes.participant import (
     CreateParticipantStatusNode,
     RecordOwnerJoinedEventNode,
@@ -165,6 +168,8 @@ __all__ = [
     "CommitCaseLedgerEntryNode",
     "create_guarded_commit_case_ledger_entry_tree",
     "create_receive_activity_tree",
+    # prologue
+    "WritePrologueLedgerEntriesNode",
     # update
     "CheckCaseUpdateOwnerNode",
     "CaptureCaseUpdateBroadcastExclusionsNode",

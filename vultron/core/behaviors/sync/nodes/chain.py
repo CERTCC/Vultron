@@ -25,8 +25,9 @@ from py_trees.common import Status
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models._helpers import _now_utc
 from vultron.core.models.case_ledger import HashChainLedgerRecord
-from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.sync_helpers import _find_equivalent_recorded_entry
 from vultron.core.sync_helpers import _reconstruct_tail_hash
 from vultron.errors import VultronCanonicalEntryError
@@ -44,6 +45,8 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Reject", "Offer"),  # close_report (RC)
     ("Read", "Offer"),  # ack_report (RK, ADR-0021)
     ("Add", "Note"),
+    ("Add", "VulnerabilityReport"),  # add_report_to_case
+    ("Add", "CaseStatus"),  # add_case_status_to_case
     ("Add", "ParticipantStatus"),
     ("Add", "EmbargoEvent"),
     ("Remove", "EmbargoEvent"),
@@ -306,10 +309,6 @@ class UpdateReplicationStateNode(DataLayerAction):
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-        from vultron.core.models.replication_state import (
-            VultronReplicationState,
-        )
-
         activity = self.blackboard.activity
         entry = getattr(activity, "rejected_entry", None)
         if entry is None:
