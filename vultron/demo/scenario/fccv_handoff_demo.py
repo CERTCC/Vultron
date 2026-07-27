@@ -720,6 +720,12 @@ def _phase_fix_lifecycle(
 
     with demo_check("Finder replica shows Vendor CS includes F (fix ready)"):
         wait_for_participant_vfd_state(
+            client=c1_client,
+            case_id=case.id_,
+            actor_id=vendor.id_,
+            expected_states={CS_vfd.VFd, CS_vfd.VFD},
+        )
+        wait_for_participant_vfd_state(
             client=finder_client,
             case_id=case.id_,
             actor_id=vendor.id_,
@@ -741,6 +747,12 @@ def _phase_fix_lifecycle(
     with demo_check(
         "Finder replica shows Vendor CS includes D (fix deployed)"
     ):
+        wait_for_participant_vfd_state(
+            client=c1_client,
+            case_id=case.id_,
+            actor_id=vendor.id_,
+            expected_states={CS_vfd.VFD},
+        )
         wait_for_participant_vfd_state(
             client=finder_client,
             case_id=case.id_,
@@ -814,11 +826,23 @@ def _phase_publication(
             client=finder_client,
             case_id=case.id_,
         )
+        wait_for_participant_vfd_state(
+            client=c1_client,
+            case_id=case.id_,
+            actor_id=vendor.id_,
+            expected_states={CS_vfd.VFD},
+        )
+        wait_for_participant_vfd_state(
+            client=finder_client,
+            case_id=case.id_,
+            actor_id=vendor.id_,
+            expected_states={CS_vfd.VFD},
+        )
         verify_publicly_disclosed(
             receiver_client=c1_client,
             reporter_client=finder_client,
             case_id=case.id_,
-            receiver_actor_id=c1.id_,
+            receiver_actor_id=vendor.id_,
         )
 
 
