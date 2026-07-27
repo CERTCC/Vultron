@@ -659,6 +659,21 @@ def _md_cell(text: str) -> str:
     return text.replace("|", "\\|").replace("\n", " ")
 
 
+def _case_time_range(
+    events: list[CaseTimelineEvent],
+) -> tuple[str | None, str | None]:
+    """Return ``(min_received_at, max_received_at)`` for a list of events.
+
+    Uses string ``min``/``max`` over non-None ``received_at`` values (ISO 8601
+    timestamps sort lexicographically). Returns ``(None, None)`` when no event
+    carries a timestamp (DRPT-04-006).
+    """
+    timestamps = [e.received_at for e in events if e.received_at is not None]
+    if not timestamps:
+        return None, None
+    return min(timestamps), max(timestamps)
+
+
 def _render_markdown_case(
     lines: list[str], events: list[CaseTimelineEvent], actors: list[str]
 ) -> None:
@@ -706,6 +721,10 @@ def render_markdown(events: list[CaseTimelineEvent], actors: list[str]) -> str:
     for case_id, case_events in by_case.items():
         lines.append(f"## Case {_md_cell(case_id or '(unknown)')}")
         lines.append("")
+        first, last = _case_time_range(case_events)
+        if first is not None and last is not None:
+            lines.append(f"- Time range: {_md_cell(first)} – {_md_cell(last)}")
+            lines.append("")
         _render_markdown_case(lines, case_events, actors)
         lines.append("")
 
@@ -810,8 +829,16 @@ def render_html(events: list[CaseTimelineEvent], actors: list[str]) -> str:
     by_case = group_events_by_case(events)
     sections: list[str] = []
     for case_id, case_events in by_case.items():
+        first, last = _case_time_range(case_events)
+        time_range_html = ""
+        if first is not None and last is not None:
+            time_range_html = (
+                f'<p class="meta">Time range: {html.escape(first)}'
+                f" – {html.escape(last)}</p>\n"
+            )
         sections.append(
             f"<h2>Case {html.escape(case_id or '(unknown)')}</h2>\n"
+            + time_range_html
             + _render_html_case_table(case_events, actors)
         )
 

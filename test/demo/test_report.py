@@ -29,6 +29,7 @@ from vultron.demo import report
 from vultron.demo.report import (
     CaseTimelineEvent,
     ReportError,
+    _case_time_range,
     build_timeline,
     discover_replicas,
     event_phrase,
@@ -647,6 +648,152 @@ class TestHtmlRenderer:
         out = render_html(build_timeline({"vendor": [raw]}), ["vendor"])
         assert "<h2>Case urn:case:&lt;x&gt;</h2>" in out
         assert "<x>" not in out
+
+
+# ---------------------------------------------------------------------------
+# DRPT-04-006 — per-case time range
+# ---------------------------------------------------------------------------
+
+
+class TestCaseTimeRange:
+    def test_no_timestamps_returns_none_none(self):
+        events = [
+            CaseTimelineEvent.from_raw(_camel_entry(receivedAt=None)),
+            CaseTimelineEvent.from_raw(
+                _camel_entry(entryHash="b" * 64, logIndex=1, receivedAt=None)
+            ),
+        ]
+        assert _case_time_range(events) == (None, None)
+
+    def test_empty_list_returns_none_none(self):
+        assert _case_time_range([]) == (None, None)
+
+    def test_returns_min_max_for_multi_event_case(self):
+        events = [
+            CaseTimelineEvent(
+                case_id="urn:case:1",
+                log_index=0,
+                entry_hash="a" * 64,
+                received_at="2026-07-01T10:00:00Z",
+            ),
+            CaseTimelineEvent(
+                case_id="urn:case:1",
+                log_index=1,
+                entry_hash="b" * 64,
+                received_at="2026-07-01T12:00:00Z",
+            ),
+            CaseTimelineEvent(
+                case_id="urn:case:1",
+                log_index=2,
+                entry_hash="c" * 64,
+                received_at="2026-07-01T11:00:00Z",
+            ),
+        ]
+        first, last = _case_time_range(events)
+        assert first == "2026-07-01T10:00:00Z"
+        assert last == "2026-07-01T12:00:00Z"
+
+    def test_single_timestamp_min_equals_max(self):
+        events = [
+            CaseTimelineEvent(
+                case_id="urn:case:1",
+                log_index=0,
+                entry_hash="a" * 64,
+                received_at="2026-07-01T10:00:00Z",
+            ),
+        ]
+        first, last = _case_time_range(events)
+        assert first == last == "2026-07-01T10:00:00Z"
+
+    def test_ignores_none_timestamps_in_mixed_list(self):
+        events = [
+            CaseTimelineEvent(
+                case_id="urn:case:1",
+                log_index=0,
+                entry_hash="a" * 64,
+                received_at=None,
+            ),
+            CaseTimelineEvent(
+                case_id="urn:case:1",
+                log_index=1,
+                entry_hash="b" * 64,
+                received_at="2026-07-01T10:00:00Z",
+            ),
+        ]
+        first, last = _case_time_range(events)
+        assert first == last == "2026-07-01T10:00:00Z"
+
+
+class TestMarkdownRendererTimeRange:
+    def test_time_range_bullet_present_when_timestamps_exist(self):
+        replicas = {"vendor": [_camel_entry()]}
+        events = build_timeline(replicas)
+        md = render_markdown(events, ["vendor"])
+        assert (
+            "- Time range: 2026-07-01T12:00:00Z – 2026-07-01T12:00:00Z" in md
+        )
+
+    def test_time_range_bullet_omitted_when_no_timestamps(self):
+        replicas = {"vendor": [_camel_entry(receivedAt=None)]}
+        events = build_timeline(replicas)
+        md = render_markdown(events, ["vendor"])
+        assert "Time range:" not in md
+
+    def test_time_range_shows_min_max_across_events(self):
+        replicas = {
+            "vendor": [
+                _camel_entry(
+                    logIndex=0,
+                    entryHash="a" * 64,
+                    receivedAt="2026-07-01T10:00:00Z",
+                ),
+                _camel_entry(
+                    logIndex=1,
+                    entryHash="b" * 64,
+                    receivedAt="2026-07-01T14:00:00Z",
+                ),
+            ],
+        }
+        events = build_timeline(replicas)
+        md = render_markdown(events, ["vendor"])
+        assert "2026-07-01T10:00:00Z" in md
+        assert "2026-07-01T14:00:00Z" in md
+        assert "Time range:" in md
+
+
+class TestHtmlRendererTimeRange:
+    def test_time_range_meta_present_when_timestamps_exist(self):
+        replicas = {"vendor": [_camel_entry()]}
+        events = build_timeline(replicas)
+        out = render_html(events, ["vendor"])
+        assert '<p class="meta">Time range: 2026-07-01T12:00:00Z' in out
+
+    def test_time_range_meta_omitted_when_no_timestamps(self):
+        replicas = {"vendor": [_camel_entry(receivedAt=None)]}
+        events = build_timeline(replicas)
+        out = render_html(events, ["vendor"])
+        assert "Time range:" not in out
+
+    def test_time_range_shows_min_max_across_events(self):
+        replicas = {
+            "vendor": [
+                _camel_entry(
+                    logIndex=0,
+                    entryHash="a" * 64,
+                    receivedAt="2026-07-01T09:00:00Z",
+                ),
+                _camel_entry(
+                    logIndex=1,
+                    entryHash="b" * 64,
+                    receivedAt="2026-07-01T15:00:00Z",
+                ),
+            ],
+        }
+        events = build_timeline(replicas)
+        out = render_html(events, ["vendor"])
+        assert "2026-07-01T09:00:00Z" in out
+        assert "2026-07-01T15:00:00Z" in out
+        assert "Time range:" in out
 
 
 # ---------------------------------------------------------------------------
