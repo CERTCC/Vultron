@@ -289,6 +289,34 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-06-004
+  - id: DEMOMA-06-006
+    priority: MUST
+    kind: project
+    statement: >-
+      Before calling `verify_fix_ready`, `verify_fix_deployed`, or
+      `verify_publicly_disclosed`, demo scripts MUST first call
+      `wait_for_participant_vfd_state` on every container that the helper will
+      assert against — including the receiver container.  Using a polling wait
+      only on the reporter/finder container and then immediately asserting on
+      the receiver container with a single-shot check is not permitted.
+    rationale: >-
+      Each of these helpers calls `_check_participant_vfd_state_in` or
+      `_assert_participant_vfd_pxa` as a single-shot, non-retrying assertion.
+      VFD state updates are broadcast asynchronously via
+      `Announce(CaseLedgerEntry)` fan-out; if the broadcast has not yet
+      reached the receiver container when the assertion fires, the check
+      fails with a spurious "vfd_state is not VFD" error.  Adding a
+      `wait_for_participant_vfd_state` poll on every target container
+      before the single-shot assertion eliminates this race.  Additionally,
+      the `receiver_actor_id` argument MUST be the full URI of an actor that
+      holds `CVDRole.VENDOR` in the case (see DEMOMA-15-001); passing a
+      Coordinator or other non-Vendor actor whose VFD path never advances
+      will always fail the VFD check.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-06-002
+    - rel_type: refines
+      spec_id: DEMOMA-15-001
 - id: DEMOMA-07
   title: ParticipantStatus Trigger Pattern
   specs:
