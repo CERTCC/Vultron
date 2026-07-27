@@ -17,7 +17,7 @@
 
 import logging
 from typing import cast
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import py_trees
 
@@ -341,3 +341,23 @@ class TestSendAnnounceEmbargoEventNode:
         bt.tick()
 
         assert node.status == py_trees.common.Status.FAILURE
+
+    def test_returns_success_when_outbox_write_fails(self):
+        """Node returns SUCCESS (best-effort) when factory succeeds but outbox write raises."""
+        case, _, dl = make_case_with_manager("saee6", em_state=EM.ACTIVE)
+        _, embargo = make_case_and_embargo("saee6")
+        factory = self._make_factory()
+
+        _setup_blackboard_with_factory(dl, factory)
+        node = SendAnnounceEmbargoEventNode(
+            case_id=case.id_, embargo_id=embargo.id_
+        )
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+
+        patch_target = "vultron.core.behaviors.embargo.nodes.teardown.add_activity_to_outbox"
+        with patch(patch_target, side_effect=RuntimeError("outbox error")):
+            bt.tick()
+
+        assert node.status == py_trees.common.Status.SUCCESS
+        factory.announce_embargo.assert_called_once()

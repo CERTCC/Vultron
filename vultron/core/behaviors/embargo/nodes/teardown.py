@@ -119,9 +119,10 @@ class SendAnnounceEmbargoEventNode(DataLayerAction):
     and queues it to the actor's outbox.
 
     Best-effort semantics: returns SUCCESS with a WARNING log when the
-    factory is unavailable or no Case Manager can be resolved — teardown
-    must not be blocked by notification gaps.  Returns FAILURE only on
-    hard data errors (case not found, factory dispatch raises).
+    factory is unavailable, no Case Manager can be resolved, or the outbox
+    write fails after the activity is already constructed — teardown must
+    not be blocked by notification gaps.  Returns FAILURE only on hard data
+    errors (case read fails, case not found, factory dispatch raises).
 
     Used immediately after ``ApplyEmbargoTeardownNode`` in the
     ``ActiveTeardown`` sequence of ``remove_embargo_from_case_tree`` so
@@ -139,6 +140,56 @@ class SendAnnounceEmbargoEventNode(DataLayerAction):
         self._case_id = case_id
         self._embargo_id = embargo_id
 
+    def _build_and_queue_announce(
+        self, actor_id: str, case_manager_id: str
+    ) -> Status:
+        """Build the Announce(EmbargoEvent) activity and write it to the outbox.
+
+        Separated from ``update()`` to keep cyclomatic complexity under the
+        project limit.  Returns FAILURE if the factory call raises, SUCCESS
+        (best-effort) if the outbox write fails after the activity is already
+        constructed.
+        """
+        assert self.trigger_activity_factory is not None
+        assert self.datalayer is not None
+
+        try:
+            announce_id, _ = self.trigger_activity_factory.announce_embargo(
+                embargo_id=self._embargo_id,
+                case_id=self._case_id,
+                actor=actor_id,
+                to=[case_manager_id],
+            )
+        except Exception as exc:
+            self.feedback_message = (
+                f"Announce(EmbargoEvent) factory failed for"
+                f" case '{self._case_id}': {exc}"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        try:
+            add_activity_to_outbox(
+                actor_id,
+                announce_id,
+                self.datalayer,  # type: ignore[arg-type]
+            )
+        except Exception as exc:
+            self.feedback_message = (
+                f"Outbox write failed for Announce(EmbargoEvent)"
+                f" '{announce_id}': {exc}"
+                " — activity constructed but not queued"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.SUCCESS
+
+        self.feedback_message = (
+            f"Queued Announce(EmbargoEvent) '{announce_id}'"
+            f" for case '{self._case_id}'"
+        )
+        self.logger.info("%s: %s", self.name, self.feedback_message)
+        return Status.SUCCESS
+
     def update(self) -> Status:
         if self.trigger_activity_factory is None:
             self.feedback_message = (
@@ -153,7 +204,15 @@ class SendAnnounceEmbargoEventNode(DataLayerAction):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        case = self.datalayer.read(self._case_id)
+        try:
+            case = self.datalayer.read(self._case_id)
+        except Exception as exc:
+            self.feedback_message = (
+                f"Failed to read case '{self._case_id}': {exc}"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
         if not isinstance(case, VulnerabilityCase):
             self.feedback_message = f"Case '{self._case_id}' not found"
             self.logger.warning("%s: %s", self.name, self.feedback_message)
@@ -168,32 +227,7 @@ class SendAnnounceEmbargoEventNode(DataLayerAction):
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
 
-        try:
-            announce_id, _ = self.trigger_activity_factory.announce_embargo(
-                embargo_id=self._embargo_id,
-                case_id=self._case_id,
-                actor=self.actor_id,
-                to=[case_manager_id],
-            )
-            add_activity_to_outbox(
-                self.actor_id,
-                announce_id,
-                self.datalayer,  # type: ignore[arg-type]
-            )
-        except Exception as exc:
-            self.feedback_message = (
-                f"Announce(EmbargoEvent) dispatch failed for"
-                f" case '{self._case_id}': {exc}"
-            )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-
-        self.feedback_message = (
-            f"Queued Announce(EmbargoEvent) '{announce_id}'"
-            f" for case '{self._case_id}'"
-        )
-        self.logger.info("%s: %s", self.name, self.feedback_message)
-        return Status.SUCCESS
+        return self._build_and_queue_announce(self.actor_id, case_manager_id)
 
 
 class RemoveFromProposedEmbargoesNode(DataLayerAction):
