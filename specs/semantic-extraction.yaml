@@ -4,7 +4,7 @@ description: >-
   The inbox handler extracts semantic meaning from ActivityStreams activities by matching
   activity type and object type patterns. This semantic type determines which handler function
   processes the activity.
-version: 1.0.0
+version: 1.1.0
 scope:
 - prototype
 - production
@@ -181,3 +181,48 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: SE-06-001
+- id: SE-07
+  title: Display Metadata
+  specs:
+  - id: SE-07-001
+    priority: MUST
+    kind: project
+    statement: >-
+      Every `SemanticEntry` in `SEMANTIC_REGISTRY` MUST carry a non-empty `phrase: str`
+      field containing an active-voice format-string template suitable for human-readable
+      event summaries (e.g. `"{actor} submitted report {object}"`).
+    rationale: >-
+      A mandatory phrase field ensures every registered semantic is self-documenting and
+      prevents silent drift between the registry and display-layer phrase tables (see
+      CONCERN-1675). Making the field mandatory at the dataclass level means a missing
+      phrase is a construction-time error, not a runtime rendering gap.
+  - id: SE-07-002
+    priority: MUST
+    kind: project
+    statement: >-
+      Phrase templates MUST use named slots drawn from the set `{actor}`, `{object}`,
+      `{target}`, `{context}`, `{origin}`, `{inner_object}`. Slot names MUST be
+      human-facing role identifiers, not Python field names from `VultronEvent`.
+    relationships:
+    - rel_type: refines
+      spec_id: SE-07-001
+  - id: SE-07-003
+    priority: MUST
+    kind: project
+    statement: >-
+      The `SemanticEntry` dataclass `phrase` field MUST have no default value so
+      that omitting it is a construction-time `TypeError`, not a silent empty string.
+    relationships:
+    - rel_type: implements
+      spec_id: SE-07-001
+  - id: SE-07-004
+    priority: MUST
+    kind: project
+    statement: >-
+      A parametrized unit test MUST assert that every entry in `SEMANTIC_REGISTRY`
+      has a non-empty `phrase` and that calling `entry.phrase.format_map(d)` with a
+      `defaultdict(lambda: "X")` returns a non-empty string without raising a
+      `KeyError`.
+    relationships:
+    - rel_type: verifies
+      spec_id: SE-07-001
