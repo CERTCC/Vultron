@@ -161,6 +161,93 @@ class TestCaseTimelineEventParsing:
         assert event.rm_state == "CLOSED"
         assert event.vfd_state == "VFD"
 
+    def test_pec_state_from_consent_dimension_object(self):
+        """PEC state extracted from ADR-0036 consent dimension object."""
+        raw = _snake_entry(
+            payload_snapshot={
+                "type": "Add",
+                "actor": "http://finder:7999/api/v2/actors/finder",
+                "object": {
+                    "id": "urn:uuid:ps2",
+                    "type": "ParticipantStatus",
+                    "consent": {"state": "SIGNATORY"},
+                },
+            }
+        )
+        event = CaseTimelineEvent.from_raw(raw)
+        assert event.pec_state == "SIGNATORY"
+
+    def test_pec_state_from_flat_em_consent_state(self):
+        """Legacy emConsentState flat field tolerated."""
+        raw = _camel_entry(
+            eventType="add_participant_status_to_participant",
+            payloadSnapshot={
+                "type": "Add",
+                "actor": "http://vendor:7999/api/v2/actors/vendor",
+                "object": {
+                    "id": "urn:uuid:ps3",
+                    "type": "ParticipantStatus",
+                    "emConsentState": "INVITED",
+                },
+            },
+        )
+        event = CaseTimelineEvent.from_raw(raw)
+        assert event.pec_state == "INVITED"
+
+    def test_pec_state_from_flat_embargo_consent_state(self):
+        """Legacy embargoConsentState flat field tolerated."""
+        raw = _camel_entry(
+            eventType="add_participant_status_to_participant",
+            payloadSnapshot={
+                "type": "Add",
+                "actor": "http://vendor:7999/api/v2/actors/vendor",
+                "object": {
+                    "id": "urn:uuid:ps4",
+                    "type": "ParticipantStatus",
+                    "embargoConsentState": "DECLINED",
+                },
+            },
+        )
+        event = CaseTimelineEvent.from_raw(raw)
+        assert event.pec_state == "DECLINED"
+
+    def test_pec_state_from_flat_em_consent_state_snake(self):
+        """Legacy em_consent_state snake_case short form tolerated."""
+        raw = _snake_entry(
+            payload_snapshot={
+                "type": "Add",
+                "actor": "http://finder:7999/api/v2/actors/finder",
+                "object": {
+                    "id": "urn:uuid:ps5",
+                    "type": "ParticipantStatus",
+                    "em_consent_state": "SIGNATORY",
+                },
+            }
+        )
+        event = CaseTimelineEvent.from_raw(raw)
+        assert event.pec_state == "SIGNATORY"
+
+    def test_pec_state_from_flat_embargo_consent_state_snake(self):
+        """Legacy embargo_consent_state snake_case long form tolerated."""
+        raw = _snake_entry(
+            payload_snapshot={
+                "type": "Add",
+                "actor": "http://finder:7999/api/v2/actors/finder",
+                "object": {
+                    "id": "urn:uuid:ps6",
+                    "type": "ParticipantStatus",
+                    "embargo_consent_state": "LAPSED",
+                },
+            }
+        )
+        event = CaseTimelineEvent.from_raw(raw)
+        assert event.pec_state == "LAPSED"
+
+    def test_pec_state_absent_when_not_in_payload(self):
+        """pec_state is None when no consent field is present."""
+        event = CaseTimelineEvent.from_raw(_camel_entry())
+        assert event.pec_state is None
+
     def test_em_state_from_case_status(self):
         raw = _camel_entry(
             eventType="add_case_status_to_case",
@@ -580,6 +667,7 @@ class TestMarkdownRenderer:
         # Distilled field columns + one column per actor.
         assert "| finder | vendor |" in header
         assert "Actor" in header and "Event" in header
+        assert "| PEC |" in header
         # Separator row present.
         sep_idx = lines.index(header) + 1
         assert set(lines[sep_idx].replace("|", "").split()) == {"---"}
@@ -705,6 +793,90 @@ class TestHtmlRenderer:
         out = render_html(build_timeline({"vendor": [raw]}), ["vendor"])
         assert "<h2>Case urn:case:&lt;x&gt;</h2>" in out
         assert "<x>" not in out
+
+
+# ---------------------------------------------------------------------------
+# DRPT-02-008 — PEC column in renderers
+# ---------------------------------------------------------------------------
+
+
+def _pec_entry(pec_value: str, **overrides):
+    """A raw ledger entry carrying a ParticipantStatus with a consent dimension."""
+    return _camel_entry(
+        eventType="add_participant_status_to_participant",
+        payloadSnapshot={
+            "type": "Add",
+            "actor": "http://vendor:7999/api/v2/actors/vendor",
+            "object": {
+                "id": "urn:uuid:ps_pec",
+                "type": "ParticipantStatus",
+                "consent": {"state": pec_value},
+                "rm": {"state": "ACCEPTED"},
+            },
+        },
+        **overrides,
+    )
+
+
+class TestPecColumn:
+    def test_pec_state_appears_in_markdown_table(self):
+        replicas = {"vendor": [_pec_entry("SIGNATORY")]}
+        md = render_markdown(build_timeline(replicas), ["vendor"])
+        assert "| PEC |" in md
+        assert "SIGNATORY" in md
+
+    def test_pec_state_absent_renders_empty_cell_markdown(self):
+        """An entry without PEC state renders an empty PEC cell, not an error."""
+        replicas = {"vendor": [_camel_entry()]}
+        md = render_markdown(build_timeline(replicas), ["vendor"])
+        assert "| PEC |" in md
+
+    def test_pec_state_appears_in_html_table(self):
+        replicas = {"vendor": [_pec_entry("LAPSED")]}
+        out = render_html(build_timeline(replicas), ["vendor"])
+        assert "<th>PEC</th>" in out
+        assert "LAPSED" in out
+
+    def test_pec_state_absent_renders_empty_cell_html(self):
+        replicas = {"vendor": [_camel_entry()]}
+        out = render_html(build_timeline(replicas), ["vendor"])
+        assert "<th>PEC</th>" in out
+
+    def test_pec_flat_em_consent_state_extracted(self):
+        """Legacy emConsentState flat field surfaces in the report."""
+        raw = _camel_entry(
+            eventType="add_participant_status_to_participant",
+            payloadSnapshot={
+                "type": "Add",
+                "actor": "http://vendor:7999/api/v2/actors/vendor",
+                "object": {
+                    "id": "urn:uuid:ps_flat",
+                    "type": "ParticipantStatus",
+                    "emConsentState": "INVITED",
+                },
+            },
+        )
+        replicas = {"vendor": [raw]}
+        md = render_markdown(build_timeline(replicas), ["vendor"])
+        assert "INVITED" in md
+
+    def test_pec_flat_embargo_consent_state_extracted(self):
+        """Legacy embargoConsentState camelCase form surfaces in the report."""
+        raw = _camel_entry(
+            eventType="add_participant_status_to_participant",
+            payloadSnapshot={
+                "type": "Add",
+                "actor": "http://vendor:7999/api/v2/actors/vendor",
+                "object": {
+                    "id": "urn:uuid:ps_long",
+                    "type": "ParticipantStatus",
+                    "embargoConsentState": "DECLINED",
+                },
+            },
+        )
+        replicas = {"vendor": [raw]}
+        md = render_markdown(build_timeline(replicas), ["vendor"])
+        assert "DECLINED" in md
 
 
 # ---------------------------------------------------------------------------
