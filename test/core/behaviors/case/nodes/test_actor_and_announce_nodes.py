@@ -651,3 +651,84 @@ class TestEmitAddCaseParticipantNode:
 
         assert result.status == Status.FAILURE
         mock_factory.add_participant_to_case.assert_not_called()
+
+    def test_to_field_contains_http_actor_urls_not_bare_uuids(self, dl):
+        """to= passed to add_participant_to_case must contain HTTP actor URLs.
+
+        Production storage keeps case.case_participants as bare UUID strings
+        (e.g. "urn:uuid:…").  _resolve_actor_recipients must use
+        case.actor_participant_index keys (HTTP URIs) instead, or outbox
+        delivery will fail with "Request URL is missing 'http://'".
+        """
+        from unittest.mock import MagicMock
+
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.core.behaviors.case.accept_invite_tree import (
+            EmitAddCaseParticipantNode,
+        )
+        from vultron.core.models.case import VulnerabilityCase
+        from vultron.core.models.case_participant import CaseParticipant
+
+        # Two existing participants stored as bare UUID strings in case_participants
+        # (matching production DataLayer storage format).
+        existing_actor_1 = "https://example.org/actors/existing-actor-1"
+        existing_actor_2 = "https://example.org/actors/existing-actor-2"
+        existing_p1_id = "urn:uuid:11111111-0000-0000-0000-000000000001"
+        existing_p2_id = "urn:uuid:22222222-0000-0000-0000-000000000002"
+
+        case = VulnerabilityCase(
+            id_=EMIT_ADD_CASE_ID,
+            name="to-field-http-url-test",
+            attributed_to=EMIT_ADD_ACTOR_ID,
+            # bare UUID strings, as stored in production
+            case_participants=[existing_p1_id, existing_p2_id],
+            actor_participant_index={
+                existing_actor_1: existing_p1_id,
+                existing_actor_2: existing_p2_id,
+            },
+        )
+        dl.create(case)
+
+        participant = CaseParticipant(
+            id_=EMIT_ADD_PARTICIPANT_ID,
+            attributed_to=EMIT_ADD_INVITEE_ID,
+            context=EMIT_ADD_CASE_ID,
+        )
+        dl.create(participant)
+
+        mock_factory = MagicMock(spec=TriggerActivityAdapter)
+        mock_factory.add_participant_to_case.return_value = (
+            EMIT_ADD_ACTIVITY_ID
+        )
+
+        bridge = BTBridge(datalayer=dl, trigger_activity=mock_factory)
+        node = EmitAddCaseParticipantNode(
+            case_id=EMIT_ADD_CASE_ID, invitee_id=EMIT_ADD_INVITEE_ID
+        )
+        result = bridge.execute_with_setup(
+            tree=node,
+            actor_id=EMIT_ADD_ACTOR_ID,
+            new_invite_participant=participant,
+            invitee_already_participant=False,
+        )
+
+        assert result.status == Status.SUCCESS
+        mock_factory.add_participant_to_case.assert_called_once()
+        call_kwargs = mock_factory.add_participant_to_case.call_args
+        to_arg = call_kwargs.kwargs.get("to") or (
+            call_kwargs.args[3] if len(call_kwargs.args) > 3 else None
+        )
+        assert (
+            to_arg is not None
+        ), "to= must be passed to add_participant_to_case"
+        for recipient in to_arg:
+            assert recipient.startswith("http"), (
+                f"to= recipients must be HTTP actor URLs, not bare IDs: {recipient!r}. "
+                f"Full to= list: {to_arg}"
+            )
+        assert existing_actor_1 in to_arg
+        assert existing_actor_2 in to_arg
+        # The new invitee must NOT be in the recipients (it's the one being added)
+        assert EMIT_ADD_INVITEE_ID not in to_arg

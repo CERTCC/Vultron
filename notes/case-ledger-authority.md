@@ -495,3 +495,48 @@ This would:
 The keypair-per-CaseActor design is tracked as a planned capability. Until
 it lands, the domain-bound UUID genesis hash defined in CLP-08-002 is the
 correct implementation.
+
+---
+
+## `invite_actor_to_case` Uses `disposition="recorded"` (Issue #1689)
+
+`EmitInviteActorToCaseNode._emit()` (in
+`vultron/core/behaviors/case/nodes/actor.py`) was changed from
+`disposition="rejected"` to `disposition="recorded"` in PR #1746.
+
+**Why this matters**: `disposition="rejected"` bypasses
+`_validate_canonical_entry`, so the payload snapshot was never validated.
+Using `disposition="recorded"` runs full validation, which requires that
+`Invite(CoreActor, VulnerabilityCase)` be recognized as a canonical payload
+signature. This is why `"CoreActor"` was added to `_ACTOR_TYPES` in
+`vultron/core/behaviors/sync/nodes/chain.py`.
+
+**Snapshot construction**: the `payloadSnapshot` is built with
+`_snapshot_with_context(raw, case_id)` to strip any bare-string inline
+object references (`object`, `object_`, `target`) that
+`_validate_canonical_entry` would otherwise reject.
+
+---
+
+## `EmitAddCaseParticipantNode` Pattern for `Add(CaseParticipant)` (Issue #1689)
+
+After `PersistInviteeParticipantNode` records the new participant in the
+DataLayer, `EmitAddCaseParticipantNode` (in
+`vultron/core/behaviors/case/nodes/accept_invite.py`) fans out
+`Add(CaseParticipant, Case)` to all existing participants and commits a
+canonical `CaseLedgerEntry(disposition="recorded")`.
+
+**Fan-out delivery**: recipients are resolved from
+`case.actor_participant_index.keys()` (HTTP actor URLs), **not** from
+`case.case_participants` (which stores bare UUID participant IDs as strings
+in the DataLayer). Using bare UUIDs as inbox delivery targets causes
+`"Request URL is missing 'http://'"` errors. The actor-participant index
+keys are always proper HTTP URIs.
+
+**Snapshot bare-ref pattern**: factory methods serialize `target=case_id`
+as a bare URI string in the stored activity. `_build_snapshot` must call
+`_snapshot_with_context(raw, case_id)` (which calls `_drop_bare_inline_refs`)
+before passing the snapshot to `create_commit_log_entry_tree`. Skipping this
+step will cause `_validate_canonical_entry` to reject the entry with
+`"bare string found"`. See also
+`notes/plan/incoming/learnings/20260727-snapshot-bare-ref-pattern.md`.
