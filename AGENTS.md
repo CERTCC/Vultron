@@ -400,6 +400,15 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   see [notes/bt-pitfalls.md](notes/bt-pitfalls.md).
 - **Semantic Registry Pattern Must Match Inbound Wire Format** —
   see [notes/activitystreams-state-update.md](notes/activitystreams-state-update.md).
+- **`OFFER_CASE_MANAGER_ROLE` and `OFFER_CASE_OWNERSHIP_TRANSFER` Share
+  `Offer(VulnerabilityCase)` — Registry Order and Required `target` Field Are
+  the Current Guards** — `OFFER_CASE_MANAGER_ROLE` MUST appear before
+  `OFFER_CASE_OWNERSHIP_TRANSFER` in `SEMANTIC_REGISTRY` (enforced by
+  `_validate_registry_order()`). `_OfferCaseManagerRoleActivity.target` MUST
+  remain required. Do NOT add a third `Offer(VulnerabilityCase)` pattern without
+  a distinct object type. See SE-07-001, SE-07-002, ADR-0039,
+  [notes/activitystreams-state-update.md](notes/activitystreams-state-update.md)
+  § "Target-Field Discriminators".
 - **`offer_case_participant_activity`: `event.object_id` Has `#participant` Suffix**
   — extract `actor_id` from `event.attributed_to`.
   See [notes/activitystreams-state-update.md](notes/activitystreams-state-update.md).

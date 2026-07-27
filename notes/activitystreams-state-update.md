@@ -4,8 +4,10 @@ status: active
 description: >
   Case state update path, CaseActor authoritativeness, DR-series named bugs,
   transitive activity patterns, base-typed serialization, invite response parsing,
-  bootstrap embedded-object contract, semantic registry patterns, and
-  offer_case_participant_activity object-id semantics.
+  bootstrap embedded-object contract, semantic registry patterns,
+  offer_case_participant_activity object-id semantics, and target-field
+  discriminator wire ambiguity between OFFER_CASE_MANAGER_ROLE and
+  OFFER_CASE_OWNERSHIP_TRANSFER.
 related_specs:
   - specs/semantic-extraction.yaml
   - specs/response-format.yaml
@@ -360,3 +362,42 @@ actor_id = getattr(raw_actor, "id_", None) or request.object_id
 
 The fallback `request.object_id` retains the `#participant` suffix and should
 only be used as a last resort — log a warning if it is reached.
+
+---
+
+## Target-Field Discriminators: Wire Ambiguity Between Offer Semantics
+
+(CONCERN-1674, 2026-07-27)
+
+`OFFER_CASE_MANAGER_ROLE` and `OFFER_CASE_OWNERSHIP_TRANSFER` both serialize as
+`Offer(VulnerabilityCase)` on the wire. They are disambiguated solely by the
+presence or absence of `target=CaseParticipant`:
+
+| Semantic | Pattern |
+|---|---|
+| `OFFER_CASE_MANAGER_ROLE` | `Offer(VulnerabilityCase, target=CaseParticipant)` |
+| `OFFER_CASE_OWNERSHIP_TRANSFER` | `Offer(VulnerabilityCase)` (no target) |
+
+**Current protections** (both required while the wire format migration is pending):
+
+1. **Registry ordering** — `OFFER_CASE_MANAGER_ROLE` appears before
+   `OFFER_CASE_OWNERSHIP_TRANSFER` in `SEMANTIC_REGISTRY` (enforced by
+   `_validate_registry_order()` at import time; raises `RegistryOrderError` on
+   violation). See SE-07-001.
+2. **Required target field** — `_OfferCaseManagerRoleActivity.target` is
+   `as_CaseParticipant` (required, not optional). A sender omitting it gets a
+   `ValidationError` at construction time. See SE-07-002.
+
+**Root cause and planned fix** — target-field discrimination is semantically
+odd (the conceptual target is the Actor, not the CaseParticipant wrapper) and
+leaves a latent misrouting risk for buggy or minimally-conformant external
+senders. ADR-0039 records the decision to introduce a dedicated
+`as_CaseParticipantRole` wire object type with
+`Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)` as the
+general-purpose role-delegation wire format. The implementation is tracked as
+a GitHub Task issue (blocked by CONCERN-1674). See SE-07-003.
+
+**Rule for new patterns sharing `Offer(VulnerabilityCase)`** — if a new
+semantic requires `Offer(VulnerabilityCase)`, it MUST either (a) use a distinct
+object type, or (b) add a more-specific discriminator field AND be placed before
+the existing less-specific entries in `SEMANTIC_REGISTRY`.
