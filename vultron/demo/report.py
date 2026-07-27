@@ -168,6 +168,77 @@ def _dimension_state(
 
 
 # ---------------------------------------------------------------------------
+# Actor name extraction
+# ---------------------------------------------------------------------------
+
+#: ActivityStreams actor types whose ``name`` field, when present, maps the
+#: ``id`` to a human-readable display name (e.g. "Vendor", "Finder").
+_NAME_BEARING_TYPES = frozenset(
+    {
+        "Organization",
+        "Person",
+        "Service",
+        "Application",
+        "Group",
+        "Actor",
+        "CaseActor",
+    }
+)
+
+
+def _collect_actor_names_from_obj(
+    obj: Any,
+    out: dict[str, str],
+) -> None:
+    """Recursively scan ``obj`` for actor dicts carrying ``id`` + ``name``.
+
+    Populates ``out`` with ``{id: name}`` mappings for every actor-like object
+    found at any nesting level in the payload.  Only the first ``name`` seen for
+    a given ``id`` is recorded (first-writer-wins so earlier, more authoritative
+    entries dominate).
+    """
+    if not isinstance(obj, dict):
+        return
+    obj_type = obj.get("type") or obj.get("type_")
+    obj_id = obj.get("id") or obj.get("id_")
+    obj_name = obj.get("name")
+    if (
+        obj_type in _NAME_BEARING_TYPES
+        and obj_id
+        and obj_name
+        and isinstance(obj_id, str)
+        and isinstance(obj_name, str)
+        and obj_name.strip()
+        and obj_id not in out
+    ):
+        out[obj_id] = obj_name.strip()
+    # Recurse into common nested keys.
+    for key in ("actor", "object", "object_", "target", "origin"):
+        _collect_actor_names_from_obj(obj.get(key), out)
+
+
+def collect_actor_names(
+    replicas: dict[str, list[dict[str, Any]]],
+) -> dict[str, str]:
+    """Build a URI→display-name map by scanning all raw ledger entries.
+
+    Walks every payload snapshot in ``replicas`` looking for actor objects
+    that carry both an ``id`` (URI) and a ``name`` field.  Returns a
+    ``{uri: name}`` mapping used to resolve UUID-based actor URIs to semantic
+    labels (e.g. "Vendor", "Finder") in the rendered report.
+    """
+    names: dict[str, str] = {}
+    for actor_key in sorted(replicas):
+        for raw in replicas[actor_key]:
+            payload = _first(
+                raw, "payload_snapshot", "payloadSnapshot", default={}
+            )
+            if isinstance(payload, dict):
+                _collect_actor_names_from_obj(payload, names)
+    return names
+
+
+# ---------------------------------------------------------------------------
 # Friendly naming (DRPT-03)
 # ---------------------------------------------------------------------------
 
@@ -176,7 +247,16 @@ _WRAPPER_TYPES = frozenset({"Accept", "Reject", "Offer", "Invite"})
 
 #: Wire types that resolve to actor names; use friendly_actor_name on their id instead of a generic noun.
 _ACTOR_LIKE_TYPES = frozenset(
-    {"Organization", "Actor", "Service", "Person", "Group", "CaseParticipant"}
+    {
+        "Organization",
+        "Actor",
+        "Service",
+        "Application",
+        "Person",
+        "Group",
+        "CaseParticipant",
+        "CaseActor",
+    }
 )
 
 #: Wire object type → friendly noun for event summaries and the target column.
@@ -264,14 +344,21 @@ def _looks_like_hex_token(token: str) -> bool:
     )
 
 
-def friendly_actor_name(actor_uri: str | None) -> str:
+def friendly_actor_name(
+    actor_uri: str | None,
+    actor_names: dict[str, str] | None = None,
+) -> str:
     """Return a short, friendly actor label derived from an actor URI.
 
-    Uses the last path segment of the URI (``.../actors/finder`` → "Finder").
-    Returns an em dash when no acting actor is recorded (e.g. genesis entries).
+    Checks ``actor_names`` first (a URI→display-name map built from payload
+    snapshots); falls back to the last URI path segment when no entry is found
+    (``…/actors/finder`` → "Finder").  Returns an em dash when no acting actor
+    is recorded (e.g. genesis entries).
     """
     if not actor_uri:
         return "—"
+    if actor_names and actor_uri in actor_names:
+        return actor_names[actor_uri]
     segment = actor_uri.rstrip("/").rsplit("/", 1)[-1]
     return _titleize(segment) or segment
 
@@ -366,10 +453,13 @@ class CaseTimelineEvent(BaseModel):
     disposition: str = "recorded"
     event_type: str = ""
     actor_uri: str | None = None
+    actor_display_name: str | None = None
     target_ref: str | None = None
     target_type: str | None = None
+    target_display_name: str | None = None
     activity_target_ref: str | None = None
     activity_target_type: str | None = None
+    activity_target_display_name: str | None = None
     received_at: str | None = None
     rm_state: str | None = None
     em_state: str | None = None
@@ -474,20 +564,46 @@ class CaseTimelineEvent(BaseModel):
 
     @property
     def actor_label(self) -> str:
-        """Friendly acting-actor name (DRPT-03-001)."""
+        """Friendly acting-actor name (DRPT-03-001).
+
+        Returns the display name from the wire payload when available (resolves
+        UUID-based actor URIs to names like "Vendor"), otherwise falls back to
+        the URI path-segment heuristic.
+        """
+        if self.actor_display_name:
+            return self.actor_display_name
         return friendly_actor_name(self.actor_uri)
 
     @property
     def target_label(self) -> str | None:
         """Friendly target label; ``object → destination`` when both are present.
 
-        Actor-like object types (Organization, …) resolve to a name via the
-        URI rather than a generic type noun.
+        Actor-like object types (Organization, …) resolve to a display name
+        when one was extracted from payload snapshots; otherwise falls back to
+        the URI path-segment heuristic via :func:`friendly_actor_name`.
         """
-        obj_label = friendly_object_label(self.target_type, self.target_ref)
-        dest_label = friendly_object_label(
-            self.activity_target_type, self.activity_target_ref
-        )
+        obj_label: str | None
+        dest_label: str | None
+        # Prefer the pre-resolved display name (covers UUID-based URIs and the
+        # None-type fallback path in friendly_object_label).
+        if self.target_display_name:
+            obj_label = self.target_display_name
+        elif self.target_type in _ACTOR_LIKE_TYPES:
+            obj_label = friendly_actor_name(self.target_ref)
+        else:
+            obj_label = friendly_object_label(
+                self.target_type, self.target_ref
+            )
+
+        if self.activity_target_display_name:
+            dest_label = self.activity_target_display_name
+        elif self.activity_target_type in _ACTOR_LIKE_TYPES:
+            dest_label = friendly_actor_name(self.activity_target_ref)
+        else:
+            dest_label = friendly_object_label(
+                self.activity_target_type, self.activity_target_ref
+            )
+
         if obj_label and dest_label:
             return f"{obj_label} → {dest_label}"
         return obj_label or dest_label
@@ -586,7 +702,14 @@ def build_timeline(
     Entries with ``disposition != "recorded"`` are silently skipped; they are
     local-only correlation markers with empty payloads that must not appear in
     the report (DRPT-02-007).
+
+    Actor URIs are resolved to display names extracted from inline actor objects
+    in the payload snapshots (e.g. Organization objects carrying a ``name``
+    field).  This resolves UUID-based actor URIs (which produce hex-fragment
+    labels) to semantic names like "Vendor" or "Finder".
     """
+    actor_names = collect_actor_names(replicas)
+
     by_key: dict[str, CaseTimelineEvent] = {}
     presence: dict[str, set[str]] = {}
 
@@ -608,6 +731,17 @@ def build_timeline(
     events: list[CaseTimelineEvent] = []
     for key, event in by_key.items():
         event.present_in = sorted(presence[key])
+        if event.actor_uri and event.actor_uri in actor_names:
+            event.actor_display_name = actor_names[event.actor_uri]
+        if event.target_ref and event.target_ref in actor_names:
+            event.target_display_name = actor_names[event.target_ref]
+        if (
+            event.activity_target_ref
+            and event.activity_target_ref in actor_names
+        ):
+            event.activity_target_display_name = actor_names[
+                event.activity_target_ref
+            ]
         events.append(event)
 
     # Group by case first so distinct cases discovered under one input
