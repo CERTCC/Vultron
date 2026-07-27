@@ -197,3 +197,27 @@
 .consequence-fade-in {
   animation: fadeInDirectional 1.5s ease-out forwards;
 }
+
+/* Always-visible scrollbar for overflowing scroll regions (e.g. the ActorPanel
+   actions list). On macOS, Chrome/Safari use OVERLAY scrollbars that stay hidden
+   until you actively scroll — so an overflowing region looks un-scrollable and its
+   lower items appear unreachable (this is the "scrolls on my machine but not my
+   colleague's" symptom). Styling ::-webkit-scrollbar also opts WebKit out of overlay
+   mode into a persistent track, making the overflow both visible and obviously
+   scrollable. `scrollbar-width`/`scrollbar-gutter` cover Firefox + reserve space so
+   content doesn't shift when the bar appears. */
+.always-show-scrollbar {
+  scrollbar-width: thin;                /* Firefox */
+  scrollbar-gutter: stable;             /* reserve space so layout doesn't jump */
+}
+.always-show-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  -webkit-appearance: none;             /* force a real (non-overlay) scrollbar */
+}
+.always-show-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 5px;
+}
+.always-show-scrollbar::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.08);
+}

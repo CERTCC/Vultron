@@ -121,17 +121,34 @@ export function ActorPanel({
       {/* Actions - only show when not collapsed */}
       {!isCollapsed && actions.length > 0 && (
         <div
+          // Forces a persistent (non-overlay) scrollbar so the overflow is visible
+          // and discoverable — see .always-show-scrollbar in App.css. The class is
+          // global (App.css is loaded by the parent app), so no import here.
+          className="always-show-scrollbar"
           style={{
-            flex: 1,
-            // minHeight:0 is REQUIRED for overflowY:auto to actually scroll here.
-            // A flex item defaults to min-height:auto, which refuses to shrink below
-            // its content's intrinsic height — so with many buttons this div grows
-            // past the panel's fixed height and the buttons overflow instead of
-            // scrolling. Whether that overflow is visible/clipped depends on tiny
-            // per-system height differences (font rendering, zoom), which is why it
-            // scrolled on some machines but not others. minHeight:0 lets the flex
-            // item shrink to the available space so the scrollbar engages.
+            // This div scrolls INTERNALLY when the buttons exceed the space left in
+            // the panel. The panel is locked to LANE_HEIGHT (it must match the
+            // timeline lane height — the sidebar & timeline scroll in lockstep via
+            // scrollTop, see App-multivendor handleSidebarScroll — so the panel
+            // CANNOT grow to fit its buttons). That makes an inner scroller
+            // unavoidable, nested inside the sidebar's own scroller.
+            //
+            // Getting that nested scroller to work reliably across browsers/machines
+            // needs THREE things (missing any one made it scroll on some Macs but
+            // not others):
+            //   1. flex:1 + minHeight:0 — a flex item defaults to min-height:auto and
+            //      refuses to shrink below its content, so without minHeight:0 it
+            //      grows past the panel and never becomes an overflow container.
+            //   2. An explicit bound (flexBasis:0) so the item's height is driven by
+            //      the flex container, not its content — belt-and-suspenders with (1)
+            //      for engines that still resolve `flex:1` against content height.
+            //   3. overscrollBehavior:'contain' so wheel events consumed here don't
+            //      bubble up and scroll the SIBLING sidebar instead — the ambiguity
+            //      that let the outer scroller "win" on some machines.
+            flex: '1 1 0',
             minHeight: 0,
+            flexBasis: 0,
+            overscrollBehavior: 'contain',
             display: 'flex',
             flexDirection: 'column',
             gap: '0.5rem',
