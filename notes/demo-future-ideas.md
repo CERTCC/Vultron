@@ -26,6 +26,7 @@ Scenarios are named by the sequence of actor roles involved:
 | FV | `vultron/demo/scenario/fv_demo.py` | Finder + Vendor; simple coordination |
 | FVV | `vultron/demo/scenario/fvv_demo.py` | Finder → Vendor1 → Vendor2; no coordinator; independent fix paths (implements #1265) |
 | FVCV-extension | `vultron/demo/scenario/fvcv_extension_demo.py` | V1 retains ownership; C is participant; C suggests V2 via ADR-0026 flow; Vendor1 approves; CaseActor invites V2 (implements #1535) |
+| FCCV-extension | `vultron/demo/scenario/fccv_extension_demo.py` | C1 retains ownership; C2 is coordinator participant; C2 suggests V via ADR-0026 flow; C1 approves; CaseActor invites V (implements #1620) |
 
 ## Deprecated / idea-mine only
 
@@ -46,7 +47,7 @@ be treated as working implementations.
 |----------|-------|-------------|------------|--------|
 | FCV | #1593 | F reports to C; C invites V; three-actor coordination | — | **implemented** (#1623) — `fcv` CLI command + CI job |
 | FVCV-handoff | #1214 | V1 transfers ownership to C; C invites V2 | — | **implemented** (#1561) — `fvcv-handoff` CLI command + CI job |
-| FCCV-extension | #1215 | C1 retains case; C2 is participant; C2 asks C1 to invite V | — | planned |
+| FCCV-extension | #1215 | C1 retains case; C2 is participant; C2 asks C1 to invite V | — | **implemented** (#1620) — `fccv-extension` CLI command + CI job |
 | FCCV-handoff | #1216 | C1 transfers to C2; C2 invites V | — | **implemented** (#1216) — `fccv-handoff` CLI command + CI job |
 | FCVCV | #1217 | F+C1+V1+C2+V2 (5 actors) | #1212, #1215 | planned |
 

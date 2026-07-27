@@ -81,7 +81,7 @@ while [[ $# -gt 0 ]]; do
 done
 DEMO="${SCENARIO_ARG:-${DEMO:-fv}}"
 
-VALID_SCENARIOS="fv fvv fcv fvcv-extension fvcv-handoff fccv-handoff"
+VALID_SCENARIOS="fv fvv fcv fvcv-extension fvcv-handoff fccv-handoff fccv-extension"
 if ! echo "${VALID_SCENARIOS}" | grep -qw "${DEMO}"; then
     echo "ERROR: unknown scenario '${DEMO}'. Valid options: ${VALID_SCENARIOS}" >&2
     exit 1

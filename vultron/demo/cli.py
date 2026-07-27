@@ -44,6 +44,7 @@ import vultron.demo.exchange.manage_participants_demo as manage_participants_dem
 import vultron.demo.exchange.receive_report_demo as receive_report_demo
 import vultron.demo.exchange.status_updates_demo as status_updates_demo
 import vultron.demo.exchange.suggest_actor_demo as suggest_actor_demo
+import vultron.demo.scenario.fccv_extension_demo as fccv_extension_demo
 import vultron.demo.scenario.fccv_handoff_demo as fccv_handoff_demo
 import vultron.demo.scenario.fcv_demo as fcv_demo
 import vultron.demo.scenario.fvcv_extension_demo as fvcv_extension_demo
@@ -669,6 +670,115 @@ def fvcv_handoff(
         coordinator_id=coordinator_id,
         case_actor_id=case_actor_id,
         vendor2_id=vendor2_id,
+    )
+
+
+# ---------------------------------------------------------------------------
+# FCCV-extension sub-command — C1 retains CASE_OWNER; C2 suggests Vendor
+# ---------------------------------------------------------------------------
+
+
+@main.command(name="fccv-extension")
+@click.option(
+    "--finder-url",
+    envvar="VULTRON_FINDER_BASE_URL",
+    default=fccv_extension_demo.FINDER_BASE_URL,
+    show_default=True,
+    help="Base URL of the Finder container API "
+    "(env: VULTRON_FINDER_BASE_URL).",
+)
+@click.option(
+    "--c1-url",
+    envvar="VULTRON_COORDINATOR_BASE_URL",
+    default=fccv_extension_demo.C1_BASE_URL,
+    show_default=True,
+    help="Base URL of the C1 (Coordinator1) container API "
+    "(env: VULTRON_COORDINATOR_BASE_URL).",
+)
+@click.option(
+    "--c2-url",
+    envvar="VULTRON_VENDOR2_BASE_URL",
+    default=fccv_extension_demo.C2_BASE_URL,
+    show_default=True,
+    help="Base URL of the C2 (Coordinator2/actor5) container API "
+    "(env: VULTRON_VENDOR2_BASE_URL).",
+)
+@click.option(
+    "--vendor-url",
+    envvar="VULTRON_VENDOR_BASE_URL",
+    default=fccv_extension_demo.VENDOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the Vendor container API "
+    "(env: VULTRON_VENDOR_BASE_URL).",
+)
+@click.option(
+    "--finder-id",
+    default=None,
+    help="Deterministic full URI for the Finder actor (optional).",
+)
+@click.option(
+    "--c1-id",
+    default=None,
+    help="Deterministic full URI for the C1 (Coordinator1) actor (optional).",
+)
+@click.option(
+    "--c2-id",
+    default=None,
+    help="Deterministic full URI for the C2 (Coordinator2) actor (optional).",
+)
+@click.option(
+    "--vendor-id",
+    default=None,
+    help="Deterministic full URI for the Vendor actor (optional).",
+)
+@click.option(
+    "--skip-health-check",
+    is_flag=True,
+    default=False,
+    help="Skip container availability checks.",
+)
+def fccv_extension(
+    finder_url: str,
+    c1_url: str,
+    c2_url: str,
+    vendor_url: str,
+    finder_id: str | None,
+    c1_id: str | None,
+    c2_id: str | None,
+    vendor_id: str | None,
+    skip_health_check: bool,
+) -> None:
+    """Run the FCCV-extension (Finder + C1/CASE_OWNER + C2/Coordinator + Vendor) demo.
+
+    C1 (Coordinator1) retains CASE_OWNER throughout.  C2 (Coordinator2) joins
+    as a participant with CVDRole.COORDINATOR (not CASE_MANAGER), then suggests
+    Vendor via the ADR-0026 CaseActor-routed suggest-actor flow.  C1 approves;
+    CaseActor invites Vendor.  Only Vendor advances through the fix and
+    publication lifecycle.
+
+    \b
+    Workflow:
+      1. Seed all four containers (actor records + peer registration).
+      2. Finder submits a vulnerability report to C1's inbox.
+      3. C1 validates and engages the case; invites C2 with CVDRole.COORDINATOR.
+      4. C2 accepts; C2 suggests Vendor (ADR-0026 suggest-actor flow).
+      5. C1 approves the actor recommendation.
+      6. CaseActor invites Vendor; Vendor accepts.
+      7. Verify SYNC-2 replication on all replicas.
+      8. Vendor advances through fix-ready → fix-deployed.
+      9. C1 (CASE_OWNER) triggers publication; embargo terminates.
+     10. All participants report publication; all participants close the case.
+    """
+    fccv_extension_demo.main(
+        skip_health_check=skip_health_check,
+        finder_url=finder_url,
+        c1_url=c1_url,
+        c2_url=c2_url,
+        vendor_url=vendor_url,
+        finder_id=finder_id,
+        c1_id=c1_id,
+        c2_id=c2_id,
+        vendor_id=vendor_id,
     )
 
 
