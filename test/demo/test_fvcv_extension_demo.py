@@ -326,6 +326,7 @@ class TestPhasePublicationEmWaitOrdering:
                 side_effect=track_notify_published,
             ),
             patch.object(demo, "verify_publicly_disclosed"),
+            patch.object(demo, "wait_for_participant_vfd_state"),
             patch.object(demo, "demo_check"),
         ):
             demo._phase_publication(

@@ -565,11 +565,23 @@ def _phase_publication(
             client=vendor_client,
             case_id=case.id_,
         )
+        wait_for_participant_vfd_state(
+            client=coordinator_client,
+            case_id=case.id_,
+            actor_id=vendor_in_vendor.id_,
+            expected_states={CS_vfd.VFD},
+        )
+        wait_for_participant_vfd_state(
+            client=finder_client,
+            case_id=case.id_,
+            actor_id=vendor_in_vendor.id_,
+            expected_states={CS_vfd.VFD},
+        )
         verify_publicly_disclosed(
             receiver_client=coordinator_client,
             reporter_client=finder_client,
             case_id=case.id_,
-            receiver_actor_id=coordinator.id_,
+            receiver_actor_id=vendor_in_vendor.id_,
         )
 
 
