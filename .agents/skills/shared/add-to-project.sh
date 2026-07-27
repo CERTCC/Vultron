@@ -12,10 +12,10 @@ PROJECT_ID="PVT_kwDOAjf0s84BZnre"
 SCHEDULE_FIELD_ID="PVTSSF_lADOAjf0s84BZnrezhUlFOM"
 
 case "$SCHEDULE" in
-  Now)     SCHEDULE_OPTION_ID="626ed293" ;;
-  Next)    SCHEDULE_OPTION_ID="5f492ed4" ;;
-  Later)   SCHEDULE_OPTION_ID="1668bcd8" ;;
-  Someday) SCHEDULE_OPTION_ID="43f174f4" ;;
+  Now)     SCHEDULE_OPTION_ID="22e6679d" ;;
+  Next)    SCHEDULE_OPTION_ID="1c1ed63d" ;;
+  Later)   SCHEDULE_OPTION_ID="520032ef" ;;
+  Someday) SCHEDULE_OPTION_ID="a890eacc" ;;
   *) echo "❌ Unknown schedule value: $SCHEDULE (use Now|Next|Later|Someday)" >&2; exit 1 ;;
 esac
 
