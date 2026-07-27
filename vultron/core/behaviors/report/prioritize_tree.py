@@ -64,7 +64,6 @@ from vultron.core.behaviors.case.nodes.update import (
 )
 from vultron.core.behaviors.report.nodes import (
     CheckParticipantExists,
-    EvaluateCasePriority,
     TransitionParticipantRMtoAccepted,
     TransitionParticipantRMtoDeferred,
 )
@@ -249,7 +248,7 @@ def create_prioritize_subtree(
         name="EngagePath",
         memory=False,
         children=[
-            EvaluateCasePriority(case_id=case_id),
+            bundle.evaluate_priority_factory("EvaluateCasePriority"),
             engage_case_trigger_bt(
                 case_id=case_id,
                 actor_id=actor_id,

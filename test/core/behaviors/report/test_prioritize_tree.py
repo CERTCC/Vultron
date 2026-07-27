@@ -700,26 +700,33 @@ def test_prioritize_subtree_custom_on_defer_factory_used(
 
 
 def test_prioritize_subtree_defers_when_engage_path_fails(
-    monkeypatch,
     bridge,
     datalayer,
     actor_id,
     trigger_activity,
     case_with_manager,
 ):
-    """PrioritizeBT falls back to defer when engage preconditions fail."""
-    from vultron.core.behaviors.report import prioritize_tree
+    """PrioritizeBT falls back to defer when evaluate_priority_factory returns FAILURE."""
+    import py_trees
 
-    monkeypatch.setattr(
-        prioritize_tree.EvaluateCasePriority,
-        "update",
-        lambda self: Status.FAILURE,
+    from vultron.demo.fuzzer.bundles.prioritization import (
+        PrioritizationCallOutBundle,
+    )
+
+    def _always_fail(name: str) -> py_trees.behaviour.Behaviour:
+        from vultron.demo.fuzzer.base import AlwaysFail
+
+        return AlwaysFail(name)
+
+    bundle = PrioritizationCallOutBundle(
+        evaluate_priority_factory=_always_fail,  # type: ignore[arg-type]
     )
 
     tree = create_prioritize_subtree(
         case_id=case_with_manager.id_,
         actor_id=actor_id,
         trigger_activity=trigger_activity,
+        call_out=bundle,
     )
     result = bridge.execute_with_setup(tree=tree, actor_id=actor_id)
 

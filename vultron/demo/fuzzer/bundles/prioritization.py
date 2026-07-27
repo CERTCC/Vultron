@@ -18,10 +18,11 @@ Provides :class:`PrioritizationCallOutBundle` plus the pre-built singletons
 
 Ceiling/floor mapping (BT-23-002):
 
-- ``on_accept_factory``        — OnAccept               (p=1.0) → AlwaysSucceed
-- ``on_defer_factory``         — OnDefer                (p=1.0) → AlwaysSucceed
-- ``enough_info_factory``      — EnoughPrioritizationInfo (p=0.75) → AlwaysSucceed
-- ``gather_info_factory``      — GatherPrioritizationInfo (p=0.90) → AlwaysSucceed
+- ``evaluate_priority_factory`` — EvaluateCasePriority  (p=1.0) → AlwaysSucceed
+- ``on_accept_factory``         — OnAccept               (p=1.0) → AlwaysSucceed
+- ``on_defer_factory``          — OnDefer                (p=1.0) → AlwaysSucceed
+- ``enough_info_factory``       — EnoughPrioritizationInfo (p=0.75) → AlwaysSucceed
+- ``gather_info_factory``       — GatherPrioritizationInfo (p=0.90) → AlwaysSucceed
 """
 
 from __future__ import annotations
@@ -37,6 +38,14 @@ def _always_succeed(name: str) -> py_trees.behaviour.Behaviour:
     from vultron.demo.fuzzer.base import AlwaysSucceed
 
     return AlwaysSucceed(name)
+
+
+def _stochastic_evaluate_priority(name: str) -> py_trees.behaviour.Behaviour:
+    from vultron.demo.fuzzer.report_management.prioritize import (
+        EvaluateCasePriority,
+    )
+
+    return EvaluateCasePriority(name)
 
 
 def _stochastic_on_accept(name: str) -> py_trees.behaviour.Behaviour:
@@ -75,6 +84,9 @@ class PrioritizationCallOutBundle:
     :func:`~vultron.core.behaviors.report.prioritize_tree.create_prioritize_subtree`.
     """
 
+    evaluate_priority_factory: CallOutBackendFactory = field(
+        default=_always_succeed  # type: ignore[assignment]
+    )
     on_accept_factory: CallOutBackendFactory = field(
         default=_always_succeed  # type: ignore[assignment]
     )
@@ -93,6 +105,7 @@ PRIORITIZATION_DETERMINISTIC = PrioritizationCallOutBundle()
 """Deterministic bundle: all nodes use AlwaysSucceed (BT-23-001, BT-23-002)."""
 
 PRIORITIZATION_STOCHASTIC = PrioritizationCallOutBundle(
+    evaluate_priority_factory=_stochastic_evaluate_priority,  # type: ignore[arg-type]
     on_accept_factory=_stochastic_on_accept,  # type: ignore[arg-type]
     on_defer_factory=_stochastic_on_defer,  # type: ignore[arg-type]
     enough_info_factory=_stochastic_enough_info,  # type: ignore[arg-type]
