@@ -41,7 +41,7 @@ There are three logical modes for call-out point backends:
 | Mode | Backends used | When used |
 |---|---|---|
 | `DETERMINISTIC` | `AlwaysSucceed` / `AlwaysFail` (ceiling/floor of stochastic p) | Default for all demo and test scenarios |
-| `STOCHASTIC` | Probabilistic fuzzer classes (`UsuallySucceed`, `ProbablyFail`, …) | Opt-in for simulation / fuzz-testing scenarios |
+| `STOCHASTIC` | Probabilistic fuzzer classes (`UsuallySucceed`, `ProbablyFail`, …) | Opt-in for simulation / fuzz-testing scenarios. Canonical entry point: `vultron/demo/fuzzer/stochastic_demo.py` (run via `python -m vultron.demo.fuzzer.stochastic_demo`). |
 | `REAL` | Production implementations (data lookups, policy engines, agents) | Deferred to FUZZ-08d through FUZZ-08h |
 
 **Test vs. demo** is a call-context distinction, not a mode distinction.
