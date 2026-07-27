@@ -48,10 +48,20 @@ Cross-type updates are allowed; keep the existing issue type unchanged.
 Use `grill-me` style, but always propose a concrete draft first, then ask the
 user to accept or refine each field.
 
-- **Concern fields**: Summary, Category, Severity, Evidence, Impact if Ignored,
-  Suggested Action.
+- **Concern fields**: Summary, Surface Symptom vs. Underlying Problem, Category,
+  Severity, Evidence, Impact if Ignored, Suggested Action.
 - **Idea fields**: Summary, Motivation, Rough Approach (optional),
   References (optional; auto-seed related issue/spec/ADR links when possible).
+
+For the **Surface Symptom vs. Underlying Problem** field, actively draw out
+both halves: the naive, symptom-level reading someone would stop at, and the
+deeper problem the concern is really about. Infer them from the description
+when context allows; otherwise ask directly. Capture, when relevant, which
+parts of the current design are already correct and should be left untouched.
+Omit only when there is genuinely no gap between the surface reading and the
+underlying problem. This field is Concern-only by design — an Idea's
+Motivation/Rough Approach split already serves the equivalent guardrail, so
+do not add a symptom/root frame to Ideas.
 
 ### Phase 4 — Epic Parent Selection
 
