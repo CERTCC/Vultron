@@ -32,6 +32,7 @@ from vultron.demo.report import (
     _case_time_range,
     _parse_timestamp,
     build_timeline,
+    collect_actor_names,
     discover_replicas,
     event_phrase,
     friendly_actor_name,
@@ -1014,6 +1015,232 @@ class TestCli:
         rc = main(["--output", str(out_file)])
         assert rc == 0
         assert out_file.exists()
+
+
+# ---------------------------------------------------------------------------
+# DRPT-03 — actor name resolution from payload snapshots
+# ---------------------------------------------------------------------------
+
+#: A UUID-based actor URI that produces a hex-fragment label without name resolution.
+_UUID_ACTOR_URI = (
+    "http://vendor:7999/api/v2/actors/9e580519-a1e7-421f-b727-9c09af18815a"
+)
+
+
+def _entry_with_named_actor(**overrides):
+    """A camelCase ledger entry whose actor is an inline Organization with a name."""
+    return _camel_entry(
+        payloadSnapshot={
+            "type": "Accept",
+            "actor": {
+                "id": _UUID_ACTOR_URI,
+                "type": "Organization",
+                "name": "Vendor",
+            },
+            "object": {"id": "urn:uuid:rep1", "type": "VulnerabilityReport"},
+        },
+        **overrides,
+    )
+
+
+def _entry_with_uuid_actor(**overrides):
+    """A camelCase ledger entry whose actor is a bare UUID-based URI."""
+    return _camel_entry(
+        payloadSnapshot={
+            "type": "Accept",
+            "actor": _UUID_ACTOR_URI,
+            "object": {"id": "urn:uuid:rep2", "type": "VulnerabilityReport"},
+        },
+        **overrides,
+    )
+
+
+class TestActorNameResolution:
+    def test_collect_actor_names_extracts_id_name_pairs(self):
+        replicas = {"vendor": [_entry_with_named_actor()]}
+        names = collect_actor_names(replicas)
+        assert _UUID_ACTOR_URI in names
+        assert names[_UUID_ACTOR_URI] == "Vendor"
+
+    def test_collect_actor_names_ignores_objects_without_name(self):
+        entry = _camel_entry(
+            payloadSnapshot={
+                "type": "Accept",
+                "actor": {"id": _UUID_ACTOR_URI, "type": "Organization"},
+                "object": {"id": "urn:uuid:r", "type": "VulnerabilityReport"},
+            }
+        )
+        names = collect_actor_names({"vendor": [entry]})
+        assert _UUID_ACTOR_URI not in names
+
+    def test_collect_actor_names_first_writer_wins(self):
+        """When two entries carry the same URI, the first name is kept."""
+        e1 = _entry_with_named_actor(entryHash="a" * 64)
+        e2 = _camel_entry(
+            entryHash="b" * 64,
+            payloadSnapshot={
+                "type": "Accept",
+                "actor": {
+                    "id": _UUID_ACTOR_URI,
+                    "type": "Organization",
+                    "name": "SomeOtherName",
+                },
+                "object": {"id": "urn:uuid:r2", "type": "VulnerabilityReport"},
+            },
+        )
+        names = collect_actor_names({"vendor": [e1, e2]})
+        assert names[_UUID_ACTOR_URI] == "Vendor"
+
+    def test_collect_actor_names_empty_name_ignored(self):
+        entry = _camel_entry(
+            payloadSnapshot={
+                "type": "Accept",
+                "actor": {
+                    "id": _UUID_ACTOR_URI,
+                    "type": "Organization",
+                    "name": "   ",
+                },
+                "object": {"id": "urn:uuid:r", "type": "VulnerabilityReport"},
+            }
+        )
+        names = collect_actor_names({"vendor": [entry]})
+        assert _UUID_ACTOR_URI not in names
+
+    def test_friendly_actor_name_uses_actor_names_map(self):
+        names = {_UUID_ACTOR_URI: "Vendor"}
+        assert (
+            friendly_actor_name(_UUID_ACTOR_URI, actor_names=names) == "Vendor"
+        )
+
+    def test_friendly_actor_name_falls_back_without_map(self):
+        """Without actor_names, UUID-based URIs get a hex-fragment label, not 'Vendor'."""
+        label = friendly_actor_name(_UUID_ACTOR_URI)
+        assert label != "Vendor"
+
+    def test_friendly_actor_name_falls_back_for_unknown_uri(self):
+        names = {"http://other/actors/someone": "Someone"}
+        label = friendly_actor_name(
+            "http://vendor:7999/api/v2/actors/finder", actor_names=names
+        )
+        assert label == "Finder"
+
+    def test_build_timeline_populates_actor_display_name(self):
+        """actor_display_name is set when the actor URI appears in payloads."""
+        entry_with_name = _entry_with_named_actor(entryHash="a" * 64)
+        entry_uuid_only = _entry_with_uuid_actor(
+            entryHash="b" * 64, logIndex=1
+        )
+        replicas = {"vendor": [entry_with_name, entry_uuid_only]}
+        events = build_timeline(replicas)
+        by_hash = {e.entry_hash: e for e in events}
+        named = by_hash["a" * 64]
+        uuid_only = by_hash["b" * 64]
+        # Both events share the same actor URI; the name is resolved for both
+        # because collect_actor_names scans all entries before assigning.
+        assert named.actor_display_name == "Vendor"
+        assert uuid_only.actor_display_name == "Vendor"
+
+    def test_actor_label_uses_display_name_over_uri_heuristic(self):
+        """actor_label returns display name instead of hex-fragment label."""
+        entry = _entry_with_named_actor()
+        replicas = {"vendor": [entry]}
+        events = build_timeline(replicas)
+        assert events[0].actor_label == "Vendor"
+
+    def test_actor_label_fallback_when_no_display_name(self):
+        """When no display name is found, actor_label falls back to URI segment."""
+        entry = _camel_entry(
+            payloadSnapshot={
+                "type": "Accept",
+                "actor": "http://vendor:7999/api/v2/actors/finder",
+                "object": {"id": "urn:uuid:r", "type": "VulnerabilityReport"},
+            }
+        )
+        replicas = {"vendor": [entry]}
+        events = build_timeline(replicas)
+        assert events[0].actor_label == "Finder"
+
+    def test_build_timeline_populates_target_display_name(self):
+        """target_display_name is set when the target URI is a known actor."""
+        entry = _camel_entry(
+            payloadSnapshot={
+                "type": "Invite",
+                "actor": "http://vendor:7999/api/v2/actors/case-actor",
+                "object": {
+                    "id": _UUID_ACTOR_URI,
+                    "type": "Organization",
+                    "name": "Vendor",
+                },
+            }
+        )
+        replicas = {"vendor": [entry]}
+        events = build_timeline(replicas)
+        assert events[0].target_display_name == "Vendor"
+        assert events[0].target_label == "Vendor"
+
+    def test_build_timeline_populates_activity_target_display_name(self):
+        """activity_target_display_name is set when activity_target_ref is a known actor."""
+        entry = _camel_entry(
+            eventType="accept_invite_actor_to_case",
+            payloadSnapshot={
+                "type": "Accept",
+                "actor": "http://vendor:7999/api/v2/actors/case-actor",
+                "object": {
+                    "type": "Invite",
+                    "object": {
+                        "id": _UUID_ACTOR_URI,
+                        "type": "Organization",
+                        "name": "Vendor",
+                    },
+                    "target": {
+                        "id": "urn:uuid:case1",
+                        "type": "VulnerabilityCase",
+                    },
+                },
+            },
+        )
+        replicas = {"vendor": [entry]}
+        events = build_timeline(replicas)
+        # activity_target_ref is "urn:uuid:case1" — not an actor, so no display name.
+        # But the object (Vendor) should have its target_display_name set.
+        assert events[0].target_display_name == "Vendor"
+        # activity_target is a VulnerabilityCase URI, not an actor, so no display name.
+        assert events[0].activity_target_display_name is None
+
+    def test_build_timeline_populates_activity_target_display_name_uuid_actor(
+        self,
+    ):
+        """activity_target_display_name set when activity_target is a UUID actor."""
+        entry = _camel_entry(
+            eventType="offer_case_manager_role",
+            payloadSnapshot={
+                "type": "Offer",
+                "actor": "http://vendor:7999/api/v2/actors/case-actor",
+                "object": {
+                    "id": "urn:uuid:case1",
+                    "type": "VulnerabilityCase",
+                },
+                "target": {
+                    "id": _UUID_ACTOR_URI,
+                    "type": "Organization",
+                    "name": "Vendor",
+                    "attributedTo": _UUID_ACTOR_URI,
+                },
+            },
+        )
+        replicas = {"vendor": [entry]}
+        events = build_timeline(replicas)
+        assert events[0].activity_target_display_name == "Vendor"
+        assert events[0].target_label == "case → Vendor"
+
+    def test_summary_no_hex_fragments_with_uuid_actor(self):
+        """DRPT-03-001: summaries must not contain hex fragments for UUID actors."""
+        entry = _entry_with_named_actor()
+        replicas = {"vendor": [entry]}
+        events = build_timeline(replicas)
+        summary = events[0].summary
+        assert "9e580519" not in summary
+        assert "Vendor" in summary
 
 
 # ---------------------------------------------------------------------------

@@ -6,7 +6,7 @@ description: >-
   report of who did what, with what activity, and in what order. Covers input discovery,
   the distilled intermediate data model, markdown and HTML rendering, the per-actor
   replica-presence matrix, friendly naming, and test requirements.
-version: 1.3.0
+version: 1.4.0
 scope:
 - prototype
 tags:
@@ -174,6 +174,29 @@ groups:
     rationale: >-
       Per IDEA-1286: prefer "Finder submitted report" over
       "https://…/actors/finder submitted urn:uuid:…".
+  - id: DRPT-03-003
+    priority: MUST
+    kind: project
+    statement: >-
+      The tool MUST build a URI-to-display-name map during timeline construction
+      by scanning all payload snapshots for actor objects (type
+      `Organization`, `Person`, `Service`, `Application`, `Group`, `Actor`,
+      `CaseActor`) that carry both an `id` (URI) and a non-empty `name` field.
+      Actor labels MUST use the resolved display name when available, and MUST
+      fall back to the URI path-segment heuristic only when no entry is found
+      in the map. This ensures that UUID-based actor URIs (e.g.
+      `actors/9e580519-…`) resolve to semantic names (e.g. "Vendor", "Finder")
+      rather than hex-fragment labels.
+    rationale: >-
+      Actor URIs may be UUID-based when the actor was created with a generated
+      identifier rather than a slug.  Without name resolution, `friendly_actor_name`
+      produces labels like "A1e7 421f B727" that violate DRPT-03-001's prohibition
+      on opaque identifiers.  The `name` field is present on inline actor objects
+      in wire payloads (e.g. `Organization` objects in `Invite` or `Accept`
+      activities), making payload-scan the correct extraction point.
+    relationships:
+    - rel_type: extends
+      spec_id: DRPT-03-001
   - id: DRPT-03-002
     priority: SHOULD
     kind: project
@@ -276,3 +299,16 @@ groups:
       A CLI smoke test MUST invoke the entry point against a tiny fixture
       directory, assert exit code 0, assert an output file is written, and
       assert that `--no-open` suppresses any browser launch.
+  - id: DRPT-05-004
+    priority: MUST
+    kind: project
+    statement: >-
+      Unit tests MUST cover actor name resolution (DRPT-03-003): assert that
+      `collect_actor_names` extracts URI-to-name mappings from inline actor
+      objects in payload snapshots, that `build_timeline` populates
+      `actor_display_name` on events whose actor URI is in the map, and that
+      `actor_label` returns the display name rather than a hex-fragment label
+      for UUID-based actor URIs.
+    relationships:
+    - rel_type: verifies
+      spec_id: DRPT-03-003
