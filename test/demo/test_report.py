@@ -30,6 +30,7 @@ from vultron.demo.report import (
     CaseTimelineEvent,
     ReportError,
     _case_time_range,
+    _parse_timestamp,
     build_timeline,
     discover_replicas,
     event_phrase,
@@ -655,6 +656,21 @@ class TestHtmlRenderer:
 # ---------------------------------------------------------------------------
 
 
+class TestParseTimestamp:
+    def test_z_suffix_parsed(self):
+        dt = _parse_timestamp("2026-07-01T12:00:00Z")
+        assert dt.tzinfo is not None
+
+    def test_offset_notation_parsed(self):
+        dt = _parse_timestamp("2026-07-01T12:00:00+00:00")
+        assert dt.tzinfo is not None
+
+    def test_z_and_offset_equal(self):
+        assert _parse_timestamp("2026-07-01T12:00:00Z") == _parse_timestamp(
+            "2026-07-01T12:00:00+00:00"
+        )
+
+
 class TestCaseTimeRange:
     def test_no_timestamps_returns_none_none(self):
         events = [
@@ -722,6 +738,26 @@ class TestCaseTimeRange:
         ]
         first, last = _case_time_range(events)
         assert first == last == "2026-07-01T10:00:00Z"
+
+    def test_z_and_offset_notation_compared_chronologically(self):
+        """Z suffix and +00:00 offset represent the same instant; sort by value."""
+        events = [
+            CaseTimelineEvent(
+                case_id="urn:case:1",
+                log_index=0,
+                entry_hash="a" * 64,
+                received_at="2026-07-01T12:00:00+00:00",
+            ),
+            CaseTimelineEvent(
+                case_id="urn:case:1",
+                log_index=1,
+                entry_hash="b" * 64,
+                received_at="2026-07-01T10:00:00Z",
+            ),
+        ]
+        first, last = _case_time_range(events)
+        assert first == "2026-07-01T10:00:00Z"
+        assert last == "2026-07-01T12:00:00+00:00"
 
 
 class TestMarkdownRendererTimeRange:

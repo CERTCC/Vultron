@@ -51,6 +51,7 @@ import logging
 import os
 import sys
 import webbrowser
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -659,19 +660,38 @@ def _md_cell(text: str) -> str:
     return text.replace("|", "\\|").replace("\n", " ")
 
 
+def _parse_timestamp(ts: str) -> datetime:
+    """Parse an ISO 8601 timestamp string to a timezone-aware datetime.
+
+    Handles both ``Z`` suffix (``fromisoformat`` requires ``+00:00`` on
+    Python < 3.11) and ``+00:00`` offset forms.
+    """
+    return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+
+
 def _case_time_range(
     events: list[CaseTimelineEvent],
 ) -> tuple[str | None, str | None]:
     """Return ``(min_received_at, max_received_at)`` for a list of events.
 
-    Uses string ``min``/``max`` over non-None ``received_at`` values (ISO 8601
-    timestamps sort lexicographically). Returns ``(None, None)`` when no event
-    carries a timestamp (DRPT-04-006).
+    Parses each ``received_at`` string via :func:`_parse_timestamp` so
+    comparison is chronological regardless of offset notation (``Z`` vs
+    ``+00:00``) or future microsecond precision changes. Returns ``(None,
+    None)`` when no event carries a timestamp (DRPT-04-006).
     """
-    timestamps = [e.received_at for e in events if e.received_at is not None]
-    if not timestamps:
+    pairs: list[tuple[str, datetime]] = []
+    for e in events:
+        if e.received_at is None:
+            continue
+        try:
+            pairs.append((e.received_at, _parse_timestamp(e.received_at)))
+        except ValueError:
+            logger.debug("Skipping unparseable received_at: %r", e.received_at)
+    if not pairs:
         return None, None
-    return min(timestamps), max(timestamps)
+    first_str, _ = min(pairs, key=lambda p: p[1])
+    last_str, _ = max(pairs, key=lambda p: p[1])
+    return first_str, last_str
 
 
 def _render_markdown_case(
