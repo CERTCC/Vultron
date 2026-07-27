@@ -383,10 +383,10 @@ presence or absence of `target=CaseParticipant`:
 1. **Registry ordering** — `OFFER_CASE_MANAGER_ROLE` appears before
    `OFFER_CASE_OWNERSHIP_TRANSFER` in `SEMANTIC_REGISTRY` (enforced by
    `_validate_registry_order()` at import time; raises `RegistryOrderError` on
-   violation). See SE-07-001.
+   violation). See SE-08-001.
 2. **Required target field** — `_OfferCaseManagerRoleActivity.target` is
    `as_CaseParticipant` (required, not optional). A sender omitting it gets a
-   `ValidationError` at construction time. See SE-07-002.
+   `ValidationError` at construction time. See SE-08-002.
 
 **Root cause and planned fix** — target-field discrimination is semantically
 odd (the conceptual target is the Actor, not the CaseParticipant wrapper) and
@@ -395,7 +395,7 @@ senders. ADR-0039 records the decision to introduce a dedicated
 `as_CaseParticipantRole` wire object type with
 `Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)` as the
 general-purpose role-delegation wire format. The implementation is tracked as
-a GitHub Task issue (blocked by CONCERN-1674). See SE-07-003.
+a GitHub Task issue (blocked by CONCERN-1674). See SE-08-003.
 
 **Rule for new patterns sharing `Offer(VulnerabilityCase)`** — if a new
 semantic requires `Offer(VulnerabilityCase)`, it MUST either (a) use a distinct

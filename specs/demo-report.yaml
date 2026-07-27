@@ -6,7 +6,7 @@ description: >-
   report of who did what, with what activity, and in what order. Covers input discovery,
   the distilled intermediate data model, markdown and HTML rendering, the per-actor
   replica-presence matrix, friendly naming, and test requirements.
-version: 1.5.0
+version: 1.6.0
 scope:
 - prototype
 tags:
@@ -221,14 +221,41 @@ groups:
     - rel_type: extends
       spec_id: DRPT-03-001
   - id: DRPT-03-002
-    priority: SHOULD
+    priority: MUST
     kind: project
     statement: >-
-      Event summaries SHOULD map the event type / message semantics to a concise
-      active-voice phrase (subject verb object). Where a protocol vocabulary of
-      semantics already exists in the codebase, the mapping SHOULD reuse it to
-      stay in sync; otherwise a tool-local mapping table is acceptable with a
-      sensible fallback that renders the raw event type.
+      Event summaries MUST map the event type to a concise active-voice phrase
+      (subject verb object) by looking up the matching `SemanticEntry` in
+      `SEMANTIC_REGISTRY` and rendering `entry.phrase` via `str.format_map()`.
+      The tool MUST NOT maintain a local phrase table parallel to the registry.
+      When no registry entry exists for an event type (e.g. data from a future
+      protocol version), the tool MUST fall back to a humanized form of the raw
+      event-type string.
+    rationale: >-
+      Replaces the tool-local `_EVENT_PHRASES` dict (Concern #1675). Deriving
+      phrases directly from `SemanticEntry.phrase` (SE-07-001) guarantees that
+      new semantics are automatically covered and eliminates the drift risk.
+    relationships:
+    - rel_type: refines
+      spec_id: DRPT-03-001
+  - id: DRPT-03-004
+    priority: MUST
+    kind: project
+    statement: >-
+      When rendering a phrase template, the tool MUST supply slot values for
+      `{actor}`, `{object}`, and `{target}` drawn from the event record's
+      resolved display labels. Missing slots (e.g. `{context}` when no context
+      was recorded) MUST render as an em-dash (`"—"`) rather than raising a
+      `KeyError`.
+    rationale: >-
+      `CaseLedgerEventRecord` is constructed from JSONL data and may not carry
+      all slot values present in a live `VultronEvent`. A `defaultdict` fallback
+      ensures phrases for multi-party semantics (e.g. `{actor} invited {object}
+      to {target}`) degrade gracefully to `"{actor} invited {object} to —"` when
+      the destination is absent rather than surfacing a runtime error.
+    relationships:
+    - rel_type: refines
+      spec_id: DRPT-03-002
 - id: DRPT-04
   title: Rendering
   specs:

@@ -142,3 +142,59 @@ See `vultron/demo/scenario/fvcv_handoff_demo.py` and
 `vultron/demo/scenario/fccv_handoff_demo.py` for the correct pattern.
 
 <!-- Source: CONCERN-1653 -->
+
+---
+
+### Never Carry One Actor's Mail to Another Actor's Inbox
+
+Demo scripts MUST NOT POST an activity to an actor's inbox on behalf of
+another actor. This includes helper functions such as `post_to_inbox_and_wait`.
+
+**Why:** Delivering an activity to an inbox is the transport layer's job, not
+the demo's. When a demo calls `post_to_inbox_and_wait(vendor_client, vendor_id,
+invite)` it is acting as a surrogate mail carrier — putting a message into
+Vendor's inbox as if it arrived from the network. This is a form of spoofing:
+the real outbox→delivery→inbox path is never exercised, so demo CI proves
+nothing about whether the protocol actually works end-to-end.
+
+The distinction that matters:
+
+- **Triggering** = POST to an actor's *trigger endpoint* to cause it to emit
+  an activity (`POST /actors/{id}/trigger/invite-actor-to-case`). The actor
+  decides and sends. Correct.
+- **Mail-carrying** = POST an activity directly to another actor's *inbox*
+  from outside that actor's own delivery path (`POST /actors/{id}/inbox/`).
+  The demo bypasses the real transport. Wrong.
+
+**Root cause of the pattern:** The inbox endpoint returns 202 immediately
+(`BackgroundTasks`) before the activity is fully processed. Naive polling
+after a trigger timed out, so mail-carrying was added as a workaround. The
+correct fix is to use a polling helper with a sufficient timeout — the real
+HTTP delivery path (`DemoHttpDeliveryAdapter`) with its retry/backoff will
+complete; the demo just needs to wait long enough.
+
+**How to apply:**
+
+1. After triggering an actor to emit an activity, do **not** manually deliver
+   that activity to any inbox. Instead, poll the expected side-effect directly:
+   - Use `wait_for_case_on_container` to verify a case replica arrived.
+   - Use `find_case_invite_for_actor` to verify an invite arrived.
+   - Use `verify_object_stored` after a sufficient `time.sleep` or poll loop.
+2. If a poll times out reliably in CI, the underlying delivery path needs
+   investigation (retry parameters, health checks, container startup order)
+   — not a workaround in the demo script.
+
+**Exception — self-delivery (CONCERN-1653):** A demo script MAY call
+`post_to_inbox_and_wait` when an actor needs to deliver an activity to its
+*own* inbox to update its own replica — for example, after triggering
+`accept-case-ownership-transfer`, the accepting actor must self-deliver the
+resulting `Accept` activity so that `AcceptCaseOwnershipTransferReceivedUseCase`
+runs locally. This is not mail-carrying: the actor is posting to its own inbox,
+not acting as a surrogate for the transport layer.
+
+The rule this section prohibits is **cross-actor delivery**: a demo using
+*Actor A's* credentials to POST a message into *Actor B's* inbox. That is the
+pattern to eliminate; CONCERN-1653's self-delivery pattern is orthogonal and
+remains correct.
+
+<!-- Source: CONCERN-1635 -->

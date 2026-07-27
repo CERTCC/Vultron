@@ -20,21 +20,25 @@ Composes the four-step DEMOMA-07-003 workflow as a Sequence BT
 (step 3 raw peer re-broadcast removed per DEMOMA-07-005):
 
     AddParticipantStatusBT (Sequence)
-    ├─ VerifySenderIsParticipantNode      # Step 1: sender must be known participant
-    ├─ CheckParticipantRMNotClosedNode    # Guard: reject CLOSED→CLOSED rewrites
+    ├─ VerifySenderIsParticipantNode          # Step 1: sender must be known participant
+    ├─ CheckParticipantRMNotClosedNode        # Guard: reject CLOSED→CLOSED rewrites
     ├─ GuardedCommitOrSkip (Selector, only if case_id)  # Record receipt first (CLP-10-006)
     │   ├─ Sequence("SkipIfNotCaseManager")
     │   │   └─ Inverter(CheckIsCaseManagerNode)
     │   └─ CommitCaseLedgerEntryNode
-    ├─ AppendParticipantStatusNode        # Step 2: append status to participant record
-    ├─ PublicDisclosureBranchNode         # Step 4: embargo teardown on CS.P + CASE_OWNER
-    └─ AutoCloseIfCaseManager (Selector)  # Step 5: auto-close only when CASE_MANAGER
+    ├─ AppendParticipantStatusNode            # Step 2: append status to participant record
+    ├─ PublicDisclosureBranchNode             # Step 4: embargo teardown on CS.P + CASE_OWNER
+    └─ AutoCloseIfCaseManager (Selector)      # Step 5: auto-close only when CASE_MANAGER
         ├─ Sequence
         │   ├─ CheckIsCaseManagerNode
-        │   └─ AutoCloseBranchNode
+        │   └─ AutoCloseSequence (Sequence)   # DEMOMA-07-006 decomposed auto-close
+        │       ├─ AllParticipantsRMClosedConditionNode
+        │       ├─ CloseNotYetEmittedConditionNode
+        │       ├─ ResolveCaseManagerNode
+        │       └─ EmitCloseCaseNode
         └─ Success (skip if not CASE_MANAGER)
 
-Per specs/multi-actor-demo.yaml DEMOMA-07-003 and DEMOMA-07-005.
+Per specs/multi-actor-demo.yaml DEMOMA-07-003, DEMOMA-07-005, DEMOMA-07-006.
 """
 
 import logging
@@ -48,12 +52,15 @@ from vultron.core.behaviors.case.nodes.conditions import CheckIsCaseManagerNode
 from vultron.core.behaviors.case.nodes.lifecycle import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.sender.nodes.actions import ResolveCaseManagerNode
 from vultron.core.behaviors.status.append_participant_status_tree import (
     append_participant_status_tree,
 )
 from vultron.core.behaviors.status.nodes import (
-    AutoCloseBranchNode,
+    AllParticipantsRMClosedConditionNode,
     CheckParticipantRMNotClosedNode,
+    CloseNotYetEmittedConditionNode,
+    EmitCloseCaseNode,
     PublicDisclosureBranchNode,
     VerifySenderIsParticipantNode,
 )
@@ -112,6 +119,17 @@ def add_participant_status_tree(
         if context_field:
             tree_case_id = str(context_field)
 
+    auto_close_sequence = py_trees.composites.Sequence(
+        name="AutoCloseSequence",
+        memory=False,
+        children=[
+            AllParticipantsRMClosedConditionNode(case_id=tree_case_id),
+            CloseNotYetEmittedConditionNode(case_id=tree_case_id),
+            ResolveCaseManagerNode(case_id=tree_case_id or ""),
+            EmitCloseCaseNode(case_id=tree_case_id),
+        ],
+    )
+
     auto_close_selector = py_trees.composites.Selector(
         name="AutoCloseIfCaseManager",
         memory=False,
@@ -121,7 +139,7 @@ def add_participant_status_tree(
                 memory=False,
                 children=[
                     CheckIsCaseManagerNode(case_id=tree_case_id),
-                    AutoCloseBranchNode(case_id=tree_case_id),
+                    auto_close_sequence,
                 ],
             ),
             py_trees.behaviours.Success(name="AutoCloseSkippedNotCaseManager"),

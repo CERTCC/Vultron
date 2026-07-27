@@ -39,8 +39,8 @@ versa) with no error surfaced.
 
 Two interim protections documented and spec-encoded:
 
-1. Registry ordering guard (`_validate_registry_order()`) — SE-07-001
-2. Required `target` field on `_OfferCaseManagerRoleActivity` — SE-07-002
+1. Registry ordering guard (`_validate_registry_order()`) — SE-08-001
+2. Required `target` field on `_OfferCaseManagerRoleActivity` — SE-08-002
 
 Structural fix tracked in #1726: introduce `as_CaseParticipantRole` wire object type
 and `OFFER_CASE_PARTICIPANT_ROLE` semantic with
@@ -48,8 +48,8 @@ and `OFFER_CASE_PARTICIPANT_ROLE` semantic with
 replacing the current `Offer(VulnerabilityCase, target=CaseParticipant)` format.
 
 ADR-0039 records the evaluated alternatives and decision rationale.
-SE-07-003 records the SHOULD preference for dedicated object types.
+SE-08-003 records the SHOULD preference for dedicated object types.
 
 **Docs PR**: <https://github.com/CERTCC/Vultron/pull/1727>
-**Spec**: `specs/semantic-extraction.yaml` SE-07-001, SE-07-002, SE-07-003.
+**Spec**: `specs/semantic-extraction.yaml` SE-08-001, SE-08-002, SE-08-003.
 **Notes**: `notes/activitystreams-state-update.md` § "Target-Field Discriminators".

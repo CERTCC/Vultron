@@ -77,12 +77,12 @@ Chosen option: **Option 1 — new `as_CaseParticipantRole` object type**, becaus
 
 ## More Information
 
-- Interim protection while the migration is in flight: `SE-07-001` through
-  `SE-07-002` mandate registry ordering and required target field until the
+- Interim protection while the migration is in flight: `SE-08-001` through
+  `SE-08-002` mandate registry ordering and required target field until the
   wire type migration is complete.
-- `SE-07-003` records the SHOULD preference for dedicated object types over
+- `SE-08-003` records the SHOULD preference for dedicated object types over
   target-field discrimination.
 - Implementation issue: tracked as a GitHub Task issue blocked by CONCERN-1674.
 
-Generated spec requirements: `specs/semantic-extraction.yaml` SE-07-001,
-SE-07-002, SE-07-003.
+Generated spec requirements: `specs/semantic-extraction.yaml` SE-08-001,
+SE-08-002, SE-08-003.

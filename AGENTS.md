@@ -406,7 +406,7 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   `OFFER_CASE_OWNERSHIP_TRANSFER` in `SEMANTIC_REGISTRY` (enforced by
   `_validate_registry_order()`). `_OfferCaseManagerRoleActivity.target` MUST
   remain required. Do NOT add a third `Offer(VulnerabilityCase)` pattern without
-  a distinct object type. See SE-07-001, SE-07-002, ADR-0039,
+  a distinct object type. See SE-08-001, SE-08-002, ADR-0039,
   [notes/activitystreams-state-update.md](notes/activitystreams-state-update.md)
   § "Target-Field Discriminators".
 - **`offer_case_participant_activity`: `event.object_id` Has `#participant` Suffix**

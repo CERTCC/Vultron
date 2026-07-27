@@ -515,12 +515,16 @@ Selector(
 **Why this is necessary**: Received-side use cases run the BT with the receiving
 actor's `actor_id`. Every participant that receives a broadcast may run the same
 BT. Without an in-tree role guard, a CASE_MANAGER-only node such as
-`AutoCloseBranchNode` fires for every receiving actor — including participants who
+`EmitCloseCaseNode` fires for every receiving actor — including participants who
 should remain silent. Placing the guard outside the tree (e.g., in `execute()`) is
 insufficient because the same tree factory may be shared across trigger-side and
 received-side paths.
 
-## Module-Level Idempotency Sets Must Be Paired with a Role Guard
+## Use DataLayer Outbox for Idempotency, Not Module-Level Sets
+
+(Resolved pattern — the former `AutoCloseBranchNode` used a module-level
+`_auto_close_triggered: set[str]` that was replaced in PR #1724 by a
+`CloseNotYetEmittedConditionNode` that queries the DataLayer outbox.)
 
 A module-level `set[str]` used to prevent duplicate fires is **per-process**,
 not per-container. In a Docker deployment, vendor-1 and finder-1 each have
@@ -529,11 +533,11 @@ affect vendor-1. However, **within a single process**, two fires can race:
 if a phantom fire (wrong actor) runs first and claims the slot, the legitimate
 fire (correct actor) is silently skipped.
 
-**Fix**: Always pair a module-level idempotency set with a `CheckIsCaseManagerNode`
-role guard at tree-composition time. The role guard ensures only the correct actor
-can claim the slot. Issue #1030 observed this race on `AutoCloseBranchNode`:
-the phantom fire on finder-1 claimed the set and blocked the real fire on the
-case-actor in the same process.
+**Fix**: Use a `DataLayerCondition` node that queries the DataLayer outbox for
+an existing activity, not a module-level set. This survives process restarts and
+is visible to the BT audit trail. Issue #1030 observed the module-set race on
+the former `AutoCloseBranchNode`; `CloseNotYetEmittedConditionNode` (PR #1724)
+is the idiomatic replacement pattern.
 
 ---
 

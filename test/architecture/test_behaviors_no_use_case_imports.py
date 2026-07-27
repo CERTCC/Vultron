@@ -108,7 +108,6 @@ KNOWN_VIOLATIONS: frozenset[str] = frozenset(
         "vultron/core/behaviors/report/nodes/rm_transitions.py",
         "vultron/core/behaviors/report/nodes/storage.py",
         "vultron/core/behaviors/sender/nodes/actions.py",
-        "vultron/core/behaviors/status/nodes/lifecycle.py",
         "vultron/core/behaviors/sync/nodes/chain.py",
         "vultron/core/behaviors/sync/nodes/replay.py",
     ]
