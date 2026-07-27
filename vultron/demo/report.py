@@ -51,6 +51,7 @@ import logging
 import os
 import sys
 import webbrowser
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -659,6 +660,40 @@ def _md_cell(text: str) -> str:
     return text.replace("|", "\\|").replace("\n", " ")
 
 
+def _parse_timestamp(ts: str) -> datetime:
+    """Parse an ISO 8601 timestamp string to a timezone-aware datetime.
+
+    Handles both ``Z`` suffix (``fromisoformat`` requires ``+00:00`` on
+    Python < 3.11) and ``+00:00`` offset forms.
+    """
+    return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+
+
+def _case_time_range(
+    events: list[CaseTimelineEvent],
+) -> tuple[str | None, str | None]:
+    """Return ``(min_received_at, max_received_at)`` for a list of events.
+
+    Parses each ``received_at`` string via :func:`_parse_timestamp` so
+    comparison is chronological regardless of offset notation (``Z`` vs
+    ``+00:00``) or future microsecond precision changes. Returns ``(None,
+    None)`` when no event carries a timestamp (DRPT-04-006).
+    """
+    pairs: list[tuple[str, datetime]] = []
+    for e in events:
+        if e.received_at is None:
+            continue
+        try:
+            pairs.append((e.received_at, _parse_timestamp(e.received_at)))
+        except ValueError:
+            logger.debug("Skipping unparseable received_at: %r", e.received_at)
+    if not pairs:
+        return None, None
+    first_str, _ = min(pairs, key=lambda p: p[1])
+    last_str, _ = max(pairs, key=lambda p: p[1])
+    return first_str, last_str
+
+
 def _render_markdown_case(
     lines: list[str], events: list[CaseTimelineEvent], actors: list[str]
 ) -> None:
@@ -706,6 +741,10 @@ def render_markdown(events: list[CaseTimelineEvent], actors: list[str]) -> str:
     for case_id, case_events in by_case.items():
         lines.append(f"## Case {_md_cell(case_id or '(unknown)')}")
         lines.append("")
+        first, last = _case_time_range(case_events)
+        if first is not None and last is not None:
+            lines.append(f"- Time range: {_md_cell(first)} – {_md_cell(last)}")
+            lines.append("")
         _render_markdown_case(lines, case_events, actors)
         lines.append("")
 
@@ -810,8 +849,16 @@ def render_html(events: list[CaseTimelineEvent], actors: list[str]) -> str:
     by_case = group_events_by_case(events)
     sections: list[str] = []
     for case_id, case_events in by_case.items():
+        first, last = _case_time_range(case_events)
+        time_range_html = ""
+        if first is not None and last is not None:
+            time_range_html = (
+                f'<p class="meta">Time range: {html.escape(first)}'
+                f" – {html.escape(last)}</p>\n"
+            )
         sections.append(
             f"<h2>Case {html.escape(case_id or '(unknown)')}</h2>\n"
+            + time_range_html
             + _render_html_case_table(case_events, actors)
         )
 
