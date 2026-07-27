@@ -57,6 +57,8 @@ jobs:
             test_file: test/ci/invariants/test_fvcv_extension_invariants.py
           - demo: fvcv-handoff
             test_file: test/ci/invariants/test_fvcv_handoff_invariants.py
+          - demo: fccv-extension
+            test_file: test/ci/invariants/test_fccv_extension_invariants.py
           - demo: fccv-handoff
             test_file: test/ci/invariants/test_fccv_handoff_invariants.py
           - demo: fcv
@@ -150,6 +152,8 @@ jobs:
             test_file: test/ci/invariants/test_fvcv_extension_invariants.py
           - demo: fvcv-handoff
             test_file: test/ci/invariants/test_fvcv_handoff_invariants.py
+          - demo: fccv-extension
+            test_file: test/ci/invariants/test_fccv_extension_invariants.py
           - demo: fccv-handoff
             test_file: test/ci/invariants/test_fccv_handoff_invariants.py
           - demo: fcv
