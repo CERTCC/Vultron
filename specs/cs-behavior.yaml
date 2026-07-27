@@ -1257,22 +1257,23 @@ groups:
 - id: CSB-15
   title: Trigger-Side VFD Role Preconditions
   description: >-
-    Role-based precondition requirements for self-reported CS VFD state transitions
-    via the trigger path (notify-fix-ready, notify-fix-deployed). These complement the
-    receive-side CSB-02 and CSB-03 groups by specifying which CVD roles may initiate
-    each VFD transition locally.
+    Precondition requirements for self-reported CS trigger endpoints
+    (notify-fix-ready, notify-fix-deployed, notify-published). These complement the
+    receive-side CSB-02, CSB-03, and CSB-04 groups by specifying which CVD roles may
+    initiate each VFD transition locally and what state each trigger endpoint MUST set.
   specs:
   - id: CSB-15-001
     priority: MUST
     kind: protocol
     statement: >-
       An Actor self-reporting a fix-ready transition (f→F, vfd_state=VFd) via the
-      trigger path MUST hold CVDRole.VENDOR or CVDRole.DEPLOYER in the case;
-      the transition MUST be blocked (FAILURE) when neither role is present.
+      trigger path MUST hold CVDRole.VENDOR in the case; the transition MUST be
+      blocked (FAILURE) when CVDRole.VENDOR is absent.
     rationale: >-
-      Fix readiness (F event) is a Vendor Fix Path state that only makes sense for
-      actors who develop or maintain the affected product. Finders, Reporters, and
-      Coordinators do not develop fixes and MUST NOT self-report fix readiness.
+      Fix readiness (F event) represents that the actor has produced a fix. Only
+      actors who develop or maintain the affected product (Vendors) can produce a
+      fix; Deployers operate existing deployments and do not produce fixes. Finders,
+      Reporters, and Coordinators likewise MUST NOT self-report fix readiness.
       Without this guard, non-vendor actors can incorrectly advance their participant
       VFD state, producing misleading case state records.
     testable: true
@@ -1281,17 +1282,17 @@ groups:
     steps:
     - order: 1
       actor: trigger
-      action: Check that the requesting actor holds CVDRole.VENDOR or CVDRole.DEPLOYER
-        in the case participant record
-      expected: Role check passes for VENDOR or DEPLOYER; FAILURE returned otherwise
+      action: Check that the requesting actor holds CVDRole.VENDOR in the case
+        participant record
+      expected: Role check passes for VENDOR; FAILURE returned otherwise
     - order: 2
       actor: trigger
       action: If role check passes, create ParticipantStatus with vfd_state=VFd
       expected: Status record created; activity emitted to Case Manager
     postconditions:
-    - description: Only VENDOR/DEPLOYER actors may record vfd_state=VFd; others receive FAILURE
+    - description: Only VENDOR actors may record vfd_state=VFd; all others receive FAILURE
     relationships:
-    - rel_type: refines
+    - rel_type: constrains
       spec_id: CSB-02-001
       note: Trigger-side precondition complementing receive-side CF handling
 
@@ -1326,18 +1327,18 @@ groups:
     postconditions:
     - description: Only DEPLOYER actors may record vfd_state=VFD; all others receive FAILURE
     relationships:
-    - rel_type: refines
+    - rel_type: constrains
       spec_id: CSB-03-001
       note: Trigger-side precondition complementing receive-side CD handling
 
   - id: CSB-15-003
-    priority: MUST_NOT
+    priority: MUST
     kind: protocol
     statement: >-
-      A self-report trigger for public awareness (P event, pxa_state=Pxa) MUST NOT
-      also set vfd_state=VFD. The D event (fix deployed) is participant-specific and
-      is distinct from the P event (public awareness); they MUST be reported
-      independently.
+      The notify-published trigger endpoint MUST set only pxa_state=Pxa in the
+      ParticipantStatus record. The D event (fix deployed) is participant-specific
+      and distinct from the P event (public awareness); notify-published MUST NOT
+      also modify vfd_state.
     rationale: >-
       Conflating P and D transitions (as notify-published did by setting both
       vfd_state=VFD and pxa_state=Pxa) causes non-deployer actors (Finders,
@@ -1362,7 +1363,7 @@ groups:
         this trigger; actors wishing to report VFD must call notify-fix-deployed
         separately (and must hold CVDRole.DEPLOYER per CSB-15-002)
     relationships:
-    - rel_type: refines
+    - rel_type: constrains
       spec_id: CSB-04-001
       note: >-
         P event trigger must not imply D event; separates participant-agnostic
