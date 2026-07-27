@@ -6,7 +6,7 @@ description: >-
   report of who did what, with what activity, and in what order. Covers input discovery,
   the distilled intermediate data model, markdown and HTML rendering, the per-actor
   replica-presence matrix, friendly naming, and test requirements.
-version: 1.4.0
+version: 1.5.0
 scope:
 - prototype
 tags:
@@ -158,6 +158,29 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DRPT-02-004
+  - id: DRPT-02-008
+    priority: MUST
+    kind: project
+    statement: >-
+      Each distilled event MUST carry the per-participant Embargo Consent state
+      (`pec_state`) extracted from the `ParticipantStatus` payload snapshot,
+      where present. The extractor MUST handle the ADR-0036 dimension-object
+      shape (`{"consent": {"state": "SIGNATORY"}}`), the legacy flat camelCase
+      alias (`emConsentState`), the legacy flat snake_case alias
+      (`em_consent_state`), the camelCase long form (`embargoConsentState`), and
+      the snake_case long form (`embargo_consent_state`). Both renderers MUST
+      include a `PEC` column in the event table and populate it from
+      `pec_state`.
+    rationale: >-
+      The case-level EM column shows only the shared embargo state (NONE,
+      PROPOSED, ACTIVE, REVISE, EXITED).  Per-participant embargo consent
+      (NO_EMBARGO, INVITED, SIGNATORY, LAPSED, DECLINED) is a distinct
+      five-state machine tracked on `ParticipantStatus`; without a dedicated
+      PEC column, embargo acceptance and lapse events are invisible in the
+      report.
+    relationships:
+    - rel_type: extends
+      spec_id: DRPT-02-002
 - id: DRPT-03
   title: Friendly Naming
   specs:
