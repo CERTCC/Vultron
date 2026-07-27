@@ -4,7 +4,7 @@ description: >-
   The inbox handler extracts semantic meaning from ActivityStreams activities by matching
   activity type and object type patterns. This semantic type determines which handler function
   processes the activity.
-version: 1.1.0
+version: 1.2.0
 scope:
 - prototype
 - production
@@ -226,3 +226,54 @@ groups:
     relationships:
     - rel_type: verifies
       spec_id: SE-07-001
+- id: SE-08
+  title: Target-Field Discriminators
+  specs:
+  - id: SE-08-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When two or more `ActivityPattern` entries share the same `activity_` type AND
+      `object_` type, the more-specific pattern MUST include an additional discriminator
+      field (e.g. `target_`, `context_`) that unambiguously distinguishes it from the
+      less-specific pattern. The more-specific pattern MUST appear before the less-specific
+      one in `SEMANTIC_REGISTRY`.
+    rationale: >-
+      `OFFER_CASE_MANAGER_ROLE` and `OFFER_CASE_OWNERSHIP_TRANSFER` both match
+      `Offer(VulnerabilityCase)`. `OFFER_CASE_MANAGER_ROLE` is disambiguated by the
+      presence of `target=CaseParticipant`. If the more-specific entry appeared after the
+      less-specific one, every case-manager delegation offer would be silently misrouted
+      as an ownership transfer. `_validate_registry_order()` enforces this at import time.
+    relationships:
+    - rel_type: refines
+      spec_id: SE-03-002
+  - id: SE-08-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A wire activity class whose semantic identity depends on a target-field discriminator
+      MUST declare that target field as required (not optional) so that a sender omitting it
+      produces a validation error rather than a silently misrouted activity.
+    rationale: >-
+      `_OfferCaseManagerRoleActivity.target` is `as_CaseParticipant` (required). This ensures
+      that any attempt to construct the activity without the discriminator field fails fast at
+      the sending side rather than reaching the receiver's registry as an ambiguous shape.
+    relationships:
+    - rel_type: refines
+      spec_id: SE-08-001
+  - id: SE-08-003
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      When two semantics share `Offer(VulnerabilityCase)` and are discriminated only by a
+      target-field value, a dedicated wire object type (e.g. `as_CaseParticipantRole`)
+      SHOULD be preferred over target-field discrimination so that the wire shape is
+      unambiguously self-describing without depending on registry ordering.
+    rationale: >-
+      Target-field discrimination is a latent correctness risk: a minimally-conformant or
+      buggy sender omitting the target will be silently misrouted. A distinct object type
+      eliminates this risk structurally and makes the wire format self-describing.
+      See also `notes/activitystreams-state-update.md` § "Target-Field Discriminators".
+    relationships:
+    - rel_type: refines
+      spec_id: SE-08-001
