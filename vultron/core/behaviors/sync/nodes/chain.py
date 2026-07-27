@@ -62,6 +62,7 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Reject", "Invite"),
     ("Announce", "VulnerabilityCase"),
     ("Offer", "CaseParticipant"),
+    ("Add", "CaseParticipant"),
 )
 _CASE_AUTHORED_SIGNATURES: frozenset[tuple[str, str]] = frozenset(
     {
@@ -72,10 +73,10 @@ _CASE_AUTHORED_SIGNATURES: frozenset[tuple[str, str]] = frozenset(
         ("Offer", "CaseParticipant"),
         ("Invite", "VulnerabilityCase"),
         ("Offer", "VulnerabilityCase"),
-        # Leave(VulnerabilityCase): case-actor's AutoCloseBranchNode when all reach RM.CLOSED.
         ("Leave", "VulnerabilityCase"),
-        # Accept(Offer): case-actor accepts CaseManagerRole delegation offer.
         ("Accept", "Offer"),
+        ("Reject", "Offer"),
+        ("Add", "CaseParticipant"),
     }
 )
 _INLINE_OBJECT_KEYS: frozenset[str] = frozenset(
@@ -140,7 +141,7 @@ def _snapshot_type(snapshot: dict[str, Any]) -> str | None:
 
 _ACTOR_TYPES: frozenset[str] = frozenset(
     {"Actor", "Application", "Group", "Organization", "Person", "Service"}
-)
+) | {"CoreActor"}
 
 
 def _snapshot_object_type(snapshot: dict[str, Any]) -> str | None:

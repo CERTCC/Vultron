@@ -967,3 +967,93 @@ class TestEmitNoteDuplicateRecommendationToOwnerNodeContent:
         call_kwargs = factory.create_note.call_args
         content_arg = call_kwargs.kwargs["content"]
         assert "Recommender note:" not in content_arg
+
+
+class TestDropBareInlineRefs:
+    """Unit tests for _drop_bare_inline_refs (suggest-actor snapshot helper)."""
+
+    def _fn(self):
+        from vultron.core.behaviors.case.nodes.suggest_actor._snapshot import (
+            _drop_bare_inline_refs,
+        )
+
+        return _drop_bare_inline_refs
+
+    def test_bare_target_string_is_removed(self):
+        fn = self._fn()
+        result = fn(
+            {"type": "Invite", "actor": "a", "target": "https://x/case"}
+        )
+        assert "target" not in result
+
+    def test_bare_object_string_is_removed(self):
+        fn = self._fn()
+        result = fn({"type": "Offer", "actor": "a", "object": "https://x/obj"})
+        assert "object" not in result
+
+    def test_inline_object_dict_is_kept(self):
+        fn = self._fn()
+        obj = {"type": "VulnerabilityCase", "id_": "https://x/case"}
+        result = fn({"type": "Invite", "actor": "a", "target": obj})
+        assert result["target"] == obj
+
+    def test_non_inline_key_string_is_kept(self):
+        fn = self._fn()
+        result = fn({"type": "Invite", "actor": "a", "id_": "https://x/act"})
+        assert result["id_"] == "https://x/act"
+
+    def test_nested_bare_target_is_removed(self):
+        fn = self._fn()
+        result = fn(
+            {
+                "type": "Accept",
+                "actor": "a",
+                "object_": {
+                    "type": "Offer",
+                    "actor": "b",
+                    "target": "https://x/case",
+                },
+            }
+        )
+        assert "target" not in result["object_"]
+
+    def test_list_items_processed(self):
+        fn = self._fn()
+        result = fn(
+            [{"type": "A", "target": "bare"}, {"type": "B", "actor": "x"}]
+        )
+        assert "target" not in result[0]
+        assert result[1]["actor"] == "x"
+
+
+class TestSnapshotWithContext:
+    """Unit tests for _snapshot_with_context."""
+
+    def _fn(self):
+        from vultron.core.behaviors.case.nodes.suggest_actor._snapshot import (
+            _snapshot_with_context,
+        )
+
+        return _snapshot_with_context
+
+    def test_adds_context_when_missing(self):
+        fn = self._fn()
+        result = fn({"type": "Offer", "actor": "a"}, "https://x/case")
+        assert result["context"] == "https://x/case"
+
+    def test_keeps_existing_context(self):
+        fn = self._fn()
+        result = fn(
+            {"type": "Offer", "actor": "a", "context": "https://x/other"},
+            "https://x/case",
+        )
+        assert result["context"] == "https://x/other"
+
+    def test_drops_bare_target(self):
+        fn = self._fn()
+        result = fn(
+            {"type": "Offer", "actor": "a", "target": "https://x/case"},
+            "https://x/case",
+        )
+        assert "target" not in result
+        assert result["context"] == "https://x/case"
