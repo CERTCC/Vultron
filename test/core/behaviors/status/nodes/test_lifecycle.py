@@ -182,3 +182,19 @@ class TestEmitCloseCaseNode:
             actor=ACTOR_ID,
             to=[CASE_MANAGER_ID],
         )
+        outbox = populated_dl.outbox_list_for_actor(ACTOR_ID)
+        assert activity_id in outbox
+
+    def test_fails_on_factory_exception(self, populated_dl):
+        """factory.close_case raises → FAILURE (unexpected error path)."""
+        factory = MagicMock()
+        factory.close_case.side_effect = RuntimeError("boom")
+
+        py_trees.blackboard.Blackboard.storage["/case_manager_id"] = (
+            CASE_MANAGER_ID
+        )
+        bridge = BTBridge(datalayer=populated_dl, trigger_activity=factory)
+        node = EmitCloseCaseNode(case_id=CASE_ID)
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+
+        assert result.status == Status.FAILURE

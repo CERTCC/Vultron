@@ -66,11 +66,12 @@ be blocked by notification gaps. The missing-factory case is an operational
 deployment gap (receive-side use cases don't wire factories), not a data
 error that should roll back state.
 
-**Canonical example:** `SendAnnounceEmbargoEventNode` in
+**Canonical examples:** `SendAnnounceEmbargoEventNode` in
 `vultron/core/behaviors/embargo/nodes/teardown.py` — returns SUCCESS with
 WARNING when `trigger_activity_factory` is `None` or no Case Manager is
-found, rather than FAILURE. The `AutoCloseBranchNode` pattern uses the
-same override.
+found, rather than FAILURE. `EmitCloseCaseNode` in
+`vultron/core/behaviors/status/nodes/lifecycle.py` uses the same override
+(PR #1724).
 
 **When the override does NOT apply:** when the node sits directly in a
 Sequence without a fallback-SUCCESS Selector parent, FAIL-FAST per

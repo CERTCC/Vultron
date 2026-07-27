@@ -135,6 +135,8 @@ class AllParticipantsRMClosedConditionNode(DataLayerCondition):
 
     def _all_participants_closed(self, case: Any) -> bool:
         assert self.datalayer is not None
+        if not case.actor_participant_index:
+            return False
         for p_id in case.actor_participant_index.values():
             p = self.datalayer.read(p_id)
             if p is None:
