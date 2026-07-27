@@ -16,12 +16,13 @@
 """Case lifecycle trigger nodes for DEMOMA-07-003 steps 4–5.
 
 Contains the public-disclosure embargo teardown branch (step 4) and the
-all-participants-closed auto-close branch (step 5).
+auto-close emit node (step 5).  The auto-close precondition and idempotency
+guards are in ``conditions.py``; the routing guard is
+:class:`~vultron.core.behaviors.sender.nodes.actions.ResolveCaseManagerNode`.
 """
 
 import logging
-import threading
-from typing import Any, cast
+from typing import cast
 
 import py_trees
 from py_trees.common import Status
@@ -29,23 +30,13 @@ from py_trees.common import Status
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
 from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.use_cases._helpers import _resolve_case_manager_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.protocols import PersistableModel
-from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.core.models._helpers import _as_id
 
 logger = logging.getLogger(__name__)
-
-# Guard against AutoCloseBranchNode firing more than once per case.
-# Keyed by case_id — the first BT execution to observe all-participants-CLOSED
-# for a given case wins; subsequent ones are no-ops for that case.
-# Protected by a threading.Lock because FastAPI BackgroundTasks run on a
-# thread pool (see AGENTS.md: "BTBridge Thread-Safety (RLock)").
-_auto_close_lock: threading.Lock = threading.Lock()
-_auto_close_triggered: set[str] = set()  # case_ids that have fired AutoClose
 
 
 class _PublicDisclosureSkipConditionNode(DataLayerCondition):
@@ -99,7 +90,7 @@ class _PublicDisclosureSkipConditionNode(DataLayerCondition):
         except Exception:
             return False
 
-    def _sender_is_case_owner(self, case: Any) -> bool:
+    def _sender_is_case_owner(self, case: VulnerabilityCase) -> bool:
         """Return True iff sender is a known CASE_OWNER participant."""
         assert self.datalayer is not None
         sender_participant_id = case.actor_participant_index.get(
@@ -191,19 +182,20 @@ class PublicDisclosureBranchNode(py_trees.composites.Selector):
         )
 
 
-class AutoCloseBranchNode(DataLayerAction):
-    """Step 5: Log case auto-close when all participants are RM.CLOSED.
+class EmitCloseCaseNode(DataLayerAction):
+    """Step 5 emit: Queue a ``Leave(VulnerabilityCase)`` to the Case Manager.
 
-    Checks whether every CVD participant in the case has ``RM.CLOSED``
-    as their most recent status.  The CASE_MANAGER (Case Actor) is a
-    coordinator role and is excluded from this check.
+    Reads ``case_manager_id`` from the blackboard (written by the preceding
+    :class:`~vultron.core.behaviors.sender.nodes.actions.ResolveCaseManagerNode`)
+    and calls ``trigger_activity_factory.close_case(...)`` to create and queue
+    the activity.
 
-    Actual case closure is **not** persisted here — this is log-only
-    behaviour for the prototype demo.
+    Returns SUCCESS when the activity is queued successfully or when
+    ``trigger_activity_factory`` is absent (best-effort: receive-side paths
+    intentionally omit the factory).
+    Returns FAILURE only on an unexpected exception during activity creation.
 
-    Always returns SUCCESS.
-
-    Per DEMOMA-07-003 step 5.
+    Per DEMOMA-07-003 step 5, DEMOMA-07-006.
     """
 
     def __init__(
@@ -214,50 +206,42 @@ class AutoCloseBranchNode(DataLayerAction):
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
 
-    def _all_participants_closed(self, case: Any) -> bool:
-        """Return True iff every CVD participant has RM.CLOSED."""
-        if self.datalayer is None:
-            return False
+    def setup(self, **kwargs: object) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="case_manager_id",
+            access=py_trees.common.Access.READ,
+        )
 
-        for p_id in case.actor_participant_index.values():
-            p = self.datalayer.read(p_id)
-            if p is None:
-                return False
-            roles = p.roles if isinstance(p, CaseParticipant) else []
-            if CVDRole.CASE_MANAGER in roles:
-                continue
-            statuses = getattr(p, "participant_statuses", [])
-            if not statuses:
-                return False
-            latest_ref = statuses[-1]
-            if isinstance(latest_ref, str):
-                ref_id = _as_id(latest_ref)
-                if ref_id is None:
-                    return False
-                latest = self.datalayer.read(ref_id)
-            else:
-                latest = latest_ref
-            if latest is None:
-                return False
-            rm_state = (
-                getattr(latest, "rm").state if hasattr(latest, "rm") else None
-            )
-            if rm_state is None or rm_state != RM.CLOSED:
-                return False
-        return True
+    def update(self) -> Status:
+        if self.datalayer is None or not self.case_id:
+            return Status.SUCCESS
 
-    def _emit_close_case(self, case_manager_id: str) -> None:
-        """Emit close_case activity to the Case Manager's outbox."""
         if self.trigger_activity_factory is None:
             self.logger.warning(
-                "AutoCloseBranch: no TriggerActivityPort — cannot emit"
-                " close_case activity for case '%s'",
+                "EmitCloseCase: no TriggerActivityPort — cannot emit"
+                " Leave(VulnerabilityCase) for case '%s'",
                 self.case_id,
             )
-            return
+            return Status.SUCCESS
+
+        try:
+            case_manager_id: str | None = self.blackboard.get(
+                "case_manager_id"
+            )
+        except KeyError:
+            case_manager_id = None
+        if not case_manager_id:
+            self.feedback_message = (
+                f"EmitCloseCase: case_manager_id not set on blackboard"
+                f" for case '{self.case_id}' — cannot emit"
+            )
+            self.logger.warning(self.feedback_message)
+            return Status.SUCCESS
+
         try:
             activity_id, _ = self.trigger_activity_factory.close_case(
-                case_id=self.case_id,  # type: ignore[arg-type]
+                case_id=self.case_id,
                 actor=self.actor_id or "",
                 to=[case_manager_id],
             )
@@ -265,53 +249,16 @@ class AutoCloseBranchNode(DataLayerAction):
                 self.actor_id or "", activity_id
             )
             self.logger.info(
-                "AutoCloseBranch: emitted close_case activity '%s'"
-                " to CaseActor '%s'",
+                "EmitCloseCase: queued Leave(VulnerabilityCase) '%s'"
+                " to CaseActor '%s' (DEMOMA-07-003 step 5)",
                 activity_id,
                 case_manager_id,
             )
         except Exception as e:
-            self.logger.error(
-                "AutoCloseBranch: failed to emit close_case: %s", e
+            self.feedback_message = (
+                f"EmitCloseCase: failed to emit close_case: {e}"
             )
+            self.logger.error(self.feedback_message)
+            return Status.FAILURE
 
-    def _claim_close(self) -> bool:
-        """Thread-safe check-and-set; return True iff this call should fire."""
-        with _auto_close_lock:
-            if self.case_id in _auto_close_triggered:
-                self.logger.debug(
-                    "AutoCloseBranch: close_case already triggered for"
-                    " case '%s' — skipping duplicate fire",
-                    self.case_id,
-                )
-                return False
-            _auto_close_triggered.add(self.case_id)  # type: ignore[arg-type]
-            return True
-
-    def update(self) -> Status:
-        if self.datalayer is None or not self.case_id:
-            return Status.SUCCESS
-        case = self.datalayer.read(self.case_id)
-        if not isinstance(
-            case, VulnerabilityCase
-        ) or not self._all_participants_closed(case):
-            return Status.SUCCESS
-        if not self._claim_close():
-            return Status.SUCCESS
-        case_manager_id = _resolve_case_manager_id(case, self.datalayer)
-        if case_manager_id is None:
-            self.logger.warning(
-                "AutoCloseBranch: no Case Manager found"
-                " — cannot auto-close case '%s'",
-                self.case_id,
-            )
-            return Status.SUCCESS
-        self.logger.info(
-            "AutoCloseBranch: all participants CLOSED for case '%s'"
-            " — emitting Leave(VulnerabilityCase) to CaseActor '%s'"
-            " (DEMOMA-07-003 step 5)",
-            self.case_id,
-            case_manager_id,
-        )
-        self._emit_close_case(case_manager_id)
         return Status.SUCCESS

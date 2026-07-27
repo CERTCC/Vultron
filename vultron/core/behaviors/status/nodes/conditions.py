@@ -16,14 +16,27 @@
 """Participant verification condition nodes for status workflows.
 
 Contains the sender-is-participant guard node used as step 1 of the
-AddParticipantStatusToParticipant workflow (DEMOMA-07-003).
+AddParticipantStatusToParticipant workflow (DEMOMA-07-003), and the
+two precondition nodes extracted from AutoCloseBranchNode per DEMOMA-07-006:
+AllParticipantsRMClosedConditionNode and CloseNotYetEmittedConditionNode.
 """
 
 import logging
+from typing import Any, cast
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import FindParticipantByActorIdNode
+from vultron.core.behaviors.helpers import (
+    DataLayerCondition,
+    FindParticipantByActorIdNode,
+)
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models._helpers import _as_id
+from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.states.rm import RM
+from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
 
@@ -96,5 +109,145 @@ class VerifySenderIsParticipantNode(FindParticipantByActorIdNode):
             " (DEMOMA-07-003 step 1)",
             self.sender_actor_id,
             case_id,
+        )
+        return Status.SUCCESS
+
+
+class AllParticipantsRMClosedConditionNode(DataLayerCondition):
+    """Precondition: all CVD participants in the case have RM.CLOSED.
+
+    Iterates ``case.actor_participant_index``, skips any participant whose
+    ``roles`` include ``CVDRole.CASE_MANAGER`` (the Case Actor), and returns
+    ``FAILURE`` if any remaining participant's latest status ``rm_state`` is
+    not ``RM.CLOSED``.  Returns ``SUCCESS`` when every non-CASE_MANAGER
+    participant is at ``RM.CLOSED``.
+
+    Per DEMOMA-07-006(a)(b)(c).
+    """
+
+    def __init__(
+        self,
+        case_id: str | None,
+        name: str | None = None,
+    ):
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+
+    def _all_participants_closed(self, case: Any) -> bool:
+        assert self.datalayer is not None
+        if not case.actor_participant_index:
+            return False
+        for p_id in case.actor_participant_index.values():
+            p = self.datalayer.read(p_id)
+            if p is None:
+                return False
+            roles = p.roles if isinstance(p, CaseParticipant) else []
+            if CVDRole.CASE_MANAGER in roles:
+                continue
+            statuses = getattr(p, "participant_statuses", [])
+            if not statuses:
+                return False
+            latest_ref = statuses[-1]
+            if isinstance(latest_ref, str):
+                ref_id = _as_id(latest_ref)
+                if ref_id is None:
+                    return False
+                latest = self.datalayer.read(ref_id)
+            else:
+                latest = latest_ref
+            if not isinstance(latest, ParticipantStatus):
+                return False
+            if latest.rm.state != RM.CLOSED:
+                return False
+        return True
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        if not self.case_id:
+            self.feedback_message = "No case_id — skipping auto-close check"
+            return Status.FAILURE
+
+        case = self.datalayer.read(self.case_id)
+        if not isinstance(case, VulnerabilityCase):
+            self.feedback_message = (
+                f"Case '{self.case_id}' not found or wrong type"
+            )
+            return Status.FAILURE
+
+        if not self._all_participants_closed(case):
+            self.feedback_message = (
+                "Not all participants are RM.CLOSED — skipping auto-close"
+            )
+            return Status.FAILURE
+
+        self.logger.debug(
+            "AllParticipantsRMClosed: all CVD participants are RM.CLOSED"
+            " for case '%s' (DEMOMA-07-006)",
+            self.case_id,
+        )
+        return Status.SUCCESS
+
+
+class CloseNotYetEmittedConditionNode(DataLayerCondition):
+    """Idempotency guard: no ``Leave(VulnerabilityCase)`` in the outbox yet.
+
+    Queries the actor's outbox for existing activities and checks whether any
+    is a ``Leave`` activity targeting ``self.case_id``.  Returns ``FAILURE``
+    (skip) when a ``Leave(VulnerabilityCase)`` has already been queued, or
+    ``SUCCESS`` when none has been emitted yet.
+
+    Uses the DataLayer outbox — not a process-level in-memory set — so the
+    check survives process restarts and is visible to the BT audit trail.
+
+    Per DEMOMA-07-006 idempotency requirement.
+    """
+
+    def __init__(
+        self,
+        case_id: str | None,
+        name: str | None = None,
+    ):
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
+
+        if not self.case_id:
+            self.feedback_message = "No case_id — cannot check idempotency"
+            return Status.FAILURE
+
+        outbox_port = cast(CaseOutboxPersistence, self.datalayer)
+        activity_ids = outbox_port.outbox_list_for_actor(self.actor_id)
+
+        for activity_id in activity_ids:
+            activity = self.datalayer.read(activity_id)
+            if activity is None:
+                continue
+            activity_type = getattr(activity, "type_", None)
+            if activity_type != "Leave":
+                continue
+            obj = getattr(activity, "object_", None)
+            obj_id = _as_id(obj) if obj is not None else None
+            if obj_id == self.case_id:
+                self.feedback_message = (
+                    f"Leave(VulnerabilityCase) already emitted for case"
+                    f" '{self.case_id}' — skipping duplicate"
+                )
+                self.logger.debug(
+                    "CloseNotYetEmitted: %s", self.feedback_message
+                )
+                return Status.FAILURE
+
+        self.logger.debug(
+            "CloseNotYetEmitted: no prior Leave(VulnerabilityCase) in outbox"
+            " for case '%s' — proceeding",
+            self.case_id,
         )
         return Status.SUCCESS
