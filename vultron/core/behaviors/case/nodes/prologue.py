@@ -173,8 +173,9 @@ def _build_add_case_status_snapshot(
 class WritePrologueLedgerEntriesNode(DataLayerAction):
     """Commit case-initialization prologue entries to the canonical ledger.
 
-    Runs as the first action in ``OfferCaseManagerRoleReceivedBT``, before the
-    ``offer_case_manager_role`` entry itself.  Reads the persisted
+    Runs in ``OfferCaseManagerRoleReceivedBT`` after the guarded
+    ``offer_case_manager_role`` commit and before ``StoreActivityNode``.
+    Reads the persisted
     ``VulnerabilityCase`` and its participants from the DataLayer and commits
     one ledger entry per initialization event in causal order.
 
@@ -182,10 +183,10 @@ class WritePrologueLedgerEntriesNode(DataLayerAction):
     recognises duplicate entries by ``(case_id, object_id, event_type)`` and
     returns the existing entry without writing again.
 
-    If the case cannot be read from the DataLayer, or if any individual entry
-    commit fails, the node returns ``FAILURE`` so the enclosing Sequence aborts
-    before the ``offer_case_manager_role`` entry is written.  A partially
-    committed prologue would leave the ledger in an invalid state.
+    Best-effort: if the case cannot be read (split deployment) or an
+    individual entry commit fails (e.g. no genesis hash), the node logs a
+    warning and returns ``SUCCESS`` anyway so the enclosing Sequence continues
+    to the ``offer_case_manager_role`` entry.
 
     Per Issue #1688.
     """
