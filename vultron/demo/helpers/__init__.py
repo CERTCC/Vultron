@@ -32,7 +32,7 @@ Sub-modules
   ``verify_replica_state``.
 - :mod:`~vultron.demo.helpers.verification` — lower-level participant and
   case-state assertion primitives, plus ``verify_activity_in_inbox``,
-  ``verify_receiver_case_state``, and ``verify_case_actor_unused``.
+  ``verify_receiver_case_state``, ``verify_case_actor_holds_records``, and ``verify_case_actor_unused``.
 - :mod:`~vultron.demo.helpers.workflow` — ``reporter_submits_report``,
   ``receiver_validates_report``, ``receiver_engages_case``,
   ``find_case_by_report_id``, ``find_case_for_offer``,
@@ -106,6 +106,7 @@ from vultron.demo.helpers.verification import (  # noqa: F401
     _fetch_participant_data,
     _require_case_participant_id,
     verify_activity_in_inbox,
+    verify_case_actor_holds_records,
     verify_case_actor_unused,
     verify_receiver_case_state,
 )

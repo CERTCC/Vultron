@@ -23,7 +23,10 @@ from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.use_cases._helpers import _resolve_case_manager_id
+from vultron.core.use_cases._helpers import (
+    _find_case_actor_id,
+    _resolve_case_manager_id,
+)
 
 
 class _EmitCaseActorReportActivityBase(DataLayerAction):
@@ -210,6 +213,10 @@ def _compute_report_addressees(
     case = dl.find_case_by_report_id(report_id)
     if isinstance(case, VulnerabilityCase):
         case_manager_id = _resolve_case_manager_id(case, dl)
+        if case_manager_id is None:
+            # Multi-container topology: CASE_MANAGER participant not yet
+            # bootstrapped locally; fall back to the known case-actor ID.
+            case_manager_id = _find_case_actor_id(dl, case.id_)
         if case_manager_id and case_manager_id != actor_id:
             return [case_manager_id]
         return None

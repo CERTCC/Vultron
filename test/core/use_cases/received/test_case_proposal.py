@@ -49,6 +49,21 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 
 _CASE_ACTOR_URI = "https://example.org/case-actors/svc-1"
 _VENDOR_URI = "https://example.org/vendors/acme"
+# ResolveCaseActorUrlsNode requires this env var on the case-actor container (#1733).
+_CASE_ACTOR_SERVICE_URL = "https://example.org/case-actors"
+
+
+@pytest.fixture(autouse=True)
+def configure_case_actor_service_url(monkeypatch):
+    """Set VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL so ResolveCaseActorUrlsNode succeeds."""
+    monkeypatch.setenv(
+        "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL", _CASE_ACTOR_SERVICE_URL
+    )
+    from vultron.config.app import reload_config
+
+    reload_config()
+    yield
+    reload_config()
 
 
 def _make_proposal() -> as_CaseProposal:

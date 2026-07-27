@@ -83,17 +83,27 @@ def _make_case_at_received(
     """Create a case at RM.RECEIVED via the receive-report BT.
 
     Mirrors the real production path: Offer(Report) arrives → BT creates a
-    case and the CaseActor Service at RM.RECEIVED (ADR-0015).  The returned
-    case already has a CASE_MANAGER entry in ``actor_participant_index``
-    populated by ``CreateCaseActorNode``.
+    case at RM.RECEIVED (ADR-0015).  After issue #1733, the CaseActor Service
+    object is no longer created in the vendor DataLayer by ``CreateCaseActorNode``
+    — record creation now happens on the case-actor container.  To allow
+    ``_find_case_actor_id`` to locate the case-actor after case creation, this
+    helper derives the deterministic ``case_actor_id`` from
+    ``VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL`` and writes it to the
+    ``VultronReportCaseLink.trusted_case_actor_id`` field, simulating what
+    ``accept_case_proposal_received_tree`` does when the vendor receives
+    ``Accept(CaseProposal)``.
 
     Returns:
         (case, offer) — both persisted in *dl*.
     """
+    import hashlib
+
+    from vultron.config import get_config
     from vultron.core.behaviors.bridge import BTBridge
     from vultron.core.behaviors.case.receive_report_case_tree import (
         create_receive_report_case_tree,
     )
+    from vultron.core.models.report_case_link import VultronReportCaseLink
 
     report_obj = as_VulnerabilityReport(id_=report_id, name="Test Vul Report")
     dl.save(report_obj)
@@ -128,6 +138,34 @@ def _make_case_at_received(
     assert isinstance(
         case, VulnerabilityCase
     ), f"Expected VulnerabilityCase, got {type(case)}"
+
+    # After issue #1733, the vendor BT no longer creates a local CaseActor
+    # Service object.  Seed the VultronReportCaseLink with trusted_case_actor_id
+    # as accept_case_proposal_received_tree would after Accept(CaseProposal).
+    cfg = get_config().actor
+    if cfg.case_actor_service_url is not None:
+        base_url = str(cfg.case_actor_service_url).rstrip("/")
+        if case.id_.startswith("urn:uuid:"):
+            case_slug = case.id_[len("urn:uuid:") :]
+        else:
+            case_slug = hashlib.sha256(case.id_.encode()).hexdigest()[:12]
+        derived_case_actor_id = f"{base_url}/actors/case-actor-{case_slug}"
+        link_id = VultronReportCaseLink.build_id(report_id)
+        link = dl.read(link_id)
+        if isinstance(link, VultronReportCaseLink):
+            link.trusted_case_actor_id = derived_case_actor_id
+            dl.save(link)
+        else:
+            link = VultronReportCaseLink(
+                report_id=report_id,
+                case_id=case.id_,
+                trusted_case_actor_id=derived_case_actor_id,
+            )
+            try:
+                dl.create(link)
+            except ValueError:
+                dl.save(link)
+
     return case, offer
 
 
@@ -198,9 +236,11 @@ class TestTriggerEmitsToCaseActorOutbox:
             dl, self.VENDOR_ID, self.FINDER_ID, self.REPORT_ID
         )
         case_actor_id = _find_case_actor_id(dl, case.id_)
-        assert (
-            case_actor_id is not None
-        ), "BT must register a CaseActor Service"
+        assert case_actor_id is not None, (
+            "trusted_case_actor_id must be seeded in VultronReportCaseLink"
+            " (after #1733, the vendor BT no longer creates a local CaseActor"
+            " Service record; _make_case_at_received seeds it instead)"
+        )
         return dl, case, offer, case_actor_id
 
     def test_emit_addressed_to_case_actor_id(self):
@@ -496,9 +536,11 @@ class TestFullValidateReportLedgerChain:
             vendor_dl, self.VENDOR_ID, self.FINDER_ID, self.REPORT_ID
         )
         case_actor_id = _find_case_actor_id(vendor_dl, case.id_)
-        assert (
-            case_actor_id is not None
-        ), "BT must register a CaseActor Service"
+        assert case_actor_id is not None, (
+            "trusted_case_actor_id must be seeded in VultronReportCaseLink"
+            " (after #1733, the vendor BT no longer creates a local CaseActor"
+            " Service record; _make_case_at_received seeds it instead)"
+        )
 
         # ── Step 2: trigger validate-report on vendor_dl ─────────────────────
         before = outbox_ids(self.VENDOR_ID, vendor_dl)

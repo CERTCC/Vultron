@@ -453,12 +453,20 @@ class _ActorsMixin:
         """Create and persist an ``Offer(as_VulnerabilityCase, target=as_CaseParticipant)``
         CASE_MANAGER delegation activity.
 
+        When the case-actor container owns the ``VultronParticipant`` record
+        (issue #1733), the participant may not exist in the local DataLayer.
+        In that case a minimal stub is used so the offer can still be built
+        and routed — the recipient's actual record is authoritative on the
+        case-actor container.
+
         Returns ``(activity_id, activity_dict)``.
         """
         case = _to_wire(self._dl.read(case_id), as_VulnerabilityCase)
-        participant = _to_wire(
-            self._dl.read(participant_id), as_CaseParticipant
-        )
+        raw_participant = self._dl.read(participant_id)
+        if raw_participant is not None:
+            participant = _to_wire(raw_participant, as_CaseParticipant)
+        else:
+            participant = as_CaseParticipant(id_=participant_id)
         activity = offer_case_manager_role_activity(
             case=case, target=participant, actor=actor, to=to
         )

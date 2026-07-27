@@ -457,6 +457,14 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   be fully implemented by a prior PR that did not include a `Closes #N` footer.
   Check current `main` against all ACs before writing any code; if satisfied, close
   the issue with a reference comment instead. *Sources: ISSUE-1510, ISSUE-1484*
+- **`VultronCaseActor` / `VultronParticipant` Must Be Created on the Case-Actor
+  Container** — `CreateCaseActorNode` (vendor-side) only resolves URLs; it does NOT
+  create DataLayer records. Record creation happens in `create_case_proposal_received_tree`
+  on the case-actor container when it processes `Create(as_CaseProposal)`.
+  The case-actor container's `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL` must point to its own
+  base URL. Vendor/coordinator containers must point to `http://case-actor:7999/api/v2`.
+  Creating records in the vendor's DataLayer causes 404s in multi-container topology.
+  See CP-08-003, [notes/case-proposal.md](notes/case-proposal.md) § "Node roles", issue #1733.
 
 ---
 

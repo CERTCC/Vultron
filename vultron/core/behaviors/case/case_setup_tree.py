@@ -38,12 +38,9 @@ specs/behavior-tree-node-design.yaml BTND-07-003.
 import py_trees
 
 from vultron.core.behaviors.case.nodes.case_setup import (
-    CreateCaseActorServiceNode,
     RecordCaseCreatedEventNode,
     RecordOfferReceivedEventNode,
-    RegisterCaseActorParticipantNode,
     ResolveCaseActorUrlsNode,
-    ReuseExistingCaseActorParticipantNode,
 )
 from vultron.core.models.vultron_types import VultronCase
 
@@ -65,7 +62,16 @@ class RecordCaseCreationEvents(py_trees.composites.Sequence):
 
 class CreateCaseActorNode(py_trees.composites.Sequence):
     """
-    Composed subtree that creates and registers the CaseActor for a case.
+    Composed subtree that resolves the CaseActor URL and writes IDs to the
+    blackboard.
+
+    After issue #1733, the vendor-side tree no longer creates
+    ``VultronCaseActor`` or ``VultronParticipant`` records locally.  Record
+    creation now happens on the case-actor container when it processes the
+    inbound ``Create(as_CaseProposal)`` (CP-08-003).  This node is
+    responsible only for resolving the remote actor's URL so that
+    ``ProposeCaseToActorNode`` and ``SendOfferCaseManagerRoleNode`` know
+    where to address the proposal and offer.
 
     Per specs/case-management.yaml CM-02-001 and BTND-07-001.
     """
@@ -76,20 +82,5 @@ class CreateCaseActorNode(py_trees.composites.Sequence):
             memory=False,
             children=[
                 ResolveCaseActorUrlsNode(case_id=case_id),
-                py_trees.composites.Selector(
-                    name="EnsureCaseActorRegistered",
-                    memory=False,
-                    children=[
-                        ReuseExistingCaseActorParticipantNode(),
-                        py_trees.composites.Sequence(
-                            name="CreateAndRegisterCaseActor",
-                            memory=False,
-                            children=[
-                                CreateCaseActorServiceNode(),
-                                RegisterCaseActorParticipantNode(),
-                            ],
-                        ),
-                    ],
-                ),
             ],
         )

@@ -302,8 +302,24 @@ class TestClearCreateCaseMarkerNode:
         assert status == py_trees.common.Status.SUCCESS
 
 
+_CASE_ACTOR_SERVICE_URL = "http://case-actor:7999/api/v2"
+
+
 class TestCreateCaseProposalReceivedBTMarkerWiring:
     """AC-4: end-to-end marker write/clear via the full BT tree."""
+
+    @pytest.fixture(autouse=True)
+    def _configure_case_actor_url(self, monkeypatch):
+        """Set VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL for ResolveCaseActorUrlsNode."""
+        from vultron.config.app import reload_config
+
+        monkeypatch.setenv(
+            "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL",
+            _CASE_ACTOR_SERVICE_URL,
+        )
+        reload_config()
+        yield
+        reload_config()
 
     def _make_event(self, make_payload):
         """Build a CreateCaseProposalReceivedEvent for the full tree."""
@@ -442,4 +458,96 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
             "Activity id_ in the marker's payload must match the id_ in the"
             " outbox. A mismatch causes the retry runner to enqueue a"
             " duplicate Create(as_VulnerabilityCase) after crash/restart."
+        )
+
+
+class TestCreateCaseProposalReceivedBTCaseActorRecords:
+    """AC-1 (issue #1733): VultronCaseActor and VultronParticipant created on case-actor side."""
+
+    @pytest.fixture(autouse=True)
+    def _configure_case_actor_url(self, monkeypatch):
+        """Set VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL and restore after test."""
+        from vultron.config.app import reload_config
+
+        monkeypatch.setenv(
+            "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL",
+            _CASE_ACTOR_SERVICE_URL,
+        )
+        reload_config()
+        yield
+        reload_config()
+
+    def _make_event(self, make_payload):
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+            as_Create,
+        )
+
+        proposal = as_CaseProposal(
+            id_=_PROPOSAL_URI,
+            attributed_to=_VENDOR_URI,
+            object_="https://example.org/reports/r-001",
+            target=_CASE_ACTOR_URI,
+        )
+        activity = as_Create(
+            actor=_VENDOR_URI,
+            object_=proposal,
+            to=[_CASE_ACTOR_URI],
+        )
+        event = make_payload(activity)
+        return event.model_copy(update={"receiving_actor_id": _CASE_ACTOR_URI})
+
+    def test_creates_case_actor_service_record(self, make_payload):
+        """VultronCaseActor record is created in the case-actor container's DataLayer (AC-1)."""
+        from vultron.core.use_cases.received.case_proposal import (
+            CreateCaseProposalReceivedUseCase,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        event = self._make_event(make_payload)
+
+        CreateCaseProposalReceivedUseCase(dl, event).execute()
+
+        services = list(dl.list_objects("Service"))
+        assert len(services) >= 1, (
+            "VultronCaseActor record MUST be created on the case-actor container"
+            " when processing Create(as_CaseProposal) (issue #1733, CP-08-003)"
+        )
+
+    def test_creates_case_actor_participant_record(self, make_payload):
+        """VultronParticipant record is created in the case-actor container's DataLayer (AC-1)."""
+        from vultron.core.use_cases.received.case_proposal import (
+            CreateCaseProposalReceivedUseCase,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        event = self._make_event(make_payload)
+
+        CreateCaseProposalReceivedUseCase(dl, event).execute()
+
+        participants = list(dl.list_objects("CaseParticipant"))
+        assert len(participants) >= 1, (
+            "VultronParticipant record MUST be created on the case-actor container"
+            " when processing Create(as_CaseProposal) (issue #1733, CP-08-003)"
+        )
+
+    def test_tree_structure_includes_register_case_actor_sequence(self):
+        """create_case_proposal_received_tree includes RegisterCaseActorOnCaseActorContainer (AC-1)."""
+        from vultron.core.behaviors.case.case_proposal_received_tree import (
+            create_case_proposal_received_tree,
+        )
+
+        tree = create_case_proposal_received_tree(
+            report_id="https://example.org/reports/r-001",
+            proposal_id=_PROPOSAL_URI,
+            vendor_uri=_VENDOR_URI,
+        )
+        # tree → Selector → [_CheckMarkerExistsNode, main_flow Sequence]
+        assert isinstance(tree, py_trees.composites.Selector)
+        main_flow = tree.children[1]
+        assert isinstance(main_flow, py_trees.composites.Sequence)
+        # main_flow children: [case_resolution, register_case_actor, Accept, WriteMarker, EmitCreate, Clear]
+        child_names = [c.name for c in main_flow.children]
+        assert "RegisterCaseActorOnCaseActorContainer" in child_names, (
+            "main_flow must include RegisterCaseActorOnCaseActorContainer"
+            " sequence (issue #1733)"
         )

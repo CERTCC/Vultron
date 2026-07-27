@@ -48,6 +48,12 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.case.nodes.case_setup import (
+    CreateCaseActorServiceNode,
+    RegisterCaseActorParticipantNode,
+    ResolveCaseActorUrlsNode,
+    ReuseExistingCaseActorParticipantNode,
+)
 from vultron.core.models.activity import (
     VultronAccept,
     VultronCreateCaseActivity,
@@ -520,7 +526,7 @@ def create_case_proposal_received_tree(
       ``Create(VulnerabilityCase)`` delivery is still pending.  Return SUCCESS
       immediately — the retry runner owns recovery; do not re-send Accept.
 
-    **Branch 2 — normal / duplicate flow** (Sequence of five nodes):
+    **Branch 2 — normal / duplicate flow** (Sequence of nodes):
       First, a sub-Selector resolves which ``VulnerabilityCase`` to use:
 
       * ``_LoadExistingCaseNode`` (AC-1/AC-2): if a case already exists for
@@ -529,17 +535,26 @@ def create_case_proposal_received_tree(
         second one.
       * ``_CreateCaseFromProposalNode`` (normal path): create a new case.
 
+      Then the case-actor registration sub-Selector creates local actor records
+      so the case-actor container owns them (CP-08-003):
+
+      * ``ResolveCaseActorUrlsNode`` — derives ``case_actor_id`` and
+        ``case_actor_participant_id`` from ``VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL``.
+      * ``EnsureCaseActorRegistered`` Selector — reuses existing records
+        (``ReuseExistingCaseActorParticipantNode``) or creates them fresh
+        (``CreateCaseActorServiceNode`` + ``RegisterCaseActorParticipantNode``).
+
       Then the remaining four nodes proceed as for the original happy path:
 
-      3. ``_EmitAcceptCaseProposalNode`` — emits Accept(as_CaseProposal)
-      4. ``_WriteCreateCaseMarkerNode`` — writes durable retry marker
+      4. ``_EmitAcceptCaseProposalNode`` — emits Accept(as_CaseProposal)
+      5. ``_WriteCreateCaseMarkerNode`` — writes durable retry marker
          (CP-05-005)
-      5. ``_EmitCreateVulnerabilityCaseNode`` — emits
+      6. ``_EmitCreateVulnerabilityCaseNode`` — emits
          Create(VulnerabilityCase)
-      6. ``_ClearCreateCaseMarkerNode`` — removes marker on success
+      7. ``_ClearCreateCaseMarkerNode`` — removes marker on success
          (CP-05-005)
 
-    If node 5 fails, the marker written in node 4 remains in the DataLayer so
+    If node 6 fails, the marker written in node 5 remains in the DataLayer so
     that a retry runner (#1139) can complete the ``Create(VulnerabilityCase)``
     delivery independently.
 
@@ -569,12 +584,43 @@ def create_case_proposal_received_tree(
         ],
     )
 
-    # Main flow: resolve case → emit Accept → write marker → emit Create → clear
+    # Sub-Selector: reuse existing CaseActor records OR create them fresh.
+    # Running on the case-actor container, VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL
+    # must point to this container's own base URL so the derived actor IDs are
+    # locally addressable (CP-08-003, issue #1733).
+    ensure_case_actor_registered = py_trees.composites.Selector(
+        name="EnsureCaseActorRegistered",
+        memory=False,
+        children=[
+            ReuseExistingCaseActorParticipantNode(),
+            py_trees.composites.Sequence(
+                name="CreateAndRegisterCaseActor",
+                memory=False,
+                children=[
+                    CreateCaseActorServiceNode(),
+                    RegisterCaseActorParticipantNode(),
+                ],
+            ),
+        ],
+    )
+
+    register_case_actor = py_trees.composites.Sequence(
+        name="RegisterCaseActorOnCaseActorContainer",
+        memory=False,
+        children=[
+            ResolveCaseActorUrlsNode(),
+            ensure_case_actor_registered,
+        ],
+    )
+
+    # Main flow: resolve case → register actor → emit Accept → write marker →
+    #            emit Create → clear
     main_flow = py_trees.composites.Sequence(
         name="CreateCaseProposalReceivedBT",
         memory=False,
         children=[
             case_resolution,
+            register_case_actor,
             _EmitAcceptCaseProposalNode(
                 proposal_id=proposal_id,
                 vendor_uri=vendor_uri,

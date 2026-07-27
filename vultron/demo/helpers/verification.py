@@ -416,11 +416,59 @@ def verify_receiver_case_state(
     return final_case
 
 
+def verify_case_actor_holds_records(
+    case_actor_client: Optional[DataLayerClient],
+    case_id: str,
+) -> None:
+    """Verify the dedicated CaseActor container holds the expected case records.
+
+    Per issue #1733, ``VultronCaseActor`` and ``VultronParticipant`` records
+    MUST be created on the dedicated case-actor container when it processes the
+    inbound ``Create(as_CaseProposal)`` activity.
+
+    Args:
+        case_actor_client: Optional client connected to the dedicated
+            CaseActor container.  When ``None`` the check is skipped.
+        case_id: Full URI of the ``as_VulnerabilityCase`` that should be
+            present on the case-actor container.
+
+    Raises:
+        AssertionError: If the case is absent from the dedicated CaseActor
+            container, or if no ``VultronCaseActor`` actor is found in the
+            CaseActor container's actor list.
+    """
+    if case_actor_client is None:
+        return
+
+    case_actor_cases = case_actor_client.get("/datalayer/VulnerabilityCases/")
+    if case_id not in case_actor_cases:
+        raise AssertionError(
+            f"Dedicated case-actor container does not hold case '{case_id}'."
+            " VulnerabilityCase MUST be created on the case-actor container"
+            " (issue #1733, CP-08-003)."
+        )
+
+    # VultronCaseActor has type_=="Service" (matches CaseActor wire type),
+    # so the correct endpoint is /datalayer/Services/.
+    actors_list = case_actor_client.get("/datalayer/Services/")
+    if not actors_list:
+        raise AssertionError(
+            "Dedicated case-actor container has no actor records."
+            " VultronCaseActor MUST be created on the case-actor container"
+            " (issue #1733, CP-08-003)."
+        )
+
+
 def verify_case_actor_unused(
     case_actor_client: Optional[DataLayerClient],
     case_id: str,
 ) -> None:
     """Verify the dedicated CaseActor container remains unused in D5-2.
+
+    .. deprecated::
+        Replaced by :func:`verify_case_actor_holds_records` after issue #1733.
+        ``VultronCaseActor`` and ``VultronParticipant`` records are now created
+        on the dedicated case-actor container, not the vendor/coordinator container.
 
     Per D5-1-G3, the per-case ``VultronCaseActor`` co-locates in the
     receiver container for D5-2.  The standalone ``case-actor`` service

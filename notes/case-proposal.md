@@ -153,14 +153,19 @@ A new BT leaf node `ProposeCaseToActorNode` is responsible for sending
 
 ### Node roles — do not conflate
 
-| Node | Responsibility |
-|------|----------------|
-| `CreateCaseActorNode` | Registers the case-actor service as an actor resource in the local DataLayer. Creates the actor identity, not the case. |
-| `ProposeCaseToActorNode` | Sends `Create(as_CaseProposal)` to the already-registered case-actor service. Initiates the case initialization protocol. |
+| Node | Location | Responsibility |
+|------|----------|----------------|
+| `CreateCaseActorNode` | Vendor / receiver BT | Resolves the case-actor service URL and writes `case_actor_id` / `case_actor_participant_id` to the blackboard. Does NOT create records in the DataLayer (issue #1733). |
+| `ProposeCaseToActorNode` | Vendor / receiver BT | Sends `Create(as_CaseProposal)` to the already-resolved case-actor service. Initiates the case initialization protocol. |
+| `RegisterCaseActorOnCaseActorContainer` (Sequence inside `create_case_proposal_received_tree`) | Case-actor BT | Creates `VultronCaseActor` and `VultronParticipant` records in the case-actor container's DataLayer after the case is created. Runs when the case-actor processes the inbound `Create(as_CaseProposal)` (CP-08-003). |
 
 `ProposeCaseToActorNode` is wired into the case-creation BT tree **after**
 `CreateCaseActorNode` succeeds — the actor must exist before the proposal can
 be sent to it.
+
+`RegisterCaseActorOnCaseActorContainer` runs on the **case-actor container**
+inside `create_case_proposal_received_tree`, ensuring that `VultronCaseActor`
+and `VultronParticipant` records are always owned by the correct DataLayer.
 
 ---
 

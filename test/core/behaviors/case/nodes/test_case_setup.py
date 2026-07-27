@@ -26,7 +26,6 @@ Per specs/behavior-tree-node-design.yaml BTND-02-001, BTND-03-001, BTND-04-001
 and GitHub issue #401.
 """
 
-import hashlib
 from unittest.mock import MagicMock
 
 import py_trees
@@ -40,10 +39,8 @@ from vultron.core.behaviors.case.nodes import (
     UpdateActorOutbox,
 )
 from vultron.core.behaviors.case.nodes.case_setup import (
-    CreateCaseActorServiceNode,
     RegisterCaseActorParticipantNode,
     ResolveCaseActorUrlsNode,
-    ReuseExistingCaseActorParticipantNode,
 )
 from vultron.core.behaviors.helpers import (
     UpdateActorOutbox as UpdateActorOutboxHelper,
@@ -324,14 +321,19 @@ class TestRecordCaseCreationEvents:
 class TestCreateCaseActorNodeBlackboard:
     """CreateCaseActorNode reads case_id from blackboard when not given at construction."""
 
-    def test_creates_case_actor_from_blackboard_case_id(
+    def test_resolves_case_actor_urls_from_blackboard_case_id(
         self,
         bt_scenario: BTTestScenario,
         actor: VultronCaseActor,
         actor_id: str,
         case_obj: VultronCase,
     ) -> None:
-        """CreateCaseActorNode() (no args) succeeds and creates a CaseActor entity."""
+        """CreateCaseActorNode() (no args) succeeds and writes URLs to the blackboard.
+
+        After issue #1733, CreateCaseActorNode only resolves the remote actor URL;
+        it does NOT create VultronCaseActor or VultronParticipant records locally.
+        Record creation now happens on the case-actor container.
+        """
         result = bt_scenario.run(
             CreateCaseActorNode(),
             actor_id=actor_id,
@@ -339,30 +341,25 @@ class TestCreateCaseActorNodeBlackboard:
         )
         bt_scenario.assert_success(result)
 
-        # A Service (VultronCaseActor) should exist in the DataLayer.
-        services = list(bt_scenario.dl.list_objects("Service"))
-        case_actor_services = [
-            s for s in services if getattr(s, "context", None) == case_obj.id_
-        ]
-        assert len(case_actor_services) >= 1
+        # case_actor_id must be written to the blackboard.
+        stored_id = py_trees.blackboard.Blackboard.storage.get(
+            "/case_actor_id"
+        )
+        assert stored_id is not None
+        assert isinstance(stored_id, str)
 
     def test_is_composed_subtree_of_named_leaf_nodes(self) -> None:
+        """CreateCaseActorNode contains only ResolveCaseActorUrlsNode (issue #1733).
+
+        After issue #1733, the EnsureCaseActorRegistered Selector and its
+        CreateCaseActorServiceNode / RegisterCaseActorParticipantNode children
+        were removed from the vendor-side tree.  Record creation now happens on
+        the case-actor container.
+        """
         node = CreateCaseActorNode()
         assert isinstance(node, py_trees.composites.Sequence)
+        assert len(node.children) == 1
         assert isinstance(node.children[0], ResolveCaseActorUrlsNode)
-        assert isinstance(node.children[1], py_trees.composites.Selector)
-
-        idempotency_selector = node.children[1]
-        assert isinstance(
-            idempotency_selector.children[0],
-            ReuseExistingCaseActorParticipantNode,
-        )
-        create_branch = idempotency_selector.children[1]
-        assert isinstance(create_branch, py_trees.composites.Sequence)
-        assert [type(child) for child in create_branch.children] == [
-            CreateCaseActorServiceNode,
-            RegisterCaseActorParticipantNode,
-        ]
 
     def test_writes_case_actor_id_to_blackboard(
         self,
@@ -383,33 +380,30 @@ class TestCreateCaseActorNodeBlackboard:
         assert stored is not None
         assert isinstance(stored, str)
 
-    def test_registers_case_actor_participant(
+    def test_does_not_create_local_actor_records(
         self,
         bt_scenario: BTTestScenario,
         actor: VultronCaseActor,
         actor_id: str,
         case_obj: VultronCase,
     ) -> None:
-        """CreateCaseActorNode registers a CASE_MANAGER participant in the case."""
+        """CreateCaseActorNode does NOT create VultronCaseActor records locally.
+
+        After issue #1733, local record creation is the case-actor container's
+        responsibility (CP-08-003), not the vendor's.
+        """
         bt_scenario.run(
             CreateCaseActorNode(),
             actor_id=actor_id,
             case_id=case_obj.id_,
         )
 
-        # Participant ID is derived from case_actor_service_url (CP-08-002).
-        case_id = case_obj.id_
-        if case_id.startswith("urn:uuid:"):
-            case_slug = case_id[len("urn:uuid:") :]
-        else:
-            case_slug = hashlib.sha256(case_id.encode()).hexdigest()[:12]
-
-        base_url = _CASE_ACTOR_SERVICE_URL.rstrip("/")
-        expected_participant_id = (
-            f"{base_url}/actors/case-actor-{case_slug}/participant"
-        )
-        participant = bt_scenario.dl.read(expected_participant_id)
-        assert participant is not None
+        # No VultronCaseActor service objects should be created with this case as context.
+        services = list(bt_scenario.dl.list_objects("Service"))
+        case_actor_services = [
+            s for s in services if getattr(s, "context", None) == case_obj.id_
+        ]
+        assert len(case_actor_services) == 0
 
     def test_fails_without_case_id(
         self,

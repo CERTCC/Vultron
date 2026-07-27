@@ -112,7 +112,7 @@ from vultron.demo.helpers.verification import (  # noqa: F401
     _fetch_participant,
     _fetch_participant_data,
     _require_case_participant_id,
-    verify_case_actor_unused,
+    verify_case_actor_holds_records,
     verify_receiver_case_state,
 )
 from vultron.demo.helpers.workflow import (  # noqa: F401
@@ -592,8 +592,10 @@ def _phase_sync_verification(
             reporter_actor_id=finder.id_,
         )
 
-    with demo_check("Dedicated CaseActor container remains unused for D5-2"):
-        verify_case_actor_unused(case_actor_client, case.id_)
+    with demo_check(
+        "Dedicated CaseActor container holds the expected case records"
+    ):
+        verify_case_actor_holds_records(case_actor_client, case.id_)
 
     logger.info("✓ M2: Finder DataLayer synchronized (SYNC-2 verified)")
 
