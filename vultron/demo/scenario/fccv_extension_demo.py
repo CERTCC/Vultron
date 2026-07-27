@@ -76,10 +76,9 @@ from vultron.demo.helpers.actions import (
 from vultron.demo.helpers.milestones import (
     verify_case_active,
     verify_case_closed,
-    verify_fix_deployed,
-    verify_fix_ready,
     verify_publicly_disclosed,
 )
+from vultron.demo.helpers.verification import _check_participant_vfd_state_in
 from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.helpers.polling import (
     find_case_invite_for_actor,
@@ -666,11 +665,19 @@ def _phase_fix_lifecycle(
             actor_id=vendor.id_,
             expected_states={CS_vfd.VFd, CS_vfd.VFD},
         )
-        verify_fix_ready(
-            receiver_client=c1_client,
-            reporter_client=vendor_client,
-            case_id=case.id_,
-            receiver_actor_id=vendor.id_,
+        _check_participant_vfd_state_in(
+            c1_client,
+            case.id_,
+            vendor.id_,
+            {CS_vfd.VFd, CS_vfd.VFD},
+            "M5: C1 replica fix ready",
+        )
+        _check_participant_vfd_state_in(
+            vendor_client,
+            case.id_,
+            vendor.id_,
+            {CS_vfd.VFd, CS_vfd.VFD},
+            "M5: Vendor replica fix ready",
         )
 
     actor_notifies_fix_deployed(
@@ -688,11 +695,19 @@ def _phase_fix_lifecycle(
             actor_id=vendor.id_,
             expected_states={CS_vfd.VFD},
         )
-        verify_fix_deployed(
-            receiver_client=c1_client,
-            reporter_client=vendor_client,
-            case_id=case.id_,
-            receiver_actor_id=vendor.id_,
+        _check_participant_vfd_state_in(
+            c1_client,
+            case.id_,
+            vendor.id_,
+            {CS_vfd.VFD},
+            "M6: C1 replica fix deployed",
+        )
+        _check_participant_vfd_state_in(
+            vendor_client,
+            case.id_,
+            vendor.id_,
+            {CS_vfd.VFD},
+            "M6: Vendor replica fix deployed",
         )
 
 
