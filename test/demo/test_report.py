@@ -177,6 +177,61 @@ class TestCaseTimelineEventParsing:
         event = CaseTimelineEvent.from_raw(raw)
         assert event.em_state == "ACTIVE"
 
+    def test_em_state_from_case_statuses_array(self):
+        """EM/CS state extracted from caseStatuses array on VulnerabilityCase."""
+        raw = _camel_entry(
+            eventType="offer_case_manager_role",
+            payloadSnapshot={
+                "type": "Offer",
+                "actor": "http://vendor:7999/api/v2/actors/case-actor",
+                "object": {
+                    "id": "urn:uuid:case1",
+                    "type": "VulnerabilityCase",
+                    "caseStatuses": [
+                        {"em": {"state": "ACTIVE"}, "pxa": {"state": "Pxa"}},
+                    ],
+                },
+            },
+        )
+        event = CaseTimelineEvent.from_raw(raw)
+        assert event.em_state == "ACTIVE"
+        assert event.pxa_state == "Pxa"
+
+    def test_em_state_from_case_statuses_snake_key(self):
+        """case_statuses (snake_case) is also traversed."""
+        raw = _camel_entry(
+            eventType="offer_case_manager_role",
+            payloadSnapshot={
+                "type": "Offer",
+                "actor": "http://vendor:7999/api/v2/actors/case-actor",
+                "object": {
+                    "id": "urn:uuid:case1",
+                    "type": "VulnerabilityCase",
+                    "case_statuses": [
+                        {"em": {"state": "PROPOSED"}, "pxa": {"state": "pxa"}},
+                    ],
+                },
+            },
+        )
+        event = CaseTimelineEvent.from_raw(raw)
+        assert event.em_state == "PROPOSED"
+
+    def test_case_statuses_non_list_does_not_crash(self):
+        """A non-list caseStatuses value (e.g. corrupt data) is silently ignored."""
+        raw = _camel_entry(
+            payloadSnapshot={
+                "type": "Offer",
+                "actor": "http://vendor:7999/api/v2/actors/case-actor",
+                "object": {
+                    "id": "urn:uuid:case1",
+                    "type": "VulnerabilityCase",
+                    "caseStatuses": "not-a-list",
+                },
+            },
+        )
+        event = CaseTimelineEvent.from_raw(raw)
+        assert event.em_state is None
+
     def test_missing_actor_yields_em_dash_label(self):
         raw = _camel_entry(payloadSnapshot={"type": "Create"})
         event = CaseTimelineEvent.from_raw(raw)
