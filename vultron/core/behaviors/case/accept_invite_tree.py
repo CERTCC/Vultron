@@ -28,6 +28,7 @@ Tree structure::
     ├── CreateInviteeParticipantAtAcceptedNode — build participant at RM.ACCEPTED
     ├── MaybeSignEmbargoConsentNode            — sign when embargo is EM.ACTIVE
     ├── PersistInviteeParticipantNode          — dl.create, attach, save case
+    ├── EmitAddCaseParticipantNode             — emit Add(CaseParticipant), commit ledger
     ├── EmitAnnounceCaseToInviteeNode          — queue Announce(VulnerabilityCase)
     └── BackfillCanonicalLedgerToInviteeNode   — send prior ledger to invitee
 
@@ -817,6 +818,7 @@ def create_accept_invite_actor_to_case_tree(
         ├── CreateInviteeParticipantAtAcceptedNode — build participant at ACCEPTED
         ├── MaybeSignEmbargoConsentNode            — sign when EM.ACTIVE
         ├── PersistInviteeParticipantNode          — persist, attach, save case
+        ├── EmitAddCaseParticipantNode             — emit Add(CaseParticipant), commit ledger
         ├── EmitAnnounceCaseToInviteeNode          — queue Announce to invitee
         └── BackfillCanonicalLedgerToInviteeNode   — send prior ledger to invitee
 
