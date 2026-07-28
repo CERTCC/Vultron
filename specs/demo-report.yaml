@@ -6,7 +6,7 @@ description: >-
   report of who did what, with what activity, and in what order. Covers input discovery,
   the distilled intermediate data model, markdown and HTML rendering, the per-actor
   replica-presence matrix, friendly naming, and test requirements.
-version: 1.6.0
+version: 1.7.0
 scope:
 - prototype
 tags:
@@ -324,6 +324,37 @@ groups:
       spec_id: DRPT-04-001
     - rel_type: extends
       spec_id: DRPT-04-002
+  - id: DRPT-04-007
+    priority: MUST
+    kind: project
+    statement: >-
+      The Time column header MUST be labelled "ΔT". Each cell MUST display a
+      delta from the previous row's `receivedAt` timestamp as an adaptive
+      duration string: `+Ns` when under 60 seconds, `+Nm Ns` when under one
+      hour, and `+Nh Nm Ns` for one hour or more (no day component; large gaps
+      appear as e.g. `+26h 3m 2s`). The first row that carries a `receivedAt`
+      timestamp MUST show `+0s`; rows without a `receivedAt` MUST show `—`.
+      The delta MUST be computed by a standalone `_format_delta(received_at,
+      prev_received_at)` helper (both arguments `str | None`) so the format
+      rules are directly unit-testable. In the HTML renderer, the full ISO
+      8601 `receivedAt` string MUST be retained as a `title=` tooltip on the
+      `<td>` element. In the markdown renderer, the absolute timestamp MUST
+      NOT appear in the table cell body (the per-case time-range line from
+      DRPT-04-006 serves as the absolute-time anchor).
+    rationale: >-
+      Absolute timestamps repeat the date and timezone on every row, making it
+      hard to see the pacing of events. A delta-T column lets readers
+      immediately spot where the protocol paused or accelerated. DRPT-04-006
+      already provides the absolute-time anchor (first/last timestamps in the
+      section header), so the table body can omit redundant full timestamps
+      without losing traceability.
+    relationships:
+    - rel_type: extends
+      spec_id: DRPT-04-001
+    - rel_type: extends
+      spec_id: DRPT-04-002
+    - rel_type: extends
+      spec_id: DRPT-04-006
 - id: DRPT-05
   title: Testing
   specs:
@@ -362,3 +393,19 @@ groups:
     relationships:
     - rel_type: verifies
       spec_id: DRPT-03-003
+  - id: DRPT-05-005
+    priority: MUST
+    kind: project
+    statement: >-
+      Unit tests MUST cover the `_format_delta` helper directly: assert `+0s`
+      when `prev_received_at` is `None` and `received_at` is set (first-row
+      anchor), assert `—` when `received_at` is `None`, assert `—` when both
+      are `None`, and assert correct adaptive formatting for sub-minute
+      (`+Ns`), sub-hour (`+Nm Ns`), and multi-hour (`+Nh Nm Ns`) deltas.
+      Renderer tests MUST assert that the Time column in the table body
+      contains delta strings (e.g. `+0s`) rather than ISO 8601 timestamps.
+      HTML renderer tests MUST assert that the full ISO timestamp is retained
+      as a `title=` tooltip on the Time `<td>`.
+    relationships:
+    - rel_type: verifies
+      spec_id: DRPT-04-007
