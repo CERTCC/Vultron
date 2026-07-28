@@ -325,7 +325,7 @@ class TestFinderAsksQuestion:
         demo.wait_for_case_participants(
             vendor_client=vendor_client,
             case_id=case.id_,
-            expected_count=3,  # vendor + finder + case-actor (added by CreateCaseActorNode)
+            expected_count=2,  # vendor + finder (case-actor participant lives on case-actor container)
         )
 
         case_data = vendor_client.get(f"/datalayer/{case.id_}")
@@ -912,15 +912,15 @@ class TestWaitForAllParticipantsRmClosed:
 class TestVerifyM1State:
     """Tests for verify_m1_state."""
 
-    def test_passes_with_3_participants(self, client: TestClient, base: str):
-        """Passes when both DataLayers share 3 participants and EM.ACTIVE."""
+    def test_passes_with_2_participants(self, client: TestClient, base: str):
+        """Passes when both DataLayers share 2 participants and EM.ACTIVE."""
         finder_client, vendor_client, finder, vendor, case = (
             _setup_case_with_3_participants(base)
         )
         demo.wait_for_case_participants(
             vendor_client=vendor_client,
             case_id=case.id_,
-            expected_count=3,
+            expected_count=2,
         )
         demo.wait_for_finder_case(
             finder_client=finder_client,
@@ -1502,7 +1502,7 @@ def completed_workflow(
     demo.wait_for_case_participants(
         vendor_client=vendor_client,
         case_id=case.id_,
-        expected_count=3,
+        expected_count=2,
     )
     # Refresh case to get actor_participant_index populated.
     case_data = vendor_client.get(f"/datalayer/{case.id_}")

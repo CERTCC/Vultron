@@ -500,9 +500,11 @@ class _ActorsMixin:
         suitable for use as a canonical payload snapshot.
         """
         case = _to_wire(self._dl.read(case_id), as_VulnerabilityCase)
-        participant = _to_wire(
-            self._dl.read(participant_id), as_CaseParticipant
-        )
+        raw_participant = self._dl.read(participant_id)
+        if raw_participant is not None:
+            participant = _to_wire(raw_participant, as_CaseParticipant)
+        else:
+            participant = as_CaseParticipant(id_=participant_id)
         offer = offer_case_manager_role_activity(
             case=case,
             target=participant,
@@ -539,9 +541,11 @@ class _ActorsMixin:
         ``Reject.object_`` is a typed ``_OfferCaseManagerRoleActivity``.
         """
         case = _to_wire(self._dl.read(case_id), as_VulnerabilityCase)
-        participant = _to_wire(
-            self._dl.read(participant_id), as_CaseParticipant
-        )
+        raw_participant = self._dl.read(participant_id)
+        if raw_participant is not None:
+            participant = _to_wire(raw_participant, as_CaseParticipant)
+        else:
+            participant = as_CaseParticipant(id_=participant_id)
         offer = offer_case_manager_role_activity(
             case=case,
             target=participant,

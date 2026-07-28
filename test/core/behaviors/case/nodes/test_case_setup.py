@@ -405,6 +405,10 @@ class TestCreateCaseActorNodeBlackboard:
         ]
         assert len(case_actor_services) == 0
 
+        # No CaseParticipant objects should be created locally either.
+        participants = list(bt_scenario.dl.list_objects("CaseParticipant"))
+        assert len(participants) == 0
+
     def test_fails_without_case_id(
         self,
         bt_scenario: BTTestScenario,
