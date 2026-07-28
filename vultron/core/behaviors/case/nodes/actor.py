@@ -76,6 +76,7 @@ class EmitInviteActorToCaseNode(DataLayerAction):
         case_actor_id: str | None = None,
         attributed_to: str | None = None,
         captured: dict | None = None,
+        roles: list | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
@@ -84,6 +85,7 @@ class EmitInviteActorToCaseNode(DataLayerAction):
         self.case_actor_id = case_actor_id
         self.attributed_to = attributed_to
         self._captured = captured
+        self._injected_roles = roles
 
     def setup(self, **kwargs: Any) -> None:
         super().setup(**kwargs)
@@ -92,6 +94,10 @@ class EmitInviteActorToCaseNode(DataLayerAction):
         )
 
     def _read_suggested_roles(self) -> list[str] | None:
+        # Use injected roles (from stored Offer via DataLayer) when available
+        # (ISSUE-1745: blackboard is empty in a separate BT execution).
+        if self._injected_roles is not None:
+            return self._injected_roles if self._injected_roles else None
         try:
             roles = self.blackboard.get("suggested_roles")
             if isinstance(roles, list):

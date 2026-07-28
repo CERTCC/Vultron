@@ -228,6 +228,7 @@ def create_accept_actor_recommendation_received_tree(
     recommender_id: str,
     invitee_id: str,
     case_id: str,
+    roles: list | None = None,
 ) -> py_trees.composites.Sequence:
     """Received-side BT for Accept(Offer(CaseParticipant)) on the CaseActor inbox.
 
@@ -236,12 +237,21 @@ def create_accept_actor_recommendation_received_tree(
     (CM-16-006 step 3) and ``Invite(CaseStub+embargo+roles)`` to the
     invitee (CM-16-006 step 4, CM-17).
 
+    ``roles`` must come from the stored ``Offer(CaseParticipant)`` in the
+    DataLayer (ISSUE-1745): the blackboard is empty in this separate BT
+    execution, so the use case is responsible for reading the trusted roles
+    from the stored Offer before calling this factory.
+
     Args:
         recommendation_id: ID of the original ``Offer(Actor, Case)`` from the
             recommender (carried in the ``origin`` field of the transformed Offer).
         recommender_id: Actor ID of the original recommender.
         invitee_id: Actor ID of the suggested new participant.
         case_id: ID of the VulnerabilityCase.
+        roles: Serialized CVD role strings from the stored
+            ``Offer(CaseParticipant)``; passed directly to
+            ``EmitInviteActorToCaseNode`` so the Invite carries the correct
+            roles without relying on the blackboard.
 
     Returns:
         Root ``AcceptActorRecommendationBT`` Sequence node.
@@ -261,6 +271,7 @@ def create_accept_actor_recommendation_received_tree(
                 invitee_id=invitee_id,
                 case_id=case_id,
                 case_actor_id=None,
+                roles=roles,
             ),
         ],
     )

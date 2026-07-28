@@ -40,6 +40,7 @@ from vultron.core.models.events.actor import (
 )
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.use_cases.received.sync import _find_local_actor_id
+from vultron.enums.roles import serialize_roles
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -135,6 +136,20 @@ class AcceptOfferCaseParticipantReceivedUseCase:
                     recommendation_id
                 )
 
+        # Read the stored Offer (written by offer_actor_to_case()) to get the
+        # trusted roles. Do NOT use the embedded CaseParticipant from the
+        # received Accept — the accepting actor may have modified it or may
+        # have sent only a bare ID reference (ISSUE-1745).
+        offer_roles: list | None = None
+        raw_offer_id = getattr(inner_offer, "id_", None)
+        offer_id = raw_offer_id if isinstance(raw_offer_id, str) else None
+        if offer_id:
+            stored_offer = self._dl.read(offer_id)
+            stored_participant = getattr(stored_offer, "object_", None)
+            raw_roles = getattr(stored_participant, "roles", None)
+            if isinstance(raw_roles, list) and raw_roles:
+                offer_roles = serialize_roles(raw_roles)
+
         if not case_id or not invitee_id:
             logger.warning(
                 "AcceptOfferCaseParticipantReceived: missing case_id or"
@@ -157,6 +172,7 @@ class AcceptOfferCaseParticipantReceivedUseCase:
             recommender_id=recommender_id or "",
             invitee_id=invitee_id,
             case_id=case_id,
+            roles=offer_roles,
         )
         bridge = BTBridge(
             datalayer=self._dl, trigger_activity=self._trigger_activity
