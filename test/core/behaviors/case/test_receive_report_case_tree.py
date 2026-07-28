@@ -130,17 +130,21 @@ class TestTreeStructure:
         assert isinstance(flow, py_trees.composites.Sequence)
         assert flow.name == "ReceiveReportCaseFlow"
 
-    def test_tree_flow_has_ten_children(
+    def test_tree_flow_has_eleven_children(
         self, report, offer, reporter_actor_id
     ):
-        """ReceiveReportCaseFlow sequence has exactly 10 action nodes."""
+        """ReceiveReportCaseFlow sequence has exactly 11 action nodes.
+
+        _RecordProvisionalCaseActorIdNode was added after ProposeCaseToActorNode
+        (issue #1733) bringing the total from 10 to 11.
+        """
         tree = create_receive_report_case_tree(
             report_id=report.id_,
             offer_id=offer.id_,
             reporter_actor_id=reporter_actor_id,
         )
         flow = tree.children[1].children[1]
-        assert len(flow.children) == 10
+        assert len(flow.children) == 11
 
     def test_propose_case_to_actor_node_is_wired(
         self, report, offer, reporter_actor_id

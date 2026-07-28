@@ -72,8 +72,10 @@ docs/adr/0015-create-case-at-report-receipt.md.
 """
 
 import logging
+from typing import Any
 
 import py_trees
+from py_trees.common import Status
 
 from vultron.core.behaviors.case.case_setup_tree import (
     CreateCaseActorNode,
@@ -94,15 +96,99 @@ from vultron.core.behaviors.case.nodes import (
     ProposeCaseToActorNode,
     UpdateActorOutbox,
 )
+from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.behaviors.report.nodes import (
     CreateCaseActivity,
     CreateCaseNode,
 )
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.config.actor import ActorConfig
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
+
+
+class _RecordProvisionalCaseActorIdNode(DataLayerAction):
+    """Write blackboard case_actor_id and case_id to VultronReportCaseLink.
+
+    Closes the bootstrap window: after ProposeCaseToActorNode queues the
+    Create(as_CaseProposal), _find_case_actor_id can immediately locate the
+    case actor because its ID and the case_id are stored in the ReportCaseLink.
+    Both fields are overwritten with confirmed values when Accept(as_CaseProposal)
+    and Create(VulnerabilityCase) arrive (CP-06-003, CBT-01-006).
+    """
+
+    def __init__(self, report_id: str, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._report_id = report_id
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="case_actor_id", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="case_id", access=py_trees.common.Access.READ
+        )
+
+    def _get_or_create_link(self) -> "VultronReportCaseLink | None":
+        """Return the report-case link, creating it if absent."""
+        assert self.datalayer is not None
+        link_id = VultronReportCaseLink.build_id(self._report_id)
+        link = self.datalayer.read(link_id)
+        if isinstance(link, VultronReportCaseLink):
+            return link
+        link = VultronReportCaseLink(report_id=self._report_id)
+        try:
+            self.datalayer.create(link)
+        except ValueError:
+            link = self.datalayer.read(link_id)
+            if not isinstance(link, VultronReportCaseLink):
+                logger.warning(
+                    "%s: Cannot create VultronReportCaseLink for report '%s'"
+                    " — skipping",
+                    self.name,
+                    self._report_id,
+                )
+                return None
+        return link
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        try:
+            case_actor_id = self.blackboard.get("case_actor_id")
+        except KeyError:
+            self.feedback_message = "case_actor_id not in blackboard"
+            return Status.FAILURE
+        if not isinstance(case_actor_id, str) or not case_actor_id:
+            self.feedback_message = "case_actor_id must be a non-empty string"
+            return Status.FAILURE
+
+        try:
+            case_id = self.blackboard.get("case_id")
+        except KeyError:
+            case_id = None
+
+        link = self._get_or_create_link()
+        if link is None:
+            return Status.SUCCESS
+
+        link.trusted_case_actor_id = case_actor_id
+        if isinstance(case_id, str) and case_id:
+            link.case_id = case_id
+        self.datalayer.save(link)
+        logger.debug(
+            "%s: Recorded provisional case-actor '%s' for report '%s' (case '%s')",
+            self.name,
+            case_actor_id,
+            self._report_id,
+            case_id,
+        )
+        return Status.SUCCESS
 
 
 def create_receive_report_case_tree(
@@ -193,6 +279,9 @@ def create_receive_report_case_tree(
             # Send Create(as_CaseProposal) so the Case Actor can initialize the
             # case on its side (CP-04-001, CP-04-002, ADR-0023).
             ProposeCaseToActorNode(),
+            # Record the case-actor ID provisionally so _find_case_actor_id can
+            # resolve it before the outbox delivers the proposal (bootstrap window).
+            _RecordProvisionalCaseActorIdNode(report_id=report_id),
             SendOfferCaseManagerRoleNode(),
             UpdateActorOutbox(name="UpdateActorOutboxOffer"),
         ],

@@ -22,8 +22,11 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.use_cases._helpers import _resolve_case_manager_id
-from vultron.core.use_cases._helpers import add_activity_to_outbox
+from vultron.core.use_cases._helpers import (
+    _find_case_actor_id,
+    _resolve_case_manager_id,
+    add_activity_to_outbox,
+)
 
 
 class ResolveCaseManagerNode(DataLayerAction):
@@ -54,6 +57,10 @@ class ResolveCaseManagerNode(DataLayerAction):
             return Status.FAILURE
 
         case_manager_id = _resolve_case_manager_id(case, self.datalayer)
+        if case_manager_id is None:
+            # Multi-container topology: CASE_MANAGER participant not yet
+            # bootstrapped locally; fall back to the known case-actor ID.
+            case_manager_id = _find_case_actor_id(self.datalayer, self.case_id)
         if case_manager_id is None:
             self.feedback_message = (
                 f"No CASE_MANAGER participant found in case '{self.case_id}'"
