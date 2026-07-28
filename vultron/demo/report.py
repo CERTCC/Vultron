@@ -832,7 +832,7 @@ def _format_delta(
         dt_prev = _parse_timestamp(prev_received_at)
     except ValueError:
         return "—"
-    total_seconds = int((dt_curr - dt_prev).total_seconds())
+    total_seconds = round((dt_curr - dt_prev).total_seconds())
     if total_seconds < 0:
         total_seconds = 0
     hours, remainder = divmod(total_seconds, 3600)
