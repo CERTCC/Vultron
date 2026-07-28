@@ -39,6 +39,6 @@ self-delivery becomes HTTP loopback.
 path, blocked-by #1779). Both are children of epic #1676.
 
 **Docs PR**: <https://github.com/CERTCC/Vultron/pull/1778>
-**ADR**: docs/adr/0041-http-only-inter-actor-delivery.md
+**ADR**: docs/adr/0042-http-only-inter-actor-delivery.md
 **Spec**: specs/outbox.yaml OX-12 (supersedes specs/architecture.yaml ARCH-17)
 **Notes**: notes/architecture-adapters.md

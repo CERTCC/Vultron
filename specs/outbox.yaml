@@ -316,7 +316,7 @@ groups:
     co-located actor in-process (via the retired ASGIEmitter shortcut) made co-located
     delivery behave differently from remote delivery, masking inter-actor delivery bugs
     and giving false confidence in demos. All inter-actor delivery MUST behave as if
-    every recipient were remote. See ADR-0041; supersedes the ASGIEmitter design in
+    every recipient were remote. See ADR-0042; supersedes the ASGIEmitter design in
     ARCH-17.
   specs:
   - id: OX-12-001

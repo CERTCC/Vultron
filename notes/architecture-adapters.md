@@ -37,14 +37,14 @@ If a feature requires both directions, keep separate modules in
 
 ---
 
-## Delivery Transport: Uniform HTTP (ADR-0041)
+## Delivery Transport: Uniform HTTP (ADR-0042)
 
 All inter-actor activity delivery goes over the REST inbox/outbox HTTP API
 (HTTP POST to `{actor}/inbox/`). **Actors are treated as if every recipient
 were remote** — there is no in-process shortcut for co-located actors. This
 keeps co-located and remote delivery on one code path, so demos faithfully
 model autonomous peers and inter-actor delivery bugs surface in-process
-instead of being masked (concern #1723, ADR-0041, `outbox.yaml` OX-12).
+instead of being masked (concern #1723, ADR-0042, `outbox.yaml` OX-12).
 
 - The production default `ActivityEmitter` is the HTTP delivery adapter.
 - CaseActor canonical-ledger self-delivery (the `cc:`-to-self copy that loops
@@ -57,7 +57,7 @@ instead of being masked (concern #1723, ADR-0041, `outbox.yaml` OX-12).
 > **Historical note:** a previous `ASGIEmitter` adapter delivered to
 > co-located actors in-process (scheme+netloc match → direct ASGI call, with
 > mount-prefix stripping and a reentrancy guard). It was the production
-> default until ADR-0041 retired it. `architecture.yaml` ARCH-17 is
+> default until ADR-0042 retired it. `architecture.yaml` ARCH-17 is
 > superseded. Do not reintroduce an in-process delivery shortcut.
 
 ---
