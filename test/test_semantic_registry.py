@@ -120,6 +120,7 @@ def _make_entry(
         pattern=pattern,
         event_class=_StubEvent,
         use_case_class=_StubUseCase,
+        phrase="{actor} performed an action",
     )
 
 
@@ -192,3 +193,31 @@ def test_live_registry_import_guard_passes():
     import vultron.semantic_registry
 
     importlib.reload(vultron.semantic_registry)
+
+
+# ---------------------------------------------------------------------------
+# SE-07 phrase field requirements (AC-6)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "entry", SEMANTIC_REGISTRY, ids=lambda e: e.semantics.name
+)
+def test_every_entry_has_non_empty_phrase(entry):
+    """Every registry entry MUST have a non-empty phrase (SE-07-001, SE-07-003)."""
+    assert entry.phrase, f"{entry.semantics.name} has empty phrase"
+
+
+@pytest.mark.parametrize(
+    "entry", SEMANTIC_REGISTRY, ids=lambda e: e.semantics.name
+)
+def test_phrase_format_map_with_defaults_returns_non_empty(entry):
+    """Phrase format_map with defaultdict fallback must not raise and return
+    a non-empty string (SE-07-004)."""
+    from collections import defaultdict
+
+    slots: dict[str, str] = defaultdict(lambda: "X")
+    result = entry.phrase.format_map(slots)
+    assert (
+        result
+    ), f"{entry.semantics.name} phrase produced empty string after format_map"

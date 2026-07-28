@@ -48,6 +48,7 @@ ENTRIES: list[SemanticEntry] = [
         pattern=CloseCasePattern,
         event_class=CloseCaseReceivedEvent,
         use_case_class=CloseCaseReceivedUseCase,
+        phrase="{actor} closed the case",
         wire_activity_class=_RmCloseCaseActivity,
         include_activity=True,
     ),
@@ -56,6 +57,7 @@ ENTRIES: list[SemanticEntry] = [
         pattern=AnnounceLogEntryPattern,
         event_class=AnnounceLogEntryReceivedEvent,
         use_case_class=AnnounceLedgerEntryReceivedUseCase,
+        phrase="{actor} announced a ledger entry",
         wire_activity_class=_AnnounceLogEntryActivity,
     ),
     SemanticEntry(
@@ -63,6 +65,7 @@ ENTRIES: list[SemanticEntry] = [
         pattern=RejectLogEntryPattern,
         event_class=RejectLogEntryReceivedEvent,
         use_case_class=RejectLedgerEntryReceivedUseCase,
+        phrase="{actor} rejected a ledger entry",
         wire_activity_class=_RejectLogEntryActivity,
     ),
 ]

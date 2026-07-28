@@ -40,12 +40,14 @@ ENTRIES: list[SemanticEntry] = [
         pattern=CreateNotePattern,
         event_class=CreateNoteReceivedEvent,
         use_case_class=CreateNoteReceivedUseCase,
+        phrase="{actor} created a note",
     ),
     SemanticEntry(
         semantics=MessageSemantics.ADD_NOTE_TO_CASE,
         pattern=AddNoteToCaseActivityPattern,
         event_class=AddNoteToCaseReceivedEvent,
         use_case_class=AddNoteToCaseReceivedUseCase,
+        phrase="{actor} added a note to the case",
         wire_activity_class=_AddNoteToCaseActivity,
         include_activity=True,
     ),
@@ -54,5 +56,6 @@ ENTRIES: list[SemanticEntry] = [
         pattern=RemoveNoteFromCasePattern,
         event_class=RemoveNoteFromCaseReceivedEvent,
         use_case_class=RemoveNoteFromCaseReceivedUseCase,
+        phrase="{actor} removed a note from the case",
     ),
 ]
