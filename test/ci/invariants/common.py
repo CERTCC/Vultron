@@ -592,10 +592,12 @@ def cs_observations_from_snap(snap: dict) -> tuple[bool, bool, bool]:
 def check_cs_state_transitions_observed(
     replicas: dict[str, list[dict]],
 ) -> list[str]:
-    """All three key CS transitions observed in the authoritative log (Invariant 15).
+    """Key CS transitions observed in the authoritative log (Invariant 15).
 
-    Checks vfd_state == "VFd" (fix ready), "VFD" (fix deployed), and
-    pxa_state starting with "P" (public aware).
+    Checks vfd_state == "VFd" (fix ready) and pxa_state starting with "P"
+    (public aware).  VFD (fix deployed) is NOT checked here because demo
+    scenarios use vendor-only actors (CVDRole.VENDOR, no CVDRole.DEPLOYER);
+    per CSB-15-002 those actors stop at VFd and never reach VFD.
     """
     auth = auth_entries(replicas)
     status_entries = [
@@ -609,20 +611,15 @@ def check_cs_state_transitions_observed(
             "cannot check CS-transition invariant"
         ]
 
-    saw_fix_ready = saw_fix_deployed = saw_published = False
+    saw_fix_ready = saw_published = False
     for e in status_entries:
-        fix_ready, fix_deployed, published = cs_observations_from_snap(
-            payload(e)
-        )
+        fix_ready, _, published = cs_observations_from_snap(payload(e))
         saw_fix_ready |= fix_ready
-        saw_fix_deployed |= fix_deployed
         saw_published |= published
 
     missing: list[str] = []
     if not saw_fix_ready:
         missing.append("vfd_state == 'VFd' (fix_ready) never observed")
-    if not saw_fix_deployed:
-        missing.append("vfd_state == 'VFD' (fix_deployed) never observed")
     if not saw_published:
         missing.append(
             "pxa_state starting with 'P' (published/public-aware) never observed"
