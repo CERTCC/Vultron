@@ -722,3 +722,47 @@ def reset_containers(
                 raise AssertionError(
                     f"{label} container was not reset cleanly: {cases}"
                 )
+
+    # The dedicated case-actor container must expose its fixed service identity
+    # at ``.../actors/case-actor`` so peers can deliver Create(as_CaseProposal)
+    # to a resolvable inbox (CP-04-003). The `init=false` reset above wipes all
+    # actor records and demo containers do not auto-seed on startup, so we must
+    # re-create the identity here — otherwise every proposal delivery 404s and
+    # wait_for_case_participants(count=3) times out (bootstrap deadlock, #1766).
+    for label, client in labeled_clients:
+        if label == "CaseActor":
+            seed_case_actor_identity(client)
+
+
+def seed_case_actor_identity(case_actor_client: DataLayerClient) -> as_Actor:
+    """Seed the case-actor container's fixed service identity (CP-04-003).
+
+    The dedicated case-actor container receives ``Create(as_CaseProposal)``
+    addressed to ``<base>/actors/case-actor`` (the container's always-present
+    seeded identity, not the per-case ``case-actor-<slug>`` actor it will
+    create). That identity must exist in the DataLayer before any delivery, or
+    the inbox route resolves the recipient first and 404s before the create
+    handler runs.
+
+    Matches ``docker/seed-configs/seed-case-actor.yaml`` (name ``CaseActor``,
+    type ``Service``). Idempotent: ``POST /actors/`` returns any existing
+    record unchanged.
+
+    Args:
+        case_actor_client: DataLayerClient connected to the case-actor
+            container.
+
+    Returns:
+        The seeded (or pre-existing) ``as_Actor`` for the container identity.
+    """
+    case_actor_id = (
+        f"{case_actor_client.base_url.rstrip('/')}/actors/case-actor"
+    )
+    actor = seed_actor(
+        client=case_actor_client,
+        name="CaseActor",
+        actor_type="Service",
+        actor_id=case_actor_id,
+    )
+    logger.info("CaseActor container identity seeded: %s", actor.id_)
+    return actor

@@ -153,7 +153,12 @@ class TestResetContainers:
         with patch(
             "vultron.demo.scenario.fv_demo.reset_datalayer",
             return_value={"status": "ok"},
-        ) as reset_mock:
+        ) as reset_mock, patch(
+            # The CaseActor container's fixed service identity is re-seeded
+            # after reset (CP-04-003); stub it here so the mock client's
+            # POST /actors/ response does not need to validate as an as_Actor.
+            "vultron.demo.helpers.seeding.seed_case_actor_identity",
+        ) as seed_mock:
             demo.reset_containers(
                 finder_client=finder_client,
                 vendor_client=vendor_client,
@@ -167,6 +172,9 @@ class TestResetContainers:
                 call(client=case_actor_client, init=False),
             ]
         )
+        # The case-actor identity is re-seeded exactly once, on the
+        # CaseActor-labelled client (CP-04-003 bootstrap, #1766).
+        seed_mock.assert_called_once_with(case_actor_client)
 
 
 class TestGetActorById:
