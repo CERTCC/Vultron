@@ -60,6 +60,8 @@ import pytest
 
 from test.demo.conftest import _TestASGIRouter, create_isolated_actor_app
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
+from vultron.core.models.case_actor import VultronCaseActor
+from vultron.core.use_cases._helpers import _find_case_actor_id
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -292,24 +294,59 @@ def _bootstrap_case(
     return case_id
 
 
-def _find_case_actor_id_in_dl(dl, case_id: str) -> str | None:
-    """Scan ``dl`` for a CaseActor (Service) whose context matches *case_id*.
+def _register_and_bootstrap_case_actor(
+    owner_iso, owner_tc, case_id: str
+) -> str:
+    """Register the case-actor actor and re-deliver Create(as_CaseProposal).
 
-    ``VultronCaseActor`` objects are stored with ``type_="Service"`` and
-    ``context=case_id``.  This helper mirrors the legacy-path fallback in
-    the production ``_find_case_actor_id`` function.
+    After AC-2 (#1733), ``CreateCaseActorNode`` no longer writes a
+    ``VultronCaseActor`` record to the vendor's DataLayer.  The case-actor
+    sub-actor must be registered explicitly before inbox delivery can succeed.
 
-    Args:
-        dl: A ``DataLayer`` instance (typically the owner's).
-        case_id: The ID of the ``VulnerabilityCase`` to match.
+    Steps:
+      1. Retrieve case-actor ID from ``VultronReportCaseLink.trusted_case_actor_id``.
+      2. Register the case-actor as an actor via ``POST /api/v2/actors/``.
+      3. Find the ``Create(as_CaseProposal)`` in the DataLayer and re-deliver it.
 
     Returns:
-        The ``id_`` of the CaseActor, or ``None`` if not found.
+        The case-actor ID.
     """
-    for service in dl.list_objects("Service"):
-        if getattr(service, "context", None) == case_id:
-            return str(service.id_)
-    return None
+    case_actor_id = _find_case_actor_id(owner_iso.dl, case_id)
+    assert case_actor_id is not None, (
+        f"VultronReportCaseLink.trusted_case_actor_id not set for case "
+        f"'{case_id}' — _RecordProvisionalCaseActorIdNode may not have run."
+    )
+    case_actor_slug = _actor_slug(case_actor_id)
+    # Write a VultronCaseActor (Service) record directly so both
+    # _resolve_actor_or_404 (inbox route) and resolve_case_actor_id
+    # (BroadcastCaseUpdateNode) can find it.
+    case_actor_record = VultronCaseActor(
+        id_=case_actor_id,
+        name=f"CaseActor for {case_id}",
+        context=case_id,
+    )
+    try:
+        owner_iso.dl.create(case_actor_record)
+    except ValueError:
+        pass  # already exists — fine
+
+    create_activities = owner_iso.dl.by_type("Create")
+    proposal_activity_id = None
+    for act_id, raw in create_activities.items():
+        to_val = raw.get("to", [])
+        if isinstance(to_val, str):
+            to_val = [to_val]
+        if case_actor_id in to_val:
+            proposal_activity_id = act_id
+            break
+    assert proposal_activity_id is not None, (
+        "Could not find Create(as_CaseProposal) addressed to the "
+        f"case-actor '{case_actor_id}' in the DataLayer."
+    )
+    proposal_activity = owner_iso.dl.read(proposal_activity_id)
+    assert proposal_activity is not None
+    _post_to_inbox(owner_tc, case_actor_slug, proposal_activity)
+    return case_actor_id
 
 
 def _drain_case_actor_outbox(owner_iso, case_actor_id: str) -> None:
@@ -380,7 +417,11 @@ def _run_late_joiner_sequence(
     Returns:
         Tuple of (case_id, lj_actor_id).
     """
-    # Step 1: bootstrap the case
+    # Step 1: bootstrap the case and register the case-actor.
+    # After AC-2 (#1733) VultronCaseActor is created on the case-actor
+    # container, not the vendor.  Register the case-actor actor in the vendor
+    # DataLayer and re-deliver Create(as_CaseProposal) so the case-actor
+    # processes it and emits Create(VulnerabilityCase) to the reporter.
     case_id = _bootstrap_case(
         owner_iso,
         reporter_iso,
@@ -389,6 +430,10 @@ def _run_late_joiner_sequence(
         owner_slug=owner_slug,
         reporter_slug=reporter_slug,
     )
+    case_actor_id = _register_and_bootstrap_case_actor(
+        owner_iso, owner_tc, case_id
+    )
+    _drain_case_actor_outbox(owner_iso, case_actor_id)
 
     # Step 2: create late-joiner actor on late-joiner's app
     lj_base_api = late_joiner_iso.base_url + "/api/v2"
@@ -414,12 +459,7 @@ def _run_late_joiner_sequence(
     # CaseActor's outbox (not the owner's), so drain it explicitly here.
     # The background task triggered by the invite endpoint only drains the
     # owner's outbox; the CaseActor's outbox must be processed separately.
-    case_actor_id = _find_case_actor_id_in_dl(owner_iso.dl, case_id)
-    assert case_actor_id is not None, (
-        f"Could not find CaseActor for case '{case_id}' in owner's "
-        f"DataLayer.  CreateCaseActorNode may not have run during "
-        f"create_receive_report_case_tree."
-    )
+    # case_actor_id was resolved and registered in Step 1 above.
     _drain_case_actor_outbox(owner_iso, case_actor_id)
 
     # Step 4: retrieve invite_id from late-joiner's DataLayer

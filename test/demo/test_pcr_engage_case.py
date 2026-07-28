@@ -42,6 +42,8 @@ import pytest
 
 from test.demo.conftest import _TestASGIRouter, create_isolated_actor_app
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
+from vultron.core.models.case_actor import VultronCaseActor
+from vultron.core.use_cases._helpers import _find_case_actor_id
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -169,6 +171,69 @@ def _actor_slug(actor_id: str) -> str:
     return actor_id.rstrip("/").rsplit("/", 1)[-1]
 
 
+def _register_and_bootstrap_case_actor(
+    owner_iso, owner_tc, case_id: str
+) -> str:
+    """Register the case-actor actor and re-deliver Create(as_CaseProposal).
+
+    After AC-2 (#1733), ``CreateCaseActorNode`` no longer writes a
+    ``VultronCaseActor`` record to the vendor's DataLayer.  The case-actor
+    sub-actor must be registered explicitly before inbox delivery can succeed.
+
+    Steps:
+      1. Retrieve case-actor ID from ``VultronReportCaseLink.trusted_case_actor_id``
+         (written by ``_RecordProvisionalCaseActorIdNode``).
+      2. Register the case-actor as an actor via ``POST /api/v2/actors/`` so
+         ``_resolve_actor_or_404`` can find it.
+      3. Find the ``Create(as_CaseProposal)`` activity in the DataLayer and
+         re-deliver it to the (now-registered) case-actor inbox.
+
+    Args:
+        owner_iso: Owner's ``IsolatedActorApp``.
+        owner_tc: Owner's ``TestClient``.
+        case_id: The ``VulnerabilityCase`` ID.
+
+    Returns:
+        The case-actor ID.
+    """
+    case_actor_id = _find_case_actor_id(owner_iso.dl, case_id)
+    assert case_actor_id is not None, (
+        f"VultronReportCaseLink.trusted_case_actor_id not set for case "
+        f"'{case_id}' — _RecordProvisionalCaseActorIdNode may not have run."
+    )
+    case_actor_slug = _actor_slug(case_actor_id)
+    # Write a VultronCaseActor (Service) record directly so both
+    # _resolve_actor_or_404 (inbox route) and resolve_case_actor_id
+    # (BroadcastCaseUpdateNode) can find it.
+    case_actor_record = VultronCaseActor(
+        id_=case_actor_id,
+        name=f"CaseActor for {case_id}",
+        context=case_id,
+    )
+    try:
+        owner_iso.dl.create(case_actor_record)
+    except ValueError:
+        pass  # already exists — fine
+
+    create_activities = owner_iso.dl.by_type("Create")
+    proposal_activity_id = None
+    for act_id, raw in create_activities.items():
+        to_val = raw.get("to", [])
+        if isinstance(to_val, str):
+            to_val = [to_val]
+        if case_actor_id in to_val:
+            proposal_activity_id = act_id
+            break
+    assert proposal_activity_id is not None, (
+        "Could not find Create(as_CaseProposal) addressed to the "
+        f"case-actor '{case_actor_id}' in the DataLayer."
+    )
+    proposal_activity = owner_iso.dl.read(proposal_activity_id)
+    assert proposal_activity is not None
+    _post_to_inbox(owner_tc, case_actor_slug, proposal_activity)
+    return case_actor_id
+
+
 def _drain_case_actor_outbox(owner_iso, case_actor_id: str) -> None:
     """Drain the CaseActor's outbox via the real outbox_handler.
 
@@ -182,14 +247,6 @@ def _drain_case_actor_outbox(owner_iso, case_actor_id: str) -> None:
         asyncio.run(outbox_handler(case_actor_id, case_actor_dl, owner_iso.dl))
     finally:
         case_actor_dl.close()
-
-
-def _find_case_actor_id(dl, case_id: str) -> str | None:
-    """Return the CaseActor ID whose context matches *case_id*."""
-    for service in dl.list_objects("Service"):
-        if getattr(service, "context", None) == case_id:
-            return str(service.id_)
-    return None
 
 
 def _bootstrap_and_engage(
@@ -260,11 +317,13 @@ def _bootstrap_and_engage(
         resp.status_code == 202
     ), f"validate-report trigger failed ({resp.status_code}): {resp.text}"
 
-    # Drain CaseActor's outbox so Create(VulnerabilityCase) reaches reporter.
-    case_actor_id = _find_case_actor_id(owner_iso.dl, case_id)
-    assert (
-        case_actor_id is not None
-    ), f"Could not find CaseActor for case '{case_id}' in owner's DataLayer."
+    # Register the case-actor and re-deliver Create(as_CaseProposal) so the
+    # case-actor processes the proposal and emits Create(VulnerabilityCase).
+    # After AC-2 (#1733), VultronCaseActor is created on the case-actor
+    # container, not the vendor; the initial delivery 404'd.
+    case_actor_id = _register_and_bootstrap_case_actor(
+        owner_iso, owner_tc, case_id
+    )
     _drain_case_actor_outbox(owner_iso, case_actor_id)
 
     # Reporter must have received the case replica before engage-case fires.

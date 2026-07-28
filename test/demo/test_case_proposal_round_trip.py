@@ -76,6 +76,8 @@ from _pytest.monkeypatch import MonkeyPatch
 
 from test.demo._helpers import make_testclient_call
 from test.demo.conftest import _TestASGIRouter, create_isolated_actor_app
+from vultron.core.models.case_actor import VultronCaseActor
+from vultron.core.use_cases._helpers import _find_case_actor_id
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -260,6 +262,18 @@ class TestCaseProposalRoundTrip:
         After the vendor's outbox flushes Create(as_CaseProposal) to the
         case-actor inbox, the case-actor service must emit Accept and
         Create(VulnerabilityCase) back to the vendor (CP-05-003).
+
+        Multi-step flow (AC-2 topology):
+          1. SubmitReport → vendor BT creates case, queues Create(as_CaseProposal),
+             records case-actor ID in VultronReportCaseLink.  The outbox flush
+             attempts delivery to the case-actor inbox but gets 404 because no
+             actor record exists yet (VultronCaseActor is created on the case-actor
+             container, not the vendor — AC-2 of #1733).
+          2. Retrieve case-actor ID from VultronReportCaseLink, register the
+             case-actor as an actor in the vendor DataLayer, then re-deliver the
+             Create(as_CaseProposal) directly to the case-actor inbox.
+          3. The case-actor processes Create(as_CaseProposal) and emits
+             Accept + Create(VulnerabilityCase) back to the vendor.
         """
         vendor_iso, reporter_iso, vendor_tc, reporter_tc = two_app_setup
 
@@ -289,17 +303,61 @@ class TestCaseProposalRoundTrip:
             actor=reporter_actor_id,
             to=vendor_actor_id,
         )
+        # Step 1: vendor processes SubmitReport → case + CaseProposal created.
+        # Outbox delivery of Create(as_CaseProposal) fails with 404 because
+        # no actor record exists for the case-actor sub-actor yet (AC-2/#1733).
         _post_to_inbox(vendor_tc, _actor_slug(vendor_actor_id), offer)
 
-        # The full chain runs synchronously inside TestClient's
-        # BackgroundTask model:
-        #   vendor inbox → ProposeCaseToActorNode → vendor outbox flush →
-        #   case-actor inbox → CreateCaseProposalReceivedUseCase →
-        #   Accept + Create(VulnerabilityCase) → case-actor outbox flush
-        #   (via run_inbox_pipeline's outbox_handler call) →
-        #   vendor inbox → AcceptCaseProposalReceivedUseCase +
-        #   CreateVulnerabilityCaseReceivedUseCase
+        # Step 2: find case-actor ID from VultronReportCaseLink, then register
+        # the case-actor as an actor so the inbox route can accept delivery.
+        all_cases = vendor_iso.dl.get_all("VulnerabilityCase")
+        assert (
+            len(all_cases) >= 1
+        ), "Expected at least one VulnerabilityCase after SubmitReport."
+        case_id: str = all_cases[0]["id_"]
 
+        case_actor_id = _find_case_actor_id(vendor_iso.dl, case_id)
+        assert case_actor_id is not None, (
+            f"VultronReportCaseLink.trusted_case_actor_id not set for case "
+            f"'{case_id}' — _RecordProvisionalCaseActorIdNode may not have run."
+        )
+        case_actor_slug = _actor_slug(case_actor_id)
+        # Write a VultronCaseActor (Service) record directly so both
+        # _resolve_actor_or_404 (inbox route) and resolve_case_actor_id
+        # (BroadcastCaseUpdateNode) can find it.
+        case_actor_record = VultronCaseActor(
+            id_=case_actor_id,
+            name=f"CaseActor for {case_id}",
+            context=case_id,
+        )
+        try:
+            vendor_iso.dl.create(case_actor_record)
+        except ValueError:
+            pass  # already exists — fine
+
+        # Step 3: find the Create(as_CaseProposal) activity in the DL and
+        # re-deliver it to the (now-registered) case-actor inbox.
+        create_activities = vendor_iso.dl.by_type("Create")
+        proposal_activity_id = None
+        for act_id, raw in create_activities.items():
+            to_val = raw.get("to", [])
+            if isinstance(to_val, str):
+                to_val = [to_val]
+            if case_actor_id in to_val:
+                proposal_activity_id = act_id
+                break
+        assert proposal_activity_id is not None, (
+            "Could not find Create(as_CaseProposal) addressed to the "
+            f"case-actor '{case_actor_id}' in the vendor DataLayer."
+        )
+        proposal_activity = vendor_iso.dl.read(proposal_activity_id)
+        assert (
+            proposal_activity is not None
+        ), f"Activity '{proposal_activity_id}' not found in DataLayer."
+        _post_to_inbox(vendor_tc, case_actor_slug, proposal_activity)
+
+        # Step 4: case-actor processes Create(as_CaseProposal) → emits
+        # Accept(as_CaseProposal) + Create(VulnerabilityCase) back to vendor.
         accept_activities = vendor_iso.dl.by_type("Accept")
         assert len(accept_activities) >= 1, (
             "Expected at least one Accept activity in the vendor DataLayer "
