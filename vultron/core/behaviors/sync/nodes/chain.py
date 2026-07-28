@@ -77,6 +77,7 @@ _CASE_AUTHORED_SIGNATURES: frozenset[tuple[str, str]] = frozenset(
         ("Accept", "Offer"),
         ("Reject", "Offer"),
         ("Add", "CaseParticipant"),
+        ("Create", "VulnerabilityCase"), ("Add", "VulnerabilityReport"), ("Add", "ParticipantStatus"),  # noqa: E501  # fmt: skip
     }
 )
 _INLINE_OBJECT_KEYS: frozenset[str] = frozenset(
