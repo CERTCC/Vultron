@@ -294,6 +294,34 @@ def test_validate_canonical_entry_provenance_skipped_when_no_case_actor_id():
     )
 
 
+@pytest.mark.parametrize(
+    "event_type,snapshot_type,object_type",
+    [
+        ("create_case", "Create", "VulnerabilityCase"),
+        ("add_report_to_case", "Add", "VulnerabilityReport"),
+        ("add_participant_status_to_participant", "Add", "ParticipantStatus"),
+    ],
+)
+def test_validate_canonical_entry_allows_case_actor_for_self_caseactor_prologue(
+    event_type, snapshot_type, object_type
+):
+    """fvv regression: CaseActor may author prologue entries when vendor IS CaseActor."""
+    snapshot = {
+        "type": snapshot_type,
+        "actor": CASE_ACTOR_ID,
+        "object": {"type": object_type, "id": "https://example.org/obj/1"},
+        "context": CASE_ID,
+    }
+    _validate_canonical_entry(
+        case_id=CASE_ID,
+        actor_id=CASE_ACTOR_ID,
+        case_actor_id=CASE_ACTOR_ID,
+        disposition="recorded",
+        payload_snapshot=snapshot,
+        event_type=event_type,
+    )
+
+
 class TestPersistLogEntryNodeLogging:
     """Verify INFO and DEBUG log emission from PersistLogEntryNode."""
 

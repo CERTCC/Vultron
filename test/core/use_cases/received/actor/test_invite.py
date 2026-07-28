@@ -144,6 +144,42 @@ class TestInviteActorUseCases:
         ).execute()
         assert result is None
 
+    def test_reject_invite_skips_ledger_when_target_id_absent(
+        self, make_payload
+    ):
+        """RejectInviteActorToCaseReceivedUseCase returns without error when case_id cannot be resolved.
+
+        Reject(Invite(actor, case)) carries the case reference in the nested
+        Invite's ``target`` field, not at the top-level ``target`` of the
+        Reject.  ``extract_event`` populates ``inner_target`` but not ``target``,
+        so ``request.target_id`` is None and the use case short-circuits.
+        This is tracked as a known gap to be addressed separately.
+        """
+        from unittest.mock import MagicMock
+
+        invite = rm_invite_to_case_activity(
+            as_Actor(id_="https://example.org/users/coordinator"),
+            target=VulnerabilityCaseStub(
+                id_="https://example.org/cases/case-ri1"
+            ),
+            actor="https://example.org/users/owner",
+            id_="https://example.org/cases/case-ri1/invitations/3",
+        )
+        reject = rm_reject_invite_to_case_activity(
+            invite,
+            actor="https://example.org/users/coordinator",
+        )
+
+        event = make_payload(reject)
+        assert (
+            event.target_id is None
+        ), "Precondition: Reject(Invite) has no top-level target"
+
+        result = RejectInviteActorToCaseReceivedUseCase(
+            MagicMock(), event
+        ).execute()
+        assert result is None
+
     def test_accept_invite_actor_to_case_adds_participant(
         self, monkeypatch, make_payload
     ):
@@ -536,6 +572,9 @@ class TestInviteActorUseCases:
         trigger_activity.announce_vulnerability_case.return_value = (
             f"{case.id_}/announce/1"
         )
+        trigger_activity.add_participant_to_case.return_value = (
+            f"{case.id_}/activities/add-participant-1"
+        )
         sync_port = MagicMock()
 
         accept = rm_accept_invite_to_case_activity(invite, actor=invitee_id)
@@ -547,27 +586,35 @@ class TestInviteActorUseCases:
             trigger_activity=trigger_activity,
         ).execute()
 
+        announced_log_indices = [
+            kwargs["entry"].log_index
+            for _, kwargs in sync_port.send_announce_log_entry.call_args_list
+        ]
         announced_entries = [
             kwargs["entry"]
             for _, kwargs in sync_port.send_announce_log_entry.call_args_list
         ]
-        # Commit-first ordering: commit runs before invitee is registered, so
-        # commit fan-out does NOT include the invitee.  Backfill runs after
-        # invitee is registered with post-commit target (2), sending entries
-        # 0, 1, and 2 to the invitee.
-        assert [entry.log_index for entry in announced_entries] == [0, 1, 2]
-        assert announced_entries[0].entry_hash == first.entry_hash
-        assert announced_entries[1].entry_hash == second.entry_hash
+        # Entry 2 (accept_invite): committed before invitee is registered —
+        #   fan-out does NOT include the invitee.
+        # Entry 3 (add_case_participant): committed AFTER invitee is persisted —
+        #   fan-out INCLUDES the invitee (they are now a case participant).
+        # Backfill: runs after invitee is registered with post-commit target (3),
+        #   sending entries 0, 1, 2, and 3.
+        # So invitee receives: [3 (fan-out), 0, 1, 2, 3 (backfill)].
+        assert announced_log_indices == [3, 0, 1, 2, 3]
+        # First backfill entry (index 1 in announced list) is the seeded entry 0.
+        assert announced_entries[1].entry_hash == first.entry_hash
+        assert announced_entries[2].entry_hash == second.entry_hash
 
         state_id = VultronReplicationState(
             case_id=case.id_, peer_id=invitee_id
         ).id_
         state = cast(Any, dl.read(state_id))
         assert state is not None
-        # With commit-first, the accept_invite entry (2) is committed before
-        # the invitee is registered, so backfill target includes entry 2.
-        assert state.join_backfill_target_index == 2
-        assert state.join_backfill_last_sent_index == 2
+        # accept_invite (2) and add_case_participant (3) are both committed;
+        # backfill target is the post-commit last entry (3).
+        assert state.join_backfill_target_index == 3
+        assert state.join_backfill_last_sent_index == 3
         assert state.join_backfill_complete is True
 
     def test_accept_invite_resumes_backfill_without_duplicate_entries(
@@ -675,6 +722,9 @@ class TestInviteActorUseCases:
         trigger_activity = MagicMock()
         trigger_activity.announce_vulnerability_case.return_value = (
             f"{case.id_}/announce/1"
+        )
+        trigger_activity.add_participant_to_case.return_value = (
+            f"{case.id_}/activities/add-participant-1"
         )
         sync_port = MagicMock()
 
@@ -788,6 +838,9 @@ class TestInviteActorUseCases:
         trigger_activity = MagicMock()
         trigger_activity.announce_vulnerability_case.return_value = (
             f"{case.id_}/announce/1"
+        )
+        trigger_activity.add_participant_to_case.return_value = (
+            f"{case.id_}/activities/add-participant-1"
         )
         sync_port = MagicMock()
 

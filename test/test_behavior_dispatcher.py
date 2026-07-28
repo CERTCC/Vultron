@@ -173,6 +173,54 @@ def test_dispatcher_allows_gated_semantic_without_replication_state():
     use_case_instance.execute.assert_called_once()
 
 
+def test_dispatcher_allows_gated_semantic_when_backfill_complete():
+    """A genesis participant whose replication state was created by the
+    Reject(CaseLedgerEntry) sync path carries the -1/True field defaults
+    (join_backfill_last_sent_index=-1, join_backfill_complete=True).  The
+    gate must treat a completed backfill as holding the full prefix and NOT
+    reject on the -1 sentinel — otherwise a settled genesis participant (e.g.
+    the Finder reporting RM.CLOSED) is wrongly blocked and the case never
+    reaches auto-close.  Regression for PR #1746 fvcv-handoff failure.
+    """
+    mock_dl = MagicMock()
+    use_case_instance = MagicMock()
+    use_case_class = MagicMock(return_value=use_case_instance)
+    dispatcher = DirectActivityDispatcher(
+        use_case_map={
+            MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT: use_case_class
+        }
+    )
+
+    actor_id = "https://example.org/users/finder"
+    participant_id = "https://example.org/cases/case-closed/participants/p1"
+    case_id = "https://example.org/cases/case-closed"
+    event = AddParticipantStatusToParticipantReceivedEvent(
+        activity_id="act-closed",
+        actor_id=actor_id,
+        object_=ParticipantStatus(
+            id_=f"{participant_id}/status/closed",
+            context=case_id,
+        ),
+        target=VulnerabilityCaseStub(id_=participant_id),
+        activity=VultronActivity(type_="Add", actor=actor_id),
+    )
+    mock_dl.list_objects.return_value = [
+        _LedgerEntry(case_id=case_id, log_index=0),
+        _LedgerEntry(case_id=case_id, log_index=1),
+    ]
+    mock_dl.read.return_value = VultronReplicationState(
+        case_id=case_id,
+        peer_id=actor_id,
+        join_backfill_target_index=-1,
+        join_backfill_last_sent_index=-1,
+        join_backfill_complete=True,
+    )
+
+    dispatcher.dispatch(event, mock_dl)
+    use_case_class.assert_called_once()
+    use_case_instance.execute.assert_called_once()
+
+
 def test_dispatcher_blocks_when_case_ledger_prefix_has_gaps():
     mock_dl = MagicMock()
     use_case_class = MagicMock()

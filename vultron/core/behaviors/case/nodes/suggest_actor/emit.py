@@ -47,6 +47,9 @@ from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
+from vultron.core.behaviors.case.nodes.suggest_actor._snapshot import (
+    _snapshot_with_context,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.enums.roles import CVDRole
@@ -182,7 +185,7 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerAction):
                 )
                 self.logger.error(self.feedback_message)
                 return Status.FAILURE
-            activity_id, _ = factory.offer_actor_to_case(
+            activity_id, activity_dict = factory.offer_actor_to_case(
                 recommender_id=self.recommender_id,
                 recommended_id=self.recommended_id,
                 case_id=self.case_id,
@@ -191,15 +194,13 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerAction):
                 to=[owner_id],
                 roles=roles,
             )
-            # Commit a local correlation marker first so duplicate checks work
-            # on retry even if the outbox write below fails (CM-16-008/AC-6).
-            # disposition="rejected" bypasses canonical-payload validation since
-            # Offer(CaseParticipant) is not a canonical ledger event type.
+            snapshot = _snapshot_with_context(activity_dict, self.case_id)
             commit_tree = create_commit_log_entry_tree(
                 case_id=self.case_id,
-                object_id=self.recommended_id,
+                object_id=activity_id,
                 event_type="offer_case_participant",
-                disposition="rejected",
+                payload_snapshot=snapshot,
+                disposition="recorded",
             )
             result = BTBridge(
                 datalayer=cast(CaseOutboxPersistence, self.datalayer)
@@ -209,7 +210,7 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerAction):
             )
             if result.status != Status.SUCCESS:
                 raise RuntimeError(
-                    f"ledger correlation commit failed for "
+                    f"ledger commit failed for "
                     f"offer_case_participant/{self.recommended_id}"
                 )
             cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
@@ -266,13 +267,34 @@ class EmitAcceptActorRecommendationNode(DataLayerAction):
 
         factory = self.trigger_activity_factory  # guaranteed non-None
         try:
-            activity_id, _ = factory.emit_accept_actor_recommendation(
-                recommender_id=self.recommender_id,
-                recommendation_id=self.recommendation_id,
-                recommended_id=self.recommended_id,
-                case_id=self.case_id,
-                actor=self.actor_id,
+            activity_id, activity_dict = (
+                factory.emit_accept_actor_recommendation(
+                    recommender_id=self.recommender_id,
+                    recommendation_id=self.recommendation_id,
+                    recommended_id=self.recommended_id,
+                    case_id=self.case_id,
+                    actor=self.actor_id,
+                )
             )
+            snapshot = _snapshot_with_context(activity_dict, self.case_id)
+            commit_tree = create_commit_log_entry_tree(
+                case_id=self.case_id,
+                object_id=activity_id,
+                event_type="accept_actor_recommendation",
+                payload_snapshot=snapshot,
+                disposition="recorded",
+            )
+            result = BTBridge(
+                datalayer=cast(CaseOutboxPersistence, self.datalayer)
+            ).execute_with_setup(
+                tree=commit_tree,
+                actor_id=self.actor_id,
+            )
+            if result.status != Status.SUCCESS:
+                raise RuntimeError(
+                    f"ledger commit failed for "
+                    f"accept_actor_recommendation/{self.recommended_id}"
+                )
             cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
                 self.actor_id, activity_id
             )
@@ -323,13 +345,34 @@ class EmitRejectActorRecommendationNode(DataLayerAction):
 
         factory = self.trigger_activity_factory  # guaranteed non-None
         try:
-            activity_id, _ = factory.emit_reject_actor_recommendation(
-                recommender_id=self.recommender_id,
-                recommendation_id=self.recommendation_id,
-                recommended_id=self.recommended_id,
-                case_id=self.case_id,
-                actor=self.actor_id,
+            activity_id, activity_dict = (
+                factory.emit_reject_actor_recommendation(
+                    recommender_id=self.recommender_id,
+                    recommendation_id=self.recommendation_id,
+                    recommended_id=self.recommended_id,
+                    case_id=self.case_id,
+                    actor=self.actor_id,
+                )
             )
+            snapshot = _snapshot_with_context(activity_dict, self.case_id)
+            commit_tree = create_commit_log_entry_tree(
+                case_id=self.case_id,
+                object_id=activity_id,
+                event_type="reject_actor_recommendation",
+                payload_snapshot=snapshot,
+                disposition="recorded",
+            )
+            result = BTBridge(
+                datalayer=cast(CaseOutboxPersistence, self.datalayer)
+            ).execute_with_setup(
+                tree=commit_tree,
+                actor_id=self.actor_id,
+            )
+            if result.status != Status.SUCCESS:
+                raise RuntimeError(
+                    f"ledger commit failed for "
+                    f"reject_actor_recommendation/{self.recommended_id}"
+                )
             cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
                 self.actor_id, activity_id
             )

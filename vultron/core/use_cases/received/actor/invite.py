@@ -11,6 +11,7 @@ from vultron.core.behaviors.case.accept_invite_tree import (
 )
 from vultron.core.behaviors.case.invite_actor_to_case_received_tree import (
     create_invite_actor_to_case_received_tree,
+    create_reject_invite_actor_to_case_received_tree,
 )
 from vultron.core.models.events.actor import (
     AcceptInviteActorToCaseReceivedEvent,
@@ -26,6 +27,7 @@ from vultron.core.use_cases._helpers import (
     _find_case_actor_id,
     _idempotent_create,
 )
+from vultron.core.use_cases.received.sync import _find_local_actor_id
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -198,13 +200,24 @@ class AcceptInviteActorToCaseReceivedUseCase:
 
 
 class RejectInviteActorToCaseReceivedUseCase:
+    """CaseActor processes ``Reject(Invite(actor, case))`` from an invitee.
+
+    Commits a canonical ``CaseLedgerEntry`` for the received rejection
+    (``("Reject", "Invite")`` in ``_CANONICAL_PAYLOAD_SIGNATURES``) via BTBridge.
+    The CaseActor records that the invitee declined the invitation.
+    """
+
     def __init__(
         self,
         dl: CasePersistence,
         request: RejectInviteActorToCaseReceivedEvent,
+        sync_port: SyncActivityPort | None = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: RejectInviteActorToCaseReceivedEvent = request
+        self._sync_port = sync_port
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> None:
         request = self._request
@@ -213,3 +226,40 @@ class RejectInviteActorToCaseReceivedUseCase:
             request.actor_id,
             request.invite_id,
         )
+        case_id = request.target_id or ""
+        if not case_id:
+            logger.warning(
+                "RejectInviteActorToCase: missing case_id for invite '%s'"
+                " — skipping ledger commit",
+                request.invite_id,
+            )
+            return
+
+        actor_id = request.receiving_actor_id or _find_local_actor_id(self._dl)
+        if actor_id is None:
+            logger.warning(
+                "RejectInviteActorToCase: no local actor for case '%s'"
+                " — skipping ledger commit",
+                case_id,
+            )
+            return
+
+        tree = create_reject_invite_actor_to_case_received_tree(
+            case_id=case_id,
+        )
+        result = BTBridge(
+            datalayer=self._dl,
+            trigger_activity=self._trigger_activity,
+        ).execute_with_setup(
+            tree=tree,
+            actor_id=actor_id,
+            activity=request,
+            sync_port=self._sync_port,
+        )
+        if result.status != Status.SUCCESS:
+            logger.debug(
+                "RejectInviteActorToCaseReceivedUseCase: BT did not fully"
+                " succeed for invite '%s': %s",
+                request.invite_id,
+                BTBridge.get_failure_reason(tree) or result.feedback_message,
+            )

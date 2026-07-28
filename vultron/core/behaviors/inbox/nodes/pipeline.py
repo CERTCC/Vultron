@@ -287,6 +287,11 @@ class DeferCheckNode(_InboxNode):
         if context_id is None or is_bootstrap or queue is None:
             return Status.SUCCESS
 
+        # Non-URI context_id (e.g. a genesis hash from Reject(CaseLedgerEntry))
+        # is not a deferrable case reference — skip deferral.
+        if ":" not in context_id:
+            return Status.SUCCESS
+
         if queue.is_case_known(context_id):
             return Status.SUCCESS
 

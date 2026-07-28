@@ -28,6 +28,7 @@ Tree structure::
     ├── CreateInviteeParticipantAtAcceptedNode — build participant at RM.ACCEPTED
     ├── MaybeSignEmbargoConsentNode            — sign when embargo is EM.ACTIVE
     ├── PersistInviteeParticipantNode          — dl.create, attach, save case
+    ├── EmitAddCaseParticipantNode             — emit Add(CaseParticipant), commit ledger
     ├── EmitAnnounceCaseToInviteeNode          — queue Announce(VulnerabilityCase)
     └── BackfillCanonicalLedgerToInviteeNode   — send prior ledger to invitee
 
@@ -44,6 +45,9 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.case.nodes import (
     create_receive_activity_tree,
+)
+from vultron.core.behaviors.case.nodes.accept_invite import (
+    EmitAddCaseParticipantNode,
 )
 from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
 from vultron.core.models.case import VulnerabilityCase
@@ -814,6 +818,7 @@ def create_accept_invite_actor_to_case_tree(
         ├── CreateInviteeParticipantAtAcceptedNode — build participant at ACCEPTED
         ├── MaybeSignEmbargoConsentNode            — sign when EM.ACTIVE
         ├── PersistInviteeParticipantNode          — persist, attach, save case
+        ├── EmitAddCaseParticipantNode             — emit Add(CaseParticipant), commit ledger
         ├── EmitAnnounceCaseToInviteeNode          — queue Announce to invitee
         └── BackfillCanonicalLedgerToInviteeNode   — send prior ledger to invitee
 
@@ -844,6 +849,7 @@ def create_accept_invite_actor_to_case_tree(
             PersistInviteeParticipantNode(
                 case_id=case_id, invitee_id=invitee_id
             ),
+            EmitAddCaseParticipantNode(case_id=case_id, invitee_id=invitee_id),
             EmitAnnounceCaseToInviteeNode(
                 case_id=case_id, invitee_id=invitee_id
             ),
@@ -858,6 +864,7 @@ __all__ = [
     "CapturePreCommitBackfillTargetNode",
     "CheckInviteeNotAlreadyParticipantNode",
     "CreateInviteeParticipantAtAcceptedNode",
+    "EmitAddCaseParticipantNode",
     "MaybeSignEmbargoConsentNode",
     "PersistInviteeParticipantNode",
     "EmitAnnounceCaseToInviteeNode",

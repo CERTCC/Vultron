@@ -393,7 +393,14 @@ class TestEmitInviteActorToCaseNodePassesRolesNoneToFactory:
         mock_factory = MagicMock(spec=TriggerActivityAdapter)
         mock_factory.invite_actor_to_case.return_value = (
             "urn:uuid:ac2-invite-001",
-            {"id_": "urn:uuid:ac2-invite-001"},
+            {
+                "id_": "urn:uuid:ac2-invite-001",
+                "type": "Invite",
+                "actor": ACTOR_ID,
+                "object_": {"type": "CoreActor", "id_": INVITEE_ID},
+                "target": {"type": "VulnerabilityCase", "id_": AC3_CASE_ID},
+                "context": AC3_CASE_ID,
+            },
         )
 
         bridge = BTBridge(datalayer=dl, trigger_activity=mock_factory)
@@ -414,3 +421,314 @@ class TestEmitInviteActorToCaseNodePassesRolesNoneToFactory:
             f"AC-2: invite_actor_to_case must be called with roles=None "
             f"when suggested_roles is absent, got {actual_roles!r}"
         )
+
+
+# ---------------------------------------------------------------------------
+# EmitAddCaseParticipantNode (Issue-1689)
+# ---------------------------------------------------------------------------
+
+EMIT_ADD_CASE_ID = "https://example.org/cases/add-participant-01"
+EMIT_ADD_ACTOR_ID = "https://example.org/actors/case-actor-add"
+EMIT_ADD_INVITEE_ID = "https://example.org/actors/new-participant-add"
+EMIT_ADD_PARTICIPANT_ID = f"{EMIT_ADD_CASE_ID}/participants/p-new"
+EMIT_ADD_ACTIVITY_ID = f"{EMIT_ADD_CASE_ID}/activities/add-p-001"
+
+
+def _make_add_node_fixture(dl):
+    """Create a minimal CaseParticipant on the blackboard for EmitAddCaseParticipantNode tests."""
+    from vultron.core.models.case_participant import CaseParticipant
+
+    participant = CaseParticipant(
+        id_=EMIT_ADD_PARTICIPANT_ID,
+        attributed_to=EMIT_ADD_INVITEE_ID,
+        context=EMIT_ADD_CASE_ID,
+    )
+    dl.create(participant)
+    return participant
+
+
+class TestEmitAddCaseParticipantNode:
+    """Unit tests for EmitAddCaseParticipantNode."""
+
+    def test_emits_add_activity_and_commits_ledger_entry(self, dl):
+        """Happy path: emits Add(CaseParticipant) and commits ledger entry."""
+        from unittest.mock import MagicMock
+
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.core.behaviors.case.accept_invite_tree import (
+            EmitAddCaseParticipantNode,
+        )
+        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        case = as_VulnerabilityCase(
+            id_=EMIT_ADD_CASE_ID,
+            name="add-participant-test",
+            attributed_to=EMIT_ADD_ACTOR_ID,
+        )
+        dl.create(case)
+        participant = _make_add_node_fixture(dl)
+
+        mock_factory = MagicMock(spec=TriggerActivityAdapter)
+        mock_factory.add_participant_to_case.return_value = (
+            EMIT_ADD_ACTIVITY_ID
+        )
+
+        bridge = BTBridge(datalayer=dl, trigger_activity=mock_factory)
+        node = EmitAddCaseParticipantNode(
+            case_id=EMIT_ADD_CASE_ID, invitee_id=EMIT_ADD_INVITEE_ID
+        )
+        result = bridge.execute_with_setup(
+            tree=node,
+            actor_id=EMIT_ADD_ACTOR_ID,
+            new_invite_participant=participant,
+            invitee_already_participant=False,
+        )
+
+        assert result.status == Status.SUCCESS
+        mock_factory.add_participant_to_case.assert_called_once()
+        entries = [
+            e
+            for e in dl.list_objects("CaseLedgerEntry")
+            if isinstance(e, CaseLedgerEntry) and e.case_id == EMIT_ADD_CASE_ID
+        ]
+        assert any(
+            e.event_type == "add_case_participant" for e in entries
+        ), f"Expected add_case_participant ledger entry; got {[e.event_type for e in entries]}"
+
+    def test_snapshot_strips_bare_target_from_stored_activity(self, dl):
+        """_build_snapshot must strip bare target from stored as_Add (IMPROVE-2).
+
+        The real TriggerActivityAdapter stores the as_Add in the datalayer and
+        returns its id.  model_dump() of the stored object includes
+        ``"target": "<case_uri>"`` as a bare string.  _validate_canonical_entry
+        rejects bare inline-object values, so _build_snapshot MUST call
+        _snapshot_with_context (which calls _drop_bare_inline_refs) rather than
+        returning raw model_dump output.
+        """
+        from unittest.mock import MagicMock
+
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.core.behaviors.case.accept_invite_tree import (
+            EmitAddCaseParticipantNode,
+        )
+        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+        from vultron.wire.as2.factories import add_participant_to_case_activity
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        case = as_VulnerabilityCase(
+            id_=EMIT_ADD_CASE_ID,
+            name="snapshot-bare-target-test",
+            attributed_to=EMIT_ADD_ACTOR_ID,
+        )
+        dl.create(case)
+        participant = _make_add_node_fixture(dl)
+
+        # Build and store the real as_Add activity so datalayer.read() returns it.
+        # Use target as a bare string URI — that is what the real adapter does
+        # (TriggerActivityAdapterActorsMixin.add_participant_to_case passes case_id
+        # as the target kwarg).  model_dump() serialises this as "target": "<uri>"
+        # which _validate_canonical_entry would reject without _drop_bare_inline_refs.
+        wire_participant = as_CaseParticipant(
+            id_=EMIT_ADD_PARTICIPANT_ID,
+            attributed_to=EMIT_ADD_INVITEE_ID,
+            context=EMIT_ADD_CASE_ID,
+        )
+        add_activity = add_participant_to_case_activity(
+            participant=wire_participant,
+            target=EMIT_ADD_CASE_ID,
+            actor=EMIT_ADD_ACTOR_ID,
+            id_=EMIT_ADD_ACTIVITY_ID,
+        )
+        dl.create(add_activity)
+
+        mock_factory = MagicMock(spec=TriggerActivityAdapter)
+        mock_factory.add_participant_to_case.return_value = (
+            EMIT_ADD_ACTIVITY_ID
+        )
+
+        bridge = BTBridge(datalayer=dl, trigger_activity=mock_factory)
+        node = EmitAddCaseParticipantNode(
+            case_id=EMIT_ADD_CASE_ID, invitee_id=EMIT_ADD_INVITEE_ID
+        )
+        result = bridge.execute_with_setup(
+            tree=node,
+            actor_id=EMIT_ADD_ACTOR_ID,
+            new_invite_participant=participant,
+            invitee_already_participant=False,
+        )
+
+        assert result.status == Status.SUCCESS, (
+            "Snapshot with stored as_Add must not fail validation "
+            "(bare target must be stripped by _snapshot_with_context)"
+        )
+        entries = [
+            e
+            for e in dl.list_objects("CaseLedgerEntry")
+            if isinstance(e, CaseLedgerEntry) and e.case_id == EMIT_ADD_CASE_ID
+        ]
+        assert any(e.event_type == "add_case_participant" for e in entries)
+
+    def test_skips_when_already_participant(self, dl):
+        """SUCCESS without emitting when invitee_already_participant=True."""
+        from unittest.mock import MagicMock
+
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.core.behaviors.case.accept_invite_tree import (
+            EmitAddCaseParticipantNode,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        case = as_VulnerabilityCase(
+            id_=EMIT_ADD_CASE_ID,
+            name="add-participant-skip-test",
+            attributed_to=EMIT_ADD_ACTOR_ID,
+        )
+        dl.create(case)
+        participant = _make_add_node_fixture(dl)
+        mock_factory = MagicMock(spec=TriggerActivityAdapter)
+
+        bridge = BTBridge(datalayer=dl, trigger_activity=mock_factory)
+        node = EmitAddCaseParticipantNode(
+            case_id=EMIT_ADD_CASE_ID, invitee_id=EMIT_ADD_INVITEE_ID
+        )
+        result = bridge.execute_with_setup(
+            tree=node,
+            actor_id=EMIT_ADD_ACTOR_ID,
+            new_invite_participant=participant,
+            invitee_already_participant=True,
+        )
+
+        assert result.status == Status.SUCCESS
+        mock_factory.add_participant_to_case.assert_not_called()
+
+    def test_fails_when_participant_not_on_blackboard(self, dl):
+        """FAILURE when new_invite_participant is not a valid participant object."""
+        from unittest.mock import MagicMock
+
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.core.behaviors.case.accept_invite_tree import (
+            EmitAddCaseParticipantNode,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        case = as_VulnerabilityCase(
+            id_=EMIT_ADD_CASE_ID,
+            name="add-participant-fail-test",
+            attributed_to=EMIT_ADD_ACTOR_ID,
+        )
+        dl.create(case)
+        mock_factory = MagicMock(spec=TriggerActivityAdapter)
+        bridge = BTBridge(datalayer=dl, trigger_activity=mock_factory)
+        node = EmitAddCaseParticipantNode(
+            case_id=EMIT_ADD_CASE_ID, invitee_id=EMIT_ADD_INVITEE_ID
+        )
+        result = bridge.execute_with_setup(
+            tree=node,
+            actor_id=EMIT_ADD_ACTOR_ID,
+            new_invite_participant="not-a-participant",
+            invitee_already_participant=False,
+        )
+
+        assert result.status == Status.FAILURE
+        mock_factory.add_participant_to_case.assert_not_called()
+
+    def test_to_field_contains_http_actor_urls_not_bare_uuids(self, dl):
+        """to= passed to add_participant_to_case must contain HTTP actor URLs.
+
+        Production storage keeps case.case_participants as bare UUID strings
+        (e.g. "urn:uuid:…").  _resolve_actor_recipients must use
+        case.actor_participant_index keys (HTTP URIs) instead, or outbox
+        delivery will fail with "Request URL is missing 'http://'".
+        """
+        from unittest.mock import MagicMock
+
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.core.behaviors.case.accept_invite_tree import (
+            EmitAddCaseParticipantNode,
+        )
+        from vultron.core.models.case import VulnerabilityCase
+        from vultron.core.models.case_participant import CaseParticipant
+
+        # Two existing participants stored as bare UUID strings in case_participants
+        # (matching production DataLayer storage format).
+        existing_actor_1 = "https://example.org/actors/existing-actor-1"
+        existing_actor_2 = "https://example.org/actors/existing-actor-2"
+        existing_p1_id = "urn:uuid:11111111-0000-0000-0000-000000000001"
+        existing_p2_id = "urn:uuid:22222222-0000-0000-0000-000000000002"
+
+        case = VulnerabilityCase(
+            id_=EMIT_ADD_CASE_ID,
+            name="to-field-http-url-test",
+            attributed_to=EMIT_ADD_ACTOR_ID,
+            # bare UUID strings, as stored in production
+            case_participants=[existing_p1_id, existing_p2_id],
+            actor_participant_index={
+                existing_actor_1: existing_p1_id,
+                existing_actor_2: existing_p2_id,
+            },
+        )
+        dl.create(case)
+
+        participant = CaseParticipant(
+            id_=EMIT_ADD_PARTICIPANT_ID,
+            attributed_to=EMIT_ADD_INVITEE_ID,
+            context=EMIT_ADD_CASE_ID,
+        )
+        dl.create(participant)
+
+        mock_factory = MagicMock(spec=TriggerActivityAdapter)
+        mock_factory.add_participant_to_case.return_value = (
+            EMIT_ADD_ACTIVITY_ID
+        )
+
+        bridge = BTBridge(datalayer=dl, trigger_activity=mock_factory)
+        node = EmitAddCaseParticipantNode(
+            case_id=EMIT_ADD_CASE_ID, invitee_id=EMIT_ADD_INVITEE_ID
+        )
+        result = bridge.execute_with_setup(
+            tree=node,
+            actor_id=EMIT_ADD_ACTOR_ID,
+            new_invite_participant=participant,
+            invitee_already_participant=False,
+        )
+
+        assert result.status == Status.SUCCESS
+        mock_factory.add_participant_to_case.assert_called_once()
+        call_kwargs = mock_factory.add_participant_to_case.call_args
+        to_arg = call_kwargs.kwargs.get("to") or (
+            call_kwargs.args[3] if len(call_kwargs.args) > 3 else None
+        )
+        assert (
+            to_arg is not None
+        ), "to= must be passed to add_participant_to_case"
+        for recipient in to_arg:
+            assert recipient.startswith("http"), (
+                f"to= recipients must be HTTP actor URLs, not bare IDs: {recipient!r}. "
+                f"Full to= list: {to_arg}"
+            )
+        assert existing_actor_1 in to_arg
+        assert existing_actor_2 in to_arg
+        # The new invitee must NOT be in the recipients (it's the one being added)
+        assert EMIT_ADD_INVITEE_ID not in to_arg
