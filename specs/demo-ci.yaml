@@ -199,6 +199,27 @@ groups:
           GitHub Actions self-hosted runners and persistent environments
           accumulate stale Docker state if teardown is skipped.
 
+      - id: DEMOCI-02-011
+        priority: SHOULD
+        kind: project
+        statement: >-
+          Both demo workflows (demo-integration.yml and
+          demo-image-cache-warm.yml) SHOULD define a `concurrency` group keyed
+          on `${{ github.workflow }}-${{ github.ref }}`. The demo-integration
+          workflow (pull_request-triggered) MUST set `cancel-in-progress: true`
+          so a newer push to a PR branch cancels superseded in-progress and
+          queued runs. The demo-image-cache-warm workflow (push-to-main
+          triggered) MUST set `cancel-in-progress: false` so main-branch cache
+          warms always run to completion.
+        rationale: >-
+          When commits land quickly during iterative work, queued demo runs
+          pile up and waste CI minutes while delaying feedback; a newer commit
+          renders earlier PR-branch runs pointless. Cancelling superseded PR
+          runs reclaims those minutes. Cache-warm runs on main are never
+          cancelled because each successful warm protects the fallback cache
+          scope that new PR branches read from (see the workflow header and
+          DEMOCI-02-007).
+
   - id: DEMOCI-03
     title: Extensibility for Additional Demo Scenarios
     specs:
