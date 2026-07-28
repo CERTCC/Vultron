@@ -255,35 +255,6 @@ def test_validate_canonical_entry_allows_case_actor_for_case_authored_signature(
     )
 
 
-def test_validate_canonical_entry_allows_case_actor_for_add_case_status():
-    """Regression #1767: Add(CaseStatus) is case-authored (the CaseActor's
-    prologue writer records the genesis case status); the CaseActor must be
-    allowed as snapshot actor."""
-    snapshot = {
-        "type": "Add",
-        "actor": CASE_ACTOR_ID,
-        "object": {
-            "type": "CaseStatus",
-            "id": f"{CASE_ID}/status/genesis",
-            "context": CASE_ID,
-        },
-        "target": {
-            "type": "VulnerabilityCase",
-            "id": CASE_ID,
-            "context": CASE_ID,
-        },
-        "context": CASE_ID,
-    }
-    _validate_canonical_entry(
-        case_id=CASE_ID,
-        actor_id=CASE_ACTOR_ID,
-        case_actor_id=CASE_ACTOR_ID,
-        disposition="recorded",
-        payload_snapshot=snapshot,
-        event_type="add_case_status_to_case",
-    )
-
-
 def test_validate_canonical_entry_allows_case_actor_for_invite_vulnerability_case():
     """Regression #1526: Invite(VulnerabilityCase) is case-authored; CaseActor must be allowed."""
     participant_actor_id = "https://example.org/actors/participant-1"

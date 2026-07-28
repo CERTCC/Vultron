@@ -77,9 +77,6 @@ _CASE_AUTHORED_SIGNATURES: frozenset[tuple[str, str]] = frozenset(
         ("Accept", "Offer"),
         ("Reject", "Offer"),
         ("Add", "CaseParticipant"),
-        # Add(CaseStatus): case-actor's prologue writer records the genesis
-        # case status (WritePrologueLedgerEntriesNode). See issue #1767.
-        ("Add", "CaseStatus"),
         ("Create", "VulnerabilityCase"), ("Add", "VulnerabilityReport"), ("Add", "ParticipantStatus"),  # noqa: E501  # fmt: skip
     }
 )
