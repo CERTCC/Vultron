@@ -65,6 +65,32 @@ Compare median days to close across types:
 - Bugs: should roughly balance (bugs fixed ≈ bugs found in a mature phase)
 - Ideas: expect deficit during active discovery; surplus signals planning is processing faster than discovering
 
+## Granularity check: monthly vs. weekly
+
+Monthly buckets smooth over short-term spikes and can reverse conclusions
+when viewed at weekly resolution. Before finalizing any observation, ask:
+*would this look different week-by-week?*
+
+Common reversals to watch for:
+
+- A month that looks like a "surge" may be two quiet weeks bracketing one
+  very active week — the monthly view overstates sustained momentum
+- A month that looks "flat" may contain a sharp drop followed by a recovery —
+  the monthly view masks a mid-period stall
+- Cycle time medians computed monthly can be skewed by a few long-running
+  issues that happen to close in the same month — weekly medians expose this
+
+**When the monthly and weekly stories conflict, the weekly view is usually
+more accurate.** Monthly conclusions should be treated as provisional until
+cross-checked at weekly granularity, especially for:
+
+- Any single-month spike (creation, closure, or cycle time)
+- Any apparent trend that spans fewer than three months
+- Claims about "acceleration" or "deceleration"
+
+If the script does not yet produce weekly buckets, note this limitation
+explicitly in the narrative and flag it as a future improvement.
+
 ## Synthesis
 
 After working through the lenses, write a narrative with:
