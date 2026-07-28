@@ -482,10 +482,18 @@ class TestFriendlyNaming:
         assert friendly_target_noun(None) is None
 
     def test_event_phrase_known(self):
-        assert event_phrase("validate_report") == "validated the report"
+        # event_phrase() delegates to the SemanticEntry phrase template;
+        # named slots are filled with "—" when no slot values are supplied.
+        assert event_phrase("validate_report") == "— validated the report"
 
     def test_event_phrase_fallback_humanizes(self):
         assert event_phrase("some_novel_event") == "some novel event"
+
+    def test_summary_unknown_event_type_humanizes(self):
+        """DRPT-03-002: unknown event_type falls back to humanized phrase, capitalised."""
+        raw = _camel_entry(eventType="some_novel_event")
+        event = CaseTimelineEvent.from_raw(raw)
+        assert event.summary == "Some novel event"
 
     def test_summary_is_active_voice(self):
         event = CaseTimelineEvent.from_raw(_camel_entry())
@@ -502,6 +510,14 @@ class TestFriendlyNaming:
         event = CaseTimelineEvent.from_raw(_camel_entry())
         assert "http" not in event.summary
         assert "urn:uuid" not in event.summary
+
+    def test_summary_no_actor_uri_capitalises_verb(self):
+        """When actor_uri is absent the em-dash prefix is dropped and the
+        summary is capitalised so it reads as a sentence (DRPT-03-004)."""
+        raw = _camel_entry(payloadSnapshot={"type": "Create"})
+        event = CaseTimelineEvent.from_raw(raw)
+        assert event.actor_uri is None
+        assert event.summary == "Validated the report"
 
 
 # ---------------------------------------------------------------------------

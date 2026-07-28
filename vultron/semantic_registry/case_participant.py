@@ -42,6 +42,7 @@ ENTRIES: list[SemanticEntry] = [
         pattern=CreateCaseParticipantPattern,
         event_class=CreateCaseParticipantReceivedEvent,
         use_case_class=CreateCaseParticipantReceivedUseCase,
+        phrase="{actor} created a case participant record",
         wire_activity_class=_CreateParticipantActivity,
     ),
     SemanticEntry(
@@ -49,6 +50,7 @@ ENTRIES: list[SemanticEntry] = [
         pattern=AddCaseParticipantToCasePattern,
         event_class=AddCaseParticipantToCaseReceivedEvent,
         use_case_class=AddCaseParticipantToCaseReceivedUseCase,
+        phrase="{actor} added {object} as a case participant",
         wire_activity_class=_AddParticipantToCaseActivity,
     ),
     SemanticEntry(
@@ -56,6 +58,7 @@ ENTRIES: list[SemanticEntry] = [
         pattern=RemoveCaseParticipantFromCasePattern,
         event_class=RemoveCaseParticipantFromCaseReceivedEvent,
         use_case_class=RemoveCaseParticipantFromCaseReceivedUseCase,
+        phrase="{actor} removed {object} from the case",
         wire_activity_class=_RemoveParticipantFromCaseActivity,
     ),
 ]

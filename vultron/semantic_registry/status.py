@@ -52,6 +52,7 @@ ENTRIES: list[SemanticEntry] = [
         pattern=CreateCaseStatusActivityPattern,
         event_class=CreateCaseStatusReceivedEvent,
         use_case_class=CreateCaseStatusReceivedUseCase,
+        phrase="{actor} created a case status record",
         wire_activity_class=_CreateCaseStatusActivity,
     ),
     SemanticEntry(
@@ -59,6 +60,7 @@ ENTRIES: list[SemanticEntry] = [
         pattern=AddCaseStatusToCasePattern,
         event_class=AddCaseStatusToCaseReceivedEvent,
         use_case_class=AddCaseStatusToCaseReceivedUseCase,
+        phrase="{actor} updated the case status",
         wire_activity_class=_AddStatusToCaseActivity,
     ),
     # Participant status
@@ -67,6 +69,7 @@ ENTRIES: list[SemanticEntry] = [
         pattern=CreateParticipantStatusPattern,
         event_class=CreateParticipantStatusReceivedEvent,
         use_case_class=CreateParticipantStatusReceivedUseCase,
+        phrase="{actor} created a participant status record",
         wire_activity_class=_CreateStatusForParticipantActivity,
     ),
     SemanticEntry(
@@ -74,6 +77,7 @@ ENTRIES: list[SemanticEntry] = [
         pattern=AddParticipantStatusToParticipantPattern,
         event_class=AddParticipantStatusToParticipantReceivedEvent,
         use_case_class=AddParticipantStatusToParticipantReceivedUseCase,
+        phrase="{actor} updated the participant status for {object}",
         wire_activity_class=_AddStatusToParticipantActivity,
         include_activity=True,
     ),

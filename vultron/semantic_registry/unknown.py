@@ -37,6 +37,7 @@ ENTRIES: list[SemanticEntry] = [
         pattern=None,
         event_class=UnresolvableObjectReceivedEvent,
         use_case_class=UnresolvableObjectUseCase,
+        phrase="{actor} sent an activity with an unresolvable object",
         wire_activity_class=None,
         include_activity=True,
     ),
@@ -45,6 +46,7 @@ ENTRIES: list[SemanticEntry] = [
         pattern=None,
         event_class=UnknownReceivedEvent,
         use_case_class=UnknownUseCase,
+        phrase="{actor} performed an unknown action",
         wire_activity_class=None,
     ),
 ]

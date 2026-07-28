@@ -51,11 +51,15 @@ import logging
 import os
 import sys
 import webbrowser
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
 
 from pydantic import BaseModel, Field
+
+from vultron.core.models.events.base import MessageSemantics
+from vultron.semantic_registry import lookup_entry
 
 logger = logging.getLogger(__name__)
 
@@ -284,52 +288,6 @@ _TARGET_NOUNS: dict[str, str] = {
     "Reject": "rejection",
 }
 
-#: Event type (== ``MessageSemantics`` value) → active-voice verb phrase
-#: (DRPT-03-002). The event type already implies the object, so a summary is
-#: ``"{Actor} {phrase}"``. Unknown types fall back to a humanized event type.
-_EVENT_PHRASES: dict[str, str] = {
-    "create_report": "created a report",
-    "submit_report": "submitted the report",
-    "validate_report": "validated the report",
-    "invalidate_report": "invalidated the report",
-    "ack_report": "acknowledged the report",
-    "close_report": "closed the report",
-    "create_case": "created the case",
-    "update_case": "updated the case",
-    "engage_case": "engaged the case",
-    "defer_case": "deferred the case",
-    "add_report_to_case": "added the report to the case",
-    "offer_actor_to_case": "suggested an actor for the case",
-    "offer_case_participant": "offered case participation",
-    "accept_offer_case_participant": "accepted case participation",
-    "reject_offer_case_participant": "declined case participation",
-    "offer_case_manager_role": "offered the case-manager role",
-    "accept_case_manager_role": "accepted the case-manager role",
-    "reject_case_manager_role": "declined the case-manager role",
-    "invite_actor_to_case": "invited an actor to the case",
-    "accept_invite_actor_to_case": "accepted the case invitation",
-    "reject_invite_actor_to_case": "declined the case invitation",
-    "announce_vulnerability_case": "announced the case",
-    "add_embargo_event_to_case": "added an embargo to the case",
-    "remove_embargo_event_from_case": "removed an embargo from the case",
-    "announce_embargo_event_to_case": "announced an embargo change",
-    "invite_to_embargo_on_case": "proposed an embargo",
-    "accept_invite_to_embargo_on_case": "accepted the embargo",
-    "reject_invite_to_embargo_on_case": "declined the embargo",
-    "close_case": "closed the case",
-    "announce_case_ledger_entry": "announced a ledger entry",
-    "reject_case_ledger_entry": "rejected a ledger entry",
-    "add_case_participant_to_case": "added a participant to the case",
-    "remove_case_participant_from_case": "removed a participant",
-    "add_note_to_case": "added a note to the case",
-    "remove_note_from_case": "removed a note from the case",
-    "add_case_status_to_case": "updated the case status",
-    "add_participant_status_to_participant": "updated participant status",
-    "create_case_proposal": "proposed a case",
-    "accept_case_proposal": "accepted the case proposal",
-    "reject_case_proposal": "declined the case proposal",
-}
-
 
 def _titleize(segment: str) -> str:
     """Turn a URI/dir segment into a friendly label ("case-actor" → "Case Actor").
@@ -412,12 +370,21 @@ def friendly_object_label(
 
 
 def event_phrase(event_type: str) -> str:
-    """Map an event type to an active-voice verb phrase (DRPT-03-002)."""
-    phrase = _EVENT_PHRASES.get(event_type)
-    if phrase:
-        return phrase
-    humanized = event_type.replace("_", " ").strip()
-    return humanized or "performed an action"
+    """Map an event type to an active-voice phrase via the semantic registry.
+
+    Looks up the ``SemanticEntry`` for *event_type* in ``SEMANTIC_REGISTRY``
+    and returns ``entry.phrase`` with all named slots filled with ``"—"``
+    (DRPT-03-002).  Falls back to a humanized version of *event_type* when
+    the event type is not a recognized ``MessageSemantics`` value.
+    """
+    try:
+        semantics = MessageSemantics(event_type)
+    except ValueError:
+        humanized = event_type.replace("_", " ").strip()
+        return humanized or "performed an action"
+    entry = lookup_entry(semantics)
+    slots: dict[str, str] = defaultdict(lambda: "—")
+    return entry.phrase.format_map(slots)
 
 
 # ---------------------------------------------------------------------------
@@ -642,12 +609,32 @@ class CaseTimelineEvent(BaseModel):
 
     @property
     def summary(self) -> str:
-        """Friendly active-voice summary ("Vendor validated the report")."""
-        phrase = event_phrase(self.event_type)
-        if self.actor_uri:
-            summary = f"{self.actor_label} {phrase}"
+        """Friendly active-voice summary (DRPT-03-002, DRPT-03-004).
+
+        Looks up the ``SemanticEntry`` phrase template for this event type and
+        fills named slots with values derived from the event record's resolved
+        label properties.  Unknown slot names fall back to ``"—"``.
+        """
+        try:
+            semantics = MessageSemantics(self.event_type)
+        except ValueError:
+            humanized = (
+                self.event_type.replace("_", " ").strip()
+                or "performed an action"
+            )
+            phrase = humanized
         else:
-            summary = phrase[:1].upper() + phrase[1:] if phrase else phrase
+            entry = lookup_entry(semantics)
+            slots: dict[str, str] = defaultdict(lambda: "—")
+            slots["actor"] = self.actor_label
+            if self.target_label:
+                slots["object"] = self.target_label
+                slots["target"] = self.target_label
+            phrase = entry.phrase.format_map(slots)
+
+        if not self.actor_uri and phrase.startswith("— "):
+            phrase = phrase[2:]
+        summary = phrase[:1].upper() + phrase[1:] if phrase else phrase
         if self.disposition != "recorded":
             summary = f"{summary} [{self.disposition}]"
         return summary
