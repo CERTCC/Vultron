@@ -251,6 +251,7 @@ IMPL_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
 
 ## Reference
 Source: #${ISSUE_NUMBER}
+$([ -n "${PR_URL}" ] && echo "Docs PR: ${PR_URL}")
 $([ -n "${SPEC_FILE}" ] && echo "Spec: \`specs/${SPEC_FILE}\`")
 $([ -n "${NOTES_FILE}" ] && echo "Notes: \`notes/${NOTES_FILE}\`")" \
   --label "size:<S|M|L>" \
@@ -269,6 +270,34 @@ Add each new issue to Project #24:
 ```bash
 bash .agents/skills/shared/add-to-project.sh "${IMPL_NUMBER}"
 ```
+
+### Phase 8b — Add Implementation Issue References to Docs PR (Ideas and Concerns only)
+
+After all impl issues are created, edit the PR body to add a forward-tracing
+section. This ensures the docs PR links forward to the work it spawned.
+
+Collect all impl issue numbers created in Phase 8 into `IMPL_NUMBERS` (array).
+Then compose an edit to the PR body:
+
+```bash
+IMPL_LIST=""
+for n in "${IMPL_NUMBERS[@]}"; do
+  IMPL_LIST="${IMPL_LIST}
+- #${n}"
+done
+
+# Append to existing PR body (or patch inline if section already present)
+CURRENT_BODY=$(gh pr view "${PR_URL}" --repo CERTCC/Vultron --json body --jq '.body')
+NEW_BODY="${CURRENT_BODY}
+
+## Implementation Issues
+${IMPL_LIST}"
+
+gh pr edit "${PR_URL}" --repo CERTCC/Vultron --body "${NEW_BODY}"
+```
+
+Skip this step for Epics — the Epic docs PR does not close the source issue
+and the impl issues are wired differently.
 
 ### Phase 9 — Archive, Close, or Annotate
 
@@ -297,6 +326,8 @@ See the loaded companion file for the type-specific completion step:
 - [ ] PR opened with `specs-notes` label — always
 - [ ] Implementation issue(s) created via `manage-github-issue` + `add-to-project.sh`
 - [ ] Impl issues wired per type (blocked-by for Ideas/Concerns; sub-issue for Epics)
+- [ ] Impl issues reference docs PR URL in their body (Ideas/Concerns only — Phase 8)
+- [ ] Docs PR body updated with Implementation Issues section (Ideas/Concerns only — Phase 8b)
 - [ ] Completion step executed per type (archive+close for Ideas/Concerns; annotate for Epics)
 
 ---
