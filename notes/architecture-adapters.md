@@ -3,7 +3,8 @@ title: Adapter Patterns and Boundary Invariants
 status: active
 description: >
   Adapter category details, outbound activity construction via driven ports,
-  DataLayer scope boundaries, and ASGI emitter architecture patterns.
+  DataLayer scope boundaries, and the uniform-HTTP inter-actor delivery model
+  (ADR-0042).
 related_notes:
   - notes/architecture-hexagonal.md
   - vultron/core/ports/AGENTS.md

@@ -160,8 +160,8 @@ groups:
     rationale: >-
       Vultron direct messages use `to:` for primary recipients. The `cc:`/`bto:`/`bcc:`
       fields are reserved for a single exception: a CaseActor-originated activity
-      that adds the CaseActor's own ID to `cc:` so ASGI self-delivery routes the
-      activity through the CaseActor's received-side use case and the
+      that adds the CaseActor's own ID to `cc:` so HTTP loopback self-delivery
+      (OX-12-004) routes the activity through the CaseActor's received-side use case and the
       `GuardedCommitCaseLedgerEntryBT` fires in the correct inbox context
       (CLP-10-001). This purposeful self-copy MUST NOT trigger the WARNING. Any
       other use of `cc:`/`bto:`/`bcc:` is suspect and SHOULD be logged.
