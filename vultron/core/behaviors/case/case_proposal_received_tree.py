@@ -10,6 +10,19 @@ A durable ``PendingCreateCaseActivity`` marker is written to the DataLayer
 after step 1 and cleared on successful completion of step 2 so that a retry
 runner (#1139) can recover the obligation if delivery of step 2 fails.
 
+The normal-path Sequence performs CaseActor-native initialization per
+ADR-0041 before emitting outbound activities:
+
+  1. Resolve (or create) the VulnerabilityCase
+  2. Add vendor (receiver) as CASE_OWNER participant at RM.RECEIVED (AC-1)
+  3. Add reporter as participant at RM.ACCEPTED (AC-2)
+  4. Initialize the default embargo (AC-3)
+  5. Commit canonical ledger entries natively (AC-4)
+  6. Emit ``Accept(as_CaseProposal)``
+  7. Write durable retry marker (CP-05-005)
+  8. Emit ``Create(VulnerabilityCase)`` with inline participants (AC-5)
+  9. Clear retry marker on success
+
 Idempotency (CP-05-006):
 
 The top-level tree is a Selector with two branches:
@@ -23,9 +36,10 @@ The top-level tree is a Selector with two branches:
   Selector between ``_LoadExistingCaseNode`` (AC-1/AC-2: finds and reuses
   an existing ``VulnerabilityCase`` for the same report) and
   ``_CreateCaseFromProposalNode`` (normal path: creates a new case).  The
-  remaining four steps are unchanged.
+  remaining nodes proceed with native initialization and outbound messaging.
 
 Spec: ``specs/case-proposal.yaml`` CP-05-001 through CP-05-006.
+Per: ``docs/adr/0041-caseactor-authoritative-case-initialization.md``.
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -47,16 +61,42 @@ from typing import Any, cast
 import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.participant.common import (
+    _create_and_attach_participant,
+    _get_or_create_accepted_status,
+)
+from vultron.core.behaviors.case.nodes.participant.owner import (
+    _build_owner_initial_status,
+)
+from vultron.core.behaviors.case.nodes.prologue import (
+    _build_add_case_status_snapshot,
+    _build_add_participant_status_snapshot,
+    _build_add_report_to_case_snapshot,
+    _build_create_case_snapshot,
+    _obj_to_inline_dict,
+)
 from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.sync.commit_tree import (
+    create_commit_log_entry_tree,
+)
 from vultron.core.models.activity import (
     VultronAccept,
     VultronCreateCaseActivity,
 )
-from vultron.core.models.case import VultronCase
+from vultron.core.models.case import VulnerabilityCase, VultronCase
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
 )
+from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.vultron_types import VultronParticipant
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.rm import RM
+from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
 
@@ -189,6 +229,429 @@ class _CreateCaseFromProposalNode(DataLayerAction):
             "%s: Created VulnerabilityCase '%s' from proposal",
             self.name,
             case.id_,
+        )
+        return Status.SUCCESS
+
+
+class _AddVendorOwnerParticipantNode(DataLayerAction):
+    """Add the vendor (receiver) as CASE_OWNER participant at RM.RECEIVED.
+
+    The vendor sent the proposal — they are the case owner (receiver of the
+    original vulnerability report).  Per ADR-0041 AC-1, the CaseActor adds
+    them as CASE_OWNER at RM.RECEIVED in its own DataLayer.
+
+    Reads ``case_id`` from the blackboard (written by ResolveCaseIdSelector).
+    """
+
+    def __init__(
+        self,
+        vendor_uri: str,
+        report_id: str | None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._vendor_uri = vendor_uri
+        self._report_id = report_id
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="case_id", access=py_trees.common.Access.READ
+        )
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        try:
+            case_id = self.blackboard.get("case_id")
+        except KeyError:
+            self.feedback_message = "case_id not found in blackboard"
+            return Status.FAILURE
+        if not isinstance(case_id, str):
+            self.feedback_message = "case_id is not a string"
+            return Status.FAILURE
+
+        # Skip if vendor already has a participant in this case.
+        stored_case = self.datalayer.read(case_id)
+        if isinstance(stored_case, VulnerabilityCase):
+            if self._vendor_uri in stored_case.actor_participant_index:
+                logger.debug(
+                    "%s: vendor '%s' already in actor_participant_index"
+                    " for case '%s' — skipping",
+                    self.name,
+                    self._vendor_uri,
+                    case_id,
+                )
+                return Status.SUCCESS
+
+        initial_status = _build_owner_initial_status(
+            self.datalayer,
+            self._vendor_uri,
+            case_id,
+            self._report_id,
+            RM.RECEIVED,
+        )
+
+        participant = VultronParticipant(
+            attributed_to=self._vendor_uri,
+            context=case_id,
+            case_roles=[CVDRole.CASE_OWNER],
+            participant_statuses=[initial_status],
+        )
+
+        updated_case = _create_and_attach_participant(
+            self.datalayer,
+            participant,
+            case_id,
+            self._vendor_uri,
+            self.logger,
+        )
+        if updated_case is None:
+            self.feedback_message = f"Case '{case_id}' not found in DataLayer"
+            return Status.FAILURE
+
+        self.datalayer.save(updated_case)
+        logger.info(
+            "%s: Added vendor '%s' as CASE_OWNER at RM.RECEIVED"
+            " in case '%s' (ADR-0041 AC-1)",
+            self.name,
+            self._vendor_uri,
+            case_id,
+        )
+        return Status.SUCCESS
+
+
+class _AddReporterParticipantNode(DataLayerAction):
+    """Add the reporter as a participant at RM.ACCEPTED.
+
+    Reads the reporter's actor URI from ``VulnerabilityReport.attributed_to``
+    in the DataLayer.  Per ADR-0041 AC-2, the reporter is added at
+    RM.ACCEPTED — they submitted the report, which is already accepted.
+
+    No-ops gracefully when the report cannot be found (logs a warning, returns
+    SUCCESS) so the overall flow is not blocked by a missing reporter.
+
+    Reads ``case_id`` from the blackboard.
+    """
+
+    def __init__(
+        self,
+        report_id: str | None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._report_id = report_id
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="case_id", access=py_trees.common.Access.READ
+        )
+
+    def _resolve_reporter_uri(self, report_id: str) -> str | None:
+        assert self.datalayer is not None
+        raw_report = self.datalayer.read(report_id)
+        if not isinstance(raw_report, VulnerabilityReport):
+            logger.warning(
+                "%s: report '%s' not found — skipping reporter participant"
+                " (best-effort)",
+                self.name,
+                report_id,
+            )
+            return None
+        reporter_uri = getattr(raw_report, "attributed_to", None)
+        if not isinstance(reporter_uri, str) or not reporter_uri:
+            logger.warning(
+                "%s: report '%s' has no attributed_to — skipping reporter"
+                " participant (best-effort)",
+                self.name,
+                report_id,
+            )
+            return None
+        return reporter_uri
+
+    def _already_has_participant(self, case_id: str, actor_uri: str) -> bool:
+        assert self.datalayer is not None
+        stored_case = self.datalayer.read(case_id)
+        if not isinstance(stored_case, VulnerabilityCase):
+            return False
+        if actor_uri in stored_case.actor_participant_index:
+            logger.debug(
+                "%s: '%s' already in actor_participant_index for case '%s'"
+                " — skipping",
+                self.name,
+                actor_uri,
+                case_id,
+            )
+            return True
+        return False
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        if self._report_id is None:
+            logger.debug(
+                "%s: no report_id — skipping reporter participant", self.name
+            )
+            return Status.SUCCESS
+
+        try:
+            case_id = self.blackboard.get("case_id")
+        except KeyError:
+            self.feedback_message = "case_id not found in blackboard"
+            return Status.FAILURE
+        if not isinstance(case_id, str):
+            self.feedback_message = "case_id is not a string"
+            return Status.FAILURE
+
+        reporter_uri = self._resolve_reporter_uri(self._report_id)
+        if reporter_uri is None:
+            return Status.SUCCESS
+
+        if self._already_has_participant(case_id, reporter_uri):
+            return Status.SUCCESS
+
+        accepted_status = _get_or_create_accepted_status(
+            self.datalayer,
+            reporter_uri,
+            self._report_id,
+            self.name,
+            self.logger,
+            cvd_role=[CVDRole.REPORTER],
+            em_consent_state=PEC.NO_EMBARGO,
+        )
+
+        participant = VultronParticipant(
+            attributed_to=reporter_uri,
+            context=case_id,
+            case_roles=[CVDRole.REPORTER],
+            participant_statuses=(
+                [accepted_status] if accepted_status is not None else []
+            ),
+        )
+
+        updated_case = _create_and_attach_participant(
+            self.datalayer,
+            participant,
+            case_id,
+            reporter_uri,
+            self.logger,
+        )
+        if updated_case is None:
+            self.feedback_message = f"Case '{case_id}' not found in DataLayer"
+            return Status.FAILURE
+
+        self.datalayer.save(updated_case)
+        logger.info(
+            "%s: Added reporter '%s' as REPORTER at RM.ACCEPTED"
+            " in case '%s' (ADR-0041 AC-2)",
+            self.name,
+            reporter_uri,
+            case_id,
+        )
+        return Status.SUCCESS
+
+
+class _CommitNativeLedgerEntriesNode(DataLayerAction):
+    """Commit canonical ledger entries natively for CaseActor initialization.
+
+    Commits entries in causal order per ADR-0041 AC-4:
+
+      1. ``create_case``                     actor=CaseActor
+      2. ``add_report_to_case``              actor=CaseActor
+      3. ``add_participant_status_to_participant`` × N  actor=CaseActor
+      4. ``add_case_status_to_case``         actor=vendor (not CaseActor —
+         ``("Add","CaseStatus")`` is not in ``_CASE_AUTHORED_SIGNATURES``)
+
+    Best-effort: a single failed entry logs a warning but does not abort
+    the Sequence; initialization proceeds regardless (the ledger is an
+    audit record, not a precondition for the Accept/Create emissions).
+
+    Reads ``case_id`` from the blackboard.
+    """
+
+    def __init__(
+        self,
+        vendor_uri: str,
+        report_id: str | None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._vendor_uri = vendor_uri
+        self._report_id = report_id
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="case_id", access=py_trees.common.Access.READ
+        )
+
+    def _commit_one(
+        self,
+        case_id: str,
+        object_id: str,
+        event_type: str,
+        snapshot: dict[str, Any],
+    ) -> None:
+        assert self.datalayer is not None
+        assert self.actor_id is not None
+        tree = create_commit_log_entry_tree(
+            case_id=case_id,
+            object_id=object_id,
+            event_type=event_type,
+            payload_snapshot=snapshot,
+            disposition="recorded",
+        )
+        result = BTBridge(
+            datalayer=cast(CaseOutboxPersistence, self.datalayer)
+        ).execute_with_setup(tree=tree, actor_id=self.actor_id)
+        if result.status != Status.SUCCESS:
+            logger.warning(
+                "%s: could not commit '%s' entry for case '%s' (best-effort): %s",
+                self.name,
+                event_type,
+                case_id,
+                result.feedback_message,
+            )
+
+    def _commit_add_reports(
+        self, case: VulnerabilityCase, case_id: str
+    ) -> None:
+        assert self.datalayer is not None
+        assert self.actor_id is not None
+        for report_id in case.vulnerability_reports:
+            raw_report = self.datalayer.read(report_id)
+            if not isinstance(raw_report, VulnerabilityReport):
+                logger.warning(
+                    "%s: report '%s' not found — skipping add_report_to_case"
+                    " (best-effort)",
+                    self.name,
+                    report_id,
+                )
+                continue
+            snapshot = _build_add_report_to_case_snapshot(
+                raw_report, case, self.actor_id, case_id
+            )
+            self._commit_one(
+                case_id, report_id, "add_report_to_case", snapshot
+            )
+
+    def _commit_participant_statuses(
+        self, case: VulnerabilityCase, case_id: str
+    ) -> None:
+        assert self.datalayer is not None
+        assert self.actor_id is not None
+        for participant_ref in case.case_participants:
+            participant_id = (
+                participant_ref
+                if isinstance(participant_ref, str)
+                else getattr(participant_ref, "id_", None)
+            )
+            if not participant_id:
+                continue
+            raw_participant = self.datalayer.read(participant_id)
+            if not isinstance(raw_participant, CaseParticipant):
+                logger.warning(
+                    "%s: participant '%s' not found — skipping"
+                    " participant_status entry (best-effort)",
+                    self.name,
+                    participant_id,
+                )
+                continue
+            self._commit_one_participant_statuses(raw_participant, case_id)
+
+    def _commit_one_participant_statuses(
+        self, participant: CaseParticipant, case_id: str
+    ) -> None:
+        assert self.actor_id is not None
+        for status in participant.participant_statuses:
+            if not isinstance(status, ParticipantStatus):
+                continue
+            status_id = getattr(status, "id_", None)
+            if not status_id:
+                continue
+            snapshot = _build_add_participant_status_snapshot(
+                status, participant, self.actor_id, case_id
+            )
+            self._commit_one(
+                case_id,
+                status_id,
+                "add_participant_status_to_participant",
+                snapshot,
+            )
+
+    def _commit_case_statuses(
+        self, case: VulnerabilityCase, case_id: str
+    ) -> None:
+        assert self.datalayer is not None
+        for status_ref in case.case_statuses:
+            if isinstance(status_ref, CaseStatus):
+                status = status_ref
+            elif isinstance(status_ref, str):
+                raw = self.datalayer.read(status_ref)
+                if not isinstance(raw, CaseStatus):
+                    continue
+                status = raw
+            else:
+                continue
+            status_id = getattr(status, "id_", None)
+            if not status_id:
+                continue
+            snapshot = _build_add_case_status_snapshot(
+                status, case, self._vendor_uri, case_id
+            )
+            self._commit_one(
+                case_id, status_id, "add_case_status_to_case", snapshot
+            )
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
+
+        try:
+            case_id = self.blackboard.get("case_id")
+        except KeyError:
+            self.feedback_message = "case_id not found in blackboard"
+            return Status.FAILURE
+        if not isinstance(case_id, str):
+            self.feedback_message = "case_id is not a string"
+            return Status.FAILURE
+
+        raw_case = self.datalayer.read(case_id)
+        if not isinstance(raw_case, VulnerabilityCase):
+            logger.warning(
+                "%s: case '%s' not found — skipping ledger entries"
+                " (best-effort)",
+                self.name,
+                case_id,
+            )
+            return Status.SUCCESS
+
+        case = raw_case
+        # 1. create_case  (actor = CaseActor, in _CASE_AUTHORED_SIGNATURES)
+        self._commit_one(
+            case_id,
+            case_id,
+            "create_case",
+            _build_create_case_snapshot(case, self.actor_id, case_id),
+        )
+        # 2. add_report_to_case  (actor = CaseActor)
+        self._commit_add_reports(case, case_id)
+        # 3. add_participant_status × N  (actor = CaseActor)
+        self._commit_participant_statuses(case, case_id)
+        # 4. add_case_status  (actor = vendor_uri — not in _CASE_AUTHORED_SIGNATURES)
+        self._commit_case_statuses(case, case_id)
+
+        logger.info(
+            "%s: native ledger entries committed for case '%s' (ADR-0041 AC-4)",
+            self.name,
+            case_id,
         )
         return Status.SUCCESS
 
@@ -402,6 +865,27 @@ class _WriteCreateCaseMarkerNode(DataLayerAction):
             key="accept_activity_id", access=py_trees.common.Access.READ
         )
 
+    def _build_case_object(self, case_id: str) -> "dict[str, Any] | None":
+        assert self.datalayer is not None
+        raw_case = self.datalayer.read(case_id)
+        if not isinstance(raw_case, VulnerabilityCase):
+            return None
+        # Materialise each participant ref so _store_embedded_participants
+        # on the vendor side receives full objects, not bare ID strings (AC-5).
+        materialized: list[Any] = []
+        for ref in raw_case.case_participants:
+            if isinstance(ref, str):
+                p_obj = self.datalayer.read(ref)
+                materialized.append(p_obj if p_obj is not None else ref)
+            else:
+                materialized.append(ref)
+        case_copy = raw_case.model_copy(
+            update={"case_participants": materialized}
+        )
+        case_dict = _obj_to_inline_dict(case_copy)
+        case_dict.setdefault("type", "VulnerabilityCase")
+        return case_dict
+
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
@@ -426,9 +910,19 @@ class _WriteCreateCaseMarkerNode(DataLayerAction):
         # Create(VulnerabilityCase).  Mirrors the logic in
         # _EmitCreateVulnerabilityCaseNode so the retry runner (#1139)
         # can reconstruct the exact same activity without re-running the BT.
+        # AC-5 (ADR-0041): embed full inline case object with materialised
+        # participants so _store_embedded_participants seeds the vendor replica.
+        case_object = self._build_case_object(case_id)
+        if case_object is None:
+            self.feedback_message = (
+                f"VulnerabilityCase {case_id!r} not found in DataLayer"
+            )
+            logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
         create_activity = VultronCreateCaseActivity(
             actor=self.actor_id,
-            object_=case_id,
+            object_=case_object,
             context=accept_activity_id,
             to=[self._vendor_uri],
         )
@@ -520,30 +1014,40 @@ def create_case_proposal_received_tree(
       ``Create(VulnerabilityCase)`` delivery is still pending.  Return SUCCESS
       immediately — the retry runner owns recovery; do not re-send Accept.
 
-    **Branch 2 — normal / duplicate flow** (Sequence of five nodes):
+    **Branch 2 — normal / duplicate flow** (Sequence):
       First, a sub-Selector resolves which ``VulnerabilityCase`` to use:
 
       * ``_LoadExistingCaseNode`` (AC-1/AC-2): if a case already exists for
-        *report_id*, write its ID to the blackboard and succeed — the vendor is
-        resending the proposal; reuse the existing case rather than creating a
-        second one.
+        *report_id*, write its ID to the blackboard and succeed.
       * ``_CreateCaseFromProposalNode`` (normal path): create a new case.
 
-      Then the remaining four nodes proceed as for the original happy path:
+      Then CaseActor-native initialization steps (ADR-0041):
 
-      3. ``_EmitAcceptCaseProposalNode`` — emits Accept(as_CaseProposal)
-      4. ``_WriteCreateCaseMarkerNode`` — writes durable retry marker
-         (CP-05-005)
-      5. ``_EmitCreateVulnerabilityCaseNode`` — emits
-         Create(VulnerabilityCase)
-      6. ``_ClearCreateCaseMarkerNode`` — removes marker on success
+      3. ``_AddVendorOwnerParticipantNode`` — vendor added as CASE_OWNER at
+         RM.RECEIVED (ADR-0041 AC-1)
+      4. ``_AddReporterParticipantNode`` — reporter added at RM.ACCEPTED
+         (ADR-0041 AC-2)
+      5. ``InitializeDefaultEmbargoNode`` — default embargo initialized
+         (ADR-0041 AC-3)
+      6. ``_CommitNativeLedgerEntriesNode`` — canonical ledger entries
+         committed (ADR-0041 AC-4)
+
+      Then the outbound messaging steps:
+
+      7. ``_EmitAcceptCaseProposalNode`` — emits Accept(as_CaseProposal)
+      8. ``_WriteCreateCaseMarkerNode`` — writes durable retry marker with
+         inline case object (CP-05-005, ADR-0041 AC-5)
+      9. ``_EmitCreateVulnerabilityCaseNode`` — emits
+         Create(VulnerabilityCase) with inline participants
+      10. ``_ClearCreateCaseMarkerNode`` — removes marker on success
          (CP-05-005)
 
-    If node 5 fails, the marker written in node 4 remains in the DataLayer so
+    If node 9 fails, the marker written in node 8 remains in the DataLayer so
     that a retry runner (#1139) can complete the ``Create(VulnerabilityCase)``
     delivery independently.
 
     Spec: CP-05-001 through CP-05-006.
+    Per: ``docs/adr/0041-caseactor-authoritative-case-initialization.md``.
 
     Args:
         report_id: URI of the VulnerabilityReport embedded in the proposal
@@ -559,6 +1063,10 @@ def create_case_proposal_received_tree(
     Returns:
         A py_trees Selector behaviour ready for ``BTBridge.execute_with_setup``.
     """
+    from vultron.core.behaviors.case.embargo_tree import (
+        InitializeDefaultEmbargoNode,
+    )
+
     # Sub-Selector: reuse existing case (duplicate) OR create new (normal path)
     case_resolution = py_trees.composites.Selector(
         name="ResolveCaseIdSelector",
@@ -569,12 +1077,28 @@ def create_case_proposal_received_tree(
         ],
     )
 
-    # Main flow: resolve case → emit Accept → write marker → emit Create → clear
+    # Main flow: resolve case → native init → emit Accept → write marker →
+    # emit Create → clear marker
     main_flow = py_trees.composites.Sequence(
         name="CreateCaseProposalReceivedBT",
         memory=False,
         children=[
             case_resolution,
+            # ADR-0041 AC-1: add vendor as CASE_OWNER at RM.RECEIVED
+            _AddVendorOwnerParticipantNode(
+                vendor_uri=vendor_uri,
+                report_id=report_id,
+            ),
+            # ADR-0041 AC-2: add reporter at RM.ACCEPTED
+            _AddReporterParticipantNode(report_id=report_id),
+            # ADR-0041 AC-3: initialize default embargo
+            InitializeDefaultEmbargoNode(),
+            # ADR-0041 AC-4: commit canonical ledger entries natively
+            _CommitNativeLedgerEntriesNode(
+                vendor_uri=vendor_uri,
+                report_id=report_id,
+            ),
+            # Outbound messaging
             _EmitAcceptCaseProposalNode(
                 proposal_id=proposal_id,
                 vendor_uri=vendor_uri,
