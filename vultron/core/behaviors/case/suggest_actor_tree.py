@@ -228,7 +228,7 @@ def create_accept_actor_recommendation_received_tree(
     recommender_id: str,
     invitee_id: str,
     case_id: str,
-    roles: list | None = None,
+    roles: list[str] | None = None,
 ) -> py_trees.composites.Sequence:
     """Received-side BT for Accept(Offer(CaseParticipant)) on the CaseActor inbox.
 

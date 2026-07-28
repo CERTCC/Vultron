@@ -58,9 +58,17 @@ class EmitInviteActorToCaseNode(DataLayerAction):
     ``attributed_to`` carries the original requesting actor when the invite
     is sent from the Case Actor identity (PCR-08-007).
 
-    Reads ``suggested_roles`` from the blackboard (written by
-    ``EvaluateDefaultRolesNode`` or the Case Owner's Accept response) and
-    embeds the roles in the Invite (CM-17-003).
+    Roles are resolved via ``_read_suggested_roles()``, which uses two paths:
+
+    1. **Injected roles** (``roles`` constructor parameter): used when the
+       node is instantiated from a stored ``Offer(CaseParticipant)`` in the
+       DataLayer (ISSUE-1745).  The stored Offer is the trusted source because
+       the received ``Accept`` is untrusted — the accepting actor may have
+       modified or omitted roles.  This path is used in BT execution 2, where
+       the blackboard is empty.
+    2. **Blackboard fallback**: used in the single-execution path where
+       ``EvaluateDefaultRolesNode`` wrote ``suggested_roles`` to the blackboard
+       in the same ``BTBridge.execute_with_setup()`` call (CM-17-003).
 
     Reads the ``VulnerabilityCase`` from the DataLayer and passes it as
     ``target`` to ``TriggerActivityPort.invite_actor_to_case()``.  The adapter
@@ -76,7 +84,7 @@ class EmitInviteActorToCaseNode(DataLayerAction):
         case_actor_id: str | None = None,
         attributed_to: str | None = None,
         captured: dict | None = None,
-        roles: list | None = None,
+        roles: list[str] | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
