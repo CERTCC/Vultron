@@ -198,3 +198,23 @@ pattern to eliminate; CONCERN-1653's self-delivery pattern is orthogonal and
 remains correct.
 
 <!-- Source: CONCERN-1635 -->
+
+---
+
+### Event-Phrase Lookups MUST Use `lookup_entry()`, Not a Local Phrase Dict
+
+Any display-layer code that maps a `MessageSemantics` value to a human-readable
+phrase MUST use `lookup_entry(semantics).phrase` from
+`vultron.semantic_registry`, not a local `dict[str, str]` parallel table.
+
+**Why:** A local dict keyed by `MessageSemantics` values will silently drift
+as new semantics are added to the enum. `SemanticEntry.phrase` is mandatory
+(SE-07-003), so a missing phrase is a `TypeError` at registry construction
+time — not a silent fallback at render time.
+
+**How to apply:** Import `from vultron.semantic_registry import lookup_entry`
+and render with `lookup_entry(semantics).phrase.format_map(defaultdict(lambda: "—", slots))`.
+Use the fallback humanizer (`event_type.replace("_", " ")`) only for event
+types not in the registry (e.g., data from a future protocol version).
+
+<!-- Source: CONCERN-1675 -->
