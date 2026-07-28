@@ -1,9 +1,11 @@
 ---
 title: Case Creation Sequence
-status: active
+status: superseded
+superseded_by: notes/case-proposal.md
 description: >
   Design decisions and BT implementation mapping for the canonical case
   initialization sequence at Offer(Report) receipt (CM-14, ADR-0015).
+  Superseded by ADR-0041 — see notes/case-proposal.md for the corrected flow.
 related_specs:
   - specs/case-management.yaml
 related_notes:
@@ -11,11 +13,19 @@ related_notes:
   - notes/embargo-default-semantics.md
   - notes/protocol-event-cascades.md
   - notes/participant-embargo-consent.md
+  - notes/case-proposal.md
 relevant_packages:
   - vultron/core/behaviors/case
   - vultron/core/behaviors/report
   - vultron/core/use_cases/received
 ---
+
+> **SUPERSEDED by ADR-0041.** The vendor-creates-case sequence documented here
+> (`CreateCaseNode`, `CreateCaseOwnerParticipant`, `InitializeDefaultEmbargoNode`)
+> is no longer the correct flow. Per ADR-0041, the vendor stores the report and
+> sends `Create(as_CaseProposal)` to the CaseActor; the CaseActor creates the
+> `VulnerabilityCase` natively. See `notes/case-proposal.md` (ADR-0041 section)
+> for the corrected initialization sequence (CM-22).
 
 # Case Creation Sequence
 

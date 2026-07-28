@@ -23,8 +23,10 @@ relevant_packages:
 # CaseProposal Protocol
 
 **Source**: 2026-06-22 grill-me planning session, issue #1081.
-Normative requirements: `specs/case-proposal.yaml` (CP-01 through CP-07).
+Normative requirements: `specs/case-proposal.yaml` (CP-01 through CP-09).
 ADR: `docs/adr/0023-case-proposal-protocol.md`.
+Refined by: `docs/adr/0041-caseactor-authoritative-case-initialization.md`
+(supersedes ADR-0015; CaseActor creates case natively on proposal accept).
 
 ---
 
@@ -47,6 +49,11 @@ actual creation.
 
 ## Protocol Flow
 
+**Note**: The flow below reflects the corrected CaseActor-authoritative model
+(ADR-0041). The vendor does NOT create a `VulnerabilityCase` locally before
+the CaseActor responds. The vendor stores the report, writes a pending
+`VultronReportCaseLink`, and waits.
+
 ```text
 Vendor                              CaseActor Service
   |                                       |
@@ -54,15 +61,19 @@ Vendor                              CaseActor Service
   |         actor: vendor URI             |
   |         object_: as_CaseProposal      |
   |                                       |
-  |           [evaluates proposal]        |
+  |   [creates case, adds participants,   |
+  |    initializes embargo, commits       |
+  |    canonical ledger entries natively] |
   |                                       |
   | <-- Accept(CaseProposal) ----------- |  (happy path)
   |         actor: case-actor URI         |
   |         object_: as_CaseProposal      |
+  |         result: case URI              |
   |                                       |
   | <-- Create(VulnerabilityCase) ------- |
   |         actor: case-actor URI         |
   |         context: Accept URI           |
+  |         [inline participants]         |
   |                                       |
   |    -- OR --                           |
   |                                       |
@@ -145,22 +156,62 @@ more-general patterns that share the same outer Activity type (SE-03-002).
 
 ---
 
+## CaseActor Native Initialization (ADR-0041)
+
+When the CaseActor accepts a proposal, `case_proposal_received_tree.py` MUST
+perform the following natively — no back-fill, no prologue:
+
+1. Create `VulnerabilityCase` with `attributed_to=CaseActor` (already implemented)
+2. Add receiver (vendor) as `CASE_OWNER` participant at `RM.RECEIVED`
+3. Add reporter as participant at `RM.ACCEPTED`
+4. Initialize default embargo
+5. Commit canonical ledger entries (`create_case`, `add_report_to_case`,
+   `add_participant_status_to_participant` × N, `add_case_status_to_case`)
+6. Emit `Accept(as_CaseProposal)` with `result=case_id`
+7. Emit `Create(VulnerabilityCase)` with inline participant objects so that
+   `CreateCaseReceivedUseCase._store_embedded_participants` seeds them correctly
+   on the vendor's replica
+
+The `Create(VulnerabilityCase)` payload MUST embed participant objects inline
+(not bare IDs) so the vendor can seed its replica without a DataLayer round-trip
+to the CaseActor.
+
+### Removed nodes (ADR-0041)
+
+The following nodes are **removed** from the vendor's
+`receive_report_case_tree.py` and must not be re-added:
+
+| Removed node | Reason |
+|---|---|
+| `CreateCaseNode` | CaseActor creates the case |
+| `CreateCaseOwnerParticipant` | CaseActor adds receiver as participant |
+| `InitializeDefaultEmbargoNode` | CaseActor initializes embargo |
+| `CreateCaseActivity` / `UpdateActorOutbox` | CaseActor emits `Create(VulnerabilityCase)` |
+| `CreateCaseActorNode` | CaseActor is a pre-existing service, not spawned by vendor |
+| `SendOfferCaseManagerRoleNode` | CaseActor adds itself as `CASE_MANAGER` natively |
+| `WritePrologueLedgerEntriesNode` | Back-fill replaced by native CaseActor init |
+
+### Corrected vendor tree shape (ADR-0041)
+
+`receive_report_case_tree.py` becomes:
+
+```text
+ReceiveReportCaseBT (Sequence)
+├─ CheckAutoCaseCreationEnabledNode
+└─ ReceiveReportCaseSelector (Selector)
+   ├─ CheckPendingProposalExistsForReport    # idempotency
+   └─ ReceiveReportProposalFlow (Sequence)
+      ├─ WritePendingReportCaseLinkNode      # VultronReportCaseLink(status=PENDING_PROPOSAL)
+      └─ ProposeCaseToActorNode              # Create(as_CaseProposal) → CaseActor
+```
+
+No `VulnerabilityCase`, no participants, no embargo created by the vendor.
+
 ## BT Integration: `ProposeCaseToActorNode`
 
-A new BT leaf node `ProposeCaseToActorNode` is responsible for sending
-`Create(as_CaseProposal)` to the case-actor service. It is distinct from
-`CreateCaseActorNode`.
-
-### Node roles — do not conflate
-
-| Node | Responsibility |
-|------|----------------|
-| `CreateCaseActorNode` | Registers the case-actor service as an actor resource in the local DataLayer. Creates the actor identity, not the case. |
-| `ProposeCaseToActorNode` | Sends `Create(as_CaseProposal)` to the already-registered case-actor service. Initiates the case initialization protocol. |
-
-`ProposeCaseToActorNode` is wired into the case-creation BT tree **after**
-`CreateCaseActorNode` succeeds — the actor must exist before the proposal can
-be sent to it.
+`ProposeCaseToActorNode` sends `Create(as_CaseProposal)` to the CaseActor
+service. The CaseActor service URI comes from
+`ActorConfig.case_actor_service_url` (CP-08-001 through CP-08-003).
 
 ---
 

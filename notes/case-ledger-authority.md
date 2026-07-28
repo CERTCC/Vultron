@@ -397,7 +397,14 @@ itself or from a prior invocation having been authorized.
 
 ---
 
-## Prologue Backfill Pattern (Issue #1688)
+## Prologue Backfill Pattern (Issue #1688) — SUPERSEDED by ADR-0041
+
+> **SUPERSEDED by ADR-0041.** `WritePrologueLedgerEntriesNode` and the
+> `Offer(CaseManagerRole)` accept path are scheduled for removal.  Under
+> ADR-0041 (CaseActor-authoritative initialization) the CaseActor commits all
+> case-initialization ledger entries natively when accepting the `CaseProposal`,
+> so no prologue back-fill is needed.  The section below documents the old
+> pattern for historical context.
 
 When a `CaseActor` accepts the `CASE_MANAGER` role it must back-fill ledger
 entries for protocol events that occurred before it was appointed (report
