@@ -45,3 +45,6 @@ demos locally against the default root.
   boundary. See [[20260722-ledger-jsonl-dimension-state-shapes]] for the
   companion state-extraction shapes and
   [[20260722-test-demo-tests-auto-marked-integration]] for running the tests.
+
+**Promoted**: 2026-07-28 — captured in notes/case-ledger-parsing.md § Multi-Case Partitioning.
+Docs PR: TBD.

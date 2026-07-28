@@ -15,3 +15,6 @@ unaddressed.
 Filed as Concern #1752. See that issue for details and a sketch of a possible
 `Request(CaseParticipant)` activity type reusing the ADR-0026 Accept/Reject
 pattern.
+
+**Promoted**: 2026-07-28 — concern tracked as ISSUE-1752 (already open before this learn run).
+Docs PR: TBD.

@@ -18,3 +18,6 @@ candidate. A follow-on issue should design the review-phase protocol before
 wiring the broadcast into the BT.
 
 Impact: BT-20-004 statement notes this deferral; ADR-0030 rationale records it.
+
+**Promoted**: 2026-07-28 — design question noted in notes/peer-broadcast-failure-semantics.md; follow-on issue deferred to #1312.
+Docs PR: TBD.

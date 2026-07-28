@@ -19,3 +19,6 @@ a WARNING.
 
 The same pattern should be applied consistently wherever `DataLayerAction` nodes
 read optional blackboard keys.
+
+**Promoted**: 2026-07-28 — captured in notes/peer-broadcast-failure-semantics.md § Best-Effort Override Exception.
+Docs PR: TBD.

@@ -13,3 +13,6 @@ HTTP 500 errors on 2026-07-24 around 19:20–19:52 UTC.  All other API calls
 Branch `task/1686-emit-accept-case-manager-role` is pushed and ready.  PR must
 be opened manually at:
 <https://github.com/CERTCC/Vultron/compare/main...task/1686-emit-accept-case-manager-role>
+
+**Promoted**: 2026-07-28 — transient infrastructure outage; no durable documentation warranted.
+Docs PR: TBD.

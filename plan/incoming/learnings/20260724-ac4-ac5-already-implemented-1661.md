@@ -19,3 +19,6 @@ current state of the target file. AGENTS.md pitfall entries added by blocker
 PRs will often already satisfy ACs in the follow-on task. See also the earlier
 instance of this pattern: ISSUE-1612 AC-5 (spec entries already present),
 ISSUE-1510 (feature already implemented).
+
+**Promoted**: 2026-07-28 — pattern covered by existing AGENTS.md pitfall 'Verify Issue ACs Against Current Code'.
+Docs PR: TBD.

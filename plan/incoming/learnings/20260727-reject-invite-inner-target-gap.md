@@ -21,3 +21,6 @@ This is a pre-existing gap (introduced in #1293), not introduced by #1689.
 Documented in `test_reject_invite_skips_ledger_when_target_id_absent`.
 
 Needs a GitHub Concern issue so it does not get lost.
+
+**Promoted**: 2026-07-28 — already in notes/case-ledger-authority.md; bug tracked as ISSUE-1747.
+Docs PR: TBD.

@@ -26,3 +26,6 @@ deselected** by `uv run pytest test/demo/test_report.py` — the run reports
 - A fast in-process demo utility test does not need HTTP fixtures; put it in
   `test/demo/` for colocation but remember it will be labelled integration by
   the directory-level hook, not by its actual dependencies.
+
+**Promoted**: 2026-07-28 — captured in test/AGENTS.md § test/demo/ Auto-Marked integration.
+Docs PR: TBD.

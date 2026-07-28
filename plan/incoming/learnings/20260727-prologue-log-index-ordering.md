@@ -39,3 +39,6 @@ append order.
 
 This is worth a Concern issue if log_index-based chronology becomes important
 for downstream consumers.
+
+**Promoted**: 2026-07-28 — superseded by ISSUE-1777 (remove WritePrologueLedgerEntriesNode); archived without promotion.
+Docs PR: TBD.

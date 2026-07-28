@@ -17,3 +17,6 @@ only a bare ID reference.
 The correct invariant — **"roles come from the Offer we sent, not the Accept we
 received"** — is a security boundary, not just an implementation detail.
 ADR-0026 should document this as an explicit trust rule.
+
+**Promoted**: 2026-07-28 — trust rule captured in docs/adr/0026-caseactor-routed-actor-suggestion.md § Trust Rule.
+Docs PR: TBD.

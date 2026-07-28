@@ -36,3 +36,6 @@ running in an environment where the case IS present but commit fails for a
 transient reason, the ledger starts incomplete with no retry mechanism.
 This is acceptable given the backfill nature of the prologue — the entries
 are informational history, not protocol-state-advancing actions.
+
+**Promoted**: 2026-07-28 — superseded by ISSUE-1777 (remove WritePrologueLedgerEntriesNode); archived without promotion.
+Docs PR: TBD.

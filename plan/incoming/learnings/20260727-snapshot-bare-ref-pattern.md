@@ -27,3 +27,6 @@ that used raw `model_dump` without this step — fixed before PR opened.
 This pattern should be documented as a project convention and enforced via
 an architecture lint or spec entry so future ledger emit nodes don't repeat
 the mistake.
+
+**Promoted**: 2026-07-28 — already in notes/case-ledger-authority.md § snapshot-bare-ref pattern.
+Docs PR: TBD.

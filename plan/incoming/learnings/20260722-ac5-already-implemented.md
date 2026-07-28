@@ -13,3 +13,6 @@ multiple non-co-occurring Load-when scenarios SHOULD be split).
 Both entries already existed in the spec before the issue was worked. The issue
 body was written at planning time before the spec was updated. When working issues,
 always verify spec state before assuming an AC requires a new spec entry.
+
+**Promoted**: 2026-07-28 — process pattern confirmed: existing AGENTS.md pitfall 'Verify Issue ACs Against Current Code' is sufficient.
+Docs PR: TBD.

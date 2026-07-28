@@ -18,3 +18,6 @@ Valid `rel_type` values (as of 2026-07-23):
 When the intent is "this spec is loosely related to another", use `refines`
 with a clarifying `note:` field, or omit the relationship altogether if no
 normative link exists.
+
+**Promoted**: 2026-07-28 — captured in specs/AGENTS.md § Valid rel_type Values.
+Docs PR: TBD.

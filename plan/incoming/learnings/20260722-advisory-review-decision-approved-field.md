@@ -22,3 +22,6 @@ The docstring in `publish_artifact_tree.py` was updated to reflect this
 before the PR landed. A future issue should decide whether an explicit
 `approved=False` guard should be added to the pipeline, or whether the
 convention of returning FAILURE from the Evaluator is sufficient.
+
+**Promoted**: 2026-07-28 — deferred design question tracked as ISSUE-1783.
+Docs PR: TBD.

@@ -37,3 +37,6 @@ current serialization. Confirm real shapes by dumping
 dimension objects serialize as `{"rm": {"state": ...}}`, not flat `rmState`.
 See [[20260722-test-demo-tests-auto-marked-integration]] for how to actually
 run the resulting tests.
+
+**Promoted**: 2026-07-28 — captured in notes/case-ledger-parsing.md § Three Nesting Shapes.
+Docs PR: TBD.

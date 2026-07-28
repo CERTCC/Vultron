@@ -82,6 +82,27 @@ When updating specs per LEARN_prompt instructions:
 
 ---
 
+---
+
+### Valid `rel_type` Values in Spec Relationships
+
+When adding a `relationships:` entry to a spec requirement, `rel_type` MUST be
+one of the enumerated values validated by `SpecFile`. Using an invalid value
+causes a Pydantic `ValidationError` at `spec-dump` time.
+
+**Valid `rel_type` values:**
+
+```text
+implements, supersedes, extends, depends_on, conflicts, refines,
+derives_from, verifies, part_of, constrains, satisfies
+```
+
+`related_to` is **NOT** valid. If the intent is a loose relationship, use
+`refines` with a clarifying `note:` field, or omit the relationship entirely
+if no normative link exists.
+
+---
+
 ### Specification Quick Links
 
 See `specs/` directory for detailed requirements with testable verification

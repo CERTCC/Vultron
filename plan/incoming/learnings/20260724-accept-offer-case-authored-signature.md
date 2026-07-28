@@ -21,3 +21,6 @@ author.  `Accept(CaseManagerRole)` fits that definition.  The existing
 `("Accept", "Offer")` entry in `_CANONICAL_PAYLOAD_SIGNATURES` covers
 `validate_report` where the actor is a *participant*, not the CaseActor — so
 there was no conflict, just an incomplete allowlist.
+
+**Promoted**: 2026-07-28 — superseded by ADR-0041 (ISSUE-1777); WritePrologueLedgerEntriesNode being removed.
+Docs PR: TBD.

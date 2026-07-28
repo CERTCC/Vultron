@@ -21,3 +21,6 @@ should:
 1. Migrate `publish_artifact_tree.py` to accept a `PublicationArtifactCallOutBundle`
    (or fold its factories into the existing `PublicationCallOutBundle`).
 2. Fix the `test_publish_artifact_tree.py` factory signatures to use `name: str`.
+
+**Promoted**: 2026-07-28 — pre-existing tech debt; no new docs needed; concern tracked implicitly in existing codebase.
+Docs PR: TBD.

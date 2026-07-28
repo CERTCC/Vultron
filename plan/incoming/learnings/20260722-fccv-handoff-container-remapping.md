@@ -23,3 +23,6 @@ The env-var bindings follow the same pattern: `VULTRON_VENDOR_BASE_URL`→C1,
 The CLI option names (`--c1-url`, `--c2-url`) use the semantic role names to
 avoid confusion at the call site, even though the underlying env vars reference
 the container service names.
+
+**Promoted**: 2026-07-28 — container naming guidance added to vultron/demo/AGENTS.md; neutral-service-name idea tracked as ISSUE-1786.
+Docs PR: TBD.
