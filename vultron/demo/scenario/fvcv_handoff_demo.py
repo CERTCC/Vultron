@@ -509,6 +509,7 @@ def _phase_coordinator_invites_vendor2(
             body={
                 "case_id": case.id_,
                 "invitee_id": vendor2.id_,
+                "roles": ["vendor"],
             },
         )
     invite = as_TransitiveActivity.model_validate(invite_result["activity"])

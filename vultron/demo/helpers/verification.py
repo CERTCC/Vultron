@@ -235,6 +235,34 @@ def _check_participant_vfd_state_in(
         )
 
 
+def _assert_participant_pxa_only(
+    participant: as_CaseParticipant,
+    label: str,
+    actor_id: str,
+) -> None:
+    """Assert *participant* has a public-aware pxa_state (no VFD check).
+
+    Used for non-vendor/non-deployer receivers (e.g. coordinators) whose
+    vfd_state never advances beyond ``vfd`` — only pxa is meaningful for them
+    after a public-disclosure event (CSB-15-003).
+
+    Raises:
+        AssertionError: If pxa_state is not public-aware.
+    """
+    public_aware = {CS_pxa.Pxa, CS_pxa.PxA, CS_pxa.PXa, CS_pxa.PXA}
+    latest = participant.participant_status
+    if latest is None:
+        raise AssertionError(
+            f"M6 {label}: participant {actor_id!r} has no statuses"
+        )
+    cs = getattr(latest, "case_status", None)
+    pxa = getattr(cs, "pxa_state", None) if cs is not None else None
+    if pxa not in public_aware:
+        raise AssertionError(
+            f"M6 {label}: pxa_state is not public-aware, found {pxa!r}"
+        )
+
+
 def _assert_participant_vfd_pxa(
     participant: as_CaseParticipant,
     label: str,

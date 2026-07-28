@@ -51,6 +51,27 @@ def base(client: TestClient) -> str:
 
 
 @pytest.fixture(scope="module", autouse=True)
+def configure_vendor_default_roles():
+    """Set VULTRON_ACTOR__DEFAULT_CASE_ROLES=["vendor"] for this module.
+
+    In Docker the vendor container is started with this env var so the case
+    owner participant gets CVDRole.VENDOR alongside CVDRole.CASE_OWNER.
+    TestClient doesn't inherit Docker env vars, so we replicate the setting
+    here (mirrors docker/docker-compose-multi-actor.yml vendor service config).
+    """
+    from vultron.config.app import reload_config
+
+    mp = MonkeyPatch()
+    try:
+        mp.setenv("VULTRON_ACTOR__DEFAULT_CASE_ROLES", '["vendor"]')
+        reload_config()
+        yield
+    finally:
+        mp.undo()
+        reload_config()
+
+
+@pytest.fixture(scope="module", autouse=True)
 def patch_datalayer_call(client: TestClient, base: str):
     """Patch DataLayerClient.call at the class level for all tests in this module.
 
@@ -731,9 +752,7 @@ class TestActorNotifiesFixDeployed:
 
     def test_vendor_blocked_from_vfd(self, client: TestClient, base: str):
         """Vendor-only actor is blocked from VFD (d→D) by CheckDeployerRoleNode."""
-        import httpx2 as httpx
-
-        from vultron.demo.helpers.actions import actor_notifies_fix_deployed
+        from vultron.demo.utils import post_to_trigger
 
         finder_client, vendor_client, finder, vendor, case = (
             _setup_case_with_3_participants(base)
@@ -743,14 +762,18 @@ class TestActorNotifiesFixDeployed:
             actor=vendor,
             case_id=case.id_,
         )
-        with pytest.raises(httpx.HTTPStatusError) as exc_info:
-            actor_notifies_fix_deployed(
+        # Call post_to_trigger directly so make_testclient_call's AssertionError
+        # for 4xx responses propagates (demo_step would swallow it).
+        with pytest.raises(AssertionError) as exc_info:
+            post_to_trigger(
                 client=vendor_client,
-                actor=vendor,
-                case_id=case.id_,
+                actor_id=vendor.id_,
+                behavior="notify-fix-deployed",
+                body={"case_id": case.id_},
+                path_prefix="demo",
             )
-        assert (
-            exc_info.value.response.status_code == 422
+        assert "422" in str(
+            exc_info.value
         ), "Expected HTTP 422 when vendor-only actor attempts VFD transition"
 
 
