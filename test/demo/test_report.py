@@ -489,6 +489,12 @@ class TestFriendlyNaming:
     def test_event_phrase_fallback_humanizes(self):
         assert event_phrase("some_novel_event") == "some novel event"
 
+    def test_summary_unknown_event_type_humanizes(self):
+        """DRPT-03-002: unknown event_type falls back to humanized phrase, capitalised."""
+        raw = _camel_entry(eventType="some_novel_event")
+        event = CaseTimelineEvent.from_raw(raw)
+        assert event.summary == "Some novel event"
+
     def test_summary_is_active_voice(self):
         event = CaseTimelineEvent.from_raw(_camel_entry())
         assert event.summary == "Vendor validated the report"
