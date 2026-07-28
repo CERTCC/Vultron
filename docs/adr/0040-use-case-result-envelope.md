@@ -94,7 +94,7 @@ concrete class, is explicit and honest.
 
 ### Consequences
 
-- Good: `execute()` return type is statically checkable at all 82 call sites.
+- Good: `execute()` return type is statically checkable at all concrete use-case definitions.
 - Good: Trigger routers use typed attribute access instead of dict-key access.
 - Good: The two request paths remain semantically distinct and auditable.
 - Neutral: `UseCase` Protocol `__init__` parameter stays `Any`; request typing
