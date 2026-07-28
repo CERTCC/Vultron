@@ -129,11 +129,22 @@ class CreateCaseProposalReceivedUseCase:
                     )
                 proposal_dict = raw_proposal.model_dump(by_alias=True)
 
+        # #1766: adopt the proposer's origin case id so the case-actor registers
+        # the same case-actor-<slug> id peers already derive and address. Without
+        # this, the case-actor mints a fresh UUID and every peer delivery 404s.
+        origin_case_id: str | None = None
+        if activity_obj is not None:
+            raw_proposal = getattr(activity_obj, "object_", None)
+            candidate = getattr(raw_proposal, "origin_case_id", None)
+            if isinstance(candidate, str) and candidate:
+                origin_case_id = candidate
+
         tree = create_case_proposal_received_tree(
             report_id=report_id,
             proposal_id=proposal_id,
             vendor_uri=vendor_uri,
             proposal_dict=proposal_dict,
+            origin_case_id=origin_case_id,
         )
         result = BTBridge(datalayer=self._dl).execute_with_setup(
             tree=tree,

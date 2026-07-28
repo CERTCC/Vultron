@@ -78,11 +78,16 @@ The vendor creates an `as_CaseProposal` object containing:
 - `id_`: auto-generated URI for the proposal
 - `attributed_to`: the vendor actor URI
 - `object_`: inline or URI-referenced `as_VulnerabilityReport`
-- `target`: the case-actor service URI
+- `target`: the **per-case** case-actor URI to be created (`case-actor-<slug>`)
+- `origin_case_id` (recommended): the URI of the case the vendor created
+  locally, so the case-actor adopts the same id (CP-01-007, #1766)
 - `summary` (optional): human-readable description
 
-The vendor then sends `Create(as_CaseProposal)` to the case-actor service's
-inbox, with `actor=vendor_uri`.
+The vendor then sends `Create(as_CaseProposal)`, with `actor=vendor_uri`,
+**addressed to the case-actor container's stable seeded identity**
+(`<base>/actors/case-actor`) — NOT to the per-case `target` (CP-04-003). The
+per-case sub-actor does not exist yet; it is what this message creates. See the
+bootstrap-deadlock pitfall below.
 
 ### Step 2a: Case-actor accepts (happy path)
 
@@ -121,7 +126,8 @@ for rejection so the vendor has the full proposal context without a round-trip).
 | `id_` | URI | Yes | Auto-generated unique proposal identifier |
 | `attributed_to` | Actor URI | Yes | The vendor/proposer actor URI |
 | `object_` | `as_VulnerabilityReport` or URI | Yes | The report for the case |
-| `target` | URI | Yes | The prospective case-actor service URI |
+| `target` | URI | Yes | The prospective per-case case-actor URI (`case-actor-<slug>`) |
+| `origin_case_id` | URI | No | The proposer's local case id; adopted by the case-actor (CP-01-007, #1766) |
 | `summary` | str | No | Human-readable proposal description |
 
 All classes in `vultron/wire/as2/vocab/objects/` use the `as_` prefix
@@ -240,6 +246,35 @@ if cfg.case_actor_service_url is None:
 base_url = str(cfg.case_actor_service_url).rstrip("/")
 case_actor_id = f"{base_url}/actors/case-actor-{case_slug}"
 ```
+
+### Pitfall: bootstrap deadlock + case-identity divergence (#1766)
+
+Two coupled mistakes made the multi-container demo fail with a permanent 404
+on every report-phase delivery to `case-actor-<slug>`:
+
+1. **Addressing the bootstrap message to the mailbox it creates.** The
+   `Create(as_CaseProposal)` was delivered *to* `case-actor-<slug>` — the very
+   per-case actor the message is supposed to create. The inbox route resolves
+   the recipient actor before dispatch (`_resolve_actor_or_404`), so it 404'd
+   before the create handler could run. Fix: address the proposal to the
+   container's seeded `.../actors/case-actor` identity (CP-04-003); the
+   per-case id stays in `target`.
+
+2. **Minting a fresh case UUID on the receiving side.** The case-actor created
+   `VultronCase(attributed_to=...)` with no `id_`, so it registered
+   `case-actor-<uuidB>` while peers kept addressing `case-actor-<uuidA>` (their
+   own case id). The two never matched. Fix: the proposer sends
+   `origin_case_id`, and `_CreateCaseFromProposalNode` adopts it (CP-01-007),
+   so the registered CASE_MANAGER id equals what peers derive and address.
+
+The invariant to preserve: the per-case id `case-actor-<slug>` must be the
+same string that the case-actor registers and serves, that
+`_resolve_case_manager_id` returns, and that each peer records as
+`trusted_case_actor_id` and addresses for report-phase traffic.
+
+Symptom to watch for in CI logs: repeated
+`POST .../actors/case-actor-<uuid>/inbox/ → 404` followed by
+`Timed out waiting for participant count 3`.
 
 ---
 

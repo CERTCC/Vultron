@@ -863,11 +863,13 @@ class TestWaitForAllParticipantsRmClosed:
     @pytest.mark.xfail(
         strict=True,
         reason=(
-            "Single-server mode: the case-actor sub-actor URL"
-            " (case-actor-{uuid}) has no actor record in the DataLayer, so"
-            " Create(as_CaseProposal) delivery returns 404 and the case-actor"
-            " participant is never added to actor_participant_index."
-            " Requires a dedicated case-actor container (issue #530)."
+            "Single-server demo mode drops all inter-actor deliveries via"
+            " _NullDeliveryAdapter (see conftest.client), so the CaseProposal"
+            " round-trip never runs and the case-actor participant is never"
+            " added to actor_participant_index.  The bootstrap 404 itself is"
+            " fixed (#1766) and the round-trip is covered with real ASGI"
+            " delivery in test_case_proposal_round_trip.py; enabling delivery"
+            " in this single-app harness is the separate #530 work."
         ),
     )
     def test_url_based_participant_id_handled_gracefully(
@@ -996,11 +998,14 @@ class TestRunTwoActorDemo:
     @pytest.mark.xfail(
         strict=True,
         reason=(
-            "Single-server mode: run_fv_demo calls"
-            " wait_for_case_participants(expected_count=3) which times out"
-            " because Create(as_CaseProposal) delivery to the case-actor sub-actor"
-            " returns 404 (no actor record) and the third participant is never"
-            " created.  Requires a dedicated case-actor container (issue #530)."
+            "Single-server demo mode drops all inter-actor deliveries via"
+            " _NullDeliveryAdapter (see conftest.client), so run_fv_demo's"
+            " wait_for_case_participants(expected_count=3) times out — the"
+            " CaseProposal round-trip never runs and the third participant is"
+            " never created.  The bootstrap 404 itself is fixed (#1766) and the"
+            " round-trip is covered with real ASGI delivery in"
+            " test_case_proposal_round_trip.py; enabling delivery in this"
+            " single-app harness is the separate #530 work."
         ),
     )
     def test_full_workflow_succeeds(
@@ -1605,10 +1610,13 @@ class TestCaseLedgerInvariants:
     @pytest.mark.xfail(
         strict=True,
         reason=(
-            "Single-server mode: case-actor sub-actor has no DataLayer record"
-            " so Create(as_CaseProposal) delivery returns 404.  The case-actor"
-            " participant never joins the case and _fetch_case_log returns []."
-            " Requires a dedicated case-actor container (issue #530)."
+            "Single-server demo mode drops all inter-actor deliveries via"
+            " _NullDeliveryAdapter (see conftest.client), so the CaseProposal"
+            " round-trip never runs and the case-actor participant never joins"
+            " the case (_fetch_case_log returns []).  The bootstrap 404 itself"
+            " is fixed (#1766) and the round-trip is covered with real ASGI"
+            " delivery in test_case_proposal_round_trip.py; enabling delivery"
+            " in this single-app harness is the separate #530 work."
         ),
     )
     def test_add_participant_status_entries_present(
@@ -1643,10 +1651,13 @@ class TestCaseLedgerInvariants:
     @pytest.mark.xfail(
         strict=True,
         reason=(
-            "Single-server mode: case-actor sub-actor has no DataLayer record"
-            " so Create(as_CaseProposal) delivery returns 404.  The case-actor"
-            " participant never joins the case and _fetch_case_log returns []."
-            " Requires a dedicated case-actor container (issue #530)."
+            "Single-server demo mode drops all inter-actor deliveries via"
+            " _NullDeliveryAdapter (see conftest.client), so the CaseProposal"
+            " round-trip never runs and the case-actor participant never joins"
+            " the case (_fetch_case_log returns []).  The bootstrap 404 itself"
+            " is fixed (#1766) and the round-trip is covered with real ASGI"
+            " delivery in test_case_proposal_round_trip.py; enabling delivery"
+            " in this single-app harness is the separate #530 work."
         ),
     )
     def test_all_participants_rm_closed_at_scenario_end(
@@ -1695,10 +1706,13 @@ class TestCaseLedgerInvariants:
     @pytest.mark.xfail(
         strict=True,
         reason=(
-            "Single-server mode: case-actor sub-actor has no DataLayer record"
-            " so Create(as_CaseProposal) delivery returns 404.  The case-actor"
-            " participant never joins the case and _fetch_case_log returns []."
-            " Requires a dedicated case-actor container (issue #530)."
+            "Single-server demo mode drops all inter-actor deliveries via"
+            " _NullDeliveryAdapter (see conftest.client), so the CaseProposal"
+            " round-trip never runs and the case-actor participant never joins"
+            " the case (_fetch_case_log returns []).  The bootstrap 404 itself"
+            " is fixed (#1766) and the round-trip is covered with real ASGI"
+            " delivery in test_case_proposal_round_trip.py; enabling delivery"
+            " in this single-app harness is the separate #530 work."
         ),
     )
     def test_required_event_types_present_in_case_actor_log(

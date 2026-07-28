@@ -63,6 +63,12 @@ class as_CaseProposal(VultronAS2Object):
             (CP-01-004, AKM-03-001).
         target: Required URI of the prospective case-actor service to
             which the proposal is addressed (CP-01-005).
+        origin_case_id: Optional URI of the case the proposing actor created
+            locally.  When present, the case-actor service adopts this id for
+            its authoritative :class:`VulnerabilityCase` (and the derived
+            ``case-actor-<slug>`` participant id) so that the id peers already
+            address matches the id the case-actor registers and serves
+            (CP-01-007, issue #1766).
         summary: Optional human-readable description of the proposal
             (CP-01-006).
     """
@@ -93,6 +99,16 @@ class as_CaseProposal(VultronAS2Object):
     target: NonEmptyString = Field(
         ...,
         description="URI of the prospective case-actor service.",
+    )
+
+    # CP-01-007 (#1766): URI of the case the proposer created locally, so the
+    # case-actor service adopts the same id peers already address.
+    origin_case_id: NonEmptyString | None = Field(
+        default=None,
+        description=(
+            "URI of the case the proposing actor created locally; the"
+            " case-actor service adopts it as the authoritative case id."
+        ),
     )
 
     # CP-01-006: optional human-readable summary.

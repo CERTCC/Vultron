@@ -177,14 +177,24 @@ class _CasesMixin:
         actor: str,
         report_id: str,
         case_actor_id: str,
+        origin_case_id: str | None = None,
         summary: str | None = None,
         to: list[str] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist a ``Create(as_CaseProposal)`` activity.
 
         Reads the ``as_VulnerabilityReport`` identified by ``report_id``,
-        constructs an ``as_CaseProposal``, and persists
-        ``Create(as_CaseProposal)`` to the DataLayer.
+        constructs an ``as_CaseProposal`` (``target=case_actor_id``,
+        ``origin_case_id`` recording the proposer's local case id per #1766),
+        and persists ``Create(as_CaseProposal)`` to the DataLayer.
+
+        The activity is addressed via ``to``.  When ``to`` is not supplied it
+        falls back to ``[case_actor_id]`` for backward compatibility, but
+        multi-container callers MUST pass the case-actor container's seeded
+        service identity: the per-case ``case_actor_id`` does not yet exist on
+        the receiving container, and the inbox route resolves the recipient
+        before dispatch, so addressing the per-case id would 404 the
+        bootstrap message (#1766).
 
         Per CP-04-001, CP-04-002.
         """
@@ -203,6 +213,7 @@ class _CasesMixin:
             attributed_to=actor,
             object_=report,
             target=case_actor_id,
+            origin_case_id=origin_case_id,
             summary=summary,
         )
         # Persist the proposal so the outbox expansion path can find it

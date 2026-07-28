@@ -162,10 +162,12 @@ class _CreateCaseFromProposalNode(DataLayerAction):
     def __init__(
         self,
         report_id: str | None,
+        origin_case_id: str | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._report_id = report_id
+        self._origin_case_id = origin_case_id
 
     def setup(self, **kwargs: Any) -> None:
         super().setup(**kwargs)
@@ -179,7 +181,15 @@ class _CreateCaseFromProposalNode(DataLayerAction):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        case = VultronCase(attributed_to=self.actor_id)
+        # #1766: adopt the proposer's origin case id when supplied so the
+        # derived case-actor-<slug> matches the id peers already address.
+        # Only mint a fresh UUID (VultronCase default) when it is absent.
+        if self._origin_case_id:
+            case = VultronCase(
+                id_=self._origin_case_id, attributed_to=self.actor_id
+            )
+        else:
+            case = VultronCase(attributed_to=self.actor_id)
         if self._report_id is not None:
             case.vulnerability_reports.append(self._report_id)
 
@@ -515,6 +525,7 @@ def create_case_proposal_received_tree(
     proposal_id: str,
     vendor_uri: str,
     proposal_dict: dict | None = None,
+    origin_case_id: str | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Return the received-side BT for processing a ``Create(as_CaseProposal)``.
 
@@ -570,6 +581,10 @@ def create_case_proposal_received_tree(
             When supplied, the Accept's ``object_`` carries the full inline proposal,
             satisfying CP-05-003 and the MV-09-001 outbox requirement. Falls back
             to bare URI when ``None``.
+        origin_case_id: URI of the case the proposer created locally (#1766).
+            When supplied, ``_CreateCaseFromProposalNode`` adopts it as the new
+            case's id so the derived ``case-actor-<slug>`` matches the id peers
+            already address; a fresh UUID is minted only when it is ``None``.
 
     Returns:
         A py_trees Selector behaviour ready for ``BTBridge.execute_with_setup``.
@@ -580,7 +595,9 @@ def create_case_proposal_received_tree(
         memory=False,
         children=[
             _LoadExistingCaseNode(report_id=report_id),
-            _CreateCaseFromProposalNode(report_id=report_id),
+            _CreateCaseFromProposalNode(
+                report_id=report_id, origin_case_id=origin_case_id
+            ),
         ],
     )
 

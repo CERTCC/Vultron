@@ -317,6 +317,22 @@ class ProposeCaseToActorNode(DataLayerAction):
             return raw
         return str(getattr(raw, "id_", raw))
 
+    @staticmethod
+    def _container_service_id(case_actor_id: str) -> str:
+        """Derive the case-actor container's seeded service id.
+
+        ``case_actor_id`` is the per-case actor ``<base>/actors/case-actor-<slug>``,
+        which does not yet exist on the receiving container.  The bootstrap
+        ``Create(as_CaseProposal)`` must instead be *delivered* to the
+        container's always-present seeded identity ``<base>/actors/case-actor``,
+        else the inbox route 404s before it can create the per-case actor
+        (#1766).  The ``target`` field still carries the per-case id.
+        """
+        prefix, sep, _ = case_actor_id.partition("/actors/case-actor-")
+        if sep:
+            return f"{prefix}/actors/case-actor"
+        return case_actor_id
+
     def _build_proposal(self, case_id: str, case_actor_id: str) -> str | None:
         """Call factory and enqueue outbox item; return activity_id or None."""
         report_id = self._get_report_id(case_id)
@@ -330,6 +346,8 @@ class ProposeCaseToActorNode(DataLayerAction):
                     actor=self.actor_id,
                     report_id=report_id,
                     case_actor_id=case_actor_id,
+                    origin_case_id=case_id,
+                    to=[self._container_service_id(case_actor_id)],
                 )
             )
         except Exception as exc:

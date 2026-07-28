@@ -42,8 +42,8 @@ import pytest
 
 from test.demo.conftest import _TestASGIRouter, create_isolated_actor_app
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
-from vultron.core.models.case_actor import VultronCaseActor
-from vultron.core.use_cases._helpers import _find_case_actor_id
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.use_cases._helpers import _resolve_case_manager_id
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -171,66 +171,40 @@ def _actor_slug(actor_id: str) -> str:
     return actor_id.rstrip("/").rsplit("/", 1)[-1]
 
 
-def _register_and_bootstrap_case_actor(
-    owner_iso, owner_tc, case_id: str
-) -> str:
-    """Register the case-actor actor and re-deliver Create(as_CaseProposal).
+def _seed_container_case_actor(owner_tc, owner_base_api: str) -> str:
+    """Seed the case-actor container's fixed service identity.
 
-    After AC-2 (#1733), ``CreateCaseActorNode`` no longer writes a
-    ``VultronCaseActor`` record to the vendor's DataLayer.  The case-actor
-    sub-actor must be registered explicitly before inbox delivery can succeed.
-
-    Steps:
-      1. Retrieve case-actor ID from ``VultronReportCaseLink.trusted_case_actor_id``
-         (written by ``_RecordProvisionalCaseActorIdNode``).
-      2. Register the case-actor as an actor via ``POST /api/v2/actors/`` so
-         ``_resolve_actor_or_404`` can find it.
-      3. Find the ``Create(as_CaseProposal)`` activity in the DataLayer and
-         re-deliver it to the (now-registered) case-actor inbox.
-
-    Args:
-        owner_iso: Owner's ``IsolatedActorApp``.
-        owner_tc: Owner's ``TestClient``.
-        case_id: The ``VulnerabilityCase`` ID.
+    Since #1766, the bootstrap ``Create(as_CaseProposal)`` is addressed to
+    the case-actor container's always-present seeded identity
+    (``.../actors/case-actor``), not the per-case sub-actor.  In this
+    single-owner test setup the owner app also hosts the case-actor service
+    (``case_actor_service_url`` points at the owner base URL), so seeding the
+    ``case-actor`` identity here lets the inbox route resolve the proposal and
+    process it automatically — no manual re-delivery needed.
 
     Returns:
-        The case-actor ID.
+        The container case-actor service ID.
     """
-    case_actor_id = _find_case_actor_id(owner_iso.dl, case_id)
-    assert case_actor_id is not None, (
-        f"VultronReportCaseLink.trusted_case_actor_id not set for case "
-        f"'{case_id}' — _RecordProvisionalCaseActorIdNode may not have run."
+    return _create_actor(
+        owner_tc, owner_base_api, "case-actor", "Case Actor Service"
     )
-    case_actor_slug = _actor_slug(case_actor_id)
-    # Write a VultronCaseActor (Service) record directly so both
-    # _resolve_actor_or_404 (inbox route) and resolve_case_actor_id
-    # (BroadcastCaseUpdateNode) can find it.
-    case_actor_record = VultronCaseActor(
-        id_=case_actor_id,
-        name=f"CaseActor for {case_id}",
-        context=case_id,
-    )
-    try:
-        owner_iso.dl.create(case_actor_record)
-    except ValueError:
-        pass  # already exists — fine
 
-    create_activities = owner_iso.dl.by_type("Create")
-    proposal_activity_id = None
-    for act_id, raw in create_activities.items():
-        to_val = raw.get("to", [])
-        if isinstance(to_val, str):
-            to_val = [to_val]
-        if case_actor_id in to_val:
-            proposal_activity_id = act_id
-            break
-    assert proposal_activity_id is not None, (
-        "Could not find Create(as_CaseProposal) addressed to the "
-        f"case-actor '{case_actor_id}' in the DataLayer."
+
+def _resolve_case_actor_id(owner_iso, case_id: str) -> str:
+    """Return the per-case CASE_MANAGER id registered for *case_id*.
+
+    After the automatic CaseProposal round-trip (#1766), the case-actor has
+    registered the per-case ``case-actor-<slug>`` actor and its CASE_MANAGER
+    participant.  This is the authoritative recipient used for the outbox
+    drains below.
+    """
+    case_obj = owner_iso.dl.read(case_id)
+    assert isinstance(case_obj, VulnerabilityCase)
+    case_actor_id = _resolve_case_manager_id(case_obj, owner_iso.dl)
+    assert case_actor_id is not None, (
+        f"No CASE_MANAGER participant registered for case '{case_id}' — the"
+        f" CaseProposal round-trip may not have completed (#1766)."
     )
-    proposal_activity = owner_iso.dl.read(proposal_activity_id)
-    assert proposal_activity is not None
-    _post_to_inbox(owner_tc, case_actor_slug, proposal_activity)
     return case_actor_id
 
 
@@ -285,6 +259,10 @@ def _bootstrap_and_engage(
     # Owner's app must know the reporter so outbound Create is routable.
     _create_actor(owner_tc, reporter_base_api, reporter_slug, "Reporter")
 
+    # Seed the case-actor container identity so the bootstrap
+    # Create(as_CaseProposal) delivers and processes automatically (#1766).
+    _seed_container_case_actor(owner_tc, owner_base_api)
+
     report = as_VulnerabilityReport(
         attributed_to=reporter_actor_id,
         name="PCR engage-case integration test report",
@@ -317,13 +295,11 @@ def _bootstrap_and_engage(
         resp.status_code == 202
     ), f"validate-report trigger failed ({resp.status_code}): {resp.text}"
 
-    # Register the case-actor and re-deliver Create(as_CaseProposal) so the
-    # case-actor processes the proposal and emits Create(VulnerabilityCase).
-    # After AC-2 (#1733), VultronCaseActor is created on the case-actor
-    # container, not the vendor; the initial delivery 404'd.
-    case_actor_id = _register_and_bootstrap_case_actor(
-        owner_iso, owner_tc, case_id
-    )
+    # The bootstrap Create(as_CaseProposal) was delivered and processed
+    # automatically (#1766): the case-actor created the case replica and
+    # registered its per-case CASE_MANAGER.  Resolve that id, then drain the
+    # case-actor outbox so Accept + Create(VulnerabilityCase) reach the peers.
+    case_actor_id = _resolve_case_actor_id(owner_iso, case_id)
     _drain_case_actor_outbox(owner_iso, case_actor_id)
 
     # Reporter must have received the case replica before engage-case fires.

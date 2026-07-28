@@ -45,6 +45,17 @@ groups:
     priority: MAY
     kind: protocol
     statement: '`as_CaseProposal` MAY include an optional `summary` field with a human-readable description of the proposal.'
+  - id: CP-01-007
+    priority: SHOULD
+    kind: protocol
+    statement: '`as_CaseProposal` SHOULD include an optional `origin_case_id` field containing the URI of the case the proposing
+      actor created locally. When present, the case-actor service MUST adopt this id as the authoritative `VulnerabilityCase`
+      id (rather than minting a fresh UUID) so that the per-case CASE_MANAGER id it derives and registers
+      (`case-actor-<slug>`) matches the id peers already derive and address.'
+    rationale: The proposing actor creates its case (and derives the `case-actor-<slug>` recipient) before sending the proposal.
+      If the case-actor mints an unrelated UUID, it registers a per-case actor under a different slug than peers address, so
+      every report-phase delivery to `case-actor-<origin_slug>` returns 404. Carrying the origin case id keeps the case
+      identity — and therefore the derived case-actor identity — consistent across all participants (issue #1766).
 - id: CP-02
   title: MessageSemantics Values
   specs:
@@ -105,6 +116,21 @@ groups:
       resource; it MUST NOT send a `CaseProposal` activity.
     rationale: Conflating actor registration with proposal sending violates single responsibility and causes the proposal
       to be sent before the case-actor service is ready. See `notes/case-proposal.md` for the pitfall.
+  - id: CP-04-003
+    priority: MUST
+    kind: protocol
+    statement: The `Create(as_CaseProposal)` activity MUST be *addressed* (its `to`/delivery recipient) to the case-actor
+      container's stable seeded service identity (e.g. `<base>/actors/case-actor`), NOT to the per-case sub-actor named in
+      the proposal's `target` (`case-actor-<slug>`). The `target` field still carries the per-case identity the case-actor
+      is asked to create.
+    rationale: The per-case sub-actor does not yet exist on the receiving container — the proposal is the very message that
+      causes it to be created. The inbox route resolves the recipient actor before dispatch, so addressing the proposal to
+      the not-yet-existent `case-actor-<slug>` returns 404 and the create handler never runs (a bootstrap deadlock). The
+      container's seeded identity is always resolvable, so delivering there lets the handler create the per-case actor and
+      respond (issue #1766).
+    relationships:
+    - rel_type: implements
+      spec_id: CP-01-005
 - id: CP-05
   title: Protocol Flow — Receiving (Case-Actor Side)
   specs:
