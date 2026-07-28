@@ -4,7 +4,7 @@ description: Requirements for participant assertions, CaseActor canonicalization
   projection, and replication-facing CaseLedgerEntry objects. Covers the commit authorization model, per-case genesis hash
   derivation, the canonical entry criteria that separate the case ledger from the process log, and the CaseActor inbox routing
   path that enables ledger entry authorship.
-version: 1.1.0
+version: 1.2.0
 scope:
 - prototype
 - production
@@ -465,3 +465,47 @@ groups:
     statement: When searching for a reply entry in `find_protocol_pair()`, the implementation SHOULD use the `event_type`
       field of `CaseLedgerEntry` (derived from `MessageSemantics.value`) as the primary key, scoped to `case_id`. `in_reply_to`
       chain-following is an internal implementation detail and MUST NOT be exposed as a public port primitive.
+- id: CLP-12
+  title: CaseActor-Authored Signature Completeness
+  description: >-
+    Requirements on the set of canonical-entry signatures the CaseActor is
+    authorized to author (`_CASE_AUTHORED_SIGNATURES` in `chain.py`), ensuring
+    all case-initialization operations are expressible without falling back to
+    vendor authorship or back-fill workarounds.
+  specs:
+  - id: CLP-12-001
+    priority: MUST
+    kind: project
+    statement: >-
+      `_CASE_AUTHORED_SIGNATURES` in `vultron/core/behaviors/sync/nodes/chain.py`
+      MUST include `("Add", "CaseStatus")` so that `add_case_status_to_case`
+      ledger entries authored by the CaseActor are accepted by
+      `_validate_canonical_entry`.
+    rationale: >-
+      Issue #1767: `("Add", "CaseStatus")` appears in `_CANONICAL_PAYLOAD_SIGNATURES`
+      but was absent from `_CASE_AUTHORED_SIGNATURES`, causing
+      `_validate_canonical_entry` to reject CaseActor-authored
+      `add_case_status_to_case` entries.  This is the direct mechanical fix
+      required by ADR-0041's native-initialization model (CM-22-003).
+    relationships:
+    - rel_type: implements
+      spec_id: CM-22-003
+  - id: CLP-12-002
+    priority: MUST
+    kind: project
+    statement: >-
+      `_CASE_AUTHORED_SIGNATURES` MUST be a complete superset of all
+      `("verb", "object-type")` pairs emitted by the CaseActor during native
+      case initialization (create_case, add_report_to_case,
+      add_participant_status_to_participant × N, add_case_status_to_case).
+      Any pair present in `_CANONICAL_PAYLOAD_SIGNATURES` that the CaseActor
+      natively authors MUST also appear in `_CASE_AUTHORED_SIGNATURES`.
+    rationale: >-
+      A CaseActor that cannot author its own initialization entries must resort
+      to vendor-side workarounds (the pattern that ADR-0015 introduced and
+      ADR-0041 supersedes).  Maintaining completeness of the authorized
+      signature set is therefore a prerequisite for the corrected
+      CaseActor-authoritative model.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-12-001
