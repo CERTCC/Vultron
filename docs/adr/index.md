@@ -108,6 +108,8 @@ General information about architectural decision records is available at <https:
 - [ADR-0040 Introduce UseCaseResult Envelope; Do Not Introduce
   UseCaseRequest](0040-use-case-result-envelope.md)
 - [ADR-0041 CaseActor-Authoritative Case Initialization](0041-caseactor-authoritative-case-initialization.md)
+- [ADR-0042 Deliver All Inter-Actor Communication over HTTP; Retire the
+  In-Process ASGI Delivery Shortcut](0042-http-only-inter-actor-delivery.md)
 
 ## Proposed ADRs
 

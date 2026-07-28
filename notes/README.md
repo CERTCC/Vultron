@@ -49,9 +49,10 @@ boundaries and auto-rehydration.
 
 **`architecture-adapters.md`**
 Adapter-focused architecture guidance: adapter category discipline, outbound
-delivery invariants, ASGI emitter patterns, driven-port baton-pass pattern,
-long-term BT flow direction, remaining ARCH-01-001 violation context, future
-delivery stubs, boundary ratchet tests, and DataLayer scope boundaries.
+delivery invariants, the uniform-HTTP inter-actor delivery model (ADR-0042),
+driven-port baton-pass pattern, long-term BT flow direction, remaining
+ARCH-01-001 violation context, future delivery stubs, boundary ratchet tests,
+and DataLayer scope boundaries.
 **Load when**: implementing adapters, debugging delivery behavior, or auditing
 adapter/core boundary compliance.
 

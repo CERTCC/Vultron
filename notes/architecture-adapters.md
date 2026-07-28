@@ -3,7 +3,8 @@ title: Adapter Patterns and Boundary Invariants
 status: active
 description: >
   Adapter category details, outbound activity construction via driven ports,
-  DataLayer scope boundaries, and ASGI emitter architecture patterns.
+  DataLayer scope boundaries, and the uniform-HTTP inter-actor delivery model
+  (ADR-0042).
 related_notes:
   - notes/architecture-hexagonal.md
   - vultron/core/ports/AGENTS.md
@@ -37,15 +38,28 @@ If a feature requires both directions, keep separate modules in
 
 ---
 
-## ASGI Emitter Patterns
+## Delivery Transport: Uniform HTTP (ADR-0042)
 
-`ASGIEmitter` is the production default for co-located actor delivery:
+All inter-actor activity delivery goes over the REST inbox/outbox HTTP API
+(HTTP POST to `{actor}/inbox/`). **Actors are treated as if every recipient
+were remote** — there is no in-process shortcut for co-located actors. This
+keeps co-located and remote delivery on one code path, so demos faithfully
+model autonomous peers and inter-actor delivery bugs surface in-process
+instead of being masked (concern #1723, ADR-0042, `outbox.yaml` OX-12).
 
-- Uses scheme+netloc-only base URL for local ASGI delivery.
-- Strips mount prefix when routing into mounted sub-apps.
-- Preserves per-app isolation (`create_app()` must not mutate globals).
+- The production default `ActivityEmitter` is the HTTP delivery adapter.
+- CaseActor canonical-ledger self-delivery (the `cc:`-to-self copy that loops
+  a ledger-authoring entry back to its own inbox, CLP-10-001) is delivered
+  over **HTTP loopback**, using the same path as any other recipient.
+- **Application code MUST NOT construct `httpx.ASGITransport` directly**
+  (OX-12-003). The only permitted use is FastAPI's `TestClient`, which uses
+  `ASGITransport` internally to drive a single app's own endpoints.
 
-See `vultron/adapters/driven/AGENTS.md` for implementation rules.
+> **Historical note:** a previous `ASGIEmitter` adapter delivered to
+> co-located actors in-process (scheme+netloc match → direct ASGI call, with
+> mount-prefix stripping and a reentrancy guard). It was the production
+> default until ADR-0042 retired it. `architecture.yaml` ARCH-17 is
+> superseded. Do not reintroduce an in-process delivery shortcut.
 
 ---
 
