@@ -21,4 +21,4 @@ requirement (DEPLOYER actors need not be VENDOR), and add a
 Tracked as a DEFER from ISSUE-1736 review.
 
 **Promoted**: 2026-07-28 — rename tracked as ISSUE-1785.
-Docs PR: TBD.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1790>0>0>0>0>0>0>.

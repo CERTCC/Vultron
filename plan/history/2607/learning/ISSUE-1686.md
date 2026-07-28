@@ -23,4 +23,4 @@ author.  `Accept(CaseManagerRole)` fits that definition.  The existing
 there was no conflict, just an incomplete allowlist.
 
 **Promoted**: 2026-07-28 — superseded by ADR-0041 (ISSUE-1777); WritePrologueLedgerEntriesNode being removed.
-Docs PR: TBD.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1790>0>0>0>0>0>0>.

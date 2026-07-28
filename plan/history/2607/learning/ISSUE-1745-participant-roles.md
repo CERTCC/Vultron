@@ -1,8 +1,8 @@
 ---
 title: No protocol mechanism for participant to request additional roles after joining
 type: learning
-timestamp: 2026-07-28
-source: ISSUE-1745
+timestamp: "2026-07-28T00:00:00Z"
+source: ISSUE-1745-participant-roles
 signal: concern
 ---
 
@@ -17,4 +17,4 @@ Filed as Concern #1752. See that issue for details and a sketch of a possible
 pattern.
 
 **Promoted**: 2026-07-28 — concern tracked as ISSUE-1752 (already open before this learn run).
-Docs PR: TBD.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1790>0>0>0>0>0>0>.

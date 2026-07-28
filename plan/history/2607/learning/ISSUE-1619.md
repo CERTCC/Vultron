@@ -1,7 +1,7 @@
 ---
 title: freshen-branch.sh leaves temp branch on conflict when abort silently fails
 type: learning
-timestamp: "2026-07-23"
+timestamp: "2026-07-23T00:00:00Z"
 source: ISSUE-1619
 signal: tooling-issue
 ---
@@ -29,4 +29,4 @@ temp-branch deletion and exit-1 still happen even when a concurrent git
 lock or unresolved state blocks the checkout.
 
 **Promoted**: 2026-07-28 — captured in AGENTS.md pitfall; bug tracked as ISSUE-1784.
-Docs PR: TBD.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1790>0>0>0>0>0>0>.

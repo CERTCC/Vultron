@@ -1,7 +1,7 @@
 ---
 title: "py_trees blackboard.get() raises KeyError on unset registered READ key"
 type: learning
-timestamp: "2026-07-27"
+timestamp: "2026-07-27T00:00:00Z"
 source: ISSUE-1716
 signal: concern
 ---
@@ -19,4 +19,4 @@ all `register_key(..., access=Access.READ)` sites would catch latent bugs of thi
 form — worth a Concern issue targeting `behaviors/` BT nodes.
 
 **Promoted**: 2026-07-28 — captured in vultron/core/behaviors/AGENTS.md § Blackboard.get() Raises KeyError.
-Docs PR: TBD.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1790>0>0>0>0>0>0>.

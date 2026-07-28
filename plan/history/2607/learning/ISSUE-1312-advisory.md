@@ -1,8 +1,8 @@
 ---
 title: "AdvisoryReviewDecision.approved field is informational, not a pipeline gate"
 type: learning
-timestamp: "2026-07-22"
-source: ISSUE-1312
+timestamp: "2026-07-22T00:00:00Z"
+source: ISSUE-1312-advisory
 signal: design-question
 ---
 
@@ -24,4 +24,4 @@ before the PR landed. A future issue should decide whether an explicit
 convention of returning FAILURE from the Evaluator is sufficient.
 
 **Promoted**: 2026-07-28 — deferred design question tracked as ISSUE-1783.
-Docs PR: TBD.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1790>0>0>0>0>0>0>.

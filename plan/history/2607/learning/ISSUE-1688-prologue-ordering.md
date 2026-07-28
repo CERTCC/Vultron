@@ -1,8 +1,8 @@
 ---
 title: "Prologue entries have higher log_index than offer_case_manager_role"
 type: learning
-timestamp: 2026-07-27
-source: ISSUE-1688
+timestamp: "2026-07-27T00:00:00Z"
+source: ISSUE-1688-prologue-ordering
 signal: concern
 ---
 
@@ -41,4 +41,4 @@ This is worth a Concern issue if log_index-based chronology becomes important
 for downstream consumers.
 
 **Promoted**: 2026-07-28 — superseded by ISSUE-1777 (remove WritePrologueLedgerEntriesNode); archived without promotion.
-Docs PR: TBD.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1790>0>0>0>0>0>0>.

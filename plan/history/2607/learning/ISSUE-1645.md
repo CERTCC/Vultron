@@ -1,7 +1,7 @@
 ---
 title: publish_artifact_tree.py not fully migrated to bundle pattern
 type: learning
-timestamp: 2026-07-23
+timestamp: "2026-07-23T00:00:00Z"
 source: ISSUE-1645
 signal: concern
 ---
@@ -23,4 +23,4 @@ should:
 2. Fix the `test_publish_artifact_tree.py` factory signatures to use `name: str`.
 
 **Promoted**: 2026-07-28 — pre-existing tech debt; no new docs needed; concern tracked implicitly in existing codebase.
-Docs PR: TBD.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1790>0>0>0>0>0>0>.

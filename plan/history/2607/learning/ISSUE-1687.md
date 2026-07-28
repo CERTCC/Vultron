@@ -1,7 +1,7 @@
 ---
 title: "BT-14-001 vs. receive-side no-factory: best-effort semantics for SendAnnounceEmbargoEventNode"
 type: learning
-timestamp: "2026-07-27"
+timestamp: "2026-07-27T00:00:00Z"
 source: ISSUE-1687
 signal: design-question
 ---
@@ -39,4 +39,4 @@ when BT-14-001 best-effort override is appropriate would prevent this from being
 re-litigated in future nodes.
 
 **Promoted**: 2026-07-28 — captured in notes/peer-broadcast-failure-semantics.md § Best-Effort Override Exception.
-Docs PR: TBD.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1790>0>0>0>0>0>0>.

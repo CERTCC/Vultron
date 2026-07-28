@@ -1,7 +1,7 @@
 ---
 title: "Prologue best-effort vs hard-fail design decision"
 type: learning
-timestamp: 2026-07-27
+timestamp: "2026-07-27T00:00:00Z"
 source: ISSUE-1688
 signal: design-question
 ---
@@ -38,4 +38,4 @@ This is acceptable given the backfill nature of the prologue — the entries
 are informational history, not protocol-state-advancing actions.
 
 **Promoted**: 2026-07-28 — superseded by ISSUE-1777 (remove WritePrologueLedgerEntriesNode); archived without promotion.
-Docs PR: TBD.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1790>0>0>0>0>0>0>.

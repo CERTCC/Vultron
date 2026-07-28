@@ -1,7 +1,7 @@
 ---
 title: "AC-4 and AC-5 were already implemented before #1661 was worked"
 type: learning
-timestamp: "2026-07-24"
+timestamp: "2026-07-24T00:00:00Z"
 source: ISSUE-1661
 signal: process-issue
 ---
@@ -21,4 +21,4 @@ instance of this pattern: ISSUE-1612 AC-5 (spec entries already present),
 ISSUE-1510 (feature already implemented).
 
 **Promoted**: 2026-07-28 — pattern covered by existing AGENTS.md pitfall 'Verify Issue ACs Against Current Code'.
-Docs PR: TBD.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1790>0>0>0>0>0>0>.

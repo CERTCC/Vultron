@@ -2,7 +2,7 @@
 title: "GitHub REST and GraphQL APIs returned HTTP 500 during PR creation (2026-07-24)"
 type: learning
 timestamp: "2026-07-24T19:52:00Z"
-source: ISSUE-1686
+source: ISSUE-1686-github-500
 signal: tooling-issue
 ---
 
@@ -15,4 +15,4 @@ be opened manually at:
 <https://github.com/CERTCC/Vultron/compare/main...task/1686-emit-accept-case-manager-role>
 
 **Promoted**: 2026-07-28 — transient infrastructure outage; no durable documentation warranted.
-Docs PR: TBD.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1790>0>0>0>0>0>0>.
