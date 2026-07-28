@@ -126,6 +126,16 @@ standardized `UseCase` protocol, and `SEMANTICS_HANDLERS` migration to core.
 **Load when**: adding a new message type end-to-end, restructuring the
 dispatcher or use-case layer, or deciding whether a use case needs a BT.
 
+**`use-case-protocol.md`**
+Design decisions for the `UseCaseResult` type hierarchy (`HandlerResult` /
+`TriggerResult`), the two semantically distinct request paths (`VultronEvent`
+vs `TriggerRequest`), why `UseCaseRequest` was not introduced, how
+`TriggerService` and `TriggerServicePort` were migrated from `dict` to
+`TriggerResult`, and the ratchet test design. ADR: `docs/adr/0040-use-case-result-envelope.md`.
+**Load when**: implementing a new use case, reviewing the `execute()` contract,
+working on `UseCase` Protocol or `TriggerServicePort` signatures, or debugging
+return-type ratchet failures.
+
 **`inbox-orchestration.md`**
 Design decisions for the core BT-backed inbox orchestration module: why
 orchestration belongs in `core/`, two-adapter seam design

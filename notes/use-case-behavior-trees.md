@@ -56,13 +56,14 @@ The `execute()` method of a use case MAY contain infrastructure glue only:
 
 ```python
 class SvcValidateReportUseCase:
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:  # UCORG-05-001: must return UseCaseResult subtype
         # ... setup ...
         bridge.execute_with_setup(self._dl, bt, bb)   # BT runs
 
         # ❌ ANTI-PATTERN: domain action outside the tree
         if bt.status == Status.SUCCESS:
             SvcEngageCaseUseCase(self._dl, engage_event).execute()
+        return HandlerResult()
 ```
 
 The call to `SvcEngageCaseUseCase` after the BT runs means the
@@ -73,11 +74,12 @@ from the tree structure alone.
 
 ```python
 class SvcValidateReportUseCase:
-    def execute(self) -> None:
+    def execute(self) -> HandlerResult:  # UCORG-05-001: must return UseCaseResult subtype
         # ... setup ...
         bt = ValidateReportBt(...)   # ← includes PrioritizeBt as a child
         bridge.execute_with_setup(self._dl, bt, bb)   # ✅ cascade inside tree
         # check status, extract output only
+        return HandlerResult()
 ```
 
 The validate→engage/defer cascade is a child subtree of `ValidateReportBt`,
@@ -422,32 +424,17 @@ This mirrors the `FooReceivedEvent` / `FooTriggerEvent` convention for domain
 events (CS-10-002) and makes the origin unambiguous at a glance. See
 `specs/code-style.yaml` CS-12-002 and TECHDEBT-21.
 
-### UseCaseRequest Envelope (Future Direction)
+### UseCaseRequest Envelope (Evaluated and Rejected — see ADR-0040)
 
-Design Decision: The `UseCase` protocol and object should be defined to
-include a `UseCaseRequest` parameter in the `__init__()` constructor, so
-that the use case class can validate that it has what it needs before  
-`execute()` is called. Benefits of this approach include:
+`UseCaseRequest` was evaluated during the planning of issue #423 and
+**rejected**. The core finding: `VultronEvent` and `TriggerRequest` share the
+field name `actor_id` but carry it in semantically opposite roles — one
+represents inbound remote actor identity, the other represents local outbound
+intent. Merging them under a shared base collapses a security boundary.
 
-* Validation of required fields occurs at construction time — if a `UseCase`
-  instance exists, it is valid and ready to execute.
-* Fields that are optional in general but required by a specific use case can be
-  enforced by subclassing `UseCaseRequest` with tighter field constraints
-  that are reinforced by the use case constructor validation.
-* The adapter layer needs only to know how to construct a `UseCaseRequest`, not
-  the internals of every use case.
-
-A `UseCaseRequest` base class with optional fields and a set of concrete
-subclasses (one per use case that needs additional fields) would allow most
-handler use cases to share a common base while trigger use cases add their
-domain-specific parameters.
-
-Open Question: Whether to introduce `UseCaseRequest` now or defer until the
-existing naming and Protocol-base work (TECHDEBT-21, TECHDEBT-22) is complete
-to avoid another large rename cycle. Recommendation: Getting the UseCase
-protocol and naming convention in place first will save significant
-refactors later, so it should be given similar priority to TECHDEBT-21 and
-TECHDEBT-22, these items could be batched into a single refactor.
+See `docs/adr/0040-use-case-result-envelope.md` for the full decision
+rationale and `notes/use-case-protocol.md` for implementation guidance on the
+`UseCaseResult` hierarchy that was introduced instead.
 
 ### SEMANTICS_HANDLERS Migration
 

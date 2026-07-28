@@ -4,8 +4,9 @@ description: >-
   Requirements for the physical package layout of the use_cases package, registry
   synchronization, test mirroring, and documentation of the trigger-to-received-to-sync
   information flow pattern.
-version: 1.0.0
+version: 1.1.0
 scope:
+
 - prototype
 - production
 tags:
@@ -75,3 +76,54 @@ groups:
     statement: >-
       The trigger → received → sync information flow pattern SHOULD be documented in `notes/`
       and summarized in a `README.md` under `vultron/core/use_cases/`
+- id: UCORG-05
+  title: Use-Case Result Protocol
+  specs:
+  - id: UCORG-05-001
+    priority: MUST
+    kind: project
+    statement: >-
+      Every use-case `execute()` method MUST declare a return type that is `UseCaseResult` or a
+      subtype (`HandlerResult`, `TriggerResult`); bare `None` or `dict` return types are
+      not permitted
+    rationale: >-
+      Makes the use-case contract explicit and machine-checkable. See ADR-0040
+      (docs/adr/0040-use-case-result-envelope.md).
+    relationships:
+    - rel_type: implements
+      spec_id: CS-11-001
+  - id: UCORG-05-002
+    priority: MUST
+    kind: project
+    statement: >-
+      Handler (received-side) use cases MUST return `HandlerResult`; trigger use cases MUST
+      return `TriggerResult`; both MUST inherit from `UseCaseResult`
+    rationale: Separate subtypes allow callers to distinguish received-side vs. trigger-side results without isinstance checks on the base.
+  - id: UCORG-05-003
+    priority: MUST
+    kind: project
+    statement: >-
+      The `UseCase` Protocol in `vultron/core/ports/use_case.py` MUST declare
+      `execute() -> UseCaseResult`; the return type MUST NOT be `Any` or `None`
+  - id: UCORG-05-004
+    priority: MUST
+    kind: project
+    statement: >-
+      An architecture ratchet test MUST verify that all concrete use-case classes in
+      `vultron/core/use_cases/` declare an `execute()` return annotation that is
+      `UseCaseResult` or a registered subtype
+    rationale: Belt-and-suspenders companion to mypy enforcement; caught at CI time without mypy strictness flags.
+  - id: UCORG-05-005
+    priority: MUST
+    kind: project
+    statement: >-
+      `TriggerResult` MUST carry `activity` and `emitting_actor_id` fields; `HandlerResult`
+      MAY carry domain-specific result fields but MUST NOT carry raw `dict` payloads
+  - id: UCORG-05-006
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      `TriggerService` methods and `TriggerServicePort` Protocol method signatures MUST NOT
+      declare `dict` or `dict[str, Any]` as their return type; they MUST declare
+      `TriggerResult`
+    rationale: Propagating dict past the service boundary defeats the typed contract at the router boundary.
