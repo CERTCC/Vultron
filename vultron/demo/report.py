@@ -785,7 +785,7 @@ def discovered_actors(replicas: dict[str, list[dict[str, Any]]]) -> list[str]:
 
 _TABLE_HEADERS = [
     "#",
-    "Time",
+    "ΔT",
     "Actor",
     "Event",
     "Target",
@@ -809,6 +809,39 @@ def _parse_timestamp(ts: str) -> datetime:
     Python < 3.11) and ``+00:00`` offset forms.
     """
     return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+
+
+def _format_delta(
+    received_at: str | None,
+    prev_received_at: str | None,
+) -> str:
+    """Return a compact delta string between two ``receivedAt`` timestamps.
+
+    - Returns ``"—"`` when ``received_at`` is ``None`` (no timestamp on this row).
+    - Returns ``"+0s"`` when ``prev_received_at`` is ``None`` and ``received_at``
+      is set (first timestamped row — anchor point).
+    - Returns ``"+Ns"`` / ``"+Nm Ns"`` / ``"+Nh Nm Ns"`` for a positive delta;
+      no day component (spec: DRPT-04-007).
+    """
+    if received_at is None:
+        return "—"
+    if prev_received_at is None:
+        return "+0s"
+    try:
+        dt_curr = _parse_timestamp(received_at)
+        dt_prev = _parse_timestamp(prev_received_at)
+    except ValueError:
+        return "—"
+    total_seconds = int((dt_curr - dt_prev).total_seconds())
+    if total_seconds < 0:
+        total_seconds = 0
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    if hours:
+        return f"+{hours}h {minutes}m {seconds}s"
+    if minutes:
+        return f"+{minutes}m {seconds}s"
+    return f"+{seconds}s"
 
 
 def _case_time_range(
@@ -844,10 +877,14 @@ def _render_markdown_case(
     lines.append("| " + " | ".join(headers) + " |")
     lines.append("| " + " | ".join(["---"] * len(headers)) + " |")
 
+    prev_ts: str | None = None
     for event in events:
+        delta = _format_delta(event.received_at, prev_ts)
+        if event.received_at is not None:
+            prev_ts = event.received_at
         row = [
             str(event.log_index),
-            _md_cell(event.received_at or ""),
+            _md_cell(delta),
             _md_cell(event.actor_label),
             _md_cell(event.summary),
             _md_cell(event.target_label or ""),
@@ -948,13 +985,17 @@ def _render_html_case_table(
     )
 
     body_rows: list[str] = []
+    prev_ts: str | None = None
     for event in events:
         row_class = (
             "" if event.disposition == "recorded" else ' class="rejected"'
         )
+        delta = _format_delta(event.received_at, prev_ts)
+        if event.received_at is not None:
+            prev_ts = event.received_at
         cells = [
             _html_cell(str(event.log_index)),
-            _html_cell(event.received_at or ""),
+            _html_cell(delta, title=event.received_at or None),
             _html_cell(event.actor_label, title=event.actor_uri or None),
             _html_cell(event.summary),
             _html_cell(

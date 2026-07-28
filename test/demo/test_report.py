@@ -30,6 +30,7 @@ from vultron.demo.report import (
     CaseTimelineEvent,
     ReportError,
     _case_time_range,
+    _format_delta,
     _parse_timestamp,
     build_timeline,
     collect_actor_names,
@@ -521,6 +522,79 @@ class TestFriendlyNaming:
 
 
 # ---------------------------------------------------------------------------
+# DRPT-05-005 — _format_delta unit tests (AC-6)
+# ---------------------------------------------------------------------------
+
+
+class TestFormatDelta:
+    def test_both_none_returns_em_dash(self):
+        assert _format_delta(None, None) == "—"
+
+    def test_received_at_none_returns_em_dash(self):
+        assert _format_delta(None, "2026-07-01T12:00:00Z") == "—"
+
+    def test_first_row_no_prev_returns_plus_zero_s(self):
+        assert _format_delta("2026-07-01T12:00:00Z", None) == "+0s"
+
+    def test_sub_minute_delta(self):
+        assert (
+            _format_delta("2026-07-01T12:00:45Z", "2026-07-01T12:00:00Z")
+            == "+45s"
+        )
+
+    def test_sub_hour_delta(self):
+        assert (
+            _format_delta("2026-07-01T12:03:15Z", "2026-07-01T12:00:00Z")
+            == "+3m 15s"
+        )
+
+    def test_multi_hour_delta(self):
+        assert (
+            _format_delta("2026-07-01T14:03:15Z", "2026-07-01T12:00:00Z")
+            == "+2h 3m 15s"
+        )
+
+    def test_exact_one_minute(self):
+        assert (
+            _format_delta("2026-07-01T12:01:00Z", "2026-07-01T12:00:00Z")
+            == "+1m 0s"
+        )
+
+    def test_exact_one_hour(self):
+        assert (
+            _format_delta("2026-07-01T13:00:00Z", "2026-07-01T12:00:00Z")
+            == "+1h 0m 0s"
+        )
+
+    def test_zero_delta_same_timestamp(self):
+        assert (
+            _format_delta("2026-07-01T12:00:00Z", "2026-07-01T12:00:00Z")
+            == "+0s"
+        )
+
+    def test_unparseable_received_at_returns_em_dash(self):
+        assert _format_delta("not-a-timestamp", "2026-07-01T12:00:00Z") == "—"
+
+    def test_unparseable_prev_returns_em_dash(self):
+        assert _format_delta("2026-07-01T12:00:00Z", "bad") == "—"
+
+    def test_negative_delta_clamped_to_zero(self):
+        """Out-of-order rows clamp to +0s rather than producing a negative string."""
+        assert (
+            _format_delta("2026-07-01T11:00:00Z", "2026-07-01T13:00:00Z")
+            == "+0s"
+        )
+
+    def test_offset_notation_accepted(self):
+        assert (
+            _format_delta(
+                "2026-07-01T12:00:30+00:00", "2026-07-01T12:00:00+00:00"
+            )
+            == "+30s"
+        )
+
+
+# ---------------------------------------------------------------------------
 # DRPT-02-004 / DRPT-02-005 — merge, dedup, presence
 # ---------------------------------------------------------------------------
 
@@ -708,11 +782,6 @@ class TestMarkdownRenderer:
         md = render_markdown(events, actors)
         assert "Vendor validated the report" in md
 
-    def test_pipe_in_value_is_escaped(self):
-        raw = _camel_entry(receivedAt="a|b")
-        md = render_markdown(build_timeline({"vendor": [raw]}), ["vendor"])
-        assert "a\\|b" in md
-
     def test_pipe_in_actor_dir_name_is_escaped(self):
         """Actor column headers must be cell-escaped like data cells."""
         md = render_markdown(
@@ -736,6 +805,77 @@ class TestMarkdownRenderer:
         assert "- Cases: 2" in md
         # Two header rows — one table per case.
         assert sum(1 for ln in md.splitlines() if ln.startswith("| #")) == 2
+
+    def test_time_column_header_is_delta_t(self):
+        """AC-7: ΔT header appears in markdown table (DRPT-04-007)."""
+        events, actors = _sample_events()
+        md = render_markdown(events, actors)
+        header = next(ln for ln in md.splitlines() if ln.startswith("| #"))
+        assert "| ΔT |" in header
+
+    def test_time_cells_contain_delta_strings_not_iso(self):
+        """AC-7: Time cells show +0s / +Ns, not ISO 8601 timestamps (DRPT-04-007)."""
+        replicas = {
+            "vendor": [
+                _camel_entry(
+                    logIndex=0,
+                    entryHash="a" * 64,
+                    receivedAt="2026-07-01T12:00:00Z",
+                ),
+                _camel_entry(
+                    logIndex=1,
+                    entryHash="b" * 64,
+                    receivedAt="2026-07-01T12:00:30Z",
+                ),
+            ],
+        }
+        events = build_timeline(replicas)
+        md = render_markdown(events, ["vendor"])
+        data_rows = [
+            ln
+            for ln in md.splitlines()
+            if ln.startswith("| ") and "---" not in ln and "| #" not in ln
+        ]
+        assert len(data_rows) == 2
+        assert "+0s" in data_rows[0]
+        assert "+30s" in data_rows[1]
+        # ISO timestamps must not appear in the table body cells.
+        for row in data_rows:
+            assert "2026-07-01T" not in row
+
+    def test_prev_ts_carries_through_none_timestamp_row(self):
+        """A None-timestamp row must not reset the prev_ts anchor (DRPT-04-007)."""
+        replicas = {
+            "vendor": [
+                _camel_entry(
+                    logIndex=0,
+                    entryHash="a" * 64,
+                    receivedAt="2026-07-01T12:00:00Z",
+                ),
+                _camel_entry(
+                    logIndex=1,
+                    entryHash="b" * 64,
+                    receivedAt=None,
+                ),
+                _camel_entry(
+                    logIndex=2,
+                    entryHash="c" * 64,
+                    receivedAt="2026-07-01T12:01:30Z",
+                ),
+            ],
+        }
+        events = build_timeline(replicas)
+        md = render_markdown(events, ["vendor"])
+        data_rows = [
+            ln
+            for ln in md.splitlines()
+            if ln.startswith("| ") and "---" not in ln and "| #" not in ln
+        ]
+        assert len(data_rows) == 3
+        assert "+0s" in data_rows[0]
+        assert "—" in data_rows[1]
+        # Third row delta is from row 0 (T+0), not row 1 (which had no ts).
+        assert "+1m 30s" in data_rows[2]
 
 
 class TestHtmlRenderer:
@@ -802,6 +942,64 @@ class TestHtmlRenderer:
         assert "<h2>Case urn:case:B</h2>" in out
         assert out.count("<table>") == 2
         assert "Cases: 2" in out
+
+    def test_time_column_header_is_delta_t(self):
+        """AC-7: ΔT header appears in HTML table (DRPT-04-007)."""
+        events, actors = _sample_events()
+        out = render_html(events, actors)
+        assert "<th>ΔT</th>" in out
+
+    def test_time_cells_contain_delta_strings_not_iso(self):
+        """AC-7: Time cells show +0s / +Ns, not ISO 8601 in cell body (DRPT-04-007)."""
+        replicas = {
+            "vendor": [
+                _camel_entry(
+                    logIndex=0,
+                    entryHash="a" * 64,
+                    receivedAt="2026-07-01T12:00:00Z",
+                ),
+                _camel_entry(
+                    logIndex=1,
+                    entryHash="b" * 64,
+                    receivedAt="2026-07-01T12:00:45Z",
+                ),
+            ],
+        }
+        events = build_timeline(replicas)
+        out = render_html(events, ["vendor"])
+        assert ">+0s<" in out
+        assert ">+45s<" in out
+
+    def test_time_cell_iso_retained_as_tooltip(self):
+        """AC-7: Full ISO timestamp retained as title= tooltip on ΔT <td> (DRPT-04-007)."""
+        replicas = {
+            "vendor": [
+                _camel_entry(
+                    logIndex=0,
+                    entryHash="a" * 64,
+                    receivedAt="2026-07-01T12:00:00Z",
+                ),
+            ],
+        }
+        events = build_timeline(replicas)
+        out = render_html(events, ["vendor"])
+        assert 'title="2026-07-01T12:00:00Z"' in out
+
+    def test_time_cell_no_tooltip_when_no_timestamp(self):
+        """AC-7: No title= attribute when received_at is absent (no ISO to show)."""
+        replicas = {
+            "vendor": [
+                _camel_entry(
+                    logIndex=0,
+                    entryHash="a" * 64,
+                    receivedAt=None,
+                ),
+            ],
+        }
+        events = build_timeline(replicas)
+        out = render_html(events, ["vendor"])
+        # ΔT cell must be <td>—</td> (no title= attribute when no timestamp).
+        assert "<td>—</td>" in out
 
     def test_case_id_in_heading_is_escaped(self):
         """A case_id carrying markup is escaped in the <h2> heading."""
