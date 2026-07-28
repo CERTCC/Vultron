@@ -219,6 +219,70 @@ class TestWaitForCaseAttributedTo:
 
 
 # ---------------------------------------------------------------------------
+# wait_for_object_stored tests
+# ---------------------------------------------------------------------------
+
+
+class TestWaitForObjectStored:
+    """Test the polling helper that waits for an arbitrary object in a DataLayer."""
+
+    OBJ_ID = "urn:uuid:offer-abc"
+
+    def test_returns_when_object_present(self):
+        from vultron.demo.helpers.polling import wait_for_object_stored
+
+        client = MagicMock()
+        client.get.return_value = {"id": self.OBJ_ID, "type": "Offer"}
+        wait_for_object_stored(
+            client=client,
+            obj_id=self.OBJ_ID,
+            timeout_seconds=1.0,
+        )
+        client.get.assert_called_with(f"/datalayer/{self.OBJ_ID}")
+
+    def test_raises_on_timeout_when_object_absent(self):
+        from vultron.demo.helpers.polling import wait_for_object_stored
+
+        client = MagicMock()
+        client.get.return_value = None
+        with pytest.raises(AssertionError, match="Timed out waiting"):
+            wait_for_object_stored(
+                client=client,
+                obj_id=self.OBJ_ID,
+                timeout_seconds=0.1,
+                poll_interval=0.05,
+            )
+
+    def test_raises_on_timeout_when_object_returns_empty_dict(self):
+        from vultron.demo.helpers.polling import wait_for_object_stored
+
+        client = MagicMock()
+        client.get.return_value = {}
+        with pytest.raises(AssertionError, match="Timed out waiting"):
+            wait_for_object_stored(
+                client=client,
+                obj_id=self.OBJ_ID,
+                timeout_seconds=0.1,
+                poll_interval=0.05,
+            )
+
+    def test_swallows_get_exception_and_retries(self):
+        from vultron.demo.helpers.polling import wait_for_object_stored
+
+        client = MagicMock()
+        client.get.side_effect = [
+            RuntimeError("transient network error"),
+            {"id": self.OBJ_ID, "type": "Offer"},
+        ]
+        wait_for_object_stored(
+            client=client,
+            obj_id=self.OBJ_ID,
+            timeout_seconds=1.0,
+        )
+        assert client.get.call_count == 2
+
+
+# ---------------------------------------------------------------------------
 # CLI integration tests
 # ---------------------------------------------------------------------------
 
