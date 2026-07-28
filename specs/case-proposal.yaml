@@ -3,7 +3,7 @@ title: CaseProposal Protocol
 description: Requirements for the CaseProposal protocol flow, which separates the act of requesting case initialization from
   the act of creating the case. Covers the wire vocabulary type, the Create/Accept/Reject message flow, and the corresponding
   MessageSemantics values and received-side use cases.
-version: 1.0.0
+version: 1.1.0
 scope:
 - prototype
 - production
@@ -247,3 +247,89 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CP-08-001
+- id: CP-09
+  title: CaseActor-Authoritative Initialization on Accept(CaseProposal)
+  description: >-
+    Requirements for the CaseActor to perform all case initialization natively
+    when accepting a CaseProposal, per ADR-0041.  These replace the
+    vendor-side case-creation and prologue back-fill that ADR-0015 introduced.
+  specs:
+  - id: CP-09-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the CaseActor accepts a `Create(as_CaseProposal)`, it MUST create
+      the `VulnerabilityCase` object with `attributed_to` set to the CaseActor's
+      own actor ID.  The receiving vendor MUST NOT be the `attributed_to` author
+      of the canonical `VulnerabilityCase`.
+    rationale: >-
+      AS2 `Create(X)` semantics mean "I (the actor) created X."  The CaseActor
+      is the authoritative case creator; attributing the case to the vendor
+      violates AS2 semantics and undermines the trust model (ADR-0023, ADR-0041).
+    relationships:
+    - rel_type: implements
+      spec_id: CP-05-001
+  - id: CP-09-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the CaseActor creates the `VulnerabilityCase` on proposal acceptance,
+      it MUST add the receiver (vendor) as a `CASE_OWNER` participant at
+      `RM.RECEIVED` and the reporter as a participant at `RM.ACCEPTED` in the
+      CaseActor's DataLayer.  These participant records MUST be created before
+      the CaseActor emits `Create(VulnerabilityCase)` to the vendor.
+    rationale: >-
+      The vendor's replica is seeded from the embedded participant objects in
+      `Create(VulnerabilityCase)`.  If participants are absent at emission time
+      the vendor replica starts with no participant records and downstream
+      operations that require them (e.g. embargo consent, role guards) fail.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-09-001
+  - id: CP-09-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CaseActor MUST initialize the default embargo for the new case before
+      emitting `Create(VulnerabilityCase)`.
+    rationale: >-
+      Embargo state is protocol-significant.  Deferring initialization to the
+      vendor or to a later message would produce a window in which
+      embargo-gated operations are undefined (ADR-0041).
+    relationships:
+    - rel_type: refines
+      spec_id: CP-09-001
+  - id: CP-09-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The `Create(VulnerabilityCase)` activity emitted by the CaseActor MUST
+      embed participant objects inline (not as bare ID strings) so that the
+      receiving vendor's `CreateCaseReceivedUseCase` can seed its local
+      participant records without a DataLayer round-trip to the CaseActor.
+    rationale: >-
+      `_store_embedded_participants` and `EnsureReporterParticipantAtAcceptedNode`
+      parse embedded participant objects.  Bare IDs produce empty participant
+      records on the vendor's replica, causing role-guard failures for
+      operations that require `CASE_OWNER` or `CASE_MANAGER` checks.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-09-002
+  - id: CP-09-005
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      The receiving vendor MUST NOT create a `VulnerabilityCase` object in its
+      own DataLayer before receiving `Create(VulnerabilityCase)` from the
+      CaseActor.  The vendor's `receive_report_case_tree` MUST store the
+      inbound report and write a pending `VultronReportCaseLink`, then send
+      `Create(as_CaseProposal)` and wait.
+    rationale: >-
+      Creating a vendor-local `VulnerabilityCase` before the CaseActor responds
+      produces a second, non-authoritative case object and forces a back-fill
+      workaround to reconcile the two copies.  This was the root cause of
+      `WritePrologueLedgerEntriesNode` (Issue #1688) and of Issue #1767
+      (ADR-0041).
+    relationships:
+    - rel_type: refines
+      spec_id: CP-09-001
