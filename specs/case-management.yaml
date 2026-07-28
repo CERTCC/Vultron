@@ -460,6 +460,15 @@ groups:
     priority: MUST
     kind: protocol
     statement: A `VulnerabilityCase` MUST be created when an `Offer(Report)` activity is received by the vendor actor
+    note: >-
+      Superseded by CM-22-001 (ADR-0041): the vendor actor MUST NOT create the
+      `VulnerabilityCase` directly.  The vendor stores the report and waits for
+      `Create(VulnerabilityCase)` from the CaseActor.  CM-12-001 applies only in
+      single-actor deployments where the vendor IS the CaseActor.
+    relationships:
+    - rel_type: supersedes
+      spec_id: CM-22-001
+      note: CM-22-001 (ADR-0041) is the authoritative replacement for multi-actor deployments
   - id: CM-12-002
     priority: MUST
     kind: protocol
@@ -574,6 +583,12 @@ groups:
     rationale: Step 2 precedes step 3 so that the embargo is always created by a participant (the case owner). The Create(Case)
       notification in step 4 is flushed before the reporter is added in step 5 so the reporter's system receives the case
       object before any subsequent Announce(CaseLedgerEntry) fan-out that references it.
+    note: >-
+      Superseded by CM-22 (ADR-0041) for multi-actor deployments: in the
+      CaseActor-authoritative model the `VulnerabilityCase` is created by the
+      CaseActor (not the receiving vendor), so `attributed_to` is the CaseActor's
+      actor ID, not the receiving actor's.  CM-14-001 applies only in single-actor
+      deployments where the vendor IS the CaseActor.
     relationships:
     - rel_type: depends_on
       spec_id: CM-12-001
@@ -581,6 +596,9 @@ groups:
       spec_id: CM-12-002
     - rel_type: refines
       spec_id: CM-12-004
+    - rel_type: supersedes
+      spec_id: CM-22-001
+      note: CM-22-001 (ADR-0041) replaces the attributed_to=receiving_actor semantics for multi-actor deployments
   - id: CM-14-002
     priority: MUST
     kind: protocol
@@ -1120,3 +1138,20 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-22-001
+  - id: CM-22-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CaseActor MUST initialize the default embargo for the new case before
+      emitting `Create(VulnerabilityCase)` to the vendor.
+    rationale: >-
+      Embargo state is protocol-significant.  Deferring initialization to the
+      vendor or to a later message would produce a window in which
+      embargo-gated operations are undefined (ADR-0041, CP-09-003).  The
+      CaseActor holds the default embargo policy and is the only actor that
+      can initialize it authoritatively at case creation.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-22-001
+    - rel_type: implements
+      spec_id: CP-09-003

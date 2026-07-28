@@ -176,4 +176,5 @@ testable:
 - Symptom issue resolved: Issue #1767
 - Workaround removed: Issue #1688 (`WritePrologueLedgerEntriesNode`)
 - Generated spec requirements: `specs/case-proposal.yaml` CP-09,
-  `specs/case-management.yaml` CM-16 (CaseActor-authoritative init)
+  `specs/case-management.yaml` CM-22 (CaseActor-authoritative init),
+  `specs/case-ledger-processing.yaml` CLP-12
