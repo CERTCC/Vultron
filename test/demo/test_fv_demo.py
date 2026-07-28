@@ -722,25 +722,36 @@ class TestActorNotifiesFixReady:
 
 
 class TestActorNotifiesFixDeployed:
-    """Tests for actor_notifies_fix_deployed."""
+    """Tests for actor_notifies_fix_deployed guard (CheckDeployerRoleNode).
 
-    def test_returns_response(self, client: TestClient, base: str):
-        """Returns a response dict from the trigger endpoint."""
+    Vendor-only actors (CVDRole.VENDOR, no CVDRole.DEPLOYER) MUST be blocked
+    from the VFD transition per CSB-15-002.  The notify-fix-deployed endpoint
+    returns HTTP 422 when the DEPLOYER guard fires.
+    """
+
+    def test_vendor_blocked_from_vfd(self, client: TestClient, base: str):
+        """Vendor-only actor is blocked from VFD (d→D) by CheckDeployerRoleNode."""
+        import httpx2 as httpx
+
+        from vultron.demo.helpers.actions import actor_notifies_fix_deployed
+
         finder_client, vendor_client, finder, vendor, case = (
             _setup_case_with_3_participants(base)
         )
-        # notify-fix-ready first so VFd state is set before deploying
         demo.actor_notifies_fix_ready(
             client=vendor_client,
             actor=vendor,
             case_id=case.id_,
         )
-        result = demo.actor_notifies_fix_deployed(
-            client=vendor_client,
-            actor=vendor,
-            case_id=case.id_,
-        )
-        assert result is not None
+        with pytest.raises(httpx.HTTPStatusError) as exc_info:
+            actor_notifies_fix_deployed(
+                client=vendor_client,
+                actor=vendor,
+                case_id=case.id_,
+            )
+        assert (
+            exc_info.value.response.status_code == 422
+        ), "Expected HTTP 422 when vendor-only actor attempts VFD transition"
 
 
 class TestActorNotifiesPublished:
@@ -1508,11 +1519,8 @@ def completed_workflow(
     case_data = vendor_client.get(f"/datalayer/{case.id_}")
     case = as_VulnerabilityCase(**case_data)
 
-    # Fix lifecycle.
+    # Fix lifecycle: vendor-only actor stops at VFd (CSB-15-002).
     demo.actor_notifies_fix_ready(
-        client=vendor_client, actor=vendor_in_vendor, case_id=case.id_
-    )
-    demo.actor_notifies_fix_deployed(
         client=vendor_client, actor=vendor_in_vendor, case_id=case.id_
     )
     demo.actor_notifies_published(

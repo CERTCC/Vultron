@@ -62,14 +62,12 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
 )
 from vultron.demo.helpers.actions import (
     actor_closes_case,
-    actor_notifies_fix_deployed,
     actor_notifies_fix_ready,
     actor_notifies_published,
 )
 from vultron.demo.helpers.milestones import (
     verify_case_active,
     verify_case_closed,
-    verify_fix_deployed,
     verify_fix_ready,
     verify_publicly_disclosed,
 )
@@ -653,7 +651,7 @@ def _phase_fix_lifecycle(
     """Advance both vendors through independent fix-ready and fix-deployed paths."""
     logger.info("─" * 80)
     logger.info(
-        "Phase 5: Fix lifecycle — both vendors: VFd (fix ready) → VFD (fix deployed)"
+        "Phase 5: Fix lifecycle — both vendors: VFd (fix ready); vendors stop at VFd (CSB-15-002)"
     )
     logger.info("─" * 80)
 
@@ -707,33 +705,22 @@ def _phase_fix_lifecycle(
             receiver_actor_id=vendor.id_,
         )
 
-    actor_notifies_fix_deployed(
-        client=vendor_client,
-        actor=vendor_in_vendor,
-        case_id=case.id_,
-    )
-    actor_notifies_fix_deployed(
-        client=vendor2_client,
-        actor=vendor2_in_vendor2,
-        case_id=case.id_,
-    )
-
     with demo_check(
-        "M6: Finder replica shows both vendors CS include D (fix deployed)"
+        "M6: Finder replica shows both vendors CS include F (fix ready) — vendors stop at VFd"
     ):
         wait_for_participant_vfd_state(
             client=vendor_client,
             case_id=case.id_,
             actor_id=vendor.id_,
-            expected_states={CS_vfd.VFD},
+            expected_states={CS_vfd.VFd},
         )
         wait_for_participant_vfd_state(
             client=finder_client,
             case_id=case.id_,
             actor_id=vendor.id_,
-            expected_states={CS_vfd.VFD},
+            expected_states={CS_vfd.VFd},
         )
-        verify_fix_deployed(
+        verify_fix_ready(
             receiver_client=vendor_client,
             reporter_client=finder_client,
             case_id=case.id_,
@@ -803,7 +790,7 @@ def _phase_publication(
     )
 
     with demo_check(
-        "M7: all replicas CS.VFDPxa, EM.EXITED, all participants public-aware"
+        "M7: all replicas CS.VFdPxa, EM.EXITED, all participants public-aware"
     ):
         wait_for_case_em_terminated(
             client=finder_client,
@@ -813,13 +800,13 @@ def _phase_publication(
             client=vendor_client,
             case_id=case.id_,
             actor_id=vendor.id_,
-            expected_states={CS_vfd.VFD},
+            expected_states={CS_vfd.VFd},
         )
         wait_for_participant_vfd_state(
             client=finder_client,
             case_id=case.id_,
             actor_id=vendor.id_,
-            expected_states={CS_vfd.VFD},
+            expected_states={CS_vfd.VFd},
         )
         verify_publicly_disclosed(
             receiver_client=vendor_client,

@@ -223,13 +223,12 @@ def demo_notify_published(
 
     Implements: DEMOMA-07-001, TRIG-09-001, TB-01-001, TB-06-001.
     """
-    from vultron.core.states.cs import CS_pxa, CS_vfd
+    from vultron.core.states.cs import CS_pxa
 
     with domain_error_translation():
         result = svc.add_participant_status(
             actor_id=actor_id,
             case_id=body.case_id,
-            vfd_state=CS_vfd.VFD,
             pxa_state=CS_pxa.Pxa,
         )
     background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)

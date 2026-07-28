@@ -240,7 +240,11 @@ def _assert_participant_vfd_pxa(
     label: str,
     vendor_actor_id: str,
 ) -> None:
-    """Assert *participant* has VFD and a public-aware pxa_state.
+    """Assert *participant* has fix-ready (VFd or VFD) and a public-aware pxa_state.
+
+    Vendor-only actors stop at VFd per CSB-15-002 (d→D requires DEPLOYER role).
+    Both VFd and VFD are accepted here since the caller may be a vendor or a
+    deployer.
 
     Args:
         participant: The ``as_CaseParticipant`` to check.
@@ -248,18 +252,19 @@ def _assert_participant_vfd_pxa(
         vendor_actor_id: Full URI of the vendor actor (used in error messages).
 
     Raises:
-        AssertionError: If the participant's vfd_state is not VFD or its
-            pxa_state is not public-aware.
+        AssertionError: If the participant's vfd_state is not in {VFd, VFD} or
+            its pxa_state is not public-aware.
     """
     public_aware = {CS_pxa.Pxa, CS_pxa.PxA, CS_pxa.PXa, CS_pxa.PXA}
+    fix_ready_or_deployed = {CS_vfd.VFd, CS_vfd.VFD}
     latest = participant.participant_status
     if latest is None:
         raise AssertionError(
             f"M6 {label}: participant {vendor_actor_id!r} has no statuses"
         )
-    if latest.vfd_state != CS_vfd.VFD:
+    if latest.vfd_state not in fix_ready_or_deployed:
         raise AssertionError(
-            f"M6 {label}: vfd_state is not VFD, found {latest.vfd_state!r}"
+            f"M6 {label}: vfd_state is not VFd or VFD, found {latest.vfd_state!r}"
         )
     cs = getattr(latest, "case_status", None)
     pxa = getattr(cs, "pxa_state", None) if cs is not None else None
