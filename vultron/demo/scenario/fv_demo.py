@@ -64,7 +64,6 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
 # remains unchanged.
 from vultron.demo.helpers.actions import (  # noqa: F401
     actor_closes_case,
-    actor_notifies_fix_deployed,
     actor_notifies_fix_ready,
     actor_notifies_published,
     actor_notifies_state_change,
@@ -72,7 +71,6 @@ from vultron.demo.helpers.actions import (  # noqa: F401
 from vultron.demo.helpers.milestones import (
     verify_case_active,
     verify_case_closed,
-    verify_fix_deployed,
     verify_fix_ready,
     verify_publicly_disclosed,
 )
@@ -348,8 +346,12 @@ def verify_m5_state(
     case_id: str,
     vendor_actor_id: str,
 ) -> None:
-    """Scenario alias for :func:`~vultron.demo.helpers.milestones.verify_fix_deployed`."""
-    return verify_fix_deployed(
+    """Scenario alias for :func:`~vultron.demo.helpers.milestones.verify_fix_ready`.
+
+    M5 in the FV scenario is fix-ready (VFd); vendor-only actors stop at VFd
+    per CSB-15-002.
+    """
+    return verify_fix_ready(
         receiver_client=vendor_client,
         reporter_client=finder_client,
         case_id=case_id,
@@ -608,7 +610,7 @@ def _phase_fix_lifecycle(
     """Advance the case through fix-ready and fix-deployed milestones."""
     logger.info("─" * 80)
     logger.info(
-        "Phase 4: Fix lifecycle — VFd (fix ready) → VFD (fix deployed)"
+        "Phase 4: Fix lifecycle — VFd (fix ready); vendor stops at VFd (CSB-15-002)"
     )
     logger.info("─" * 80)
 
@@ -646,26 +648,22 @@ def _phase_fix_lifecycle(
             receiver_actor_id=vendor.id_,
         )
 
-    actor_notifies_fix_deployed(
-        client=vendor_client,
-        actor=vendor_in_vendor,
-        case_id=case.id_,
-    )
-
-    with demo_check("M5: both replicas show CS includes D (fix deployed)"):
+    with demo_check(
+        "M5: both replicas show CS includes F (fix ready) — vendor stops at VFd"
+    ):
         wait_for_participant_vfd_state(
             client=vendor_client,
             case_id=case.id_,
             actor_id=vendor.id_,
-            expected_states={CS_vfd.VFD},
+            expected_states={CS_vfd.VFd},
         )
         wait_for_participant_vfd_state(
             client=finder_client,
             case_id=case.id_,
             actor_id=vendor.id_,
-            expected_states={CS_vfd.VFD},
+            expected_states={CS_vfd.VFd},
         )
-        verify_fix_deployed(
+        verify_fix_ready(
             receiver_client=vendor_client,
             reporter_client=finder_client,
             case_id=case.id_,
@@ -710,7 +708,7 @@ def _phase_publication(
     )
 
     with demo_check(
-        "M6: both replicas CS.VFDPxa, EM.EXITED, vendor participant is "
+        "M6: both replicas CS.VFdPxa, EM.EXITED, vendor participant is "
         "public-aware"
     ):
         wait_for_case_em_terminated(
@@ -721,13 +719,13 @@ def _phase_publication(
             client=vendor_client,
             case_id=case.id_,
             actor_id=vendor.id_,
-            expected_states={CS_vfd.VFD},
+            expected_states={CS_vfd.VFd},
         )
         wait_for_participant_vfd_state(
             client=finder_client,
             case_id=case.id_,
             actor_id=vendor.id_,
-            expected_states={CS_vfd.VFD},
+            expected_states={CS_vfd.VFd},
         )
         verify_publicly_disclosed(
             receiver_client=vendor_client,

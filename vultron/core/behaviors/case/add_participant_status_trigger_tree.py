@@ -38,6 +38,10 @@ import py_trees
 from vultron.core.behaviors.case.nodes.participant import (
     CreateParticipantStatusNode,
 )
+from vultron.core.behaviors.case.nodes.vfd_role_guards import (
+    CheckDeployerRoleNode,
+    CheckVendorRoleNode,
+)
 from vultron.core.behaviors.sender.send_tree import sender_side_bt
 from vultron.core.states.cs import CS_pxa, CS_vfd
 from vultron.core.states.rm import RM
@@ -53,6 +57,13 @@ def add_participant_status_trigger_bt(
     activity_builder: Callable[[str], list[str]],
 ) -> py_trees.behaviour.Behaviour:
     """Return the trigger-side BT for the add-participant-status workflow.
+
+    When ``vfd_state`` is ``CS_vfd.VFd`` the tree is preceded by
+    :class:`~vultron.core.behaviors.case.nodes.vfd_role_guards.CheckVendorRoleNode`
+    (CSB-15-001).  When ``vfd_state`` is ``CS_vfd.VFD`` the tree is preceded by
+    :class:`~vultron.core.behaviors.case.nodes.vfd_role_guards.CheckDeployerRoleNode`
+    (CSB-15-002).  Both guards return ``FAILURE`` when the actor lacks the
+    required role, blocking the ``CreateParticipantStatusNode`` downstream.
 
     Args:
         case_id: ID of the VulnerabilityCase.
@@ -75,13 +86,23 @@ def add_participant_status_trigger_bt(
     Returns:
         A ``py_trees.composites.Sequence`` that:
 
+        - (optional) Role-guard node when ``vfd_state`` is ``VFd`` or ``VFD``.
         - Creates the ParticipantStatus snapshot (BT-15-001).
         - Resolves the Case Manager, builds the activity, and queues it.
     """
-    return py_trees.composites.Sequence(
-        name="AddParticipantStatusTriggerBT",
-        memory=False,
-        children=[
+    children: list[py_trees.behaviour.Behaviour] = []
+
+    if vfd_state == CS_vfd.VFd:
+        children.append(
+            CheckVendorRoleNode(case_id=case_id, actor_id=actor_id)
+        )
+    elif vfd_state == CS_vfd.VFD:
+        children.append(
+            CheckDeployerRoleNode(case_id=case_id, actor_id=actor_id)
+        )
+
+    children.extend(
+        [
             CreateParticipantStatusNode(
                 case_id=case_id,
                 actor_id=actor_id,
@@ -91,5 +112,11 @@ def add_participant_status_trigger_bt(
                 result_out=result_out,
             ),
             sender_side_bt(case_id=case_id, activity_builder=activity_builder),
-        ],
+        ]
+    )
+
+    return py_trees.composites.Sequence(
+        name="AddParticipantStatusTriggerBT",
+        memory=False,
+        children=children,
     )

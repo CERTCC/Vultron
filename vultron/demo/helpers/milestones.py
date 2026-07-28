@@ -29,6 +29,7 @@ from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.demo.helpers.sync import _extract_ref_id
 from vultron.demo.helpers.verification import (
+    _assert_participant_pxa_only,
     _assert_participant_vfd_pxa,
     _check_participant_vfd_state_in,
     _fetch_participant,
@@ -294,8 +295,9 @@ def verify_publicly_disclosed(
             )
         logger.info("✓ publicly disclosed %s: EM.EXITED", label)
 
-    # Verify receiver participant's latest status is VFD + public-aware pxa
+    # Verify receiver participant's pxa state (and VFD only for vendor/deployer)
     # on both the coordinator's and reporter's DataLayer replicas.
+    vfd_roles = {CVDRole.VENDOR, CVDRole.DEPLOYER}
     for label, c in [
         ("receiver", receiver_client),
         ("reporter", reporter_client),
@@ -306,7 +308,11 @@ def verify_publicly_disclosed(
                 f"verify_publicly_disclosed {label}: receiver participant"
                 f" {receiver_actor_id!r} not found"
             )
-        _assert_participant_vfd_pxa(p, label, receiver_actor_id)
+        receiver_roles = set(p.case_roles or [])
+        if receiver_roles & vfd_roles:
+            _assert_participant_vfd_pxa(p, label, receiver_actor_id)
+        else:
+            _assert_participant_pxa_only(p, label, receiver_actor_id)
     logger.info("✓ publicly disclosed: both replicas CS.VFDPxa and EM.EXITED")
 
 

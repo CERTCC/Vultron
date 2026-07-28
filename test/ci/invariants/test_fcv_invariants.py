@@ -322,17 +322,18 @@ def test_fcv_vendor_late_joiner_has_full_history(
 
 
 @pytest.mark.case_ledger_invariants
-def test_fcv_vendor_vfd_and_vfd_transitions_observed(
+def test_fcv_vendor_vfd_transition_observed(
     fcv_replicas: dict[str, list[dict]],
 ) -> None:
-    """CS transitions VFd and VFD observed in Vendor's add_participant_status entries.
+    """VFd transition observed in Vendor's add_participant_status entries.
 
-    Spec: DEMOMA-12-009(4) — Vendor fix path; only Vendor has VFD role.
+    Vendor holds CVDRole.VENDOR (not CVDRole.DEPLOYER), so the fix lifecycle
+    stops at VFd per CSB-15-002.  Spec: DEMOMA-12-009(4).
     """
     vendor_entries = fcv_replicas.get("vendor")
     if not vendor_entries:
         pytest.skip(
-            "vendor replica absent; cannot check Vendor VFd/VFD transitions"
+            "vendor replica absent; cannot check Vendor VFd transition"
         )
 
     status_entries = [
@@ -345,20 +346,14 @@ def test_fcv_vendor_vfd_and_vfd_transitions_observed(
             "No add_participant_status_to_participant entries in vendor log"
         )
 
-    saw_fix_ready = saw_fix_deployed = False
+    saw_fix_ready = False
     for e in status_entries:
-        fix_ready, fix_deployed, _ = cs_observations_from_snap(payload(e))
+        fix_ready, _, _ = cs_observations_from_snap(payload(e))
         saw_fix_ready |= fix_ready
-        saw_fix_deployed |= fix_deployed
 
-    missing: list[str] = []
-    if not saw_fix_ready:
-        missing.append("Vendor: vfd_state == 'VFd' (fix_ready) never observed")
-    if not saw_fix_deployed:
-        missing.append(
-            "Vendor: vfd_state == 'VFD' (fix_deployed) never observed"
-        )
-    assert not missing, "Missing Vendor CS transitions:\n" + "\n".join(missing)
+    assert (
+        saw_fix_ready
+    ), "Vendor: vfd_state == 'VFd' (fix_ready) never observed"
 
 
 @pytest.mark.case_ledger_invariants
