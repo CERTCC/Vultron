@@ -18,7 +18,8 @@ import from ``vultron.demo.helpers`` directly.
 
 Sub-modules
 -----------
-- :mod:`~vultron.demo.helpers.polling` — ``_poll_until`` and all
+- :mod:`~vultron.demo.helpers.polling` — ``_poll_until``,
+  ``find_case_invite_for_actor``, ``wait_for_object_stored``, and all
   ``wait_for_*`` helpers.
 - :mod:`~vultron.demo.helpers.actions` — ``actor_notifies_state_change``
   and named CVD lifecycle action wrappers.
@@ -68,6 +69,7 @@ from vultron.demo.helpers.notes import (  # noqa: F401
 )
 from vultron.demo.helpers.polling import (  # noqa: F401
     _poll_until,
+    find_case_invite_for_actor,
     wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
     wait_for_case_on_container,
@@ -76,6 +78,7 @@ from vultron.demo.helpers.polling import (  # noqa: F401
     wait_for_finder_case,
     wait_for_finder_log_entry,
     wait_for_note_in_case,
+    wait_for_object_stored,
     wait_for_participant_vfd_state,
 )
 from vultron.demo.helpers.seeding import (  # noqa: F401

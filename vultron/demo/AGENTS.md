@@ -179,7 +179,7 @@ complete; the demo just needs to wait long enough.
    that activity to any inbox. Instead, poll the expected side-effect directly:
    - Use `wait_for_case_on_container` to verify a case replica arrived.
    - Use `find_case_invite_for_actor` to verify an invite arrived.
-   - Use `verify_object_stored` after a sufficient `time.sleep` or poll loop.
+   - Use `wait_for_object_stored` to verify an arbitrary object arrived in a DataLayer.
 2. If a poll times out reliably in CI, the underlying delivery path needs
    investigation (retry parameters, health checks, container startup order)
    — not a workaround in the demo script.

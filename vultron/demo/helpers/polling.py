@@ -22,7 +22,7 @@ import logging
 import time
 from typing import Callable
 
-from vultron.demo.utils import DataLayerClient
+from vultron.demo.utils import DataLayerClient, logfmt
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -412,6 +412,54 @@ def find_case_invite_for_actor(
     raise AssertionError(
         f"Timed out waiting for CaseActor Invite for actor {invitee_id!r} on"
         f" case {case_id!r} to appear in DataLayer at {client.base_url}"
+    )
+
+
+def wait_for_object_stored(
+    client: DataLayerClient,
+    obj_id: str,
+    timeout_seconds: float = 15.0,
+    poll_interval: float = 0.5,
+) -> None:
+    """Poll *client*'s DataLayer until *obj_id* appears.
+
+    Replaces direct ``verify_object_stored`` calls that followed a
+    ``post_to_inbox_and_wait`` mail-carrying step.  Use this helper after
+    triggering an actor to emit an activity so the demo waits for the real
+    HTTP delivery path to complete rather than manually injecting the
+    activity into a recipient's inbox.
+
+    Args:
+        client: DataLayerClient connected to the container to poll.
+        obj_id: Full URI of the object to wait for.
+        timeout_seconds: Maximum time to wait before raising.
+        poll_interval: Seconds between DataLayer poll attempts.
+
+    Raises:
+        AssertionError: If *obj_id* does not appear within *timeout_seconds*.
+    """
+
+    def _check() -> bool:
+        try:
+            data = client.get(f"/datalayer/{obj_id}")
+            if data:
+                logger.info(
+                    "Object %s found in DataLayer at %s",
+                    logfmt(obj_id),
+                    client.base_url,
+                )
+                return True
+        except Exception:  # noqa: BLE001
+            pass
+        return False
+
+    _poll_until(
+        _check,
+        timeout_seconds,
+        poll_interval,
+        f"Timed out waiting for object {obj_id!r} to appear in DataLayer "
+        f"at {client.base_url} — outbox delivery may not have completed",
+        swallow_exceptions=True,
     )
 
 

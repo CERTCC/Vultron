@@ -54,7 +54,6 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     check_server_availability,
     demo_check,
     demo_step,
-    post_to_inbox_and_wait,
     post_to_trigger,
     reset_datalayer,
     reset_demo_failures,
@@ -75,6 +74,7 @@ from vultron.demo.helpers.milestones import (
     verify_publicly_disclosed,
 )
 from vultron.demo.helpers.polling import (
+    find_case_invite_for_actor,
     wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
     wait_for_case_on_container,
@@ -235,12 +235,13 @@ def _phase_report_submission(
     invite = as_TransitiveActivity.model_validate(invite_result["activity"])
     logger.info("Invite created: %s", invite.id_)
 
-    # Deliver the invite to Vendor2's inbox so it can be resolved on accept.
-    with demo_step("Delivering invite to Vendor2's inbox"):
-        post_to_inbox_and_wait(vendor2_client, vendor2_in_vendor2.id_, invite)
-
-    with demo_check("Invite stored in Vendor2's DataLayer"):
-        verify_object_stored(vendor2_client, invite.id_)
+    with demo_check("Vendor2 invite delivered to Vendor2's DataLayer"):
+        find_case_invite_for_actor(
+            client=vendor2_client,
+            case_id=case.id_,
+            invitee_id=vendor2.id_,
+            timeout_seconds=20.0,
+        )
 
     # Vendor2 accepts the invite.
     with demo_step("Vendor2 accepts the case invitation"):

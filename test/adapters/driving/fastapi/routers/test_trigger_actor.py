@@ -434,3 +434,186 @@ def test_trigger_offer_case_manager_role_no_case_actor_returns_404(
         json={"case_id": case_obj.id_},
     )
     assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+# ===========================================================================
+# Tests for trigger/invite-actor-to-case
+# ===========================================================================
+
+
+@pytest.fixture
+def client_triggers_invite(dl):
+    """TestClient for invite-actor-to-case tests.
+
+    Patches get_default_emitter with a no-op AsyncMock so outbox_handler
+    completes without real HTTP delivery (which would block on retry backoff
+    against a non-existent test host).
+    """
+    from unittest.mock import AsyncMock, patch
+
+    app = FastAPI()
+    app.include_router(trigger_actor_router.router)
+    app.dependency_overrides[get_trigger_service] = lambda: TriggerService(
+        dl, trigger_activity=TriggerActivityAdapter(dl)
+    )
+    app.dependency_overrides[get_trigger_dl] = lambda: dl
+    app.dependency_overrides[get_canonical_actor_dl] = lambda: dl
+    mock_emitter = AsyncMock()
+    with patch(
+        "vultron.adapters.driving.fastapi.outbox_handler.get_default_emitter",
+        return_value=mock_emitter,
+    ):
+        yield TestClient(app)
+    app.dependency_overrides = {}
+
+
+@pytest.fixture
+def case_for_invite(dl, actor):
+    """Case + Case Actor for invite-actor-to-case tests.
+
+    Sets attributed_to=actor.id_ on the case so the BT can bootstrap the
+    ledger chain (genesis hash derived from attributed_to — CLP-08-005).
+    """
+    case_actor = as_Service(name="Case Actor for Invite")
+    dl.create(case_actor)
+    case = as_VulnerabilityCase(
+        name="TEST-CASE-INVITE",
+        attributed_to=actor.id_,
+    )
+    owner_participant = as_CaseParticipant(
+        attributed_to=actor.id_,
+        context=case.id_,
+        case_roles=[CVDRole.CASE_OWNER],
+    )
+    case_manager_participant = as_CaseParticipant(
+        attributed_to=case_actor.id_,
+        context=case.id_,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    case.actor_participant_index[actor.id_] = owner_participant.id_
+    case.actor_participant_index[case_actor.id_] = case_manager_participant.id_
+    case.case_participants.append(owner_participant.id_)
+    case.case_participants.append(case_manager_participant.id_)
+    dl.create(case)
+    dl.create(owner_participant)
+    dl.create(case_manager_participant)
+    case_actor_with_context = as_Service(
+        id_=case_actor.id_,
+        name="Case Actor for Invite",
+        context=case.id_,
+    )
+    dl.save(case_actor_with_context)
+    return case, case_actor
+
+
+def test_trigger_invite_actor_to_case_returns_202(
+    client_triggers_invite, actor, case_for_invite, other_actor
+):
+    """TB-01-002: POST /actors/{id}/trigger/invite-actor-to-case returns 202."""
+    case, _ = case_for_invite
+    resp = client_triggers_invite.post(
+        f"/actors/{actor.id_}/trigger/invite-actor-to-case",
+        json={"case_id": case.id_, "invitee_id": other_actor.id_},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_invite_actor_to_case_response_contains_activity(
+    client_triggers_invite, actor, case_for_invite, other_actor
+):
+    """TB-04-001: Successful trigger response body contains 'activity' key."""
+    case, _ = case_for_invite
+    resp = client_triggers_invite.post(
+        f"/actors/{actor.id_}/trigger/invite-actor-to-case",
+        json={"case_id": case.id_, "invitee_id": other_actor.id_},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    data = resp.json()
+    assert "activity" in data
+    assert data["activity"] is not None
+    assert data["activity"]["type"] == "Invite"
+
+
+def test_trigger_invite_actor_to_case_activity_actor_is_case_actor(
+    client_triggers_invite, actor, case_for_invite, other_actor
+):
+    """Invite activity must be emitted from the Case Actor's identity (PCR-08-007).
+
+    Also verifies that emitting_actor_id in the response matches the Case Actor,
+    which is the value used to select the correct outbox for outbox_handler.
+    """
+    case, case_actor = case_for_invite
+    resp = client_triggers_invite.post(
+        f"/actors/{actor.id_}/trigger/invite-actor-to-case",
+        json={"case_id": case.id_, "invitee_id": other_actor.id_},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    data = resp.json()
+    assert data["activity"]["actor"] == case_actor.id_
+    assert data["emitting_actor_id"] == case_actor.id_
+
+
+def test_trigger_invite_actor_to_case_missing_case_id_returns_422(
+    client_triggers_invite, actor, other_actor
+):
+    """TB-03-001: Missing case_id returns HTTP 422."""
+    resp = client_triggers_invite.post(
+        f"/actors/{actor.id_}/trigger/invite-actor-to-case",
+        json={"invitee_id": other_actor.id_},
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+def test_trigger_invite_actor_to_case_missing_invitee_id_returns_422(
+    client_triggers_invite, actor, case_for_invite
+):
+    """TB-03-001: Missing invitee_id returns HTTP 422."""
+    case, _ = case_for_invite
+    resp = client_triggers_invite.post(
+        f"/actors/{actor.id_}/trigger/invite-actor-to-case",
+        json={"case_id": case.id_},
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+def test_trigger_invite_actor_to_case_unknown_actor_returns_404(
+    client_triggers_invite,
+):
+    """TB-01-003: Unknown actor_id returns HTTP 404."""
+    resp = client_triggers_invite.post(
+        "/actors/nonexistent-actor/trigger/invite-actor-to-case",
+        json={
+            "case_id": "urn:uuid:any-case",
+            "invitee_id": "urn:uuid:any-invitee",
+        },
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_trigger_invite_actor_to_case_unknown_case_returns_404(
+    client_triggers_invite, actor, other_actor
+):
+    """TB-01-003: Unknown case_id returns HTTP 404."""
+    resp = client_triggers_invite.post(
+        f"/actors/{actor.id_}/trigger/invite-actor-to-case",
+        json={
+            "case_id": "urn:uuid:nonexistent-case",
+            "invitee_id": other_actor.id_,
+        },
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_trigger_invite_actor_to_case_unknown_invitee_returns_404(
+    client_triggers_invite, actor, case_for_invite
+):
+    """TB-01-003: Unknown invitee_id returns HTTP 404."""
+    case, _ = case_for_invite
+    resp = client_triggers_invite.post(
+        f"/actors/{actor.id_}/trigger/invite-actor-to-case",
+        json={
+            "case_id": case.id_,
+            "invitee_id": "urn:uuid:nonexistent-invitee",
+        },
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND

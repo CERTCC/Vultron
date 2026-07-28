@@ -50,7 +50,6 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     demo_check,
     demo_step,
     logfmt,
-    post_to_inbox_and_wait,
     post_to_trigger,
     ref_id,
     reset_datalayer,

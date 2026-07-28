@@ -54,7 +54,6 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     check_server_availability,
     demo_check,
     demo_step,
-    post_to_inbox_and_wait,
     post_to_trigger,
     reset_datalayer,
     reset_demo_failures,
@@ -331,14 +330,13 @@ def _phase_report_submission(
     invite = as_TransitiveActivity.model_validate(invite_result["activity"])
     logger.info("Coordinator invite created: %s", invite.id_)
 
-    # Deliver the invite to Coordinator's inbox.
-    with demo_step("Delivering invite to Coordinator's inbox"):
-        post_to_inbox_and_wait(
-            coordinator_client, coordinator_in_coordinator.id_, invite
+    with demo_check("Coordinator invite delivered to Coordinator's DataLayer"):
+        find_case_invite_for_actor(
+            client=coordinator_client,
+            case_id=case.id_,
+            invitee_id=coordinator.id_,
+            timeout_seconds=60.0,
         )
-
-    with demo_check("Coordinator invite stored in Coordinator's DataLayer"):
-        verify_object_stored(coordinator_client, invite.id_)
 
     # Coordinator accepts the invite.
     with demo_step("Coordinator accepts the case invitation"):
@@ -468,7 +466,7 @@ def _phase_coordinator_suggests_vendor2(
             client=vendor2_client,
             case_id=case.id_,
             invitee_id=vendor2.id_,
-            timeout_seconds=20.0,
+            timeout_seconds=60.0,
         )
     logger.info("Vendor2 received CaseActor invite: %s", invite_id)
 
@@ -487,7 +485,7 @@ def _phase_coordinator_suggests_vendor2(
         wait_for_case_on_container(
             client=vendor2_client,
             case_id=case.id_,
-            timeout_seconds=20.0,
+            timeout_seconds=60.0,
         )
     logger.info(
         "Vendor2 received case replica via CaseActor Announce (ADR-0026 path)"
@@ -500,7 +498,7 @@ def _phase_coordinator_suggests_vendor2(
         vendor_client=vendor_client,
         case_id=case.id_,
         expected_count=5,
-        timeout_seconds=20.0,
+        timeout_seconds=60.0,
     )
     logger.info("✓ M3: Vendor2 joined case (%d participants)", 5)
 
