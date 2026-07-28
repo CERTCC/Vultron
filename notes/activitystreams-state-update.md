@@ -363,6 +363,32 @@ actor_id = getattr(raw_actor, "id_", None) or request.object_id
 The fallback `request.object_id` retains the `#participant` suffix and should
 only be used as a last resort — log a warning if it is reached.
 
+### Trust Boundary: Roles MUST Come from the Stored Offer We Sent
+
+(ISSUE-1745, 2026-07-28)
+
+When `CaseActor` processes an `Accept(Offer(CaseParticipant))` from the Case
+Owner, the roles for the invited actor MUST be read from the stored
+`Offer(CaseParticipant)` in the DataLayer — the Offer that CaseActor itself
+constructed and sent — NOT from the embedded `CaseParticipant` in the received
+`Accept`.
+
+**Why**: the accepting actor (Case Owner) may have modified or omitted roles in
+their response, or may have sent only a bare ID reference. Reading roles from
+the received `Accept` would allow a malicious or minimally-conformant acceptor
+to substitute different roles than those evaluated and forwarded by the CaseActor.
+
+**Implementation**: `AcceptOfferCaseParticipantReceivedUseCase` looks up the
+stored Offer by `request.object_id`, extracts `stored_participant.roles`, and
+serializes them before passing to
+`create_accept_actor_recommendation_received_tree(roles=...)`. The
+`EmitInviteActorToCaseNode` uses the injected roles directly, falling back to
+the blackboard only in the single-execution path where the blackboard is
+populated.
+
+**ADR**: ADR-0026 Consequences section should document this invariant (see
+tracking issue for ADR update).
+
 ---
 
 ## Target-Field Discriminators: Wire Ambiguity Between Offer Semantics

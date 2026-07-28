@@ -391,6 +391,158 @@ def _seed_dl_for_ac1() -> SqliteDataLayer:
     return dl
 
 
+class TestRolesFromStoredOffer:
+    """Regression test for ISSUE-1745: roles must come from stored Offer, not blackboard.
+
+    The suggest-actor path (ADR-0026) runs in two separate BT executions:
+    1. CaseActor receives Offer(Actor, Case) → stores Offer(CaseParticipant) with roles
+    2. CaseActor receives Accept(Offer(CaseParticipant)) → emits Invite with those roles
+
+    The blackboard is not shared between executions, so roles must be read from
+    the DataLayer (the stored Offer), not from a blackboard key that is always
+    empty in the second execution.
+    """
+
+    @pytest.fixture(autouse=True)
+    def clear_blackboard(self):
+        py_trees.blackboard.Blackboard.storage.clear()
+        yield
+        py_trees.blackboard.Blackboard.storage.clear()
+
+    def _seed_and_store_offer(
+        self, roles: list
+    ) -> tuple[SqliteDataLayer, "AcceptOfferCaseParticipantReceivedEvent"]:
+        """Seed a DataLayer as the CaseActor would: store the Offer that was sent."""
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+
+        dl = _seed_dl_for_ac1()
+        adapter = TriggerActivityAdapter(dl)
+        # Store the Offer as offer_actor_to_case() does when sending it to Case Owner.
+        offer_id, _ = adapter.offer_actor_to_case(
+            recommender_id="https://example.org/actors/ac1-finder",
+            recommended_id=AC1_INVITEE_ID,
+            case_id=AC1_CASE_ID,
+            actor=AC1_CASE_ACTOR_ID,
+            to=[AC1_CASE_OWNER_ID],
+            origin="https://example.org/activities/orig-offer-001",
+            roles=roles,
+        )
+        # Build Accept(Offer) using the STORED offer (as Case Owner would).
+        stored_offer = dl.read(offer_id)
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+            as_Offer,
+        )
+
+        accept = accept_case_participant_offer_activity(
+            cast(as_Offer, stored_offer),
+            target=AC1_CASE_ID,
+            actor=AC1_CASE_OWNER_ID,
+            to=[AC1_CASE_ACTOR_ID],
+        )
+        event = cast(
+            AcceptOfferCaseParticipantReceivedEvent, extract_event(accept)
+        )
+        return dl, event
+
+    def test_invite_carries_roles_from_stored_offer(self):
+        """Roles from the stored Offer are threaded into the emitted Invite.
+
+        ISSUE-1745: when CaseActor receives Accept(Offer(CaseParticipant[VENDOR])),
+        the Invite it emits to the invitee must carry roles=[VENDOR], read from
+        the stored Offer in the DataLayer (not from the blackboard, which is empty
+        in this separate BT execution).
+        """
+        from vultron.enums.roles import CVDRole
+
+        dl, event = self._seed_and_store_offer(roles=[CVDRole.VENDOR])
+        AcceptOfferCaseParticipantReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        outbox = dl.outbox_list_for_actor(AC1_CASE_ACTOR_ID)
+        invite_obj = None
+        for act_id in outbox:
+            obj = dl.read(act_id)
+            if obj is not None and str(getattr(obj, "type_", "")) == "Invite":
+                invite_obj = obj
+                break
+
+        assert (
+            invite_obj is not None
+        ), "Invite must be stored in CaseActor outbox"
+        invite_roles = getattr(invite_obj, "roles", None)
+        assert invite_roles == [CVDRole.VENDOR.value], (
+            f"ISSUE-1745: Invite must carry roles from stored Offer; "
+            f"expected ['{CVDRole.VENDOR.value}'], got {invite_roles!r}"
+        )
+
+    def test_participant_case_roles_vendor_after_full_round_trip(self):
+        """Full round-trip: Accept(Invite) creates participant with VENDOR role.
+
+        ISSUE-1745: after the fix, participant.case_roles should be [VENDOR]
+        (read from the stored Offer), not [] (missing blackboard key).
+        """
+        from vultron.core.use_cases.received.actor.invite import (
+            AcceptInviteActorToCaseReceivedUseCase,
+        )
+        from vultron.enums.roles import CVDRole
+
+        dl, event = self._seed_and_store_offer(roles=[CVDRole.VENDOR])
+
+        # Step 1: CaseActor receives Accept(Offer(CaseParticipant[VENDOR])) → emits Invite
+        AcceptOfferCaseParticipantReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        # Step 2: find the stored Invite
+        outbox = dl.outbox_list_for_actor(AC1_CASE_ACTOR_ID)
+        invite_obj = None
+        for act_id in outbox:
+            obj = dl.read(act_id)
+            if obj is not None and str(getattr(obj, "type_", "")) == "Invite":
+                invite_obj = obj
+                break
+        assert (
+            invite_obj is not None
+        ), "Invite must be present in CaseActor outbox"
+
+        # Step 3: invitee accepts the Invite
+        py_trees.blackboard.Blackboard.storage.clear()
+        from vultron.core.models.events.actor import (
+            AcceptInviteActorToCaseReceivedEvent,
+        )
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+            as_Invite,
+        )
+
+        accept_invite = rm_accept_invite_to_case_activity(
+            cast(as_Invite, invite_obj), actor=AC1_INVITEE_ID
+        )
+        accept_invite_event = cast(
+            AcceptInviteActorToCaseReceivedEvent, extract_event(accept_invite)
+        )
+        AcceptInviteActorToCaseReceivedUseCase(
+            dl, accept_invite_event, sync_port=MagicMock()
+        ).execute()
+
+        # Step 4: participant must have VENDOR role
+        reloaded_case = cast(Any, dl.read(AC1_CASE_ID))
+        participant_id = reloaded_case.actor_participant_index.get(
+            AC1_INVITEE_ID
+        )
+        assert (
+            participant_id is not None
+        ), "Invitee must be registered as participant"
+        participant = cast(Any, dl.get(id_=participant_id))
+        assert participant is not None
+        assert CVDRole.VENDOR in participant.case_roles, (
+            f"ISSUE-1745: participant.case_roles must contain VENDOR after "
+            f"full round-trip; got {participant.case_roles!r}"
+        )
+
+
 class TestAcceptOfferCaseParticipantRolesThreading:
     """AC-1/AC-2 (ISSUE-1406): roles threading through suggest-actor received path.
 
