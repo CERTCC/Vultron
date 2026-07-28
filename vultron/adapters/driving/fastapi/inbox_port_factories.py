@@ -114,12 +114,10 @@ def _submit_report_port_factory(dl: DataLayer) -> dict[str, Any]:
 _SYNC_PORT_SEMANTICS = frozenset(
     {
         MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE,
-        MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
         MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY,
         MessageSemantics.ADD_NOTE_TO_CASE,
         MessageSemantics.CLOSE_CASE,
         MessageSemantics.INVITE_ACTOR_TO_CASE,
-        MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
         MessageSemantics.REJECT_CASE_LEDGER_ENTRY,
         MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE,
         MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE,
@@ -142,15 +140,19 @@ _TRIGGER_ACTIVITY_PORT_SEMANTICS = frozenset(
 # which fans out Announce(CaseLedgerEntry) via sync_port (SYNC-02-002),
 # AND also need trigger_activity for outbound wire-activity construction
 # (e.g. Announce(VulnerabilityCase) broadcast).
+# INVITE_TO_EMBARGO_ON_CASE and ACCEPT_INVITE_TO_EMBARGO_ON_CASE need
+# trigger_activity to emit ER when P/X/A is set (EMB-01-002, EMB-02-002).
 # NOTE: SUBMIT_REPORT is intentionally absent here — it uses
 # _submit_report_port_factory (below) which also injects actor_config.
 _SYNC_AND_TRIGGER_PORT_SEMANTICS = frozenset(
     {
         MessageSemantics.ACK_REPORT,
+        MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
         MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
         MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
         MessageSemantics.DEFER_CASE,
         MessageSemantics.ENGAGE_CASE,
+        MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
         MessageSemantics.OFFER_CASE_MANAGER_ROLE,
     }
 )

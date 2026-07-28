@@ -20,8 +20,8 @@ from typing import Any
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
-from vultron.core.models.protocols import is_case_model
-from vultron.core.use_cases._helpers import _as_id
+from vultron.core.models._helpers import _as_id
+from vultron.core.models.case import VulnerabilityCase
 
 
 class CreateNoteNode(DataLayerAction):
@@ -44,22 +44,13 @@ class CreateNoteNode(DataLayerAction):
         self.in_reply_to = in_reply_to
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            self.logger.error(f"{self.name}: {self.feedback_message}")
-            return Status.FAILURE
-
-        if self.trigger_activity_factory is None:
-            self.feedback_message = (
-                "trigger_activity_factory not available in blackboard"
-            )
-            self.logger.error(f"{self.name}: {self.feedback_message}")
-            return Status.FAILURE
-
-        if self.actor_id is None:
-            self.feedback_message = "actor_id not available in blackboard"
-            self.logger.error(f"{self.name}: {self.feedback_message}")
-            return Status.FAILURE
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
+        if (f := self._require_factory()) is not None:
+            return f
+        assert self.trigger_activity_factory is not None
 
         try:
             note_id, note_dict = self.trigger_activity_factory.create_note(
@@ -93,20 +84,24 @@ class AttachNoteFromResultNode(DataLayerAction):
         self.case_id = case_id
         self.result_out = result_out
 
-    def update(self) -> Status:
+    def _read_note_id(self) -> str | None:
         note_id = self.result_out.get("note_id")
         if not note_id:
             self.feedback_message = "note_id not available in result_out"
             self.logger.error(f"{self.name}: {self.feedback_message}")
+        return note_id or None
+
+    def update(self) -> Status:
+        note_id = self._read_note_id()
+        if note_id is None:
             return Status.FAILURE
 
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
+        if (f := self._require_datalayer()) is not None:
             self.logger.error(f"{self.name}: {self.feedback_message}")
-            return Status.FAILURE
+            return f
 
-        case: Any = self.datalayer.read(self.case_id)
-        if not is_case_model(case):
+        case: Any = self.datalayer.read(self.case_id)  # type: ignore[union-attr]
+        if not isinstance(case, VulnerabilityCase):
             self.feedback_message = f"case '{self.case_id}' not found"
             self.logger.warning(f"{self.name}: {self.feedback_message}")
             return Status.FAILURE
@@ -120,7 +115,7 @@ class AttachNoteFromResultNode(DataLayerAction):
             return Status.SUCCESS
 
         case.notes.append(note_id)
-        self.datalayer.save(case)
+        self.datalayer.save(case)  # type: ignore[union-attr]
         self.logger.info(
             f"{self.name}: Attached note '{note_id}' to case '{self.case_id}'"
         )

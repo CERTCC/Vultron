@@ -58,9 +58,9 @@ from vultron.adapters.driving.fastapi.trigger_models import (
     SyncLogEntryRequest,
 )
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
-    CaseLedgerEntry as WireCaseLedgerEntry,
+    as_CaseLedgerEntry as WireCaseLedgerEntry,
 )
 from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
 from vultron.core.ports.trigger_service import TriggerServicePort
@@ -70,9 +70,9 @@ router = APIRouter(prefix="/actors", tags=["Demo Triggers"])
 
 def _resolve_case_id(case_key: str, dl: DataLayer) -> str:
     case_obj = dl.read(case_key)
-    if case_obj is None or not is_case_model(case_obj):
+    if case_obj is None or not isinstance(case_obj, VulnerabilityCase):
         case_obj = dl.find_case_by_short_id(case_key)
-    if case_obj is None or not is_case_model(case_obj):
+    if case_obj is None or not isinstance(case_obj, VulnerabilityCase):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Case not found.",
@@ -427,9 +427,19 @@ def demo_get_case_ledger(
         and e.case_id == canonical_case_id
     ]
     raw_entries.sort(key=lambda e: e.log_index)
+    wire_entries = [
+        (
+            e
+            if isinstance(e, WireCaseLedgerEntry)
+            else WireCaseLedgerEntry.model_validate(
+                e.model_dump(by_alias=True, serialize_as_any=True)
+            )
+        )
+        for e in raw_entries
+    ]
     payloads = [
         e.model_dump(mode="json", by_alias=True, exclude_none=True)
-        for e in raw_entries
+        for e in wire_entries
     ]
 
     accept = request.headers.get("accept", "")
@@ -481,4 +491,11 @@ def demo_get_case_ledger_entry(
                 "activity_id": None,
             },
         )
-    return obj.model_dump(mode="json", by_alias=True)
+    wire_obj = (
+        obj
+        if isinstance(obj, WireCaseLedgerEntry)
+        else WireCaseLedgerEntry.model_validate(
+            obj.model_dump(by_alias=True, serialize_as_any=True)
+        )
+    )
+    return wire_obj.model_dump(mode="json", by_alias=True)

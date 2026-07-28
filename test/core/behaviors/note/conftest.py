@@ -15,5 +15,5 @@
 
 # noqa: F401 — imported for vocabulary registration side-effect
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
-    VulnerabilityCase,
+    as_VulnerabilityCase,
 )

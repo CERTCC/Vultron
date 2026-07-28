@@ -27,7 +27,6 @@ BEHAVIORAL_YAML = {
     "title": "Behavioral Test Specs",
     "description": "Spec file for testing export_yaml fidelity",
     "version": "0.1",
-    "kind": "domain",
     "scope": ["production"],
     "groups": [
         {
@@ -38,6 +37,7 @@ BEHAVIORAL_YAML = {
                 {
                     "id": "BEH-01-001",
                     "priority": "MUST",
+                    "kind": "protocol",
                     "statement": "BEH-01-001 MUST behave correctly",
                     "preconditions": [
                         {
@@ -129,7 +129,7 @@ def test_export_json_filter_by_priority_no_match(loaded_registry):
 
 
 def test_export_json_filter_by_kind(loaded_registry):
-    json_str = export_json(loaded_registry, kind="general")
+    json_str = export_json(loaded_registry, kind="protocol")
     data = json.loads(json_str)
     assert "TST-01-001" in data
 
@@ -150,6 +150,38 @@ def test_export_json_filter_by_tags_no_match(loaded_registry):
     json_str = export_json(loaded_registry, tags=["security"])
     data = json.loads(json_str)
     assert data == {}
+
+
+def test_export_json_inherited_tags_present_in_output(tmp_path):
+    """export_json output must include inherited file-level tags in the record."""
+    data = {
+        "id": "TST",
+        "title": "Test",
+        "description": "Test",
+        "version": "0.1",
+        "scope": ["production"],
+        "tags": ["protocol"],
+        "groups": [
+            {
+                "id": "TST-01",
+                "title": "Group",
+                "specs": [
+                    {
+                        "id": "TST-01-001",
+                        "priority": "MUST",
+                        "kind": "protocol",
+                        "statement": "TST-01-001 MUST pass",
+                    }
+                ],
+            }
+        ],
+    }
+    (tmp_path / "test.yaml").write_text(yaml.dump(data))
+    registry = load_registry(tmp_path)
+    json_str = export_json(registry, tags=["protocol"])
+    parsed = json.loads(json_str)
+    assert "TST-01-001" in parsed
+    assert parsed["TST-01-001"]["tags"] == ["protocol"]
 
 
 # ---------------------------------------------------------------------------

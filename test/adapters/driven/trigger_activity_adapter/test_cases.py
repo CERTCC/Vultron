@@ -14,15 +14,17 @@
 """Unit tests for TriggerActivityAdapter case-domain methods."""
 
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 _ACTOR = "https://example.org/actors/coordinator"
 _PEER = "https://example.org/actors/vendor"
 _CONTEXT_ID = "https://example.org/contexts/ctx-001"
 
 
-def _make_case(dl) -> VulnerabilityCase:
-    case = VulnerabilityCase(name="CVE-2025-001")
+def _make_case(dl) -> as_VulnerabilityCase:
+    case = as_VulnerabilityCase(name="CVE-2025-001")
     dl.create(case)
     return case
 

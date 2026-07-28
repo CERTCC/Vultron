@@ -18,7 +18,6 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
-from vultron.core.models.protocols import is_log_entry_model
 from vultron.core.states.em import EM
 from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
@@ -34,8 +33,11 @@ from vultron.wire.as2.factories import (
     em_reject_embargo_activity,
     remove_embargo_from_case_activity,
 )
-from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+from vultron.core.models.case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 
 def _make_embargo_case_with_actor(
@@ -43,14 +45,18 @@ def _make_embargo_case_with_actor(
     author_id: str,
     extra_participants: list[str] | None = None,
     case_manager_actor_id: str | None = None,
-) -> tuple[SqliteDataLayer, VultronCaseActor, VulnerabilityCase, EmbargoEvent]:
+) -> tuple[
+    SqliteDataLayer, VultronCaseActor, as_VulnerabilityCase, as_EmbargoEvent
+]:
     """Return (dl, case_actor, case, embargo) ready for cascade tests.
 
-    Also creates ``CaseParticipant`` objects so actor → participant lookups
+    Also creates ``as_CaseParticipant`` objects so actor → participant lookups
     in the embargo handlers succeed.
     """
     from vultron.enums.roles import CVDRole
-    from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+    from vultron.wire.as2.vocab.objects.case_participant import (
+        as_CaseParticipant,
+    )
 
     dl = SqliteDataLayer("sqlite:///:memory:")
     case_actor_id = f"{case_id}/actor"
@@ -63,25 +69,27 @@ def _make_embargo_case_with_actor(
     )
     dl.create(case_actor)
 
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         id_=case_id,
         name="Embargo Cascade Case",
         attributed_to=author_id,
     )
     p1_id = f"{case_id}/participants/p1"
     case.actor_participant_index[author_id] = p1_id
-    p1 = CaseParticipant(id_=p1_id, context=case_id, attributed_to=author_id)
+    p1 = as_CaseParticipant(
+        id_=p1_id, context=case_id, attributed_to=author_id
+    )
     dl.create(p1)
 
     for pid in extra_participants or []:
         short = pid.rsplit("/", 1)[-1]
         pn_id = f"{case_id}/participants/{short}"
         case.actor_participant_index[pid] = pn_id
-        pn = CaseParticipant(id_=pn_id, context=case_id, attributed_to=pid)
+        pn = as_CaseParticipant(id_=pn_id, context=case_id, attributed_to=pid)
         dl.create(pn)
 
     dl.create(case)
-    case_manager_participant = CaseParticipant(
+    case_manager_participant = as_CaseParticipant(
         id_=f"{case_id}/participants/case-actor-p",
         attributed_to=case_manager_actor_id or case_actor_id,
         context=case_id,
@@ -94,7 +102,7 @@ def _make_embargo_case_with_actor(
     )
     dl.save(case)
 
-    embargo = EmbargoEvent(
+    embargo = as_EmbargoEvent(
         id_=f"{case_id}/embargo_events/e1",
         content="Cascade test embargo",
         context=case_id,
@@ -114,13 +122,14 @@ class TestEmbargoLogEntryCascade:
         dl, case_actor, case, embargo = _make_embargo_case_with_actor(
             case_id, author_id, case_manager_actor_id=author_id
         )
-        case = cast(VulnerabilityCase, dl.read(case.id_))
-        assert case is not None
-        case.current_status.em_state = EM.PROPOSED
-        dl.save(case)
+        case_read = cast(VulnerabilityCase, dl.read(case.id_))
+        assert case_read is not None
+        case_read.current_status.em.state = EM.PROPOSED
+        dl.save(case_read)
 
+        case_ref = as_VulnerabilityCase(id_=case_id)
         activity = add_embargo_to_case_activity(
-            embargo, target=case, actor=author_id
+            embargo, target=case_ref, actor=author_id
         )
         event = make_payload(activity, receiving_actor_id=case_actor.id_)
         sync_port = SyncActivityAdapter(dl)
@@ -131,7 +140,7 @@ class TestEmbargoLogEntryCascade:
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if is_log_entry_model(obj)
+            if isinstance(obj, VultronCaseLedgerEntry)
             and cast(VultronCaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
@@ -153,13 +162,13 @@ class TestEmbargoLogEntryCascade:
         )
         case = cast(VulnerabilityCase, dl.read(case.id_))
         assert case is not None
-        case.current_status.em_state = EM.ACTIVE
+        case.current_status.em.state = EM.ACTIVE
         case.proposed_embargoes.append(embargo.id_)
         case.active_embargo = embargo.id_  # type: ignore[assignment]
         dl.save(case)
 
         activity = remove_embargo_from_case_activity(
-            embargo, origin=case, actor=author_id
+            embargo, origin=case.id_, actor=author_id
         )
         event = make_payload(activity, receiving_actor_id=case_actor.id_)
         sync_port = SyncActivityAdapter(dl)
@@ -170,7 +179,7 @@ class TestEmbargoLogEntryCascade:
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if is_log_entry_model(obj)
+            if isinstance(obj, VultronCaseLedgerEntry)
             and cast(VultronCaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
@@ -200,11 +209,11 @@ class TestEmbargoLogEntryCascade:
         # EM.NONE: no active embargo — BT will FAIL (IsActiveEmbargoNode)
         case = cast(VulnerabilityCase, dl.read(case.id_))
         assert case is not None
-        case.current_status.em_state = EM.NONE
+        case.current_status.em.state = EM.NONE
         dl.save(case)
 
         activity = remove_embargo_from_case_activity(
-            embargo, origin=case, actor=author_id
+            embargo, origin=case.id_, actor=author_id
         )
         event = make_payload(activity, receiving_actor_id=case_actor.id_)
         sync_port = SyncActivityAdapter(dl)
@@ -215,7 +224,7 @@ class TestEmbargoLogEntryCascade:
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if is_log_entry_model(obj)
+            if isinstance(obj, VultronCaseLedgerEntry)
             and cast(VultronCaseLedgerEntry, obj).case_id == case_id
         ]
         # Cascade must fire even on BT FAILURE.
@@ -262,7 +271,7 @@ class TestEmbargoLogEntryCascade:
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if is_log_entry_model(obj)
+            if isinstance(obj, VultronCaseLedgerEntry)
             and cast(VultronCaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 0, (
@@ -279,12 +288,12 @@ class TestEmbargoLogEntryCascade:
         )
         case = cast(VulnerabilityCase, dl.read(case.id_))
         assert case is not None
-        case.current_status.em_state = EM.PROPOSED
+        case.current_status.em.state = EM.PROPOSED
         dl.save(case)
 
         proposal = em_propose_embargo_activity(
             embargo,
-            context=case,
+            context=case.id_,
             actor="https://example.org/users/vendor",
             id_=f"{case_id}/embargo_proposals/1",
         )
@@ -292,7 +301,7 @@ class TestEmbargoLogEntryCascade:
 
         accept = em_accept_embargo_activity(
             proposal,
-            context=case,
+            context=case.id_,
             actor=coordinator_id,
         )
         # Per ADR-0022 / CLP-10-005: the guarded commit fires when
@@ -307,7 +316,7 @@ class TestEmbargoLogEntryCascade:
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if is_log_entry_model(obj)
+            if isinstance(obj, VultronCaseLedgerEntry)
             and cast(VultronCaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
@@ -345,7 +354,7 @@ class TestEmbargoLogEntryCascade:
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if is_log_entry_model(obj)
+            if isinstance(obj, VultronCaseLedgerEntry)
             and cast(VultronCaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1

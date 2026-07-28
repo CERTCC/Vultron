@@ -54,7 +54,7 @@ from vultron.core.models.case_ledger_entry import (
 from vultron.wire.as2.vocab.objects.base import VultronAS2Object
 
 
-class CaseLedgerEntry(VultronAS2Object):
+class as_CaseLedgerEntry(VultronAS2Object):
     """Wire-layer representation of a canonical case ledger entry.
 
     All fields mirror
@@ -140,7 +140,7 @@ class CaseLedgerEntry(VultronAS2Object):
     )
 
     @classmethod
-    def from_core(cls, entry: CoreCaseLedgerEntry) -> "CaseLedgerEntry":
+    def from_core(cls, entry: CoreCaseLedgerEntry) -> "as_CaseLedgerEntry":
         """Create a wire :class:`CaseLedgerEntry` from a domain
         :class:`~vultron.core.models.case_ledger_entry.CaseLedgerEntry`.
 
@@ -156,7 +156,7 @@ class CaseLedgerEntry(VultronAS2Object):
 
 
 __all__ = [
-    "CaseLedgerEntry",
+    "as_CaseLedgerEntry",
     "VultronCaseLedgerEntry",
     "VultronCaseLedgerEntryRef",
 ]

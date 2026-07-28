@@ -59,18 +59,14 @@ entries that should be promoted into durable docs.
 ### Phase 0 — Sync and Refresh Codebase Knowledge
 
 **First, ensure the worktree is synced to `origin/main`** before any file
-writes, so all subsequent changes land on an up-to-date baseline:
+writes:
 
 ```bash
-SCRIPT="$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh"
-if [ -f "$SCRIPT" ]; then
-  bash "$SCRIPT" ensure-synced || { echo "❌ Aborted — sync check failed." >&2; exit 1; }
-else
-  git fetch origin --quiet 2>/dev/null || true
-  BEHIND=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo 0)
-  [ "$BEHIND" -gt 0 ] && { echo "❌ Aborted: $BEHIND commit(s) behind origin/main. Run: git rebase origin/main" >&2; exit 1; }
-fi
-```text
+bash .agents/skills/shared/sync-check.sh
+```
+
+If that script is absent, verify `git rev-list HEAD..origin/main` returns 0
+before continuing.
 
 Do this **before** `acquire-codebase-knowledge` runs — the scan regenerates
 files in `docs/reference/codebase/` (uncommitted), and those outputs must not
@@ -102,7 +98,8 @@ that the cost of a full scan is justified on every invocation.
      --json number,title,body
    ```text
 
-1. Invoke `orient-agent` then `deepen-context` for full context: specs JSON,
+3. Invoke `orient-agent` then `deepen-context` for full context: specs JSON,
+
    plan files, docs/adr/, notes/, AGENTS.md, and a code scan. Because
    Phase 0 has already refreshed the codebase docs, `orient-agent`/`deepen-context`
    will read up-to-date architecture and structure information.
@@ -119,16 +116,32 @@ on what constitutes a complete lesson — loaded by `orient-agent` in Phase 1.
 
 Identify what the build process and codebase scan have surfaced that is not
 yet captured in durable docs. Consider both incoming learning files and
-open GitHub Concern issues:
+open GitHub Concern issues.
 
-1. Missing requirements — behavior exists in code but has no spec.
-2. Ambiguous or untestable requirements — reality diverges from what's written.
-3. Redundant or contradictory requirements across spec files.
-4. Agent guidance patterns that keep recurring in `plan/incoming/learnings/`
-   but are not yet in `AGENTS.md`.
-5. Open GitHub `type:Concern` issues that reveal missing spec requirements or
+**Prioritise by signal type.** Learning files tagged with `signal:` in their
+frontmatter carry higher-urgency signals and MUST be addressed before general
+pattern promotion. Process in this order:
+
+1. `signal: spec-gap` — behaviour in code with no spec entry. Write the missing
+   spec requirement.
+2. `signal: spec-contradiction` — two requirements that conflict. Resolve the
+   conflict and update both affected spec entries.
+3. `signal: spec-ambiguity` — requirement was unclear; an interpretation was made
+   during build. Clarify the requirement so future agents don't have to guess.
+4. `signal: design-question` — architectural decision made mid-build. Determine
+   whether an ADR or notes update is warranted.
+5. `signal: concern` — fragility or risk. Create or update a GitHub Concern
+   issue if not already tracked.
+6. `signal: tooling-issue` / `signal: process-issue` — environment or tracking
+   problems. Update `AGENTS.md` or the affected skill with the fix.
+7. Untagged entries — general observations and patterns:
+   - Missing requirements — behavior exists in code but has no spec.
+   - Ambiguous or untestable requirements — reality diverges from what's written.
+   - Redundant or contradictory requirements across spec files.
+   - Agent guidance patterns that keep recurring but are not yet in `AGENTS.md`.
+8. Open GitHub `type:Concern` issues that reveal missing spec requirements or
    durable design notes.
-6. Recent completed-task insights — when needed, run `uv run show-history
+9. Recent completed-task insights — when needed, run `uv run show-history
    --month YYMM` to identify which history entries contain architectural
    lessons, then open those entry files.
 
@@ -255,18 +268,11 @@ Do **not** reference `plan/incoming/learnings/` from durable docs.
    ```bash
    git add specs/<changed-files> notes/<changed-files> AGENTS.md \
        plan/incoming/learnings/ docs/reference/codebase/
-   git commit -m "docs: promote learnings — <topic>
-
-   - <bullet: what was promoted and where>
-   - Archive <N> entr[y/ies] via append-history --from-file (after PR)
-   - Close <N> resolved GitHub Concern issue(s) with resolution comments
-   - Refresh docs/reference/codebase/ via acquire-codebase-knowledge
-
-   Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
    ```
 
-   Use multiple commits for thematically distinct changes (e.g., spec
-   refinements, notes promoted, AGENTS.md updates).
+   Commit per `commit/SKILL.md` conventions. Subject format:
+   `docs: promote learnings — <topic>`. Use multiple commits for thematically
+   distinct changes (spec refinements, notes promoted, AGENTS.md updates).
 
    Then invoke the `create-pr` skill:
 

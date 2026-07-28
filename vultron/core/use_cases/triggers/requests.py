@@ -193,6 +193,17 @@ class AcceptCaseInviteTriggerRequest(TriggerRequest):
     invite_id: NonEmptyString
 
 
+class AcceptActorRecommendationTriggerRequest(TriggerRequest):
+    """Trigger request for the Case Owner to accept an actor recommendation.
+
+    Emits an Accept(Offer(CaseParticipant)) queued in the Case Owner's outbox
+    for delivery to the CaseActor (ADR-0026, CM-16-006).
+    """
+
+    cp_offer_id: NonEmptyString
+    case_actor_id: UriString
+
+
 class InviteActorToCaseTriggerRequest(CaseTriggerRequest):
     """Trigger request for the case owner to directly invite an actor.
 
@@ -223,3 +234,24 @@ class OfferCaseManagerRoleTriggerRequest(CaseTriggerRequest):
     to itself, initiating the CASE_MANAGER delegation handshake.  The Case
     Actor must already exist in the DataLayer (DEMOMA-08-007).
     """
+
+
+class OfferCaseOwnershipTransferTriggerRequest(CaseTriggerRequest):
+    """Trigger request to offer case ownership to another actor.
+
+    Emits ``Offer(VulnerabilityCase)`` (ownership transfer variant) from the
+    requesting actor to ``transferee_id`` (TRIG-11-001).
+    """
+
+    transferee_id: str
+    content: str | None = None
+
+
+class AcceptCaseOwnershipTransferTriggerRequest(TriggerRequest):
+    """Trigger request to accept a case ownership transfer offer.
+
+    Emits ``Accept(Offer(VulnerabilityCase))`` from the requesting actor back
+    to the offering actor (TRIG-11-002).
+    """
+
+    offer_id: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]

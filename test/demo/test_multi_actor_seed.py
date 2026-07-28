@@ -36,7 +36,7 @@ FINDER_ID = "http://finder:7999/api/v2/actors/finder"
 VENDOR_ID = "http://vendor:7999/api/v2/actors/vendor"
 COORDINATOR_ID = "http://coordinator:7999/api/v2/actors/coordinator"
 CASE_ACTOR_ID = "http://case-actor:7999/api/v2/actors/case-actor"
-VENDOR2_ID = "http://vendor2:7999/api/v2/actors/vendor2"
+VENDOR2_ID = "http://actor5:7999/api/v2/actors/vendor2"
 
 # Path to the docker/seed-configs/ directory (relative to project root).
 _REPO_ROOT = Path(__file__).parents[2]
@@ -191,7 +191,7 @@ class TestSeedConfigCrossConsistency:
             "seed-vendor.yaml",
             "seed-coordinator.yaml",
             "seed-case-actor.yaml",
-            "seed-vendor2.yaml",
+            "seed-actor5.yaml",
         ):
             cfg = _load_seed_config(filename)
             assert cfg is not None
@@ -202,7 +202,7 @@ class TestSeedConfigCrossConsistency:
             "seed-vendor.yaml",
             "seed-coordinator.yaml",
             "seed-case-actor.yaml",
-            "seed-vendor2.yaml",
+            "seed-actor5.yaml",
         ):
             cfg = _load_seed_config(filename)
             assert (
@@ -215,7 +215,7 @@ class TestSeedConfigCrossConsistency:
             ("seed-vendor.yaml", VENDOR_ID),
             ("seed-coordinator.yaml", COORDINATOR_ID),
             ("seed-case-actor.yaml", CASE_ACTOR_ID),
-            ("seed-vendor2.yaml", VENDOR2_ID),
+            ("seed-actor5.yaml", VENDOR2_ID),
         ]:
             cfg = _load_seed_config(filename)
             peer_ids = {p.id_ for p in cfg.peers}
@@ -230,7 +230,7 @@ class TestSeedConfigCrossConsistency:
             VENDOR_ID: _load_seed_config("seed-vendor.yaml"),
             COORDINATOR_ID: _load_seed_config("seed-coordinator.yaml"),
             CASE_ACTOR_ID: _load_seed_config("seed-case-actor.yaml"),
-            VENDOR2_ID: _load_seed_config("seed-vendor2.yaml"),
+            VENDOR2_ID: _load_seed_config("seed-actor5.yaml"),
         }
         for own_id, cfg in configs.items():
             for other_id, other_cfg in configs.items():
@@ -351,7 +351,7 @@ class TestSeedCLIWithDeterministicId:
             "seed-vendor.yaml",
             "seed-coordinator.yaml",
             "seed-case-actor.yaml",
-            "seed-vendor2.yaml",
+            "seed-actor5.yaml",
         ):
             config_path = _SEED_CONFIGS_DIR / filename
             calls, exit_code = self._run_seed_with_config(config_path)

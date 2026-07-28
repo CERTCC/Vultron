@@ -27,6 +27,7 @@ from typing import cast
 
 import pytest
 
+from vultron.core.models.dimensions import RmDimension, VfdDimension
 from vultron.core.states.cs import CS_vfd
 from vultron.core.states.rm import RM
 
@@ -36,11 +37,11 @@ from vultron.core.states.rm import RM
 
 
 class _FakeParticipantStatus:
-    """Minimal stand-in for ParticipantStatus."""
+    """Minimal stand-in for as_ParticipantStatus."""
 
     def __init__(self, rm_state: RM, vfd_state: CS_vfd) -> None:
-        self.rm_state = rm_state
-        self.vfd_state = vfd_state
+        self.rm = RmDimension(state=rm_state)
+        self.vfd = VfdDimension(state=vfd_state)
 
 
 class _FakeParticipantWithStatuses:
@@ -161,9 +162,12 @@ def test_resolve_participant_state_defaults_when_participant_not_found():
 def test_resolve_participant_state_defaults_when_invalid_rm_type():
     """Falls back to RM.START when rm_state is not an RM enum value."""
 
+    class _BadRmAttr:
+        state = "not-an-rm"
+
     class _BadStatus:
-        rm_state = "not-an-rm"
-        vfd_state = CS_vfd.VFd
+        rm = _BadRmAttr()
+        vfd = VfdDimension(state=CS_vfd.VFd)
 
     participant = _FakeParticipantWithStatuses([_BadStatus()])
     dl = _FakeDL(stored=participant)
@@ -180,9 +184,12 @@ def test_resolve_participant_state_defaults_when_invalid_rm_type():
 def test_resolve_participant_state_defaults_when_invalid_vfd_type():
     """Falls back to CS_vfd.vfd when vfd_state is not a CS_vfd enum value."""
 
+    class _BadVfdAttr:
+        state = "not-a-cs-vfd"
+
     class _BadStatus:
-        rm_state = RM.VALID
-        vfd_state = "not-a-cs-vfd"
+        rm = RmDimension(state=RM.VALID)
+        vfd = _BadVfdAttr()
 
     participant = _FakeParticipantWithStatuses([_BadStatus()])
     dl = _FakeDL(stored=participant)
@@ -221,10 +228,10 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
         from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.base.objects.actors import as_Service
         from vultron.wire.as2.vocab.objects.case_participant import (
-            CaseParticipant,
+            as_CaseParticipant,
         )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         # Finder actor
@@ -241,14 +248,14 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
         self.dl.create(self.case_actor)
 
         # Case
-        self.case = VulnerabilityCase(name="Test Case #624")
+        self.case = as_VulnerabilityCase(name="Test Case #624")
 
-        self.actor_participant = CaseParticipant(
+        self.actor_participant = as_CaseParticipant(
             attributed_to=actor_id,
             context=self.case.id_,
             case_roles=[CVDRole.FINDER],
         )
-        self.case_manager_participant = CaseParticipant(
+        self.case_manager_participant = as_CaseParticipant(
             attributed_to=self.case_actor.id_,
             context=self.case.id_,
             case_roles=[CVDRole.CASE_MANAGER],
@@ -362,7 +369,7 @@ class TestCreateParticipantStatusNode:
     """CreateParticipantStatusNode creates a status snapshot inside the BT.
 
     These tests verify the BT node that was extracted from the inline
-    ParticipantStatus creation in SvcAddParticipantStatusUseCase.execute()
+    as_ParticipantStatus creation in SvcAddParticipantStatusUseCase.execute()
     as part of the BT-15-001 remediation (issue #850).
     """
 
@@ -381,10 +388,10 @@ class TestCreateParticipantStatusNode:
         from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.base.objects.actors import as_Service
         from vultron.wire.as2.vocab.objects.case_participant import (
-            CaseParticipant,
+            as_CaseParticipant,
         )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         py_trees.blackboard.Blackboard.enable_activity_stream()
@@ -401,14 +408,14 @@ class TestCreateParticipantStatusNode:
         reset_datalayer(self.case_actor.id_)
         self.dl.create(self.case_actor)
 
-        self.case = VulnerabilityCase(name="Test Case BT-15-001")
+        self.case = as_VulnerabilityCase(name="Test Case BT-15-001")
 
-        self.actor_participant = CaseParticipant(
+        self.actor_participant = as_CaseParticipant(
             attributed_to=actor_id,
             context=self.case.id_,
             case_roles=[CVDRole.FINDER],
         )
-        self.case_manager_participant = CaseParticipant(
+        self.case_manager_participant = as_CaseParticipant(
             attributed_to=self.case_actor.id_,
             context=self.case.id_,
             case_roles=[CVDRole.CASE_MANAGER],
@@ -474,10 +481,8 @@ class TestCreateParticipantStatusNode:
 
     def test_node_persists_status_with_explicit_rm_state(self):
         """CreateParticipantStatusNode persists ParticipantStatus with given RM."""
+        from vultron.core.models.participant_status import ParticipantStatus
         from vultron.core.states.rm import RM
-        from vultron.wire.as2.vocab.objects.case_status import (
-            ParticipantStatus as WireParticipantStatus,
-        )
 
         bt_result, result_out = self._run_node(
             rm_state=RM.ACCEPTED, vfd_state=None, pxa_state=None
@@ -486,10 +491,8 @@ class TestCreateParticipantStatusNode:
         status_id = result_out.get("status_id")
         assert isinstance(status_id, str), "result_out must contain status_id"
         stored = self.dl.read(status_id)
-        # dl.read() reconstructs via find_in_vocabulary, which returns the
-        # wire-layer ParticipantStatus (VultronAS2Object subclass).
-        assert isinstance(stored, WireParticipantStatus)
-        assert stored.rm_state == RM.ACCEPTED
+        assert isinstance(stored, ParticipantStatus)
+        assert stored.rm.state == RM.ACCEPTED
 
     def test_node_appends_status_to_participant(self):
         """CreateParticipantStatusNode appends the status to participant_statuses."""
@@ -534,10 +537,8 @@ class TestCreateParticipantStatusNode:
 
     def test_node_uses_current_state_when_rm_none(self):
         """CreateParticipantStatusNode uses existing RM state when rm_state=None."""
+        from vultron.core.models.participant_status import ParticipantStatus
         from vultron.core.states.rm import RM
-        from vultron.wire.as2.vocab.objects.case_status import (
-            ParticipantStatus as WireParticipantStatus,
-        )
 
         _, result_out = self._run_node(
             rm_state=None, vfd_state=None, pxa_state=None
@@ -546,8 +547,6 @@ class TestCreateParticipantStatusNode:
         status_id = result_out.get("status_id")
         assert isinstance(status_id, str), "result_out must contain status_id"
         stored = self.dl.read(status_id)
-        # dl.read() reconstructs via find_in_vocabulary, which returns the
-        # wire-layer ParticipantStatus (VultronAS2Object subclass).
-        assert isinstance(stored, WireParticipantStatus)
+        assert isinstance(stored, ParticipantStatus)
         # No prior statuses → defaults to RM.START
-        assert stored.rm_state == RM.START
+        assert stored.rm.state == RM.START

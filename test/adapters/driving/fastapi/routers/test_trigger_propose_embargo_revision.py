@@ -156,7 +156,7 @@ def test_trigger_propose_embargo_revision_sets_em_state_to_revise(
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
     updated_case = dl.read(case_obj.id_)
-    assert updated_case.current_status.em_state == EM.REVISE
+    assert updated_case.current_status.em.state == EM.REVISE
 
 
 def test_trigger_propose_embargo_revision_adds_activity_to_outbox(

@@ -13,14 +13,21 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Tests for the assign-VUL-ID behavior tree (Phase 1 stub).
 
-Verifies BT-18-004: factory params are accepted and used; defaults are the
-correct fuzzer classes.
+Verifies BT-18-004/BT-23-003: bundle parameter is accepted and used;
+DETERMINISTIC default produces AlwaysSucceed nodes; STOCHASTIC bundle
+produces the correct fuzzer classes.
 """
 
 import py_trees
 
 from vultron.core.behaviors.report.assign_vul_id_tree import (
     create_assign_vul_id_tree,
+)
+from vultron.demo.fuzzer.base import AlwaysSucceed
+from vultron.demo.fuzzer.bundles.assign_vul_id import (
+    ASSIGN_VUL_ID_DETERMINISTIC,
+    ASSIGN_VUL_ID_STOCHASTIC,
+    AssignVulIdCallOutBundle,
 )
 from vultron.demo.fuzzer.report_management.assign_vul_id import (
     IdAssignable,
@@ -51,8 +58,19 @@ def test_create_assign_vul_id_tree_root_name():
     assert tree.name == "AssignVulIDBT"
 
 
-def test_default_children_are_fuzzer_nodes():
+def test_default_children_are_deterministic():
+    """Default (no bundle) produces DETERMINISTIC AlwaysSucceed nodes (BT-23-002)."""
     tree = create_assign_vul_id_tree(case_id=CASE_ID)
+    assert len(tree.children) == 2
+    assert isinstance(tree.children[0], AlwaysSucceed)
+    assert isinstance(tree.children[1], AlwaysSucceed)
+
+
+def test_stochastic_bundle_children_are_fuzzer_nodes():
+    """STOCHASTIC bundle produces the correct fuzzer-class nodes."""
+    tree = create_assign_vul_id_tree(
+        case_id=CASE_ID, call_out=ASSIGN_VUL_ID_STOCHASTIC
+    )
     assert len(tree.children) == 2
     assert isinstance(tree.children[0], InScope)
     assert isinstance(tree.children[1], IdAssignable)
@@ -70,10 +88,10 @@ def test_id_assignable_factory_used():
 
         return _Marker(name="CustomIdAssignable")
 
-    tree = create_assign_vul_id_tree(
-        case_id=CASE_ID,
-        id_assignable_factory=custom_factory,
+    bundle = AssignVulIdCallOutBundle(
+        id_assignable_factory=custom_factory,  # type: ignore[arg-type]
     )
+    tree = create_assign_vul_id_tree(case_id=CASE_ID, call_out=bundle)
     assert sentinel["called"]
     assert "CustomIdAssignable" in py_trees.display.ascii_tree(tree)
 
@@ -90,20 +108,27 @@ def test_in_scope_factory_used():
 
         return _Marker(name="CustomInScope")
 
-    tree = create_assign_vul_id_tree(
-        case_id=CASE_ID,
-        in_scope_factory=custom_factory,
+    bundle = AssignVulIdCallOutBundle(
+        in_scope_factory=custom_factory,  # type: ignore[arg-type]
     )
+    tree = create_assign_vul_id_tree(case_id=CASE_ID, call_out=bundle)
     assert sentinel["called"]
     assert "CustomInScope" in py_trees.display.ascii_tree(tree)
 
 
 def test_both_factories_replaceable():
-    tree = create_assign_vul_id_tree(
-        case_id=CASE_ID,
-        id_assignable_factory=_marker_factory("IA"),
-        in_scope_factory=_marker_factory("IS"),
+    bundle = AssignVulIdCallOutBundle(
+        id_assignable_factory=_marker_factory("IA"),  # type: ignore[arg-type]
+        in_scope_factory=_marker_factory("IS"),  # type: ignore[arg-type]
     )
+    tree = create_assign_vul_id_tree(case_id=CASE_ID, call_out=bundle)
     tree_str = py_trees.display.ascii_tree(tree)
     assert "IA" in tree_str
     assert "IS" in tree_str
+
+
+def test_deterministic_singleton_accepted():
+    tree = create_assign_vul_id_tree(
+        case_id=CASE_ID, call_out=ASSIGN_VUL_ID_DETERMINISTIC
+    )
+    assert isinstance(tree, py_trees.behaviour.Behaviour)

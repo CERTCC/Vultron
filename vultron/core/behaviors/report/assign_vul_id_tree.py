@@ -27,32 +27,21 @@ References
 """
 
 import logging
+from typing import TYPE_CHECKING
 
 import py_trees
 
-from vultron.core.behaviors.call_out_point import CallOutBackendFactory
+if TYPE_CHECKING:
+    from vultron.demo.fuzzer.bundles.assign_vul_id import (
+        AssignVulIdCallOutBundle,
+    )
 
 logger = logging.getLogger(__name__)
 
 
-def _default_id_assignable_factory(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.assign_vul_id import (
-        IdAssignable,
-    )
-
-    return IdAssignable(name)
-
-
-def _default_in_scope_factory(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.assign_vul_id import InScope
-
-    return InScope(name)
-
-
 def create_assign_vul_id_tree(
     case_id: str,
-    id_assignable_factory: CallOutBackendFactory = _default_id_assignable_factory,
-    in_scope_factory: CallOutBackendFactory = _default_in_scope_factory,
+    call_out: "AssignVulIdCallOutBundle | None" = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create behavior tree for the VUL ID assignment workflow (Phase 1 stub).
 
@@ -62,22 +51,24 @@ def create_assign_vul_id_tree(
 
     Args:
         case_id: ID of VulnerabilityCase being processed.
-        id_assignable_factory: Factory for the Evaluator call-out point that
-            checks whether the vulnerability qualifies for ID assignment.
-            Defaults to the fuzzer backend (BT-18-004).
-        in_scope_factory: Factory for the Evaluator call-out point that checks
-            whether the vulnerability is within the applicable ID space scope.
-            Defaults to the fuzzer backend (BT-18-004).
+        call_out: Bundle of call-out backend factories for this domain.
+            Defaults to :data:`~vultron.demo.fuzzer.bundles.assign_vul_id.ASSIGN_VUL_ID_DETERMINISTIC`
+            (BT-23-003, BT-23-005).
 
     Returns:
         Root node of the assign-VUL-ID behavior tree (Phase 1 stub Sequence).
     """
+    from vultron.demo.fuzzer.bundles.assign_vul_id import (
+        ASSIGN_VUL_ID_DETERMINISTIC,
+    )
+
+    bundle = call_out if call_out is not None else ASSIGN_VUL_ID_DETERMINISTIC
     root = py_trees.composites.Sequence(
         name="AssignVulIDBT",
         memory=False,
         children=[
-            in_scope_factory("InScope"),
-            id_assignable_factory("IdAssignable"),
+            bundle.in_scope_factory("InScope"),
+            bundle.id_assignable_factory("IdAssignable"),
         ],
     )
     logger.info(f"Created AssignVulIDBT (Phase 1 stub) for case={case_id}")

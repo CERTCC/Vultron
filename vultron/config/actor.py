@@ -28,6 +28,7 @@ Per ``specs/configuration.yaml`` CFG-07-001, CFG-07-002, CFG-07-005, CFG-07-006.
 from pydantic import (
     BaseModel,
     Field,
+    HttpUrl,
     field_serializer,
     field_validator,
 )
@@ -53,6 +54,11 @@ class ActorConfig(BaseModel):
             the receiver can send a pre-case ACK (``Read(Offer(Report))``)
             before deciding to accept or reject (ADR-0015 Option 3;
             CM-15-001, issue #1133).
+        case_actor_service_url: Base URL of the dedicated CaseActor service
+            (e.g. ``http://case-actor:7999/api/v2``).  Required for any actor
+            whose BT may run the ``engage-case`` path.  When ``None``,
+            ``ResolveCaseActorUrlsNode`` returns ``FAILURE`` with a clear
+            error message (CP-08-001, CP-08-002).
     """
 
     default_case_roles: list[CVDRole] = Field(default_factory=list)
@@ -62,6 +68,15 @@ class ActorConfig(BaseModel):
             "When True (default), create a VulnerabilityCase immediately on "
             "Offer(Report) receipt per ADR-0015. When False, defer case "
             "creation to allow a pre-case ACK (Read(Offer(Report))) first."
+        ),
+    )
+    case_actor_service_url: HttpUrl | None = Field(
+        default=None,
+        description=(
+            "Base URL of the dedicated CaseActor service "
+            "(e.g. http://case-actor:7999/api/v2). Required for actors that "
+            "create cases; absence causes ResolveCaseActorUrlsNode to fail "
+            "(CP-08-001)."
         ),
     )
 

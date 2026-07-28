@@ -14,7 +14,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 """
-Demonstrates the workflow for initializing a CaseParticipant via the Vultron API.
+Demonstrates the workflow for initializing a as_CaseParticipant via the Vultron API.
 
 This demo script showcases the standalone participant initialization process:
 
@@ -41,29 +41,28 @@ When run as a script, this module will:
 
 # Standard library imports
 import logging
-import sys
 from typing import Callable, Optional, Sequence, Tuple
 
 # Vultron imports
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_participant import (
-    CaseParticipant,
+    as_CaseParticipant,
 )
 from vultron.enums.roles import CVDRole
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
-    check_server_availability,
     demo_check,
     demo_step,
     get_offer_from_datalayer,
     log_case_state,
     logfmt,
-    demo_environment,
     post_to_inbox_and_wait,
     ref_id,
     verify_object_stored,
@@ -78,6 +77,8 @@ from vultron.wire.as2.factories import (
     rm_validate_report_activity,
 )
 
+from vultron.demo.helpers.runner import run_exchange_demos
+
 logger = logging.getLogger(__name__)
 
 
@@ -85,7 +86,7 @@ def setup_case_precondition(
     client: DataLayerClient,
     finder: as_Actor,
     vendor: as_Actor,
-) -> Tuple[VulnerabilityReport, VulnerabilityCase]:
+) -> Tuple[as_VulnerabilityReport, as_VulnerabilityCase]:
     """
     Sets up the precondition for the demo: a case owned by the vendor with
     a validated report and vendor as the only participant.
@@ -98,7 +99,7 @@ def setup_case_precondition(
     """
     logger.info("Setting up case precondition...")
 
-    report = VulnerabilityReport(
+    report = as_VulnerabilityReport(
         attributed_to=finder.id_,
         content="An integer overflow vulnerability in the network stack.",
         name="Integer Overflow in Network Stack",
@@ -116,7 +117,7 @@ def setup_case_precondition(
     )
     post_to_inbox_and_wait(client, vendor.id_, validate_activity)
 
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         attributed_to=vendor.id_,
         name="Integer Overflow Case — Network Stack",
         content="Tracking the integer overflow vulnerability in the network stack.",
@@ -140,9 +141,9 @@ def demo_initialize_participant(
     coordinator: as_Actor,
 ):
     """
-    Demonstrates the standalone CaseParticipant initialization workflow.
+    Demonstrates the standalone as_CaseParticipant initialization workflow.
 
-    Precondition: An existing VulnerabilityCase with vendor as the owner and
+    Precondition: An existing as_VulnerabilityCase with vendor as the owner and
     sole participant is set up before the demo begins.
 
     Steps:
@@ -174,7 +175,7 @@ def demo_initialize_participant(
     with demo_step(
         "Step 1: Vendor creates coordinator participant (standalone)"
     ):
-        coordinator_participant = CaseParticipant(
+        coordinator_participant = as_CaseParticipant(
             case_roles=[CVDRole.COORDINATOR],
             attributed_to=coordinator.id_,
             context=case.id_,
@@ -214,7 +215,7 @@ def demo_initialize_participant(
     with demo_step(
         "Step 3: Vendor creates finder/reporter participant (standalone)"
     ):
-        finder_participant = CaseParticipant(
+        finder_participant = as_CaseParticipant(
             case_roles=[CVDRole.FINDER, CVDRole.REPORTER],
             attributed_to=finder.id_,
             context=case.id_,
@@ -276,67 +277,11 @@ _ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
 def main(
     skip_health_check: bool = False,
     demos: Optional[Sequence] = None,
-):
-    """
-    Main entry point for the initialize_participant demo script.
-
-    Args:
-        skip_health_check: Skip server availability check (useful for testing)
-        demos: Optional sequence of demo functions to run. Defaults to all.
-    """
-    client = DataLayerClient()
-
-    if not skip_health_check and not check_server_availability(client):
-        logger.error("=" * 80)
-        logger.error("ERROR: API server is not available")
-        logger.error("=" * 80)
-        logger.error(f"Cannot connect to: {client.base_url}")
-        logger.error("")
-        logger.error("Please ensure the Vultron API server is running:")
-        logger.error(
-            "  uv run uvicorn vultron.api.main:app --host localhost --port 7999"
-        )
-        logger.error("=" * 80)
-        sys.exit(1)
-
-    selected = (
-        _ALL_DEMOS
-        if demos is None
-        else [(name, fn) for name, fn in _ALL_DEMOS if fn in demos]
+) -> None:
+    """Main entry point for the initialize participant demo demo script."""
+    run_exchange_demos(
+        _ALL_DEMOS, skip_health_check=skip_health_check, demos=demos
     )
-    total = len(selected)
-    errors = []
-
-    for demo_name, demo_fn in selected:
-        try:
-            with demo_environment(client) as (finder, vendor, coordinator):
-                demo_fn(client, finder, vendor, coordinator)
-        except Exception as e:
-            logger.error(f"{demo_name} failed: {e}", exc_info=True)
-            errors.append((demo_name, str(e)))
-
-    logger.info("=" * 80)
-    logger.info("ALL DEMOS COMPLETE")
-    logger.info("=" * 80)
-
-    if errors:
-        logger.error("")
-        logger.error("=" * 80)
-        logger.error("ERROR SUMMARY")
-        logger.error("=" * 80)
-        logger.error(f"Total demos: {total}")
-        logger.error(f"Failed demos: {len(errors)}")
-        logger.error(f"Successful demos: {total - len(errors)}")
-        logger.error("")
-        for demo_name, error in errors:
-            logger.error(f"{demo_name}:")
-            logger.error(f"  {error}")
-            logger.error("")
-        logger.error("=" * 80)
-    else:
-        logger.info("")
-        logger.info(f"✓ All {total} demos completed successfully!")
-        logger.info("")
 
 
 if __name__ == "__main__":

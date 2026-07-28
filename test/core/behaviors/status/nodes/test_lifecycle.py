@@ -15,7 +15,7 @@
 
 """Unit tests for case lifecycle trigger nodes.
 
-Tests PublicDisclosureBranchNode and AutoCloseBranchNode
+Tests PublicDisclosureBranchNode and EmitCloseCaseNode
 from nodes.lifecycle.
 
 Per DEMOMA-07-003 steps 4–5.
@@ -24,17 +24,20 @@ Per DEMOMA-07-003 steps 4–5.
 import pytest
 import py_trees
 from py_trees.common import Status
+from unittest.mock import MagicMock
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.status.nodes.lifecycle import (
-    AutoCloseBranchNode,
+    EmitCloseCaseNode,
     PublicDisclosureBranchNode,
 )
 from vultron.enums.roles import CVDRole
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 ACTOR_ID = "https://example.org/actors/vendor"
 CASE_MANAGER_ID = "https://example.org/actors/case-actor"
@@ -56,7 +59,7 @@ def dl():
 
 @pytest.fixture
 def participant():
-    return CaseParticipant(
+    return as_CaseParticipant(
         id_=PARTICIPANT_ID,
         context=CASE_ID,
         attributed_to=ACTOR_ID,
@@ -66,18 +69,18 @@ def participant():
 
 @pytest.fixture
 def status_obj():
-    return ParticipantStatus(id_=STATUS_ID, context=CASE_ID)
+    return as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID)
 
 
 @pytest.fixture
 def populated_dl(dl, participant, status_obj):
-    case_manager_participant = CaseParticipant(
+    case_manager_participant = as_CaseParticipant(
         id_=CM_PARTICIPANT_ID,
         context=CASE_ID,
         attributed_to=CASE_MANAGER_ID,
         case_roles=[CVDRole.CASE_MANAGER],
     )
-    case = VulnerabilityCase(id_=CASE_ID, name="Test Case")
+    case = as_VulnerabilityCase(id_=CASE_ID, name="Test Case")
     case.add_participant(participant)
     case.add_participant(case_manager_participant)
     dl.create(case)
@@ -127,21 +130,71 @@ class TestPublicDisclosureBranchNode:
 
 
 # ---------------------------------------------------------------------------
-# AutoCloseBranchNode
+# EmitCloseCaseNode
 # ---------------------------------------------------------------------------
 
 
-class TestAutoCloseBranchNode:
-    def test_always_succeeds(self, populated_bridge):
-        node = AutoCloseBranchNode(case_id=CASE_ID)
+class TestEmitCloseCaseNode:
+    def test_succeeds_when_no_factory(self, populated_bridge):
+        """No trigger_activity_factory → best-effort SUCCESS (receive-side)."""
+        # Seed blackboard with a case_manager_id
+        py_trees.blackboard.Blackboard.storage["/case_manager_id"] = (
+            CASE_MANAGER_ID
+        )
+        node = EmitCloseCaseNode(case_id=CASE_ID)
         result = populated_bridge.execute_with_setup(
             tree=node, actor_id=CASE_MANAGER_ID
         )
         assert result.status == Status.SUCCESS
 
     def test_succeeds_with_none_case_id(self, populated_bridge):
-        node = AutoCloseBranchNode(case_id=None)
+        """None case_id → early SUCCESS (nothing to emit)."""
+        node = EmitCloseCaseNode(case_id=None)
         result = populated_bridge.execute_with_setup(
             tree=node, actor_id=CASE_MANAGER_ID
         )
         assert result.status == Status.SUCCESS
+
+    def test_succeeds_when_case_manager_id_missing(self, populated_bridge):
+        """Missing case_manager_id on blackboard → WARNING + SUCCESS."""
+        node = EmitCloseCaseNode(case_id=CASE_ID)
+        result = populated_bridge.execute_with_setup(
+            tree=node, actor_id=CASE_MANAGER_ID
+        )
+        assert result.status == Status.SUCCESS
+
+    def test_happy_path_emits_leave_and_records_outbox(self, populated_dl):
+        """With factory + case_manager_id on blackboard → queues Leave, SUCCESS."""
+        activity_id = "https://example.org/activities/leave-01"
+        factory = MagicMock()
+        factory.close_case.return_value = (activity_id, {})
+
+        py_trees.blackboard.Blackboard.storage["/case_manager_id"] = (
+            CASE_MANAGER_ID
+        )
+        bridge = BTBridge(datalayer=populated_dl, trigger_activity=factory)
+        node = EmitCloseCaseNode(case_id=CASE_ID)
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+
+        assert result.status == Status.SUCCESS
+        factory.close_case.assert_called_once_with(
+            case_id=CASE_ID,
+            actor=ACTOR_ID,
+            to=[CASE_MANAGER_ID],
+        )
+        outbox = populated_dl.outbox_list_for_actor(ACTOR_ID)
+        assert activity_id in outbox
+
+    def test_fails_on_factory_exception(self, populated_dl):
+        """factory.close_case raises → FAILURE (unexpected error path)."""
+        factory = MagicMock()
+        factory.close_case.side_effect = RuntimeError("boom")
+
+        py_trees.blackboard.Blackboard.storage["/case_manager_id"] = (
+            CASE_MANAGER_ID
+        )
+        bridge = BTBridge(datalayer=populated_dl, trigger_activity=factory)
+        node = EmitCloseCaseNode(case_id=CASE_ID)
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+
+        assert result.status == Status.FAILURE

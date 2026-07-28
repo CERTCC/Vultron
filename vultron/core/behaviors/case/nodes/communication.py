@@ -36,7 +36,7 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.vultron_types import VultronCreateCaseActivity
 
 logger = logging.getLogger(__name__)
@@ -61,12 +61,10 @@ class CollectCaseAddresseesNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                f"{self.name}: DataLayer or actor_id not available"
-            )
-            return Status.FAILURE
-
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
         try:
             case_id = self.blackboard.get("case_id")
         except KeyError:
@@ -79,7 +77,7 @@ class CollectCaseAddresseesNode(DataLayerAction):
             return Status.FAILURE
 
         case_obj = self.datalayer.read(case_id)
-        if is_case_model(case_obj):
+        if isinstance(case_obj, VulnerabilityCase):
             addressees = [
                 actor_id
                 for actor_id in case_obj.actor_participant_index.keys()
@@ -155,11 +153,10 @@ class CreateAndPersistCaseActivityNode(DataLayerAction):
         return addressees
 
     def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                f"{self.name}: DataLayer or actor_id not available"
-            )
-            return Status.FAILURE
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
 
         case_id = self._read_case_id()
         if case_id is None:

@@ -19,7 +19,6 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
-from vultron.core.models.protocols import is_log_entry_model
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.status import (
@@ -34,27 +33,29 @@ from vultron.wire.as2.factories import (
     create_case_status_activity,
     create_status_for_participant_activity,
 )
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import (
-    CaseStatus,
-    ParticipantStatus,
+    as_CaseStatus,
+    as_ParticipantStatus,
 )
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 
 class TestStatusUseCases:
     """Tests for case status and participant status handlers."""
 
     def test_create_case_status_stores_status(self, monkeypatch, make_payload):
-        """create_case_status persists the CaseStatus to the DataLayer."""
+        """create_case_status persists the as_CaseStatus to the DataLayer."""
 
         dl = SqliteDataLayer("sqlite:///:memory:")
 
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_cs1",
             name="Case Status Test",
         )
-        status = CaseStatus(
+        status = as_CaseStatus(
             id_="https://example.org/cases/case_cs1/statuses/s1",
             context=case.id_,
         )
@@ -70,14 +71,14 @@ class TestStatusUseCases:
         assert stored is not None
 
     def test_create_case_status_idempotent(self, monkeypatch, make_payload):
-        """create_case_status skips storing a duplicate CaseStatus."""
+        """create_case_status skips storing a duplicate as_CaseStatus."""
         dl = SqliteDataLayer("sqlite:///:memory:")
 
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_cs2",
             name="Case Status Idempotent",
         )
-        status = CaseStatus(
+        status = as_CaseStatus(
             id_="https://example.org/cases/case_cs2/statuses/s2",
             context=case.id_,
         )
@@ -98,11 +99,11 @@ class TestStatusUseCases:
     ):
         """add_case_status_to_case appends status ID to case.case_statuses."""
         dl = SqliteDataLayer("sqlite:///:memory:")
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_cs3",
             name="Add Status Case",
         )
-        status = CaseStatus(
+        status = as_CaseStatus(
             id_="https://example.org/cases/case_cs3/statuses/s3",
             context=case.id_,
         )
@@ -118,7 +119,7 @@ class TestStatusUseCases:
 
         case = dl.read(case.id_)
         assert case is not None
-        case = cast(VulnerabilityCase, case)
+        case = cast(as_VulnerabilityCase, case)
         status_ids = [getattr(s, "id_", s) for s in case.case_statuses]
         assert status.id_ in status_ids
 
@@ -127,12 +128,12 @@ class TestStatusUseCases:
     ):
         """Invalid EM transition is blocked; status is not appended."""
         dl = SqliteDataLayer("sqlite:///:memory:")
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_em_guard",
             name="EM Guard Test Case",
         )
         # Seed an existing status with EM.NONE (the initial embargo state)
-        initial_status = CaseStatus(
+        initial_status = as_CaseStatus(
             id_="https://example.org/cases/case_em_guard/statuses/s_init",
             context=case.id_,
             em_state=EM.NONE,
@@ -142,7 +143,7 @@ class TestStatusUseCases:
 
         # Try to add a status with EM.ACTIVE — invalid: NONE → ACTIVE
         # skips the required PROPOSED intermediate state
-        bad_status = CaseStatus(
+        bad_status = as_CaseStatus(
             id_="https://example.org/cases/case_em_guard/statuses/s_bad",
             context=case.id_,
             em_state=EM.ACTIVE,
@@ -158,7 +159,7 @@ class TestStatusUseCases:
 
         updated_case = dl.read(case.id_)
         assert updated_case is not None
-        updated_case = cast(VulnerabilityCase, updated_case)
+        updated_case = cast(as_VulnerabilityCase, updated_case)
         status_ids = [getattr(s, "id_", s) for s in updated_case.case_statuses]
         assert (
             bad_status.id_ not in status_ids
@@ -169,11 +170,11 @@ class TestStatusUseCases:
     ):
         """Valid EM transition is permitted; status is appended."""
         dl = SqliteDataLayer("sqlite:///:memory:")
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_em_valid",
             name="EM Valid Transition Case",
         )
-        initial_status = CaseStatus(
+        initial_status = as_CaseStatus(
             id_="https://example.org/cases/case_em_valid/statuses/s_init",
             context=case.id_,
             em_state=EM.NONE,
@@ -182,7 +183,7 @@ class TestStatusUseCases:
         dl.create(case)
 
         # NONE → PROPOSED is a valid transition
-        good_status = CaseStatus(
+        good_status = as_CaseStatus(
             id_="https://example.org/cases/case_em_valid/statuses/s_good",
             context=case.id_,
             em_state=EM.PROPOSED,
@@ -198,21 +199,21 @@ class TestStatusUseCases:
 
         updated_case = dl.read(case.id_)
         assert updated_case is not None
-        updated_case = cast(VulnerabilityCase, updated_case)
+        updated_case = cast(as_VulnerabilityCase, updated_case)
         status_ids = [getattr(s, "id_", s) for s in updated_case.case_statuses]
         assert good_status.id_ in status_ids
 
     def test_create_participant_status_stores_status(
         self, monkeypatch, make_payload
     ):
-        """create_participant_status persists the ParticipantStatus."""
+        """create_participant_status persists the as_ParticipantStatus."""
         dl = SqliteDataLayer("sqlite:///:memory:")
 
-        pstatus = ParticipantStatus(
+        pstatus = as_ParticipantStatus(
             id_="https://example.org/cases/case_ps1/participants/p1/statuses/s1",
             context="https://example.org/cases/case_ps1",
         )
-        case_ps1 = VulnerabilityCase(
+        case_ps1 = as_VulnerabilityCase(
             id_="https://example.org/cases/case_ps1",
             name="PS Case 1",
         )
@@ -232,16 +233,16 @@ class TestStatusUseCases:
     ):
         """add_participant_status_to_participant appends status to participant."""
         dl = SqliteDataLayer("sqlite:///:memory:")
-        participant = CaseParticipant(
+        participant = as_CaseParticipant(
             id_="https://example.org/cases/case_ps2/participants/p2",
             context="https://example.org/cases/case_ps2",
             attributed_to="https://example.org/users/vendor",
         )
-        pstatus = ParticipantStatus(
+        pstatus = as_ParticipantStatus(
             id_="https://example.org/cases/case_ps2/participants/p2/statuses/s2",
             context="https://example.org/cases/case_ps2",
         )
-        case_ps2 = VulnerabilityCase(
+        case_ps2 = as_VulnerabilityCase(
             id_="https://example.org/cases/case_ps2",
             name="PS Case 2",
         )
@@ -269,7 +270,7 @@ class TestStatusUseCases:
 
         participant = dl.read(participant.id_)
         assert participant is not None
-        participant = cast(CaseParticipant, participant)
+        participant = cast(as_CaseParticipant, participant)
         status_ids = [
             getattr(s, "id_", s) for s in participant.participant_statuses
         ]
@@ -298,10 +299,10 @@ class TestParticipantStatusLogEntryCascade:
         dl.create(case_actor)
 
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_=case_id,
             name="Status Cascade Case",
             attributed_to=actor_id,
@@ -319,7 +320,7 @@ class TestParticipantStatusLogEntryCascade:
         case.actor_participant_index[case_actor_id] = cm_participant_id
         dl.create(case)
 
-        case_manager_participant = CaseParticipant(
+        case_manager_participant = as_CaseParticipant(
             id_=case_manager_participant_id,
             context=case_id,
             attributed_to=case_actor_id,
@@ -327,14 +328,14 @@ class TestParticipantStatusLogEntryCascade:
         )
         dl.create(case_manager_participant)
 
-        participant = CaseParticipant(
+        participant = as_CaseParticipant(
             id_=f"{case_id}/participants/p1",
             context=case_id,
             attributed_to=actor_id,
         )
         dl.create(participant)
 
-        cm_participant = CaseParticipant(
+        cm_participant = as_CaseParticipant(
             id_=cm_participant_id,
             context=case_id,
             attributed_to=case_actor_id,
@@ -342,7 +343,7 @@ class TestParticipantStatusLogEntryCascade:
         )
         dl.create(cm_participant)
 
-        pstatus = ParticipantStatus(
+        pstatus = as_ParticipantStatus(
             id_=f"{case_id}/participants/p1/statuses/s1",
             context=case_id,
         )
@@ -353,7 +354,7 @@ class TestParticipantStatusLogEntryCascade:
     def test_cascade_commits_log_entry_on_success(self, make_payload):
         """Cascade commits a CaseLedgerEntry when BT succeeds (AC-2)."""
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         actor_id = "https://example.org/users/vendor"
@@ -361,7 +362,7 @@ class TestParticipantStatusLogEntryCascade:
         dl, case_actor_id, participant, pstatus = self._make_dl(
             case_id, actor_id
         )
-        case = cast(VulnerabilityCase, dl.read(case_id))
+        case = cast(as_VulnerabilityCase, dl.read(case_id))
         assert case is not None
 
         activity = add_status_to_participant_activity(
@@ -379,7 +380,7 @@ class TestParticipantStatusLogEntryCascade:
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if is_log_entry_model(obj)
+            if isinstance(obj, VultronCaseLedgerEntry)
             and cast(VultronCaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
@@ -394,7 +395,7 @@ class TestParticipantStatusLogEntryCascade:
         for delivery to participants.
         """
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         actor_id = "https://example.org/users/vendor"
@@ -402,7 +403,7 @@ class TestParticipantStatusLogEntryCascade:
         dl, case_actor_id, participant, pstatus = self._make_dl(
             case_id, actor_id
         )
-        case = cast(VulnerabilityCase, dl.read(case_id))
+        case = cast(as_VulnerabilityCase, dl.read(case_id))
         assert case is not None
 
         activity = add_status_to_participant_activity(
@@ -420,7 +421,7 @@ class TestParticipantStatusLogEntryCascade:
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if is_log_entry_model(obj)
+            if isinstance(obj, VultronCaseLedgerEntry)
             and cast(VultronCaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
@@ -433,16 +434,16 @@ class TestParticipantStatusLogEntryCascade:
     ) -> None:
         """CLOSED->CLOSED rewrites are rejected before log cascade."""
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         actor_id = "https://example.org/users/vendor"
         case_id = "https://example.org/cases/st_le3"
         dl, case_actor_id, participant, _ = self._make_dl(case_id, actor_id)
-        case = cast(VulnerabilityCase, dl.read(case_id))
+        case = cast(as_VulnerabilityCase, dl.read(case_id))
         assert case is not None
 
-        closed_status = ParticipantStatus(
+        closed_status = as_ParticipantStatus(
             id_=f"{case_id}/participants/p1/statuses/closed-existing",
             context=case_id,
             rm_state=RM.CLOSED,
@@ -451,7 +452,7 @@ class TestParticipantStatusLogEntryCascade:
         dl.save(participant)
         dl.create(closed_status)
 
-        duplicate_closed_status = ParticipantStatus(
+        duplicate_closed_status = as_ParticipantStatus(
             id_=f"{case_id}/participants/p1/statuses/closed-duplicate",
             context=case_id,
             rm_state=RM.CLOSED,
@@ -475,7 +476,7 @@ class TestParticipantStatusLogEntryCascade:
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if is_log_entry_model(obj)
+            if isinstance(obj, VultronCaseLedgerEntry)
             and cast(VultronCaseLedgerEntry, obj).case_id == case_id
         ]
         assert entries == []
@@ -489,7 +490,7 @@ class TestParticipantStatusLogEntryCascade:
     ) -> None:
         """Two equivalent assertions append only one canonical log entry."""
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         actor_id = "https://example.org/users/vendor"
@@ -497,7 +498,7 @@ class TestParticipantStatusLogEntryCascade:
         dl, case_actor_id, participant, pstatus = self._make_dl(
             case_id, actor_id
         )
-        case = cast(VulnerabilityCase, dl.read(case_id))
+        case = cast(as_VulnerabilityCase, dl.read(case_id))
         assert case is not None
 
         activity = add_status_to_participant_activity(
@@ -518,7 +519,7 @@ class TestParticipantStatusLogEntryCascade:
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if is_log_entry_model(obj)
+            if isinstance(obj, VultronCaseLedgerEntry)
             and cast(VultronCaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
@@ -528,7 +529,7 @@ class TestParticipantStatusLogEntryCascade:
     ) -> None:
         """Peer-side replay of broadcast status must not append canonical entries."""
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         actor_id = "https://example.org/users/vendor"
@@ -537,10 +538,10 @@ class TestParticipantStatusLogEntryCascade:
         dl, case_actor_id, participant, pstatus = self._make_dl(
             case_id, actor_id
         )
-        case = cast(VulnerabilityCase, dl.read(case_id))
+        case = cast(as_VulnerabilityCase, dl.read(case_id))
         assert case is not None
 
-        peer = CaseParticipant(
+        peer = as_CaseParticipant(
             id_=f"{case_id}/participants/p2",
             context=case_id,
             attributed_to=non_case_actor_id,
@@ -564,7 +565,7 @@ class TestParticipantStatusLogEntryCascade:
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if is_log_entry_model(obj)
+            if isinstance(obj, VultronCaseLedgerEntry)
             and cast(VultronCaseLedgerEntry, obj).case_id == case_id
         ]
         assert entries == []
@@ -577,7 +578,7 @@ class TestParticipantStatusLogEntryCascade:
 
         from vultron.wire.as2.enums import as_TransitiveActivityType
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         reporter_actor_id = "https://example.org/users/vendor"
@@ -586,10 +587,10 @@ class TestParticipantStatusLogEntryCascade:
         dl, case_actor_id, participant, pstatus = self._make_dl(
             case_id, reporter_actor_id
         )
-        case = cast(VulnerabilityCase, dl.read(case_id))
+        case = cast(as_VulnerabilityCase, dl.read(case_id))
         assert case is not None
 
-        finder_participant = CaseParticipant(
+        finder_participant = as_CaseParticipant(
             id_=f"{case_id}/participants/finder",
             context=case_id,
             attributed_to=finder_actor_id,
@@ -622,7 +623,7 @@ class TestParticipantStatusLogEntryCascade:
         entries = [
             cast(VultronCaseLedgerEntry, obj)
             for obj in dl.list_objects("CaseLedgerEntry")
-            if is_log_entry_model(obj)
+            if isinstance(obj, VultronCaseLedgerEntry)
             and cast(VultronCaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1

@@ -8,7 +8,7 @@ description: >
   WebSocket event streaming, and the relationship to existing demo scripts.
 related_notes:
   - notes/demo-future-ideas.md
-  - notes/two-actor-demo.md
+  - notes/fv-demo.md
 related_specs:
   - specs/multi-actor-demo.yaml
   - specs/event-driven-control-flow.yaml
@@ -77,7 +77,7 @@ who manages the multi-party disclosure.
 `case-actor`)
 
 **Status**: Existing code must be removed and reconstructed on the
-rebuilt two-actor foundation.
+rebuilt FV foundation.
 
 ### Scenario C — Multi-Vendor: Supply Chain
 
@@ -122,7 +122,7 @@ of them; the priority order above governs what gets interactive first.
 
 ### Scripted Baseline
 
-The Python demo scripts (`two_actor_demo.py`, etc.) remain as
+The Python demo scripts (`fv_demo.py`, etc.) remain as
 **automated puppeteers** that take the happy-path branch at every
 decision point. They are not replaced by the UI; they are a
 complementary way to drive the same trigger endpoints. Critically, the
@@ -233,11 +233,11 @@ WebSocket events to animate the message flow.
 
 ## Development Sequence
 
-1. **Finish two-actor happy path** (current work) — automated scripted
+1. **Finish FV happy path** (current work) — automated scripted
    demo with milestone verification.
-2. **Build the interactive UI** on top of the two-actor demo — ReactFlow
+2. **Build the interactive UI** on top of the FV demo — ReactFlow
    graph + swimlane timeline + WebSocket event stream + CYOA branching
-   for the two-actor scenario.
+   for the FV scenario.
 3. **Port three-actor scenario** (removing and reconstructing from old
    broken code) — the UI is already ready; plug in additional actor
    nodes and swim lanes.
@@ -254,7 +254,7 @@ new implementations.
 
 This design fits into the roadmap at two points:
 
-- **Now** (completing two-actor): foundational scenario is the
+- **Now** (completing FV):: foundational scenario is the
   prerequisite for the UI.
 - **Later** (full protocol behavior): the CYOA branching model is the
   natural home for failure-mode scenarios — embargo collapse, vendor

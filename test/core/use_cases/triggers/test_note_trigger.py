@@ -34,6 +34,7 @@ from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.pending_assertion import (
     _reset_stores,
@@ -47,10 +48,12 @@ from vultron.core.use_cases.triggers.requests import (
 from vultron.errors import VultronValidationError
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
-    CaseParticipant,
+    as_CaseParticipant,
     FinderParticipant,
 )
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -76,32 +79,32 @@ def _make_case_with_case_manager(
     actor_id: str,
     finder_id: str,
     case_actor_id: str,
-) -> tuple[VulnerabilityCase, CaseParticipant]:
-    """Create a VulnerabilityCase with a Finder participant and a Case Actor
+) -> tuple[as_VulnerabilityCase, as_CaseParticipant]:
+    """Create a as_VulnerabilityCase with a Finder participant and a Case Actor
     participant (CVDRole.CASE_MANAGER).
 
-    Returns the case and the Case Manager CaseParticipant.
+    Returns the case and the Case Manager as_CaseParticipant.
 
     The actor participant is pre-initialized to RM.VALID so that
     engage (→ ACCEPTED) and defer (→ DEFERRED) transitions are valid.
     """
     from vultron.core.states.rm import RM
     from vultron.wire.as2.vocab.objects.case_status import (
-        ParticipantStatus as WireParticipantStatus,
+        as_ParticipantStatus as WireParticipantStatus,
     )
 
-    case = VulnerabilityCase(name="Test Case")
+    case = as_VulnerabilityCase(name="Test Case")
 
     finder_participant = FinderParticipant(
         attributed_to=finder_id,
         context=case.id_,
     )
-    case_manager_participant = CaseParticipant(
+    case_manager_participant = as_CaseParticipant(
         attributed_to=case_actor_id,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
     )
-    actor_participant = CaseParticipant(
+    actor_participant = as_CaseParticipant(
         attributed_to=actor_id,
         context=case.id_,
         case_roles=[CVDRole.VENDOR],
@@ -307,7 +310,7 @@ class TestSvcAddNoteToCaseUseCase:
 
     def test_raises_when_no_case_manager(self):
         """SvcAddNoteToCaseUseCase raises VultronValidationError when no CASE_MANAGER."""
-        solo_case = VulnerabilityCase(name="No Manager Case")
+        solo_case = as_VulnerabilityCase(name="No Manager Case")
         solo_case.actor_participant_index[self.vendor.id_] = (
             f"{solo_case.id_}/participants/vendor"
         )

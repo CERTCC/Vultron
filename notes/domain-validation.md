@@ -100,12 +100,17 @@ if manager_id is None:
 
 ## Canonical Helper Locations
 
-Helpers that extract IDs or look up participants belong in
-`vultron/core/use_cases/_helpers.py` — the neutral module importable
-from both `behaviors/` and `use_cases/` layers without circular imports.
+Layer-neutral utilities with no dependencies above `models/` belong in
+`vultron/core/models/_helpers.py` — the bottom of the hexagonal stack,
+safely importable by **all** layers (`behaviors/`, `use_cases/`, `services/`,
+`adapters/`). Examples: `_as_id()`, `_report_phase_status_id()`.
 
-Duplicate copies in other modules (e.g., `services/embargo_lifecycle.py`)
-MUST import from `use_cases/_helpers` and not maintain their own copies.
+Higher-level helpers that depend on ports, state machines, or use-case
+logic belong in `vultron/core/use_cases/_helpers.py`. Examples:
+`_idempotent_create`, `update_participant_rm_state`, `add_activity_to_outbox`.
+
+Duplicate copies in other modules MUST NOT be maintained — import from the
+canonical location instead.
 `behaviors/status/nodes/broadcast.py` was deleted in #1378 after its only
 content (`_find_case_manager_id`) was consolidated into `_resolve_case_manager_id`.
 
@@ -138,7 +143,7 @@ if case_id is None:
 
 | Site | Old behavior | New behavior |
 |---|---|---|
-| `_as_id()` in `embargo_lifecycle.py` | Duplicate copy | Removed; callers import from `use_cases._helpers` |
+| `_as_id()` in `embargo_lifecycle.py` | Duplicate copy | Removed; moved to `core.models._helpers` (#1428) |
 | `_find_case_manager_*` (3 copies) | 3 independent copies returning `None` | 1 canonical function in `use_cases/_helpers`; others removed |
 | `_extract_case_id()` in dispatcher | Returns `None`; activity silently not indexed | Raises `UnroutableActivityError` |
 | `CommitCaseLedgerEntryNode.update()` | Returns `Status.SUCCESS` on missing `case_id` | Returns `Status.FAILURE` |
@@ -146,3 +151,32 @@ if case_id is None:
 
 See `specs/architecture.yaml` ARCH-15-001 through ARCH-15-004 for
 normative requirements derived from this concern.
+
+---
+
+## Pitfall: `getattr(obj, name, default)` Does Not Catch `ValueError`
+
+Python's three-argument `getattr` suppresses only `AttributeError`. If a
+property getter raises `ValueError` — as `VulnerabilityCase.current_status`
+does when `case_statuses` has no materialised entries — the default is
+**never returned** and the `ValueError` propagates.
+
+The `getattr(case, "current_status", None)` idiom is therefore a latent bug
+wherever a property may raise.
+
+**Pattern — safe property access when a property may raise:**
+
+```python
+try:
+    current_status = case.current_status
+except (AttributeError, ValueError):
+    current_status = None
+```
+
+Use `except (AttributeError, ValueError)` rather than a bare `except` so that
+unexpected exception types still surface. Apply this pattern at BT node or
+use-case entry points wherever a case property is accessed on an
+object that may be only partially initialised (e.g., freshly constructed
+from a DataLayer read before all derived fields are available).
+
+Source: ISSUE-1455 — three call sites fixed across BT nodes and use cases.

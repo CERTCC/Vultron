@@ -18,7 +18,6 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
-from vultron.core.models.protocols import is_log_entry_model
 from vultron.core.use_cases.received.note import (
     AddNoteToCaseReceivedUseCase,
     CreateNoteReceivedUseCase,
@@ -30,7 +29,9 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Remove,
 )
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 
 class TestNoteUseCases:
@@ -81,7 +82,7 @@ class TestNoteUseCases:
     ):
         """create_note attaches the Note to the case when note.context is set."""
         dl = SqliteDataLayer("sqlite:///:memory:")
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_cn1",
             name="Context Case",
         )
@@ -102,7 +103,7 @@ class TestNoteUseCases:
 
         refreshed = dl.read(case.id_)
         assert refreshed is not None
-        refreshed = cast(VulnerabilityCase, refreshed)
+        refreshed = cast(as_VulnerabilityCase, refreshed)
         assert note.id_ in refreshed.notes
 
     def test_create_note_attach_to_case_idempotent(
@@ -111,7 +112,7 @@ class TestNoteUseCases:
         """create_note is idempotent when note already attached to case."""
         dl = SqliteDataLayer("sqlite:///:memory:")
         note_id = "https://example.org/notes/note_ctx2"
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_cn2",
             name="Idempotent Case",
             notes=[note_id],
@@ -133,16 +134,16 @@ class TestNoteUseCases:
 
         refreshed = dl.read(case.id_)
         assert refreshed is not None
-        refreshed = cast(VulnerabilityCase, refreshed)
+        refreshed = cast(as_VulnerabilityCase, refreshed)
         assert refreshed.notes.count(note_id) == 1
 
     def _setup_case_with_case_manager(
         self, dl: "SqliteDataLayer", case_id: str, case_actor_id: str
-    ) -> "VulnerabilityCase":
-        """Create a VulnerabilityCase with a CaseActor holding CASE_MANAGER."""
+    ) -> "as_VulnerabilityCase":
+        """Create a as_VulnerabilityCase with a CaseActor holding CASE_MANAGER."""
         from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.case_participant import (
-            CaseParticipant,
+            as_CaseParticipant,
         )
 
         case_actor = VultronCaseActor(
@@ -153,11 +154,11 @@ class TestNoteUseCases:
         )
         dl.create(case_actor)
 
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_=case_id,
             name="Note Case",
         )
-        case_mgr_participant = CaseParticipant(
+        case_mgr_participant = as_CaseParticipant(
             id_=f"{case_id}/participants/case-actor-p",
             attributed_to=case_actor_id,
             context=case_id,
@@ -194,7 +195,7 @@ class TestNoteUseCases:
 
         refreshed = dl.read(case_id)
         assert refreshed is not None
-        refreshed = cast(VulnerabilityCase, refreshed)
+        refreshed = cast(as_VulnerabilityCase, refreshed)
         assert note.id_ in refreshed.notes
 
     def test_add_note_to_case_idempotent(self, monkeypatch, make_payload):
@@ -224,7 +225,7 @@ class TestNoteUseCases:
 
         refreshed = dl.read(case_id)
         assert refreshed is not None
-        refreshed = cast(VulnerabilityCase, refreshed)
+        refreshed = cast(as_VulnerabilityCase, refreshed)
         assert refreshed.notes.count(note.id_) == 1
 
     def test_add_note_noop_for_non_case_manager(
@@ -238,7 +239,7 @@ class TestNoteUseCases:
         and commit.
         """
         dl = SqliteDataLayer("sqlite:///:memory:")
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_n3_noop",
             name="Noop Case",
         )
@@ -262,7 +263,7 @@ class TestNoteUseCases:
 
         refreshed = dl.read(case.id_)
         assert refreshed is not None
-        refreshed = cast(VulnerabilityCase, refreshed)
+        refreshed = cast(as_VulnerabilityCase, refreshed)
         assert note.id_ not in refreshed.notes
 
     def test_remove_note_from_case_removes_note(
@@ -274,7 +275,7 @@ class TestNoteUseCases:
             id_="https://example.org/notes/note5",
             content="A note",
         )
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_n3",
             name="Remove Note Case",
             notes=[note.id_],
@@ -293,7 +294,7 @@ class TestNoteUseCases:
 
         case = dl.read(case.id_)
         assert case is not None
-        case = cast(VulnerabilityCase, case)
+        case = cast(as_VulnerabilityCase, case)
         assert note.id_ not in case.notes
 
     def test_remove_note_from_case_idempotent(self, monkeypatch, make_payload):
@@ -303,7 +304,7 @@ class TestNoteUseCases:
             id_="https://example.org/notes/note6",
             content="A note",
         )
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_n4",
             name="Remove Note Idempotent",
         )
@@ -347,7 +348,7 @@ class TestNoteUseCases:
         )
         dl.create(case_actor)
 
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_=case_id,
             name="Log Entry Cascade Case",
             attributed_to=author_id,
@@ -361,10 +362,10 @@ class TestNoteUseCases:
         dl.create(case)
         from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.case_participant import (
-            CaseParticipant,
+            as_CaseParticipant,
         )
 
-        case_manager_participant = CaseParticipant(
+        case_manager_participant = as_CaseParticipant(
             id_=f"{case_id}/participants/case-actor-p",
             attributed_to=case_actor_id,
             context=case_id,
@@ -396,7 +397,7 @@ class TestNoteUseCases:
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if is_log_entry_model(obj)
+            if isinstance(obj, VultronCaseLedgerEntry)
             and cast(VultronCaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1
@@ -424,7 +425,7 @@ class TestNoteUseCases:
         )
         dl.create(case_actor)
 
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_=case_id,
             name="No Sync Port Case",
             attributed_to=author_id,
@@ -438,10 +439,10 @@ class TestNoteUseCases:
         dl.create(case)
         from vultron.enums.roles import CVDRole
         from vultron.wire.as2.vocab.objects.case_participant import (
-            CaseParticipant,
+            as_CaseParticipant,
         )
 
-        case_manager_participant = CaseParticipant(
+        case_manager_participant = as_CaseParticipant(
             id_=f"{case_id}/participants/case-actor-p",
             attributed_to=case_actor_id,
             context=case_id,
@@ -473,7 +474,7 @@ class TestNoteUseCases:
         entries = [
             obj
             for obj in dl.list_objects("CaseLedgerEntry")
-            if is_log_entry_model(obj)
+            if isinstance(obj, VultronCaseLedgerEntry)
             and cast(VultronCaseLedgerEntry, obj).case_id == case_id
         ]
         assert len(entries) == 1

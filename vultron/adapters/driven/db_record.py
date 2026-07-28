@@ -19,7 +19,7 @@
 
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import StorableRecord
@@ -73,6 +73,16 @@ def _dehydrate_data(data: dict[str, Any]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key, value in data.items():
         if key in _AS_OBJECT_REF_FIELDS and isinstance(value, dict):
+            # SYNC-13-002/SYNC-02-004: a CaseLedgerEntry is never stored as an
+            # independent DataLayer record by ingress, so collapsing it to a
+            # bare ID here would lose it (the referent is not resolvable on
+            # read/replay).  SYNC-02-004 also requires the full inline entry to
+            # travel inside the Announce envelope.  Keep it inline so a
+            # replayed Announce(CaseLedgerEntry) still routes and applies its
+            # effects.
+            if value.get("type_") == "CaseLedgerEntry":
+                result[key] = value
+                continue
             nested_id = value.get("id_")
             if isinstance(nested_id, str) and nested_id:
                 result[key] = nested_id
@@ -81,6 +91,62 @@ def _dehydrate_data(data: dict[str, Any]) -> dict[str, Any]:
         else:
             result[key] = value
     return result
+
+
+def _retype_inline_ref(obj: "BaseModel", field_name: str, raw: object) -> Any:
+    """Return a specific-typed instance for one inline ref field, or ``None``.
+
+    Returns ``None`` when *raw* is not an inline typed dict, the type is a base
+    ``as_`` type, the vocabulary lookup fails, the field is already typed, or
+    re-validation fails — i.e. when no re-typing should occur.
+    """
+    if not isinstance(raw, dict):
+        return None
+    type_str = raw.get("type_") or raw.get("type")
+    if not isinstance(type_str, str) or type_str.startswith("as_"):
+        return None
+    try:
+        specific_cls = find_in_vocabulary(type_str)
+    except KeyError:
+        return None
+    if isinstance(getattr(obj, field_name, None), specific_cls):
+        return None
+    try:
+        return specific_cls.model_validate(raw)
+    except ValidationError:
+        return None
+
+
+def _retype_inline_object_refs(
+    obj: "BaseModel", data: dict[str, Any]
+) -> "BaseModel":
+    """Re-type inline object-reference fields to their specific vocab class.
+
+    Base-vocabulary reconstruction (``find_in_vocabulary(type_).model_validate``)
+    validates an inline ``object_``/``target``/… against the base ``as_Object``
+    union, which silently drops domain-specific fields (``case_id``,
+    ``event_type``, …) because ``as_Object`` ignores extras.  Those fields are
+    still present in the raw stored ``data`` dict, so this helper re-parses each
+    inline reference with its specific vocabulary class and writes the typed
+    object back onto *obj*.
+
+    This keeps inline nested objects (e.g. the ``CaseLedgerEntry`` inside a
+    stored ``Announce`` — SYNC-13-002 keeps it inline rather than as a separate
+    record) fully typed on read/replay, so semantic routing and effect
+    application work without re-reading a separate record.  Generic: it applies
+    to any inline typed reference, not just ``CaseLedgerEntry``.
+    """
+    updates: dict[str, Any] = {}
+    for field_name in _AS_OBJECT_REF_FIELDS:
+        typed = _retype_inline_ref(obj, field_name, data.get(field_name))
+        if typed is not None:
+            updates[field_name] = typed
+    if not updates:
+        return obj
+    try:
+        return obj.model_copy(update=updates)
+    except (ValidationError, TypeError):
+        return obj
 
 
 class Record(StorableRecord):
@@ -110,7 +176,15 @@ class Record(StorableRecord):
         record = Record(
             id_=obj.id_,
             type_=obj.type_,
-            data_=_dehydrate_data(obj.model_dump(mode="json")),
+            # serialize_as_any=True serializes each nested object by its runtime
+            # type, preserving subtype fields (e.g. a CaseLedgerEntry inline in
+            # an Announce keeps case_id/event_type/…).  Without it, an inline
+            # object_ typed only as the base union on the parent model would be
+            # serialized against the base schema and lose its domain fields —
+            # breaking read/replay reconstruction (SYNC-13-004).
+            data_=_dehydrate_data(
+                obj.model_dump(mode="json", serialize_as_any=True)
+            ),
         )
         return record
 
@@ -126,7 +200,8 @@ class Record(StorableRecord):
             raise ValueError(
                 f"Type '{self.type_}' not found in vocabulary for Record conversion"
             )
-        return cls.model_validate(self.data_)
+        obj = cls.model_validate(self.data_)
+        return _retype_inline_object_refs(obj, self.data_)
 
 
 def object_to_record(obj: PersistableModel) -> Record:

@@ -94,6 +94,28 @@ logic — check for existing records before creating (HP-07-001). Data Layer
 provides unique ID constraints. Report handlers (`create_report`,
 `submit_report`) already follow this pattern.
 
+### Multi-Object Mutations Touching `attributed_to` MUST Use `save_many()`
+
+Any BT node `update()` that mutates `VulnerabilityCase.attributed_to` alongside
+other objects (e.g., stripping/granting `CVDRole.CASE_OWNER` on participant
+records) **MUST** commit all changes via a single `self.datalayer.save_many()`
+call — never via sequential `self.datalayer.save()` calls.
+
+**Why:** Sequential saves create a window where the DataLayer holds partial
+state (e.g., the old owner's `CASE_OWNER` role stripped but the new owner's
+role not yet granted). A crash in that window leaves the case with zero
+`CASE_OWNER` holders — unrecoverable via normal protocol messages. `save_many()`
+wraps all writes in one SQLite transaction that either commits fully or rolls
+back entirely (CM-21-004). See `AcceptCaseOwnershipTransferNode` in
+`vultron/core/behaviors/case/nodes/ownership_transfer.py` for the canonical
+implementation pattern. An AST ratchet in
+`test/architecture/test_attributed_to_requires_save_many.py` enforces this
+(tracked in #1661).
+
+<!-- Source: CONCERN-1653 -->
+
+---
+
 ### Use `isinstance` for Pyright Attribute Narrowing, Not `# type: ignore`
 
 When accessing an attribute that exists on a subtype but not its base type
@@ -145,6 +167,82 @@ directly. Editing `__init__.py` for individual entry additions defeats the
 purpose of the split (reducing merge conflicts) and risks silently corrupting
 the ordering invariant that keeps the `UNKNOWN` fallback last.
 
+### `caller_owns_em_io` Guard: BT/Service Layer Handoff for EM State
+
+When a BT node needs to read EM state before calling a service and write it
+after, use a `caller_owns_em_io` bool to distinguish two paths:
+
+- **BT path** (`em_before` passed): caller already read EM state and will write
+  it via named BT nodes. Service skips its own DataLayer read/write.
+- **Legacy path** (`em_before=None`): service reads and writes internally.
+
+```python
+caller_owns_em_io = em_before is not None
+if not caller_owns_em_io:
+    em_before = EM(case.current_status.em_state)
+assert em_before is not None  # narrows EM | None → EM for mypy
+# ...compute em_after...
+if not caller_owns_em_io and em_after != em_before:
+    case.current_status.em_state = em_after
+    case_mutated = True
+```
+
+The `assert em_before is not None` after the conditional is required for mypy
+to narrow the type; without it mypy keeps the `EM | None` union and flags
+downstream uses.
+
+<!-- Source: ISSUE-1474 -->
+
+---
+
+### Layer-Neutral Helpers Belong in `core/models/_helpers.py`, Not Use-Cases
+
+When a utility function has **no dependencies above `models/`** (no ports, no
+state machines, no use-case logic — only primitive types like `str`, `Any`,
+`uuid`), its correct home is `vultron/core/models/_helpers.py`. That module
+sits at the bottom of the hexagonal stack and is safely importable by **all**
+layers (`behaviors/`, `use_cases/`, `services/`, `adapters/`).
+
+Placing such a helper in `use_cases/_helpers.py` (or any higher-layer module)
+creates silent transitive layer violations everywhere the helper is used. The
+right fix is to move the helper down the stack, not to create a sidecar module
+at the same level.
+
+**How to apply:** Before placing a new utility in `use_cases/_helpers.py`, ask:
+does this function depend on anything above `models/`? If not, put it in
+`core/models/_helpers.py`.
+
+<!-- Source: ISSUE-1428 -->
+
+---
+
+### Receive-Side Wire Objects: Dual `isinstance` / `type_` Check for Core Types
+
+Core received-side use cases process incoming wire-layer activities before
+objects are stored in the DataLayer. At this boundary `case_obj` may be a
+wire-layer `as_VulnerabilityCase`, not a core `VulnerabilityCase` — so
+`isinstance(case_obj, VulnerabilityCase)` returns `False`.
+
+Without importing wire types in core (which would violate ARCH-01-001), use a
+dual check:
+
+```python
+if (
+    not isinstance(case_obj, VulnerabilityCase)
+    and getattr(case_obj, "type_", None) != "VulnerabilityCase"
+):
+    # reject — neither core type nor wire type claiming to be a VulnerabilityCase
+    return
+```
+
+This accepts both `VulnerabilityCase` objects from `dl.read()` and
+`as_VulnerabilityCase` objects from incoming activities, and rejects anything
+else, without importing from `vultron/wire/`.
+
+<!-- Source: ISSUE-1504 -->
+
+---
+
 ### BT-related pitfalls
 
 See [notes/bt-integration.md](../../notes/bt-integration.md) for:
@@ -152,6 +250,9 @@ See [notes/bt-integration.md](../../notes/bt-integration.md) for:
 - All Protocol-Significant Behavior MUST Be in the BT
 - Protocol Event Cascades (Cascading Automation)
 - Post-BT Procedural Cascade Anti-Pattern
+
+See [notes/bt-pitfalls.md](../../notes/bt-pitfalls.md) for:
+
 - py\_trees Blackboard Global State
 - py\_trees `blackboard.get()` Raises KeyError for Unwritten READ Keys
 - Duplicate Method Definitions Silently Shadow Correct BT Logic
@@ -159,3 +260,8 @@ See [notes/bt-integration.md](../../notes/bt-integration.md) for:
 - BT Failure Reason: Use `get_failure_reason()`, Not Generic Error Logs
 - Note Attachment Idempotency: Check `case.notes`, Not DataLayer Existence
 - Close Bugs With Evidence, Not Assumption
+
+See [notes/bt-canonical-reference.md](../../notes/bt-canonical-reference.md) for:
+
+- Canonical CVD Protocol BT subtree map
+- Anti-patterns: BT node calling use cases, importing from use_cases/

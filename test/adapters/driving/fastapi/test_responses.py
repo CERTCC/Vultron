@@ -26,15 +26,17 @@ from vultron.adapters.driving.fastapi.responses import (
     AS2_CONTENT_TYPE,
     AS2JSONResponse,
 )
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 
 def test_content_type_is_as2():
     """AS2JSONResponse must set Content-Type: application/activity+json."""
-    report = VulnerabilityReport(name="test")
+    report = as_VulnerabilityReport(name="test")
     response = AS2JSONResponse(report)
     assert response.media_type == AS2_CONTENT_TYPE
     assert AS2_CONTENT_TYPE in response.headers["content-type"]
@@ -42,7 +44,7 @@ def test_content_type_is_as2():
 
 def test_camelcase_keys():
     """AS2JSONResponse must serialize with by_alias=True (camelCase keys)."""
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         name="Test Case",
         attributed_to="https://example.org/actor",
         vulnerability_reports=[],
@@ -64,12 +66,12 @@ def test_subclass_fields_not_stripped():
     FastAPI's response_model filtering strips fields not declared on the base
     class. AS2JSONResponse bypasses that filtering entirely.
     """
-    report = VulnerabilityReport(
+    report = as_VulnerabilityReport(
         name="Test Report",
         content="Test vulnerability content",
         attributed_to="https://example.org/finder",
     )
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         name="Test Case",
         attributed_to="https://example.org/actor",
         vulnerability_reports=[report],
@@ -95,7 +97,7 @@ def test_subclass_fields_not_stripped():
 
 def test_exclude_none_true():
     """None-valued fields must be omitted from the serialized body."""
-    report = VulnerabilityReport(name="Minimal Report")
+    report = as_VulnerabilityReport(name="Minimal Report")
     response = AS2JSONResponse(report)
     body = json.loads(bytes(response.body))
 
@@ -118,13 +120,13 @@ def test_non_as2_content_passthrough():
 
 def test_status_code_default():
     """Default status code is 200."""
-    report = VulnerabilityReport(name="Test")
+    report = as_VulnerabilityReport(name="Test")
     response = AS2JSONResponse(report)
     assert response.status_code == 200
 
 
 def test_status_code_override():
     """Custom status codes are forwarded correctly."""
-    report = VulnerabilityReport(name="Created")
+    report = as_VulnerabilityReport(name="Created")
     response = AS2JSONResponse(report, status_code=201)
     assert response.status_code == 201

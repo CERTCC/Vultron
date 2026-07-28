@@ -23,8 +23,10 @@ Scenarios are named by the sequence of actor roles involved:
 
 | Scenario | File | Description |
 |----------|------|-------------|
-| FV | `vultron/demo/scenario/two_actor_demo.py` | Finder + Vendor; simple coordination |
+| FV | `vultron/demo/scenario/fv_demo.py` | Finder + Vendor; simple coordination |
 | FVV | `vultron/demo/scenario/fvv_demo.py` | Finder → Vendor1 → Vendor2; no coordinator; independent fix paths (implements #1265) |
+| FVCV-extension | `vultron/demo/scenario/fvcv_extension_demo.py` | V1 retains ownership; C is participant; C suggests V2 via ADR-0026 flow; Vendor1 approves; CaseActor invites V2 (implements #1535) |
+| FCCV-extension | `vultron/demo/scenario/fccv_extension_demo.py` | C1 retains ownership; C2 is coordinator participant; C2 suggests V via ADR-0026 flow; C1 approves; CaseActor invites V (implements #1620) |
 
 ## Deprecated / idea-mine only
 
@@ -34,21 +36,32 @@ be treated as working implementations.
 
 | Scenario | File | Notes |
 |----------|------|-------|
-| FCV | `vultron/demo/scenario/three_actor_demo.py` | Obsolete; see planned scenarios below |
-| FVCV (handoff) | `vultron/demo/scenario/multi_vendor_demo.py` | Obsolete; see #1214 for the planned replacement |
+| FCV | ~~`vultron/demo/scenario/three_actor_demo.py`~~ (deleted PR #1720) | Superseded by `fcv_demo.py` (PR #1623) |
+| FVCV (handoff) | ~~`vultron/demo/scenario/multi_vendor_demo.py`~~ (deleted PR #1720) | Superseded by `fvcv_handoff_demo.py`; see #1214 |
 
 ## Planned scenarios (from #1131 planning, 2026-07-06)
 
 ### Core multi-party scenarios
 
-| Scenario | Issue | Description | Blocked by |
-|----------|-------|-------------|------------|
-| FCV | #1234 | F reports to C; C invites V; three-actor coordination | — |
-| FVCV-extension | #1212 | V1 retains ownership; C is participant; C suggests V2 | — |
-| FVCV-handoff | #1214 | V1 transfers ownership to C; C invites V2 | #1212 |
-| FCCV-extension | #1215 | C1 retains case; C2 is participant; C2 asks C1 to invite V | — |
-| FCCV-handoff | #1216 | C1 transfers to C2; C2 invites V | #1215 |
-| FCVCV | #1217 | F+C1+V1+C2+V2 (5 actors) | #1212, #1215 |
+| Scenario | Issue | Description | Blocked by | Status |
+|----------|-------|-------------|------------|--------|
+| FCV | #1593 | F reports to C; C invites V; three-actor coordination | — | **implemented** (#1623) — `fcv` CLI command + CI job |
+| FVCV-handoff | #1214 | V1 transfers ownership to C; C invites V2 | — | **implemented** (#1561) — `fvcv-handoff` CLI command + CI job |
+| FCCV-extension | #1215 | C1 retains case; C2 is participant; C2 asks C1 to invite V | — | **implemented** (#1620) — `fccv-extension` CLI command + CI job |
+| FCCV-handoff | #1216 | C1 transfers to C2; C2 invites V | — | **implemented** (#1216) — `fccv-handoff` CLI command + CI job |
+| FCVCV | #1217 | F+C1+V1+C2+V2 (5 actors) | #1212, #1215 | planned |
+
+### Fuzz simulation scenarios
+
+| Scenario | Issue | Description | Status |
+|----------|-------|-------------|--------|
+| In-process fuzz | #1178 | FCV in-process; STOCHASTIC bundles; N configurable iterations; `vultron demo fuzz` CLI command | planned |
+| Multi-container fuzz | *(future Idea under "stochastic demos" Epic)* | Containerised variant of #1178; each actor in its own container; STOCHASTIC bundles configurable via environment; container state reset between iterations | idea-stage |
+
+The multi-container variant is deferred until container reset and STOCHASTIC
+bundle configuration via environment variables are designed. See
+`notes/call-out-configuration.md` § "Multi-Actor In-Process Simulation" for
+the design decisions reached in the #1178 planning session.
 
 ### Role-expansion scenarios
 
@@ -91,7 +104,7 @@ See also: #1079 (multi-coordinator motivation from FIRSTCON 2026)
 
 ---
 
-## Two-Actor Demo: Finder, Vendor coordinate in separate containers
+## FV Demo: Finder, Vendor coordinate in separate containers
 
 Two actors, a finder and vendor, running in separate containers,
 communicating through the Vultron Protocol. Finder reports vulnerability to
@@ -120,7 +133,7 @@ published, which triggers a case status update reflecting public
 awareness. Finder reports they have published as well. Then the
 coordinator closes the case.
 
-## MultiParty Demo: Two-Actor expands to Coordinator and more Vendors
+## MultiParty Demo: FV expands to Coordinator and more Vendors
 
 A demo in which the process initially looks like scenario 1 above and an
 embargo is established, but
@@ -147,7 +160,7 @@ CaseActor is probably also a "spin up on demand" container that gets
 instantiated when a case is created.
 
 > **Note (2026-07-06)**: These sketch descriptions are superseded by the
-> structured scenario table above. The Two-Actor scenario is implemented.
-> Three-Actor (FCV) is planned for re-implementation in #1234 (the existing
-> file is deprecated). MultiParty corresponds to FVCV-handoff (#1214).
+> structured scenario table above. The FV scenario is implemented.
+> Three-Actor (FCV) is implemented in #1593 (PR #1623); `three_actor_demo.py`
+> is deprecated. MultiParty corresponds to FVCV-handoff (#1214).
 > See epic #1093 for the full planned scenario set.

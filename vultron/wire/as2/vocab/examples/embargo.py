@@ -29,7 +29,7 @@ from vultron.wire.as2.vocab.examples._base import (
     case,
     vendor,
 )
-from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.factories import (
     activate_embargo_activity,
     add_embargo_to_case_activity,
@@ -42,7 +42,7 @@ from vultron.wire.as2.factories import (
 )
 
 
-def embargo_event(days: int = 90) -> EmbargoEvent:
+def embargo_event(days: int = 90) -> as_EmbargoEvent:
     start_at = datetime.now().astimezone(tz=None)
     # zero out the seconds and microseconds
     start_at = start_at.replace(second=0, microsecond=0)
@@ -56,7 +56,7 @@ def embargo_event(days: int = 90) -> EmbargoEvent:
 
     _case = case()
 
-    event = EmbargoEvent(
+    event = as_EmbargoEvent(
         id_=f"{_case.id_}/embargo_events/{end_at.isoformat()}",
         name=f"Embargo for {_case.name}",
         context=_case.id_,

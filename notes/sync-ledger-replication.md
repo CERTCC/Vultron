@@ -334,6 +334,123 @@ is handled gracefully without patching.
 
 ---
 
+## Ledger write ownership vs. message-ingress scratch (SYNC-13)
+
+The SYNC-12 effects-before-persist gate (`CheckLedgerEntryAlreadyStoredNode`)
+treats **presence of a `CaseLedgerEntry` in the DataLayer** as proof that the
+entry's domain effects were already applied — so it skips the whole
+`ProcessAndStore` subtree on repeat delivery. That inference is only sound if
+the *only* writer of a `CaseLedgerEntry` is the core write path that also
+applies the effects (`PersistReceivedLogEntry` for a participant replica; the
+CaseActor's authoritative append for the primary case).
+
+The FastAPI ingress adapter previously violated that: `_store_nested_inbox_object`
+pre-stored the inline `CaseLedgerEntry` during parse so that `rehydrate()` —
+which re-read the activity **by ID** from the DataLayer — could re-expand a
+dehydrated `object_` for semantic routing. That single adapter write made the
+gate fire SUCCESS on first delivery, so `LogEntryEventEffects` never ran (e.g.
+`ApplyInviteAcceptFromLedger` never added a participant → FVV "participant
+count 4; found 3"). Removing the pre-store instead broke routing, because a
+bare-string `object_` matches both `AnnounceLogEntryPattern` and
+`AnnounceVulnerabilityCasePattern` (both permissive). This is the
+oscillation tracked across issues #1324, #1446, and #1472.
+
+**Resolution (SYNC-13):** ledger writes are a core responsibility; ingress
+delivers messages and never writes the ledger. Concretely:
+
+1. `_store_nested_inbox_object` refuses to persist a `CaseLedgerEntry`
+   (SYNC-13-002).
+2. `FastAPIIngressAdapter.rehydrate` hydrates the **in-memory** parsed activity
+   for an `Announce(CaseLedgerEntry)` (via `DataLayer.hydrate`) instead of
+   re-reading it by ID, so the typed inline entry survives for routing without
+   any pre-store (SYNC-13-003/004). Non-ledger activities keep the canonical
+   by-ID read path unchanged.
+3. Serialization preserves inline nested-object subtype fields end-to-end:
+   `Record.from_obj`, the outbox delivery recovery map, and both wire emitters
+   (`ASGIEmitter`, `DemoHttpDeliveryAdapter`) use `serialize_as_any=True`; the
+   `CaseLedgerEntry` inside a stored `Announce` is kept inline rather than
+   dehydrated to a bare ID (`_dehydrate_data`), and `Record.to_obj` re-types
+   inline refs on read so replay reconstructs the full typed entry (#1472 AC-4).
+4. The wire parser does not recurse into opaque data blobs
+   (`payload_snapshot`); doing so coerced the snapshot into a typed activity and
+   made `CaseLedgerEntry` validation fail, silently down-casting the entry to
+   base `as_Object`.
+
+Consequence for tests: a participant must already hold the case replica (with
+its per-case genesis hash) before it can validate a replicated
+`CaseLedgerEntry` (`ReconstructChainTail` anchors on the genesis hash,
+CLP-08-005). Tests that previously relied on the adapter pre-store to make the
+entry "appear" in the peer DL must seed the case on the peer instead.
+
+---
+
+## Out-of-Order Delivery and the Ledger Gap Buffer (SYNC-10-004)
+
+`Announce(CaseLedgerEntry)` travels over a transport with **no ordering
+guarantee**, and Vultron may not be the only protocol implementation on the
+wire. A participant replica can therefore receive an entry before its
+hash-chain predecessor. The bare reject-on-mismatch path
+(`CheckHashOrRejectOnMismatchNode` → `SendRejectLogEntryNode`) *dropped* such an
+entry and relied on a `Reject → replay` round-trip to redeliver it. That
+recovery is itself order-fragile — `SendMissingEntriesNode` replays each missing
+entry as a *separate* `Announce`, which can reorder again and hit the same drop
+— so under adversarial reordering an entry could be lost indefinitely
+(issue #1556, observed as Vendor2 stalling at case closure in the FVV demo).
+
+**Resolution: receiver-side buffering makes convergence order-independent.**
+
+- `LedgerGapBuffer` (`vultron/core/models/ledger_gap_buffer.py`) is an
+  actor-local, per-case, in-memory store of forward-gap entries, mirroring
+  `PendingAssertionStore`: per-actor module-level registry, ephemeral (lost on
+  restart; the SYNC-10 catch-up gate re-syncs), **not** a DataLayer entity. This
+  is the "clearly separate, non-ledger holding area" sanctioned by SYNC-13-003 —
+  presence of a `CaseLedgerEntry` in the DataLayer still means "effects applied
+  and entry committed" (SYNC-13-001).
+- **Keyed on `prev_log_hash`** (the entry's upstream tooth). The successor of a
+  just-persisted tail is exactly `buffer[new_tail.entry_hash]` — an O(1) lookup,
+  so a contiguous buffered run of *k* entries drains in O(k). Keying on `id_`,
+  `entry_hash`, or a plain list would make find-next O(n) and the cascade O(n²).
+- **On mismatch:** if the entry is a genuine *forward* gap
+  (`log_index > tail_index + 1`) it is buffered; a `Reject(CaseLedgerEntry)` is
+  **still always sent** as the backstop for entries that are genuinely *lost*
+  (never delivered) rather than merely reordered. Stale/at-or-behind-tail
+  entries are not buffered — they fall straight through to the reject.
+- **On commit:** `AnnounceLedgerEntryReceivedUseCase` drains the buffer — for
+  each newly committed tail it re-runs the announce receive BT on the buffered
+  successor, reusing the exact effects-before-persist path (SYNC-12-001) and
+  cascading until no buffered entry extends the tail.
+- **Bounded:** the buffer caps per-case size and evicts the entry farthest ahead
+  of the gap (highest `log_index`) with a WARNING; eviction is recoverable via
+  the Reject already sent, so it never has to re-trigger recovery itself.
+
+Because replayed entries flow through the *same* receive path, buffering also
+makes the `Reject → replay` recovery order-robust for free — no separate
+redesign of the replay loop was needed. A companion fix made
+`SyncActivityAdapter.send_reject_log_entry` enqueue against the explicit
+receiving `actor_id` (via `add_activity_to_outbox` / `record_outbox_item`)
+instead of the DL's own scope (`outbox_append`), matching
+`send_announce_log_entry` so a reject is delivered correctly even from a
+shared/differently-scoped DataLayer.
+
+## Pre-SYNC-13 Upgrade Path
+
+Nodes that ran pre-SYNC-13 code may hold stale `{entry: stored, effects: not-applied}`
+state. This arises because `_store_nested_inbox_object` formerly persisted a
+`CaseLedgerEntry` during parse without applying the entry's domain effects. When such
+a node later receives the same `Announce(CaseLedgerEntry)`, `CheckLedgerEntryAlreadyStoredNode`
+(SYNC-12-003) fires SUCCESS and the entire `ProcessAndStore` subtree — including
+`LogEntryEventEffects` — is skipped. The entry's effects are never applied, and the
+node's derived state (e.g., participant list, EM state) remains stale.
+
+**Resolution: Accept.** No repair path is implemented. The pre-SYNC-13 code was a
+bug in pre-production code with no extant deployed nodes or cases. The correct recovery
+for any node in this state is to wipe its local DataLayer for the affected case and
+re-sync from the CaseActor. Re-sync replays all `Announce(CaseLedgerEntry)` entries
+from the beginning; each entry passes the `CheckLedgerEntryAlreadyStoredNode` gate
+(FAILURE — not yet stored), so `ProcessAndStore` runs and effects are applied correctly.
+
+This is tracked as issue #1446.
+
 ## Related
 
 - `specs/sync-ledger-replication.yaml` — normative requirements

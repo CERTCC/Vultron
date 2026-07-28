@@ -25,13 +25,16 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.enums.roles import CVDRole
 from vultron.core.use_cases.received.note import AddNoteToCaseReceivedUseCase
 from vultron.wire.as2.factories import add_note_to_case_activity
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -68,11 +71,11 @@ def _make_case_actor_dl() -> SqliteDataLayer:
     ca_svc = VultronCaseActor(id_=CASE_ACTOR_ID, context=CASE_ID)
     dl.save(ca_svc)
 
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         id_=CASE_ID, name="AddNote Routing Test", attributed_to=CASE_ACTOR_ID
     )
 
-    cm_participant = CaseParticipant(
+    cm_participant = as_CaseParticipant(
         attributed_to=CASE_ACTOR_ID,
         context=CASE_ID,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -118,12 +121,11 @@ class TestAddNoteToCaseLedgerRouting:
         """
         dl = _make_case_actor_dl()
 
-        case = dl.read(CASE_ID)
-        assert isinstance(case, VulnerabilityCase)
+        case_ref = as_VulnerabilityCase(id_=CASE_ID)
         note = as_Note(id_=NOTE_ID, content="Test note content")
         activity = add_note_to_case_activity(
             note=note,
-            target=case,
+            target=case_ref,
             actor=VENDOR_ID,
             to=[CASE_ACTOR_ID],
         )
@@ -148,12 +150,11 @@ class TestAddNoteToCaseLedgerRouting:
         """
         dl = _make_case_actor_dl()
 
-        case = dl.read(CASE_ID)
-        assert isinstance(case, VulnerabilityCase)
+        case_ref = as_VulnerabilityCase(id_=CASE_ID)
         note = as_Note(id_=NOTE_ID, content="Test note content")
         activity = add_note_to_case_activity(
             note=note,
-            target=case,
+            target=case_ref,
             actor=VENDOR_ID,
             to=[CASE_ACTOR_ID],
         )
@@ -185,7 +186,7 @@ class TestAddNoteToCaseLedgerRouting:
         note = as_Note(id_=NOTE_ID, content="Test note content")
         activity = add_note_to_case_activity(
             note=note,
-            target=case,
+            target=case.id_,
             actor=VENDOR_ID,
             to=[CASE_ACTOR_ID],
         )

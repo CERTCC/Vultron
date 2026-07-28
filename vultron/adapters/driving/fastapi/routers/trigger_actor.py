@@ -30,9 +30,12 @@ from vultron.adapters.driving.fastapi.deps import (
 from vultron.adapters.driving.fastapi.errors import domain_error_translation
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.driving.fastapi.trigger_models import (
+    AcceptActorRecommendationRequest,
     AcceptCaseInviteRequest,
+    AcceptCaseOwnershipTransferRequest,
     InviteActorToCaseRequest,
     OfferCaseManagerRoleRequest,
+    OfferCaseOwnershipTransferRequest,
     SuggestActorToCaseRequest,
 )
 from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
@@ -144,6 +147,51 @@ def trigger_invite_actor_to_case(
             invitee_id=body.invitee_id,
             roles=body.roles,
         )
+    # The invite is stored in the CaseActor's outbox (PCR-08-007), not the
+    # requesting actor's outbox.  Use emitting_actor_id so the outbox_handler
+    # drains the correct outbox queue.
+    emitting_id = result.get("emitting_actor_id", actor_id)
+    emitting_dl = (
+        dl.clone_for_actor(emitting_id)
+        if emitting_id != actor_id
+        else actor_dl
+    )
+    background_tasks.add_task(outbox_handler, emitting_id, emitting_dl, dl)
+    return result
+
+
+@router.post(
+    "/{actor_id}/trigger/accept-actor-recommendation",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Accept an actor recommendation as Case Owner.",
+    description=(
+        "Emits an Accept(Offer(CaseParticipant)) from the Case Owner's identity "
+        "addressed to the CaseActor, completing the ADR-0026 CM-16-006 approval "
+        "step.  The Offer(CaseParticipant) must already exist in the actor's "
+        "DataLayer (delivered by the CaseActor)."
+    ),
+    operation_id="actors_trigger_accept_actor_recommendation",
+)
+def trigger_accept_actor_recommendation(
+    actor_id: str,
+    body: AcceptActorRecommendationRequest,
+    background_tasks: BackgroundTasks,
+    svc: TriggerServicePort = Depends(get_trigger_service),
+    dl: DataLayer = Depends(get_trigger_dl),
+    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
+) -> dict:
+    """
+    Trigger the accept-actor-recommendation behavior for the given actor.
+
+    Implements: ADR-0026 (CM-16-006); TB-01-001, TB-01-002, TB-01-003,
+        TB-02-001, TB-03-001, TB-03-002, TB-04-001
+    """
+    with domain_error_translation():
+        result = svc.accept_actor_recommendation(
+            actor_id=actor_id,
+            cp_offer_id=body.cp_offer_id,
+            case_actor_id=body.case_actor_id,
+        )
     background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
     return result
 
@@ -191,4 +239,77 @@ def trigger_offer_case_manager_role(
     background_tasks.add_task(
         outbox_handler, emitting_actor_id, emitting_dl, dl
     )
+    return result
+
+
+@router.post(
+    "/{actor_id}/trigger/offer-case-ownership-transfer",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Offer case ownership to another actor.",
+    description=(
+        "Emits an Offer(VulnerabilityCase) (ownership transfer variant) from "
+        "the requesting actor to the specified transferee.  The case must "
+        "exist in the actor's DataLayer.  The transferee must also be known "
+        "(TRIG-11-001)."
+    ),
+    operation_id="actors_trigger_offer_case_ownership_transfer",
+)
+def trigger_offer_case_ownership_transfer(
+    actor_id: str,
+    body: OfferCaseOwnershipTransferRequest,
+    background_tasks: BackgroundTasks,
+    svc: TriggerServicePort = Depends(get_trigger_service),
+    dl: DataLayer = Depends(get_trigger_dl),
+    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
+) -> dict:
+    """
+    Trigger the offer-case-ownership-transfer behavior for the given actor.
+
+    Implements:
+        TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
+        TB-04-001; TRIG-11-001
+    """
+    with domain_error_translation():
+        result = svc.offer_case_ownership_transfer(
+            actor_id=actor_id,
+            case_id=body.case_id,
+            transferee_id=body.transferee_id,
+            content=body.content,
+        )
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    return result
+
+
+@router.post(
+    "/{actor_id}/trigger/accept-case-ownership-transfer",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Accept a case ownership transfer offer.",
+    description=(
+        "Emits an Accept(Offer(VulnerabilityCase)) from the accepting actor "
+        "back to the offering actor.  The ownership transfer offer must "
+        "already exist in the actor's DataLayer (TRIG-11-002)."
+    ),
+    operation_id="actors_trigger_accept_case_ownership_transfer",
+)
+def trigger_accept_case_ownership_transfer(
+    actor_id: str,
+    body: AcceptCaseOwnershipTransferRequest,
+    background_tasks: BackgroundTasks,
+    svc: TriggerServicePort = Depends(get_trigger_service),
+    dl: DataLayer = Depends(get_trigger_dl),
+    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
+) -> dict:
+    """
+    Trigger the accept-case-ownership-transfer behavior for the given actor.
+
+    Implements:
+        TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
+        TB-04-001; TRIG-11-002
+    """
+    with domain_error_translation():
+        result = svc.accept_case_ownership_transfer(
+            actor_id=actor_id,
+            offer_id=body.offer_id,
+        )
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
     return result

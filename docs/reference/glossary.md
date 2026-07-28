@@ -169,12 +169,24 @@ it cannot revert. This forms a 64-state lattice (2^6 combinations).
 | **Trunk-Removed Branches Model** | The prototype BT architecture that mirrors the canonical simulation BT structure by exposing individual subtrees as event-driven use cases triggered by incoming **Activities**, rather than a continuous-tick monolithic root tree | Branched event model, handler-first BTs |
 | **Protocol-Significant Behavior** | Any action that affects protocol-observable state (emitting an **Activity**, transitioning RM/EM/CS, cascading consequences); MUST be implemented as BT nodes/subtrees, never as procedural code outside the tree | Domain logic, tree-resident behavior |
 | **Cascading Consequences** | Automated downstream behaviors triggered by primary protocol events via BT subtrees; examples include submit-report → case creation → participant setup → embargo initialization → notifications (anti-pattern: post-BT procedural calls) | Event cascade, automation chain |
+| **Call-Out Point** | A BT node location where automated protocol execution cannot proceed without external input from a human, skill, or LLM agent; implemented as a **Fuzzer Node** stub in the simulator layer | Decision point, human-in-the-loop seam |
+| **Fuzzer Node** | A stub BT node in the legacy simulation (`vultron/bt/`) that stands in for unimplemented real-world decision logic by returning probabilistic SUCCESS/FAILURE; each represents a **Call-Out Point** awaiting a real **Coordination Agent** | Stub node, random node |
+| **Coordination Agent** | An external capability (human, skill, or LLM agent) that fulfills a **Call-Out Point** by providing a decision, data, or content; five subtypes: **Sentinel**, **Evaluator**, **Retriever**, **Composer**, **Actuator** | External agent, decision agent |
+| **Sentinel** | A **Coordination Agent** subtype that checks external state and returns SUCCESS/FAILURE without side effects; used as a BT precondition guard | Guard agent, check agent |
+| **Evaluator** | A **Coordination Agent** subtype that makes a domain decision and records it (e.g., `ReviewAdvisoryDraft`); its `update()` method gates downstream BT execution | Decision agent, reviewer agent |
+| **Retriever** | A **Coordination Agent** subtype that fetches external data needed by the BT (e.g., CVE ID lookup, SSVC scoring) | Fetch agent, lookup agent |
+| **Composer** | A **Coordination Agent** subtype that assembles content from domain state (e.g., drafting advisory text) | Generator agent, authoring agent |
+| **Actuator** | A **Coordination Agent** subtype that invokes an external system to cause a side effect (notification dispatch, state write, queue mutation, API call); returns SUCCESS when the side effect is confirmed, FAILURE otherwise; produces no content artifact | Side-effect agent, executor |
 
 ## Domain Model — CVD Coordination
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
 | **CVDRole** | A StrEnum representing individual, atomic CVD roles (FINDER, REPORTER, VENDOR, DEPLOYER, COORDINATOR, OTHER, CASE_OWNER, CASE_MANAGER); participants hold zero or more roles represented as `list[CVDRole]`; preferred representation for new code (replaces legacy bitmask) | Role value, role enum |
+| **Dimension Object** | A small immutable `BaseModel` capturing the state of exactly one state machine (RM, EM, VFD, or PXA) at a point in time; replaces flat fields in `CaseStatus`/`ParticipantStatus` per ADR-0036 | Status sub-object, state fragment |
+| **Advisory** | A public disclosure document summarizing a vulnerability's details, remediation, and affected parties; produced by the publication pipeline via a Draft → Review → Submit sequence | Security advisory, disclosure document, bulletin |
+| **Advisory Review Decision** | A record produced by a **Reviewer** (Evaluator-type **Coordination Agent**) capturing whether an **Advisory** draft needs revision; the `needs_revision` flag gates the BT pipeline; the `approved` field is informational metadata only | Review result, review outcome |
+| **Publication Intent** | A domain object recording a participant's decision about *how* and *when* to disclose a vulnerability (e.g., which advisory platform, embargo exit condition); gates the BT publish pipeline | Disclosure intent, publish intent |
 | **CVDRolesFlag** | Legacy bitmask-based Flag enum using bitwise arithmetic to represent combined roles; retained for backward compatibility with the `vultron.bt` simulator layer only; **do not use in new code** — use `list[CVDRole]` instead | Bitmask roles, legacy roles |
 | **CASE_OWNER** | A **CVDRole** value marking a participant as the human decision-maker who owns and administers the VulnerabilityCase (BTND-05-001); distinct from CASE_MANAGER which is the service actor | Owner role |
 | **CASE_MANAGER** | A **CVDRole** value representing the ActivityStreams Actor (often a Service type) that performs ongoing case replica synchronization and manages the case on behalf of the **Case Owner**; always held alongside the COORDINATOR role (CBT-01-003); may be any Actor type though demo uses Service | Case synchronizer, case service actor |
@@ -346,8 +358,21 @@ it cannot revert. This forms a 64-state lattice (2^6 combinations).
 - An **Issue** may contain one or more sub-**Issues** with **Acceptance Criteria**.
 - **CasePersistence** and **CaseOutboxPersistence** replace the broad **DataLayer** interface for core use cases.
 - **Rehydration** converts raw persisted dicts (from **DataLayer**) into typed domain objects.
-- A **Participant** has zero or more **CVDRoles** (represented as **CVDRoles** bitmask).
+- A **Participant** has zero or more **CVDRoles** (represented as `list[CVDRole]`).
 - A **BT Node** reads from and writes to the **Blackboard** and may emit **Outbound Activities**.
+
+**Call-Out Points and Coordination:**
+
+- A **Fuzzer Node** in the simulator is the placeholder form of a **Call-Out Point**.
+- A **Call-Out Point** is fulfilled in production by a **Coordination Agent** of the appropriate subtype.
+- A **Sentinel** answers a yes/no check; an **Evaluator** records a domain decision; a **Retriever** fetches external data; a **Composer** generates content; an **Actuator** fires a side effect in an external system.
+- An **Advisory Review Decision** is produced by a **Reviewer** (an **Evaluator** subtype) and determines whether an **Advisory** draft requires revision before the BT submits it.
+
+**Status and Dimensions:**
+
+- A **CaseStatus** is composed of one or more **Dimension Objects** (one per state machine: RM, EM, VFD, PXA).
+- A **ParticipantStatus** contains an RM **Dimension Object** and an **Embargo Consent** state.
+- **Dimension Objects** are immutable; each state transition produces a new **Dimension Object** rather than mutating the existing one.
 
 ---
 
@@ -425,6 +450,27 @@ it cannot revert. This forms a 64-state lattice (2^6 combinations).
      - **CVDRole** is a StrEnum (string enum) representing individual, atomic roles; participants hold zero or more roles as `list[CVDRole]`; this is the **preferred** representation for all new code.
      - **CVDRolesFlag** is a legacy Flag enum (bitmask) used only by the `vultron.bt` simulator layer; it existed before the migration to list-based roles and is retained for backward compatibility only.
      - **Recommendation**: Always use `list[CVDRole]` in new code; never use **CVDRolesFlag** outside the `vultron.bt` simulator. When discussing roles, say "CVDRole" or "role list," never "CVDRoles" (plural, deprecated name).
+
+16. **"approved" vs. "needs_revision" in Advisory Review Decision**:
+     - `AdvisoryReviewDecision.approved` is metadata the **Evaluator** backend sets to record its stance; the BT pipeline does **not** read it as a gate.
+     - `AdvisoryReviewDecision.needs_revision` is the actual BT gate; `_NeedsRevisionGate` reads this field to decide whether to route back for edits.
+     - **Recommendation**: When describing pipeline gating logic, say "the pipeline checks `needs_revision`." Reserve "approved" for describing the reviewer's recorded decision. Do not say "the advisory was approved" when you mean "the pipeline passed the review gate."
+
+17. **"Call-Out Point" vs. "Fuzzer Node"**:
+     - A **Call-Out Point** is the abstract concept — a BT location requiring external input.
+     - A **Fuzzer Node** is the concrete simulator-layer stub that occupies that location until a real **Coordination Agent** is wired in.
+     - **Recommendation**: Use "**Call-Out Point**" when discussing design or integration seams; use "**Fuzzer Node**" only when discussing the simulator implementation.
+
+18. **"Composer" vs. "Actuator"**:
+     - A **Composer** reads context, runs a generation process, and writes a content artifact to the blackboard (e.g., advisory draft text).
+     - An **Actuator** receives a trigger, calls an external system, and confirms the side effect; no artifact is placed on the blackboard.
+     - Misclassification risk: nodes that "do something" to an external system look like Composers if you only notice they dispatch outbound calls. The discriminator is whether a content artifact lands on the blackboard. If not, it is an **Actuator**.
+     - **Recommendation**: Before classifying a node as Composer, verify it writes a content artifact to the blackboard. If the only output is a SUCCESS/FAILURE confirming an external side effect, it is an **Actuator**.
+
+19. **"Dimension Object" vs. "status field"**:
+     - A **Dimension Object** (per ADR-0036) is an immutable `BaseModel` containing the state of one machine; it is a first-class structured type, not a flat field.
+     - "Status field" is informal language that may mean a flat scalar (`rmState: "ACCEPTED"`) or a **Dimension Object** (`rm: {"state": "ACCEPTED"}`); both appear in real ledger snapshots.
+     - **Recommendation**: Say "**Dimension Object**" when referring to the structured sub-model; say "flat legacy field" when referring to the pre-ADR-0036 serialization. When extracting state from JSONL, probe both shapes (see 2026-07-22 learning on three nesting shapes).
 
 ---
 
@@ -517,12 +563,50 @@ it cannot revert. This forms a 64-state lattice (2^6 combinations).
 > organization deployed the fix. You update your model of the **Case State** and potentially make your
 > own decisions based on that new information."
 
+### Call-Out Points and Coordination Agents Example
+
+> **Developer:** "The BT has a `ReviewAdvisoryDraft` node — what actually runs there?"
+>
+> **Domain Expert:** "That's a **Call-Out Point**. In the simulator it's a **Fuzzer Node** that
+> returns SUCCESS or FAILURE probabilistically. In production you wire in a **Coordination Agent** —
+> an **Evaluator** subtype — that reviews the draft and records an **Advisory Review Decision**."
+>
+> **Developer:** "What does the BT read from that decision? The `approved` flag?"
+>
+> **Domain Expert:** "No — `approved` is metadata for the reviewer backend to record its intent.
+> The BT reads `needs_revision`. If that's true, the pipeline fails and the draft goes back for
+> revision. If you want to block outright without requesting edits — say, a legal hold — your
+> **Evaluator** returns `FAILURE` directly from `update()`. The BT never reads `approved` as a gate."
+>
+> **Developer:** "And if there's no human reviewer yet, we just leave the **Fuzzer Node** in place?"
+>
+> **Domain Expert:** "Right. The **Fuzzer Node** is the stub — it keeps the BT runnable without a
+> real **Coordination Agent**. When you're ready, you replace it with a **Retriever** that fetches
+> reviewer feedback, or an **Evaluator** backed by an LLM, or a **Sentinel** that checks an
+> external approval queue."
+
+### Dimension Objects and Status Example
+
+> **Developer:** "I need to read a **Vendor**'s current RM state — is it on `ParticipantStatus`
+> directly?"
+>
+> **Domain Expert:** "It's on the `rm` **Dimension Object** inside `ParticipantStatus`. It's a small
+> immutable model with just the `state` field. When the RM transitions, you don't mutate it; you
+> create a new **Dimension Object** and embed it in a new `ParticipantStatus` snapshot."
+>
+> **Developer:** "So `ParticipantStatus.rm.state` gives me the RM state?"
+>
+> **Domain Expert:** "Exactly. And `CaseStatus` works the same way — it holds separate **Dimension
+> Objects** for the EM and PXA dimensions, while each **Vendor**'s VFD **Dimension Object** lives
+> on their `ParticipantStatus`. The decomposition means you can compare just the RM dimension
+> without deserializing the entire status record."
+
 ---
 
 ## Metadata
 
 - **Source:** Vultron codebase, CERT/CC CVD research publications, architecture audit, formal protocol specification
-- **Last Updated:** 2026-05-08
+- **Last Updated:** 2026-07-24
 - **Domains:** Formal MPCVD protocol, CVD process models (RM/EM/CS), communicating state machines, hexagonal architecture, activity pattern matching, persistence abstraction, behavior tree orchestration, case actor federation, participant case replicas, trust bootstrap and delegation
 - **Related References:**
   - [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513) (CMU/SEI-2021-SR-021)

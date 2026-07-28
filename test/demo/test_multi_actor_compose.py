@@ -44,7 +44,7 @@ _EXPECTED_SERVICE_DEFAULTS: dict[str, int] = {
     "vendor": 0,
     "case-actor": 0,
     "coordinator": 0,
-    "vendor2": 0,
+    "actor5": 0,
 }
 
 # Pattern that matches Docker Compose env-var substitution with a default,

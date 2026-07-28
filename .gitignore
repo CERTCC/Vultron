@@ -182,3 +182,5 @@ plan/history/*/README.md
 # Vite cache
 ui/.vite/
 ui/node_modules/
+.claude/pr-*.json
+.idea/

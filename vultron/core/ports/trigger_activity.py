@@ -43,7 +43,7 @@ See also:
 
 from typing import Any, Protocol
 
-from vultron.core.models.protocols import CaseModel
+from vultron.core.models.case import VulnerabilityCase
 
 
 class TriggerActivityPort(Protocol):
@@ -266,7 +266,7 @@ class TriggerActivityPort(Protocol):
         id_: str | None = None,
         attributed_to: str | None = None,
         roles: list[str] | None = None,
-        target: CaseModel | None = None,
+        target: VulnerabilityCase | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist an ``Invite(Actor, Case)`` activity.
 
@@ -290,6 +290,20 @@ class TriggerActivityPort(Protocol):
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist an ``Accept(Invite)`` activity.
 
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def accept_case_participant_offer(
+        self,
+        cp_offer_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist an ``Accept(Offer(CaseParticipant))`` activity.
+
+        Sent by the Case Owner to the CaseActor after reviewing the
+        Offer(CaseParticipant) forwarded per ADR-0026 (CM-16-006).
         Returns ``(activity_id, activity_dict)``.
         """
         ...
@@ -423,14 +437,14 @@ class TriggerActivityPort(Protocol):
         participant_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> str:
+    ) -> tuple[str, dict[str, Any]]:
         """Create and persist an ``Offer(VulnerabilityCase, target=CaseParticipant)``
         CASE_MANAGER delegation activity.
 
         ``participant_id`` must refer to an existing ``CaseParticipant`` with
         ``CASE_MANAGER`` role (the Case Actor participant).
 
-        Returns the activity ID.
+        Returns ``(activity_id, activity_dict)``.
         """
         ...
 
@@ -442,7 +456,7 @@ class TriggerActivityPort(Protocol):
         vendor_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> str:
+    ) -> tuple[str, dict[str, Any]]:
         """Create and persist an ``Accept(_OfferCaseManagerRoleActivity)``.
 
         Ephemerally reconstructs the original Offer (using ``offer_id``,
@@ -450,7 +464,9 @@ class TriggerActivityPort(Protocol):
         the Accept so that ``Accept.object_`` is a typed
         ``_OfferCaseManagerRoleActivity``, not a bare string IRI.
 
-        Returns the activity ID.
+        Returns ``(activity_id, activity_dict)`` where ``activity_dict`` is
+        the full inline serialization of the Accept (with nested Offer
+        inlined), suitable for use as a canonical payload snapshot.
         """
         ...
 
@@ -541,6 +557,32 @@ class TriggerActivityPort(Protocol):
 
         Corresponds to the ET (Embargo Termination) protocol message.
         Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def offer_case_ownership_transfer(
+        self,
+        case_id: str,
+        transferee_id: str,
+        actor: str,
+        content: str | None = None,
+        to: list[str] | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist an ``Offer(VulnerabilityCase)`` ownership-transfer activity.
+
+        Returns ``(activity_id, activity_dict)`` (TRIG-11-001).
+        """
+        ...
+
+    def accept_case_ownership_transfer(
+        self,
+        offer_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist an ``Accept(Offer(VulnerabilityCase))`` ownership-transfer activity.
+
+        Returns ``(activity_id, activity_dict)`` (TRIG-11-002).
         """
         ...
 

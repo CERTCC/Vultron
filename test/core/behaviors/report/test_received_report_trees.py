@@ -58,6 +58,7 @@ from vultron.core.models.events.report import (
     InvalidateReportReceivedEvent,
 )
 from vultron.core.models.participant import VultronParticipant
+from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VultronReport as CoreReport
 from vultron.core.states.rm import RM
@@ -67,7 +68,9 @@ from vultron.core.use_cases.received.report import (
     CreateReportReceivedUseCase,
     InvalidateReportReceivedUseCase,
 )
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -114,8 +117,8 @@ def _setup_case_with_participant(
     report_id: str = REPORT_ID,
     actor_id: str = ACTOR_ID,
     initial_rm: RM = RM.RECEIVED,
-) -> tuple[VulnerabilityCase, VultronParticipant]:
-    """Create and persist a VulnerabilityCase linked to a report.
+) -> tuple[as_VulnerabilityCase, VultronParticipant]:
+    """Create and persist a as_VulnerabilityCase linked to a report.
 
     Adds a CaseParticipant for *actor_id* so RM transition nodes can find
     the participant record.
@@ -132,13 +135,13 @@ def _setup_case_with_participant(
         context=CASE_ID,
         participant_statuses=[
             ParticipantStatus(
-                rm_state=initial_rm,
+                rm=RmDimension(state=initial_rm),
                 context=CASE_ID,
                 attributed_to=actor_id,
             )
         ],
     )
-    case = VulnerabilityCase(id_=CASE_ID, name="BT Test Case")
+    case = as_VulnerabilityCase(id_=CASE_ID, name="BT Test Case")
     case.vulnerability_reports.append(report_id)
     case.case_participants.append(participant.id_)
     case.actor_participant_index[actor_id] = participant.id_
@@ -277,10 +280,10 @@ class TestTransitionCaseParticipantRMtoClosed:
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
 
         assert result.status == Status.SUCCESS
-        updated_case = cast(VulnerabilityCase, dl.read(CASE_ID))
+        updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
         participant = cast(VultronParticipant, dl.read(p_id))
-        assert participant.participant_statuses[-1].rm_state == RM.CLOSED
+        assert participant.participant_statuses[-1].rm.state == RM.CLOSED
 
     def test_no_case_is_soft_pass(self, dl, bridge, caplog):
         """No case for report → WARNING logged, SUCCESS returned (soft pass)."""
@@ -320,10 +323,10 @@ class TestTransitionCaseParticipantRMtoInvalid:
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
 
         assert result.status == Status.SUCCESS
-        updated_case = cast(VulnerabilityCase, dl.read(CASE_ID))
+        updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
         participant = cast(VultronParticipant, dl.read(p_id))
-        assert participant.participant_statuses[-1].rm_state == RM.INVALID
+        assert participant.participant_statuses[-1].rm.state == RM.INVALID
 
     def test_no_case_is_soft_pass(self, dl, bridge, caplog):
         """No case for report → WARNING logged, SUCCESS returned (soft pass)."""
@@ -532,10 +535,10 @@ class TestCloseReportReceivedTree:
         assert result.status == Status.SUCCESS
         assert _activity_stored(dl, ACTIVITY_ID)
 
-        updated_case = cast(VulnerabilityCase, dl.read(CASE_ID))
+        updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
         participant = cast(VultronParticipant, dl.read(p_id))
-        assert participant.participant_statuses[-1].rm_state == RM.CLOSED
+        assert participant.participant_statuses[-1].rm.state == RM.CLOSED
 
     def test_no_case_soft_pass_with_warning(self, dl, caplog):
         """No case linked to report → WARNING, BT still SUCCESS."""
@@ -577,10 +580,10 @@ class TestCloseReportReceivedUseCase:
         CloseReportReceivedUseCase(dl, event).execute()
 
         assert _activity_stored(dl, ACTIVITY_ID)
-        updated_case = cast(VulnerabilityCase, dl.read(CASE_ID))
+        updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
         participant = cast(VultronParticipant, dl.read(p_id))
-        assert participant.participant_statuses[-1].rm_state == RM.CLOSED
+        assert participant.participant_statuses[-1].rm.state == RM.CLOSED
 
     def test_use_case_warns_when_no_case(self, caplog):
         """Use case ledgers WARNING when no case is found for the report."""
@@ -615,10 +618,10 @@ class TestInvalidateReportReceivedTree:
         assert result.status == Status.SUCCESS
         assert _activity_stored(dl, ACTIVITY_ID)
 
-        updated_case = cast(VulnerabilityCase, dl.read(CASE_ID))
+        updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
         participant = cast(VultronParticipant, dl.read(p_id))
-        assert participant.participant_statuses[-1].rm_state == RM.INVALID
+        assert participant.participant_statuses[-1].rm.state == RM.INVALID
 
     def test_no_case_soft_pass_with_warning(self, dl, caplog):
         """No case linked to report → WARNING, BT still SUCCESS."""
@@ -660,10 +663,10 @@ class TestInvalidateReportReceivedUseCase:
         InvalidateReportReceivedUseCase(dl, event).execute()
 
         assert _activity_stored(dl, ACTIVITY_ID)
-        updated_case = cast(VulnerabilityCase, dl.read(CASE_ID))
+        updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
         p_id = updated_case.actor_participant_index[ACTOR_ID]
         participant = cast(VultronParticipant, dl.read(p_id))
-        assert participant.participant_statuses[-1].rm_state == RM.INVALID
+        assert participant.participant_statuses[-1].rm.state == RM.INVALID
 
     def test_use_case_warns_when_no_case(self, caplog):
         """Use case ledgers WARNING when no case is found for the report."""

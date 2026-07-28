@@ -51,6 +51,7 @@ logger = logging.getLogger(__name__)
 def create_invalidate_report_trigger_tree(
     offer_id: str,
     report_id: str,
+    captured: dict | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for the invalidate-report trigger workflow.
 
@@ -66,6 +67,8 @@ def create_invalidate_report_trigger_tree(
     Args:
         offer_id: ID of the Offer being invalidated.
         report_id: ID of the VulnerabilityReport.
+        captured: Optional dict; ``captured["activity"]`` is set to the
+            serialised activity dict on success (DL-06-001, AC-1).
 
     Returns:
         Root node of the ``InvalidateReportTriggerBT`` Sequence.
@@ -77,6 +80,7 @@ def create_invalidate_report_trigger_tree(
             EmitInvalidateReportActivity(
                 offer_id=offer_id,
                 report_id=report_id,
+                captured=captured,
             ),
             TransitionRMtoInvalid(
                 report_id=report_id,
@@ -95,6 +99,7 @@ def create_invalidate_report_trigger_tree(
 def create_reject_report_trigger_tree(
     offer_id: str,
     report_id: str,
+    captured: dict | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for the reject-report trigger workflow.
 
@@ -112,6 +117,8 @@ def create_reject_report_trigger_tree(
     Args:
         offer_id: ID of the Offer being rejected.
         report_id: ID of the VulnerabilityReport.
+        captured: Optional dict; ``captured["activity"]`` is set to the
+            serialised activity dict on success (DL-06-001, AC-1).
 
     Returns:
         Root node of the ``RejectReportTriggerBT`` Sequence.
@@ -123,6 +130,7 @@ def create_reject_report_trigger_tree(
             EmitCloseReportActivity(
                 offer_id=offer_id,
                 report_id=report_id,
+                captured=captured,
             ),
             TransitionRMtoClosed(
                 report_id=report_id,
@@ -142,6 +150,7 @@ def create_close_report_trigger_tree(
     offer_id: str,
     report_id: str,
     result_out: dict,
+    captured: dict | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for the close-report trigger workflow.
 
@@ -169,6 +178,8 @@ def create_close_report_trigger_tree(
             ``result_out["error"]`` is set to a
             ``VultronInvalidStateTransitionError`` when the report is already
             closed.
+        captured: Optional dict; ``captured["activity"]`` is set to the
+            serialised activity dict on success (DL-06-001, AC-1).
 
     Returns:
         Root node of the ``CloseReportTriggerBT`` Sequence.
@@ -184,6 +195,7 @@ def create_close_report_trigger_tree(
             EmitCloseReportActivity(
                 offer_id=offer_id,
                 report_id=report_id,
+                captured=captured,
             ),
             TransitionRMtoClosed(
                 report_id=report_id,

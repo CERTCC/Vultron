@@ -27,31 +27,31 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.base.utils import name_of
 from vultron.wire.as2.vocab.objects.case_participant import (
-    CaseParticipant,
-    CaseParticipantRef,
+    as_CaseParticipant,
+    as_CaseParticipantRef,
 )
 from vultron.wire.as2.vocab.objects.case_status import (
-    ParticipantStatus,
+    as_ParticipantStatus,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    VulnerabilityCaseRef,
+    as_VulnerabilityCaseRef,
 )
 
 
 class _CreateParticipantActivity(as_Create):
-    """Create a new CaseParticipant"""
+    """Create a new as_CaseParticipant"""
 
-    object_: CaseParticipant = Field(
+    object_: as_CaseParticipant = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
-    target: VulnerabilityCaseRef = None
+    target: as_VulnerabilityCaseRef = None
 
     @model_validator(mode="after")
     def set_name(self):
-        """Override default name to clearly identify CaseParticipant creation.
+        """Override default name to clearly identify as_CaseParticipant creation.
 
         Produces a name of the form:
-            "{actor} Create CaseParticipant {participant_id} from {attributed_to} in {case_id}"
+            "{actor} Create as_CaseParticipant {participant_id} from {attributed_to} in {case_id}"
         making it obvious that a participant object is being created for an actor,
         not the actor itself.
         """
@@ -61,7 +61,7 @@ class _CreateParticipantActivity(as_Create):
         parts = []
         if self.actor is not None:
             parts.append(name_of(self.actor))
-        parts.append("Create CaseParticipant")
+        parts.append("Create as_CaseParticipant")
         participant_id = getattr(self.object_, "id_", None)
         if participant_id:
             parts.append(str(participant_id))
@@ -77,47 +77,47 @@ class _CreateParticipantActivity(as_Create):
 
 
 class _CreateStatusForParticipantActivity(as_Create):
-    """Create a new CaseStatus for a CaseParticipant"""
+    """Create a new CaseStatus for a as_CaseParticipant"""
 
-    object_: ParticipantStatus = Field(
+    object_: as_ParticipantStatus = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
-    target: CaseParticipantRef = None
+    target: as_CaseParticipantRef = None
 
 
-# add CaseStatus to CaseParticipant
+# add CaseStatus to as_CaseParticipant
 class _AddStatusToParticipantActivity(as_Add):
-    """Add a CaseStatus to a CaseParticipant
+    """Add a CaseStatus to a as_CaseParticipant
     object_: CaseStatus
-    target: CaseParticipant
+    target: as_CaseParticipant
     """
 
-    object_: ParticipantStatus = Field(
+    object_: as_ParticipantStatus = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
-    target: CaseParticipantRef = None
+    target: as_CaseParticipantRef = None
 
 
 class _AddParticipantToCaseActivity(as_Add):
-    """Add a CaseParticipant to a VulnerabilityCase
-    object_: CaseParticipant
+    """Add a as_CaseParticipant to a VulnerabilityCase
+    object_: as_CaseParticipant
     target: VulnerabilityCase
     """
 
-    object_: CaseParticipant = Field(
+    object_: as_CaseParticipant = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
-    target: VulnerabilityCaseRef = None
+    target: as_VulnerabilityCaseRef = None
 
 
 class _RemoveParticipantFromCaseActivity(as_Remove):
-    """Remove a CaseParticipant from a VulnerabilityCase.
+    """Remove a as_CaseParticipant from a VulnerabilityCase.
     This should only be performed by the case owner.
-    object_: CaseParticipant
+    object_: as_CaseParticipant
     target: VulnerabilityCase
     """
 
-    object_: CaseParticipant = Field(
+    object_: as_CaseParticipant = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
-    target: VulnerabilityCaseRef = None
+    target: as_VulnerabilityCaseRef = None

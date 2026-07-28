@@ -28,6 +28,7 @@ IO-03-003).
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+import asyncio
 import logging
 from typing import Any, cast
 
@@ -42,7 +43,7 @@ from vultron.adapters.driving.fastapi.routers.actors._inbox import (
     _store_nested_inbox_object,
 )
 from vultron.core.models.events import VultronEvent
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.wire.as2.errors import VultronParseError
@@ -52,15 +53,51 @@ from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 logger = logging.getLogger(__name__)
 
+# Per-actor asyncio locks that serialise concurrent inbox background tasks.
+# When multiple HTTP POSTs arrive for the same actor simultaneously, each
+# creates a separate asyncio Task (BackgroundTask).  Without serialisation,
+# the second task's process_payload can run before the first has stored its
+# ledger entry, causing a hash-chain mismatch → spurious Reject → Replay loop
+# that may not converge within the demo timeout (issue #1525).
+_actor_inbox_locks: dict[str, asyncio.Lock] = {}
+
+
+def _get_actor_lock(actor_id: str) -> asyncio.Lock:
+    """Return the per-actor asyncio.Lock for *actor_id*, creating it on first use."""
+    if actor_id not in _actor_inbox_locks:
+        _actor_inbox_locks[actor_id] = asyncio.Lock()
+    return _actor_inbox_locks[actor_id]
+
+
+def _is_inline_ledger_entry_announce(activity: as_Activity) -> bool:
+    """Return True for an ``Announce`` carrying an inline ``CaseLedgerEntry``.
+
+    Used to select the in-memory rehydration path that does not depend on the
+    entry being pre-stored (SYNC-13-002/003).  Detected structurally via the
+    inline object's ``type_`` so no domain import is needed here.
+    """
+    if getattr(activity, "type_", None) != "Announce":
+        return False
+    nested = getattr(activity, "object_", None)
+    return getattr(nested, "type_", None) == "CaseLedgerEntry"
+
 
 class FastAPIIngressAdapter:
     """Ingress adapter for the FastAPI driving adapter.
 
     ``parse`` parses a raw JSON request-body dict into a typed
-    ``as_Activity`` and stores the activity (and any inline nested
-    object) in the shared DataLayer so later rehydration can resolve
-    references.  ``rehydrate`` resolves the stored activity's nested
-    references via the DataLayer.
+    ``as_Activity`` and stores the activity in the shared DataLayer so
+    later rehydration can resolve references.  ``rehydrate`` deep-hydrates
+    the *in-memory* parsed activity's reference fields via the DataLayer.
+
+    ``rehydrate`` intentionally hydrates the in-memory activity rather than
+    re-reading it by ID from the DataLayer.  A by-ID re-read would collapse an
+    inline ``object_`` to a bare ID string whenever that object was not
+    pre-stored — and per SYNC-13-002 a ``CaseLedgerEntry`` is deliberately not
+    pre-stored by ingress.  Carrying the typed inline object forward in-memory
+    (SYNC-13-003) keeps semantic routing of ``Announce(CaseLedgerEntry)``
+    unambiguous on first delivery (SYNC-13-004) without the adapter ever
+    writing the ledger.
 
     Args:
         dl: Shared DataLayer (for storing activities and rehydration).
@@ -108,7 +145,34 @@ class FastAPIIngressAdapter:
         return activity
 
     def rehydrate(self, activity: as_Activity) -> as_Activity:
-        """Resolve nested object references via the DataLayer."""
+        """Resolve nested object references for the activity.
+
+        For most activities this re-reads the stored activity by ID through the
+        canonical DataLayer pipeline (``_from_row`` → field expansion → semantic
+        coercion), preserving established behavior.
+
+        An ``Announce(CaseLedgerEntry)`` is the exception: per SYNC-13-002 the
+        inline entry is deliberately NOT pre-stored, so a by-ID re-read would
+        collapse ``object_`` to a bare ID string and mis-route the message
+        (SYNC-13-004).  For that case the already-typed in-memory activity is
+        hydrated in place (:meth:`DataLayer.hydrate` expands any scalar/list ID
+        references) and returned, so routing sees the typed ``CaseLedgerEntry``
+        without the adapter ever writing the ledger.
+        """
+        if _is_inline_ledger_entry_announce(activity):
+            try:
+                hydrated = self._dl.hydrate(activity)
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.warning(
+                    "FastAPIIngressAdapter.rehydrate: hydrate failed (%s);"
+                    " returning parsed activity unchanged.",
+                    exc,
+                )
+                return activity
+            if isinstance(hydrated, as_Activity):
+                return hydrated
+            return activity
+
         result = rehydrate(activity.id_, dl=self._dl)
         if isinstance(result, as_Activity):
             return result
@@ -218,7 +282,7 @@ class FastAPIQueuePort:
 
     def is_case_known(self, case_id: str) -> bool:
         """Return ``True`` if the case replica is locally available."""
-        return is_case_model(self._dl.read(case_id))
+        return isinstance(self._dl.read(case_id), VulnerabilityCase)
 
     def queue(
         self,
@@ -296,27 +360,33 @@ async def run_inbox_pipeline(
         actor_id=actor_id,
     )
 
-    outcome = process_payload(payload, ingress, dispatch_adp, queue)
-    logger.info(
-        "run_inbox_pipeline: status=%s context_id=%s",
-        outcome.status,
-        outcome.context_id,
-    )
-
-    # Process any replayed activities (pushed back to the queue by
-    # DeferCheckNode/DispatchNode replay after bootstrap).
-    stored_ingress = StoredActivityIngressAdapter(dl=dl)
-    while actor_dl.inbox_list():
-        item_id = actor_dl.inbox_pop()
-        if item_id is None:
-            break
-        replay_outcome = process_payload(
-            item_id, stored_ingress, dispatch_adp, queue
-        )
+    # Serialise concurrent inbox background tasks for this actor so that
+    # process_payload for entry N+1 never starts before entry N has been
+    # stored.  Without this lock, two HTTP POSTs that arrive close together
+    # create two asyncio Tasks that can run in any order; if entry N+1's
+    # task runs first, the hash-chain check fails → spurious Reject (issue #1525).
+    async with _get_actor_lock(actor_id):
+        outcome = process_payload(payload, ingress, dispatch_adp, queue)
         logger.info(
-            "run_inbox_pipeline: replayed status=%s context_id=%s",
-            replay_outcome.status,
-            replay_outcome.context_id,
+            "run_inbox_pipeline: status=%s context_id=%s",
+            outcome.status,
+            outcome.context_id,
         )
+
+        # Process any replayed activities (pushed back to the queue by
+        # DeferCheckNode/DispatchNode replay after bootstrap).
+        stored_ingress = StoredActivityIngressAdapter(dl=dl)
+        while actor_dl.inbox_list():
+            item_id = actor_dl.inbox_pop()
+            if item_id is None:
+                break
+            replay_outcome = process_payload(
+                item_id, stored_ingress, dispatch_adp, queue
+            )
+            logger.info(
+                "run_inbox_pipeline: replayed status=%s context_id=%s",
+                replay_outcome.status,
+                replay_outcome.context_id,
+            )
 
     await outbox_handler(actor_id, actor_dl, shared_dl=dl, emitter=emitter)

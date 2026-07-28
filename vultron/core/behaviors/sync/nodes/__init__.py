@@ -48,6 +48,7 @@ from vultron.core.behaviors.sync.nodes.conditions import (
     _require_log_entry,  # noqa: F401
 )
 from vultron.core.behaviors.sync.nodes.receive import (
+    BufferOutOfOrderEntryNode,
     CheckHashMatchesNode,
     CheckHashOrRejectOnMismatchNode,
     LogDeliveryConfirmationNode,
@@ -89,6 +90,7 @@ __all__ = [
     "LogDeliveryConfirmationNode",
     "PersistReceivedLogEntryNode",
     "CheckHashMatchesNode",
+    "BufferOutOfOrderEntryNode",
     "SendRejectLogEntryNode",
     "CheckHashOrRejectOnMismatchNode",
     # chain

@@ -7,7 +7,7 @@ from vultron.core.behaviors.case.nodes.participant import (
     EnsureReporterParticipantAtAcceptedNode,
 )
 from vultron.core.models.events.case import CreateCaseReceivedEvent
-from vultron.core.models.protocols import CaseModel, is_case_model
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.ports.case_persistence import CasePersistence
 
@@ -61,14 +61,14 @@ class CreateCaseReceivedUseCase:
             return
 
         case_obj_raw = request.case
-        if not is_case_model(case_obj_raw):
+        if not isinstance(case_obj_raw, VulnerabilityCase):
             logger.warning(
                 "create_case_received: case object for case '%s' does not "
-                "satisfy CaseModel protocol — skipping",
+                "is not a VulnerabilityCase — skipping",
                 case_id,
             )
             return
-        case_obj: CaseModel = case_obj_raw
+        case_obj: VulnerabilityCase = case_obj_raw
         link = _find_report_case_link(actor_id, self._dl)
 
         if link is not None:
@@ -85,7 +85,7 @@ class CreateCaseReceivedUseCase:
         self,
         actor_id: str,
         case_id: str,
-        case_obj: CaseModel,
+        case_obj: VulnerabilityCase,
         link: VultronReportCaseLink,
     ) -> None:
         """Validate trust and seed the case replica."""
@@ -124,11 +124,9 @@ class CreateCaseReceivedUseCase:
         )
 
         # Seed the local case replica
-        from vultron.core.models.protocols import is_case_model
-
         # Idempotency guard (CBT-01-006, ID-04-004)
         existing = self._dl.read(case_id)
-        if is_case_model(existing):
+        if isinstance(existing, VulnerabilityCase):
             logger.info(
                 "create_case_received: case '%s' already exists as replica "
                 "— skipping re-seed",

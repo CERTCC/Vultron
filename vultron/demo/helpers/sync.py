@@ -18,7 +18,7 @@ all case participants, and :func:`verify_replica_state` to assert that a
 replica actor's case state matches the authoritative actor.
 
 ``verify_finder_replica_state`` is a backward-compatible wrapper that maps
-the two-actor demo roles (Vendor = authoritative, Finder = replica) onto
+the FV demo roles (Vendor = authoritative, Finder = replica) onto
 the generic ``verify_replica_state`` parameters.
 """
 
@@ -26,7 +26,9 @@ import logging
 from typing import Optional
 
 from vultron.demo.utils import DataLayerClient, post_to_trigger
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +94,7 @@ def trigger_log_commit(
     Args:
         client: DataLayerClient connected to the CaseActor container.
         actor_id: Full URI of the actor committing the log entry.
-        case_id: Full URI of the ``VulnerabilityCase``.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
         event_type: Short machine-readable event descriptor.
         object_id: Optional URI of the primary object.  Defaults to
             *case_id* when not supplied.
@@ -144,7 +146,7 @@ def verify_replica_state(
             (the actor that owns/created the case).
         replica_client: DataLayerClient connected to the replica container
             (the actor that received a replicated copy).
-        case_id: Full URI of the ``VulnerabilityCase`` being verified.
+        case_id: Full URI of the ``as_VulnerabilityCase`` being verified.
         vendor_actor_id: Full URI of the Vendor actor (retained for symmetry).
         reporter_actor_id: Full URI of the Reporter/Finder actor (retained for
             future participant-status checks).
@@ -156,14 +158,14 @@ def verify_replica_state(
     """
     auth_case_data = auth_client.get(f"/datalayer/{case_id}")
     assert auth_case_data, f"Authoritative case {case_id!r} not found"
-    auth_case = VulnerabilityCase.model_validate(auth_case_data)
+    auth_case = as_VulnerabilityCase.model_validate(auth_case_data)
 
     replica_case_data = replica_client.get(f"/datalayer/{case_id}")
     assert replica_case_data, (
         f"Replica does not have a copy of case {case_id!r} — "
         "outbox delivery or inbox processing may have failed"
     )
-    replica_case = VulnerabilityCase.model_validate(replica_case_data)
+    replica_case = as_VulnerabilityCase.model_validate(replica_case_data)
 
     # 1. Same case ID
     assert (
@@ -224,14 +226,14 @@ def verify_finder_replica_state(
 ) -> None:
     """Backward-compatible wrapper for :func:`verify_replica_state`.
 
-    In the two-actor demo the Vendor is the authoritative case owner and the
+    In the FV demo the Vendor is the authoritative case owner and the
     Finder holds a replicated copy, so *vendor_client* maps to *auth_client*
     and *finder_client* maps to *replica_client*.
 
     Args:
         finder_client: DataLayerClient connected to the Finder (replica).
         vendor_client: DataLayerClient connected to the Vendor (authoritative).
-        case_id: Full URI of the ``VulnerabilityCase`` being verified.
+        case_id: Full URI of the ``as_VulnerabilityCase`` being verified.
         vendor_actor_id: Full URI of the Vendor actor.
         reporter_actor_id: Full URI of the Reporter/Finder actor.
     """

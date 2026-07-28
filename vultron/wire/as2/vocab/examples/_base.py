@@ -24,9 +24,11 @@ from vultron.wire.as2.vocab.base.objects.actors import (
     as_Person,
     as_Service,
 )
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 _EXAMPLE_BASE_URL = "https://demo.vultron.local/"
@@ -59,7 +61,7 @@ _CASE_ACTOR = as_Service(
     id_=f"{case_actor_base_url}/vendorco-case-actor",
 )
 
-_REPORT = VulnerabilityReport(
+_REPORT = as_VulnerabilityReport(
     name="FDR-8675309",
     id_=_make_id("VulnerabilityReport"),
     content="I found a vulnerability!",
@@ -67,7 +69,7 @@ _REPORT = VulnerabilityReport(
         _FINDER.id_,
     ],
 )
-_CASE = VulnerabilityCase(
+_CASE = as_VulnerabilityCase(
     name=f"{_VENDOR.name} Case #{case_number}",
     attributed_to=_VENDOR.id_,
 )
@@ -109,10 +111,10 @@ def case_actor() -> as_Service:
     return _CASE_ACTOR
 
 
-def case(random_id=False) -> VulnerabilityCase:
+def case(random_id=False) -> as_VulnerabilityCase:
     if random_id:
         _case_number = random.randint(10000000, 99999999)
-        _case = VulnerabilityCase(
+        _case = as_VulnerabilityCase(
             name=f"{_VENDOR.name} Case #{_case_number}",
             id_=_make_id("VulnerabilityCase"),
             attributed_to=_VENDOR.id_,
@@ -121,11 +123,11 @@ def case(random_id=False) -> VulnerabilityCase:
     return _CASE
 
 
-def gen_report() -> VulnerabilityReport:
+def gen_report() -> as_VulnerabilityReport:
     """
     Create a vulnerability report
     Returns:
-        a VulnerabilityReport object
+        a as_VulnerabilityReport object
     """
     return _REPORT
 

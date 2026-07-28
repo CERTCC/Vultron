@@ -15,7 +15,6 @@ from vultron.core.use_cases.triggers.requests import (
 )
 from vultron.errors import VultronInvalidStateTransitionError
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 from .conftest import (
     _build_exited_case,
@@ -54,6 +53,8 @@ def test_propose_embargo_updates_case_state_via_bt_path(
     """ProposeEmbargo transitions EM.NONE → EM.PROPOSED and queues activity."""
     from typing import cast
 
+    from vultron.core.models.case import VulnerabilityCase
+
     finder, finder_dl = finder_actor_and_dl
     case = _build_no_embargo_case_with_case_manager(finder_dl, finder.id_)
     request = ProposeEmbargoTriggerRequest(
@@ -68,5 +69,5 @@ def test_propose_embargo_updates_case_state_via_bt_path(
 
     assert "activity" in result
     updated_case = cast(VulnerabilityCase, finder_dl.read(case.id_))
-    assert updated_case.current_status.em_state == EM.PROPOSED
+    assert updated_case.current_status.em.state == EM.PROPOSED
     assert len(updated_case.proposed_embargoes) == 1

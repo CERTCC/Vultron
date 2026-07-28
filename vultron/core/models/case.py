@@ -69,6 +69,12 @@ class VulnerabilityCase(CoreObject):
     notes: list[str] = Field(default_factory=list)
     active_embargo: str | None = None
     proposed_embargoes: list[str] = Field(default_factory=list)
+    pending_embargo_proposal_index: dict[str, str] = Field(
+        default_factory=dict
+    )
+    recommendation_recommender_index: dict[str, str] = Field(
+        default_factory=dict
+    )
     case_activity: list[str] = Field(default_factory=list)
     genesis_hash: str = Field(
         default="",

@@ -30,6 +30,11 @@ class SemanticEntry:
             ``None`` for the ``UNKNOWN`` fallback entry.
         event_class: Domain event class to construct from the matched activity.
         use_case_class: Use-case class to execute for this semantic type.
+        phrase: Active-voice format-string template for human-readable event
+            summaries (SE-07-001).  Named slots drawn from
+            ``{actor}``, ``{object}``, ``{target}``, ``{context}``,
+            ``{origin}``, ``{inner_object}`` (SE-07-002).  No default — omitting
+            it is a ``TypeError`` at construction time (SE-07-003).
         wire_activity_class: Specific wire ``as_Activity`` subclass for
             DataLayer coercion. ``None`` when no specific wire class exists.
         include_activity: When ``True``, ``extract_intent()`` populates
@@ -40,5 +45,6 @@ class SemanticEntry:
     pattern: ActivityPattern | None
     event_class: type[VultronEvent]
     use_case_class: type
+    phrase: str
     wire_activity_class: type[as_Activity] | None = field(default=None)
     include_activity: bool = field(default=False)

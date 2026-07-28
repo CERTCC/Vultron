@@ -131,7 +131,7 @@ def test_trigger_reject_embargo_sets_em_state_to_no_embargo(
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
     updated_case = dl.read(case_obj.id_)
-    assert updated_case.current_status.em_state == EM.NO_EMBARGO
+    assert updated_case.current_status.em.state == EM.NO_EMBARGO
 
 
 def test_trigger_reject_embargo_adds_activity_to_outbox(

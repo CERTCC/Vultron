@@ -315,6 +315,22 @@ class AcceptCaseInviteRequest(BaseModel):
     invite_id: NonEmptyString
 
 
+class AcceptActorRecommendationRequest(BaseModel):
+    """Request body for the accept-actor-recommendation trigger endpoint.
+
+    Sent by the Case Owner (e.g. Vendor1) to accept an Offer(CaseParticipant)
+    forwarded by the CaseActor per ADR-0026 (CM-16-006).
+
+    TB-03-001: Must include cp_offer_id and case_actor_id.
+    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    cp_offer_id: NonEmptyString
+    case_actor_id: UriString
+
+
 class InviteActorToCaseRequest(BaseModel):
     """Request body for the invite-actor-to-case trigger endpoint.
 
@@ -340,6 +356,38 @@ class OfferCaseManagerRoleRequest(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     case_id: UriString
+
+
+class OfferCaseOwnershipTransferRequest(BaseModel):
+    """Request body for the offer-case-ownership-transfer trigger endpoint.
+
+    Emits ``Offer(VulnerabilityCase)`` (ownership transfer variant) from the
+    requesting actor to the specified transferee (TRIG-11-001).
+
+    TB-03-001: Must include case_id and transferee_id.
+    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    case_id: UriString
+    transferee_id: UriString
+    content: NonEmptyString | None = None
+
+
+class AcceptCaseOwnershipTransferRequest(BaseModel):
+    """Request body for the accept-case-ownership-transfer trigger endpoint.
+
+    Emits ``Accept(Offer(VulnerabilityCase))`` from the requesting actor back
+    to the offering actor (TRIG-11-002).
+
+    TB-03-001: Must include offer_id.
+    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    offer_id: NonEmptyString
 
 
 class NotifyFixReadyRequest(BaseModel):

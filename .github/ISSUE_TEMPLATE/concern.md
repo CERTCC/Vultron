@@ -9,6 +9,23 @@ labels: concern
 
 <!-- One or two sentences describing the concern. -->
 
+## Surface Symptom vs. Underlying Problem
+
+<!--
+State two things: (1) the naive, symptom-level reading someone would stop at,
+and (2) the deeper problem underneath it that this concern is really about.
+Naming both turns the concern into a worked example of the judgment involved —
+it shows the jump from the obvious reading to the real one, which is exactly
+what makes concerns useful to learn from later.
+
+If the deeper problem also implies parts of the current design that are
+*already correct and should not be touched*, say so — knowing what to leave
+alone is as valuable as knowing what to change.
+
+Omit only if there genuinely is no gap between the surface reading and the
+underlying problem.
+-->
+
 ## Category
 
 <!-- Check the one that best fits. -->

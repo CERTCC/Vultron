@@ -36,67 +36,19 @@ References
 """
 
 import logging
+from typing import TYPE_CHECKING
 
 import py_trees
 
-from vultron.core.behaviors.call_out_point import CallOutBackendFactory
+if TYPE_CHECKING:
+    from vultron.demo.fuzzer.bundles.deploy_fix import DeployFixCallOutBundle
 
 logger = logging.getLogger(__name__)
 
 
-def _default_prioritize_deployment_factory(
-    name: str,
-) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.deploy_fix import (
-        PrioritizeDeployment,
-    )
-
-    return PrioritizeDeployment(name)
-
-
-def _default_deploy_mitigation_factory(
-    name: str,
-) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.deploy_fix import (
-        DeployMitigation,
-    )
-
-    return DeployMitigation(name)
-
-
-def _default_monitoring_requirement_factory(
-    name: str,
-) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.deploy_fix import (
-        MonitoringRequirement,
-    )
-
-    return MonitoringRequirement(name)
-
-
-def _default_deploy_fix_factory(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.deploy_fix import DeployFix
-
-    return DeployFix(name)
-
-
-def _default_monitor_deployment_factory(
-    name: str,
-) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.deploy_fix import (
-        MonitorDeployment,
-    )
-
-    return MonitorDeployment(name)
-
-
 def create_deploy_fix_tree(
     case_id: str,
-    prioritize_deployment_factory: CallOutBackendFactory = _default_prioritize_deployment_factory,
-    deploy_mitigation_factory: CallOutBackendFactory = _default_deploy_mitigation_factory,
-    monitoring_requirement_factory: CallOutBackendFactory = _default_monitoring_requirement_factory,
-    deploy_fix_factory: CallOutBackendFactory = _default_deploy_fix_factory,
-    monitor_deployment_factory: CallOutBackendFactory = _default_monitor_deployment_factory,
+    call_out: "DeployFixCallOutBundle | None" = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create behavior tree for the fix deployment workflow (Phase 1 stub).
 
@@ -107,34 +59,25 @@ def create_deploy_fix_tree(
 
     Args:
         case_id: ID of VulnerabilityCase being processed.
-        prioritize_deployment_factory: Factory for the Evaluator call-out point
-            that assigns deployment priority.  Defaults to the fuzzer backend
-            (BT-18-004).
-        deploy_mitigation_factory: Factory for the Evaluator call-out point
-            that deploys an interim mitigation.  Defaults to the fuzzer backend
-            (BT-18-004).
-        monitoring_requirement_factory: Factory for the Evaluator call-out
-            point that checks whether deployment monitoring is required by
-            policy.  Defaults to the fuzzer backend (BT-18-004).
-        deploy_fix_factory: Factory for the Evaluator call-out point that
-            applies the vendor-provided fix.  Defaults to the fuzzer backend
-            (BT-18-004).
-        monitor_deployment_factory: Factory for the Actuator call-out point
-            that performs active deployment monitoring.  Defaults to the fuzzer
-            backend (BT-18-004).
+        call_out: Bundle of call-out backend factories for this domain.
+            Defaults to :data:`~vultron.demo.fuzzer.bundles.deploy_fix.DEPLOY_FIX_DETERMINISTIC`
+            (BT-23-003, BT-23-005).
 
     Returns:
         Root node of the deploy-fix behavior tree (Phase 1 stub Sequence).
     """
+    from vultron.demo.fuzzer.bundles.deploy_fix import DEPLOY_FIX_DETERMINISTIC
+
+    bundle = call_out if call_out is not None else DEPLOY_FIX_DETERMINISTIC
     root = py_trees.composites.Sequence(
         name="DeployFixBT",
         memory=False,
         children=[
-            prioritize_deployment_factory("PrioritizeDeployment"),
-            deploy_mitigation_factory("DeployMitigation"),
-            monitoring_requirement_factory("MonitoringRequirement"),
-            deploy_fix_factory("DeployFix"),
-            monitor_deployment_factory("MonitorDeployment"),
+            bundle.prioritize_deployment_factory("PrioritizeDeployment"),
+            bundle.deploy_mitigation_factory("DeployMitigation"),
+            bundle.monitoring_requirement_factory("MonitoringRequirement"),
+            bundle.deploy_fix_factory("DeployFix"),
+            bundle.monitor_deployment_factory("MonitorDeployment"),
         ],
     )
     logger.info(f"Created DeployFixBT (Phase 1 stub) for case={case_id}")

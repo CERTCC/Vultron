@@ -41,32 +41,31 @@ When run as a script, this module will:
 """
 
 import logging
-import sys
 from typing import Callable, Optional, Sequence, Tuple
 
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_participant import (
-    CaseParticipant,
+    as_CaseParticipant,
 )
 from vultron.enums.roles import CVDRole
 from vultron.core.states.participant_embargo_consent import PEC
-from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 from vultron.core.states.rm import RM
 from vultron.core.states.cs import CS_vfd
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
-    check_server_availability,
     demo_check,
     demo_step,
     get_offer_from_datalayer,
     log_case_state,
     logfmt,
-    demo_environment,
     post_to_inbox_and_wait,
     ref_id,
     verify_object_stored,
@@ -87,6 +86,8 @@ from vultron.wire.as2.factories import (
     rm_validate_report_activity,
 )
 
+from vultron.demo.helpers.runner import run_exchange_demos
+
 logger = logging.getLogger(__name__)
 
 
@@ -94,7 +95,7 @@ def _setup_case_with_vendor(
     client: DataLayerClient,
     finder: as_Actor,
     vendor: as_Actor,
-) -> VulnerabilityCase:
+) -> as_VulnerabilityCase:
     """
     Set up an initialized case owned by the vendor as a precondition for the
     manage-participants workflow.
@@ -102,13 +103,13 @@ def _setup_case_with_vendor(
     Steps:
     1. Finder submits report to vendor
     2. Vendor validates the report
-    3. Vendor creates a VulnerabilityCase
+    3. Vendor creates a as_VulnerabilityCase
     4. Vendor creates a VendorParticipant and adds it to the case
     5. Report is linked to the case
 
-    Returns the created VulnerabilityCase.
+    Returns the created as_VulnerabilityCase.
     """
-    report = VulnerabilityReport(
+    report = as_VulnerabilityReport(
         attributed_to=finder.id_,
         content="A use-after-free vulnerability in the memory allocator.",
         name="Use-After-Free in Memory Allocator",
@@ -127,7 +128,7 @@ def _setup_case_with_vendor(
     )
     post_to_inbox_and_wait(client, vendor.id_, validate_activity)
 
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         attributed_to=vendor.id_,
         name="UAF Case — Memory Allocator",
         content="Tracking the use-after-free in the memory allocator.",
@@ -136,7 +137,7 @@ def _setup_case_with_vendor(
     post_to_inbox_and_wait(client, vendor.id_, create_case_act)
     verify_object_stored(client, case.id_)
 
-    vendor_participant = CaseParticipant(
+    vendor_participant = as_CaseParticipant(
         case_roles=[CVDRole.VENDOR],
         attributed_to=vendor.id_,
         context=case.id_,
@@ -177,7 +178,7 @@ def demo_manage_participants_accept(
     3. Coordinator accepts invitation (RmAcceptInviteToCaseActivity)
     4. Vendor creates coordinator participant (CreateParticipantActivity)
     5. Vendor adds coordinator participant to case (AddParticipantToCaseActivity)
-    6. Coordinator creates a ParticipantStatus (CreateStatusForParticipantActivity)
+    6. Coordinator creates a as_ParticipantStatus (CreateStatusForParticipantActivity)
     7. Coordinator adds the status to their participant (AddStatusToParticipantActivity)
     8. Vendor removes coordinator participant from case (RemoveParticipantFromCaseActivity)
     9. Verify coordinator no longer in case participant list
@@ -213,7 +214,7 @@ def demo_manage_participants_accept(
         post_to_inbox_and_wait(client, vendor.id_, accept)
 
     with demo_step("Step 4: Vendor creates coordinator participant"):
-        coordinator_participant = CaseParticipant(
+        coordinator_participant = as_CaseParticipant(
             case_roles=[CVDRole.COORDINATOR],
             attributed_to=coordinator.id_,
             context=case.id_,
@@ -247,8 +248,8 @@ def demo_manage_participants_accept(
                     f"not found in case after add. Participants: {participant_ids}"
                 )
 
-    with demo_step("Step 6: Coordinator creates a ParticipantStatus"):
-        participant_status = ParticipantStatus(
+    with demo_step("Step 6: Coordinator creates a as_ParticipantStatus"):
+        participant_status = as_ParticipantStatus(
             context=coordinator_participant.id_,
             rm_state=RM.ACCEPTED,
             vfd_state=CS_vfd.vfd,
@@ -262,11 +263,11 @@ def demo_manage_participants_accept(
             target=coordinator_participant.id_,
         )
         post_to_inbox_and_wait(client, coordinator.id_, create_status)
-        with demo_check("ParticipantStatus stored in data layer"):
+        with demo_check("as_ParticipantStatus stored in data layer"):
             verify_object_stored(client, participant_status.id_)
 
     with demo_step(
-        "Step 7: Coordinator adds ParticipantStatus to their participant"
+        "Step 7: Coordinator adds as_ParticipantStatus to their participant"
     ):
         add_status = add_status_to_participant_activity(
             participant_status,
@@ -392,66 +393,10 @@ def main(
     skip_health_check: bool = False,
     demos: Optional[Sequence] = None,
 ) -> None:
-    """
-    Main entry point for the manage_participants demo script.
-
-    Args:
-        skip_health_check: Skip server availability check (useful for testing)
-        demos: Optional sequence of demo functions to run. Defaults to all.
-    """
-    client = DataLayerClient()
-
-    if not skip_health_check and not check_server_availability(client):
-        logger.error("=" * 80)
-        logger.error("ERROR: API server is not available")
-        logger.error("=" * 80)
-        logger.error(f"Cannot connect to: {client.base_url}")
-        logger.error("")
-        logger.error("Please ensure the Vultron API server is running:")
-        logger.error(
-            "  uv run uvicorn vultron.api.main:app --host localhost --port 7999"
-        )
-        logger.error("=" * 80)
-        sys.exit(1)
-
-    selected = (
-        _ALL_DEMOS
-        if demos is None
-        else [(name, fn) for name, fn in _ALL_DEMOS if fn in demos]
+    """Main entry point for the manage participants demo demo script."""
+    run_exchange_demos(
+        _ALL_DEMOS, skip_health_check=skip_health_check, demos=demos
     )
-    total = len(selected)
-    errors = []
-
-    for demo_name, demo_fn in selected:
-        try:
-            with demo_environment(client) as (finder, vendor, coordinator):
-                demo_fn(client, finder, vendor, coordinator)
-        except Exception as e:
-            logger.error(f"{demo_name} failed: {e}", exc_info=True)
-            errors.append((demo_name, str(e)))
-
-    logger.info("=" * 80)
-    logger.info("ALL DEMOS COMPLETE")
-    logger.info("=" * 80)
-
-    if errors:
-        logger.error("")
-        logger.error("=" * 80)
-        logger.error("ERROR SUMMARY")
-        logger.error("=" * 80)
-        logger.error(f"Total demos: {total}")
-        logger.error(f"Failed demos: {len(errors)}")
-        logger.error(f"Successful demos: {total - len(errors)}")
-        logger.error("")
-        for demo_name, error in errors:
-            logger.error(f"{demo_name}:")
-            logger.error(f"  {error}")
-            logger.error("")
-        logger.error("=" * 80)
-    else:
-        logger.info("")
-        logger.info(f"✓ All {total} demos completed successfully!")
-        logger.info("")
 
 
 if __name__ == "__main__":

@@ -30,10 +30,10 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.models.case import VultronCase
 from vultron.core.models.participant import VultronParticipant
-from vultron.core.models.protocols import is_participant_model
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 # Test implementation of abstract base classes
@@ -80,8 +80,8 @@ def bridge(datalayer):
 
 @pytest.fixture
 def sample_report():
-    """Sample VulnerabilityReport for testing CRUD operations."""
-    return VulnerabilityReport(
+    """Sample as_VulnerabilityReport for testing CRUD operations."""
+    return as_VulnerabilityReport(
         id_="https://example.org/objects/test-123",
         name="Test Object",
     )
@@ -221,7 +221,7 @@ def test_find_participant_by_actor_id_success_writes_blackboard(
 
         def update(self) -> Status:
             found = self.blackboard.get("found_participant")
-            if not is_participant_model(found):
+            if not isinstance(found, CaseParticipant):
                 self.feedback_message = "No participant found on blackboard"
                 return Status.FAILURE
             self.feedback_message = f"Found participant {found.id_}"
@@ -613,6 +613,119 @@ def test_condition_logger_name_includes_class(bridge, datalayer):
     """Logger name should include the subclass name so log output is identifiable."""
     node = AlwaysTrueCondition(name="test-node")
     assert "AlwaysTrueCondition" in node.logger.name
+
+
+# Tests for _require_* guard helpers on DataLayerCondition
+
+
+def test_condition_require_datalayer_returns_failure_when_none():
+    """_require_datalayer() returns FAILURE when datalayer is not set."""
+    node = AlwaysTrueCondition(name="GuardTest")
+    # datalayer defaults to None (no bridge/setup)
+    result = node._require_datalayer()
+    assert result == Status.FAILURE
+    assert node.feedback_message == "DataLayer not available"
+
+
+def test_condition_require_datalayer_returns_none_when_set(datalayer):
+    """_require_datalayer() returns None (no failure) when datalayer is set."""
+    node = AlwaysTrueCondition(name="GuardTest")
+    node.datalayer = datalayer
+    result = node._require_datalayer()
+    assert result is None
+
+
+def test_condition_require_datalayer_and_actor_returns_failure_when_both_none():
+    """_require_datalayer_and_actor() returns FAILURE when both are None."""
+    node = AlwaysTrueCondition(name="GuardTest")
+    result = node._require_datalayer_and_actor()
+    assert result == Status.FAILURE
+
+
+def test_condition_require_datalayer_and_actor_returns_failure_when_actor_none(
+    datalayer,
+):
+    """_require_datalayer_and_actor() returns FAILURE when only actor_id is None."""
+    node = AlwaysTrueCondition(name="GuardTest")
+    node.datalayer = datalayer
+    node.actor_id = None
+    result = node._require_datalayer_and_actor()
+    assert result == Status.FAILURE
+
+
+def test_condition_require_datalayer_and_actor_returns_failure_when_datalayer_none():
+    """_require_datalayer_and_actor() returns FAILURE when only datalayer is None."""
+    node = AlwaysTrueCondition(name="GuardTest")
+    node.actor_id = "https://example.org/actors/a1"
+    result = node._require_datalayer_and_actor()
+    assert result == Status.FAILURE
+
+
+def test_condition_require_datalayer_and_actor_returns_none_when_both_set(
+    datalayer,
+):
+    """_require_datalayer_and_actor() returns None when both datalayer and actor_id are set."""
+    node = AlwaysTrueCondition(name="GuardTest")
+    node.datalayer = datalayer
+    node.actor_id = "https://example.org/actors/a1"
+    result = node._require_datalayer_and_actor()
+    assert result is None
+
+
+# Tests for _require_* guard helpers on DataLayerAction
+
+
+def test_action_require_datalayer_returns_failure_when_none():
+    """DataLayerAction._require_datalayer() returns FAILURE when datalayer is not set."""
+    node = NoOpAction(name="GuardTest")
+    result = node._require_datalayer()
+    assert result == Status.FAILURE
+    assert node.feedback_message == "DataLayer not available"
+
+
+def test_action_require_datalayer_returns_none_when_set(datalayer):
+    """DataLayerAction._require_datalayer() returns None when datalayer is set."""
+    node = NoOpAction(name="GuardTest")
+    node.datalayer = datalayer
+    result = node._require_datalayer()
+    assert result is None
+
+
+def test_action_require_datalayer_and_actor_returns_failure_when_none():
+    """DataLayerAction._require_datalayer_and_actor() returns FAILURE when both None."""
+    node = NoOpAction(name="GuardTest")
+    result = node._require_datalayer_and_actor()
+    assert result == Status.FAILURE
+
+
+def test_action_require_datalayer_and_actor_returns_none_when_both_set(
+    datalayer,
+):
+    """DataLayerAction._require_datalayer_and_actor() returns None when both set."""
+    node = NoOpAction(name="GuardTest")
+    node.datalayer = datalayer
+    node.actor_id = "https://example.org/actors/a1"
+    result = node._require_datalayer_and_actor()
+    assert result is None
+
+
+def test_action_require_factory_returns_failure_when_none():
+    """DataLayerAction._require_factory() returns FAILURE when factory is not set."""
+    node = NoOpAction(name="GuardTest")
+    result = node._require_factory()
+    assert result == Status.FAILURE
+    assert node.feedback_message == "trigger_activity_factory not available"
+
+
+def test_action_require_factory_returns_none_when_set():
+    """DataLayerAction._require_factory() returns None when factory is set."""
+    from unittest.mock import MagicMock
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
+
+    node = NoOpAction(name="GuardTest")
+    node.trigger_activity_factory = MagicMock(spec=TriggerActivityPort)
+    result = node._require_factory()
+    assert result is None
 
 
 def test_action_logger_emits_via_caplog(bridge, datalayer, caplog):

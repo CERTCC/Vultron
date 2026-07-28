@@ -103,30 +103,30 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Person
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.case_ledger_entry import CaseLedgerEntry
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+from vultron.wire.as2.vocab.objects.case_ledger_entry import as_CaseLedgerEntry
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import (
-    CaseStatus,
-    ParticipantStatus,
+    as_CaseStatus,
+    as_ParticipantStatus,
 )
-from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    VulnerabilityCase,
+    as_VulnerabilityCase,
     VulnerabilityCaseStub,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 _ACTOR = as_Person(name="Alice")
-_CASE = VulnerabilityCase(name="Test Case")
-_REPORT = VulnerabilityReport(name="CVE-TEST-001")
+_CASE = as_VulnerabilityCase(name="Test Case")
+_REPORT = as_VulnerabilityReport(name="CVE-TEST-001")
 _NOTE = as_Note(name="Test Note")
-_STATUS = CaseStatus()
-_PARTICIPANT_STATUS = ParticipantStatus(context=_CASE.id_)
-_EMBARGO = EmbargoEvent(name="Embargo Event")
-_PARTICIPANT = CaseParticipant(attributed_to=_ACTOR.id_)
-_LOG_ENTRY = CaseLedgerEntry(
+_STATUS = as_CaseStatus()
+_PARTICIPANT_STATUS = as_ParticipantStatus(context=_CASE.id_)
+_EMBARGO = as_EmbargoEvent(name="Embargo Event")
+_PARTICIPANT = as_CaseParticipant(attributed_to=_ACTOR.id_)
+_LOG_ENTRY = as_CaseLedgerEntry(
     case_id=_CASE.id_,
     log_object_id=_REPORT.id_,
     event_type="CREATE_REPORT",
@@ -137,7 +137,7 @@ _STUB = VulnerabilityCaseStub(id_=_CASE.id_)
 _INVITE = _RmInviteToCaseActivity(actor=_ACTOR, object_=_ACTOR, target=_STUB)
 _PROPOSE = _EmProposeEmbargoActivity(
     actor=_ACTOR,
-    object_=EmbargoEvent(name="Embargo Event"),
+    object_=as_EmbargoEvent(name="Embargo Event"),
     context=_CASE.id_,
 )
 _RECOMMEND = _RecommendActorActivity(
@@ -277,12 +277,12 @@ class TestInlineTypedObjectAccepted(unittest.TestCase):
 
     def test_reject_log_entry_accepts_typed(self):
         obj = _RejectLogEntryActivity(actor=_ACTOR.id_, object_=_LOG_ENTRY)
-        assert isinstance(obj.object_, CaseLedgerEntry)
+        assert isinstance(obj.object_, as_CaseLedgerEntry)
 
     def test_announce_log_entry_still_accepts_typed(self):
-        """_AnnounceLogEntryActivity should still accept a CaseLedgerEntry."""
+        """_AnnounceLogEntryActivity should still accept a as_CaseLedgerEntry."""
         obj = _AnnounceLogEntryActivity(actor=_ACTOR.id_, object_=_LOG_ENTRY)
-        assert isinstance(obj.object_, CaseLedgerEntry)
+        assert isinstance(obj.object_, as_CaseLedgerEntry)
 
 
 class TestNoneObjectRejected(unittest.TestCase):

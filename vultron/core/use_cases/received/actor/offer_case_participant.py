@@ -32,6 +32,7 @@ from vultron.core.behaviors.case.suggest_actor_tree import (
     create_receive_offer_case_participant_tree,
     create_reject_actor_recommendation_received_tree,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.actor import (
     AcceptOfferCaseParticipantReceivedEvent,
     OfferCaseParticipantReceivedEvent,
@@ -39,6 +40,7 @@ from vultron.core.models.events.actor import (
 )
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.use_cases.received.sync import _find_local_actor_id
+from vultron.enums.roles import serialize_roles
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -117,18 +119,36 @@ class AcceptOfferCaseParticipantReceivedUseCase:
     def execute(self) -> None:
         request = self._request
         activity_id = request.activity_id
-        case_id = request.target_id
+        case_id = request.target_id or request.inner_target_id
         inner_offer = getattr(request.activity, "object_", None)
         participant_obj = getattr(inner_offer, "object_", None)
         raw_invitee = getattr(participant_obj, "attributed_to", None)
         invitee_id = getattr(raw_invitee, "id_", raw_invitee)
-        recommendation_id = getattr(inner_offer, "origin", None)
+        raw_recommendation_id = getattr(inner_offer, "origin", None)
+        recommendation_id = getattr(
+            raw_recommendation_id, "id_", raw_recommendation_id
+        )
         recommender_id = None
-        if recommendation_id:
-            stored_offer = self._dl.read(recommendation_id)
-            if stored_offer is not None:
-                raw_actor = getattr(stored_offer, "actor", None)
-                recommender_id = getattr(raw_actor, "id_", raw_actor)
+        if recommendation_id and case_id:
+            case = self._dl.read(case_id)
+            if isinstance(case, VulnerabilityCase):
+                recommender_id = case.recommendation_recommender_index.get(
+                    recommendation_id
+                )
+
+        # Read the stored Offer (written by offer_actor_to_case()) to get the
+        # trusted roles. Do NOT use the embedded CaseParticipant from the
+        # received Accept — the accepting actor may have modified it or may
+        # have sent only a bare ID reference (ISSUE-1745).
+        offer_roles: list | None = None
+        raw_offer_id = getattr(inner_offer, "id_", None)
+        offer_id = raw_offer_id if isinstance(raw_offer_id, str) else None
+        if offer_id:
+            stored_offer = self._dl.read(offer_id)
+            stored_participant = getattr(stored_offer, "object_", None)
+            raw_roles = getattr(stored_participant, "roles", None)
+            if isinstance(raw_roles, list) and raw_roles:
+                offer_roles = serialize_roles(raw_roles)
 
         if not case_id or not invitee_id:
             logger.warning(
@@ -152,6 +172,7 @@ class AcceptOfferCaseParticipantReceivedUseCase:
             recommender_id=recommender_id or "",
             invitee_id=invitee_id,
             case_id=case_id,
+            roles=offer_roles,
         )
         bridge = BTBridge(
             datalayer=self._dl, trigger_activity=self._trigger_activity
@@ -187,13 +208,17 @@ class RejectOfferCaseParticipantReceivedUseCase:
         participant_obj = getattr(inner_offer, "object_", None)
         raw_invitee = getattr(participant_obj, "attributed_to", None)
         recommended_id = getattr(raw_invitee, "id_", None) or request.object_id
-        recommendation_id = getattr(inner_offer, "origin", None)
+        raw_recommendation_id = getattr(inner_offer, "origin", None)
+        recommendation_id = getattr(
+            raw_recommendation_id, "id_", raw_recommendation_id
+        )
         recommender_id = None
-        if recommendation_id:
-            stored_offer = self._dl.read(recommendation_id)
-            if stored_offer is not None:
-                raw_actor = getattr(stored_offer, "actor", None)
-                recommender_id = getattr(raw_actor, "id_", raw_actor)
+        if recommendation_id and case_id:
+            case = self._dl.read(case_id)
+            if isinstance(case, VulnerabilityCase):
+                recommender_id = case.recommendation_recommender_index.get(
+                    recommendation_id
+                )
 
         if not case_id:
             logger.warning(

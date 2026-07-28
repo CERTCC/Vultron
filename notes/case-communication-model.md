@@ -16,7 +16,7 @@ related_notes:
   - notes/case-ledger-authority.md
   - notes/event-driven-control-flow.md
   - notes/participant-case-replica.md
-  - notes/two-actor-demo.md
+  - notes/fv-demo.md
 relevant_packages:
   - vultron/core/use_cases/triggers
   - vultron/core/use_cases/received

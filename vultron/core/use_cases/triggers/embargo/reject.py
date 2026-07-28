@@ -26,7 +26,7 @@ from vultron.core.behaviors.embargo.trigger_tree import (
 from vultron.core.use_cases.triggers._base import SvcEmbargoTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
     _is_case_owner,
-    _resolve_embargo_id_from_proposal,
+    _resolve_embargo_id_from_proposal_id,
     _resolve_embargo_proposal,
     resolve_actor,
     resolve_case,
@@ -46,15 +46,17 @@ class SvcRejectEmbargoUseCase(SvcEmbargoTriggerBase):
         actor = resolve_actor(request.actor_id, dl)
         self._actor_id = actor.id_
         self._case = resolve_case(request.case_id, dl)
-        self._proposal = _resolve_embargo_proposal(
-            self._case, request.proposal_id, dl
+        self._proposal_id = _resolve_embargo_proposal(
+            self._case, request.proposal_id
         )
-        self._embargo_id = _resolve_embargo_id_from_proposal(self._proposal)
+        self._embargo_id = _resolve_embargo_id_from_proposal_id(
+            self._case, self._proposal_id
+        )
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         def _build_activities(case_manager_id: str) -> list[str]:
             reject_id, reject_dict = self._factory.reject_embargo(
-                proposal_id=self._proposal.id_,
+                proposal_id=self._proposal_id,
                 case_id=self._case.id_,
                 actor=self._actor_id,
                 to=[case_manager_id],
@@ -79,7 +81,7 @@ class SvcRejectEmbargoUseCase(SvcEmbargoTriggerBase):
                 "Actor '%s' rejected embargo proposal '%s' on case '%s'"
                 " (EM %s → %s)",
                 self._actor_id,
-                self._proposal.id_,
+                self._proposal_id,
                 self._case.id_,
                 lr.em_before,
                 lr.em_after,
@@ -90,7 +92,7 @@ class SvcRejectEmbargoUseCase(SvcEmbargoTriggerBase):
                 " participant consent for embargo '%s' on case '%s'"
                 " (EM unchanged at %s)",
                 self._actor_id,
-                self._proposal.id_,
+                self._proposal_id,
                 self._embargo_id,
                 self._case.id_,
                 lr.em_after,

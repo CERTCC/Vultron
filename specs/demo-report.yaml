@@ -1,24 +1,23 @@
 id: DRPT
 title: Demo Scenario Report Tool
 description: >-
-  Requirements for a read-only command-line tool that parses the JSONL
-  case-ledger replica files produced by demo scenario runs and renders a
-  selective, human-readable report — "who did what to whom, with what activity,
-  in what order." Covers input discovery, the distilled intermediate data model,
-  markdown and self-contained HTML rendering, the per-actor replica-presence
-  matrix, friendly (non-URI) naming, and test requirements. Sourced from
-  IDEA-1286. Related: `demo-cli.yaml` (DC), `multi-actor-demo.yaml` (DEMOMA),
-  `sync-ledger-replication.yaml` (SYNC), `case-ledger-processing.yaml` (CLP).
-version: 1.0.0
-kind: implementation
+  Requirements for a read-only command-line tool that parses the JSONL case-ledger
+  replica files produced by demo scenario runs and renders a selective, human-readable
+  report of who did what, with what activity, and in what order. Covers input discovery,
+  the distilled intermediate data model, markdown and HTML rendering, the per-actor
+  replica-presence matrix, friendly naming, and test requirements.
+version: 1.7.0
 scope:
 - prototype
+tags:
+- demo
 groups:
 - id: DRPT-01
   title: Tool Structure and Invocation
   specs:
   - id: DRPT-01-001
     priority: MUST
+    kind: project
     statement: >-
       The report tool MUST be implemented as a standalone module at
       `vultron/demo/report.py`, importable as `vultron.demo.report`, and MUST
@@ -30,32 +29,54 @@ groups:
       produces the ledger files.
   - id: DRPT-01-002
     priority: MUST
+    kind: project
     statement: >-
       The tool MUST accept a directory path (defaulting to the `DEVLOGS_DIR`
       environment variable, or `devlogs/` relative to the repository root when
       unset) and MUST discover input files by recursively globbing
       `**/*-case-ledger.jsonl` beneath it.
     rationale: >-
-      This mirrors the layout written by `two_actor_demo._phase_dump_case_ledgers`
+      This mirrors the layout written by `fv_demo._phase_dump_case_ledgers`
       (`{DEVLOGS_DIR}/{demo_name}/{actor_name}/{case_id_slug}-case-ledger.jsonl`)
       and read by `test/ci/test_case_ledger_invariants.py`.
   - id: DRPT-01-003
     priority: MUST
+    kind: project
     statement: >-
       The tool MUST derive each entry's actor name from the name of the
       directory that contains its JSONL file (e.g. `finder`, `vendor`,
       `case-actor`).
   - id: DRPT-01-004
     priority: MUST
+    kind: project
     statement: >-
       The tool MUST exit with status code 0 on success and a non-zero status
       code when the input directory is missing, contains no matching JSONL
       files, or a file cannot be parsed.
+  - id: DRPT-01-005
+    priority: SHOULD
+    kind: project
+    statement: >-
+      The tool SHOULD also be exposed as a `vultron-demo-report` console-script
+      entry point in `pyproject.toml` (`[project.scripts]`), resolving to
+      `vultron.demo.report:main`. Its `main` MUST be invocable with no
+      arguments (defaulting to `sys.argv`) so the console-script wrapper works,
+      and MUST return the process exit code.
+    rationale: >-
+      A console script matches the convention of the other demo entry points
+      (`vultron-demo`, `vultrabot_*`) and makes the tool directly runnable after
+      install without the `python -m` prefix. Requiring a zero-argument `main`
+      guards against the latent console-script breakage seen for other demo
+      entry points whose `main` required a parsed-args positional.
+    relationships:
+    - rel_type: extends
+      spec_id: DRPT-01-001
 - id: DRPT-02
   title: Distilled Timeline Model
   specs:
   - id: DRPT-02-001
     priority: MUST
+    kind: project
     statement: >-
       The tool MUST define a first-class `pydantic.BaseModel` (v2) distilled
       event type (e.g. `CaseTimelineEvent`) that represents one canonical
@@ -66,6 +87,7 @@ groups:
       described in IDEA-1286; it isolates JSONL parsing quirks from rendering.
   - id: DRPT-02-002
     priority: MUST
+    kind: project
     statement: >-
       Each distilled event MUST surface, where available in the source entries:
       the acting actor, the event type (or extracted message semantics), the
@@ -74,6 +96,7 @@ groups:
       and a short (truncated) `entry_hash` for chain traceability.
   - id: DRPT-02-003
     priority: MUST
+    kind: project
     statement: >-
       The parser MUST tolerate both camelCase and snake_case field spellings in
       source entries (e.g. `logIndex`/`log_index`, `entryHash`/`entry_hash`,
@@ -81,6 +104,7 @@ groups:
       already present in `test/ci/test_case_ledger_invariants.py`.
   - id: DRPT-02-004
     priority: MUST
+    kind: project
     statement: >-
       The tool MUST merge entries from all discovered actors into a single
       canonical timeline, de-duplicating replicated entries by `entry_hash`, and
@@ -90,16 +114,79 @@ groups:
       the single case story rather than N near-identical per-actor logs.
   - id: DRPT-02-005
     priority: MUST
+    kind: project
     statement: >-
       For each canonical timeline event, the tool MUST compute a per-actor
       replica-presence indicator recording which discovered actors' replicas
       contain that entry (by `entry_hash`), so replica convergence and
       divergence are visible at a glance.
+  - id: DRPT-02-006
+    priority: MUST
+    kind: project
+    statement: >-
+      When the discovered entries span more than one case (distinct `case_id`
+      values — as when the default `devlogs/` root accumulates multiple demo
+      runs), the tool MUST partition the timeline by `case_id` and MUST NOT
+      interleave events from different cases. The distilled event model MUST
+      carry the `case_id`, ordering MUST be case-contiguous (group by `case_id`,
+      then by `log_index` ascending within each case), the replica-presence
+      matrix MUST be computed per case, and each renderer MUST present one
+      clearly labelled section (or table) per case.
+    rationale: >-
+      `log_index` restarts at 0 for each case and same-named actor directories
+      recur across demo runs, so a single merged timeline over multiple cases
+      interleaves unrelated events and conflates replica presence across cases.
+      DRPT-02-004's "single canonical timeline" is well-defined only within one
+      case; partitioning by `case_id` preserves that guarantee when the input
+      directory holds more than one.
+    relationships:
+    - rel_type: refines
+      spec_id: DRPT-02-004
+  - id: DRPT-02-007
+    priority: MUST
+    kind: project
+    statement: >-
+      `build_timeline` MUST skip entries whose `disposition` field is not
+      `"recorded"` (e.g. `"rejected"`). Rejected entries are local-only
+      correlation markers with empty `payloadSnapshot` values; including them
+      in the report produces `—` actor labels and empty target columns that
+      violate the CLP spec and mislead readers.
+    rationale: >-
+      The AGENTS.md pitfall "disposition=rejected for Local-Only Correlation
+      Markers" documents that rejected entries must not appear in output
+      intended for human consumption.
+    relationships:
+    - rel_type: refines
+      spec_id: DRPT-02-004
+  - id: DRPT-02-008
+    priority: MUST
+    kind: project
+    statement: >-
+      Each distilled event MUST carry the per-participant Embargo Consent state
+      (`pec_state`) extracted from the `ParticipantStatus` payload snapshot,
+      where present. The extractor MUST handle the ADR-0036 dimension-object
+      shape (`{"consent": {"state": "SIGNATORY"}}`), the legacy flat camelCase
+      alias (`emConsentState`), the legacy flat snake_case alias
+      (`em_consent_state`), the camelCase long form (`embargoConsentState`), and
+      the snake_case long form (`embargo_consent_state`). Both renderers MUST
+      include a `PEC` column in the event table and populate it from
+      `pec_state`.
+    rationale: >-
+      The case-level EM column shows only the shared embargo state (NONE,
+      PROPOSED, ACTIVE, REVISE, EXITED).  Per-participant embargo consent
+      (NO_EMBARGO, INVITED, SIGNATORY, LAPSED, DECLINED) is a distinct
+      five-state machine tracked on `ParticipantStatus`; without a dedicated
+      PEC column, embargo acceptance and lapse events are invisible in the
+      report.
+    relationships:
+    - rel_type: extends
+      spec_id: DRPT-02-002
 - id: DRPT-03
   title: Friendly Naming
   specs:
   - id: DRPT-03-001
     priority: MUST
+    kind: project
     statement: >-
       Human-readable output MUST render actors and target objects by short,
       friendly names (e.g. "Finder", "report", "note"), MUST NOT use bare URIs
@@ -110,25 +197,78 @@ groups:
     rationale: >-
       Per IDEA-1286: prefer "Finder submitted report" over
       "https://…/actors/finder submitted urn:uuid:…".
-  - id: DRPT-03-002
-    priority: SHOULD
+  - id: DRPT-03-003
+    priority: MUST
+    kind: project
     statement: >-
-      Event summaries SHOULD map the event type / message semantics to a concise
-      active-voice phrase (subject verb object). Where a protocol vocabulary of
-      semantics already exists in the codebase, the mapping SHOULD reuse it to
-      stay in sync; otherwise a tool-local mapping table is acceptable with a
-      sensible fallback that renders the raw event type.
+      The tool MUST build a URI-to-display-name map during timeline construction
+      by scanning all payload snapshots for actor objects (type
+      `Organization`, `Person`, `Service`, `Application`, `Group`, `Actor`,
+      `CaseActor`) that carry both an `id` (URI) and a non-empty `name` field.
+      Actor labels MUST use the resolved display name when available, and MUST
+      fall back to the URI path-segment heuristic only when no entry is found
+      in the map. This ensures that UUID-based actor URIs (e.g.
+      `actors/9e580519-…`) resolve to semantic names (e.g. "Vendor", "Finder")
+      rather than hex-fragment labels.
+    rationale: >-
+      Actor URIs may be UUID-based when the actor was created with a generated
+      identifier rather than a slug.  Without name resolution, `friendly_actor_name`
+      produces labels like "A1e7 421f B727" that violate DRPT-03-001's prohibition
+      on opaque identifiers.  The `name` field is present on inline actor objects
+      in wire payloads (e.g. `Organization` objects in `Invite` or `Accept`
+      activities), making payload-scan the correct extraction point.
+    relationships:
+    - rel_type: extends
+      spec_id: DRPT-03-001
+  - id: DRPT-03-002
+    priority: MUST
+    kind: project
+    statement: >-
+      Event summaries MUST map the event type to a concise active-voice phrase
+      (subject verb object) by looking up the matching `SemanticEntry` in
+      `SEMANTIC_REGISTRY` and rendering `entry.phrase` via `str.format_map()`.
+      The tool MUST NOT maintain a local phrase table parallel to the registry.
+      When no registry entry exists for an event type (e.g. data from a future
+      protocol version), the tool MUST fall back to a humanized form of the raw
+      event-type string.
+    rationale: >-
+      Replaces the tool-local `_EVENT_PHRASES` dict (Concern #1675). Deriving
+      phrases directly from `SemanticEntry.phrase` (SE-07-001) guarantees that
+      new semantics are automatically covered and eliminates the drift risk.
+    relationships:
+    - rel_type: refines
+      spec_id: DRPT-03-001
+  - id: DRPT-03-004
+    priority: MUST
+    kind: project
+    statement: >-
+      When rendering a phrase template, the tool MUST supply slot values for
+      `{actor}`, `{object}`, and `{target}` drawn from the event record's
+      resolved display labels. Missing slots (e.g. `{context}` when no context
+      was recorded) MUST render as an em-dash (`"—"`) rather than raising a
+      `KeyError`.
+    rationale: >-
+      `CaseLedgerEventRecord` is constructed from JSONL data and may not carry
+      all slot values present in a live `VultronEvent`. A `defaultdict` fallback
+      ensures phrases for multi-party semantics (e.g. `{actor} invited {object}
+      to {target}`) degrade gracefully to `"{actor} invited {object} to —"` when
+      the destination is absent rather than surfacing a runtime error.
+    relationships:
+    - rel_type: refines
+      spec_id: DRPT-03-002
 - id: DRPT-04
   title: Rendering
   specs:
   - id: DRPT-04-001
     priority: MUST
+    kind: project
     statement: >-
       The tool MUST render a markdown table report (one row per canonical
       timeline event) covering the distilled fields, including a per-actor
       replica-presence matrix column group.
   - id: DRPT-04-002
     priority: MUST
+    kind: project
     statement: >-
       The tool MUST render a self-contained static HTML report file with all
       styling inlined (no external CSS, JS, fonts, or network assets), so the
@@ -140,6 +280,7 @@ groups:
       JS toolchain.
   - id: DRPT-04-003
     priority: MUST
+    kind: project
     statement: >-
       In the HTML report, the per-actor replica-presence matrix MUST be rendered
       as a per-actor checkbox/emoji cell per event, showing a present/absent
@@ -147,21 +288,79 @@ groups:
       actors' replicas shows three checks across four columns).
   - id: DRPT-04-004
     priority: MUST
+    kind: project
     statement: >-
       The output format MUST be selectable (e.g. `--format markdown|html`), and
       the tool MUST write the report to a file (path configurable).
   - id: DRPT-04-005
     priority: SHOULD
+    kind: project
     statement: >-
       After writing an HTML report, the tool SHOULD open it in the default
       browser via `webbrowser.open()`, and MUST provide a flag (e.g.
       `--no-open`) that suppresses the browser launch (required for
       non-interactive and CI use).
+  - id: DRPT-04-006
+    priority: SHOULD
+    kind: project
+    statement: >-
+      Each per-case section SHOULD display the time range of its events as
+      `Time range: {first} – {last}`, where `{first}` and `{last}` are the
+      minimum and maximum `receivedAt` timestamps (full ISO 8601 strings) among
+      the case's canonical events. The line MUST be omitted when no events in
+      the case carry a `receivedAt` timestamp. When all events share the same
+      timestamp, both bounds MUST be shown (`{ts} – {ts}`). In markdown, the
+      time range MUST appear as a bullet line between the case heading and the
+      event table. In HTML, it MUST appear as a `<p class="meta">` element
+      between the `<h2>` heading and the `<table>`.
+    rationale: >-
+      When reviewing reports from CI runs or comparing across scenarios,
+      knowing the time range at a glance (e.g. "15:31:20Z – 15:31:27Z") is
+      more useful than counting rows. Per-case placement is necessary because
+      `log_index` restarts at 0 per case and cases may span non-overlapping
+      time windows (DRPT-02-006).
+    relationships:
+    - rel_type: extends
+      spec_id: DRPT-04-001
+    - rel_type: extends
+      spec_id: DRPT-04-002
+  - id: DRPT-04-007
+    priority: MUST
+    kind: project
+    statement: >-
+      The Time column header MUST be labelled "ΔT". Each cell MUST display a
+      delta from the previous row's `receivedAt` timestamp as an adaptive
+      duration string: `+Ns` when under 60 seconds, `+Nm Ns` when under one
+      hour, and `+Nh Nm Ns` for one hour or more (no day component; large gaps
+      appear as e.g. `+26h 3m 2s`). The first row that carries a `receivedAt`
+      timestamp MUST show `+0s`; rows without a `receivedAt` MUST show `—`.
+      The delta MUST be computed by a standalone `_format_delta(received_at,
+      prev_received_at)` helper (both arguments `str | None`) so the format
+      rules are directly unit-testable. In the HTML renderer, the full ISO
+      8601 `receivedAt` string MUST be retained as a `title=` tooltip on the
+      `<td>` element. In the markdown renderer, the absolute timestamp MUST
+      NOT appear in the table cell body (the per-case time-range line from
+      DRPT-04-006 serves as the absolute-time anchor).
+    rationale: >-
+      Absolute timestamps repeat the date and timezone on every row, making it
+      hard to see the pacing of events. A delta-T column lets readers
+      immediately spot where the protocol paused or accelerated. DRPT-04-006
+      already provides the absolute-time anchor (first/last timestamps in the
+      section header), so the table body can omit redundant full timestamps
+      without losing traceability.
+    relationships:
+    - rel_type: extends
+      spec_id: DRPT-04-001
+    - rel_type: extends
+      spec_id: DRPT-04-002
+    - rel_type: extends
+      spec_id: DRPT-04-006
 - id: DRPT-05
   title: Testing
   specs:
   - id: DRPT-05-001
     priority: MUST
+    kind: project
     statement: >-
       Unit tests MUST cover JSONL-to-distilled-model parsing against fixtures
       that include both camelCase and snake_case field spellings, and MUST
@@ -169,13 +368,44 @@ groups:
       per-actor replica-presence computation.
   - id: DRPT-05-002
     priority: MUST
+    kind: project
     statement: >-
       Unit tests MUST cover both renderers: given a fixed list of distilled
       events, assert the markdown table structure and assert that the HTML
       output is well-formed and self-contained (references no external assets).
   - id: DRPT-05-003
     priority: MUST
+    kind: project
     statement: >-
       A CLI smoke test MUST invoke the entry point against a tiny fixture
       directory, assert exit code 0, assert an output file is written, and
       assert that `--no-open` suppresses any browser launch.
+  - id: DRPT-05-004
+    priority: MUST
+    kind: project
+    statement: >-
+      Unit tests MUST cover actor name resolution (DRPT-03-003): assert that
+      `collect_actor_names` extracts URI-to-name mappings from inline actor
+      objects in payload snapshots, that `build_timeline` populates
+      `actor_display_name` on events whose actor URI is in the map, and that
+      `actor_label` returns the display name rather than a hex-fragment label
+      for UUID-based actor URIs.
+    relationships:
+    - rel_type: verifies
+      spec_id: DRPT-03-003
+  - id: DRPT-05-005
+    priority: MUST
+    kind: project
+    statement: >-
+      Unit tests MUST cover the `_format_delta` helper directly: assert `+0s`
+      when `prev_received_at` is `None` and `received_at` is set (first-row
+      anchor), assert `—` when `received_at` is `None`, assert `—` when both
+      are `None`, and assert correct adaptive formatting for sub-minute
+      (`+Ns`), sub-hour (`+Nm Ns`), and multi-hour (`+Nh Nm Ns`) deltas.
+      Renderer tests MUST assert that the Time column in the table body
+      contains delta strings (e.g. `+0s`) rather than ISO 8601 timestamps.
+      HTML renderer tests MUST assert that the full ISO timestamp is retained
+      as a `title=` tooltip on the Time `<td>`.
+    relationships:
+    - rel_type: verifies
+      spec_id: DRPT-04-007

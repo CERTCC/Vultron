@@ -40,9 +40,11 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
@@ -52,7 +54,6 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     check_server_availability,
     demo_check,
     demo_step,
-    post_to_inbox_and_wait,
     post_to_trigger,
     reset_datalayer,
     reset_demo_failures,
@@ -73,6 +74,7 @@ from vultron.demo.helpers.milestones import (
     verify_publicly_disclosed,
 )
 from vultron.demo.helpers.polling import (
+    find_case_invite_for_actor,
     wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
     wait_for_case_on_container,
@@ -114,7 +116,7 @@ VENDOR2_BASE_URL = os.environ.get(
 # Deterministic actor IDs from docker-compose-multi-actor.yml (D5-1-G3).
 FINDER_ACTOR_ID = "http://finder:7999/api/v2/actors/finder"
 VENDOR_ACTOR_ID = "http://vendor:7999/api/v2/actors/vendor"
-VENDOR2_ACTOR_ID = "http://vendor2:7999/api/v2/actors/vendor2"
+VENDOR2_ACTOR_ID = "http://actor5:7999/api/v2/actors/vendor2"
 
 
 def reset_containers(
@@ -148,9 +150,9 @@ def _phase_report_submission(
     as_Actor,
     as_Actor,
     as_Actor,
-    VulnerabilityReport,
+    as_VulnerabilityReport,
     as_Offer,
-    VulnerabilityCase,
+    as_VulnerabilityCase,
 ]:
     """Reset, seed, submit report, validate, engage, invite Vendor2, M1 check."""
     logger.info("─" * 80)
@@ -188,11 +190,11 @@ def _phase_report_submission(
         offer_id=offer.id_,
     )
 
-    with demo_check("VulnerabilityCase exists in Vendor1's DataLayer"):
+    with demo_check("as_VulnerabilityCase exists in Vendor1's DataLayer"):
         case = find_case_for_offer(vendor_client, offer.id_)
         if case is None:
             raise AssertionError(
-                "Expected VulnerabilityCase to be created after validate-report"
+                "Expected as_VulnerabilityCase to be created after validate-report"
             )
         logger.info("Case created: %s", case.id_)
 
@@ -233,12 +235,13 @@ def _phase_report_submission(
     invite = as_TransitiveActivity.model_validate(invite_result["activity"])
     logger.info("Invite created: %s", invite.id_)
 
-    # Deliver the invite to Vendor2's inbox so it can be resolved on accept.
-    with demo_step("Delivering invite to Vendor2's inbox"):
-        post_to_inbox_and_wait(vendor2_client, vendor2_in_vendor2.id_, invite)
-
-    with demo_check("Invite stored in Vendor2's DataLayer"):
-        verify_object_stored(vendor2_client, invite.id_)
+    with demo_check("Vendor2 invite delivered to Vendor2's DataLayer"):
+        find_case_invite_for_actor(
+            client=vendor2_client,
+            case_id=case.id_,
+            invitee_id=vendor2.id_,
+            timeout_seconds=20.0,
+        )
 
     # Vendor2 accepts the invite.
     with demo_step("Vendor2 accepts the case invitation"):
@@ -274,7 +277,7 @@ def _phase_report_submission(
             reporter_actor_id=finder.id_,
         )
 
-    case = VulnerabilityCase.model_validate(
+    case = as_VulnerabilityCase.model_validate(
         vendor_client.get(f"/datalayer/{case.id_}")
     )
     return finder, vendor, vendor_in_vendor, vendor2, report, offer, case
@@ -287,7 +290,7 @@ def _phase_sync_verification(
     vendor: as_Actor,
     finder: as_Actor,
     vendor2: as_Actor,
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
 ) -> None:
     """Verify SYNC-2 replication for both Finder and Vendor2 replicas."""
     logger.info("─" * 80)
@@ -365,7 +368,7 @@ def _phase_notes_exchange(
     finder_in_finder: as_Actor,
     vendor_in_vendor: as_Actor,
     vendor2_in_vendor2: as_Actor,
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
 ) -> tuple[as_Note, as_Note, as_Note]:
     """Run a three-way note exchange among Finder, Vendor1, and Vendor2."""
     logger.info("─" * 80)
@@ -424,7 +427,7 @@ def _phase_fix_lifecycle(
     vendor_in_vendor: as_Actor,
     vendor2: as_Actor,
     vendor2_in_vendor2: as_Actor,
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
 ) -> None:
     """Advance both vendors through independent fix-ready and fix-deployed paths."""
     logger.info("─" * 80)
@@ -465,6 +468,12 @@ def _phase_fix_lifecycle(
         "M4: Finder replica shows both vendors CS include F (fix ready)"
     ):
         wait_for_participant_vfd_state(
+            client=vendor_client,
+            case_id=case.id_,
+            actor_id=vendor.id_,
+            expected_states={CS_vfd.VFd, CS_vfd.VFD},
+        )
+        wait_for_participant_vfd_state(
             client=finder_client,
             case_id=case.id_,
             actor_id=vendor.id_,
@@ -492,6 +501,12 @@ def _phase_fix_lifecycle(
         "M5: Finder replica shows both vendors CS include D (fix deployed)"
     ):
         wait_for_participant_vfd_state(
+            client=vendor_client,
+            case_id=case.id_,
+            actor_id=vendor.id_,
+            expected_states={CS_vfd.VFD},
+        )
+        wait_for_participant_vfd_state(
             client=finder_client,
             case_id=case.id_,
             actor_id=vendor.id_,
@@ -515,7 +530,7 @@ def _phase_publication(
     vendor2_in_vendor2: as_Actor,
     finder: as_Actor,
     finder_in_finder: as_Actor,
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
 ) -> None:
     """Run publication notifications and verify public disclosure state."""
     logger.info("─" * 80)
@@ -557,6 +572,18 @@ def _phase_publication(
             client=finder_client,
             case_id=case.id_,
         )
+        wait_for_participant_vfd_state(
+            client=vendor_client,
+            case_id=case.id_,
+            actor_id=vendor.id_,
+            expected_states={CS_vfd.VFD},
+        )
+        wait_for_participant_vfd_state(
+            client=finder_client,
+            case_id=case.id_,
+            actor_id=vendor.id_,
+            expected_states={CS_vfd.VFD},
+        )
         verify_publicly_disclosed(
             receiver_client=vendor_client,
             reporter_client=finder_client,
@@ -575,7 +602,7 @@ def _phase_case_closure(
     vendor2_in_vendor2: as_Actor,
     finder: as_Actor,
     finder_in_finder: as_Actor,
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
 ) -> None:
     """Close the case from all three participants and verify terminal state."""
     logger.info("─" * 80)
@@ -648,7 +675,7 @@ def _phase_dump_case_ledgers(
     finder: as_Actor,
     vendor: as_Actor,
     vendor2: as_Actor,
-    case: VulnerabilityCase,
+    case: as_VulnerabilityCase,
     demo_name: str = "fvv",
 ) -> None:
     """Dump case ledger entries from each actor container to JSONL files."""

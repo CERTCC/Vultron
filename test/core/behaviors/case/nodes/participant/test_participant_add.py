@@ -35,6 +35,7 @@ from vultron.core.behaviors.case.nodes.participant import (
     SeedParticipantAsSignatoryNode,
 )
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.dimensions import PecDimension, RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.vultron_types import (
     VultronCase,
@@ -45,8 +46,8 @@ from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Add
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.core.use_cases._helpers import _report_phase_status_id
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.core.models._helpers import _report_phase_status_id
 from test.core.behaviors.bt_harness import BTTestScenario
 
 
@@ -154,7 +155,7 @@ class TestCreateCaseParticipantNode:
                 add_activities.append(obj)
         assert any(
             act.type_ == "Add"
-            and isinstance(act.object_, CaseParticipant)
+            and isinstance(act.object_, as_CaseParticipant)
             and getattr(act.target, "id_", act.target) == case_obj.id_
             for act in add_activities
         )
@@ -200,8 +201,8 @@ class TestCreateCaseParticipantNode:
             id_=status_id,
             context=report_id,
             attributed_to=actor_id,
-            rm_state=RM.ACCEPTED,
-            em_consent_state=PEC.SIGNATORY,
+            rm=RmDimension(state=RM.ACCEPTED),
+            consent=PecDimension(state=PEC.SIGNATORY),
             cvd_role=[CVDRole.FINDER],
         )
         bt_scenario.dl.create(existing)
@@ -218,7 +219,9 @@ class TestCreateCaseParticipantNode:
 
         refreshed = cast(Any, bt_scenario.dl.read(status_id))
         assert refreshed is not None
-        assert refreshed.em_consent_state == PEC.SIGNATORY
+        assert (
+            refreshed.consent.state if refreshed.consent else None
+        ) == PEC.SIGNATORY
 
     def test_backfills_context_to_case_uri_for_existing_status(
         self,
@@ -241,8 +244,8 @@ class TestCreateCaseParticipantNode:
             id_=status_id,
             context=report.id_,
             attributed_to=actor_id,
-            rm_state=RM.ACCEPTED,
-            em_consent_state=PEC.NO_EMBARGO,
+            rm=RmDimension(state=RM.ACCEPTED),
+            consent=PecDimension(state=PEC.NO_EMBARGO),
             cvd_role=[CVDRole.FINDER],
         )
         bt_scenario.dl.create(stale)

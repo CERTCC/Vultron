@@ -134,7 +134,7 @@ class DispatcherBase:
         sender_id = event.actor_id
         if not sender_id:
             return
-        case_id = self._extract_case_id(event, dl)
+        case_id = self._extract_case_id(event)
         highest_contiguous_index, has_case_entries = (
             self._highest_contiguous_case_log_index(case_id, dl)
         )
@@ -178,7 +178,7 @@ class DispatcherBase:
             expected += 1
         return expected - 1, True
 
-    def _extract_case_id(self, event: "VultronEvent", dl: "DataLayer") -> str:
+    def _extract_case_id(self, event: "VultronEvent") -> str:
         if (
             event.semantic_type
             == MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT
@@ -187,19 +187,6 @@ class DispatcherBase:
             status_context = getattr(status_obj, "context", None)
             if isinstance(status_context, str) and status_context:
                 return status_context
-        if (
-            event.semantic_type
-            == MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE
-        ):
-            invite_id = getattr(event, "invite_id", None)
-            if isinstance(invite_id, str) and invite_id:
-                invite = dl.read(invite_id)
-                invite_context = getattr(invite, "context", None)
-                if isinstance(invite_context, str) and invite_context:
-                    return invite_context
-                invite_context_id = getattr(invite, "context_id", None)
-                if isinstance(invite_context_id, str) and invite_context_id:
-                    return invite_context_id
         for attr in (
             "case_id",
             "inner_context_id",

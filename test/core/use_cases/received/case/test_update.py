@@ -27,9 +27,11 @@ from vultron.core.use_cases.received.case.update import (
     UpdateCaseReceivedUseCase,
 )
 from vultron.wire.as2.rehydration import rehydrate as real_rehydrate
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.wire.as2.factories import (
     update_case_activity,
 )
@@ -44,14 +46,14 @@ class TestCaseUseCases:
         """update_case applies name/summary/content updates from a full object."""
         dl = SqliteDataLayer("sqlite:///:memory:")
         owner_id = "https://example.org/users/owner"
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/uc1",
             name="Original Name",
             attributed_to=owner_id,
         )
         dl.create(case)
 
-        updated_case = VulnerabilityCase(
+        updated_case = as_VulnerabilityCase(
             id_=case.id_,
             name="Updated Name",
             content="New content",
@@ -75,7 +77,7 @@ class TestCaseUseCases:
 
         stored = dl.read(case.id_)
         assert stored is not None
-        stored = cast(VulnerabilityCase, stored)
+        stored = cast(as_VulnerabilityCase, stored)
         assert stored.name == "Updated Name"
         assert stored.content == "New content"
 
@@ -86,14 +88,14 @@ class TestCaseUseCases:
         dl = SqliteDataLayer("sqlite:///:memory:")
         owner_id = "https://example.org/users/owner"
         non_owner_id = "https://example.org/users/other"
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/uc2",
             name="Original Name",
             attributed_to=owner_id,
         )
         dl.create(case)
 
-        updated_case = VulnerabilityCase(
+        updated_case = as_VulnerabilityCase(
             id_=case.id_,
             name="Hijacked Name",
             attributed_to=owner_id,
@@ -106,7 +108,7 @@ class TestCaseUseCases:
 
         stored = dl.read(case.id_)
         assert stored is not None
-        stored = cast(VulnerabilityCase, stored)
+        stored = cast(as_VulnerabilityCase, stored)
         assert stored.name == "Original Name"
         assert any("not the owner" in r.message for r in caplog.records)
 
@@ -114,14 +116,14 @@ class TestCaseUseCases:
         """update_case with same data produces the same result (last-write-wins)."""
         dl = SqliteDataLayer("sqlite:///:memory:")
         owner_id = "https://example.org/users/owner"
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/uc3",
             name="Original",
             attributed_to=owner_id,
         )
         dl.create(case)
 
-        updated_case = VulnerabilityCase(
+        updated_case = as_VulnerabilityCase(
             id_=case.id_,
             name="Updated",
             attributed_to=owner_id,
@@ -144,7 +146,7 @@ class TestCaseUseCases:
 
         stored = dl.read(case.id_)
         assert stored is not None
-        stored = cast(VulnerabilityCase, stored)
+        stored = cast(as_VulnerabilityCase, stored)
         assert stored.name == "Updated"
 
     def test_update_case_warns_when_participant_has_not_accepted_embargo(
@@ -154,10 +156,10 @@ class TestCaseUseCases:
         dl = SqliteDataLayer("sqlite:///:memory:")
         owner_id = "https://example.org/users/owner"
         actor_id = "https://example.org/users/alice"
-        embargo = EmbargoEvent(id_="https://example.org/embargoes/em1")
+        embargo = as_EmbargoEvent(id_="https://example.org/embargoes/em1")
         dl.create(embargo)
 
-        participant = CaseParticipant(
+        participant = as_CaseParticipant(
             id_="https://example.org/participants/p1",
             attributed_to=actor_id,
             context="https://example.org/cases/uc4",
@@ -165,7 +167,7 @@ class TestCaseUseCases:
         )
         dl.create(participant)
 
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/uc4",
             name="Original",
             attributed_to=owner_id,
@@ -174,7 +176,7 @@ class TestCaseUseCases:
         case.actor_participant_index[actor_id] = participant.id_
         dl.create(case)
 
-        updated_case = VulnerabilityCase(
+        updated_case = as_VulnerabilityCase(
             id_=case.id_,
             name="Updated",
             attributed_to=owner_id,
@@ -197,10 +199,10 @@ class TestCaseUseCases:
         dl = SqliteDataLayer("sqlite:///:memory:")
         owner_id = "https://example.org/users/owner"
         actor_id = "https://example.org/users/bob"
-        embargo = EmbargoEvent(id_="https://example.org/embargoes/em2")
+        embargo = as_EmbargoEvent(id_="https://example.org/embargoes/em2")
         dl.create(embargo)
 
-        participant = CaseParticipant(
+        participant = as_CaseParticipant(
             id_="https://example.org/participants/p2",
             attributed_to=actor_id,
             context="https://example.org/cases/uc5",
@@ -208,7 +210,7 @@ class TestCaseUseCases:
         )
         dl.create(participant)
 
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/uc5",
             name="Original",
             attributed_to=owner_id,
@@ -217,7 +219,7 @@ class TestCaseUseCases:
         case.actor_participant_index[actor_id] = participant.id_
         dl.create(case)
 
-        updated_case = VulnerabilityCase(
+        updated_case = as_VulnerabilityCase(
             id_=case.id_,
             name="Updated",
             attributed_to=owner_id,
@@ -238,7 +240,7 @@ class TestCaseUseCases:
         owner_id = "https://example.org/users/owner"
         actor_id = "https://example.org/users/carol"
 
-        participant = CaseParticipant(
+        participant = as_CaseParticipant(
             id_="https://example.org/participants/p3",
             attributed_to=actor_id,
             context="https://example.org/cases/uc6",
@@ -246,7 +248,7 @@ class TestCaseUseCases:
         )
         dl.create(participant)
 
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/uc6",
             name="Original",
             attributed_to=owner_id,
@@ -255,7 +257,7 @@ class TestCaseUseCases:
         case.actor_participant_index[actor_id] = participant.id_
         dl.create(case)
 
-        updated_case = VulnerabilityCase(
+        updated_case = as_VulnerabilityCase(
             id_=case.id_,
             name="Updated",
             attributed_to=owner_id,
@@ -276,7 +278,7 @@ class TestCaseUseCases:
         owner_id = "https://example.org/users/owner"
         actor_id = "https://example.org/users/alice"
         case_id = "https://example.org/cases/uc6b"
-        embargo = EmbargoEvent(id_="https://example.org/embargoes/em6b")
+        embargo = as_EmbargoEvent(id_="https://example.org/embargoes/em6b")
         dl.create(embargo)
 
         bogus_ref = VultronActivity(
@@ -294,7 +296,7 @@ class TestCaseUseCases:
         )
         dl.create(case_actor)
 
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_=case_id,
             name="Original",
             attributed_to=owner_id,
@@ -303,7 +305,7 @@ class TestCaseUseCases:
         case.actor_participant_index[actor_id] = bogus_ref.id_
         dl.create(case)
 
-        updated_case = VulnerabilityCase(
+        updated_case = as_VulnerabilityCase(
             id_=case_id,
             name="Updated",
             attributed_to=owner_id,
@@ -344,7 +346,7 @@ class TestCaseUseCases:
         )
         dl.create(case_actor)
 
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_=case_id,
             name="Original",
             attributed_to=owner_id,
@@ -354,7 +356,7 @@ class TestCaseUseCases:
         )
         dl.create(case)
 
-        updated_case = VulnerabilityCase(
+        updated_case = as_VulnerabilityCase(
             id_=case_id, name="Updated", attributed_to=owner_id
         )
         activity = update_case_activity(updated_case, actor=owner_id)
@@ -385,12 +387,12 @@ class TestCaseUseCases:
         owner_id = "https://example.org/users/owner"
         case_id = "https://example.org/cases/bc2"
 
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_=case_id, name="Original", attributed_to=owner_id
         )
         dl.create(case)
 
-        updated_case = VulnerabilityCase(
+        updated_case = as_VulnerabilityCase(
             id_=case_id, name="Updated", attributed_to=owner_id
         )
         activity = update_case_activity(updated_case, actor=owner_id)
@@ -401,7 +403,7 @@ class TestCaseUseCases:
 
         stored = dl.read(case_id)
         assert stored is not None
-        stored = cast(VulnerabilityCase, stored)
+        stored = cast(as_VulnerabilityCase, stored)
         assert stored.name == "Updated"
 
     def test_update_case_no_broadcast_when_no_participants(self, make_payload):
@@ -418,12 +420,12 @@ class TestCaseUseCases:
         )
         dl.create(case_actor)
 
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_=case_id, name="Original", attributed_to=owner_id
         )
         dl.create(case)
 
-        updated_case = VulnerabilityCase(
+        updated_case = as_VulnerabilityCase(
             id_=case_id, name="Updated", attributed_to=owner_id
         )
         activity = update_case_activity(updated_case, actor=owner_id)
@@ -452,7 +454,7 @@ class TestCaseUseCases:
         )
         dl.create(case_actor)
 
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_=case_id, name="Original", attributed_to=owner_id
         )
         case.actor_participant_index[alice] = (
@@ -463,7 +465,7 @@ class TestCaseUseCases:
         )
         dl.create(case)
 
-        updated_case = VulnerabilityCase(
+        updated_case = as_VulnerabilityCase(
             id_=case_id, name="Updated", attributed_to=owner_id
         )
         activity = update_case_activity(updated_case, actor=owner_id)

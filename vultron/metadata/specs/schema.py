@@ -4,9 +4,8 @@ Schema requirements: specs/spec-registry.yaml SR-02.
 
 Design principle: YAML is the authoritative data source.  The schema
 validates what is present but does **not** silently inject defaults for
-absent fields.  Inheritable fields (``kind``, ``scope``) are required at
-the file level and optional at group/spec level; effective values are
-resolved by the registry loader, not by Pydantic defaults.
+absent fields.  ``kind`` is required on every individual spec item;
+``scope`` is required at the file level and optional at the group level.
 """
 
 from __future__ import annotations
@@ -63,6 +62,7 @@ class TriggerType(StrEnum):
 
     MESSAGE_RECEIVED = "message_received"
     STATE_ENTERED = "state_entered"
+    SCENARIO_START = "scenario_start"
 
 
 class Trigger(BaseModel):
@@ -70,7 +70,8 @@ class Trigger(BaseModel):
 
     ``type`` identifies the category of trigger; ``value`` names the specific
     message (e.g. ``"EP"``) or state (e.g. ``"RM.VALID"``) within that
-    category.
+    category. For ``scenario_start`` triggers, ``value`` names the scenario
+    (e.g. ``"fv"``, ``"fvv"``).
     """
 
     type: TriggerType
@@ -80,45 +81,37 @@ class Trigger(BaseModel):
 class SpecKind(StrEnum):
     """Portability tier for a spec requirement (SR-02-005).
 
-    The six tiers form a portability hierarchy.  Use them to filter which
+    The four tiers form a portability hierarchy.  Use them to filter which
     specs apply to your project:
 
-    - ``general``        — Universal: any project, any language.
-                           Examples: idempotency, linter discipline, CI
-                           security.
-    - ``pattern``        — Architectural / framework approach: language-agnostic
-                           and not CVD-specific.
-                           Examples: hexagonal architecture, BT composability,
-                           event-driven dispatch.
-    - ``domain``         — Vultron / CVD protocol: language-agnostic.
-                           Examples: embargo lifecycle, case management, AS2
-                           semantics, MPCVD state machines.
-    - ``language``       — Python ecosystem: any Python project.
-                           Examples: pydantic conventions, py_trees API, pytest,
-                           FastAPI patterns.
-    - ``implementation`` — This specific codebase.
-                           Examples: file paths under ``vultron/``, class names
-                           in ``vultron/core/``, notes frontmatter schema.
-    - ``dev-process``    — This project's development and maintenance process.
-                           Examples: skill workflows, history management,
-                           spec authoring conventions, parallel agentic dev.
+    - ``protocol``     — Required for Vultron compliance — any implementation
+                         in any language must satisfy this.  Covers wire
+                         behaviour, state machine invariants, behavioural
+                         contracts, message semantics, and protocol rules.
+    - ``architecture`` — Implementation-independent structural guidance —
+                         transferable across languages and frameworks, but not
+                         required for Vultron compliance per se.  Covers
+                         hexagonal boundaries, event-driven dispatch,
+                         port/adapter patterns, fail-fast principles.
+    - ``project``      — Specific to this codebase — Python paths, BT nodes,
+                         py_trees, pydantic, factory names, module
+                         organisation, endpoint conventions.
+    - ``process``      — How we run this project — CI config, GitHub workflow,
+                         agent conventions, docs standards, spec authoring
+                         rules.
 
     Portability use cases
     ~~~~~~~~~~~~~~~~~~~~~
-    - Implementing Vultron in Python          → general + pattern + domain + language + implementation
-    - Implementing Vultron in another language → general + pattern + domain
-    - Different domain, Python/BT/hex stack   → general + pattern + language
-    - BT / hexagonal wisdom, any language      → general + pattern
-    - Universal wisdom only                    → general
-    - Contributing to this project            → all six tiers (include dev-process)
+    - Implement Vultron in any language          → ``protocol``
+    - Understand the reference architecture      → ``protocol`` + ``architecture``
+    - Contribute to this Python codebase         → ``protocol`` + ``architecture`` + ``project``
+    - Contribute to this project (incl. process) → all four tiers
     """
 
-    GENERAL = "general"
-    PATTERN = "pattern"
-    DOMAIN = "domain"
-    LANGUAGE = "language"
-    IMPLEMENTATION = "implementation"
-    DEV_PROCESS = "dev-process"
+    PROTOCOL = "protocol"
+    ARCHITECTURE = "architecture"
+    PROJECT = "project"
+    PROCESS = "process"
 
 
 class Scope(StrEnum):
@@ -155,6 +148,7 @@ class SpecTag(StrEnum):
     TESTING = "testing"
     TOOLING = "tooling"
     WIRE_FORMAT = "wire-format"
+    BEHAVIORAL = "behavioral"
 
 
 class LintWarningCode(StrEnum):
@@ -185,17 +179,16 @@ def _check_nonempty_list(v: list | None, field_name: str) -> list | None:
 class StatementSpec(BaseModel):
     """A single normative statement requirement (SR-02-009).
 
-    Inheritable fields (``kind``, ``scope``) default to ``None``, meaning
-    "inherit from parent group or file."  The registry loader resolves
-    effective values after loading.
+    ``kind`` is required on every spec item.  ``scope`` is optional and
+    inherits from the containing file when absent.
     """
 
     id: SpecIdStr
     priority: RFC2119Priority
+    kind: SpecKind
     statement: NonEmptyStr
     rationale: NonEmptyStr | None = None
     testable: bool = True
-    kind: SpecKind | None = None
     scope: list[Scope] | None = None
     tags: list[SpecTag] | None = None
     relationships: list[Relationship] | None = None
@@ -252,7 +245,9 @@ class BehavioralSpec(StatementSpec):
 
     @field_validator("preconditions", "steps", "postconditions")
     @classmethod
-    def _nonempty_if_present(cls, v: list | None, info: object) -> list | None:
+    def _behavioral_nonempty_if_present(
+        cls, v: list | None, info: object
+    ) -> list | None:
         if v is not None and len(v) == 0:
             field_name = getattr(info, "field_name", "list field")
             raise ValueError(f"{field_name} must be non-empty if present")
@@ -265,8 +260,8 @@ Spec = Union[BehavioralSpec, StatementSpec]
 class SpecGroup(BaseModel):
     """A logical grouping of specs within a file (SR-02-012).
 
-    ``kind`` and ``scope`` are optional overrides; when absent, values are
-    inherited from the containing :class:`SpecFile`.
+    ``scope`` is an optional override; when absent, the value is inherited
+    from the containing :class:`SpecFile`.
 
     ``trigger`` annotates behavioral groups with the event that activates them,
     enabling conformance tooling to classify groups by trigger kind without
@@ -276,7 +271,6 @@ class SpecGroup(BaseModel):
     id: SpecIdStr
     title: NonEmptyStr
     description: NonEmptyStr | None = None
-    kind: SpecKind | None = None
     scope: list[Scope] | None = None
     trigger: Trigger | None = None
     specs: list[Spec]
@@ -300,16 +294,17 @@ class SpecGroup(BaseModel):
 class SpecFile(BaseModel):
     """One YAML spec file with its groups and file-level metadata (SR-02-013).
 
-    ``kind`` and ``scope`` are required at the file level and serve as
-    defaults for groups and specs that do not override them (SR-02-014).
+    ``scope`` is required at the file level and serves as the default for
+    groups and specs that do not override it (SR-02-014).  ``kind`` is now
+    required on each individual spec item rather than at the file level.
     """
 
     id: str
     title: NonEmptyStr
     description: NonEmptyStr
     version: NonEmptyStr
-    kind: SpecKind
     scope: list[Scope]
+    tags: list[SpecTag] | None = None
     groups: list[SpecGroup]
 
     @field_validator("scope")
@@ -317,6 +312,13 @@ class SpecFile(BaseModel):
     def _scope_nonempty(cls, v: list) -> list:
         if not v:
             raise ValueError("scope must not be empty")
+        return v
+
+    @field_validator("tags")
+    @classmethod
+    def _tags_nonempty_if_present(cls, v: list | None) -> list | None:
+        if v is not None and len(v) == 0:
+            raise ValueError("tags must be non-empty if present")
         return v
 
     @field_validator("groups")

@@ -20,15 +20,15 @@ This demo script showcases two suggestion paths per ADR-0026 (CaseActor-routed):
 
 1. Accept path:
    - Finder → CaseActor inbox: Offer(Actor, Case)
-   - CaseActor → Case Owner inbox: Offer(CaseParticipant{actor, roles}, Case)
-   - Case Owner → CaseActor inbox: Accept(Offer(CaseParticipant))
+   - CaseActor → Case Owner inbox: Offer(as_CaseParticipant{actor, roles}, Case)
+   - Case Owner → CaseActor inbox: Accept(Offer(as_CaseParticipant))
    - CaseActor → Finder inbox: AcceptActorRecommendation
    - CaseActor → Coordinator inbox: Invite(CaseStub+embargo+roles)
 
 2. Reject path:
    - Finder → CaseActor inbox: Offer(Actor, Case)
-   - CaseActor → Case Owner inbox: Offer(CaseParticipant{actor, roles}, Case)
-   - Case Owner → CaseActor inbox: Reject(Offer(CaseParticipant))
+   - CaseActor → Case Owner inbox: Offer(as_CaseParticipant{actor, roles}, Case)
+   - Case Owner → CaseActor inbox: Reject(Offer(as_CaseParticipant))
    - CaseActor → Finder inbox: RejectActorRecommendation
 
 In this single-process prototype, vendor acts as both Case Owner and
@@ -42,114 +42,31 @@ be demonstrated in isolation.
 
 # Standard library imports
 import logging
-import sys
 from typing import Callable, Optional, Sequence, Tuple
 
 # Vultron imports
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.case_participant import (
-    CaseParticipant,
-)
-from vultron.enums.roles import CVDRole
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
-)
+from vultron.demo.helpers.runner import run_exchange_demos
+from vultron.demo.helpers.workflow import setup_initialized_case
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
-    check_server_availability,
     demo_check,
     demo_step,
-    get_offer_from_datalayer,
     log_case_state,
     logfmt,
-    demo_environment,
     post_to_inbox_and_wait,
     verify_object_stored,
     setup_demo_logging,
 )
 from vultron.wire.as2.factories import (
     accept_case_participant_offer_activity,
-    add_participant_to_case_activity,
-    add_report_to_case_activity,
-    create_case_activity,
     offer_case_participant_activity,
     recommend_actor_activity,
     reject_case_participant_offer_activity,
-    rm_submit_report_activity,
-    rm_validate_report_activity,
 )
 
 logger = logging.getLogger(__name__)
-
-
-def _setup_initialized_case(
-    client: DataLayerClient,
-    finder: as_Actor,
-    vendor: as_Actor,
-) -> VulnerabilityCase:
-    """
-    Set up an initialized case as a precondition for the suggest workflow.
-
-    Mirrors the setup helper in invite_actor_demo but returns the
-    VulnerabilityCase so subsequent steps can reference it.
-    """
-    report = VulnerabilityReport(
-        attributed_to=finder.id_,
-        content="A remote code execution vulnerability in the web framework.",
-        name="Remote Code Execution Vulnerability",
-    )
-    report_offer = rm_submit_report_activity(
-        report, actor=finder.id_, to=vendor.id_
-    )
-    post_to_inbox_and_wait(client, vendor.id_, report_offer)
-    verify_object_stored(client, report.id_)
-
-    offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
-    validate_activity = rm_validate_report_activity(
-        offer,
-        actor=vendor.id_,
-        content="Confirmed — remote code execution via unsanitized input.",
-    )
-    post_to_inbox_and_wait(client, vendor.id_, validate_activity)
-
-    case = VulnerabilityCase(
-        attributed_to=vendor.id_,
-        name="RCE Case — Web Framework",
-        content="Tracking the RCE vulnerability in the web framework.",
-    )
-    create_case_act = create_case_activity(case, actor=vendor.id_)
-    post_to_inbox_and_wait(client, vendor.id_, create_case_act)
-    verify_object_stored(client, case.id_)
-
-    add_report_activity = add_report_to_case_activity(
-        report, actor=vendor.id_, target=case.id_
-    )
-    post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
-
-    participant = CaseParticipant(
-        case_roles=[CVDRole.FINDER, CVDRole.REPORTER],
-        attributed_to=finder.id_,
-        context=case.id_,
-    )
-    create_participant_activity = as_Create(
-        actor=vendor.id_,
-        object_=participant,
-        context=case.id_,
-    )
-    post_to_inbox_and_wait(client, vendor.id_, create_participant_activity)
-    verify_object_stored(client, participant.id_)
-
-    add_participant_activity = add_participant_to_case_activity(
-        participant, actor=vendor.id_, target=case.id_
-    )
-    post_to_inbox_and_wait(client, vendor.id_, add_participant_activity)
-
-    log_case_state(client, case.id_, "after setup")
-    logger.info("✓ Setup: Case initialized with report and finder participant")
-    return case
 
 
 def demo_suggest_actor_accept(
@@ -164,8 +81,8 @@ def demo_suggest_actor_accept(
 
     1. Setup: initialize case
     2. Finder → CaseActor inbox: Offer(Actor, Case)
-    3. CaseActor → Case Owner inbox: Offer(CaseParticipant{actor,roles}, Case)
-    4. Case Owner → CaseActor inbox: Accept(Offer(CaseParticipant))
+    3. CaseActor → Case Owner inbox: Offer(as_CaseParticipant{actor,roles}, Case)
+    4. Case Owner → CaseActor inbox: Accept(Offer(as_CaseParticipant))
     5. Verify acceptance persisted
 
     In this single-process prototype vendor acts as CaseActor.
@@ -174,7 +91,7 @@ def demo_suggest_actor_accept(
     logger.info("DEMO: Suggest Actor — Accept Path (ADR-0026)")
     logger.info("=" * 80)
 
-    case = _setup_initialized_case(client, finder, vendor)
+    case = setup_initialized_case(client, finder, vendor)
 
     with demo_step(
         "Step 2: Finder sends Offer(Actor, Case) to CaseActor inbox"
@@ -197,7 +114,7 @@ def demo_suggest_actor_accept(
             verify_object_stored(client, recommendation.id_)
 
     with demo_step(
-        "Step 3: CaseActor transforms to Offer(CaseParticipant) → Case Owner"
+        "Step 3: CaseActor transforms to Offer(as_CaseParticipant) → Case Owner"
     ):
         # Per ADR-0026/CM-16-004: CaseActor transforms and forwards with
         # origin=original-offer-id.
@@ -212,13 +129,13 @@ def demo_suggest_actor_accept(
                 f"(roles: VENDOR). Origin: {recommendation.id_}"
             ),
         )
-        logger.info(f"Sending Offer(CaseParticipant): {logfmt(cp_offer)}")
+        logger.info(f"Sending Offer(as_CaseParticipant): {logfmt(cp_offer)}")
         post_to_inbox_and_wait(client, vendor.id_, cp_offer)
-        with demo_check("Offer(CaseParticipant) stored in data layer"):
+        with demo_check("Offer(as_CaseParticipant) stored in data layer"):
             verify_object_stored(client, cp_offer.id_)
 
     with demo_step(
-        "Step 4: Case Owner sends Accept(Offer(CaseParticipant)) to CaseActor"
+        "Step 4: Case Owner sends Accept(Offer(as_CaseParticipant)) to CaseActor"
     ):
         # Per ADR-0026/CM-16-006: Accept routes to CaseActor inbox.
         accept = accept_case_participant_offer_activity(
@@ -231,7 +148,7 @@ def demo_suggest_actor_accept(
             ),
         )
         logger.info(
-            f"Sending Accept(Offer(CaseParticipant)): {logfmt(accept)}"
+            f"Sending Accept(Offer(as_CaseParticipant)): {logfmt(accept)}"
         )
         post_to_inbox_and_wait(client, vendor.id_, accept)
         with demo_check("Accept stored in data layer"):
@@ -257,15 +174,15 @@ def demo_suggest_actor_reject(
 
     1. Setup: initialize case
     2. Finder → CaseActor inbox: Offer(Actor, Case)
-    3. CaseActor → Case Owner inbox: Offer(CaseParticipant{actor,roles}, Case)
-    4. Case Owner → CaseActor inbox: Reject(Offer(CaseParticipant))
+    3. CaseActor → Case Owner inbox: Offer(as_CaseParticipant{actor,roles}, Case)
+    4. Case Owner → CaseActor inbox: Reject(Offer(as_CaseParticipant))
     5. Verify no new participant was added
     """
     logger.info("=" * 80)
     logger.info("DEMO: Suggest Actor — Reject Path (ADR-0026)")
     logger.info("=" * 80)
 
-    case = _setup_initialized_case(client, finder, vendor)
+    case = setup_initialized_case(client, finder, vendor)
 
     initial_case = log_case_state(client, case.id_, "initial")
     initial_count = len(initial_case.case_participants) if initial_case else 0
@@ -289,7 +206,7 @@ def demo_suggest_actor_reject(
             verify_object_stored(client, recommendation.id_)
 
     with demo_step(
-        "Step 3: CaseActor transforms to Offer(CaseParticipant) → Case Owner"
+        "Step 3: CaseActor transforms to Offer(as_CaseParticipant) → Case Owner"
     ):
         cp_offer = offer_case_participant_activity(
             coordinator,
@@ -302,13 +219,13 @@ def demo_suggest_actor_reject(
                 f"(roles: VENDOR). Origin: {recommendation.id_}"
             ),
         )
-        logger.info(f"Sending Offer(CaseParticipant): {logfmt(cp_offer)}")
+        logger.info(f"Sending Offer(as_CaseParticipant): {logfmt(cp_offer)}")
         post_to_inbox_and_wait(client, vendor.id_, cp_offer)
-        with demo_check("Offer(CaseParticipant) stored in data layer"):
+        with demo_check("Offer(as_CaseParticipant) stored in data layer"):
             verify_object_stored(client, cp_offer.id_)
 
     with demo_step(
-        "Step 4: Case Owner sends Reject(Offer(CaseParticipant)) to CaseActor"
+        "Step 4: Case Owner sends Reject(Offer(as_CaseParticipant)) to CaseActor"
     ):
         reject = reject_case_participant_offer_activity(
             cp_offer,
@@ -320,7 +237,7 @@ def demo_suggest_actor_reject(
             ),
         )
         logger.info(
-            f"Sending Reject(Offer(CaseParticipant)): {logfmt(reject)}"
+            f"Sending Reject(Offer(as_CaseParticipant)): {logfmt(reject)}"
         )
         post_to_inbox_and_wait(client, vendor.id_, reject)
 
@@ -351,66 +268,10 @@ def main(
     skip_health_check: bool = False,
     demos: Optional[Sequence] = None,
 ) -> None:
-    """
-    Main entry point for the suggest_actor demo script.
-
-    Args:
-        skip_health_check: Skip server availability check (useful for testing)
-        demos: Optional sequence of demo functions to run. Defaults to all.
-    """
-    client = DataLayerClient()
-
-    if not skip_health_check and not check_server_availability(client):
-        logger.error("=" * 80)
-        logger.error("ERROR: API server is not available")
-        logger.error("=" * 80)
-        logger.error(f"Cannot connect to: {client.base_url}")
-        logger.error("")
-        logger.error("Please ensure the Vultron API server is running:")
-        logger.error(
-            "  uv run uvicorn vultron.api.main:app --host localhost --port 7999"
-        )
-        logger.error("=" * 80)
-        sys.exit(1)
-
-    selected = (
-        _ALL_DEMOS
-        if demos is None
-        else [(name, fn) for name, fn in _ALL_DEMOS if fn in demos]
+    """Main entry point for the suggest_actor demo script."""
+    run_exchange_demos(
+        _ALL_DEMOS, skip_health_check=skip_health_check, demos=demos
     )
-    total = len(selected)
-    errors = []
-
-    for demo_name, demo_fn in selected:
-        try:
-            with demo_environment(client) as (finder, vendor, coordinator):
-                demo_fn(client, finder, vendor, coordinator)
-        except Exception as e:
-            logger.error(f"{demo_name} failed: {e}", exc_info=True)
-            errors.append((demo_name, str(e)))
-
-    logger.info("=" * 80)
-    logger.info("ALL DEMOS COMPLETE")
-    logger.info("=" * 80)
-
-    if errors:
-        logger.error("")
-        logger.error("=" * 80)
-        logger.error("ERROR SUMMARY")
-        logger.error("=" * 80)
-        logger.error(f"Total demos: {total}")
-        logger.error(f"Failed demos: {len(errors)}")
-        logger.error(f"Successful demos: {total - len(errors)}")
-        logger.error("")
-        for demo_name, error in errors:
-            logger.error(f"{demo_name}:")
-            logger.error(f"  {error}")
-            logger.error("")
-        logger.error("=" * 80)
-    else:
-        logger.info("")
-        logger.info(f"✓ All {total} demos completed successfully!")
-        logger.info("")
 
 
 if __name__ == "__main__":

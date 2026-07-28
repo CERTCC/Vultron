@@ -32,6 +32,7 @@ from vultron.core.models.events.case import (
     DeferCaseReceivedEvent,
     EngageCaseReceivedEvent,
 )
+from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.vultron_types import (
     VultronCase,
@@ -65,12 +66,12 @@ def _make_participant_in_valid_state(
             ParticipantStatus(
                 attributed_to=attributed_to,
                 context=context,
-                rm_state=RM.RECEIVED,
+                rm=RmDimension(state=RM.RECEIVED),
             ),
             ParticipantStatus(
                 attributed_to=attributed_to,
                 context=context,
-                rm_state=RM.VALID,
+                rm=RmDimension(state=RM.VALID),
             ),
         ],
     )
@@ -324,7 +325,7 @@ def test_engage_case_tree_success(
     participant_id = "https://example.org/participants/vendor-cp-001"
     updated_participant = datalayer.read(participant_id)
     latest_status = updated_participant.participant_statuses[-1]
-    assert latest_status.rm_state == RM.ACCEPTED
+    assert latest_status.rm.state == RM.ACCEPTED
 
 
 def test_engage_case_tree_fails_no_participant(
@@ -383,7 +384,7 @@ def test_defer_case_tree_success(
     participant_id = "https://example.org/participants/vendor-cp-001"
     updated_participant = datalayer.read(participant_id)
     latest_status = updated_participant.participant_statuses[-1]
-    assert latest_status.rm_state == RM.DEFERRED
+    assert latest_status.rm.state == RM.DEFERRED
 
 
 def test_defer_case_tree_fails_no_participant(
@@ -459,9 +460,9 @@ def test_engage_only_affects_target_actor(bridge, datalayer, report):
 
     updated_a = datalayer.read(participant_a.id_)
     updated_b = datalayer.read(participant_b.id_)
-    assert updated_a.participant_statuses[-1].rm_state == RM.ACCEPTED
+    assert updated_a.participant_statuses[-1].rm.state == RM.ACCEPTED
     # actor_b's RM state must be unchanged (START, from default init)
-    assert updated_b.participant_statuses[-1].rm_state != RM.ACCEPTED
+    assert updated_b.participant_statuses[-1].rm.state != RM.ACCEPTED
 
 
 # ============================================================================
@@ -493,12 +494,12 @@ def test_engage_case_tree_idempotent(
     updated_case = datalayer.read(case_with_participant.id_)
     participant_id = updated_case.case_participants[0]
     participant = datalayer.read(participant_id)
-    assert participant.participant_statuses[-1].rm_state == RM.ACCEPTED
+    assert participant.participant_statuses[-1].rm.state == RM.ACCEPTED
     # Second execution must NOT append a duplicate status entry
     accepted_entries = [
         s
         for s in participant.participant_statuses
-        if s.rm_state == RM.ACCEPTED
+        if s.rm.state == RM.ACCEPTED
     ]
     assert len(accepted_entries) == 1
 
@@ -527,12 +528,12 @@ def test_defer_case_tree_idempotent(
     updated_case = datalayer.read(case_with_participant.id_)
     participant_id = updated_case.case_participants[0]
     participant = datalayer.read(participant_id)
-    assert participant.participant_statuses[-1].rm_state == RM.DEFERRED
+    assert participant.participant_statuses[-1].rm.state == RM.DEFERRED
     # Second execution must NOT append a duplicate status entry
     deferred_entries = [
         s
         for s in participant.participant_statuses
-        if s.rm_state == RM.DEFERRED
+        if s.rm.state == RM.DEFERRED
     ]
     assert len(deferred_entries) == 1
 
@@ -626,7 +627,7 @@ def test_prioritize_subtree_engages_by_default(
     # Participant RM state must be ACCEPTED
     participant_id = "https://example.org/participants/vendor-cp-002"
     updated_participant = datalayer.read(participant_id)
-    assert updated_participant.participant_statuses[-1].rm_state == RM.ACCEPTED
+    assert updated_participant.participant_statuses[-1].rm.state == RM.ACCEPTED
 
     # An engage activity must have been created and added to outbox
     outbox_items = datalayer.clone_for_actor(actor_id).outbox_list()
@@ -643,8 +644,12 @@ def test_prioritize_subtree_engages_by_default(
 def test_prioritize_subtree_custom_on_accept_factory_used(
     case_with_participant, actor_id, trigger_activity
 ):
-    """on_accept_factory node appears in the engage path when custom factory is passed."""
+    """on_accept_factory node appears in the engage path when custom bundle is passed."""
     import py_trees
+
+    from vultron.demo.fuzzer.bundles.prioritization import (
+        PrioritizationCallOutBundle,
+    )
 
     def custom_on_accept(name):
         class _Marker(py_trees.behaviour.Behaviour):
@@ -653,11 +658,12 @@ def test_prioritize_subtree_custom_on_accept_factory_used(
 
         return _Marker(name="CustomOnAccept")
 
+    bundle = PrioritizationCallOutBundle(on_accept_factory=custom_on_accept)  # type: ignore[arg-type]
     tree = create_prioritize_subtree(
         case_id=case_with_participant.id_,
         actor_id=actor_id,
         trigger_activity=trigger_activity,
-        on_accept_factory=custom_on_accept,
+        call_out=bundle,
     )
 
     engage_path = tree.children[0]
@@ -667,8 +673,12 @@ def test_prioritize_subtree_custom_on_accept_factory_used(
 def test_prioritize_subtree_custom_on_defer_factory_used(
     case_with_participant, actor_id, trigger_activity
 ):
-    """on_defer_factory node appears in the defer path when custom factory is passed."""
+    """on_defer_factory node appears in the defer path when custom bundle is passed."""
     import py_trees
+
+    from vultron.demo.fuzzer.bundles.prioritization import (
+        PrioritizationCallOutBundle,
+    )
 
     def custom_on_defer(name):
         class _Marker(py_trees.behaviour.Behaviour):
@@ -677,11 +687,12 @@ def test_prioritize_subtree_custom_on_defer_factory_used(
 
         return _Marker(name="CustomOnDefer")
 
+    bundle = PrioritizationCallOutBundle(on_defer_factory=custom_on_defer)  # type: ignore[arg-type]
     tree = create_prioritize_subtree(
         case_id=case_with_participant.id_,
         actor_id=actor_id,
         trigger_activity=trigger_activity,
-        on_defer_factory=custom_on_defer,
+        call_out=bundle,
     )
 
     defer_path = tree.children[1]
@@ -689,26 +700,33 @@ def test_prioritize_subtree_custom_on_defer_factory_used(
 
 
 def test_prioritize_subtree_defers_when_engage_path_fails(
-    monkeypatch,
     bridge,
     datalayer,
     actor_id,
     trigger_activity,
     case_with_manager,
 ):
-    """PrioritizeBT falls back to defer when engage preconditions fail."""
-    from vultron.core.behaviors.report import prioritize_tree
+    """PrioritizeBT falls back to defer when evaluate_priority_factory returns FAILURE."""
+    import py_trees
 
-    monkeypatch.setattr(
-        prioritize_tree.EvaluateCasePriority,
-        "update",
-        lambda self: Status.FAILURE,
+    from vultron.demo.fuzzer.bundles.prioritization import (
+        PrioritizationCallOutBundle,
+    )
+
+    def _always_fail(name: str) -> py_trees.behaviour.Behaviour:
+        from vultron.demo.fuzzer.base import AlwaysFail
+
+        return AlwaysFail(name)
+
+    bundle = PrioritizationCallOutBundle(
+        evaluate_priority_factory=_always_fail,  # type: ignore[arg-type]
     )
 
     tree = create_prioritize_subtree(
         case_id=case_with_manager.id_,
         actor_id=actor_id,
         trigger_activity=trigger_activity,
+        call_out=bundle,
     )
     result = bridge.execute_with_setup(tree=tree, actor_id=actor_id)
 
@@ -716,7 +734,7 @@ def test_prioritize_subtree_defers_when_engage_path_fails(
 
     participant_id = "https://example.org/participants/vendor-cp-002"
     updated_participant = datalayer.read(participant_id)
-    assert updated_participant.participant_statuses[-1].rm_state == RM.DEFERRED
+    assert updated_participant.participant_statuses[-1].rm.state == RM.DEFERRED
 
     outbox_items = datalayer.clone_for_actor(actor_id).outbox_list()
     assert len(outbox_items) == 1

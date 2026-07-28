@@ -29,6 +29,8 @@ Spec coverage:
 - OX-09-001: Monitor wakes immediately on enqueue via callback.
 - OX-09-002: Safety-net poll interval retained for missed notifications.
 - OX-09-003: Callback injected as Callable; no monitor import in DL layer.
+- OX-09-004: DEBUG-level queue-depth summary on each drain pass.
+- OX-09-005: WARNING when any actor's outbox exceeds depth_warn_threshold.
 """
 
 import asyncio
@@ -80,6 +82,9 @@ class OutboxMonitor:
         emitter: ``ActivityEmitter`` implementation for HTTP delivery.
             Defaults to ``DemoHttpDeliveryAdapter`` (resolved inside
             :func:`outbox_handler`).
+        depth_warn_threshold: When set, emit a WARNING log for any actor
+            whose outbox depth exceeds this value on a drain pass.  ``None``
+            (default) disables the warning (OX-09-005).
     """
 
     def __init__(
@@ -90,11 +95,17 @@ class OutboxMonitor:
         ) = None,
         shared_dl: DataLayer | None = None,
         emitter: ActivityEmitter | None = None,
+        depth_warn_threshold: int | None = None,
     ) -> None:
+        if depth_warn_threshold is not None and depth_warn_threshold < 0:
+            raise ValueError(
+                f"depth_warn_threshold must be non-negative, got {depth_warn_threshold}"
+            )
         self._poll_interval = poll_interval
         self._actor_datalayers_factory = actor_datalayers_factory
         self._shared_dl = shared_dl
         self._emitter = emitter
+        self._depth_warn_threshold = depth_warn_threshold
         self._task: asyncio.Task | None = None
         self._running = False
         self._wakeup_event: asyncio.Event | None = None
@@ -103,6 +114,10 @@ class OutboxMonitor:
 
     async def drain_all(self) -> None:
         """Process all registered actor outboxes once.
+
+        Logs total pending items at DEBUG level on every pass (OX-09-004).
+        Emits a WARNING for any actor whose depth exceeds
+        ``depth_warn_threshold`` when that parameter is set (OX-09-005).
 
         Skips actors whose outbox is empty.  Delivery errors for a single
         actor are caught, logged at ERROR level, and do not abort processing
@@ -118,8 +133,29 @@ class OutboxMonitor:
             self._shared_dl if self._shared_dl is not None else get_datalayer()
         )
 
+        depths: dict[str, int] = {
+            actor_id: len(dl.outbox_list())
+            for actor_id, dl in actor_dls.items()
+        }
+        total = sum(depths.values())
+        logger.debug(
+            "OutboxMonitor: drain pass - total pending: %d across %d actors",
+            total,
+            len(actor_dls),
+        )
+        if self._depth_warn_threshold is not None:
+            for actor_id, depth in depths.items():
+                if depth > self._depth_warn_threshold:
+                    logger.warning(
+                        "OutboxMonitor: actor '%s' outbox depth %d"
+                        " exceeds threshold %d",
+                        actor_id,
+                        depth,
+                        self._depth_warn_threshold,
+                    )
+
         for actor_id, dl in actor_dls.items():
-            if not dl.outbox_list():
+            if not depths[actor_id]:
                 continue
             try:
                 await outbox_handler(

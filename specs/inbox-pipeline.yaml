@@ -1,24 +1,23 @@
 id: IBP
 title: Inbox Pipeline
 description: >-
-  `InboxPipeline` is a small injectable class that exposes the full
-  `rehydrate → prepare_for_dispatch → _dispatch_or_defer` chain as a single
-  testable unit. It honours the existing `ActivityDispatcher` and `DataLayer`
-  ports so that tests can drive the real pipeline with in-memory adapters
-  instead of mocking internal functions.  The module-level `_DISPATCHER`
-  global in `inbox_handler.py` is unchanged; `InboxPipeline` is a parallel
-  surface for tests and future adapter variants.
+  Requirements for InboxPipeline, an injectable class that exposes the full rehydrate,
+  prepare-for-dispatch, and dispatch-or-defer chain as a single testable unit. Honours
+  the existing ActivityDispatcher and DataLayer ports so that tests can drive the real
+  pipeline with in-memory adapters.
 version: 1.0.0
-kind: implementation
 scope:
 - prototype
 - production
+tags:
+- messaging
 groups:
 - id: IBP-01
   title: InboxPipeline Class Contract
   specs:
   - id: IBP-01-001
     priority: MUST
+    kind: project
     statement: >-
       `InboxPipeline` MUST accept an `ActivityDispatcher` and a `DataLayer`
       as constructor parameters and store them as private attributes.
@@ -28,6 +27,7 @@ groups:
       monkeypatching module-level globals.
   - id: IBP-01-002
     priority: MUST
+    kind: project
     statement: >-
       `InboxPipeline.process(activity_id: str)` MUST execute the full inbox
       processing chain: rehydrate the activity from the DataLayer, extract
@@ -42,6 +42,7 @@ groups:
       spec_id: DR-01-001
   - id: IBP-01-003
     priority: MUST
+    kind: project
     statement: >-
       `InboxPipeline.process()` MUST return the `VultronEvent` when the
       activity was dispatched, and MUST return `None` when the activity was
@@ -52,6 +53,7 @@ groups:
       DataLayer side-effects.
   - id: IBP-01-004
     priority: MUST_NOT
+    kind: project
     statement: >-
       `InboxPipeline` MUST NOT replace or modify the module-level `_DISPATCHER`
       global or the `init_dispatcher()` / `dispatch()` functions in
@@ -64,6 +66,7 @@ groups:
   specs:
   - id: IBP-02-001
     priority: MUST
+    kind: project
     statement: >-
       A `build_test_pipeline(dl: DataLayer) -> InboxPipeline` module-level
       factory function MUST be provided in the same module as `InboxPipeline`.
@@ -73,6 +76,7 @@ groups:
       focused on behaviour rather than plumbing.
   - id: IBP-02-002
     priority: MUST
+    kind: project
     statement: >-
       `build_test_pipeline()` MUST construct a `DirectActivityDispatcher`
       with the real `use_case_map()` and the same port factories that
@@ -86,6 +90,7 @@ groups:
       spec_id: DR-02-001
   - id: IBP-02-003
     priority: SHOULD
+    kind: project
     statement: >-
       A pytest fixture named `test_pipeline` SHOULD be provided in a
       `conftest.py` file in the test directory that exercises `InboxPipeline`,
@@ -96,10 +101,10 @@ groups:
       routing-safety-net test starts with an identical, isolated DataLayer.
 - id: IBP-03
   title: Module Location
-  kind: implementation
   specs:
   - id: IBP-03-001
     priority: MUST
+    kind: project
     statement: >-
       `InboxPipeline` and `build_test_pipeline()` MUST be defined in
       `vultron/adapters/driving/fastapi/inbox_pipeline.py`.
@@ -109,6 +114,7 @@ groups:
       testability.
   - id: IBP-03-002
     priority: MUST_NOT
+    kind: project
     statement: >-
       `inbox_pipeline.py` MUST NOT import from `inbox_handler.py`'s private
       helpers (`_DISPATCHER`, `_process_inbox_item`, `_dispatch_or_defer_inbox_item`)
@@ -119,10 +125,10 @@ groups:
       does not silently break the pipeline.
 - id: IBP-04
   title: Routing-Safety-Net Test Coverage
-  kind: implementation
   specs:
   - id: IBP-04-001
     priority: MUST
+    kind: project
     statement: >-
       At least one routing-safety-net test MUST exist per semantic domain
       (report, case, embargo, note, actor, status, sync) asserting that the
@@ -137,6 +143,7 @@ groups:
       spec_id: TB-02-002
   - id: IBP-04-002
     priority: MUST
+    kind: project
     statement: >-
       A routing-safety-net test MUST use `build_test_pipeline()` (real wiring)
       and MUST NOT mock `_DISPATCHER`, `prepare_for_dispatch`, or
@@ -146,12 +153,14 @@ groups:
       purpose of a routing safety net.
   - id: IBP-04-003
     priority: MUST
+    kind: project
     statement: >-
       Tests that exercise the deferral path MUST assert that `process()`
       returns `None` and that the activity ID appears in the pending-case
       inbox after the call.
   - id: IBP-04-004
     priority: SHOULD
+    kind: project
     statement: >-
       Routing-safety-net tests SHOULD be placed in
       `test/adapters/driving/fastapi/test_inbox_pipeline.py` and SHOULD NOT

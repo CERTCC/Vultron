@@ -31,9 +31,11 @@ from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.core.use_cases.triggers.case import SvcCreateCaseUseCase
 from vultron.core.use_cases.triggers.requests import CreateCaseTriggerRequest
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -72,7 +74,7 @@ def _get_outbox_activity_id(actor, dl: SqliteDataLayer) -> str | None:
 
 
 class TestSvcCreateCaseUseCase:
-    """SvcCreateCaseUseCase creates a VulnerabilityCase and queues activity."""
+    """SvcCreateCaseUseCase creates a as_VulnerabilityCase and queues activity."""
 
     @pytest.fixture(autouse=True)
     def setup(self):
@@ -127,7 +129,7 @@ class TestSvcCreateCaseUseCase:
     def test_create_case_with_linked_report(self):
         """SvcCreateCaseUseCase links a report to the new case."""
         # Create a report first
-        report = VulnerabilityReport(
+        report = as_VulnerabilityReport(
             name="Test Vulnerability Report",
             content="A test report",
         )
@@ -197,8 +199,8 @@ class TestSvcCreateCaseUseCase:
     def test_create_case_raises_when_report_wrong_type(self):
         """SvcCreateCaseUseCase raises VultronValidationError when report_id is
         not a VulnerabilityReport."""
-        # Create a wrong type object (VulnerabilityCase instead)
-        case = VulnerabilityCase(name="Not a Report")
+        # Create a wrong type object (as_VulnerabilityCase instead)
+        case = as_VulnerabilityCase(name="Not a Report")
         self.dl.create(case)
 
         request = CreateCaseTriggerRequest(

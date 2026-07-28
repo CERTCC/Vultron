@@ -17,12 +17,14 @@
 
 Covers all four DEMOMA-07-003 steps (step 3 raw re-broadcast removed
 per DEMOMA-07-005):
-  1. VerifySenderIsParticipantNode — unknown sender is rejected
-  2. AppendParticipantStatusNode  — status appended, RM regression rejected
-  4. PublicDisclosureBranchNode   — always SUCCESS, only triggers teardown on CS.P + CASE_OWNER
-  5. AutoCloseBranchNode          — always SUCCESS, logs when all RM.CLOSED
+  1. VerifySenderIsParticipantNode             — unknown sender is rejected
+  2. AppendParticipantStatusNode               — status appended, RM regression rejected
+  4. PublicDisclosureBranchNode               — always SUCCESS, only triggers teardown on CS.P + CASE_OWNER
+  5. AllParticipantsRMClosedConditionNode     — FAILURE when any participant not RM.CLOSED
+     CloseNotYetEmittedConditionNode          — FAILURE when Leave already in outbox
+     EmitCloseCaseNode                        — queues Leave(VulnerabilityCase)
 
-Per specs/multi-actor-demo.yaml DEMOMA-07-003 and DEMOMA-07-005.
+Per specs/multi-actor-demo.yaml DEMOMA-07-003, DEMOMA-07-005, DEMOMA-07-006.
 """
 
 import py_trees
@@ -38,9 +40,10 @@ from vultron.core.behaviors.status.append_participant_status_tree import (
     append_participant_status_tree,
 )
 from vultron.core.behaviors.status.nodes import (
+    AllParticipantsRMClosedConditionNode,
     AppendStatusAndSaveParticipantNode,
-    AutoCloseBranchNode,
     CheckStatusNotAlreadyAppendedNode,
+    CloseNotYetEmittedConditionNode,
     LoadParticipantNode,
     PublicDisclosureBranchNode,
     ResolveAndPersistStatusObjectNode,
@@ -50,9 +53,11 @@ from vultron.core.behaviors.status.nodes import (
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import add_status_to_participant_activity
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -90,7 +95,7 @@ def bridge(dl):
 
 @pytest.fixture
 def status_obj():
-    return ParticipantStatus(
+    return as_ParticipantStatus(
         id_=STATUS_ID,
         context=CASE_ID,
     )
@@ -98,7 +103,7 @@ def status_obj():
 
 @pytest.fixture
 def participant():
-    return CaseParticipant(
+    return as_CaseParticipant(
         id_=PARTICIPANT_ID,
         context=CASE_ID,
         attributed_to=ACTOR_ID,
@@ -108,7 +113,7 @@ def participant():
 
 @pytest.fixture
 def case_manager_participant():
-    return CaseParticipant(
+    return as_CaseParticipant(
         id_=CM_PARTICIPANT_ID,
         context=CASE_ID,
         attributed_to=CASE_MANAGER_ID,
@@ -118,8 +123,8 @@ def case_manager_participant():
 
 @pytest.fixture
 def case(participant, case_manager_participant):
-    """VulnerabilityCase with vendor and Case Manager participants."""
-    obj = VulnerabilityCase(id_=CASE_ID, name="Test Case")
+    """as_VulnerabilityCase with vendor and Case Manager participants."""
+    obj = as_VulnerabilityCase(id_=CASE_ID, name="Test Case")
     obj.add_participant(participant)
     obj.add_participant(case_manager_participant)
     return obj
@@ -343,7 +348,7 @@ class TestValidateRMTransitionNode:
     ):
         """Backwards RM transition (CLOSED → RECEIVED) is rejected."""
         p = populated_dl.read(PARTICIPANT_ID)
-        closed_status = ParticipantStatus(
+        closed_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/closed",
             context=CASE_ID,
             rm_state=RM.CLOSED,
@@ -352,7 +357,7 @@ class TestValidateRMTransitionNode:
         populated_dl.save(p)
         populated_dl.create(closed_status)
 
-        regressed_status = ParticipantStatus(
+        regressed_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/regressed",
             context=CASE_ID,
             rm_state=RM.RECEIVED,
@@ -381,7 +386,7 @@ class TestValidateRMTransitionNode:
     ):
         """RM.CLOSED is terminal; CLOSED -> CLOSED rewrites are rejected."""
         p = populated_dl.read(PARTICIPANT_ID)
-        closed_status = ParticipantStatus(
+        closed_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/closed",
             context=CASE_ID,
             rm_state=RM.CLOSED,
@@ -390,7 +395,7 @@ class TestValidateRMTransitionNode:
         populated_dl.save(p)
         populated_dl.create(closed_status)
 
-        duplicate_closed_status = ParticipantStatus(
+        duplicate_closed_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/closed-dup",
             context=CASE_ID,
             rm_state=RM.CLOSED,
@@ -417,7 +422,7 @@ class TestValidateRMTransitionNode:
     def test_accepts_forward_jump(self, populated_dl, populated_bridge):
         """Non-adjacent forward RM jump is accepted (sender authoritative)."""
         p = populated_dl.read(PARTICIPANT_ID)
-        received_status = ParticipantStatus(
+        received_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/received",
             context=CASE_ID,
             rm_state=RM.RECEIVED,
@@ -426,7 +431,7 @@ class TestValidateRMTransitionNode:
         populated_dl.save(p)
         populated_dl.create(received_status)
 
-        accepted_status = ParticipantStatus(
+        accepted_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/accepted",
             context=CASE_ID,
             rm_state=RM.ACCEPTED,
@@ -542,7 +547,7 @@ class TestAppendParticipantStatusSubtree:
         self, populated_dl, populated_bridge, participant
     ):
         """A backwards RM transition (CLOSED → RECEIVED) is rejected."""
-        closed_status = ParticipantStatus(
+        closed_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/prev",
             context=CASE_ID,
             rm_state=RM.CLOSED,
@@ -551,7 +556,7 @@ class TestAppendParticipantStatusSubtree:
         populated_dl.save(participant)
         populated_dl.create(closed_status)
 
-        regressed_status = ParticipantStatus(
+        regressed_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/regressed",
             context=CASE_ID,
             rm_state=RM.RECEIVED,
@@ -572,7 +577,7 @@ class TestAppendParticipantStatusSubtree:
         self, populated_dl, populated_bridge, participant
     ):
         """Repeated CLOSED updates are rejected and do not append new status."""
-        closed_status = ParticipantStatus(
+        closed_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/prev",
             context=CASE_ID,
             rm_state=RM.CLOSED,
@@ -581,7 +586,7 @@ class TestAppendParticipantStatusSubtree:
         populated_dl.save(participant)
         populated_dl.create(closed_status)
 
-        duplicate_closed = ParticipantStatus(
+        duplicate_closed = as_ParticipantStatus(
             id_=f"{STATUS_ID}/closed-dup",
             context=CASE_ID,
             rm_state=RM.CLOSED,
@@ -607,7 +612,7 @@ class TestAppendParticipantStatusSubtree:
         self, populated_dl, populated_bridge, participant
     ):
         """A non-adjacent but forward RM jump is accepted (sender authoritative)."""
-        received_status = ParticipantStatus(
+        received_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/received",
             context=CASE_ID,
             rm_state=RM.RECEIVED,
@@ -616,7 +621,7 @@ class TestAppendParticipantStatusSubtree:
         populated_dl.save(participant)
         populated_dl.create(received_status)
 
-        accepted_status = ParticipantStatus(
+        accepted_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/accepted",
             context=CASE_ID,
             rm_state=RM.ACCEPTED,
@@ -668,9 +673,9 @@ class TestPublicDisclosureBranchNode:
     ):
         """CASE_MANAGER sender (not CASE_OWNER) → skips teardown, SUCCESS."""
         from vultron.core.states.cs import CS_pxa
-        from vultron.wire.as2.vocab.objects.case_status import CaseStatus
+        from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 
-        cs = CaseStatus()
+        cs = as_CaseStatus()
         cs.pxa_state = CS_pxa.Pxa  # public-aware
         status_obj.case_status = cs
         populated_dl.save(status_obj)
@@ -696,11 +701,13 @@ class TestPublicDisclosureBranchNode:
         """
         from vultron.core.states.cs import CS_pxa
         from vultron.core.states.em import EM
-        from vultron.wire.as2.vocab.objects.case_status import CaseStatus
-        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
+        from vultron.wire.as2.vocab.objects.embargo_event import (
+            as_EmbargoEvent,
+        )
 
         # Give the case an active embargo in ACTIVE state
-        embargo = EmbargoEvent(
+        embargo = as_EmbargoEvent(
             id_=f"{CASE_ID}/embargo_events/e1", context=CASE_ID
         )
         case.active_embargo = embargo.id_
@@ -708,7 +715,7 @@ class TestPublicDisclosureBranchNode:
         populated_dl.create(embargo)
         populated_dl.save(case)
 
-        cs = CaseStatus()
+        cs = as_CaseStatus()
         cs.pxa_state = CS_pxa.Pxa  # public-aware
         status_obj.case_status = cs
         populated_dl.save(status_obj)
@@ -727,38 +734,35 @@ class TestPublicDisclosureBranchNode:
 
         from typing import cast as c
 
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
-        )
+        from vultron.core.models.case import VulnerabilityCase
 
         # State was still applied before the broadcast attempt
         updated = c(VulnerabilityCase, populated_dl.read(CASE_ID))
-        assert updated.current_status.em_state == EM.EXITED
+        assert updated.current_status.em.state == EM.EXITED
         assert updated.active_embargo is None
 
 
 # ---------------------------------------------------------------------------
-# Step 5: AutoCloseBranchNode
+# Step 5: AllParticipantsRMClosedConditionNode (DEMOMA-07-006)
 # ---------------------------------------------------------------------------
 
 
-class TestAutoCloseBranchNode:
-    def test_skips_when_participants_not_closed(self, populated_bridge):
-        node = AutoCloseBranchNode(case_id=CASE_ID)
+class TestAllParticipantsRMClosedConditionNode:
+    def test_fails_when_participants_not_closed(self, populated_bridge):
+        """No closed status on participant → FAILURE (not all closed)."""
+        node = AllParticipantsRMClosedConditionNode(case_id=CASE_ID)
         result = populated_bridge.execute_with_setup(
             tree=node, actor_id=CASE_MANAGER_ID
         )
-        assert result.status == Status.SUCCESS
+        assert result.status == Status.FAILURE
 
-    def test_logs_auto_close_when_all_closed(
+    def test_succeeds_when_all_participants_closed(
         self,
         populated_dl,
-        populated_bridge,
         participant,
-        case_manager_participant,
     ):
-        """When all CVD participants have RM.CLOSED, auto-close branch logs it."""
-        closed_status = ParticipantStatus(
+        """All CVD participants RM.CLOSED → SUCCESS."""
+        closed_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/closed",
             context=CASE_ID,
             rm_state=RM.CLOSED,
@@ -767,15 +771,104 @@ class TestAutoCloseBranchNode:
         participant.participant_statuses.append(closed_status)
         populated_dl.save(participant)
 
-        node = AutoCloseBranchNode(case_id=CASE_ID)
+        bridge = BTBridge(datalayer=populated_dl)
+        node = AllParticipantsRMClosedConditionNode(case_id=CASE_ID)
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.SUCCESS
+
+    def test_skips_case_manager_participant(
+        self,
+        populated_dl,
+        participant,
+        case_manager_participant,
+    ):
+        """CASE_MANAGER participant is excluded from the RM.CLOSED check."""
+        # Only vendor has CLOSED — case_manager_participant has no status
+        closed_status = as_ParticipantStatus(
+            id_=f"{STATUS_ID}/closed",
+            context=CASE_ID,
+            rm_state=RM.CLOSED,
+        )
+        populated_dl.create(closed_status)
+        participant.participant_statuses.append(closed_status)
+        populated_dl.save(participant)
+
+        bridge = BTBridge(datalayer=populated_dl)
+        node = AllParticipantsRMClosedConditionNode(case_id=CASE_ID)
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        # CASE_MANAGER is skipped, so only vendor matters → SUCCESS
+        assert result.status == Status.SUCCESS
+
+    def test_fails_when_no_case_id(self, bridge):
+        """No case_id → FAILURE."""
+        node = AllParticipantsRMClosedConditionNode(case_id=None)
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.FAILURE
+
+    def test_fails_when_case_not_found(self, bridge):
+        """Case not in DataLayer → FAILURE."""
+        node = AllParticipantsRMClosedConditionNode(
+            case_id="https://example.org/cases/nonexistent"
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.FAILURE
+
+
+# ---------------------------------------------------------------------------
+# Step 5: CloseNotYetEmittedConditionNode (DEMOMA-07-006 idempotency)
+# ---------------------------------------------------------------------------
+
+
+class TestCloseNotYetEmittedConditionNode:
+    def test_succeeds_when_outbox_empty(self, populated_bridge):
+        """Empty outbox → no prior Leave → SUCCESS."""
+        node = CloseNotYetEmittedConditionNode(case_id=CASE_ID)
         result = populated_bridge.execute_with_setup(
             tree=node, actor_id=CASE_MANAGER_ID
         )
         assert result.status == Status.SUCCESS
 
-    def test_skips_when_no_case_id(self, bridge):
-        node = AutoCloseBranchNode(case_id=None)
+    def test_fails_when_no_case_id(self, bridge):
+        """No case_id → FAILURE."""
+        node = CloseNotYetEmittedConditionNode(case_id=None)
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.FAILURE
+
+    def test_fails_when_leave_already_in_outbox(self, populated_dl):
+        """Leave(VulnerabilityCase) already in outbox → FAILURE (idempotency)."""
+        from vultron.core.models.activity import VultronActivity
+
+        leave_activity = VultronActivity(
+            id_=f"{CASE_ID}/activities/leave-01",
+            type_="Leave",
+            actor=CASE_MANAGER_ID,
+            object_=CASE_ID,
+        )
+        populated_dl.create(leave_activity)
+        populated_dl.record_outbox_item(CASE_MANAGER_ID, leave_activity.id_)
+
+        bridge = BTBridge(datalayer=populated_dl)
+        node = CloseNotYetEmittedConditionNode(case_id=CASE_ID)
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.FAILURE
+
+    def test_succeeds_when_leave_for_different_case(self, populated_dl):
+        """Leave in outbox for a different case → SUCCESS (not our case)."""
+        from vultron.core.models.activity import VultronActivity
+
+        other_case_id = "https://example.org/cases/other-case"
+        leave_activity = VultronActivity(
+            id_=f"{other_case_id}/activities/leave-01",
+            type_="Leave",
+            actor=CASE_MANAGER_ID,
+            object_=other_case_id,
+        )
+        populated_dl.create(leave_activity)
+        populated_dl.record_outbox_item(CASE_MANAGER_ID, leave_activity.id_)
+
+        bridge = BTBridge(datalayer=populated_dl)
+        node = CloseNotYetEmittedConditionNode(case_id=CASE_ID)
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.SUCCESS
 
 
@@ -792,12 +885,12 @@ class TestAddParticipantStatusTree:
     ):
         """End-to-end: known sender → all five steps succeed."""
         activity = add_status_to_participant_activity(
-            status=ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
-            target=CaseParticipant(
+            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
+            target=as_CaseParticipant(
                 id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
             ),
             actor=ACTOR_ID,
-            context=VulnerabilityCase(id_=CASE_ID, name="Test"),
+            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
         )
         event = make_payload(activity)
         bridge = BTBridge(datalayer=populated_dl)
@@ -817,12 +910,12 @@ class TestAddParticipantStatusTree:
     ):
         """Unknown sender → VerifySenderIsParticipantNode fails, tree halts."""
         activity = add_status_to_participant_activity(
-            status=ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
-            target=CaseParticipant(
+            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
+            target=as_CaseParticipant(
                 id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=OUTSIDER_ID
             ),
             actor=OUTSIDER_ID,
-            context=VulnerabilityCase(id_=CASE_ID, name="Test"),
+            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
         )
         event = make_payload(activity)
         bridge = BTBridge(datalayer=populated_dl)

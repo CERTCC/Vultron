@@ -32,10 +32,8 @@ import py_trees
 from pydantic import BaseModel
 from py_trees.common import Status
 
-from vultron.core.models.protocols import (
-    is_case_model,
-    is_participant_model,
-)
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.ports.case_persistence import (
     CasePersistence,
     CaseOutboxPersistence,
@@ -100,6 +98,20 @@ class DataLayerCondition(py_trees.behaviour.Behaviour):
             )
         if self.actor_id is None:
             self.logger.error(f"{self.name}: actor_id not found in blackboard")
+
+    def _require_datalayer(self) -> Status | None:
+        """Return FAILURE if ``self.datalayer`` is not set, else None."""
+        if self.datalayer is None:
+            self.feedback_message = "DataLayer not available"
+            return Status.FAILURE
+        return None
+
+    def _require_datalayer_and_actor(self) -> Status | None:
+        """Return FAILURE if ``datalayer`` or ``actor_id`` is not set, else None."""
+        if self.datalayer is None or self.actor_id is None:
+            self.feedback_message = "DataLayer or actor_id not available"
+            return Status.FAILURE
+        return None
 
     def update(self) -> Status:
         """
@@ -181,6 +193,27 @@ class DataLayerAction(py_trees.behaviour.Behaviour):
         if self.actor_id is None:
             self.logger.error(f"{self.name}: actor_id not found in blackboard")
 
+    def _require_datalayer(self) -> Status | None:
+        """Return FAILURE if ``self.datalayer`` is not set, else None."""
+        if self.datalayer is None:
+            self.feedback_message = "DataLayer not available"
+            return Status.FAILURE
+        return None
+
+    def _require_datalayer_and_actor(self) -> Status | None:
+        """Return FAILURE if ``datalayer`` or ``actor_id`` is not set, else None."""
+        if self.datalayer is None or self.actor_id is None:
+            self.feedback_message = "DataLayer or actor_id not available"
+            return Status.FAILURE
+        return None
+
+    def _require_factory(self) -> Status | None:
+        """Return FAILURE if ``trigger_activity_factory`` is not set, else None."""
+        if self.trigger_activity_factory is None:
+            self.feedback_message = "trigger_activity_factory not available"
+            return Status.FAILURE
+        return None
+
     def update(self) -> Status:
         """
         Perform action. Override in subclasses.
@@ -248,7 +281,7 @@ class FindParticipantByActorIdNode(DataLayerCondition):
                 participant_obj = self.datalayer.read(
                     participant_ref, raise_on_missing=False
                 )
-            if not is_participant_model(participant_obj):
+            if not isinstance(participant_obj, CaseParticipant):
                 continue
             if (
                 self._participant_actor_id(participant_obj)
@@ -274,13 +307,12 @@ class FindParticipantByActorIdNode(DataLayerCondition):
         return matched_participant, matched_participant_id, None
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            self.logger.error("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         case_obj = self.datalayer.read(self.case_id, raise_on_missing=False)
-        if not is_case_model(case_obj):
+        if not isinstance(case_obj, VulnerabilityCase):
             self.feedback_message = f"Case {self.case_id} not found"
             self.logger.debug("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
@@ -370,9 +402,9 @@ class ReadObject(DataLayerCondition):
         Returns:
             SUCCESS if object found, FAILURE if not found or error
         """
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         try:
             record = self.datalayer.read(self.object_id)
@@ -442,9 +474,8 @@ class UpdateObject(DataLayerAction):
         Returns:
             SUCCESS if update completes, FAILURE if error occurs
         """
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
 
         try:
             # Try to read current record from blackboard
@@ -545,9 +576,9 @@ class CreateObject(DataLayerAction):
         Returns:
             SUCCESS if creation completes, FAILURE if error occurs
         """
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         try:
             # Ensure object_data has required 'id_' field
@@ -624,11 +655,10 @@ class UpdateActorOutbox(DataLayerAction):
         Returns:
             SUCCESS if outbox updated, FAILURE on error
         """
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                f"{self.name}: DataLayer or actor_id not available"
-            )
-            return Status.FAILURE
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
 
         try:
             activity_id = self.blackboard.get("activity_id")

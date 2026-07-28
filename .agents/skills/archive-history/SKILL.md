@@ -16,21 +16,20 @@ Archive one completed work item to `plan/history/`, lint the new files, and
 commit + push them to the current branch.
 
 **Always invoke this skill AFTER the PR is opened** — so the PR URL can be
-embedded in the entry body. Since history entries are immutable once committed,
-completeness matters.
+embedded in the entry body. History entries are immutable once committed.
 
 ---
 
 ## Interface
 
-The caller provides four pieces of information:
+The caller provides four pieces of information (see the calling skill for body format):
 
 | Parameter | Description | Example |
 |---|---|---|
-| `TYPE` | Entry type passed to `append-history` | `idea`, `implementation`, `learning`, `priority` |
-| `TITLE` | Short human-readable summary | `AGENTS.md routing policy` |
+| `TYPE` | Entry type | `idea`, `implementation`, `learning`, `priority` |
+| `TITLE` | Short summary | `AGENTS.md routing policy` |
 | `SOURCE` | Originating identifier | `CONCERN-507`, `IDEA-42`, `ISSUE-576` |
-| Body | Full entry text piped via heredoc | See caller templates below |
+| Body | Full entry text via heredoc | Include PR URL and outcome summary |
 
 ---
 
@@ -58,21 +57,14 @@ markdownlint-cli2 --fix --config .markdownlint-cli2.yaml \
   "plan/history/$(date +%y%m)/**/*.md"
 ```
 
-Fix any lint errors in the generated files before continuing.
-
-### Step 3 — Stage history files
+### Step 3 — Stage and commit
 
 ```bash
 git add plan/history/
-```
-
-### Step 4 — Commit
-
-```bash
 uv run git commit -m "history: archive <TYPE> <SOURCE> — <TITLE>"
 ```
 
-### Step 5 — Push
+### Step 4 — Push
 
 ```bash
 git push "https://x-access-token:$(gh auth token)@github.com/CERTCC/Vultron.git" HEAD
@@ -80,69 +72,10 @@ git push "https://x-access-token:$(gh auth token)@github.com/CERTCC/Vultron.git"
 
 ---
 
-## Caller templates
-
-Each caller skill should replace its inline `uv run append-history` +
-`git add plan/history/` + `git commit` sequence with an invocation of
-this skill. The caller is responsible for constructing the entry body;
-this skill owns the tool invocation, lint, stage, commit, and push.
-
-### plan-issue (Idea)
-
-```text
-TYPE    = idea
-TITLE   = <short idea title>
-SOURCE  = IDEA-<ISSUE_NUMBER>
-BODY    = Full original idea text + "**Processed**: YYYY-MM-DD — ..." line
-          + "Docs PR: <PR_URL>."
-```
-
-### plan-issue (Concern)
-
-```text
-TYPE    = learning
-TITLE   = <short concern title>
-SOURCE  = CONCERN-<ISSUE_NUMBER>
-BODY    = Full original concern body + "**Resolved**: YYYY-MM-DD — ..."
-          + "Docs PR: <PR_URL>. Implementation tracked in #<IMPL_ISSUE>."
-```
-
-### learn (incoming learning file)
-
-```bash
-# After adding the promotion note to the file body, run:
-uv run append-history --from-file plan/incoming/learnings/<YYYYMMDD-SLUG>.md
-```
-
-This moves the file to `plan/history/YYMM/learning/` and deletes the source.
-
-### build
-
-```text
-TYPE    = implementation
-TITLE   = <short task title>
-SOURCE  = ISSUE-<N>   (or full GitHub URL)
-BODY    = "## Issue #<N> — <title>\n\n<completion summary, PR link>"
-```
-
-### update-priorities
-
-```text
-TYPE    = priority
-TITLE   = <priority group title>
-SOURCE  = PRIORITY-<number>
-BODY    = <priority summary and completion notes>
-```
-
----
-
 ## Constraints
 
-- **Always call after PR creation** — the entry body should include the PR URL.
+- **Always call after PR creation** — include the PR URL in the entry body.
 - **One entry per invocation** — for multiple entries, call this skill in a loop.
-- **Do not call `git push` separately** — this skill always pushes as its final
-  step.
-- **Do not amend** — if the commit already exists, open a new commit via a fresh
-  invocation rather than amending.
-- History files are **immutable** once pushed — do not edit them after this
-  skill completes.
+- **Do not call `git push` separately** — this skill always pushes as its final step.
+- **Do not amend** — open a new commit via a fresh invocation rather than amending.
+- History files are **immutable** once pushed.

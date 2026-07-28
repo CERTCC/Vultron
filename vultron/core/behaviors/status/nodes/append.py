@@ -27,16 +27,15 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
-from vultron.core.models.protocols import (
-    PersistableModel,
-    is_participant_model,
-)
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.protocols import PersistableModel
 from vultron.core.states.rm import (
     RM,
     is_monotonic_rm_forward,
     is_valid_rm_transition,
 )
-from vultron.core.use_cases._helpers import _as_id
+from vultron.core.models._helpers import _as_id
 
 logger = logging.getLogger(__name__)
 
@@ -112,12 +111,12 @@ class LoadParticipantNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         participant = self.datalayer.read(self.participant_id)
-        if not is_participant_model(participant):
+        if not isinstance(participant, CaseParticipant):
             self.feedback_message = (
                 f"Participant '{self.participant_id}' not found"
             )
@@ -194,8 +193,8 @@ class ResolveAndPersistStatusObjectNode(DataLayerAction):
     Tries the DataLayer first; if not found, uses ``status_obj_fallback``,
     saves it, then re-reads the canonical wire-format record.
 
-    Validates that the resolved object is a ParticipantStatus (has rm_state and
-    vfd_state attributes).
+    Validates that the resolved object is a ParticipantStatus (has rm and
+    vfd attributes).
 
     Writes the resolved status object to the blackboard under the key
     ``append_status_status_obj``.
@@ -222,9 +221,9 @@ class ResolveAndPersistStatusObjectNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         status_obj = self.datalayer.read(self.status_id)
         if not hasattr(status_obj, "id_"):
@@ -241,9 +240,7 @@ class ResolveAndPersistStatusObjectNode(DataLayerAction):
             )
             return Status.FAILURE
 
-        if not hasattr(status_obj, "rm_state") or not hasattr(
-            status_obj, "vfd_state"
-        ):
+        if not hasattr(status_obj, "rm") or not hasattr(status_obj, "vfd"):
             self.feedback_message = (
                 f"Object '{self.status_id}' is not a ParticipantStatus"
             )
@@ -302,7 +299,9 @@ class ValidateRMTransitionNode(DataLayerCondition):
             )
             return Status.FAILURE
 
-        new_rm_state = getattr(status_obj, "rm_state", None)
+        new_rm_state = (
+            status_obj.rm.state if hasattr(status_obj, "rm") else None
+        )
         current_status = getattr(participant, "participant_status", None)
 
         if new_rm_state is None or current_status is None:
@@ -312,7 +311,7 @@ class ValidateRMTransitionNode(DataLayerCondition):
             )
             return Status.SUCCESS
 
-        current_rm = current_status.rm_state
+        current_rm = current_status.rm.state
         if current_rm == RM.CLOSED:
             self.feedback_message = (
                 "Participant is already in terminal RM.CLOSED state"
@@ -392,9 +391,9 @@ class AppendStatusAndSaveParticipantNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         participant = self.blackboard.get("append_status_participant")
         status_obj = self.blackboard.get("append_status_status_obj")
@@ -407,10 +406,8 @@ class AppendStatusAndSaveParticipantNode(DataLayerAction):
             )
             return Status.FAILURE
 
-        from vultron.core.models.protocols import ParticipantStatusModel
-
         participant.participant_statuses.append(
-            cast(ParticipantStatusModel, status_obj)
+            cast(ParticipantStatus, status_obj)
         )
         self.datalayer.save(participant)
         self.logger.info(
@@ -450,12 +447,12 @@ class CheckParticipantRMNotClosedNode(DataLayerCondition):
         self.status_id = status_id
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         participant = self.datalayer.read(self.participant_id)
-        if not is_participant_model(participant):
+        if not isinstance(participant, CaseParticipant):
             self.logger.debug(
                 "%s: participant '%s' not found — allowing (no terminal check)",
                 self.name,
@@ -467,7 +464,9 @@ class CheckParticipantRMNotClosedNode(DataLayerCondition):
         if current_status is None:
             return Status.SUCCESS
 
-        current_rm = getattr(current_status, "rm_state", None)
+        current_rm = (
+            current_status.rm.state if hasattr(current_status, "rm") else None
+        )
         if current_rm != RM.CLOSED:
             return Status.SUCCESS
 

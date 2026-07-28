@@ -397,6 +397,32 @@ itself or from a prior invocation having been authorized.
 
 ---
 
+## Prologue Backfill Pattern (Issue #1688)
+
+When a `CaseActor` accepts the `CASE_MANAGER` role it must back-fill ledger
+entries for protocol events that occurred before it was appointed (report
+submission, case creation, participant status initialization). This is done by
+`WritePrologueLedgerEntriesNode` (`vultron/core/behaviors/case/nodes/prologue.py`),
+which runs as the first action in `create_offer_case_manager_role_received_tree()`
+before `StoreActivityNode`.
+
+**When it runs**: immediately after the CLP-10-006 guarded `offer_case_manager_role`
+commit, during `OfferCaseManagerRoleReceivedBT` execution.
+
+**Best-effort semantics**: the node returns `SUCCESS` regardless of individual
+entry failures (case not on this DataLayer, missing genesis hash, etc.) so the
+enclosing Sequence is never blocked by prologue failures.
+
+**log_index ordering caveat**: prologue entries are committed in causal order
+(submit_report → create_case → add_report_to_case → per-participant statuses →
+add_case_status_to_case), but their `log_index` values are assigned at commit
+time, not at the time the original events occurred. This means prologue entries
+will have higher log_index values than any prior entries for the same case if
+the ledger already has entries. This is a known limitation: log_index is
+assignment-time-ordered, not causal-event-time-ordered, for prologue backfill.
+
+---
+
 ## Per-Case Genesis Hash — Origin Binding and Future Improvements
 
 *Spec: `specs/case-ledger-processing.yaml` CLP-08-001 through CLP-08-006.*

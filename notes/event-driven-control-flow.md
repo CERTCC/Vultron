@@ -214,12 +214,21 @@ post_to_inbox_and_wait(client, vendor_id, add_participant_activity)  # should be
 ```
 
 ```python
-# ✅ CORRECT — demo injects primary event, verifies outcome
-post_to_inbox_and_wait(client, vendor_id, validate_activity)
-# ... wait for settlement ...
-assert_case_exists_in_datalayer(dl, case_id)  # observe state, not steps
+# ✅ CORRECT — demo triggers primary event, verifies outcome
+post_to_trigger(client, vendor_id, "validate-report", body=report_params)
+# ... poll for settlement ...
+wait_for_case_on_container(dl, case_id)        # observe state, not steps
 assert_participant_added(dl, case_id, finder_id)
 ```
+
+> **Note (CONCERN-1635):** The earlier form of this example used
+> `post_to_inbox_and_wait(client, vendor_id, validate_activity)` and was marked
+> ✅ CORRECT for "demo injects primary event." That pattern is now superseded.
+> CONCERN-1635 prohibits demo scripts from POSTing directly to any actor's inbox
+> — including via `post_to_inbox_and_wait` — even for the primary event. The
+> correct pattern is `post_to_trigger` + a polling assertion
+> (`wait_for_case_on_container`, `find_case_invite_for_actor`, etc.). See the
+> CONCERN-1635 rule in `vultron/demo/AGENTS.md`.
 
 ### Missing External Decision Node
 
@@ -266,7 +275,7 @@ are bypassed by design.
 Demonstrate full multi-actor workflows. These MUST use trigger endpoints
 ("puppeteering") so the system's own BT and outbox logic is exercised.
 
-- **Examples**: `two_actor_demo.py`, `three_actor_demo.py`,
+- **Examples**: `fv_demo.py`, `three_actor_demo.py`,
   `multi_vendor_demo.py`
 - **Pattern**: Call trigger endpoint on sending actor's container → actor's
   BT runs → activity added to outbox → outbox handler delivers to recipient

@@ -13,12 +13,12 @@ from vultron.core.models.events.case import (
     AddReportToCaseReceivedEvent,
     CloseCaseReceivedEvent,
 )
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
 )
-from vultron.core.use_cases._helpers import _as_id
+from vultron.core.models._helpers import _as_id
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -42,7 +42,7 @@ class AddReportToCaseReceivedUseCase:
             return
         case = self._dl.read(case_id)
 
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             logger.warning("add_report_to_case: case '%s' not found", case_id)
             return
 

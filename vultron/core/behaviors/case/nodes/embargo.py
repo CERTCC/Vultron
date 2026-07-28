@@ -39,15 +39,16 @@ from py_trees.common import Status
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.enums import VultronObjectType
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
 )
+from vultron.core.models.dimensions import EmDimension
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
-from vultron.core.use_cases._helpers import _as_id
+from vultron.core.models._helpers import _as_id
 from vultron.errors import VultronError
 
 logger = logging.getLogger(__name__)
@@ -91,10 +92,9 @@ class ResolveEmbargoDurationNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
-
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         duration = _preferred_embargo_duration(
             self.datalayer, self.name, self.logger
         )
@@ -123,10 +123,9 @@ class CreateEmbargoEventNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
-
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         case_id = self.blackboard.get("case_id")
         if not isinstance(case_id, str):
             self.logger.error("%s: case_id not found in blackboard", self.name)
@@ -183,11 +182,10 @@ class AdvanceEMStateToActiveNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                "%s: DataLayer or actor_id not available", self.name
-            )
-            return Status.FAILURE
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
 
         case_id = self.blackboard.get("case_id")
         embargo_id = self.blackboard.get("default_embargo_id")
@@ -199,7 +197,7 @@ class AdvanceEMStateToActiveNode(DataLayerAction):
             return Status.FAILURE
 
         stored_case = self.datalayer.read(case_id, raise_on_missing=False)
-        if not is_case_model(stored_case):
+        if not isinstance(stored_case, VulnerabilityCase):
             self.logger.error(
                 "%s: Case %s not found in DataLayer", self.name, case_id
             )
@@ -226,13 +224,47 @@ class AdvanceEMStateToActiveNode(DataLayerAction):
             )
             return Status.FAILURE
 
+        status = self._propose_with_em_io(case_id, embargo_id)
+        if status != Status.SUCCESS:
+            return status
+
+        self.blackboard.default_embargo_initialized = True
+        return Status.SUCCESS
+
+    def _propose_with_em_io(self, case_id: str, embargo_id: str) -> Status:
+        """Run propose_embargo with ReadEmStateNode / WriteEmStateNode (AC-1)."""
+        assert (
+            self.datalayer is not None
+        )  # caller guards; here for type narrowing
+        assert self.actor_id is not None
+
+        from vultron.core.behaviors.embargo.nodes.em_state import (
+            ReadEmStateNode,
+            WriteEmStateNode,
+        )
+
+        em_result_out: dict[str, object] = {}
+        read_node = ReadEmStateNode(case_id=case_id, result_out=em_result_out)
+        read_node.datalayer = self.datalayer
+        if read_node.update() != Status.SUCCESS:
+            self.logger.error(
+                "%s: Failed to read em_state for case '%s': %s",
+                self.name,
+                case_id,
+                read_node.feedback_message,
+            )
+            return Status.FAILURE
+        em_before = em_result_out["em_before"]
+        assert isinstance(em_before, EM)
+
         lifecycle = EmbargoLifecycle(persistence=self.datalayer)
         try:
-            lifecycle.propose_embargo(
+            result = lifecycle.propose_embargo(
                 case_id=case_id,
                 embargo_id=embargo_id,
                 actor_id=self.actor_id,
                 transition_mode=TransitionMode.STRICT,
+                em_before=em_before,
             )
         except VultronError as exc:
             self.logger.error(
@@ -244,7 +276,21 @@ class AdvanceEMStateToActiveNode(DataLayerAction):
             )
             return Status.FAILURE
 
-        self.blackboard.default_embargo_initialized = True
+        if result.em_after != em_before:
+            em_result_out["em_after"] = result.em_after
+            write_node = WriteEmStateNode(
+                case_id=case_id, result_out=em_result_out
+            )
+            write_node.datalayer = self.datalayer
+            if write_node.update() != Status.SUCCESS:
+                self.logger.error(
+                    "%s: Failed to write em_state for case '%s': %s",
+                    self.name,
+                    case_id,
+                    write_node.feedback_message,
+                )
+                return Status.FAILURE
+
         return Status.SUCCESS
 
 
@@ -273,9 +319,9 @@ class AttachEmbargoToCaseNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         case_id = self.blackboard.get("case_id")
         embargo_id = self.blackboard.get("default_embargo_id")
@@ -287,7 +333,7 @@ class AttachEmbargoToCaseNode(DataLayerAction):
             return Status.FAILURE
 
         stored_case = self.datalayer.read(case_id, raise_on_missing=False)
-        if not is_case_model(stored_case):
+        if not isinstance(stored_case, VulnerabilityCase):
             self.logger.error(
                 "%s: Case %s not found in DataLayer", self.name, case_id
             )
@@ -296,7 +342,7 @@ class AttachEmbargoToCaseNode(DataLayerAction):
         active_embargo_id = _as_id(stored_case.active_embargo)
         if active_embargo_id is None:
             stored_case.active_embargo = embargo_id
-            stored_case.current_status.em_state = EM.ACTIVE
+            stored_case.current_status.em = EmDimension(state=EM.ACTIVE)
             self.datalayer.save(stored_case)
             self.logger.info(
                 "Attached embargo '%s' to case '%s' as active_embargo",
@@ -334,11 +380,10 @@ class SeedOwnerAsSignatoryNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                "%s: DataLayer or actor_id not available", self.name
-            )
-            return Status.FAILURE
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
 
         case_id = self.blackboard.get("case_id")
         if not isinstance(case_id, str):
@@ -352,7 +397,7 @@ class SeedOwnerAsSignatoryNode(DataLayerAction):
             return Status.SUCCESS
 
         stored_case = self.datalayer.read(case_id, raise_on_missing=False)
-        if not is_case_model(stored_case):
+        if not isinstance(stored_case, VulnerabilityCase):
             self.logger.error(
                 "%s: Case %s not found in DataLayer", self.name, case_id
             )

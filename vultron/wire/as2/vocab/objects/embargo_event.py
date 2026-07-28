@@ -39,7 +39,7 @@ def _45_days_hence():
     return now + timedelta(days=45)
 
 
-class EmbargoEvent(as_Event):
+class as_EmbargoEvent(as_Event):
     """Wire projection of the core EmbargoEvent domain object.
 
     Represents an embargo on a VulnerabilityCase for AS2 wire exchange.
@@ -80,10 +80,10 @@ class EmbargoEvent(as_Event):
         return self
 
     @classmethod
-    def from_core(cls, core_obj: CoreEmbargoEvent) -> "EmbargoEvent":
+    def from_core(cls, core_obj: CoreEmbargoEvent) -> "as_EmbargoEvent":
         data = core_obj.model_dump(mode="json")
         _strip_core_context(data)
-        return cast("EmbargoEvent", cls.model_validate(data))
+        return cast("as_EmbargoEvent", cls.model_validate(data))
 
     def to_core(self) -> CoreEmbargoEvent:
         data = self.model_dump(mode="python", round_trip=True)
@@ -94,11 +94,11 @@ class EmbargoEvent(as_Event):
         return CoreEmbargoEvent.model_validate(data)
 
 
-EmbargoEventRef: TypeAlias = ActivityStreamRef[EmbargoEvent]
+as_EmbargoEventRef: TypeAlias = ActivityStreamRef[as_EmbargoEvent]
 
 
 def main():
-    obj = EmbargoEvent()
+    obj = as_EmbargoEvent()
     print(obj.to_json(indent=2))
 
 

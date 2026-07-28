@@ -17,9 +17,9 @@
 from typing import Any
 
 from vultron.core.use_cases._helpers import build_activity_payload_snapshot
-from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 
@@ -36,8 +36,8 @@ def test_extract_activity_snapshot_returns_empty_without_activity() -> None:
 
 
 def test_extract_activity_snapshot_inlines_nested_reference_fields(datalayer):
-    embargo = EmbargoEvent(context="https://example.org/cases/case-001")
-    report = VulnerabilityReport(
+    embargo = as_EmbargoEvent(context="https://example.org/cases/case-001")
+    report = as_VulnerabilityReport(
         name="TEST-REPORT-001",
         content="Demo content",
         context="https://example.org/cases/case-001",
@@ -75,7 +75,7 @@ def test_extract_activity_snapshot_inlines_nested_reference_fields(datalayer):
 def test_extract_activity_snapshot_does_not_inline_cross_context_refs(
     datalayer,
 ):
-    embargo = EmbargoEvent(context="https://example.org/cases/other-case")
+    embargo = as_EmbargoEvent(context="https://example.org/cases/other-case")
     datalayer.save(embargo)
 
     payload = {

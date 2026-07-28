@@ -1,15 +1,16 @@
 ---
-status: proposed
-date: 2026-07-09
+status: accepted
+date: 2026-07-22
 deciders: [adh]
 ---
 
 # Publish Leaf Expansion: Single Actuator → Draft-Review-Submit Pipeline
 
-> **PROVISIONAL** — formed at planning time (issue #1200). Subject to revision
-> when the implementation issue for this collapse candidate is worked.
-> Implementation tracked by the issue blocked by #1200 and the implementation
-> issue for ADR-0028 (publication intents).
+> Implemented by issue #1312 (`task/1607-signal-taxonomy` branch).  The
+> four-step pipeline (Option 2) was adopted as specified.  The open design
+> question about participant-comment broadcast in the review phase (AC-4) was
+> **deferred** to a follow-on issue — the pipeline functions without it using
+> the default auto-approve `ReviewAdvisoryDraft` Evaluator.
 
 ## Context and Problem Statement
 

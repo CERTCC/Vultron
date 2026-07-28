@@ -54,6 +54,15 @@ def _always_succeed_factory(name: str) -> py_trees.behaviour.Behaviour:
     return _AlwaysSucceed(name)
 
 
+def _make_always_succeed_bundle():
+    from vultron.demo.fuzzer.bundles.validation import ValidationCallOutBundle
+
+    return ValidationCallOutBundle(
+        credibility_factory=_always_succeed_factory,  # type: ignore[arg-type]
+        validity_factory=_always_succeed_factory,  # type: ignore[arg-type]
+    )
+
+
 def _mock_get_helper(table: str, id_: str) -> dict | None:
     """Pattern-based mock for DataLayer.get()."""
     if "report" in id_:
@@ -175,8 +184,7 @@ def test_bt_execution_performance_single_run(mock_datalayer, sample_activity):
     tree = create_validate_report_tree(
         report_id="test-report-123",
         offer_id="test-offer-456",
-        credibility_factory=_always_succeed_factory,
-        validity_factory=_always_succeed_factory,
+        call_out=_make_always_succeed_bundle(),
     )
 
     start = time.perf_counter()
@@ -215,8 +223,7 @@ def test_bt_execution_performance_percentiles(mock_datalayer, sample_activity):
         tree = create_validate_report_tree(
             report_id="test-report-123",
             offer_id="test-offer-456",
-            credibility_factory=_always_succeed_factory,
-            validity_factory=_always_succeed_factory,
+            call_out=_make_always_succeed_bundle(),
         )
 
         start = time.perf_counter()

@@ -356,7 +356,9 @@ def test_create_case_tree_vendor_participant_seeded_with_rm_valid(
             continue
         statuses = participant.participant_statuses
         assert statuses, "Participant has no status history"
-        latest_rm = getattr(statuses[-1], "rm_state", None)
+        latest_rm = (
+            statuses[-1].rm.state if hasattr(statuses[-1], "rm") else None
+        )
         assert (
             latest_rm == RM.VALID
         ), f"Expected initial rm_state=RM.VALID, got {latest_rm}"
@@ -382,7 +384,7 @@ def test_create_case_tree_skips_ledger_entry_for_non_case_manager(
     (Issue #1021).
     """
     from vultron.wire.as2.vocab.objects.case_ledger_entry import (
-        CaseLedgerEntry as WireCaseLedgerEntry,
+        as_CaseLedgerEntry as WireCaseLedgerEntry,
     )
 
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
@@ -410,7 +412,7 @@ def test_create_case_tree_case_created_event_uses_case_id(
     nodes/test_guarded_commit_tree.py (CM-02-009, Issue #1021).
     """
     from vultron.wire.as2.vocab.objects.case_ledger_entry import (
-        CaseLedgerEntry as WireCaseLedgerEntry,
+        as_CaseLedgerEntry as WireCaseLedgerEntry,
     )
 
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
@@ -473,7 +475,7 @@ def test_create_case_tree_vendor_produces_no_ledger_entries(
     and is tested in nodes/test_guarded_commit_tree.py (CM-02-009, Issue #1021).
     """
     from vultron.wire.as2.vocab.objects.case_ledger_entry import (
-        CaseLedgerEntry as WireCaseLedgerEntry,
+        as_CaseLedgerEntry as WireCaseLedgerEntry,
     )
 
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)
@@ -494,12 +496,12 @@ def test_create_case_tree_hash_and_timestamp_properties_delegated(
 ):
     """Vendor running create_create_case_tree produces zero canonical ledger entries.
 
-    entry_hash and received_at properties of CaseLedgerEntry are verified in
+    entry_hash and received_at properties of as_CaseLedgerEntry are verified in
     nodes/test_guarded_commit_tree.py where CaseActor identity is explicit and
     no ID derivation is required (CM-02-009, Issue #1021).
     """
     from vultron.wire.as2.vocab.objects.case_ledger_entry import (
-        CaseLedgerEntry as WireCaseLedgerEntry,
+        as_CaseLedgerEntry as WireCaseLedgerEntry,
     )
 
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.id_)

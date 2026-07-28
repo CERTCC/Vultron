@@ -187,11 +187,12 @@ All checks passing.
 Severity levels:
 
 - **✅ PASS** — no issues
-- **⚠️ WARN** — should be addressed but not blocking
+- **⚠️ IMPROVE** — works but incomplete; fix in this session
 - **❌ FAIL** — must be addressed before merge
+- **🎫 NEW-ISSUE** — distinct problem; issue cut, decision pending (see SKILL.md decision tree)
 
 Overall rating:
 
 - PASS if all phases are PASS
-- WARN if any phase is WARN and none are FAIL
+- IMPROVE if any phase is IMPROVE and none are FAIL
 - FAIL if any phase is FAIL

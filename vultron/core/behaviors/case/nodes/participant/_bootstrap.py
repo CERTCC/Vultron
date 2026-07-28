@@ -26,7 +26,7 @@ from vultron.core.behaviors.case.nodes.participant.common import (
     _ensure_reporter_participant,
 )
 from vultron.core.behaviors.helpers import DataLayerAction
-from vultron.core.models.protocols import CaseModel
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.report_case_link import VultronReportCaseLink
 
 
@@ -49,7 +49,7 @@ class EnsureReporterParticipantAtAcceptedNode(DataLayerAction):
     def __init__(
         self,
         link: VultronReportCaseLink,
-        case_obj: CaseModel,
+        case_obj: VulnerabilityCase,
         case_id: str,
         name: str | None = None,
     ) -> None:
@@ -59,10 +59,9 @@ class EnsureReporterParticipantAtAcceptedNode(DataLayerAction):
         self.case_id = case_id
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
-
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         _ensure_reporter_participant(
             self.datalayer,
             self.link,

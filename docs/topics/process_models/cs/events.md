@@ -74,7 +74,8 @@ disclosed publicly* in [Bilge et al.](https://doi.org/10.1145/2382196.2382284){:
 about a vulnerability through the vendor's announcement of a fix, a news
 report about a security breach, a conference presentation by a
 researcher, by comparing released software versions as
-in [@xu2020patch; @xiao2020mvp], or a variety of other means. As above,
+in [Xu et al. (2020)](https://doi.org/10.1145/3395363.3397361){:target="_blank"} and
+[Xiao et al. (2020)](https://www.usenix.org/conference/usenixsecurity20/presentation/xiao){:target="_blank"}, or a variety of other means. As above,
 we are primarily concerned with the occurrence of the event itself
 rather than the details of *how* the public awareness event arises.
 

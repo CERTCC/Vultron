@@ -238,6 +238,450 @@ def seed_containers_fvv(
     return finder, vendor, vendor2
 
 
+def seed_containers_fvcv(
+    finder_client: DataLayerClient,
+    vendor_client: DataLayerClient,
+    coordinator_client: DataLayerClient,
+    vendor2_client: DataLayerClient,
+    reporter_actor_id: str | None = None,
+    vendor_actor_id: str | None = None,
+    coordinator_actor_id: str | None = None,
+    vendor2_actor_id: str | None = None,
+) -> tuple[as_Actor, as_Actor, as_Actor, as_Actor]:
+    """Seed four containers for the FVCV-extension scenario.
+
+    Containers: Finder, Vendor1 (CASE_OWNER), Coordinator, Vendor2.
+
+    The seeding is done in two phases:
+
+    1. Create the local actor on each container independently.
+    2. Register every actor as a known peer on the other three containers.
+
+    This function is idempotent: re-running it returns existing actors
+    unchanged (the ``POST /actors/`` endpoint is idempotent).
+
+    Args:
+        finder_client: DataLayerClient connected to the Finder container.
+        vendor_client: DataLayerClient connected to the Vendor1 container.
+        coordinator_client: DataLayerClient connected to the Coordinator container.
+        vendor2_client: DataLayerClient connected to the Vendor2 container.
+        reporter_actor_id: Optional deterministic URI for the Finder actor.
+        vendor_actor_id: Optional deterministic URI for the Vendor1 actor.
+        coordinator_actor_id: Optional deterministic URI for the Coordinator actor.
+        vendor2_actor_id: Optional deterministic URI for the Vendor2 actor.
+
+    Returns:
+        Tuple of ``(finder, vendor, coordinator, vendor2)`` ``as_Actor`` objects
+        as created on their respective containers.
+    """
+    logger.info("Phase 1: creating local actors on each container...")
+    finder = seed_actor(
+        client=finder_client,
+        name="Finder",
+        actor_type="Person",
+        actor_id=reporter_actor_id,
+    )
+    logger.info("Finder actor seeded: %s", finder.id_)
+
+    vendor = seed_actor(
+        client=vendor_client,
+        name="Vendor",
+        actor_type="Organization",
+        actor_id=vendor_actor_id,
+    )
+    logger.info("Vendor1 actor seeded: %s", vendor.id_)
+
+    coordinator = seed_actor(
+        client=coordinator_client,
+        name="Coordinator",
+        actor_type="Organization",
+        actor_id=coordinator_actor_id,
+    )
+    logger.info("Coordinator actor seeded: %s", coordinator.id_)
+
+    vendor2 = seed_actor(
+        client=vendor2_client,
+        name="Vendor2",
+        actor_type="Organization",
+        actor_id=vendor2_actor_id,
+    )
+    logger.info("Vendor2 actor seeded: %s", vendor2.id_)
+
+    logger.info("Phase 2: registering cross-container peers...")
+
+    # Register Vendor1, Coordinator, and Vendor2 as peers on Finder's container.
+    seed_actor(
+        client=finder_client,
+        name="Vendor",
+        actor_type="Organization",
+        actor_id=vendor.id_,
+    )
+    seed_actor(
+        client=finder_client,
+        name="Coordinator",
+        actor_type="Organization",
+        actor_id=coordinator.id_,
+    )
+    seed_actor(
+        client=finder_client,
+        name="Vendor2",
+        actor_type="Organization",
+        actor_id=vendor2.id_,
+    )
+    logger.info(
+        "Vendor1, Coordinator, and Vendor2 registered as peers on Finder container"
+    )
+
+    # Register Finder, Coordinator, and Vendor2 as peers on Vendor1's container.
+    seed_actor(
+        client=vendor_client,
+        name="Finder",
+        actor_type="Person",
+        actor_id=finder.id_,
+    )
+    seed_actor(
+        client=vendor_client,
+        name="Coordinator",
+        actor_type="Organization",
+        actor_id=coordinator.id_,
+    )
+    seed_actor(
+        client=vendor_client,
+        name="Vendor2",
+        actor_type="Organization",
+        actor_id=vendor2.id_,
+    )
+    logger.info(
+        "Finder, Coordinator, and Vendor2 registered as peers on Vendor1 container"
+    )
+
+    # Register Finder, Vendor1, and Vendor2 as peers on Coordinator's container.
+    seed_actor(
+        client=coordinator_client,
+        name="Finder",
+        actor_type="Person",
+        actor_id=finder.id_,
+    )
+    seed_actor(
+        client=coordinator_client,
+        name="Vendor",
+        actor_type="Organization",
+        actor_id=vendor.id_,
+    )
+    seed_actor(
+        client=coordinator_client,
+        name="Vendor2",
+        actor_type="Organization",
+        actor_id=vendor2.id_,
+    )
+    logger.info(
+        "Finder, Vendor1, and Vendor2 registered as peers on Coordinator container"
+    )
+
+    # Register Finder, Vendor1, and Coordinator as peers on Vendor2's container.
+    seed_actor(
+        client=vendor2_client,
+        name="Finder",
+        actor_type="Person",
+        actor_id=finder.id_,
+    )
+    seed_actor(
+        client=vendor2_client,
+        name="Vendor",
+        actor_type="Organization",
+        actor_id=vendor.id_,
+    )
+    seed_actor(
+        client=vendor2_client,
+        name="Coordinator",
+        actor_type="Organization",
+        actor_id=coordinator.id_,
+    )
+    logger.info(
+        "Finder, Vendor1, and Coordinator registered as peers on Vendor2 container"
+    )
+
+    return finder, vendor, coordinator, vendor2
+
+
+def seed_containers_fccv(
+    finder_client: DataLayerClient,
+    c1_client: DataLayerClient,
+    c2_client: DataLayerClient,
+    vendor_client: DataLayerClient,
+    reporter_actor_id: str | None = None,
+    c1_actor_id: str | None = None,
+    c2_actor_id: str | None = None,
+    vendor_actor_id: str | None = None,
+) -> tuple[as_Actor, as_Actor, as_Actor, as_Actor]:
+    """Seed four containers for the FCCV-handoff scenario.
+
+    Containers: Finder (Person), C1 (Organization/Coordinator, initial
+    CASE_OWNER), C2 (Organization/Coordinator, new CASE_OWNER after handoff),
+    and Vendor (Organization).
+
+    The seeding is done in two phases:
+
+    1. Create the local actor on each container independently.
+    2. Register every actor as a known peer on the other three containers.
+
+    This function is idempotent: re-running it returns existing actors
+    unchanged (the ``POST /actors/`` endpoint is idempotent).
+
+    Args:
+        finder_client: DataLayerClient connected to the Finder container.
+        c1_client: DataLayerClient connected to the C1 (Coordinator1) container.
+        c2_client: DataLayerClient connected to the C2 (Coordinator2) container.
+        vendor_client: DataLayerClient connected to the Vendor container.
+        reporter_actor_id: Optional deterministic URI for the Finder actor.
+        c1_actor_id: Optional deterministic URI for the C1 actor.
+        c2_actor_id: Optional deterministic URI for the C2 actor.
+        vendor_actor_id: Optional deterministic URI for the Vendor actor.
+
+    Returns:
+        Tuple of ``(finder, c1, c2, vendor)`` ``as_Actor`` objects as
+        created on their respective containers.
+    """
+    logger.info("Phase 1: creating local actors on each container...")
+    finder = seed_actor(
+        client=finder_client,
+        name="Finder",
+        actor_type="Person",
+        actor_id=reporter_actor_id,
+    )
+    logger.info("Finder actor seeded: %s", finder.id_)
+
+    c1 = seed_actor(
+        client=c1_client,
+        name="Coordinator1",
+        actor_type="Organization",
+        actor_id=c1_actor_id,
+    )
+    logger.info("C1 actor seeded: %s", c1.id_)
+
+    c2 = seed_actor(
+        client=c2_client,
+        name="Coordinator2",
+        actor_type="Organization",
+        actor_id=c2_actor_id,
+    )
+    logger.info("C2 actor seeded: %s", c2.id_)
+
+    vendor = seed_actor(
+        client=vendor_client,
+        name="Vendor",
+        actor_type="Organization",
+        actor_id=vendor_actor_id,
+    )
+    logger.info("Vendor actor seeded: %s", vendor.id_)
+
+    logger.info("Phase 2: registering cross-container peers...")
+
+    # Register C1, C2, and Vendor as peers on Finder's container.
+    seed_actor(
+        client=finder_client,
+        name="Coordinator1",
+        actor_type="Organization",
+        actor_id=c1.id_,
+    )
+    seed_actor(
+        client=finder_client,
+        name="Coordinator2",
+        actor_type="Organization",
+        actor_id=c2.id_,
+    )
+    seed_actor(
+        client=finder_client,
+        name="Vendor",
+        actor_type="Organization",
+        actor_id=vendor.id_,
+    )
+    logger.info("C1, C2, and Vendor registered as peers on Finder container")
+
+    # Register Finder, C2, and Vendor as peers on C1's container.
+    seed_actor(
+        client=c1_client,
+        name="Finder",
+        actor_type="Person",
+        actor_id=finder.id_,
+    )
+    seed_actor(
+        client=c1_client,
+        name="Coordinator2",
+        actor_type="Organization",
+        actor_id=c2.id_,
+    )
+    seed_actor(
+        client=c1_client,
+        name="Vendor",
+        actor_type="Organization",
+        actor_id=vendor.id_,
+    )
+    logger.info("Finder, C2, and Vendor registered as peers on C1 container")
+
+    # Register Finder, C1, and Vendor as peers on C2's container.
+    seed_actor(
+        client=c2_client,
+        name="Finder",
+        actor_type="Person",
+        actor_id=finder.id_,
+    )
+    seed_actor(
+        client=c2_client,
+        name="Coordinator1",
+        actor_type="Organization",
+        actor_id=c1.id_,
+    )
+    seed_actor(
+        client=c2_client,
+        name="Vendor",
+        actor_type="Organization",
+        actor_id=vendor.id_,
+    )
+    logger.info("Finder, C1, and Vendor registered as peers on C2 container")
+
+    # Register Finder, C1, and C2 as peers on Vendor's container.
+    seed_actor(
+        client=vendor_client,
+        name="Finder",
+        actor_type="Person",
+        actor_id=finder.id_,
+    )
+    seed_actor(
+        client=vendor_client,
+        name="Coordinator1",
+        actor_type="Organization",
+        actor_id=c1.id_,
+    )
+    seed_actor(
+        client=vendor_client,
+        name="Coordinator2",
+        actor_type="Organization",
+        actor_id=c2.id_,
+    )
+    logger.info("Finder, C1, and C2 registered as peers on Vendor container")
+
+    return finder, c1, c2, vendor
+
+
+def seed_containers_fcv(
+    finder_client: DataLayerClient,
+    coordinator_client: DataLayerClient,
+    vendor_client: DataLayerClient,
+    reporter_actor_id: str | None = None,
+    coordinator_actor_id: str | None = None,
+    vendor_actor_id: str | None = None,
+) -> tuple[as_Actor, as_Actor, as_Actor]:
+    """Seed three containers for the FCV scenario: Finder, Coordinator, Vendor.
+
+    In FCV the Coordinator receives the Finder's report and holds CASE_OWNER;
+    a separate CaseActor container hosts the case-actor service actor. The
+    CaseActor container does not need explicit cross-seeding here because the
+    demo script registers it via peer records embedded in the Coordinator's
+    docker seed-config YAML. All actor-to-actor peer registrations that the
+    scenario needs are handled in Phase 2 below.
+
+    The seeding is done in two phases:
+
+    1. Create the local actor on each container independently.
+    2. Register every actor as a known peer on the other two containers.
+
+    This function is idempotent: re-running it returns existing actors
+    unchanged (the ``POST /actors/`` endpoint is idempotent).
+
+    Args:
+        finder_client: DataLayerClient connected to the Finder container.
+        coordinator_client: DataLayerClient connected to the Coordinator container.
+        vendor_client: DataLayerClient connected to the Vendor container.
+        reporter_actor_id: Optional deterministic URI for the Finder actor.
+        coordinator_actor_id: Optional deterministic URI for the Coordinator actor.
+        vendor_actor_id: Optional deterministic URI for the Vendor actor.
+
+    Returns:
+        Tuple of ``(finder, coordinator, vendor)`` ``as_Actor`` objects as
+        created on their respective containers.
+    """
+    logger.info("Phase 1: creating local actors on each container...")
+    finder = seed_actor(
+        client=finder_client,
+        name="Finder",
+        actor_type="Person",
+        actor_id=reporter_actor_id,
+    )
+    logger.info("Finder actor seeded: %s", finder.id_)
+
+    coordinator = seed_actor(
+        client=coordinator_client,
+        name="Coordinator",
+        actor_type="Organization",
+        actor_id=coordinator_actor_id,
+    )
+    logger.info("Coordinator actor seeded: %s", coordinator.id_)
+
+    vendor = seed_actor(
+        client=vendor_client,
+        name="Vendor",
+        actor_type="Organization",
+        actor_id=vendor_actor_id,
+    )
+    logger.info("Vendor actor seeded: %s", vendor.id_)
+
+    logger.info("Phase 2: registering cross-container peers...")
+
+    # Register Coordinator and Vendor as peers on Finder's container.
+    seed_actor(
+        client=finder_client,
+        name="Coordinator",
+        actor_type="Organization",
+        actor_id=coordinator.id_,
+    )
+    seed_actor(
+        client=finder_client,
+        name="Vendor",
+        actor_type="Organization",
+        actor_id=vendor.id_,
+    )
+    logger.info(
+        "Coordinator and Vendor registered as peers on Finder container"
+    )
+
+    # Register Finder and Vendor as peers on Coordinator's container.
+    seed_actor(
+        client=coordinator_client,
+        name="Finder",
+        actor_type="Person",
+        actor_id=finder.id_,
+    )
+    seed_actor(
+        client=coordinator_client,
+        name="Vendor",
+        actor_type="Organization",
+        actor_id=vendor.id_,
+    )
+    logger.info(
+        "Finder and Vendor registered as peers on Coordinator container"
+    )
+
+    # Register Finder and Coordinator as peers on Vendor's container.
+    seed_actor(
+        client=vendor_client,
+        name="Finder",
+        actor_type="Person",
+        actor_id=finder.id_,
+    )
+    seed_actor(
+        client=vendor_client,
+        name="Coordinator",
+        actor_type="Organization",
+        actor_id=coordinator.id_,
+    )
+    logger.info(
+        "Finder and Coordinator registered as peers on Vendor container"
+    )
+
+    return finder, coordinator, vendor
+
+
 def reset_containers(
     labeled_clients: Sequence[tuple[str, DataLayerClient]],
     reset_fn: Callable[..., Any],
@@ -249,7 +693,7 @@ def reset_containers(
 
     Keeping the reset loop here (rather than in a scenario module) allows any
     multi-container scenario to reuse it without importing from
-    ``two_actor_demo``.  Callers are responsible for supplying the concrete
+    ``fv_demo``.  Callers are responsible for supplying the concrete
     ``reset_fn`` (typically ``reset_datalayer`` from their own module namespace
     so that test-suite mock patches continue to intercept the call).
 

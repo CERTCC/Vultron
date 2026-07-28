@@ -56,7 +56,7 @@ from vultron.metadata.history.models import (
     NewHistoryEntry,
 )
 from vultron.metadata.history.readme_gen import regenerate_readme
-from vultron.metadata.history.types import HistoryEntryType
+from vultron.metadata.history.types import HistoryEntryType, LearningSignalType
 
 _UTC = datetime.timezone.utc
 
@@ -149,6 +149,7 @@ def _build_content(
     source: str,
     body: str,
     timestamp: datetime.datetime | None = None,
+    signal: LearningSignalType | None = None,
 ) -> str:
     """Construct the full entry markdown (frontmatter + body).
 
@@ -160,23 +161,34 @@ def _build_content(
     so that YAML parsers treat it as a string rather than a native datetime
     (ensuring round-trip fidelity of the UTC offset, HM-06-001).
 
+    The optional *signal* field is only emitted for ``learning`` entries and
+    only when a value is provided (BW-07-002).
+
     Returns:
         Full markdown string beginning with a YAML frontmatter block.
     """
     if timestamp is not None:
         entry = NewHistoryEntry(
-            type=entry_type, title=title, source=source, timestamp=timestamp
+            type=entry_type,
+            title=title,
+            source=source,
+            timestamp=timestamp,
+            signal=signal,
         )
     else:
-        entry = NewHistoryEntry(type=entry_type, title=title, source=source)
+        entry = NewHistoryEntry(
+            type=entry_type, title=title, source=source, signal=signal
+        )
 
-    fm = {
+    fm: dict[str, object] = {
         "title": entry.title,
         "type": str(entry.type.value),
         "source": entry.source,
         # Store as a plain string so YAML parsers don't strip the tz offset.
         "timestamp": entry.timestamp.isoformat(),
     }
+    if entry.signal is not None:
+        fm["signal"] = str(entry.signal.value)
     fm_yaml = yaml.safe_dump(fm, default_flow_style=False, allow_unicode=True)
     sep = "\n" if body and not body.startswith("\n") else ""
     return f"---\n{fm_yaml}---\n{sep}{body}"
@@ -242,6 +254,16 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="DATETIME",
         default=None,
         help=argparse.SUPPRESS,  # backfill only
+    )
+    valid_signals = ", ".join(s.value for s in LearningSignalType)
+    parser.add_argument(
+        "--signal",
+        metavar="TYPE",
+        default=None,
+        help=(
+            f"Optional signal classification for learning entries (BW-07-002). "
+            f"One of: {valid_signals}. Ignored for non-learning entry types."
+        ),
     )
     return parser
 
@@ -358,6 +380,24 @@ def _parse_timestamp(value: str | None) -> datetime.datetime | None:
         _fail(str(exc))
 
 
+def _parse_signal(
+    value: str | None, entry_type: HistoryEntryType
+) -> LearningSignalType | None:
+    """Parse and validate the optional ``--signal`` flag value."""
+    if value is None:
+        return None
+    if entry_type != HistoryEntryType.learning:
+        _fail(
+            f"--signal is only valid for 'learning' entries, "
+            f"not '{entry_type}'"
+        )
+    try:
+        return LearningSignalType(value)
+    except ValueError:
+        valid = ", ".join(s.value for s in LearningSignalType)
+        _fail(f"unknown signal type '{value}'. Valid values: {valid}")
+
+
 def _check_from_file_conflicts(args: argparse.Namespace) -> None:
     """Fail if --from-file is combined with incompatible normal-mode flags."""
     conflicts = []
@@ -444,10 +484,11 @@ def main() -> None:
     entry_type = _parse_entry_type(args.entry_type)
     body = _read_body(args.file)
     timestamp = _parse_timestamp(args.timestamp)
+    signal = _parse_signal(args.signal, entry_type)
 
     try:
         content = _build_content(
-            entry_type, args.title, args.source, body, timestamp
+            entry_type, args.title, args.source, body, timestamp, signal
         )
         # Future-date check only for explicit --timestamp overrides (HM-06-004).
         # Auto-generated timestamps from NewHistoryEntry.default_factory are

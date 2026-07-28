@@ -138,6 +138,31 @@ class OnAccept(ActuatorCallOutPoint, AlwaysSucceed):
     """
 
 
+class EvaluateCasePriority(EvaluatorCallOutPoint, AlwaysSucceed):
+    """Evaluate whether to engage or defer a case using prioritization policy.
+
+    Semantic function:
+        Decision — evaluate case priority to determine whether the local
+        actor should engage (accept) or defer the case.  This is the SSVC
+        integration seam: a production backend replaces this stub with a
+        real priority evaluator.
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — evaluates case context from construction time)
+      Output keys: evaluate_case_priority_verdict: str  (SUCCESS only)
+
+    Input category: Human decision / Policy engine.
+
+    Success probability: 1.00 (``AlwaysSucceed``): always engage in the
+    stochastic simulation (SSVC deferred — PROTO-05-001).
+
+    Automation potential: **High** — SSVC scoring, asset inventory lookups,
+    and policy-based engage/defer decisions are fully automatable.
+    """
+
+    output_keys = {"evaluate_case_priority_verdict": str}
+
+
 class OnDefer(ActuatorCallOutPoint, AlwaysSucceed):
     """Execute site-specific tasks when a report is deferred.
 

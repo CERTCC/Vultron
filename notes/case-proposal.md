@@ -183,9 +183,58 @@ corresponding `MessageSemantics` value.
 
 | Issue | Relationship |
 |-------|-------------|
-| #810 | **Blocked by this**: demo routing to dedicated case-actor container requires the CaseProposal protocol to be in place before `CreateCaseActorNode` can be adapted for the demo layer. Note: the current two-actor demo passes all convergence invariants (all 26 invariants PASS as of #1025 review), confirming that #810 is architectural improvement work rather than a blocking bug. |
+| #810 | **Blocked by this**: demo routing to dedicated case-actor container requires the CaseProposal protocol to be in place before `CreateCaseActorNode` can be adapted for the demo layer. Note: the current FV demo passes all convergence invariants (all 26 invariants PASS as of #1025 review), confirming that #810 is architectural improvement work rather than a blocking bug. |
 | #811 | Spec + ADR for CaseActor dynamic spawning — a broader concern; CaseProposal is a prerequisite input. |
 | #812 | Implementation of CaseActor dynamic spawning — blocked by #811 and this work. |
+
+---
+
+## CaseActor Service URL Configuration
+
+**Source**: Issue #1633 (2026-07-23).
+
+`ResolveCaseActorUrlsNode` derives the CaseActor service identity
+by combining `case_actor_service_url` from `ActorConfig` with a
+per-case slug. The URL source MUST be `ActorConfig.case_actor_service_url`
+(`get_config().actor.case_actor_service_url`); it MUST NOT be derived from
+`server_base_url` on the blackboard (that would hard-wire a co-location
+assumption that breaks multi-container topologies).
+
+In Docker Compose deployments, actors that create cases MUST supply:
+
+```yaml
+environment:
+  - VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://case-actor:7999/api/v2
+```
+
+This is a TEMPORARY per-actor config field pending a proper actor-ID-to-endpoint
+resolution mechanism (issues #1189, #1092). Normative requirements: CP-08-001
+through CP-08-003.
+
+### Pitfall: `server_base_url` is NOT the CaseActor service URL
+
+The co-location assumption manifests as:
+
+```python
+# WRONG — uses the running container's own base URL
+server_base_url = _resolve_server_base_url(self.blackboard)
+case_actor_id = f"{server_base_url}/actors/case-actor-{case_slug}"
+```
+
+This silently works in single-container demos but produces a mis-routed
+proposal in multi-container topologies (the Vendor proposes to itself
+instead of the dedicated CaseActor container). The fix:
+
+```python
+# CORRECT — reads from explicit config
+from vultron.config import get_config
+cfg = get_config().actor
+if cfg.case_actor_service_url is None:
+    self.logger.error("%s: case_actor_service_url not configured", self.name)
+    return Status.FAILURE
+base_url = str(cfg.case_actor_service_url).rstrip("/")
+case_actor_id = f"{base_url}/actors/case-actor-{case_slug}"
+```
 
 ---
 

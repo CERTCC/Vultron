@@ -180,6 +180,152 @@ Research needed: audit all current callers of `object_to_record()`,
 `record_to_object()`, and `find_in_vocabulary()` to understand the scope
 of the coupling before designing the refactor.
 
+## Read Path MUST Return Core Objects (ADR-0034, DL-05)
+
+**Decided (ADR-0034):** `dl.read()` and `dl.list_objects()` MUST return
+**core** domain objects (`vultron/core/models/`), never **wire** vocabulary
+types (`vultron/wire/as2/vocab/objects/`, `as_`-prefixed), for any persisted
+`type_` that has a registered core counterpart in `CORE_VOCABULARY`.
+
+**Implemented (PR #1529):** The read path now reconstructs domain entities via
+`CORE_VOCABULARY`, so `dl.read()` returns core objects. The duck-typing
+Protocols and `TypeGuard` helpers (`CaseModel`, `is_case_model()`, etc.) in
+`vultron/core/models/protocols.py` were removed; core uses direct
+`isinstance()` checks against concrete core classes (DL-05-003).
+
+DL-05 end-state achieved (all four requirements met):
+
+1. The adapter reconstructs registered domain entities via
+   `find_in_core_vocabulary()` / `CORE_VOCABULARY`, so reads/writes of domain
+   entities are core → core.
+2. The adapter owns wire↔core translation and keeps its own
+   `type_`→core-class mapping, independent of the wire `VOCABULARY`.
+3. The duck-typing Protocols in `protocols.py` are removed; core depends on
+   concrete core classes (real `isinstance` narrowing).
+4. A ratchet test asserts no `vultron.wire.as2` vocabulary type escapes
+   `dl.read()` / `dl.list_objects()` into `vultron/core/`.
+
+**Recognised exception — AS2 Activities.** The 29 protocol message types
+(`vultron/wire/as2/vocab/activities/`) have no core counterpart, so they
+cannot be returned as core objects. Core code that reads a stored wire
+Activity back from the DataLayer (e.g. `dl.read(offer_id)` returning an
+`as_Offer`) is itself a boundary violation (ARCH-01-002, ARCH-03-001), but
+migrating it out of core is tracked as a **separate concern** (#1506, decided
+in ADR-0035), not part of the DL-05 entity work. Until then, the ratchet
+exemption set enumerates these Activity types explicitly so it can only shrink.
+
+## Activity Read-Back: Semantic Content vs. Envelope Reconstitution (ADR-0035, DL-06)
+
+**Decided (ADR-0035).** `dl.read(activity_id)` in `vultron/core/` is a
+*symptom*. The root cause is that the 29 AS2 protocol Activities (`Offer`,
+`Invite`, `Accept`, …) were built wire-first and never given a core counterpart,
+inverting "wire is a projection of core" (ADR-0017) and violating ARCH-09-001.
+Because the domain fact each message carries has no home in core, core reaches
+back through the DataLayer to re-read the stored wire envelope.
+
+Vultron is a set of communicating **core** state machines; wire exists only to
+carry a core fact from one isolated actor to another (Actor Knowledge Model). An
+AS2 Activity is an **envelope**, not a domain object. The fix splits two needs
+that `dl.read(activity_id)` conflates:
+
+| Need | Source of truth | Rule |
+|---|---|---|
+| **Semantic content** — what a message *means* | **Core state** | Core MUST NOT re-read the activity to interpret it (DL-06-001, DL-06-002). |
+| **Correlation** — which prior message this answers | **Core-entity relationship** | Resolve through a domain relationship, not a wire re-read (DL-06-003). |
+| **Envelope reconstitution** — verbatim original in a reply's `object_` | **Stored opaque activity payload** | MAY read a stored activity, but only via a wire/adapter seam that never interprets it (DL-06-004). |
+
+The extractor (the single interpretation site, ARCH-03-001) records each domain
+fact as core state at interpretation time — a transition on an existing core
+entity or a purpose-built core record. This is **not** a 1:1 clone of the AS2
+Activity into core (the generic-event-mirroring-AS2 anti-pattern in
+`notes/domain-model-separation.md`); model only the domain fact, in domain
+vocabulary, capturing only what handlers use.
+
+**Why the envelope seam is legitimate, not anathema.** Activity ids are
+non-regenerable random `urn:uuid:` values (`vultron/wire/as2/vocab/base/utils.py`),
+and the Actor Knowledge Model requires a reply to embed the *full inline
+original* activity — so a reply's `object_` cannot be produced by re-projecting
+core state. The original envelope must be retained and read back verbatim.
+Confining that read to a wire/adapter-owned seam that treats the payload as
+opaque keeps semantic authority in core. `CaseLedgerEntry.payloadSnapshot` is
+the existing precedent for opaque, write-only activity retention.
+
+### Audited core activity read-back sites (concern #1506)
+
+Classification of every `dl.read(activity_id)` / activity `list_objects()` site
+in `vultron/core/` at audit time. Categories A/B need migration; C is the
+sanctioned seam; D is not an activity read (covered by DL-05 / #1503).
+
+**A — plumbing re-reads** (re-read only to `model_dump()` the just-emitted
+activity into the API response; the factory already built the object):
+
+- `vultron/core/use_cases/triggers/report.py` — `_handle_result` in
+  `SvcValidateReportUseCase`, `SvcInvalidateReportUseCase`, `SvcRejectReportUseCase`,
+  `SvcCloseReportUseCase` (4 sites).
+- `vultron/core/behaviors/case/nodes/delegation.py:160` — re-reads the
+  just-created `Offer(CaseManagerRole)`.
+- *Fix*: `TriggerActivityPort` returns `(activity_id, activity_dict)`; delete the
+  re-reads. Not even a semantic read.
+
+**B — semantic-content reads** (core re-interprets a stored activity for a
+domain fact — the ARCH-09-001 core violations):
+
+- ~~*report/offer*~~: migrated (#1518). `VultronOfferRecord` now captures
+  offer facts at adapter time (sender) and received-side ingest time (receiver).
+  Core reads `VultronOfferRecord` instead of the stored wire `Offer` activity.
+- ~~*embargo*~~: migrated (#1519). `pending_embargo_proposal_index: dict[str,
+  str]` (embargo_id → proposal_id) added to `VulnerabilityCase`; populated on
+  receive (`InviteToEmbargoOnCaseReceivedUseCase`) and trigger
+  (`SvcProposeEmbargoUseCase._handle_result`). All `dl.read(invite_id)` and
+  `list_objects("Invite")` semantic reads in `received/embargo.py`,
+  `triggers/_helpers.py`, and `dispatcher.py` removed. `Invite` removed from
+  DL-05-004 exemptions.
+- ~~*actor/participant*~~: migrated (#1520). `recommendation_recommender_index:
+  dict[str, str]` (recommendation_id → recommender_actor_id) added to
+  `VulnerabilityCase`; populated in `OfferActorToCaseReceivedUseCase.execute()`.
+  `AcceptOfferCaseParticipantReceivedUseCase` and
+  `RejectOfferCaseParticipantReceivedUseCase` now read
+  `case.recommendation_recommender_index.get(recommendation_id)` instead of
+  `dl.read(recommendation_id)`. Redundant `invite_type != "Invite"` check
+  removed from `SvcAcceptCaseInviteUseCase._prepare()`.
+- *Fix*: capture the fact as core state at extraction time; read it from core.
+
+**C — envelope reconstitution** (verbatim original needed for a reply):
+
+Audited by #1521. Four live reply paths need the verbatim original activity
+inline in the reply's `object_`:
+
+- `TriggerActivityAdapter.accept_case_invite` (`actors.py`) — reads the
+  stored `Invite` and passes it verbatim to `rm_accept_invite_to_case_activity`.
+- `TriggerActivityAdapter.accept_embargo` (`embargo.py`) — reads the stored
+  embargo proposal `Invite` and passes it to `em_accept_embargo_activity`.
+- `TriggerActivityAdapter.reject_embargo` (`embargo.py`) — same pattern for
+  `em_reject_embargo_activity`.
+- `TriggerActivityAdapter.accept_case_participant_offer` (`actors.py`) —
+  reads the stored `Offer(CaseParticipant)` and passes it to
+  `accept_case_participant_offer_activity`.
+
+**All four reads are already in the adapter layer** (`vultron/adapters/driven/
+trigger_activity_adapter/`), not in `vultron/core/`. They satisfy DL-06-004:
+the payload is treated opaquely (passed straight to the factory without any
+semantic interpretation). No new seam is needed; the correct seam already
+exists. The DL-05-004 exemption set does not need modification for these sites
+because they are not core reads.
+
+Tests verifying verbatim reconstitution (id preserved in `in_reply_to` /
+`object.id`) are in `test/adapters/driven/trigger_activity_adapter/`.
+
+**D — not activities** (core entities, covered by DL-05 / #1503, out of scope):
+
+- `dispatcher.py:147` (`VultronReplicationState`); `received/actor/announce.py:29`
+  (`VultronReportCaseLink`); `list_objects("CaseLedgerEntry")` reads; case /
+  participant / status / marker reads.
+
+Implementation is tracked in the issues filed from concern #1506 (blocked by
+that concern, children of Epic #1394). As each B site migrates, remove its
+Activity type from the DL-05-004 exemption set (DL-06-005) until the set reaches
+zero.
+
 ## Vocabulary Registry Entanglement Across Wire, Core, and DataLayer
 
 The vocabulary registry in `vultron/wire/as2/vocab/` was created before

@@ -189,7 +189,7 @@ uncertainty.
     observations using the binomial's variance $np(1-p)$, because of
     boundary conditions at 0 and 1 we should not assume symmetric error. An
     extensive discussion of uncertainty in the binomial distribution is
-    given in [@brown2001interval].
+    given in [Brown et al. (2001)](https://doi.org/10.1214/ss/1009213286){:target="_blank"}.
     
     However, for our purpose the Beta distribution lends itself to this
     problem nicely. The Beta distribution is specified by two parameters

@@ -54,10 +54,9 @@ class TransitionParticipantRMtoAccepted(DataLayerAction):
         Returns:
             SUCCESS if transition persisted, FAILURE on error
         """
-        if self.datalayer is None:
-            self.logger.error(f"{self.name}: DataLayer not available")
-            return Status.FAILURE
-
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         try:
             if self.actor_id is None:
                 self.logger.error(f"{self.name}: actor_id not available")
@@ -103,10 +102,9 @@ class TransitionParticipantRMtoDeferred(DataLayerAction):
         Returns:
             SUCCESS if transition persisted, FAILURE on error
         """
-        if self.datalayer is None:
-            self.logger.error(f"{self.name}: DataLayer not available")
-            return Status.FAILURE
-
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         try:
             if self.actor_id is None:
                 self.logger.error(f"{self.name}: actor_id not available")

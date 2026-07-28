@@ -26,7 +26,7 @@ from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.case.nodes import CommitCaseLedgerEntryNode
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.vultron_types import VultronCaseActor
-from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 _FACTORY_PATH = (
     "vultron.core.behaviors.case.nodes.lifecycle.create_commit_log_entry_tree"
@@ -264,7 +264,7 @@ def test_activity_payload_is_forwarded_as_payload_snapshot(bridge):
 
 
 def test_activity_payload_inlines_nested_reference_fields(bridge, datalayer):
-    embargo = EmbargoEvent(context=CASE_ID)
+    embargo = as_EmbargoEvent(context=CASE_ID)
     datalayer.save(embargo)
     activity = _FakeActivity(
         activity_id=ACTIVITY_ID,

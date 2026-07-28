@@ -1,5 +1,18 @@
 # Modeling an MPCVD AI Using Behavior Trees
 
+!!! info "Normative requirements for the behaviors described here"
+
+    The machine-readable behavioral conformance requirements underlying the trees in this section
+    are located in the [Protocol Specifications](../../reference/specs/protocol.md):
+
+    - [RMB — Report Management Behavioral Requirements](../../reference/specs/protocol.md#rmb)
+    - [EMB — Embargo Management Behavioral Requirements](../../reference/specs/protocol.md#emb)
+    - [CSB — CVD Case State Behavioral Requirements](../../reference/specs/protocol.md#csb)
+
+    Each page in this section lists the relevant spec group IDs in its **Requirements** section.
+    The behavior tree diagrams illustrate one conformant implementation; implementations are not
+    required to use behavior trees.
+
 With the formal definition of the Vultron Protocol behind us, we now turn our
 attention to reflect on one of many possible paths toward
 implementation. We find that Behavior Trees have a number of desirable

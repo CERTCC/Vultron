@@ -9,6 +9,16 @@ Coverage required by #746 AC-5 (propose_embargo STRICT) and #747 AC-1 to AC-7:
   - reject_embargo_invite STRICT and OBSERVED, owner vs. non-owner
   - terminate_active_embargo STRICT and OBSERVED, PEC cascade
   - record_participant_consent for ACCEPT, DECLINE, INVITE, RESET triggers
+
+Coverage added by #1454 (AC-1 to AC-3): P/X/A embargo-eligibility guards
+  - propose_embargo STRICT raises when pxa_state != pxa (all P/X/A variants)
+  - propose_embargo OBSERVED bypasses guard
+  - accept_embargo_invite STRICT raises when pxa_state != pxa
+  - accept_embargo_invite OBSERVED bypasses guard
+
+Coverage added by #1474 (AC-1): caller_owns_em_io guard
+  - service does not write em_state when em_before is supplied (BT path)
+  - service still writes em_state when em_before is not supplied (legacy path)
 """
 
 from collections.abc import Generator
@@ -18,30 +28,32 @@ import pytest
 
 # noqa: F401 — imported for vocabulary registration side-effect
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
-    VulnerabilityCase,
+    as_VulnerabilityCase,
 )
 
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     EmbargoLifecycleResult,
     TransitionMode,
 )
+from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronInvalidStateTransitionError
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.core.use_cases._helpers import _as_id
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import (
     CaseParticipant,
     FinderParticipant,
     VendorParticipant,
 )
-from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -59,12 +71,12 @@ def _make_case(
     owner_id: str,
     extra_participant_ids: list[str] | None = None,
     em_state: EM = EM.NONE,
-) -> tuple[VulnerabilityCase, list[CaseParticipant]]:
-    """Create a VulnerabilityCase with an owner participant.
+) -> tuple[as_VulnerabilityCase, list[CaseParticipant]]:
+    """Create a as_VulnerabilityCase with an owner participant.
 
     Returns the case and the list of CaseParticipant objects created.
     """
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         name="Test embargo case",
         attributed_to=owner_id,
     )
@@ -98,8 +110,8 @@ def _make_case(
     return case, participants
 
 
-def _make_embargo(dl: SqliteDataLayer, case_id: str) -> EmbargoEvent:
-    embargo = EmbargoEvent(context=case_id)
+def _make_embargo(dl: SqliteDataLayer, case_id: str) -> as_EmbargoEvent:
+    embargo = as_EmbargoEvent(context=case_id)
     dl.create(embargo)
     return embargo
 
@@ -154,7 +166,7 @@ def test_propose_embargo_none_to_proposed(
     assert result.participant_changes == []
 
     updated = cast(VulnerabilityCase, dl.read(case.id_))
-    assert updated.current_status.em_state == EM.PROPOSED
+    assert updated.current_status.em.state == EM.PROPOSED
     assert embargo.id_ in updated.proposed_embargoes
 
 
@@ -227,7 +239,7 @@ def test_propose_embargo_active_to_revise_cascades_pec(
 
     # DataLayer state matches
     updated = cast(VulnerabilityCase, dl.read(case.id_))
-    assert updated.current_status.em_state == EM.REVISE
+    assert updated.current_status.em.state == EM.REVISE
     for p in participants:
         updated_p = cast(CaseParticipant, dl.read(p.id_))
         assert updated_p.embargo_consent_state == PEC.LAPSED.value
@@ -837,3 +849,354 @@ def test_record_participant_consent_actor_not_in_case(
 
     assert result.participant_changes == []
     assert result.case_changed is False
+
+
+# ---------------------------------------------------------------------------
+# Tests: P/X/A embargo-eligibility guards (#1454)
+# ---------------------------------------------------------------------------
+
+# All non-pxa CS_pxa states trigger the guard.
+_PXA_INELIGIBLE_STATES = [
+    CS_pxa.Pxa,  # public aware
+    CS_pxa.pXa,  # exploit published
+    CS_pxa.pxA,  # attacks observed
+    CS_pxa.PXa,  # public + exploit
+    CS_pxa.PxA,  # public + attacks
+    CS_pxa.pXA,  # exploit + attacks
+    CS_pxa.PXA,  # all three set
+]
+
+
+@pytest.mark.parametrize("pxa_state", _PXA_INELIGIBLE_STATES)
+def test_propose_embargo_strict_raises_when_pxa_set(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+    pxa_state: CS_pxa,
+) -> None:
+    """STRICT propose raises when any of P/X/A is set (EMB-01-002)."""
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_, em_state=EM.NONE)
+    case.current_status.pxa_state = pxa_state
+    dl.save(case)
+    embargo = _make_embargo(dl, case.id_)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    with pytest.raises(VultronInvalidStateTransitionError):
+        lifecycle.propose_embargo(
+            case_id=case.id_,
+            embargo_id=embargo.id_,
+            actor_id=owner.id_,
+        )
+
+
+def test_propose_embargo_strict_allowed_when_pxa_clear(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """STRICT propose succeeds when pxa_state is fully clear (pxa)."""
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_, em_state=EM.NONE)
+    # pxa_state defaults to CS_pxa.pxa — no mutation needed
+    embargo = _make_embargo(dl, case.id_)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    result = lifecycle.propose_embargo(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=owner.id_,
+    )
+
+    assert result.em_after == EM.PROPOSED
+
+
+@pytest.mark.parametrize("pxa_state", _PXA_INELIGIBLE_STATES)
+def test_propose_embargo_observed_bypasses_pxa_guard(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+    pxa_state: CS_pxa,
+) -> None:
+    """OBSERVED mode bypasses P/X/A guard and syncs to PROPOSED."""
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_, em_state=EM.NONE)
+    case.current_status.pxa_state = pxa_state
+    dl.save(case)
+    embargo = _make_embargo(dl, case.id_)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    result = lifecycle.propose_embargo(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=owner.id_,
+        transition_mode=TransitionMode.OBSERVED,
+    )
+
+    assert result.em_after == EM.PROPOSED
+
+
+@pytest.mark.parametrize("pxa_state", _PXA_INELIGIBLE_STATES)
+def test_accept_embargo_invite_strict_raises_when_pxa_set(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+    pxa_state: CS_pxa,
+) -> None:
+    """STRICT accept raises when any of P/X/A is set (EMB-02-002)."""
+    owner, dl = owner_and_dl
+    case, participants = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
+    case.current_status.pxa_state = pxa_state
+    dl.save(case)
+    embargo = _make_embargo(dl, case.id_)
+
+    # Seed owner to INVITED so the PEC transition would be valid
+    owner_p = cast(CaseParticipant, dl.read(participants[0].id_))
+    owner_p.embargo_consent_state = PEC.INVITED
+    dl.save(owner_p)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    with pytest.raises(VultronInvalidStateTransitionError):
+        lifecycle.accept_embargo_invite(
+            case_id=case.id_,
+            embargo_id=embargo.id_,
+            actor_id=owner.id_,
+        )
+
+
+def test_accept_embargo_invite_strict_allowed_when_pxa_clear(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """STRICT accept succeeds when pxa_state is fully clear (pxa)."""
+    owner, dl = owner_and_dl
+    case, participants = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
+    embargo = _make_embargo(dl, case.id_)
+
+    owner_p = cast(CaseParticipant, dl.read(participants[0].id_))
+    owner_p.embargo_consent_state = PEC.INVITED
+    dl.save(owner_p)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    result = lifecycle.accept_embargo_invite(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=owner.id_,
+    )
+
+    assert result.em_after == EM.ACTIVE
+
+
+@pytest.mark.parametrize("pxa_state", _PXA_INELIGIBLE_STATES)
+def test_accept_embargo_invite_observed_bypasses_pxa_guard(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+    pxa_state: CS_pxa,
+) -> None:
+    """OBSERVED mode bypasses P/X/A guard and syncs to ACTIVE."""
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
+    case.current_status.pxa_state = pxa_state
+    dl.save(case)
+    embargo = _make_embargo(dl, case.id_)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    result = lifecycle.accept_embargo_invite(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=owner.id_,
+        transition_mode=TransitionMode.OBSERVED,
+    )
+
+    assert result.em_after == EM.ACTIVE
+
+
+@pytest.mark.parametrize("pxa_state", _PXA_INELIGIBLE_STATES)
+def test_accept_embargo_invite_strict_non_owner_pxa_set_does_not_raise(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+    pxa_state: CS_pxa,
+) -> None:
+    """Non-owner STRICT accept with P/X/A set still records PEC (no guard)."""
+    owner, dl = owner_and_dl
+    finder = _make_actor(dl, "Finder Org")
+    case, _ = _make_case(
+        dl, owner.id_, extra_participant_ids=[finder.id_], em_state=EM.PROPOSED
+    )
+    case.current_status.pxa_state = pxa_state
+    dl.save(case)
+    embargo = _make_embargo(dl, case.id_)
+
+    finder_participant_id = case.actor_participant_index.get(finder.id_)
+    assert finder_participant_id is not None
+    finder_p = cast(CaseParticipant, dl.read(finder_participant_id))
+    finder_p.embargo_consent_state = PEC.INVITED
+    dl.save(finder_p)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    # Non-owner: does NOT drive EM state, guard must NOT raise (EMB-02-002)
+    result = lifecycle.accept_embargo_invite(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=finder.id_,
+    )
+
+    assert result.em_after == EM.PROPOSED  # EM unchanged
+    refreshed = cast(CaseParticipant, dl.read(finder_participant_id))
+    assert refreshed.embargo_consent_state == PEC.SIGNATORY.value
+
+
+# ---------------------------------------------------------------------------
+# Tests: reject_embargo_invite P/X/A guard (EMB-04-002)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("pxa_state", _PXA_INELIGIBLE_STATES)
+def test_reject_embargo_invite_strict_revise_pxa_raises(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+    pxa_state: CS_pxa,
+) -> None:
+    """STRICT reject from REVISE+PXA raises (EMB-04-002: must terminate, not revert)."""
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_, em_state=EM.REVISE)
+    case.current_status.pxa_state = pxa_state
+    dl.save(case)
+    embargo = _make_embargo(dl, case.id_)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    with pytest.raises(VultronInvalidStateTransitionError):
+        lifecycle.reject_embargo_invite(
+            case_id=case.id_,
+            embargo_id=embargo.id_,
+            actor_id=owner.id_,
+        )
+
+
+def test_reject_embargo_invite_strict_proposed_pxa_allowed(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """STRICT reject from PROPOSED+PXA is allowed (PROPOSED→NO_EMBARGO, no active embargo)."""
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
+    case.current_status.pxa_state = CS_pxa.Pxa  # public aware
+    dl.save(case)
+    embargo = _make_embargo(dl, case.id_)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    result = lifecycle.reject_embargo_invite(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=owner.id_,
+    )
+
+    assert result.em_after == EM.NONE
+
+
+@pytest.mark.parametrize("pxa_state", _PXA_INELIGIBLE_STATES)
+def test_reject_embargo_invite_observed_revise_pxa_bypasses_guard(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+    pxa_state: CS_pxa,
+) -> None:
+    """OBSERVED reject from REVISE+PXA bypasses the guard (state-sync)."""
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_, em_state=EM.REVISE)
+    case.current_status.pxa_state = pxa_state
+    dl.save(case)
+    embargo = _make_embargo(dl, case.id_)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    result = lifecycle.reject_embargo_invite(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=owner.id_,
+        transition_mode=TransitionMode.OBSERVED,
+    )
+
+    assert result.em_after == EM.ACTIVE
+
+
+# ---------------------------------------------------------------------------
+# #1474 AC-1: caller_owns_em_io guard tests
+# ---------------------------------------------------------------------------
+
+
+class TestCallerOwnsEmIo:
+    """When em_before is supplied, the service skips its own em_state read/write."""
+
+    def test_propose_does_not_write_em_state_when_em_before_supplied(
+        self,
+        owner_and_dl: tuple[as_Service, SqliteDataLayer],
+    ) -> None:
+        """propose_embargo does not mutate em_state when em_before is supplied."""
+        owner, dl = owner_and_dl
+        case, _ = _make_case(dl, owner.id_, em_state=EM.NONE)
+        embargo = _make_embargo(dl, case.id_)
+
+        lifecycle = EmbargoLifecycle(persistence=dl)
+        result = lifecycle.propose_embargo(
+            case_id=case.id_,
+            embargo_id=embargo.id_,
+            actor_id=owner.id_,
+            transition_mode=TransitionMode.STRICT,
+            em_before=EM.NONE,
+        )
+
+        assert result.em_after == EM.PROPOSED
+        # Service must NOT have written em_state; it stays at the initial value
+        refreshed = cast(VulnerabilityCase, dl.read(case.id_))
+        assert refreshed.current_status.em.state == EM.NONE
+
+    def test_propose_still_writes_em_state_on_legacy_path(
+        self,
+        owner_and_dl: tuple[as_Service, SqliteDataLayer],
+    ) -> None:
+        """propose_embargo writes em_state when em_before is not supplied (legacy)."""
+        owner, dl = owner_and_dl
+        case, _ = _make_case(dl, owner.id_, em_state=EM.NONE)
+        embargo = _make_embargo(dl, case.id_)
+
+        lifecycle = EmbargoLifecycle(persistence=dl)
+        result = lifecycle.propose_embargo(
+            case_id=case.id_,
+            embargo_id=embargo.id_,
+            actor_id=owner.id_,
+            transition_mode=TransitionMode.STRICT,
+        )
+
+        assert result.em_after == EM.PROPOSED
+        refreshed = cast(VulnerabilityCase, dl.read(case.id_))
+        assert refreshed.current_status.em.state == EM.PROPOSED
+
+    def test_reject_does_not_write_em_state_when_em_before_supplied(
+        self,
+        owner_and_dl: tuple[as_Service, SqliteDataLayer],
+    ) -> None:
+        """reject_embargo_invite does not mutate em_state when em_before is supplied."""
+        owner, dl = owner_and_dl
+        case, _ = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
+        embargo = _make_embargo(dl, case.id_)
+
+        lifecycle = EmbargoLifecycle(persistence=dl)
+        result = lifecycle.reject_embargo_invite(
+            case_id=case.id_,
+            embargo_id=embargo.id_,
+            actor_id=owner.id_,
+            transition_mode=TransitionMode.STRICT,
+            em_before=EM.PROPOSED,
+        )
+
+        assert result.em_after == EM.NONE
+        refreshed = cast(VulnerabilityCase, dl.read(case.id_))
+        assert refreshed.current_status.em.state == EM.PROPOSED
+
+    def test_terminate_does_not_write_em_state_when_em_before_supplied(
+        self,
+        owner_and_dl: tuple[as_Service, SqliteDataLayer],
+    ) -> None:
+        """terminate_active_embargo does not mutate em_state when em_before is supplied."""
+        owner, dl = owner_and_dl
+        case, _ = _make_case(dl, owner.id_, em_state=EM.ACTIVE)
+        embargo = _make_embargo(dl, case.id_)
+        case.active_embargo = embargo.id_
+        dl.save(case)
+
+        lifecycle = EmbargoLifecycle(persistence=dl)
+        result = lifecycle.terminate_active_embargo(
+            case_id=case.id_,
+            actor_id=owner.id_,
+            transition_mode=TransitionMode.STRICT,
+            em_before=EM.ACTIVE,
+        )
+
+        assert result.em_after == EM.EXITED
+        refreshed = cast(VulnerabilityCase, dl.read(case.id_))
+        assert refreshed.current_status.em.state == EM.ACTIVE

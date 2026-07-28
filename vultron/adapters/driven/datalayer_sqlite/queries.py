@@ -22,9 +22,9 @@ from sqlalchemy import func
 from sqlmodel import Session, select
 
 from vultron.adapters.driven.db_record import Record
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.core.models.protocols import is_case_model
 from vultron.core.ports.datalayer import StorableRecord
 
 from .schema import VultronObjectRecord, matches_short_id
@@ -312,7 +312,7 @@ def find_case_by_report_id(
     if isinstance(report_link, VultronReportCaseLink):
         if report_link.case_id is not None:
             linked_case = dl.read(report_link.case_id)
-            if is_case_model(linked_case):
+            if isinstance(linked_case, VulnerabilityCase):
                 return linked_case
 
     with Session(dl._engine) as session:

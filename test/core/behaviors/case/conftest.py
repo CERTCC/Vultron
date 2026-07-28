@@ -1,7 +1,7 @@
 """
 Fixtures for test/core/behaviors/case tests.
 
-Imports VulnerabilityCase (and related wire-layer types) as a side effect so
+Imports as_VulnerabilityCase (and related wire-layer types) as a side effect so
 that the global vocabulary registry is populated before any test in this
 directory runs.  Without this import the registry may be empty when tests run
 in isolation, causing TinyDB's record_to_object() to fall back to returning a
@@ -15,18 +15,19 @@ import pytest
 
 # noqa: F401 — imported for vocabulary registration side-effect
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
-    VulnerabilityCase,
+    as_VulnerabilityCase,
 )
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.vultron_types import VultronCaseActor
 from vultron.core.states.rm import RM
-from vultron.core.use_cases._helpers import _report_phase_status_id
+from vultron.core.models._helpers import _report_phase_status_id
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 
@@ -66,8 +67,8 @@ def reporter_actor(datalayer, reporter_actor_id):
 
 @pytest.fixture
 def report(datalayer):
-    """Create test VulnerabilityReport."""
-    obj = VulnerabilityReport(
+    """Create test as_VulnerabilityReport."""
+    obj = as_VulnerabilityReport(
         id_="https://example.org/reports/CVE-2024-001",
         name="Test Vulnerability Report",
         content="Buffer overflow in component X",
@@ -88,7 +89,7 @@ def reporter_accepted_status(datalayer, reporter_actor_id, report):
         ),
         context=report.id_,
         attributed_to=reporter_actor_id,
-        rm_state=RM.ACCEPTED,
+        rm=RmDimension(state=RM.ACCEPTED),
     )
     datalayer.create(status)
     return status
@@ -105,7 +106,7 @@ def vendor_received_status(datalayer, actor_id, report):
         id_=_report_phase_status_id(actor_id, report.id_, RM.RECEIVED.value),
         context=report.id_,
         attributed_to=actor_id,
-        rm_state=RM.RECEIVED,
+        rm=RmDimension(state=RM.RECEIVED),
     )
     datalayer.create(status)
     return status

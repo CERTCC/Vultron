@@ -21,19 +21,19 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.base import _scalar_ref_id_or_value
 
 
-class CaseActor(as_Service):
+class as_CaseActor(as_Service):
     """
     A CaseActor is a software service wrapper around a VulnerabilityCase object.
     It provides an inbox/outbox for the case to manage communications related to the case.
     """
 
-    # note: CaseActor doesn't need its own type_, the value inherited from as_Service is sufficient
+    # note: as_CaseActor doesn't need its own type_, the value inherited from as_Service is sufficient
 
     # attributed_to: (Actor) Case Owner
     # context: (VulnerabilityCase) The case this actor is associated with
 
     @classmethod
-    def from_core(cls, core_obj: CoreCaseActor) -> "CaseActor":
+    def from_core(cls, core_obj: CoreCaseActor) -> "as_CaseActor":
         return cls(
             id_=core_obj.id_,
             name=core_obj.name,
@@ -56,4 +56,4 @@ class CaseActor(as_Service):
 if __name__ == "__main__":
     print("This module is intended to be imported, not run directly.")
 
-    print(CaseActor().model_dump_json(indent=2))
+    print(as_CaseActor().model_dump_json(indent=2))

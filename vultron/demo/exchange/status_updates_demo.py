@@ -19,8 +19,8 @@ Demonstrates status updates and notes workflows via the Vultron API.
 This demo script showcases the following workflows:
 
 1. Notes workflow: vendor creates a note on a case → adds it to the case
-2. Case status workflow: vendor creates a CaseStatus → adds it to the case
-3. Participant status workflow: vendor creates a ParticipantStatus for a
+2. Case status workflow: vendor creates a as_CaseStatus → adds it to the case
+3. Participant status workflow: vendor creates a as_ParticipantStatus for a
    participant → adds it to that participant
 
 Each demo starts from an initialized case with a single FinderReporter
@@ -38,7 +38,6 @@ When run as a script, this module will:
 """
 
 import logging
-import sys
 from typing import Optional, Sequence, Tuple
 
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -48,17 +47,16 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import (
-    CaseParticipant,
+    as_CaseParticipant,
 )
 from vultron.enums.roles import CVDRole
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.wire.as2.vocab.objects.case_status import (
-    CaseStatus,
-    ParticipantStatus,
+    as_CaseStatus,
+    as_ParticipantStatus,
 )
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
 )
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
@@ -66,12 +64,9 @@ from vultron.core.states.cs import CS_pxa, CS_vfd
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
-    check_server_availability,
     demo_check,
     demo_step,
-    get_offer_from_datalayer,
     log_case_state,
-    demo_environment,
     post_to_inbox_and_wait,
     ref_id,
     verify_object_stored,
@@ -79,16 +74,15 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
 )
 from vultron.wire.as2.factories import (
     add_note_to_case_activity,
-    add_participant_to_case_activity,
-    add_report_to_case_activity,
     add_status_to_case_activity,
     add_status_to_participant_activity,
-    create_case_activity,
     create_case_status_activity,
     create_status_for_participant_activity,
-    rm_submit_report_activity,
-    rm_validate_report_activity,
 )
+
+from vultron.demo.helpers.runner import run_exchange_demos
+from vultron.demo.helpers.verification import _fetch_participant
+from vultron.demo.helpers.workflow import setup_initialized_case
 
 logger = logging.getLogger(__name__)
 
@@ -97,72 +91,18 @@ def _setup_initialized_case(
     client: DataLayerClient,
     finder: as_Actor,
     vendor: as_Actor,
-) -> Tuple[VulnerabilityCase, CaseParticipant]:
+) -> Tuple[as_VulnerabilityCase, as_CaseParticipant]:
+    """Set up a case with one FinderReporter participant.
+
+    Delegates to the shared :func:`~vultron.demo.helpers.workflow.setup_initialized_case`
+    and then looks up the finder's participant record for callers that need it.
     """
-    Set up a case with one FinderReporter participant as a precondition
-    for the status updates workflow.
-
-    Steps:
-    1. Finder submits report to vendor
-    2. Vendor validates report
-    3. Vendor creates case
-    4. Vendor adds report to case
-    5. Vendor creates FinderReporter participant
-    6. Vendor adds participant to case
-    """
-    report = VulnerabilityReport(
-        attributed_to=finder.id_,
-        content="A heap buffer overflow in the image parsing library.",
-        name="Heap Buffer Overflow in Image Parser",
-    )
-    report_offer = rm_submit_report_activity(
-        report, actor=finder.id_, to=vendor.id_
-    )
-    post_to_inbox_and_wait(client, vendor.id_, report_offer)
-    verify_object_stored(client, report.id_)
-
-    offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
-    validate_activity = rm_validate_report_activity(
-        offer,
-        actor=vendor.id_,
-        content="Confirmed — heap buffer overflow via malformed image input.",
-    )
-    post_to_inbox_and_wait(client, vendor.id_, validate_activity)
-
-    case = VulnerabilityCase(
-        attributed_to=vendor.id_,
-        name="Heap Overflow Case — Image Parser",
-        content="Tracking the heap buffer overflow in the image parsing library.",
-    )
-    create_case_act = create_case_activity(case, actor=vendor.id_)
-    post_to_inbox_and_wait(client, vendor.id_, create_case_act)
-    verify_object_stored(client, case.id_)
-
-    add_report_activity = add_report_to_case_activity(
-        report, actor=vendor.id_, target=case.id_
-    )
-    post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
-
-    participant = CaseParticipant(
-        case_roles=[CVDRole.FINDER, CVDRole.REPORTER],
-        attributed_to=finder.id_,
-        context=case.id_,
-    )
-    create_participant_activity = as_Create(
-        actor=vendor.id_,
-        object_=participant,
-        context=case.id_,
-    )
-    post_to_inbox_and_wait(client, vendor.id_, create_participant_activity)
-    verify_object_stored(client, participant.id_)
-
-    add_participant_activity = add_participant_to_case_activity(
-        participant, actor=vendor.id_, target=case.id_
-    )
-    post_to_inbox_and_wait(client, vendor.id_, add_participant_activity)
-
-    log_case_state(client, case.id_, "after setup")
-    logger.info("✓ Setup: Case initialized with one participant")
+    case = setup_initialized_case(client, finder, vendor)
+    participant = _fetch_participant(client, case.id_, finder.id_)
+    if participant is None:
+        raise ValueError(
+            f"Finder participant not found in case {case.id_} after setup"
+        )
     return case, participant
 
 
@@ -249,10 +189,10 @@ def demo_status_workflow(
 ) -> None:
     """
     Demonstrate the status updates workflow:
-    1. Create a CaseStatus
-    2. Add the CaseStatus to the case
-    3. Create a ParticipantStatus
-    4. Add the ParticipantStatus to the participant
+    1. Create a as_CaseStatus
+    2. Add the as_CaseStatus to the case
+    3. Create a as_ParticipantStatus
+    4. Add the as_ParticipantStatus to the participant
     5. Verify side effects
     """
     logger.info("=" * 80)
@@ -261,8 +201,8 @@ def demo_status_workflow(
 
     case, participant = _setup_initialized_case(client, finder, vendor)
 
-    with demo_step("Step 1: Vendor creates CaseStatus"):
-        case_status = CaseStatus(
+    with demo_step("Step 1: Vendor creates as_CaseStatus"):
+        case_status = as_CaseStatus(
             context=case.id_,
             em_state=EM.NO_EMBARGO,
             pxa_state=CS_pxa.pxa,
@@ -271,15 +211,15 @@ def demo_status_workflow(
             case_status, actor=vendor.id_, context=case.id_
         )
         post_to_inbox_and_wait(client, vendor.id_, create_status_activity)
-        with demo_check("CaseStatus stored in data layer"):
+        with demo_check("as_CaseStatus stored in data layer"):
             verify_object_stored(client, case_status.id_)
 
-    with demo_step("Step 2: Vendor adds CaseStatus to case"):
+    with demo_step("Step 2: Vendor adds as_CaseStatus to case"):
         add_status_activity = add_status_to_case_activity(
             case_status, actor=vendor.id_, target=case.id_
         )
         post_to_inbox_and_wait(client, vendor.id_, add_status_activity)
-        with demo_check("CaseStatus present in case"):
+        with demo_check("as_CaseStatus present in case"):
             updated_case = log_case_state(
                 client, case.id_, "after AddStatusToCaseActivity"
             )
@@ -289,12 +229,12 @@ def demo_status_workflow(
                 ]
                 if case_status.id_ not in status_ids:
                     raise ValueError(
-                        f"CaseStatus '{case_status.id_}' not found in case "
+                        f"as_CaseStatus '{case_status.id_}' not found in case "
                         "after AddStatusToCaseActivity"
                     )
 
-    with demo_step("Step 3: Vendor creates ParticipantStatus"):
-        participant_status = ParticipantStatus(
+    with demo_step("Step 3: Vendor creates as_ParticipantStatus"):
+        participant_status = as_ParticipantStatus(
             context=participant.id_,
             rm_state=RM.RECEIVED,
             vfd_state=CS_vfd.vfd,
@@ -307,10 +247,10 @@ def demo_status_workflow(
             participant_status, actor=vendor.id_
         )
         post_to_inbox_and_wait(client, vendor.id_, create_pstatus_activity)
-        with demo_check("ParticipantStatus stored in data layer"):
+        with demo_check("as_ParticipantStatus stored in data layer"):
             verify_object_stored(client, participant_status.id_)
 
-    with demo_step("Step 4: Vendor adds ParticipantStatus to participant"):
+    with demo_step("Step 4: Vendor adds as_ParticipantStatus to participant"):
         add_pstatus_activity = add_status_to_participant_activity(
             participant_status, actor=vendor.id_, target=participant.id_
         )
@@ -337,66 +277,10 @@ def main(
     skip_health_check: bool = False,
     demos: Optional[Sequence] = None,
 ) -> None:
-    """
-    Main entry point for the status_updates demo script.
-
-    Args:
-        skip_health_check: Skip server availability check (useful for testing)
-        demos: Optional sequence of demo functions to run. Defaults to all.
-    """
-    client = DataLayerClient()
-
-    if not skip_health_check and not check_server_availability(client):
-        logger.error("=" * 80)
-        logger.error("ERROR: API server is not available")
-        logger.error("=" * 80)
-        logger.error(f"Cannot connect to: {client.base_url}")
-        logger.error("")
-        logger.error("Please ensure the Vultron API server is running:")
-        logger.error(
-            "  uv run uvicorn vultron.api.main:app --host localhost --port 7999"
-        )
-        logger.error("=" * 80)
-        sys.exit(1)
-
-    selected = (
-        _ALL_DEMOS
-        if demos is None
-        else [(name, fn) for name, fn in _ALL_DEMOS if fn in demos]
+    """Main entry point for the status updates demo demo script."""
+    run_exchange_demos(
+        _ALL_DEMOS, skip_health_check=skip_health_check, demos=demos
     )
-    total = len(selected)
-    errors = []
-
-    for demo_name, demo_fn in selected:
-        try:
-            with demo_environment(client) as (finder, vendor, coordinator):
-                demo_fn(client, finder, vendor, coordinator)
-        except Exception as e:
-            logger.error(f"{demo_name} failed: {e}", exc_info=True)
-            errors.append((demo_name, str(e)))
-
-    logger.info("=" * 80)
-    logger.info("ALL DEMOS COMPLETE")
-    logger.info("=" * 80)
-
-    if errors:
-        logger.error("")
-        logger.error("=" * 80)
-        logger.error("ERROR SUMMARY")
-        logger.error("=" * 80)
-        logger.error(f"Total demos: {total}")
-        logger.error(f"Failed demos: {len(errors)}")
-        logger.error(f"Successful demos: {total - len(errors)}")
-        logger.error("")
-        for demo_name, error in errors:
-            logger.error(f"{demo_name}:")
-            logger.error(f"  {error}")
-            logger.error("")
-        logger.error("=" * 80)
-    else:
-        logger.info("")
-        logger.info(f"✓ All {total} demos completed successfully!")
-        logger.info("")
 
 
 if __name__ == "__main__":

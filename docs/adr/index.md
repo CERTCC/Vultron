@@ -87,22 +87,33 @@ General information about architectural decision records is available at <https:
   Cross-Cutting Enumerations](0031-vultron-enums-neutral-layer.md)
 - [ADR-0032 Validate at the Edge, Promote to Strict Core
   Types](0032-validate-at-edge-promote-to-core.md)
+- [ADR-0026 CaseActor-Routed Actor Suggestion and Invitation
+  Flow](0026-caseactor-routed-actor-suggestion.md)
+- [ADR-0034 DataLayer Port Returns Core Domain
+  Objects](0034-datalayer-returns-core-objects.md)
+- [ADR-0035 Core Activity Representation and Envelope
+  Reconstitution](0035-core-activity-representation-and-envelope-reconstitution.md)
+- [ADR-0036 Per-Machine Dimension Objects for CaseStatus and
+  ParticipantStatus](0036-status-dimension-objects.md)
+- [ADR-0037 Buffer Out-of-Order `Announce(CaseLedgerEntry)` Instead of
+  Dropping](0037-buffer-out-of-order-ledger-entries.md)
+- [ADR-0038 Replace Six-Kind Spec Taxonomy with Four-Tier Portability
+  Hierarchy](0038-four-tier-specification-taxonomy.md)
+- [ADR-0028 Publication-Intent Subtree Collapse: Bypass Leaves →
+  Intent-Record-Driven Arms](0028-publication-intent-bt-collapse.md)
+- [ADR-0029 Notification Loop Collapse: InjectParticipant →
+  suggest-actor-to-case Protocol](0029-notification-loop-suggest-actor.md)
+- [ADR-0030 Publish Leaf Expansion: Single Actuator →
+  Draft-Review-Submit Pipeline](0030-publish-leaf-draft-review-submit-pipeline.md)
+- [ADR-0039 Resolve Wire Ambiguity Between OFFER\_CASE\_MANAGER\_ROLE and
+  OFFER\_CASE\_OWNERSHIP\_TRANSFER via Dedicated Object Type](0039-offer-case-participant-role-wire-type.md)
 
 ## Proposed ADRs
 
 - [ADR-0020 Move Inbox Orchestration into a Core BT Module with a Typed
   `process_payload` Seam](0020-inbox-bt-orchestration.md)
-- [ADR-0026 CaseActor-Routed Actor Suggestion and Invitation
-  Flow](0026-caseactor-routed-actor-suggestion.md)
 - [ADR-0027 Exploit-Strategy Subtree Collapse: Five Simulator Nodes →
   EvaluateExploitStrategy](0027-exploit-strategy-bt-collapse.md) *(provisional)*
-- [ADR-0028 Publication-Intent Subtree Collapse: Bypass Leaves →
-  Intent-Record-Driven Arms](0028-publication-intent-bt-collapse.md) *(provisional)*
-- [ADR-0029 Notification Loop Collapse: InjectParticipant →
-  suggest-actor-to-case Protocol](0029-notification-loop-suggest-actor.md) *(provisional)*
-- [ADR-0030 Publish Leaf Expansion: Single Actuator →
-  Draft-Review-Submit Pipeline](0030-publish-leaf-draft-review-submit-pipeline.md)
-  *(provisional)*
 - [ADR-0033 Lifecycle-Staged Domain Types Anchored on Guaranteed-Field
   Changes](0033-lifecycle-staged-case-types.md)
 

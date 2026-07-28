@@ -170,12 +170,34 @@ each have an observation to record.
 
 ### What belongs here
 
-- Observations about unclear or missing spec requirements discovered during
-  implementation (e.g., "The specs don't say what to do when X")
+Entries fall into two tiers. Add an optional `signal:` frontmatter field to
+mark the tier explicitly (see BW-07-002).
+
+**Tier 1 — high-urgency signals** (tag with `signal: <type>`):
+
+- `spec-gap` — behaviour implemented in code with no corresponding spec entry
+- `spec-ambiguity` — a requirement was unclear; record what interpretation was
+  made so `learn` can clarify it
+- `spec-contradiction` — two requirements appeared to conflict; record which
+  were at odds and how the conflict was resolved
+- `design-question` — an architectural decision was made mid-build beyond what
+  the issue specified; record the rationale for `learn` to evaluate
+- `concern` — a fragility, risk, or debt item encountered that should be
+  tracked as a GitHub Concern issue
+
+**Tier 2 — general observations** (no `signal:` tag required):
+
+- `tooling-issue` — environment or tooling problems (e.g., `PYTHONPATH`
+  contamination, `git rebase` sequencer quirks)
+- `process-issue` — tracking failures (stale issue body, issue already
+  implemented, missing `Closes` footer)
 - Constraints or invariants discovered in the code that aren't documented
-- Open questions raised during implementation that need a decision
 - Patterns that keep recurring and should become `AGENTS.md` guidance
 - Gotchas or pitfalls encountered that should be preserved for future runs
+
+The `build` and `bugfix` skills MUST run the upward-reflection checklist
+(BW-07-001) before writing learning files to ensure Tier-1 signals are not
+silently omitted.
 
 ### What does NOT belong here
 

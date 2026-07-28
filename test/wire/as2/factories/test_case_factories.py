@@ -59,10 +59,12 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Person
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.case_status import CaseStatus
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 _ACTOR_URI = "https://example.org/actors/alice"
@@ -70,18 +72,18 @@ _CASE_URI = "https://example.org/cases/case-001"
 
 
 @pytest.fixture
-def sample_case() -> VulnerabilityCase:
-    return VulnerabilityCase(name="Test Case")
+def sample_case() -> as_VulnerabilityCase:
+    return as_VulnerabilityCase(name="Test Case")
 
 
 @pytest.fixture
-def sample_report() -> VulnerabilityReport:
-    return VulnerabilityReport(name="Test Report")
+def sample_report() -> as_VulnerabilityReport:
+    return as_VulnerabilityReport(name="Test Report")
 
 
 @pytest.fixture
-def sample_status() -> CaseStatus:
-    return CaseStatus()
+def sample_status() -> as_CaseStatus:
+    return as_CaseStatus()
 
 
 @pytest.fixture

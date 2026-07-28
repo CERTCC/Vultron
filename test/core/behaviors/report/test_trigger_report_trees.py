@@ -32,15 +32,17 @@ from vultron.core.behaviors.report.trigger_report_trees import (
 )
 from vultron.core.models.activity import VultronOffer
 from vultron.core.models.case_actor import VultronCaseActor
+from vultron.core.models.offer_record import VultronOfferRecord
+from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VultronReport
 from vultron.core.states.rm import RM
-from vultron.core.use_cases._helpers import _report_phase_status_id
+from vultron.core.models._helpers import _report_phase_status_id
 from vultron.errors import VultronInvalidStateTransitionError
 
 # noqa: F401 — vocabulary registration side-effect
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
-    VulnerabilityCase,
+    as_VulnerabilityCase,
 )
 
 # ---------------------------------------------------------------------------
@@ -81,6 +83,13 @@ def offer(
 ) -> VultronOffer:
     obj = VultronOffer(actor=REPORTER_ID, object_=report.id_, target=ACTOR_ID)
     scenario.dl.create(obj)
+    offer_record = VultronOfferRecord(
+        offer_id=obj.id_,
+        report_id=report.id_,
+        offer_actor_id=REPORTER_ID,
+        offer_to=[ACTOR_ID],
+    )
+    scenario.dl.create(offer_record)
     return obj
 
 
@@ -93,7 +102,7 @@ def closed_status(
         id_=_report_phase_status_id(ACTOR_ID, report.id_, RM.CLOSED.value),
         context=report.id_,
         attributed_to=ACTOR_ID,
-        rm_state=RM.CLOSED,
+        rm=RmDimension(state=RM.CLOSED),
     )
     scenario.dl.create(status)
     return status

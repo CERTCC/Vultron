@@ -72,10 +72,9 @@ class StoreReportNode(DataLayerAction):
             SUCCESS always (including no-op if report_id is empty or
             report_obj is None); FAILURE if the DataLayer is unavailable.
         """
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
-
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         if not self.report_id:
             self.logger.debug("%s: no report_id — skipping store", self.name)
             return Status.SUCCESS
@@ -133,10 +132,9 @@ class StoreActivityNode(DataLayerAction):
             FAILURE if the DataLayer is unavailable or activity_obj is None
             when activity_id is set (precondition violation).
         """
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
-
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         if not self.activity_id:
             self.logger.debug("%s: no activity_id — skipping store", self.name)
             return Status.SUCCESS

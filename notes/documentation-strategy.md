@@ -38,8 +38,8 @@ with the ActivityStreams adoption.
 
 ### Generation 2: State-based model and simulation
 
-**Files**: `vultron/case_states/**/*.py`, `vultron/bt/**/*.py`,
-`vultron/demo/vultrabot.py`
+**Files**: `vultron/case_states/**/*.py`, `vultron/bt/**/*.py`
+(including `vultron/bt/base/demo/cvd.py`)
 
 These were some of the earliest Python implementations, based on:
 
@@ -50,7 +50,8 @@ These were some of the earliest Python implementations, based on:
 - [*Designing Vultron*](
   https://www.sei.cmu.edu/documents/1954/2022_003_001_887202.pdf)
   (CMU/SEI-2022-SR-019) — basis for the behavior tree simulator in
-  `vultron/bt/**/*.py` and `vultron/demo/vultrabot.py`.
+  `vultron/bt/**/*.py` (including the CVD self-simulation demo
+  `vultron/bt/base/demo/cvd.py`).
 
 These implementations came **before** the decision to use ActivityStreams
 vocabulary. They remain valuable as reference implementations for protocol

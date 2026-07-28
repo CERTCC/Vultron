@@ -28,9 +28,9 @@ from vultron.wire.as2.vocab.base.objects.actors import (
     as_Person,
     as_Service,
 )
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    VulnerabilityCase,
+    as_VulnerabilityCase,
     VulnerabilityCaseStub,
 )
 
@@ -209,7 +209,7 @@ def test_non_overlapping_activity_patterns():
 
 
 def test_offer_case_ownership_transfer_rejects_string_object():
-    """OfferCaseOwnershipTransferActivity must have an inline VulnerabilityCase,
+    """OfferCaseOwnershipTransferActivity must have an inline as_VulnerabilityCase,
     not a bare string URI as object_.
 
     Sending a string URI causes pattern-matching ambiguity: both
@@ -226,9 +226,9 @@ def test_offer_case_ownership_transfer_rejects_string_object():
 
 
 def test_offer_case_ownership_transfer_with_inline_case_dispatches_correctly():
-    """An OfferCaseOwnershipTransferActivity with a full inline VulnerabilityCase
+    """An OfferCaseOwnershipTransferActivity with a full inline as_VulnerabilityCase
     must be classified as OFFER_CASE_OWNERSHIP_TRANSFER, not SUBMIT_REPORT."""
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         id_="https://example.org/cases/urn:uuid:test-case",
         name="TEST-001",
     )
@@ -375,12 +375,12 @@ def test_invite_actor_to_case_without_actor_object_does_not_match():
 
 
 def test_announce_vulnerability_case_pattern_matches():
-    """AnnounceVulnerabilityCasePattern must match Announce(VulnerabilityCase).
+    """AnnounceVulnerabilityCasePattern must match Announce(as_VulnerabilityCase).
 
     DR-10: the pattern must be registered so incoming AnnounceVulnerabilityCase
     activities are routed to AnnounceVulnerabilityCaseReceivedUseCase.
     """
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         id_="https://example.org/cases/case-pattern-001", name="Pattern Test"
     )
     announce = announce_vulnerability_case_activity(
@@ -418,15 +418,15 @@ def test_vulnerability_case_stub_with_summary():
 
 
 def test_rm_invite_projects_full_vulnerability_case_to_stub():
-    """rm_invite_to_case_activity projects a full VulnerabilityCase to a stub.
+    """rm_invite_to_case_activity projects a full as_VulnerabilityCase to a stub.
 
-    DR-10 / MV-10-001: the factory accepts a full VulnerabilityCase as target
+    DR-10 / MV-10-001: the factory accepts a full as_VulnerabilityCase as target
     for projection (CM-17-002 enrichment path) but the resulting wire activity's
     target is always a VulnerabilityCaseStub — full case details never reach
     uninvited parties on the wire.
     """
     actor = as_Actor(id_="https://example.org/actors/alice")
-    full_case = VulnerabilityCase(
+    full_case = as_VulnerabilityCase(
         id_="https://example.org/cases/c1", name="Full"
     )
     activity = rm_invite_to_case_activity(
@@ -436,7 +436,7 @@ def test_rm_invite_projects_full_vulnerability_case_to_stub():
     )
     assert isinstance(
         activity.target, VulnerabilityCaseStub
-    ), "DR-10: wire activity target must be VulnerabilityCaseStub, not full VulnerabilityCase"
+    ), "DR-10: wire activity target must be VulnerabilityCaseStub, not full as_VulnerabilityCase"
     assert activity.target.id_ == full_case.id_
 
 
@@ -452,12 +452,12 @@ _PARTICIPANT_URI = (
 )
 
 
-def _make_case_manager_case() -> VulnerabilityCase:
-    return VulnerabilityCase(id_=_CASE_URI, name="CASE-001")
+def _make_case_manager_case() -> as_VulnerabilityCase:
+    return as_VulnerabilityCase(id_=_CASE_URI, name="CASE-001")
 
 
-def _make_case_actor_participant() -> CaseParticipant:
-    return CaseParticipant(
+def _make_case_actor_participant() -> as_CaseParticipant:
+    return as_CaseParticipant(
         id_=_PARTICIPANT_URI,
         attributed_to=_CASE_ACTOR_URI,
         context=_CASE_URI,
@@ -465,7 +465,7 @@ def _make_case_actor_participant() -> CaseParticipant:
 
 
 def test_offer_case_manager_role_dispatches_correctly():
-    """Offer(VulnerabilityCase, target=CaseParticipant) must be classified as
+    """Offer(as_VulnerabilityCase, target=as_CaseParticipant) must be classified as
     OFFER_CASE_MANAGER_ROLE, not OFFER_CASE_OWNERSHIP_TRANSFER.
 
     DEMOMA-08-002: CASE_MANAGER delegation is a distinct protocol from
@@ -485,10 +485,10 @@ def test_offer_case_manager_role_dispatches_correctly():
 
 
 def test_offer_case_manager_role_not_confused_with_ownership_transfer():
-    """Offer(VulnerabilityCase) without a CaseParticipant target must be
+    """Offer(as_VulnerabilityCase) without a as_CaseParticipant target must be
     classified as OFFER_CASE_OWNERSHIP_TRANSFER, not OFFER_CASE_MANAGER_ROLE.
 
-    The presence of a typed CaseParticipant target is the sole discriminator.
+    The presence of a typed as_CaseParticipant target is the sole discriminator.
     """
     case = _make_case_manager_case()
     offer = offer_case_ownership_transfer_activity(
@@ -502,7 +502,7 @@ def test_offer_case_manager_role_not_confused_with_ownership_transfer():
 
 
 def test_accept_case_manager_role_dispatches_correctly():
-    """Accept(Offer(VulnerabilityCase, target=CaseParticipant)) must be
+    """Accept(Offer(as_VulnerabilityCase, target=as_CaseParticipant)) must be
     classified as ACCEPT_CASE_MANAGER_ROLE."""
     case = _make_case_manager_case()
     participant = _make_case_actor_participant()
@@ -519,7 +519,7 @@ def test_accept_case_manager_role_dispatches_correctly():
 
 
 def test_reject_case_manager_role_dispatches_correctly():
-    """Reject(Offer(VulnerabilityCase, target=CaseParticipant)) must be
+    """Reject(Offer(as_VulnerabilityCase, target=as_CaseParticipant)) must be
     classified as REJECT_CASE_MANAGER_ROLE."""
     case = _make_case_manager_case()
     participant = _make_case_actor_participant()
@@ -538,7 +538,7 @@ def test_reject_case_manager_role_dispatches_correctly():
 def test_offer_case_manager_role_rejects_string_case():
     """offer_case_manager_role_activity must reject a bare string URI as case.
 
-    An inline VulnerabilityCase object is required so the recipient can
+    An inline as_VulnerabilityCase object is required so the recipient can
     distinguish this activity from other Offer types during pattern matching.
     """
     participant = _make_case_actor_participant()
@@ -568,7 +568,7 @@ def test_offer_case_manager_role_rejects_none_target():
 def test_offer_case_manager_role_rejects_string_target():
     """offer_case_manager_role_activity must reject a bare string IRI as target.
 
-    A string target is not a typed CaseParticipant and will not match the
+    A string target is not a typed as_CaseParticipant and will not match the
     CASE_PARTICIPANT constraint in the ActivityPattern, causing the activity
     to be misclassified as OFFER_CASE_OWNERSHIP_TRANSFER.
     """

@@ -30,8 +30,10 @@ from vultron.enums.roles import CVDRole
 from vultron.core.use_cases.received.case.lifecycle import (
     CloseCaseReceivedUseCase,
 )
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -67,13 +69,13 @@ def _make_case_actor_dl() -> SqliteDataLayer:
     ca_svc = VultronCaseActor(id_=CASE_ACTOR_ID, context=CASE_ID)
     dl.save(ca_svc)
 
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         id_=CASE_ID,
         name="CloseCase Routing Test",
         attributed_to=CASE_ACTOR_ID,
     )
 
-    cm_participant = CaseParticipant(
+    cm_participant = as_CaseParticipant(
         attributed_to=CASE_ACTOR_ID,
         context=CASE_ID,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -90,7 +92,7 @@ def _make_close_case_event(
     receiving_actor_id: str | None = CASE_ACTOR_ID,
     leave_actor_id: str = VENDOR_ID,
 ) -> CloseCaseReceivedEvent:
-    """Construct a CloseCaseReceivedEvent (Leave(VulnerabilityCase)).
+    """Construct a CloseCaseReceivedEvent (Leave(as_VulnerabilityCase)).
 
     Args:
         receiving_actor_id: The actor whose inbox is processing this Leave.
@@ -99,7 +101,7 @@ def _make_close_case_event(
             CASE_ACTOR_ID to simulate the AutoCloseBranchNode path where the
             case-actor emits the Leave to itself.
     """
-    case_obj = VulnerabilityCase(id_=CASE_ID)
+    case_obj = as_VulnerabilityCase(id_=CASE_ID)
     activity = VultronActivity(
         id_="https://example.org/activities/leave-case",
         type_="Leave",
@@ -171,7 +173,7 @@ class TestCloseCaseLedgerRouting:
     def test_caseactor_self_leave_commits_close_case_ledger_entry(self):
         """Case-actor-authored Leave (AutoCloseBranchNode path) is committed.
 
-        AutoCloseBranchNode emits Leave(VulnerabilityCase) with
+        AutoCloseBranchNode emits Leave(as_VulnerabilityCase) with
         actor=case_actor_id to signal that all participants have closed.  The
         case-actor must accept its own Leave as a canonical ledger entry
         because the close_case signature IS case-authored (DEMOMA-07-003 step 5).

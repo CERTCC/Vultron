@@ -8,14 +8,15 @@ ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
 
 RUN python -m venv "${VIRTUAL_ENV}"
 
-FROM base AS dependencies
+FROM base AS dep-layer
 
-# Install third-party dependencies in a dedicated layer so that changing
-# application source does not bust the dependency-install cache.
-# Only a change to pyproject.toml or uv.lock triggers a re-install.
+# Install all third-party + dev packages (but not the project package itself) so
+# that a source-only change never busts this expensive layer.
 COPY pyproject.toml uv.lock /app/
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-install-project
+    uv sync --frozen --no-install-project --dev
+
+FROM dep-layer AS dependencies
 
 # Copy the full application source and install the project package
 # (including console-script entry points such as vultron-demo).
@@ -25,10 +26,11 @@ ENV PYTHONPATH=/app
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen
 
-FROM dependencies AS test
-# Install pytest and dev dependencies
-RUN uv sync --frozen --dev
-# Run the unit tests
+FROM dep-layer AS test
+COPY . /app/
+ENV PYTHONPATH=/app
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --dev
 CMD ["uv", "run", "pytest"]
 
 FROM dependencies AS docs
@@ -42,11 +44,10 @@ RUN mkdir -p /app/data
 CMD ["uv","run","uvicorn","vultron.adapters.driving.fastapi.main:app","--host","0.0.0.0","--port","7999","--reload"]
 
 FROM dependencies AS demo
-COPY docker/demo-entrypoint.sh /app/demo-entrypoint.sh
-RUN chmod +x /app/demo-entrypoint.sh
+COPY --chmod=755 docker/demo-entrypoint.sh /app/demo-entrypoint.sh
 ENTRYPOINT ["/app/demo-entrypoint.sh"]
 
-FROM dependencies AS dev
+FROM dep-layer AS dev
 
 # Clear VIRTUAL_ENV so uv resolves the project venv from the workspace path,
 # not /app/.venv (which is valid for app stages but wrong for devcontainer use).
@@ -92,7 +93,9 @@ ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt \
     SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
     CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
 
-# Bake dev dependencies (pytest, mypy, black, etc.) into the image layer
+# Install project source (after all heavy system tooling is cached)
+COPY . /app/
+ENV PYTHONPATH=/app
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --dev
 

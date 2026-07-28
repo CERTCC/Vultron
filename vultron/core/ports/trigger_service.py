@@ -197,6 +197,13 @@ class TriggerServicePort(Protocol):
         invite_id: str,
     ) -> dict[str, Any]: ...
 
+    def accept_actor_recommendation(
+        self,
+        actor_id: str,
+        cp_offer_id: str,
+        case_actor_id: str,
+    ) -> dict[str, Any]: ...
+
     def invite_actor_to_case(
         self,
         actor_id: str,
@@ -209,4 +216,18 @@ class TriggerServicePort(Protocol):
         self,
         actor_id: str,
         case_id: str,
+    ) -> dict[str, Any]: ...
+
+    def offer_case_ownership_transfer(
+        self,
+        actor_id: str,
+        case_id: str,
+        transferee_id: str,
+        content: str | None = None,
+    ) -> dict[str, Any]: ...
+
+    def accept_case_ownership_transfer(
+        self,
+        actor_id: str,
+        offer_id: str,
     ) -> dict[str, Any]: ...

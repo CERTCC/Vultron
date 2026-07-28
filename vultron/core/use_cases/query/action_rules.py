@@ -23,7 +23,9 @@ from typing import cast
 from vultron.core.case_states.patterns.potential_actions import (
     action as get_actions,
 )
-from vultron.core.models.protocols import CaseModel, ParticipantModel
+from vultron.core.models._helpers import has_case_statuses
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.scoring.utils import enum2title
 from vultron.core.states.cs import CS_pxa, CS_vfd
@@ -44,7 +46,7 @@ class ActionRulesRequest(BaseModel):
 
 
 def _resolve_participant_id_from_actor(
-    case: CaseModel, actor_id: str, dl: CasePersistence
+    case: VulnerabilityCase, actor_id: str, dl: CasePersistence
 ) -> str:
     """Resolve a case-scoped participant ID from an actor ID."""
     participant_id = resolve_case_participant_id_for_actor(case, actor_id, dl)
@@ -83,7 +85,7 @@ class GetActionRulesUseCase:
         # 2. Resolve the actor's CaseParticipant in the selected case.
         participant_id = _resolve_participant_id_from_actor(case, actor_id, dl)
 
-        participant = cast(ParticipantModel | None, dl.read(participant_id))
+        participant = cast(CaseParticipant | None, dl.read(participant_id))
         if participant is None:
             raise VultronNotFoundError("CaseParticipant", participant_id)
         participant_actor_id = (
@@ -101,16 +103,16 @@ class GetActionRulesUseCase:
         vfd_state: CS_vfd = CS_vfd.vfd
         if participant.participant_statuses:
             latest = participant.participant_statuses[-1]
-            rm_state = latest.rm_state
-            vfd_state = latest.vfd_state
+            rm_state = latest.rm.state
+            vfd_state = latest.vfd.state
 
         # 4. Get shared case states from the current CaseStatus
         em_state: EM = EM.EMBARGO_MANAGEMENT_NONE
         pxa_state: CS_pxa = CS_pxa.pxa
-        if case.case_statuses:
+        if has_case_statuses(case):
             current_cs = case.current_status
-            em_state = current_cs.em_state
-            pxa_state = current_cs.pxa_state
+            em_state = current_cs.em.state
+            pxa_state = current_cs.pxa.state
 
         # 5. Build the combined 6-character CS state string (VFD + PXA)
         cs_state = vfd_state.name + pxa_state.name

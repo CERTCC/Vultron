@@ -16,3 +16,20 @@ class HistoryEntryType(StrEnum):
     implementation = "implementation"
     learning = "learning"
     priority = "priority"
+
+
+class LearningSignalType(StrEnum):
+    """Optional signal classification for ``learning`` history entries (BW-07-002).
+
+    Tags the urgency tier of a learning so the ``learn`` skill can triage
+    without reading every file body.  ``spec-gap`` and ``spec-contradiction``
+    are the highest priority (BW-07-003).
+    """
+
+    spec_gap = "spec-gap"
+    spec_ambiguity = "spec-ambiguity"
+    spec_contradiction = "spec-contradiction"
+    design_question = "design-question"
+    concern = "concern"
+    tooling_issue = "tooling-issue"
+    process_issue = "process-issue"

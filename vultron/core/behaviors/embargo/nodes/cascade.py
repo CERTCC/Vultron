@@ -29,9 +29,9 @@ class PersistEmbargoEventNode(DataLayerAction):
         self._embargo = embargo
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         try:
             self.datalayer.create(self._embargo)
         except ValueError:

@@ -79,8 +79,9 @@ class _CheckMarkerExistsNode(DataLayerAction):
         self._proposal_id = proposal_id
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         marker_id = PendingCreateCaseActivity.build_id(self._proposal_id)
         existing = self.datalayer.read(marker_id)
@@ -123,8 +124,9 @@ class _LoadExistingCaseNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         if self._report_id is None:
             return Status.FAILURE
@@ -166,9 +168,10 @@ class _CreateCaseFromProposalNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.feedback_message = "DataLayer or actor_id not available"
-            return Status.FAILURE
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
 
         case = VultronCase(attributed_to=self.actor_id)
         if self._report_id is not None:
@@ -235,9 +238,10 @@ class _EmitAcceptCaseProposalNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.feedback_message = "DataLayer or actor_id not available"
-            return Status.FAILURE
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
 
         try:
             case_id: str | None = self.blackboard.get("case_id")
@@ -300,9 +304,10 @@ class _EmitCreateVulnerabilityCaseNode(DataLayerAction):
         self._vendor_uri = vendor_uri
 
     def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.feedback_message = "DataLayer or actor_id not available"
-            return Status.FAILURE
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
 
         # Read the pre-built payload from the marker to guarantee id_ consistency
         # with CP-05-005 retry logic.
@@ -398,9 +403,10 @@ class _WriteCreateCaseMarkerNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.feedback_message = "DataLayer or actor_id not available"
-            return Status.FAILURE
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
 
         try:
             case_id = self.blackboard.get("case_id")

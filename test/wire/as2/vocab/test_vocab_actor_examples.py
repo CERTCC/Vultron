@@ -18,7 +18,7 @@ Each test asserts:
 - Return type matches the declared return annotation.
 - ``actor`` field is set to the expected actor ID.
 - ``to`` field is set to the expected recipient(s).
-- ``object_`` references the expected actor or CaseParticipant.
+- ``object_`` references the expected actor or as_CaseParticipant.
 """
 
 import unittest
@@ -33,7 +33,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Offer,
     as_Reject,
 )
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.examples._base import (
     _CASE_ACTOR,
     _COORDINATOR,
@@ -139,11 +139,11 @@ class TestOfferCaseParticipant(unittest.TestCase):
         self.assertEqual(self.activity.to, [self.vendor.id_])
 
     def test_object_is_case_participant(self):
-        participant = cast(CaseParticipant, self.activity.object_)
-        self.assertIsInstance(participant, CaseParticipant)
+        participant = cast(as_CaseParticipant, self.activity.object_)
+        self.assertIsInstance(participant, as_CaseParticipant)
 
     def test_participant_attributed_to_coordinator(self):
-        participant = cast(CaseParticipant, self.activity.object_)
+        participant = cast(as_CaseParticipant, self.activity.object_)
         attr = participant.attributed_to
         attr_id = getattr(attr, "id_", None) or attr
         self.assertEqual(attr_id, self.coordinator.id_)

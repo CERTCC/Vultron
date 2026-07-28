@@ -49,10 +49,9 @@ class StoreDeadLetterRecordNode(DataLayerAction):
         self._request = request
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         request = self._request
         unresolvable_uri = request.object_id or ""

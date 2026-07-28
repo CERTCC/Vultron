@@ -17,7 +17,6 @@ GRAPH_YAML_A = {
     "title": "Graph Test A",
     "description": "Spec file A for graph tests",
     "version": "1.0",
-    "kind": "general",
     "scope": ["prototype", "production"],
     "groups": [
         {
@@ -27,12 +26,14 @@ GRAPH_YAML_A = {
                 {
                     "id": "GA-01-001",
                     "priority": "MUST",
+                    "kind": "protocol",
                     "statement": "GA-01-001 MUST be foundational",
                     "tags": ["protocol"],
                 },
                 {
                     "id": "GA-01-002",
                     "priority": "SHOULD",
+                    "kind": "protocol",
                     "statement": "GA-01-002 SHOULD depend on GA-01-001",
                     "relationships": [
                         {
@@ -47,11 +48,11 @@ GRAPH_YAML_A = {
         {
             "id": "GA-02",
             "title": "Group A2",
-            "kind": "implementation",
             "specs": [
                 {
                     "id": "GA-02-001",
                     "priority": "MAY",
+                    "kind": "project",
                     "statement": "GA-02-001 MAY extend GA-01-002",
                     "scope": ["production"],
                     "relationships": [
@@ -71,7 +72,6 @@ GRAPH_YAML_B = {
     "title": "Graph Test B",
     "description": "Spec file B for graph tests",
     "version": "1.0",
-    "kind": "general",
     "scope": ["prototype"],
     "groups": [
         {
@@ -81,6 +81,7 @@ GRAPH_YAML_B = {
                 {
                     "id": "GB-01-001",
                     "priority": "MUST",
+                    "kind": "protocol",
                     "statement": "GB-01-001 MUST cross-reference GA-01-001",
                     "relationships": [
                         {
@@ -134,7 +135,7 @@ class TestRegistryGraph:
         g = graph_registry.graph
         attrs = g.nodes["GA-01-001"]
         assert attrs["priority"] == "MUST"
-        assert attrs["kind"] == "general"
+        assert attrs["kind"] == "protocol"
         assert attrs["scope"] == ["prototype", "production"]
         assert attrs["file_id"] == "GA"
         assert attrs["group_id"] == "GA-01"
@@ -145,7 +146,7 @@ class TestRegistryGraph:
 
     def test_graph_node_inherits_kind_from_group(self, graph_registry):
         attrs = graph_registry.graph.nodes["GA-02-001"]
-        assert attrs["kind"] == "implementation"
+        assert attrs["kind"] == "project"
 
     def test_graph_node_overrides_scope(self, graph_registry):
         attrs = graph_registry.graph.nodes["GA-02-001"]
@@ -233,7 +234,7 @@ class TestLlmExport:
         assert "GA-01-002" not in ids
 
     def test_kind_filter(self, graph_registry):
-        data = json.loads(to_llm_json(graph_registry, kind="implementation"))
+        data = json.loads(to_llm_json(graph_registry, kind="project"))
         assert len(data["requirements"]) == 1
         assert data["requirements"][0]["id"] == "GA-02-001"
 
@@ -263,7 +264,7 @@ class TestLlmExport:
         assert spec["group_title"] == "Group A1"
         assert spec["type"] in ("statement", "behavioral")
         assert spec["priority"] == "SHOULD"
-        assert spec["kind"] == "general"
+        assert spec["kind"] == "protocol"
         assert spec["scope"] == ["prototype", "production"]
         assert "relationships" in spec
         assert spec["relationships"][0]["rel_type"] == "depends_on"

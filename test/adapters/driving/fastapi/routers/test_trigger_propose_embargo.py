@@ -226,7 +226,7 @@ def test_trigger_propose_embargo_updates_em_state_to_proposed(
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
     updated_case = dl.read(case_without_participant.id_)
-    assert updated_case.current_status.em_state == EM.PROPOSED
+    assert updated_case.current_status.em.state == EM.PROPOSED
 
 
 def test_trigger_propose_embargo_from_active_updates_em_state_to_revise(
@@ -242,7 +242,7 @@ def test_trigger_propose_embargo_from_active_updates_em_state_to_revise(
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
     updated_case = dl.read(case_obj.id_)
-    assert updated_case.current_status.em_state == EM.REVISE
+    assert updated_case.current_status.em.state == EM.REVISE
 
 
 def test_trigger_propose_embargo_exited_returns_409(
@@ -250,7 +250,7 @@ def test_trigger_propose_embargo_exited_returns_409(
 ):
     """propose-embargo returns HTTP 409 when EM state is EXITED."""
     case_obj = dl.read(case_without_participant.id_)
-    case_obj.current_status.em_state = EM.EXITED
+    case_obj.current_status.em.state = EM.EXITED
     dl.update(case_obj.id_, object_to_record(case_obj))
 
     resp = client_triggers.post(

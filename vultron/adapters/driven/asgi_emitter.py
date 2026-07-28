@@ -82,8 +82,13 @@ class ASGIEmitter:
         recipients that are not hosted on this server.
         """
         if hasattr(activity, "model_dump_json"):
+            # serialize_as_any=True serializes nested objects by their runtime
+            # type so an inline CaseLedgerEntry keeps its domain fields
+            # (case_id, event_type, …) on the wire; without it the recipient
+            # receives only base as_Object fields and mis-parses the entry
+            # (SYNC-02-004, SYNC-13-004).
             json_body: str = activity.model_dump_json(
-                by_alias=True, exclude_none=True
+                by_alias=True, exclude_none=True, serialize_as_any=True
             )
         else:
             json_body = json.dumps(dict(activity), default=str)

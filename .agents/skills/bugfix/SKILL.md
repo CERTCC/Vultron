@@ -128,16 +128,11 @@ focus hints from Phase 2 (e.g., `"wire layer"`, `"BT integration"`), then:
    but create a Bug issue for the root cause before closing this one. Never
    ship a symptom-only fix without documenting the underlying cause.
 
-4. **Iterate** — Invoke `format-code`, `run-linters`, `run-tests`; refine
-   until all relevant tests pass.
-   - Format/lint/type failures are branch-owned and must be fixed directly.
-     Do not file incidental Bug issues for these categories.
-   - Test failures are assumed branch-owned until disproven with evidence.
-   - "Pre-existing/unrelated" is allowed only with clean-base proof plus at
-     least one causality check against the branch diff.
-   - If pre-existing is proven, create/update a Bug issue with evidence,
-     wire structured blockers via `manage-github-issue`, and add a handoff
-     comment with pickup context.
+4. **Iterate** — Run `format-code`, `run-linters`, `run-tests`; refine until
+   all relevant tests pass. Apply branch-ownership and pre-existing-failure
+   rules from `completeness-doctrine.md` § "Finding Severity". If pre-existing
+   is proven, create/update a Bug issue with evidence, wire structured blockers
+   via `manage-github-issue`, and add a handoff comment with pickup context.
 
 5. **Finalize**:
    - Invoke `archive-history`:
@@ -149,9 +144,9 @@ focus hints from Phase 2 (e.g., `"wire layer"`, `"BT integration"`), then:
      BODY    = issue number, symptoms, root cause, fix summary, PR link
      ```
 
-   - Record observations as individual learning files in `plan/incoming/learnings/`
-     (filename: `YYYYMMDD-SLUG.md`; frontmatter: `title`, `type: learning`,
-     `timestamp`, `source`).
+   - Run the **upward-reflection checklist** per
+     `.agents/skills/shared/upward-reflection.md`. Record each triggered signal
+     as a learning file.
    - Compute diff size: ≤50 → `size:S`; 51–300 → `size:M`; 301+ → `size:L`.
      Update the `size:` label.
    - Invoke the `create-pr` skill to push and open the PR:

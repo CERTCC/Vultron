@@ -16,7 +16,7 @@ from urllib.parse import quote
 from fastapi import status
 
 from vultron.adapters.driven.db_record import object_to_record
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 
 
 def test_get_offers_returns_empty_dict_when_no_offers(client_datalayer):
@@ -128,7 +128,7 @@ def test_get_by_http_url_key_returns_stored_record(
     Regression: Starlette decodes %2F to / before routing, so single-segment
     /{key} never matched URL-format IDs.  Fix: use /{key:path} as catch-all.
     """
-    participant = CaseParticipant(id_=_HTTP_PARTICIPANT_ID)
+    participant = as_CaseParticipant(id_=_HTTP_PARTICIPANT_ID)
     datalayer.create(object_to_record(participant))
 
     encoded = quote(_HTTP_PARTICIPANT_ID, safe="")
@@ -155,3 +155,62 @@ def test_specific_routes_not_shadowed_by_catch_all(
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
     assert offer.id_ in data
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for #1515: GET /Actors/{actor_id}/outbox/ must return
+# the actor's actual queued outbox items, not an empty collection.
+# ---------------------------------------------------------------------------
+
+
+def test_get_actor_outbox_returns_404_for_unknown_actor(client_datalayer):
+    """Non-existent actor returns 404."""
+    response = client_datalayer.get("/datalayer/Actors/no-such-actor/outbox/")
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_get_actor_outbox_returns_empty_items_when_queue_is_empty(
+    client_datalayer, datalayer
+):
+    """Existing actor with no queued outbox items returns an empty items list."""
+    from vultron.adapters.driven.db_record import object_to_record
+    from vultron.wire.as2.vocab.base.objects.actors import as_Service
+
+    actor = as_Service(name="test-empty-outbox")
+    datalayer.create(object_to_record(actor))
+
+    response = client_datalayer.get(f"/datalayer/Actors/{actor.id_}/outbox/")
+    assert response.status_code == status.HTTP_200_OK
+    body = response.json()
+    assert body.get("type") == "OrderedCollection"
+    assert body.get("orderedItems", body.get("items", None)) == []
+
+
+def test_get_actor_outbox_returns_queued_activity_ids(
+    client_datalayer, datalayer, offer
+):
+    """After enqueuing an activity for an actor, the endpoint must return it.
+
+    Regression for #1515: ADR-0034 changed dl.read() to return CoreActor
+    (outbox=str URI), so the old as_Actor.model_validate() path produced
+    an empty as_OrderedCollection with no items.
+    """
+    from vultron.adapters.driven.db_record import object_to_record
+    from vultron.wire.as2.vocab.base.objects.actors import as_Service
+
+    actor = as_Service(name="test-nonempty-outbox")
+    datalayer.create(object_to_record(actor))
+
+    # Persist the activity and record it in the actor's outbox queue.
+    datalayer.create(object_to_record(offer))
+    datalayer.record_outbox_item(actor.id_, offer.id_)
+
+    response = client_datalayer.get(f"/datalayer/Actors/{actor.id_}/outbox/")
+    assert response.status_code == status.HTTP_200_OK
+    body = response.json()
+    assert body.get("type") == "OrderedCollection"
+    items = body.get("orderedItems", body.get("items", []))
+    assert len(items) == 1
+    item = items[0]
+    # Rehydrated item should have the activity's id
+    assert item.get("id") == offer.id_

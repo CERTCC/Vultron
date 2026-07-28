@@ -24,7 +24,9 @@ from vultron.core.behaviors.note.nodes.creation import (
     AttachNoteFromResultNode,
     CreateNoteNode,
 )
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 ACTOR_ID = "https://example.org/actors/finder"
 CASE_ID = "https://example.org/cases/case-01"
@@ -96,7 +98,7 @@ class TestCreateNoteNode:
 
 class TestAttachNoteFromResultNode:
     def test_attaches_note_id_from_result_out(self, bridge, dl):
-        dl.create(VulnerabilityCase(id_=CASE_ID, name="Test Case"))
+        dl.create(as_VulnerabilityCase(id_=CASE_ID, name="Test Case"))
         result_out = {"note_id": NOTE_ID}
         node = AttachNoteFromResultNode(case_id=CASE_ID, result_out=result_out)
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)

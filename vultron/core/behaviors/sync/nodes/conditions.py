@@ -24,7 +24,7 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerCondition
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
-from vultron.core.models.protocols import is_log_entry_model
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.sync_helpers import is_ledger_fresh_for_case
 from vultron.errors import VultronError
@@ -56,7 +56,7 @@ def _require_log_entry(
     entry = getattr(activity, "log_entry", None)
     if entry is None:
         entry = getattr(activity, "object_", None)
-    if is_log_entry_model(entry):
+    if isinstance(entry, CaseLedgerEntry):
         if isinstance(entry, VultronCaseLedgerEntry):
             return entry
         return VultronCaseLedgerEntry.model_validate(
@@ -85,12 +85,10 @@ class CheckIsOwnCaseActorNode(DataLayerCondition):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                "%s: DataLayer or actor_id not available", self.name
-            )
-            return Status.FAILURE
-
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
         entry = _require_log_entry(self.blackboard.activity, self.name)
         case_actor = _find_case_actor(
             self.datalayer, entry.case_id, self.actor_id
@@ -118,11 +116,10 @@ class CheckIsNotOwnCaseActorNode(DataLayerCondition):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                "%s: DataLayer or actor_id not available", self.name
-            )
-            return Status.FAILURE
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
 
         entry = _require_log_entry(self.blackboard.activity, self.name)
         case_actor = _find_case_actor(
@@ -166,9 +163,9 @@ class CheckLedgerEntryAlreadyStoredNode(DataLayerCondition):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         entry = _require_log_entry(self.blackboard.activity, self.name)
         if self.datalayer.read(entry.id_) is None:
@@ -196,9 +193,14 @@ class IsRemoveEmbargoEventNode(DataLayerCondition):
           Sequence
             IsRemoveEmbargoEventNode   ← SUCCESS iff event_type matches
             ApplyEmbargoTeardownNode
-          AlwaysSuccess("EmbargoEffectsSkipped")
+          Inverter(IsRemoveEmbargoEventNode)  ← SUCCESS iff wrong event type
 
-    Per BTND-08-001, BTND-08-002, BT-06-001.
+    The Inverter fires SUCCESS only when the condition does NOT match (routing
+    no-op for the wrong event type).  When the condition matches but
+    ApplyEmbargoTeardownNode fails, both branches of the Selector fail and
+    the FAILURE propagates to block PersistReceivedLogEntry (SYNC-12-001).
+
+    Per BTND-08-001, BTND-08-002, BT-06-001, SYNC-12-001.
     """
 
     def setup(self, **kwargs: Any) -> None:
@@ -224,9 +226,14 @@ class IsParticipantStatusEventNode(DataLayerCondition):
           Sequence
             IsParticipantStatusEventNode   ← SUCCESS iff event_type matches
             ApplyParticipantStatusFromLedgerNode
-          AlwaysSuccess("ParticipantStatusEffectsSkipped")
+          Inverter(IsParticipantStatusEventNode)  ← SUCCESS iff wrong event type
 
-    Per BTND-08-001, BTND-08-002, DEMOMA-07-003 step 3.
+    The Inverter fires SUCCESS only when the condition does NOT match (routing
+    no-op for the wrong event type).  When the condition matches but
+    ApplyParticipantStatusFromLedgerNode fails, both branches of the Selector
+    fail and the FAILURE propagates to block PersistReceivedLogEntry (SYNC-12-001).
+
+    Per BTND-08-001, BTND-08-002, DEMOMA-07-003 step 3, SYNC-12-001.
     """
 
     def setup(self, **kwargs: Any) -> None:
@@ -252,9 +259,14 @@ class IsAddNoteEventNode(DataLayerCondition):
           Sequence
             IsAddNoteEventNode   ← SUCCESS iff event_type matches
             ApplyNoteFromLedgerNode
-          AlwaysSuccess("NoteEffectsSkipped")
+          Inverter(IsAddNoteEventNode)  ← SUCCESS iff wrong event type
 
-    Per BTND-08-001, BTND-08-002, SYNC-02-002.
+    The Inverter fires SUCCESS only when the condition does NOT match (routing
+    no-op for the wrong event type).  When the condition matches but
+    ApplyNoteFromLedgerNode fails, both branches of the Selector fail and
+    the FAILURE propagates to block PersistReceivedLogEntry (SYNC-12-001).
+
+    Per BTND-08-001, BTND-08-002, SYNC-02-002, SYNC-12-001.
     """
 
     def setup(self, **kwargs: Any) -> None:
@@ -280,9 +292,14 @@ class IsInviteAcceptEventNode(DataLayerCondition):
           Sequence
             IsInviteAcceptEventNode   ← SUCCESS iff event_type matches
             ApplyInviteAcceptFromLedgerNode
-          AlwaysSuccess("InviteAcceptEffectsSkipped")
+          Inverter(IsInviteAcceptEventNode)  ← SUCCESS iff wrong event type
 
-    Per BTND-08-001, BTND-08-002, SYNC-02-002, DEMOMA-07-003.
+    The Inverter fires SUCCESS only when the condition does NOT match (routing
+    no-op for the wrong event type).  When the condition matches but
+    ApplyInviteAcceptFromLedgerNode fails, both branches of the Selector fail
+    and the FAILURE propagates to block PersistReceivedLogEntry (SYNC-12-001).
+
+    Per BTND-08-001, BTND-08-002, SYNC-02-002, DEMOMA-07-003, SYNC-12-001.
     """
 
     def setup(self, **kwargs: Any) -> None:
@@ -337,9 +354,9 @@ class CheckLedgerFreshnessNode(DataLayerCondition):
             )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         if self._case_id is not None:
             case_id = self._case_id

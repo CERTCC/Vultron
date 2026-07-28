@@ -38,8 +38,8 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
     as_Remove,
 )
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
 
 _ACTOR_URI = "https://example.org/actors/alice"
 _CASE_URI = "https://example.org/cases/case-001"
@@ -47,13 +47,13 @@ _PARTICIPANT_URI = "https://example.org/participants/part-001"
 
 
 @pytest.fixture
-def sample_participant() -> CaseParticipant:
-    return CaseParticipant(attributed_to=_ACTOR_URI)
+def sample_participant() -> as_CaseParticipant:
+    return as_CaseParticipant(attributed_to=_ACTOR_URI)
 
 
 @pytest.fixture
-def sample_participant_status() -> ParticipantStatus:
-    return ParticipantStatus(context=_CASE_URI)
+def sample_participant_status() -> as_ParticipantStatus:
+    return as_ParticipantStatus(context=_CASE_URI)
 
 
 # ---------------------------------------------------------------------------

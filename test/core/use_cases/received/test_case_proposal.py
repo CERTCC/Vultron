@@ -29,7 +29,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
 )
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.use_cases.received.case_proposal import (
     AcceptCaseProposalReceivedUseCase,
@@ -44,7 +44,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 from vultron.wire.as2.vocab.examples._base import gen_report
 from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 _CASE_ACTOR_URI = "https://example.org/case-actors/svc-1"
@@ -94,7 +94,7 @@ class TestCreateCaseProposalReceivedUseCase:
         cases = [
             obj
             for obj in dl.list_objects("VulnerabilityCase")
-            if is_case_model(obj)
+            if isinstance(obj, VulnerabilityCase)
         ]
         assert (
             len(cases) == 1
@@ -153,10 +153,10 @@ class TestCreateCaseProposalReceivedUseCase:
         case_rows = dl.list_objects("VulnerabilityCase")
         assert case_rows, "No VulnerabilityCase created"
         case_obj = dl.read(case_rows[0].id_)
-        assert is_case_model(case_obj)
+        assert isinstance(case_obj, VulnerabilityCase)
 
         report_obj = proposal.object_
-        assert isinstance(report_obj, VulnerabilityReport)
+        assert isinstance(report_obj, as_VulnerabilityReport)
         report_id = report_obj.id_
         assert (
             report_id in case_obj.vulnerability_reports
@@ -238,7 +238,7 @@ class TestCreateCaseProposalIdempotency:
         all_cases = [
             obj
             for obj in dl.list_objects("VulnerabilityCase")
-            if is_case_model(obj)
+            if isinstance(obj, VulnerabilityCase)
         ]
         assert (
             len(all_cases) == 1
@@ -352,7 +352,7 @@ class TestCreateCaseProposalIdempotencyIntegration:
         cases_after_first = [
             obj
             for obj in dl.list_objects("VulnerabilityCase")
-            if is_case_model(obj)
+            if isinstance(obj, VulnerabilityCase)
         ]
         assert (
             len(cases_after_first) == 1
@@ -365,7 +365,7 @@ class TestCreateCaseProposalIdempotencyIntegration:
         all_cases = [
             obj
             for obj in dl.list_objects("VulnerabilityCase")
-            if is_case_model(obj)
+            if isinstance(obj, VulnerabilityCase)
         ]
         assert (
             len(all_cases) == 1
@@ -389,8 +389,8 @@ class TestAcceptCaseProposalReceivedUseCase:
         dl = SqliteDataLayer("sqlite:///:memory:")
         proposal = _make_proposal()
         assert isinstance(
-            proposal.object_, VulnerabilityReport
-        ), "_make_proposal() must embed a full VulnerabilityReport"
+            proposal.object_, as_VulnerabilityReport
+        ), "_make_proposal() must embed a full as_VulnerabilityReport"
         report_id = proposal.object_.id_
 
         # Seed a VultronReportCaseLink so the use case can find it
@@ -456,7 +456,7 @@ class TestRejectCaseProposalReceivedUseCase:
         """Rejection sets proposal_rejected=True on VultronReportCaseLink (CP-06-004)."""
         dl = SqliteDataLayer("sqlite:///:memory:")
         proposal = _make_proposal()
-        assert isinstance(proposal.object_, VulnerabilityReport)
+        assert isinstance(proposal.object_, as_VulnerabilityReport)
         report_id = proposal.object_.id_
 
         # Seed a VultronReportCaseLink so the use case can find it
@@ -489,7 +489,7 @@ class TestRejectCaseProposalReceivedUseCase:
         """When Reject activity carries a summary, it is stored as rejection_reason (CP-06-004)."""
         dl = SqliteDataLayer("sqlite:///:memory:")
         proposal = _make_proposal()
-        assert isinstance(proposal.object_, VulnerabilityReport)
+        assert isinstance(proposal.object_, as_VulnerabilityReport)
         report_id = proposal.object_.id_
 
         link = VultronReportCaseLink(

@@ -19,7 +19,7 @@ SvcSubmitReportUseCase.
 
 Per notes/triggers-test-coverage.md: each test exercises the use case's
 execute() path against a real in-memory DataLayer and asserts:
-  1. the RM state mutation (ParticipantStatus / CaseParticipant transition);
+  1. the RM state mutation (as_ParticipantStatus / as_CaseParticipant transition);
   2. the outbox effect (activity queued, addressed correctly per PCR-08-001);
   3. the documented failure modes the use case is documented to raise.
 """
@@ -30,36 +30,49 @@ from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.report import (
+    VulnerabilityReport as CoreVulnerabilityReport,
+)
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
-from vultron.core.use_cases._helpers import _report_phase_status_id
+from vultron.core.models._helpers import _report_phase_status_id
 from vultron.core.use_cases.triggers.report import (
+    SvcCloseReportUseCase,
+    SvcInvalidateReportUseCase,
+    SvcRejectReportUseCase,
     SvcSubmitReportUseCase,
     SvcValidateReportUseCase,
 )
 from vultron.core.use_cases.triggers.requests import (
+    CloseReportTriggerRequest,
+    InvalidateReportTriggerRequest,
+    RejectReportTriggerRequest,
     SubmitReportTriggerRequest,
     ValidateReportTriggerRequest,
 )
+from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.errors import VultronNotFoundError, VultronValidationError
+from vultron.errors import VultronNotFoundError
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import (
-    CaseParticipant,
+    as_CaseParticipant,
     FinderParticipant,
 )
 from vultron.wire.as2.vocab.objects.case_status import (
-    ParticipantStatus as WireParticipantStatus,
+    as_ParticipantStatus as WireParticipantStatus,
 )
-from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 # ---------------------------------------------------------------------------
@@ -79,7 +92,7 @@ def _make_actor_dl(actor_name: str) -> tuple[as_Service, SqliteDataLayer]:
 
 def _make_offer(
     dl: SqliteDataLayer,
-    report: VulnerabilityReport,
+    report: as_VulnerabilityReport,
     recipient_id: str,
     actor_id: str,
 ) -> as_Offer:
@@ -89,6 +102,13 @@ def _make_offer(
         actor=actor_id,
     )
     dl.create(offer)
+    offer_record = VultronOfferRecord(
+        offer_id=offer.id_,
+        report_id=report.id_,
+        offer_actor_id=actor_id,
+        offer_to=[recipient_id],
+    )
+    dl.create(offer_record)
     return offer
 
 
@@ -98,17 +118,17 @@ def _make_case_with_embargo(
     finder_id: str,
     case_actor_id: str,
     report_id: str,
-) -> VulnerabilityCase:
-    """Build a VulnerabilityCase with finder, vendor, CASE_MANAGER participants,
+) -> as_VulnerabilityCase:
+    """Build a as_VulnerabilityCase with finder, vendor, CASE_MANAGER participants,
     an active embargo, and the report linked via vulnerability_reports."""
-    embargo = EmbargoEvent(context="urn:placeholder")
+    embargo = as_EmbargoEvent(context="urn:placeholder")
     dl.create(embargo)
 
-    case = VulnerabilityCase(name="Test Case")
+    case = as_VulnerabilityCase(name="Test Case")
     case.set_embargo(embargo.id_)
     case.vulnerability_reports.append(report_id)
 
-    vendor_participant = CaseParticipant(
+    vendor_participant = as_CaseParticipant(
         attributed_to=vendor_id,
         context=case.id_,
         case_roles=[CVDRole.VENDOR],
@@ -121,7 +141,7 @@ def _make_case_with_embargo(
         attributed_to=finder_id,
         context=case.id_,
     )
-    case_manager_participant = CaseParticipant(
+    case_manager_participant = as_CaseParticipant(
         attributed_to=case_actor_id,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -160,7 +180,7 @@ class TestSvcValidateReportUseCase:
         self.finder, self.finder_dl = _make_actor_dl("Finder Co")
         self.case_actor, self.case_actor_dl = _make_actor_dl("Case Actor")
 
-        self.report = VulnerabilityReport(
+        self.report = as_VulnerabilityReport(
             name="CVE-TEST",
             content="Vulnerability report content",
             attributed_to=self.finder.id_,
@@ -195,7 +215,7 @@ class TestSvcValidateReportUseCase:
     # --- AC-1: RM state transition -----------------------------------------
 
     def test_validate_report_creates_rm_valid_status_record(self):
-        """execute() creates a ParticipantStatus record for RM.VALID."""
+        """execute() creates a as_ParticipantStatus record for RM.VALID."""
         request = ValidateReportTriggerRequest(
             actor_id=self.vendor.id_,
             offer_id=self.offer.id_,
@@ -213,7 +233,7 @@ class TestSvcValidateReportUseCase:
         assert status_record is not None
 
     def test_validate_report_updates_case_participant_rm_state(self):
-        """execute() advances the CaseParticipant.participant_statuses to RM.VALID."""
+        """execute() advances the as_CaseParticipant.participant_statuses to RM.VALID."""
         request = ValidateReportTriggerRequest(
             actor_id=self.vendor.id_,
             offer_id=self.offer.id_,
@@ -231,7 +251,7 @@ class TestSvcValidateReportUseCase:
         assert updated is not None
         assert isinstance(updated, CaseParticipant)
         assert updated.participant_statuses
-        assert updated.participant_statuses[-1].rm_state == RM.VALID
+        assert updated.participant_statuses[-1].rm.state == RM.VALID
 
     # --- AC-2: outbox effect -----------------------------------------------
 
@@ -317,21 +337,18 @@ class TestSvcValidateReportUseCase:
                 trigger_activity=TriggerActivityAdapter(self.dl),
             ).execute()
 
-    def test_validate_report_raises_when_offer_is_wrong_type(self):
-        """VultronValidationError raised when offer_id resolves to wrong type."""
-        # Store a plain VulnerabilityReport (not an Offer) as the offer_id.
-        non_offer = VulnerabilityReport(
-            name="Not an offer",
-            content="wrong type object",
-            attributed_to=self.vendor.id_,
-        )
-        self.dl.create(non_offer)
+    def test_validate_report_raises_when_offer_record_missing(self):
+        """VultronNotFoundError raised when no VultronOfferRecord exists for offer_id.
 
+        Per ADR-0035: _resolve_offer_and_report reads VultronOfferRecord, not
+        the stored wire Offer. If no record was written at offer creation time,
+        the lookup returns None → VultronNotFoundError.
+        """
         request = ValidateReportTriggerRequest(
             actor_id=self.vendor.id_,
-            offer_id=non_offer.id_,
+            offer_id="urn:uuid:offer-with-no-record",
         )
-        with pytest.raises(VultronValidationError):
+        with pytest.raises(VultronNotFoundError):
             SvcValidateReportUseCase(
                 self.dl,
                 request,
@@ -350,6 +367,21 @@ class TestSvcValidateReportUseCase:
                 request,
                 trigger_activity=None,
             ).execute()
+
+    def test_validate_report_returns_activity_dict(self):
+        """execute() returns result['activity'] as Accept(Offer) dict (AC-3, DL-06-001)."""
+        request = ValidateReportTriggerRequest(
+            actor_id=self.vendor.id_,
+            offer_id=self.offer.id_,
+        )
+        result = SvcValidateReportUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+        ).execute()
+
+        assert result.get("activity") is not None
+        assert result["activity"].get("type") == "Accept"
 
     def test_validate_report_idempotent_when_already_valid(self):
         """Second execute() on an already-VALID report does not re-transition RM."""
@@ -383,6 +415,155 @@ class TestSvcValidateReportUseCase:
 
 
 # ---------------------------------------------------------------------------
+# SvcInvalidateReportUseCase / SvcRejectReportUseCase / SvcCloseReportUseCase
+# ---------------------------------------------------------------------------
+
+
+class _ReportTriggerBase:
+    """Shared fixture for use cases that act on a received offer."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        self.vendor, self.dl = _make_actor_dl("Vendor Co")
+        self.finder, self.finder_dl = _make_actor_dl("Finder Co")
+        self.case_actor, self.case_actor_dl = _make_actor_dl("Case Actor")
+
+        self.report = as_VulnerabilityReport(
+            name="CVE-TEST",
+            content="Vulnerability report content",
+            attributed_to=self.finder.id_,
+        )
+        self.dl.create(self.report)
+
+        self.offer = _make_offer(
+            self.dl,
+            self.report,
+            self.vendor.id_,
+            actor_id=self.finder.id_,
+        )
+
+        self.case = _make_case_with_embargo(
+            self.dl,
+            self.vendor.id_,
+            self.finder.id_,
+            self.case_actor.id_,
+            self.report.id_,
+        )
+        yield
+        self.dl.clear_all()
+        self.dl.close()
+        self.finder_dl.clear_all()
+        self.finder_dl.close()
+        self.case_actor_dl.clear_all()
+        self.case_actor_dl.close()
+        reset_datalayer(self.vendor.id_)
+        reset_datalayer(self.finder.id_)
+        reset_datalayer(self.case_actor.id_)
+
+
+class TestSvcInvalidateReportUseCase(_ReportTriggerBase):
+    """execute() path tests for SvcInvalidateReportUseCase."""
+
+    def test_invalidate_report_returns_activity_dict(self):
+        """execute() returns result['activity'] with type 'TentativeReject' (DL-06-001)."""
+        request = InvalidateReportTriggerRequest(
+            actor_id=self.vendor.id_,
+            offer_id=self.offer.id_,
+        )
+        result = SvcInvalidateReportUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+        ).execute()
+
+        assert result.get("activity") is not None
+        assert result["activity"].get("type") == "TentativeReject"
+
+    def test_invalidate_report_queues_activity_in_outbox(self):
+        """execute() enqueues at least one activity in the actor's outbox."""
+        request = InvalidateReportTriggerRequest(
+            actor_id=self.vendor.id_,
+            offer_id=self.offer.id_,
+        )
+        before = set(self.dl.outbox_list_for_actor(self.vendor.id_))
+        SvcInvalidateReportUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+        ).execute()
+        after = set(self.dl.outbox_list_for_actor(self.vendor.id_))
+        assert len(after - before) >= 1
+
+
+class TestSvcRejectReportUseCase(_ReportTriggerBase):
+    """execute() path tests for SvcRejectReportUseCase."""
+
+    def test_reject_report_returns_activity_dict(self):
+        """execute() returns result['activity'] with type 'Reject' (DL-06-001)."""
+        request = RejectReportTriggerRequest(
+            actor_id=self.vendor.id_,
+            offer_id=self.offer.id_,
+        )
+        result = SvcRejectReportUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+        ).execute()
+
+        assert result.get("activity") is not None
+        assert result["activity"].get("type") == "Reject"
+
+    def test_reject_report_queues_activity_in_outbox(self):
+        """execute() enqueues at least one activity in the actor's outbox."""
+        request = RejectReportTriggerRequest(
+            actor_id=self.vendor.id_,
+            offer_id=self.offer.id_,
+        )
+        before = set(self.dl.outbox_list_for_actor(self.vendor.id_))
+        SvcRejectReportUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+        ).execute()
+        after = set(self.dl.outbox_list_for_actor(self.vendor.id_))
+        assert len(after - before) >= 1
+
+
+class TestSvcCloseReportUseCase(_ReportTriggerBase):
+    """execute() path tests for SvcCloseReportUseCase."""
+
+    def test_close_report_returns_activity_dict(self):
+        """execute() returns result['activity'] as Reject(Offer) dict (DL-06-001)."""
+        request = CloseReportTriggerRequest(
+            actor_id=self.vendor.id_,
+            offer_id=self.offer.id_,
+        )
+        result = SvcCloseReportUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+        ).execute()
+
+        assert result.get("activity") is not None
+        assert result["activity"].get("type") == "Reject"
+
+    def test_close_report_queues_activity_in_outbox(self):
+        """execute() enqueues at least one activity in the actor's outbox."""
+        request = CloseReportTriggerRequest(
+            actor_id=self.vendor.id_,
+            offer_id=self.offer.id_,
+        )
+        before = set(self.dl.outbox_list_for_actor(self.vendor.id_))
+        SvcCloseReportUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+        ).execute()
+        after = set(self.dl.outbox_list_for_actor(self.vendor.id_))
+        assert len(after - before) >= 1
+
+
+# ---------------------------------------------------------------------------
 # SvcSubmitReportUseCase
 # ---------------------------------------------------------------------------
 
@@ -409,7 +590,7 @@ class TestSvcSubmitReportUseCase:
     # --- AC-2: RM state / persistence mutations ----------------------------
 
     def test_submit_report_persists_vulnerability_report(self):
-        """execute() stores a VulnerabilityReport in the actor's DataLayer."""
+        """execute() stores a as_VulnerabilityReport in the actor's DataLayer."""
         request = SubmitReportTriggerRequest(
             actor_id=self.finder.id_,
             report_name="CVE-TEST",
@@ -428,8 +609,10 @@ class TestSvcSubmitReportUseCase:
         report_id = report_obj.get("id")
         assert report_id is not None, "offer['object']['id'] is missing"
         stored = self.dl.read(report_id)
-        assert stored is not None, "VulnerabilityReport not found in DataLayer"
-        assert isinstance(stored, VulnerabilityReport)
+        assert (
+            stored is not None
+        ), "as_VulnerabilityReport not found in DataLayer"
+        assert isinstance(stored, CoreVulnerabilityReport)
         assert stored.name == "CVE-TEST"
 
     def test_submit_report_persists_report_case_link(self):

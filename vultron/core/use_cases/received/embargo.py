@@ -16,16 +16,40 @@ from vultron.core.ports.case_persistence import (
     CasePersistence,
     CaseOutboxPersistence,
 )
-from vultron.core.use_cases._helpers import _as_id, _idempotent_create
-from vultron.core.models.protocols import (
-    PersistableModel,
-    is_case_model,
+from vultron.core.use_cases._helpers import (
+    _idempotent_create,
+    add_activity_to_outbox,
+)
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.protocols import PersistableModel
+from vultron.core.states.cs import (
+    is_pxa_attacks_observed,
+    is_pxa_exploit_public,
+    is_pxa_public_aware,
 )
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
+
+
+def _pxa_embargo_ineligible(dl: CasePersistence, case_id: str) -> bool:
+    """Return True when P/X/A is set on the case (EMB-01-002, EMB-02-002).
+
+    Reads the case from the DataLayer; returns False (eligible) when the case
+    cannot be resolved so normal processing can continue.
+    """
+    case = dl.read(case_id)
+    if not isinstance(case, VulnerabilityCase):
+        return False
+    pxa_state = case.current_status.pxa.state
+    return (
+        is_pxa_public_aware(pxa_state)
+        or is_pxa_exploit_public(pxa_state)
+        or is_pxa_attacks_observed(pxa_state)
+    )
 
 
 def _resolve_case_for_embargo_acceptance(
@@ -34,29 +58,28 @@ def _resolve_case_for_embargo_acceptance(
     if request.case_id:
         return dl.read(request.case_id)
 
-    if request.invite_id is None:
-        logger.error(
-            "accept_invite_to_embargo_on_case: missing invite_id on request"
-        )
-        return None
+    logger.error(
+        "accept_invite_to_embargo_on_case: missing case_id on request"
+        " (invite '%s')",
+        request.invite_id,
+    )
+    return None
 
-    invite = dl.read(request.invite_id)
-    if invite is None:
-        logger.error(
-            "accept_invite_to_embargo_on_case: invite '%s' not found",
-            request.invite_id,
-        )
-        return None
 
-    context_id = _as_id(getattr(invite, "context", None))
-    if context_id is None:
-        logger.error(
-            "accept_invite_to_embargo_on_case: cannot determine case from "
-            "invite '%s'",
-            request.invite_id,
-        )
-        return None
-    return dl.read(context_id)
+def _record_embargo_proposal_index(
+    dl: CasePersistence,
+    case_id: str,
+    embargo_id: str,
+    proposal_id: str,
+) -> None:
+    """Record embargo_id → proposal_id in case core state (ADR-0035 DL-06)."""
+    case = dl.read(case_id)
+    if not isinstance(case, VulnerabilityCase):
+        return
+    if case.pending_embargo_proposal_index.get(embargo_id) == proposal_id:
+        return
+    case.pending_embargo_proposal_index[embargo_id] = proposal_id
+    dl.save(case)
 
 
 class CreateEmbargoEventReceivedUseCase:
@@ -212,10 +235,12 @@ class InviteToEmbargoOnCaseReceivedUseCase:
         dl: CaseOutboxPersistence,
         request: InviteToEmbargoOnCaseReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: InviteToEmbargoOnCaseReceivedEvent = request
         self._sync_port = sync_port
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> None:
         from py_trees.common import Status
@@ -240,6 +265,39 @@ class InviteToEmbargoOnCaseReceivedUseCase:
                 "invite_to_embargo_on_case: missing receiving_actor_id"
                 " — skipping"
             )
+            return
+
+        # EMB-01-002: MUST NOT process EP when P/X/A is set; MUST emit ER.
+        if case_id and _pxa_embargo_ineligible(self._dl, case_id):
+            logger.info(
+                "invite_to_embargo_on_case: P/X/A set on case '%s'"
+                " — rejecting EP '%s' (EMB-01-002)",
+                case_id,
+                invite_id,
+            )
+            if self._trigger_activity is not None:
+                _idempotent_create(
+                    self._dl,
+                    request.activity_type,
+                    invite_id,
+                    request.activity,
+                    "InviteToEmbargoOnCase",
+                    invite_id,
+                )
+                reject_id, _ = self._trigger_activity.reject_embargo(
+                    proposal_id=invite_id,
+                    case_id=case_id,
+                    actor=receiving_actor_id,
+                    to=[request.actor_id],
+                )
+                add_activity_to_outbox(receiving_actor_id, reject_id, self._dl)
+            else:
+                logger.warning(
+                    "invite_to_embargo_on_case: trigger_activity unavailable"
+                    " — ER not emitted for EP '%s' on case '%s'",
+                    invite_id,
+                    case_id,
+                )
             return
 
         # Single BT execution under receiving_actor_id (ADR-0022 / CLP-10-005).
@@ -269,6 +327,15 @@ class InviteToEmbargoOnCaseReceivedUseCase:
                 result.feedback_message,
             )
 
+        # Record embargo_id → invite_id in core state so accept/reject
+        # trigger use cases can correlate without re-reading the Invite wire
+        # activity (ADR-0035 DL-06).
+        embargo_id = request.object_id
+        if case_id and embargo_id and invite_id:
+            _record_embargo_proposal_index(
+                self._dl, case_id, embargo_id, invite_id
+            )
+
 
 class AcceptInviteToEmbargoOnCaseReceivedUseCase:
     def __init__(
@@ -276,10 +343,12 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         dl: CaseOutboxPersistence,
         request: AcceptInviteToEmbargoOnCaseReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: AcceptInviteToEmbargoOnCaseReceivedEvent = request
         self._sync_port = sync_port
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> None:
         from py_trees.common import Status
@@ -306,13 +375,38 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             return
 
         _case = _resolve_case_for_embargo_acceptance(self._dl, request)
-        if not is_case_model(_case):
+        if not isinstance(_case, VulnerabilityCase):
             logger.error("accept_invite_to_embargo_on_case: case not found")
             return
 
         case_id = _case.id_
         accepting_actor_id = request.actor_id
         invite_id = request.invite_id or ""
+
+        # EMB-02-002: MUST NOT process EA to transition EM to Active when P/X/A
+        # is set; MUST emit ER instead.
+        if _pxa_embargo_ineligible(self._dl, case_id):
+            logger.info(
+                "accept_invite_to_embargo_on_case: P/X/A set on case '%s'"
+                " — rejecting EA (EMB-02-002)",
+                case_id,
+            )
+            if self._trigger_activity is not None and invite_id:
+                reject_id, _ = self._trigger_activity.reject_embargo(
+                    proposal_id=invite_id,
+                    case_id=case_id,
+                    actor=receiving_actor_id,
+                    to=[request.actor_id],
+                )
+                add_activity_to_outbox(receiving_actor_id, reject_id, self._dl)
+            else:
+                logger.warning(
+                    "accept_invite_to_embargo_on_case: trigger_activity"
+                    " unavailable or missing invite_id — ER not emitted"
+                    " for EA on case '%s'",
+                    case_id,
+                )
+            return
 
         # Single BT execution under receiving_actor_id (ADR-0022 / CLP-10-005).
         # accepting_actor_id is threaded into the tree as a node constructor arg
@@ -374,14 +468,8 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
             invite_id,
         )
 
-        # Extract case and embargo IDs from the stored invite activity.
-        case_id: str | None = None
-        embargo_id: str | None = None
-        if invite_id:
-            invite = self._dl.read(invite_id)
-            if invite is not None:
-                case_id = _as_id(getattr(invite, "context", None))
-                embargo_id = _as_id(getattr(invite, "object_", None))
+        case_id = request.case_id
+        embargo_id = request.embargo_id
 
         if not case_id:
             logger.warning(

@@ -25,6 +25,7 @@ from vultron.core.behaviors.report.nodes.participant import (
 from vultron.core.models.case import VultronCase
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.participant import VultronParticipant
+from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VultronReport
 from vultron.core.states.rm import RM
@@ -47,12 +48,12 @@ def case_with_participant(
             ParticipantStatus(
                 attributed_to=actor.id_,
                 context=case_id,
-                rm_state=RM.RECEIVED,
+                rm=RmDimension(state=RM.RECEIVED),
             ),
             ParticipantStatus(
                 attributed_to=actor.id_,
                 context=case_id,
-                rm_state=RM.VALID,
+                rm=RmDimension(state=RM.VALID),
             ),
         ],
     )
@@ -101,7 +102,7 @@ def test_transition_participant_rm_to_accepted(
 
     updated_participant = cast(Any, bt_scenario.dl.read(participant.id_))
     assert updated_participant is not None
-    assert updated_participant.participant_statuses[-1].rm_state == RM.ACCEPTED
+    assert updated_participant.participant_statuses[-1].rm.state == RM.ACCEPTED
 
 
 def test_transition_participant_rm_to_accepted_is_idempotent(
@@ -136,7 +137,7 @@ def test_transition_participant_rm_to_accepted_is_idempotent(
     accepted_entries = [
         status
         for status in updated_participant.participant_statuses
-        if status.rm_state == RM.ACCEPTED
+        if status.rm.state == RM.ACCEPTED
     ]
     assert len(accepted_entries) == 1
 
@@ -174,7 +175,7 @@ def test_transition_participant_rm_to_deferred(
 
     updated_participant = cast(Any, bt_scenario.dl.read(participant.id_))
     assert updated_participant is not None
-    assert updated_participant.participant_statuses[-1].rm_state == RM.DEFERRED
+    assert updated_participant.participant_statuses[-1].rm.state == RM.DEFERRED
 
 
 def test_transition_participant_rm_to_deferred_is_idempotent(
@@ -209,7 +210,7 @@ def test_transition_participant_rm_to_deferred_is_idempotent(
     deferred_entries = [
         status
         for status in updated_participant.participant_statuses
-        if status.rm_state == RM.DEFERRED
+        if status.rm.state == RM.DEFERRED
     ]
     assert len(deferred_entries) == 1
 

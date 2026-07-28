@@ -33,15 +33,16 @@ from typing import Any
 import py_trees
 from py_trees.common import Status
 
+from vultron.config import get_config
 from vultron.core.behaviors.helpers import DataLayerAction
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.vultron_types import (
     VultronCase,
     VultronCaseActor,
     VultronParticipant,
 )
 from vultron.enums.roles import CVDRole
-from vultron.core.use_cases._helpers import _as_id
+from vultron.core.models._helpers import _as_id
 
 
 def _derive_case_slug(case_id: str) -> str:
@@ -49,16 +50,6 @@ def _derive_case_slug(case_id: str) -> str:
     if case_id.startswith("urn:uuid:"):
         return case_id[len("urn:uuid:") :]
     return hashlib.sha256(case_id.encode()).hexdigest()[:12]
-
-
-def _resolve_server_base_url(blackboard: Any) -> str:
-    """Read server_base_url from blackboard or fall back to config."""
-    try:
-        return str(blackboard.get("server_base_url")).rstrip("/")
-    except KeyError:
-        from vultron.config import get_config
-
-        return get_config().server.base_url.rstrip("/")
 
 
 class PersistCase(DataLayerAction):
@@ -76,10 +67,9 @@ class PersistCase(DataLayerAction):
         self.case_obj = case_obj
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error(f"{self.name}: DataLayer not available")
-            return Status.FAILURE
-
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         try:
             self.datalayer.save(self.case_obj)
             self.logger.info(
@@ -143,10 +133,9 @@ class RecordOfferReceivedEventNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error(f"{self.name}: DataLayer not available")
-            return Status.FAILURE
-
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         try:
             case_id = self.blackboard.get("case_id")
         except KeyError:
@@ -157,7 +146,7 @@ class RecordOfferReceivedEventNode(DataLayerAction):
             return Status.FAILURE
 
         case = self.datalayer.read(case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.logger.error(
                 f"{self.name}: Case {case_id} not found in DataLayer"
             )
@@ -184,9 +173,9 @@ class RecordCaseCreatedEventNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error(f"{self.name}: DataLayer not available")
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         try:
             case_id = self.blackboard.get("case_id")
@@ -204,7 +193,7 @@ class RecordCaseCreatedEventNode(DataLayerAction):
                 f"{self.name}: case_for_creation_events missing or invalid"
             )
             return Status.FAILURE
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.logger.error(
                 f"{self.name}: case_for_creation_events missing or invalid"
             )
@@ -214,7 +203,11 @@ class RecordCaseCreatedEventNode(DataLayerAction):
 
 
 class ResolveCaseActorUrlsNode(DataLayerAction):
-    """Resolve case_id + deterministic CaseActor IDs and publish to blackboard."""
+    """Resolve case_id + deterministic CaseActor IDs and publish to blackboard.
+
+    Reads ``case_actor_service_url`` from ``ActorConfig`` (CP-08-002).
+    Returns ``FAILURE`` when the field is not configured (CP-08-003).
+    """
 
     def __init__(self, case_id: str | None = None, name: str | None = None):
         super().__init__(name=name or self.__class__.__name__)
@@ -230,9 +223,6 @@ class ResolveCaseActorUrlsNode(DataLayerAction):
             self.blackboard.register_key(
                 key="case_id", access=py_trees.common.Access.WRITE
             )
-        self.blackboard.register_key(
-            key="server_base_url", access=py_trees.common.Access.READ
-        )
         self.blackboard.register_key(
             key="case_actor_id", access=py_trees.common.Access.WRITE
         )
@@ -255,11 +245,20 @@ class ResolveCaseActorUrlsNode(DataLayerAction):
             )
             return Status.FAILURE
 
+        cfg = get_config().actor
+        if cfg.case_actor_service_url is None:
+            self.logger.error(
+                "%s: case_actor_service_url is not configured in ActorConfig"
+                " (set VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL)",
+                self.name,
+            )
+            return Status.FAILURE
+
+        base_url = str(cfg.case_actor_service_url).rstrip("/")
         case_slug = _derive_case_slug(case_id)
-        server_base_url = _resolve_server_base_url(self.blackboard)
-        case_actor_id = f"{server_base_url}/actors/case-actor-{case_slug}"
+        case_actor_id = f"{base_url}/actors/case-actor-{case_slug}"
         participant_id = (
-            f"{server_base_url}/actors/case-actor-{case_slug}/participant"
+            f"{base_url}/actors/case-actor-{case_slug}/participant"
         )
 
         if self._case_id_arg is not None:
@@ -286,9 +285,9 @@ class ReuseExistingCaseActorParticipantNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         participant_id = self.blackboard.get("case_actor_participant_id")
         case_actor_id = self.blackboard.get("case_actor_id")
         if not isinstance(participant_id, str) or not isinstance(
@@ -333,12 +332,10 @@ class CreateCaseActorServiceNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                "%s: DataLayer or actor_id not available",
-                self.name,
-            )
-            return Status.FAILURE
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
         case_id = self.blackboard.get("case_id")
         case_actor_id = self.blackboard.get("case_actor_id")
         if not isinstance(case_id, str) or not isinstance(case_actor_id, str):
@@ -389,9 +386,9 @@ class RegisterCaseActorParticipantNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         case_id = self.blackboard.get("case_id")
         case_actor_id = self.blackboard.get("case_actor_id")
@@ -405,7 +402,7 @@ class RegisterCaseActorParticipantNode(DataLayerAction):
             return Status.FAILURE
 
         case = self.datalayer.read(case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.logger.error(
                 "%s: Case '%s' not found; cannot register CaseActor participant",
                 self.name,

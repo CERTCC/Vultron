@@ -1,6 +1,6 @@
 # Tutorial: Running the Multi-Actor Container Demos
 
-In this tutorial, we will run the three multi-actor container demo scenarios
+In this tutorial, we will run the multi-actor container demo scenarios
 end-to-end using Docker Compose. By the end of this tutorial, we will have:
 
 - started a fleet of isolated Vultron API containers, each representing a
@@ -36,13 +36,16 @@ required.
 
 ---
 
-## The three scenarios
+## Available scenarios
 
-| Scenario       | DEMO value     | Actors                                               |
-|:---------------|:---------------|:-----------------------------------------------------|
-| Two-actor      | `two-actor`    | Finder + Vendor + CaseActor                          |
-| Three-actor    | `three-actor`  | Finder + Vendor + Coordinator + CaseActor            |
-| Multi-vendor   | `multi-vendor` | Finder + Vendor + Coordinator + Vendor2 + CaseActor  |
+| Scenario         | DEMO value         | Actors                                                     |
+|:-----------------|:-------------------|:-----------------------------------------------------------|
+| FV               | `fv`               | Finder + Vendor + CaseActor                                |
+| FVV              | `fvv`              | Finder + Vendor1 + Vendor2                                 |
+| FCV              | `fcv`              | Finder + Coordinator + Vendor + CaseActor                  |
+| FVCV-Extension   | `fvcv-extension`   | Finder + Vendor1 + Coordinator + Vendor2 + CaseActor       |
+| FVCV-Handoff     | `fvcv-handoff`     | Finder + Vendor1 + Coordinator + Vendor2 + CaseActor       |
+| FCCV-Handoff     | `fccv-handoff`     | Finder + C1 + C2 + Vendor + CaseActor                      |
 
 Each scenario is self-contained: the demo runner resets all container state,
 seeds actor records and peer registrations, runs the workflow, verifies final
@@ -66,9 +69,9 @@ cd Vultron
 
 ---
 
-## Step 2 — Run the two-actor scenario
+## Step 2 — Run the FV scenario
 
-The **two-actor** scenario (D5-2) is the simplest: a Finder discovers a
+The **FV** scenario (D5-2) is the simplest: a Finder discovers a
 vulnerability and submits a report to a Vendor, who validates it, engages the
 case, adds the Finder as a participant, and exchanges notes with them. The
 CaseActor is co-located in the Vendor container.
@@ -92,10 +95,10 @@ Docker builds the images on the first run (this takes a few minutes) and then:
 A successful run ends with:
 
 ```text
-[multi-actor-integration] SUCCESS: scenario 'two-actor' passed.
+[multi-actor-integration] SUCCESS: scenario 'fv' passed.
 ```
 
-### What the two-actor demo does
+### What the FV demo does
 
 | Step | Actor     | Action                                               |
 |:-----|:----------|:-----------------------------------------------------|
@@ -129,107 +132,23 @@ sequenceDiagram
 
 ---
 
-## Step 3 — Run the three-actor scenario
+## Step 3 — Run other scenarios
 
-The **three-actor** scenario (D5-3) adds a dedicated Coordinator and a
-separate CaseActor container. The Coordinator acts as the authoritative case
-manager, inviting participants and negotiating an embargo.
+Additional scenarios are available via the `DEMO` environment variable.
+Each follows the same pattern: set `DEMO` to the scenario name and run
+the same compose command.
 
 ```bash
-DEMO=three-actor docker compose -f docker/docker-compose-multi-actor.yml \
+DEMO=fcv docker compose -f docker/docker-compose-multi-actor.yml \
     up --abort-on-container-exit demo-runner
 ```
 
-### What the three-actor demo does
-
-| Step | Actor       | Action                                               |
-|:-----|:------------|:-----------------------------------------------------|
-| 1    | Finder      | Submits a report to Coordinator's inbox              |
-| 2    | Coordinator | Creates the authoritative case on CaseActor          |
-| 3    | Coordinator | Adds the report to the case                          |
-| 4    | Coordinator | Invites Finder; Finder accepts                       |
-| 5    | Coordinator | Proposes an embargo; Finder accepts                  |
-| 6    | Coordinator | Invites Vendor; Vendor accepts                       |
-| 7    | Vendor      | Accepts the active embargo                           |
-| ✅   | CaseActor   | Case holds 3 participants; embargo EM state = ACTIVE |
-
-```mermaid
-sequenceDiagram
-    participant F as Finder
-    participant C as Coordinator
-    participant V as Vendor
-    participant CA as CaseActor
-
-    F->>C: RmSubmitReport (Offer)<br/>+ VulnerabilityReport
-    C->>CA: CreateCase + AddReport
-    C->>F: RmInviteToCase (Invite)
-    F->>C: RmAcceptInviteToCase
-    C->>F: EmProposeEmbargo (Offer)
-    F->>C: Accept
-    C->>V: RmInviteToCase (Invite)
-    V->>C: RmAcceptInviteToCase
-    V->>C: Accept active embargo
-    Note over CA: 3 participants<br/>EM state = ACTIVE
-```
+Available scenarios and their DEMO values are listed in the
+[Available scenarios](#available-scenarios) table above.
 
 ---
 
-## Step 4 — Run the multi-vendor scenario
-
-The **multi-vendor** scenario (D5-4) extends D5-3 with case ownership
-transfer. Vendor initially holds the case; Coordinator takes over and then
-invites a second Vendor (Vendor2) to join.
-
-```bash
-DEMO=multi-vendor docker compose -f docker/docker-compose-multi-actor.yml \
-    up --abort-on-container-exit demo-runner
-```
-
-### What the multi-vendor demo does
-
-| Step  | Actor       | Action                                                    |
-|:------|:------------|:----------------------------------------------------------|
-| 1     | Finder      | Submits a report to Vendor's inbox                        |
-| 2     | Vendor      | Validates the report (trigger: `validate-report`)         |
-| 3     | Vendor      | Creates the case on CaseActor (`attributed_to` = Vendor)  |
-| 4     | Vendor      | Links the report to the case                              |
-| 5     | Vendor      | Invites Finder; Finder accepts                            |
-| 6     | Vendor      | Proposes an embargo; Finder and Vendor accept it          |
-| 7     | Vendor      | Offers case ownership to Coordinator; Coordinator accepts |
-| 8     | Coordinator | Invites Vendor2; Vendor2 accepts                          |
-| 9     | Coordinator | Delivers embargo proposal to Vendor2; Vendor2 accepts     |
-| ✅    | CaseActor   | 3 participants; Coordinator is owner; embargo ACTIVE       |
-
-```mermaid
-sequenceDiagram
-    participant F as Finder
-    participant V as Vendor
-    participant C as Coordinator
-    participant V2 as Vendor2
-    participant CA as CaseActor
-
-    F->>V: RmSubmitReport (Offer)<br/>+ VulnerabilityReport
-    Note over V: validate-report trigger
-    V->>CA: CreateCase (attributed_to = Vendor)
-    V->>CA: AddReport
-    V->>F: RmInviteToCase (Invite)
-    F->>V: RmAcceptInviteToCase
-    V->>F: EmProposeEmbargo (Offer)
-    F->>V: Accept
-    Note over CA: Embargo ACTIVE
-    V->>C: CaseTransferOffer
-    C->>V: Accept transfer
-    Note over CA: attributed_to = Coordinator
-    C->>V2: RmInviteToCase (Invite)
-    V2->>C: RmAcceptInviteToCase
-    C->>V2: EmProposeEmbargo (Offer)
-    V2->>C: Accept
-    Note over CA: 3 participants<br/>Coordinator is owner<br/>EM state = ACTIVE
-```
-
----
-
-## Step 5 — Read the output
+## Step 4 — Read the output
 
 Each demo step is wrapped in a `demo_step` or `demo_check` context manager
 that prints structured lifecycle markers:
@@ -255,7 +174,7 @@ docker compose -f docker/docker-compose-multi-actor.yml logs vendor
 
 ---
 
-## Step 6 — Clean up
+## Step 5 — Clean up
 
 Named Docker volumes persist the SQLite databases between runs. Remove all
 volumes after a session to start fresh next time:
@@ -266,24 +185,16 @@ docker compose -f docker/docker-compose-multi-actor.yml down -v
 
 ---
 
-## Running all three scenarios in sequence
+## Running multiple scenarios in sequence
 
 The integration test script builds the images, runs a selected scenario,
 verifies the exit code, and removes all volumes automatically:
 
 ```bash
 # From the repository root:
-./integration_tests/demo/run_multi_actor_integration_test.sh two-actor
-./integration_tests/demo/run_multi_actor_integration_test.sh three-actor
-./integration_tests/demo/run_multi_actor_integration_test.sh multi-vendor
-```
-
-Or via the Makefile targets:
-
-```bash
-make integration-test-multi-actor    # two-actor
-make integration-test-three-actor    # three-actor
-make integration-test-multi-vendor   # multi-vendor
+./integration_tests/demo/run_multi_actor_integration_test.sh fv
+./integration_tests/demo/run_multi_actor_integration_test.sh fcv
+./integration_tests/demo/run_multi_actor_integration_test.sh fvcv-handoff
 ```
 
 !!! tip
@@ -293,9 +204,9 @@ make integration-test-multi-vendor   # multi-vendor
     `PROJECT_NAME` to run multiple scenarios in parallel:
 
     ```bash
-    PROJECT_NAME=vultron-it-two   DEMO=two-actor   \
+    PROJECT_NAME=vultron-it-two   DEMO=fv   \
         ./integration_tests/demo/run_multi_actor_integration_test.sh
-    PROJECT_NAME=vultron-it-three DEMO=three-actor \
+    PROJECT_NAME=vultron-it-three DEMO=fcv \
         ./integration_tests/demo/run_multi_actor_integration_test.sh
     ```
 
@@ -305,12 +216,12 @@ make integration-test-multi-vendor   # multi-vendor
 
 We have:
 
-- started a multi-container Vultron stack and run three complete CVD
+- started a multi-container Vultron stack and run multi-actor CVD
   workflows, each involving a different set of protocol participants,
 - observed trigger-based puppeteering where each actor's behavior tree and
   outbox logic drives the workflow end-to-end, and
-- seen how Vultron handles two-party coordination, coordinator-mediated
-  three-party coordination, and multi-vendor case ownership transfer.
+- seen how Vultron handles two-party, three-party, and multi-vendor
+  coordination workflows including case ownership transfer.
 
 ---
 

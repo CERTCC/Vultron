@@ -19,7 +19,7 @@ import datetime
 
 from pydantic import BaseModel, Field, field_validator
 
-from vultron.metadata.history.types import HistoryEntryType
+from vultron.metadata.history.types import HistoryEntryType, LearningSignalType
 
 _UTC = datetime.timezone.utc
 
@@ -44,6 +44,7 @@ class _HistoryEntryBase(BaseModel):
     title: str
     type: HistoryEntryType
     source: str
+    signal: LearningSignalType | None = None
 
     @field_validator("title", "source", mode="before")
     @classmethod

@@ -2,7 +2,7 @@
 """Regression tests for ApplyParticipantStatusFromLedgerNode (effects.py).
 
 Covers the critical round-trip serialization bug: a CORE ParticipantStatus
-appended directly to CaseParticipant.participant_statuses was serialized with
+appended directly to as_CaseParticipant.participant_statuses was serialized with
 default field values by Pydantic because the declared list element type
 (WireParticipantStatus) governed serialization rather than the actual runtime
 type.  The fix reads the saved status back from the DataLayer (which
@@ -37,7 +37,8 @@ from vultron.core.models.case_ledger import (
 )
 from vultron.core.states.cs import CS_vfd
 from vultron.core.states.rm import RM
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+from vultron.core.models.participant_status import ParticipantStatus
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 
 _FIXED_CREATED_AT = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
 CASE_GENESIS_HASH = compute_genesis_hash(
@@ -51,8 +52,8 @@ STATUS_ID = f"urn:uuid:{uuid.uuid4()}"
 
 def _make_participant(
     participant_id: str = VENDOR_PARTICIPANT_ID,
-) -> CaseParticipant:
-    return CaseParticipant(
+) -> as_CaseParticipant:
+    return as_CaseParticipant(
         id_=participant_id,
         attributed_to=VENDOR_ACTOR_ID,
         context=CASE_ID,
@@ -68,7 +69,7 @@ def _make_participant_status_snapshot(
     """Return a payload_snapshot dict as produced by build_activity_payload_snapshot.
 
     Uses camelCase keys (wire/alias format) matching how the Case Actor builds
-    the snapshot from an Add(ParticipantStatus, CaseParticipant) activity.
+    the snapshot from an Add(ParticipantStatus, as_CaseParticipant) activity.
     """
     return {
         "object": {
@@ -147,7 +148,7 @@ def test_apply_participant_status_roundtrip_preserves_vfd_state(
     values.  After the fix the saved participant must have the correct vfd_state
     from the ledger entry payload snapshot.
 
-    CaseParticipant always auto-creates one default ParticipantStatus
+    as_CaseParticipant always auto-creates one default ParticipantStatus
     (RM.START, CS_vfd.vfd) on construction.  After applying the ledger entry,
     the participant has the initial default PLUS the new status.  The
     regression manifests as the new status carrying default vfd/rm values
@@ -174,7 +175,7 @@ def test_apply_participant_status_roundtrip_preserves_vfd_state(
 
     assert result.status == Status.SUCCESS
 
-    updated = cast(CaseParticipant, datalayer.read(participant.id_))
+    updated = cast(as_CaseParticipant, datalayer.read(participant.id_))
     assert (
         updated is not None
     ), "Participant must still be readable after status update"
@@ -185,15 +186,15 @@ def test_apply_participant_status_roundtrip_preserves_vfd_state(
 
     # The last (newest) status in the list must carry the values from the
     # ledger snapshot, not Pydantic serialization defaults.
-    new_status = updated.participant_statuses[-1]
-    assert new_status.vfd_state == CS_vfd.VFd, (
-        f"vfd_state must be VFd, got {new_status.vfd_state!r} — "
+    new_status = cast(ParticipantStatus, updated.participant_statuses[-1])
+    assert new_status.vfd.state == CS_vfd.VFd, (
+        f"vfd.state must be VFd, got {new_status.vfd.state!r} — "
         "likely caused by CORE ParticipantStatus serialization mismatch "
-        "when appended to list[WireParticipantStatus]"
+        "when appended to participant_statuses"
     )
     assert (
-        new_status.rm_state == RM.ACCEPTED
-    ), f"rm_state must be ACCEPTED, got {new_status.rm_state!r}"
+        new_status.rm.state == RM.ACCEPTED
+    ), f"rm.state must be ACCEPTED, got {new_status.rm.state!r}"
 
 
 def test_apply_participant_status_idempotent(
@@ -218,7 +219,7 @@ def test_apply_participant_status_idempotent(
         )
         assert result.status == Status.SUCCESS
 
-    updated = cast(CaseParticipant, datalayer.read(participant.id_))
+    updated = cast(as_CaseParticipant, datalayer.read(participant.id_))
     assert updated is not None
     assert (
         len(updated.participant_statuses) == initial_count + 1

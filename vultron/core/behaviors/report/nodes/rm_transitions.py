@@ -18,14 +18,15 @@
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.models.dimensions import PecDimension, RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
+from vultron.core.models._helpers import _report_phase_status_id
 from vultron.core.use_cases._helpers import (
     _idempotent_create,
-    _report_phase_status_id,
     update_participant_rm_state,
 )
 
@@ -66,7 +67,7 @@ def _transition_case_participant_rm(
         return Status.FAILURE
 
     case = node.datalayer.find_case_by_report_id(report_id)
-    if not is_case_model(case):
+    if not isinstance(case, VulnerabilityCase):
         node.logger.warning(
             "%s: no case found for report '%s' — RM state not updated",
             node.name,
@@ -141,11 +142,9 @@ class TransitionRMtoValid(DataLayerAction):
         Returns:
             SUCCESS if status updated, FAILURE on error
         """
-        if self.datalayer is None:
-            self.logger.error(
-                f"{self.name}: DataLayer or actor_id not available"
-            )
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
         actor_id = (
             self.sender_actor_id if self.sender_actor_id else self.actor_id
         )
@@ -158,7 +157,11 @@ class TransitionRMtoValid(DataLayerAction):
         try:
             # CLP-07-007: context must use the case URI once a case exists.
             case = self.datalayer.find_case_by_report_id(self.report_id)
-            context = case.id_ if is_case_model(case) else self.report_id
+            context = (
+                case.id_
+                if isinstance(case, VulnerabilityCase)
+                else self.report_id
+            )
 
             status = ParticipantStatus(
                 id_=_report_phase_status_id(
@@ -166,8 +169,8 @@ class TransitionRMtoValid(DataLayerAction):
                 ),
                 context=context,
                 attributed_to=actor_id,
-                rm_state=RM.VALID,
-                em_consent_state=PEC.NO_EMBARGO,
+                rm=RmDimension(state=RM.VALID),
+                consent=PecDimension(state=PEC.NO_EMBARGO),
                 cvd_role=[CVDRole.REPORTER],
             )
             _idempotent_create(
@@ -183,7 +186,7 @@ class TransitionRMtoValid(DataLayerAction):
                 actor_id,
             )
 
-            if is_case_model(case):
+            if isinstance(case, VulnerabilityCase):
                 update_participant_rm_state(
                     case.id_, actor_id, RM.VALID, self.datalayer
                 )
@@ -228,16 +231,18 @@ class TransitionRMtoInvalid(DataLayerAction):
         Returns:
             SUCCESS if status updated, FAILURE on error
         """
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                f"{self.name}: DataLayer or actor_id not available"
-            )
-            return Status.FAILURE
-
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
         try:
             # CLP-07-007: context must use the case URI once a case exists.
             case = self.datalayer.find_case_by_report_id(self.report_id)
-            context = case.id_ if is_case_model(case) else self.report_id
+            context = (
+                case.id_
+                if isinstance(case, VulnerabilityCase)
+                else self.report_id
+            )
 
             status = ParticipantStatus(
                 id_=_report_phase_status_id(
@@ -245,8 +250,8 @@ class TransitionRMtoInvalid(DataLayerAction):
                 ),
                 context=context,
                 attributed_to=self.actor_id,
-                rm_state=RM.INVALID,
-                em_consent_state=PEC.NO_EMBARGO,
+                rm=RmDimension(state=RM.INVALID),
+                consent=PecDimension(state=PEC.NO_EMBARGO),
                 cvd_role=[CVDRole.REPORTER],
             )
             _idempotent_create(
@@ -302,16 +307,18 @@ class TransitionRMtoClosed(DataLayerAction):
         Returns:
             SUCCESS if status updated, FAILURE on error
         """
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                "%s: DataLayer or actor_id not available", self.name
-            )
-            return Status.FAILURE
-
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
         try:
             # CLP-07-007: context must use the case URI once a case exists.
             case = self.datalayer.find_case_by_report_id(self.report_id)
-            context = case.id_ if is_case_model(case) else self.report_id
+            context = (
+                case.id_
+                if isinstance(case, VulnerabilityCase)
+                else self.report_id
+            )
 
             status = ParticipantStatus(
                 id_=_report_phase_status_id(
@@ -319,8 +326,8 @@ class TransitionRMtoClosed(DataLayerAction):
                 ),
                 context=context,
                 attributed_to=self.actor_id,
-                rm_state=RM.CLOSED,
-                em_consent_state=PEC.NO_EMBARGO,
+                rm=RmDimension(state=RM.CLOSED),
+                consent=PecDimension(state=PEC.NO_EMBARGO),
                 cvd_role=[CVDRole.REPORTER],
             )
             _idempotent_create(
@@ -373,12 +380,10 @@ class TransitionCaseParticipantRMtoClosed(DataLayerAction):
             FAILURE if the DataLayer is unavailable or the transition is
             blocked.
         """
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                "%s: DataLayer or actor_id not available", self.name
-            )
-            return Status.FAILURE
-
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
         return _transition_case_participant_rm(self, self.report_id, RM.CLOSED)
 
 
@@ -411,12 +416,10 @@ class TransitionCaseParticipantRMtoInvalid(DataLayerAction):
             FAILURE if the DataLayer is unavailable or the transition is
             blocked.
         """
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                "%s: DataLayer or actor_id not available", self.name
-            )
-            return Status.FAILURE
-
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
         return _transition_case_participant_rm(
             self, self.report_id, RM.INVALID
         )

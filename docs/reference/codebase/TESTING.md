@@ -4,70 +4,66 @@
 
 ### 1) Test Stack and Commands
 
-- Primary test framework: `pytest` with `pytest-timeout`
-- Assertion/mocking tools: builtin `assert`, `monkeypatch`, `caplog`,
-  `AsyncMock`, `MagicMock`, and FastAPI dependency overrides
-- Commands:
+- **Primary test framework**: pytest >=9.1.1
+- **Assertion/mocking tools**: pytest built-in assertions; `unittest.mock` (standard library); no dedicated mocking library
+- **Type checking in tests**: mypy + pyright both run in CI against `test/` as well
 
 ```bash
-uv run pytest --tb=short 2>&1 | tail -5
-uv run pytest test/test_semantic_activity_patterns.py -v
-uv run pytest -m integration
-uv run pytest -m "" --tb=short 2>&1 | tail -5
-```
+# Unit tests only (default — integration excluded)
+uv run pytest --tb=short
 
-Default local pytest runs exclude `@pytest.mark.integration`; CI runs the full
-suite with `-m ""`.
+# All tests (unit + integration)
+uv run pytest -m "" --tb=short
+
+# Integration tests only
+uv run pytest -m integration
+
+# Specific test file
+uv run pytest test/test_config.py --tb=short
+
+# With verbose output
+uv run pytest -v --tb=short
+```
 
 ### 2) Test Layout
 
-- Test file placement pattern: dedicated `test/` tree mirroring `vultron/`
-- Naming convention: `test_*.py`
-- Setup files and where they run: root `test/conftest.py` sets in-memory SQLite
-  defaults and spec-marker validation; deeper `conftest.py` files add area-
-  specific fixtures
+- **Test directory**: `test/` at repo root; mirrors `vultron/` package layout
+- **Naming convention**: `test_<module>.py` files; test functions named `test_<behavior>()`
+- **Architecture tests**: `test/architecture/` — dedicated boundary-enforcement tests (import graph checks, ratchet pattern for known violations)
+- **Setup files**: `test/conftest.py` — root conftest; sets `VULTRON_DATABASE__DB_URL=sqlite:///:memory:` before all imports and registers `spec` marker; `reset_datalayer()` fixture keeps tests isolated
 
 ### 3) Test Scope Matrix
 
 | Scope | Covered? | Typical target | Notes |
 |-------|----------|----------------|-------|
-| Unit | yes | adapters, use cases, semantic registry, helper functions | default local pytest run |
-| Integration | yes | full HTTP stack and selected demo flows | `integration` marker is declared in `pyproject.toml` |
-| E2E | yes | Docker-backed demo scenarios | manual scripts in `integration_tests/` are outside pytest |
+| Unit | Yes | Domain models, use cases, BT nodes, state machines, config | Default suite; fast; excluded integration marker |
+| Integration | Yes | Full HTTP stack with FastAPI + SQLite | Marked `@pytest.mark.integration`; excluded from default `uv run pytest` |
+| Architecture boundary | Yes | Import graph enforcement, BT execution ordering | `test/architecture/` using AST/import scanning |
+| Spec compliance | Yes | Any test with `@pytest.mark.spec("ID")` | Spec IDs validated against `SpecRegistry` at collection |
+| E2E (demo CI) | Yes | Two-actor demo via Docker Compose | `.github/workflows/demo-integration.yml`; separate from unit suite |
 
 ### 4) Mocking and Isolation Strategy
 
-- Main mocking approach: `monkeypatch`, `AsyncMock`/`MagicMock`, and dependency
-  overrides for app-scoped DataLayers or emitters
-- Isolation guarantees: root test config sets
-  `VULTRON_DATABASE__DB_URL=sqlite:///:memory:` before imports and resets cached
-  DataLayer instances before/after the session; `create_app()`-based tests use
-  isolated per-app state
-- Common failure mode in tests: shared/actor-scoped `DataLayer` seams and
-  py_trees global state can leak behavior if fixtures do not isolate them
-- BT tree builder tests: when a tree builder's default `CallOutBackendFactory`
-  wraps a probabilistic fuzzer node (`AlmostAlwaysSucceed`, `WeightedBehavior`),
-  integration tests that assert `Status.SUCCESS` must pass an explicit
-  deterministic factory; structure tests and FAILURE-path tests are unaffected
-  (learning: `20260708-integration-test-determinism-with-probabilistic-defaults.md`)
+- **Database**: all tests use real `sqlite:///:memory:` — no DB mocking (mocking was abandoned after a prior incident where mocked tests passed but prod migration failed)
+- **HTTP**: [TODO] — outbound HTTP delivery isolation strategy not confirmed from source scan
+- **BT blackboard**: behavior tree tests typically construct a fresh `BtNode` tree per test; blackboard state does not persist across test functions
+- **Isolation guarantee**: `reset_datalayer()` called in conftest ensures each test starts with a clean in-memory SQLite instance
+- **Common failure mode**: tests that import `vultron.*` before `os.environ["VULTRON_DATABASE__DB_URL"]` is set will bind to the on-disk default — prevented by conftest import ordering
 
 ### 5) Coverage and Quality Signals
 
-- Coverage tool + threshold: `[TODO]` no committed coverage-report tool config
-  was found; documented expectations require 80%+ overall coverage and 100% for
-  message validation, semantic extraction, dispatch routing, and error handling
-- Current reported coverage: `[TODO]` no committed coverage report was found
-- Known gaps/flaky areas: Docker-backed acceptance tests are outside pytest, the
-  default local run omits `integration` tests, and test guidance warns that
-  py_trees blackboard state can affect ordering-sensitive cases
+- **Coverage tool**: [TODO] — no `pytest-cov` in `[dependency-groups].dev`; no coverage threshold configured
+- **Current reported coverage**: [TODO]
+- **Known gaps/flaky areas**:
+  - Architecture ratchet tests have `KNOWN_VIOLATIONS: frozenset()` — boundary is fully clean; a new violation causes immediate CI failure
+  - Case-ledger invariant tests require `devlogs/` JSONL artifacts (skipped when absent)
+  - Demo CI integration tests run against Docker Compose — not run in standard `uv run pytest`
 
 ### 6) Evidence
 
-- `pyproject.toml`
-- `test/AGENTS.md`
+- `pyproject.toml` `[tool.pytest.ini_options]`
 - `test/conftest.py`
-- `test/adapters/driving/fastapi/test_outbox_monitor.py`
-- `test/demo/test_two_actor_demo.py`
-- `integration_tests/README.md`
+- `test/architecture/test_core_no_adapter_imports.py`
+- `test/ci/test_case_ledger_invariants.py`
 - `.github/workflows/python-app.yml`
 - `.github/workflows/demo-integration.yml`

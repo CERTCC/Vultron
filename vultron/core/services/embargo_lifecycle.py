@@ -46,15 +46,18 @@ from typing import Any
 from pydantic import BaseModel, Field
 from transitions import MachineError
 
-from vultron.core.models.protocols import is_case_model, is_participant_model
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import EmDimension
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM, EM_Trigger, EMAdapter, create_em_machine
 from vultron.core.states.participant_embargo_consent import (
     PEC,
     PEC_Trigger,
     apply_pec_trigger,
 )
-from vultron.core.use_cases._helpers import _as_id
+from vultron.core.models._helpers import _as_id
 from vultron.errors import (
     VultronInvalidStateTransitionError,
     VultronNotFoundError,
@@ -163,6 +166,7 @@ class EmbargoLifecycle:
         embargo_id: str,
         actor_id: str | None = None,
         transition_mode: TransitionMode = TransitionMode.STRICT,
+        em_before: EM | None = None,
     ) -> EmbargoLifecycleResult:
         """Propose or counter-propose an embargo on a case.
 
@@ -185,6 +189,13 @@ class EmbargoLifecycle:
                 ``OBSERVED`` syncs local state even when the transition would
                 not normally be valid, forcing ``PROPOSED`` (or ``REVISE``
                 when the local state is ``ACTIVE``/``REVISE``).
+            em_before: When provided by the caller (e.g. from
+                ``ReadEmStateNode``), the service uses this value directly and
+                skips the internal ``case.current_status.em_state`` read.  The
+                caller is then responsible for writing the returned ``em_after``
+                via ``WriteEmStateNode`` (AC-1 of issue #1474).  When ``None``
+                the service reads ``em_state`` from the case itself (legacy /
+                non-BT callers).
 
         Returns:
             :class:`EmbargoLifecycleResult` describing what changed.
@@ -192,14 +203,28 @@ class EmbargoLifecycle:
         Raises:
             VultronNotFoundError: If *case_id* does not resolve to a case.
             VultronInvalidStateTransitionError: If the current EM state does
-                not allow a PROPOSE transition (``STRICT`` mode only).
+                not allow a PROPOSE transition (``STRICT`` mode only), or if
+                any of P/X/A is set on the case (``STRICT`` mode only,
+                per EMB-01-002).
         """
         # Load and validate case
         case = self._persistence.read(case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             raise VultronNotFoundError("VulnerabilityCase", case_id)
 
-        em_before = EM(case.current_status.em_state)
+        # When em_before is supplied by the BT caller (ReadEmStateNode), use it
+        # directly; otherwise read from the case (legacy / non-BT callers).
+        caller_owns_em_io = em_before is not None
+        if not caller_owns_em_io:
+            em_before = case.current_status.em.state
+        assert em_before is not None  # guaranteed by the branch above
+
+        if transition_mode == TransitionMode.STRICT:
+            self._assert_pxa_embargo_eligible(
+                case.current_status.pxa.state,
+                case_id,
+                "propose embargo",
+            )
 
         # OBSERVED fallback: ACTIVE/REVISE stays in REVISE; otherwise PROPOSED
         fallback = (
@@ -219,11 +244,13 @@ class EmbargoLifecycle:
         if em_before == EM.ACTIVE and em_after == EM.REVISE:
             participant_changes = self._cascade_pec_revise(case)
 
-        # Mutate case — track whether anything actually changed
+        # Mutate case — track whether anything actually changed.
+        # When the BT caller owns em I/O (caller_owns_em_io), skip the em_state
+        # write here — the caller's WriteEmStateNode handles it.
         case_mutated = False
 
-        if em_after != em_before:
-            case.current_status.em_state = em_after
+        if not caller_owns_em_io and em_after != em_before:
+            case.current_status.em = EmDimension(state=em_after)
             case_mutated = True
 
         # Idempotent append: normalise existing refs to strings before checking
@@ -272,6 +299,7 @@ class EmbargoLifecycle:
         embargo_id: str,
         actor_id: str,
         transition_mode: TransitionMode = TransitionMode.STRICT,
+        em_before: EM | None = None,
     ) -> EmbargoLifecycleResult:
         """Accept an embargo invite on a case.
 
@@ -287,6 +315,9 @@ class EmbargoLifecycle:
             embargo_id: ID of the ``EmbargoEvent`` being accepted.
             actor_id: ID of the accepting actor.
             transition_mode: ``STRICT`` (default) or ``OBSERVED``.
+            em_before: When provided by the caller (e.g. from
+                ``ReadEmStateNode``), the service uses this value directly and
+                skips the internal read/write of ``case.current_status.em_state``.
 
         Returns:
             :class:`EmbargoLifecycleResult` describing what changed.
@@ -294,13 +325,21 @@ class EmbargoLifecycle:
         Raises:
             VultronNotFoundError: If *case_id* does not resolve to a case.
             VultronInvalidStateTransitionError: If the EM state does not allow
-                an ACCEPT transition (``STRICT`` mode, owner only).
+                an ACCEPT transition (``STRICT`` mode, owner only), or if the
+                owner would drive EM to ACTIVE but P/X/A is set (``STRICT``
+                mode, owner only, per EMB-02-002).  Non-owner callers record
+                PEC state only and are not blocked by P/X/A.
         """
         case = self._persistence.read(case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             raise VultronNotFoundError("VulnerabilityCase", case_id)
 
-        em_before = EM(case.current_status.em_state)
+        # When em_before is supplied by the BT caller (ReadEmStateNode), use it
+        # directly; otherwise read from the case (legacy / non-BT callers).
+        caller_owns_em_io = em_before is not None
+        if not caller_owns_em_io:
+            em_before = case.current_status.em.state
+        assert em_before is not None  # guaranteed by the branch above
         em_after = em_before
         case_mutated = False
         case_embargo_changed = False
@@ -312,6 +351,13 @@ class EmbargoLifecycle:
         )
 
         if is_owner and not already_active:
+            # Guard only applies when owner would drive the EM machine (EMB-02-002).
+            if transition_mode == TransitionMode.STRICT:
+                self._assert_pxa_embargo_eligible(
+                    case.current_status.pxa.state,
+                    case_id,
+                    "accept embargo invite",
+                )
             em_after = self._drive_em_transition(
                 case_id=case_id,
                 em_before=em_before,
@@ -320,9 +366,10 @@ class EmbargoLifecycle:
                 fallback_dest=EM.ACTIVE,
                 actor_id=actor_id,
             )
-            # Sync em_state and active_embargo whenever owner accepted
-            if em_after != em_before:
-                case.current_status.em_state = em_after
+            # When the BT caller owns em I/O, skip the em_state write here —
+            # the caller's WriteEmStateNode handles it.
+            if not caller_owns_em_io and em_after != em_before:
+                case.current_status.em = EmDimension(state=em_after)
                 case_mutated = True
             # Sync active_embargo independently: handle OBSERVED mode where
             # em_after == em_before == ACTIVE but active_embargo points elsewhere
@@ -375,12 +422,17 @@ class EmbargoLifecycle:
         embargo_id: str,
         actor_id: str,
         transition_mode: TransitionMode = TransitionMode.STRICT,
+        em_before: EM | None = None,
     ) -> EmbargoLifecycleResult:
         """Reject an embargo proposal or revision on a case.
 
         If *actor_id* is the case owner, drives the EM state machine:
             - ``PROPOSED → NO_EMBARGO``  (initial proposal rejected)
             - ``REVISE → ACTIVE``        (revision rejected; returns to active)
+
+        Per EMB-04-002, a REVISE rejection that would return the case to ACTIVE
+        is blocked in STRICT mode when P/X/A is set — callers must invoke
+        :meth:`terminate_active_embargo` (ET) instead.
 
         For any actor the actor's participant record is updated: PEC
         transitions to ``DECLINED`` and *embargo_id* is removed from
@@ -391,6 +443,9 @@ class EmbargoLifecycle:
             embargo_id: ID of the ``EmbargoEvent`` being rejected.
             actor_id: ID of the rejecting actor.
             transition_mode: ``STRICT`` (default) or ``OBSERVED``.
+            em_before: When provided by the caller (e.g. from
+                ``ReadEmStateNode``), the service uses this value directly and
+                skips the internal read/write of ``case.current_status.em_state``.
 
         Returns:
             :class:`EmbargoLifecycleResult` describing what changed.
@@ -398,19 +453,37 @@ class EmbargoLifecycle:
         Raises:
             VultronNotFoundError: If *case_id* does not resolve to a case.
             VultronInvalidStateTransitionError: If the EM state does not allow
-                a REJECT transition (``STRICT`` mode, owner only).
+                a REJECT transition (``STRICT`` mode, owner only), or if the
+                case is in REVISE state with P/X/A set (``STRICT`` mode only,
+                per EMB-04-002 — use terminate_active_embargo instead).
         """
         case = self._persistence.read(case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             raise VultronNotFoundError("VulnerabilityCase", case_id)
 
-        em_before = EM(case.current_status.em_state)
+        # When em_before is supplied by the BT caller (ReadEmStateNode), use it
+        # directly; otherwise read from the case (legacy / non-BT callers).
+        caller_owns_em_io = em_before is not None
+        if not caller_owns_em_io:
+            em_before = case.current_status.em.state
+        assert em_before is not None  # guaranteed by the branch above
         em_after = em_before
         case_mutated = False
 
         is_owner = _as_id(case.attributed_to) == actor_id
 
         if is_owner:
+            # In STRICT mode, block REVISE→ACTIVE when P/X/A is set (EMB-04-002):
+            # the case must be terminated (ET), not returned to ACTIVE.
+            if (
+                transition_mode == TransitionMode.STRICT
+                and em_before == EM.REVISE
+            ):
+                self._assert_pxa_embargo_eligible(
+                    case.current_status.pxa.state,
+                    case_id,
+                    "reject embargo revision (use terminate_active_embargo when P/X/A is set)",
+                )
             # OBSERVED fallback: REVISE reject → ACTIVE; otherwise → NO_EMBARGO
             fallback = EM.ACTIVE if em_before == EM.REVISE else EM.NONE
             em_after = self._drive_em_transition(
@@ -421,8 +494,10 @@ class EmbargoLifecycle:
                 fallback_dest=fallback,
                 actor_id=actor_id,
             )
-            if em_after != em_before:
-                case.current_status.em_state = em_after
+            # When the BT caller owns em I/O, skip the em_state write here —
+            # the caller's WriteEmStateNode handles it.
+            if not caller_owns_em_io and em_after != em_before:
+                case.current_status.em = EmDimension(state=em_after)
                 case_mutated = True
 
         participant_changes = self._record_actor_pec_rejection(
@@ -456,6 +531,7 @@ class EmbargoLifecycle:
         case_id: str,
         actor_id: str | None = None,
         transition_mode: TransitionMode = TransitionMode.STRICT,
+        em_before: EM | None = None,
     ) -> EmbargoLifecycleResult:
         """Terminate the active embargo on a case.
 
@@ -467,6 +543,9 @@ class EmbargoLifecycle:
             case_id: ID of the ``VulnerabilityCase`` to update.
             actor_id: Optional ID of the terminating actor (logging only).
             transition_mode: ``STRICT`` (default) or ``OBSERVED``.
+            em_before: When provided by the caller (e.g. from
+                ``ReadEmStateNode``), the service uses this value directly and
+                skips the internal read/write of ``case.current_status.em_state``.
 
         Returns:
             :class:`EmbargoLifecycleResult` describing what changed.
@@ -479,10 +558,15 @@ class EmbargoLifecycle:
                 ``None``.
         """
         case = self._persistence.read(case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             raise VultronNotFoundError("VulnerabilityCase", case_id)
 
-        em_before = EM(case.current_status.em_state)
+        # When em_before is supplied by the BT caller (ReadEmStateNode), use it
+        # directly; otherwise read from the case (legacy / non-BT callers).
+        caller_owns_em_io = em_before is not None
+        if not caller_owns_em_io:
+            em_before = case.current_status.em.state
+        assert em_before is not None  # guaranteed by the branch above
 
         # In STRICT mode, require an active embargo to be identified
         embargo_id = _as_id(case.active_embargo)
@@ -500,7 +584,10 @@ class EmbargoLifecycle:
             actor_id=actor_id,
         )
 
-        case.current_status.em_state = em_after
+        # When the BT caller owns em I/O, skip the em_state write here —
+        # the caller's WriteEmStateNode handles it.
+        if not caller_owns_em_io:
+            case.current_status.em = EmDimension(state=em_after)
         case.active_embargo = None
 
         participant_changes = self._cascade_pec_reset(case)
@@ -532,6 +619,7 @@ class EmbargoLifecycle:
         actor_id: str,
         pec_trigger: PEC_Trigger,
         embargo_id: str | None = None,
+        em_before: EM | None = None,
     ) -> EmbargoLifecycleResult:
         """Apply a PEC trigger to a single participant without changing EM state.
 
@@ -547,6 +635,9 @@ class EmbargoLifecycle:
             pec_trigger: The PEC trigger to apply.
             embargo_id: Optional ID of the relevant ``EmbargoEvent``; used
                 to maintain ``accepted_embargo_ids`` on ACCEPT/DECLINE.
+            em_before: When provided by the caller (e.g. from
+                ``ReadEmStateNode``), the service uses this value directly and
+                skips the internal ``case.current_status.em_state`` read.
 
         Returns:
             :class:`EmbargoLifecycleResult` with ``em_before == em_after``
@@ -555,10 +646,14 @@ class EmbargoLifecycle:
             when the transition was valid.
         """
         case = self._persistence.read(case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             raise VultronNotFoundError("VulnerabilityCase", case_id)
 
-        em_state = EM(case.current_status.em_state)
+        em_state = (
+            em_before
+            if em_before is not None
+            else case.current_status.em.state
+        )
 
         participant_id = case.actor_participant_index.get(actor_id)
         if not participant_id:
@@ -577,7 +672,7 @@ class EmbargoLifecycle:
             )
 
         participant = self._persistence.read(participant_id)
-        if not is_participant_model(participant):
+        if not isinstance(participant, CaseParticipant):
             return EmbargoLifecycleResult(
                 em_before=em_state,
                 em_after=em_state,
@@ -646,6 +741,28 @@ class EmbargoLifecycle:
     # Private helpers
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _assert_pxa_embargo_eligible(
+        pxa_state: CS_pxa,
+        case_id: str,
+        operation: str,
+    ) -> None:
+        """Raise if the case is no longer embargo-eligible due to P/X/A.
+
+        Per EMB-01-002 and EMB-02-002: once any of P, X, or A is set
+        (i.e. ``pxa_state != CS_pxa.pxa``), no new embargo may be proposed
+        or accepted.  This guard is only applied in STRICT mode.
+
+        Raises:
+            VultronInvalidStateTransitionError: When ``pxa_state != CS_pxa.pxa``.
+        """
+        if pxa_state != CS_pxa.pxa:
+            raise VultronInvalidStateTransitionError(
+                f"Cannot {operation} on case '{case_id}': public awareness,"
+                f" exploit publication, or attack observation is set"
+                f" (pxa_state='{pxa_state.name}')."
+            )
+
     def _drive_em_transition(
         self,
         *,
@@ -713,7 +830,7 @@ class EmbargoLifecycle:
             return []
 
         participant = self._persistence.read(participant_id)
-        if not is_participant_model(participant):
+        if not isinstance(participant, CaseParticipant):
             return []
 
         pec_before = participant.embargo_consent_state
@@ -766,7 +883,7 @@ class EmbargoLifecycle:
             return []
 
         participant = self._persistence.read(participant_id)
-        if not is_participant_model(participant):
+        if not isinstance(participant, CaseParticipant):
             return []
 
         pec_before = participant.embargo_consent_state
@@ -810,7 +927,7 @@ class EmbargoLifecycle:
             if participant_id is None:
                 continue
             participant = self._persistence.read(participant_id)
-            if not is_participant_model(participant):
+            if not isinstance(participant, CaseParticipant):
                 continue
             if participant.embargo_consent_state == PEC.NO_EMBARGO.value:
                 continue
@@ -844,7 +961,7 @@ class EmbargoLifecycle:
             if participant_id is None:
                 continue
             participant = self._persistence.read(participant_id)
-            if not is_participant_model(participant):
+            if not isinstance(participant, CaseParticipant):
                 continue
             if participant.embargo_consent_state == PEC.SIGNATORY.value:
                 pec_before = participant.embargo_consent_state

@@ -19,7 +19,7 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
-from vultron.core.models.protocols import is_participant_model
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
@@ -72,7 +72,7 @@ class UpdateParticipantEmbargoPecNode(DataLayerAction):
             )
             return Status.SUCCESS
 
-        if not is_participant_model(participant):
+        if not isinstance(participant, CaseParticipant):
             self.logger.warning(
                 "%s: invalid participant on blackboard", self.name
             )
@@ -181,9 +181,9 @@ class RecordParticipantAcceptanceNode(DataLayerAction):
     def update(self) -> Status:
         from vultron.core.states.em import EM
 
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         # Use accepting_actor_id when provided (ADR-0022 single-BT pattern:
         # tree executes under receiving_actor_id but acceptance is recorded
@@ -197,13 +197,41 @@ class RecordParticipantAcceptanceNode(DataLayerAction):
             self.feedback_message = "actor_id not available"
             return Status.FAILURE
 
+        # AC-1: read em_state via named BT node before calling the service.
+        from vultron.core.behaviors.embargo.nodes.em_state import (
+            ReadEmStateNode,
+            WriteEmStateNode,
+        )
+
+        em_result_out: dict[str, object] = {}
+        read_node = ReadEmStateNode(
+            case_id=self.case_id, result_out=em_result_out
+        )
+        read_node.datalayer = self.datalayer
+        if read_node.update() != Status.SUCCESS:
+            self.feedback_message = read_node.feedback_message
+            return Status.FAILURE
+        em_before = em_result_out["em_before"]
+        assert isinstance(em_before, EM)
+
         service = EmbargoLifecycle(persistence=self.datalayer)
         result = service.accept_embargo_invite(
             case_id=self.case_id,
             embargo_id=self.embargo_id,
             actor_id=actor_id,
             transition_mode=TransitionMode.OBSERVED,
+            em_before=em_before,
         )
+
+        if result.em_after != em_before:
+            em_result_out["em_after"] = result.em_after
+            write_node = WriteEmStateNode(
+                case_id=self.case_id, result_out=em_result_out
+            )
+            write_node.datalayer = self.datalayer
+            if write_node.update() != Status.SUCCESS:
+                self.feedback_message = write_node.feedback_message
+                return Status.FAILURE
 
         if result.em_after == EM.ACTIVE and result.em_before not in (
             EM.PROPOSED,
@@ -260,7 +288,7 @@ class RemoveStaleAcceptanceNode(DataLayerAction):
             )
             return Status.SUCCESS
 
-        if not is_participant_model(participant):
+        if not isinstance(participant, CaseParticipant):
             self.logger.debug(
                 "%s: invalid participant on blackboard", self.name
             )

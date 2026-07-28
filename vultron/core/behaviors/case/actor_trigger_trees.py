@@ -39,6 +39,13 @@ from vultron.core.behaviors.case.nodes.actor import (
     EmitAcceptCaseInviteNode,
     EmitInviteActorToCaseNode,
 )
+from vultron.core.behaviors.case.nodes.ownership_transfer import (
+    EmitAcceptCaseOwnershipTransferNode,
+    EmitOfferCaseOwnershipTransferNode,
+)
+from vultron.core.behaviors.case.nodes.suggest_actor.accept_offer import (
+    EmitAcceptCaseParticipantOfferNode,
+)
 from vultron.core.behaviors.helpers import UpdateActorOutbox
 from vultron.core.behaviors.sender.send_tree import sender_side_bt
 
@@ -143,6 +150,43 @@ def accept_case_invite_trigger_bt(
     return root
 
 
+def accept_actor_recommendation_trigger_bt(
+    cp_offer_id: str,
+    case_actor_id: str,
+    captured: dict | None = None,
+) -> py_trees.behaviour.Behaviour:
+    """Return the trigger-side BT for the accept-actor-recommendation workflow.
+
+    Emits Accept(Offer(CaseParticipant)) from the Case Owner's identity to
+    the CaseActor, completing the ADR-0026 CM-16-006 approval step.
+
+    Args:
+        cp_offer_id: ID of the ``Offer(CaseParticipant)`` forwarded by CaseActor.
+        case_actor_id: URI of the CaseActor to route the Accept to.
+        captured: Optional dict; ``captured["activity"]`` is set on success.
+
+    Returns:
+        Sequence containing a single EmitAcceptCaseParticipantOfferNode.
+    """
+    root = py_trees.composites.Sequence(
+        name="AcceptActorRecommendationTriggerBT",
+        memory=False,
+        children=[
+            EmitAcceptCaseParticipantOfferNode(
+                cp_offer_id=cp_offer_id,
+                case_actor_id=case_actor_id,
+                captured=captured,
+            ),
+        ],
+    )
+    logger.debug(
+        "Created AcceptActorRecommendationTriggerBT for offer=%s case_actor=%s",
+        cp_offer_id,
+        case_actor_id,
+    )
+    return root
+
+
 def offer_case_manager_role_trigger_bt(
     captured: dict | None = None,
 ) -> py_trees.behaviour.Behaviour:
@@ -176,4 +220,76 @@ def offer_case_manager_role_trigger_bt(
         ],
     )
     logger.debug("Created OfferCaseManagerRoleTriggerBT")
+    return root
+
+
+def offer_case_ownership_transfer_trigger_bt(
+    case_id: str,
+    transferee_id: str,
+    content: str | None = None,
+    captured: dict | None = None,
+) -> py_trees.behaviour.Behaviour:
+    """Return the trigger-side BT for the offer-case-ownership-transfer workflow.
+
+    Emits ``Offer(VulnerabilityCase)`` (ownership transfer variant) from the
+    offering actor to ``transferee_id`` (TRIG-11-001).
+
+    Args:
+        case_id: ID of the VulnerabilityCase whose ownership is being offered.
+        transferee_id: Actor URI of the intended new owner.
+        content: Optional human-readable message included in the offer.
+        captured: Optional dict; ``captured["activity"]`` is set on success.
+
+    Returns:
+        Sequence containing a single EmitOfferCaseOwnershipTransferNode.
+    """
+    root = py_trees.composites.Sequence(
+        name="OfferCaseOwnershipTransferTriggerBT",
+        memory=False,
+        children=[
+            EmitOfferCaseOwnershipTransferNode(
+                case_id=case_id,
+                transferee_id=transferee_id,
+                content=content,
+                captured=captured,
+            ),
+        ],
+    )
+    logger.debug(
+        "Created OfferCaseOwnershipTransferTriggerBT case=%s transferee=%s",
+        case_id,
+        transferee_id,
+    )
+    return root
+
+
+def accept_case_ownership_transfer_trigger_bt(
+    offer_id: str,
+    captured: dict | None = None,
+) -> py_trees.behaviour.Behaviour:
+    """Return the trigger-side BT for the accept-case-ownership-transfer workflow.
+
+    Emits ``Accept(Offer(VulnerabilityCase))`` from the accepting actor back
+    to the offering actor (TRIG-11-002).
+
+    Args:
+        offer_id: ID of the ``_OfferCaseOwnershipTransferActivity`` being accepted.
+        captured: Optional dict; ``captured["activity"]`` is set on success.
+
+    Returns:
+        Sequence containing a single EmitAcceptCaseOwnershipTransferNode.
+    """
+    root = py_trees.composites.Sequence(
+        name="AcceptCaseOwnershipTransferTriggerBT",
+        memory=False,
+        children=[
+            EmitAcceptCaseOwnershipTransferNode(
+                offer_id=offer_id,
+                captured=captured,
+            ),
+        ],
+    )
+    logger.debug(
+        "Created AcceptCaseOwnershipTransferTriggerBT for offer=%s", offer_id
+    )
     return root

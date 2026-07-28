@@ -26,7 +26,9 @@ from vultron.core.behaviors.note.nodes import (
     SaveNoteNode,
 )
 from vultron.core.models.note import VultronNote
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 ACTOR_ID = "https://example.org/actors/finder"
 CASE_ID = "https://example.org/cases/case-01"
@@ -62,7 +64,7 @@ def note_with_case():
 
 @pytest.fixture
 def case(dl):
-    obj = VulnerabilityCase(id_=CASE_ID, name="Test Case")
+    obj = as_VulnerabilityCase(id_=CASE_ID, name="Test Case")
     dl.create(obj)
     return obj
 

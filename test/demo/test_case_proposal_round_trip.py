@@ -78,7 +78,7 @@ from test.demo._helpers import make_testclient_call
 from test.demo.conftest import _TestASGIRouter, create_isolated_actor_app
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 # ---------------------------------------------------------------------------
@@ -156,6 +156,12 @@ def two_app_setup(monkeypatch):
     from vultron.config import get_config, reload_config
 
     monkeypatch.setenv("VULTRON_SERVER__BASE_URL", f"{_VENDOR_BASE}/api/v2")
+    # ResolveCaseActorUrlsNode reads case_actor_service_url from ActorConfig
+    # (CP-08-002); in this single-vendor test setup the vendor IS the case-actor
+    # service, so we point it at the same base URL.
+    monkeypatch.setenv(
+        "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL", f"{_VENDOR_BASE}/api/v2"
+    )
     reload_config()
 
     router = _TestASGIRouter()
@@ -221,7 +227,7 @@ class TestCaseProposalRoundTrip:
             vendor_tc, reporter_base_api, _REPORTER_SLUG, "Reporter CP"
         )
 
-        report = VulnerabilityReport(
+        report = as_VulnerabilityReport(
             attributed_to=reporter_actor_id,
             name="CP-07-003 round-trip report",
             content=(
@@ -270,7 +276,7 @@ class TestCaseProposalRoundTrip:
             vendor_tc, reporter_base_api, _REPORTER_SLUG, "Reporter CP"
         )
 
-        report = VulnerabilityReport(
+        report = as_VulnerabilityReport(
             attributed_to=reporter_actor_id,
             name="CP-07-003 accept round-trip report",
             content=(

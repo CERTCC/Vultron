@@ -13,9 +13,19 @@ from typing import Any, Callable
 from vultron.core.models._helpers import _now_utc as _core_now_utc
 from vultron.core.models.base import VultronObject
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.core.models.dimensions import (
+    EmDimension,
+    PecDimension,
+    PxaDimension,
+    RmDimension,
+    VfdDimension,
+)
 from vultron.core.models.enums import VultronObjectType as VOtype
 from vultron.core.models.participant_status import coerce_cvd_roles
+from vultron.core.states.cs import CS_pxa, CS_vfd
+from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.rm import RM
 from vultron.core.models.vultron_types import (
     CaseStatus,
     EmbargoEvent,
@@ -319,6 +329,48 @@ def _build_case_ledger_entry_object(obj: object) -> dict[str, Any]:
     return {}
 
 
+def _coerce_em(raw: object) -> EM:
+    if isinstance(raw, EM):
+        return raw
+    if isinstance(raw, str):
+        return EM[raw] if raw in EM.__members__ else EM(raw)
+    return EM.NO_EMBARGO
+
+
+def _coerce_pxa(raw: object) -> CS_pxa:
+    if isinstance(raw, CS_pxa):
+        return raw
+    if isinstance(raw, str):
+        return CS_pxa[raw]
+    return CS_pxa.pxa
+
+
+def _coerce_rm(raw: object) -> RM:
+    if isinstance(raw, RM):
+        return raw
+    if isinstance(raw, str):
+        return RM[raw]
+    return RM.START
+
+
+def _coerce_vfd(raw: object) -> CS_vfd:
+    if isinstance(raw, CS_vfd):
+        return raw
+    if isinstance(raw, str):
+        return CS_vfd[raw]
+    return CS_vfd.vfd
+
+
+def _coerce_pec_or_none(raw: object) -> PEC | None:
+    if raw is None:
+        return None
+    if isinstance(raw, PEC):
+        return raw
+    if isinstance(raw, str):
+        return PEC[raw]
+    return None
+
+
 def _build_case_status_object(obj: object) -> dict[str, Any]:
     object_id = _get_id(obj)
     case_context = _get_id(getattr(obj, "context", None))
@@ -330,10 +382,12 @@ def _build_case_status_object(obj: object) -> dict[str, Any]:
                 name=getattr(obj, "name", None),
                 context=case_context,
                 attributed_to=attributed_to,
-                em_state=getattr(obj, "em_state", None)
-                or CaseStatus.model_fields["em_state"].default,
-                pxa_state=getattr(obj, "pxa_state", None)
-                or CaseStatus.model_fields["pxa_state"].default,
+                em=EmDimension(
+                    state=_coerce_em(getattr(obj, "em_state", None))
+                ),
+                pxa=PxaDimension(
+                    state=_coerce_pxa(getattr(obj, "pxa_state", None))
+                ),
             )
         }
     return {}
@@ -345,7 +399,7 @@ def _build_participant_status_object(obj: object) -> dict[str, Any]:
     wire_case_status = getattr(obj, "case_status", None)
     if object_id:
         # Extract embedded CaseStatus into a CaseStatus core object so
-        # that pxa_state and em_state are propagated across the wire boundary.
+        # that pxa and em are propagated across the wire boundary.
         core_case_status: CaseStatus | None = None
         if wire_case_status is not None:
             cs_id = _get_id(wire_case_status)
@@ -360,25 +414,37 @@ def _build_participant_status_object(obj: object) -> dict[str, Any]:
                     id_=cs_id,
                     context=cs_context,
                     attributed_to=cs_attributed_to,
-                    em_state=getattr(wire_case_status, "em_state", None)
-                    or CaseStatus.model_fields["em_state"].default,
-                    pxa_state=getattr(wire_case_status, "pxa_state", None)
-                    or CaseStatus.model_fields["pxa_state"].default,
+                    em=EmDimension(
+                        state=_coerce_em(
+                            getattr(wire_case_status, "em_state", None)
+                        )
+                    ),
+                    pxa=PxaDimension(
+                        state=_coerce_pxa(
+                            getattr(wire_case_status, "pxa_state", None)
+                        )
+                    ),
                 )
+        raw_pec = getattr(obj, "em_consent_state", None)
+        pec_val = _coerce_pec_or_none(
+            PEC[raw_pec] if isinstance(raw_pec, str) else raw_pec
+        )
         return {
             "object_": ParticipantStatus(
                 id_=object_id,
                 name=getattr(obj, "name", None),
                 context=ctx,
                 attributed_to=_get_id(getattr(obj, "attributed_to", None)),
-                rm_state=getattr(obj, "rm_state", None)
-                or ParticipantStatus.model_fields["rm_state"].default,
-                vfd_state=getattr(obj, "vfd_state", None)
-                or ParticipantStatus.model_fields["vfd_state"].default,
-                em_consent_state=(
-                    PEC[getattr(obj, "em_consent_state")]
-                    if isinstance(getattr(obj, "em_consent_state", None), str)
-                    else getattr(obj, "em_consent_state", None)
+                rm=RmDimension(
+                    state=_coerce_rm(getattr(obj, "rm_state", None))
+                ),
+                vfd=VfdDimension(
+                    state=_coerce_vfd(getattr(obj, "vfd_state", None))
+                ),
+                consent=(
+                    PecDimension(state=pec_val)
+                    if pec_val is not None
+                    else None
                 ),
                 cvd_role=coerce_cvd_roles(
                     getattr(obj, "cvd_role", getattr(obj, "cvd_roles", None))

@@ -23,7 +23,6 @@ from pathlib import Path
 
 from vultron.metadata.specs.registry import (
     SpecRegistry,
-    effective_tags,
     load_registry,
 )
 from vultron.metadata.specs.schema import (
@@ -208,8 +207,6 @@ def _group_to_dict(group: SpecGroup, file: SpecFile) -> dict:
     d: dict = {"id": group.id, "title": group.title}
     if group.description is not None:
         d["description"] = group.description
-    if group.kind is not None:
-        d["kind"] = group.kind.value
     if group.scope is not None:
         d["scope"] = [s.value for s in group.scope]
     if group.trigger is not None:
@@ -223,15 +220,17 @@ def _group_to_dict(group: SpecGroup, file: SpecFile) -> dict:
 
 def _file_to_dict(spec_file: SpecFile) -> dict:
     """Serialize a SpecFile to a dict with only authored fields."""
-    return {
+    d: dict = {
         "id": spec_file.id,
         "title": spec_file.title,
         "description": spec_file.description,
         "version": spec_file.version,
-        "kind": spec_file.kind.value,
         "scope": [s.value for s in spec_file.scope],
-        "groups": [_group_to_dict(g, spec_file) for g in spec_file.groups],
     }
+    if spec_file.tags is not None:
+        d["tags"] = [t.value for t in spec_file.tags]
+    d["groups"] = [_group_to_dict(g, spec_file) for g in spec_file.groups]
+    return d
 
 
 class _YamlDumper(yaml.SafeDumper):
@@ -291,7 +290,7 @@ def export_json(
     for spec_id, spec in registry.all_specs.items():
         eff_kind = registry.get_effective_kind(spec_id)
         eff_scope = registry.get_effective_scope(spec_id)
-        eff_tags = effective_tags(spec)
+        eff_tags = registry.get_effective_tags(spec_id)
 
         if kind and eff_kind.value != kind:
             continue
@@ -301,7 +300,10 @@ def export_json(
             continue
         if priority and spec.priority.value != priority:
             continue
-        result[spec_id] = spec.model_dump(mode="json")
+        record = spec.model_dump(mode="json")
+        if eff_tags and record.get("tags") is None:
+            record["tags"] = [t.value for t in eff_tags]
+        result[spec_id] = record
 
     return json.dumps(result, indent=2)
 

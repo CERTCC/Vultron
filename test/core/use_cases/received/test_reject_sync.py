@@ -37,7 +37,7 @@ from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import reject_log_entry_activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
-    CaseLedgerEntry as WireCaseLedgerEntry,
+    as_CaseLedgerEntry as WireCaseLedgerEntry,
 )
 
 CASE_ACTOR_URI = "https://example.org/actors/case-actor"
@@ -319,15 +319,15 @@ class TestRejectLedgerEntryReceivedUseCase:
         uc.execute()  # should not raise
 
     def test_replay_triggered_when_case_actor_found(self, dl, entry0, entry1):
-        """When a CaseActor (Service) exists for the case, missing entries are replayed."""
-        from vultron.wire.as2.vocab.objects.case_actor import CaseActor
+        """When a as_CaseActor (Service) exists for the case, missing entries are replayed."""
+        from vultron.wire.as2.vocab.objects.case_actor import as_CaseActor
 
         # Save both entries
         dl.save(entry0)
         dl.save(entry1)
 
-        # Register a CaseActor associated with the case
-        case_actor = CaseActor(
+        # Register a as_CaseActor associated with the case
+        case_actor = as_CaseActor(
             id_=CASE_ACTOR_URI,
             context=CASE_URI,
         )

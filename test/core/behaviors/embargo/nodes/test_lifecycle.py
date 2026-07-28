@@ -30,8 +30,11 @@ from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.enums.roles import CVDRole
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.core.models.case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 from test.core.behaviors.embargo.nodes.conftest import make_case_and_embargo
 
@@ -42,12 +45,12 @@ CASE_MANAGER_ACTOR = "https://example.org/actors/case-manager"
 def _make_case_with_manager(
     suffix: str,
     em_state: EM = EM.ACTIVE,
-) -> tuple[VulnerabilityCase, CaseParticipant, SqliteDataLayer]:
+) -> tuple[as_VulnerabilityCase, as_CaseParticipant, SqliteDataLayer]:
     """Return a populated DataLayer with a case + CASE_MANAGER participant."""
     dl = SqliteDataLayer("sqlite:///:memory:")
     case, _embargo = make_case_and_embargo(suffix, em_state=em_state)
 
-    cm_participant = CaseParticipant(
+    cm_participant = as_CaseParticipant(
         id_=f"{case.id_}/participants/cm",
         attributed_to=CASE_MANAGER_ACTOR,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -105,7 +108,7 @@ class TestTerminateEmbargoBT:
 
         assert result.status == py_trees.common.Status.SUCCESS
         updated = cast(VulnerabilityCase, dl.read(case.id_))
-        assert updated.current_status.em_state == EM.EXITED
+        assert updated.current_status.em.state == EM.EXITED
         assert updated.active_embargo is None
         factory.terminate_embargo.assert_called_once()
 
@@ -132,7 +135,7 @@ class TestTerminateEmbargoBT:
 
         assert result.status == py_trees.common.Status.SUCCESS
         updated = cast(VulnerabilityCase, dl.read(case.id_))
-        assert updated.current_status.em_state == EM.EXITED
+        assert updated.current_status.em.state == EM.EXITED
 
     def test_missing_case_manager_returns_failure_before_state_change(self):
         """AC-5: Missing CASE_MANAGER → FAILURE; EM state and active_embargo unchanged."""
@@ -161,14 +164,14 @@ class TestTerminateEmbargoBT:
         # BT fails at routing guard — no state mutation occurs (BT-19-001).
         assert result.status == py_trees.common.Status.FAILURE
         updated = cast(VulnerabilityCase, dl.read(case.id_))
-        assert updated.current_status.em_state == EM.ACTIVE  # unchanged
+        assert updated.current_status.em.state == EM.ACTIVE  # unchanged
         assert updated.active_embargo is not None  # unchanged
         factory.terminate_embargo.assert_not_called()
 
     def test_no_active_embargo_returns_failure(self):
         """BT returns FAILURE when the case has no active embargo."""
         case, _, dl = _make_case_with_manager("teb4", em_state=EM.NONE)
-        case_obj = cast(VulnerabilityCase, dl.read(case.id_))
+        case_obj = cast(as_VulnerabilityCase, dl.read(case.id_))
         case_obj.active_embargo = None
         dl.save(case_obj)
 
@@ -189,12 +192,12 @@ class TestTerminateEmbargoBT:
     def test_resets_participant_pec_state(self):
         """Shared BT resets participant embargo_consent_state to NO_EMBARGO."""
         case, _, dl = _make_case_with_manager("teb5", em_state=EM.ACTIVE)
-        participant = CaseParticipant(
+        participant = as_CaseParticipant(
             id_=f"{case.id_}/participants/p1",
             attributed_to="https://example.org/users/vendor",
         )
         participant.embargo_consent_state = PEC.SIGNATORY.value
-        case_obj = cast(VulnerabilityCase, dl.read(case.id_))
+        case_obj = cast(as_VulnerabilityCase, dl.read(case.id_))
         case_obj.case_participants.append(participant.id_)
         dl.save(case_obj)
         dl.create(participant)
@@ -218,7 +221,7 @@ class TestTerminateEmbargoBT:
         result = bridge.execute_with_setup(tree, actor_id=ACTOR_ID)
 
         assert result.status == py_trees.common.Status.SUCCESS
-        updated_p = cast(CaseParticipant, dl.read(participant.id_))
+        updated_p = cast(as_CaseParticipant, dl.read(participant.id_))
         assert updated_p.embargo_consent_state == PEC.NO_EMBARGO.value
 
     def test_cascade_path_no_builder_returns_failure_when_no_factory(self):
@@ -254,7 +257,7 @@ class TestTerminateEmbargoBT:
 
         assert result.status == py_trees.common.Status.SUCCESS
         updated = cast(VulnerabilityCase, dl.read(case.id_))
-        assert updated.current_status.em_state == EM.EXITED
+        assert updated.current_status.em.state == EM.EXITED
         factory.terminate_embargo.assert_called_once()
         outbox = dl.outbox_list_for_actor(ACTOR_ID)
         assert "https://example.org/activities/act1" in outbox
@@ -279,7 +282,7 @@ class TestTerminateEmbargoBT:
 
         assert result.status == py_trees.common.Status.FAILURE
         updated = cast(VulnerabilityCase, dl.read(case.id_))
-        assert updated.current_status.em_state == EM.ACTIVE  # unchanged
+        assert updated.current_status.em.state == EM.ACTIVE  # unchanged
         assert updated.active_embargo is not None  # unchanged
         factory.terminate_embargo.assert_not_called()
 
@@ -398,4 +401,37 @@ class TestValidateEmbargoRevisionStateNode:
         )
 
         assert status == py_trees.common.Status.FAILURE
+        assert "error" in result_out
+
+    def test_returns_failure_when_current_status_raises_value_error(self):
+        """FAILURE when case.current_status raises ValueError (no materialized status).
+
+        AC-3 guard: the try/except ValueError introduced for the bare
+        ``case.current_status.em_state`` access must map to FAILURE so that
+        callers do not attempt a revision proposal when no status exists.
+        """
+        from unittest.mock import MagicMock, PropertyMock
+
+        from vultron.core.models.case import VulnerabilityCase
+
+        mock_case = MagicMock(spec=VulnerabilityCase)
+        mock_case.case_participants = []
+        mock_case.case_statuses = []
+        type(mock_case).current_status = PropertyMock(
+            side_effect=ValueError("no materialized CaseStatus")
+        )
+
+        mock_dl = MagicMock()
+        mock_dl.read.return_value = mock_case
+
+        result_out: dict = {}
+        node = ValidateEmbargoRevisionStateNode(
+            case_id="https://example.org/cases/any",
+            result_out=result_out,
+        )
+        node.datalayer = mock_dl
+
+        result = node.update()
+
+        assert result == py_trees.common.Status.FAILURE
         assert "error" in result_out

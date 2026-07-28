@@ -147,12 +147,10 @@ class CommitCaseLedgerEntryNode(DataLayerAction):
         return object_id, event_type, payload_snapshot
 
     def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                f"{self.name}: DataLayer or actor_id not available"
-            )
-            return Status.FAILURE
-
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
         case_id = self._resolve_case_id()
         if not case_id:
             self.logger.error(

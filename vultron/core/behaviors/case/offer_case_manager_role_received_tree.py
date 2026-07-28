@@ -30,6 +30,9 @@ from vultron.core.behaviors.case.nodes.delegation import (
 from vultron.core.behaviors.case.nodes.lifecycle import (
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.case.nodes.prologue import (
+    WritePrologueLedgerEntriesNode,
+)
 from vultron.core.behaviors.report.nodes.storage import StoreActivityNode
 
 logger = logging.getLogger(__name__)
@@ -70,15 +73,20 @@ def create_offer_case_manager_role_received_tree(
     Structure::
 
         OfferCaseManagerRoleReceivedBT (Sequence)
-        ├── GuardedCommitOrSkip (Selector, only when case_id provided)
-        │   ├── Sequence                              # Record receipt (CLP-10-006)
-        │   │   ├── CheckIsCaseManagerNode
-        │   │   └── CommitCaseLedgerEntryNode
-        │   └── Success("CommitSkippedNotCaseManager")
+        ├── GuardedCommitOrSkip (Selector, only when case_id provided)   # CLP-10-006
+        │   ├── SkipIfNotCaseManager (Sequence)
+        │   │   └── Inverter(CheckIsCaseManagerNode)
+        │   └── CommitCaseLedgerEntryNode              # offer_case_manager_role
+        ├── WritePrologueLedgerEntriesNode             # Issue #1688 prologue backfill
         ├── StoreActivityNode("OfferCaseManagerRole")
         └── AcceptOrReject (Selector)
             ├── AutoAcceptCaseManagerRoleNode
             └── EmitRejectCaseManagerRoleNode
+
+    The ``WritePrologueLedgerEntriesNode`` runs *after* the guarded ledger
+    commit for ``offer_case_manager_role`` (CLP-10-006 ordering) but *before*
+    the ``StoreActivityNode`` and auto-accept.  It back-fills the
+    initialization entries that preceded ledger existence (Issue #1688).
 
     Args:
         offer_id: ID of the ``Offer(CaseManagerRole)`` activity.
@@ -108,11 +116,22 @@ def create_offer_case_manager_role_received_tree(
             ),
         ],
     )
+
+    prologue_nodes: list[Any] = []
+    if case_id and vendor_id:
+        prologue_nodes.append(
+            WritePrologueLedgerEntriesNode(
+                case_id=case_id,
+                vendor_id=vendor_id,
+            )
+        )
+
     return create_receive_activity_tree(
         name="OfferCaseManagerRoleReceivedBT",
         case_id=case_id if case_id else None,
         precondition_guards=[],
         effect_nodes=[
+            *prologue_nodes,
             StoreActivityNode(
                 activity_id=offer_id,
                 activity_obj=offer_obj,

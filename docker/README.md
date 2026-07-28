@@ -116,7 +116,7 @@ variable to use a fixed host port, or inspect the assigned port with
 | `VULTRON_ACTOR_ID`    | *(set per service)*       | Deterministic full actor URI          |
 | `VULTRON_SEED_CONFIG` | *(set per service)*       | Seed config JSON for local + peers    |
 
-### Run the D5-2 two-actor acceptance scenario
+### Run the D5-2 FV acceptance scenario
 
 The `demo-runner` service now performs the D5-2 scenario end to end:
 it waits for healthy actor services, resets container state to a clean
@@ -129,33 +129,34 @@ docker compose -f docker-compose-multi-actor.yml up --abort-on-container-exit de
 ```
 
 This is the canonical single-command acceptance run for the current
-two-actor scenario.
+FV scenario.
 
-### Run the D5-3 three-actor acceptance scenario
+### Run the FVV scenario
 
-The same compose file can also run the coordinator-based D5-3 flow:
-
-```bash
-# From the docker/ directory:
-DEMO=three-actor docker compose -f docker-compose-multi-actor.yml \
-    up --abort-on-container-exit demo-runner
-```
-
-This starts Finder, Vendor, Coordinator, and CaseActor, resets their
-DataLayers, seeds all peers, and runs the deterministic three-actor scenario
-end to end.
-
-### Run the D5-4 multi-vendor acceptance scenario
-
-The multi-vendor (ownership-transfer) scenario uses all five actor services:
+The FVV scenario (Finder + Vendor + Vendor2, no Coordinator) runs all three
+vendor containers:
 
 ```bash
 # From the docker/ directory:
-DEMO=multi-vendor docker compose -f docker-compose-multi-actor.yml \
+DEMO=fvv docker compose -f docker-compose-multi-actor.yml \
     up --abort-on-container-exit demo-runner
 ```
 
-### Automated multi-actor integration tests (D5-5)
+### Run the FVCV-extension or FVCV-handoff scenario
+
+The FVCV scenarios use all five actor services (Finder, Vendor, Coordinator,
+Vendor2, CaseActor):
+
+```bash
+# From the docker/ directory:
+DEMO=fvcv-extension docker compose -f docker-compose-multi-actor.yml \
+    up --abort-on-container-exit demo-runner
+
+DEMO=fvcv-handoff docker compose -f docker-compose-multi-actor.yml \
+    up --abort-on-container-exit demo-runner
+```
+
+### Automated multi-actor integration tests
 
 Each scenario can also be run via the integration test script, which builds
 the images, runs the full stack, verifies the exit code, and removes all
@@ -163,17 +164,19 @@ volumes on exit for a clean baseline:
 
 ```bash
 # From the repository root:
-./integration_tests/demo/run_multi_actor_integration_test.sh two-actor
-./integration_tests/demo/run_multi_actor_integration_test.sh three-actor
-./integration_tests/demo/run_multi_actor_integration_test.sh multi-vendor
+./integration_tests/demo/run_multi_actor_integration_test.sh fv
+./integration_tests/demo/run_multi_actor_integration_test.sh fvv
+./integration_tests/demo/run_multi_actor_integration_test.sh fvcv-extension
+./integration_tests/demo/run_multi_actor_integration_test.sh fvcv-handoff
 ```
 
 Or via the Makefile targets:
 
 ```bash
-make integration-test-multi-actor    # two-actor
-make integration-test-three-actor    # three-actor
-make integration-test-multi-vendor   # multi-vendor
+make integration-test-multi-actor    # fv
+make integration-test-fvv            # fvv
+make integration-test-fvcv-extension # fvcv-extension
+make integration-test-fvcv-handoff   # fvcv-handoff
 ```
 
 See `integration_tests/README.md` for full usage notes and isolation tips.
@@ -214,7 +217,7 @@ docker compose -f docker-compose-multi-actor.yml run --rm \
     vultron-demo seed
 ```
 
-The D5-2 and D5-3 demos reset state and handle peer registration
+The current demo scenarios reset state and handle peer registration
 automatically. Manual seeding remains useful for debugging or for future
 scenarios that do not use the `demo-runner` workflow.
 

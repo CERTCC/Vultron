@@ -28,9 +28,11 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 from vultron.core.models.events import MessageSemantics
 from vultron.core.use_cases.received.report import (
@@ -52,7 +54,7 @@ def reporter():
 
 @pytest.fixture
 def report(reporter):
-    return VulnerabilityReport(
+    return as_VulnerabilityReport(
         name="Test Vulnerability Report",
         summary="This is a test vulnerability report.",
         attributed_to=reporter,
@@ -66,7 +68,7 @@ def coordinator():
 
 @pytest.fixture
 def case(report):
-    return VulnerabilityCase(
+    return as_VulnerabilityCase(
         name="Test Vulnerability Case",
         vulnerability_reports=[report],
     )

@@ -22,7 +22,7 @@ from typing import cast
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
 )
@@ -32,6 +32,10 @@ from vultron.core.behaviors.sync.reject_tree import (
 from vultron.core.models.events.sync import (
     AnnounceLogEntryReceivedEvent,
     RejectLogEntryReceivedEvent,
+)
+from vultron.core.models.ledger_gap_buffer import (
+    LedgerGapBuffer,
+    get_ledger_gap_buffer,
 )
 from vultron.core.models.pending_assertion import (
     PendingAssertionStore,
@@ -43,7 +47,8 @@ from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
-from vultron.core.sync_helpers import _reconstruct_tail_hash  # noqa: F401
+from vultron.core.sync_helpers import _reconstruct_tail_hash
+from vultron.errors import VultronValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +119,15 @@ class AnnounceLedgerEntryReceivedUseCase:
     future emits for the same ``(case_id, event_type, log_object_id)``
     triple are no longer suppressed (SYNC-11-003).
 
-    Spec: SYNC-02-003, SYNC-03-001 through SYNC-03-003, SYNC-11-003.
+    Out-of-order delivery is tolerated: a received entry whose predecessor has
+    not yet arrived is held in an actor-local
+    :class:`~vultron.core.models.ledger_gap_buffer.LedgerGapBuffer` rather than
+    dropped, and buffered successors are drained in hash-chain order as soon as
+    the entry that closes the gap is committed.  This makes convergence
+    independent of ``Announce`` delivery order (issue #1556, SYNC-10-004).
+
+    Spec: SYNC-02-003, SYNC-03-001 through SYNC-03-003, SYNC-10-004,
+    SYNC-11-003, SYNC-12-001.
     """
 
     def __init__(
@@ -123,11 +136,13 @@ class AnnounceLedgerEntryReceivedUseCase:
         request: AnnounceLogEntryReceivedEvent,
         sync_port: SyncActivityPort | None = None,
         pending_assertions: PendingAssertionStore | None = None,
+        gap_buffer: LedgerGapBuffer | None = None,
     ) -> None:
         self._dl = dl
         self._request = request
         self._sync_port = sync_port
         self._pending_assertions = pending_assertions
+        self._gap_buffer = gap_buffer
 
     def execute(self) -> None:
         request = self._request
@@ -140,6 +155,11 @@ class AnnounceLedgerEntryReceivedUseCase:
             )
             return
 
+        receiving_actor_id = request.receiving_actor_id or "unknown"
+        gap_buffer = self._gap_buffer
+        if gap_buffer is None and request.receiving_actor_id:
+            gap_buffer = get_ledger_gap_buffer(request.receiving_actor_id)
+
         logger.info(
             "sync: received log-entry announcement '%s' for case '%s' "
             "from actor '%s' (log_index=%d)",
@@ -148,12 +168,17 @@ class AnnounceLedgerEntryReceivedUseCase:
             request.actor_id,
             entry.log_index,
         )
-        result = BTBridge(datalayer=self._dl).execute_with_setup(
-            tree=create_announce_log_entry_tree(),
-            actor_id=request.receiving_actor_id or "unknown",
-            activity=request,
-            sync_port=self._sync_port,
-        )
+        result = self._run_announce_bt(request, receiving_actor_id, gap_buffer)
+
+        # Whenever an entry is committed, its successor may already be waiting
+        # in the gap buffer; drain the contiguous run keyed on the new tail
+        # (SYNC-10-004).  Draining also runs after a mismatch, in case an
+        # earlier-arrived predecessor is somehow already present.
+        if gap_buffer is not None:
+            self._drain_buffered_successors(
+                entry.case_id, receiving_actor_id, gap_buffer
+            )
+
         if result.status == Status.FAILURE:
             logger.debug(
                 "sync: announce BT returned FAILURE for '%s': %s",
@@ -164,16 +189,81 @@ class AnnounceLedgerEntryReceivedUseCase:
         # Clear pending assertion for this entry regardless of BT outcome
         # (SYNC-11-003): both "recorded" and "rejected" dispositions confirm
         # the assertion has been processed by the log authority.
-        receiving_actor_id = request.receiving_actor_id or ""
         store = self._pending_assertions
-        if store is None and receiving_actor_id:
-            store = get_pending_assertion_store(receiving_actor_id)
+        if store is None and request.receiving_actor_id:
+            store = get_pending_assertion_store(request.receiving_actor_id)
         if store is not None:
             store.clear(
                 entry.case_id,
                 entry.event_type,
                 entry.log_object_id,
             )
+
+    def _run_announce_bt(
+        self,
+        request: AnnounceLogEntryReceivedEvent,
+        receiving_actor_id: str,
+        gap_buffer: LedgerGapBuffer | None,
+    ) -> BTExecutionResult:
+        """Run the announce receive BT for *request* with the gap buffer wired."""
+        return BTBridge(datalayer=self._dl).execute_with_setup(
+            tree=create_announce_log_entry_tree(),
+            actor_id=receiving_actor_id,
+            activity=request,
+            sync_port=self._sync_port,
+            gap_buffer=gap_buffer,
+        )
+
+    def _drain_buffered_successors(
+        self,
+        case_id: str,
+        receiving_actor_id: str,
+        gap_buffer: LedgerGapBuffer,
+    ) -> None:
+        """Apply buffered entries that now extend the local chain, in order.
+
+        After each committed entry, look up the buffered successor keyed by the
+        new tail hash and re-run the announce BT on it — reusing the exact
+        effects-before-persist path (SYNC-12-001).  Cascades until no buffered
+        entry extends the current tail.  A drained entry that fails to apply is
+        re-buffered so a later retry (or CaseActor replay) can pick it up.
+        """
+        while True:
+            try:
+                tail_hash, _ = _reconstruct_tail_hash(case_id, self._dl)
+            except VultronValidationError:
+                # No genesis anchor yet — nothing can be drained.
+                return
+            successor = gap_buffer.take_next(case_id, tail_hash)
+            if successor is None:
+                return
+
+            logger.info(
+                "sync: draining buffered entry '%s' (log_index=%d) for case "
+                "'%s' now that its predecessor has arrived",
+                successor.id_,
+                successor.log_index,
+                case_id,
+            )
+            drain_event = self._request.model_copy(
+                update={"object_": successor}
+            )
+            result = self._run_announce_bt(
+                drain_event, receiving_actor_id, gap_buffer
+            )
+            if (
+                result.status == Status.FAILURE
+                and self._dl.read(successor.id_) is None
+            ):
+                # Application failed and the entry was not persisted; hold it
+                # again so a future arrival or CaseActor replay can retry.
+                gap_buffer.buffer(successor)
+                logger.warning(
+                    "sync: buffered entry '%s' failed to apply on drain — "
+                    "re-buffered pending retry",
+                    successor.id_,
+                )
+                return
 
 
 class RejectLedgerEntryReceivedUseCase:

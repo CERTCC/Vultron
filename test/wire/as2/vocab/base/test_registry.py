@@ -161,7 +161,7 @@ class TestDynamicDiscovery:
             ), f"Expected AS2 type '{type_name}' in vocabulary"
 
     def test_vocab_bug_26040902_regression(self):
-        """VulnerabilityReport and VulnerabilityCase are in the vocab.
+        """as_VulnerabilityReport and VulnerabilityCase are in the vocab.
 
         Regression test for BUG-26040902: empty vocab registry caused
         ReceiveReportCaseBT to silently fail in Docker (where no test
@@ -171,22 +171,22 @@ class TestDynamicDiscovery:
         dynamic module discovery which registers all types automatically.
         """
         # This import triggers dynamic discovery — no explicit VulnerabilityCase
-        # or VulnerabilityReport import is needed.
+        # or as_VulnerabilityReport import is needed.
         import vultron.wire.as2.vocab  # noqa: F401
 
         assert (
             "VulnerabilityReport" in VOCABULARY
-        ), "BUG-26040902: VulnerabilityReport missing from vocabulary"
+        ), "BUG-26040902: as_VulnerabilityReport missing from vocabulary"
         assert (
             "VulnerabilityCase" in VOCABULARY
         ), "BUG-26040902: VulnerabilityCase missing from vocabulary"
         # Verify the classes are actually correct
         from vultron.wire.as2.vocab.objects.vulnerability_report import (
-            VulnerabilityReport,
+            as_VulnerabilityReport,
         )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
-        assert VOCABULARY["VulnerabilityReport"] is VulnerabilityReport
-        assert VOCABULARY["VulnerabilityCase"] is VulnerabilityCase
+        assert VOCABULARY["VulnerabilityReport"] is as_VulnerabilityReport
+        assert VOCABULARY["VulnerabilityCase"] is as_VulnerabilityCase

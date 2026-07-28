@@ -15,14 +15,13 @@
 
 """Domain representation of a case status snapshot."""
 
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import ConfigDict, Field, field_serializer, field_validator
+from pydantic import ConfigDict, Field, model_validator
 from pydantic.alias_generators import to_camel
 
-from vultron.core.states.em import EM
-from vultron.core.states.cs import CS_pxa
 from vultron.core.models.base import CoreObject, NonEmptyString
+from vultron.core.models.dimensions import EmDimension, PxaDimension
 
 
 class CaseStatus(CoreObject):
@@ -35,6 +34,9 @@ class CaseStatus(CoreObject):
     ``context`` (case ID) is required — a status snapshot without a case
     context is not meaningful.  ``attributed_to`` (reporting actor) is
     optional but must be non-empty when present.
+
+    ``em`` and ``pxa`` are dimension objects that own the EM and PXA state
+    machines respectively (ADR-0036, SDO-03-001).
     """
 
     model_config = ConfigDict(alias_generator=to_camel)
@@ -48,29 +50,41 @@ class CaseStatus(CoreObject):
     attributed_to: NonEmptyString | None = (
         None  # pyright: ignore[reportGeneralTypeIssues]
     )
-    em_state: EM = EM.NO_EMBARGO
-    pxa_state: CS_pxa = CS_pxa.pxa
+    em: EmDimension = Field(default_factory=EmDimension)
+    pxa: PxaDimension = Field(default_factory=PxaDimension)
 
-    @field_serializer("em_state")
-    def _serialize_em_state(self, v: EM) -> str:
-        return v.name
-
-    @field_serializer("pxa_state")
-    def _serialize_pxa_state(self, v: CS_pxa) -> str:
-        return v.name
-
-    @field_validator("em_state", mode="before")
+    @model_validator(mode="before")
     @classmethod
-    def _validate_em_state(cls, v: object) -> EM:
-        if isinstance(v, str):
-            if v in EM.__members__:
-                return EM[v]
-            return EM(v)
-        return v  # type: ignore[return-value]
+    def _migrate_flat_fields(cls, data: Any) -> Any:
+        """Accept legacy flat ``em_state``/``pxa_state`` wire-format inputs.
 
-    @field_validator("pxa_state", mode="before")
-    @classmethod
-    def _validate_pxa_state(cls, v: object) -> CS_pxa:
-        if isinstance(v, str):
-            return CS_pxa[v]
-        return v  # type: ignore[return-value]
+        Wire-layer ``as_CaseStatus`` serialises these as flat string fields.
+        When the DataLayer reconstitutes a stored ``VulnerabilityCase``, the
+        nested ``case_statuses`` dicts may still carry these keys.  Map them
+        to the dimension-object keys so ``model_validate`` succeeds.
+        Handles both snake_case and camelCase alias forms.
+        """
+        if not isinstance(data, dict):
+            return data
+        _SENTINEL = object()
+        em_raw = data.get("em_state", _SENTINEL)
+        if em_raw is _SENTINEL:
+            em_raw = data.get("emState", _SENTINEL)
+        if em_raw is not _SENTINEL and em_raw is not None and "em" not in data:
+            data = dict(data)
+            data.pop("em_state", None)
+            data.pop("emState", None)
+            data["em"] = {"state": em_raw}
+        pxa_raw = data.get("pxa_state", _SENTINEL)
+        if pxa_raw is _SENTINEL:
+            pxa_raw = data.get("pxaState", _SENTINEL)
+        if (
+            pxa_raw is not _SENTINEL
+            and pxa_raw is not None
+            and "pxa" not in data
+        ):
+            data = dict(data)
+            data.pop("pxa_state", None)
+            data.pop("pxaState", None)
+            data["pxa"] = {"state": pxa_raw}
+        return data

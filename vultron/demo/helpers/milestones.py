@@ -24,7 +24,7 @@ Specs: DEMOMA-06-002, DEMOMA-06-003.
 import logging
 
 from vultron.core.states.cs import CS_vfd
-from vultron.core.states.em import EM
+from vultron.core.states.em import is_em_embargo_active, is_em_exited
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.demo.helpers.sync import _extract_ref_id
@@ -35,8 +35,10 @@ from vultron.demo.helpers.verification import (
     _fetch_participant_data,
 )
 from vultron.demo.utils import DataLayerClient
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +61,7 @@ def verify_case_active(
     Args:
         receiver_client: Client connected to the receiver container.
         reporter_client: Client connected to the reporter container.
-        case_id: Full URI of the ``VulnerabilityCase``.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
         receiver_actor_id: Full URI of the receiver actor.
         reporter_actor_id: Full URI of the reporter actor.
 
@@ -71,7 +73,7 @@ def verify_case_active(
     assert (
         case_data
     ), f"verify_case_active: receiver case {case_id!r} not found"
-    case = VulnerabilityCase.model_validate(case_data)
+    case = as_VulnerabilityCase.model_validate(case_data)
 
     required = {receiver_actor_id, reporter_actor_id}
     missing = required - set(case.actor_participant_index.keys())
@@ -86,14 +88,10 @@ def verify_case_active(
             "verify_case_active: expected a Case Actor participant in addition"
             " to receiver and reporter"
         )
-    if case.current_status.em_state != EM.ACTIVE:
+    if not is_em_embargo_active(case.current_status.em_state):
         raise AssertionError(
             f"verify_case_active receiver: expected EM.ACTIVE, found"
             f" {case.current_status.em_state}"
-        )
-    if case.active_embargo is None:
-        raise AssertionError(
-            "verify_case_active receiver: case has no active_embargo"
         )
     logger.info(
         "✓ case active (receiver): required participants (receiver,"
@@ -107,7 +105,7 @@ def verify_case_active(
             f"verify_case_active: reporter does not have case replica for"
             f" {case_id!r} — outbox delivery may not have completed"
         )
-    reporter_case = VulnerabilityCase.model_validate(reporter_case_data)
+    reporter_case = as_VulnerabilityCase.model_validate(reporter_case_data)
 
     receiver_embargo_id = _extract_ref_id(case.active_embargo)
     reporter_embargo_id = _extract_ref_id(reporter_case.active_embargo)
@@ -125,6 +123,39 @@ def verify_case_active(
     )
 
 
+def _assert_vendor_role(
+    client: DataLayerClient,
+    case_id: str,
+    actor_id: str,
+    label: str,
+) -> None:
+    """Assert that *actor_id* holds ``CVDRole.VENDOR`` in the case.
+
+    Spec: DEMOMA-15-001.
+
+    Args:
+        client: DataLayerClient for the target container.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        actor_id: Full URI of the actor to check.
+        label: Human-readable label for the ``AssertionError`` message.
+
+    Raises:
+        AssertionError: If the participant is not found or does not hold
+            ``CVDRole.VENDOR``.
+    """
+    participant = _fetch_participant(client, case_id, actor_id)
+    if participant is None:
+        raise AssertionError(
+            f"{label}: actor {actor_id!r} not found as a participant in case"
+            f" {case_id!r}"
+        )
+    if CVDRole.VENDOR not in participant.case_roles:
+        raise AssertionError(
+            f"{label}: actor {actor_id!r} does not hold CVDRole.VENDOR;"
+            f" actual roles: {participant.case_roles!r}"
+        )
+
+
 def verify_fix_ready(
     receiver_client: DataLayerClient,
     reporter_client: DataLayerClient,
@@ -133,18 +164,28 @@ def verify_fix_ready(
 ) -> None:
     """Verify that both replicas show CS includes F (fix ready).
 
-    Spec: DEMOMA-06-002.
+    The ``receiver_actor_id`` MUST be the full URI of an actor holding
+    ``CVDRole.VENDOR`` in the case.  Passing any other actor (e.g. a
+    Coordinator) is a caller error and will raise ``AssertionError`` before
+    the state check runs.
+
+    Specs: DEMOMA-06-002, DEMOMA-15-001.
 
     Args:
         receiver_client: Client connected to the receiver container.
         reporter_client: Client connected to the reporter container.
-        case_id: Full URI of the ``VulnerabilityCase``.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
         receiver_actor_id: Full URI of the receiver actor whose
             participant vfd_state to check.
 
     Raises:
-        AssertionError: If either replica does not reflect fix-ready state.
+        AssertionError: If ``receiver_actor_id`` does not hold
+            ``CVDRole.VENDOR``, or if either replica does not reflect
+            fix-ready state.
     """
+    _assert_vendor_role(
+        receiver_client, case_id, receiver_actor_id, "verify_fix_ready"
+    )
     fix_ready_states = {CS_vfd.VFd, CS_vfd.VFD}
     _check_participant_vfd_state_in(
         receiver_client,
@@ -171,18 +212,28 @@ def verify_fix_deployed(
 ) -> None:
     """Verify that both replicas show CS includes D (fix deployed).
 
-    Spec: DEMOMA-06-002.
+    The ``receiver_actor_id`` MUST be the full URI of an actor holding
+    ``CVDRole.VENDOR`` in the case.  Passing any other actor (e.g. a
+    Coordinator) is a caller error and will raise ``AssertionError`` before
+    the state check runs.
+
+    Specs: DEMOMA-06-002, DEMOMA-15-001.
 
     Args:
         receiver_client: Client connected to the receiver container.
         reporter_client: Client connected to the reporter container.
-        case_id: Full URI of the ``VulnerabilityCase``.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
         receiver_actor_id: Full URI of the receiver actor whose
             participant vfd_state to check.
 
     Raises:
-        AssertionError: If either replica does not reflect fix-deployed state.
+        AssertionError: If ``receiver_actor_id`` does not hold
+            ``CVDRole.VENDOR``, or if either replica does not reflect
+            fix-deployed state.
     """
+    _assert_vendor_role(
+        receiver_client, case_id, receiver_actor_id, "verify_fix_deployed"
+    )
     deployed_state = {CS_vfd.VFD}
     _check_participant_vfd_state_in(
         receiver_client,
@@ -221,7 +272,7 @@ def verify_publicly_disclosed(
     Args:
         receiver_client: Client connected to the receiver container.
         reporter_client: Client connected to the reporter container.
-        case_id: Full URI of the ``VulnerabilityCase``.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
         receiver_actor_id: Full URI of the receiver actor.
 
     Raises:
@@ -235,8 +286,8 @@ def verify_publicly_disclosed(
         assert (
             case_data
         ), f"verify_publicly_disclosed {label}: case {case_id!r} not found"
-        case = VulnerabilityCase.model_validate(case_data)
-        if case.current_status.em_state != EM.EXITED:
+        case = as_VulnerabilityCase.model_validate(case_data)
+        if not is_em_exited(case.current_status.em_state):
             raise AssertionError(
                 f"verify_publicly_disclosed {label}: expected EM.EXITED,"
                 f" found {case.current_status.em_state}"
@@ -275,7 +326,7 @@ def verify_case_closed(
     Args:
         receiver_client: Client connected to the receiver container.
         reporter_client: Client connected to the reporter container.
-        case_id: Full URI of the ``VulnerabilityCase``.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
 
     Raises:
         AssertionError: If any non-receiver participant is not RM.CLOSED
@@ -289,12 +340,12 @@ def verify_case_closed(
         assert (
             case_data
         ), f"verify_case_closed {label}: case {case_id!r} not found"
-        case = VulnerabilityCase.model_validate(case_data)
+        case = as_VulnerabilityCase.model_validate(case_data)
         for a_id, p_id in case.actor_participant_index.items():
             p_data = _fetch_participant_data(client, p_id)
             if p_data is None:
                 continue  # remote container — not fetchable here
-            p = CaseParticipant(**p_data)
+            p = as_CaseParticipant(**p_data)
             # Case Manager is a coordinator; skip RM closure check.
             if CVDRole.CASE_MANAGER in (p.case_roles or []):
                 continue

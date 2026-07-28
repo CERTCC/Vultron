@@ -43,7 +43,7 @@ COMPOSE_FILE = (
     / "docker-compose-multi-actor.yml"
 )
 
-ACTOR_SERVICES = ("finder", "vendor", "coordinator", "case-actor", "vendor2")
+ACTOR_SERVICES = ("finder", "vendor", "coordinator", "case-actor", "actor5")
 
 #: Legacy env var names that must not appear in actor-service environments.
 LEGACY_ENV_VARS = ("VULTRON_BASE_URL", "VULTRON_DB_URL")

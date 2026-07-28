@@ -184,10 +184,13 @@ class CS_pxa(Enum):
     - `Pxa` indicates the public is aware, no exploit has been published, and no attacks have been observed.
     - `pxA` indicates the public is unaware, no exploit has been published, and attacks have been observed.
     - `PxA` indicates the public is aware, no exploit has been published, and attacks have been observed.
-    - `Pxa` indicates the public is aware, an exploit has been published, and no attacks have been observed.
+    - `pXa` indicates the public is unaware, an exploit has been published, and no attacks have been observed.
+    - `pXA` indicates the public is unaware, an exploit has been published, and attacks have been observed.
+    - `PXa` indicates the public is aware, an exploit has been published, and no attacks have been observed.
     - `PXA` indicates the public is aware, an exploit has been published, and attacks have been observed.
 
-    Note that pXa and pXA are not valid states because once an exploit is published, the public is aware.
+    Note that pXa and pXA are ephemeral states: the pX→PX invariant means that once an exploit is
+    published the public immediately becomes aware, so these states resolve to PXa/PXA in practice.
     """
 
     # pxa
@@ -401,6 +404,124 @@ def state_string_to_enum2(
 
 
 all_states = list(CS)
+
+# --- vfd milestone groups and predicates (LST-04-001) ---
+
+# Vendor is aware of the vulnerability (V bit set).
+VFD_VENDOR_AWARE = (CS_vfd.Vfd, CS_vfd.VFd, CS_vfd.VFD)
+
+# Fix has been developed and is ready (F bit set); implies vendor awareness.
+VFD_FIX_READY = (CS_vfd.VFd, CS_vfd.VFD)
+
+# Fix has been deployed (D bit set); implies fix readiness and vendor awareness.
+VFD_FIX_DEPLOYED = (CS_vfd.VFD,)
+
+
+def is_vfd_vendor_aware(state: CS_vfd) -> bool:
+    """Return True if the vendor is aware of the vulnerability (V bit set).
+
+    Examples::
+
+        is_vfd_vendor_aware(CS_vfd.Vfd)  # True
+        is_vfd_vendor_aware(CS_vfd.VFd)  # True
+        is_vfd_vendor_aware(CS_vfd.VFD)  # True
+        is_vfd_vendor_aware(CS_vfd.vfd)  # False
+    """
+    return state in VFD_VENDOR_AWARE
+
+
+def is_vfd_fix_ready(state: CS_vfd) -> bool:
+    """Return True if the fix is ready (F bit set; implies vendor awareness).
+
+    Examples::
+
+        is_vfd_fix_ready(CS_vfd.VFd)  # True
+        is_vfd_fix_ready(CS_vfd.VFD)  # True
+        is_vfd_fix_ready(CS_vfd.Vfd)  # False
+        is_vfd_fix_ready(CS_vfd.vfd)  # False
+    """
+    return state in VFD_FIX_READY
+
+
+def is_vfd_fix_deployed(state: CS_vfd) -> bool:
+    """Return True if the fix is deployed (D bit set).
+
+    Examples::
+
+        is_vfd_fix_deployed(CS_vfd.VFD)  # True
+        is_vfd_fix_deployed(CS_vfd.VFd)  # False
+        is_vfd_fix_deployed(CS_vfd.vfd)  # False
+    """
+    return state in VFD_FIX_DEPLOYED
+
+
+# --- pxa milestone groups and predicates (LST-04-001) ---
+
+# Public is aware of the vulnerability (P bit set).
+PXA_PUBLIC_AWARE = (
+    CS_pxa.Pxa,
+    CS_pxa.PxA,
+    CS_pxa.PXa,
+    CS_pxa.PXA,
+)
+
+# Exploit code is publicly available (X bit set).
+# Includes ephemeral pXa/pXA states (X set, P not yet set); those resolve to
+# PXa/PXA immediately via the pX→PX invariant but are valid enum values.
+PXA_EXPLOIT_PUBLIC = (
+    CS_pxa.pXa,
+    CS_pxa.pXA,
+    CS_pxa.PXa,
+    CS_pxa.PXA,
+)
+
+# Attacks have been observed in the wild (A bit set).
+PXA_ATTACKS_OBSERVED = (
+    CS_pxa.pxA,
+    CS_pxa.PxA,
+    CS_pxa.pXA,
+    CS_pxa.PXA,
+)
+
+
+def is_pxa_public_aware(state: CS_pxa) -> bool:
+    """Return True if the public is aware of the vulnerability (P bit set).
+
+    Examples::
+
+        is_pxa_public_aware(CS_pxa.Pxa)  # True
+        is_pxa_public_aware(CS_pxa.PXA)  # True
+        is_pxa_public_aware(CS_pxa.pxa)  # False
+    """
+    return state in PXA_PUBLIC_AWARE
+
+
+def is_pxa_exploit_public(state: CS_pxa) -> bool:
+    """Return True if exploit code is publicly available (X bit set).
+
+    Note: pX is transient — the pX→PX invariant means an exploit being public
+    without public awareness is ephemeral; in practice P will also be set.
+    This predicate reflects the X bit only.
+
+    Examples::
+
+        is_pxa_exploit_public(CS_pxa.pXa)  # True
+        is_pxa_exploit_public(CS_pxa.PXA)  # True
+        is_pxa_exploit_public(CS_pxa.Pxa)  # False
+    """
+    return state in PXA_EXPLOIT_PUBLIC
+
+
+def is_pxa_attacks_observed(state: CS_pxa) -> bool:
+    """Return True if attacks have been observed in the wild (A bit set).
+
+    Examples::
+
+        is_pxa_attacks_observed(CS_pxa.pxA)  # True
+        is_pxa_attacks_observed(CS_pxa.PXA)  # True
+        is_pxa_attacks_observed(CS_pxa.pxa)  # False
+    """
+    return state in PXA_ATTACKS_OBSERVED
 
 
 class VFD_Trigger(StrEnum):

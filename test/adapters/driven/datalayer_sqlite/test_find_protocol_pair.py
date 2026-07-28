@@ -28,7 +28,9 @@ from vultron.core.models.protocol_pair import (
     OFFER_CASE_PARTICIPANT_REPLY_TYPES,
     ProtocolPair,
 )
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 # ---------------------------------------------------------------------------
 # Shared constants
@@ -88,7 +90,7 @@ def reset_counter():
 @pytest.fixture
 def dl():
     layer = SqliteDataLayer("sqlite:///:memory:")
-    case = VulnerabilityCase(id_=CASE_ID, name="CLP11Test")
+    case = as_VulnerabilityCase(id_=CASE_ID, name="CLP11Test")
     layer.create(case)
     return layer
 

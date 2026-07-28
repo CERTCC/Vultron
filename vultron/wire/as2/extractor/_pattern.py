@@ -11,6 +11,7 @@ from typing import Optional, Union
 from pydantic import BaseModel
 
 from vultron.core.models.actor import CoreActor
+from vultron.core.models.embargo_event import EmbargoEvent as CoreEmbargoEvent
 from vultron.core.models.enums import VultronObjectType as VOtype
 from vultron.wire.as2.enums import (
     as_IntransitiveActivityType as IAtype,
@@ -98,6 +99,8 @@ def _match_activity_field(
         activity_field, (as_Actor, CoreActor)
     ):
         return True
-    if pattern_field == AOtype.EVENT and isinstance(activity_field, as_Event):
+    if pattern_field == AOtype.EVENT and isinstance(
+        activity_field, (as_Event, CoreEmbargoEvent)
+    ):
         return True
     return bool(pattern_field == getattr(activity_field, "type_", None))

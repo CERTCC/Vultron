@@ -267,8 +267,8 @@ docker compose -f docker/docker-compose-multi-actor.yml down -v
 
 ## Next steps
 
-- **Run the two-actor demo first** — see
-  [Tutorial: Run the Two-Actor Demo](../../tutorials/two-actor-demo.md) for
+- **Run the FV demo first** — see
+  [Tutorial: Run the FV Demo](../../tutorials/fv-demo.md) for
   a simpler scenario that introduces the core patterns.
 - **Read the scenario source** — the FVV demo script is at
   `vultron/demo/scenario/fvv_demo.py`; shared helpers are in

@@ -18,7 +18,7 @@ from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.activities.case_participant import (
     _CreateParticipantActivity,
 )
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 
 
 class MyTestCase(unittest.TestCase):
@@ -33,14 +33,14 @@ class MyTestCase(unittest.TestCase):
 
 
 class TestCreateParticipantName(unittest.TestCase):
-    """_CreateParticipantActivity activity name should clearly identify CaseParticipant creation."""
+    """_CreateParticipantActivity activity name should clearly identify as_CaseParticipant creation."""
 
     def setUp(self):
         self.actor_id = "https://vultron.example/organizations/vendorco"
         self.case_id = "https://vultron.example/cases/1"
         self.attributed_to = "https://vultron.example/users/finndervul"
 
-        self.participant = CaseParticipant(
+        self.participant = as_CaseParticipant(
             attributed_to=self.attributed_to,
             context=self.case_id,
             case_roles=[CVDRole.VENDOR],
@@ -52,7 +52,7 @@ class TestCreateParticipantName(unittest.TestCase):
         )
 
     def test_name_contains_case_participant_type(self):
-        """Name must include 'CaseParticipant' to distinguish from creating an actor."""
+        """Name must include 'as_CaseParticipant' to distinguish from creating an actor."""
         assert self.activity.name is not None
         assert "CaseParticipant" in self.activity.name
 

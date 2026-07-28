@@ -28,6 +28,7 @@ Submodules:
 - ``embargo``: Default embargo initialization action nodes
 - ``communication``: Outbound activity emission action nodes
 - ``lifecycle``: Case log entry commit action node
+- ``suggest_actor``: Suggest-actor workflow emit and duplicate-detection nodes
 
 Composite subtrees (``Sequence``/``Selector`` subclasses) are defined in
 sibling ``*_tree.py`` modules at the process-area root per BTND-07-003.
@@ -87,11 +88,28 @@ from vultron.core.behaviors.case.nodes.lifecycle import (
     create_guarded_commit_case_ledger_entry_tree,
     create_receive_activity_tree,
 )
+from vultron.core.behaviors.case.nodes.prologue import (
+    WritePrologueLedgerEntriesNode,
+)
 from vultron.core.behaviors.case.nodes.participant import (
     CreateParticipantStatusNode,
     RecordOwnerJoinedEventNode,
     _create_and_attach_participant,
     resolve_participant_state_from_dl,
+)
+from vultron.core.behaviors.case.nodes.suggest_actor import (
+    ActorAlreadyParticipantNode,
+    EmitAcceptActorRecommendationNode,
+    EmitAcceptCaseParticipantOfferNode,
+    EmitNoteDuplicateRecommendationToOwnerNode,
+    EmitOfferCaseParticipantToOwnerNode,
+    EmitRejectActorRecommendationNode,
+    InviteInFlightNode,
+    PendingOfferCaseParticipantNode,
+)
+from vultron.core.behaviors.case.nodes.ownership_transfer import (
+    EmitAcceptCaseOwnershipTransferNode,
+    EmitOfferCaseOwnershipTransferNode,
 )
 from vultron.core.behaviors.case.nodes.update import (
     ApplyCaseUpdateNode,
@@ -150,11 +168,25 @@ __all__ = [
     "CommitCaseLedgerEntryNode",
     "create_guarded_commit_case_ledger_entry_tree",
     "create_receive_activity_tree",
+    # prologue
+    "WritePrologueLedgerEntriesNode",
     # update
     "CheckCaseUpdateOwnerNode",
     "CaptureCaseUpdateBroadcastExclusionsNode",
     "ApplyCaseUpdateNode",
     "BroadcastCaseUpdateNode",
+    # ownership_transfer (leaf nodes)
+    "EmitOfferCaseOwnershipTransferNode",
+    "EmitAcceptCaseOwnershipTransferNode",
+    # suggest_actor (leaf nodes)
+    "ActorAlreadyParticipantNode",
+    "EmitAcceptActorRecommendationNode",
+    "EmitAcceptCaseParticipantOfferNode",
+    "EmitNoteDuplicateRecommendationToOwnerNode",
+    "EmitOfferCaseParticipantToOwnerNode",
+    "EmitRejectActorRecommendationNode",
+    "InviteInFlightNode",
+    "PendingOfferCaseParticipantNode",
     # re-exported from helpers (backward compat)
     "UpdateActorOutbox",
 ]

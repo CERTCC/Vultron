@@ -46,7 +46,8 @@ from vultron.core.models.actor import (
     CoreActor,
     VultronOrganization,
 )
-from vultron.core.models.protocols import PersistableModel, is_case_model
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.use_cases.query.action_rules import (
     ActionRulesRequest,
@@ -252,9 +253,9 @@ def get_action_rules(
     try:
         actor_obj = dl.read(actor_id) or dl.find_actor_by_short_id(actor_id)
         case_obj = dl.read(case_id)
-        if case_obj is None or not is_case_model(case_obj):
+        if case_obj is None or not isinstance(case_obj, VulnerabilityCase):
             case_obj = dl.find_case_by_short_id(case_id)
-        if case_obj is None or not is_case_model(case_obj):
+        if case_obj is None or not isinstance(case_obj, VulnerabilityCase):
             raise VultronNotFoundError("VulnerabilityCase", case_id)
         canonical_actor_id = actor_id
         if actor_obj is not None and hasattr(actor_obj, "id_"):

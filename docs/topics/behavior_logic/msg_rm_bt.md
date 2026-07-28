@@ -1,5 +1,25 @@
 # Process RM Messages Behavior
 
+## Requirements
+
+The behavioral requirements for this tree are specified in the
+[Protocol Specifications](../../reference/specs/protocol.md):
+
+- [RMB-01](../../reference/specs/protocol.md#rmb-01) — Receive RS (Report Submission)
+- [RMB-02](../../reference/specs/protocol.md#rmb-02) — Receive RI (Report Invalid)
+- [RMB-03](../../reference/specs/protocol.md#rmb-03) — Receive RV (Report Valid)
+- [RMB-04](../../reference/specs/protocol.md#rmb-04) — Receive RD (Report Deferred)
+- [RMB-05](../../reference/specs/protocol.md#rmb-05) — Receive RA (Report Accepted)
+- [RMB-06](../../reference/specs/protocol.md#rmb-06) — Receive RC (Report Closed)
+- [RMB-07](../../reference/specs/protocol.md#rmb-07) — Receive RE (Report Error)
+- [RMB-08](../../reference/specs/protocol.md#rmb-08) — Receive RK (Report Acknowledgment)
+
+!!! note "Implementation approach"
+
+    The behavior tree diagram below illustrates one conformant implementation of these requirements.
+    Implementations are not required to use behavior trees — any approach that satisfies the
+    requirements above is conformant.
+
 The Process RM Messages Behavior Tree is shown below.
 
 ```mermaid

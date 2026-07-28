@@ -75,6 +75,7 @@ from vultron.demo.fuzzer.report_management.monitor_threats import (
 from vultron.demo.fuzzer.report_management.acquire_exploit import (
     DevelopExploit,
     EvaluateExploitPriority,
+    EvaluateExploitStrategy,
     ExploitDeferred,
     ExploitDesired,
     ExploitPrioritySet,
@@ -158,7 +159,7 @@ __all__ = [
     "MonitorExploits",
     "MonitorPublicReports",
     "NoThreatsFound",
-    # exploit acquisition
+    # exploit acquisition (simulator nodes)
     "HaveExploit",
     "ExploitDeferred",
     "ExploitPrioritySet",
@@ -167,6 +168,8 @@ __all__ = [
     "FindExploit",
     "DevelopExploit",
     "PurchaseExploit",
+    # exploit acquisition (production collapse 1 — ADR-0027)
+    "EvaluateExploitStrategy",
     # report closure
     "OtherCloseCriteriaMet",
     "PreCloseAction",

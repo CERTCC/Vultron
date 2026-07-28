@@ -18,12 +18,12 @@
 AC-4: Verifies that
   - The ``PendingCreateCaseActivity`` marker is written after Accept succeeds
     and before Create fires (AC-2).
-  - The marker is removed when Create(VulnerabilityCase) is delivered
+  - The marker is removed when Create(as_VulnerabilityCase) is delivered
     successfully (AC-3).
-  - The marker remains when Create(VulnerabilityCase) delivery fails (AC-2
+  - The marker remains when Create(as_VulnerabilityCase) delivery fails (AC-2
     partial-failure path).
   - The marker stores at minimum: proposal_id, case_actor_id, vendor_uri,
-    and the pre-constructed Create(VulnerabilityCase) payload (AC-1).
+    and the pre-constructed Create(as_VulnerabilityCase) payload (AC-1).
 """
 
 import logging
@@ -46,7 +46,7 @@ from vultron.semantic_registry import extract_event
 # noqa: F401 — imported for vocabulary registration side-effect
 from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
-    VulnerabilityCase,
+    as_VulnerabilityCase,
 )
 
 
@@ -321,7 +321,7 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
         return event.model_copy(update={"receiving_actor_id": _CASE_ACTOR_URI})
 
     def test_marker_absent_after_full_success(self, make_payload):
-        """AC-3: Marker is removed when Create(VulnerabilityCase) succeeds."""
+        """AC-3: Marker is removed when Create(as_VulnerabilityCase) succeeds."""
         from vultron.core.use_cases.received.case_proposal import (
             CreateCaseProposalReceivedUseCase,
         )
@@ -398,7 +398,7 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
         ``_EmitCreateVulnerabilityCaseNode`` (node 4) must share the same
         activity ``id_``.  If they diverge, the retry runner checks the
         marker's ``id_`` against the outbox and — not finding it — enqueues
-        a second ``Create(VulnerabilityCase)`` as a duplicate.
+        a second ``Create(as_VulnerabilityCase)`` as a duplicate.
 
         This test asserts ID consistency by:
         1. Running the full BT with ``_ClearCreateCaseMarkerNode`` no-oped so
@@ -441,5 +441,5 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
         assert marker_activity_id in outbox, (
             "Activity id_ in the marker's payload must match the id_ in the"
             " outbox. A mismatch causes the retry runner to enqueue a"
-            " duplicate Create(VulnerabilityCase) after crash/restart."
+            " duplicate Create(as_VulnerabilityCase) after crash/restart."
         )

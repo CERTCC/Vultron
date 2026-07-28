@@ -4,7 +4,7 @@ import logging
 
 from vultron.core.behaviors.case.update_support import broadcast_case_update
 from vultron.core.models.events.case import UpdateCaseReceivedEvent
-from vultron.core.models.protocols import CaseModel
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 
 logger = logging.getLogger(__name__)
@@ -54,7 +54,7 @@ class UpdateCaseReceivedUseCase:
     def _broadcast_case_update(
         self,
         case_id: str,
-        case: CaseModel,
+        case: VulnerabilityCase,
         excluded_actor_ids: set[str] | None = None,
     ) -> None:
         """Broadcast an Announce activity for the updated case to participants.

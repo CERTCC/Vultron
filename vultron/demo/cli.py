@@ -44,17 +44,20 @@ import vultron.demo.exchange.manage_participants_demo as manage_participants_dem
 import vultron.demo.exchange.receive_report_demo as receive_report_demo
 import vultron.demo.exchange.status_updates_demo as status_updates_demo
 import vultron.demo.exchange.suggest_actor_demo as suggest_actor_demo
+import vultron.demo.scenario.fccv_extension_demo as fccv_extension_demo
+import vultron.demo.scenario.fccv_handoff_demo as fccv_handoff_demo
+import vultron.demo.scenario.fcv_demo as fcv_demo
+import vultron.demo.scenario.fvcv_extension_demo as fvcv_extension_demo
+import vultron.demo.scenario.fvcv_handoff_demo as fvcv_handoff_demo
 import vultron.demo.scenario.fvv_demo as fvv_demo
-import vultron.demo.scenario.multi_vendor_demo as multi_vendor_demo
-import vultron.demo.scenario.three_actor_demo as three_actor_demo
 import vultron.demo.exchange.transfer_ownership_demo as transfer_ownership_demo
 import vultron.demo.exchange.trigger_demo as trigger_demo
-import vultron.demo.scenario.two_actor_demo as two_actor_demo
+import vultron.demo.scenario.fv_demo as fv_demo
 from vultron.demo.seed_config import SeedConfig
 from vultron.demo.utils import DataLayerClient, BASE_URL, seed_actor
 import vultron.bt.base.demo.pacman as pacman_demo
 import vultron.bt.base.demo.robot as robot_demo
-import vultron.demo.vultrabot as cvd_vultrabot_demo
+import vultron.bt.base.demo.cvd as cvd_vultrabot_demo
 
 # Ordered list of (sub-command name, demo module) pairs.
 # Order defines execution sequence for the `all` sub-command (DC-01-003).
@@ -262,15 +265,15 @@ def seed(
 
 
 # ---------------------------------------------------------------------------
-# Two-actor sub-command — multi-container Finder + Vendor demo (D5-1-G5)
+# FV sub-command — multi-container Finder + Vendor demo (D5-1-G5)
 # ---------------------------------------------------------------------------
 
 
-@main.command(name="two-actor")
+@main.command(name="fv")
 @click.option(
     "--finder-url",
     envvar="VULTRON_FINDER_BASE_URL",
-    default=two_actor_demo.FINDER_BASE_URL,
+    default=fv_demo.FINDER_BASE_URL,
     show_default=True,
     help="Base URL of the Finder container API "
     "(env: VULTRON_FINDER_BASE_URL).",
@@ -278,7 +281,7 @@ def seed(
 @click.option(
     "--vendor-url",
     envvar="VULTRON_VENDOR_BASE_URL",
-    default=two_actor_demo.VENDOR_BASE_URL,
+    default=fv_demo.VENDOR_BASE_URL,
     show_default=True,
     help="Base URL of the Vendor container API "
     "(env: VULTRON_VENDOR_BASE_URL).",
@@ -296,7 +299,7 @@ def seed(
 @click.option(
     "--case-actor-url",
     envvar="VULTRON_CASE_ACTOR_BASE_URL",
-    default=two_actor_demo.CASE_ACTOR_BASE_URL,
+    default=fv_demo.CASE_ACTOR_BASE_URL,
     show_default=True,
     help="Base URL of the CaseActor container API "
     "(env: VULTRON_CASE_ACTOR_BASE_URL).",
@@ -307,7 +310,7 @@ def seed(
     default=False,
     help="Skip container availability checks.",
 )
-def two_actor(
+def fv(
     finder_url: str,
     vendor_url: str,
     finder_id: str | None,
@@ -315,7 +318,7 @@ def two_actor(
     case_actor_url: str,
     skip_health_check: bool,
 ) -> None:
-    """Run the two-actor (Finder + Vendor) multi-container CVD demo (D5-1-G5).
+    """Run the FV (Finder + Vendor) multi-container CVD demo (D5-1-G5).
 
     Orchestrates a complete CVD workflow across two separate API server
     containers.  Requires both containers to be running and reachable at
@@ -335,227 +338,13 @@ def two_actor(
       6. Finder accepts the invitation (Vendor's inbox).
       7. Verify final state on both containers.
     """
-    two_actor_demo.main(
+    fv_demo.main(
         skip_health_check=skip_health_check,
         finder_url=finder_url,
         vendor_url=vendor_url,
         case_actor_url=case_actor_url,
         finder_id=finder_id,
         vendor_id=vendor_id,
-    )
-
-
-# ---------------------------------------------------------------------------
-# Three-actor sub-command — multi-container Finder + Vendor + Coordinator demo
-# ---------------------------------------------------------------------------
-
-
-@main.command(name="three-actor")
-@click.option(
-    "--finder-url",
-    envvar="VULTRON_FINDER_BASE_URL",
-    default=three_actor_demo.FINDER_BASE_URL,
-    show_default=True,
-    help="Base URL of the Finder container API "
-    "(env: VULTRON_FINDER_BASE_URL).",
-)
-@click.option(
-    "--vendor-url",
-    envvar="VULTRON_VENDOR_BASE_URL",
-    default=three_actor_demo.VENDOR_BASE_URL,
-    show_default=True,
-    help="Base URL of the Vendor container API "
-    "(env: VULTRON_VENDOR_BASE_URL).",
-)
-@click.option(
-    "--coordinator-url",
-    envvar="VULTRON_COORDINATOR_BASE_URL",
-    default=three_actor_demo.COORDINATOR_BASE_URL,
-    show_default=True,
-    help="Base URL of the Coordinator container API "
-    "(env: VULTRON_COORDINATOR_BASE_URL).",
-)
-@click.option(
-    "--case-actor-url",
-    envvar="VULTRON_CASE_ACTOR_BASE_URL",
-    default=three_actor_demo.CASE_ACTOR_BASE_URL,
-    show_default=True,
-    help="Base URL of the CaseActor container API "
-    "(env: VULTRON_CASE_ACTOR_BASE_URL).",
-)
-@click.option(
-    "--finder-id",
-    default=None,
-    help="Deterministic full URI for the Finder actor (optional).",
-)
-@click.option(
-    "--vendor-id",
-    default=None,
-    help="Deterministic full URI for the Vendor actor (optional).",
-)
-@click.option(
-    "--coordinator-id",
-    default=None,
-    help="Deterministic full URI for the Coordinator actor (optional).",
-)
-@click.option(
-    "--case-actor-id",
-    default=None,
-    help="Deterministic full URI for the CaseActor actor (optional).",
-)
-@click.option(
-    "--skip-health-check",
-    is_flag=True,
-    default=False,
-    help="Skip container availability checks.",
-)
-def three_actor(
-    finder_url: str,
-    vendor_url: str,
-    coordinator_url: str,
-    case_actor_url: str,
-    finder_id: str | None,
-    vendor_id: str | None,
-    coordinator_id: str | None,
-    case_actor_id: str | None,
-    skip_health_check: bool,
-) -> None:
-    """Run the three-actor multi-container CVD demo (D5-3)."""
-    three_actor_demo.main(
-        skip_health_check=skip_health_check,
-        finder_url=finder_url,
-        vendor_url=vendor_url,
-        coordinator_url=coordinator_url,
-        case_actor_url=case_actor_url,
-        finder_id=finder_id,
-        vendor_id=vendor_id,
-        coordinator_id=coordinator_id,
-        case_actor_id=case_actor_id,
-    )
-
-
-# ---------------------------------------------------------------------------
-# Multi-vendor sub-command — ownership transfer + second vendor demo (D5-4)
-# ---------------------------------------------------------------------------
-
-
-@main.command(name="multi-vendor")
-@click.option(
-    "--finder-url",
-    envvar="VULTRON_FINDER_BASE_URL",
-    default=multi_vendor_demo.FINDER_BASE_URL,
-    show_default=True,
-    help="Base URL of the Finder container API "
-    "(env: VULTRON_FINDER_BASE_URL).",
-)
-@click.option(
-    "--vendor-url",
-    envvar="VULTRON_VENDOR_BASE_URL",
-    default=multi_vendor_demo.VENDOR_BASE_URL,
-    show_default=True,
-    help="Base URL of the Vendor container API "
-    "(env: VULTRON_VENDOR_BASE_URL).",
-)
-@click.option(
-    "--coordinator-url",
-    envvar="VULTRON_COORDINATOR_BASE_URL",
-    default=multi_vendor_demo.COORDINATOR_BASE_URL,
-    show_default=True,
-    help="Base URL of the Coordinator container API "
-    "(env: VULTRON_COORDINATOR_BASE_URL).",
-)
-@click.option(
-    "--case-actor-url",
-    envvar="VULTRON_CASE_ACTOR_BASE_URL",
-    default=multi_vendor_demo.CASE_ACTOR_BASE_URL,
-    show_default=True,
-    help="Base URL of the CaseActor container API "
-    "(env: VULTRON_CASE_ACTOR_BASE_URL).",
-)
-@click.option(
-    "--vendor2-url",
-    envvar="VULTRON_VENDOR2_BASE_URL",
-    default=multi_vendor_demo.VENDOR2_BASE_URL,
-    show_default=True,
-    help="Base URL of the Vendor2 container API "
-    "(env: VULTRON_VENDOR2_BASE_URL).",
-)
-@click.option(
-    "--finder-id",
-    default=None,
-    help="Deterministic full URI for the Finder actor (optional).",
-)
-@click.option(
-    "--vendor-id",
-    default=None,
-    help="Deterministic full URI for the Vendor actor (optional).",
-)
-@click.option(
-    "--coordinator-id",
-    default=None,
-    help="Deterministic full URI for the Coordinator actor (optional).",
-)
-@click.option(
-    "--case-actor-id",
-    default=None,
-    help="Deterministic full URI for the CaseActor actor (optional).",
-)
-@click.option(
-    "--vendor2-id",
-    default=None,
-    help="Deterministic full URI for the Vendor2 actor (optional).",
-)
-@click.option(
-    "--skip-health-check",
-    is_flag=True,
-    default=False,
-    help="Skip container availability checks.",
-)
-def multi_vendor(
-    finder_url: str,
-    vendor_url: str,
-    coordinator_url: str,
-    case_actor_url: str,
-    vendor2_url: str,
-    finder_id: str | None,
-    vendor_id: str | None,
-    coordinator_id: str | None,
-    case_actor_id: str | None,
-    vendor2_id: str | None,
-    skip_health_check: bool,
-) -> None:
-    """Run the multi-vendor ownership-transfer demo (D5-4).
-
-    Demonstrates case ownership transfer from Vendor to Coordinator, followed
-    by Coordinator inviting a second Vendor (Vendor2) to join the case.
-
-    Requires five containers to be running and reachable at the configured
-    base URLs: finder, vendor, coordinator, case-actor, and vendor2.
-
-    \b
-    Workflow:
-      1. Seed all five containers (actor records + peer registration).
-      2. Finder submits a vulnerability report to Vendor's inbox.
-      3. Vendor validates the report.
-      4. Vendor creates the authoritative case on the CaseActor container.
-      5. Vendor invites Finder; both establish an embargo.
-      6. Vendor transfers case ownership to Coordinator.
-      7. Coordinator invites Vendor2; Vendor2 joins and accepts the embargo.
-      8. Verify final state: Coordinator owns the case, three participants,
-         and the embargo is ACTIVE.
-    """
-    multi_vendor_demo.main(
-        skip_health_check=skip_health_check,
-        finder_url=finder_url,
-        vendor_url=vendor_url,
-        coordinator_url=coordinator_url,
-        case_actor_url=case_actor_url,
-        vendor2_url=vendor2_url,
-        finder_id=finder_id,
-        vendor_id=vendor_id,
-        coordinator_id=coordinator_id,
-        case_actor_id=case_actor_id,
-        vendor2_id=vendor2_id,
     )
 
 
@@ -644,6 +433,581 @@ def fvv(
         finder_id=finder_id,
         vendor_id=vendor_id,
         vendor2_id=vendor2_id,
+    )
+
+
+# ---------------------------------------------------------------------------
+# FVCV-extension sub-command — Finder + Vendor1 + Coordinator + Vendor2 (D5-6)
+# ---------------------------------------------------------------------------
+
+
+@main.command(name="fvcv-extension")
+@click.option(
+    "--finder-url",
+    envvar="VULTRON_FINDER_BASE_URL",
+    default=fvcv_extension_demo.FINDER_BASE_URL,
+    show_default=True,
+    help="Base URL of the Finder container API "
+    "(env: VULTRON_FINDER_BASE_URL).",
+)
+@click.option(
+    "--vendor-url",
+    envvar="VULTRON_VENDOR_BASE_URL",
+    default=fvcv_extension_demo.VENDOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the Vendor1 container API "
+    "(env: VULTRON_VENDOR_BASE_URL).",
+)
+@click.option(
+    "--coordinator-url",
+    envvar="VULTRON_COORDINATOR_BASE_URL",
+    default=fvcv_extension_demo.COORDINATOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the Coordinator container API "
+    "(env: VULTRON_COORDINATOR_BASE_URL).",
+)
+@click.option(
+    "--vendor2-url",
+    envvar="VULTRON_VENDOR2_BASE_URL",
+    default=fvcv_extension_demo.VENDOR2_BASE_URL,
+    show_default=True,
+    help="Base URL of the Vendor2 container API "
+    "(env: VULTRON_VENDOR2_BASE_URL).",
+)
+@click.option(
+    "--finder-id",
+    default=None,
+    help="Deterministic full URI for the Finder actor (optional).",
+)
+@click.option(
+    "--vendor-id",
+    default=None,
+    help="Deterministic full URI for the Vendor1 actor (optional).",
+)
+@click.option(
+    "--coordinator-id",
+    default=None,
+    help="Deterministic full URI for the Coordinator actor (optional).",
+)
+@click.option(
+    "--vendor2-id",
+    default=None,
+    help="Deterministic full URI for the Vendor2 actor (optional).",
+)
+@click.option(
+    "--skip-health-check",
+    is_flag=True,
+    default=False,
+    help="Skip container availability checks.",
+)
+def fvcv_extension(
+    finder_url: str,
+    vendor_url: str,
+    coordinator_url: str,
+    vendor2_url: str,
+    finder_id: str | None,
+    vendor_id: str | None,
+    coordinator_id: str | None,
+    vendor2_id: str | None,
+    skip_health_check: bool,
+) -> None:
+    """Run the FVCV-extension (Finder + Vendor1 + Coordinator + Vendor2) demo (D5-6).
+
+    Vendor1 retains CASE_OWNER throughout.  Coordinator holds CVDRole.COORDINATOR
+    (not CASE_MANAGER).  Coordinator suggests Vendor2 via the ADR-0026
+    CaseActor-routed suggest-actor flow; Vendor1 approves; CaseActor invites
+    Vendor2.  Both vendors then independently advance through the full fix and
+    publication lifecycle.
+
+    \b
+    Workflow:
+      1. Seed all four containers (actor records + peer registration).
+      2. Finder submits a vulnerability report to Vendor1's inbox.
+      3. Vendor1 validates and engages the case.
+      4. Vendor1 invites Coordinator with CVDRole.COORDINATOR.
+      5. Coordinator accepts; Coordinator suggests Vendor2 (ADR-0026).
+      6. Vendor1 approves the actor recommendation.
+      7. CaseActor invites Vendor2; Vendor2 accepts.
+      8. Verify SYNC-2 replication on all replicas.
+      9. Both vendors independently advance through fix-ready → fix-deployed.
+     10. All participants report publication; embargo terminates.
+     11. All participants close the case.
+    """
+    fvcv_extension_demo.main(
+        skip_health_check=skip_health_check,
+        finder_url=finder_url,
+        vendor_url=vendor_url,
+        coordinator_url=coordinator_url,
+        vendor2_url=vendor2_url,
+        finder_id=finder_id,
+        vendor_id=vendor_id,
+        coordinator_id=coordinator_id,
+        vendor2_id=vendor2_id,
+    )
+
+
+# ---------------------------------------------------------------------------
+# FVCV-handoff sub-command — Vendor1 transfers ownership to Coordinator (D5-7)
+# ---------------------------------------------------------------------------
+
+
+@main.command(name="fvcv-handoff")
+@click.option(
+    "--finder-url",
+    envvar="VULTRON_FINDER_BASE_URL",
+    default=fvcv_handoff_demo.FINDER_BASE_URL,
+    show_default=True,
+    help="Base URL of the Finder container API "
+    "(env: VULTRON_FINDER_BASE_URL).",
+)
+@click.option(
+    "--vendor-url",
+    envvar="VULTRON_VENDOR_BASE_URL",
+    default=fvcv_handoff_demo.VENDOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the Vendor1 container API "
+    "(env: VULTRON_VENDOR_BASE_URL).",
+)
+@click.option(
+    "--coordinator-url",
+    envvar="VULTRON_COORDINATOR_BASE_URL",
+    default=fvcv_handoff_demo.COORDINATOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the Coordinator container API "
+    "(env: VULTRON_COORDINATOR_BASE_URL).",
+)
+@click.option(
+    "--case-actor-url",
+    envvar="VULTRON_CASE_ACTOR_BASE_URL",
+    default=fvcv_handoff_demo.CASE_ACTOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the CaseActor container API "
+    "(env: VULTRON_CASE_ACTOR_BASE_URL).",
+)
+@click.option(
+    "--vendor2-url",
+    envvar="VULTRON_VENDOR2_BASE_URL",
+    default=fvcv_handoff_demo.VENDOR2_BASE_URL,
+    show_default=True,
+    help="Base URL of the Vendor2 container API "
+    "(env: VULTRON_VENDOR2_BASE_URL).",
+)
+@click.option(
+    "--finder-id",
+    default=None,
+    help="Deterministic full URI for the Finder actor (optional).",
+)
+@click.option(
+    "--vendor-id",
+    default=None,
+    help="Deterministic full URI for the Vendor1 actor (optional).",
+)
+@click.option(
+    "--coordinator-id",
+    default=None,
+    help="Deterministic full URI for the Coordinator actor (optional).",
+)
+@click.option(
+    "--case-actor-id",
+    default=None,
+    help="Deterministic full URI for the CaseActor actor (optional).",
+)
+@click.option(
+    "--vendor2-id",
+    default=None,
+    help="Deterministic full URI for the Vendor2 actor (optional).",
+)
+@click.option(
+    "--skip-health-check",
+    is_flag=True,
+    default=False,
+    help="Skip container availability checks.",
+)
+def fvcv_handoff(
+    finder_url: str,
+    vendor_url: str,
+    coordinator_url: str,
+    case_actor_url: str,
+    vendor2_url: str,
+    finder_id: str | None,
+    vendor_id: str | None,
+    coordinator_id: str | None,
+    case_actor_id: str | None,
+    vendor2_id: str | None,
+    skip_health_check: bool,
+) -> None:
+    """Run the FVCV-handoff (Vendor1 → Coordinator ownership transfer) demo (D5-7).
+
+    Vendor1 creates the case and invites Coordinator, then transfers case
+    ownership to Coordinator via the trigger endpoints (TRIG-11-001/002).
+    Coordinator (now CASE_OWNER) invites Vendor2.  Both vendors independently
+    advance through the full fix and publication lifecycle.
+
+    \b
+    Workflow:
+      1. Seed all five containers (actor records + peer registration).
+      2. Finder submits a vulnerability report to Vendor1's inbox.
+      3. Vendor1 validates and engages the case.
+      4. Vendor1 invites Coordinator; Coordinator accepts.
+      5. Vendor1 offers case ownership transfer to Coordinator (TRIG-11-001).
+      6. Coordinator accepts the ownership transfer (TRIG-11-002).
+      7. Verify case attributed_to updated to Coordinator.
+      8. Coordinator invites Vendor2; Vendor2 accepts and Accept routed to CaseActor.
+      9. Verify SYNC-2 replication on all replicas.
+     10. Both vendors independently advance through fix-ready → fix-deployed.
+     11. All participants report publication; embargo terminates.
+     12. All participants close the case.
+    """
+    fvcv_handoff_demo.main(
+        skip_health_check=skip_health_check,
+        finder_url=finder_url,
+        vendor_url=vendor_url,
+        coordinator_url=coordinator_url,
+        case_actor_url=case_actor_url,
+        vendor2_url=vendor2_url,
+        finder_id=finder_id,
+        vendor_id=vendor_id,
+        coordinator_id=coordinator_id,
+        case_actor_id=case_actor_id,
+        vendor2_id=vendor2_id,
+    )
+
+
+# ---------------------------------------------------------------------------
+# FCCV-extension sub-command — C1 retains CASE_OWNER; C2 suggests Vendor
+# ---------------------------------------------------------------------------
+
+
+@main.command(name="fccv-extension")
+@click.option(
+    "--finder-url",
+    envvar="VULTRON_FINDER_BASE_URL",
+    default=fccv_extension_demo.FINDER_BASE_URL,
+    show_default=True,
+    help="Base URL of the Finder container API "
+    "(env: VULTRON_FINDER_BASE_URL).",
+)
+@click.option(
+    "--c1-url",
+    envvar="VULTRON_COORDINATOR_BASE_URL",
+    default=fccv_extension_demo.C1_BASE_URL,
+    show_default=True,
+    help="Base URL of the C1 (Coordinator1) container API "
+    "(env: VULTRON_COORDINATOR_BASE_URL).",
+)
+@click.option(
+    "--c2-url",
+    envvar="VULTRON_VENDOR2_BASE_URL",
+    default=fccv_extension_demo.C2_BASE_URL,
+    show_default=True,
+    help="Base URL of the C2 (Coordinator2/actor5) container API "
+    "(env: VULTRON_VENDOR2_BASE_URL).",
+)
+@click.option(
+    "--vendor-url",
+    envvar="VULTRON_VENDOR_BASE_URL",
+    default=fccv_extension_demo.VENDOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the Vendor container API "
+    "(env: VULTRON_VENDOR_BASE_URL).",
+)
+@click.option(
+    "--finder-id",
+    default=None,
+    help="Deterministic full URI for the Finder actor (optional).",
+)
+@click.option(
+    "--c1-id",
+    default=None,
+    help="Deterministic full URI for the C1 (Coordinator1) actor (optional).",
+)
+@click.option(
+    "--c2-id",
+    default=None,
+    help="Deterministic full URI for the C2 (Coordinator2) actor (optional).",
+)
+@click.option(
+    "--vendor-id",
+    default=None,
+    help="Deterministic full URI for the Vendor actor (optional).",
+)
+@click.option(
+    "--skip-health-check",
+    is_flag=True,
+    default=False,
+    help="Skip container availability checks.",
+)
+def fccv_extension(
+    finder_url: str,
+    c1_url: str,
+    c2_url: str,
+    vendor_url: str,
+    finder_id: str | None,
+    c1_id: str | None,
+    c2_id: str | None,
+    vendor_id: str | None,
+    skip_health_check: bool,
+) -> None:
+    """Run the FCCV-extension (Finder + C1/CASE_OWNER + C2/Coordinator + Vendor) demo.
+
+    C1 (Coordinator1) retains CASE_OWNER throughout.  C2 (Coordinator2) joins
+    as a participant with CVDRole.COORDINATOR (not CASE_MANAGER), then suggests
+    Vendor via the ADR-0026 CaseActor-routed suggest-actor flow.  C1 approves;
+    CaseActor invites Vendor.  Only Vendor advances through the fix and
+    publication lifecycle.
+
+    \b
+    Workflow:
+      1. Seed all four containers (actor records + peer registration).
+      2. Finder submits a vulnerability report to C1's inbox.
+      3. C1 validates and engages the case; invites C2 with CVDRole.COORDINATOR.
+      4. C2 accepts; C2 suggests Vendor (ADR-0026 suggest-actor flow).
+      5. C1 approves the actor recommendation.
+      6. CaseActor invites Vendor; Vendor accepts.
+      7. Verify SYNC-2 replication on all replicas.
+      8. Vendor advances through fix-ready → fix-deployed.
+      9. C1 (CASE_OWNER) triggers publication; embargo terminates.
+     10. All participants report publication; all participants close the case.
+    """
+    fccv_extension_demo.main(
+        skip_health_check=skip_health_check,
+        finder_url=finder_url,
+        c1_url=c1_url,
+        c2_url=c2_url,
+        vendor_url=vendor_url,
+        finder_id=finder_id,
+        c1_id=c1_id,
+        c2_id=c2_id,
+        vendor_id=vendor_id,
+    )
+
+
+# ---------------------------------------------------------------------------
+# FCCV-handoff sub-command — C1 transfers ownership to C2; C2 invites Vendor
+# ---------------------------------------------------------------------------
+
+
+@main.command(name="fccv-handoff")
+@click.option(
+    "--finder-url",
+    envvar="VULTRON_FINDER_BASE_URL",
+    default=fccv_handoff_demo.FINDER_BASE_URL,
+    show_default=True,
+    help="Base URL of the Finder container API "
+    "(env: VULTRON_FINDER_BASE_URL).",
+)
+@click.option(
+    "--c1-url",
+    envvar="VULTRON_VENDOR_BASE_URL",
+    default=fccv_handoff_demo.C1_BASE_URL,
+    show_default=True,
+    help="Base URL of the C1 (Coordinator1) container API "
+    "(env: VULTRON_VENDOR_BASE_URL).",
+)
+@click.option(
+    "--c2-url",
+    envvar="VULTRON_COORDINATOR_BASE_URL",
+    default=fccv_handoff_demo.C2_BASE_URL,
+    show_default=True,
+    help="Base URL of the C2 (Coordinator2) container API "
+    "(env: VULTRON_COORDINATOR_BASE_URL).",
+)
+@click.option(
+    "--case-actor-url",
+    envvar="VULTRON_CASE_ACTOR_BASE_URL",
+    default=fccv_handoff_demo.CASE_ACTOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the CaseActor container API "
+    "(env: VULTRON_CASE_ACTOR_BASE_URL).",
+)
+@click.option(
+    "--vendor-url",
+    envvar="VULTRON_VENDOR2_BASE_URL",
+    default=fccv_handoff_demo.VENDOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the Vendor container API "
+    "(env: VULTRON_VENDOR2_BASE_URL).",
+)
+@click.option(
+    "--finder-id",
+    default=None,
+    help="Deterministic full URI for the Finder actor (optional).",
+)
+@click.option(
+    "--c1-id",
+    default=None,
+    help="Deterministic full URI for the C1 (Coordinator1) actor (optional).",
+)
+@click.option(
+    "--c2-id",
+    default=None,
+    help="Deterministic full URI for the C2 (Coordinator2) actor (optional).",
+)
+@click.option(
+    "--case-actor-id",
+    default=None,
+    help="Deterministic full URI for the CaseActor actor (optional).",
+)
+@click.option(
+    "--vendor-id",
+    default=None,
+    help="Deterministic full URI for the Vendor actor (optional).",
+)
+@click.option(
+    "--skip-health-check",
+    is_flag=True,
+    default=False,
+    help="Skip container availability checks.",
+)
+def fccv_handoff(
+    finder_url: str,
+    c1_url: str,
+    c2_url: str,
+    case_actor_url: str,
+    vendor_url: str,
+    finder_id: str | None,
+    c1_id: str | None,
+    c2_id: str | None,
+    case_actor_id: str | None,
+    vendor_id: str | None,
+    skip_health_check: bool,
+) -> None:
+    """Run the FCCV-handoff (C1 → C2 ownership transfer) demo (DEMOMA-14).
+
+    C1 (Coordinator1) creates the case as CASE_OWNER and invites C2
+    (Coordinator2).  C1 then transfers case ownership to C2 via the trigger
+    endpoints (TRIG-11-001/002).  C2 (now CASE_OWNER) invites Vendor.  All
+    four actors coordinate to closure.
+
+    \b
+    Workflow:
+      1. Seed all five containers (actor records + peer registration).
+      2. Finder submits a vulnerability report to C1's inbox.
+      3. C1 validates and engages the case (retains CASE_OWNER for now).
+      4. C1 invites C2 (Coordinator); C2 accepts.
+      5. C1 offers case ownership transfer to C2 (TRIG-11-001).
+      6. C2 accepts the ownership transfer (TRIG-11-002).
+      7. Verify case attributed_to updated to C2 on both C1 and C2 replicas.
+      8. C2 invites Vendor; Vendor accepts and Accept routed to CaseActor.
+      9. Verify SYNC-2 replication on all replicas.
+     10. Vendor advances through fix-ready → fix-deployed.
+     11. All participants report publication; embargo terminates.
+     12. All participants close the case.
+    """
+    fccv_handoff_demo.main(
+        skip_health_check=skip_health_check,
+        finder_url=finder_url,
+        c1_url=c1_url,
+        c2_url=c2_url,
+        case_actor_url=case_actor_url,
+        vendor_url=vendor_url,
+        finder_id=finder_id,
+        c1_id=c1_id,
+        c2_id=c2_id,
+        case_actor_id=case_actor_id,
+        vendor_id=vendor_id,
+    )
+
+
+# ---------------------------------------------------------------------------
+# FCV sub-command — Finder + Coordinator(CASE_OWNER) + Vendor (DEMOMA-12)
+# ---------------------------------------------------------------------------
+
+
+@main.command(name="fcv")
+@click.option(
+    "--finder-url",
+    envvar="VULTRON_FINDER_BASE_URL",
+    default=fcv_demo.FINDER_BASE_URL,
+    show_default=True,
+    help="Base URL of the Finder container API "
+    "(env: VULTRON_FINDER_BASE_URL).",
+)
+@click.option(
+    "--coordinator-url",
+    envvar="VULTRON_COORDINATOR_BASE_URL",
+    default=fcv_demo.COORDINATOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the Coordinator container API "
+    "(env: VULTRON_COORDINATOR_BASE_URL).",
+)
+@click.option(
+    "--vendor-url",
+    envvar="VULTRON_VENDOR_BASE_URL",
+    default=fcv_demo.VENDOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the Vendor container API "
+    "(env: VULTRON_VENDOR_BASE_URL).",
+)
+@click.option(
+    "--case-actor-url",
+    envvar="VULTRON_CASE_ACTOR_BASE_URL",
+    default=fcv_demo.CASE_ACTOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the CaseActor container API "
+    "(env: VULTRON_CASE_ACTOR_BASE_URL).",
+)
+@click.option(
+    "--finder-id",
+    default=None,
+    help="Deterministic full URI for the Finder actor (optional).",
+)
+@click.option(
+    "--coordinator-id",
+    default=None,
+    help="Deterministic full URI for the Coordinator actor (optional).",
+)
+@click.option(
+    "--vendor-id",
+    default=None,
+    help="Deterministic full URI for the Vendor actor (optional).",
+)
+@click.option(
+    "--skip-health-check",
+    is_flag=True,
+    default=False,
+    help="Skip container availability checks.",
+)
+def fcv(
+    finder_url: str,
+    coordinator_url: str,
+    vendor_url: str,
+    case_actor_url: str,
+    finder_id: str | None,
+    coordinator_id: str | None,
+    vendor_id: str | None,
+    skip_health_check: bool,
+) -> None:
+    """Run the FCV (Finder + Coordinator + Vendor) CVD demo (DEMOMA-12).
+
+    Coordinator receives the Finder's report, creates the authoritative case
+    (holding CASE_OWNER), and the CaseActor service manages the case ledger.
+    Coordinator invites Finder, then directly invites Vendor.  Vendor accepts
+    as a late joiner and receives the full ledger backfill (SYNC-2).  All
+    participants advance through the full VFDPxa fix lifecycle to closure.
+
+    \b
+    Workflow:
+      1. Seed Finder, Coordinator, and Vendor containers.
+      2. Finder submits a vulnerability report to Coordinator's inbox.
+      3. Coordinator validates the report and engages the case (CASE_OWNER).
+      4. Coordinator invites Vendor directly (invite-actor-to-case).
+      5. Vendor accepts the case invitation; case replica seeded (SYNC-2).
+      6. Verify all replica ledgers synchronized.
+      7. Three-way notes exchange among all participants.
+      8. Vendor advances: VF (fix ready) → VFD (fix deployed).
+      9. All participants report publication; embargo terminates (EM.EXITED).
+     10. All participants close the case (RM.CLOSED on all replicas).
+    """
+    fcv_demo.main(
+        skip_health_check=skip_health_check,
+        finder_url=finder_url,
+        coordinator_url=coordinator_url,
+        vendor_url=vendor_url,
+        case_actor_url=case_actor_url,
+        finder_id=finder_id,
+        coordinator_id=coordinator_id,
+        vendor_id=vendor_id,
     )
 
 

@@ -17,7 +17,7 @@ from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import announce_log_entry_activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
-    CaseLedgerEntry as WireCaseLedgerEntry,
+    as_CaseLedgerEntry as WireCaseLedgerEntry,
 )
 
 OWNER_ACTOR_ID = "https://example.org/actors/vendor"

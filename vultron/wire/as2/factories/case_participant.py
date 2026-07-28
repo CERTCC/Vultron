@@ -16,7 +16,7 @@
 Factory functions for outbound Vultron case-participant activities.
 
 These are the sole public construction API for activities involving
-``CaseParticipant`` objects. Internal activity subclasses are
+``as_CaseParticipant`` objects. Internal activity subclasses are
 imported here and MUST NOT be imported by callers.
 
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
@@ -40,29 +40,29 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Remove,
 )
 from vultron.wire.as2.vocab.objects.case_participant import (
-    CaseParticipant,
-    CaseParticipantRef,
+    as_CaseParticipant,
+    as_CaseParticipantRef,
 )
-from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
+from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    VulnerabilityCaseRef,
+    as_VulnerabilityCaseRef,
 )
 
 logger = logging.getLogger(__name__)
 
 
 def create_participant_activity(
-    participant: CaseParticipant,
-    target: VulnerabilityCaseRef | None = None,
+    participant: as_CaseParticipant,
+    target: as_VulnerabilityCaseRef | None = None,
     **kwargs,
 ) -> as_Create:
-    """Build a Create(CaseParticipant).
+    """Build a Create(as_CaseParticipant).
 
     The internal class automatically generates a descriptive ``name``
     field if one is not provided.
 
     Args:
-        participant: The ``CaseParticipant`` being created.
+        participant: The ``as_CaseParticipant`` being created.
         target: The ``VulnerabilityCase`` (or its URI) this participant
             is being created for.
         **kwargs: Optional AS2 fields forwarded to the constructor
@@ -88,15 +88,15 @@ def create_participant_activity(
 
 
 def create_status_for_participant_activity(
-    status: ParticipantStatus,
-    target: CaseParticipantRef | None = None,
+    status: as_ParticipantStatus,
+    target: as_CaseParticipantRef | None = None,
     **kwargs,
 ) -> as_Create:
-    """Build a Create(ParticipantStatus, target=CaseParticipant).
+    """Build a Create(as_ParticipantStatus, target=as_CaseParticipant).
 
     Args:
-        status: The ``ParticipantStatus`` being created.
-        target: The ``CaseParticipant`` (or its URI) for whom the
+        status: The ``as_ParticipantStatus`` being created.
+        target: The ``as_CaseParticipant`` (or its URI) for whom the
             status is being created.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``).
@@ -122,15 +122,15 @@ def create_status_for_participant_activity(
 
 
 def add_status_to_participant_activity(
-    status: ParticipantStatus,
-    target: CaseParticipantRef | None = None,
+    status: as_ParticipantStatus,
+    target: as_CaseParticipantRef | None = None,
     **kwargs,
 ) -> as_Add:
-    """Build an Add(ParticipantStatus, target=CaseParticipant).
+    """Build an Add(as_ParticipantStatus, target=as_CaseParticipant).
 
     Args:
-        status: The ``ParticipantStatus`` to add.
-        target: The ``CaseParticipant`` (or its URI) to which the
+        status: The ``as_ParticipantStatus`` to add.
+        target: The ``as_CaseParticipant`` (or its URI) to which the
             status is being added.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``).
@@ -155,14 +155,14 @@ def add_status_to_participant_activity(
 
 
 def add_participant_to_case_activity(
-    participant: CaseParticipant,
-    target: VulnerabilityCaseRef | None = None,
+    participant: as_CaseParticipant,
+    target: as_VulnerabilityCaseRef | None = None,
     **kwargs,
 ) -> as_Add:
-    """Build an Add(CaseParticipant, target=VulnerabilityCase).
+    """Build an Add(as_CaseParticipant, target=VulnerabilityCase).
 
     Args:
-        participant: The ``CaseParticipant`` to add to the case.
+        participant: The ``as_CaseParticipant`` to add to the case.
         target: The ``VulnerabilityCase`` (or its URI) to which the
             participant is being added.
         **kwargs: Optional AS2 fields forwarded to the constructor
@@ -188,16 +188,16 @@ def add_participant_to_case_activity(
 
 
 def remove_participant_from_case_activity(
-    participant: CaseParticipant,
-    target: VulnerabilityCaseRef | None = None,
+    participant: as_CaseParticipant,
+    target: as_VulnerabilityCaseRef | None = None,
     **kwargs,
 ) -> as_Remove:
-    """Build a Remove(CaseParticipant, target=VulnerabilityCase).
+    """Build a Remove(as_CaseParticipant, target=VulnerabilityCase).
 
     This MUST only be performed by the case owner.
 
     Args:
-        participant: The ``CaseParticipant`` to remove from the case.
+        participant: The ``as_CaseParticipant`` to remove from the case.
         target: The ``VulnerabilityCase`` (or its URI) from which the
             participant is being removed.
         **kwargs: Optional AS2 fields forwarded to the constructor

@@ -22,14 +22,15 @@ Provides factory functions for embargo-related BTs:
 activity (protocol ET message).  Sequence:
 
     RemoveEmbargoFromCaseBT (Sequence)
-    ├─ ValidateCaseExistsNode          # case must exist and pass is_case_model
-    ├─ GuardedCommitCaseLedgerEntryBT  # record receipt before effects (CLP-10-006)
-    ├─ RemoveFromProposedEmbargoesNode # idempotent proposed-list cleanup
-    └─ TeardownIfActive (Selector)     # run teardown if active; skip silently
+    ├─ ValidateCaseExistsNode             # case must exist as VulnerabilityCase
+    ├─ GuardedCommitCaseLedgerEntryBT     # record receipt before effects (CLP-10-006)
+    ├─ RemoveFromProposedEmbargoesNode    # idempotent proposed-list cleanup
+    └─ TeardownIfActive (Selector)        # run teardown if active; skip silently
        ├─ ActiveTeardown (Sequence)
-       │  ├─ IsActiveEmbargoNode       # guard: is this the active embargo?
-       │  └─ ApplyEmbargoTeardownNode  # ACTIVE/REVISE→EXITED, clear, reset PEC
-       └─ Success                      # embargo was only in proposed — not an error
+       │  ├─ IsActiveEmbargoNode          # guard: is this the active embargo?
+       │  ├─ ApplyEmbargoTeardownNode     # ACTIVE/REVISE→EXITED, clear, reset PEC
+       │  └─ SendAnnounceEmbargoEventNode # emit Announce(EmbargoEvent) to CaseActor
+       └─ Success                         # embargo was only in proposed — not an error
 
 Per specs/behavior-tree-integration.yaml BT-06-001.
 """
@@ -49,6 +50,7 @@ from vultron.core.behaviors.embargo.nodes import (
     RecordParticipantAcceptanceNode,
     RemoveFromProposedEmbargoesNode,
     RemoveStaleAcceptanceNode,
+    SendAnnounceEmbargoEventNode,
     SetEmbargoActiveNode,
     UpdateParticipantEmbargoPecNode,
     ValidateCaseExistsNode,
@@ -98,6 +100,9 @@ def remove_embargo_from_case_tree(
                         case_id=case_id, embargo_id=embargo_id
                     ),
                     ApplyEmbargoTeardownNode(case_id=case_id),
+                    SendAnnounceEmbargoEventNode(
+                        case_id=case_id, embargo_id=embargo_id
+                    ),
                 ],
             ),
             py_trees.behaviours.Success(name="EmbargoWasNotActive"),

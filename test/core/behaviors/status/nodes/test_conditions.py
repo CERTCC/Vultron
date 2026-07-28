@@ -29,9 +29,11 @@ from vultron.core.behaviors.status.nodes.conditions import (
     VerifySenderIsParticipantNode,
 )
 from vultron.enums.roles import CVDRole
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 ACTOR_ID = "https://example.org/actors/vendor"
 OUTSIDER_ID = "https://example.org/actors/outsider"
@@ -59,7 +61,7 @@ def bridge(dl):
 
 @pytest.fixture
 def participant():
-    return CaseParticipant(
+    return as_CaseParticipant(
         id_=PARTICIPANT_ID,
         context=CASE_ID,
         attributed_to=ACTOR_ID,
@@ -69,7 +71,7 @@ def participant():
 
 @pytest.fixture
 def case_manager_participant():
-    return CaseParticipant(
+    return as_CaseParticipant(
         id_=CM_PARTICIPANT_ID,
         context=CASE_ID,
         attributed_to=CASE_MANAGER_ID,
@@ -79,12 +81,12 @@ def case_manager_participant():
 
 @pytest.fixture
 def status_obj():
-    return ParticipantStatus(id_=STATUS_ID, context=CASE_ID)
+    return as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID)
 
 
 @pytest.fixture
 def populated_dl(dl, participant, case_manager_participant, status_obj):
-    case = VulnerabilityCase(id_=CASE_ID, name="Test Case")
+    case = as_VulnerabilityCase(id_=CASE_ID, name="Test Case")
     case.add_participant(participant)
     case.add_participant(case_manager_participant)
     dl.create(case)

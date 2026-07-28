@@ -19,10 +19,10 @@ Demonstrates the workflow for initializing a vulnerability case via the Vultron 
 This demo script showcases the case initialization process:
 
 1. Setup: submit a vulnerability report (precondition for case creation)
-2. Create Case: vendor explicitly creates a VulnerabilityCase
+2. Create Case: vendor explicitly creates a as_VulnerabilityCase
 3. Add Vendor as Participant: vendor adds themselves as case creator/owner
 4. Add Report to Case: vendor links the submitted report to the case
-5. Create Participant: vendor creates a CaseParticipant for the finder
+5. Create Participant: vendor creates a as_CaseParticipant for the finder
 6. Add Participant to Case: vendor adds the finder participant to the case
 7. Show final case state
 
@@ -43,30 +43,29 @@ prototype design. Actors post activities directly to each other's inboxes.
 
 # Standard library imports
 import logging
-import sys
 from typing import Callable, Optional, Sequence, Tuple
 
 # Vultron imports
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.objects.case_participant import (
-    CaseParticipant,
+    as_CaseParticipant,
 )
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
-    check_server_availability,
     demo_check,
     demo_step,
     get_offer_from_datalayer,
     log_case_state,
     logfmt,
-    demo_environment,
     post_to_inbox_and_wait,
     ref_id,
     verify_object_stored,
@@ -80,11 +79,16 @@ from vultron.wire.as2.factories import (
     rm_validate_report_activity,
 )
 
+from vultron.demo.helpers.runner import run_exchange_demos
+
 logger = logging.getLogger(__name__)
 
 
 def demo_initialize_case(
-    client: DataLayerClient, finder: as_Actor, vendor: as_Actor
+    client: DataLayerClient,
+    finder: as_Actor,
+    vendor: as_Actor,
+    coordinator: Optional[as_Actor] = None,
 ):
     """
     Demonstrates the full case initialization workflow.
@@ -92,7 +96,7 @@ def demo_initialize_case(
     Steps:
     1. Finder submits a vulnerability report to vendor inbox
     2. Vendor validates the report (RmValidateReportActivity)
-    3. Vendor explicitly creates a VulnerabilityCase (CreateCaseActivity)
+    3. Vendor explicitly creates a as_VulnerabilityCase (CreateCaseActivity)
     4. Vendor adds themselves as VendorParticipant (case creator/owner)
     5. Vendor adds the report to the case (AddReportToCaseActivity)
     6. Vendor creates a FinderReporterParticipant for the finder
@@ -109,7 +113,7 @@ def demo_initialize_case(
     logger.info("=" * 80)
 
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
-        report = VulnerabilityReport(
+        report = as_VulnerabilityReport(
             attributed_to=finder.id_,
             content="A remote code execution vulnerability in the web framework.",
             name="Remote Code Execution Vulnerability",
@@ -132,7 +136,7 @@ def demo_initialize_case(
         post_to_inbox_and_wait(client, vendor.id_, validate_activity)
 
     with demo_step("Step 3: Vendor creates vulnerability case"):
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             attributed_to=vendor.id_,
             name="RCE Case — Web Framework",
             content="Tracking the RCE vulnerability in the web framework.",
@@ -146,7 +150,7 @@ def demo_initialize_case(
             log_case_state(client, case.id_, "after CreateCaseActivity")
 
     with demo_step("Step 4: Vendor adds themselves as case participant"):
-        vendor_participant = CaseParticipant(
+        vendor_participant = as_CaseParticipant(
             case_roles=[CVDRole.VENDOR],
             attributed_to=vendor.id_,
             context=case.id_,
@@ -202,7 +206,7 @@ def demo_initialize_case(
                 )
 
     with demo_step("Step 6: Vendor creates finder participant"):
-        participant = CaseParticipant(
+        participant = as_CaseParticipant(
             case_roles=[CVDRole.FINDER, CVDRole.REPORTER],
             attributed_to=finder.id_,
             context=case.id_,
@@ -247,67 +251,11 @@ _ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
 def main(
     skip_health_check: bool = False,
     demos: Optional[Sequence] = None,
-):
-    """
-    Main entry point for the initialize_case demo script.
-
-    Args:
-        skip_health_check: Skip server availability check (useful for testing)
-        demos: Optional sequence of demo functions to run. Defaults to all.
-    """
-    client = DataLayerClient()
-
-    if not skip_health_check and not check_server_availability(client):
-        logger.error("=" * 80)
-        logger.error("ERROR: API server is not available")
-        logger.error("=" * 80)
-        logger.error(f"Cannot connect to: {client.base_url}")
-        logger.error("")
-        logger.error("Please ensure the Vultron API server is running:")
-        logger.error(
-            "  uv run uvicorn vultron.api.main:app --host localhost --port 7999"
-        )
-        logger.error("=" * 80)
-        sys.exit(1)
-
-    selected = (
-        _ALL_DEMOS
-        if demos is None
-        else [(name, fn) for name, fn in _ALL_DEMOS if fn in demos]
+) -> None:
+    """Main entry point for the initialize case demo demo script."""
+    run_exchange_demos(
+        _ALL_DEMOS, skip_health_check=skip_health_check, demos=demos
     )
-    total = len(selected)
-    errors = []
-
-    for demo_name, demo_fn in selected:
-        try:
-            with demo_environment(client) as (finder, vendor, coordinator):
-                demo_fn(client, finder, vendor)
-        except Exception as e:
-            logger.error(f"{demo_name} failed: {e}", exc_info=True)
-            errors.append((demo_name, str(e)))
-
-    logger.info("=" * 80)
-    logger.info("ALL DEMOS COMPLETE")
-    logger.info("=" * 80)
-
-    if errors:
-        logger.error("")
-        logger.error("=" * 80)
-        logger.error("ERROR SUMMARY")
-        logger.error("=" * 80)
-        logger.error(f"Total demos: {total}")
-        logger.error(f"Failed demos: {len(errors)}")
-        logger.error(f"Successful demos: {total - len(errors)}")
-        logger.error("")
-        for demo_name, error in errors:
-            logger.error(f"{demo_name}:")
-            logger.error(f"  {error}")
-            logger.error("")
-        logger.error("=" * 80)
-    else:
-        logger.info("")
-        logger.info(f"✓ All {total} demos completed successfully!")
-        logger.info("")
 
 
 if __name__ == "__main__":

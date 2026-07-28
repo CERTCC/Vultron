@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Tests for CaseParticipant model, focusing on accepted_embargo_ids field (CM-10-003)."""
+"""Tests for as_CaseParticipant model, focusing on accepted_embargo_ids field (CM-10-003)."""
 
 import unittest
 from typing import cast
@@ -26,7 +26,7 @@ from vultron.adapters.driven.db_record import (
     record_to_object,
 )
 from vultron.wire.as2.vocab.objects.case_participant import (
-    CaseParticipant,
+    as_CaseParticipant,
     CoordinatorParticipant,
     FinderParticipant,
     VendorParticipant,
@@ -34,25 +34,25 @@ from vultron.wire.as2.vocab.objects.case_participant import (
 
 
 class TestCaseParticipantAcceptedEmbargoIds(unittest.TestCase):
-    """Tests for CaseParticipant.accepted_embargo_ids (CM-10-001, CM-10-003)."""
+    """Tests for as_CaseParticipant.accepted_embargo_ids (CM-10-001, CM-10-003)."""
 
     def setUp(self):
         self.actor_id = "https://example.org/actors/alice"
         self.case_id = "https://example.org/cases/case-001"
         self.embargo_id_1 = "https://example.org/embargoes/emb-001"
         self.embargo_id_2 = "https://example.org/embargoes/emb-002"
-        self.participant = CaseParticipant(
+        self.participant = as_CaseParticipant(
             attributed_to=self.actor_id,
             context=self.case_id,
         )
 
     def test_accepted_embargo_ids_default_empty(self):
-        """New CaseParticipant has empty accepted_embargo_ids by default (CM-10-003)."""
+        """New as_CaseParticipant has empty accepted_embargo_ids by default (CM-10-003)."""
         self.assertEqual([], self.participant.accepted_embargo_ids)
 
     def test_accepted_embargo_ids_can_be_set_at_creation(self):
         """accepted_embargo_ids can be populated at creation time."""
-        participant = CaseParticipant(
+        participant = as_CaseParticipant(
             attributed_to=self.actor_id,
             context=self.case_id,
             accepted_embargo_ids=[self.embargo_id_1],
@@ -66,7 +66,7 @@ class TestCaseParticipantAcceptedEmbargoIds(unittest.TestCase):
 
     def test_accepted_embargo_ids_tracks_multiple_embargoes(self):
         """accepted_embargo_ids tracks multiple accepted embargoes."""
-        participant = CaseParticipant(
+        participant = as_CaseParticipant(
             attributed_to=self.actor_id,
             context=self.case_id,
             accepted_embargo_ids=[self.embargo_id_1, self.embargo_id_2],
@@ -77,26 +77,26 @@ class TestCaseParticipantAcceptedEmbargoIds(unittest.TestCase):
 
     def test_accepted_embargo_ids_round_trip_json(self):
         """accepted_embargo_ids survives JSON serialization round-trip."""
-        participant = CaseParticipant(
+        participant = as_CaseParticipant(
             attributed_to=self.actor_id,
             context=self.case_id,
             accepted_embargo_ids=[self.embargo_id_1, self.embargo_id_2],
         )
         json_str = participant.to_json()
-        restored = CaseParticipant.model_validate_json(json_str)
+        restored = as_CaseParticipant.model_validate_json(json_str)
         self.assertEqual(
             participant.accepted_embargo_ids, restored.accepted_embargo_ids
         )
 
     def test_accepted_embargo_ids_round_trip_object_to_record(self):
         """accepted_embargo_ids survives object_to_record/record_to_object round-trip."""
-        participant = CaseParticipant(
+        participant = as_CaseParticipant(
             attributed_to=self.actor_id,
             context=self.case_id,
             accepted_embargo_ids=[self.embargo_id_1, self.embargo_id_2],
         )
         record = object_to_record(participant)
-        restored = cast(CaseParticipant, record_to_object(record))
+        restored = cast(as_CaseParticipant, record_to_object(record))
         self.assertEqual(
             participant.accepted_embargo_ids, restored.accepted_embargo_ids
         )
@@ -104,11 +104,11 @@ class TestCaseParticipantAcceptedEmbargoIds(unittest.TestCase):
     def test_accepted_embargo_ids_empty_round_trip(self):
         """Empty accepted_embargo_ids survives object_to_record/record_to_object round-trip."""
         record = object_to_record(self.participant)
-        restored = cast(CaseParticipant, record_to_object(record))
+        restored = cast(as_CaseParticipant, record_to_object(record))
         self.assertEqual([], restored.accepted_embargo_ids)
 
     def test_accepted_embargo_ids_present_in_subclasses(self):
-        """accepted_embargo_ids field is inherited by CaseParticipant subclasses."""
+        """accepted_embargo_ids field is inherited by as_CaseParticipant subclasses."""
         for cls in [
             FinderParticipant,
             VendorParticipant,
@@ -140,7 +140,7 @@ class TestCaseParticipantAcceptedEmbargoIds(unittest.TestCase):
 
 
 class TestCaseParticipantNameField(unittest.TestCase):
-    """Tests for CaseParticipant.name field empty-string validation (CS-08-001)."""
+    """Tests for as_CaseParticipant.name field empty-string validation (CS-08-001)."""
 
     def setUp(self):
         self.actor_id = "https://example.org/actors/alice"
@@ -148,12 +148,12 @@ class TestCaseParticipantNameField(unittest.TestCase):
 
     def test_name_none_accepted(self):
         """name=None is valid when attributed_to is also not set."""
-        participant = CaseParticipant(context=self.case_id, name=None)
+        participant = as_CaseParticipant(context=self.case_id, name=None)
         self.assertIsNone(participant.name)
 
     def test_name_non_empty_accepted(self):
         """name with a non-empty string is valid."""
-        participant = CaseParticipant(
+        participant = as_CaseParticipant(
             attributed_to=self.actor_id, context=self.case_id, name="Alice"
         )
         self.assertEqual("Alice", participant.name)
@@ -161,7 +161,7 @@ class TestCaseParticipantNameField(unittest.TestCase):
     def test_name_empty_string_rejected(self):
         """name must not be an empty string (CS-08-001)."""
         with pytest.raises(ValidationError) as exc_info:
-            CaseParticipant(
+            as_CaseParticipant(
                 attributed_to=self.actor_id, context=self.case_id, name=""
             )
         assert "must be a non-empty string" in str(exc_info.value)
@@ -169,14 +169,14 @@ class TestCaseParticipantNameField(unittest.TestCase):
     def test_name_whitespace_only_rejected(self):
         """name must not be whitespace-only (CS-08-001)."""
         with pytest.raises(ValidationError) as exc_info:
-            CaseParticipant(
+            as_CaseParticipant(
                 attributed_to=self.actor_id, context=self.case_id, name="   "
             )
         assert "must be a non-empty string" in str(exc_info.value)
 
     def test_participant_case_name_none_accepted(self):
         """participant_case_name=None is valid."""
-        participant = CaseParticipant(
+        participant = as_CaseParticipant(
             attributed_to=self.actor_id,
             context=self.case_id,
             participant_case_name=None,
@@ -185,7 +185,7 @@ class TestCaseParticipantNameField(unittest.TestCase):
 
     def test_participant_case_name_non_empty_accepted(self):
         """participant_case_name with a non-empty string is valid."""
-        participant = CaseParticipant(
+        participant = as_CaseParticipant(
             attributed_to=self.actor_id,
             context=self.case_id,
             participant_case_name="My Case",
@@ -195,7 +195,7 @@ class TestCaseParticipantNameField(unittest.TestCase):
     def test_participant_case_name_empty_string_rejected(self):
         """participant_case_name must not be an empty string (CS-08-001)."""
         with pytest.raises(ValidationError) as exc_info:
-            CaseParticipant(
+            as_CaseParticipant(
                 attributed_to=self.actor_id,
                 context=self.case_id,
                 participant_case_name="",
@@ -204,7 +204,7 @@ class TestCaseParticipantNameField(unittest.TestCase):
 
 
 class TestParticipantStatusProperty(unittest.TestCase):
-    """Tests for CaseParticipant.participant_status selection (bug #659).
+    """Tests for as_CaseParticipant.participant_status selection (bug #659).
 
     The property must return the most recently *appended* status, which
     represents this replica's current view. Wire-layer timestamps
@@ -220,12 +220,12 @@ class TestParticipantStatusProperty(unittest.TestCase):
         from vultron.core.states.cs import CS_vfd
         from vultron.core.states.rm import RM
         from vultron.wire.as2.vocab.objects.case_status import (
-            ParticipantStatus,
+            as_ParticipantStatus,
         )
 
         self.CS_vfd = CS_vfd
         self.RM = RM
-        self.ParticipantStatus = ParticipantStatus
+        self.as_ParticipantStatus = as_ParticipantStatus
         self.dt = datetime
         self.tz = timezone
         self.actor_id = "https://example.org/actors/vendor"
@@ -242,7 +242,7 @@ class TestParticipantStatusProperty(unittest.TestCase):
         (clock skew, batched processing, etc.). The property must still
         return the appended VFd entry.
         """
-        appended = self.ParticipantStatus(
+        appended = self.as_ParticipantStatus(
             context=self.case_id,
             attributed_to=self.actor_id,
             rm_state=self.RM.ACCEPTED,
@@ -252,7 +252,7 @@ class TestParticipantStatusProperty(unittest.TestCase):
         )
         # Construct participant with empty list so the validator creates
         # the initial vfd with published=now() (which will be > appended's).
-        participant = CaseParticipant(
+        participant = as_CaseParticipant(
             attributed_to=self.actor_id, context=self.case_id
         )
         self.assertEqual(1, len(participant.participant_statuses))
@@ -266,7 +266,7 @@ class TestParticipantStatusProperty(unittest.TestCase):
 
     def test_returns_none_when_empty(self):
         """participant_status returns None when the list is empty."""
-        participant = CaseParticipant(
+        participant = as_CaseParticipant(
             attributed_to=self.actor_id, context=self.case_id
         )
         # init_participant_status_if_empty populates one status by default;
@@ -275,11 +275,11 @@ class TestParticipantStatusProperty(unittest.TestCase):
         self.assertIsNone(participant.participant_status)
 
     def test_returns_single_status_when_only_one_present(self):
-        only = self.ParticipantStatus(
+        only = self.as_ParticipantStatus(
             context=self.case_id,
             attributed_to=self.actor_id,
         )
-        participant = CaseParticipant(
+        participant = as_CaseParticipant(
             attributed_to=self.actor_id,
             context=self.case_id,
             participant_statuses=[only],

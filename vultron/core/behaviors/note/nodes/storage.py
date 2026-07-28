@@ -20,9 +20,9 @@ from typing import Any
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.models._helpers import _as_id
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.note import VultronNote
-from vultron.core.models.protocols import is_case_model
-from vultron.core.use_cases._helpers import _as_id
 
 
 class SaveNoteNode(DataLayerAction):
@@ -33,9 +33,9 @@ class SaveNoteNode(DataLayerAction):
         self.note_obj = note_obj
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.logger.error(f"{self.name}: DataLayer not available")
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         try:
             self.datalayer.save(self.note_obj)
@@ -68,12 +68,12 @@ class AttachNoteToCaseNode(DataLayerAction):
             )
             return Status.SUCCESS
 
-        if self.datalayer is None:
-            self.logger.error(f"{self.name}: DataLayer not available")
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         case: Any = self.datalayer.read(self.case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.logger.warning(
                 f"{self.name}: case '{self.case_id}' not found"
                 " — cannot attach note"

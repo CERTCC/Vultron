@@ -31,14 +31,14 @@ from vultron.wire.as2.factories import (
     rm_create_report_activity,
 )
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.case_ledger_entry import CaseLedgerEntry
-from vultron.wire.as2.vocab.objects.case_status import CaseStatus
-from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+from vultron.wire.as2.vocab.objects.case_ledger_entry import as_CaseLedgerEntry
+from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    VulnerabilityCase,
+    as_VulnerabilityCase,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 PipelineFixture: TypeAlias = tuple[InboxPipeline, SqliteDataLayer]
@@ -58,8 +58,8 @@ def _patch_execute_with_marker(
     monkeypatch.setattr(use_case_class, "execute", _execute)
 
 
-def _base_case(case_id: str = CASE_ID) -> VulnerabilityCase:
-    return VulnerabilityCase(id_=case_id, name="CASE-IBP")
+def _base_case(case_id: str = CASE_ID) -> as_VulnerabilityCase:
+    return as_VulnerabilityCase(id_=case_id, name="CASE-IBP")
 
 
 def _save_and_process(
@@ -80,7 +80,7 @@ def test_routing_safety_net_report_domain(test_pipeline, monkeypatch):
     _patch_execute_with_marker(
         monkeypatch, CreateReportReceivedUseCase, marker_id
     )
-    report = VulnerabilityReport(
+    report = as_VulnerabilityReport(
         id_="https://example.org/reports/r-ibp-1",
         content="report content",
     )
@@ -120,7 +120,7 @@ def test_routing_safety_net_embargo_domain(test_pipeline, monkeypatch):
         monkeypatch, InviteToEmbargoOnCaseReceivedUseCase, marker_id
     )
     case = _base_case()
-    embargo = EmbargoEvent(
+    embargo = as_EmbargoEvent(
         id_="https://example.org/embargoes/e-ibp-1",
         context=case,
     )
@@ -188,7 +188,7 @@ def test_routing_safety_net_status_domain(test_pipeline, monkeypatch):
         monkeypatch, AddCaseStatusToCaseReceivedUseCase, marker_id
     )
     case = _base_case()
-    status = CaseStatus(
+    status = as_CaseStatus(
         id_="https://example.org/status/cs-ibp-1", context=case.id_
     )
     activity = add_status_to_case_activity(
@@ -213,7 +213,7 @@ def test_routing_safety_net_sync_domain(test_pipeline, monkeypatch):
     _patch_execute_with_marker(
         monkeypatch, AnnounceLedgerEntryReceivedUseCase, marker_id
     )
-    entry = CaseLedgerEntry(
+    entry = as_CaseLedgerEntry(
         id_="https://example.org/log/entry-ibp-1",
         case_id=CASE_ID,
         log_index=0,

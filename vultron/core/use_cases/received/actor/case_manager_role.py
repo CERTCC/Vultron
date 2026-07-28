@@ -14,15 +14,16 @@ from vultron.core.models.events.actor import (
     OfferCaseManagerRoleReceivedEvent,
     RejectCaseManagerRoleReceivedEvent,
 )
-from vultron.core.models.protocols import is_case_model, is_participant_model
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.enums.roles import CVDRole
+from vultron.core.models._helpers import _as_id
 from vultron.core.use_cases._helpers import (
-    _as_id,
     _idempotent_create,
     add_activity_to_outbox,
 )
@@ -127,7 +128,7 @@ class AcceptCaseManagerRoleReceivedUseCase:
         # Primary path: fast index lookup.
         for p_id in getattr(case, "actor_participant_index", {}).values():
             p = self._dl.read(p_id)
-            if is_participant_model(p) and (
+            if isinstance(p, CaseParticipant) and (
                 CVDRole.REPORTER in p.roles or CVDRole.FINDER in p.roles
             ):
                 return _as_id(getattr(p, "attributed_to", None))
@@ -139,7 +140,7 @@ class AcceptCaseManagerRoleReceivedUseCase:
         )
         for participant_ref in getattr(case, "case_participants", []):
             if not isinstance(participant_ref, str):
-                if is_participant_model(participant_ref) and (
+                if isinstance(participant_ref, CaseParticipant) and (
                     CVDRole.REPORTER in participant_ref.roles
                     or CVDRole.FINDER in participant_ref.roles
                 ):
@@ -150,7 +151,7 @@ class AcceptCaseManagerRoleReceivedUseCase:
             if participant_ref in indexed_ids:
                 continue
             p = self._dl.read(participant_ref)
-            if is_participant_model(p) and (
+            if isinstance(p, CaseParticipant) and (
                 CVDRole.REPORTER in p.roles or CVDRole.FINDER in p.roles
             ):
                 return _as_id(getattr(p, "attributed_to", None))
@@ -193,7 +194,7 @@ class AcceptCaseManagerRoleReceivedUseCase:
             return
 
         case = self._dl.read(case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             logger.warning(
                 "AcceptCaseManagerRoleReceived: case '%s' not found"
                 " — skipping trust bootstrap",

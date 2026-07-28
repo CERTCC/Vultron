@@ -33,7 +33,7 @@ from typing import Any, cast
 from vultron.wire.as2.rehydration import rehydrate
 from vultron.core.dispatcher import get_dispatcher
 from vultron.core.models.events import MessageSemantics, VultronEvent
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.core.ports.emitter import ActivityEmitter
@@ -242,7 +242,7 @@ def _dispatch_or_defer_inbox_item(
     if (
         case_id is not None
         and event.semantic_type != MessageSemantics.ANNOUNCE_VULNERABILITY_CASE
-        and not is_case_model(dl.read(case_id))
+        and not isinstance(dl.read(case_id), VulnerabilityCase)
     ):
         expired = _expire_pending_case_activities(
             case_id=case_id,

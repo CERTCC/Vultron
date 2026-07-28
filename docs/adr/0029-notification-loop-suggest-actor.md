@@ -1,14 +1,10 @@
 ---
-status: proposed
-date: 2026-07-09
+status: accepted
+date: 2026-07-22
 deciders: [adh]
 ---
 
 # Notification Loop Collapse: InjectParticipant → suggest-actor-to-case Protocol
-
-> **PROVISIONAL** — formed at planning time (issue #1200). Subject to revision
-> when the implementation issue for this collapse candidate is worked.
-> Implementation tracked by the issue blocked by #1200 and #1298.
 
 ## Context and Problem Statement
 
@@ -48,34 +44,27 @@ nodes are replaced by calls to the `suggest-actor-to-case` trigger (or
 equivalently, emitting `Offer(Actor)` to the CaseActor). The full
 `RecommendActor → Invite → Accept → Record` cascade follows automatically.
 
-### Key constraint
-
-`suggest-actor-to-case` currently assumes `CVDRole.VENDOR` for all suggested
-actors. The implementation issue for this collapse candidate **MUST** extend
-`suggest-actor-to-case` to accept an explicit `roles` parameter so that
-`CVDRole.COORDINATOR` and `CVDRole.OTHER` can be passed from the coordinator
-and other-parties sub-loops respectively.
-
 ### Consequences
 
 - Good, because the `InjectParticipant` family no longer bypasses the protocol
   handshake — participant records are now created only after proper invite/accept
 - Good, because party identification, effort gating, and typed sub-loops survive
   unchanged — minimal structural change to the outer BT
-- Bad/risk, because `suggest-actor-to-case` must be generalized for role;
-  this is a concrete pre-condition for the implementation issue (see #1298)
+- Good, because `suggest-actor-to-case` was generalized for role in #1298
+  (now closed); the `_WriteRolesNode` writes the correct `CVDRole` to the
+  blackboard before each sub-loop's trigger fires
 
 ## More Information
 
-- Planning issue: #1200
+- Planning issue: #1200 (closed); implementation issue: #1311 (closed by PR #1599)
 - Simulator nodes: full `MaybeReportToOthers` subtree (see
   `notes/bt-fuzzer-nodes-report-management.md` § "Reporting to Other Parties"
   and "Production Collapse 3")
-- Blocked by: #1200 (this planning issue) and #1298 (suggest_actor_tree
-  redesign — CaseActor-routed suggestion, role parameter)
+- Resolved blockers: #1200 (planning) and #1298 (suggest_actor_tree redesign —
+  CaseActor-routed suggestion, role parameter), both closed
 - Related: ADR-0026 (CaseActor-routed actor suggestion), #1252 (target
   factory function)
 - Note: `SetRcptQrmR` RM-state write is handled by the `AcceptInviteToCase`
   cascade; no standalone Actuator is needed at the outer loop layer
 
-Generated spec requirements: `behavior-tree-integration.yaml` BT-20-003 (provisional)
+Generated spec requirements: `behavior-tree-integration.yaml` BT-20-003

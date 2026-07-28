@@ -31,9 +31,11 @@ from vultron.core.use_cases.received.report import (
     SubmitReportReceivedUseCase,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 
@@ -42,7 +44,7 @@ class TestUseCaseExecution:
 
     def test_create_report_executes_with_valid_semantics(self, make_payload):
         """CreateReportReceivedUseCase executes when semantics match."""
-        report = VulnerabilityReport(
+        report = as_VulnerabilityReport(
             name="TEST-002", content="Test vulnerability report"
         )
         create_activity = as_Create(
@@ -56,7 +58,7 @@ class TestUseCaseExecution:
 
     def test_create_case_executes_with_valid_semantics(self, make_payload):
         """CreateCaseReceivedUseCase executes when semantics match."""
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             name="TEST-CASE-002", content="Test vulnerability case"
         )
         create_activity = as_Create(
@@ -71,7 +73,7 @@ class TestUseCaseExecution:
     def test_use_case_executes_with_real_datalayer(self, make_payload):
         """CreateReportReceivedUseCase executes without raising on real DataLayer."""
         dl = SqliteDataLayer("sqlite:///:memory:")
-        report = VulnerabilityReport(
+        report = as_VulnerabilityReport(
             name="TEST-003", content="Test report for shim delegation"
         )
         create_activity = as_Create(
@@ -136,11 +138,11 @@ class TestCreateReportNoStandaloneParticipantStatus:
         stored_report = dl.read("https://example.org/reports/r-store-1")
         assert (
             stored_report is not None
-        ), "VulnerabilityReport should be stored"
+        ), "as_VulnerabilityReport should be stored"
 
 
 class TestDuplicateReportHandling:
-    """Tests that duplicate VulnerabilityReport warnings are not emitted.
+    """Tests that duplicate as_VulnerabilityReport warnings are not emitted.
 
     The inbox endpoint pre-stores nested objects before dispatching to use
     cases.  When the use case then tries to store the same report, the
@@ -176,7 +178,7 @@ class TestDuplicateReportHandling:
     ):
         """SubmitReportReceivedUseCase emits no WARNING when report already stored.
 
-        The inbox endpoint pre-stores the nested VulnerabilityReport before
+        The inbox endpoint pre-stores the nested as_VulnerabilityReport before
         dispatching; the use case must degrade to DEBUG, not WARNING.
         Per D5-6-DUP.
         """
@@ -210,7 +212,7 @@ class TestDuplicateReportHandling:
             r for r in caplog.records if r.levelno >= logging.WARNING
         ]
         assert warning_records == [], (
-            "No WARNING should be emitted when VulnerabilityReport is "
+            "No WARNING should be emitted when as_VulnerabilityReport is "
             f"pre-stored by inbox endpoint; got: {[r.message for r in warning_records]}"
         )
 
@@ -247,6 +249,6 @@ class TestDuplicateReportHandling:
             r for r in caplog.records if r.levelno >= logging.WARNING
         ]
         assert warning_records == [], (
-            "No WARNING should be emitted when VulnerabilityReport is "
+            "No WARNING should be emitted when as_VulnerabilityReport is "
             f"pre-stored by inbox endpoint; got: {[r.message for r in warning_records]}"
         )

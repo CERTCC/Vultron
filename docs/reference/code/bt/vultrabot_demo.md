@@ -15,13 +15,13 @@ The Behavior Tree for this demo is essentially the entire tree defined in the
     # run the demo
     $ vultrabot
     # or
-    $ vultrabot --cvd
-    
+    $ vultrabot_cvd
+
     # print the tree and exit
-    $ vultrabot --cvd --print-tree
-    
+    $ vultrabot --print-tree
+
     # if vultron package is not installed
-    $ python -m vultron.bt.base.demo.vultrabot
+    $ python -m vultron.bt.base.demo.cvd
     ```
 
 When the tree is run, it will look something like this:
@@ -34,6 +34,6 @@ The full tree is too large to display here, but you can run the demo to see it.
 
 ## Demo Code
 
-::: vultron.demo.vultrabot
+::: vultron.bt.base.demo.cvd
     options:
         heading_level: 3

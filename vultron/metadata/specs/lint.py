@@ -15,8 +15,15 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from vultron.metadata.specs.registry import SpecRegistry, load_registry
-from vultron.metadata.specs.schema import BehavioralSpec, LintWarningCode
+from vultron.metadata.specs.registry import (
+    SpecRegistry,
+    load_registry,
+)
+from vultron.metadata.specs.schema import (
+    BehavioralSpec,
+    LintWarningCode,
+    TriggerType,
+)
 
 _RATIONALE_WARN_CHARS = 500
 _ADR_REF_RE = re.compile(r"\bADR-(\d{4})\b")
@@ -94,6 +101,48 @@ def _check_adr_references(
     return warnings
 
 
+def _check_missing_kind(registry: SpecRegistry) -> list[str]:
+    """Return hard errors for any spec item missing a ``kind:`` field (SR-09-003).
+
+    Pydantic already rejects ``kind: null`` at load time via the required
+    ``SpecKind`` field type, so this check is belt-and-suspenders for future
+    schema relaxations or registry manipulation outside the Pydantic validator.
+    """
+    errors: list[str] = []
+    for spec_id, spec in registry.all_specs.items():
+        if spec.kind is None:
+            errors.append(
+                f"{spec_id}: missing required 'kind' field on spec item"
+            )
+    return errors
+
+
+def _check_scenario_start_groups(registry: SpecRegistry) -> list[str]:
+    """Hard error when a scenario_start group has no BehavioralSpec with steps.
+
+    Enforces MS-13-004: mixed groups are permitted, but at least one item must
+    be a BehavioralSpec with a non-empty steps list.
+    """
+    errors: list[str] = []
+    for spec_file in registry.files:
+        for group in spec_file.groups:
+            if (
+                group.trigger is None
+                or group.trigger.type != TriggerType.SCENARIO_START
+            ):
+                continue
+            has_eca = any(
+                isinstance(spec, BehavioralSpec) and bool(spec.steps)
+                for spec in group.specs
+            )
+            if not has_eca:
+                errors.append(
+                    f"Group '{group.id}' has trigger type scenario_start but "
+                    f"contains no BehavioralSpec item with steps (MS-13-004)"
+                )
+    return errors
+
+
 def lint(spec_dir: Path, adr_dir: Path | None = None) -> int:
     """Validate the spec registry in ``spec_dir``.
 
@@ -126,6 +175,7 @@ def lint(spec_dir: Path, adr_dir: Path | None = None) -> int:
     hard_errors.extend(registry.validate_cross_references())
     hard_errors.extend(_check_prefix_consistency(registry))
     hard_errors.extend(_check_spec_id_prefix_consistency(registry))
+    hard_errors.extend(_check_scenario_start_groups(registry))
 
     for spec_id, spec in registry.all_specs.items():
         suppressed = set(spec.lint_suppress or [])
@@ -152,11 +202,12 @@ def lint(spec_dir: Path, adr_dir: Path | None = None) -> int:
                 f"{_RATIONALE_WARN_CHARS} characters"
             )
 
-        tags = spec.tags or []
+        tags = registry.get_effective_tags(spec_id)
         if not tags and LintWarningCode.MISSING_TAGS not in suppressed:
             warnings.append(f"[WARN] {spec_id}: no tags defined")
 
     warnings.extend(_check_adr_references(registry, adr_dir))
+    hard_errors.extend(_check_missing_kind(registry))
 
     for w in warnings:
         print(w)

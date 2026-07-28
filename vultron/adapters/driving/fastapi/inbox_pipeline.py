@@ -29,7 +29,7 @@ from vultron.adapters.driving.fastapi.inbox_pending_queue import (
     _replay_pending_case_activities,
 )
 from vultron.core.models.events import MessageSemantics, VultronEvent
-from vultron.core.models.protocols import is_case_model
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.wire.as2.rehydration import rehydrate
@@ -104,7 +104,7 @@ class InboxPipeline:
                 case_id is not None
                 and event.semantic_type
                 != MessageSemantics.ANNOUNCE_VULNERABILITY_CASE
-                and not is_case_model(self._dl.read(case_id))
+                and not isinstance(self._dl.read(case_id), VulnerabilityCase)
             ):
                 if _expire_pending_case_activities(
                     case_id=case_id,

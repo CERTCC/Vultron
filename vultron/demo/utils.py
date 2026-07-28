@@ -42,7 +42,9 @@ from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.base import as_Object
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -413,11 +415,11 @@ def get_offer_from_datalayer(
 
 def log_case_state(
     client: DataLayerClient, case_id: str, label: str
-) -> Optional[VulnerabilityCase]:
+) -> Optional[as_VulnerabilityCase]:
     """Fetch and log the current state of a case."""
     try:
         case_data = client.get(f"/datalayer/{case_id}")
-        case = VulnerabilityCase(**case_data)
+        case = as_VulnerabilityCase(**case_data)
         logger.info(
             f"Case state [{label}]: reports={len(case.vulnerability_reports)}, "
             f"participants={len(case.case_participants)}"

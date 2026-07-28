@@ -39,7 +39,9 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
 )
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 _ACTOR_URI = "https://example.org/actors/alice"
 _ACTIVITY_URI = "https://example.org/activities/create-001"
@@ -120,7 +122,7 @@ def test_activity_already_received_returns_false_when_inbox_is_none():
 def test_reparse_as_specific_type_returns_specific_class_for_known_type():
     from vultron.wire.as2.vocab.base.objects.base import as_Object
 
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         id_="urn:uuid:test-case-001",
         name="Test CVD Case",
     )
@@ -128,7 +130,7 @@ def test_reparse_as_specific_type_returns_specific_class_for_known_type():
     # Pass as base as_Object to simulate what the wire parser produces
     nested = as_Object.model_validate(raw_obj)
     result = _reparse_as_specific_type(nested, raw_obj)
-    assert isinstance(result, VulnerabilityCase)
+    assert isinstance(result, as_VulnerabilityCase)
 
 
 def test_reparse_as_specific_type_returns_base_when_type_is_none():
@@ -141,7 +143,7 @@ def test_reparse_as_specific_type_returns_base_when_type_is_none():
 
 def test_reparse_as_specific_type_returns_same_object_when_already_specific_class():
     """Guard branch: nested is already the specific class → return unchanged."""
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         id_="urn:uuid:test-case-already-specific",
         name="Already Specific",
     )
@@ -177,7 +179,7 @@ def test_store_inbox_activity_is_idempotent(datalayer):
 
 
 def test_store_nested_inbox_object_stores_inline_case(datalayer):
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         id_="urn:uuid:case-nest-001",
         name="Nested Case",
     )
@@ -207,7 +209,7 @@ def test_store_nested_inbox_object_skips_string_object(datalayer):
 
 
 def test_store_nested_inbox_object_skips_when_no_body(datalayer):
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         id_="urn:uuid:case-nobody-001",
         name="No Body Case",
     )

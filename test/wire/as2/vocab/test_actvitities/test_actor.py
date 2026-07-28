@@ -28,7 +28,9 @@ from vultron.wire.as2.vocab.base.objects.actors import (
     as_Person,
     as_Service,
 )
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 ACTOR_CLASSES = [
     as_Application,
@@ -70,7 +72,7 @@ class MyTestCase(unittest.TestCase):
     ):
         for actor_class in ACTOR_CLASSES:
             _actor = actor_class(name=actor_class.__name__)
-            _case = VulnerabilityCase(name=f"{actor_class.__name__} Case")
+            _case = as_VulnerabilityCase(name=f"{actor_class.__name__} Case")
             _recommendation = actor._RecommendActorActivity(
                 actor=_actor, object_=_actor, target=_case
             )
@@ -103,7 +105,7 @@ class MyTestCase(unittest.TestCase):
     ):
         for actor_class in ACTOR_CLASSES:
             _actor = actor_class(name=actor_class.__name__)
-            _case = VulnerabilityCase(name=f"{actor_class.__name__} Case")
+            _case = as_VulnerabilityCase(name=f"{actor_class.__name__} Case")
             _object = cls(actor=_actor, object_=_actor, target=_case)
 
             # check activity is correct type

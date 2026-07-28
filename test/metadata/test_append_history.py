@@ -491,6 +491,17 @@ _LEARNING_CONTENT = (
     "\n"
     "Guard ast.Lambda in the scope walker.\n"
 )
+_LEARNING_CONTENT_WITH_SIGNAL = (
+    "---\n"
+    f"title: '{_LEARNING_TITLE}'\n"
+    "type: learning\n"
+    "timestamp: '2026-06-22T10:00:00+00:00'\n"
+    f"source: {_LEARNING_SOURCE}\n"
+    "signal: spec-gap\n"
+    "---\n"
+    "\n"
+    "Guard ast.Lambda in the scope walker.\n"
+)
 
 
 def _make_incoming_file(
@@ -669,3 +680,68 @@ def _run_with_cmd(
         stdout=stdout_buf.getvalue(),
         stderr=stderr_buf.getvalue(),
     )
+
+
+class TestSignalFlag:
+    """--signal flag: emitted in frontmatter for learning entries (BW-07-002)."""
+
+    def test_signal_written_to_frontmatter(self, fake_repo: Path) -> None:
+        result = _run_append(
+            "learning",
+            body=_IDEA_BODY,
+            title="Spec gap found",
+            source="20260622-SPEC-GAP",
+            extra_args=["--signal", "spec-gap"],
+        )
+        assert result.returncode == 0
+        content = Path(result.stdout.strip()).read_text()
+        assert "signal: spec-gap" in content
+
+    def test_signal_absent_when_not_provided(self, fake_repo: Path) -> None:
+        result = _run_append(
+            "learning",
+            body=_IDEA_BODY,
+            title="Untagged learning",
+            source="20260622-UNTAGGED",
+        )
+        assert result.returncode == 0
+        content = Path(result.stdout.strip()).read_text()
+        assert "signal:" not in content
+
+    def test_signal_on_non_learning_type_rejected(
+        self, fake_repo: Path
+    ) -> None:
+        result = _run_append(
+            "idea",
+            body=_IDEA_BODY,
+            title="Idea with signal",
+            source="IDEA-WITH-SIGNAL",
+            extra_args=["--signal", "spec-gap"],
+        )
+        assert result.returncode != 0
+        assert "learning" in result.stderr
+
+    def test_unknown_signal_value_rejected(self, fake_repo: Path) -> None:
+        result = _run_append(
+            "learning",
+            body=_IDEA_BODY,
+            title="Bad signal",
+            source="20260622-BAD-SIGNAL",
+            extra_args=["--signal", "not-a-real-signal"],
+        )
+        assert result.returncode != 0
+        assert "unknown signal" in result.stderr.lower()
+
+    def test_from_file_preserves_signal_field(
+        self, fake_repo: Path, tmp_path: Path
+    ) -> None:
+        """--from-file path preserves signal: frontmatter verbatim."""
+        src = _make_incoming_file(
+            tmp_path,
+            content=_LEARNING_CONTENT_WITH_SIGNAL,
+            filename=f"{_LEARNING_SOURCE}.md",
+        )
+        result = _run_from_file(src)
+        assert result.returncode == 0
+        content = Path(result.stdout.strip()).read_text()
+        assert "signal: spec-gap" in content

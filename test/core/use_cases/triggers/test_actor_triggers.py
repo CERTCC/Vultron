@@ -16,12 +16,14 @@
 """
 Unit tests for actor-level trigger use cases.
 Covers SvcInviteActorToCaseUseCase, SvcSuggestActorToCaseUseCase,
-SvcAcceptCaseInviteUseCase, and SvcOfferCaseManagerRoleUseCase.
+SvcAcceptCaseInviteUseCase, SvcOfferCaseManagerRoleUseCase, and
+SvcAcceptActorRecommendationUseCase.
 Includes DR-09 regression tests verifying that short UUIDs in actor_id
 are normalised to full URIs before use.
 """
 
 import pytest
+from typing import cast
 
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -29,12 +31,14 @@ from vultron.adapters.driven.datalayer_sqlite import (
 )
 from vultron.enums.roles import CVDRole
 from vultron.core.use_cases.triggers.actor import (
+    SvcAcceptActorRecommendationUseCase,
     SvcAcceptCaseInviteUseCase,
     SvcInviteActorToCaseUseCase,
     SvcOfferCaseManagerRoleUseCase,
     SvcSuggestActorToCaseUseCase,
 )
 from vultron.core.use_cases.triggers.requests import (
+    AcceptActorRecommendationTriggerRequest,
     AcceptCaseInviteTriggerRequest,
     InviteActorToCaseTriggerRequest,
     OfferCaseManagerRoleTriggerRequest,
@@ -42,11 +46,12 @@ from vultron.core.use_cases.triggers.requests import (
 )
 from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.wire.as2.factories import rm_invite_to_case_activity
+from vultron.wire.as2.factories.actor import offer_case_participant_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Invite
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    VulnerabilityCase,
+    as_VulnerabilityCase,
     VulnerabilityCaseStub,
 )
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -92,16 +97,16 @@ def _cleanup_created_dls():
 
 def _make_case_with_case_manager(
     dl: SqliteDataLayer, owner_actor_id: str, case_actor_id: str
-) -> VulnerabilityCase:
-    case = VulnerabilityCase(
+) -> as_VulnerabilityCase:
+    case = as_VulnerabilityCase(
         attributed_to=owner_actor_id, name="Test Case", content="Content"
     )
-    owner_participant = CaseParticipant(
+    owner_participant = as_CaseParticipant(
         attributed_to=owner_actor_id,
         context=case.id_,
         case_roles=[CVDRole.CASE_OWNER],
     )
-    case_manager_participant = CaseParticipant(
+    case_manager_participant = as_CaseParticipant(
         attributed_to=case_actor_id,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -125,7 +130,7 @@ class TestSvcInviteActorToCaseUseCase:
 
         # Seed invitee and case in actor's DL
         dl.create(invitee)
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             attributed_to=actor.id_,
             name="Test Case",
             content="Test case content",
@@ -151,7 +156,7 @@ class TestSvcInviteActorToCaseUseCase:
         actor, dl = _make_actor_dl("Coordinator")
         invitee, _ = _make_actor_dl("Finder")
         dl.create(invitee)
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             attributed_to=actor.id_, name="Test Case", content="Content"
         )
         dl.create(case)
@@ -174,7 +179,7 @@ class TestSvcInviteActorToCaseUseCase:
         actor, dl = _make_actor_dl("Coordinator")
         # invitee NOT seeded in actor's DL
         missing_id = "https://example.org/actors/nobody"
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             attributed_to=actor.id_, name="Test Case", content="Content"
         )
         dl.create(case)
@@ -211,7 +216,7 @@ class TestSvcInviteActorToCaseUseCase:
         actor, dl = _make_actor_dl_with_http_id("Coordinator", _HTTP_ACTOR_ID)
         invitee, _ = _make_actor_dl("Finder")
         dl.create(invitee)
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             attributed_to=_HTTP_ACTOR_ID, name="Test Case", content="Content"
         )
         dl.create(case)
@@ -239,7 +244,7 @@ class TestSvcInviteActorToCaseUseCase:
         actor, dl = _make_actor_dl("Vendor")
         invitee, _ = _make_actor_dl("Coordinator")
         dl.create(invitee)
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             attributed_to=actor.id_, name="PCR Test Case", content="Content"
         )
         dl.create(case)
@@ -289,17 +294,19 @@ class TestInviteRolesAndEmbargoEnrichment:
     def _setup_invite(self, with_embargo=False, with_active_embargo=False):
         """Create actor, invitee, case; optionally add active embargo."""
         from vultron.core.states.em import EM
-        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.embargo_event import (
+            as_EmbargoEvent,
+        )
 
         actor, dl = _make_actor_dl("CaseOwner")
         invitee, _ = _make_actor_dl("Invitee")
         dl.create(invitee)
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             attributed_to=actor.id_, name="Test Case", content="Content"
         )
         dl.create(case)
         if with_active_embargo:
-            embargo = EmbargoEvent(
+            embargo = as_EmbargoEvent(
                 id_=f"{case.id_}/embargo/e1",
                 content="Active embargo",
             )
@@ -364,11 +371,13 @@ class TestInviteRolesAndEmbargoEnrichment:
         """AC-1: Invite.target stub carries activeEmbargo.endTime and emState=ACTIVE."""
         from datetime import datetime, timezone
 
-        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.embargo_event import (
+            as_EmbargoEvent,
+        )
 
         actor, invitee, dl, case = self._setup_invite()
         end_time = datetime(2030, 1, 1, tzinfo=timezone.utc)
-        embargo = EmbargoEvent(
+        embargo = as_EmbargoEvent(
             id_=f"{case.id_}/embargo/e1",
             content="Active embargo",
             end_time=end_time,
@@ -465,7 +474,7 @@ class TestRolesThreadingIntegration:
             as_Service,
         )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         # Shared DataLayer: both trigger and receive sides use it so the
@@ -478,7 +487,7 @@ class TestRolesThreadingIntegration:
         invitee_id = "https://example.org/actors/invitee-roundtrip"
         invitee = as_Organization(id_=invitee_id)
         dl.create(invitee)
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             attributed_to=owner.id_, name="Roles Round-Trip Test"
         )
         dl.create(case)
@@ -619,7 +628,7 @@ class TestSvcSuggestActorToCaseUseCase:
         actor, dl = _make_actor_dl("Coordinator")
         suggested, _ = _make_actor_dl("Vendor")
         dl.create(suggested)
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             attributed_to=actor.id_, name="Test Case", content="Content"
         )
         dl.create(case)
@@ -642,7 +651,7 @@ class TestSvcAcceptCaseInviteUseCase:
         invitee, dl_invitee = _make_actor_dl("Finder")
         dl_inviter.create(invitee)
 
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             attributed_to=inviter.id_, name="Test Case", content="Content"
         )
         dl_inviter.create(case)
@@ -686,6 +695,47 @@ class TestSvcAcceptCaseInviteUseCase:
                 dl, request, trigger_activity=TriggerActivityAdapter(dl)
             ).execute()
 
+    def test_accept_no_type_check_on_invite(self):
+        """AC-2: type check removed — _prepare() only guards existence (ADR-0035 DL-06).
+
+        The semantic type-check ('invite_type != Invite') was removed.
+        _prepare() now only raises VultronNotFoundError when the invite is
+        absent; passing an existing invite_id must reach the BT execution
+        stage regardless of the stored object's type_.  Invites are always
+        stored as as_Invite objects by invite_actor_to_case(), so this test
+        uses a real Invite — it confirms no VultronValidationError is raised,
+        which was the removed guard's error type.
+        """
+        inviter, dl_inviter = _make_actor_dl("Coordinator")
+        invitee, dl_invitee = _make_actor_dl("Finder")
+        dl_inviter.create(invitee)
+
+        case = as_VulnerabilityCase(
+            attributed_to=inviter.id_, name="Test Case", content="Content"
+        )
+        dl_inviter.create(case)
+
+        invite = rm_invite_to_case_activity(
+            invitee,
+            target=VulnerabilityCaseStub(id_=case.id_),
+            actor=inviter.id_,
+            to=[invitee.id_],
+        )
+        dl_invitee.create(inviter)
+        dl_invitee.create(invite)
+
+        request = AcceptCaseInviteTriggerRequest(
+            actor_id=invitee.id_,
+            invite_id=invite.id_,
+        )
+        # Should not raise VultronValidationError (type check removed per DL-06)
+        result = SvcAcceptCaseInviteUseCase(
+            dl_invitee,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl_invitee),
+        ).execute()
+        assert "activity" in result
+
     def test_accept_normalises_short_uuid_actor_id(self):
         """DR-09: short UUID in actor_id is resolved to full URI."""
         inviter, dl_inviter = _make_actor_dl("Coordinator")
@@ -694,7 +744,7 @@ class TestSvcAcceptCaseInviteUseCase:
         )
         dl_inviter.create(invitee)
 
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             attributed_to=inviter.id_, name="Test Case", content="Content"
         )
         dl_inviter.create(case)
@@ -724,19 +774,19 @@ class TestSvcAcceptCaseInviteUseCase:
 
 def _make_case_with_case_actor(
     dl: SqliteDataLayer, owner_actor_id: str, case_actor_id: str
-) -> tuple[VulnerabilityCase, str]:
-    """Create a VulnerabilityCase with a registered Case Actor service and
+) -> tuple[as_VulnerabilityCase, str]:
+    """Create a as_VulnerabilityCase with a registered Case Actor service and
     CASE_MANAGER participant.  Returns ``(case, case_actor_participant_id)``.
     """
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         attributed_to=owner_actor_id, name="Test Case", content="Content"
     )
-    owner_participant = CaseParticipant(
+    owner_participant = as_CaseParticipant(
         attributed_to=owner_actor_id,
         context=case.id_,
         case_roles=[CVDRole.CASE_OWNER],
     )
-    case_actor_participant = CaseParticipant(
+    case_actor_participant = as_CaseParticipant(
         attributed_to=case_actor_id,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -797,7 +847,7 @@ class TestSvcOfferCaseManagerRoleUseCase:
     def test_offer_raises_when_case_actor_missing(self):
         """VultronNotFoundError when no Case Actor Service exists for the case."""
         actor, dl = _make_actor_dl("Vendor")
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             attributed_to=actor.id_, name="No CaseActor Case", content="..."
         )
         dl.create(case)
@@ -854,3 +904,320 @@ class TestSvcOfferCaseManagerRoleUseCase:
         stored = dl.read(activity_id)
         assert stored is not None
         assert getattr(stored, "type_", None) == "Offer"
+
+
+class TestSvcAcceptActorRecommendationUseCase:
+    """Tests for the accept-actor-recommendation trigger use case."""
+
+    def _make_cp_offer(
+        self, dl: SqliteDataLayer, vendor_id: str, case_actor_id: str
+    ):
+        vendor = as_Service(id_=vendor_id, name="Vendor")
+        offer = offer_case_participant_activity(
+            recommended=vendor,
+            actor=case_actor_id,
+            to=["http://owner:7999/api/v2/actors/owner"],
+        )
+        dl.create(cast(as_CaseParticipant, offer.object_))
+        dl.create(offer)
+        return offer
+
+    def test_accept_creates_accept_activity(self):
+        owner, dl = _make_actor_dl("Owner")
+        case_actor = as_Service(name="CaseActor")
+        vendor = as_Service(name="Vendor")
+        dl.create(case_actor)
+        dl.create(vendor)
+
+        offer = self._make_cp_offer(dl, vendor.id_, case_actor.id_)
+
+        request = AcceptActorRecommendationTriggerRequest(
+            actor_id=owner.id_,
+            cp_offer_id=offer.id_,
+            case_actor_id=case_actor.id_,
+        )
+        result = SvcAcceptActorRecommendationUseCase(
+            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        assert result.get("activity") is not None
+        activity = result["activity"]
+        assert activity["type"] == "Accept"
+
+    def test_accept_raises_when_offer_not_found(self):
+        owner, dl = _make_actor_dl("Owner")
+        case_actor = as_Service(name="CaseActor")
+        dl.create(case_actor)
+
+        request = AcceptActorRecommendationTriggerRequest(
+            actor_id=owner.id_,
+            cp_offer_id="https://example.org/activities/no-such-offer",
+            case_actor_id=case_actor.id_,
+        )
+        with pytest.raises(Exception):
+            SvcAcceptActorRecommendationUseCase(
+                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
+
+    def test_accept_raises_when_actor_not_found(self):
+        _, dl = _make_actor_dl("Owner")
+        case_actor = as_Service(name="CaseActor")
+        vendor = as_Service(name="Vendor")
+        dl.create(case_actor)
+        dl.create(vendor)
+        offer = self._make_cp_offer(dl, vendor.id_, case_actor.id_)
+
+        request = AcceptActorRecommendationTriggerRequest(
+            actor_id="https://example.org/actors/ghost",
+            cp_offer_id=offer.id_,
+            case_actor_id=case_actor.id_,
+        )
+        with pytest.raises(VultronNotFoundError):
+            SvcAcceptActorRecommendationUseCase(
+                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
+
+
+class TestSvcOfferCaseOwnershipTransferUseCase:
+    """Tests for the offer-case-ownership-transfer trigger use case (TRIG-11-001)."""
+
+    def test_offer_creates_activity(self):
+        owner, dl = _make_actor_dl("Vendor")
+        transferee, _ = _make_actor_dl("Coordinator")
+        dl.create(transferee)
+        case = as_VulnerabilityCase(
+            attributed_to=owner.id_, name="Test Case", content="Content"
+        )
+        dl.create(case)
+
+        from vultron.core.use_cases.triggers.actor import (
+            SvcOfferCaseOwnershipTransferUseCase,
+        )
+        from vultron.core.use_cases.triggers.requests import (
+            OfferCaseOwnershipTransferTriggerRequest,
+        )
+
+        request = OfferCaseOwnershipTransferTriggerRequest(
+            actor_id=owner.id_,
+            case_id=case.id_,
+            transferee_id=transferee.id_,
+        )
+        result = SvcOfferCaseOwnershipTransferUseCase(
+            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        assert "activity" in result
+        activity_data = result["activity"]
+        assert activity_data["type"] == "Offer"
+        assert activity_data["actor"] == owner.id_
+
+    def test_offer_persisted_in_datalayer(self):
+        owner, dl = _make_actor_dl("Vendor")
+        transferee, _ = _make_actor_dl("Coordinator")
+        dl.create(transferee)
+        case = as_VulnerabilityCase(
+            attributed_to=owner.id_, name="Test Case", content="Content"
+        )
+        dl.create(case)
+
+        from vultron.core.use_cases.triggers.actor import (
+            SvcOfferCaseOwnershipTransferUseCase,
+        )
+        from vultron.core.use_cases.triggers.requests import (
+            OfferCaseOwnershipTransferTriggerRequest,
+        )
+
+        request = OfferCaseOwnershipTransferTriggerRequest(
+            actor_id=owner.id_,
+            case_id=case.id_,
+            transferee_id=transferee.id_,
+        )
+        result = SvcOfferCaseOwnershipTransferUseCase(
+            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        offer_id = result["activity"]["id"]
+        stored = dl.read(offer_id)
+        assert stored is not None
+
+    def test_offer_raises_when_transferee_not_in_dl(self):
+        owner, dl = _make_actor_dl("Vendor")
+        missing_id = "https://example.org/actors/nobody"
+        case = as_VulnerabilityCase(
+            attributed_to=owner.id_, name="Test Case", content="Content"
+        )
+        dl.create(case)
+
+        from vultron.core.use_cases.triggers.actor import (
+            SvcOfferCaseOwnershipTransferUseCase,
+        )
+        from vultron.core.use_cases.triggers.requests import (
+            OfferCaseOwnershipTransferTriggerRequest,
+        )
+
+        request = OfferCaseOwnershipTransferTriggerRequest(
+            actor_id=owner.id_,
+            case_id=case.id_,
+            transferee_id=missing_id,
+        )
+        with pytest.raises(VultronNotFoundError):
+            SvcOfferCaseOwnershipTransferUseCase(
+                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
+
+    def test_offer_raises_when_case_not_in_dl(self):
+        owner, dl = _make_actor_dl("Vendor")
+        transferee, _ = _make_actor_dl("Coordinator")
+        dl.create(transferee)
+
+        from vultron.core.use_cases.triggers.actor import (
+            SvcOfferCaseOwnershipTransferUseCase,
+        )
+        from vultron.core.use_cases.triggers.requests import (
+            OfferCaseOwnershipTransferTriggerRequest,
+        )
+
+        request = OfferCaseOwnershipTransferTriggerRequest(
+            actor_id=owner.id_,
+            case_id="https://example.org/cases/nope",
+            transferee_id=transferee.id_,
+        )
+        with pytest.raises(Exception):
+            SvcOfferCaseOwnershipTransferUseCase(
+                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
+
+
+class TestSvcAcceptCaseOwnershipTransferUseCase:
+    """Tests for the accept-case-ownership-transfer trigger use case (TRIG-11-002)."""
+
+    def _make_ownership_offer(
+        self,
+        dl: SqliteDataLayer,
+        owner_id: str,
+        transferee_id: str,
+        case: as_VulnerabilityCase,
+    ):
+        from vultron.wire.as2.factories.case import (
+            offer_case_ownership_transfer_activity,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase as _VC,
+        )
+
+        case_wire = _VC.model_validate(
+            {"id": case.id_, "name": case.name or "Test"}
+        )
+        offer = offer_case_ownership_transfer_activity(
+            case=case_wire,
+            target=transferee_id,
+            actor=owner_id,
+            to=[transferee_id],
+        )
+        dl.create(offer)
+        return offer
+
+    def test_accept_creates_activity(self):
+        owner, dl = _make_actor_dl("Vendor")
+        transferee, _ = _make_actor_dl("Coordinator")
+        dl.create(transferee)
+        case = as_VulnerabilityCase(
+            attributed_to=owner.id_, name="Test Case", content="Content"
+        )
+        dl.create(case)
+        offer = self._make_ownership_offer(dl, owner.id_, transferee.id_, case)
+
+        from vultron.core.use_cases.triggers.actor import (
+            SvcAcceptCaseOwnershipTransferUseCase,
+        )
+        from vultron.core.use_cases.triggers.requests import (
+            AcceptCaseOwnershipTransferTriggerRequest,
+        )
+
+        request = AcceptCaseOwnershipTransferTriggerRequest(
+            actor_id=transferee.id_,
+            offer_id=offer.id_,
+        )
+        result = SvcAcceptCaseOwnershipTransferUseCase(
+            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        assert "activity" in result
+        activity_data = result["activity"]
+        assert activity_data["type"] == "Accept"
+        assert activity_data["actor"] == transferee.id_
+
+    def test_accept_persisted_in_datalayer(self):
+        owner, dl = _make_actor_dl("Vendor")
+        transferee, _ = _make_actor_dl("Coordinator")
+        dl.create(transferee)
+        case = as_VulnerabilityCase(
+            attributed_to=owner.id_, name="Test Case", content="Content"
+        )
+        dl.create(case)
+        offer = self._make_ownership_offer(dl, owner.id_, transferee.id_, case)
+
+        from vultron.core.use_cases.triggers.actor import (
+            SvcAcceptCaseOwnershipTransferUseCase,
+        )
+        from vultron.core.use_cases.triggers.requests import (
+            AcceptCaseOwnershipTransferTriggerRequest,
+        )
+
+        request = AcceptCaseOwnershipTransferTriggerRequest(
+            actor_id=transferee.id_,
+            offer_id=offer.id_,
+        )
+        result = SvcAcceptCaseOwnershipTransferUseCase(
+            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        accept_id = result["activity"]["id"]
+        stored = dl.read(accept_id)
+        assert stored is not None
+
+    def test_accept_raises_when_offer_not_in_dl(self):
+        owner, dl = _make_actor_dl("Vendor")
+        transferee, _ = _make_actor_dl("Coordinator")
+        dl.create(transferee)
+
+        from vultron.core.use_cases.triggers.actor import (
+            SvcAcceptCaseOwnershipTransferUseCase,
+        )
+        from vultron.core.use_cases.triggers.requests import (
+            AcceptCaseOwnershipTransferTriggerRequest,
+        )
+
+        request = AcceptCaseOwnershipTransferTriggerRequest(
+            actor_id=transferee.id_,
+            offer_id="https://example.org/activities/nope",
+        )
+        with pytest.raises(VultronNotFoundError):
+            SvcAcceptCaseOwnershipTransferUseCase(
+                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
+
+    def test_accept_raises_when_actor_not_found(self):
+        owner, dl = _make_actor_dl("Vendor")
+        case = as_VulnerabilityCase(
+            attributed_to=owner.id_, name="Test Case", content="Content"
+        )
+        dl.create(case)
+        transferee_id = "https://example.org/actors/coordinator"
+        offer = self._make_ownership_offer(dl, owner.id_, transferee_id, case)
+
+        from vultron.core.use_cases.triggers.actor import (
+            SvcAcceptCaseOwnershipTransferUseCase,
+        )
+        from vultron.core.use_cases.triggers.requests import (
+            AcceptCaseOwnershipTransferTriggerRequest,
+        )
+
+        request = AcceptCaseOwnershipTransferTriggerRequest(
+            actor_id="https://example.org/actors/ghost",
+            offer_id=offer.id_,
+        )
+        with pytest.raises(VultronNotFoundError):
+            SvcAcceptCaseOwnershipTransferUseCase(
+                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()

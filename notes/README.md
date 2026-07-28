@@ -172,19 +172,31 @@ schema for behavioral specs; or drafting docs updates for behavior logic.
 Canonical guidance for how ActivityStreams activities are used as
 state-change notifications (not commands): inbound vs outbound semantics,
 `Accept`/`Reject` `object_` field conventions (inline typed object required),
-`rehydrate()` patterns, `CaseActor` as authoritative case author, and
-vocabulary examples.
+`rehydrate()` patterns, asymmetric inbox routing, embargo-as-calendar-invitation,
+vocabulary examples, and re-engagement patterns.
 **Load when**: implementing any inbound or outbound message handler, debugging
 semantic extraction, or writing new ActivityStreams vocabulary classes.
+
+**`activitystreams-state-update.md`**
+Advanced ActivityStreams design notes: Case State update path, `CaseActor`
+authoritativeness, DR-series named bugs (DR-02, DR-05, DR-07, DR-08–DR-14),
+transitive activity patterns, base-typed serialization, invite response
+parsing, bootstrap embedded-object contract, semantic registry patterns,
+and `offer_case_participant_activity` object-id semantics.
+**Load when**: debugging AS2 state-update paths, investigating named DR-series
+bugs, working on transitive activity dispatch, or tracing case-state divergence.
 
 **`case-proposal.md`**
 Design rationale, protocol flow, and implementation guidance for the
 `CaseProposal` mechanism: new `as_CaseProposal` AS2 object type, the
 `Create(CaseProposal)` / `Accept(CaseProposal)` / `Reject(CaseProposal)` flow,
-`ProposeCaseToActorNode` vs `CreateCaseActorNode` responsibilities, and the
-three received-side use cases. ADR: `docs/adr/0023-case-proposal-protocol.md`.
-**Load when**: implementing `as_CaseProposal`, `ProposeCaseToActorNode`, or
-the received-side use cases; or working on issues #810, #811, #812.
+`ProposeCaseToActorNode` vs `CreateCaseActorNode` responsibilities, the
+three received-side use cases, and the `case_actor_service_url` configuration
+invariant for `ResolveCaseActorUrlsNode` (CP-08-001 through CP-08-003).
+ADR: `docs/adr/0023-case-proposal-protocol.md`.
+**Load when**: implementing `as_CaseProposal`, `ProposeCaseToActorNode`,
+`ResolveCaseActorUrlsNode`, or the received-side use cases; or working on
+issues #810, #811, #812, #1633, #1640.
 
 **`vocabulary-registry.md`**
 Design decisions and migration path for the AS2 vocabulary registry refactor:
@@ -211,14 +223,35 @@ full inline objects.
 trade-offs, or scoping privacy/redaction features.
 
 **`bt-integration.md`**
-BT design decisions (when to use BTs vs procedural code), py_trees patterns,
-simulation-to-prototype translation strategy, and anti-patterns to avoid.
-Also contains the **Canonical CVD Protocol Behavior Tree Reference** (merged
-from the former `canonical-bt-reference.md`): trunk-removed branches model
-and subtree composition examples.
-**Load when**: implementing or modifying any BT node or use-case handler that
-uses py_trees, deciding whether a new use case needs a BT, or diagnosing BT
-execution issues.
+Core BT design decisions: when to use BTs vs procedural code, py_trees
+patterns, simulation-to-prototype translation strategy, actor isolation,
+concurrency model, RM state machine context, EvaluateCasePriority direction,
+composability, and open architecture questions.
+**Load when**: making architecture decisions about BT structure, deciding
+whether a new use case needs a BT, or implementing a BT-backed use case
+from scratch.
+
+**`bt-canonical-reference.md`**
+Canonical CVD Protocol Behavior Tree structural reference: trunk-removed
+branches model, node symbol legend, top-level structure, subtree map
+(ReceiveMessagesBt, ReportManagementBt, EmbargoManagementBt), Prioritize
+subtree detail, how to locate new behaviors in the canonical tree, key fuzzer
+nodes, and the BT-IDM-01/02/03 anti-pattern reference (spec: BT-22-001/002/003).
+**Load when**: locating where a cascade fits in the canonical BT, checking
+whether a new behavior must be a subtree, diagnosing layer-boundary violations
+(BT node calling use cases, importing from use_cases/), or auditing god nodes.
+
+**`bt-pitfalls.md`**
+Per-pitfall BT debugging notes: failure reason propagation, blackboard lookup
+semantics (`get()` vs attribute access, strict/lenient), idempotency patterns,
+role guards (`CheckIsCaseManagerNode`), `memory=False` partial-write semantics,
+blackboard key namespacing for concurrent executions (BTND-03-004), no-op path
+key clearing, `BTBridge.execute_with_setup` return value handling, ledger
+commit ordering, routing-gated state mutation, fan-out context handoff,
+and dual-path consolidation test gap patterns.
+**Load when**: debugging a BT that returns unexpected FAILURE/SUCCESS, auditing
+blackboard key race conditions, investigating idempotency failures, or
+reviewing BT subtree ordering for state-mutation safety.
 
 **`peer-broadcast-failure-semantics.md`**
 Fail-fast requirements for protocol-visible peer fan-out in BT paths:
@@ -236,6 +269,17 @@ logic in nodes, one-off subtrees, duplicated logic), and a composability checkli
 Operationalizes `specs/behavior-tree-node-design.yaml` (BTND-01 through BTND-04).
 **Load when**: designing a new BT node or subtree, auditing existing nodes for
 composability violations, or refactoring near-duplicate BT implementations.
+
+**`call-out-configuration.md`**
+Design decisions for how running code selects backend factories for call-out
+point nodes in BT tree builders: three-mode model (DETERMINISTIC /
+STOCHASTIC / REAL), domain bundle dataclasses, pre-built singletons,
+`CallOutBackendFactory` Protocol, default direction rule (ceiling/floor of
+stochastic p), and the extension points for YAML/CLI config and personality
+bundles. Derived from #1631 planning; implemented by #1152.
+**Load when**: implementing or extending call-out point backend injection in
+demo scenarios or tests; designing the bundle/singleton layout in
+`vultron/demo/fuzzer/bundles/`; understanding the three-mode backend model.
 
 **`bt-fuzzer-nodes.md`**
 Index and background for the fuzzer node catalog. Fuzzer nodes are stub
@@ -262,11 +306,40 @@ acceptance/rejection, and timer nodes.
 **Load when**: replacing fuzzer stubs in the embargo management BT.
 
 **`bt-fuzzer-nodes-report-management.md`**
-Fuzzer node catalog for all Report Management workflows
-(`vultron/bt/report_management/`): validation, prioritization, ID assignment,
-fix development/deployment, exploit/threat tracking, publication,
-reporting-to-others, and report closure nodes.
-**Load when**: replacing fuzzer stubs in any report management BT subtree.
+Index file for all Report Management fuzzer-node catalogs. Contains the
+fuzzer base-type probability table, per-workflow catalog links, and the
+cross-cutting Production Collapse designs (collapses 1–4: exploit strategy,
+publication intents, notification loop, publish pipeline) and sentinel-stub
+sync guidance.
+**Load when**: looking up Production Collapse designs, reviewing the
+probability table, or navigating to a specific sub-workflow catalog.
+
+**`bt-fuzzer-rm-validation.md`** — Report Validation (`RMValidateBt`): credibility/validity checks and new-info sentinels.
+**Load when**: replacing fuzzer stubs in the report validation BT.
+
+**`bt-fuzzer-rm-prioritization.md`** — Report Prioritization (`RMPrioritizeBt`): priority assessment and ranking nodes.
+**Load when**: replacing fuzzer stubs in the report prioritization BT.
+
+**`bt-fuzzer-rm-id-assignment.md`** — Vulnerability ID Assignment (`AssignVulIdBt`): CVE ID acquisition nodes.
+**Load when**: replacing fuzzer stubs in the vulnerability ID assignment BT.
+
+**`bt-fuzzer-rm-fix.md`** — Fix Development + Deployment (`DevelopFixBt` / `DeployFixBt`): patch creation and rollout nodes.
+**Load when**: replacing fuzzer stubs in the fix development or deployment BT.
+
+**`bt-fuzzer-rm-exploit.md`** — Exploit Acquisition (`AcquireExploitBt`): exploit-presence checks and strategy nodes.
+**Load when**: replacing fuzzer stubs in the exploit acquisition BT.
+
+**`bt-fuzzer-rm-threat.md`** — Threat Monitoring (`MonitorThreatsBt`): active-threat detection and escalation nodes.
+**Load when**: replacing fuzzer stubs in the threat monitoring BT.
+
+**`bt-fuzzer-rm-publication.md`** — Publication (`PublicationBt`): disclosure decisions, content preparation, and advisory nodes.
+**Load when**: replacing fuzzer stubs in the publication BT.
+
+**`bt-fuzzer-rm-reporting.md`** — Reporting to Other Parties (`ReportToOthersBt`): outbound-report and participant-tracking nodes.
+**Load when**: replacing fuzzer stubs in the reporting-to-others BT.
+
+**`bt-fuzzer-rm-closure.md`** — Report Closure + Other Work (`CloseReportBt` / `RMDoWorkBt`): close-case eligibility and extensibility stub nodes.
+**Load when**: replacing fuzzer stubs in the report closure or other-work BT.
 
 **`bt-fuzzer-nodes-messaging.md`**
 Fuzzer node catalog for the Inbound Message Handling workflow
@@ -319,6 +392,15 @@ configuration.
 
 ## Case and Data Model
 
+**`status-dimension-objects.md`**
+Design guidance for per-machine dimension objects decomposed from `CaseStatus`
+and `ParticipantStatus` (ADR-0036): naming table, `BaseModel`-not-`CoreObject`
+rationale, immutable `transition()` pattern, wire projection notes, call-site
+migration mapping (~308 active sites), and `EmbargoLifecycle` migration priority.
+**Load when**: implementing or reviewing dimension-object migration, working on
+`specs/status-dimension-objects.yaml` (SDO) requirements, or understanding how
+`EmDimension`/`RmDimension`/etc. embed inside status objects.
+
 **`lifecycle-staged-types.md`**
 Design guidance for lifecycle-staged domain types (ADR-0033): the field-set
 governing principle (a milestone earns a type only when it changes the
@@ -364,9 +446,12 @@ model.
 **`sync-ledger-replication.md`**
 Log-centric architecture overview: hash-chain design rationale, log position
 in activity `context`, implementation phases (SYNC-1–4), system invariants,
-and open questions for the replicated case event log.
+open questions for the replicated case event log, SYNC-13 ledger write-ownership
+boundary, and pre-SYNC-13 upgrade path.
 **Load when**: designing multi-actor case synchronization, evaluating the
-hash-chain log approach, or scoping the SYNC-1–4 implementation phases.
+hash-chain log approach, scoping the SYNC-1–4 implementation phases, or
+investigating the SYNC-12/SYNC-13 effects-before-persist and write-ownership
+invariants.
 
 **`participant-case-replica.md`**
 Design notes for participant case replicas: per-actor case copies, the
@@ -400,22 +485,55 @@ use cases, designing the `EmbargoLifecycle` service (#538), auditing inline
 ## Codebase, Infrastructure, and Demos
 
 **`codebase-structure.md`**
-Module conventions and known gaps: enum refactoring, `vultron_types.py` split
-(TECHDEBT-14), `CVDRoles` design decision, BT module boundary (`vultron/bt/`
-vs `vultron/core/behaviors/`), demo script patterns (`demo_step` /
-`demo_check`), docstring/markdown compatibility, `_shared_dl` router test
-pattern, and circular import fix patterns.
-**Load when**: adding or moving modules, writing router tests, debugging
-import errors, or following established code organization conventions.
+Module conventions and known gaps: top-level modules, enum refactoring,
+`vultron_types.py` split (TECHDEBT-14), `CVDRoles` design decision, BT
+module boundary (`vultron/bt/` vs `vultron/core/behaviors/`), demo script
+patterns (`demo_step` / `demo_check`), docstring/markdown compatibility,
+bulk module-rename lessons, and known documentation gaps.
+**Load when**: adding or moving modules, following established code
+organization conventions, or orienting to the module boundary rules.
+
+**`demo-ci-invariants.md`**
+Design notes for the case-ledger invariant harness in demo CI: the
+separate-job pattern (DEMOCI-04) that gives the invariant harness its own
+independent pass/fail status even when the demo itself fails, the per-scenario
+required event-type lists (DEMOMA-16), the table of required types per
+scenario, and the spec-test sync rule.
+**Load when**: modifying the demo CI workflow (`demo-integration.yml`),
+adding or changing a scenario's expected event types, or debugging a silent
+invariant harness failure in CI.
+
+**`codebase-structure-fastapi-patterns.md`**
+FastAPI and test infrastructure patterns: router test override pattern
+(`_shared_dl`, `dependency_overrides`), circular import fix pattern
+(`_helpers.py`), FastAPI `response_model` / `status_code` conventions,
+health check and Docker health check design, Black/pyright config notes,
+Python 3.14 compatibility deferral, surrogate-key routing collision
+handling, and logger name verification.
+**Load when**: writing FastAPI router tests, debugging import cycles,
+implementing health check endpoints, or resolving surrogate-key routing
+collisions.
 
 **`triggerable-behaviors.md`**
 Design notes for PRIORITY-30 trigger endpoints: trigger scope, endpoint
-schema, candidate RM/EM behaviors, per-participant embargo acceptance
-tracking, resolved design decisions (P30-1–P30-3: outbox diff strategy,
-procedural vs BT selection), and the BT requirement for trigger use cases.
+design sketch, actor independence, BT node classification, three-way report
+validation, side effects of Emit FOO behaviors, placeholder behaviors,
+SSVC-based prioritization, per-behavior design notes (embargo, CVE ID,
+participants, notify others), invitation-ready case objects, and per-participant
+embargo acceptance tracking.
 **Load when**: implementing or modifying a trigger endpoint, designing the
-request/response schema for a new trigger, or verifying whether a trigger use
-case requires a BT.
+request/response schema for a new trigger, or working on per-behavior trigger
+logic.
+
+**`triggerable-behaviors-resolved.md`**
+Resolved trigger implementation design decisions and audit results: P30-1
+(outbox diff strategy), P30-2 (report triggers procedural), P30-3 (case
+triggers procedural), BT requirement for trigger use cases, general-purpose
+vs demo-only trigger classification, trigger audit results, wrapper pattern,
+sync-log-entry context field, and testing patterns.
+**Load when**: verifying whether a trigger use case requires a BT, looking up
+the resolved design rationale for the trigger architecture, or auditing trigger
+classification (demo-only vs general-purpose).
 
 **`docker-build.md`**
 Project-specific Docker build observations: dependency layer caching, image
@@ -432,11 +550,11 @@ implementation guidance. Implementation is tracked in issue #1156.
 inbox/outbox pipeline (see issue #1156 and its children).
 
 **`demo-future-ideas.md`**
-Extended multi-actor demo scenario sketches: Two-Actor (Finder + Vendor),
+Extended multi-actor demo scenario sketches: FV (Finder + Vendor),
 Three-Actor (Finder + Vendor + Coordinator), MultiParty (ownership transfer).
 Describes what each scenario would demonstrate and open design questions.
 **Load when**: designing new demo scripts or extending the existing demo suite
-beyond the current two-actor scenario.
+beyond the current FV scenario.
 
 **`vultron/core/use_cases/triggers/AGENTS.md`**
 Trigger classification guidance: demo-specific vs general-purpose

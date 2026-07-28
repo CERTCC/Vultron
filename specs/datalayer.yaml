@@ -2,17 +2,19 @@ id: DL
 title: DataLayer Port
 description: Behavioural contract that all DataLayer adapter implementations MUST satisfy. Covers auto-rehydration on read,
   type-safe write operations, and port isolation.
-version: 1.1.0
-kind: implementation
+version: 1.3.0
 scope:
 - prototype
 - production
+tags:
+- persistence
 groups:
 - id: DL-01
   title: Auto-Rehydration on Read
   specs:
   - id: DL-01-001
     priority: MUST
+    kind: project
     statement: '`dl.read(id)` MUST return a fully rehydrated, typed domain object: a Pydantic model instance with all dehydrated
       ID-string fields expanded to their full typed objects; if the object does not exist, `VultronNotFoundError` MUST be
       raised.'
@@ -21,6 +23,7 @@ groups:
     - persistence
   - id: DL-01-002
     priority: MUST
+    kind: project
     statement: '`dl.list(type_key)` MUST return an iterable of fully rehydrated, typed domain objects; an empty result MUST
       be returned (not an error) when no objects of the given type exist.'
     rationale: Consistent with DL-01-001 rehydration guarantee.
@@ -28,6 +31,7 @@ groups:
     - persistence
   - id: DL-01-003
     priority: MUST
+    kind: project
     statement: Rehydration MUST cover all fields the adapter dehydrates on write (including `object_`, `target`, `origin`);
       if a dehydrated field references a missing ID, the adapter MUST log a WARNING and return the ID string as-is.
     rationale: Preserves partial readability when nested objects are deleted.
@@ -35,6 +39,7 @@ groups:
     - persistence
   - id: DL-01-004
     priority: MUST
+    kind: project
     statement: Core use cases MUST NOT contain manual coercion of `dl.read()` results; specifically, `model_validate` on a
       `dl.read()` result, `record_to_object()` calls, and `isinstance(result, Document)` checks are prohibited in `vultron/core/`.
     rationale: These patterns indicate the adapter is not satisfying its rehydration contract and MUST be fixed in the adapter,
@@ -46,6 +51,7 @@ groups:
   specs:
   - id: DL-02-001
     priority: MUST
+    kind: project
     statement: '`dl.save(obj)` MUST accept a typed Pydantic domain object directly and handle all serialisation and dehydration
       internally; core MUST NOT call `object_to_record()` before passing an object to `dl.save()`.'
     rationale: Keeps serialisation concerns inside the adapter layer.
@@ -53,6 +59,7 @@ groups:
     - persistence
   - id: DL-02-002
     priority: MUST
+    kind: project
     statement: '`dl.save(obj)` MUST be idempotent with respect to the object''s `id_`: saving the same object twice with the
       same ID MUST produce the same stored state as saving it once (upsert semantics).'
     rationale: Idempotent writes prevent duplicate-key errors in retry scenarios.
@@ -64,6 +71,7 @@ groups:
   specs:
   - id: DL-03-001
     priority: MUST
+    kind: project
     statement: The `DataLayer` port (`vultron/core/ports/datalayer.py`) MUST be defined entirely in terms of core domain types
       and MUST NOT import from `vultron/wire/`, `vultron/adapters/`, or any storage-specific library (SQLModel, TinyDB, etc.).
     rationale: Enforces hexagonal architecture layer separation (ARCH-01-001).
@@ -72,6 +80,7 @@ groups:
       spec_id: ARCH-01-001
   - id: DL-03-002
     priority: MUST
+    kind: project
     statement: The DataLayer adapter MUST NOT expose vocabulary registry lookups or AS2 type-name resolution to core; the
       vocabulary registry is a wire-layer concern and the adapter must maintain its own internal mapping.
     rationale: Prevents wire-layer types from leaking into the core domain through the persistence port.
@@ -80,6 +89,7 @@ groups:
   specs:
   - id: DL-04-001
     priority: MUST
+    kind: project
     statement: The `DataLayer` port MUST remain the full adapter-level persistence contract, while core use cases and BT
       nodes MUST depend on `CasePersistence` or `CaseOutboxPersistence` instead of the full `DataLayer` port unless a
       documented exception requires the broader interface.
@@ -90,6 +100,7 @@ groups:
       spec_id: ARCH-01-001
   - id: DL-04-002
     priority: MUST
+    kind: project
     statement: The current required minimum `CasePersistence` surface is `create`, `read`, `get`, `save`, `by_type`,
       `find_case_by_report_id`, and `find_actor_by_short_id`; future additions MAY be made only when they preserve the
       same core-facing persistence/query boundary and do not introduce queue, admin, health, or diagnostic
@@ -98,12 +109,14 @@ groups:
       query helpers.
   - id: DL-04-003
     priority: MUST_NOT
+    kind: project
     statement: '`CasePersistence` MUST NOT include inbox queue methods, outbox inspection or drain methods, `ping`,
       `clear_*`, `update`, `delete`, `get_all`, `all`, `count_all`, or other infrastructure, admin, or diagnostic
       operations that belong to the full `DataLayer` adapter contract.'
     rationale: Prevents low-level storage and operational concerns from leaking into core use cases and BT nodes.
   - id: DL-04-004
     priority: MUST
+    kind: project
     statement: '`CaseOutboxPersistence` MUST extend `CasePersistence` only with the outbound enqueue methods
       `record_outbox_item` and `outbox_append`; if a `ReceivedUseCase` depends on `CaseOutboxPersistence`, that
       dependency MUST be treated as a documented architectural smell rather than normal design.'
@@ -111,7 +124,179 @@ groups:
       refactoring.
   - id: DL-04-005
     priority: MUST
+    kind: project
     statement: '`get()` and `by_type()` on `CasePersistence` are deprecated compatibility methods; new or refactored core
       code MUST prefer typed `read()`, `list()`, or dedicated typed helper methods, and migration work MUST remove the
       deprecated methods once existing call sites have been replaced.'
     rationale: The narrow port should converge on typed domain-object access rather than preserve raw-record escape hatches.
+- id: DL-05
+  title: Core-Object Read Contract
+  description: The DataLayer read path MUST return core domain objects for every persisted type that has a registered core
+    counterpart. Wire-layer vocabulary types MUST NOT be handed to core code through the persistence port.
+  specs:
+  - id: DL-05-001
+    priority: MUST
+    kind: project
+    statement: '`dl.read(id)` and `dl.list_objects(type_key)` MUST reconstruct persisted domain entities using the core
+      vocabulary registry (`vultron.core.models.registry.CORE_VOCABULARY`) so that the returned instance is a
+      `vultron.core.models` type (e.g. core `VulnerabilityCase`), never a `vultron.wire.as2.vocab` type
+      (e.g. `as_VulnerabilityCase`), whenever the persisted `type_` has a registered core counterpart.'
+    rationale: >-
+      Core code MUST receive core domain objects so that core validators run and static analysis sees the real type
+      (ARCH-01-002). Reconstructing via the wire `VOCABULARY` returns wire objects that only work in core by structural
+      coincidence of field names. Decided in ADR-0034; derived from ARCH-01-002 and DL-03-002.
+    relationships:
+    - rel_type: implements
+      spec_id: ARCH-01-002
+    tags:
+    - persistence
+    - wire-format
+  - id: DL-05-002
+    priority: MUST
+    kind: project
+    statement: The DataLayer adapter MUST own the wire↔core translation for persistence and MUST maintain its own
+      `type_`→core-class mapping (via `CORE_VOCABULARY`) that is independent of the wire `VOCABULARY` registry; the wire
+      vocabulary registry MUST NOT be the mechanism by which core objects are reconstructed on the read path.
+    rationale: >-
+      The wire registry is a wire-layer concern (DL-03-002). Making the adapter reconstruct core objects from a core
+      registry decouples DataLayer storage from the wire type system so the wire layer can evolve without breaking
+      persistence.
+    relationships:
+    - rel_type: implements
+      spec_id: DL-03-002
+    tags:
+    - persistence
+    - wire-format
+  - id: DL-05-003
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      Core code (`vultron/core/`) MUST NOT use structural duck-typing Protocols to accept
+      DataLayer results without importing concrete core types. Core MUST depend on concrete
+      domain classes and use `isinstance` narrowing directly. Structural workaround Protocols
+      that evade ARCH-01-001 are prohibited.
+    rationale: >-
+      The duck-typing Protocols exist solely to let core touch wire objects at runtime without a compile-time wire import,
+      evading rather than honouring ARCH-01-001. When the read path returns core objects, the Protocols are dead weight
+      and mask the boundary from mypy/pyright.
+    relationships:
+    - rel_type: implements
+      spec_id: ARCH-01-001
+    tags:
+    - persistence
+    - wire-format
+  - id: DL-05-004
+    priority: MUST
+    kind: project
+    statement: An architecture ratchet test MUST assert that no `vultron.wire.as2` vocabulary type is returned from
+      `dl.read()` / `dl.list_objects()` into `vultron/core/`; the test MAY exempt persisted AS2 Activity types that have no
+      registered core counterpart, and any such exemption MUST be enumerated explicitly so the exemption set can only shrink.
+    rationale: >-
+      Prevents regression back to wire-object leakage. Activity read-back from core is itself a boundary violation tracked
+      separately; the enumerated exemption set documents the remaining debt and ratchets toward zero.
+    tags:
+    - persistence
+    - testing
+    - wire-format
+- id: DL-06
+  title: Activity Read-Back and the Semantic/Envelope Split
+  description: >-
+    Core code MUST NOT read a persisted wire AS2 Activity back from the DataLayer to recover its semantic content. AS2
+    protocol Activities are wire-only envelopes with no registered core counterpart (the DL-05-004 exemption set); the
+    domain fact each carries MUST live as core state. Reading a stored activity is permitted only to reconstitute the
+    verbatim envelope for an outbound reply, and only through a wire/adapter-owned seam — never core interpreting it.
+    Decided in ADR-0035; extends DL-05 and ARCH-09-001.
+  specs:
+  - id: DL-06-001
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      Core code (`vultron/core/`) MUST NOT call `dl.read(activity_id)` or `dl.list_objects(<activity_type>)` to recover
+      the semantic content of a persisted wire AS2 Activity (e.g. reading a stored `Offer` to obtain the embedded report,
+      or a stored `Invite` to obtain its case or embargo id). The domain fact MUST be obtained from core state instead.
+    rationale: >-
+      AS2 protocol Activities are wire-only envelopes with no core counterpart, so reading one back into core hands a
+      `vultron.wire.as2` type to core code (ARCH-01-002) and re-interprets an activity the semantic extractor already
+      interpreted once (ARCH-03-001). The activity is being used as the system of record for a domain fact, inverting the
+      rule that wire is a projection of core (ARCH-09-001). Decided in ADR-0035; source concern #1506.
+    relationships:
+    - rel_type: implements
+      spec_id: ARCH-09-001
+    - rel_type: implements
+      spec_id: ARCH-03-001
+    tags:
+    - persistence
+    - wire-format
+  - id: DL-06-002
+    priority: MUST
+    kind: project
+    statement: >-
+      Every domain fact an actor must remember from a received protocol message MUST be recorded as core state — either a
+      state transition on an existing core entity or a purpose-built core record — at the point the semantic extractor
+      first interprets the inbound activity. Core MUST NOT reconstruct such a fact by re-reading the stored activity later.
+    rationale: >-
+      Core is the sole system of record for domain facts (the Actor Knowledge Model bounds an actor's knowledge to what it
+      has received, and that knowledge is held as core state). Capturing the fact once at extraction time removes the need
+      for core to reach back through the wire envelope. This does NOT mean cloning each AS2 Activity into a 1:1 core
+      Activity class; model only the domain fact each message conveys, in domain vocabulary, capturing only what handlers
+      use. Decided in ADR-0035.
+    relationships:
+    - rel_type: implements
+      spec_id: ARCH-03-001
+    tags:
+    - persistence
+    - wire-format
+  - id: DL-06-003
+    priority: MUST
+    kind: project
+    statement: >-
+      When an inbound protocol message references a prior message (e.g. an Accept answering an Invite, a counter-offer
+      answering an Offer), core MUST correlate them through a core-entity relationship (e.g. "the pending embargo proposal
+      for this case", "the invitation for this actor"), NOT by re-reading the referenced wire activity from the DataLayer.
+    rationale: >-
+      Correlation is a domain relationship between core facts. Recovering it by re-reading the referenced activity
+      reintroduces the DL-06-001 violation and depends on the wire envelope surviving as a semantic record. When the prior
+      message was first received it MUST have created or updated the core entity that the later message now correlates to.
+      Decided in ADR-0035.
+    tags:
+    - persistence
+    - wire-format
+  - id: DL-06-004
+    priority: MUST
+    kind: project
+    statement: >-
+      Reconstituting the verbatim original activity for an outbound reply's inline `object_` / `in_reply_to` field (as the
+      Actor Knowledge Model requires) MAY read a stored activity payload back, but this retrieval MUST be owned by the
+      wire/adapter layer and treat the stored activity as an opaque envelope; core code MUST NOT read the activity to
+      interpret its meaning. Such a wire/adapter-owned envelope seam is NOT counted as a core boundary violation under
+      DL-05-004.
+    rationale: >-
+      Activity IDs are non-regenerable random `urn:uuid:` values and the Actor Knowledge Model requires a reply to embed
+      the full inline original activity, so verbatim reconstitution cannot be produced by re-projecting core state — the
+      original envelope (with its original id) must be retained and read back. Confining that read to a wire/adapter seam
+      that never interprets the payload keeps semantic authority in core while satisfying transport needs. `CaseLedgerEntry`
+      `payloadSnapshot` is the existing precedent for opaque, write-only activity retention. Decided in ADR-0035.
+    relationships:
+    - rel_type: refines
+      spec_id: DL-05-004
+    tags:
+    - persistence
+    - wire-format
+  - id: DL-06-005
+    priority: MUST
+    kind: project
+    statement: >-
+      As each core semantic read is migrated off activity read-back (per DL-06-001 through DL-06-003), the corresponding
+      AS2 Activity type MUST be removed from the DL-05-004 ratchet exemption set. The exemption set MUST reach zero once
+      all core semantic activity reads are migrated; the only remaining sanctioned activity reads are the wire/adapter
+      envelope-reconstitution seam of DL-06-004.
+    rationale: >-
+      Ties the migration to an enforceable, monotonically shrinking ratchet so progress is measurable and regressions are
+      blocked. Decided in ADR-0035; source concern #1506.
+    relationships:
+    - rel_type: refines
+      spec_id: DL-05-004
+    tags:
+    - persistence
+    - testing
+    - wire-format

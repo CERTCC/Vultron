@@ -1,17 +1,17 @@
 ---
 name: pr-review
 description: >
-  Comprehensive pull request review for the Vultron project. Verifies that
-  a PR addresses its originating GitHub issue(s), conforms to Vultron specs
-  and notes, follows AGENTS.md coding rules and naming conventions, has
-  adequate test coverage, and passes linting requirements. Produces a
-  structured PASS/FAIL/IMPROVE/DEFER report, attempts fixes for FAIL and
-  IMPROVE findings, and posts results as a GitHub PR review comment. Use
-  when the user asks to review a PR, validate a PR before merge, or audit
-  a PR against project standards.
+  DEPRECATED — use /pr-ship (full pipeline) or /pr-triage (discovery only)
+  instead. Kept as canonical prose reference for the 11 inspection phases;
+  do not invoke directly for new work.
 ---
 
 # Skill: PR Review
+
+> **Deprecated.** This skill has been superseded by the `pr-triage` →
+> `pr-execute` → `pr-verify` pipeline, invoked via `/pr-ship`. The phase
+> descriptions below remain the authoritative reference for what `pr-triage`
+> inspects. Do not invoke `/pr-review` for new work.
 
 ## Finding Severity
 
@@ -23,14 +23,26 @@ There is no WARN category — every finding is resolved here or explicitly gated
 |---|---|---|
 | **FAIL** | Broken: won't work correctly, spec violated, changed behavior untested | Fix before the PR merges |
 | **IMPROVE** | Works but incomplete: missing adjacent test, stale doc, extractable helper, obvious gap in scope | Fix in this session; document in a follow-up commit and PR comment |
-| **DEFER** | Genuinely out of scope | Create a follow-up GitHub issue immediately; surface to user for acknowledgment; do not defer unilaterally |
+| **NEW-ISSUE** | Distinct problem, out of this PR's family | Cut a GitHub issue; decide below whether to fold it in or leave it |
 
-For FAIL and IMPROVE findings that are within reach: attempt the fix in the
-same session, then commit the changes and note them in a PR comment so the
-history is clear. Do not just flag and stop.
+For FAIL and IMPROVE findings: attempt the fix in the same session, commit the
+changes, and note them in a PR comment. Do not just flag and stop.
 
-DEFER is a high gate — use it only when fixing would require touching code
-substantially outside the files already changed in this PR.
+### Deciding what belongs in this PR
+
+The scope boundary is **the problem the issue describes and its close relatives**
+— not just the files already in the diff.
+
+Use this decision tree for anything you find beyond the original issue:
+
+1. **Trivial fix, any conceptual distance** → fix it now, mention it in the PR comment. Don't cut an issue.
+2. **Non-trivial, same family** → fix it now. Expand the PR scope. Cut a GitHub issue if useful for tracking, but close it in this same PR.
+3. **Non-trivial, distant cousin** → cut a GitHub issue, then ask the user: "I found X — should I fold it into this PR or leave it for the new issue?" Give a recommendation based on effort ratio (if fixing now is cheaper than reloading context later, lean toward fixing now).
+4. **Requires separate design effort** (you recognize the problem but don't have the solution, or solving it requires deep investigation of a different domain) → cut a GitHub issue, keep this PR focused, do not ask.
+
+**Same family** means: if you had to explain why you fixed both things in this PR, you could do it in one sentence without using the word "also." Siblings, cousins, aunts/uncles of the original problem — things that share the same parent concept. Distant cousins share an ancestor if you trace far enough, but the connection requires too many hops to justify expanding this PR.
+
+**Never** create a NEW-ISSUE finding and leave it unaddressed in the report without following the decision tree above.
 
 ## Quick Start
 
@@ -75,7 +87,7 @@ Check against `.agents/skills/shared/pr-body-guide.md`:
 1. Identify domains from changed file paths (e.g., `wire/as2/`, `core/behaviors/`,
    `adapters/`, `demo/`).
 2. Invoke `deepen-context` with hints matching those domains.
-3. Load specs relevant to the changed domains via `load-specs` or `uv run spec-dump`.
+3. Load specs relevant to the changed domains via `load-specs` or `PYTHONPATH= uv run spec-dump`.
 
 ### Phase 5 — Spec and Notes Conformance
 
@@ -144,12 +156,13 @@ against the branch diff to surface bugs, logic errors, and security issues.
    fix now, before generating the report. Commit the changes. The PR history
    must show that the review finding was addressed, not just noted.
 
-2. For **DEFER** findings: create the follow-up GitHub issue immediately, then
-   surface each deferred item to the user for acknowledgment before posting the
-   review.
+2. For **NEW-ISSUE** findings: apply the decision tree from the Finding Severity
+   section above. Cut any needed GitHub issues first, then ask the user before
+   folding distant-cousin work into this PR. Do not create issues and then treat
+   user acknowledgment as a formality — the question is genuine.
 
 3. Produce a structured report grouped by phase, with **PASS / FAIL / IMPROVE /
-   DEFER** for each area. See [REFERENCE.md](REFERENCE.md) § "Report Format".
+   NEW-ISSUE** for each area. See [REFERENCE.md](REFERENCE.md) § "Report Format".
    For any finding that was fixed in step 1, mark it as `FIXED` in the report
    with the commit reference.
 

@@ -159,6 +159,42 @@ def save(
         )
 
 
+def save_many(
+    dl: "Any",  # SqliteDataLayer
+    objs: list["PersistableModel"],
+) -> None:
+    """Persist multiple domain objects in a single atomic transaction.
+
+    All objects are written in one ``Session`` block and committed together.
+    If any object fails to serialise the entire transaction is rolled back
+    — no partial write reaches storage (CM-21-004).
+
+    Args:
+        dl: The SqliteDataLayer instance.
+        objs: Domain objects to persist.  Each is serialised via
+            ``object_to_record``; existing rows are overwritten (upsert
+            semantics matching :func:`save`).
+    """
+    rows = [object_to_record(obj) for obj in objs]
+    with Session(dl._engine) as session:
+        for rec in rows:
+            row = session.get(VultronObjectRecord, rec.id_)
+            if row is None:
+                row = VultronObjectRecord(
+                    id_=rec.id_,
+                    type_=rec.type_,
+                    actor_id=dl._actor_id,
+                    data=rec.data_,
+                )
+            else:
+                row.type_ = rec.type_
+                row.data = rec.data_
+            session.add(row)
+        session.commit()
+    for rec in rows:
+        logger.info("DataLayer saved %s '%s' (batch)", rec.type_, rec.id_)
+
+
 def delete(
     dl: "Any",  # SqliteDataLayer
     table: str,

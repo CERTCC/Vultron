@@ -22,8 +22,10 @@ import logging
 import time
 from typing import Callable
 
-from vultron.demo.utils import DataLayerClient
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.demo.utils import DataLayerClient, logfmt
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +83,7 @@ def wait_for_case_on_container(
 ) -> None:
     """Poll *client*'s DataLayer until *case_id* appears.
 
-    Proves that an outbox activity (e.g. ``Create(VulnerabilityCase)``) was
+    Proves that an outbox activity (e.g. ``Create(as_VulnerabilityCase)``) was
     delivered to the actor on *client* and its inbox handler processed it.
 
     In single-server integration tests both actors share the same DataLayer so
@@ -90,7 +92,7 @@ def wait_for_case_on_container(
 
     Args:
         client: DataLayerClient connected to the container to poll.
-        case_id: Full URI of the ``VulnerabilityCase`` to wait for.
+        case_id: Full URI of the ``as_VulnerabilityCase`` to wait for.
         timeout_seconds: Maximum time to wait before raising.
         poll_interval: Seconds between DataLayer poll attempts.
 
@@ -122,7 +124,7 @@ def wait_for_finder_case(
 
     Args:
         finder_client: DataLayerClient connected to the Finder container.
-        case_id: Full URI of the ``VulnerabilityCase`` to wait for.
+        case_id: Full URI of the ``as_VulnerabilityCase`` to wait for.
         timeout_seconds: Maximum time to wait before raising.
         poll_interval: Seconds between DataLayer poll attempts.
     """
@@ -142,7 +144,7 @@ def wait_for_case_participants(
 
     Args:
         vendor_client: DataLayerClient for the container to poll.
-        case_id: Full URI of the ``VulnerabilityCase``.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
         expected_count: Minimum number of participants to wait for.
         timeout_seconds: Maximum time to wait before raising.
         poll_interval: Seconds between DataLayer poll attempts.
@@ -151,20 +153,19 @@ def wait_for_case_participants(
         AssertionError: If the participant count is not reached within
             *timeout_seconds*.
     """
-    deadline = time.monotonic() + timeout_seconds
-    while time.monotonic() < deadline:
-        case_data = vendor_client.get(f"/datalayer/{case_id}")
-        case = VulnerabilityCase(**case_data)
-        if len(case.case_participants) >= expected_count:
-            return
-        time.sleep(poll_interval)
 
-    final_case = VulnerabilityCase(
-        **vendor_client.get(f"/datalayer/{case_id}")
-    )
-    raise AssertionError(
-        "Timed out waiting for participant count "
-        f"{expected_count}; found {len(final_case.case_participants)}"
+    def _check() -> bool:
+        case_data = vendor_client.get(f"/datalayer/{case_id}")
+        case = as_VulnerabilityCase(**case_data)
+        return len(case.case_participants) >= expected_count
+
+    _poll_until(
+        _check,
+        timeout_seconds,
+        poll_interval,
+        f"Timed out waiting for participant count {expected_count} in case "
+        f"{case_id!r}",
+        swallow_exceptions=True,
     )
 
 
@@ -193,7 +194,7 @@ def wait_for_note_in_case(
 
     def _check() -> bool:
         case_data = client.get(f"/datalayer/{case_id}")
-        case = VulnerabilityCase(**case_data)
+        case = as_VulnerabilityCase(**case_data)
         note_ids = [
             n if isinstance(n, str) else getattr(n, "id_", str(n))
             for n in case.notes
@@ -225,7 +226,7 @@ def wait_for_finder_log_entry(
 
     Args:
         finder_client: DataLayerClient connected to the Finder container.
-        case_id: Full URI of the ``VulnerabilityCase`` (used for filtering).
+        case_id: Full URI of the ``as_VulnerabilityCase`` (used for filtering).
         entry_hash: ``entry_hash`` value of the expected log entry.
         timeout_seconds: Maximum time to wait before raising.
         poll_interval: Seconds between DataLayer poll attempts.
@@ -283,7 +284,7 @@ def wait_for_contiguous_ledger_coverage(
 
     Args:
         client: DataLayerClient connected to the replica container.
-        case_id: Full URI of the ``VulnerabilityCase``.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
         expected_tail_index: The highest ``log_index`` the replica must hold
             (inclusive).  Typically obtained from the authoritative actor's
             ledger dump before calling this function.
@@ -340,6 +341,129 @@ def wait_for_contiguous_ledger_coverage(
 
 
 # ---------------------------------------------------------------------------
+# Invite polling helpers
+# ---------------------------------------------------------------------------
+
+
+def _is_case_invite_for(obj_data: dict, case_id: str, invitee_id: str) -> bool:
+    """Return True if *obj_data* is an Invite(Actor, Case) for *invitee_id*/*case_id*."""
+    if obj_data.get("type") != "Invite":
+        return False
+    target_raw = obj_data.get("target")
+    target_id = (
+        target_raw.get("id") if isinstance(target_raw, dict) else target_raw
+    )
+    if target_id != case_id:
+        return False
+    inner = obj_data.get("object")
+    inner_id = inner.get("id") if isinstance(inner, dict) else inner
+    return inner_id == invitee_id
+
+
+def find_case_invite_for_actor(
+    client: DataLayerClient,
+    case_id: str,
+    invitee_id: str,
+    timeout_seconds: float = 15.0,
+    poll_interval: float = 0.5,
+) -> str:
+    """Poll until the CaseActor's Invite(Actor, Case) for *invitee_id* arrives.
+
+    In the ADR-0026 flow the CaseActor emits the Invite to the suggested actor
+    after the Case Owner accepts; the invitee must then send Accept(Invite) to
+    trigger the trust-bootstrap Announce(VulnerabilityCase) that seeds its case
+    replica (MV-10-003/MV-10-004).  This helper polls the invitee's DataLayer
+    for that Invite so the demo can drive the accept step.
+
+    Args:
+        client: DataLayerClient connected to the invitee container.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        invitee_id: Full URI of the actor being invited.
+        timeout_seconds: Maximum time to wait before raising.
+        poll_interval: Seconds between DataLayer poll attempts.
+
+    Returns:
+        The invite activity ID string.
+
+    Raises:
+        AssertionError: If no matching Invite is found within *timeout_seconds*.
+    """
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        try:
+            all_objects = client.get("/datalayer/")
+            if isinstance(all_objects, dict):
+                for raw_id, obj_data in all_objects.items():
+                    if not isinstance(obj_data, dict):
+                        continue
+                    if _is_case_invite_for(obj_data, case_id, invitee_id):
+                        obj_id = str(raw_id)
+                        logger.info(
+                            "Found Invite for actor %s on case %s: %s",
+                            invitee_id,
+                            case_id,
+                            obj_id,
+                        )
+                        return obj_id
+        except Exception:  # noqa: BLE001
+            pass
+        time.sleep(poll_interval)
+
+    raise AssertionError(
+        f"Timed out waiting for CaseActor Invite for actor {invitee_id!r} on"
+        f" case {case_id!r} to appear in DataLayer at {client.base_url}"
+    )
+
+
+def wait_for_object_stored(
+    client: DataLayerClient,
+    obj_id: str,
+    timeout_seconds: float = 15.0,
+    poll_interval: float = 0.5,
+) -> None:
+    """Poll *client*'s DataLayer until *obj_id* appears.
+
+    Replaces direct ``verify_object_stored`` calls that followed a
+    ``post_to_inbox_and_wait`` mail-carrying step.  Use this helper after
+    triggering an actor to emit an activity so the demo waits for the real
+    HTTP delivery path to complete rather than manually injecting the
+    activity into a recipient's inbox.
+
+    Args:
+        client: DataLayerClient connected to the container to poll.
+        obj_id: Full URI of the object to wait for.
+        timeout_seconds: Maximum time to wait before raising.
+        poll_interval: Seconds between DataLayer poll attempts.
+
+    Raises:
+        AssertionError: If *obj_id* does not appear within *timeout_seconds*.
+    """
+
+    def _check() -> bool:
+        try:
+            data = client.get(f"/datalayer/{obj_id}")
+            if data:
+                logger.info(
+                    "Object %s found in DataLayer at %s",
+                    logfmt(obj_id),
+                    client.base_url,
+                )
+                return True
+        except Exception:  # noqa: BLE001
+            pass
+        return False
+
+    _poll_until(
+        _check,
+        timeout_seconds,
+        poll_interval,
+        f"Timed out waiting for object {obj_id!r} to appear in DataLayer "
+        f"at {client.base_url} — outbox delivery may not have completed",
+        swallow_exceptions=True,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Participant-state polling helpers
 # ---------------------------------------------------------------------------
 
@@ -357,7 +481,7 @@ def wait_for_participant_vfd_state(
 
     Args:
         client: DataLayerClient for the target container.
-        case_id: Full URI of the ``VulnerabilityCase``.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
         actor_id: Full URI of the actor to check.
         expected_states: Set of ``CS_vfd`` values that satisfy the condition.
         timeout_seconds: Maximum time to wait (default: 10 s).
@@ -442,19 +566,19 @@ def wait_for_case_em_terminated(
 
     Args:
         client: DataLayerClient for the target container.
-        case_id: Full URI of the ``VulnerabilityCase``.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
         timeout_seconds: Maximum time to wait.
         poll_interval: Seconds between DataLayer poll attempts.
 
     Raises:
         AssertionError: If EM.EXITED is not observed within *timeout_seconds*.
     """
-    from vultron.core.states.em import EM  # noqa: PLC0415
+    from vultron.core.states.em import is_em_exited  # noqa: PLC0415
 
     def _check() -> bool:
         case_data = client.get(f"/datalayer/{case_id}")
-        case = VulnerabilityCase.model_validate(case_data)
-        return case.current_status.em_state == EM.EXITED
+        case = as_VulnerabilityCase.model_validate(case_data)
+        return is_em_exited(case.current_status.em_state)
 
     _poll_until(
         _check,
@@ -477,7 +601,7 @@ def wait_for_all_participants_rm_closed(
 
     Args:
         client: DataLayerClient for the target container.
-        case_id: Full URI of the ``VulnerabilityCase``.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
         timeout_seconds: Maximum time to wait.
         poll_interval: Seconds between DataLayer poll attempts.
 
@@ -491,7 +615,7 @@ def wait_for_all_participants_rm_closed(
 
     def _check() -> bool:
         case_data = client.get(f"/datalayer/{case_id}")
-        case = VulnerabilityCase.model_validate(case_data)
+        case = as_VulnerabilityCase.model_validate(case_data)
         return _all_fetchable_participants_rm_closed(client, case)
 
     _poll_until(

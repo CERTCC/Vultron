@@ -32,23 +32,22 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-    "fastapi>=0.139.0",
+    "fastapi>=0.140.7",
     "isodate>=0.7.2",
     "markdown-exec>=1.12.3",
     "mkdocs-autorefs>=1.4.3",
-    "mkdocs-bibtex>=4.4.0",
     "mkdocs-include-markdown-plugin>=7.3.0",
     "mkdocs-material-extensions>=1.3.1",
-    "mkdocs-material>=9.6.20",
+    "mkdocs-material>=9.7.7",
     "mkdocs-print-site-plugin>=2.8",
     "mkdocs>=1.6.1",
     "mkdocstrings-python>=2.0.5",
     "mkdocstrings>=1.0.6",
     "networkx>=3.5",
     "owlready2>=0.51",
-    "pandas>=3.0.3",
+    "pandas>=3.0.5",
     "pydantic==2.13.4",
-    "py-trees>=2.2.0",
+    "py-trees>=2.5.0",
     "rdflib>=7.2.1",
     "scipy>=1.18.0",
     "uvicorn>=0.51.0",
@@ -66,9 +65,10 @@ dynamic = ["version",]
 [project.scripts]
 vultrabot_pacman="vultron.bt.base.demo.pacman:main"
 vultrabot_robot="vultron.bt.base.demo.robot:main"
-vultrabot_cvd="vultron.demo.vultrabot:main"
-vultrabot="vultron.scripts.vultrabot:main"
+vultrabot_cvd="vultron.bt.base.demo.cvd:main"
+vultrabot="vultron.bt.base.demo.cvd:main"
 vultron-demo="vultron.demo.cli:main"
+vultron-demo-report="vultron.demo.report:main"
 export-demo-states="vultron.scripts.export_states:main"
 spec-dump="vultron.metadata.specs.render:main_llm_json"
 spec-dump-llm-json="vultron.metadata.specs.render:main_llm_json"
@@ -129,6 +129,7 @@ filterwarnings = [
     "always::vultron.metadata.specs.UnknownSpecIdWarning",
     "error",
     "ignore::DeprecationWarning:vultron.demo.scenario.three_actor_demo",
+    "ignore:three_actor_demo.py is based on older code:DeprecationWarning",
     "ignore::DeprecationWarning:vultron.demo.scenario.multi_vendor_demo",
 ]
 markers = [
@@ -153,11 +154,11 @@ dev = [
     "linkchecker>=10.6.0",
     "mypy>=2.3.0",
     "pandas-stubs>=3.0.3.260530",
-    "pre-commit>=4.6.0",
+    "pre-commit>=4.6.1",
     "pyright>=1.1.411",
     "pytest>=9.1.1",
     "pytest-timeout>=0.5",
     "pytest-xdist>=3.8.0",
     "types-networkx>=3.6.1.20260624",
-    "types-pyyaml>=6.0.12.20260518",
+    "types-pyyaml>=6.0.12.20260724",
 ]

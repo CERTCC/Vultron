@@ -75,6 +75,7 @@ Load additional files only when the task touches the relevant area. See the
 | Behavior Trees | `behavior-tree-integration.yaml`, `behavior-tree-node-design.yaml`, `bt-composability.yaml`, `triggerable-behaviors.yaml`, `vultron/core/use_cases/triggers/AGENTS.md` |
 | Case / state management | `case-management.yaml`, `state-machine.yaml`, `case-ledger-processing.yaml` |
 | Lifecycle-staged domain types | `lifecycle-staged-types.yaml`, `notes/lifecycle-staged-types.md` |
+| Status dimension objects (per-machine EM/PXA/RM/VFD/PEC decomposition) | `status-dimension-objects.yaml`, `notes/status-dimension-objects.md` |
 | CaseProposal protocol (distributed case actor initialization) | `case-proposal.yaml` |
 | Protocol conformance | `vultron-protocol-spec.yaml`, `vultron-as2-mapping.yaml`, `message-semantics-mapping.yaml` |
 | Wire vocabulary | `vocabulary-model.yaml` |
@@ -480,6 +481,7 @@ is reserved for `testability.yaml`).
 | `PROTO` | `prototype-shortcuts.yaml` |
 | `RF` | `response-format.yaml` |
 | `SE` | `semantic-extraction.yaml` |
+| `SDO` | `status-dimension-objects.yaml` |
 | `SM` | `state-machine.yaml` |
 | `SL` | `structured-logging.yaml` |
 | `PCR` | `participant-case-replica.yaml` |

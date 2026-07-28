@@ -59,9 +59,9 @@ class _RecordCaseActorAcceptanceNode(DataLayerAction):
         super().setup(**kwargs)
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         link_id = VultronReportCaseLink.build_id(self._report_id)
         link = self.datalayer.read(link_id)

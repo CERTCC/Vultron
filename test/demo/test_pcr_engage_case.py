@@ -44,7 +44,7 @@ from test.demo.conftest import _TestASGIRouter, create_isolated_actor_app
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 # ---------------------------------------------------------------------------
@@ -99,6 +99,12 @@ def two_app_setup(monkeypatch):
     # http://localhost:7999/actors/case-actor-... and the owner's app returns
     # 404 for /actors/ paths (it expects /api/v2/actors/).
     monkeypatch.setenv("VULTRON_SERVER__BASE_URL", f"{_OWNER_BASE}/api/v2")
+    # ResolveCaseActorUrlsNode reads case_actor_service_url from ActorConfig
+    # (CP-08-002); in this single-owner test setup the owner IS the case-actor
+    # service, so we point it at the same base URL.
+    monkeypatch.setenv(
+        "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL", f"{_OWNER_BASE}/api/v2"
+    )
     reload_config()
 
     router = _TestASGIRouter()
@@ -222,7 +228,7 @@ def _bootstrap_and_engage(
     # Owner's app must know the reporter so outbound Create is routable.
     _create_actor(owner_tc, reporter_base_api, reporter_slug, "Reporter")
 
-    report = VulnerabilityReport(
+    report = as_VulnerabilityReport(
         attributed_to=reporter_actor_id,
         name="PCR engage-case integration test report",
         content=(

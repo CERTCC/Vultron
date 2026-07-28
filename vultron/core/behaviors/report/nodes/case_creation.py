@@ -23,6 +23,7 @@ from py_trees.common import Status
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.activity import VultronCreateCaseActivity
 from vultron.core.models.case import VultronCase
+from vultron.core.models.offer_record import VultronOfferRecord
 
 
 def _append_addressee_ids(addressees: list[str], value: object) -> None:
@@ -43,15 +44,20 @@ def _append_addressee_ids(addressees: list[str], value: object) -> None:
 def _collect_create_case_addressees(
     actor: object,
     report: object,
-    offer: object,
+    offer_record: VultronOfferRecord | None,
     actor_id: str,
 ) -> list[str]:
+    """Collect CreateCase notification recipients from actor, report, and offer record.
+
+    Per ADR-0035 DL-06-001: reads offer addressees from the core
+    ``VultronOfferRecord``, not from the stored wire Offer activity.
+    """
     addressees: list[str] = []
     for value in (
         actor,
         getattr(report, "attributed_to", None) if report is not None else None,
-        getattr(offer, "to", None) if offer is not None else None,
-        getattr(offer, "actor", None) if offer is not None else None,
+        offer_record.offer_to if offer_record is not None else None,
+        offer_record.offer_actor_id if offer_record is not None else None,
     ):
         _append_addressee_ids(addressees, value)
     return [
@@ -90,12 +96,10 @@ class CreateCaseNode(DataLayerAction):
         Returns:
             SUCCESS if case created, FAILURE on error
         """
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                f"{self.name}: DataLayer or actor_id not available"
-            )
-            return Status.FAILURE
-
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
         try:
             report_obj = self.datalayer.read(
                 self.report_id, raise_on_missing=True
@@ -172,12 +176,10 @@ class CreateCaseActivity(DataLayerAction):
         Returns:
             SUCCESS if activity created, FAILURE on error
         """
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                f"{self.name}: DataLayer or actor_id not available"
-            )
-            return Status.FAILURE
-
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
         try:
             case_id = self.blackboard.get("case_id")
             if case_id is None:
@@ -188,9 +190,15 @@ class CreateCaseActivity(DataLayerAction):
 
             actor = self.datalayer.read(self.actor_id, raise_on_missing=True)
             report = self.datalayer.read(self.report_id, raise_on_missing=True)
-            offer = self.datalayer.read(self.offer_id)
+            record_id = VultronOfferRecord.build_id(self.offer_id)
+            raw_record = self.datalayer.read(record_id)
+            offer_record = (
+                raw_record
+                if isinstance(raw_record, VultronOfferRecord)
+                else None
+            )
             addressees = _collect_create_case_addressees(
-                actor, report, offer, self.actor_id
+                actor, report, offer_record, self.actor_id
             )
             self.logger.info(
                 f"{self.name}: Notifying addressees: {addressees}"

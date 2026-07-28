@@ -16,7 +16,7 @@
 Factory functions for outbound Vultron report-management activities.
 
 These are the sole public construction API for activities involving
-``VulnerabilityReport`` objects.  Internal activity subclasses are
+``as_VulnerabilityReport`` objects.  Internal activity subclasses are
 imported here and MUST NOT be imported by callers.
 
 Spec: ``specs/activity-factories.yaml`` AF-01-001, AF-02-001, AF-03-001
@@ -44,18 +44,18 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 
 def rm_create_report_activity(
-    report: VulnerabilityReport,
+    report: as_VulnerabilityReport,
     **kwargs,
 ) -> as_Create:
-    """Build a Create(VulnerabilityReport) — the reporter creates a report.
+    """Build a Create(as_VulnerabilityReport) — the reporter creates a report.
 
     Args:
-        report: The ``VulnerabilityReport`` to create.
+        report: The ``as_VulnerabilityReport`` to create.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``, ``to``).
 
@@ -74,14 +74,14 @@ def rm_create_report_activity(
 
 
 def rm_submit_report_activity(
-    report: VulnerabilityReport,
+    report: as_VulnerabilityReport,
     to: as_Actor | str,
     **kwargs,
 ) -> as_Offer:
-    """Build an Offer(VulnerabilityReport) — the RS message when no case exists.
+    """Build an Offer(as_VulnerabilityReport) — the RS message when no case exists.
 
     Args:
-        report: The ``VulnerabilityReport`` to submit.
+        report: The ``as_VulnerabilityReport`` to submit.
         to: The recipient actor object or actor ID URI string.  The factory
             always normalizes this to a single-element ``to`` list.
         **kwargs: Optional AS2 fields forwarded to the constructor
@@ -103,13 +103,13 @@ def rm_submit_report_activity(
 
 
 def rm_read_report_activity(
-    report: VulnerabilityReport,
+    report: as_VulnerabilityReport,
     **kwargs,
 ) -> as_Read:
-    """Build a Read(VulnerabilityReport) — the RK message when no case exists.
+    """Build a Read(as_VulnerabilityReport) — the RK message when no case exists.
 
     Args:
-        report: The ``VulnerabilityReport`` that was read.
+        report: The ``as_VulnerabilityReport`` that was read.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``, ``to``).
 
@@ -138,7 +138,7 @@ def rm_validate_report_activity(
     subclass returned by :func:`rm_submit_report_activity`) or a plain
     ``as_Offer`` recovered from the datalayer.  Plain offers are coerced
     to ``_RmSubmitReportActivity`` at runtime; offers whose ``object_`` is
-    not a valid ``VulnerabilityReport`` will still fail validation.
+    not a valid ``as_VulnerabilityReport`` will still fail validation.
 
     Args:
         offer: The ``_RmSubmitReportActivity`` offer being accepted.
@@ -174,7 +174,7 @@ def rm_invalidate_report_activity(
     subclass returned by :func:`rm_submit_report_activity`) or a plain
     ``as_Offer`` recovered from the datalayer.  Plain offers are coerced
     to ``_RmSubmitReportActivity`` at runtime; offers whose ``object_`` is
-    not a valid ``VulnerabilityReport`` will still fail validation.
+    not a valid ``as_VulnerabilityReport`` will still fail validation.
 
     Args:
         offer: The ``_RmSubmitReportActivity`` offer being tentatively rejected.
@@ -212,7 +212,7 @@ def rm_close_report_activity(
     subclass returned by :func:`rm_submit_report_activity`) or a plain
     ``as_Offer`` recovered from the datalayer.  Plain offers are coerced
     to ``_RmSubmitReportActivity`` at runtime; offers whose ``object_`` is
-    not a valid ``VulnerabilityReport`` will still fail validation.
+    not a valid ``as_VulnerabilityReport`` will still fail validation.
 
     Args:
         offer: The ``_RmSubmitReportActivity`` offer being closed.
@@ -239,12 +239,12 @@ def rm_close_report_activity(
 
 def parse_submit_report_offer(
     offer_data: dict | as_Offer,
-) -> tuple[VulnerabilityReport, as_Offer]:
+) -> tuple[as_VulnerabilityReport, as_Offer]:
     """Parse a submit-report offer from wire data into its component parts.
 
     Accepts either a raw dict (e.g. from a trigger endpoint JSON response)
     or an ``as_Offer`` instance and coerces it to ``_RmSubmitReportActivity``
-    so the embedded ``VulnerabilityReport`` — including its stable ID — is
+    so the embedded ``as_VulnerabilityReport`` — including its stable ID — is
     preserved.  This is the correct way for the demo and adapter layers to
     extract the report from a trigger response without importing internal
     activity subclasses directly.
@@ -255,12 +255,12 @@ def parse_submit_report_offer(
 
     Returns:
         A ``(report, offer)`` tuple where *report* is the
-        ``VulnerabilityReport`` embedded in the offer and *offer* is the
+        ``as_VulnerabilityReport`` embedded in the offer and *offer* is the
         coerced ``_RmSubmitReportActivity`` suitable for inbox delivery.
 
     Raises:
         VultronActivityConstructionError: If the data cannot be validated as
-            a submit-report offer containing a ``VulnerabilityReport``.
+            a submit-report offer containing a ``as_VulnerabilityReport``.
     """
     try:
         if isinstance(offer_data, dict):

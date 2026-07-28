@@ -37,13 +37,13 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Announce,
     as_Reject,
 )
-from vultron.wire.as2.vocab.objects.case_ledger_entry import CaseLedgerEntry
+from vultron.wire.as2.vocab.objects.case_ledger_entry import as_CaseLedgerEntry
 
 logger = logging.getLogger(__name__)
 
 
 def announce_log_entry_activity(
-    entry: CaseLedgerEntry,
+    entry: as_CaseLedgerEntry,
     **kwargs,
 ) -> as_Announce:
     """Build an Announce(CaseLedgerEntry) — fan-out replication to participants.
@@ -74,7 +74,7 @@ def announce_log_entry_activity(
 
 
 def reject_log_entry_activity(
-    entry: CaseLedgerEntry,
+    entry: as_CaseLedgerEntry,
     context: str | None = None,
     **kwargs,
 ) -> as_Reject:

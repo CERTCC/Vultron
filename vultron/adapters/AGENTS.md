@@ -34,7 +34,7 @@
   not declared on the model when the route returns a non-Response value. The
   `AS2JSONResponse` pattern above bypasses this filtering entirely (FastAPI
   docs: returning a `Response` subclass skips response_model filtering).
-  See [notes/codebase-structure.md](../../notes/codebase-structure.md)
+  See [notes/codebase-structure-fastapi-patterns.md](../../notes/codebase-structure-fastapi-patterns.md)
   § FastAPI response\_model Filtering.
 
 ---
@@ -88,15 +88,43 @@ for:
   segment. Violating this causes outbound activities to be silently dropped
   (BUG-2026040901).
 
-See [notes/codebase-structure.md](../../notes/codebase-structure.md) for:
+See [notes/codebase-structure-fastapi-patterns.md](../../notes/codebase-structure-fastapi-patterns.md) for:
 
 - Circular Imports
 - FastAPI response\_model Filtering
 - Health Check Readiness Gap
 - Docker Health Check Coordination
+- Black Can Invalidate Inline pyright Suppressions on Wrapped Fields
+
+See [notes/codebase-structure.md](../../notes/codebase-structure.md) for:
+
 - Actor IDs Must Always Be Full URIs
 - Actor ID Normalization in Trigger Paths: Resolve Path Params Before Outbox
-- Black Can Invalidate Inline pyright Suppressions on Wrapped Fields
+
+### Actor Outbox Endpoint Must Query the DataLayer Queue, Not `actor.outbox.items`
+
+After ADR-0034, `dl.read(actor_id)` returns a `CoreActor` whose `outbox` field
+is a plain `str | None` URI. `as_Actor._coerce_uri_to_collection` converts that
+URI to an `as_OrderedCollection(id_=uri)` with an **empty** `items` list, so
+iterating `actor.outbox.items` silently returns zero results regardless of the
+actor's actual queue.
+
+**Fix:** query the DataLayer queue directly:
+
+```python
+activity_ids = cast(CaseOutboxPersistence, datalayer).outbox_list_for_actor(actor_id)
+outbox = as_OrderedCollection(id_=f"{actor_id}/outbox")
+outbox.items = [rehydrate(aid, dl=datalayer) for aid in activity_ids]
+```
+
+The `dl.read(actor_id)` result is still useful for the 404 guard only. Any
+endpoint that needs the *contents* of an actor's outbox queue MUST call
+`outbox_list_for_actor(actor_id)` — the `outbox` field on the actor object is
+now only a URI pointer to the collection endpoint.
+
+<!-- Source: ISSUE-1515 (ADR-0034) -->
+
+---
 
 ### URL-Keyed IDs in FastAPI Path Segments
 
@@ -116,4 +144,4 @@ that specific literal routes (`/Offers/`, `/Actors/`) are matched first.
 
 See
 [notes/codebase-structure.md](../../notes/codebase-structure.md)
-§ Starlette Path-Type Parameters for URL-Keyed Endpoints.
+§ "Starlette Path-Type Parameters for URL-Keyed Endpoints".

@@ -67,7 +67,7 @@ be updated to assert `EM.ACTIVE`:
 - `test/core/behaviors/case/test_receive_report_case_tree.py` — assertions
   in the `InitializeDefaultEmbargoNode` test class
 - Any demo-level integration tests that check the final embargo state after
-  case creation (e.g., `test/demo/test_two_actor_demo.py` or similar)
+  case creation (e.g., `test/demo/test_fv_demo.py` or similar)
 
 ---
 

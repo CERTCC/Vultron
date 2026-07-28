@@ -105,6 +105,18 @@ docker_api_dev: docker_up  ## Start API server in Docker in development mode
 integration-test:  ## Run demo integration tests (requires Docker)
 	./integration_tests/demo/run_demo_integration_test.sh
 
-.PHONY: demo-2-test
-demo-2-test:  ## Run two-actor multi-container integration test (requires Docker)
-	./integration_tests/demo/run_multi_actor_integration_test.sh two-actor
+.PHONY: integration-test-multi-actor
+integration-test-multi-actor:  ## Run FV multi-actor integration test (requires Docker)
+	./integration_tests/demo/run_multi_actor_integration_test.sh fv
+
+.PHONY: integration-test-fvv
+integration-test-fvv:  ## Run FVV multi-actor integration test (requires Docker)
+	./integration_tests/demo/run_multi_actor_integration_test.sh fvv
+
+.PHONY: integration-test-fvcv-extension
+integration-test-fvcv-extension:  ## Run FVCV-extension multi-actor integration test (requires Docker)
+	./integration_tests/demo/run_multi_actor_integration_test.sh fvcv-extension
+
+.PHONY: integration-test-fvcv-handoff
+integration-test-fvcv-handoff:  ## Run FVCV-handoff multi-actor integration test (requires Docker)
+	./integration_tests/demo/run_multi_actor_integration_test.sh fvcv-handoff

@@ -49,6 +49,27 @@ def test_actor_config_default_roles_empty():
     assert config.default_case_roles == []
 
 
+def test_actor_config_case_actor_service_url_defaults_none():
+    """ActorConfig.case_actor_service_url defaults to None (CP-08-001)."""
+    config = ActorConfig()
+    assert config.case_actor_service_url is None
+
+
+def test_actor_config_case_actor_service_url_accepts_http_url():
+    """ActorConfig.case_actor_service_url accepts a valid URL string (CP-08-001)."""
+    config = ActorConfig.model_validate(
+        {"case_actor_service_url": "http://case-actor:7999/api/v2"}
+    )
+    assert config.case_actor_service_url is not None
+    assert "case-actor" in str(config.case_actor_service_url)
+
+
+def test_actor_config_construction_succeeds_without_case_actor_service_url():
+    """ActorConfig construction succeeds when case_actor_service_url is absent (CP-08-001)."""
+    config = ActorConfig(auto_create_case=True)
+    assert config.case_actor_service_url is None
+
+
 def test_actor_config_auto_create_case_defaults_true():
     """ActorConfig.auto_create_case defaults to True (CM-15-001, ADR-0015)."""
     config = ActorConfig()
@@ -188,10 +209,25 @@ def test_load_actor_config_defaults(monkeypatch):
     monkeypatch.delenv("VULTRON_CONFIG", raising=False)
     monkeypatch.delenv("VULTRON_ACTOR__AUTO_CREATE_CASE", raising=False)
     monkeypatch.delenv("VULTRON_ACTOR__DEFAULT_CASE_ROLES", raising=False)
+    monkeypatch.delenv("VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL", raising=False)
     reload_config()
     cfg = load_actor_config()
     assert cfg.auto_create_case is True
     assert cfg.default_case_roles == []
+    assert cfg.case_actor_service_url is None
+
+
+def test_load_actor_config_reads_case_actor_service_url_from_env(monkeypatch):
+    """load_actor_config() reads VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL env var (CP-08-001)."""
+    monkeypatch.delenv("VULTRON_CONFIG", raising=False)
+    monkeypatch.setenv(
+        "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL",
+        "http://case-actor:7999/api/v2",
+    )
+    reload_config()
+    cfg = load_actor_config()
+    assert cfg.case_actor_service_url is not None
+    assert "case-actor" in str(cfg.case_actor_service_url)
 
 
 def test_load_actor_config_reads_auto_create_case_from_env(monkeypatch):

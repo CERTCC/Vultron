@@ -33,9 +33,11 @@ from vultron.wire.as2.factories import (
     rm_create_report_activity,
 )
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 SENDER_ID = "https://example.org/actors/sender"
@@ -122,7 +124,7 @@ class _StubQueuePort:
 
 @pytest.fixture()
 def report_activity():
-    report = VulnerabilityReport(
+    report = as_VulnerabilityReport(
         id_="https://example.org/reports/r-io-1",
         content="test report",
     )
@@ -131,7 +133,7 @@ def report_activity():
 
 @pytest.fixture()
 def case_activity():
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         id_=CASE_ID,
         name="CASE-IO",
     )

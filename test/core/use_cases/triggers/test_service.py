@@ -28,7 +28,6 @@ from vultron.adapters.driven.db_record import object_to_record
 from vultron.errors import (
     VultronInvalidStateTransitionError,
     VultronNotFoundError,
-    VultronValidationError,
 )
 from vultron.core.use_cases.triggers.service import TriggerService
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -39,30 +38,34 @@ try:
     from pydantic import ValidationError as PydanticValidationError
 except ImportError:
     from pydantic_core import ValidationError as PydanticValidationError
+from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.use_cases._helpers import _report_phase_status_id
+from vultron.core.models._helpers import _report_phase_status_id
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 FUTURE_DATETIME = datetime(2099, 12, 1, tzinfo=timezone.utc)
 
 
-def _add_case_manager(case: VulnerabilityCase, dl) -> as_Service:
+def _add_case_manager(case: as_VulnerabilityCase, dl) -> as_Service:
     """Add a CASE_MANAGER participant to *case* and return the case actor."""
     case_actor = as_Service(name=f"Case Actor for {case.name}")
     dl.create(case_actor)
-    cm_participant = CaseParticipant(
+    cm_participant = as_CaseParticipant(
         attributed_to=case_actor.id_,
         context=case.id_,
         case_roles=[CVDRole.CASE_MANAGER],
@@ -119,7 +122,7 @@ def reporter(dl):
 
 @pytest.fixture
 def report(dl):
-    report_obj = VulnerabilityReport(
+    report_obj = as_VulnerabilityReport(
         name="Test Vulnerability",
         content="Test content",
     )
@@ -135,12 +138,19 @@ def offer(dl, report, actor, reporter):
         target=actor.id_,
     )
     dl.create(offer_obj)
+    offer_record = VultronOfferRecord(
+        offer_id=offer_obj.id_,
+        report_id=report.id_,
+        offer_actor_id=reporter.id_,
+        offer_to=[actor.id_],
+    )
+    dl.create(offer_record)
     return offer_obj
 
 
 @pytest.fixture
 def received_report(dl, actor, reporter, report, offer):
-    """Pre-create a VulnerabilityCase for the report at RM.RECEIVED.
+    """Pre-create a as_VulnerabilityCase for the report at RM.RECEIVED.
 
     Per ADR-0015, the case is created at report receipt.  The validate_report
     BT's EnsureEmbargoExists node requires a case to exist.
@@ -174,7 +184,7 @@ def closed_report(dl, report, actor):
         id_=_report_phase_status_id(actor.id_, report.id_, RM.CLOSED.value),
         context=report.id_,
         attributed_to=actor.id_,
-        rm_state=RM.CLOSED,
+        rm=RmDimension(state=RM.CLOSED),
     )
     dl.create(status)
     return report
@@ -182,8 +192,8 @@ def closed_report(dl, report, actor):
 
 @pytest.fixture
 def case_with_participant(dl, actor):
-    case_obj = VulnerabilityCase(name="TEST-CASE-001")
-    participant = CaseParticipant(
+    case_obj = as_VulnerabilityCase(name="TEST-CASE-001")
+    participant = as_CaseParticipant(
         attributed_to=actor.id_,
         context=case_obj.id_,
     )
@@ -203,7 +213,7 @@ def case_with_participant(dl, actor):
 
 @pytest.fixture
 def case_no_participant(dl):
-    case_obj = VulnerabilityCase(name="TEST-CASE-NO-P")
+    case_obj = as_VulnerabilityCase(name="TEST-CASE-NO-P")
     dl.create(case_obj)
     return case_obj
 
@@ -211,7 +221,7 @@ def case_no_participant(dl):
 @pytest.fixture
 def case_with_case_manager(dl):
     """A bare case with a single CASE_MANAGER participant, no other participants."""
-    case_obj = VulnerabilityCase(name="TEST-CASE-WITH-CM")
+    case_obj = as_VulnerabilityCase(name="TEST-CASE-WITH-CM")
     dl.create(case_obj)
     _add_case_manager(case_obj, dl)
     return case_obj
@@ -219,8 +229,8 @@ def case_with_case_manager(dl):
 
 @pytest.fixture
 def case_with_embargo(dl, actor):
-    case_obj = VulnerabilityCase(name="EMBARGO-CASE-001")
-    embargo = EmbargoEvent(context=case_obj.id_)
+    case_obj = as_VulnerabilityCase(name="EMBARGO-CASE-001")
+    embargo = as_EmbargoEvent(context=case_obj.id_)
     dl.create(embargo)
     case_obj.set_embargo(embargo.id_)
     case_obj.current_status.em_state = EM.ACTIVE
@@ -231,11 +241,11 @@ def case_with_embargo(dl, actor):
 
 @pytest.fixture
 def case_with_proposal(dl, actor):
-    case_obj = VulnerabilityCase(
+    case_obj = as_VulnerabilityCase(
         name="PROPOSAL-CASE-001",
         attributed_to=actor.id_,
     )
-    embargo = EmbargoEvent(context=case_obj.id_)
+    embargo = as_EmbargoEvent(context=case_obj.id_)
     dl.create(embargo)
     proposal = em_propose_embargo_activity(
         embargo, context=case_obj.id_, actor=actor.id_
@@ -243,6 +253,7 @@ def case_with_proposal(dl, actor):
     dl.create(proposal)
     case_obj.current_status.em_state = EM.PROPOSED
     case_obj.proposed_embargoes.append(embargo.id_)
+    case_obj.pending_embargo_proposal_index[embargo.id_] = proposal.id_
     dl.create(case_obj)
     _add_case_manager(case_obj, dl)
     return case_obj, proposal, embargo
@@ -250,8 +261,8 @@ def case_with_proposal(dl, actor):
 
 @pytest.fixture
 def non_report_object(dl):
-    """An EmbargoEvent stored in the datalayer — not an Offer."""
-    obj = EmbargoEvent(context="urn:uuid:some-case")
+    """An as_EmbargoEvent stored in the datalayer — not an Offer."""
+    obj = as_EmbargoEvent(context="urn:uuid:some-case")
     dl.create(obj)
     return obj
 
@@ -310,11 +321,15 @@ def test_validate_report_trigger_transitions_rm_to_valid(
     ), "Expected a RM.VALID ParticipantStatus after validate_report_trigger"
 
 
-def test_validate_report_trigger_non_report_offer_raises_422(
+def test_validate_report_trigger_non_report_offer_raises_404(
     dl, actor, non_report_object
 ):
-    """validate_report_trigger raises 422 when offer_id is not a report Offer."""
-    with pytest.raises(VultronValidationError):
+    """validate_report_trigger raises 404 when no VultronOfferRecord exists for the offer_id.
+
+    Per ADR-0035: _resolve_offer_and_report reads from the core VultronOfferRecord,
+    not the stored wire activity. A non-offer ID has no record → VultronNotFoundError.
+    """
+    with pytest.raises(VultronNotFoundError):
         TriggerService(
             dl, trigger_activity=TriggerActivityAdapter(dl)
         ).validate_report(actor.id_, non_report_object.id_, None)
@@ -366,11 +381,15 @@ def test_invalidate_report_trigger_adds_activity_to_outbox(
     assert len(after - before) >= 1
 
 
-def test_invalidate_report_trigger_non_report_offer_raises_422(
+def test_invalidate_report_trigger_non_report_offer_raises_404(
     dl, actor, non_report_object
 ):
-    """invalidate_report_trigger raises 422 when offer_id is not a report Offer."""
-    with pytest.raises(VultronValidationError):
+    """invalidate_report_trigger raises 404 when no VultronOfferRecord exists.
+
+    Per ADR-0035: _resolve_offer_and_report reads VultronOfferRecord; no record
+    for non-offer IDs → VultronNotFoundError.
+    """
+    with pytest.raises(VultronNotFoundError):
         TriggerService(
             dl, trigger_activity=TriggerActivityAdapter(dl)
         ).invalidate_report(actor.id_, non_report_object.id_, None)
@@ -422,11 +441,15 @@ def test_reject_report_trigger_adds_activity_to_outbox(
     assert len(after - before) >= 1
 
 
-def test_reject_report_trigger_non_report_offer_raises_422(
+def test_reject_report_trigger_non_report_offer_raises_404(
     dl, actor, non_report_object
 ):
-    """reject_report_trigger raises 422 when offer_id is not a report Offer."""
-    with pytest.raises(VultronValidationError):
+    """reject_report_trigger raises 404 when no VultronOfferRecord exists.
+
+    Per ADR-0035: _resolve_offer_and_report reads VultronOfferRecord; no record
+    for non-offer IDs → VultronNotFoundError.
+    """
+    with pytest.raises(VultronNotFoundError):
         TriggerService(
             dl, trigger_activity=TriggerActivityAdapter(dl)
         ).reject_report(actor.id_, non_report_object.id_, "reason")
@@ -466,11 +489,15 @@ def test_close_report_trigger_unknown_actor_raises_404(dl, offer):
         ).close_report("urn:uuid:no-such", offer.id_, None)
 
 
-def test_close_report_trigger_non_report_offer_raises_422(
+def test_close_report_trigger_non_report_offer_raises_404(
     dl, actor, non_report_object
 ):
-    """close_report_trigger raises 422 when offer_id is not a report Offer."""
-    with pytest.raises(VultronValidationError):
+    """close_report_trigger raises 404 when no VultronOfferRecord exists.
+
+    Per ADR-0035: _resolve_offer_and_report reads VultronOfferRecord; no record
+    for non-offer IDs → VultronNotFoundError.
+    """
+    with pytest.raises(VultronNotFoundError):
         TriggerService(
             dl, trigger_activity=TriggerActivityAdapter(dl)
         ).close_report(actor.id_, non_report_object.id_, None)
@@ -521,7 +548,7 @@ def test_engage_case_trigger_invalid_case_id_raises_422(dl, actor):
 def test_engage_case_trigger_updates_participant_rm_state(
     dl, actor, case_with_participant
 ):
-    """engage_case_trigger transitions actor's CaseParticipant RM state to ACCEPTED."""
+    """engage_case_trigger transitions actor's as_CaseParticipant RM state to ACCEPTED."""
     TriggerService(
         dl, trigger_activity=TriggerActivityAdapter(dl)
     ).engage_case(actor.id_, case_with_participant.id_)
@@ -539,7 +566,7 @@ def test_engage_case_trigger_updates_participant_rm_state(
             else getattr(actor_ref, "id_", str(actor_ref))
         )
         if p_actor_id == actor.id_ and p_obj.participant_statuses:
-            assert p_obj.participant_statuses[-1].rm_state == RM.ACCEPTED
+            assert p_obj.participant_statuses[-1].rm.state == RM.ACCEPTED
             return
     pytest.fail("Participant RM state was not updated to ACCEPTED")
 
@@ -595,7 +622,7 @@ def test_defer_case_trigger_invalid_case_id_raises_422(dl, actor):
 def test_defer_case_trigger_updates_participant_rm_state(
     dl, actor, case_with_participant
 ):
-    """defer_case_trigger transitions actor's CaseParticipant RM state to DEFERRED."""
+    """defer_case_trigger transitions actor's as_CaseParticipant RM state to DEFERRED."""
     TriggerService(dl, trigger_activity=TriggerActivityAdapter(dl)).defer_case(
         actor.id_, case_with_participant.id_
     )
@@ -613,7 +640,7 @@ def test_defer_case_trigger_updates_participant_rm_state(
             else getattr(actor_ref, "id_", str(actor_ref))
         )
         if p_actor_id == actor.id_ and p_obj.participant_statuses:
-            assert p_obj.participant_statuses[-1].rm_state == RM.DEFERRED
+            assert p_obj.participant_statuses[-1].rm.state == RM.DEFERRED
             return
     pytest.fail("Participant RM state was not updated to DEFERRED")
 
@@ -642,7 +669,7 @@ def test_propose_embargo_trigger_transitions_em_state_to_proposed(
         dl, trigger_activity=TriggerActivityAdapter(dl)
     ).propose_embargo(actor.id_, case_with_case_manager.id_, FUTURE_DATETIME)
     updated = dl.read(case_with_case_manager.id_)
-    assert updated.current_status.em_state == EM.PROPOSED
+    assert updated.current_status.em.state == EM.PROPOSED
 
 
 def test_propose_embargo_trigger_exited_raises_409(
@@ -650,7 +677,7 @@ def test_propose_embargo_trigger_exited_raises_409(
 ):
     """propose_embargo_trigger raises 409 when EM state is EXITED."""
     case_obj = dl.read(case_no_participant.id_)
-    case_obj.current_status.em_state = EM.EXITED
+    case_obj.current_status.em.state = EM.EXITED
     dl.update(case_obj.id_, object_to_record(case_obj))
 
     with pytest.raises(VultronInvalidStateTransitionError):
@@ -729,7 +756,7 @@ def test_evaluate_embargo_trigger_activates_embargo(
         dl, trigger_activity=TriggerActivityAdapter(dl)
     ).accept_embargo(actor.id_, case_obj.id_, proposal.id_)
     updated = dl.read(case_obj.id_)
-    assert updated.current_status.em_state == EM.ACTIVE
+    assert updated.current_status.em.state == EM.ACTIVE
     assert updated.active_embargo is not None
 
 
@@ -743,7 +770,7 @@ def test_evaluate_embargo_trigger_without_proposal_id_finds_first(
     ).accept_embargo(actor.id_, case_obj.id_, None)
     assert isinstance(result, dict)
     updated = dl.read(case_obj.id_)
-    assert updated.current_status.em_state == EM.ACTIVE
+    assert updated.current_status.em.state == EM.ACTIVE
 
 
 def test_evaluate_embargo_trigger_no_proposal_raises_404(
@@ -796,7 +823,7 @@ def test_terminate_embargo_trigger_sets_em_state_to_exited(
         dl, trigger_activity=TriggerActivityAdapter(dl)
     ).terminate_embargo(actor.id_, case_obj.id_)
     updated = dl.read(case_obj.id_)
-    assert updated.current_status.em_state == EM.EXITED
+    assert updated.current_status.em.state == EM.EXITED
 
 
 def test_terminate_embargo_trigger_clears_active_embargo(

@@ -19,10 +19,17 @@ import py_trees
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.embargo.nodes.conditions import (
+    HasActiveEmbargoNode,
+    HasCaseStatusesNode,
     IsActiveEmbargoNode,
     ValidateCaseExistsNode,
 )
 from vultron.core.states.em import EM
+from vultron.errors import VultronInvalidStateTransitionError
+from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 from test.core.behaviors.embargo.nodes.conftest import (
     make_case_and_embargo,
@@ -107,6 +114,129 @@ class TestIsActiveEmbargoNode:
             embargo_id=(
                 "https://example.org/cases/nonexistent/embargo_events/e1"
             ),
+        )
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert node.status == py_trees.common.Status.FAILURE
+
+
+class TestHasActiveEmbargoNode:
+    """Tests for HasActiveEmbargoNode."""
+
+    def test_returns_success_when_active_embargo_present(self):
+        """Node returns SUCCESS when case.active_embargo is non-None."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, _ = make_case_and_embargo("hae1", em_state=EM.ACTIVE)
+        dl.create(case)
+
+        setup_blackboard(dl)
+        result_out: dict = {}
+        node = HasActiveEmbargoNode(case_id=case.id_, result_out=result_out)
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert node.status == py_trees.common.Status.SUCCESS
+        assert "error" not in result_out
+
+    def test_returns_failure_when_no_active_embargo(self):
+        """Node returns FAILURE when active_embargo is None."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, _ = make_case_and_embargo("hae2")
+        case.active_embargo = None
+        dl.create(case)
+
+        setup_blackboard(dl)
+        result_out: dict = {}
+        node = HasActiveEmbargoNode(case_id=case.id_, result_out=result_out)
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert node.status == py_trees.common.Status.FAILURE
+        assert isinstance(
+            result_out["error"], VultronInvalidStateTransitionError
+        )
+
+    def test_returns_failure_when_case_missing(self):
+        """Node returns FAILURE when the case is not in the DataLayer."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        setup_blackboard(dl)
+
+        result_out: dict = {}
+        node = HasActiveEmbargoNode(
+            case_id="https://example.org/cases/nonexistent",
+            result_out=result_out,
+        )
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert node.status == py_trees.common.Status.FAILURE
+
+    def test_error_message_includes_case_id(self):
+        """result_out['error'] message references the case ID."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, _ = make_case_and_embargo("hae3")
+        case.active_embargo = None
+        dl.create(case)
+
+        setup_blackboard(dl)
+        result_out: dict = {}
+        node = HasActiveEmbargoNode(case_id=case.id_, result_out=result_out)
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert case.id_ in str(result_out["error"])
+
+
+class TestHasCaseStatusesNode:
+    """Tests for HasCaseStatusesNode."""
+
+    def test_returns_success_when_case_statuses_non_empty(self):
+        """Node returns SUCCESS when case has at least one CaseStatus entry."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case = as_VulnerabilityCase(
+            id_="https://example.org/cases/hcs1",
+            case_statuses=[as_CaseStatus(em_state=EM.ACTIVE)],
+        )
+        dl.create(case)
+
+        setup_blackboard(dl)
+        node = HasCaseStatusesNode(case_id=case.id_)
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert node.status == py_trees.common.Status.SUCCESS
+
+    def test_returns_failure_when_case_statuses_empty(self):
+        """Node returns FAILURE when case.case_statuses is empty."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case = as_VulnerabilityCase(
+            id_="https://example.org/cases/hcs2",
+            case_statuses=[],
+        )
+        dl.create(case)
+
+        setup_blackboard(dl)
+        node = HasCaseStatusesNode(case_id=case.id_)
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert node.status == py_trees.common.Status.FAILURE
+
+    def test_returns_failure_when_case_missing(self):
+        """Node returns FAILURE when the case is not in the DataLayer."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        setup_blackboard(dl)
+
+        node = HasCaseStatusesNode(
+            case_id="https://example.org/cases/nonexistent"
         )
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()

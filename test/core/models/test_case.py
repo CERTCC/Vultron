@@ -262,7 +262,7 @@ class TestWireVulnerabilityCaseFieldParity:
 
     def test_wire_vulnerability_case_field_names_match_core(self):
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase as WireVC,
+            as_VulnerabilityCase as WireVC,
         )
 
         core_fields = set(VulnerabilityCase.model_fields.keys())
@@ -280,7 +280,7 @@ class TestVulnerabilityCaseWireRoundTrip:
 
     def test_to_core_produces_vulnerability_case(self):
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase as WireVC,
+            as_VulnerabilityCase as WireVC,
         )
 
         wire_case = WireVC(
@@ -293,7 +293,7 @@ class TestVulnerabilityCaseWireRoundTrip:
 
     def test_from_core_preserves_id(self):
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase as WireVC,
+            as_VulnerabilityCase as WireVC,
         )
 
         core_case = VulnerabilityCase(
@@ -305,7 +305,7 @@ class TestVulnerabilityCaseWireRoundTrip:
 
     def test_round_trip_preserves_active_embargo(self):
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase as WireVC,
+            as_VulnerabilityCase as WireVC,
         )
 
         core_case = VulnerabilityCase(

@@ -14,6 +14,7 @@
 
 from typing import cast
 
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.em import EM
 from vultron.core.use_cases.received.embargo import (
     AddEmbargoEventToCaseReceivedUseCase,
@@ -33,17 +34,19 @@ class TestEmbargoTermRevise:
     ):
         """add_embargo_event_to_case sets the active embargo on the case (PROPOSED → ACTIVE)."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.embargo_event import (
+            as_EmbargoEvent,
+        )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         dl = SqliteDataLayer("sqlite:///:memory:")
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_em1",
             name="EM Test Case",
         )
-        embargo = EmbargoEvent(
+        embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_em1/embargo_events/e1",
             content="Embargo test",
         )
@@ -65,7 +68,7 @@ class TestEmbargoTermRevise:
         assert case is not None
         case = cast(VulnerabilityCase, case)
         assert case.active_embargo is not None
-        assert case.current_status.em_state == EM.ACTIVE
+        assert case.current_status.em.state == EM.ACTIVE
 
     def test_add_embargo_event_to_case_warns_on_non_standard_transition(
         self, monkeypatch, make_payload, caplog
@@ -73,17 +76,19 @@ class TestEmbargoTermRevise:
         """add_embargo_event_to_case ledgers WARNING when EM state is not on the standard machine path (state-sync override)."""
         import logging
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.embargo_event import (
+            as_EmbargoEvent,
+        )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         dl = SqliteDataLayer("sqlite:///:memory:")
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_em1_warn",
             name="EM Warn Test Case",
         )
-        embargo = EmbargoEvent(
+        embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_em1_warn/embargo_events/e1",
             content="Embargo test",
         )
@@ -106,24 +111,26 @@ class TestEmbargoTermRevise:
         assert case is not None
         case = cast(VulnerabilityCase, case)
         # State is still updated (synchronization override proceeds).
-        assert case.current_status.em_state == EM.ACTIVE
+        assert case.current_status.em.state == EM.ACTIVE
 
     def test_remove_embargo_from_proposed_clears_proposed_list(
         self, make_payload
     ):
         """remove_embargo_event removes embargo from proposed_embargoes."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.embargo_event import (
+            as_EmbargoEvent,
+        )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         dl = SqliteDataLayer("sqlite:///:memory:")
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_rem1",
             name="Remove Embargo Proposed",
         )
-        embargo = EmbargoEvent(
+        embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_rem1/embargo_events/e1",
             context=case.id_,
         )
@@ -144,7 +151,7 @@ class TestEmbargoTermRevise:
 
         updated = dl.read(case.id_)
         assert updated is not None
-        updated = cast(VulnerabilityCase, updated)
+        updated = cast(as_VulnerabilityCase, updated)
         assert embargo.id_ not in [
             e if isinstance(e, str) else getattr(e, "id_", None)
             for e in updated.proposed_embargoes
@@ -156,20 +163,22 @@ class TestEmbargoTermRevise:
         """remove_embargo_event transitions EM from ACTIVE to EXITED via BT."""
         import py_trees
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.embargo_event import (
+            as_EmbargoEvent,
+        )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         py_trees.blackboard.Blackboard.enable_activity_stream()
         py_trees.blackboard.Blackboard.storage.clear()
 
         dl = SqliteDataLayer("sqlite:///:memory:")
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_rem2",
             name="Remove Embargo ACTIVE→EXITED",
         )
-        embargo = EmbargoEvent(
+        embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_rem2/embargo_events/e2",
             context=case.id_,
         )
@@ -192,7 +201,7 @@ class TestEmbargoTermRevise:
         assert updated is not None
         updated = cast(VulnerabilityCase, updated)
         assert updated.active_embargo is None
-        assert updated.current_status.em_state == EM.EXITED
+        assert updated.current_status.em.state == EM.EXITED
 
     def test_remove_active_embargo_unusual_state_uses_override(
         self, caplog, make_payload
@@ -200,20 +209,22 @@ class TestEmbargoTermRevise:
         """remove_embargo_event uses state-sync override when EM is PROPOSED but embargo is active."""
         import py_trees
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.embargo_event import (
+            as_EmbargoEvent,
+        )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
+            as_VulnerabilityCase,
         )
 
         py_trees.blackboard.Blackboard.enable_activity_stream()
         py_trees.blackboard.Blackboard.storage.clear()
 
         dl = SqliteDataLayer("sqlite:///:memory:")
-        case = VulnerabilityCase(
+        case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_rem3",
             name="Remove Embargo unusual state override",
         )
-        embargo = EmbargoEvent(
+        embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_rem3/embargo_events/e3",
             context=case.id_,
         )
@@ -236,4 +247,4 @@ class TestEmbargoTermRevise:
         assert updated is not None
         updated = cast(VulnerabilityCase, updated)
         assert updated.active_embargo is None
-        assert updated.current_status.em_state == EM.EXITED
+        assert updated.current_status.em.state == EM.EXITED

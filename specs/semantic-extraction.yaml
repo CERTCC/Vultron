@@ -4,28 +4,34 @@ description: >-
   The inbox handler extracts semantic meaning from ActivityStreams activities by matching
   activity type and object type patterns. This semantic type determines which handler function
   processes the activity.
-version: 1.0.0
-kind: domain
+version: 1.2.0
 scope:
 - prototype
 - production
+tags:
+- messaging
+- wire-format
 groups:
 - id: SE-01
   title: Pattern Matching
   specs:
   - id: SE-01-001
     priority: MUST
+    kind: protocol
     statement: The system MUST match activities using activity type and object type patterns
   - id: SE-01-002
     priority: MUST
+    kind: protocol
     statement: >-
       The semantic extraction algorithm MUST handle both fully expanded objects and URI string
       references defensively
   - id: SE-01-003
     priority: MUST
+    kind: protocol
     statement: 'If rehydration fails for any nested object, the system MUST:'
   - id: SE-01-004
     priority: MUST
+    kind: protocol
     statement: >-
       Pattern matching MUST support type/subclass matching semantics for actor/object classes
     relationships:
@@ -36,27 +42,33 @@ groups:
   specs:
   - id: SE-02-001
     priority: MUST
+    kind: protocol
     statement: >-
       The system MUST assign MessageSemantics enum value via `find_matching_semantics()`
   - id: SE-02-002
     priority: MUST
+    kind: protocol
     statement: The function MUST return the first matching semantic type
   - id: SE-02-003
     priority: MUST
+    kind: protocol
     statement: The function MUST return MessageSemantics.UNKNOWN if no patterns match
 - id: SE-03
   title: Pattern Registry
   specs:
   - id: SE-03-001
     priority: MUST
+    kind: protocol
     statement: >-
       SEMANTICS_ACTIVITY_PATTERNS MUST contain patterns for all supported MessageSemantics
       values except UNKNOWN
   - id: SE-03-002
     priority: MUST
+    kind: protocol
     statement: Pattern registry MUST be ordered from most specific to least specific
   - id: SE-03-003
     priority: MUST
+    kind: protocol
     statement: >-
       Every `ActivityPattern` entry in `SEMANTICS_ACTIVITY_PATTERNS` MUST discriminate on
       at minimum both Activity type AND Object type
@@ -69,9 +81,11 @@ groups:
   specs:
   - id: SE-04-001
     priority: MUST
+    kind: protocol
     statement: The system MUST log unrecognized activities at WARNING level
   - id: SE-04-002
     priority: MUST
+    kind: protocol
     statement: >-
       The system MUST distinguish two causes of `MessageSemantics.UNKNOWN`: 1. **No pattern
       match**: No registered `ActivityPattern` matched the activity structure → raise `VultronApiHandlerMissingSemanticError`
@@ -84,12 +98,14 @@ groups:
       and fail legitimate protocol flows.
   - id: SE-04-003
     priority: MUST
+    kind: protocol
     statement: >-
       Dead-letter records for unresolvable-object_ activities MUST include: the full activity
       JSON, the unresolvable URI, the actor ID, and a timestamp. They MUST be stored in a
       DataLayer collection accessible for administrative review and retry.
   - id: SE-04-004
     priority: MUST
+    kind: protocol
     statement: >-
       For any future synchronous processing path (non-background), UNKNOWN due to unresolvable
       `object_` MUST return HTTP 422 with an explanatory error body identifying the unresolvable
@@ -99,18 +115,22 @@ groups:
   specs:
   - id: SE-05-001
     priority: MUST
+    kind: protocol
     statement: All patterns MUST have corresponding MessageSemantics enum value
   - id: SE-05-002
     priority: MUST
+    kind: protocol
     statement: All patterns MUST have corresponding use-case class in USE_CASE_MAP
     relationships:
     - rel_type: derives_from
       spec_id: DR-02-002
   - id: SE-05-003
     priority: MUST
+    kind: protocol
     statement: All patterns MUST have unit test coverage
   - id: SE-05-004
     priority: SHOULD
+    kind: protocol
     statement: >-
       Pattern matching SHOULD be actor-subtype-aware where the semantics of an activity
       differ based on whether the sender is a `Vendor`, `Coordinator`, `Researcher`, or
@@ -124,10 +144,10 @@ groups:
       marks the known limitation so it is not rediscovered.
 - id: SE-06
   title: Registry Order Enforcement
-  kind: implementation
   specs:
   - id: SE-06-001
     priority: MUST
+    kind: project
     statement: >-
       The `ActivityPatternRegistry` MUST include an import-time guard function
       `_validate_registry_order()` that raises `RegistryOrderError` if any registered
@@ -144,6 +164,7 @@ groups:
       spec_id: SE-05-001
   - id: SE-06-002
     priority: MUST
+    kind: project
     statement: >-
       `RegistryOrderError` MUST be a named exception class in the semantic extraction
       module. It MUST NOT be raised as a generic `ValueError` or `AssertionError`.
@@ -152,6 +173,7 @@ groups:
       spec_id: SE-06-001
   - id: SE-06-003
     priority: MUST
+    kind: project
     statement: >-
       The registry order guard MUST have a companion unit test that asserts correct ordering
       is maintained for all registered patterns. The test MUST fail if the guard raises
@@ -159,3 +181,99 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: SE-06-001
+- id: SE-07
+  title: Display Metadata
+  specs:
+  - id: SE-07-001
+    priority: MUST
+    kind: project
+    statement: >-
+      Every `SemanticEntry` in `SEMANTIC_REGISTRY` MUST carry a non-empty `phrase: str`
+      field containing an active-voice format-string template suitable for human-readable
+      event summaries (e.g. `"{actor} submitted report {object}"`).
+    rationale: >-
+      A mandatory phrase field ensures every registered semantic is self-documenting and
+      prevents silent drift between the registry and display-layer phrase tables (see
+      CONCERN-1675). Making the field mandatory at the dataclass level means a missing
+      phrase is a construction-time error, not a runtime rendering gap.
+  - id: SE-07-002
+    priority: MUST
+    kind: project
+    statement: >-
+      Phrase templates MUST use named slots drawn from the set `{actor}`, `{object}`,
+      `{target}`, `{context}`, `{origin}`, `{inner_object}`. Slot names MUST be
+      human-facing role identifiers, not Python field names from `VultronEvent`.
+    relationships:
+    - rel_type: refines
+      spec_id: SE-07-001
+  - id: SE-07-003
+    priority: MUST
+    kind: project
+    statement: >-
+      The `SemanticEntry` dataclass `phrase` field MUST have no default value so
+      that omitting it is a construction-time `TypeError`, not a silent empty string.
+    relationships:
+    - rel_type: implements
+      spec_id: SE-07-001
+  - id: SE-07-004
+    priority: MUST
+    kind: project
+    statement: >-
+      A parametrized unit test MUST assert that every entry in `SEMANTIC_REGISTRY`
+      has a non-empty `phrase` and that calling `entry.phrase.format_map(d)` with a
+      `defaultdict(lambda: "X")` returns a non-empty string without raising a
+      `KeyError`.
+    relationships:
+    - rel_type: verifies
+      spec_id: SE-07-001
+- id: SE-08
+  title: Target-Field Discriminators
+  specs:
+  - id: SE-08-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When two or more `ActivityPattern` entries share the same `activity_` type AND
+      `object_` type, the more-specific pattern MUST include an additional discriminator
+      field (e.g. `target_`, `context_`) that unambiguously distinguishes it from the
+      less-specific pattern. The more-specific pattern MUST appear before the less-specific
+      one in `SEMANTIC_REGISTRY`.
+    rationale: >-
+      `OFFER_CASE_MANAGER_ROLE` and `OFFER_CASE_OWNERSHIP_TRANSFER` both match
+      `Offer(VulnerabilityCase)`. `OFFER_CASE_MANAGER_ROLE` is disambiguated by the
+      presence of `target=CaseParticipant`. If the more-specific entry appeared after the
+      less-specific one, every case-manager delegation offer would be silently misrouted
+      as an ownership transfer. `_validate_registry_order()` enforces this at import time.
+    relationships:
+    - rel_type: refines
+      spec_id: SE-03-002
+  - id: SE-08-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A wire activity class whose semantic identity depends on a target-field discriminator
+      MUST declare that target field as required (not optional) so that a sender omitting it
+      produces a validation error rather than a silently misrouted activity.
+    rationale: >-
+      `_OfferCaseManagerRoleActivity.target` is `as_CaseParticipant` (required). This ensures
+      that any attempt to construct the activity without the discriminator field fails fast at
+      the sending side rather than reaching the receiver's registry as an ambiguous shape.
+    relationships:
+    - rel_type: refines
+      spec_id: SE-08-001
+  - id: SE-08-003
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      When two semantics share `Offer(VulnerabilityCase)` and are discriminated only by a
+      target-field value, a dedicated wire object type (e.g. `as_CaseParticipantRole`)
+      SHOULD be preferred over target-field discrimination so that the wire shape is
+      unambiguously self-describing without depending on registry ordering.
+    rationale: >-
+      Target-field discrimination is a latent correctness risk: a minimally-conformant or
+      buggy sender omitting the target will be silently misrouted. A distinct object type
+      eliminates this risk structurally and makes the wire format self-describing.
+      See also `notes/activitystreams-state-update.md` § "Target-Field Discriminators".
+    relationships:
+    - rel_type: refines
+      spec_id: SE-08-001

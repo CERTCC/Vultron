@@ -18,6 +18,7 @@
 import logging
 from typing import Any, cast
 
+from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.wire.as2.factories import (
     rm_close_report_activity,
@@ -25,17 +26,18 @@ from vultron.wire.as2.factories import (
     rm_submit_report_activity,
     rm_validate_report_activity,
 )
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Read
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
-from ._base import _DUMP_KWARGS
+from ._base import _DUMP_KWARGS, _to_wire
 
 logger = logging.getLogger(__name__)
 
 
 class _ReportsMixin:
-    """Trigger activity methods for VulnerabilityReport objects."""
+    """Trigger activity methods for as_VulnerabilityReport objects."""
 
     _dl: CaseOutboxPersistence
 
@@ -46,8 +48,8 @@ class _ReportsMixin:
         to: str,
         target: str,
     ) -> tuple[str, dict[str, Any]]:
-        """Create and persist an ``Offer(VulnerabilityReport)`` activity."""
-        report = cast(VulnerabilityReport, self._dl.read(report_id))
+        """Create and persist an ``Offer(as_VulnerabilityReport)`` activity."""
+        report = _to_wire(self._dl.read(report_id), as_VulnerabilityReport)
         activity = rm_submit_report_activity(
             report=report, to=to, actor=actor, target=target
         )
@@ -58,6 +60,32 @@ class _ReportsMixin:
                 "submit_report: activity '%s' already exists — skipping",
                 activity.id_,
             )
+        offer_record = VultronOfferRecord(
+            offer_id=activity.id_,
+            report_id=report_id,
+            offer_actor_id=actor,
+            offer_to=[to] if isinstance(to, str) else list(to),
+        )
+        try:
+            self._dl.create(offer_record)
+        except ValueError:
+            logger.warning(
+                "submit_report: offer record '%s' already exists — skipping",
+                offer_record.id_,
+            )
+        except Exception:
+            # Compensating delete: remove the Offer activity so the pair is
+            # never left in a half-written state. If the delete itself fails,
+            # log and re-raise the original error so the caller sees it.
+            try:
+                self._dl.delete(activity.type_, activity.id_)
+            except Exception:
+                logger.exception(
+                    "submit_report: compensating delete of activity '%s' also"
+                    " failed; DataLayer may be in inconsistent state",
+                    activity.id_,
+                )
+            raise
         return activity.id_, activity.model_dump(**_DUMP_KWARGS)
 
     def validate_report(
@@ -125,10 +153,6 @@ class _ReportsMixin:
         to: list[str] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist a ``Read(Offer(Report))`` ack-report activity."""
-        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-            as_Read,
-        )
-
         offer = cast(Any, self._dl.read(offer_id))
         activity = as_Read(object_=offer, actor=actor, to=to)
         try:

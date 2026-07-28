@@ -27,9 +27,11 @@ from vultron.adapters.driven.datalayer_sqlite import (
     reset_datalayer as _reset_datalayer,
 )
 from vultron.adapters.driving.fastapi.main import app
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+    as_VulnerabilityReport,
 )
 
 
@@ -63,12 +65,12 @@ def test_get_vulnerability_case_includes_vulnerability_reports_field(
     excluded subclass-specific fields.
     """
     # Create a report
-    report = VulnerabilityReport(
+    report = as_VulnerabilityReport(
         name="Test Report", content="Test vulnerability content"
     )
 
     # Create a case with the report
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         name=f"Case for Report {report.id_}",
         vulnerability_reports=[report],
         attributed_to="https://example.org/actor",
@@ -97,12 +99,12 @@ def test_get_vulnerability_case_includes_vulnerability_reports_field(
 
 def test_get_vulnerability_case_includes_all_fields(client, datalayer):
     """
-    Test that GET /datalayer/{key} includes all VulnerabilityCase fields.
+    Test that GET /datalayer/{key} includes all as_VulnerabilityCase fields.
 
     Ensures subclass-specific fields are not filtered by response_model.
     """
     # Create a case with various fields populated
-    case = VulnerabilityCase(
+    case = as_VulnerabilityCase(
         name="Comprehensive Test Case",
         attributed_to="https://example.org/actor",
         case_participants=[],  # Empty but should be included
@@ -120,7 +122,7 @@ def test_get_vulnerability_case_includes_all_fields(client, datalayer):
     assert response.status_code == 200
     data = response.json()
 
-    # Verify VulnerabilityCase-specific fields are present
+    # Verify as_VulnerabilityCase-specific fields are present
     expected_fields = [
         "caseParticipants",
         "vulnerabilityReports",
@@ -140,11 +142,11 @@ def test_get_vulnerability_case_includes_all_fields(client, datalayer):
 
 def test_get_vulnerability_report_includes_all_fields(client, datalayer):
     """
-    Test that GET /datalayer/{key} includes all VulnerabilityReport fields.
+    Test that GET /datalayer/{key} includes all as_VulnerabilityReport fields.
 
     Verifies the fix works for other subclasses too.
     """
-    report = VulnerabilityReport(
+    report = as_VulnerabilityReport(
         name="Test Report",
         content="Test vulnerability content",
         attributed_to="https://example.org/finder",
@@ -159,7 +161,7 @@ def test_get_vulnerability_report_includes_all_fields(client, datalayer):
     assert response.status_code == 200
     data = response.json()
 
-    # Verify VulnerabilityReport has content field (not in as_Base)
+    # Verify as_VulnerabilityReport has content field (not in as_Base)
     assert (
         "content" in data
     ), f"Response missing 'content' field. Keys: {list(data.keys())}"

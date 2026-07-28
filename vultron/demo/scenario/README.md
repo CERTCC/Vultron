@@ -24,9 +24,7 @@ illustrate individual message semantics in isolation.
 
 | Sub-command    | Script                 | What it demonstrates                                          |
 |----------------|------------------------|---------------------------------------------------------------|
-| `two-actor`    | `two_actor_demo.py`    | Two-actor (Finder + Vendor) CVD workflow                      |
-| `three-actor`  | `three_actor_demo.py`  | Three-actor (Finder + Vendor + Coordinator) CVD workflow      |
-| `multi-vendor` | `multi_vendor_demo.py` | Multi-vendor workflow with ownership transfer                 |
+| `fv`           | `fv_demo.py`           | FV (Finder + Vendor) CVD workflow                             |
 
 ## Running scenario demos
 
@@ -34,22 +32,14 @@ Scenario demos require multiple running containers. Use the multi-actor
 Docker Compose file:
 
 ```bash
-# Two-actor scenario (default)
+# FV scenario
 cd docker && docker compose -f docker-compose-multi-actor.yml up
-
-# Three-actor scenario
-DEMO=three-actor cd docker && docker compose -f docker-compose-multi-actor.yml up
-
-# Multi-vendor scenario
-DEMO=multi-vendor cd docker && docker compose -f docker-compose-multi-actor.yml up
 ```
 
 Or with the unified CLI (after starting the appropriate containers):
 
 ```bash
-vultron-demo two-actor
-vultron-demo three-actor
-vultron-demo multi-vendor
+vultron-demo fv
 ```
 
 See the parent `README.md` and `docker/README.md` for full setup instructions.

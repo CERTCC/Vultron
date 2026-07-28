@@ -27,10 +27,30 @@ from vultron.core.models.participant_status import (
     coerce_cvd_roles,
     coerce_em_consent_state,
 )
-from vultron.core.models.protocols import is_case_model, is_participant_model
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import (
+    EmDimension,
+    PecDimension,
+    PxaDimension,
+    RmDimension,
+    VfdDimension,
+)
 from vultron.core.states.cs import CS_pxa, CS_vfd
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
+
+
+def _resolve_em_state(case: object) -> EM:
+    """Return the current em_state from a case, or EM.NONE if unavailable."""
+    try:
+        current_status = case.current_status  # type: ignore[attr-defined]
+    except (AttributeError, ValueError):
+        return EM.NONE
+    em_state = (
+        current_status.em.state if hasattr(current_status, "em") else None
+    )
+    return em_state if em_state is not None else EM.NONE
 
 
 class CreateParticipantStatusNode(DataLayerAction):
@@ -62,7 +82,7 @@ class CreateParticipantStatusNode(DataLayerAction):
             return Status.FAILURE
 
         case = dl.read(self._case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.logger.error(
                 "%s: Case '%s' not found in DataLayer",
                 self.name,
@@ -87,14 +107,11 @@ class CreateParticipantStatusNode(DataLayerAction):
 
         case_status: CaseStatus | None = None
         if self._pxa_state is not None:
-            current_em = getattr(
-                getattr(case, "current_status", None), "em_state", None
-            )
             case_status = CaseStatus(
                 context=self._case_id,
                 attributed_to=self._actor_id,
-                em_state=current_em if current_em is not None else EM.NONE,
-                pxa_state=self._pxa_state,
+                em=EmDimension(state=_resolve_em_state(case)),
+                pxa=PxaDimension(state=self._pxa_state),
             )
 
         current_rm, current_vfd = resolve_participant_state_from_dl(
@@ -103,27 +120,40 @@ class CreateParticipantStatusNode(DataLayerAction):
         participant_obj = dl.read(participant_id)
         participant_roles = (
             participant_obj.roles
-            if is_participant_model(participant_obj)
+            if isinstance(participant_obj, CaseParticipant)
             else []
         )
         status_roles = coerce_cvd_roles(participant_roles)
         raw_consent = (
             getattr(participant_obj, "embargo_consent_state", None)
-            if is_participant_model(participant_obj)
+            if isinstance(participant_obj, CaseParticipant)
             else None
         )
         em_consent_state = coerce_em_consent_state(raw_consent)
+        consent_dim = (
+            PecDimension(state=em_consent_state)
+            if em_consent_state is not None
+            else None
+        )
 
         status = ParticipantStatus(
             context=self._case_id,
             attributed_to=self._actor_id,
-            rm_state=(
-                self._rm_state if self._rm_state is not None else current_rm
+            rm=RmDimension(
+                state=(
+                    self._rm_state
+                    if self._rm_state is not None
+                    else current_rm
+                )
             ),
-            vfd_state=(
-                self._vfd_state if self._vfd_state is not None else current_vfd
+            vfd=VfdDimension(
+                state=(
+                    self._vfd_state
+                    if self._vfd_state is not None
+                    else current_vfd
+                )
             ),
-            em_consent_state=em_consent_state,
+            consent=consent_dim,
             cvd_role=status_roles,
             case_status=case_status,
         )

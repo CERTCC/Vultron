@@ -32,8 +32,8 @@ from vultron.core.behaviors.helpers import (
     DataLayerCondition,
 )
 from vultron.core.models.events.case import UpdateCaseReceivedEvent
-from vultron.core.models.protocols import is_case_model
-from vultron.core.use_cases._helpers import _as_id
+from vultron.core.models._helpers import _as_id
+from vultron.core.models.case import VulnerabilityCase
 
 
 class CheckCaseUpdateOwnerNode(DataLayerCondition):
@@ -44,15 +44,12 @@ class CheckCaseUpdateOwnerNode(DataLayerCondition):
         self.case_id = case_id
 
     def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.feedback_message = "DataLayer or actor_id not available"
-            self.logger.error(
-                "%s: DataLayer or actor_id not available", self.name
-            )
-            return Status.FAILURE
-
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
         case = self.datalayer.read(self.case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.feedback_message = f"case '{self.case_id}' not found"
             self.logger.warning(
                 "%s: case '%s' not found in DataLayer",
@@ -90,13 +87,12 @@ class CaptureCaseUpdateBroadcastExclusionsNode(DataLayerCondition):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         case = self.datalayer.read(self.case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.feedback_message = f"case '{self.case_id}' not found"
             self.logger.warning(
                 "%s: case '%s' not found in DataLayer",
@@ -125,14 +121,13 @@ class ApplyCaseUpdateNode(DataLayerAction):
         self.request = request
 
     def update(self) -> Status:
-        if self.datalayer is None or self.actor_id is None:
-            self.logger.error(
-                "%s: DataLayer or actor_id not available", self.name
-            )
-            return Status.FAILURE
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
 
         stored_case = self.datalayer.read(self.case_id)
-        if not is_case_model(stored_case):
+        if not isinstance(stored_case, VulnerabilityCase):
             self.logger.warning(
                 "%s: case '%s' not found in DataLayer",
                 self.name,
@@ -171,13 +166,12 @@ class BroadcastCaseUpdateNode(DataLayerAction):
         )
 
     def update(self) -> Status:
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            self.logger.error("%s: DataLayer not available", self.name)
-            return Status.FAILURE
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
 
         case = self.datalayer.read(self.case_id)
-        if not is_case_model(case):
+        if not isinstance(case, VulnerabilityCase):
             self.feedback_message = f"case '{self.case_id}' not found"
             self.logger.warning(
                 "%s: case '%s' not found in DataLayer",

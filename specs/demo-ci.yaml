@@ -2,21 +2,24 @@ id: DEMOCI
 title: Demo CI — GitHub Actions Demo Integration Workflow
 description: >-
   Requirements for a GitHub Actions workflow that builds and runs Vultron demo
-  containers on pull requests against main, and for hardening the demo runner
-  to exit non-zero when the demo fails. Closes the gap where all pytest tests
-  can pass while the actual demo produces 404 errors or other silent failures
-  (see issue #557). Source: IDEA-560.
-version: 1.0.0
-kind: implementation
+  containers on pull requests, and for hardening the demo runner to exit non-zero
+  when the demo fails — closing the gap where tests pass while the demo produces
+  silent failures. Includes requirements for the invariant harness to run as an
+  independent CI gate so failures are visible even when the demo itself also fails.
+version: 1.3.0
 scope:
   - prototype
   - production
+tags:
+- ci-cd
+- demo
 groups:
   - id: DEMOCI-01
     title: Demo Runner Failure Signalling
     specs:
       - id: DEMOCI-01-001
         priority: MUST
+        kind: project
         statement: >-
           The demo runner MUST exit with a non-zero exit code when the demo
           scenario fails, regardless of whether the Python process itself
@@ -28,6 +31,7 @@ groups:
 
       - id: DEMOCI-01-002
         priority: MUST
+        kind: project
         statement: >-
           The demo runner MUST treat any HTTP 404 response from an actor
           endpoint as a demo failure.
@@ -37,6 +41,7 @@ groups:
 
       - id: DEMOCI-01-003
         priority: MUST
+        kind: project
         statement: >-
           The demo runner MUST accumulate all errors encountered during the
           scenario and raise a typed DemoFailureError at the end of the
@@ -48,6 +53,7 @@ groups:
 
       - id: DEMOCI-01-004
         priority: MUST
+        kind: project
         statement: >-
           Error detection and accumulation MUST be implemented by extending
           the existing demo_step and demo_check context managers in
@@ -59,6 +65,7 @@ groups:
 
       - id: DEMOCI-01-005
         priority: MUST
+        kind: project
         statement: >-
           DemoFailureError MUST be a subclass of VultronError and MUST be
           defined in vultron/errors.py.
@@ -69,6 +76,7 @@ groups:
 
       - id: DEMOCI-01-006
         priority: MUST
+        kind: project
         statement: >-
           Every scenario entry-point function MUST call `reset_demo_failures()`
           as its first action and MUST call `assert_demo_success()` as its final
@@ -92,6 +100,7 @@ groups:
     specs:
       - id: DEMOCI-02-001
         priority: MUST
+        kind: project
         statement: >-
           A dedicated GitHub Actions workflow file
           (.github/workflows/demo-integration.yml) MUST exist for running
@@ -104,12 +113,14 @@ groups:
 
       - id: DEMOCI-02-002
         priority: MUST
+        kind: project
         statement: >-
           The demo workflow MUST trigger on pull_request events targeting the
           main branch and on workflow_dispatch events.
 
       - id: DEMOCI-02-003
         priority: MUST
+        kind: project
         statement: >-
           The pull_request trigger MUST include a paths filter covering:
           vultron/**, docker/**, integration_tests/**, pyproject.toml, and
@@ -121,6 +132,7 @@ groups:
 
       - id: DEMOCI-02-004
         priority: MUST
+        kind: project
         statement: >-
           The demo workflow job MUST be skipped for Dependabot pull requests,
           detected via the condition
@@ -133,13 +145,15 @@ groups:
 
       - id: DEMOCI-02-005
         priority: MUST
+        kind: project
         statement: >-
           The demo workflow MUST build the Docker images using
-          docker/docker-compose-multi-actor.yml and run the two-actor demo
-          scenario (DEMO=two-actor) as the initial CI scenario.
+          docker/docker-compose-multi-actor.yml and run the FV demo
+          scenario (DEMO=fv) as the initial CI scenario.
 
       - id: DEMOCI-02-006
         priority: MUST
+        kind: project
         statement: >-
           Demo failure MUST be detected via the exit code of the demo-runner
           container, using the docker compose flag
@@ -147,12 +161,14 @@ groups:
 
       - id: DEMOCI-02-007
         priority: MUST
+        kind: project
         statement: >-
           The workflow MUST use GitHub Actions Docker layer caching to avoid
           rebuilding unchanged dependency layers on every run.
 
       - id: DEMOCI-02-008
         priority: MUST
+        kind: project
         statement: >-
           The workflow MUST upload all container logs as a CI artifact when
           the demo job fails, and MUST NOT upload logs on success.
@@ -163,16 +179,18 @@ groups:
 
       - id: DEMOCI-02-009
         priority: MUST
+        kind: project
         statement: >-
           The demo workflow job MUST have a timeout of 15 minutes
           (timeout-minutes: 15).
         rationale: >-
-          The two-actor demo currently takes 3–5 minutes; a 15-minute cap
+          The FV demo currently takes 3–5 minutes; a 15-minute cap
           prevents an indefinite CI hang if a container gets stuck, while
           providing sufficient headroom for slow runners.
 
       - id: DEMOCI-02-010
         priority: MUST
+        kind: project
         statement: >-
           The workflow MUST include a teardown step that runs
           `docker compose down -v` after the demo job (success or failure)
@@ -186,17 +204,19 @@ groups:
     specs:
       - id: DEMOCI-03-001
         priority: SHOULD
+        kind: project
         statement: >-
           The demo workflow SHOULD be extended to include additional demo
           scenarios (e.g., three-actor, multi-vendor) as each scenario
           reaches a stable, reproducible state.
         rationale: >-
-          Starting with the two-actor scenario lets CI run reliably while
+          Starting with the FV scenario lets CI run reliably while
           more complex scenarios are still being developed. Additional
           scenarios add coverage without blocking CI on unstable demos.
 
       - id: DEMOCI-03-002
         priority: MUST
+        kind: project
         statement: >-
           When a new demo scenario is added to the codebase, the demo CI
           workflow MUST be updated in the same PR to include that scenario
@@ -204,6 +224,7 @@ groups:
 
       - id: DEMOCI-03-003
         priority: SHOULD
+        kind: project
         statement: >-
           Each demo scenario added to CI SHOULD be run as a separate job
           (or matrix entry) so that failures are independently reported and
@@ -211,13 +232,14 @@ groups:
 
       - id: DEMOCI-03-004
         priority: MUST
+        kind: project
         statement: >-
           Each demo scenario (including FVV and any future scenario) MUST be
           added to demo-integration.yml as a separate parallel job in the same
           PR that introduces the scenario script; the job MUST use
           `--abort-on-container-exit --exit-code-from demo-runner`,
           `timeout-minutes: 15`, and the same teardown and log-upload steps
-          as the two-actor job (DEMOCI-02-006, DEMOCI-02-009, DEMOCI-02-010)
+          as the FV job (DEMOCI-02-006, DEMOCI-02-009, DEMOCI-02-010)
         rationale: >-
           Running scenarios in series would make CI proportionally slower with
           each scenario added. Parallel jobs keep wall-clock time bounded and
@@ -229,3 +251,113 @@ groups:
             spec_id: DEMOCI-03-003
           - rel_type: refines
             spec_id: DEMOCI-03-002
+
+      - id: DEMOCI-03-005
+        priority: MUST
+        kind: project
+        statement: >-
+          Each matrix entry in the demo CI workflow MUST declare an explicit
+          `test_file` field naming the scenario-specific invariant test file
+          (e.g. `test/ci/invariants/test_fv_invariants.py`). The case-ledger
+          invariant step MUST invoke pytest with that file path directly rather
+          than using the `-m case_ledger_invariants` marker alone.
+        rationale: >-
+          Using the marker alone relies on each test file skipping when its
+          devlogs directory is absent — an implicit, fragile coupling between
+          the filesystem state and test selection. An explicit file path makes
+          the scenario-to-test relationship declarative and visible in the
+          workflow definition, so adding a new matrix entry also requires
+          explicitly naming the test file that validates it.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-03-004
+
+  - id: DEMOCI-04
+    title: Invariant Harness as an Independent CI Gate
+    specs:
+      - id: DEMOCI-04-001
+        priority: MUST
+        kind: project
+        statement: >-
+          The case-ledger invariant harness for each demo scenario MUST run as
+          a separate CI job (distinct from the demo-runner job), so that
+          invariant failures produce an independent pass/fail status on the
+          pull request that is visible even when the demo job also fails.
+        rationale: >-
+          When both the demo run and the invariant harness are co-located in the
+          same CI job, a primary demo failure draws reviewer attention away from
+          invariant failures. In PR #1590, a missing notes-exchange phase failed
+          silently across multiple fix cycles because the invariant failure was
+          masked by the demo failure in the same job output.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-03-003
+
+      - id: DEMOCI-04-002
+        priority: MUST
+        kind: project
+        statement: >-
+          The invariant-harness job MUST declare a `needs:` dependency on the
+          demo job for the same scenario matrix entry, and MUST use
+          `if: always()` so it runs regardless of whether the demo job passed
+          or failed.
+        rationale: >-
+          The purpose of the separate invariant job is to provide a signal even
+          when the demo itself fails. Using `if: always()` and `needs:` on the
+          demo job ensures the invariant job runs after artifacts are uploaded
+          and never skips due to a demo failure.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-04-001
+
+      - id: DEMOCI-04-003
+        priority: MUST
+        kind: project
+        statement: >-
+          The invariant-harness job MUST download the scenario's case-log
+          JSONL artifact produced by the demo job before running pytest, so
+          that the harness reads the actual output of the demo run that
+          completed in that workflow execution.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-04-001
+
+      - id: DEMOCI-04-004
+        priority: MUST
+        kind: project
+        statement: >-
+          Each demo scenario's invariant test file (e.g.
+          `test/ci/invariants/test_fv_invariants.py`) MUST include a
+          per-scenario expected-event-types list that is comprehensive for that
+          scenario: it MUST cover all protocol phases that the scenario is
+          designed to exercise, not only the four universal phases shared by
+          all scenarios.
+        rationale: >-
+          A shared minimal list (validate_report, add_participant_status_to_participant,
+          close_case, add_note_to_case) does not guard against a scenario-specific
+          phase (e.g. notes-exchange) regressing silently. Each scenario's
+          expected-event-types list must reflect what that scenario is designed
+          to prove end-to-end.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-03-005
+
+      - id: DEMOCI-04-005
+        priority: MUST
+        kind: project
+        statement: >-
+          The invariant-harness job MUST carry the same Dependabot exclusion
+          guard as the demo job (DEMOCI-02-004): its `if:` condition MUST
+          include `!startsWith(github.head_ref, 'dependabot/')` in addition
+          to `always()`.
+        rationale: >-
+          Without the guard, a Dependabot PR skips the demo job (correct) but
+          triggers the invariant-harness job, which immediately fails because
+          `actions/download-artifact` finds no artifact — producing spurious
+          failing status checks on every Dependabot PR. The guard prevents this
+          by matching the skip condition of the upstream demo job.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-04-002
+          - rel_type: refines
+            spec_id: DEMOCI-02-004
