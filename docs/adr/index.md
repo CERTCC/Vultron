@@ -107,6 +107,8 @@ General information about architectural decision records is available at <https:
   Draft-Review-Submit Pipeline](0030-publish-leaf-draft-review-submit-pipeline.md)
 - [ADR-0039 Resolve Wire Ambiguity Between OFFER\_CASE\_MANAGER\_ROLE and
   OFFER\_CASE\_OWNERSHIP\_TRANSFER via Dedicated Object Type](0039-offer-case-participant-role-wire-type.md)
+- [ADR-0040 Introduce UseCaseResult Envelope; Do Not Introduce
+  UseCaseRequest](0040-use-case-result-envelope.md)
 
 ## Proposed ADRs
 
