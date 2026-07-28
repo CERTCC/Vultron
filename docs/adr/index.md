@@ -109,6 +109,8 @@ General information about architectural decision records is available at <https:
   OFFER\_CASE\_OWNERSHIP\_TRANSFER via Dedicated Object Type](0039-offer-case-participant-role-wire-type.md)
 - [ADR-0040 Introduce UseCaseResult Envelope; Do Not Introduce
   UseCaseRequest](0040-use-case-result-envelope.md)
+- [ADR-0041 Deliver All Inter-Actor Communication over HTTP; Retire the
+  In-Process ASGI Delivery Shortcut](0041-http-only-inter-actor-delivery.md)
 
 ## Proposed ADRs
 
