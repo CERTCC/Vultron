@@ -294,13 +294,13 @@ These are the stable node IDs for `CERTCC/Vultron`. If the repository is
 transferred or recreated, re-query using the commands in
 **API Discovery** below.
 
-| Name | Value |
+| Name | Resolver |
 |---|---|
-| Repo node ID | `R_kgDOIn77fA` |
-| Task issue type ID | `IT_kwDOAjf0s84AcFLo` |
-| Bug issue type ID | `IT_kwDOAjf0s84AcFLq` |
-| Epic issue type ID | `IT_kwDOAjf0s84B_E1A` |
-| Idea issue type ID | `IT_kwDOAjf0s84B_EoA` |
+| Repo node ID | `bash .agents/skills/shared/board-id.sh repo` |
+| Task issue type ID | `bash .agents/skills/shared/board-id.sh issue-type Task` |
+| Bug issue type ID | `bash .agents/skills/shared/board-id.sh issue-type Bug` |
+| Epic issue type ID | `bash .agents/skills/shared/board-id.sh issue-type Epic` |
+| Idea issue type ID | `bash .agents/skills/shared/board-id.sh issue-type Idea` |
 
 ## API Discovery
 

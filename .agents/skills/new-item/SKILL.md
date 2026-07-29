@@ -89,9 +89,10 @@ Use `.agents/skills/manage-github-issue/manage_github_issue.sh`.
 Add new issues to Project #24 **without** setting Schedule (leave unset):
 
 ```bash
+PROJECT_ID=$(bash .agents/skills/shared/board-id.sh project)
 gh api graphql -f query="mutation {
   addProjectV2ItemById(input: {
-    projectId: \"PVT_kwDOAjf0s84BZnre\"
+    projectId: \"${PROJECT_ID}\"
     contentId: \"${ISSUE_NODE_ID}\"
   }) { item { id } }
 }"

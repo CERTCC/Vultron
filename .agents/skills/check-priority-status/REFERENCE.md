@@ -9,15 +9,15 @@ status check.
 
 ## Project Board Constants
 
-| Name | Value |
+| Name | Resolver |
 |---|---|
-| Project node ID | `PVT_kwDOAjf0s84BZnre` |
-| Schedule field ID | `PVTSSF_lADOAjf0s84BZnrezhUlFOM` |
-| Schedule: Focus | `6bca50d7` |
-| Schedule: Now | `22e6679d` |
-| Schedule: Next | `1c1ed63d` |
-| Schedule: Later | `520032ef` |
-| Schedule: Someday | `a890eacc` |
+| Project node ID | `bash .agents/skills/shared/board-id.sh project` |
+| Schedule field ID | `bash .agents/skills/shared/board-id.sh schedule-field` |
+| Schedule: Focus | `bash .agents/skills/shared/board-id.sh schedule Focus` |
+| Schedule: Now | `bash .agents/skills/shared/board-id.sh schedule Now` |
+| Schedule: Next | `bash .agents/skills/shared/board-id.sh schedule Next` |
+| Schedule: Later | `bash .agents/skills/shared/board-id.sh schedule Later` |
+| Schedule: Someday | `bash .agents/skills/shared/board-id.sh schedule Someday` |
 
 ## Data Model
 
@@ -153,9 +153,12 @@ unblocked open sub-issue with no open PR.
 
 ### All items in Project #24 with Schedule tier
 
+Resolve `$PROJECT_ID` first via `bash .agents/skills/shared/board-id.sh project`,
+then substitute it into the query:
+
 ```graphql
 {
-  node(id: "PVT_kwDOAjf0s84BZnre") {
+  node(id: "$PROJECT_ID") {
     ... on ProjectV2 {
       items(first: 100) {
         nodes {

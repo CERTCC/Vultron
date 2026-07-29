@@ -16,23 +16,37 @@ Shared scripts and reference documents referenced by multiple skills.
 |---|---|---|
 | `sync-check.sh` | Verify worktree is synced to `origin/main` | `bash .agents/skills/shared/sync-check.sh` |
 | `claim-issue.sh` | Sync + create branch + assign + post claim comment | `bash .agents/skills/shared/claim-issue.sh <N> <prefix> <slug>` |
-| `add-to-project.sh` | Add issue to Project #24 with Schedule | `bash .agents/skills/shared/add-to-project.sh <N> [Now\|Next\|Later\|Someday]` |
+| `add-to-project.sh` | Add issue to Project #24 with Schedule | `bash .agents/skills/shared/add-to-project.sh <N> [Focus\|Now\|Next\|Later\|Someday]` |
 | `query-now-epics.sh` | List open Epics with Schedule=Now | `bash .agents/skills/shared/query-now-epics.sh` |
+| `board-id.sh` | Resolve any board node/field/option/issue-type ID **by name** (TTL-cached) | `bash .agents/skills/shared/board-id.sh <category> [<Name>]` |
 
-## Constants (CERTCC/Vultron)
+## Board IDs — never hardcode them
 
-| Name | Value |
+GitHub board IDs (repo node ID, project node ID, Schedule field/option IDs,
+issue-type IDs) are **server-generated and mutable** — editing a ProjectV2
+single-select field's options rotates every option ID. Any value pasted into a
+skill drifts stale and silently mis-schedules issues (this has bitten us
+before).
+
+**Resolve them at runtime by name** via `board-id.sh`, which fetches from the
+live board and caches to `board-ids.json` with a 24h TTL (override with the
+`BOARD_ID_TTL` env var in seconds; `--refresh` forces a re-fetch). No skill
+should contain a raw ID.
+
+| What you need | Command |
 |---|---|
-| Repo node ID | `R_kgDOIn77fA` |
-| Project #24 ID | `PVT_kwDOAjf0s84BZnre` |
-| Schedule field ID | `PVTSSF_lADOAjf0s84BZnrezhUlFOM` |
-| Schedule: Focus | `6bca50d7` |
-| Schedule: Now | `22e6679d` |
-| Schedule: Next | `1c1ed63d` |
-| Schedule: Later | `520032ef` |
-| Schedule: Someday | `a890eacc` |
-| Task issue type ID | `IT_kwDOAjf0s84AcFLo` |
-| Bug issue type ID | `IT_kwDOAjf0s84AcFLq` |
-| Epic issue type ID | `IT_kwDOAjf0s84B_E1A` |
-| Idea issue type ID | `IT_kwDOAjf0s84B_EoA` |
-| Concern issue type ID | `IT_kwDOAjf0s84B_2VT` |
+| Repo node ID | `bash .agents/skills/shared/board-id.sh repo` |
+| Project #24 node ID | `bash .agents/skills/shared/board-id.sh project` |
+| Schedule field ID | `bash .agents/skills/shared/board-id.sh schedule-field` |
+| A Schedule option ID | `bash .agents/skills/shared/board-id.sh schedule Now` (or `Focus`/`Next`/`Later`/`Someday`/`Completed`) |
+| An issue-type ID | `bash .agents/skills/shared/board-id.sh issue-type Epic` (or `Task`/`Bug`/`Feature`/`Idea`/`Concern`) |
+| Whole cache as JSON | `bash .agents/skills/shared/board-id.sh --dump` |
+
+The only stable, human-meaningful facts (the bootstrap inputs, hardcoded in
+`board-id.sh` alone) are `owner=CERTCC`, `repo=Vultron`, and project number
+`24`. Everything opaque is derived from those.
+
+`board-ids.json` is a regenerable cache: it is committed so first-run/offline
+use works, but if it is ever wrong, `bash .agents/skills/shared/board-id.sh
+--refresh --dump` rebuilds it and every consumer picks up the new values at
+once — no per-skill edits.

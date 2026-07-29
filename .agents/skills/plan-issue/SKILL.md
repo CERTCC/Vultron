@@ -65,10 +65,11 @@ Ask the user to describe the idea (`ask_user`, freeform). Synthesize a
 short title, then create the issue via the `manage-github-issue` helper:
 
 ```bash
+IDEA_TYPE_ID=$(bash .agents/skills/shared/board-id.sh issue-type Idea)
 ISSUE_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
   --title "${TITLE}" \
   --body "${BODY}" \
-  --issue-type-id "IT_kwDOAjf0s84B_EoA")
+  --issue-type-id "${IDEA_TYPE_ID}")
 ```
 
 ### Phase 0b — Sync

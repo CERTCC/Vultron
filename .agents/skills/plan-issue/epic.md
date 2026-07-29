@@ -49,9 +49,11 @@ Docs updates are optional. Skip if Phase A found no gaps.
 Create one Task sub-issue per decomposition cluster from Phase B. Wire each as:
 
 - `--blocked-by <N>` for any sequencing constraints
-- `--issue-type-id IT_kwDOAjf0s84AcFLo` (Task type)
+- `--issue-type-id "$(bash .agents/skills/shared/board-id.sh issue-type Task)"`
+  (Task type)
 
 ```bash
+TASK_TYPE_ID=$(bash .agents/skills/shared/board-id.sh issue-type Task)
 TASK_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
   --title "<task title from Phase B>" \
   --body "## Summary
@@ -63,7 +65,7 @@ TASK_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
 ## Reference
 Epic: #${ISSUE_NUMBER}" \
   --label "size:<S|M|L>" \
-  --issue-type-id "IT_kwDOAjf0s84AcFLo" \
+  --issue-type-id "${TASK_TYPE_ID}" \
   --parent "${ISSUE_NUMBER}" \
   [--blocked-by "<prerequisite task number>"])
 bash .agents/skills/shared/add-to-project.sh "${TASK_NUMBER}"
