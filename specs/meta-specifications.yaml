@@ -2,7 +2,7 @@ id: MS
 title: Meta-Specification Style Guide
 description: Normative rules for authoring specification files in this project. Covers file structure, requirement format,
   IDs, writing rules, cross-references, lifecycle, quality criteria, and the delineation between spec files and ADRs.
-version: 1.1.0
+version: 1.2.0
 scope:
 - prototype
 - production
@@ -410,3 +410,64 @@ groups:
       error. See CONCERN-1650 for the regression that prompted this rule.
     tags:
     - documentation
+- id: MS-14
+  title: ADR Status as Confidence Signal
+  specs:
+  - id: MS-14-001
+    priority: MUST
+    kind: process
+    statement: >-
+      Every ADR under docs/adr/ (excluding the template and index) MUST declare
+      a non-empty status field whose value is one of: proposed, accepted,
+      accepted-provisional, deprecated, rejected, or "superseded by <link>".
+    rationale: >-
+      The status field is the primary confidence signal that reaches coding
+      agents (deepen-context weights ADR trust by it). A blank or non-standard
+      status leaves agents to treat an unvalidated decision as settled fact.
+      ADR-0024 shipped with a blank status; this rule prevents recurrence.
+      Enforced by spec-lint. See ADR-0041 and notes/specs-vs-adrs.md.
+    relationships:
+    - rel_type: derives_from
+      spec_id: MS-11-004
+      note: extends ADR/spec cross-referencing with a status-confidence rule
+    adr:
+    - ADR-0041
+    tags:
+    - documentation
+    - tooling
+  - id: MS-14-002
+    priority: SHOULD
+    kind: process
+    statement: >-
+      An ADR's status value SHOULD agree with its prose. An ADR whose body
+      contains provisional markers (e.g. "formed in sand", "not concrete",
+      "provisional", "forward-looking", "will converge", "SHOULD refine this
+      ADR", "status will advance") SHOULD NOT declare status: accepted; it
+      SHOULD use accepted-provisional or proposed.
+    rationale: >-
+      A status/prose contradiction is a landmine: the agent trusts status:
+      accepted while the body admits the design is unvalidated. ADR-0025 was the
+      motivating case. spec-lint emits an advisory warning (not a hard error)
+      because the substring scan can false-positive on ADRs that merely discuss
+      provisional-ness; flagged ADRs are decision-audit candidates for human
+      adjudication.
+    tags:
+    - documentation
+    - tooling
+  - id: MS-14-003
+    priority: MUST
+    kind: process
+    statement: >-
+      An ADR's placement in docs/adr/index.md (Accepted / Proposed / Rejected /
+      Superseded-Archived sections) MUST agree with its own status field, and a
+      retired ADR (status deprecated or superseded) MUST reside in
+      docs/adr/archived/ and be listed only under the Superseded / Archived
+      section with a forward link to its replacement.
+    rationale: >-
+      Index-vs-frontmatter drift (ADR-0027 was listed provisional in the index
+      while its file said accepted) misleads both humans and the agents that
+      read the index. Archiving retired ADRs keeps outdated decisions out of the
+      default docs/adr/ context sweep so agents must deliberately seek them.
+    tags:
+    - documentation
+    - tooling

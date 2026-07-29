@@ -83,6 +83,59 @@ Use this self-check before committing a change:
 
 ---
 
+## Choosing the ADR `status` Value
+
+The ADR `status:` frontmatter field is the **primary confidence signal** that
+reaches coding agents: `deepen-context` weights how much to trust an ADR by its
+status. A wrong or careless status value is a landmine — an agent will treat a
+`status: accepted` ADR as settled fact even when the decision was never
+validated. Choose the value deliberately, not by habit.
+
+**Value set** (MADR-aligned, extended with `accepted-provisional`):
+
+| Value | Meaning | Agent should |
+|---|---|---|
+| `proposed` | Decision drafted, not yet ratified. | Treat as a proposal; validate before building on it. |
+| `accepted` | Ratified **and** validated by implementation or review. | Build on it; do not re-litigate. |
+| `accepted-provisional` | Ratified as the current direction but **explicitly not yet validated** — expected to converge after N implementations. | Follow it, but treat its details as challengeable; refine the ADR if the pattern proves wrong. |
+| `deprecated` | No longer the recommended approach; not yet replaced. | Do not build on it; check for a successor. |
+| `superseded by <link>` | Replaced by a named later ADR. | Follow the successor; the file belongs in `docs/adr/archived/`. |
+| `rejected` | Considered and declined. | Do not implement; the record exists to prevent re-proposal. |
+
+**Decision tree — pick the status when writing or updating an ADR:**
+
+```text
+1. Was the decision considered and declined?
+   YES → rejected.
+
+2. Has a later ADR replaced this one?
+   YES → superseded by <link to successor>. Move the file to docs/adr/archived/.
+
+3. Is the approach no longer recommended but not yet replaced?
+   YES → deprecated.
+
+4. Is the decision still just a draft awaiting ratification?
+   YES → proposed.
+
+5. Is the decision ratified as the current direction?
+   ├─ Has it been validated by real implementation or review?
+   │    YES → accepted.
+   └─ Is it explicitly unvalidated / "formed in sand" / expected to converge?
+        YES → accepted-provisional.  Do NOT mark such ADRs `accepted`:
+              the prose will contradict the status and mislead agents.
+```
+
+**The cardinal rule:** the `status:` value and the ADR prose must agree. If the
+body says the design is provisional, "formed in sand", or "expected to
+converge", the status is `accepted-provisional` (or `proposed`), never
+`accepted`. A lint check enforces this (see `specs/meta-specifications.yaml`
+MS-14). The `decision-audit` skill hunts for exactly this contradiction.
+
+> **Why a status value and not a separate `confidence` field?** We already have
+> a status field that agents read; a parallel confidence field would be one
+> more thing to keep in sync and one more source of drift. Expanding the status
+> vocabulary keeps a single source of truth. See ADR-0041.
+
 ## Cross-Referencing Pattern
 
 When creating both an ADR and spec entries, wire them together:

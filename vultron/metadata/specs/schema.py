@@ -25,6 +25,15 @@ SpecIdStr = Annotated[
     StringConstraints(pattern=r"^[A-Z]{2,8}(-\d{2}(-\d{3})?)?$"),
 ]
 
+# Structured ADR reference (SR-02, MS-11-004): ``ADR-NNNN`` form. Kept separate
+# from SpecIdStr — ADR IDs are four-digit and would not match the spec ID
+# pattern — so an amended ADR can be traced to its dependent specs via the edges
+# graph rather than only free-text rationale prose.
+AdrIdStr = Annotated[
+    str,
+    StringConstraints(pattern=r"^ADR-\d{4}$"),
+]
+
 
 class RFC2119Priority(StrEnum):
     """RFC 2119 priority levels for requirements (SR-02-003)."""
@@ -192,9 +201,10 @@ class StatementSpec(BaseModel):
     scope: list[Scope] | None = None
     tags: list[SpecTag] | None = None
     relationships: list[Relationship] | None = None
+    adr: list[AdrIdStr] | None = None
     lint_suppress: list[LintWarningCode] | None = None
 
-    @field_validator("scope", "tags", "relationships", "lint_suppress")
+    @field_validator("scope", "tags", "relationships", "adr", "lint_suppress")
     @classmethod
     def _nonempty_if_present(cls, v: list | None, info: object) -> list | None:
         if v is not None and len(v) == 0:

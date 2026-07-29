@@ -99,6 +99,8 @@ General information about architectural decision records is available at <https:
   Dropping](0037-buffer-out-of-order-ledger-entries.md)
 - [ADR-0038 Replace Six-Kind Spec Taxonomy with Four-Tier Portability
   Hierarchy](0038-four-tier-specification-taxonomy.md)
+- [ADR-0027 Exploit-Strategy Subtree Collapse: Five Simulator Nodes →
+  EvaluateExploitStrategy](0027-exploit-strategy-bt-collapse.md)
 - [ADR-0028 Publication-Intent Subtree Collapse: Bypass Leaves →
   Intent-Record-Driven Arms](0028-publication-intent-bt-collapse.md)
 - [ADR-0029 Notification Loop Collapse: InjectParticipant →
@@ -109,13 +111,13 @@ General information about architectural decision records is available at <https:
   OFFER\_CASE\_OWNERSHIP\_TRANSFER via Dedicated Object Type](0039-offer-case-participant-role-wire-type.md)
 - [ADR-0040 Introduce UseCaseResult Envelope; Do Not Introduce
   UseCaseRequest](0040-use-case-result-envelope.md)
+- [ADR-0041 Use the ADR `status` Field as the Confidence Signal (Extend Its
+  Vocabulary Rather Than Add a New Field)](0041-adr-status-as-confidence-signal.md)
 
 ## Proposed ADRs
 
 - [ADR-0020 Move Inbox Orchestration into a Core BT Module with a Typed
   `process_payload` Seam](0020-inbox-bt-orchestration.md)
-- [ADR-0027 Exploit-Strategy Subtree Collapse: Five Simulator Nodes →
-  EvaluateExploitStrategy](0027-exploit-strategy-bt-collapse.md) *(provisional)*
 - [ADR-0033 Lifecycle-Staged Domain Types Anchored on Guaranteed-Field
   Changes](0033-lifecycle-staged-case-types.md)
 
@@ -123,6 +125,10 @@ General information about architectural decision records is available at <https:
 
 - none
 
-## Superseded ADRs
+## Superseded / Archived ADRs
+
+Retired ADRs (`status: deprecated` or `superseded by …`) are moved to
+`docs/adr/archived/` so they stay out of the default `docs/adr/` context sweep.
+Each is listed here with a forward link to its replacement.
 
 - none
