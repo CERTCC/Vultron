@@ -17,7 +17,22 @@
  * these and validates them against the protocol source of truth (`../protocol`).
  */
 
-/** The six event verbs the current ledger emits. */
+/**
+ * The event verbs the ledger emits.
+ *
+ * The first eight are the original two-actor / fvv vocabulary. The final five
+ * are added by the 2026-07 coordinator container scenarios (fcv, fvcv-*, fccv-*):
+ *   - `submit_report` — the finder's explicit report submission (previously
+ *     folded into the offer seed; now first-class, `object.type =
+ *     VulnerabilityReport`).
+ *   - `accept_case_manager_role` — an actor accepts the CM/coordinator role
+ *     (pairs with `offer_case_manager_role`).
+ *   - `offer_actor_to_case` / `offer_case_participant` /
+ *     `accept_offer_case_participant` — the ADR-0026 suggest-actor handshake in
+ *     the extension flow: a Coordinator recommends a participant, the CaseActor
+ *     forwards it to the Case Owner, and the Case Owner approves. This precedes
+ *     the regular `invite_actor_to_case` / `accept_invite_actor_to_case` join.
+ */
 export type LedgerEventType =
   | 'offer_case_manager_role'
   | 'validate_report'
@@ -27,6 +42,11 @@ export type LedgerEventType =
   | 'close_case'
   | 'invite_actor_to_case'
   | 'accept_invite_actor_to_case'
+  | 'submit_report'
+  | 'accept_case_manager_role'
+  | 'offer_actor_to_case'
+  | 'offer_case_participant'
+  | 'accept_offer_case_participant'
 
 /** A case-level status snapshot (`CaseStatus`): the global EM/PXA pair. */
 export interface CaseStatusSnapshot {
@@ -111,24 +131,36 @@ export interface CaseLedgerEntry {
  * template literal type keeps the union open while still excluding arbitrary
  * strings from the caller's perspective).
  */
-export type LaneId = 'finder' | `vendor-${number}` | 'caseactor' | 'unknown'
+export type LaneId = 'finder' | `vendor-${number}` | 'coordinator' | 'caseactor' | 'unknown'
 
 /**
  * Map an actor URL to a demo lane id.
  *
  * The container demo gives each actor service a distinct hostname: `finder:`,
- * `vendor:` (the first/primary vendor), `vendor2:`, `vendor3:`, … and the Case
- * Actor runs as a sub-actor inside the vendor container with a `case-actor-…`
- * path segment (e.g. `http://vendor:7999/api/v2/actors/case-actor-<caseId>`).
+ * `vendor:` (the first/primary vendor), `vendor2:`, `vendor3:`, `coordinator:`
+ * (a dedicated coordinator container, 2026-07 scenarios), `actor5:` (the second
+ * vendor in the coordinator scenarios — seeded as "vendor2", so it reuses the
+ * vendor-N machinery as `vendor-2`), … and the Case Actor runs as a sub-actor
+ * with a `case-actor-…` path segment on whichever host owns the case
+ * (`//vendor:…/case-actor-<caseId>` in two-actor/fvv/fvcv-*; `//coordinator:…/
+ * case-actor-<caseId>` in fcv/fccv-*).
  *
- * Order matters: the `case-actor` test MUST run before the vendor-host tests
- * because the Case Actor's URL is itself a `//vendor:` URL. The primary vendor
- * (`//vendor:`) maps to `vendor-1`; `//vendorN:` maps to `vendor-N`.
+ * Order matters: the `case-actor` test MUST run FIRST — the recorder sub-actor's
+ * URL is itself a `//vendor:` or `//coordinator:` URL, and it must resolve to the
+ * caseactor lane, not to the host's participant lane. Lane identity is keyed on
+ * the HOST, never on the participant's CVD role: a participant's role
+ * (VENDOR / CASE_OWNER / COORDINATOR) is carried per-status in `cvdRole` and — in
+ * the handoff scenarios — can migrate between participants, so it can't define a
+ * stable lane. The `coordinator:` host is therefore its own lane distinct from the
+ * caseactor recorder, even when the recorder is co-hosted with it.
  */
 export function actorUrlToLaneId(url?: string | null): LaneId {
   if (!url) return 'unknown'
   if (url.includes('case-actor')) return 'caseactor'
   if (url.includes('//finder:')) return 'finder'
+  if (url.includes('//coordinator:')) return 'coordinator'
+  // `actor5:` hosts Vendor2 in the coordinator scenarios → reuse the vendor-2 lane.
+  if (url.includes('//actor5:')) return 'vendor-2'
   // `//vendorN:` (N ≥ 2) → vendor-N; the bare `//vendor:` host → vendor-1.
   const numberedVendor = url.match(/\/\/vendor(\d+):/)
   if (numberedVendor) return `vendor-${parseInt(numberedVendor[1], 10)}`
