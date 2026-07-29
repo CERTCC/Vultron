@@ -18,9 +18,9 @@ had ~11 core tree builders import them as no-arg defaults (~26
 demo. No architecture ratchet guarded it — `test/architecture/` had
 core-no-wire and core-no-adapter but no core-no-demo test.
 
-#1732 needs STOCHASTIC bundles injected through the trigger→use-case→BT cascade
-(the `Svc*UseCase` classes call tree builders with no `call_out` arg, so the
-whole cascade is DETERMINISTIC and there is no injection seam reaching it).
+Issue #1732 needs STOCHASTIC bundles injected through the trigger→use-case→BT
+cascade (the `Svc*UseCase` classes call tree builders with no `call_out` arg, so
+the whole cascade is DETERMINISTIC and there is no injection seam reaching it).
 Building the scenario as specified would deepen the inversion.
 
 Decision (maintainer adh): fix the layering first, as its own PR, before
