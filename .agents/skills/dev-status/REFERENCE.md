@@ -4,14 +4,14 @@ Exact queries used by the `dev-status` skill.
 
 ## GitHub Issue Type IDs (CERTCC/Vultron)
 
-| Type | ID |
+| Type | Resolver |
 |---|---|
-| Task | `IT_kwDOAjf0s84AcFLo` |
-| Bug | `IT_kwDOAjf0s84AcFLq` |
-| Feature | `IT_kwDOAjf0s84AcFLs` |
-| Idea | `IT_kwDOAjf0s84B_EoA` |
-| Epic | `IT_kwDOAjf0s84B_E1A` |
-| Concern | `IT_kwDOAjf0s84B_2VT` |
+| Task | `bash .agents/skills/shared/board-id.sh issue-type Task` |
+| Bug | `bash .agents/skills/shared/board-id.sh issue-type Bug` |
+| Feature | `bash .agents/skills/shared/board-id.sh issue-type Feature` |
+| Idea | `bash .agents/skills/shared/board-id.sh issue-type Idea` |
+| Epic | `bash .agents/skills/shared/board-id.sh issue-type Epic` |
+| Concern | `bash .agents/skills/shared/board-id.sh issue-type Concern` |
 
 Re-query if the repo is transferred or recreated:
 
@@ -59,6 +59,7 @@ For the full list (not just count), omit `| length` and add
 
 ```bash
 # Get all project items with Schedule=Someday
+PROJECT_ID=$(bash .agents/skills/shared/board-id.sh project)
 gh api graphql --jq '
   [ .data.node.items.nodes[]
     | select(
@@ -71,7 +72,7 @@ gh api graphql --jq '
     | .content.number
   ] | length
 ' -f query='{
-  node(id: "PVT_kwDOAjf0s84BZnre") {
+  node(id: "'"$PROJECT_ID"'") {
     ... on ProjectV2 {
       items(first: 200) {
         nodes {
@@ -96,6 +97,7 @@ gh api graphql --jq '
 
 ```bash
 # Step 1: get Now-Epic numbers in board order
+PROJECT_ID=$(bash .agents/skills/shared/board-id.sh project)
 gh api graphql --jq '
   [ .data.node.items.nodes[]
     | select(
@@ -109,7 +111,7 @@ gh api graphql --jq '
     | .content.number
   ][]
 ' -f query='{
-  node(id: "PVT_kwDOAjf0s84BZnre") {
+  node(id: "'"$PROJECT_ID"'") {
     ... on ProjectV2 {
       items(first: 100) {
         nodes {
@@ -187,7 +189,7 @@ empty (only `.gitkeep` present or directory missing).
 
 | Queue                 | Count | Skill                |
 |-----------------------|-------|----------------------|
-| Incoming Learnings    |  {n}  | learn                |
+| Incoming Learnings    |  {n}  | learn / reflect-cycle |
 | Ideas (open)          |  {n}  | plan-issue           |
 | Bugs (open)           |  {n}  | bugfix               |
 | Concerns (open)       |  {n}  | process-concerns     |

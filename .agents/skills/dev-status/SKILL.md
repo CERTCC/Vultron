@@ -52,7 +52,7 @@ Print a single table followed by a "Next up" callout:
 
 | Queue                  | Count | Skill                |
 |------------------------|-------|----------------------|
-| Incoming Learnings     |   2   | learn                |
+| Incoming Learnings     |   2   | learn / reflect-cycle |
 | Ideas (open)           |   1   | plan-issue           |
 | Bugs (open)            |   3   | bugfix               |
 | Concerns (open)        |   0   | —                    |
@@ -77,14 +77,24 @@ Now: #691 Migrate project tracking | #476 Bug Fixes and Demo Polish
 Ranked priority (first matching condition wins for the primary recommendation;
 list all non-zero conditions as `ask_user` choices):
 
-1. `learn` — plan/incoming/learnings/ has files
-2. `process-concerns` — open Concern issues
-3. `plan-issue` — open Idea or Concern issues
-4. `bugfix` — open Bug issues
-5. `pr-ship` — open PRs > 0
-6. `review-priorities` — triage items > 0 (Schedule=Someday with no Epic)
-7. `build` — ready-to-build count > 0
-8. *(stop)* — all queues empty, nothing actionable
+1. `reflect-cycle` — **prefer over `learn` alone** when the full reflection
+   pass is warranted: incoming learnings exist **and** at least one downstream
+   phase also has input (open Concerns, or a triage backlog). Offer `learn`
+   alone as the narrower alternative.
+2. `learn` — plan/incoming/learnings/ has files (and `reflect-cycle` was not
+   the primary pick)
+3. `process-concerns` — open Concern issues
+4. `plan-issue` — open Idea or Concern issues
+5. `bugfix` — open Bug issues
+6. `pr-ship` — open PRs > 0
+7. `review-priorities` — triage items > 0 (Schedule=Someday with no Epic)
+8. `build` — ready-to-build count > 0
+9. *(stop)* — all queues empty, nothing actionable
+
+**Macro-vs-atomic rule:** when a higher-level skill covers the same input as an
+atomic one, recommend the macro as the primary choice and list the atomic skill
+as the narrower alternative — never both as equals. The two pairings today are
+`reflect-cycle` over `learn`, and `pr-ship` over the individual `pr-*` phases.
 
 Always include "Nothing — just show the report" as a final choice.
 
