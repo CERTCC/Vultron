@@ -1492,6 +1492,65 @@ class TestActorNameResolution:
         names = collect_actor_names({"vendor": [entry]})
         assert _UUID_ACTOR_URI not in names
 
+    def test_collect_actor_names_scans_list_valued_actor_field(self):
+        """A list-valued ``actor`` field harvests names from each element."""
+        other_uri = "http://vendor:7999/api/v2/actors/other-uuid"
+        entry = _camel_entry(
+            payloadSnapshot={
+                "type": "Announce",
+                "actor": [
+                    {
+                        "id": _UUID_ACTOR_URI,
+                        "type": "Organization",
+                        "name": "Vendor",
+                    },
+                    {"id": other_uri, "type": "Person", "name": "Finder"},
+                ],
+                "object": {"id": "urn:uuid:r", "type": "VulnerabilityReport"},
+            }
+        )
+        names = collect_actor_names({"vendor": [entry]})
+        assert names[_UUID_ACTOR_URI] == "Vendor"
+        assert names[other_uri] == "Finder"
+
+    def test_collect_actor_names_scans_list_valued_object_field(self):
+        """A list-valued ``object`` field recurses into each element."""
+        entry = _camel_entry(
+            payloadSnapshot={
+                "type": "Create",
+                "actor": "http://vendor:7999/api/v2/actors/vendor",
+                "object": [
+                    {"id": "urn:uuid:r", "type": "VulnerabilityReport"},
+                    {
+                        "id": _UUID_ACTOR_URI,
+                        "type": "CaseActor",
+                        "name": "CaseManager",
+                    },
+                ],
+            }
+        )
+        names = collect_actor_names({"vendor": [entry]})
+        assert names[_UUID_ACTOR_URI] == "CaseManager"
+
+    def test_collect_actor_names_scans_list_valued_target_field(self):
+        """A list-valued ``target`` field recurses into each element."""
+        entry = _camel_entry(
+            payloadSnapshot={
+                "type": "Offer",
+                "actor": "http://vendor:7999/api/v2/actors/vendor",
+                "object": {"id": "urn:uuid:c", "type": "VulnerabilityCase"},
+                "target": [
+                    {
+                        "id": _UUID_ACTOR_URI,
+                        "type": "Person",
+                        "name": "Coordinator",
+                    },
+                ],
+            }
+        )
+        names = collect_actor_names({"vendor": [entry]})
+        assert names[_UUID_ACTOR_URI] == "Coordinator"
+
     def test_friendly_actor_name_uses_actor_names_map(self):
         names = {_UUID_ACTOR_URI: "Vendor"}
         assert (

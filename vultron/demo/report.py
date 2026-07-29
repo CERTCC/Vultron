@@ -224,9 +224,16 @@ def _collect_actor_names_from_obj(
         and obj_id not in out
     ):
         out[obj_id] = obj_name.strip()
-    # Recurse into common nested keys.
+    # Recurse into common nested keys.  ActivityStreams permits ``actor``,
+    # ``object``, ``target``, and ``origin`` to carry a list of objects (e.g.
+    # multiple recipients); scan each list element as well as scalar values.
     for key in ("actor", "object", "object_", "target", "origin"):
-        _collect_actor_names_from_obj(obj.get(key), out)
+        val = obj.get(key)
+        if isinstance(val, list):
+            for item in val:
+                _collect_actor_names_from_obj(item, out)
+        else:
+            _collect_actor_names_from_obj(val, out)
 
 
 def collect_actor_names(
