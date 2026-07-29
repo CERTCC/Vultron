@@ -24,6 +24,21 @@ repos:
         exclude: ^notes/README\.md$
         pass_filenames: false
 
+      - id: validate-adr-frontmatter
+        name: Validate ADR frontmatter
+        entry: uv run python -c "from vultron.metadata.adr.loader import load_adr_registry; load_adr_registry()"
+        language: system
+        files: ^docs/adr/.*\.md$
+        exclude: ^docs/adr/(index|README)\.md$
+        pass_filenames: false
+
+      - id: adr-index-sync
+        name: ADR index and nav in sync
+        entry: uv run python -m vultron.metadata.adr.index_gen --check
+        language: system
+        files: ^(docs/adr/.*\.md|mkdocs\.yml)$
+        pass_filenames: false
+
       - id: flake8
         name: flake8 (with CC gate)
         entry: uv run flake8

@@ -327,6 +327,8 @@ groups:
       policy and ADR-0021 for the full end-to-end path.'
     verification: For each entry in `EXPECTED_EVENT_TYPES`, a test verifies that the CaseActor's canonical ledger contains
       at least one entry with that `eventType` after a full FV demo run.
+    adr:
+    - ADR-0021
   - id: CLP-10-002
     priority: MUST
     kind: project
@@ -353,6 +355,8 @@ groups:
     verification: A static grep check (or dedicated test) asserts that no received-side use case module passes a separately
       resolved actor ID to `BTBridge.execute_with_setup` — only `receiving_actor_id` (or a name that is provably equal to
       it) may appear as the `actor_id` argument.
+    adr:
+    - ADR-0021
   - id: CLP-10-004
     priority: MUST_NOT
     kind: protocol
@@ -392,6 +396,9 @@ groups:
       use case migrates to the single-tree shape. The grep is a proxy for the broader "execute() does nothing but build-run-handle
       one tree" rule; it catches every known violation but a reviewer MUST still confirm no other domain-significant code
       remains in `execute()` when closing each migration.'
+    adr:
+    - ADR-0021
+    - ADR-0022
   - id: CLP-10-007
     priority: MUST
     kind: protocol
@@ -490,6 +497,8 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: CM-22-003
+    adr:
+    - ADR-0041
   - id: CLP-12-002
     priority: MUST
     kind: project
@@ -509,3 +518,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CLP-12-001
+    adr:
+    - ADR-0015
+    - ADR-0041

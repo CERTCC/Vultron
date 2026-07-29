@@ -52,6 +52,8 @@ groups:
       shared or differently-scoped DataLayer the reject could be queued to the wrong (or
       empty-scope) outbox, so the CaseActor never received the participant's
       Reject(CaseLedgerEntry). See ADR-0037 (docs/adr/0037-buffer-out-of-order-ledger-entries.md).
+    adr:
+    - ADR-0037
 - id: OX-03
   title: Outbox Delivery
   specs:

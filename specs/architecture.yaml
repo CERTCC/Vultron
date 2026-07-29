@@ -73,6 +73,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: ARCH-01-001
+    adr:
+    - ADR-0009
 - id: ARCH-02
   title: SemanticIntent Enum
   specs:
@@ -294,6 +296,8 @@ groups:
     - rel_type: refines
       spec_id: ARCH-10-001
       note: Extends construction-time fail-fast to runtime BT node entry points.
+    adr:
+    - ADR-0032
   - id: ARCH-15-002
     priority: MUST
     kind: project
@@ -306,6 +310,8 @@ groups:
     - rel_type: refines
       spec_id: ARCH-10-001
       note: Extends construction-time fail-fast to helper function entry points.
+    adr:
+    - ADR-0032
   - id: ARCH-15-003
     priority: MUST
     kind: project
@@ -318,6 +324,8 @@ groups:
     - rel_type: refines
       spec_id: ARCH-10-001
       note: Extends construction-time fail-fast to dispatcher routing entry points.
+    adr:
+    - ADR-0032
   - id: ARCH-15-004
     priority: MUST
     kind: architecture
@@ -331,6 +339,8 @@ groups:
     - rel_type: refines
       spec_id: ARCH-10-001
       note: Canonical-copy discipline is a prerequisite for consistent fail-fast enforcement.
+    adr:
+    - ADR-0032
 - id: ARCH-11
   title: Port Inbound/Outbound Discrimination
   specs:
@@ -539,3 +549,5 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: ARCH-19-001
+    adr:
+    - ADR-0019

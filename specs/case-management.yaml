@@ -693,6 +693,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-12-001
+    adr:
+    - ADR-0015
 - id: CM-16
   title: Actor Suggestion Routing (Recommend-Actor Flow)
   specs:
@@ -706,6 +708,8 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: PCR-08-001
+    adr:
+    - ADR-0021
   - id: CM-16-002
     priority: MUST
     kind: protocol
@@ -984,6 +988,8 @@ groups:
       spec_id: CM-16-001
     - rel_type: refines
       spec_id: CM-20-001
+    adr:
+    - ADR-0026
 - id: CM-21
   title: Ownership Transfer Protocol Effects
   specs:
@@ -1102,6 +1108,10 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: CP-09-001
+    adr:
+    - ADR-0015
+    - ADR-0023
+    - ADR-0041
   - id: CM-22-002
     priority: MUST
     kind: protocol
@@ -1155,3 +1165,5 @@ groups:
       spec_id: CM-22-001
     - rel_type: implements
       spec_id: CP-09-003
+    adr:
+    - ADR-0041

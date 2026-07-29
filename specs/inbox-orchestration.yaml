@@ -62,6 +62,8 @@ groups:
     references:
     - docs/adr/0009-hexagonal-architecture.md
     - docs/adr/0020-inbox-bt-orchestration.md
+    adr:
+    - ADR-0009
   - id: IO-02-002
     priority: MUST
     kind: project
@@ -125,6 +127,8 @@ groups:
     tags:
     - tooling
     - tooling
+    adr:
+    - ADR-0009
 - id: IO-04
   title: Caller Interface
   specs:

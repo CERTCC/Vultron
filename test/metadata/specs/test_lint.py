@@ -474,13 +474,39 @@ def test_lint_adr_invalid_status_is_hard_error(tmp_path, capsys):
     assert "MS-14-001" in captured.err
 
 
-def test_lint_adr_superseded_status_ok(tmp_path, capsys):
-    """'superseded by <link>' is a valid status (no error)."""
+def test_lint_adr_superseded_status_ok(tmp_path):
+    """A superseded ADR with a resolvable superseded_by target is valid."""
     _write_yaml(tmp_path, _minimal_spec())
-    adr_dir = _make_adr_dir(tmp_path)
-    _write_adr(adr_dir, "0099", status="superseded by [ADR-0100](0100-x.md)")
+    adr_dir = _make_adr_dir(tmp_path, ["0100"])  # replacement exists
+    (adr_dir / "0099-stub.md").write_text(
+        "---\nstatus: superseded\nsuperseded_by: 0100-stub.md\n---\n# x\n"
+    )
     result = lint(tmp_path, adr_dir=adr_dir)
     assert result == 0
+
+
+def test_lint_adr_superseded_inline_form_ok(tmp_path):
+    """The inline 'superseded by <link>' MADR form is accepted and resolved."""
+    _write_yaml(tmp_path, _minimal_spec())
+    adr_dir = _make_adr_dir(tmp_path, ["0100"])
+    (adr_dir / "0099-stub.md").write_text(
+        "---\nstatus: superseded by 0100-stub.md\n---\n# x\n"
+    )
+    result = lint(tmp_path, adr_dir=adr_dir)
+    assert result == 0
+
+
+def test_lint_adr_superseded_without_target_is_hard_error(tmp_path, capsys):
+    """A retired ADR missing superseded_by is a hard error (MS-14-004)."""
+    _write_yaml(tmp_path, _minimal_spec())
+    adr_dir = _make_adr_dir(tmp_path)
+    (adr_dir / "0099-stub.md").write_text(
+        "---\nstatus: superseded\n---\n# x\n"
+    )
+    result = lint(tmp_path, adr_dir=adr_dir)
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "superseded_by" in captured.err
 
 
 def test_lint_adr_accepted_with_provisional_prose_warns(tmp_path, capsys):
@@ -541,7 +567,7 @@ def test_lint_structured_adr_ref_present_ok(tmp_path, capsys):
     assert result == 0
 
 
-def test_lint_structured_adr_ref_resolves_to_archived(tmp_path, capsys):
+def test_lint_structured_adr_ref_resolves_to_archived(tmp_path):
     """A structured adr: target in docs/adr/archived/ resolves (no error)."""
     data = _minimal_spec(extra={"adr": ["ADR-0099"]})
     _write_yaml(tmp_path, data)
@@ -549,8 +575,9 @@ def test_lint_structured_adr_ref_resolves_to_archived(tmp_path, capsys):
     archived = adr_dir / "archived"
     archived.mkdir()
     (archived / "0099-stub.md").write_text(
-        "---\nstatus: deprecated\n---\n# x\n"
+        "---\nstatus: deprecated\nsuperseded_by: 0100-stub.md\n---\n# x\n"
     )
+    (adr_dir / "0100-stub.md").write_text("---\nstatus: accepted\n---\n# x\n")
     result = lint(tmp_path, adr_dir=adr_dir)
     assert result == 0
 

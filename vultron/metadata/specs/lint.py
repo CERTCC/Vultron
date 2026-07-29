@@ -19,6 +19,7 @@ from vultron.metadata.specs.registry import (
     SpecRegistry,
     load_registry,
 )
+from vultron.metadata.adr.loader import load_adr_registry
 from vultron.metadata.specs.schema import (
     AdrStatus,
     BehavioralSpec,
@@ -41,87 +42,25 @@ _ADR_PROVISIONAL_MARKERS = (
     "should refine this adr",
     "status will advance",
 )
-_ADR_STATUS_RE = re.compile(r"^status:\s*(.*?)\s*$", re.MULTILINE)
-
-
-def _adr_status_raw(text: str) -> str | None:
-    """Extract the raw ``status:`` value from an ADR's YAML frontmatter.
-
-    Returns the value (lower-cased, stripped) or ``None`` when there is no
-    frontmatter status line at all.
-    """
-    if not text.startswith("---"):
-        return None
-    end = text.find("---", 3)
-    if end == -1:
-        return None
-    frontmatter = text[3:end]
-    match = _ADR_STATUS_RE.search(frontmatter)
-    if match is None:
-        return None
-    return match.group(1).strip().strip("{}").lower()
-
-
-_ADR_LINT_SUPPRESS_RE = re.compile(
-    r"^lint_suppress:\s*\[([^\]]*)\]\s*$", re.MULTILINE
-)
-
-
-def _adr_suppresses(text: str, code: str) -> bool:
-    """Return True if the ADR frontmatter lists ``code`` in ``lint_suppress``.
-
-    Mirrors the spec-level ``lint_suppress`` mechanism (SR-02-011) for ADRs:
-    an ADR that legitimately discusses provisional-ness (e.g. ADR-0043, which
-    defines the status vocabulary) can opt out of the MS-14-002 advisory with
-    ``lint_suppress: [status_prose_contradiction]`` in its frontmatter.
-    """
-    if not text.startswith("---"):
-        return False
-    end = text.find("---", 3)
-    if end == -1:
-        return False
-    match = _ADR_LINT_SUPPRESS_RE.search(text[3:end])
-    if match is None:
-        return False
-    codes = {c.strip().strip("'\"").lower() for c in match.group(1).split(",")}
-    return code in codes
-
-
-def _parse_adr_status(raw: str | None) -> AdrStatus | None:
-    """Map a raw status string to an ``AdrStatus`` enum member, or ``None``.
-
-    The inline MADR form ``superseded by <link>`` normalises to
-    ``AdrStatus.SUPERSEDED``; every other value must match an enum member
-    exactly. Returns ``None`` for an unrecognised value so the caller can
-    raise MS-14-001.
-    """
-    if not raw:
-        return None
-    if raw.startswith("superseded by"):
-        return AdrStatus.SUPERSEDED
-    try:
-        return AdrStatus(raw)
-    except ValueError:
-        return None
 
 
 def _check_adr_status(
     adr_dir: Path | None,
 ) -> tuple[list[str], list[str]]:
-    """Validate ADR status frontmatter (MS-14-001 hard, MS-14-002 advisory).
+    """Validate ADR frontmatter (MS-14-001 hard, MS-14-002 advisory).
 
     Returns ``(hard_errors, warnings)``:
 
-    - **Hard (MS-14-001)**: every ADR (excluding template, index, and
-      ``archived/``) MUST declare a non-empty status whose value is one of the
-      known values (a retired ADR uses ``superseded`` with a separate
-      ``superseded_by:`` field, or the inline ``superseded by <link>`` form).
-      This is mechanical and has no false positives.
+    - **Hard (MS-14-001, MS-14-004)**: every ADR frontmatter MUST satisfy the
+      :class:`~vultron.metadata.adr.schema.AdrFrontmatter` schema — a valid
+      ``AdrStatus`` value, and a ``superseded_by`` link when retired. This
+      delegates to :func:`~vultron.metadata.adr.loader.load_adr_registry`, so
+      the schema is the single source of truth (no duplicated parsing).
     - **Advisory (MS-14-002)**: an ADR whose prose carries a provisional marker
-      SHOULD NOT be ``status: accepted``. This is a heuristic substring scan and
-      can false-positive (e.g. an ADR that *discusses* provisional-ness), so it
-      surfaces candidates for the ``decision-audit`` skill to adjudicate rather
-      than blocking CI.
+      SHOULD NOT be ``status: accepted``. This is a heuristic body scan and can
+      false-positive (e.g. an ADR that *discusses* provisional-ness), so it
+      surfaces ``decision-audit`` candidates rather than blocking CI; an ADR may
+      opt out with ``lint_suppress: [status_prose_contradiction]``.
 
     Degrades to empty lists when ``adr_dir`` is missing so the check is a no-op
     in environments without a docs/ tree.
@@ -131,49 +70,40 @@ def _check_adr_status(
 
     errors: list[str] = []
     warnings: list[str] = []
-    for adr_path in sorted(adr_dir.glob("*.md")):
-        name = adr_path.name
-        if name == "index.md" or name.startswith("_"):
+
+    try:
+        registry = load_adr_registry(adr_dir.parent.parent)
+    except ValueError as exc:
+        # A single malformed ADR aborts registry load; surface it as the error.
+        return [f"ADR frontmatter invalid (MS-14-001): {exc}"], []
+    except FileNotFoundError:
+        return [], []
+
+    for rel_path, fm in registry.items():
+        name = Path(rel_path).name
+        if fm.status is not AdrStatus.ACCEPTED:
             continue
-
-        text = adr_path.read_text(encoding="utf-8")
-        raw = _adr_status_raw(text)
-
-        if not raw:
-            errors.append(
-                f"{name}: missing or empty 'status' frontmatter field "
-                f"(MS-14-001; see ADR-0043)"
-            )
-            continue
-
-        status = _parse_adr_status(raw)
-        if status is None:
-            valid = [s.value for s in AdrStatus]
-            errors.append(
-                f"{name}: invalid status '{raw}' (MS-14-001); expected one "
-                f"of {valid} (a retired ADR uses 'superseded' with a separate "
-                f"superseded_by: field, or the inline 'superseded by <link>' "
-                f"form)"
-            )
-            continue
-
-        if status is AdrStatus.ACCEPTED and not _adr_suppresses(
-            text, "status_prose_contradiction"
+        if fm.lint_suppress and any(
+            c.value == "status_prose_contradiction" for c in fm.lint_suppress
         ):
-            body = text.lower()
-            hit = next(
-                (m for m in _ADR_PROVISIONAL_MARKERS if m in body), None
+            continue
+
+        body = (
+            (adr_dir.parent.parent / rel_path)
+            .read_text(encoding="utf-8")
+            .lower()
+        )
+        hit = next((m for m in _ADR_PROVISIONAL_MARKERS if m in body), None)
+        if hit is not None:
+            warnings.append(
+                f"[WARN] {name}: status is 'accepted' but prose contains "
+                f"provisional marker '{hit}' (MS-14-002); if the design is "
+                f"genuinely unvalidated use 'accepted-provisional' — else "
+                f"this is a decision-audit candidate (see ADR-0043). "
+                f"Suppress on an ADR that legitimately discusses "
+                f"provisional-ness with "
+                f"'lint_suppress: [status_prose_contradiction]'."
             )
-            if hit is not None:
-                warnings.append(
-                    f"[WARN] {name}: status is 'accepted' but prose contains "
-                    f"provisional marker '{hit}' (MS-14-002); if the design is "
-                    f"genuinely unvalidated use 'accepted-provisional' — else "
-                    f"this is a decision-audit candidate (see ADR-0043). "
-                    f"Suppress on an ADR that legitimately discusses "
-                    f"provisional-ness with "
-                    f"'lint_suppress: [status_prose_contradiction]'."
-                )
     return errors, warnings
 
 

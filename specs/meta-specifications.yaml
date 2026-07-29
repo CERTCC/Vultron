@@ -438,6 +438,8 @@ groups:
     tags:
     - documentation
     - tooling
+    adr:
+    - ADR-0024
   - id: MS-14-002
     priority: SHOULD
     kind: process
@@ -460,6 +462,9 @@ groups:
     tags:
     - documentation
     - tooling
+    adr:
+    - ADR-0025
+    - ADR-0043
   - id: MS-14-003
     priority: MUST
     kind: process
@@ -476,6 +481,8 @@ groups:
     tags:
     - documentation
     - tooling
+    adr:
+    - ADR-0027
   - id: MS-14-004
     priority: SHOULD
     kind: process
@@ -491,3 +498,45 @@ groups:
     tags:
     - documentation
     - tooling
+    adr:
+    - ADR-0043
+  - id: MS-14-005
+    priority: MUST
+    kind: project
+    statement: >-
+      ADR frontmatter MUST validate against the AdrFrontmatter Pydantic model
+      (vultron/metadata/adr/schema.py), and a retired ADR MUST carry a
+      superseded_by pointer that resolves to a real ADR file. Enforced by the
+      loader (vultron/metadata/adr/loader.py) via pytest and pre-commit,
+      mirroring the notes frontmatter registry (NF-03, NF-04).
+    rationale: >-
+      ADRs are the confidence signal agents trust as ground truth, yet were the
+      only structured-metadata artifact without a schema — validated only by
+      regex bolt-ons in spec-lint. A Pydantic model makes status typechecking,
+      the superseded_by-when-retired rule, and dangling-target detection real
+      validation rather than string-scraping. See ADR-0043.
+    adr:
+    - ADR-0043
+    tags:
+    - documentation
+    - tooling
+  - id: MS-14-006
+    priority: MUST
+    kind: project
+    statement: >-
+      docs/adr/index.md MUST be generated from ADR frontmatter (uv run
+      adr-index --write) and every non-archived ADR MUST be referenced in the
+      mkdocs nav; CI (uv run adr-index --check) fails on drift.
+    rationale: >-
+      Both the index and the nav are hand-maintained lists that rot: ADR-0027
+      was filed under the wrong index section and several ADRs were missing
+      from nav, breaking mkdocs --strict. Generating the index and checking nav
+      completeness makes the drift mechanically impossible to merge. See
+      ADR-0043 and MS-14-003.
+    adr:
+    - ADR-0043
+    tags:
+    - documentation
+    - tooling
+    adr:
+    - ADR-0027
