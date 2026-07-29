@@ -29,6 +29,7 @@ References
 """
 
 import logging
+from typing import cast
 
 from py_trees.common import Status
 
@@ -345,7 +346,6 @@ class TransitionCStoFixReady(DataLayerAction):
             result_out=self._result_out,
             name=f"{self.name}._Create",
         )
-        node.setup()
         node.datalayer = self.datalayer
 
         try:
@@ -393,7 +393,7 @@ class EmitCFActivity(DataLayerAction):
         self._result_out = result_out
 
     def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
+        if (f := self._require_datalayer()) is not None:
             return f
         if (f := self._require_factory()) is not None:
             self.logger.warning(
@@ -441,8 +441,6 @@ class EmitCFActivity(DataLayerAction):
                 actor=self._actor_id,
                 to=to,
             )
-            from typing import cast
-
             cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
                 self._actor_id, activity_id
             )

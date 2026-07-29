@@ -45,6 +45,7 @@ from vultron.core.behaviors.report.nodes.develop_fix import (
     EmitCFActivity,
     TransitionCStoFixReady,
 )
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension, VfdDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.vultron_types import VultronCase, VultronParticipant
@@ -138,7 +139,7 @@ def _seed_rm_state(
     participant_id = case.actor_participant_index.get(actor_id)
     if participant_id:
         participant = bt_scenario.dl.read(participant_id)
-        if participant and hasattr(participant, "participant_statuses"):
+        if isinstance(participant, CaseParticipant):
             participant.participant_statuses.append(status)
             bt_scenario.dl.save(participant)
 
@@ -161,7 +162,7 @@ def _seed_vfd_state(
     participant_id = case.actor_participant_index.get(actor_id)
     if participant_id:
         participant = bt_scenario.dl.read(participant_id)
-        if participant and hasattr(participant, "participant_statuses"):
+        if isinstance(participant, CaseParticipant):
             participant.participant_statuses.append(status)
             bt_scenario.dl.save(participant)
 
