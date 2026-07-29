@@ -38,6 +38,10 @@ from vultron.core.behaviors.call_out.bundles.deploy_fix import (
     DEPLOY_FIX_DETERMINISTIC,
     DeployFixCallOutBundle,
 )
+from vultron.core.behaviors.call_out.bundles.develop_fix import (
+    DEVELOP_FIX_DETERMINISTIC,
+    DevelopFixCallOutBundle,
+)
 from vultron.core.behaviors.call_out.bundles.embargo import (
     EMBARGO_DETERMINISTIC,
     EmbargoCallOutBundle,
@@ -62,6 +66,7 @@ from vultron.core.behaviors.call_out.bundles.validation import (
 __all__ = [
     # Bundle classes
     "AcquireExploitCallOutBundle",
+    "DevelopFixCallOutBundle",
     "AssignVulIdCallOutBundle",
     "CloseReportCallOutBundle",
     "DeployFixCallOutBundle",
@@ -72,6 +77,7 @@ __all__ = [
     "ValidationCallOutBundle",
     # Deterministic singletons
     "ACQUIRE_EXPLOIT_DETERMINISTIC",
+    "DEVELOP_FIX_DETERMINISTIC",
     "ASSIGN_VUL_ID_DETERMINISTIC",
     "CLOSE_REPORT_DETERMINISTIC",
     "DEPLOY_FIX_DETERMINISTIC",

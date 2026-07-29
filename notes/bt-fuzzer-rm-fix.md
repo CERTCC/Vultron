@@ -38,8 +38,8 @@ vulnerability.
 - **Automation potential**: **Low** — engineering work is human-initiated; automation is limited to triggering a bug-tracker ticket or sending a development task notification.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.develop_fix.CreateFix`
 - **Call-out point shape**: Composer
-- **Factory-fn placement**: FUTURE:
-  `vultron.core.behaviors.report.create_develop_fix_tree` (issue #1247) —
+- **Factory-fn placement**: Implemented in PR #1818 (issue #1812) —
+  `vultron.core.behaviors.report.develop_fix_tree.create_develop_fix_tree`;
   Composer action node in the `DevelopFix` Sequence; the primary work node
 
 ---
