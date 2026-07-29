@@ -70,7 +70,7 @@ from vultron.core.behaviors.report.nodes import (
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
-    from vultron.demo.fuzzer.bundles.prioritization import (
+    from vultron.core.behaviors.call_out.bundles.prioritization import (
         PrioritizationCallOutBundle,
     )
 
@@ -203,13 +203,13 @@ def create_prioritize_subtree(
             time with a descriptive error (consistent with the behaviour
             when the blackboard does not carry a factory).
         call_out: Bundle of call-out backend factories for this domain.
-            Defaults to :data:`~vultron.demo.fuzzer.bundles.prioritization.PRIORITIZATION_DETERMINISTIC`
+            Defaults to :data:`~vultron.core.behaviors.call_out.bundles.prioritization.PRIORITIZATION_DETERMINISTIC`
             (BT-23-003, BT-23-005).
 
     Returns:
         Root node of the prioritize behavior tree (Selector)
     """
-    from vultron.demo.fuzzer.bundles.prioritization import (
+    from vultron.core.behaviors.call_out.bundles.prioritization import (
         PRIORITIZATION_DETERMINISTIC,
     )
 

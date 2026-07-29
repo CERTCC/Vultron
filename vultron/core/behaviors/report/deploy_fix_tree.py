@@ -41,7 +41,9 @@ from typing import TYPE_CHECKING
 import py_trees
 
 if TYPE_CHECKING:
-    from vultron.demo.fuzzer.bundles.deploy_fix import DeployFixCallOutBundle
+    from vultron.core.behaviors.call_out.bundles.deploy_fix import (
+        DeployFixCallOutBundle,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -60,13 +62,15 @@ def create_deploy_fix_tree(
     Args:
         case_id: ID of VulnerabilityCase being processed.
         call_out: Bundle of call-out backend factories for this domain.
-            Defaults to :data:`~vultron.demo.fuzzer.bundles.deploy_fix.DEPLOY_FIX_DETERMINISTIC`
+            Defaults to :data:`~vultron.core.behaviors.call_out.bundles.deploy_fix.DEPLOY_FIX_DETERMINISTIC`
             (BT-23-003, BT-23-005).
 
     Returns:
         Root node of the deploy-fix behavior tree (Phase 1 stub Sequence).
     """
-    from vultron.demo.fuzzer.bundles.deploy_fix import DEPLOY_FIX_DETERMINISTIC
+    from vultron.core.behaviors.call_out.bundles.deploy_fix import (
+        DEPLOY_FIX_DETERMINISTIC,
+    )
 
     bundle = call_out if call_out is not None else DEPLOY_FIX_DETERMINISTIC
     root = py_trees.composites.Sequence(

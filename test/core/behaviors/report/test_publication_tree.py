@@ -173,7 +173,7 @@ def test_each_arm_is_selector(arm_name):
 
 def test_default_prepare_nodes_are_deterministic():
     """DETERMINISTIC default: prepare nodes use AlwaysSucceed (BT-23-002)."""
-    from vultron.demo.fuzzer.base import AlwaysSucceed
+    from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
 
     tree = create_publication_tree(case_id=CASE_ID)
     exploit_seq = tree.children[1].children[0]
@@ -208,7 +208,7 @@ def test_stochastic_prepare_nodes_are_fuzzers():
 
 def test_default_publish_pipeline_nodes_are_deterministic():
     """DETERMINISTIC default: pipeline factories produce AlwaysSucceed per arm."""
-    from vultron.demo.fuzzer.base import AlwaysSucceed
+    from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
 
     tree = create_publication_tree(case_id=CASE_ID)
     for arm, label in zip(tree.children[1:], ["Exploit", "Fix", "Report"]):

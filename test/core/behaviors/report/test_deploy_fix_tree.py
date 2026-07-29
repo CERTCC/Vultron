@@ -24,7 +24,7 @@ import py_trees
 from vultron.core.behaviors.report.deploy_fix_tree import (
     create_deploy_fix_tree,
 )
-from vultron.demo.fuzzer.base import AlwaysFail, AlwaysSucceed
+from vultron.core.behaviors.call_out.nodes import AlwaysFail, AlwaysSucceed
 from vultron.demo.fuzzer.bundles.deploy_fix import (
     DEPLOY_FIX_DETERMINISTIC,
     DEPLOY_FIX_STOCHASTIC,

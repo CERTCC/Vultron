@@ -11,12 +11,14 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Call-out bundle for the embargo management domain (BT-23-003, BT-23-005).
+"""STOCHASTIC call-out bundle for the embargo management domain (BT-23-003, BT-23-005).
 
-Provides :class:`EmbargoCallOutBundle` plus the pre-built singletons
-:data:`EMBARGO_DETERMINISTIC` and :data:`EMBARGO_STOCHASTIC`.
+Provides the simulation-layer :data:`EMBARGO_STOCHASTIC` singleton.  The bundle
+dataclass and DETERMINISTIC default are core concerns
+(``vultron.core.behaviors.call_out.bundles.embargo``) and are re-exported here
+for backward-compatible import paths.
 
-Ceiling/floor mapping (BT-23-002):
+Ceiling/floor mapping for the DETERMINISTIC counterpart (BT-23-002):
 
 - ``exit_embargo_when_deployed_factory``       — ExitEmbargoWhenDeployed       (p=0.33) → AlwaysFail
 - ``exit_embargo_when_fix_ready_factory``      — ExitEmbargoWhenFixReady       (p=0.25) → AlwaysFail
@@ -35,23 +37,12 @@ Ceiling/floor mapping (BT-23-002):
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-
 import py_trees
 
-from vultron.core.behaviors.call_out_point import CallOutBackendFactory
-
-
-def _always_succeed(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.base import AlwaysSucceed
-
-    return AlwaysSucceed(name)
-
-
-def _always_fail(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.base import AlwaysFail
-
-    return AlwaysFail(name)
+from vultron.core.behaviors.call_out.bundles.embargo import (  # noqa: F401
+    EMBARGO_DETERMINISTIC,
+    EmbargoCallOutBundle,
+)
 
 
 def _stochastic_exit_when_deployed(name: str) -> py_trees.behaviour.Behaviour:
@@ -135,58 +126,6 @@ def _stochastic_on_reject(name: str) -> py_trees.behaviour.Behaviour:
 
     return OnEmbargoReject(name)
 
-
-@dataclass(frozen=True)
-class EmbargoCallOutBundle:
-    """Call-out backend bundle for the embargo management domain (BT-23-003).
-
-    Fields map to the corresponding factory parameters on
-    :func:`~vultron.core.behaviors.embargo.manage_embargo_tree.create_manage_embargo_tree`.
-    """
-
-    exit_embargo_when_deployed_factory: CallOutBackendFactory = field(
-        default=_always_fail  # type: ignore[assignment]
-    )
-    exit_embargo_when_fix_ready_factory: CallOutBackendFactory = field(
-        default=_always_fail  # type: ignore[assignment]
-    )
-    exit_embargo_for_other_reason_factory: CallOutBackendFactory = field(
-        default=_always_fail  # type: ignore[assignment]
-    )
-    stop_proposing_embargo_factory: CallOutBackendFactory = field(
-        default=_always_fail  # type: ignore[assignment]
-    )
-    select_embargo_offer_terms_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
-    )
-    want_to_propose_embargo_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
-    )
-    willing_to_counter_factory: CallOutBackendFactory = field(
-        default=_always_fail  # type: ignore[assignment]
-    )
-    reason_to_propose_when_deployed_factory: CallOutBackendFactory = field(
-        default=_always_fail  # type: ignore[assignment]
-    )
-    evaluate_embargo_proposal_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
-    )
-    current_embargo_acceptable_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
-    )
-    on_embargo_exit_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
-    )
-    on_embargo_accept_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
-    )
-    on_embargo_reject_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
-    )
-
-
-EMBARGO_DETERMINISTIC = EmbargoCallOutBundle()
-"""Deterministic bundle: ceiling/floor of stochastic p (BT-23-001, BT-23-002)."""
 
 EMBARGO_STOCHASTIC = EmbargoCallOutBundle(
     exit_embargo_when_deployed_factory=_stochastic_exit_when_deployed,  # type: ignore[arg-type]

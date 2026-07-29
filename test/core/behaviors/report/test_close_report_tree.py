@@ -23,7 +23,7 @@ import py_trees
 from vultron.core.behaviors.report.close_report_tree import (
     create_close_report_tree,
 )
-from vultron.demo.fuzzer.base import AlwaysFail
+from vultron.core.behaviors.call_out.nodes import AlwaysFail
 from vultron.demo.fuzzer.bundles.close_report import (
     CLOSE_REPORT_DETERMINISTIC,
     CLOSE_REPORT_STOCHASTIC,

@@ -11,12 +11,14 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Call-out bundle for the report closure domain (BT-23-003, BT-23-005).
+"""STOCHASTIC call-out bundle for the report closure domain (BT-23-003, BT-23-005).
 
-Provides :class:`CloseReportCallOutBundle` plus the pre-built singletons
-:data:`CLOSE_REPORT_DETERMINISTIC` and :data:`CLOSE_REPORT_STOCHASTIC`.
+Provides the simulation-layer :data:`CLOSE_REPORT_STOCHASTIC` singleton.  The
+bundle dataclass and DETERMINISTIC default are core concerns
+(``vultron.core.behaviors.call_out.bundles.close_report``) and are re-exported
+here for backward-compatible import paths.
 
-Ceiling/floor mapping (BT-23-002):
+Ceiling/floor mapping for the DETERMINISTIC counterpart (BT-23-002):
 
 - ``other_close_criteria_factory`` — OtherCloseCriteriaMet (p=0.25) → AlwaysFail
 - ``pre_close_action_factory``     — PreCloseAction        (p=1.0) → AlwaysSucceed
@@ -24,23 +26,12 @@ Ceiling/floor mapping (BT-23-002):
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-
 import py_trees
 
-from vultron.core.behaviors.call_out_point import CallOutBackendFactory
-
-
-def _always_succeed(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.base import AlwaysSucceed
-
-    return AlwaysSucceed(name)
-
-
-def _always_fail(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.base import AlwaysFail
-
-    return AlwaysFail(name)
+from vultron.core.behaviors.call_out.bundles.close_report import (  # noqa: F401
+    CLOSE_REPORT_DETERMINISTIC,
+    CloseReportCallOutBundle,
+)
 
 
 def _stochastic_other_close_criteria(
@@ -60,25 +51,6 @@ def _stochastic_pre_close_action(name: str) -> py_trees.behaviour.Behaviour:
 
     return PreCloseAction(name)
 
-
-@dataclass(frozen=True)
-class CloseReportCallOutBundle:
-    """Call-out backend bundle for the report closure domain (BT-23-003).
-
-    Fields map to the corresponding factory parameters on
-    :func:`~vultron.core.behaviors.report.close_report_tree.create_close_report_tree`.
-    """
-
-    other_close_criteria_factory: CallOutBackendFactory = field(
-        default=_always_fail  # type: ignore[assignment]
-    )
-    pre_close_action_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
-    )
-
-
-CLOSE_REPORT_DETERMINISTIC = CloseReportCallOutBundle()
-"""Deterministic bundle: ceiling/floor of stochastic p (BT-23-001, BT-23-002)."""
 
 CLOSE_REPORT_STOCHASTIC = CloseReportCallOutBundle(
     other_close_criteria_factory=_stochastic_other_close_criteria,  # type: ignore[arg-type]

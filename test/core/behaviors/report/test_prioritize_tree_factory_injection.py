@@ -61,7 +61,7 @@ def test_evaluate_priority_factory_replaces_default_node():
 
 def test_evaluate_priority_factory_default_is_always_succeed():
     """Default evaluate_priority_factory produces an AlwaysSucceed node named EvaluateCasePriority."""
-    from vultron.demo.fuzzer.base import AlwaysSucceed
+    from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
 
     tree = create_prioritize_subtree(
         case_id=CASE_ID,

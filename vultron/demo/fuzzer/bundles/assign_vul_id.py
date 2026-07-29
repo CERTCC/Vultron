@@ -11,12 +11,14 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Call-out bundle for the vulnerability ID assignment domain (BT-23-003, BT-23-005).
+"""STOCHASTIC call-out bundle for the vulnerability ID assignment domain (BT-23).
 
-Provides :class:`AssignVulIdCallOutBundle` plus the pre-built singletons
-:data:`ASSIGN_VUL_ID_DETERMINISTIC` and :data:`ASSIGN_VUL_ID_STOCHASTIC`.
+Provides the simulation-layer :data:`ASSIGN_VUL_ID_STOCHASTIC` singleton.  The
+bundle dataclass and DETERMINISTIC default are core concerns
+(``vultron.core.behaviors.call_out.bundles.assign_vul_id``) and are re-exported
+here for backward-compatible import paths.
 
-Ceiling/floor mapping (BT-23-002):
+Ceiling/floor mapping for the DETERMINISTIC counterpart (BT-23-002):
 
 - ``id_assignable_factory`` — IdAssignable (p=0.67) → AlwaysSucceed
 - ``in_scope_factory``      — InScope      (p=0.75) → AlwaysSucceed
@@ -24,17 +26,12 @@ Ceiling/floor mapping (BT-23-002):
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-
 import py_trees
 
-from vultron.core.behaviors.call_out_point import CallOutBackendFactory
-
-
-def _always_succeed(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.base import AlwaysSucceed
-
-    return AlwaysSucceed(name)
+from vultron.core.behaviors.call_out.bundles.assign_vul_id import (  # noqa: F401
+    ASSIGN_VUL_ID_DETERMINISTIC,
+    AssignVulIdCallOutBundle,
+)
 
 
 def _stochastic_id_assignable(name: str) -> py_trees.behaviour.Behaviour:
@@ -50,25 +47,6 @@ def _stochastic_in_scope(name: str) -> py_trees.behaviour.Behaviour:
 
     return InScope(name)
 
-
-@dataclass(frozen=True)
-class AssignVulIdCallOutBundle:
-    """Call-out backend bundle for the vulnerability ID assignment domain (BT-23-003).
-
-    Fields map to the corresponding factory parameters on
-    :func:`~vultron.core.behaviors.report.assign_vul_id_tree.create_assign_vul_id_tree`.
-    """
-
-    id_assignable_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
-    )
-    in_scope_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
-    )
-
-
-ASSIGN_VUL_ID_DETERMINISTIC = AssignVulIdCallOutBundle()
-"""Deterministic bundle: all nodes use AlwaysSucceed (BT-23-001, BT-23-002)."""
 
 ASSIGN_VUL_ID_STOCHASTIC = AssignVulIdCallOutBundle(
     id_assignable_factory=_stochastic_id_assignable,  # type: ignore[arg-type]

@@ -714,7 +714,7 @@ def test_prioritize_subtree_defers_when_engage_path_fails(
     )
 
     def _always_fail(name: str) -> py_trees.behaviour.Behaviour:
-        from vultron.demo.fuzzer.base import AlwaysFail
+        from vultron.core.behaviors.call_out.nodes import AlwaysFail
 
         return AlwaysFail(name)
 
