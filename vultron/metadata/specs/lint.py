@@ -20,6 +20,7 @@ from vultron.metadata.specs.registry import (
     load_registry,
 )
 from vultron.metadata.specs.schema import (
+    AdrStatus,
     BehavioralSpec,
     LintWarningCode,
     TriggerType,
@@ -28,21 +29,7 @@ from vultron.metadata.specs.schema import (
 _RATIONALE_WARN_CHARS = 500
 _ADR_REF_RE = re.compile(r"\bADR-(\d{4})\b")
 
-# MS-14: valid ADR status values (ADR-0043). A retired ADR uses bare
-# ``superseded`` with a separate ``superseded_by:`` frontmatter field (the
-# project convention, see notes/notes-frontmatter.md); the inline MADR form
-# ``superseded by <link>`` is also tolerated and matched by prefix below.
-_ADR_VALID_STATUSES = frozenset(
-    {
-        "proposed",
-        "accepted",
-        "accepted-provisional",
-        "deprecated",
-        "rejected",
-        "superseded",
-    }
-)
-# MS-14-002: prose markers that mean the design is not yet validated. An ADR
+# MS-14: prose markers that mean the design is not yet validated. An ADR
 # whose body contains any of these MUST NOT declare status: accepted.
 _ADR_PROVISIONAL_MARKERS = (
     "formed in sand",
@@ -57,10 +44,10 @@ _ADR_PROVISIONAL_MARKERS = (
 _ADR_STATUS_RE = re.compile(r"^status:\s*(.*?)\s*$", re.MULTILINE)
 
 
-def _adr_status(text: str) -> str | None:
-    """Extract the ``status:`` value from an ADR's YAML frontmatter.
+def _adr_status_raw(text: str) -> str | None:
+    """Extract the raw ``status:`` value from an ADR's YAML frontmatter.
 
-    Returns the raw value (lower-cased, stripped) or ``None`` when there is no
+    Returns the value (lower-cased, stripped) or ``None`` when there is no
     frontmatter status line at all.
     """
     if not text.startswith("---"):
@@ -73,6 +60,49 @@ def _adr_status(text: str) -> str | None:
     if match is None:
         return None
     return match.group(1).strip().strip("{}").lower()
+
+
+_ADR_LINT_SUPPRESS_RE = re.compile(
+    r"^lint_suppress:\s*\[([^\]]*)\]\s*$", re.MULTILINE
+)
+
+
+def _adr_suppresses(text: str, code: str) -> bool:
+    """Return True if the ADR frontmatter lists ``code`` in ``lint_suppress``.
+
+    Mirrors the spec-level ``lint_suppress`` mechanism (SR-02-011) for ADRs:
+    an ADR that legitimately discusses provisional-ness (e.g. ADR-0043, which
+    defines the status vocabulary) can opt out of the MS-14-002 advisory with
+    ``lint_suppress: [status_prose_contradiction]`` in its frontmatter.
+    """
+    if not text.startswith("---"):
+        return False
+    end = text.find("---", 3)
+    if end == -1:
+        return False
+    match = _ADR_LINT_SUPPRESS_RE.search(text[3:end])
+    if match is None:
+        return False
+    codes = {c.strip().strip("'\"").lower() for c in match.group(1).split(",")}
+    return code in codes
+
+
+def _parse_adr_status(raw: str | None) -> AdrStatus | None:
+    """Map a raw status string to an ``AdrStatus`` enum member, or ``None``.
+
+    The inline MADR form ``superseded by <link>`` normalises to
+    ``AdrStatus.SUPERSEDED``; every other value must match an enum member
+    exactly. Returns ``None`` for an unrecognised value so the caller can
+    raise MS-14-001.
+    """
+    if not raw:
+        return None
+    if raw.startswith("superseded by"):
+        return AdrStatus.SUPERSEDED
+    try:
+        return AdrStatus(raw)
+    except ValueError:
+        return None
 
 
 def _check_adr_status(
@@ -107,26 +137,29 @@ def _check_adr_status(
             continue
 
         text = adr_path.read_text(encoding="utf-8")
-        status = _adr_status(text)
+        raw = _adr_status_raw(text)
 
-        if not status:
+        if not raw:
             errors.append(
                 f"{name}: missing or empty 'status' frontmatter field "
                 f"(MS-14-001; see ADR-0043)"
             )
             continue
 
-        is_superseded_inline = status.startswith("superseded by")
-        if status not in _ADR_VALID_STATUSES and not is_superseded_inline:
+        status = _parse_adr_status(raw)
+        if status is None:
+            valid = [s.value for s in AdrStatus]
             errors.append(
-                f"{name}: invalid status '{status}' (MS-14-001); expected one "
-                f"of {sorted(_ADR_VALID_STATUSES)} (a retired ADR uses "
-                f"'superseded' with a separate superseded_by: field, or the "
-                f"inline 'superseded by <link>' form)"
+                f"{name}: invalid status '{raw}' (MS-14-001); expected one "
+                f"of {valid} (a retired ADR uses 'superseded' with a separate "
+                f"superseded_by: field, or the inline 'superseded by <link>' "
+                f"form)"
             )
             continue
 
-        if status == "accepted":
+        if status is AdrStatus.ACCEPTED and not _adr_suppresses(
+            text, "status_prose_contradiction"
+        ):
             body = text.lower()
             hit = next(
                 (m for m in _ADR_PROVISIONAL_MARKERS if m in body), None
@@ -136,7 +169,10 @@ def _check_adr_status(
                     f"[WARN] {name}: status is 'accepted' but prose contains "
                     f"provisional marker '{hit}' (MS-14-002); if the design is "
                     f"genuinely unvalidated use 'accepted-provisional' — else "
-                    f"this is a decision-audit candidate (see ADR-0043)"
+                    f"this is a decision-audit candidate (see ADR-0043). "
+                    f"Suppress on an ADR that legitimately discusses "
+                    f"provisional-ness with "
+                    f"'lint_suppress: [status_prose_contradiction]'."
                 )
     return errors, warnings
 

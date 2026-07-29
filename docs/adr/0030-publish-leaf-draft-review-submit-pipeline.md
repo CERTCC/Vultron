@@ -77,4 +77,6 @@ platform).
 - Each per-artifact arm in `create_publication_tree` (exploit arm, fix arm, report arm)
   uses this pipeline for its Publish step
 
-Generated spec requirements: `behavior-tree-integration.yaml` BT-20-004 (provisional)
+Generated spec requirements: `behavior-tree-integration.yaml` BT-20-004 (a
+BT-20 fuzzer-seam entry, whose group is subject to revision at implementation
+time per the BT-20 group description).

@@ -94,7 +94,7 @@ groups:
     priority: MUST
     kind: project
     statement: 'Fixed vocabularies MUST be implemented as `StrEnum` subclasses: `RFC2119Priority`, `RelationType`, `SpecKind`,
-      `Scope`, `SpecTag`.'
+      `Scope`, `SpecTag`, `AdrStatus`.'
   - id: SR-02-003
     priority: MUST
     kind: project

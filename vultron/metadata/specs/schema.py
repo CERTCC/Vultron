@@ -45,6 +45,29 @@ class RFC2119Priority(StrEnum):
     MAY = "MAY"
 
 
+class AdrStatus(StrEnum):
+    """Valid ADR ``status:`` frontmatter values (MS-14-001, ADR-0043).
+
+    The status field is the confidence signal coding agents read; a fixed
+    vocabulary lets the linter typecheck it the way spec fields are checked
+    against their StrEnums. See the decision tree in ``notes/specs-vs-adrs.md``
+    for how to choose a value.
+
+    A retired ADR uses ``SUPERSEDED`` with a separate ``superseded_by:``
+    frontmatter field (the project convention, see
+    ``notes/notes-frontmatter.md``). The linter also tolerates the inline MADR
+    form ``superseded by <link>`` by normalising it to ``SUPERSEDED`` before
+    the enum check.
+    """
+
+    PROPOSED = "proposed"
+    ACCEPTED = "accepted"
+    ACCEPTED_PROVISIONAL = "accepted-provisional"
+    DEPRECATED = "deprecated"
+    REJECTED = "rejected"
+    SUPERSEDED = "superseded"
+
+
 class RelationType(StrEnum):
     """Relationship types between spec requirements (SR-02-004)."""
 

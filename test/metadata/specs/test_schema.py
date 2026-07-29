@@ -13,6 +13,7 @@ from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.metadata.specs.schema import (
+    AdrStatus,
     BehavioralSpec,
     BehaviorStep,
     LintWarningCode,
@@ -1006,3 +1007,72 @@ def test_load_registry_process_kind(tmp_path):
     spec = registry.get("DP-01-001")
     assert registry.get_effective_kind("DP-01-001") == SpecKind.PROCESS
     assert spec.priority == RFC2119Priority.MUST
+
+
+# ---------------------------------------------------------------------------
+# AdrStatus vocabulary (MS-14-001, ADR-0043)
+# ---------------------------------------------------------------------------
+
+
+def test_adr_status_values():
+    """AdrStatus enumerates exactly the valid ADR status vocabulary."""
+    assert {s.value for s in AdrStatus} == {
+        "proposed",
+        "accepted",
+        "accepted-provisional",
+        "deprecated",
+        "rejected",
+        "superseded",
+    }
+
+
+def test_adr_status_lookup_by_value():
+    """String values round-trip to enum members (used by the linter)."""
+    assert AdrStatus("accepted-provisional") is AdrStatus.ACCEPTED_PROVISIONAL
+    assert AdrStatus("superseded") is AdrStatus.SUPERSEDED
+
+
+def test_adr_status_rejects_unknown():
+    """An unknown status value is not a member (linter raises MS-14-001)."""
+    with pytest.raises(ValueError):
+        AdrStatus("kinda-accepted")
+
+
+# ---------------------------------------------------------------------------
+# Structured adr: field (SR-02-020)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("adr_id", ["ADR-0001", "ADR-0043", "ADR-9999"])
+def test_statement_spec_adr_field_valid(adr_id):
+    spec = StatementSpec(
+        id="TST-01-001",
+        priority=RFC2119Priority.MUST,
+        kind=SpecKind.PROCESS,
+        statement="TST-01-001 MUST do the thing",
+        adr=[adr_id],
+    )
+    assert spec.adr == [adr_id]
+
+
+@pytest.mark.parametrize("adr_id", ["ADR-1", "ADR-00001", "0043", "adr-0043"])
+def test_statement_spec_adr_field_invalid_pattern(adr_id):
+    with pytest.raises(ValidationError):
+        StatementSpec(
+            id="TST-01-001",
+            priority=RFC2119Priority.MUST,
+            kind=SpecKind.PROCESS,
+            statement="TST-01-001 MUST do the thing",
+            adr=[adr_id],
+        )
+
+
+def test_statement_spec_adr_field_empty_list_rejected():
+    with pytest.raises(ValidationError):
+        StatementSpec(
+            id="TST-01-001",
+            priority=RFC2119Priority.MUST,
+            kind=SpecKind.PROCESS,
+            statement="TST-01-001 MUST do the thing",
+            adr=[],
+        )

@@ -2,6 +2,9 @@
 status: accepted
 date: 2026-07-29
 deciders: [adh]
+# This ADR defines the provisional-status vocabulary, so its prose necessarily
+# quotes markers like "formed in sand". Suppress the MS-14-002 self-match.
+lint_suppress: [status_prose_contradiction]
 ---
 
 # Use the ADR `status` Field as the Confidence Signal (Extend Its Vocabulary Rather Than Add a New Field)

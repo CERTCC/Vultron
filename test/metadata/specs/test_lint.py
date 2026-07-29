@@ -553,3 +553,18 @@ def test_lint_structured_adr_ref_resolves_to_archived(tmp_path, capsys):
     )
     result = lint(tmp_path, adr_dir=adr_dir)
     assert result == 0
+
+
+def test_lint_adr_status_prose_suppress(tmp_path, capsys):
+    """lint_suppress: [status_prose_contradiction] silences the MS-14-002 warn."""
+    _write_yaml(tmp_path, _minimal_spec())
+    adr_dir = _make_adr_dir(tmp_path)
+    (adr_dir / "0099-stub.md").write_text(
+        "---\nstatus: accepted\n"
+        "lint_suppress: [status_prose_contradiction]\n---\n"
+        "# ADR-0099\nThis ADR is formed in sand.\n"
+    )
+    result = lint(tmp_path, adr_dir=adr_dir)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "MS-14-002" not in captured.out

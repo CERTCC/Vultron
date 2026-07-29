@@ -418,14 +418,17 @@ groups:
     kind: process
     statement: >-
       Every ADR under docs/adr/ (excluding the template and index) MUST declare
-      a non-empty status field whose value is one of: proposed, accepted,
-      accepted-provisional, deprecated, rejected, or "superseded by <link>".
+      a non-empty status field whose value is a member of the AdrStatus StrEnum
+      (proposed, accepted, accepted-provisional, deprecated, rejected,
+      superseded); the inline MADR form "superseded by <link>" is accepted and
+      normalised to superseded.
     rationale: >-
       The status field is the primary confidence signal that reaches coding
       agents (deepen-context weights ADR trust by it). A blank or non-standard
       status leaves agents to treat an unvalidated decision as settled fact.
       ADR-0024 shipped with a blank status; this rule prevents recurrence.
-      Enforced by spec-lint. See ADR-0043 and notes/specs-vs-adrs.md.
+      AdrStatus is the fixed vocabulary (SR-02-002) the linter typechecks
+      against. Enforced by spec-lint. See ADR-0043 and notes/specs-vs-adrs.md.
     relationships:
     - rel_type: derives_from
       spec_id: MS-11-004
@@ -450,7 +453,10 @@ groups:
       motivating case. spec-lint emits an advisory warning (not a hard error)
       because the substring scan can false-positive on ADRs that merely discuss
       provisional-ness; flagged ADRs are decision-audit candidates for human
-      adjudication.
+      adjudication. An ADR that legitimately discusses provisional-ness (e.g.
+      ADR-0043, which defines the vocabulary) MAY opt out with frontmatter
+      'lint_suppress: [status_prose_contradiction]', mirroring the spec-level
+      lint_suppress mechanism (SR-02-011).
     tags:
     - documentation
     - tooling
