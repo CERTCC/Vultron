@@ -8,17 +8,15 @@ set -euo pipefail
 ISSUE_NUMBER="${1:?Usage: add-to-project.sh <ISSUE_NUMBER> [SCHEDULE]}"
 SCHEDULE="${2:-Someday}"
 
-PROJECT_ID="PVT_kwDOAjf0s84BZnre"
-SCHEDULE_FIELD_ID="PVTSSF_lADOAjf0s84BZnrezhUlFOM"
-
-case "$SCHEDULE" in
-  Focus)   SCHEDULE_OPTION_ID="6bca50d7" ;;
-  Now)     SCHEDULE_OPTION_ID="22e6679d" ;;
-  Next)    SCHEDULE_OPTION_ID="1c1ed63d" ;;
-  Later)   SCHEDULE_OPTION_ID="520032ef" ;;
-  Someday) SCHEDULE_OPTION_ID="a890eacc" ;;
-  *) echo "❌ Unknown schedule value: $SCHEDULE (use Focus|Now|Next|Later|Someday)" >&2; exit 1 ;;
-esac
+# All board IDs are resolved live-and-cached via board-id.sh — never hardcoded
+# (they rotate when the Schedule field's options are edited).
+BOARD_ID="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/board-id.sh"
+PROJECT_ID=$(bash "$BOARD_ID" project)
+SCHEDULE_FIELD_ID=$(bash "$BOARD_ID" schedule-field)
+if ! SCHEDULE_OPTION_ID=$(bash "$BOARD_ID" schedule "$SCHEDULE"); then
+  echo "❌ Unknown schedule value: $SCHEDULE (use Focus|Now|Next|Later|Someday)" >&2
+  exit 1
+fi
 
 NODE_ID=$(gh api graphql -f query='{
   repository(owner:"CERTCC", name:"Vultron") {

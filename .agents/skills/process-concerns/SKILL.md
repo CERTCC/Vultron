@@ -21,9 +21,17 @@ before creating anything.
 
 ```text
 REPO           = CERTCC/Vultron
-REPO_NODE_ID   = R_kgDOIn77fA
-CONCERN_TYPE   = IT_kwDOAjf0s84B_2VT
-TASK_TYPE      = IT_kwDOAjf0s84AcFLo
+REPO_NODE_ID   = resolve via `bash .agents/skills/shared/board-id.sh repo`
+CONCERN_TYPE   = resolve via `bash .agents/skills/shared/board-id.sh issue-type Concern`
+TASK_TYPE      = resolve via `bash .agents/skills/shared/board-id.sh issue-type Task`
+```
+
+Resolve these into shell variables before the mutations below:
+
+```bash
+REPO_NODE_ID=$(bash .agents/skills/shared/board-id.sh repo)
+CONCERN_TYPE=$(bash .agents/skills/shared/board-id.sh issue-type Concern)
+TASK_TYPE=$(bash .agents/skills/shared/board-id.sh issue-type Task)
 ```
 
 ---

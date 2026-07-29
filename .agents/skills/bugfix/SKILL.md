@@ -29,10 +29,11 @@ bug is being fixed and why.
    (freeform), synthesize a title, and create the issue:
 
    ```bash
+   BUG_TYPE_ID=$(bash .agents/skills/shared/board-id.sh issue-type Bug)
    ISSUE_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
      --title "${BUG_TITLE}" \
      --body "${BUG_BODY}" \
-     --issue-type-id "IT_kwDOAjf0s84AcFLq")
+     --issue-type-id "${BUG_TYPE_ID}")
    ```
 
 4. Fetch the issue body and comments. Use the content as bug context
@@ -83,6 +84,7 @@ Ask one targeted question before locking in scope:
   file each remaining concern as a new Bug-type issue:
 
   ```bash
+  BUG_TYPE_ID=$(bash .agents/skills/shared/board-id.sh issue-type Bug)
   .agents/skills/manage-github-issue/manage_github_issue.sh \
     --title "<short bug title>" \
     --body "## Symptoms
@@ -93,7 +95,7 @@ Ask one targeted question before locking in scope:
 
   ## Components involved
   - \`path/to/module.py\`" \
-    --issue-type-id "IT_kwDOAjf0s84AcFLq"
+    --issue-type-id "${BUG_TYPE_ID}"
   ```
 
   Confirm the narrowed scope before proceeding.

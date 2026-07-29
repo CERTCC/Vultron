@@ -93,16 +93,10 @@ echo "${EPIC_NUMBER}"
 ## Constraints
 
 - Always check for an existing open Epic before creating a new one.
-- The `Epic` issue type ID for `CERTCC/Vultron` is `IT_kwDOAjf0s84B_E1A`.
-  If this ID changes (e.g. after repo transfer), re-query:
-
-  ```bash
-  gh api graphql -f query='{ repository(owner:"CERTCC", name:"Vultron") {
-    issueTypes(first:10) { nodes { id name } } } }'
-  ```
-
-- The repo node ID for `CERTCC/Vultron` is `R_kgDOIn77fA`.
-- Board IDs (project node, Schedule field, Schedule option IDs including
-  `Focus`) are **not** duplicated here — they live in one place,
-  `.agents/skills/shared/README.md`, and are applied by
-  `.agents/skills/shared/add-to-project.sh`, which `create_epic.sh` calls.
+- Board IDs are **never hardcoded** here — they rotate and are resolved by name
+  at runtime via `.agents/skills/shared/board-id.sh` (see
+  `.agents/skills/shared/README.md`). `create_epic.sh` resolves the repo node ID
+  and the `Epic` issue-type ID through it, and delegates scheduling to
+  `.agents/skills/shared/add-to-project.sh`.
+  - Epic issue-type ID: `bash .agents/skills/shared/board-id.sh issue-type Epic`
+  - Repo node ID: `bash .agents/skills/shared/board-id.sh repo`

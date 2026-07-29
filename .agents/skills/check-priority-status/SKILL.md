@@ -58,8 +58,9 @@ Run the check-priority-status skill. The skill will:
 ### Querying Project #24 by Schedule Tier
 
 ```bash
+PROJECT_ID=$(bash .agents/skills/shared/board-id.sh project)
 gh api graphql -f query='{
-  node(id: "PVT_kwDOAjf0s84BZnre") {
+  node(id: "'"$PROJECT_ID"'") {
     ... on ProjectV2 {
       items(first: 100) {
         nodes {

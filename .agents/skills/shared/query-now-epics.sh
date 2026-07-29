@@ -4,6 +4,9 @@
 # Usage: bash .agents/skills/shared/query-now-epics.sh
 set -euo pipefail
 
+# Board IDs are resolved live-and-cached via board-id.sh — never hardcoded.
+PROJECT_ID=$(bash "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/board-id.sh" project)
+
 gh api graphql --jq '
   .data.node.items.nodes[]
   | select(
@@ -17,7 +20,7 @@ gh api graphql --jq '
     )
   | "#\(.content.number): \(.content.title)"
 ' -f query='{
-  node(id: "PVT_kwDOAjf0s84BZnre") {
+  node(id: "'"$PROJECT_ID"'") {
     ... on ProjectV2 {
       items(first: 100) {
         nodes {

@@ -8,21 +8,22 @@ Technical details for the priority update workflow.
 
 ## Project Board Constants
 
-| Name | Value |
-|---|---|
-| Project node ID | `PVT_kwDOAjf0s84BZnre` |
-| Schedule field ID | `PVTSSF_lADOAjf0s84BZnrezhUlFOM` |
-| Focus option ID | `6bca50d7` |
-| Now option ID | `22e6679d` |
-| Next option ID | `1c1ed63d` |
-| Later option ID | `520032ef` |
-| Someday option ID | `a890eacc` |
+Board IDs are **never hardcoded** — resolve them by name via `board-id.sh`
+(see `.agents/skills/shared/README.md`). They rotate when the Schedule field's
+options are edited, so any pasted literal drifts stale.
+
+```bash
+PROJECT_ID=$(bash .agents/skills/shared/board-id.sh project)
+SCHEDULE_FIELD_ID=$(bash .agents/skills/shared/board-id.sh schedule-field)
+SCHEDULE_OPTION_ID=$(bash .agents/skills/shared/board-id.sh schedule "${TIER}")  # Focus|Now|Next|Later|Someday
+```
 
 ## Querying All Board Items
 
 ```bash
+PROJECT_ID=$(bash .agents/skills/shared/board-id.sh project)
 gh api graphql -f query='{
-  node(id: "PVT_kwDOAjf0s84BZnre") {
+  node(id: "'"$PROJECT_ID"'") {
     ... on ProjectV2 {
       items(first: 100) {
         nodes {
@@ -46,11 +47,14 @@ gh api graphql -f query='{
 # Look up item ID by issue number (from items query above)
 ITEM_ID="<project item node ID>"
 
+PROJECT_ID=$(bash .agents/skills/shared/board-id.sh project)
+SCHEDULE_FIELD_ID=$(bash .agents/skills/shared/board-id.sh schedule-field)
+SCHEDULE_OPTION_ID=$(bash .agents/skills/shared/board-id.sh schedule "${TIER}")
 gh api graphql -f query="mutation {
   updateProjectV2ItemFieldValue(input: {
-    projectId: \"PVT_kwDOAjf0s84BZnre\"
+    projectId: \"${PROJECT_ID}\"
     itemId: \"${ITEM_ID}\"
-    fieldId: \"PVTSSF_lADOAjf0s84BZnrezhUlFOM\"
+    fieldId: \"${SCHEDULE_FIELD_ID}\"
     value: { singleSelectOptionId: \"${SCHEDULE_OPTION_ID}\" }
   }) { projectV2Item { id } }
 }"

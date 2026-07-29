@@ -20,9 +20,11 @@ SCHEDULE="${3:-Someday}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ADD_TO_PROJECT="${SCRIPT_DIR}/../shared/add-to-project.sh"
+BOARD_ID="${SCRIPT_DIR}/../shared/board-id.sh"
 
-REPO_NODE_ID="R_kgDOIn77fA"
-EPIC_TYPE_ID="IT_kwDOAjf0s84B_E1A"
+# Board IDs are resolved live-and-cached via board-id.sh — never hardcoded.
+REPO_NODE_ID=$(bash "$BOARD_ID" repo)
+EPIC_TYPE_ID=$(bash "$BOARD_ID" issue-type Epic)
 
 # JSON-encode title and body for safe GraphQL embedding
 TITLE_JSON=$(printf '%s' "${EPIC_TITLE}" \

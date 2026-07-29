@@ -31,26 +31,29 @@ The skill will:
 
 ## Project Board Constants
 
-| Name | Value |
-|---|---|
-| Project node ID | `PVT_kwDOAjf0s84BZnre` |
-| Schedule field ID | `PVTSSF_lADOAjf0s84BZnrezhUlFOM` |
-| Focus option ID | `6bca50d7` |
-| Now option ID | `22e6679d` |
-| Next option ID | `1c1ed63d` |
-| Later option ID | `520032ef` |
-| Someday option ID | `a890eacc` |
+Board IDs (project node ID, Schedule field ID, Schedule option IDs) are
+**never hardcoded** — they rotate when the field's options are edited. Resolve
+them by name at runtime via `board-id.sh`; see
+`.agents/skills/shared/README.md` for the full interface:
+
+```bash
+PROJECT_ID=$(bash .agents/skills/shared/board-id.sh project)
+SCHEDULE_FIELD_ID=$(bash .agents/skills/shared/board-id.sh schedule-field)
+# Option ID for a given tier (Focus|Now|Next|Later|Someday):
+SCHEDULE_OPTION_ID=$(bash .agents/skills/shared/board-id.sh schedule "${TIER}")
+```
 
 ## Workflows
 
 ### Move Item to a Different Tier
 
 1. Identify the issue or Epic number.
-2. Find the item's project item ID:
+2. Resolve board IDs and find the item's project item ID:
 
    ```bash
+   PROJECT_ID=$(bash .agents/skills/shared/board-id.sh project)
    ITEM_ID=$(gh api graphql -f query='{
-     node(id:"PVT_kwDOAjf0s84BZnre") {
+     node(id:"'"$PROJECT_ID"'") {
        ... on ProjectV2 {
          items(first:100) {
            nodes {
@@ -64,14 +67,17 @@ The skill will:
      | select(.content.number == ${ISSUE_NUMBER}) | .id")
    ```
 
-3. Apply the Schedule field update:
+3. Apply the Schedule field update (resolve the target tier's option ID by
+   name, e.g. `bash .agents/skills/shared/board-id.sh schedule Now`):
 
    ```bash
+   SCHEDULE_FIELD_ID=$(bash .agents/skills/shared/board-id.sh schedule-field)
+   SCHEDULE_OPTION_ID=$(bash .agents/skills/shared/board-id.sh schedule "${TIER}")
    gh api graphql -f query="mutation {
      updateProjectV2ItemFieldValue(input: {
-       projectId: \"PVT_kwDOAjf0s84BZnre\"
+       projectId: \"${PROJECT_ID}\"
        itemId: \"${ITEM_ID}\"
-       fieldId: \"PVTSSF_lADOAjf0s84BZnrezhUlFOM\"
+       fieldId: \"${SCHEDULE_FIELD_ID}\"
        value: { singleSelectOptionId: \"${SCHEDULE_OPTION_ID}\" }
      }) { projectV2Item { id } }
    }"
@@ -88,8 +94,9 @@ bash .agents/skills/shared/add-to-project.sh "${ISSUE_NUMBER}" "${SCHEDULE:-Some
 ```
 
 To **re-tier an item already on the board**, resolve its existing project item
-ID and set the Schedule field directly (the option IDs are listed in the
-Reference table below and in `.agents/skills/shared/README.md`).
+ID and set the Schedule field directly (resolve every ID by name via
+`board-id.sh` — see the "Move Item to a Different Tier" workflow above and
+`.agents/skills/shared/README.md`).
 
 ### Archive a Completed Epic
 
