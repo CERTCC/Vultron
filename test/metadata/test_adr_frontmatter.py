@@ -111,3 +111,19 @@ def test_loader_rejects_dangling_superseded_by(tmp_path):
     )
     with pytest.raises(ValueError, match="superseded_by"):
         load_adr_registry(tmp_path)
+
+
+def test_loader_raises_valueerror_on_malformed_yaml(tmp_path):
+    """A malformed YAML frontmatter block surfaces as ValueError, not a raw
+    parser traceback — so spec-lint and the pre-commit hooks report a clean,
+    file-attributed error (MS-14-001) instead of crashing.
+    """
+    adr_dir = tmp_path / "docs" / "adr"
+    adr_dir.mkdir(parents=True)
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='x'\n")
+    # Unclosed flow sequence → yaml.parser.ParserError inside frontmatter.load.
+    (adr_dir / "0001-broken.md").write_text(
+        "---\nstatus: accepted\ndeciders: [unclosed\n---\n# broken\n"
+    )
+    with pytest.raises(ValueError, match="malformed YAML frontmatter"):
+        load_adr_registry(tmp_path)

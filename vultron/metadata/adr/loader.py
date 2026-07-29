@@ -31,6 +31,23 @@ def _find_repo_root(start: Path | None = None) -> Path:
     )
 
 
+def load_adr_post(path: Path) -> frontmatter.Post:
+    """Parse an ADR markdown file, raising ``ValueError`` on malformed YAML.
+
+    ``frontmatter.load`` raises ``yaml`` parser/scanner errors on a malformed
+    frontmatter block; those are neither ``ValueError`` nor
+    ``FileNotFoundError``, so without this wrapper they escape the documented
+    contract and crash ``spec-lint`` and the pre-commit hooks with a raw
+    traceback instead of a clean, file-attributed error.
+    """
+    try:
+        return frontmatter.load(str(path))
+    except FileNotFoundError:
+        raise
+    except Exception as exc:  # noqa: BLE001 — re-raise with file context
+        raise ValueError(f"{path}: malformed YAML frontmatter: {exc}") from exc
+
+
 def _iter_adr_paths(adr_dir: Path) -> list[Path]:
     """Return ADR markdown paths in ``adr_dir`` and its ``archived/`` subdir.
 
@@ -69,7 +86,7 @@ def load_adr_registry(
     registry: dict[str, AdrFrontmatter] = {}
 
     for path in _iter_adr_paths(adr_dir):
-        post = frontmatter.load(str(path))
+        post = load_adr_post(path)
         if not post.metadata:
             raise ValueError(f"{path}: missing YAML frontmatter")
 

@@ -25,12 +25,13 @@ import re
 import sys
 from pathlib import Path
 
-import frontmatter
+import yaml
 
 from vultron.metadata.adr.loader import (
     SKIP_FILES,
     _find_repo_root,
     _iter_adr_paths,
+    load_adr_post,
 )
 from vultron.metadata.adr.schema import AdrFrontmatter
 from vultron.metadata.specs.schema import AdrStatus
@@ -58,7 +59,7 @@ def _adr_title(path: Path) -> str:
     Strips a redundant leading ``ADR-NNNN:`` from the H1 (some ADRs embed their
     own number in the heading) so the index label isn't doubled.
     """
-    post = frontmatter.load(str(path))
+    post = load_adr_post(path)
     match = _H1_RE.search(post.content)
     title = match.group(1).strip() if match else path.stem
     return _TITLE_ADR_PREFIX_RE.sub("", title).strip()
@@ -97,7 +98,7 @@ def generate_index(repo_root: Path | None = None) -> str:
 
     # Sort numerically by ADR number so the index is stable and scannable.
     for path in sorted(_iter_adr_paths(adr_dir), key=lambda p: p.name):
-        post = frontmatter.load(str(path))
+        post = load_adr_post(path)
         fm = AdrFrontmatter.model_validate(post.metadata)
         entry = _entry(path, adr_dir)
 
@@ -144,15 +145,52 @@ def generate_index(repo_root: Path | None = None) -> str:
     return preamble + sections
 
 
+class _NavTagTolerantLoader(yaml.SafeLoader):
+    """SafeLoader that tolerates mkdocs' custom YAML tags.
+
+    ``mkdocs.yml`` carries ``!ENV`` and ``!!python/name:`` tags that a plain
+    ``yaml.safe_load`` refuses to construct. We only need the ``nav:`` file
+    paths, so we register permissive constructors that discard the tag and
+    keep the underlying scalar/sequence rather than executing anything.
+    """
+
+
+_NavTagTolerantLoader.add_multi_constructor("!", lambda _l, _s, _n: None)
+_NavTagTolerantLoader.add_multi_constructor(
+    "tag:yaml.org,2002:python/name:", lambda _l, _s, _n: None
+)
+
+
+def _iter_nav_paths(nav: object) -> "list[str]":
+    """Yield every string file path referenced anywhere in a mkdocs nav tree."""
+    found: list[str] = []
+    if isinstance(nav, str):
+        found.append(nav)
+    elif isinstance(nav, list):
+        for item in nav:
+            found.extend(_iter_nav_paths(item))
+    elif isinstance(nav, dict):
+        for value in nav.values():
+            found.extend(_iter_nav_paths(value))
+    return found
+
+
 def missing_nav_entries(repo_root: Path | None = None) -> list[str]:
     """Return ADR file paths (relative to docs/) absent from the mkdocs nav.
 
     The nav uses hand-crafted labels, so completeness is checked rather than
-    the nav regenerated: every ADR must be referenced somewhere in mkdocs.yml.
+    the nav regenerated: every ADR must appear as a file entry in the
+    ``nav:`` tree. The nav tree is parsed as YAML and walked structurally — a
+    raw substring match would false-pass on a path that appears only in a
+    comment or unrelated key, letting a genuinely un-navved ADR slip through
+    and then break ``mkdocs build --strict`` (MS-14-006).
     """
     root = repo_root or _find_repo_root()
     adr_dir = root / "docs" / "adr"
-    nav_text = (root / "mkdocs.yml").read_text(encoding="utf-8")
+
+    with (root / "mkdocs.yml").open(encoding="utf-8") as fh:
+        config = yaml.load(fh, Loader=_NavTagTolerantLoader)  # noqa: S506
+    nav_paths = set(_iter_nav_paths((config or {}).get("nav")))
 
     missing: list[str] = []
     for path in _iter_adr_paths(adr_dir):
@@ -160,7 +198,7 @@ def missing_nav_entries(repo_root: Path | None = None) -> list[str]:
         # archived ADRs are intentionally excluded from nav.
         if rel_to_docs.startswith("adr/archived/"):
             continue
-        if rel_to_docs not in nav_text:
+        if rel_to_docs not in nav_paths:
             missing.append(rel_to_docs)
     return missing
 
