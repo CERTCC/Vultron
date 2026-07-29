@@ -78,6 +78,7 @@ from vultron.demo.helpers.polling import (
     wait_for_case_on_container,
     wait_for_case_participants,
     wait_for_contiguous_ledger_coverage,
+    wait_for_event_type_in_ledger,
     wait_for_finder_case,
     wait_for_participant_vfd_state,
 )
@@ -305,21 +306,23 @@ def _phase_sync_verification(
             vendor_tail_hash[:16],
             vendor_tail_index,
         )
-        wait_for_contiguous_ledger_coverage(
-            client=finder_client,
-            case_id=case.id_,
-            expected_tail_index=vendor_tail_index,
-        )
+        with demo_check("Finder ledger coverage (sync-verification phase)"):
+            wait_for_contiguous_ledger_coverage(
+                client=finder_client,
+                case_id=case.id_,
+                expected_tail_index=vendor_tail_index,
+            )
         logger.info(
             "Waiting for Vendor2 to replicate Vendor1 tail (hash=%s… index=%d)",
             vendor_tail_hash[:16],
             vendor_tail_index,
         )
-        wait_for_contiguous_ledger_coverage(
-            client=vendor2_client,
-            case_id=case.id_,
-            expected_tail_index=vendor_tail_index,
-        )
+        with demo_check("Vendor2 ledger coverage (sync-verification phase)"):
+            wait_for_contiguous_ledger_coverage(
+                client=vendor2_client,
+                case_id=case.id_,
+                expected_tail_index=vendor_tail_index,
+            )
 
     wait_for_case_participants(
         vendor_client=finder_client,
@@ -632,6 +635,18 @@ def _phase_case_closure(
     # Announce(CaseLedgerEntry) activities are delivered independently and an
     # intermediate entry can arrive after the tail (issue #1363).  We therefore
     # verify full contiguous coverage (0…tail_index) before dumping logs.
+    #
+    # Bug B fix: wait for the async close_case entry on the authoritative actor
+    # before reading the tail index, so we don't snapshot a stale tail that
+    # excludes the close_case entry itself.
+    with demo_check(
+        "close_case entry present on authoritative actor (vendor1)"
+    ):
+        wait_for_event_type_in_ledger(
+            client=vendor_client,
+            case_id=case.id_,
+            event_type="close_case",
+        )
     vendor_entries = _get_log_entries_for_case(vendor_client, case.id_)
     if vendor_entries:
         vendor_tail = max(vendor_entries, key=lambda e: e["log_index"])
@@ -643,16 +658,18 @@ def _phase_case_closure(
             vendor_tail_hash[:16],
             vendor_tail_index,
         )
-        wait_for_contiguous_ledger_coverage(
-            client=finder_client,
-            case_id=case.id_,
-            expected_tail_index=vendor_tail_index,
-        )
-        wait_for_contiguous_ledger_coverage(
-            client=vendor2_client,
-            case_id=case.id_,
-            expected_tail_index=vendor_tail_index,
-        )
+        with demo_check("Finder ledger coverage (close phase)"):
+            wait_for_contiguous_ledger_coverage(
+                client=finder_client,
+                case_id=case.id_,
+                expected_tail_index=vendor_tail_index,
+            )
+        with demo_check("Vendor2 ledger coverage (close phase)"):
+            wait_for_contiguous_ledger_coverage(
+                client=vendor2_client,
+                case_id=case.id_,
+                expected_tail_index=vendor_tail_index,
+            )
 
 
 def _phase_dump_case_ledgers(

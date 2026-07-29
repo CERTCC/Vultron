@@ -83,6 +83,7 @@ from vultron.demo.helpers.polling import (  # noqa: F401
     wait_for_case_participants,
     wait_for_finder_case,
     wait_for_contiguous_ledger_coverage,
+    wait_for_event_type_in_ledger,
     wait_for_finder_log_entry,
     wait_for_note_in_case,
     wait_for_participant_vfd_state,
@@ -574,11 +575,12 @@ def _phase_sync_verification(
             "Waiting for finder to replicate all vendor entries (0…%d)",
             vendor_tail_index,
         )
-        wait_for_contiguous_ledger_coverage(
-            client=finder_client,
-            case_id=case.id_,
-            expected_tail_index=vendor_tail_index,
-        )
+        with demo_check("Finder ledger coverage (sync-verification phase)"):
+            wait_for_contiguous_ledger_coverage(
+                client=finder_client,
+                case_id=case.id_,
+                expected_tail_index=vendor_tail_index,
+            )
 
     logger.info(
         "Verifying SYNC-2 replication by comparing vendor ↔ finder replica"
@@ -779,6 +781,17 @@ def _phase_case_closure(
     # close_case tail) before _phase_dump_case_ledgers writes devlog files.
     # AutoClose fans out Announce(CaseLedgerEntry) as an async BackgroundTask;
     # intermediate entries may arrive after the tail (issue #1434).
+    #
+    # Bug B fix: wait for close_case entry on the authoritative actor before
+    # reading the tail, so we don't snapshot a tail that omits close_case.
+    with demo_check(
+        "close_case entry present on authoritative actor (vendor)"
+    ):
+        wait_for_event_type_in_ledger(
+            client=vendor_client,
+            case_id=case.id_,
+            event_type="close_case",
+        )
     vendor_entries = _get_log_entries_for_case(vendor_client, case.id_)
     if vendor_entries:
         vendor_tail = max(vendor_entries, key=lambda e: e["log_index"])
@@ -788,11 +801,12 @@ def _phase_case_closure(
             " (0…%d)",
             vendor_tail_index,
         )
-        wait_for_contiguous_ledger_coverage(
-            client=finder_client,
-            case_id=case.id_,
-            expected_tail_index=vendor_tail_index,
-        )
+        with demo_check("Finder ledger coverage (close phase)"):
+            wait_for_contiguous_ledger_coverage(
+                client=finder_client,
+                case_id=case.id_,
+                expected_tail_index=vendor_tail_index,
+            )
 
 
 # ---------------------------------------------------------------------------

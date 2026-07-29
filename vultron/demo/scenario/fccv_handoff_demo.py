@@ -85,6 +85,7 @@ from vultron.demo.helpers.polling import (
     wait_for_case_on_container,
     wait_for_case_participants,
     wait_for_contiguous_ledger_coverage,
+    wait_for_event_type_in_ledger,
     wait_for_object_stored,
     wait_for_participant_vfd_state,
 )
@@ -579,11 +580,14 @@ def _phase_sync_verification(
             (c2_client, "C2"),
             (vendor_client, "Vendor"),
         ]:
-            wait_for_contiguous_ledger_coverage(
-                client=replica_client,
-                case_id=case.id_,
-                expected_tail_index=c1_tail_index,
-            )
+            with demo_check(
+                f"{label} ledger coverage (sync-verification phase)"
+            ):
+                wait_for_contiguous_ledger_coverage(
+                    client=replica_client,
+                    case_id=case.id_,
+                    expected_tail_index=c1_tail_index,
+                )
             logger.info("  %s ledger synchronized", label)
 
     for replica_client in (finder_client, c2_client, vendor_client):
@@ -893,6 +897,12 @@ def _phase_case_closure(
             case_id=case.id_,
         )
 
+    with demo_check("close_case entry present on authoritative actor (c1)"):
+        wait_for_event_type_in_ledger(
+            client=c1_client,
+            case_id=case.id_,
+            event_type="close_case",
+        )
     c1_entries = _get_log_entries_for_case(c1_client, case.id_)
     if c1_entries:
         c1_tail = max(c1_entries, key=lambda e: e["log_index"])
@@ -904,12 +914,17 @@ def _phase_case_closure(
             c1_tail_hash[:16],
             c1_tail_index,
         )
-        for replica_client in (finder_client, c2_client, vendor_client):
-            wait_for_contiguous_ledger_coverage(
-                client=replica_client,
-                case_id=case.id_,
-                expected_tail_index=c1_tail_index,
-            )
+        for replica_client, label in [
+            (finder_client, "Finder"),
+            (c2_client, "C2"),
+            (vendor_client, "Vendor"),
+        ]:
+            with demo_check(f"{label} ledger coverage (close phase)"):
+                wait_for_contiguous_ledger_coverage(
+                    client=replica_client,
+                    case_id=case.id_,
+                    expected_tail_index=c1_tail_index,
+                )
 
 
 def _phase_dump_case_ledgers(

@@ -265,6 +265,62 @@ def wait_for_finder_log_entry(
     )
 
 
+def wait_for_event_type_in_ledger(
+    client: DataLayerClient,
+    case_id: str,
+    event_type: str,
+    timeout_seconds: float = 20.0,
+    poll_interval: float = 0.5,
+) -> None:
+    """Poll *client*'s DataLayer until a ``CaseLedgerEntry`` with *event_type* appears.
+
+    Use this before reading the authoritative tail index in close phases to
+    ensure the ``close_case`` entry (committed asynchronously by the CaseActor's
+    auto-close BT after the last RM.CLOSED) is present before we snapshot the
+    tail.  Without this wait, the tail index may exclude ``close_case``, causing
+    a coverage-wait 'success' for the wrong tail and a gapped ledger dump
+    (issue #1772 Bug B).
+
+    Args:
+        client: DataLayerClient connected to the authoritative container.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        event_type: The ``event_type`` value to wait for (e.g. ``"close_case"``).
+        timeout_seconds: Maximum time to wait before raising.
+        poll_interval: Seconds between DataLayer poll attempts.
+
+    Raises:
+        AssertionError: If no entry with *event_type* appears within
+            *timeout_seconds*.
+    """
+
+    def _check() -> bool:
+        raw = client.get("/datalayer/CaseLedgerEntrys/")
+        if not isinstance(raw, dict):
+            return False
+        for v in raw.values():
+            if (
+                isinstance(v, dict)
+                and v.get("case_id") == case_id
+                and v.get("event_type") == event_type
+            ):
+                logger.info(
+                    "Event type %r found in ledger for case %s",
+                    event_type,
+                    case_id,
+                )
+                return True
+        return False
+
+    _poll_until(
+        _check,
+        timeout_seconds,
+        poll_interval,
+        f"Timed out waiting for event_type={event_type!r} to appear in ledger "
+        f"for case {case_id!r} — auto-close replication may not have completed",
+        swallow_exceptions=True,
+    )
+
+
 def wait_for_contiguous_ledger_coverage(
     client: DataLayerClient,
     case_id: str,

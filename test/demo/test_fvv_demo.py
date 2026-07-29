@@ -32,7 +32,10 @@ from fastapi.testclient import TestClient
 import vultron.demo.scenario.fvv_demo as demo
 from test.demo._helpers import make_client, make_testclient_call
 from vultron.demo.cli import main
-from vultron.demo.helpers.polling import wait_for_contiguous_ledger_coverage
+from vultron.demo.helpers.polling import (
+    wait_for_contiguous_ledger_coverage,
+    wait_for_event_type_in_ledger,
+)
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -331,3 +334,229 @@ class TestWaitForContiguousLedgerCoverage:
                 timeout_seconds=0.1,
                 poll_interval=0.05,
             )
+
+
+# ---------------------------------------------------------------------------
+# Regression tests: Bug A — coverage-wait timeout must not crash demo
+# (issue #1772, #1802)
+# ---------------------------------------------------------------------------
+
+
+class TestCoverageWaitInsideDemoCheck:
+    """Regression: bare wait_for_contiguous_ledger_coverage outside demo_check
+    crashes demo with exit code 1 when it times out.
+
+    After the fix, a timeout should accumulate to _demo_failures and allow
+    _phase_dump_case_ledgers to run (exit 0 with a failure summary).
+    """
+
+    def test_coverage_wait_timeout_accumulates_to_demo_failures_not_raises(
+        self,
+    ):
+        """A timed-out coverage wait inside _phase_case_closure must NOT raise.
+
+        Bug A: the bare wait_for_contiguous_ledger_coverage call propagated
+        AssertionError through _phase_case_closure, crashing the demo runner.
+        After the fix, every coverage wait is inside a demo_check context,
+        so the timeout is recorded in _demo_failures and the phase returns
+        normally.
+
+        We verify this by patching wait_for_contiguous_ledger_coverage to
+        always raise AssertionError and confirming _phase_case_closure does
+        not propagate the exception.
+        """
+        import vultron.demo.utils as utils_module  # noqa: PLC0415
+
+        utils_module.reset_demo_failures()
+
+        case_id = "https://example.org/cases/bug-a-regression"
+
+        # Build minimal mocks that satisfy _phase_case_closure's early calls
+        # (actor_closes_case, wait_for_all_participants_rm_closed, verify_case_closed,
+        # _get_log_entries_for_case) without triggering real HTTP.
+        client = MagicMock()
+        actor = MagicMock()
+        actor.id_ = "https://example.org/actors/test-actor"
+
+        case = MagicMock()
+        case.id_ = case_id
+
+        # _get_log_entries_for_case reads from /datalayer/CaseLedgerEntrys/
+        # Return a single entry so the tail-read branch is taken.
+        client.get.return_value = {
+            "e0": {
+                "case_id": case_id,
+                "log_index": 0,
+                "entry_hash": "hash0000",
+                "event_type": "close_case",
+            }
+        }
+
+        initial_failures = len(utils_module._demo_failures)
+
+        with (
+            patch("vultron.demo.scenario.fvv_demo.actor_closes_case"),
+            patch(
+                "vultron.demo.scenario.fvv_demo.wait_for_all_participants_rm_closed"
+            ),
+            patch("vultron.demo.scenario.fvv_demo.verify_case_closed"),
+            patch(
+                "vultron.demo.scenario.fvv_demo.wait_for_event_type_in_ledger"
+            ),
+            patch(
+                "vultron.demo.scenario.fvv_demo.wait_for_contiguous_ledger_coverage",
+                side_effect=AssertionError(
+                    "contiguous ledger coverage timeout"
+                ),
+            ),
+        ):
+            try:
+                demo._phase_case_closure(
+                    finder_client=client,
+                    vendor_client=client,
+                    vendor2_client=client,
+                    vendor=actor,
+                    vendor_in_vendor=actor,
+                    vendor2=actor,
+                    vendor2_in_vendor2=actor,
+                    finder=actor,
+                    finder_in_finder=actor,
+                    case=case,
+                )
+            except AssertionError as exc:
+                pytest.fail(
+                    f"Bug A regression: AssertionError propagated out of "
+                    f"_phase_case_closure: {exc}"
+                )
+
+        # The failure must be accumulated, not raised.
+        assert (
+            len(utils_module._demo_failures) > initial_failures
+        ), "Expected the coverage-wait timeout to be recorded in _demo_failures"
+
+
+# ---------------------------------------------------------------------------
+# Regression tests: Bug B — wait_for_event_type_in_ledger helper
+# (issue #1772)
+# ---------------------------------------------------------------------------
+
+
+class TestWaitForEventTypeInLedger:
+    """Regression: the close phase must wait for close_case to appear on the
+    authoritative actor before reading the tail index for replica coverage.
+
+    Without this wait, the tail excludes close_case (committed asynchronously
+    after the last RM.CLOSED); coverage 'succeeds' for the wrong tail; the
+    dump runs before close_case replicates; invariant harness fails.
+    """
+
+    def _make_entries(self, case_id: str, event_types: list[str]) -> dict:
+        return {
+            f"e{i}": {
+                "case_id": case_id,
+                "log_index": i,
+                "entry_hash": f"hash{i:04d}",
+                "event_type": et,
+            }
+            for i, et in enumerate(event_types)
+        }
+
+    def test_returns_when_event_type_present(self):
+        """Returns immediately when the target event_type is already in the log."""
+        case_id = "https://example.org/cases/bug-b-present"
+        client = MagicMock()
+        client.get.return_value = self._make_entries(
+            case_id, ["validate_report", "close_case"]
+        )
+
+        wait_for_event_type_in_ledger(
+            client=client,
+            case_id=case_id,
+            event_type="close_case",
+            timeout_seconds=1.0,
+        )
+        assert client.get.call_count >= 1
+
+    def test_raises_when_event_type_absent(self):
+        """Raises AssertionError when target event_type never appears."""
+        case_id = "https://example.org/cases/bug-b-absent"
+        client = MagicMock()
+        client.get.return_value = self._make_entries(
+            case_id,
+            ["validate_report", "add_participant_status_to_participant"],
+        )
+
+        with pytest.raises(AssertionError, match="close_case"):
+            wait_for_event_type_in_ledger(
+                client=client,
+                case_id=case_id,
+                event_type="close_case",
+                timeout_seconds=0.1,
+                poll_interval=0.05,
+            )
+
+    def test_ignores_entries_from_other_cases(self):
+        """Does not count close_case entries from other cases."""
+        case_id = "https://example.org/cases/bug-b-target"
+        other_case_id = "https://example.org/cases/bug-b-other"
+        client = MagicMock()
+        entries = self._make_entries(case_id, ["validate_report"])
+        other_entries = {
+            "other-e0": {
+                "case_id": other_case_id,
+                "log_index": 0,
+                "entry_hash": "hashOther",
+                "event_type": "close_case",
+            }
+        }
+        client.get.return_value = {**entries, **other_entries}
+
+        with pytest.raises(AssertionError, match="close_case"):
+            wait_for_event_type_in_ledger(
+                client=client,
+                case_id=case_id,
+                event_type="close_case",
+                timeout_seconds=0.1,
+                poll_interval=0.05,
+            )
+
+    def test_eventually_returns_when_event_arrives(self):
+        """Returns once the event_type appears after a few polls."""
+        case_id = "https://example.org/cases/bug-b-eventual"
+        call_count = 0
+        no_close_entries = {
+            "e0": {
+                "case_id": case_id,
+                "log_index": 0,
+                "entry_hash": "hash0000",
+                "event_type": "validate_report",
+            }
+        }
+        with_close_entries = {
+            **no_close_entries,
+            "e1": {
+                "case_id": case_id,
+                "log_index": 1,
+                "entry_hash": "hash0001",
+                "event_type": "close_case",
+            },
+        }
+
+        def _get_side_effect(path: str) -> dict:
+            nonlocal call_count
+            call_count += 1
+            if call_count < 3:
+                return no_close_entries
+            return with_close_entries
+
+        client = MagicMock()
+        client.get.side_effect = _get_side_effect
+
+        wait_for_event_type_in_ledger(
+            client=client,
+            case_id=case_id,
+            event_type="close_case",
+            timeout_seconds=5.0,
+            poll_interval=0.05,
+        )
+        assert call_count >= 3
