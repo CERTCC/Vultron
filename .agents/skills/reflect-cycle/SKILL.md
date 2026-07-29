@@ -23,7 +23,6 @@ skills so you do not have to remember the order or the hand-offs — but it is a
 >
 > - `learn` and `decision-audit` each run a `grill-me` interview and open their
 >   own docs-only PR.
-> - `plan-issue` (if reached) runs a `grill-me` interview.
 > - `review-priorities` is interactive per board change.
 >
 > Collapsing those gates into one unattended run would defeat their purpose.

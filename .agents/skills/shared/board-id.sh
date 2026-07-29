@@ -88,16 +88,32 @@ refresh_cache() {
   mv "$CACHE.tmp" "$CACHE"
 }
 
+# Refresh, but tolerate failure when a usable cache already exists: a stale
+# cache beats a hard exit (e.g. offline, or the committed cache aged past its
+# TTL). Only a missing-and-unfetchable cache is fatal.
+ensure_cache() {
+  if refresh_cache; then
+    return 0
+  fi
+  if [ -f "$CACHE" ]; then
+    echo "⚠️  board-id: refresh failed; using existing (possibly stale) cache." >&2
+    return 0
+  fi
+  return 2
+}
+
 # --- resolution --------------------------------------------------------------
 resolve() {
   local category="${1:-}" name="${2:-}"
   case "$category" in
     repo|project|schedule-field)
-      jq -er --arg k "$category" '.[$k] // empty' "$CACHE"
+      # No -e: a miss prints empty and still exits 0, so the caller can tell a
+      # valid-but-absent name (empty output) apart from a usage error (below).
+      jq -r --arg k "$category" '.[$k] // empty' "$CACHE"
       ;;
     schedule|issue-type)
       [ -n "$name" ] || { echo "❌ board-id: '$category' needs a name argument." >&2; return 1; }
-      jq -er --arg c "$category" --arg n "$name" '.[$c][$n] // empty' "$CACHE"
+      jq -r --arg c "$category" --arg n "$name" '.[$c][$n] // empty' "$CACHE"
       ;;
     *)
       echo "❌ board-id: unknown category '$category'." >&2
@@ -112,12 +128,18 @@ FORCE=0
 if [ "${1:-}" = "--refresh" ]; then FORCE=1; shift; fi
 
 if [ "${1:-}" = "--dump" ]; then
-  { [ "$FORCE" = 1 ] || ! cache_fresh; } && refresh_cache
+  { [ "$FORCE" = 1 ] || ! cache_fresh; } && ensure_cache
   cat "$CACHE"; exit 0
 fi
 
+# Bare `--refresh` with no category: refresh-only, then exit (args are optional).
+if [ "$FORCE" = 1 ] && [ -z "${1:-}" ]; then
+  ensure_cache && echo "board-id: cache refreshed." >&2
+  exit 0
+fi
+
 if [ "$FORCE" = 1 ] || ! cache_fresh; then
-  refresh_cache
+  ensure_cache
 fi
 
 # A cache miss on a valid-looking name may mean the board changed since last
@@ -126,7 +148,7 @@ if ! val=$(resolve "$@"); then
   exit 1
 fi
 if [ -z "$val" ]; then
-  refresh_cache
+  ensure_cache
   val=$(resolve "$@") || exit 1
   if [ -z "$val" ]; then
     echo "❌ board-id: no match for '$*' even after refresh." >&2
