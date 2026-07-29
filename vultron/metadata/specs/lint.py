@@ -28,8 +28,10 @@ from vultron.metadata.specs.schema import (
 _RATIONALE_WARN_CHARS = 500
 _ADR_REF_RE = re.compile(r"\bADR-(\d{4})\b")
 
-# MS-14: valid ADR status values (ADR-0041). "superseded by <link>" is matched
-# by prefix since it carries a target link.
+# MS-14: valid ADR status values (ADR-0043). A retired ADR uses bare
+# ``superseded`` with a separate ``superseded_by:`` frontmatter field (the
+# project convention, see notes/notes-frontmatter.md); the inline MADR form
+# ``superseded by <link>`` is also tolerated and matched by prefix below.
 _ADR_VALID_STATUSES = frozenset(
     {
         "proposed",
@@ -37,6 +39,7 @@ _ADR_VALID_STATUSES = frozenset(
         "accepted-provisional",
         "deprecated",
         "rejected",
+        "superseded",
     }
 )
 # MS-14-002: prose markers that mean the design is not yet validated. An ADR
@@ -81,8 +84,9 @@ def _check_adr_status(
 
     - **Hard (MS-14-001)**: every ADR (excluding template, index, and
       ``archived/``) MUST declare a non-empty status whose value is one of the
-      known values or ``superseded by <link>``. This is mechanical and has no
-      false positives.
+      known values (a retired ADR uses ``superseded`` with a separate
+      ``superseded_by:`` field, or the inline ``superseded by <link>`` form).
+      This is mechanical and has no false positives.
     - **Advisory (MS-14-002)**: an ADR whose prose carries a provisional marker
       SHOULD NOT be ``status: accepted``. This is a heuristic substring scan and
       can false-positive (e.g. an ADR that *discusses* provisional-ness), so it
@@ -108,15 +112,17 @@ def _check_adr_status(
         if not status:
             errors.append(
                 f"{name}: missing or empty 'status' frontmatter field "
-                f"(MS-14-001; see ADR-0041)"
+                f"(MS-14-001; see ADR-0043)"
             )
             continue
 
-        is_superseded = status.startswith("superseded by")
-        if status not in _ADR_VALID_STATUSES and not is_superseded:
+        is_superseded_inline = status.startswith("superseded by")
+        if status not in _ADR_VALID_STATUSES and not is_superseded_inline:
             errors.append(
                 f"{name}: invalid status '{status}' (MS-14-001); expected one "
-                f"of {sorted(_ADR_VALID_STATUSES)} or 'superseded by <link>'"
+                f"of {sorted(_ADR_VALID_STATUSES)} (a retired ADR uses "
+                f"'superseded' with a separate superseded_by: field, or the "
+                f"inline 'superseded by <link>' form)"
             )
             continue
 
@@ -130,7 +136,7 @@ def _check_adr_status(
                     f"[WARN] {name}: status is 'accepted' but prose contains "
                     f"provisional marker '{hit}' (MS-14-002); if the design is "
                     f"genuinely unvalidated use 'accepted-provisional' — else "
-                    f"this is a decision-audit candidate (see ADR-0041)"
+                    f"this is a decision-audit candidate (see ADR-0043)"
                 )
     return errors, warnings
 

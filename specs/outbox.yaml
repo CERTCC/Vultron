@@ -160,8 +160,8 @@ groups:
     rationale: >-
       Vultron direct messages use `to:` for primary recipients. The `cc:`/`bto:`/`bcc:`
       fields are reserved for a single exception: a CaseActor-originated activity
-      that adds the CaseActor's own ID to `cc:` so ASGI self-delivery routes the
-      activity through the CaseActor's received-side use case and the
+      that adds the CaseActor's own ID to `cc:` so HTTP loopback self-delivery
+      (OX-12-004) routes the activity through the CaseActor's received-side use case and the
       `GuardedCommitCaseLedgerEntryBT` fires in the correct inbox context
       (CLP-10-001). This purposeful self-copy MUST NOT trigger the WARNING. Any
       other use of `cc:`/`bto:`/`bcc:` is suspect and SHOULD be logged.
@@ -305,3 +305,56 @@ groups:
       rather than a silent no-op
     scope:
     - prototype
+- id: OX-12
+  title: Uniform HTTP Delivery
+  scope:
+  - prototype
+  - production
+  rationale: >-
+    Actors are independent, autonomous federated peers whose only knowledge of the
+    world comes from Activities received over their inbox (AKM-01). Delivering to a
+    co-located actor in-process (via the retired ASGIEmitter shortcut) made co-located
+    delivery behave differently from remote delivery, masking inter-actor delivery bugs
+    and giving false confidence in demos. All inter-actor delivery MUST behave as if
+    every recipient were remote. See ADR-0042; supersedes the ASGIEmitter design in
+    ARCH-17.
+  specs:
+  - id: OX-12-001
+    priority: MUST
+    kind: project
+    statement: >-
+      All inter-actor activity delivery MUST occur over the REST inbox/outbox HTTP API
+      (HTTP POST to {actor}/inbox/). Delivery to a co-located actor MUST use the same
+      HTTP path as delivery to a remote actor; there MUST NOT be an in-process delivery
+      shortcut that bypasses HTTP for same-server recipients.
+    relationships:
+    - rel_type: supersedes
+      spec_id: ARCH-17-001
+  - id: OX-12-002
+    priority: MUST
+    kind: project
+    statement: >-
+      The default production ActivityEmitter MUST be the HTTP delivery adapter. The
+      ASGIEmitter in-process delivery adapter MUST NOT be wired as the default emitter
+      and MUST be removed from the codebase.
+    relationships:
+    - rel_type: supersedes
+      spec_id: ARCH-17-002
+  - id: OX-12-003
+    priority: MUST
+    kind: project
+    statement: >-
+      Application code MUST NOT construct httpx.ASGITransport directly. The sole
+      exception is FastAPI's TestClient, which uses ASGITransport internally to drive a
+      single application's own endpoints and is not an inter-actor delivery mechanism.
+  - id: OX-12-004
+    priority: MUST
+    kind: project
+    statement: >-
+      CaseActor canonical-ledger self-delivery (adding the CaseActor's own URI to an
+      outbound activity's cc: field so a copy loops back to its own inbox for ledger
+      authoring) MUST be delivered over HTTP loopback to the CaseActor's own inbox,
+      using the same delivery path as every other recipient.
+    relationships:
+    - rel_type: refines
+      spec_id: OX-12-001

@@ -258,7 +258,9 @@ nav:
       - Replace Six-Kind Spec Taxonomy with Four-Tier Portability Hierarchy: 'adr/0038-four-tier-specification-taxonomy.md'
       - Offer Case Participant Role Wire Type: 'adr/0039-offer-case-participant-role-wire-type.md'
       - Introduce UseCaseResult Envelope: 'adr/0040-use-case-result-envelope.md'
-      - ADR Status as Confidence Signal: 'adr/0041-adr-status-as-confidence-signal.md'
+      - CaseActor-Authoritative Case Initialization: 'adr/0041-caseactor-authoritative-case-initialization.md'
+      - HTTP-Only Inter-Actor Delivery: 'adr/0042-http-only-inter-actor-delivery.md'
+      - ADR Status as Confidence Signal: 'adr/0043-adr-status-as-confidence-signal.md'
   - About:
     - Contributing: 'about/contributing.md'
     - FAQ: 'about/faq.md'

@@ -425,13 +425,13 @@ groups:
       agents (deepen-context weights ADR trust by it). A blank or non-standard
       status leaves agents to treat an unvalidated decision as settled fact.
       ADR-0024 shipped with a blank status; this rule prevents recurrence.
-      Enforced by spec-lint. See ADR-0041 and notes/specs-vs-adrs.md.
+      Enforced by spec-lint. See ADR-0043 and notes/specs-vs-adrs.md.
     relationships:
     - rel_type: derives_from
       spec_id: MS-11-004
       note: extends ADR/spec cross-referencing with a status-confidence rule
     adr:
-    - ADR-0041
+    - ADR-0043
     tags:
     - documentation
     - tooling
@@ -460,14 +460,28 @@ groups:
     statement: >-
       An ADR's placement in docs/adr/index.md (Accepted / Proposed / Rejected /
       Superseded-Archived sections) MUST agree with its own status field, and a
-      retired ADR (status deprecated or superseded) MUST reside in
-      docs/adr/archived/ and be listed only under the Superseded / Archived
-      section with a forward link to its replacement.
+      retired ADR (status deprecated or superseded) MUST be listed under the
+      Superseded / Archived section with a forward link to its replacement, not
+      under Accepted.
     rationale: >-
       Index-vs-frontmatter drift (ADR-0027 was listed provisional in the index
       while its file said accepted) misleads both humans and the agents that
-      read the index. Archiving retired ADRs keeps outdated decisions out of the
-      default docs/adr/ context sweep so agents must deliberately seek them.
+      read the index.
+    tags:
+    - documentation
+    - tooling
+  - id: MS-14-004
+    priority: SHOULD
+    kind: process
+    statement: >-
+      A newly-retired ADR (status deprecated or superseded) SHOULD be moved to
+      docs/adr/archived/ so it stays out of the default docs/adr/ context sweep;
+      ADRs retired before this convention MAY remain in place until next touched.
+    rationale: >-
+      Archiving retired ADRs keeps outdated decisions out of the default
+      docs/adr/ sweep so agents must deliberately seek them. Applied forward
+      (SHOULD, not a retroactive MUST) to avoid churn on already-superseded
+      ADRs that are still referenced by path. See ADR-0043.
     tags:
     - documentation
     - tooling

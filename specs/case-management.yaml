@@ -3,7 +3,7 @@ title: Case Management
 description: Requirements for VulnerabilityCase lifecycle management, CaseActor responsibilities, and the RM/EM/CS/VFD state
   model. Covers actor isolation at the protocol level, the distinction between participant-specific and participant-agnostic
   state, case initialization sequencing, embargo acceptance ownership, and the invitation acceptance lifecycle.
-version: 1.0.0
+version: 1.1.0
 scope:
 - prototype
 - production
@@ -460,6 +460,15 @@ groups:
     priority: MUST
     kind: protocol
     statement: A `VulnerabilityCase` MUST be created when an `Offer(Report)` activity is received by the vendor actor
+    note: >-
+      Superseded by CM-22-001 (ADR-0041): the vendor actor MUST NOT create the
+      `VulnerabilityCase` directly.  The vendor stores the report and waits for
+      `Create(VulnerabilityCase)` from the CaseActor.  CM-12-001 applies only in
+      single-actor deployments where the vendor IS the CaseActor.
+    relationships:
+    - rel_type: supersedes
+      spec_id: CM-22-001
+      note: CM-22-001 (ADR-0041) is the authoritative replacement for multi-actor deployments
   - id: CM-12-002
     priority: MUST
     kind: protocol
@@ -574,6 +583,12 @@ groups:
     rationale: Step 2 precedes step 3 so that the embargo is always created by a participant (the case owner). The Create(Case)
       notification in step 4 is flushed before the reporter is added in step 5 so the reporter's system receives the case
       object before any subsequent Announce(CaseLedgerEntry) fan-out that references it.
+    note: >-
+      Superseded by CM-22 (ADR-0041) for multi-actor deployments: in the
+      CaseActor-authoritative model the `VulnerabilityCase` is created by the
+      CaseActor (not the receiving vendor), so `attributed_to` is the CaseActor's
+      actor ID, not the receiving actor's.  CM-14-001 applies only in single-actor
+      deployments where the vendor IS the CaseActor.
     relationships:
     - rel_type: depends_on
       spec_id: CM-12-001
@@ -581,6 +596,9 @@ groups:
       spec_id: CM-12-002
     - rel_type: refines
       spec_id: CM-12-004
+    - rel_type: supersedes
+      spec_id: CM-22-001
+      note: CM-22-001 (ADR-0041) replaces the attributed_to=receiving_actor semantics for multi-actor deployments
   - id: CM-14-002
     priority: MUST
     kind: protocol
@@ -1061,3 +1079,79 @@ groups:
       spec_id: CM-21-002
     - rel_type: refines
       spec_id: CM-21-003
+- id: CM-22
+  title: CaseActor-Authoritative Case Creation
+  description: >-
+    Requirements on the CaseActor's obligations when accepting a CaseProposal,
+    per ADR-0041.  These replace the vendor-authored case-creation described in
+    ADR-0015 and govern how the CaseActor initializes CaseStatus, participants,
+    and embargo in its DataLayer before emitting `Create(VulnerabilityCase)`.
+  specs:
+  - id: CM-22-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CaseActor MUST create the `VulnerabilityCase` object in its own
+      DataLayer with `attributed_to` equal to the CaseActor's own actor ID when
+      accepting a `Create(as_CaseProposal)`.
+    rationale: >-
+      ADR-0041 supersedes ADR-0015.  `attributed_to` names the authoritative
+      creator of the case; only the CaseActor is the authoritative creator
+      (ADR-0023).  Assigning `attributed_to` to the vendor violates AS2
+      semantics and the chain-of-custody model in `chain.py`.
+    relationships:
+    - rel_type: implements
+      spec_id: CP-09-001
+  - id: CM-22-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      After creating the `VulnerabilityCase`, the CaseActor MUST create
+      `CaseParticipant` records for at minimum: (a) the receiver (vendor) with
+      `CVDRole.CASE_OWNER` and `RM.RECEIVED`, and (b) the reporter with
+      `RM.ACCEPTED`.  These records MUST be written before `Create(VulnerabilityCase)`
+      is emitted to the vendor.
+    rationale: >-
+      The `Create(VulnerabilityCase)` payload embeds participants inline so the
+      vendor's `CreateCaseReceivedUseCase._store_embedded_participants` can seed
+      its local replica.  Absent participant records at emission time produce an
+      empty replica and break role-guard checks (CP-09-002, CP-09-004).
+    relationships:
+    - rel_type: refines
+      spec_id: CM-22-001
+    - rel_type: implements
+      spec_id: CP-09-002
+  - id: CM-22-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CaseActor MUST commit all canonical ledger entries for case
+      initialization (`create_case`, `add_report_to_case`, participant-status
+      entries, `add_case_status_to_case`) natively in its own DataLayer.  These
+      entries MUST NOT be authored by the vendor and back-filled via
+      `WritePrologueLedgerEntriesNode` or any equivalent mechanism.
+    rationale: >-
+      `_validate_canonical_entry` in `chain.py` rejects entries where the
+      `actor_id` does not match `_CASE_AUTHORED_SIGNATURES`.  Vendor-authored
+      entries fail this check (the root cause of Issue #1767).  Native
+      CaseActor authorship is the only compliant path.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-22-001
+  - id: CM-22-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CaseActor MUST initialize the default embargo for the new case before
+      emitting `Create(VulnerabilityCase)` to the vendor.
+    rationale: >-
+      Embargo state is protocol-significant.  Deferring initialization to the
+      vendor or to a later message would produce a window in which
+      embargo-gated operations are undefined (ADR-0041, CP-09-003).  The
+      CaseActor holds the default embargo policy and is the only actor that
+      can initialize it authoritatively at case creation.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-22-001
+    - rel_type: implements
+      spec_id: CP-09-003

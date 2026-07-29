@@ -1,7 +1,8 @@
 ---
-status: accepted
+status: superseded
 date: 2026-04-28
 deciders: Vultron maintainers
+superseded_by: 0041-caseactor-authoritative-case-initialization.md
 ---
 
 # Create VulnerabilityCase at Report Receipt (RM.RECEIVED)

@@ -96,9 +96,11 @@ demo to exercise this path:
 3. Vendor invalidates report (RM:R→I) — "tentative rejection".
 4. Vendor later validates (RM:I→V) and engages — "reconsideration".
 
-Once #1221 is implemented, `ack_report` should be wired into
-`EXPECTED_EVENT_TYPES` in `test/ci/test_case_ledger_invariants.py` (currently
-excluded; see the comment at line 413 citing #1133).
+Once #1221 is implemented, `ack_report` should be wired into the per-scenario
+`_*_EXPECTED_EVENT_TYPES` tuples under `test/ci/invariants/` (e.g.
+`_FV_EXPECTED_EVENT_TYPES` in `test/ci/invariants/test_fv_invariants.py`,
+currently excluded; see the `test_invariant_5_expected_event_types_present`
+docstring citing #1133).
 
 See also: #1079 (multi-coordinator motivation from FIRSTCON 2026)
 

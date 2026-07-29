@@ -140,7 +140,7 @@ approves the correction and disposition.
 1. Create a task branch (`git checkout -b docs/decision-audit-<slug>`).
 2. Edit `docs/adr/NNNN-*.md`: reconcile `status:` per the decision tree in
    `notes/specs-vs-adrs.md`, correct the prose, and — if the decision is
-   retired — set `status: superseded by <link>` and move the file to
+   retired — set `status: superseded` with a `superseded_by:` field and move the file to
    `docs/adr/archived/` (see the ADR archive convention below).
 3. Amend dependent `specs/*.yaml` and `notes/*.md` so no dependent still
    asserts the bad premise.
@@ -175,7 +175,7 @@ decisions in the default `docs/adr/` sweep (`orient-agent` reads
 When archiving:
 
 - keep the original filename, move it under `docs/adr/archived/`;
-- set the file's `status: superseded by <link-to-replacement>` (or
+- set the file's `status: superseded` with a `superseded_by:` field (or
   `deprecated` with a rationale);
 - update `docs/adr/index.md`: remove it from the active list and add it under
   the **Superseded / Archived** section with a forward link to the replacement.

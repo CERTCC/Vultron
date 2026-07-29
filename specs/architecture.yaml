@@ -438,6 +438,11 @@ groups:
       spec_id: ARCH-04-001
 - id: ARCH-17
   title: ASGIEmitter Base URL
+  description: >-
+    SUPERSEDED by ADR-0042 / outbox.yaml OX-12. The ASGIEmitter in-process delivery
+    shortcut has been retired in favour of uniform HTTP delivery for all inter-actor
+    communication. These requirements are retained for historical traceability only and
+    no longer describe the delivery architecture; do not implement against them.
   specs:
   - id: ARCH-17-001
     priority: MUST

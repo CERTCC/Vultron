@@ -218,3 +218,30 @@ Use the fallback humanizer (`event_type.replace("_", " ")`) only for event
 types not in the registry (e.g., data from a future protocol version).
 
 <!-- Source: CONCERN-1675 -->
+
+---
+
+### Docker Compose Service Names Are Not Actor Names
+
+The service names in `docker/docker-compose-multi-actor.yml` (`vendor`,
+`coordinator`, `vendor2`, `case-actor`) were chosen to match the roles in the
+first demo scenarios and do not need to match the CVD actor roles housed
+within them. When designing a new multi-actor scenario:
+
+- The **service name** is a docker-compose routing label. Reuse existing
+  service names by remapping them to new semantic roles via `--env-file` or
+  environment variable overrides — there is no requirement that a service
+  named `vendor` contains a Vendor actor.
+- The **actor name** (`VULTRON_*_BASE_URL` env var bindings, actor IDs seeded
+  at startup) is the meaningful identity. Choose actor names to reflect their
+  CVD role in the scenario, not the docker service name.
+- Avoid adding new services just to get a new actor name. In multi-actor
+  scenarios (FCCV, FVCV-handoff), the existing four services are reused with
+  role-alias environment variable bindings; this keeps the CI service
+  startup count constant.
+
+**Future direction**: the service names may eventually be renamed to neutral
+labels (`actor1`–`actor4`) so the compose file is scenario-agnostic. Until
+then, use the existing services with role-alias bindings.
+
+<!-- Source: ISSUE-1216, plan/incoming/learnings/20260722-fccv-handoff-container-remapping.md -->

@@ -99,7 +99,7 @@ validated. Choose the value deliberately, not by habit.
 | `accepted` | Ratified **and** validated by implementation or review. | Build on it; do not re-litigate. |
 | `accepted-provisional` | Ratified as the current direction but **explicitly not yet validated** — expected to converge after N implementations. | Follow it, but treat its details as challengeable; refine the ADR if the pattern proves wrong. |
 | `deprecated` | No longer the recommended approach; not yet replaced. | Do not build on it; check for a successor. |
-| `superseded by <link>` | Replaced by a named later ADR. | Follow the successor; the file belongs in `docs/adr/archived/`. |
+| `superseded` (+ `superseded_by:` field) | Replaced by a named later ADR. | Follow the successor; newly-retired ADRs are moved to `docs/adr/archived/`. |
 | `rejected` | Considered and declined. | Do not implement; the record exists to prevent re-proposal. |
 
 **Decision tree — pick the status when writing or updating an ADR:**
@@ -109,7 +109,8 @@ validated. Choose the value deliberately, not by habit.
    YES → rejected.
 
 2. Has a later ADR replaced this one?
-   YES → superseded by <link to successor>. Move the file to docs/adr/archived/.
+   YES → status: superseded, plus a superseded_by: <successor filename> field.
+         Move newly-retired files to docs/adr/archived/ (see ADR-0043).
 
 3. Is the approach no longer recommended but not yet replaced?
    YES → deprecated.
@@ -134,7 +135,7 @@ MS-14). The `decision-audit` skill hunts for exactly this contradiction.
 > **Why a status value and not a separate `confidence` field?** We already have
 > a status field that agents read; a parallel confidence field would be one
 > more thing to keep in sync and one more source of drift. Expanding the status
-> vocabulary keeps a single source of truth. See ADR-0041.
+> vocabulary keeps a single source of truth. See ADR-0043.
 
 ## Cross-Referencing Pattern
 

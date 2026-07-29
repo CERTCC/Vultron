@@ -71,7 +71,7 @@ ENTRIES: list[SemanticEntry] = [
         pattern=CreateCaseProposalPattern,
         event_class=CreateCaseProposalReceivedEvent,
         use_case_class=CreateCaseProposalReceivedUseCase,
-        phrase="{actor} proposed a case to {target}",
+        phrase="{actor} proposed a new case",
         wire_activity_class=None,
         include_activity=True,
     ),

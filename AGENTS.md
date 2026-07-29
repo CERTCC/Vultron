@@ -445,6 +445,16 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   See BT-17-005.
 - **Staged-Type `model_validate` Only Works on Core-Constructed Objects** — don't
   use on `dl.read()` results; check pre-conditions directly on returned object.
+- **`freshen-branch.sh` Leaves Temp Branch on Conflict When Abort Silently Fails** —
+  If `git cherry-pick --abort` fails (partially-written cherry-pick state),
+  the `|| true` swallows the error but the following `git checkout "$TASK_BRANCH"`
+  fails with "you need to resolve your current index first" and the script exits,
+  leaving the repo on a `temp-freshen-*` branch with conflict markers.
+  Recovery: `git branch --show-current` (confirm `temp-freshen-*`), resolve
+  conflict markers, `git add <file>`, `git cherry-pick --continue --no-edit`,
+  then `git branch -f "$TASK_BRANCH" HEAD && git checkout "$TASK_BRANCH"`.
+  Use `manage_worktree.sh ensure-synced` in preference to the raw script.
+  See also ISSUE-1784 (tracking the script fix).
 - **`git rebase` "local changes would be overwritten" With a Clean Working Tree**
   — this error can be a false positive when the rebased branch diverges far from
   main and both sides touched the same files. Fix: cherry-pick onto a fresh branch

@@ -64,8 +64,6 @@ General information about architectural decision records is available at <https:
 - [ADR-0013 Unify RM State Tracking](0013-unify-rm-state-tracking.md)
 - [ADR-0014 Pin GitHub Actions to Full Commit SHAs with Version
   Comments](0014-sha-pin-github-actions.md)
-- [ADR-0015 Create VulnerabilityCase at Report Receipt
-  (RM.RECEIVED)](0015-create-case-at-report-receipt.md)
 - [ADR-0016 Replace TinyDB with SQLModel/SQLite DataLayer
   Adapter](0016-sqlmodel-sqlite-datalayer.md)
 - [ADR-0017 Domain/Wire Object Separation: Shared-Base, Two-Branch
@@ -111,8 +109,11 @@ General information about architectural decision records is available at <https:
   OFFER\_CASE\_OWNERSHIP\_TRANSFER via Dedicated Object Type](0039-offer-case-participant-role-wire-type.md)
 - [ADR-0040 Introduce UseCaseResult Envelope; Do Not Introduce
   UseCaseRequest](0040-use-case-result-envelope.md)
-- [ADR-0041 Use the ADR `status` Field as the Confidence Signal (Extend Its
-  Vocabulary Rather Than Add a New Field)](0041-adr-status-as-confidence-signal.md)
+- [ADR-0041 CaseActor-Authoritative Case Initialization](0041-caseactor-authoritative-case-initialization.md)
+- [ADR-0042 Deliver All Inter-Actor Communication over HTTP; Retire the
+  In-Process ASGI Delivery Shortcut](0042-http-only-inter-actor-delivery.md)
+- [ADR-0043 Use the ADR `status` Field as the Confidence Signal (Extend Its
+  Vocabulary Rather Than Add a New Field)](0043-adr-status-as-confidence-signal.md)
 
 ## Proposed ADRs
 
@@ -131,4 +132,5 @@ Retired ADRs (`status: deprecated` or `superseded by …`) are moved to
 `docs/adr/archived/` so they stay out of the default `docs/adr/` context sweep.
 Each is listed here with a forward link to its replacement.
 
-- none
+- [ADR-0015 Create VulnerabilityCase at Report Receipt
+  (RM.RECEIVED)](0015-create-case-at-report-receipt.md) — superseded by ADR-0041
