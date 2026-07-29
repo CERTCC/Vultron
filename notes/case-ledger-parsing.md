@@ -14,7 +14,7 @@ related_notes:
 relevant_packages:
   - vultron/core/behaviors/sync
   - vultron/demo/report.py
-  - test/ci/test_case_ledger_invariants.py
+  - test/ci/invariants/common.py
 ---
 
 # Case Ledger JSONL Parsing — State Extraction and Tolerant Parsing Patterns
@@ -70,8 +70,8 @@ snapshot root, then a per-dimension extractor that checks
 `{key: {"state": ...}}` first and falls back to each flat alias.
 
 This mirrors the defensive accessors already in
-`test/ci/test_case_ledger_invariants.py` (`_participant_status_identity_and_rm`,
-`_cs_observations_from_snap`) but generalises them for a single dimension.
+`test/ci/invariants/common.py` (`participant_status_identity_and_rm`,
+`cs_observations_from_snap`) but generalises them for a single dimension.
 
 ```python
 def _candidate_dicts(snap: dict) -> list[dict]:
@@ -145,7 +145,7 @@ This is captured in `specs/demo-report.yaml` DRPT-02-006.
 - `notes/case-ledger-authority.md` — ledger authority model and `payloadSnapshot` criteria
 - `specs/case-ledger-processing.yaml` CLP-07 — canonical entry criteria
 - `specs/demo-report.yaml` DRPT-02-006 — multi-case partitioning requirement
-- `test/ci/test_case_ledger_invariants.py` — existing defensive extraction helpers
+- `test/ci/invariants/common.py` — existing defensive extraction helpers
 - `vultron/demo/report.py` — reference implementation using this pattern
 
 *Sources: ISSUE-1307, PR-1604,

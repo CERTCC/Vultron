@@ -82,8 +82,6 @@ When updating specs per LEARN_prompt instructions:
 
 ---
 
----
-
 ### Valid `rel_type` Values in Spec Relationships
 
 When adding a `relationships:` entry to a spec requirement, `rel_type` MUST be
