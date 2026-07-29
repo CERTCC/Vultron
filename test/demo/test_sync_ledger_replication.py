@@ -36,7 +36,7 @@ from vultron.core.use_cases.received.sync import (
     RejectLedgerEntryReceivedUseCase,
 )
 from vultron.semantic_registry import extract_event
-from test.demo.conftest import _TestASGIRouter, create_isolated_actor_app
+from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
 from vultron.adapters.driving.fastapi.inbox_handler import (
     handle_inbox_item,
     inbox_handler,
@@ -99,8 +99,8 @@ def _make_log_entry(
 
 @pytest.fixture
 def two_app_setup() -> Iterator[tuple]:
-    """Create two isolated actor apps connected by ``_TestASGIRouter``."""
-    router = _TestASGIRouter()
+    """Create two isolated actor apps connected by ``_TestClientRouter``."""
+    router = _TestClientRouter()
     case_actor_iso = create_isolated_actor_app(
         base_url=_CASE_ACTOR_BASE, router=router
     )

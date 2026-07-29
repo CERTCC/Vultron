@@ -1219,9 +1219,9 @@ class TestDeliveryIsolation:
 
     These tests use two isolated FastAPI app instances (created via
     ``create_app()``) each with their own in-memory ``SqliteDataLayer``.
-    A ``_TestASGIRouter`` replaces each app's HTTP fallback emitter so that
-    outbound deliveries are routed to the correct ASGI app in-process rather
-    than making real HTTP requests.
+    A ``_TestClientRouter`` replaces each app's HTTP fallback emitter so that
+    outbound deliveries are routed to the correct actor's TestClient inbox
+    in-process rather than making real HTTP requests.
 
     Passing these tests confirms that:
     - Finder's DataLayer is empty before Vendor delivers via the outbox path.
@@ -1232,13 +1232,13 @@ class TestDeliveryIsolation:
 
     @pytest.fixture
     def delivery_setup(self):
-        """Two isolated actor apps wired with cross-app ASGI delivery."""
+        """Two isolated actor apps wired with cross-app TestClient delivery."""
         from test.demo.conftest import (
-            _TestASGIRouter,
+            _TestClientRouter,
             create_isolated_actor_app,
         )
 
-        router = _TestASGIRouter()
+        router = _TestClientRouter()
         finder_isolated = create_isolated_actor_app(
             base_url="http://finder.test",
             router=router,
@@ -1315,7 +1315,7 @@ class TestDeliveryIsolation:
         This is the core delivery-path test for #530.  Without the fix,
         Finder's DataLayer would remain empty because delivery was never
         exercised.  With the fix, the outbox→inbox chain runs in-process
-        via ``_TestASGIRouter`` and Finder's isolated DataLayer receives the
+        via ``_TestClientRouter`` and Finder's isolated DataLayer receives the
         case announcement.
         """
         import types
@@ -1407,7 +1407,7 @@ class TestDeliveryIsolation:
         ), "Expected as_VulnerabilityCase on Vendor after validate-report"
 
         # The case announcement should have been delivered to Finder's inbox
-        # via the outbox→_TestASGIRouter→inbox chain.  Finder's isolated
+        # via the outbox→_TestClientRouter→inbox chain.  Finder's isolated
         # DataLayer must contain the case.
         finder_case = finder_isolated.dl.read(case.id_)
         assert finder_case is not None, (

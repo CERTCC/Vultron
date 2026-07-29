@@ -27,7 +27,7 @@ AC-1 tests (``TestBootstrapSequence.test_announce_creates_case_replica`` and
 separate owner app creates a case by processing a submitted report and then
 validates it.  Validation triggers the CaseActor to emit
 ``Announce(as_VulnerabilityCase)`` via the outbox, which is routed to the
-participant app via ``_TestASGIRouter``.  This exercises the full
+participant app via ``_TestClientRouter``.  This exercises the full
 create-case → emit-Announce path, catching regressions where case creation
 no longer sends the announcement (PCR-07-006).
 
@@ -39,7 +39,7 @@ the handler's side effect (note appended to ``replica.notes``).
 
 import pytest
 
-from test.demo.conftest import _TestASGIRouter, create_isolated_actor_app
+from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.wire.as2.factories import (
     add_note_to_case_activity,
@@ -83,13 +83,13 @@ def participant_setup():
 
     The case replica is seeded directly via a hand-crafted
     ``Announce(as_VulnerabilityCase)`` (fast, sufficient for routing coverage).
-    The ``_TestASGIRouter`` is wired as the ASGI emitter fallback so that any
+    The ``_TestClientRouter`` is wired as the ASGI emitter fallback so that any
     outbound deliveries from the participant stay in-process.
 
     Yields:
         Tuple of (IsolatedActorApp, TestClient).
     """
-    router = _TestASGIRouter()
+    router = _TestClientRouter()
     participant_isolated = create_isolated_actor_app(
         base_url=_PARTICIPANT_BASE,
         router=router,
@@ -107,19 +107,19 @@ def two_app_setup():
     """Owner app + participant app wired for end-to-end bootstrap delivery.
 
     Uses two isolated FastAPI app instances each with their own in-memory
-    ``SqliteDataLayer``.  A shared ``_TestASGIRouter`` routes outbound
+    ``SqliteDataLayer``.  A shared ``_TestClientRouter`` routes outbound
     deliveries between the apps in-process so the full
     outbox → inbox → inbox-handler chain is exercised.
 
     Lifecycle:
       1. Enters both TestClient contexts (triggers lifespan startup).
       2. Replaces each app's ``ASGIEmitter._http_fallback`` with the shared
-         router so cross-app deliveries use ASGI transport instead of real
-         HTTP.
+         router so cross-app deliveries POST to each target TestClient inbox
+         instead of real HTTP.
       3. Configures the module-level ``_default_emitter`` to the shared
          router so that trigger-endpoint ``outbox_handler`` calls (which
-         don't pass an explicit emitter) route through ASGI instead of
-         making real HTTP requests via ``DemoHttpDeliveryAdapter``.
+         don't pass an explicit emitter) POST to each target TestClient inbox
+         instead of making real HTTP requests via ``DemoHttpDeliveryAdapter``.
       4. Registers the config-default base_url with the router pointing to
          the owner's app so that deliveries to the CaseActor (whose ID uses
          the config base_url) are routed correctly.
@@ -135,7 +135,7 @@ def two_app_setup():
     )
     from vultron.config import get_config
 
-    router = _TestASGIRouter()
+    router = _TestClientRouter()
     owner_iso = create_isolated_actor_app(
         base_url=_OWNER_BASE,
         router=router,
@@ -147,9 +147,9 @@ def two_app_setup():
 
     # Register the config-default base_url (e.g. http://localhost:7999) with
     # the router so that deliveries to CaseActor IDs (which use this URL)
-    # are routed to the owner's app via ASGI.
+    # are routed to the owner's TestClient inbox.
     config_base_url = get_config().server.base_url.rstrip("/")
-    router.register(config_base_url, owner_iso.app)
+    router.register(config_base_url, owner_iso.client)
 
     # Save and replace the module-level default emitter so outbox_handler
     # calls from trigger endpoints use the router instead of
@@ -225,7 +225,7 @@ def _bootstrap_case_for_participant(
     2. Owner validates the report (``trigger/validate-report``), which
        triggers the ``create_validate_report_tree`` BT and causes the
        CaseActor to emit ``Announce(as_VulnerabilityCase)`` to participant.
-    3. The Announce is delivered via the outbox → ``_TestASGIRouter`` →
+    3. The Announce is delivered via the outbox → ``_TestClientRouter`` →
        participant inbox chain.
     4. Participant's inbox handler processes the ``Announce``.
 
@@ -286,7 +286,7 @@ def _bootstrap_case_for_participant(
 
     # Owner validates the report: this triggers the validate-report BT
     # and causes the CaseActor to emit Announce(as_VulnerabilityCase) to
-    # participant via the outbox → _TestASGIRouter → inbox chain.
+    # participant via the outbox → _TestClientRouter → inbox chain.
     resp = owner_tc.post(
         f"/api/v2/actors/{_actor_slug(owner_actor_id)}"
         "/trigger/validate-report",

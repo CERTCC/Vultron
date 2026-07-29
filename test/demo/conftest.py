@@ -13,13 +13,14 @@
 
 """Shared fixtures and helpers for demo tests."""
 
+import functools
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
 
 import logging
 
-import httpx2 as httpx
+import anyio.to_thread
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
 from fastapi import FastAPI
@@ -76,31 +77,44 @@ class _NullDeliveryAdapter:
         )
 
 
-class _TestASGIRouter:
+class _TestClientRouter:
     """Cross-app delivery adapter for isolated multi-actor test setups.
 
-    Routes outbound activity delivery to the correct ASGI app based on
-    the recipient actor's base URL.  Replace each actor app's
-    ``ASGIEmitter._http_fallback`` with a shared instance of this class so
-    that when Actor A cannot deliver locally (the recipient is on Actor B's
-    app), the delivery is forwarded to Actor B's ASGI app via
-    ``httpx.ASGITransport`` instead of making a real HTTP request.
+    Routes outbound activity delivery to the correct actor app based on the
+    recipient's base URL, POSTing to that app's :class:`TestClient` inbox
+    endpoint.  Replace each actor app's ``ASGIEmitter._http_fallback`` (and,
+    via ``configure_default_emitter``, the module-level default emitter) with a
+    shared instance of this class so that when Actor A delivers to a recipient
+    hosted on Actor B's app, the activity is routed to Actor B's
+    ``TestClient`` — the only sanctioned in-process transport (ADR-0042,
+    ``outbox.yaml`` OX-12-003) — instead of a hand-rolled
+    ``httpx.ASGITransport`` or a real HTTP request.
 
-    Use :meth:`register` to map base URLs to their ASGI apps before
-    entering the TestClient context.
+    Use :meth:`register` to map base URLs to their ``TestClient`` instances
+    after entering each client's context (the ``TestClient`` must be entered so
+    its portal is live before any delivery is routed to it).
+
+    .. note::
+
+       ``emit()`` runs inside a FastAPI ``BackgroundTask`` on the *sending*
+       app's ``TestClient`` portal event loop.  The target ``TestClient.post``
+       call is blocking and drives the target app on its own portal thread, so
+       it is dispatched via :func:`anyio.to_thread.run_sync` to avoid blocking
+       (and, for CaseActor ``cc:``-to-self loopback delivery where sender and
+       target share one portal, deadlocking) the calling event loop.
     """
 
     def __init__(self) -> None:
-        self._apps: dict[str, "FastAPI"] = {}
+        self._clients: dict[str, "TestClient"] = {}
 
-    def register(self, base_url: str, app: "FastAPI") -> None:
-        """Register *app* as the delivery target for *base_url*."""
-        self._apps[base_url.rstrip("/")] = app
+    def register(self, base_url: str, client: "TestClient") -> None:
+        """Register *client* as the delivery target for *base_url*."""
+        self._clients[base_url.rstrip("/")] = client
 
     async def emit(
         self, activity: VultronActivity, recipients: list[str]
     ) -> None:
-        """Deliver *activity* to each recipient via the registered ASGI app."""
+        """Deliver *activity* to each recipient via the registered client."""
         # serialize_as_any=True mirrors the production emitters (ASGIEmitter /
         # DemoHttpDeliveryAdapter) so inline nested-object subtype fields
         # (e.g. a CaseLedgerEntry's case_id/event_type) survive the wire hop
@@ -112,10 +126,10 @@ class _TestASGIRouter:
         for recipient_id in recipients:
             parsed = urlparse(recipient_id.rstrip("/") + "/inbox/")
             base = f"{parsed.scheme}://{parsed.netloc}"
-            app = self._apps.get(base)
-            if app is None:
+            client = self._clients.get(base)
+            if client is None:
                 logger.debug(
-                    "_TestASGIRouter: no app registered for %s,"
+                    "_TestClientRouter: no client registered for %s,"
                     " dropping delivery to %s",
                     base,
                     recipient_id,
@@ -123,25 +137,25 @@ class _TestASGIRouter:
                 continue
             inbox_path = parsed.path
             try:
-                transport = httpx.ASGITransport(app=app)  # type: ignore[arg-type]
-                async with httpx.AsyncClient(
-                    transport=transport, base_url=base
-                ) as client:
-                    response = await client.post(
-                        inbox_path,
-                        content=json_body,
-                        headers={"Content-Type": "application/json"},
-                        timeout=10.0,
-                    )
-                    response.raise_for_status()
-                    logger.info(
-                        "_TestASGIRouter: delivered to %s (HTTP %s)",
-                        inbox_path,
-                        response.status_code,
-                    )
+                # TestClient.post is blocking and drives the target app on its
+                # own portal thread; run it off the calling event loop so a
+                # loopback delivery (sender == target) cannot deadlock.
+                post = functools.partial(
+                    client.post,
+                    inbox_path,
+                    content=json_body,
+                    headers={"Content-Type": "application/json"},
+                )
+                response = await anyio.to_thread.run_sync(post)
+                response.raise_for_status()
+                logger.info(
+                    "_TestClientRouter: delivered to %s (HTTP %s)",
+                    inbox_path,
+                    response.status_code,
+                )
             except Exception as exc:
                 logger.warning(
-                    "_TestASGIRouter: delivery to %s failed: %s",
+                    "_TestClientRouter: delivery to %s failed: %s",
                     inbox_path,
                     exc,
                 )
@@ -172,24 +186,29 @@ class IsolatedActorApp:
 
 def create_isolated_actor_app(
     base_url: str,
-    router: "_TestASGIRouter",
+    router: "_TestClientRouter",
 ) -> "IsolatedActorApp":
     """Create an isolated FastAPI app for a single actor in tests.
 
     Creates a fresh :class:`FastAPI` application via :func:`create_app`,
     injects an in-memory :class:`SqliteDataLayer` via ``dependency_overrides``,
-    and wires a :class:`_TestASGIRouter` as the ``ASGIEmitter`` HTTP fallback
-    so that deliveries to other actors are routed to their registered ASGI apps
-    instead of making real HTTP requests.
+    and wires a :class:`_TestClientRouter` as the ``ASGIEmitter`` HTTP fallback
+    so that deliveries to other actors are routed to their registered
+    ``TestClient`` inboxes instead of making real HTTP requests.
 
     The ``ASGIEmitter`` is stored on ``app.state.emitter`` during the lifespan
     startup.  After ``TestClient.__enter__`` fires, the emitter's
-    ``_http_fallback`` is replaced with the shared ``_TestASGIRouter``.
+    ``_http_fallback`` is replaced with the shared ``_TestClientRouter``.
+
+    The actor's ``TestClient`` is registered with *router* under *base_url*.
+    The client reference is stable, but callers MUST enter its context
+    (``with iso.client``) before any delivery is routed to it so its portal is
+    live.
 
     Args:
         base_url: Base URL for this actor (e.g. ``"http://finder.test"``).
             Actor IDs will use this as their URL prefix.
-        router: Shared :class:`_TestASGIRouter` instance that both apps
+        router: Shared :class:`_TestClientRouter` instance that all apps
             register with so cross-app deliveries are routed correctly.
 
     Returns:
@@ -199,9 +218,9 @@ def create_isolated_actor_app(
     isolated_dl = SqliteDataLayer(db_url="sqlite:///:memory:")
     app = create_app(docs_url=None, openapi_url=None)
     app.dependency_overrides[get_shared_dl] = lambda: isolated_dl
-    router.register(base_url, app)
     # TestClient is not yet entered; the caller drives the lifecycle.
     client = TestClient(app, base_url=base_url)
+    router.register(base_url, client)
     return IsolatedActorApp(
         app=app, client=client, dl=isolated_dl, base_url=base_url
     )

@@ -28,7 +28,7 @@ Coverage
   wrapped by ``test_case_proposal_demo`` below.
 
 These tests use two isolated FastAPI apps (vendor + reporter) wired via a
-shared ``_TestASGIRouter`` so that all outbound deliveries route in-process
+shared ``_TestClientRouter`` so that all outbound deliveries route in-process
 without real HTTP.  They are auto-marked as ``@pytest.mark.integration``
 by the conftest hook in ``test/demo/``.
 
@@ -45,7 +45,7 @@ When the vendor's inbox receives ``SubmitReport`` from the reporter,
 3. Queues the activity to the vendor's outbox via ``record_outbox_item``.
 
 ``UpdateActorOutbox`` then flushes the vendor's outbox.  The
-``_TestASGIRouter`` routes the delivery to the case-actor's inbox on the
+``_TestClientRouter`` routes the delivery to the case-actor's inbox on the
 same app (single-app setup: the case-actor and vendor actor share one
 FastAPI instance backed by the same DataLayer).
 
@@ -75,7 +75,7 @@ import pytest
 from _pytest.monkeypatch import MonkeyPatch
 
 from test.demo._helpers import make_testclient_call
-from test.demo.conftest import _TestASGIRouter, create_isolated_actor_app
+from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -137,13 +137,13 @@ def two_app_setup(monkeypatch):
     """Vendor app + reporter app wired for end-to-end CaseProposal delivery.
 
     Uses two isolated FastAPI apps each with their own in-memory
-    ``SqliteDataLayer``.  A shared ``_TestASGIRouter`` routes outbound
+    ``SqliteDataLayer``.  A shared ``_TestClientRouter`` routes outbound
     deliveries in-process so the full outbox → inbox → handler chain is
     exercised without real HTTP.
 
     The ``VULTRON_SERVER__BASE_URL`` is patched to ``{_VENDOR_BASE}/api/v2``
     so that ``CreateCaseActorNode`` builds the CaseActor ID using a
-    routable base URL — the ``_TestASGIRouter`` maps this base URL to the
+    routable base URL — the ``_TestClientRouter`` maps this base URL to the
     vendor's ASGI app.
 
     Yields:
@@ -164,7 +164,7 @@ def two_app_setup(monkeypatch):
     )
     reload_config()
 
-    router = _TestASGIRouter()
+    router = _TestClientRouter()
     vendor_iso = create_isolated_actor_app(
         base_url=_VENDOR_BASE, router=router
     )
@@ -175,7 +175,7 @@ def two_app_setup(monkeypatch):
     # Register the configured base URL so CaseActor deliveries route to
     # the vendor app (CreateCaseActorNode builds IDs from the config URL).
     config_base_url = get_config().server.base_url.rstrip("/")
-    router.register(config_base_url, vendor_iso.app)
+    router.register(config_base_url, vendor_iso.client)
 
     previous_emitter = get_default_emitter()
     configure_default_emitter(router)  # type: ignore[arg-type]

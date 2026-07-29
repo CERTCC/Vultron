@@ -40,7 +40,7 @@ import asyncio
 
 import pytest
 
-from test.demo.conftest import _TestASGIRouter, create_isolated_actor_app
+from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
@@ -65,7 +65,7 @@ def two_app_setup(monkeypatch):
     """Owner app + reporter app wired for end-to-end delivery.
 
     Uses two isolated FastAPI app instances each with their own in-memory
-    ``SqliteDataLayer``.  A shared ``_TestASGIRouter`` routes outbound
+    ``SqliteDataLayer``.  A shared ``_TestClientRouter`` routes outbound
     deliveries between the apps in-process so the full
     outbox → inbox → inbox-handler chain is exercised without real HTTP.
 
@@ -77,10 +77,10 @@ def two_app_setup(monkeypatch):
          prefix and therefore gets a 404 from the owner's ASGI app).
       2. Enters both TestClient contexts (triggers lifespan startup).
       3. Replaces each app's ``ASGIEmitter._http_fallback`` with the shared
-         router so cross-app deliveries use ASGI transport.
+         router so cross-app deliveries POST to each target TestClient inbox.
       4. Configures the module-level ``_default_emitter`` to the shared
-         router so trigger-endpoint ``outbox_handler`` calls route through
-         ASGI instead of making real HTTP requests.
+         router so trigger-endpoint ``outbox_handler`` calls POST to each
+         target TestClient inbox instead of making real HTTP requests.
       5. Registers the patched base URL with the router pointing to the
          owner's app so that CaseActor deliveries are routed correctly.
 
@@ -107,14 +107,14 @@ def two_app_setup(monkeypatch):
     )
     reload_config()
 
-    router = _TestASGIRouter()
+    router = _TestClientRouter()
     owner_iso = create_isolated_actor_app(base_url=_OWNER_BASE, router=router)
     reporter_iso = create_isolated_actor_app(
         base_url=_REPORTER_BASE, router=router
     )
 
     config_base_url = get_config().server.base_url.rstrip("/")
-    router.register(config_base_url, owner_iso.app)
+    router.register(config_base_url, owner_iso.client)
 
     previous_emitter = get_default_emitter()
     configure_default_emitter(router)  # type: ignore[arg-type]
@@ -307,7 +307,7 @@ class TestEngageCaseParticipantExpansion:
 
     Exercises the full ``engage-case`` trigger → outbox delivery →
     ``EngageCaseReceivedUseCase`` path using real DataLayer instances and
-    real ASGI transport between apps.  No use-cases, DataLayer methods, or
+    the TestClient router between apps.  No use-cases, DataLayer methods, or
     outbox handler functions are mocked.
 
     AC-1: Reporter's DataLayer contains the owner's CaseParticipant record
