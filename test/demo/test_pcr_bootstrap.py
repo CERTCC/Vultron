@@ -298,15 +298,16 @@ def _bootstrap_case_for_participant(
     # when Create(as_CaseProposal) is processed; trigger/create-case above
     # may add a second case — find by report_id to avoid ambiguity.
     case_from_proposal = owner_iso.dl.find_case_by_report_id(report.id_)
+    case_id: str
     if case_from_proposal is not None:
-        case_id = case_from_proposal.id_
+        case_id = str(case_from_proposal.id_)
     else:
         all_cases = owner_iso.dl.get_all("VulnerabilityCase")
         assert len(all_cases) >= 1, (
             "Expected at least one as_VulnerabilityCase in owner's DataLayer "
             "after trigger/create-case, but none was found."
         )
-        case_id = all_cases[0]["id_"]
+        case_id = str(all_cases[0]["id_"])
 
     # Owner validates the report: this triggers the validate-report BT
     # and causes the CaseActor to emit Announce(as_VulnerabilityCase) to

@@ -274,15 +274,16 @@ def _bootstrap_and_engage(
     # VulnerabilityCase created by trigger/create-case above (ADR-0041 flow
     # also creates one via case_proposal_received_tree).
     case_from_proposal = owner_iso.dl.find_case_by_report_id(report.id_)
+    case_id: str
     if case_from_proposal is not None:
-        case_id = case_from_proposal.id_
+        case_id = str(case_from_proposal.id_)
     else:
         all_cases = owner_iso.dl.get_all("VulnerabilityCase")
         assert len(all_cases) >= 1, (
             "Expected at least one VulnerabilityCase in owner's DataLayer "
             "after trigger/create-case."
         )
-        case_id = all_cases[0]["id_"]
+        case_id = str(all_cases[0]["id_"])
 
     # In this test the owner acts as the CaseActor.  Register that identity
     # in the VultronReportCaseLink so _find_case_actor_id resolves correctly.

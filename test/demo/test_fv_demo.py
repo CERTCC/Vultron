@@ -138,7 +138,7 @@ def _find_case_for_report(
         for r in reports:
             r_id = r if isinstance(r, str) else (r.get("id_") or r.get("id"))
             if r_id == report_id:
-                return cid
+                return str(cid)
     return None
 
 
