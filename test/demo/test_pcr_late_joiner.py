@@ -58,7 +58,7 @@ import asyncio
 
 import pytest
 
-from test.demo.conftest import _TestASGIRouter, create_isolated_actor_app
+from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
@@ -84,7 +84,7 @@ def three_app_setup(monkeypatch):
     """Owner app + reporter app + late-joiner app wired for end-to-end delivery.
 
     Uses three isolated FastAPI app instances each with their own in-memory
-    ``SqliteDataLayer``.  A shared ``_TestASGIRouter`` routes outbound
+    ``SqliteDataLayer``.  A shared ``_TestClientRouter`` routes outbound
     deliveries between the apps in-process so the full
     outbox → inbox → inbox-handler chain is exercised without real HTTP.
 
@@ -97,10 +97,10 @@ def three_app_setup(monkeypatch):
          app (its routes are at ``/api/v2/actors/…``).
       2. Enters all three TestClient contexts (triggers lifespan startup).
       3. Replaces each app's ``ASGIEmitter._http_fallback`` with the shared
-         router so cross-app deliveries use ASGI transport.
+         router so cross-app deliveries POST to each target TestClient inbox.
       4. Configures the module-level ``_default_emitter`` to the shared
-         router so trigger-endpoint ``outbox_handler`` calls route through
-         ASGI instead of making real HTTP requests.
+         router so trigger-endpoint ``outbox_handler`` calls POST to each
+         target TestClient inbox instead of making real HTTP requests.
       5. Registers the patched ``base_url`` with the router pointing to the
          owner's app so that CaseActor deliveries are routed correctly.
       6. Yields the three ``IsolatedActorApp`` instances and their clients.
@@ -131,7 +131,7 @@ def three_app_setup(monkeypatch):
     )
     reload_config()
 
-    router = _TestASGIRouter()
+    router = _TestClientRouter()
     owner_iso = create_isolated_actor_app(base_url=_OWNER_BASE, router=router)
     reporter_iso = create_isolated_actor_app(
         base_url=_REPORTER_BASE, router=router
@@ -144,7 +144,7 @@ def three_app_setup(monkeypatch):
     # (whose IDs now use http://owner-late-joiner.test/api/v2) route to
     # the owner's ASGI app.
     config_base_url = get_config().server.base_url.rstrip("/")
-    router.register(config_base_url, owner_iso.app)
+    router.register(config_base_url, owner_iso.client)
 
     # Save and replace the module-level default emitter so outbox_handler
     # calls from trigger endpoints use the router instead of
@@ -325,8 +325,8 @@ def _drain_case_actor_outbox(owner_iso, case_actor_id: str) -> None:
     Uses the real ``outbox_handler`` (the same code path as a trigger
     endpoint) so that recipient extraction, ``to:`` field validation
     (OX-08-001), and emitter routing are all exercised end-to-end.  The
-    configured default emitter (the shared ``_TestASGIRouter``) routes the
-    ``Announce`` to the late-joiner's app via ASGI.
+    configured default emitter (the shared ``_TestClientRouter``) routes the
+    ``Announce`` to the late-joiner's app via its TestClient inbox.
 
     Args:
         owner_iso: Owner's ``IsolatedActorApp`` (contains the CaseActor's
@@ -443,7 +443,7 @@ def _run_late_joiner_sequence(
 
     # Step 6: drain CaseActor's outbox via real outbox_handler
     # Announce(VulnerabilityCase) is routed to late-joiner via the
-    # configured default emitter (_TestASGIRouter).
+    # configured default emitter (_TestClientRouter).
     _drain_case_actor_outbox(owner_iso, case_actor_id)
 
     return case_id, lj_actor_id

@@ -116,8 +116,11 @@ CI failures: see [`notes/demo-ci-diagnostics.md`](../notes/demo-ci-diagnostics.m
 
 ### Happy-Path (SYNC-901)
 
-Use two isolated `create_isolated_actor_app` instances + shared `_TestASGIRouter`
-as emitter fallback. Each app has its own actor-scoped `DataLayer`. Use
+Use two isolated `create_isolated_actor_app` instances + shared
+`_TestClientRouter` as emitter fallback. The router POSTs cross-actor
+deliveries to each target app's `TestClient` inbox (the only sanctioned
+in-process transport per ADR-0042 / OX-12-003 — no hand-rolled
+`httpx.ASGITransport`). Each app has its own actor-scoped `DataLayer`. Use
 `post_actor_inbox` for inbound activities.
 
 ### Predecessor-Mismatch (SYNC-902)
