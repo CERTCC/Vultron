@@ -14,93 +14,45 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 """
-Receive-report case-creation behavior tree composition.
+Receive-report case-proposal behavior tree composition (ADR-0041).
 
-This module composes the workflow for creating a ``VulnerabilityCase`` at
-report receipt (RM.RECEIVED), as mandated by ADR-0015.  It is intended to
-replace the inline case-creation sequence currently embedded in the
-``ValidateReportBT`` (validate_tree.py) and to be invoked by
-``SubmitReportReceivedUseCase`` as soon as the vendor receives the report.
+This module composes the vendor-side workflow that runs when a vendor receives
+a vulnerability report (RM.RECEIVED).  Per ADR-0041 the vendor MUST NOT create
+a ``VulnerabilityCase`` locally; instead it:
 
-The tree is structurally similar to the ValidationActions subsequence of
-``ValidateReportBT`` but differs in two important ways:
+1. Writes a pending ``VultronReportCaseLink`` marker recording the expected
+   CaseActor that will send ``Create(VulnerabilityCase)`` in response.
+2. Sends ``Create(as_CaseProposal)`` to the CaseActor service so the CaseActor
+   can create the canonical case and respond with ``Create(VulnerabilityCase)``.
 
-1. No ``TransitionRMtoValid`` — this tree runs at RM.RECEIVED, not RM.VALID.
-2. The vendor (receiver) participant is seeded at ``RM.RECEIVED``
-   (``initial_rm_state=RM.RECEIVED``) rather than ``RM.VALID``.
+The local ``VulnerabilityCase`` replica is seeded later by
+``CreateCaseReceivedUseCase`` when ``Create(VulnerabilityCase)`` arrives from
+the CaseActor — see ``vultron/core/use_cases/received/case/create.py``.
 
-Structure (CM-14 canonical order):
+Structure (ADR-0041):
 
     ReceiveReportCaseBT (Sequence)
-    ├─ CheckAutoCaseCreationEnabledNode  # Gate on auto_create_case policy
+    ├─ CheckAutoCaseCreationEnabledNode       # Gate on auto_create_case policy
     └─ ReceiveReportCaseSelector (Selector)
-       ├─ CheckCaseExistsForReport          # Early exit if case already created
-       └─ ReceiveReportCaseFlow (Sequence)
-          ├─ CreateCaseNode                 # Create VulnerabilityCase; write case_id
-          ├─ CreateCaseOwnerParticipant     # Receiver participant (RM.RECEIVED)
-          ├─ InitializeDefaultEmbargoNode   # Create default embargo; seed owner SIGNATORY
-          ├─ CreateCaseActivity             # Queue Create(Case) BEFORE reporter add
-          ├─ UpdateActorOutbox              # Flush Create(Case) to outbox
-          ├─ CreateCaseParticipantNode      # Reporter participant (RM.ACCEPTED); seed SIGNATORY
-          ├─ CreateCaseActorNode            # Spawn Case Actor; write case_actor_id
-          ├─ ProposeCaseToActorNode         # Send Create(as_CaseProposal) to Case Actor
-          ├─ SendOfferCaseManagerRoleNode   # Offer CASE_MANAGER role to Case Actor
-          └─ UpdateActorOutbox (Offer)      # Flush Offer+Proposal to outbox
+       ├─ CheckPendingProposalExistsForReport # Early exit if proposal already sent
+       └─ ReceiveReportProposalFlow (Sequence)
+          ├─ WritePendingReportCaseLinkNode   # VultronReportCaseLink(case_id=None)
+          └─ ProposeReportCaseToActorNode     # Create(as_CaseProposal) → CaseActor
 
-Note: No canonical ledger commit happens here.  The vendor actor is not the
-CaseActor and MUST NOT commit canonical case-ledger entries.  The CaseActor
-commits its initialization entry when it receives and accepts the
-``Offer(CaseManagerRole)`` — see ``OfferCaseManagerRoleReceivedUseCase``.
-
-Note: ``CreateCaseActivity`` and ``UpdateActorOutbox`` are intentionally placed
-*before* ``CreateCaseParticipantNode``.  This ensures that the reporter
-receives the ``Create(Case)`` notification before the ``Add(CaseParticipant)``
-notification.  If the two activities were queued in the opposite order, the
-reporter would receive an ``Add(CaseParticipant)`` for a case it has not yet
-seen, triggering "case not found" warnings on the reporter side.
-
-Note: ``CreateCaseOwnerParticipant`` MUST run before
-``InitializeDefaultEmbargoNode`` (CM-14-002): the embargo requires at least
-one participant (the owner) to exist in the case before it is activated.
-``InitializeDefaultEmbargoNode`` seeds the owner participant as
-``PEC.SIGNATORY`` (CM-14-003).  ``CreateCaseParticipantNode`` seeds any
-subsequently added participant as ``PEC.SIGNATORY`` when an active embargo
-already exists (CM-14-005).
-
-Per specs/case-management.yaml CM-12, CM-14 (ADR-0015) and
-docs/adr/0015-create-case-at-report-receipt.md.
+Per ADR-0041 and specs/case-proposal.yaml CP-04-001, CP-04-002.
 """
 
 import logging
 
 import py_trees
 
-from vultron.core.behaviors.case.case_setup_tree import (
-    CreateCaseActorNode,
-)
-from vultron.core.behaviors.case.participant_tree import (
-    CreateCaseOwnerParticipant,
-    CreateCaseParticipantNode,
-)
-from vultron.core.behaviors.case.communication_tree import (
-    SendOfferCaseManagerRoleNode,
-)
-from vultron.core.behaviors.case.embargo_tree import (
-    InitializeDefaultEmbargoNode,
-)
 from vultron.core.behaviors.case.nodes import (
     CheckAutoCaseCreationEnabledNode,
-    CheckCaseExistsForReport,
-    ProposeCaseToActorNode,
-    UpdateActorOutbox,
-)
-from vultron.core.behaviors.report.nodes import (
-    CreateCaseActivity,
-    CreateCaseNode,
+    CheckPendingProposalExistsForReport,
+    ProposeReportCaseToActorNode,
+    WritePendingReportCaseLinkNode,
 )
 from vultron.config.actor import ActorConfig
-from vultron.core.states.rm import RM
-from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
 
@@ -112,42 +64,28 @@ def create_receive_report_case_tree(
     actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """
-    Create behavior tree for case creation at report receipt.
+    Create the vendor-side behavior tree for report receipt (ADR-0041).
 
-    Given a ``VulnerabilityReport`` ID, the ID of the ``Offer`` activity
-    that delivered it, the reporter's actor ID, and an optional actor
-    configuration, builds and returns a behavior tree that:
-
-    - Creates a ``VulnerabilityCase`` linked to the report.
-    - Creates a default embargo and attaches it to the case.
-    - Creates a ``VultronParticipant`` for the receiving actor (case owner)
-      at ``rm_state=RM.RECEIVED``, with roles from
-      ``actor_config.default_case_roles`` plus ``CVDRole.CASE_OWNER``.
-    - Creates a ``VultronParticipant`` for the reporting actor (reporter) at
-      ``rm_state=RM.ACCEPTED`` (reusing the report-phase status if present).
-    - Queues a ``Create(Case)`` activity to the actor's outbox so the reporter
-      receives a copy of the case.
-    - Queues an ``Add(CaseParticipant)`` activity for the reporter so
-      downstream actors are notified with a fully typed object (satisfying
-      MV-09-001).
-
-    The root is a ``Selector`` so that if a fully-initialised case already
-    exists for this report the tree succeeds immediately (idempotency).
+    Per ADR-0041, the vendor no longer creates a ``VulnerabilityCase`` at
+    report receipt.  This tree writes a pending ``VultronReportCaseLink``
+    and sends ``Create(as_CaseProposal)`` to the CaseActor service.  The
+    ``VulnerabilityCase`` replica is seeded when ``Create(VulnerabilityCase)``
+    arrives from the CaseActor.
 
     Args:
-        report_id: ID of the ``VulnerabilityReport`` to link to the case.
-        offer_id: ID of the ``Offer`` activity that delivered the report
-                  (used to determine addressees for the Create(Case) activity).
+        report_id: ID of the ``VulnerabilityReport`` to link to the proposal.
+        offer_id: ID of the ``Offer`` activity that delivered the report.
+                  Currently unused by the slimmed tree but retained for
+                  API compatibility with callers.
         reporter_actor_id: Actor ID of the party who submitted the report.
-            Passed as a constructor argument so the BT node is not coupled to
-            the DataLayer offer lookup.
-        actor_config: Optional actor configuration carrying CVD-role
-                      defaults for the receiving actor.  When ``None`` the
-                      case-owner participant receives only the
-                      ``CVDRole.CASE_OWNER`` role (CFG-07-002, CFG-07-004).
+                           Currently unused by the slimmed tree but retained
+                           for API compatibility.
+        actor_config: Optional actor configuration.  Passed to
+                      ``CheckAutoCaseCreationEnabledNode`` for the
+                      ``auto_create_case`` policy gate (CM-15-001).
 
     Returns:
-        Root node of the receive-report case-creation behavior tree.
+        Root node of the receive-report proposal behavior tree.
 
     Example:
         >>> tree = create_receive_report_case_tree(
@@ -164,37 +102,12 @@ def create_receive_report_case_tree(
         >>> print(result.status)
         Status.SUCCESS
     """
-    receive_report_case_flow = py_trees.composites.Sequence(
-        name="ReceiveReportCaseFlow",
+    receive_report_proposal_flow = py_trees.composites.Sequence(
+        name="ReceiveReportProposalFlow",
         memory=False,
         children=[
-            CreateCaseNode(report_id=report_id),
-            CreateCaseOwnerParticipant(
-                report_id=report_id,
-                initial_rm_state=RM.RECEIVED,
-                actor_config=actor_config,
-            ),
-            InitializeDefaultEmbargoNode(),
-            # Create(Case) MUST be queued before Add(CaseParticipant) so that
-            # the reporter actor receives the case notification first
-            # (D5-7-MSGORDER-1).
-            CreateCaseActivity(report_id=report_id, offer_id=offer_id),
-            UpdateActorOutbox(),
-            CreateCaseParticipantNode(
-                actor_id=reporter_actor_id,
-                roles=[CVDRole.FINDER, CVDRole.REPORTER],
-                report_id=report_id,
-            ),
-            # Spawn the Case Actor entity after all participants are registered
-            # so the Offer can reference a complete case snapshot (DEMOMA-08-002).
-            # CreateCaseActorNode reads case_id from the blackboard and writes
-            # case_actor_id for ProposeCaseToActorNode and SendOfferCaseManagerRoleNode.
-            CreateCaseActorNode(),
-            # Send Create(as_CaseProposal) so the Case Actor can initialize the
-            # case on its side (CP-04-001, CP-04-002, ADR-0023).
-            ProposeCaseToActorNode(),
-            SendOfferCaseManagerRoleNode(),
-            UpdateActorOutbox(name="UpdateActorOutboxOffer"),
+            WritePendingReportCaseLinkNode(report_id=report_id),
+            ProposeReportCaseToActorNode(report_id=report_id),
         ],
     )
 
@@ -202,17 +115,11 @@ def create_receive_report_case_tree(
         name="ReceiveReportCaseSelector",
         memory=False,
         children=[
-            CheckCaseExistsForReport(report_id=report_id),
-            receive_report_case_flow,
+            CheckPendingProposalExistsForReport(report_id=report_id),
+            receive_report_proposal_flow,
         ],
     )
 
-    # Gate the whole case-creation subtree on the actor's auto_create_case
-    # policy (CM-15-001).  The gate is placed in a Sequence (not the idempotency
-    # Selector) so that a genuine case-creation FAILURE still propagates as
-    # FAILURE — a policy-driven skip returns FAILURE at the gate before any
-    # DataLayer write, while the success path leaves the Selector's status
-    # untouched.
     root = py_trees.composites.Sequence(
         name="ReceiveReportCaseBT",
         memory=False,
