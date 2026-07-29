@@ -13,7 +13,7 @@ ADR-0025's 2026-07-23 amendment placed the call-out bundle dataclasses and
 `<DOMAIN>_DETERMINISTIC` singletons in `vultron/demo/fuzzer/bundles/` and had
 ~11 core tree builders import them as defaults — a core→demo dependency
 inversion violating ADR-0025's own BT-16-001 driver. Discovered while scoping
-# 1732 (in-process fuzz scenario).
+issue #1732 (in-process fuzz scenario).
 
 **Outcome:** Introduced `vultron/core/behaviors/call_out/` (Protocol,
 deterministic `AlwaysSucceed`/`AlwaysFail` nodes, 9 bundle dataclasses +
