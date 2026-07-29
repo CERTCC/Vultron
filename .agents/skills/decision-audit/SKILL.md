@@ -2,9 +2,9 @@
 name: decision-audit
 description: >
   Find and adjudicate stale or incorrect architectural decisions before they
-  blow up in an implementation PR. Builds a risk-ranked inventory of ADRs (and
-  high-fan-in spec groups) that agents treat as solid fact but may encode a
-  wrong or outdated premise, re-derives each suspect adversarially from current
+  blow up in an implementation PR. Builds a risk-ranked inventory of both ADRs
+  and spec groups that agents treat as solid fact but may encode a wrong or
+  outdated premise, re-derives each suspect adversarially from current
   understanding, then runs a grill-me interview so the human decides the
   verdict and correction. Fixes confirmed landmines in a docs-only PR by
   default, or files a type:Concern when real uncertainty remains. Use when the
@@ -53,40 +53,71 @@ ADR index).
 
 ### Phase 1 — Build the Risk-Ranked Candidate Inventory (read-only)
 
-Load `REFERENCE.md` and run the scoring commands there. For every ADR (and,
-optionally, high-fan-in spec groups) compute a **landmine risk score** from:
+Landmines live in two artifact types: **ADRs** (decisions) and **spec groups**
+(requirements). Both are treated as ground truth by implementers; both can
+encode a stale or wrong premise. Score both. Run:
 
-- **Blast radius** — how many specs/notes depend on the decision
-  (`grep -rioE 'ADR-00[0-9]{2}' specs/ notes/` reference count). A wrong
-  decision with many dependents is a bigger landmine than an isolated one.
-- **Confidence deficit** — signals that the decision is not as settled as its
-  presentation implies:
-  - `status:` frontmatter blank, `proposed`, or anything other than `accepted`.
-  - **Frontmatter-vs-prose contradiction**: `status: accepted` while the prose
-    carries provisional markers (`formed in sand`, `not concrete`,
-    `provisional`, `forward-looking`, `will converge`, `SHOULD refine`,
-    `status will advance`).
-  - **Index-vs-frontmatter drift**: the section the ADR sits under in
-    `docs/adr/index.md` disagrees with its own `status:`.
-  - **Amended-after-acceptance**: `git log --follow` shows edits after the
-    accept date (a taxonomy or design that already needed correction once).
-  - **Layer-boundary friction**: prose that describes a construct without
-    pinning it to its actual layer (e.g. "shape base class" language when the
-    classes live in `vultron/demo/fuzzer/`, against `BT-16-001`).
-  - **Correction history**: `plan/history/*/learning/` or
-    `plan/incoming/learnings/` entries that name the decision as wrong/stale.
+```bash
+uv run python -m vultron.metadata.adr.decision_audit_inventory
+```
 
-Present the ranked list to the user via `ask_user`: highest-risk first, each
-row showing the score inputs (blast radius + which deficit signals fired). Let
-the user pick which candidate(s) to work, with a "triage the whole list in
-order" option. **Nothing is written in this phase.**
+This emits the risk-ranked inventory (ADRs and spec groups together) computed
+from the signals below. `REFERENCE.md` documents the rubric and the manual
+fallback commands if the helper is unavailable.
+
+**Every candidate** is scored as **blast radius × confidence deficit** — a
+shaky decision many things build on is the real danger; a shaky isolated one is
+cheap to fix later.
+
+**ADR signals:**
+
+- **Blast radius** — dependent count from the `adr:` spec edges + prose
+  citations (`grep -rioE 'ADR-[0-9]{4}' specs/ notes/`).
+- **Confidence deficit**: non-`accepted` status; `status: accepted` while prose
+  carries provisional markers (`formed in sand`, `not concrete`, `provisional`,
+  `forward-looking`, `will converge`, `SHOULD refine`, `status will advance`);
+  index-vs-frontmatter drift; amended-after-acceptance (`git log --follow`);
+  layer-boundary friction (prose describing a construct without pinning its
+  layer, e.g. "shape base class" against `BT-16-001`); named as wrong/stale in
+  `plan/history/*/learning/` or `plan/incoming/learnings/`.
+
+**Spec-group signals** (validated to discriminate — see `REFERENCE.md` for the
+ones deliberately rejected as non-discriminating, e.g. pytest-coverage):
+
+- **Blast radius** — inbound `relationships` edges (how many other specs
+  depend on the group) + implementing-code references.
+- **Confidence deficit**:
+  - **Derives from a non-accepted ADR** — a requirement in the group has an
+    `adr:` edge to an ADR whose status is not plain `accepted`
+    (`proposed` / `accepted-provisional` / `superseded`). *Highest-value
+    signal: it independently rediscovers CM-15, the ISSUE-1272 landmine.*
+  - **Cites a superseded/archived ADR or note** in its rationale.
+  - **`testable: false` cluster** — two or more non-testable requirements with
+    no behavioral steps (an untested assertion agents take on faith).
+  - **Purely prototype-scoped** group that production code now depends on.
+  - **Named near a problem word** (`wrong`, `stale`, `contradict`, `supersede`,
+    `ambiguous`, `mislead`, `rework`, …) in learnings/history.
+
+Present the ranked list to the user via `ask_user`: highest-risk first,
+**interleaving ADRs and spec groups**, each row tagged with its type and the
+signals that fired. Let the user pick which candidate(s) to work, with a
+"triage the whole list in order" option. **Nothing is written in this phase.**
 
 ### Phase 2 — Deepen Context (per selected candidate)
 
 Invoke `deepen-context` with domain hints derived from the candidate's title.
-Read the full ADR, every spec whose `rationale` (or ADR edge) cites it, the
-dependent notes files, and representative implementing code. The point is to
-know what the decision *actually* claims and what the code *actually* does.
+
+- **ADR candidate**: read the full ADR, every spec whose `rationale` or `adr:`
+  edge cites it, the dependent notes files, and representative implementing
+  code.
+- **Spec-group candidate**: read the whole group, its `relationships` targets
+  and inbound references, the ADR(s) it derives from, and the code + tests that
+  implement it. Pay special attention to whether the code actually does what
+  the requirement says, and whether two requirements (or a requirement and its
+  source ADR) contradict each other.
+
+The point is to know what the decision/requirement *actually* claims and what
+the code *actually* does.
 
 ### Phase 3 — Adversarial Re-Derivation (the core check)
 
@@ -95,10 +126,12 @@ confirmation. Instead, re-derive the decision from *current* understanding:
 **given what we now know, would we make this same choice?**
 
 Spawn an `Explore` or `Plan` agent with the counter-case prompt in
-`REFERENCE.md`: its job is to argue why the decision may be **wrong or stale**
-given today's code and specs, and to collect concrete contradiction evidence:
+`REFERENCE.md` (it has an ADR variant and a spec-group variant): its job is to
+argue why the decision/requirement may be **wrong or stale** given today's code
+and specs, and to collect concrete contradiction evidence:
 
 - spec text that conflicts with the code or with another spec,
+- a requirement whose source ADR is no longer accepted (the premise moved),
 - taxonomy/enumeration entries that don't match the implementation,
 - layer or invariant statements that the code violates,
 - dependents that would break or mislead if the premise is wrong.
@@ -138,10 +171,16 @@ approves the correction and disposition.
 **Fix now (default):**
 
 1. Create a task branch (`git checkout -b docs/decision-audit-<slug>`).
-2. Edit `docs/adr/NNNN-*.md`: reconcile `status:` per the decision tree in
-   `notes/specs-vs-adrs.md`, correct the prose, and — if the decision is
-   retired — set `status: superseded` with a `superseded_by:` field and move the file to
-   `docs/adr/archived/` (see the ADR archive convention below).
+2. Apply the correction to the candidate:
+   - **ADR**: edit `docs/adr/NNNN-*.md` — reconcile `status:` per the decision
+     tree in `notes/specs-vs-adrs.md`, correct the prose, and if retired set
+     `status: superseded` with a `superseded_by:` field and move the file to
+     `docs/adr/archived/` (see the ADR archive convention below); regenerate
+     the index (`uv run python -m vultron.metadata.adr.index_gen --write`).
+   - **Spec group**: edit the requirement(s) in `specs/*.yaml` — fix the
+     statement/rationale, correct or remove a contradicting requirement (per
+     `MS-09-001`, remove superseded requirements rather than deprecate), and
+     update its `adr:` edge if the source decision changed.
 3. Amend dependent `specs/*.yaml` and `notes/*.md` so no dependent still
    asserts the bad premise.
 4. Validate: run `format-markdown`, `build-docs` (strict), and the spec linter

@@ -5,17 +5,37 @@ Scoring rubric, commands, and the adversarial re-derivation prompt for the
 
 ---
 
+## The inventory helper
+
+Phase 1 is computed by a helper so the ranking is deterministic rather than
+hand-run:
+
+```bash
+uv run python -m vultron.metadata.adr.decision_audit_inventory
+uv run python -m vultron.metadata.adr.decision_audit_inventory --top 20
+uv run python -m vultron.metadata.adr.decision_audit_inventory --kind spec --json
+```
+
+It scores **ADRs and spec groups** together and prints a risk-ranked table.
+The manual commands below are the fallback if the helper is unavailable, and
+document what each signal means.
+
 ## Landmine risk score
 
-Risk = **blast radius** × **confidence deficit**. Neither factor alone is a
-landmine: a low-confidence decision nobody depends on is cheap to fix later; a
-rock-solid decision with 20 dependents is not a problem. The danger is a shaky
-decision that many things quietly build on.
+Risk = **(blast radius + 1) × weighted confidence deficit**. Neither factor
+alone is a landmine: a low-confidence decision nobody depends on is cheap to
+fix later; a rock-solid decision with 20 dependents is not a problem. The
+danger is a shaky decision that many things quietly build on.
 
-Compute an ordinal score per ADR. There is no need for false precision — sort
-by blast radius within confidence-deficit tiers.
+The deficit is a **weighted sum of the signals that fired**, not a raw count —
+a signal a prior investigation already tied to real rework (a requirement whose
+source ADR moved; an ADR whose prose contradicts its status) weighs 3; a
+not-accepted status or an unverified-assertion cluster weighs 2; a bare mention
+in learnings weighs 1. The `+1` blast-radius floor keeps a strong-signal
+candidate with no measured dependents above pure noise. A candidate with no
+deficit signal scores 0.
 
-### Confidence-deficit tiers (highest risk first)
+### ADR confidence-deficit tiers (highest risk first)
 
 1. **Contradicted** — `status: accepted` but prose carries provisional markers,
    OR index section disagrees with frontmatter, OR the code demonstrably
@@ -29,6 +49,27 @@ by blast radius within confidence-deficit tiers.
    flagged this decision or a dependent.
 5. **Clean** — `accepted`, no contradictions, few or well-scoped dependents.
    Skip unless the user asks for an exhaustive pass.
+
+### Spec-group confidence-deficit signals
+
+Same model, applied to a requirement group. These were validated to
+*discriminate* on the real corpus (each fires on a handful of groups, not most):
+
+1. **Derives from a non-accepted ADR** (weight 3) — a requirement's `adr:` edge
+   points at an ADR whose status is not plain `accepted`. The premise the group
+   was built on has moved. *Independently rediscovers CM-15 (the ISSUE-1272
+   landmine) and the LST-\* group (all deriving from `proposed` ADR-0033).*
+2. **`testable: false` cluster** (weight 2) — ≥2 non-testable requirements with
+   no behavioral steps: assertions agents take on faith, unverifiable in code.
+3. **Cites a superseded/archived ADR or note** (weight 2) in rationale.
+4. **Purely prototype-scoped** (weight 1) group that production code depends on.
+5. **Named near a problem word** (weight 1) in learnings/history.
+
+### Rejected signals (do not use — they don't discriminate)
+
+- **"No `@pytest.mark.spec` coverage"** — only ~15 of ~2200 spec items carry the
+  marker, so this fires on ~99% of groups. It flags everything, i.e. nothing.
+  If per-requirement test-coverage tracking ever becomes widespread, revisit.
 
 ---
 
@@ -118,6 +159,19 @@ decision, so the interview does not start from confirmation bias.
 >    evidence for it.
 >
 > Report findings only. Do not propose or make edits — a human adjudicates.
+
+**For a spec-group candidate, add these checks:**
+
+> 1. **Code conformance** — does the implementation actually satisfy each
+>    requirement in the group, or has the code diverged from what the spec
+>    says? Quote the divergence.
+> 2. **Internal consistency** — do any two requirements in the group (or a
+>    requirement and its source ADR) contradict each other? (This is the
+>    CM-15-001 / DEMOMA-07-003 failure mode: a spec step that duplicates or
+>    conflicts with what another layer already does.)
+> 3. **Moved premise** — if the group derives from an ADR whose status is no
+>    longer `accepted`, does the requirement still hold under the ADR's current
+>    (or successor) decision?
 
 ---
 
