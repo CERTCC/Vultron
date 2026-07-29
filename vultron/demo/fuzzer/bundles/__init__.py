@@ -47,6 +47,11 @@ from vultron.demo.fuzzer.bundles.deploy_fix import (
     DEPLOY_FIX_STOCHASTIC,
     DeployFixCallOutBundle,
 )
+from vultron.demo.fuzzer.bundles.develop_fix import (
+    DEVELOP_FIX_DETERMINISTIC,
+    DEVELOP_FIX_STOCHASTIC,
+    DevelopFixCallOutBundle,
+)
 from vultron.demo.fuzzer.bundles.embargo import (
     EMBARGO_DETERMINISTIC,
     EMBARGO_STOCHASTIC,
@@ -76,6 +81,7 @@ from vultron.demo.fuzzer.bundles.validation import (
 __all__ = [
     # Bundle classes
     "AcquireExploitCallOutBundle",
+    "DevelopFixCallOutBundle",
     "AssignVulIdCallOutBundle",
     "CloseReportCallOutBundle",
     "DeployFixCallOutBundle",
@@ -86,6 +92,7 @@ __all__ = [
     "ValidationCallOutBundle",
     # Deterministic singletons
     "ACQUIRE_EXPLOIT_DETERMINISTIC",
+    "DEVELOP_FIX_DETERMINISTIC",
     "ASSIGN_VUL_ID_DETERMINISTIC",
     "CLOSE_REPORT_DETERMINISTIC",
     "DEPLOY_FIX_DETERMINISTIC",
@@ -96,6 +103,7 @@ __all__ = [
     "VALIDATION_DETERMINISTIC",
     # Stochastic singletons
     "ACQUIRE_EXPLOIT_STOCHASTIC",
+    "DEVELOP_FIX_STOCHASTIC",
     "ASSIGN_VUL_ID_STOCHASTIC",
     "CLOSE_REPORT_STOCHASTIC",
     "DEPLOY_FIX_STOCHASTIC",
