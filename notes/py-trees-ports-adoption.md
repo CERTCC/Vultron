@@ -122,23 +122,24 @@ pilot subtree, not pre-committed here:
 
 Derived from the #1558 grill-me interview. All Tasks are children of Epic #427.
 
-1. **Task A — Ports adoption (pattern + pilot)** *(blocked-by #1558)*
+1. **#1808 — Ports adoption (pattern + pilot)** *(Task, blocked-by #1558)*
    Establish a typed-Ports base class + convention; author the ADR and BTND/BT
    spec amendments; migrate **one** representative subtree
    (e.g. `validate_report` / `prioritize`) end-to-end with tests; document the
    migration recipe. `size:M`.
-2. **Task A2 — Full node migration** *(blocked-by Task A)*
+2. **#1809 — Full node migration** *(Task, blocked-by #1808)*
    Migrate the remaining `vultron/core/behaviors/` nodes to typed Ports,
-   following A's recipe. `size:L`.
-3. **Task B — XML feasibility spike** *(blocked-by Task A2)*
+   following #1808's recipe. `size:L`.
+3. **#1810 — XML feasibility spike** *(Task, blocked-by #1809)*
    Assess whether protocol BTs can be authored/exported as BehaviorTree XML
    given the constructor-vs-remapping mismatch and the experimental parser.
    **Deliverable is a learning artifact**: detailed commentary appended to the
-   XML planning Idea (feasibility verdict, the mismatch analysis, parser-risk
-   assessment). Throwaway proof-of-concept code is allowed but the spike is
-   **not** gated on merging production code. `size:S`.
-4. **XML-as-specification Idea** *(blocked-by Task A2 and Task B)*
-   A new `type:Idea` capturing XML tree authoring and XML-as-spec artifacts,
-   to be planned later via `plan-issue` once the spike's findings are in.
+   XML planning Idea (#1811) — feasibility verdict, the mismatch analysis,
+   parser-risk assessment. Throwaway proof-of-concept code is allowed but the
+   spike is **not** gated on merging production code. `size:S`.
+4. **#1811 — XML-as-specification Idea** *(Idea, blocked-by #1809 and #1810)*
+   Captures XML tree authoring and XML-as-spec artifacts, to be planned later
+   via `plan-issue` once the spike's findings are in.
 
-Blocker graph: `#1558 -> A -> A2 -> {B, XML Idea}` and `B -> XML Idea`.
+Blocker graph: `#1558 -> #1808 -> #1809 -> {#1810, #1811}` and
+`#1810 -> #1811`.
