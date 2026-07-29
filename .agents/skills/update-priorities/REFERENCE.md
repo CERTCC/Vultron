@@ -58,22 +58,16 @@ gh api graphql -f query="mutation {
 
 ## Adding an Issue to the Board
 
+Add the issue and set its Schedule in one call via the shared helper, which is
+the single source of truth for the project / field / option IDs (accepts
+`Focus | Now | Next | Later | Someday`, default `Someday`):
+
 ```bash
-NODE_ID=$(gh api graphql -f query='{
-  repository(owner:"CERTCC", name:"Vultron") {
-    issue(number: '"${ISSUE_NUMBER}"') { id }
-  }
-}' --jq '.data.repository.issue.id')
-
-ITEM_ID=$(gh api graphql -f query="mutation {
-  addProjectV2ItemById(input: {
-    projectId: \"PVT_kwDOAjf0s84BZnre\"
-    contentId: \"${NODE_ID}\"
-  }) { item { id } }
-}" --jq '.data.addProjectV2ItemById.item.id')
-
-# Then set Schedule field as above
+bash .agents/skills/shared/add-to-project.sh "${ISSUE_NUMBER}" "${SCHEDULE:-Someday}"
 ```
+
+Do not re-implement the `addProjectV2ItemById` + set-Schedule mutation inline —
+that inline duplication is exactly how the option IDs drifted stale.
 
 ## Archiving a Completed Epic
 
