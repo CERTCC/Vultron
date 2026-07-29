@@ -29,7 +29,7 @@ Run the review-priorities skill. The skill will:
 3. **Offer interactive update options**:
    - Move items between Schedule tiers (Now / Next / Later / Someday)
    - Promote Triage (Someday) items to a schedule tier
-   - Create a new Epic for related leaf issues
+   - Reshape the epic roadmap via `calve-epics` (route / calve / recrystallize)
    - Archive a completed Epic (close issue + log history entry)
    - Skip updates and just review
 4. **Commit** any notes or history changes made (board changes happen live
@@ -83,7 +83,7 @@ After reviewing the status report:
 What would you like to do?
   [A] Move item(s) between Schedule tiers
   [B] Promote Triage items to Now/Next/Later
-  [C] Create a new Epic for uncovered issues
+  [C] Reshape the epic roadmap (route / calve / recrystallize)
   [D] Archive a completed Epic
   [E] No changes, exit
 ```
@@ -123,10 +123,21 @@ Schedule option IDs:
 - Later: `520032ef`
 - Someday: `a890eacc`
 
-### Create a New Epic
+### Reshape the Epic Roadmap
 
-Invoke the `create-epic` skill. Provide title, body, and the list of
-leaf issue numbers to wire as sub-issues.
+Do **not** mint an epic on the spot here. Creating, fusing, splitting, or
+dissolving an epic is *calving* — an architectural act that must be gated on a
+human confirming the design-grain fracture line. Invoke the **`calve-epics`**
+skill, which owns that judgment:
+
+- **Route** uncovered leaf issues onto the epic they match (Mode 1).
+- **Calve** a new epic off an over-accumulated theme, after confirming the
+  one-sentence design idea (Mode 2).
+- **Recrystallize** a muddled forest — fuse redundant epics, eject cross-grain
+  children, split overgrown ones (Mode 3).
+
+`calve-epics` delegates the mechanics to `create-epic` and
+`manage-github-issue`; this skill never mints epics inline.
 
 ### Archive a Completed Epic
 
