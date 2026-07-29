@@ -209,6 +209,10 @@ def _collect_actor_names_from_obj(
     a given ``id`` is recorded (first-writer-wins so earlier, more authoritative
     entries dominate).
     """
+    if isinstance(obj, list):
+        for item in obj:
+            _collect_actor_names_from_obj(item, out)
+        return
     if not isinstance(obj, dict):
         return
     obj_type = obj.get("type") or obj.get("type_")
@@ -226,14 +230,10 @@ def _collect_actor_names_from_obj(
         out[obj_id] = obj_name.strip()
     # Recurse into common nested keys.  ActivityStreams permits ``actor``,
     # ``object``, ``target``, and ``origin`` to carry a list of objects (e.g.
-    # multiple recipients); scan each list element as well as scalar values.
+    # multiple recipients); the list branch at the top of this function scans
+    # each element, so a plain recursive call handles scalars and lists alike.
     for key in ("actor", "object", "object_", "target", "origin"):
-        val = obj.get(key)
-        if isinstance(val, list):
-            for item in val:
-                _collect_actor_names_from_obj(item, out)
-        else:
-            _collect_actor_names_from_obj(val, out)
+        _collect_actor_names_from_obj(obj.get(key), out)
 
 
 def collect_actor_names(
