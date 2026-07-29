@@ -70,6 +70,6 @@ uv run pytest -v --tb=short
 - `test/AGENTS.md`
 - `test/core/behaviors/bt_harness.py`
 - `test/architecture/test_core_no_adapter_imports.py`
-- `test/ci/test_case_ledger_invariants.py`
+- `test/ci/invariants/common.py` (and per-scenario `test/ci/invariants/test_*_invariants.py`)
 - `.github/workflows/python-app.yml`
 - `.github/workflows/demo-integration.yml`
