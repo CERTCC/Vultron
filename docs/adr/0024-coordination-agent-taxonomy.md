@@ -1,3 +1,9 @@
+---
+status: accepted
+date: 2026-07-07
+deciders: [adh]
+---
+
 # Coordination Agent Taxonomy
 
 Vultron's Behavior Trees contain **call-out points** — locations where the

@@ -278,6 +278,8 @@ groups:
       spec_id: DEMOMA-01-001
     - rel_type: refines
       spec_id: CP-08-001
+    adr:
+    - ADR-0023
   - id: DEMOMA-06-005
     priority: MUST
     kind: project
@@ -1145,6 +1147,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-17-001
+    adr:
+    - ADR-0026
   - id: DEMOMA-12-005
     priority: MUST
     kind: project

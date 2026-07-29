@@ -269,6 +269,9 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: CP-05-001
+    adr:
+    - ADR-0023
+    - ADR-0041
   - id: CP-09-002
     priority: MUST
     kind: protocol
@@ -299,6 +302,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CP-09-001
+    adr:
+    - ADR-0041
   - id: CP-09-004
     priority: MUST
     kind: protocol
@@ -333,3 +338,5 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CP-09-001
+    adr:
+    - ADR-0041

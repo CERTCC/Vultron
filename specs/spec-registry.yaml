@@ -94,7 +94,7 @@ groups:
     priority: MUST
     kind: project
     statement: 'Fixed vocabularies MUST be implemented as `StrEnum` subclasses: `RFC2119Priority`, `RelationType`, `SpecKind`,
-      `Scope`, `SpecTag`.'
+      `Scope`, `SpecTag`, `AdrStatus`.'
   - id: SR-02-003
     priority: MUST
     kind: project
@@ -125,7 +125,7 @@ groups:
     kind: project
     statement: '`StatementSpec` MUST have fields: `id` (`SpecIdStr`), `priority` (`RFC2119Priority`), `kind` (`SpecKind`,
       required), `statement` (non-empty str), `rationale` (non-empty str), and optional fields: `testable`, `scope`, `tags`,
-      `relationships`, `lint_suppress`.'
+      `relationships`, `adr`, `lint_suppress`.'
   - id: SR-02-010
     priority: MUST
     kind: project
@@ -160,6 +160,17 @@ groups:
     kind: project
     statement: '`BehaviorStep` SHOULD include fields: `order` (int), `actor` (str), `action` (str), and optional `expected`
       (str).'
+  - id: SR-02-020
+    priority: SHOULD
+    kind: project
+    statement: A spec item SHOULD use the optional `adr` field (list of `AdrIdStr`, pattern `^ADR-\d{4}$`) to record structured
+      ADR provenance; the export emits each as a `derives_from` edge to the ADR ID so an amended ADR can be traced to its
+      dependent specs via the edges graph, and the linter hard-errors on a dangling target.
+    rationale: >-
+      Prose citations in `rationale` are invisible to the edges graph, so "which specs inherit this ADR's premise?" was not
+      a mechanical query. The structured field closes that gap (MS-11-004). See ADR-0043.
+    adr:
+    - ADR-0043
 - id: SR-03
   title: Registry Loader
   specs:

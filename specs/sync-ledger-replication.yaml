@@ -210,6 +210,8 @@ groups:
       holding area of SYNC-14 pending its predecessor, and MUST still trigger
       resynchronization (the Reject remains the backstop for genuinely lost
       entries). See ADR-0037 (docs/adr/0037-buffer-out-of-order-ledger-entries.md).
+    adr:
+    - ADR-0037
 - id: SYNC-10
   title: Catch-Up Gate Before New Actions
   specs:

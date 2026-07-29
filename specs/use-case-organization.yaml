@@ -92,6 +92,8 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: CS-11-001
+    adr:
+    - ADR-0040
   - id: UCORG-05-002
     priority: MUST
     kind: project

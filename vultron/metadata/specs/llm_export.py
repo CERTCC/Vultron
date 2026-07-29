@@ -69,6 +69,9 @@ def _spec_record(
     if spec.relationships:
         rec["relationships"] = [_rel_record(r) for r in spec.relationships]
 
+    if spec.adr:
+        rec["adr"] = list(spec.adr)
+
     if isinstance(spec, BehavioralSpec):
         if spec.preconditions:
             rec["preconditions"] = [p.description for p in spec.preconditions]
@@ -227,6 +230,10 @@ def to_llm_json(
         edges.extend(
             _edge_record(spec_id, relationship)
             for relationship in spec.relationships or []
+        )
+        edges.extend(
+            {"from": spec_id, "rel_type": "derives_from", "to": adr_id}
+            for adr_id in spec.adr or []
         )
 
     result: dict[str, Any] = {

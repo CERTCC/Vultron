@@ -263,7 +263,11 @@ def _make_adr_dir(tmp_path, adr_numbers=None):
     adr_dir = tmp_path / "docs" / "adr"
     adr_dir.mkdir(parents=True)
     for num in adr_numbers or []:
-        (adr_dir / f"{num}-stub.md").write_text(f"# ADR-{num}\n")
+        # Valid status frontmatter so the MS-14-001 status check (which runs
+        # over every ADR in the dir) does not flag these reference stubs.
+        (adr_dir / f"{num}-stub.md").write_text(
+            f"---\nstatus: accepted\n---\n# ADR-{num}\n"
+        )
     return adr_dir
 
 
@@ -432,3 +436,162 @@ def test_non_scenario_start_group_not_checked(tmp_path, capsys):
     captured = capsys.readouterr()
     assert result == 0
     assert "MS-13-004" not in captured.err
+
+
+# ---------------------------------------------------------------------------
+# ADR status frontmatter (MS-14-001 hard, MS-14-002 advisory) — ADR-0041
+# ---------------------------------------------------------------------------
+
+
+def _write_adr(adr_dir, num, status=None, body=""):
+    """Write an ADR file; omit the status line entirely when status is None."""
+    fm = (
+        f"---\nstatus: {status}\n---\n" if status is not None else "---\n---\n"
+    )
+    (adr_dir / f"{num}-stub.md").write_text(f"{fm}# ADR-{num}\n{body}\n")
+
+
+def test_lint_adr_missing_status_is_hard_error(tmp_path, capsys):
+    """An ADR with no status frontmatter is a hard error (MS-14-001)."""
+    _write_yaml(tmp_path, _minimal_spec())
+    adr_dir = _make_adr_dir(tmp_path)
+    _write_adr(adr_dir, "0099", status=None)
+    result = lint(tmp_path, adr_dir=adr_dir)
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "MS-14-001" in captured.err
+    assert "0099" in captured.err
+
+
+def test_lint_adr_invalid_status_is_hard_error(tmp_path, capsys):
+    """An ADR with an unknown status value is a hard error (MS-14-001)."""
+    _write_yaml(tmp_path, _minimal_spec())
+    adr_dir = _make_adr_dir(tmp_path)
+    _write_adr(adr_dir, "0099", status="kinda-accepted")
+    result = lint(tmp_path, adr_dir=adr_dir)
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "MS-14-001" in captured.err
+
+
+def test_lint_adr_superseded_status_ok(tmp_path):
+    """A superseded ADR with a resolvable superseded_by target is valid."""
+    _write_yaml(tmp_path, _minimal_spec())
+    adr_dir = _make_adr_dir(tmp_path, ["0100"])  # replacement exists
+    (adr_dir / "0099-stub.md").write_text(
+        "---\nstatus: superseded\nsuperseded_by: 0100-stub.md\n---\n# x\n"
+    )
+    result = lint(tmp_path, adr_dir=adr_dir)
+    assert result == 0
+
+
+def test_lint_adr_superseded_inline_form_ok(tmp_path):
+    """The inline 'superseded by <link>' MADR form is accepted and resolved."""
+    _write_yaml(tmp_path, _minimal_spec())
+    adr_dir = _make_adr_dir(tmp_path, ["0100"])
+    (adr_dir / "0099-stub.md").write_text(
+        "---\nstatus: superseded by 0100-stub.md\n---\n# x\n"
+    )
+    result = lint(tmp_path, adr_dir=adr_dir)
+    assert result == 0
+
+
+def test_lint_adr_superseded_without_target_is_hard_error(tmp_path, capsys):
+    """A retired ADR missing superseded_by is a hard error (MS-14-004)."""
+    _write_yaml(tmp_path, _minimal_spec())
+    adr_dir = _make_adr_dir(tmp_path)
+    (adr_dir / "0099-stub.md").write_text(
+        "---\nstatus: superseded\n---\n# x\n"
+    )
+    result = lint(tmp_path, adr_dir=adr_dir)
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "superseded_by" in captured.err
+
+
+def test_lint_adr_accepted_with_provisional_prose_warns(tmp_path, capsys):
+    """status: accepted + provisional prose is an advisory warning (MS-14-002)."""
+    _write_yaml(tmp_path, _minimal_spec())
+    adr_dir = _make_adr_dir(tmp_path)
+    _write_adr(
+        adr_dir,
+        "0099",
+        status="accepted",
+        body="This design is formed in sand.",
+    )
+    result = lint(tmp_path, adr_dir=adr_dir)
+    captured = capsys.readouterr()
+    assert result == 0  # advisory, not a hard error
+    assert "MS-14-002" in captured.out
+    assert "[WARN]" in captured.out
+
+
+def test_lint_adr_accepted_provisional_status_no_warn(tmp_path, capsys):
+    """accepted-provisional + provisional prose is consistent — no warning."""
+    _write_yaml(tmp_path, _minimal_spec())
+    adr_dir = _make_adr_dir(tmp_path)
+    _write_adr(
+        adr_dir,
+        "0099",
+        status="accepted-provisional",
+        body="This design is formed in sand.",
+    )
+    result = lint(tmp_path, adr_dir=adr_dir)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "MS-14-002" not in captured.out
+
+
+# ---------------------------------------------------------------------------
+# Structured adr: field references (SR-02-020) — hard error on dangling target
+# ---------------------------------------------------------------------------
+
+
+def test_lint_structured_adr_ref_missing_is_hard_error(tmp_path, capsys):
+    """A structured adr: target with no ADR file is a hard error."""
+    data = _minimal_spec(extra={"adr": ["ADR-0099"]})
+    _write_yaml(tmp_path, data)
+    adr_dir = _make_adr_dir(tmp_path)  # no 0099 file
+    result = lint(tmp_path, adr_dir=adr_dir)
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "ADR-0099" in captured.err
+
+
+def test_lint_structured_adr_ref_present_ok(tmp_path, capsys):
+    """A structured adr: target that resolves to a file is clean."""
+    data = _minimal_spec(extra={"adr": ["ADR-0099"]})
+    _write_yaml(tmp_path, data)
+    adr_dir = _make_adr_dir(tmp_path, ["0099"])
+    result = lint(tmp_path, adr_dir=adr_dir)
+    assert result == 0
+
+
+def test_lint_structured_adr_ref_resolves_to_archived(tmp_path):
+    """A structured adr: target in docs/adr/archived/ resolves (no error)."""
+    data = _minimal_spec(extra={"adr": ["ADR-0099"]})
+    _write_yaml(tmp_path, data)
+    adr_dir = _make_adr_dir(tmp_path)
+    archived = adr_dir / "archived"
+    archived.mkdir()
+    (archived / "0099-stub.md").write_text(
+        "---\nstatus: deprecated\nsuperseded_by: 0100-stub.md\n---\n# x\n"
+    )
+    (adr_dir / "0100-stub.md").write_text("---\nstatus: accepted\n---\n# x\n")
+    result = lint(tmp_path, adr_dir=adr_dir)
+    assert result == 0
+
+
+def test_lint_adr_status_prose_suppress(tmp_path, capsys):
+    """lint_suppress: [status_prose_contradiction] silences the MS-14-002 warn."""
+    _write_yaml(tmp_path, _minimal_spec())
+    adr_dir = _make_adr_dir(tmp_path)
+    (adr_dir / "0099-stub.md").write_text(
+        "---\nstatus: accepted\n"
+        "lint_suppress: [status_prose_contradiction]\n---\n"
+        "# ADR-0099\nThis ADR is formed in sand.\n"
+    )
+    result = lint(tmp_path, adr_dir=adr_dir)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "MS-14-002" not in captured.out

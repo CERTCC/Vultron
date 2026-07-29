@@ -50,81 +50,59 @@ General information about architectural decision records is available at <https:
 
 - [ADR-0000 Record architecture decisions](0000-record-architecture-decisions.md)
 - [ADR-0001 Use Markdown Any Decision Records](0001-use-markdown-any-decision-records.md)
-- [ADR-0002 Model Vultron Processes as Behavior Trees](0002-model-processes-with-behavior-trees.md)
-- [ADR-0003 Build Our Own Behavior Tree Engine](0003-build-custom-python-bt-engine.md)
-- [ADR-0004 Use Factory Pattern to Create Behavior Tree Nodes](0004-use-factory-methods-for-common-bt-node-types.md)
-- [ADR-0005 Use ActivityStreams Vocabulary as Vultron Message Format](0005-activitystreams-vocabulary-as-vultron-message-format.md)
-- [ADR-0006 Use CalVer for Project Versioning](0006-use-calver-for-project-versioning.md)
-- [ADR-0007 Introduce a Behavior Dispatcher](0007-use-behavior-dispatcher.md)
-- [ADR-0008 Use py_trees for Handler BT Integration](0008-use-py-trees-for-handler-bt-integration.md)
-- [ADR-0009 Adopt Hexagonal Architecture (Ports and Adapters)](0009-hexagonal-architecture.md)
+- [ADR-0002 Model Processes with Behavior Trees](0002-model-processes-with-behavior-trees.md)
+- [ADR-0003 Build our own Behavior Tree engine in Python](0003-build-custom-python-bt-engine.md)
+- [ADR-0004 Use factory methods for common BT node types](0004-use-factory-methods-for-common-bt-node-types.md)
+- [ADR-0005 Use ActivityStreams Vocabulary as the basis for Vultron Message Formats](0005-activitystreams-vocabulary-as-vultron-message-format.md)
+- [ADR-0006 Vultron Project Versioning](0006-use-calver-for-project-versioning.md)
+- [ADR-0007 Introduce a Behavior Dispatcher Between Inbox Handling and Behavior Execution](0007-use-behavior-dispatcher.md)
+- [ADR-0008 Use py_trees for Behavior Tree Execution in Handler Integration](0008-use-py-trees-for-handler-bt-integration.md)
+- [ADR-0009 Adopt Hexagonal Architecture (Ports and Adapters) for Vultron](0009-hexagonal-architecture.md)
 - [ADR-0010 Standardize Object IDs to URI Form](0010-standardize-object-ids.md)
 - [ADR-0011 Remove API v1 and consolidate vocabulary examples into API v2](0011-remove-api-v1.md)
 - [ADR-0012 Per-Actor DataLayer Isolation](0012-per-actor-datalayer-isolation.md)
-- [ADR-0013 Unify RM State Tracking](0013-unify-rm-state-tracking.md)
-- [ADR-0014 Pin GitHub Actions to Full Commit SHAs with Version
-  Comments](0014-sha-pin-github-actions.md)
-- [ADR-0016 Replace TinyDB with SQLModel/SQLite DataLayer
-  Adapter](0016-sqlmodel-sqlite-datalayer.md)
-- [ADR-0017 Domain/Wire Object Separation: Shared-Base, Two-Branch
-  Hierarchy](0017-domain-wire-object-separation.md)
-- [ADR-0018 Canonical Case History Convergence on
-  `CaseLogEntry`](0018-canonical-case-history-convergence.md)
-- [ADR-0019 Separate the Case Ledger from the Per-Actor Process
-  Log](0019-separate-case-ledger-from-process-log.md)
-- [ADR-0021 CaseActor Inbox Routing as the Sole Path to Canonical Ledger
-  Entries](0021-caseactor-inbox-routing-canonical-ledger.md)
-- [ADR-0022 Single BT Execution Per Inbox Delivery for Received-Side
-  CaseActor Routing](0022-single-bt-execution-for-received-side-case-actor-routing.md)
-- [ADR-0023 Introduce `CaseProposal` for Distributed Case Actor
-  Initialization](0023-case-proposal-protocol.md)
+- [ADR-0013 Unify RM State Tracking into Persisted VultronParticipantStatus Records](0013-unify-rm-state-tracking.md)
+- [ADR-0014 Pin GitHub Actions to Full Commit SHAs with Version Comments](0014-sha-pin-github-actions.md)
+- [ADR-0016 Replace TinyDB with SQLModel/SQLite DataLayer Adapter](0016-sqlmodel-sqlite-datalayer.md)
+- [ADR-0017 Domain/Wire Object Separation: Shared-Base, Two-Branch Hierarchy](0017-domain-wire-object-separation.md)
+- [ADR-0018 Canonical Case History Convergence on `CaseLogEntry`](0018-canonical-case-history-convergence.md)
+- [ADR-0019 Separate the Case Ledger from the Per-Actor Process Log](0019-separate-case-ledger-from-process-log.md)
+- [ADR-0021 CaseActor Inbox Routing as the Sole Path to Canonical Ledger Entries](0021-caseactor-inbox-routing-canonical-ledger.md)
+- [ADR-0022 Single BT Execution Per Inbox Delivery for Received-Side CaseActor Routing](0022-single-bt-execution-for-received-side-case-actor-routing.md)
+- [ADR-0023 Introduce `CaseProposal` for Distributed Case Actor Initialization](0023-case-proposal-protocol.md)
 - [ADR-0024 Coordination Agent Taxonomy](0024-coordination-agent-taxonomy.md)
-- [ADR-0025 Call-Out Point Abstraction Layer: Factory-Based Injection with
-  Typed Backends](0025-call-out-point-abstraction-layer.md)
-- [ADR-0031 Introduce `vultron/enums/` as a Bottom-of-Stack Neutral Layer for
-  Cross-Cutting Enumerations](0031-vultron-enums-neutral-layer.md)
-- [ADR-0032 Validate at the Edge, Promote to Strict Core
-  Types](0032-validate-at-edge-promote-to-core.md)
-- [ADR-0026 CaseActor-Routed Actor Suggestion and Invitation
-  Flow](0026-caseactor-routed-actor-suggestion.md)
-- [ADR-0034 DataLayer Port Returns Core Domain
-  Objects](0034-datalayer-returns-core-objects.md)
-- [ADR-0035 Core Activity Representation and Envelope
-  Reconstitution](0035-core-activity-representation-and-envelope-reconstitution.md)
-- [ADR-0036 Per-Machine Dimension Objects for CaseStatus and
-  ParticipantStatus](0036-status-dimension-objects.md)
-- [ADR-0037 Buffer Out-of-Order `Announce(CaseLedgerEntry)` Instead of
-  Dropping](0037-buffer-out-of-order-ledger-entries.md)
-- [ADR-0038 Replace Six-Kind Spec Taxonomy with Four-Tier Portability
-  Hierarchy](0038-four-tier-specification-taxonomy.md)
-- [ADR-0028 Publication-Intent Subtree Collapse: Bypass Leaves →
-  Intent-Record-Driven Arms](0028-publication-intent-bt-collapse.md)
-- [ADR-0029 Notification Loop Collapse: InjectParticipant →
-  suggest-actor-to-case Protocol](0029-notification-loop-suggest-actor.md)
-- [ADR-0030 Publish Leaf Expansion: Single Actuator →
-  Draft-Review-Submit Pipeline](0030-publish-leaf-draft-review-submit-pipeline.md)
-- [ADR-0039 Resolve Wire Ambiguity Between OFFER\_CASE\_MANAGER\_ROLE and
-  OFFER\_CASE\_OWNERSHIP\_TRANSFER via Dedicated Object Type](0039-offer-case-participant-role-wire-type.md)
-- [ADR-0040 Introduce UseCaseResult Envelope; Do Not Introduce
-  UseCaseRequest](0040-use-case-result-envelope.md)
+- [ADR-0025 Call-Out Point Abstraction Layer: Factory-Based Injection with Typed Backends](0025-call-out-point-abstraction-layer.md)
+- [ADR-0026 CaseActor-Routed Actor Suggestion and Invitation Flow](0026-caseactor-routed-actor-suggestion.md)
+- [ADR-0027 Exploit-Strategy Subtree Collapse: Five Simulator Nodes → EvaluateExploitStrategy](0027-exploit-strategy-bt-collapse.md)
+- [ADR-0028 Publication-Intent Subtree Collapse: Bypass Leaves → Intent-Record-Driven Arms](0028-publication-intent-bt-collapse.md)
+- [ADR-0029 Notification Loop Collapse: InjectParticipant → suggest-actor-to-case Protocol](0029-notification-loop-suggest-actor.md)
+- [ADR-0030 Publish Leaf Expansion: Single Actuator → Draft-Review-Submit Pipeline](0030-publish-leaf-draft-review-submit-pipeline.md)
+- [ADR-0031 Introduce `vultron/enums/` as a Bottom-of-Stack Neutral Layer for Cross-Cutting Enumerations](0031-vultron-enums-neutral-layer.md)
+- [ADR-0032 Validate at the Edge, Promote to Strict Core Types](0032-validate-at-edge-promote-to-core.md)
+- [ADR-0034 DataLayer Port Returns Core Domain Objects](0034-datalayer-returns-core-objects.md)
+- [ADR-0035 Core Activity Representation and Envelope Reconstitution](0035-core-activity-representation-and-envelope-reconstitution.md)
+- [ADR-0036 Per-Machine Dimension Objects for CaseStatus and ParticipantStatus](0036-status-dimension-objects.md)
+- [ADR-0037 Buffer Out-of-Order `Announce(CaseLedgerEntry)` Instead of Dropping](0037-buffer-out-of-order-ledger-entries.md)
+- [ADR-0038 Replace Six-Kind Spec Taxonomy with Four-Tier Portability Hierarchy](0038-four-tier-specification-taxonomy.md)
+- [ADR-0039 Resolve Wire Ambiguity Between OFFER\_CASE\_MANAGER\_ROLE and OFFER\_CASE\_OWNERSHIP\_TRANSFER via Dedicated Object Type](0039-offer-case-participant-role-wire-type.md)
+- [ADR-0040 Introduce UseCaseResult Envelope; Do Not Introduce UseCaseRequest](0040-use-case-result-envelope.md)
 - [ADR-0041 CaseActor-Authoritative Case Initialization](0041-caseactor-authoritative-case-initialization.md)
-- [ADR-0042 Deliver All Inter-Actor Communication over HTTP; Retire the
-  In-Process ASGI Delivery Shortcut](0042-http-only-inter-actor-delivery.md)
+- [ADR-0042 Deliver All Inter-Actor Communication over HTTP; Retire the In-Process ASGI Delivery Shortcut](0042-http-only-inter-actor-delivery.md)
+- [ADR-0043 Use the ADR `status` Field as the Confidence Signal (Extend Its Vocabulary Rather Than Add a New Field)](0043-adr-status-as-confidence-signal.md)
 
 ## Proposed ADRs
 
-- [ADR-0020 Move Inbox Orchestration into a Core BT Module with a Typed
-  `process_payload` Seam](0020-inbox-bt-orchestration.md)
-- [ADR-0027 Exploit-Strategy Subtree Collapse: Five Simulator Nodes →
-  EvaluateExploitStrategy](0027-exploit-strategy-bt-collapse.md) *(provisional)*
-- [ADR-0033 Lifecycle-Staged Domain Types Anchored on Guaranteed-Field
-  Changes](0033-lifecycle-staged-case-types.md)
+- [ADR-0020 Move Inbox Orchestration into a Core BT Module with a Typed `process_payload` Seam](0020-inbox-bt-orchestration.md)
+- [ADR-0033 Lifecycle-Staged Domain Types Anchored on Guaranteed-Field Changes](0033-lifecycle-staged-case-types.md)
 
 ## Rejected ADRs
 
 - none
 
-## Superseded ADRs
+## Superseded / Archived ADRs
 
-- [ADR-0015 Create VulnerabilityCase at Report Receipt
-  (RM.RECEIVED)](0015-create-case-at-report-receipt.md) — superseded by ADR-0041
+Retired ADRs (`status: deprecated` or `superseded`) are moved to
+`docs/adr/archived/` so they stay out of the default `docs/adr/` context sweep.
+Each is listed here with a forward link to its replacement.
+
+- [ADR-0015 Create VulnerabilityCase at Report Receipt (RM.RECEIVED)](0015-create-case-at-report-receipt.md) — superseded by 0041-caseactor-authoritative-case-initialization.md

@@ -151,6 +151,8 @@ groups:
     tags:
     - persistence
     - wire-format
+    adr:
+    - ADR-0034
   - id: DL-05-002
     priority: MUST
     kind: project
@@ -227,6 +229,8 @@ groups:
     tags:
     - persistence
     - wire-format
+    adr:
+    - ADR-0035
   - id: DL-06-002
     priority: MUST
     kind: project
@@ -246,6 +250,8 @@ groups:
     tags:
     - persistence
     - wire-format
+    adr:
+    - ADR-0035
   - id: DL-06-003
     priority: MUST
     kind: project
@@ -261,6 +267,8 @@ groups:
     tags:
     - persistence
     - wire-format
+    adr:
+    - ADR-0035
   - id: DL-06-004
     priority: MUST
     kind: project
@@ -282,6 +290,8 @@ groups:
     tags:
     - persistence
     - wire-format
+    adr:
+    - ADR-0035
   - id: DL-06-005
     priority: MUST
     kind: project
@@ -300,3 +310,5 @@ groups:
     - persistence
     - testing
     - wire-format
+    adr:
+    - ADR-0035

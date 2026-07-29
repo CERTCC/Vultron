@@ -443,6 +443,8 @@ groups:
     - rel_type: implements
       spec_id: BT-02-001
       note: py_trees.behaviour.Behaviour is the required base for all prototype BT nodes
+    adr:
+    - ADR-0008
   - id: BT-16-003
     priority: MUST
     kind: project
@@ -653,6 +655,8 @@ groups:
       reduces seam count while keeping the exploit-repo query independently swappable. Implemented by issue #1309 (PR #1566).
       See `notes/bt-fuzzer-nodes-report-management.md` § "Production Collapse 1: Exploit-strategy subtree" and ADR-0027.'
     tracking_issue: '#1200 (planning); #1309 (implementation — closed by PR #1566)'
+    adr:
+    - ADR-0027
   - id: BT-20-002
     priority: SHOULD
     kind: project
@@ -669,6 +673,8 @@ groups:
       by issue #1310. See `notes/bt-fuzzer-nodes-report-management.md` § "Production Collapse 2: Publication-intent subtree"
       and ADR-0028.'
     tracking_issue: '#1200 (planning); #1310 (implementation)'
+    adr:
+    - ADR-0028
   - id: BT-20-003
     priority: SHOULD
     kind: project
@@ -683,6 +689,8 @@ groups:
       through identified candidates. See `notes/bt-fuzzer-nodes-report-management.md` § "Production Collapse 3: Notification
       loop" and ADR-0029.'
     tracking_issue: '#1311 (implemented)'
+    adr:
+    - ADR-0029
   - id: BT-20-004
     priority: SHOULD
     kind: project
@@ -697,6 +705,9 @@ groups:
       Publish leaf" and ADR-0030 (accepted 2026-07-22). The participant-comment broadcast question in the review phase was deferred
       to a follow-on issue (AC-4, issue #1312).'
     tracking_issue: '#1200 (planning); #1312 (implemented)'
+    adr:
+    - ADR-0024
+    - ADR-0030
 - id: BT-21
   title: Fuzzer Node Replacement Lifecycle
   specs:

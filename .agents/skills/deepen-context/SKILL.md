@@ -46,8 +46,26 @@ Using the ADR index loaded by `orient-agent` (`docs/adr/index.md`),
 identify and read any ADRs relevant to the current task. Focus on ADRs
 whose titles match the task's domain (e.g., behavior trees, hexagonal
 architecture, ActivityStreams, DataLayer). Read the full ADR file for
-any decision that is in scope — ADR context prevents re-litigating
-settled choices.
+any decision that is in scope.
+
+**Weight each ADR by how settled it actually is — do not treat every ADR as
+equally solid fact.** An ADR that is genuinely `status: accepted`, not
+contradicted by its own prose, and not violated by the code prevents
+re-litigating a settled choice: build on it, don't reopen it. But an ADR is
+**challengeable — validate it against the current code before relying on it**
+when any of these hold:
+
+- its `status:` is blank, `proposed`, `deprecated`, or `superseded`;
+- its `status:` says `accepted` but the prose hedges (e.g. "formed in sand",
+  "not concrete", "provisional", "forward-looking", "SHOULD refine this ADR");
+- the section it sits under in `docs/adr/index.md` disagrees with its own
+  `status:` field;
+- the code you are about to touch appears to contradict what the ADR asserts.
+
+When a relevant ADR is challengeable, say so to the caller and check the claim
+against the code rather than inheriting the premise. If the ADR looks wrong or
+stale — not just imprecise for your task — that is a landmine worth routing to
+the `decision-audit` skill rather than quietly working around it.
 
 ### Step 3 — Read relevant codebase reference files
 

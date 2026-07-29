@@ -25,6 +25,15 @@ SpecIdStr = Annotated[
     StringConstraints(pattern=r"^[A-Z]{2,8}(-\d{2}(-\d{3})?)?$"),
 ]
 
+# Structured ADR reference (SR-02, MS-11-004): ``ADR-NNNN`` form. Kept separate
+# from SpecIdStr — ADR IDs are four-digit and would not match the spec ID
+# pattern — so an amended ADR can be traced to its dependent specs via the edges
+# graph rather than only free-text rationale prose.
+AdrIdStr = Annotated[
+    str,
+    StringConstraints(pattern=r"^ADR-\d{4}$"),
+]
+
 
 class RFC2119Priority(StrEnum):
     """RFC 2119 priority levels for requirements (SR-02-003)."""
@@ -34,6 +43,29 @@ class RFC2119Priority(StrEnum):
     SHOULD = "SHOULD"
     SHOULD_NOT = "SHOULD_NOT"
     MAY = "MAY"
+
+
+class AdrStatus(StrEnum):
+    """Valid ADR ``status:`` frontmatter values (MS-14-001, ADR-0043).
+
+    The status field is the confidence signal coding agents read; a fixed
+    vocabulary lets the linter typecheck it the way spec fields are checked
+    against their StrEnums. See the decision tree in ``notes/specs-vs-adrs.md``
+    for how to choose a value.
+
+    A retired ADR uses ``SUPERSEDED`` with a separate ``superseded_by:``
+    frontmatter field (the project convention, see
+    ``notes/notes-frontmatter.md``). The linter also tolerates the inline MADR
+    form ``superseded by <link>`` by normalising it to ``SUPERSEDED`` before
+    the enum check.
+    """
+
+    PROPOSED = "proposed"
+    ACCEPTED = "accepted"
+    ACCEPTED_PROVISIONAL = "accepted-provisional"
+    DEPRECATED = "deprecated"
+    REJECTED = "rejected"
+    SUPERSEDED = "superseded"
 
 
 class RelationType(StrEnum):
@@ -192,9 +224,10 @@ class StatementSpec(BaseModel):
     scope: list[Scope] | None = None
     tags: list[SpecTag] | None = None
     relationships: list[Relationship] | None = None
+    adr: list[AdrIdStr] | None = None
     lint_suppress: list[LintWarningCode] | None = None
 
-    @field_validator("scope", "tags", "relationships", "lint_suppress")
+    @field_validator("scope", "tags", "relationships", "adr", "lint_suppress")
     @classmethod
     def _nonempty_if_present(cls, v: list | None, info: object) -> list | None:
         if v is not None and len(v) == 0:
