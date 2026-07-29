@@ -47,11 +47,14 @@ If a matching Epic already exists, skip Step 2 and proceed to Step 3.
 
 ### Step 2 — Create the Epic issue via GraphQL
 
-Use the bash helper script in this skill's directory:
+Use the bash helper script in this skill's directory. It creates the Epic
+(with the correct Epic issue type), then adds it to Project #24 and sets its
+Schedule via the shared `add-to-project.sh` helper — so board IDs live in
+exactly one place:
 
 ```bash
 EPIC_NUMBER=$(.agents/skills/create-epic/create_epic.sh \
-  "${EPIC_TITLE}" "${EPIC_BODY}")
+  "${EPIC_TITLE}" "${EPIC_BODY}" "${SCHEDULE:-Someday}")
 echo "Created Epic #${EPIC_NUMBER}"
 ```
 
@@ -68,38 +71,7 @@ of the Epic. All wiring is idempotent — already-linked issues are skipped.
   --sub-issue <LEAF_3>
 ```
 
-### Step 4 — Add Epic to Project #24 with Schedule
-
-```bash
-# Get Epic node ID
-EPIC_NODE_ID=$(gh api graphql -f query='{
-  repository(owner:"CERTCC", name:"Vultron") {
-    issue(number: '"${EPIC_NUMBER}"') { id }
-  }
-}' --jq '.data.repository.issue.id')
-
-# Add to project
-ITEM_ID=$(gh api graphql -f query="mutation {
-  addProjectV2ItemById(input: {
-    projectId: \"PVT_kwDOAjf0s84BZnre\"
-    contentId: \"${EPIC_NODE_ID}\"
-  }) { item { id } }
-}" --jq '.data.addProjectV2ItemById.item.id')
-
-# Set Schedule field (Now=22e6679d Next=1c1ed63d Later=520032ef Someday=a890eacc)
-SCHEDULE_ID="a890eacc"  # default: Someday
-gh api graphql -f query="mutation {
-  updateProjectV2ItemFieldValue(input: {
-    projectId: \"PVT_kwDOAjf0s84BZnre\"
-    itemId: \"${ITEM_ID}\"
-    fieldId: \"PVTSSF_lADOAjf0s84BZnrezhUlFOM\"
-    value: { singleSelectOptionId: \"${SCHEDULE_ID}\" }
-  }) { projectV2Item { id } }
-}" >/dev/null
-echo "  Added to Project #24 with Schedule=${SCHEDULE}"
-```
-
-### Step 5 — Apply `needs-decomposition` label
+### Step 4 — Apply `needs-decomposition` label
 
 Every newly created Epic starts without sub-issues. Apply the label
 immediately so the project board and `build` can identify it:
@@ -112,7 +84,7 @@ gh issue edit "${EPIC_NUMBER}" --repo CERTCC/Vultron \
 Skip this step if `LEAF_ISSUES` is non-empty (sub-issues were linked in
 Step 3, so the Epic is not empty).
 
-### Step 6 — Return Epic number
+### Step 5 — Return Epic number
 
 ```bash
 echo "${EPIC_NUMBER}"
@@ -130,6 +102,7 @@ echo "${EPIC_NUMBER}"
   ```
 
 - The repo node ID for `CERTCC/Vultron` is `R_kgDOIn77fA`.
-- Project #24 node ID: `PVT_kwDOAjf0s84BZnre`
-- Schedule field ID: `PVTSSF_lADOAjf0s84BZnrezhUlFOM`
-- Schedule option IDs: `Now=22e6679d`, `Next=1c1ed63d`, `Later=520032ef`, `Someday=a890eacc`
+- Board IDs (project node, Schedule field, Schedule option IDs including
+  `Focus`) are **not** duplicated here — they live in one place,
+  `.agents/skills/shared/README.md`, and are applied by
+  `.agents/skills/shared/add-to-project.sh`, which `create_epic.sh` calls.

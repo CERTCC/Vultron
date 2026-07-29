@@ -146,28 +146,14 @@ mutation {
 }")
 ISSUE_NUMBER=$(echo "${RESULT}" | python3 -c \
   "import json,sys; print(json.load(sys.stdin)['data']['createIssue']['issue']['number'])")
-ISSUE_NODE_ID=$(echo "${RESULT}" | python3 -c \
-  "import json,sys; print(json.load(sys.stdin)['data']['createIssue']['issue']['id'])")
 
 gh issue edit "${ISSUE_NUMBER}" \
   --repo CERTCC/Vultron \
   --add-label "concern"
 
-# Add to Project #24 with Schedule=Someday
-ITEM_ID=$(gh api graphql -f query="mutation {
-  addProjectV2ItemById(input: {
-    projectId: \"PVT_kwDOAjf0s84BZnre\"
-    contentId: \"${ISSUE_NODE_ID}\"
-  }) { item { id } }
-}" --jq '.data.addProjectV2ItemById.item.id')
-gh api graphql -f query="mutation {
-  updateProjectV2ItemFieldValue(input: {
-    projectId: \"PVT_kwDOAjf0s84BZnre\"
-    itemId: \"${ITEM_ID}\"
-    fieldId: \"PVTSSF_lADOAjf0s84BZnrezhUlFOM\"
-    value: { singleSelectOptionId: \"a890eacc\" }
-  }) { projectV2Item { id } }
-}" >/dev/null
+# Add to Project #24 with Schedule=Someday via the shared helper
+# (single source of truth for board/field/option IDs).
+bash .agents/skills/shared/add-to-project.sh "${ISSUE_NUMBER}" Someday
 
 echo "Created concern issue #${ISSUE_NUMBER}"
 ```
