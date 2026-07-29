@@ -84,12 +84,13 @@ npm run dev        # Vite dev server, prints a localhost URL (usually http://loc
   the highest-risk area to keep exercising.
 - **Log Replay** — **rebuilt from scratch (2026-06)** on the new case-ledger
   format (§5–6), then extended for **multi-vendor + invite events (2026-07)** so
-  it replays 3-party cases (finder + N vendors), not just two-actor. Build + lint
-  are green and all three sample buttons (two-actor, synthetic-violation, fvv)
-  have been exercised in the browser. Playback, collapsible lanes, hover tooltips
-  (with violation explanations), and the red ⚠️ violation flagging all work.
-  Remaining validation happens by careful diff review + the user's build/lint
-  gate (no node in-container).
+  it replays finder + N-vendor cases (two-actor, fvv). Build + lint green; the
+  three sample buttons (two-actor, synthetic-violation, fvv) work, along with
+  playback, collapsible lanes, hover tooltips (with violation explanations), and
+  red ⚠️ violation flagging. **⏳ NOT yet handled: the new coordinator/handoff
+  container scenarios (fcv, fvcv-*, fccv-*) — 5 new event verbs + coordinator/
+  actor5 lanes + case-ownership handoff. This is the current open work — see §5
+  "⏳ IN PROGRESS".** Validation stays: diff review + user's build/lint gate.
 
 ---
 
@@ -235,16 +236,91 @@ the real logs — it's the §9 deferral idea applied to replay.
 ### The case-ledger format (current)
 
 Each line is a `CaseLedgerEntry`: `{ logIndex, eventType, payloadSnapshot (an AS2
-activity), entryHash, prevLogHash, receivedAt, … }`. Eight `eventType` verbs:
-`offer_case_manager_role`, `validate_report`, `add_note_to_case`,
-`add_participant_status_to_participant`, `remove_embargo_event_from_case`,
-`close_case`, and (multi-vendor) `invite_actor_to_case` +
-`accept_invite_actor_to_case`. The log records **state SNAPSHOTS, not transitions** — the mapper
+activity), entryHash, prevLogHash, receivedAt, … }`. The mapper currently **handles
+8** `eventType` verbs: `offer_case_manager_role`, `validate_report`,
+`add_note_to_case`, `add_participant_status_to_participant`,
+`remove_embargo_event_from_case`, `close_case`, `invite_actor_to_case`,
+`accept_invite_actor_to_case`. **The 2026-07 container scenarios emit 5 MORE**
+(`submit_report`, `accept_case_manager_role`, `offer_actor_to_case`,
+`offer_case_participant`, `accept_offer_case_participant`) that are **not yet
+handled** — see "⏳ IN PROGRESS" below. The log records **state SNAPSHOTS, not transitions** — the mapper
 recovers the trigger by diffing each participant's snapshot against the previous one
 (RM/VFD via `object.rmState`/`vfdState`; EM/PXA via `caseStatus` /
 `caseStatuses[0]` structured fields). A status `name` like `"ACCEPTED VFD ACTIVE
 Pxa"` is a cross-check only — trust structured fields (the offer's CaseStatus
 `name="NONE pxa"` lies; its `emState` is ACTIVE).
+
+### ⏳ IN PROGRESS (2026-07): new container scenarios — mapper extension needed
+
+Allen standardized the container demos on an **F/V/C scenario-shape notation**
+(F=Finder, V=Vendor, C=Coordinator) with `-extension` vs `-handoff` variants
+(extension = original report receiver KEEPS case ownership and just recommends/
+invites others; handoff = original receiver TRANSFERS ownership to another actor).
+There are now **7 scenarios**, each a container demo that writes JSONL to the
+gitignored `devlogs/<scenario>/`. All 7 were generated locally (2026-07) and their
+logs inspected. **The Log Replay mapper does NOT yet handle them fully** — this is
+the next body of work.
+
+**How to (re)generate the logs** (Docker, on the user's real machine — not in
+this container): `./integration_tests/demo/run_multi_actor_integration_test.sh <s>`
+for `<s>` in `fv fvv fcv fvcv-extension fvcv-handoff fccv-extension fccv-handoff`
+(sequential; each self-cleans volumes). If `EOFError: marshal data too short`
+appears, the OneDrive-synced tree corrupted host `.pyc` files that leak into the
+containers via the `../vultron:/app/vultron` bind-mount — clear `__pycache__`/`*.pyc`
+and retry (see §7).
+
+**Ground-truth survey of the 7 scenarios' logs (entry counts + actor hosts):**
+| scenario | entries | actor hosts | notes |
+|---|---|---|---|
+| `fv` | 16 | finder, vendor | simplest; vendor self-manages case |
+| `fvv` | 24 | finder, vendor, actor5 | (actor5 = the 2nd vendor host) |
+| `fcv` | 22 | finder, vendor, **coordinator** | coordinator role introduced |
+| `fvcv-extension` | 33 | finder, vendor, coordinator, actor5 | richest event set |
+| `fvcv-handoff` | 30 | finder, vendor, coordinator, actor5 | ownership transfer |
+| `fccv-extension` | 31 | finder, vendor, coordinator, actor5 | |
+| `fccv-handoff` | 28 | finder, vendor, coordinator, actor5 | ownership transfer |
+
+**GAP 1 — unhandled event verbs.** The mapper's `handleEntry` switch handles 8
+verbs; the new scenarios emit **5 more that currently hit the `default` branch and
+render NO node (silently dropped):**
+- `submit_report` — explicit report submission (old two-actor folded this into the
+  offer seed; now first-class, `object.type = VulnerabilityReport`). Actor = finder.
+- `accept_case_manager_role` — an actor accepts the CM/coordinator role (pairs with
+  the existing `offer_case_manager_role`).
+- `offer_actor_to_case`, `offer_case_participant`, `accept_offer_case_participant` —
+  the **extension** flow's participant-onboarding handshake (distinct from the
+  `invite_actor_to_case`/`accept_invite_actor_to_case` pair the fvv path uses).
+Decide per verb whether it's a visible node, a seed/no-op, or folds into an existing
+handler — mirror how `invite`/`accept_invite` were added.
+
+**GAP 2 — unrecognized actor lanes.** `actorUrlToLaneId`
+([caseLedgerParser.ts](src/utils/caseLedgerParser.ts)) knows only `finder`,
+`vendor-N`, `caseactor`. The new hosts **`//coordinator:`** and **`//actor5:`** fall
+through to `unknown` → dropped. Need lane ids + `makeParticipant` cases +
+`LANE_INDEX`/`buildLaneIndex` ordering + colors for a coordinator (and to map
+`actor5` — confirm whether it's "vendor-2" or a distinct role; in fvv it's the 2nd
+vendor, in the C-scenarios it appears alongside a coordinator, so its role may be
+scenario-dependent — VERIFY from each log's `actorParticipantIndex`/roles before coding).
+
+**GAP 3 — case-ownership HANDOFF (hardest).** The `-handoff` scenarios transfer the
+case-manager role BETWEEN actors mid-case (protocol events
+`offer_case_ownership_transfer` / `accept_case_ownership_transfer` /
+`reject_case_ownership_transfer` exist in the source; confirm exactly how they
+surface in the handoff logs — the top-level `eventType` set above didn't obviously
+include them, so they may be carried differently). The mapper currently assumes ONE
+fixed `caseactor` lane for the whole case. Handoff breaks that assumption and likely
+touches the lane model itself, plus the `rmState==='N/A'` "who is the coordinator"
+marker used by `buildInviteAction` (§9). Scope this carefully against the real
+handoff logs before coding — it's more than a new event handler.
+
+**Suggested approach for the next session:** (1) re-read the actual logs in
+`devlogs/{fcv,fvcv-*,fccv-*}/case-actor/*.jsonl` (ground truth — invariant tests
+assert only a subset of verbs, don't rely on them); (2) extend the parser
+(`LedgerEventType`, `LaneId`, `actorUrlToLaneId`) for coordinator/actor5 + the 5 new
+verbs; (3) add mapper handlers; (4) tackle handoff's lane model last; (5) add
+`sample-logs/` copies + "Load …" buttons for the scenarios that render cleanly, as
+we did for fvv. Validation stays: hand-trace against the artifact + user runs
+build/lint (no node in-container).
 
 ---
 
