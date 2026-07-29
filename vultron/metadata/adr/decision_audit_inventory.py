@@ -121,8 +121,12 @@ def _load_learnings_text(root: Path) -> str:
     return "\n".join(parts)
 
 
-# Any PREFIX-NN[-NNN] identifier — used to find IDs sitting near a problem word.
-_ANY_ID_RE = re.compile(r"\b([A-Z]{2,8}-\d{2}(?:-\d{3})?)\b")
+# Any PREFIX-NN[N[N]][-NNN] identifier — used to find IDs sitting near a
+# problem word. The 2–4 digit run captures both spec IDs (PREFIX-NN,
+# PREFIX-NN-NNN) and 4-digit ADR IDs (ADR-NNNN); a 2-digit-only run would
+# never match an ADR-NNNN token, leaving the ADR named-in-learnings signal
+# dead (Concern #1800 follow-up).
+_ANY_ID_RE = re.compile(r"\b([A-Z]{2,8}-\d{2,4}(?:-\d{3})?)\b")
 
 
 def _ids_near_problem_words(text: str, window: int = 120) -> set[str]:
@@ -226,6 +230,19 @@ def _group_signals(group_id, specs, adr_by_num, reg, flagged_ids) -> list[str]:
         signals.append(
             "derives-from-non-accepted-adr:" + ",".join(sorted(shaky))
         )
+
+    # Cites a superseded ADR in rationale prose. Distinct from the structured
+    # adr: edge above: a rationale that argues *from* a retired decision is a
+    # moved premise even when no adr: edge records it.
+    retired = {
+        f"ADR-{num}"
+        for spec in specs
+        for num in _ADR_NUM_RE.findall(getattr(spec, "rationale", None) or "")
+        if adr_by_num.get(num)
+        and adr_by_num[num].status is AdrStatus.SUPERSEDED
+    }
+    if retired:
+        signals.append("cites-superseded:" + ",".join(sorted(retired)))
 
     # testable:false cluster with no behavioral steps.
     untestable = [

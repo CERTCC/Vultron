@@ -4,6 +4,7 @@ import pytest
 
 from vultron.metadata.adr.decision_audit_inventory import (
     Candidate,
+    _ids_near_problem_words,
     _signal_weight,
     build_inventory,
 )
@@ -66,8 +67,29 @@ class TestScoring:
     def test_signal_weight_prefix_matching(self):
         assert _signal_weight("derives-from-non-accepted-adr:ADR-0015=x") == 3
         assert _signal_weight("status=proposed") == 2
+        assert _signal_weight("cites-superseded:ADR-0015") == 2
         assert _signal_weight("named-in-learnings") == 1
         assert _signal_weight("some-unknown-signal") == 1  # default
+
+
+class TestProblemWordScan:
+    def test_captures_four_digit_adr_id(self):
+        """A 4-digit ADR id near a problem word must be flagged. A 2-digit-only
+        id pattern would never match ADR-NNNN, leaving the ADR
+        named-in-learnings signal permanently dead (the fix's whole point)."""
+        text = "ADR-0033 is stale and should be reworked."
+        assert "ADR-0033" in _ids_near_problem_words(text)
+
+    def test_captures_spec_id_and_group_prefix(self):
+        text = "CM-15-001 contradicts the codebase."
+        hits = _ids_near_problem_words(text)
+        assert "CM-15-001" in hits
+        assert "CM-15" in hits  # two-segment group prefix also recorded
+
+    def test_no_problem_word_flags_nothing(self):
+        assert (
+            _ids_near_problem_words("ADR-0033 is fine; CM-15 works.") == set()
+        )
 
 
 @pytest.mark.integration
@@ -100,3 +122,14 @@ class TestBuildInventory:
         assert any(
             s.startswith("derives-from-non-accepted-adr") for s in cm22.signals
         )
+
+    def test_cites_superseded_signal_fires(self, inventory):
+        """The cites-superseded signal must actually be emitted by some
+        candidate — it is a declared, weighted signal, not dead config. At
+        least one group cites superseded ADR-0015 in its rationale prose."""
+        emitting = [
+            c
+            for c in inventory
+            if any(s.startswith("cites-superseded") for s in c.signals)
+        ]
+        assert emitting, "cites-superseded signal never fired"
