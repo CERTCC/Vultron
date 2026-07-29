@@ -520,6 +520,27 @@ class TestFriendlyNaming:
         assert event.actor_uri is None
         assert event.summary == "Validated the report"
 
+    def test_summary_create_case_proposal_has_no_dangling_target(self):
+        """CREATE_CASE_PROPOSAL renders without a dangling em-dash (#1787).
+
+        The proposal ``Create`` has no ``target``, so the old
+        ``"{actor} proposed a case to {target}"`` phrase rendered
+        ``"Vendor proposed a case to —"``.  The summary must read as a
+        complete sentence with no trailing/dangling ``"—"``.
+        """
+        raw = _camel_entry(
+            eventType="create_case_proposal",
+            payloadSnapshot={
+                "type": "Create",
+                "actor": "http://vendor:7999/api/v2/actors/vendor",
+                "object": {"id": "urn:uuid:cp1", "type": "as_CaseProposal"},
+                "context": "urn:case:1",
+            },
+        )
+        event = CaseTimelineEvent.from_raw(raw)
+        assert event.summary == "Vendor proposed a new case"
+        assert "—" not in event.summary
+
 
 # ---------------------------------------------------------------------------
 # DRPT-05-005 — _format_delta unit tests (AC-6)
