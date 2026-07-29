@@ -676,6 +676,40 @@ class TestADR0041EmbargoInit:
             embargo_obj, EmbargoEvent
         ), "EmbargoEvent must be stored in DataLayer (AC-3)"
 
+    def test_vendor_owner_seeded_as_signatory(self, make_payload):
+        """CM-13: vendor (CASE_OWNER) is SIGNATORY on the active embargo.
+
+        Regression for the gap where InitializeDefaultEmbargoNode's
+        SeedOwnerAsSignatoryNode keys on actor_id (the CaseActor, not a
+        participant here) and silently no-ops, leaving an ACTIVE embargo with
+        no signatory.
+        """
+        from vultron.core.models.case import VulnerabilityCase
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.core.states.participant_embargo_consent import PEC
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        _seed_report(dl)
+        _run_full_bt(make_payload, dl)
+
+        cases = list(dl.list_objects("VulnerabilityCase"))
+        assert cases
+        case = cases[0]
+        assert isinstance(case, VulnerabilityCase)
+        assert case.active_embargo is not None
+
+        vendor_pid = case.actor_participant_index.get(_VENDOR_URI)
+        assert vendor_pid, "vendor must have a participant entry"
+        vendor_participant = dl.read(vendor_pid)
+        assert isinstance(vendor_participant, CaseParticipant)
+        assert vendor_participant.embargo_consent_state == PEC.SIGNATORY, (
+            "Vendor (CASE_OWNER) must be seeded SIGNATORY on the active"
+            " embargo at case creation (CM-13)"
+        )
+        assert (
+            case.active_embargo in vendor_participant.accepted_embargo_ids
+        ), "Active embargo id must be recorded in vendor's accepted list"
+
 
 class TestADR0041LedgerEntries:
     """ADR-0041 AC-4: canonical ledger entries committed natively."""
@@ -855,4 +889,142 @@ class TestADR0041InlineParticipantsPayload:
         assert _VENDOR_URI in attributed_tos, (
             f"Vendor '{_VENDOR_URI}' must appear as inline participant in"
             " Create(VulnerabilityCase) payload (AC-5)"
+        )
+
+
+class TestADR0041Idempotency:
+    """ADR-0041 / CP-05-006: re-processing a proposal is idempotent.
+
+    The ADR explicitly warns that a prior attempt shifted ledger indices and
+    broke replication timing.  A duplicate ``Create(as_CaseProposal)`` (after
+    the retry marker is cleared) must reuse the existing case and must NOT
+    create duplicate participants or duplicate ledger entries.
+    """
+
+    def test_duplicate_proposal_no_duplicate_participants_or_entries(
+        self, make_payload
+    ):
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        _seed_report(dl)
+
+        # First delivery — creates the case, participants, ledger entries,
+        # and clears the retry marker on success.
+        _run_full_bt(make_payload, dl)
+
+        from vultron.core.models.case import VulnerabilityCase
+
+        cases = list(dl.list_objects("VulnerabilityCase"))
+        assert len(cases) == 1
+        case = cases[0]
+        assert isinstance(case, VulnerabilityCase)
+        case_id = case.id_
+        first_index = dict(case.actor_participant_index)
+        entries_before = [
+            e
+            for e in dl.list_objects("CaseLedgerEntry")
+            if getattr(e, "case_id", None) == case_id
+        ]
+
+        # Second delivery of the SAME proposal — marker was cleared, so the
+        # AC-3 guard falls through; _LoadExistingCaseNode must reuse the case.
+        _run_full_bt(make_payload, dl)
+
+        cases_after = list(dl.list_objects("VulnerabilityCase"))
+        assert (
+            len(cases_after) == 1
+        ), "duplicate proposal must not create a second case"
+        reused = cases_after[0]
+        assert isinstance(reused, VulnerabilityCase)
+        assert reused.id_ == case_id
+
+        assert dict(reused.actor_participant_index) == first_index, (
+            "duplicate proposal must not add duplicate participants"
+            " (participant index must be unchanged)"
+        )
+
+        entries_after = [
+            e
+            for e in dl.list_objects("CaseLedgerEntry")
+            if getattr(e, "case_id", None) == case_id
+        ]
+        assert len(entries_after) == len(entries_before), (
+            "duplicate proposal must not append duplicate ledger entries"
+            f" (before={len(entries_before)}, after={len(entries_after)}) —"
+            " ledger-index stability is required (ADR-0041)"
+        )
+
+
+class TestADR0041GenesisCommitFailure:
+    """The genesis create_case commit failure must not be masked."""
+
+    def test_genesis_create_case_failure_aborts(self, make_payload):
+        """A failed genesis create_case commit returns FAILURE (not SUCCESS).
+
+        The genesis entry is the root of the CaseActor's hash chain; a
+        best-effort SUCCESS here would tell the vendor a case exists while the
+        canonical ledger has no root.
+        """
+        from py_trees.common import Status
+
+        from vultron.core.behaviors.case.case_proposal_received_tree import (
+            _CommitNativeLedgerEntriesNode,
+        )
+
+        node = _CommitNativeLedgerEntriesNode(
+            vendor_uri=_VENDOR_URI, report_id=_REPORT_URI
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        _seed_report(dl)
+        # Build a real case so the node reaches the commit step.
+        _run_full_bt(make_payload, dl)
+        case = list(dl.list_objects("VulnerabilityCase"))[0]
+
+        # Wire up the node against the real DL + case, forcing every commit
+        # (including genesis create_case) to report failure.
+        node.datalayer = dl
+        node.actor_id = _CASE_ACTOR_URI
+
+        class _BB:
+            def get(self, _key):
+                return case.id_
+
+        node.blackboard = _BB()  # type: ignore[assignment]
+
+        with patch.object(
+            _CommitNativeLedgerEntriesNode,
+            "_commit_one",
+            return_value=False,
+        ):
+            result = node.update()
+
+        assert result == Status.FAILURE, (
+            "genesis create_case commit failure must propagate as FAILURE,"
+            " not be masked as best-effort SUCCESS"
+        )
+
+    def test_case_not_found_is_best_effort_success(self, make_payload):
+        """case-not-found in the ledger node is best-effort SUCCESS."""
+        from py_trees.common import Status
+
+        from vultron.core.behaviors.case.case_proposal_received_tree import (
+            _CommitNativeLedgerEntriesNode,
+        )
+
+        node = _CommitNativeLedgerEntriesNode(
+            vendor_uri=_VENDOR_URI, report_id=_REPORT_URI
+        )
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        node.datalayer = dl
+        node.actor_id = _CASE_ACTOR_URI
+
+        class _BB:
+            def get(self, _key):
+                return "urn:uuid:does-not-exist"
+
+        node.blackboard = _BB()  # type: ignore[assignment]
+
+        assert node.update() == Status.SUCCESS, (
+            "case-not-found must be best-effort SUCCESS (the ledger is an"
+            " audit record, not a precondition for the outbound emissions)"
         )

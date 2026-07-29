@@ -17,11 +17,12 @@ ADR-0041 before emitting outbound activities:
   2. Add vendor (receiver) as CASE_OWNER participant at RM.RECEIVED (AC-1)
   3. Add reporter as participant at RM.ACCEPTED (AC-2)
   4. Initialize the default embargo (AC-3)
-  5. Commit canonical ledger entries natively (AC-4)
-  6. Emit ``Accept(as_CaseProposal)``
-  7. Write durable retry marker (CP-05-005)
-  8. Emit ``Create(VulnerabilityCase)`` with inline participants (AC-5)
-  9. Clear retry marker on success
+  5. Seed vendor (CASE_OWNER) as embargo SIGNATORY (CM-13)
+  6. Commit canonical ledger entries natively (AC-4)
+  7. Emit ``Accept(as_CaseProposal)``
+  8. Write durable retry marker (CP-05-005)
+  9. Emit ``Create(VulnerabilityCase)`` with inline participants (AC-5)
+  10. Clear retry marker on success
 
 Idempotency (CP-05-006):
 
@@ -496,7 +497,14 @@ class _CommitNativeLedgerEntriesNode(DataLayerAction):
         object_id: str,
         event_type: str,
         snapshot: dict[str, Any],
-    ) -> None:
+    ) -> bool:
+        """Commit one canonical ledger entry.
+
+        Returns ``True`` on success, ``False`` on failure.  Downstream callers
+        treat most entries as best-effort (log and continue), but the genesis
+        ``create_case`` entry is load-bearing — the root of the CaseActor's
+        hash chain — so its result must not be silently discarded.
+        """
         assert self.datalayer is not None
         assert self.actor_id is not None
         tree = create_commit_log_entry_tree(
@@ -517,6 +525,8 @@ class _CommitNativeLedgerEntriesNode(DataLayerAction):
                 case_id,
                 result.feedback_message,
             )
+            return False
+        return True
 
     def _commit_add_reports(
         self, case: VulnerabilityCase, case_id: str
@@ -635,12 +645,26 @@ class _CommitNativeLedgerEntriesNode(DataLayerAction):
 
         case = raw_case
         # 1. create_case  (actor = CaseActor, in _CASE_AUTHORED_SIGNATURES)
-        self._commit_one(
+        #
+        # The genesis create_case entry is the root of the CaseActor's
+        # canonical hash chain.  Unlike the remaining best-effort entries, a
+        # failure here must NOT be masked: if the genesis entry is missing,
+        # the CaseActor's authoritative ledger has no root and every later
+        # entry (and every replica seeded from it) is broken.  Fail fast so
+        # the enclosing Sequence aborts before Accept/Create are emitted, and
+        # the vendor is not told a case exists that has no canonical ledger.
+        if not self._commit_one(
             case_id,
             case_id,
             "create_case",
             _build_create_case_snapshot(case, self.actor_id, case_id),
-        )
+        ):
+            self.feedback_message = (
+                f"genesis create_case ledger commit failed for case"
+                f" '{case_id}' — aborting native initialization"
+            )
+            logger.error("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
         # 2. add_report_to_case  (actor = CaseActor)
         self._commit_add_reports(case, case_id)
         # 3. add_participant_status × N  (actor = CaseActor)
@@ -651,6 +675,119 @@ class _CommitNativeLedgerEntriesNode(DataLayerAction):
         logger.info(
             "%s: native ledger entries committed for case '%s' (ADR-0041 AC-4)",
             self.name,
+            case_id,
+        )
+        return Status.SUCCESS
+
+
+class _SeedVendorOwnerSignatoryNode(DataLayerAction):
+    """Seed the vendor (CASE_OWNER) participant as embargo SIGNATORY (CM-13).
+
+    ``InitializeDefaultEmbargoNode`` ends in ``SeedOwnerAsSignatoryNode``,
+    which seeds the participant found at
+    ``actor_participant_index.get(self.actor_id)`` — i.e. the *acting* actor.
+    In the original vendor tree the acting actor was the case owner, so that
+    worked.  Here the acting actor is the **CaseActor**, which is NOT a
+    participant in this case, so ``SeedOwnerAsSignatoryNode`` silently
+    no-ops and no participant becomes a signatory.
+
+    Per CM-13 / ``notes/embargo-default-semantics.md`` (BUG-26042204), when a
+    case is created with an ACTIVE default embargo the case owner MUST be
+    seeded as ``SIGNATORY`` — it makes no sense for the owner to be locked out
+    of their own embargo.  This node seeds the vendor participant explicitly by
+    ``vendor_uri`` (not by ``actor_id``), closing the gap left by the reused
+    node.
+
+    Best-effort: if the case or vendor participant cannot be resolved, logs a
+    warning and returns SUCCESS so the enclosing Sequence is not blocked (the
+    embargo itself is already ACTIVE; a missing consent seed is a warning, not
+    a hard stop).
+
+    Reads ``case_id`` from the blackboard.
+    """
+
+    def __init__(
+        self,
+        vendor_uri: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._vendor_uri = vendor_uri
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="case_id", access=py_trees.common.Access.READ
+        )
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        try:
+            case_id = self.blackboard.get("case_id")
+        except KeyError:
+            self.feedback_message = "case_id not found in blackboard"
+            return Status.FAILURE
+        if not isinstance(case_id, str):
+            self.feedback_message = "case_id is not a string"
+            return Status.FAILURE
+
+        stored_case = self.datalayer.read(case_id, raise_on_missing=False)
+        if not isinstance(stored_case, VulnerabilityCase):
+            logger.warning(
+                "%s: case '%s' not found — cannot seed vendor SIGNATORY"
+                " (best-effort)",
+                self.name,
+                case_id,
+            )
+            return Status.SUCCESS
+
+        if stored_case.active_embargo is None:
+            logger.debug(
+                "%s: no active embargo on case '%s' — nothing to seed",
+                self.name,
+                case_id,
+            )
+            return Status.SUCCESS
+
+        participant_id = stored_case.actor_participant_index.get(
+            self._vendor_uri
+        )
+        if not participant_id:
+            logger.warning(
+                "%s: vendor '%s' has no participant in case '%s' —"
+                " cannot seed SIGNATORY (best-effort)",
+                self.name,
+                self._vendor_uri,
+                case_id,
+            )
+            return Status.SUCCESS
+
+        participant = self.datalayer.read(
+            participant_id, raise_on_missing=False
+        )
+        if not isinstance(participant, CaseParticipant):
+            logger.warning(
+                "%s: vendor participant '%s' not found in case '%s' —"
+                " cannot seed SIGNATORY (best-effort)",
+                self.name,
+                participant_id,
+                case_id,
+            )
+            return Status.SUCCESS
+
+        embargo_id = stored_case.active_embargo
+        participant.embargo_consent_state = PEC.SIGNATORY
+        if embargo_id and embargo_id not in participant.accepted_embargo_ids:
+            participant.accepted_embargo_ids.append(embargo_id)
+        self.datalayer.save(participant)
+        logger.info(
+            "%s: Seeded vendor '%s' as embargo SIGNATORY in case '%s'"
+            " (CM-13)",
+            self.name,
+            self._vendor_uri,
             case_id,
         )
         return Status.SUCCESS
@@ -1029,20 +1166,22 @@ def create_case_proposal_received_tree(
          (ADR-0041 AC-2)
       5. ``InitializeDefaultEmbargoNode`` — default embargo initialized
          (ADR-0041 AC-3)
-      6. ``_CommitNativeLedgerEntriesNode`` — canonical ledger entries
+      6. ``_SeedVendorOwnerSignatoryNode`` — vendor (CASE_OWNER) seeded as
+         embargo SIGNATORY (CM-13)
+      7. ``_CommitNativeLedgerEntriesNode`` — canonical ledger entries
          committed (ADR-0041 AC-4)
 
       Then the outbound messaging steps:
 
-      7. ``_EmitAcceptCaseProposalNode`` — emits Accept(as_CaseProposal)
-      8. ``_WriteCreateCaseMarkerNode`` — writes durable retry marker with
+      8. ``_EmitAcceptCaseProposalNode`` — emits Accept(as_CaseProposal)
+      9. ``_WriteCreateCaseMarkerNode`` — writes durable retry marker with
          inline case object (CP-05-005, ADR-0041 AC-5)
-      9. ``_EmitCreateVulnerabilityCaseNode`` — emits
+      10. ``_EmitCreateVulnerabilityCaseNode`` — emits
          Create(VulnerabilityCase) with inline participants
-      10. ``_ClearCreateCaseMarkerNode`` — removes marker on success
+      11. ``_ClearCreateCaseMarkerNode`` — removes marker on success
          (CP-05-005)
 
-    If node 9 fails, the marker written in node 8 remains in the DataLayer so
+    If node 10 fails, the marker written in node 9 remains in the DataLayer so
     that a retry runner (#1139) can complete the ``Create(VulnerabilityCase)``
     delivery independently.
 
@@ -1093,6 +1232,11 @@ def create_case_proposal_received_tree(
             _AddReporterParticipantNode(report_id=report_id),
             # ADR-0041 AC-3: initialize default embargo
             InitializeDefaultEmbargoNode(),
+            # CM-13: seed the vendor (CASE_OWNER) as embargo SIGNATORY.
+            # InitializeDefaultEmbargoNode's SeedOwnerAsSignatoryNode keys on
+            # actor_id (the CaseActor), which is not a participant here, so it
+            # no-ops; this node seeds the vendor explicitly.
+            _SeedVendorOwnerSignatoryNode(vendor_uri=vendor_uri),
             # ADR-0041 AC-4: commit canonical ledger entries natively
             _CommitNativeLedgerEntriesNode(
                 vendor_uri=vendor_uri,
