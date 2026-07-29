@@ -117,10 +117,11 @@ gh api graphql -f query="mutation {
 
 Schedule option IDs:
 
-- Now: `1e84189c`
-- Next: `9fca00b2`
-- Later: `e2149d3e`
-- Someday: `fcffa79d`
+- Focus: `6bca50d7`
+- Now: `22e6679d`
+- Next: `1c1ed63d`
+- Later: `520032ef`
+- Someday: `a890eacc`
 
 ### Create a New Epic
 

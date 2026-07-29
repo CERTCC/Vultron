@@ -27,10 +27,11 @@ review-priorities (coordinator)
 |---|---|
 | Project node ID | `PVT_kwDOAjf0s84BZnre` |
 | Schedule field ID | `PVTSSF_lADOAjf0s84BZnrezhUlFOM` |
-| Now option ID | `1e84189c` |
-| Next option ID | `9fca00b2` |
-| Later option ID | `e2149d3e` |
-| Someday option ID | `fcffa79d` |
+| Focus option ID | `6bca50d7` |
+| Now option ID | `22e6679d` |
+| Next option ID | `1c1ed63d` |
+| Later option ID | `520032ef` |
+| Someday option ID | `a890eacc` |
 
 ## Phase 1: Run check-priority-status
 

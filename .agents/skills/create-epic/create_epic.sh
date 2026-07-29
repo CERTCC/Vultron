@@ -22,7 +22,7 @@ REPO_NODE_ID="R_kgDOIn77fA"
 EPIC_TYPE_ID="IT_kwDOAjf0s84B_E1A"
 PROJECT_ID="PVT_kwDOAjf0s84BZnre"
 SCHEDULE_FIELD_ID="PVTSSF_lADOAjf0s84BZnrezhUlFOM"
-SCHEDULE_SOMEDAY="fcffa79d"
+SCHEDULE_SOMEDAY="a890eacc"
 
 # JSON-encode title and body for safe GraphQL embedding
 TITLE_JSON=$(printf '%s' "${EPIC_TITLE}" \

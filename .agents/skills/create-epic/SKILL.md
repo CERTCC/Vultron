@@ -86,8 +86,8 @@ ITEM_ID=$(gh api graphql -f query="mutation {
   }) { item { id } }
 }" --jq '.data.addProjectV2ItemById.item.id')
 
-# Set Schedule field (Now=1e84189c Next=9fca00b2 Later=e2149d3e Someday=fcffa79d)
-SCHEDULE_ID="fcffa79d"  # default: Someday
+# Set Schedule field (Now=22e6679d Next=1c1ed63d Later=520032ef Someday=a890eacc)
+SCHEDULE_ID="a890eacc"  # default: Someday
 gh api graphql -f query="mutation {
   updateProjectV2ItemFieldValue(input: {
     projectId: \"PVT_kwDOAjf0s84BZnre\"
@@ -132,4 +132,4 @@ echo "${EPIC_NUMBER}"
 - The repo node ID for `CERTCC/Vultron` is `R_kgDOIn77fA`.
 - Project #24 node ID: `PVT_kwDOAjf0s84BZnre`
 - Schedule field ID: `PVTSSF_lADOAjf0s84BZnrezhUlFOM`
-- Schedule option IDs: `Now=1e84189c`, `Next=9fca00b2`, `Later=e2149d3e`, `Someday=fcffa79d`
+- Schedule option IDs: `Now=22e6679d`, `Next=1c1ed63d`, `Later=520032ef`, `Someday=a890eacc`

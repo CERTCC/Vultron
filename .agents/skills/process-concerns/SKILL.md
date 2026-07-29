@@ -165,7 +165,7 @@ gh api graphql -f query="mutation {
     projectId: \"PVT_kwDOAjf0s84BZnre\"
     itemId: \"${ITEM_ID}\"
     fieldId: \"PVTSSF_lADOAjf0s84BZnrezhUlFOM\"
-    value: { singleSelectOptionId: \"fcffa79d\" }
+    value: { singleSelectOptionId: \"a890eacc\" }
   }) { projectV2Item { id } }
 }" >/dev/null
 
