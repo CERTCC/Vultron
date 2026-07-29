@@ -542,7 +542,7 @@ class TestWaitForEventTypeInLedger:
             },
         }
 
-        def _get_side_effect(path: str) -> dict:
+        def _get_side_effect(path: str):
             nonlocal call_count
             call_count += 1
             if call_count < 3:
