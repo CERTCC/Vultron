@@ -134,8 +134,11 @@ failing because the right home does not exist yet.
 
 Trigger: run periodically, or when routing repeatedly struggles because the
 epics themselves are muddled — redundant umbrellas, epics mixing prod-only and
-buildable-soon work, grab-bag epics with no coherent identity, or an iceberg
-that has grown two design ideas and needs splitting.
+buildable-soon work, grab-bag epics with no coherent identity, an iceberg that
+has grown two design ideas and needs splitting, or a **tier inversion**
+(`check-priority-status` reports an issue blocked by something in a strictly
+later tier — a Now item gated by a Someday item, a Focus item gated by a Next
+item, etc.).
 
 This is an anneal pass over the **not-yet-active** region only. Treat epics at
 Now/Focus as frozen: you may *add* children to them, but do not re-tier or
@@ -151,6 +154,15 @@ Recognized events (each requires human confirmation before any mutation):
 - **Split** an overgrown iceberg that now holds two design ideas into two.
 - **Dissolve a grab-bag**: route each child to a design-coherent home, then
   close the emptied shell with a comment recording where its children went.
+- **Resolve a tier inversion**: an issue blocked by something in a strictly
+  later tier is scheduled ahead of the work it depends on. Diagnose which way
+  the grain actually runs, then pick the fix: re-parent the dependent onto the
+  blocker's epic (Mode 1 routing) if it simply landed on the wrong glacier;
+  re-tier one of the two if the horizons are just mis-set; or, if the dependent
+  and its blocker turn out to be one coherent design idea artificially split,
+  calve them together into a single iceberg (Mode 2). Never fix an inversion by
+  re-tiering a Now/Focus epic — those are frozen; move the *later* item earlier
+  or re-parent instead.
 
 Procedure:
 
