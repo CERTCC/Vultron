@@ -6,7 +6,7 @@ source: ISSUE-1732
 signal: scope-dependency
 ---
 
-#1732 (FUZZ-08e: in-process FCV fuzz simulation) was picked up for build after
+Issue #1732 (FUZZ-08e: in-process FCV fuzz simulation) was picked up for build after
 its stated blockers (#1178, #1793) closed, but a cascade-reachability analysis
 showed it is premature.
 
