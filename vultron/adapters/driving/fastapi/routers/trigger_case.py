@@ -178,6 +178,7 @@ def trigger_create_case(
             name=body.name,
             content=body.content,
             report_id=body.report_id,
+            to=body.to,
         )
     background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
     return result

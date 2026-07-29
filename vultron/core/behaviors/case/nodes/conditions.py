@@ -38,6 +38,7 @@ from vultron.core.behaviors.case.nodes.case_setup import _derive_case_slug
 from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
 from vultron.config.actor import ActorConfig
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_actor import CaseActor as VultronCaseActor
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.use_cases._helpers import _resolve_case_manager_id
 
@@ -375,24 +376,38 @@ class WritePendingReportCaseLinkNode(DataLayerAction):
         case_slug = _derive_case_slug(self.report_id)
         case_actor_id = f"{base_url}/actors/case-actor-{case_slug}"
 
+        # Ensure the CaseActor service object exists so its inbox accepts
+        # Create(as_CaseProposal) delivery (ADR-0041, CP-04-002).
+        self._ensure_case_actor(case_actor_id)
+
         link_id = VultronReportCaseLink.build_id(self.report_id)
         existing = self.datalayer.read(link_id)
         if isinstance(existing, VultronReportCaseLink):
-            self.logger.debug(
-                "%s: ReportCaseLink already exists for report '%s' — skipping write",
-                self.name,
-                self.report_id,
-            )
+            if existing.proposal_rejected:
+                # Retry path: clear the rejection flag so ProposeReportCaseToActorNode
+                # can send a new proposal and downstream uses see a clean pending state.
+                existing.proposal_rejected = False
+                self.datalayer.save(existing)
+                self.logger.info(
+                    "%s: cleared proposal_rejected on existing ReportCaseLink"
+                    " for report '%s' (retry)",
+                    self.name,
+                    self.report_id,
+                )
+            else:
+                self.logger.debug(
+                    "%s: ReportCaseLink already exists for report '%s'"
+                    " — skipping write",
+                    self.name,
+                    self.report_id,
+                )
             return Status.SUCCESS
 
         link = VultronReportCaseLink(
             report_id=self.report_id,
             trusted_case_creator_id=case_actor_id,
         )
-        try:
-            self.datalayer.create(link)
-        except ValueError:
-            self.datalayer.save(link)
+        self.datalayer.create(link)
         self.logger.info(
             "%s: wrote pending ReportCaseLink for report '%s'"
             " (trusted_case_creator_id='%s')",
@@ -401,3 +416,21 @@ class WritePendingReportCaseLinkNode(DataLayerAction):
             case_actor_id,
         )
         return Status.SUCCESS
+
+    def _ensure_case_actor(self, case_actor_id: str) -> None:
+        """Create the VultronCaseActor service object if it does not exist.
+
+        The actor must exist in the DataLayer before Create(as_CaseProposal) is
+        delivered, otherwise the inbox handler returns 404 (CP-04-002).
+        """
+        assert self.datalayer is not None
+        if self.datalayer.read(case_actor_id) is not None:
+            return
+        case_actor = VultronCaseActor(
+            id_=case_actor_id,
+            name=f"CaseActor for report {self.report_id}",
+        )
+        try:
+            self.datalayer.create(case_actor)
+        except ValueError:
+            pass  # already exists (race or duplicate); not an error

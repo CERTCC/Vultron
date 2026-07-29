@@ -94,6 +94,7 @@ class TriggerServicePort(Protocol):
         name: str,
         content: str,
         report_id: str | None = None,
+        to: list[str] | None = None,
     ) -> dict[str, Any]: ...
 
     def engage_case(

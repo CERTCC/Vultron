@@ -255,7 +255,7 @@ def pytest_collection_modifyitems(
             item.add_marker(pytest.mark.integration)
 
 
-_CASE_ACTOR_SERVICE_URL = "http://localhost:7999"
+_CASE_ACTOR_SERVICE_URL = "http://localhost:7999/api/v2"
 
 
 @pytest.fixture(scope="session", autouse=True)

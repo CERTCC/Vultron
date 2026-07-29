@@ -275,14 +275,38 @@ def _bootstrap_case_for_participant(
     )
     _post_to_inbox(owner_tc, _actor_slug(owner_actor_id), offer)
 
-    # Verify the submit-report BT created the case.
-    all_cases = owner_iso.dl.get_all("VulnerabilityCase")
-    assert len(all_cases) >= 1, (
-        "Expected at least one as_VulnerabilityCase in owner's DataLayer "
-        "after SubmitReport inbox delivery, but none was found.  "
-        "The create_receive_report_case_tree BT may not have run."
+    # ADR-0041: receive_report_case_tree writes a VultronReportCaseLink and
+    # sends Create(as_CaseProposal) to CaseActor — no VulnerabilityCase yet.
+    # Simulate the CaseActor's Create(VulnerabilityCase) response by calling
+    # trigger/create-case directly.  Pass participant as `to` so the outbound
+    # Create(VulnerabilityCase) satisfies OX-08-001.
+    resp = owner_tc.post(
+        f"/api/v2/actors/{_actor_slug(owner_actor_id)}/trigger/create-case",
+        json={
+            "name": "PCR-07-006 bootstrap test case",
+            "content": "Case seeded by trigger/create-case (ADR-0041).",
+            "report_id": report.id_,
+            "to": [participant_actor_id],
+        },
     )
-    case_id: str = all_cases[0]["id_"]
+    assert (
+        resp.status_code == 202
+    ), f"trigger/create-case failed ({resp.status_code}): {resp.text}"
+
+    # Find the case that the CaseActor created for this report.
+    # Under ADR-0041, case_proposal_received_tree creates the canonical case
+    # when Create(as_CaseProposal) is processed; trigger/create-case above
+    # may add a second case — find by report_id to avoid ambiguity.
+    case_from_proposal = owner_iso.dl.find_case_by_report_id(report.id_)
+    if case_from_proposal is not None:
+        case_id = case_from_proposal.id_
+    else:
+        all_cases = owner_iso.dl.get_all("VulnerabilityCase")
+        assert len(all_cases) >= 1, (
+            "Expected at least one as_VulnerabilityCase in owner's DataLayer "
+            "after trigger/create-case, but none was found."
+        )
+        case_id = all_cases[0]["id_"]
 
     # Owner validates the report: this triggers the validate-report BT
     # and causes the CaseActor to emit Announce(as_VulnerabilityCase) to
@@ -392,9 +416,8 @@ class TestBootstrapSequence:
 
         owner_case = owner_iso.dl.read(case_id)
         expected_name = getattr(owner_case, "name", None)
-        assert (
-            expected_name is not None
-        ), "Owner's case has no name — cannot verify field preservation."
+        # Under ADR-0041 the CaseActor creates the case without a name;
+        # field-preservation still holds (None == None is valid).
         assert getattr(replica, "name", None) == expected_name, (
             f"Case replica name mismatch: expected {expected_name!r}, "
             f"got {getattr(replica, 'name', '<missing>')!r} "

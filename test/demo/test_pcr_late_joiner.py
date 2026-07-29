@@ -60,6 +60,7 @@ import pytest
 
 from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -272,13 +273,46 @@ def _bootstrap_case(
     )
     _post_to_inbox(owner_tc, _actor_slug(owner_actor_id), offer)
 
-    all_cases = owner_iso.dl.get_all("VulnerabilityCase")
-    assert len(all_cases) >= 1, (
-        "Expected at least one VulnerabilityCase in owner's DataLayer "
-        "after SubmitReport delivery.  The create_receive_report_case_tree "
-        "BT may not have run."
+    # ADR-0041: receive_report_case_tree writes a VultronReportCaseLink and
+    # sends Create(as_CaseProposal) — no VulnerabilityCase yet.
+    # Simulate the CaseActor's Create(VulnerabilityCase) response directly.
+    # Pass reporter as `to` so the outbound activity satisfies OX-08-001.
+    resp = owner_tc.post(
+        f"/api/v2/actors/{_actor_slug(owner_actor_id)}/trigger/create-case",
+        json={
+            "name": "PCR-07-007 late-joiner test case",
+            "content": "Case seeded by trigger/create-case (ADR-0041).",
+            "report_id": report.id_,
+            "to": [reporter_actor_id],
+        },
     )
-    case_id: str = all_cases[0]["id_"]
+    assert (
+        resp.status_code == 202
+    ), f"trigger/create-case failed ({resp.status_code}): {resp.text}"
+
+    # Find the canonical case by report_id to avoid picking up the extra
+    # VulnerabilityCase created by trigger/create-case above (ADR-0041 flow
+    # also creates one via case_proposal_received_tree).
+    case_from_proposal = owner_iso.dl.find_case_by_report_id(report.id_)
+    if case_from_proposal is not None:
+        case_id = case_from_proposal.id_
+    else:
+        all_cases = owner_iso.dl.get_all("VulnerabilityCase")
+        assert len(all_cases) >= 1, (
+            "Expected at least one VulnerabilityCase in owner's DataLayer "
+            "after trigger/create-case."
+        )
+        case_id = all_cases[0]["id_"]
+
+    # In this test the owner acts as the CaseActor.  Register that identity
+    # in the VultronReportCaseLink so _find_case_actor_id resolves correctly
+    # for invite-actor-to-case and accept-case-invite flows.
+    for link in owner_iso.dl.list_objects("ReportCaseLink"):
+        if isinstance(link, VultronReportCaseLink):
+            link.case_id = case_id
+            link.trusted_case_actor_id = owner_actor_id
+            owner_iso.dl.save(link)
+            break
 
     resp = owner_tc.post(
         f"/api/v2/actors/{_actor_slug(owner_actor_id)}"
@@ -293,11 +327,11 @@ def _bootstrap_case(
 
 
 def _find_case_actor_id_in_dl(dl, case_id: str) -> str | None:
-    """Scan ``dl`` for a CaseActor (Service) whose context matches *case_id*.
+    """Scan ``dl`` for a CaseActor ID for *case_id*.
 
-    ``VultronCaseActor`` objects are stored with ``type_="Service"`` and
-    ``context=case_id``.  This helper mirrors the legacy-path fallback in
-    the production ``_find_case_actor_id`` function.
+    Checks ``VultronReportCaseLink.trusted_case_actor_id`` first (ADR-0041
+    path), then falls back to scanning ``Service`` objects
+    (``VultronCaseActor`` with ``context=case_id``) for the pre-ADR-0041 path.
 
     Args:
         dl: A ``DataLayer`` instance (typically the owner's).
@@ -306,6 +340,10 @@ def _find_case_actor_id_in_dl(dl, case_id: str) -> str | None:
     Returns:
         The ``id_`` of the CaseActor, or ``None`` if not found.
     """
+    for link in dl.list_objects("ReportCaseLink"):
+        if isinstance(link, VultronReportCaseLink):
+            if link.case_id == case_id and link.trusted_case_actor_id:
+                return str(link.trusted_case_actor_id)
     for service in dl.list_objects("Service"):
         if getattr(service, "context", None) == case_id:
             return str(service.id_)

@@ -234,6 +234,74 @@ class _CreateCaseFromProposalNode(DataLayerAction):
         return Status.SUCCESS
 
 
+class _AddCaseActorParticipantNode(DataLayerAction):
+    """Register the CaseActor itself as COORDINATOR + CASE_MANAGER participant.
+
+    Under ADR-0041 the CaseActor creates the VulnerabilityCase, so it must
+    also register itself as the CASE_MANAGER so that ResolveCaseManagerNode
+    can locate it later (e.g. add-note-to-case, send_tree).
+
+    Reads ``case_id`` from the blackboard.  No-ops if the CaseActor is
+    already in ``actor_participant_index`` (idempotent on duplicate delivery).
+    """
+
+    def __init__(self, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="case_id", access=py_trees.common.Access.READ
+        )
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
+
+        try:
+            case_id = self.blackboard.get("case_id")
+        except KeyError:
+            self.feedback_message = "case_id not found in blackboard"
+            return Status.FAILURE
+        if not isinstance(case_id, str):
+            self.feedback_message = "case_id is not a string"
+            return Status.FAILURE
+
+        stored_case = self.datalayer.read(case_id)
+        if isinstance(stored_case, VulnerabilityCase):
+            if self.actor_id in stored_case.actor_participant_index:
+                return Status.SUCCESS
+
+        participant = VultronParticipant(
+            attributed_to=self.actor_id,
+            context=case_id,
+            name=f"CaseActor for {case_id}",
+            case_roles=[CVDRole.COORDINATOR, CVDRole.CASE_MANAGER],
+        )
+
+        updated_case = _create_and_attach_participant(
+            self.datalayer,
+            participant,
+            case_id,
+            self.actor_id,
+            self.logger,
+        )
+        if updated_case is None:
+            self.feedback_message = f"Case '{case_id}' not found in DataLayer"
+            return Status.FAILURE
+
+        self.datalayer.save(updated_case)
+        logger.info(
+            "%s: Registered CaseActor '%s' as CASE_MANAGER for case '%s'",
+            self.name,
+            self.actor_id,
+            case_id,
+        )
+        return Status.SUCCESS
+
+
 class _AddVendorOwnerParticipantNode(DataLayerAction):
     """Add the vendor (receiver) as CASE_OWNER participant at RM.RECEIVED.
 
@@ -295,10 +363,13 @@ class _AddVendorOwnerParticipantNode(DataLayerAction):
             RM.RECEIVED,
         )
 
+        # Include CVDRole.VENDOR so role guards (e.g. CheckVendorRoleNode) work.
+        # The prototype receiver is always a vendor; a future spec amendment
+        # should carry role hints in the CaseProposal instead of hard-coding.
         participant = VultronParticipant(
             attributed_to=self._vendor_uri,
             context=case_id,
-            case_roles=[CVDRole.CASE_OWNER],
+            case_roles=[CVDRole.CASE_OWNER, CVDRole.VENDOR],
             participant_statuses=[initial_status],
         )
 
@@ -315,7 +386,7 @@ class _AddVendorOwnerParticipantNode(DataLayerAction):
 
         self.datalayer.save(updated_case)
         logger.info(
-            "%s: Added vendor '%s' as CASE_OWNER at RM.RECEIVED"
+            "%s: Added vendor '%s' as CASE_OWNER+VENDOR at RM.RECEIVED"
             " in case '%s' (ADR-0041 AC-1)",
             self.name,
             self._vendor_uri,
@@ -1002,6 +1073,34 @@ class _WriteCreateCaseMarkerNode(DataLayerAction):
             key="accept_activity_id", access=py_trees.common.Access.READ
         )
 
+    def _collect_reporter_uris(self, case_id: str) -> list[str]:
+        """Return URIs of REPORTER/FINDER participants in *case_id*, excluding vendor.
+
+        CaseActor bootstraps non-vendor participants (ADR-0041 AC-5) by including
+        them as direct ``to`` recipients of ``Create(VulnerabilityCase)`` so their
+        DataLayers can seed a case replica immediately via
+        ``CreateCaseReceivedUseCase`` without waiting for the
+        ``Offer(CaseManagerRole)`` round-trip (which ADR-0041 removes).
+        """
+        assert self.datalayer is not None
+        raw_case = self.datalayer.read(case_id)
+        if not isinstance(raw_case, VulnerabilityCase):
+            return []
+        uris: list[str] = []
+        for p_id in raw_case.actor_participant_index.values():
+            p = self.datalayer.read(p_id)
+            if not isinstance(p, CaseParticipant):
+                continue
+            if (
+                CVDRole.REPORTER not in p.roles
+                and CVDRole.FINDER not in p.roles
+            ):
+                continue
+            uri = getattr(p, "attributed_to", None)
+            if isinstance(uri, str) and uri and uri != self._vendor_uri:
+                uris.append(uri)
+        return uris
+
     def _build_case_object(self, case_id: str) -> "dict[str, Any] | None":
         assert self.datalayer is not None
         raw_case = self.datalayer.read(case_id)
@@ -1057,11 +1156,16 @@ class _WriteCreateCaseMarkerNode(DataLayerAction):
             logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
+        # ADR-0041 AC-5: bootstrap all known participants directly.
+        # Include REPORTER/FINDER URIs so their DataLayers receive the case
+        # replica immediately; CreateCaseReceivedUseCase handles them via the
+        # non-vendor participant path (no ReportCaseLink required).
+        reporter_uris = self._collect_reporter_uris(case_id)
         create_activity = VultronCreateCaseActivity(
             actor=self.actor_id,
             object_=case_object,
             context=accept_activity_id,
-            to=[self._vendor_uri],
+            to=[self._vendor_uri] + reporter_uris,
         )
         payload = create_activity.model_dump(by_alias=True)
 
@@ -1160,25 +1264,27 @@ def create_case_proposal_received_tree(
 
       Then CaseActor-native initialization steps (ADR-0041):
 
-      3. ``_AddVendorOwnerParticipantNode`` — vendor added as CASE_OWNER at
+      3. ``_AddCaseActorParticipantNode`` — CaseActor registered as
+         COORDINATOR + CASE_MANAGER (ADR-0041)
+      4. ``_AddVendorOwnerParticipantNode`` — vendor added as CASE_OWNER at
          RM.RECEIVED (ADR-0041 AC-1)
-      4. ``_AddReporterParticipantNode`` — reporter added at RM.ACCEPTED
+      5. ``_AddReporterParticipantNode`` — reporter added at RM.ACCEPTED
          (ADR-0041 AC-2)
-      5. ``InitializeDefaultEmbargoNode`` — default embargo initialized
+      6. ``InitializeDefaultEmbargoNode`` — default embargo initialized
          (ADR-0041 AC-3)
-      6. ``_SeedVendorOwnerSignatoryNode`` — vendor (CASE_OWNER) seeded as
+      7. ``_SeedVendorOwnerSignatoryNode`` — vendor (CASE_OWNER) seeded as
          embargo SIGNATORY (CM-13)
-      7. ``_CommitNativeLedgerEntriesNode`` — canonical ledger entries
+      8. ``_CommitNativeLedgerEntriesNode`` — canonical ledger entries
          committed (ADR-0041 AC-4)
 
       Then the outbound messaging steps:
 
-      8. ``_EmitAcceptCaseProposalNode`` — emits Accept(as_CaseProposal)
-      9. ``_WriteCreateCaseMarkerNode`` — writes durable retry marker with
+      9. ``_EmitAcceptCaseProposalNode`` — emits Accept(as_CaseProposal)
+      10. ``_WriteCreateCaseMarkerNode`` — writes durable retry marker with
          inline case object (CP-05-005, ADR-0041 AC-5)
-      10. ``_EmitCreateVulnerabilityCaseNode`` — emits
+      11. ``_EmitCreateVulnerabilityCaseNode`` — emits
          Create(VulnerabilityCase) with inline participants
-      11. ``_ClearCreateCaseMarkerNode`` — removes marker on success
+      12. ``_ClearCreateCaseMarkerNode`` — removes marker on success
          (CP-05-005)
 
     If node 10 fails, the marker written in node 9 remains in the DataLayer so
@@ -1223,6 +1329,8 @@ def create_case_proposal_received_tree(
         memory=False,
         children=[
             case_resolution,
+            # ADR-0041: register CaseActor as COORDINATOR + CASE_MANAGER
+            _AddCaseActorParticipantNode(),
             # ADR-0041 AC-1: add vendor as CASE_OWNER at RM.RECEIVED
             _AddVendorOwnerParticipantNode(
                 vendor_uri=vendor_uri,

@@ -152,6 +152,7 @@ class CreateCaseTriggerRequest(TriggerRequest):
     name: NonEmptyString
     content: NonEmptyString
     report_id: NonEmptyString | None = None
+    to: list[str] | None = None
 
 
 class AddObjectToCaseTriggerRequest(CaseTriggerRequest):

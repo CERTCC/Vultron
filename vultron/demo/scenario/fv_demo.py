@@ -92,6 +92,7 @@ from vultron.demo.helpers.seeding import (  # noqa: F401
     _dl_key,
     get_actor_by_id,
     reset_containers as _reset_containers,
+    seed_case_participants_for_demo,
     seed_containers,
 )
 from vultron.demo.helpers.sync import (  # noqa: F401
@@ -439,13 +440,39 @@ def _phase_report_submission(
         offer_id=offer.id_,
     )
 
+    # ADR-0041: vendor writes VultronReportCaseLink and sends Create(as_CaseProposal)
+    # to CaseActor.  No local VulnerabilityCase is created until CaseActor responds.
+    # Simulate the CaseActor response by calling trigger/create-case directly.
+    offer_data = vendor_client.get(f"/datalayer/{offer.id_}")
+    report_id = _report_id_from_offer_data(offer_data, offer.id_)
+    create_case_result = post_to_trigger(
+        client=vendor_client,
+        actor_id=vendor_in_vendor.id_,
+        behavior="create-case",
+        body={
+            "name": "Vendor case for CVD report",
+            "content": "Case created after CaseActor accepted proposal.",
+            "report_id": report_id,
+        },
+    )
+    logger.info("trigger/create-case result: %s", create_case_result)
+
     with demo_check("as_VulnerabilityCase exists in Vendor's DataLayer"):
         case = find_case_for_offer(vendor_client, offer.id_)
         if case is None:
             raise AssertionError(
-                "Expected as_VulnerabilityCase to be created after validate-report"
+                "Expected as_VulnerabilityCase after trigger/create-case (ADR-0041)"
             )
         logger.info("Case created: %s", case.id_)
+
+    # ADR-0041: CaseActor normally seeds participants via case_proposal_received_tree,
+    # but nested ASGI delivery is blocked in single-server mode.  Seed directly.
+    seed_case_participants_for_demo(
+        case_id=case.id_,
+        vendor_actor_id=vendor_in_vendor.id_,
+        reporter_actor_id=finder.id_,
+        report_id=report_id,
+    )
 
     # validate-report advances RM to VALID only; engage-case is a separate
     # explicit step that advances RM to ACCEPTED (RM state machine protocol).

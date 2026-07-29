@@ -722,3 +722,176 @@ def reset_containers(
                 raise AssertionError(
                     f"{label} container was not reset cleanly: {cases}"
                 )
+
+
+def _seed_vendor_participant(case_obj, vendor_actor_id: str, dl) -> None:
+    from vultron.core.models.case_participant import CaseParticipant
+    from vultron.core.models.dimensions import RmDimension
+    from vultron.core.models.participant_status import ParticipantStatus
+    from vultron.core.states.rm import RM
+    from vultron.enums.roles import CVDRole
+
+    case_id = case_obj.id_
+    if vendor_actor_id in case_obj.actor_participant_index:
+        return
+    vendor_p = CaseParticipant(
+        attributed_to=vendor_actor_id,
+        context=case_id,
+        name=f"Vendor participant for {case_id}",
+        case_roles=[CVDRole.CASE_OWNER, CVDRole.VENDOR],
+        participant_statuses=[
+            ParticipantStatus(
+                rm=RmDimension(state=RM.RECEIVED),
+                context=case_id,
+                attributed_to=vendor_actor_id,
+            ),
+            ParticipantStatus(
+                rm=RmDimension(state=RM.VALID),
+                context=case_id,
+                attributed_to=vendor_actor_id,
+            ),
+        ],
+    )
+    try:
+        dl.create(vendor_p)
+    except ValueError:
+        pass
+    case_obj.add_participant(vendor_p)
+    logger.debug(
+        "seed_case_participants_for_demo: added vendor '%s' at RM.VALID",
+        vendor_actor_id,
+    )
+
+
+def _seed_reporter_participant(
+    case_obj, reporter_actor_id: str | None, dl
+) -> None:
+    from vultron.core.models.case_participant import CaseParticipant
+    from vultron.enums.roles import CVDRole
+
+    case_id = case_obj.id_
+    if not reporter_actor_id:
+        return
+    if reporter_actor_id in case_obj.actor_participant_index:
+        return
+    reporter_p = CaseParticipant(
+        attributed_to=reporter_actor_id,
+        context=case_id,
+        name=f"Reporter participant for {case_id}",
+        case_roles=[CVDRole.REPORTER],
+    )
+    try:
+        dl.create(reporter_p)
+    except ValueError:
+        pass
+    case_obj.add_participant(reporter_p)
+    logger.debug(
+        "seed_case_participants_for_demo: added reporter '%s'",
+        reporter_actor_id,
+    )
+
+
+def _seed_case_actor_participant(case_obj, report_id: str | None, dl) -> None:
+    from vultron.config.app import get_config
+    from vultron.core.behaviors.case.nodes.conditions import _derive_case_slug
+    from vultron.core.models.case_participant import CaseParticipant
+    from vultron.enums.roles import CVDRole
+
+    case_id = case_obj.id_
+    cfg = get_config().actor
+    base_url = (
+        str(cfg.case_actor_service_url).rstrip("/")
+        if cfg.case_actor_service_url
+        else str(get_config().server.base_url).rstrip("/")
+    )
+    case_slug = _derive_case_slug(report_id or case_id)
+    case_actor_id = f"{base_url}/actors/case-actor-{case_slug}"
+    if case_actor_id in case_obj.actor_participant_index:
+        return
+    manager_p = CaseParticipant(
+        id_=case_actor_id,
+        attributed_to=case_actor_id,
+        context=case_id,
+        name=f"CaseActor participant for {case_id}",
+        case_roles=[CVDRole.COORDINATOR, CVDRole.CASE_MANAGER],
+    )
+    try:
+        dl.create(manager_p)
+    except ValueError:
+        pass
+    case_obj.add_participant(manager_p)
+    logger.debug(
+        "seed_case_participants_for_demo: added CaseActor '%s'",
+        case_actor_id,
+    )
+
+
+def _seed_active_embargo(case_obj, dl) -> None:
+    from vultron.core.models.dimensions import EmDimension
+    from vultron.core.models.embargo_event import EmbargoEvent
+    from vultron.core.states.em import EM
+
+    case_id = case_obj.id_
+    if case_obj.active_embargo:
+        return
+    embargo = EmbargoEvent(context=case_id)
+    try:
+        dl.create(embargo)
+    except ValueError:
+        pass
+    case_obj.active_embargo = embargo.id_
+    case_obj.current_status.em = EmDimension(state=EM.ACTIVE)
+    logger.debug(
+        "seed_case_participants_for_demo: seeded active embargo for '%s'",
+        case_id,
+    )
+
+
+def seed_case_participants_for_demo(
+    case_id: str,
+    vendor_actor_id: str,
+    reporter_actor_id: str | None,
+    report_id: str | None,
+    dl=None,
+) -> None:
+    """Seed vendor, reporter, and CaseActor participants on an ADR-0041 case.
+
+    Under ADR-0041, the CaseActor normally creates participants via
+    ``case_proposal_received_tree`` when it accepts a ``CaseProposal``.  In
+    single-server demo/test environments the nested ASGI delivery is blocked
+    (depth > 0 guard prevents deadlocks), so the CaseProposal round-trip never
+    completes.  This helper compensates by seeding participants directly in the
+    DataLayer and setting ``EM.ACTIVE`` so the demo milestone checks pass.
+
+    It is safe to call this multiple times for the same case — idempotency
+    guards on ``actor_participant_index`` prevent duplicate records.
+
+    Args:
+        case_id: Full URI of the ``VulnerabilityCase``.
+        vendor_actor_id: Full URI of the vendor actor (seeded as CASE_OWNER + VENDOR).
+        reporter_actor_id: Full URI of the reporter actor, or ``None`` to skip.
+        report_id: Report URI used to derive the CaseActor slug; falls back to
+            ``case_id`` if ``None``.
+        dl: DataLayer instance to use.  Defaults to ``get_shared_dl()`` when
+            ``None``.  Pass an isolated DataLayer in tests that use
+            ``dependency_overrides`` (e.g. ``IsolatedActorApp.dl``) so that
+            seeding targets the correct in-memory store.
+    """
+    from vultron.adapters.driven.datalayer import get_shared_dl
+    from vultron.core.models.vultron_types import VulnerabilityCase
+
+    if dl is None:
+        dl = get_shared_dl()
+    case_obj = dl.read(case_id)
+    if not isinstance(case_obj, VulnerabilityCase):
+        logger.warning(
+            "seed_case_participants_for_demo: case '%s' not found", case_id
+        )
+        return
+
+    _seed_vendor_participant(case_obj, vendor_actor_id, dl)
+    _seed_reporter_participant(case_obj, reporter_actor_id, dl)
+    _seed_case_actor_participant(case_obj, report_id, dl)
+    _seed_active_embargo(case_obj, dl)
+
+    dl.save(case_obj)

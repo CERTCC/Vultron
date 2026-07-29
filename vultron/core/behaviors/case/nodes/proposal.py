@@ -94,14 +94,14 @@ class ProposeReportCaseToActorNode(DataLayerAction):
                     case_actor_id=case_actor_id,
                 )
             )
+            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
+                self.actor_id, activity_id
+            )
         except Exception as exc:
             self.feedback_message = f"create_case_proposal failed: {exc}"
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-            self.actor_id, activity_id
-        )
         self.logger.info(
             "%s: queued Create(as_CaseProposal) '%s' to outbox"
             " for case-actor '%s' (report '%s')",
