@@ -72,7 +72,7 @@ from vultron.core.behaviors.call_out_point import CallOutBackendFactory
 from vultron.enums.roles import CVDRole
 
 if TYPE_CHECKING:
-    from vultron.demo.fuzzer.bundles.report_to_others import (
+    from vultron.core.behaviors.call_out.bundles.report_to_others import (
         ReportToOthersCallOutBundle,
     )
 
@@ -191,13 +191,13 @@ def create_report_to_others_tree(
     Args:
         case_id: ID of the VulnerabilityCase being processed.
         call_out: Bundle of call-out backend factories for this domain.
-            Defaults to :data:`~vultron.demo.fuzzer.bundles.report_to_others.REPORT_TO_OTHERS_DETERMINISTIC`
+            Defaults to :data:`~vultron.core.behaviors.call_out.bundles.report_to_others.REPORT_TO_OTHERS_DETERMINISTIC`
             (BT-23-003, BT-23-005).
 
     Returns:
         Root Sequence node of the notification-loop behavior tree.
     """
-    from vultron.demo.fuzzer.bundles.report_to_others import (
+    from vultron.core.behaviors.call_out.bundles.report_to_others import (
         REPORT_TO_OTHERS_DETERMINISTIC,
     )
 

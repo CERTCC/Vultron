@@ -31,6 +31,7 @@ from vultron.core.behaviors.report.publish_artifact_tree import (
     _NeedsRevisionGate,
     create_publish_artifact_tree,
 )
+from vultron.demo.fuzzer.bundles.publication import PUBLICATION_STOCHASTIC
 from vultron.demo.fuzzer.report_management.publication import (
     DraftAdvisoryArtifact,
     ReviewAdvisoryDraft,
@@ -168,18 +169,26 @@ def test_root_has_four_children():
 
 
 def test_draft_is_first_child():
-    tree = create_publish_artifact_tree(case_id=CASE_ID)
+    # STOCHASTIC bundle wires the demo Composer node; the no-arg default is the
+    # core DETERMINISTIC AlwaysSucceed backend (ADR-0025 corrected layering).
+    tree = create_publish_artifact_tree(
+        case_id=CASE_ID, call_out=PUBLICATION_STOCHASTIC
+    )
     assert isinstance(tree.children[0], DraftAdvisoryArtifact)
 
 
 def test_review_is_second_child():
-    tree = create_publish_artifact_tree(case_id=CASE_ID)
+    tree = create_publish_artifact_tree(
+        case_id=CASE_ID, call_out=PUBLICATION_STOCHASTIC
+    )
     assert isinstance(tree.children[1], ReviewAdvisoryDraft)
 
 
 def test_revision_arm_is_third_child():
     """AC-1: optional revision arm is a Selector (positive gate with Inverter skip)."""
-    tree = create_publish_artifact_tree(case_id=CASE_ID)
+    tree = create_publish_artifact_tree(
+        case_id=CASE_ID, call_out=PUBLICATION_STOCHASTIC
+    )
     revision_arm = tree.children[2]
     assert isinstance(revision_arm, py_trees.composites.Selector)
     assert revision_arm.name.startswith("RevisionArm")
@@ -197,7 +206,9 @@ def test_revision_arm_is_third_child():
 
 
 def test_submit_is_fourth_child():
-    tree = create_publish_artifact_tree(case_id=CASE_ID)
+    tree = create_publish_artifact_tree(
+        case_id=CASE_ID, call_out=PUBLICATION_STOCHASTIC
+    )
     assert isinstance(tree.children[3], SubmitAdvisoryArtifact)
 
 

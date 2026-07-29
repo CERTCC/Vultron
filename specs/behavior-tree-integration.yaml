@@ -828,12 +828,15 @@ groups:
     statement: >
       Call-out point factories for a domain area MUST be collected into a
       domain bundle — a frozen @dataclass (one per domain area) whose fields are
-      typed CallOutBackendFactory values. Each bundle class MUST provide
-      module-level singleton instances for the DETERMINISTIC and STOCHASTIC
-      modes (e.g. VALIDATION_DETERMINISTIC, VALIDATION_STOCHASTIC). Tree
-      builders that accept call-out factories MUST accept the bundle as a single
-      typed parameter (e.g. call_out: ValidationCallOutBundle) rather than
-      individual per-node factory kwargs.
+      typed CallOutBackendFactory values. The bundle dataclass and its
+      DETERMINISTIC singleton (e.g. VALIDATION_DETERMINISTIC) MUST be defined in
+      the core layer (vultron/core/behaviors/call_out/bundles/<domain>.py); the
+      STOCHASTIC singleton (e.g. VALIDATION_STOCHASTIC) MUST be defined in the
+      simulation layer (vultron/demo/fuzzer/bundles/<domain>.py). Tree builders
+      that accept call-out factories MUST accept the bundle as a single typed
+      parameter (e.g. call_out: ValidationCallOutBundle) rather than individual
+      per-node factory kwargs, and MUST default it to the core DETERMINISTIC
+      singleton without importing from vultron/demo/ (BT-16-001, ARCH-01-001).
     rationale: >
       Individual per-node factory kwargs accumulate quickly (a tree builder may
       have 5–10 call-out points); a bundle dataclass keeps the tree builder
@@ -841,6 +844,14 @@ groups:
       Pre-built singletons avoid non-DRY construction in every demo script and
       test fixture that wants the standard deterministic or stochastic behaviour.
       The frozen constraint prevents accidental mutation after construction.
+      The bundle dataclass and its DETERMINISTIC default are core concerns: the
+      DETERMINISTIC bundle is the production-usable happy-path backend a real
+      actor uses before a coordination agent is wired in, so a core tree builder
+      must resolve its default without reaching into the simulation layer. Only
+      the probabilistic STOCHASTIC wiring is a simulation artefact and stays in
+      vultron/demo/ (corrects the original 2026-07-23 amendment, which located
+      the dataclass and DETERMINISTIC singleton in vultron/demo/ and thereby
+      inverted the core→demo dependency).
     relationships:
     - rel_type: refines
       spec_id: BT-23-001
@@ -874,15 +885,22 @@ groups:
     statement: >
       Domain bundle classes SHOULD follow the naming convention
       <Domain>CallOutBundle (e.g. ValidationCallOutBundle,
-      EmbargoCallOutBundle) and SHOULD be defined in
-      vultron/demo/fuzzer/bundles/<domain>.py. The pre-built singletons SHOULD
-      be named <DOMAIN>_DETERMINISTIC and <DOMAIN>_STOCHASTIC (e.g.
-      VALIDATION_DETERMINISTIC, EMBARGO_STOCHASTIC).
+      EmbargoCallOutBundle) and the pre-built singletons SHOULD be named
+      <DOMAIN>_DETERMINISTIC and <DOMAIN>_STOCHASTIC (e.g.
+      VALIDATION_DETERMINISTIC, EMBARGO_STOCHASTIC). The dataclass and the
+      DETERMINISTIC singleton SHOULD live in
+      vultron/core/behaviors/call_out/bundles/<domain>.py; the STOCHASTIC
+      singleton SHOULD live in vultron/demo/fuzzer/bundles/<domain>.py, which
+      MAY re-export the core dataclass and DETERMINISTIC singleton for
+      backward-compatible import paths.
     rationale: >
       Consistent naming makes the available bundles discoverable without reading
-      the implementation. The bundles/ sub-package is co-located with the fuzzer
-      nodes they reference, respecting the BT-16-001 rule that simulation
-      artefacts stay in vultron/demo/ and do not appear in vultron/core/.
+      the implementation. Splitting the seam by layer keeps the deterministic,
+      production-usable default in core while co-locating the STOCHASTIC wiring
+      with the probabilistic fuzzer nodes it references, respecting the
+      BT-16-001 rule that simulation artefacts stay in vultron/demo/ and do not
+      appear in vultron/core/. The core→demo boundary is enforced by
+      test/architecture/test_core_no_demo_imports.py.
     relationships:
     - rel_type: refines
       spec_id: BT-23-003

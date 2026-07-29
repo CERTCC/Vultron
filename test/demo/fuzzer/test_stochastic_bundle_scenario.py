@@ -143,10 +143,10 @@ def test_assign_vul_id_stochastic_bundle_end_to_end():
 
 def test_three_mode_comparison():
     """Demonstrate all three modes for the deploy-fix domain side-by-side."""
+    from vultron.core.behaviors.call_out.nodes import AlwaysFail
     from vultron.core.behaviors.report.deploy_fix_tree import (
         create_deploy_fix_tree,
     )
-    from vultron.demo.fuzzer.base import AlwaysFail
     from vultron.demo.fuzzer.bundles.deploy_fix import (
         DEPLOY_FIX_DETERMINISTIC,
         DEPLOY_FIX_STOCHASTIC,

@@ -56,7 +56,9 @@ from typing import TYPE_CHECKING
 import py_trees
 
 if TYPE_CHECKING:
-    from vultron.demo.fuzzer.bundles.embargo import EmbargoCallOutBundle
+    from vultron.core.behaviors.call_out.bundles.embargo import (
+        EmbargoCallOutBundle,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -82,13 +84,15 @@ def create_manage_embargo_tree(
     Args:
         case_id: ID of VulnerabilityCase whose embargo is being managed.
         call_out: Bundle of call-out backend factories for this domain.
-            Defaults to :data:`~vultron.demo.fuzzer.bundles.embargo.EMBARGO_DETERMINISTIC`
+            Defaults to :data:`~vultron.core.behaviors.call_out.bundles.embargo.EMBARGO_DETERMINISTIC`
             (BT-23-003, BT-23-005).
 
     Returns:
         Root node of the manage-embargo behavior tree (Phase 1 stub Sequence).
     """
-    from vultron.demo.fuzzer.bundles.embargo import EMBARGO_DETERMINISTIC
+    from vultron.core.behaviors.call_out.bundles.embargo import (
+        EMBARGO_DETERMINISTIC,
+    )
 
     bundle = call_out if call_out is not None else EMBARGO_DETERMINISTIC
     # Phase 2: bundle.on_embargo_exit_factory, bundle.on_embargo_accept_factory,

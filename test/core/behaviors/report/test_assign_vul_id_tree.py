@@ -23,7 +23,7 @@ import py_trees
 from vultron.core.behaviors.report.assign_vul_id_tree import (
     create_assign_vul_id_tree,
 )
-from vultron.demo.fuzzer.base import AlwaysSucceed
+from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
 from vultron.demo.fuzzer.bundles.assign_vul_id import (
     ASSIGN_VUL_ID_DETERMINISTIC,
     ASSIGN_VUL_ID_STOCHASTIC,

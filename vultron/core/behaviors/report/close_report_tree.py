@@ -38,7 +38,7 @@ from typing import TYPE_CHECKING
 import py_trees
 
 if TYPE_CHECKING:
-    from vultron.demo.fuzzer.bundles.close_report import (
+    from vultron.core.behaviors.call_out.bundles.close_report import (
         CloseReportCallOutBundle,
     )
 
@@ -61,13 +61,13 @@ def create_close_report_tree(
     Args:
         case_id: ID of VulnerabilityCase being processed.
         call_out: Bundle of call-out backend factories for this domain.
-            Defaults to :data:`~vultron.demo.fuzzer.bundles.close_report.CLOSE_REPORT_DETERMINISTIC`
+            Defaults to :data:`~vultron.core.behaviors.call_out.bundles.close_report.CLOSE_REPORT_DETERMINISTIC`
             (BT-23-003, BT-23-005).
 
     Returns:
         Root node of the close-report behavior tree (Phase 1 stub).
     """
-    from vultron.demo.fuzzer.bundles.close_report import (
+    from vultron.core.behaviors.call_out.bundles.close_report import (
         CLOSE_REPORT_DETERMINISTIC,
     )
 

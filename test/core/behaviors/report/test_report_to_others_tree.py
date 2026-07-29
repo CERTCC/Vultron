@@ -32,7 +32,7 @@ from vultron.core.behaviors.report.report_to_others_tree import (
     _WriteRolesNode,
     create_report_to_others_tree,
 )
-from vultron.demo.fuzzer.base import AlwaysFail, AlwaysSucceed
+from vultron.core.behaviors.call_out.nodes import AlwaysFail, AlwaysSucceed
 from vultron.demo.fuzzer.bundles.report_to_others import (
     REPORT_TO_OTHERS_DETERMINISTIC,
     REPORT_TO_OTHERS_STOCHASTIC,

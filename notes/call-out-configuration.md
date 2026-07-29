@@ -183,13 +183,24 @@ mode it resolves `AlwaysSucceed` so all cases are engaged. In STOCHASTIC mode it
 `EvaluateCasePriority` fuzzer node. A real SSVC evaluator would implement
 `CallOutBackendFactory` and be passed here — no other code change required.
 
-### Module layout
+### Module layout (corrected 2026-07-29, issue #1793)
+
+The bundle **dataclasses**, the `CallOutBackendFactory` Protocol, the
+deterministic `AlwaysSucceed`/`AlwaysFail` nodes, and the
+`<DOMAIN>_DETERMINISTIC` singletons are **core-owned**. Only the probabilistic
+`WeightedBehavior` fuzzer nodes and the `<DOMAIN>_STOCHASTIC` singletons are
+simulation artifacts. Core tree builders default to the core DETERMINISTIC
+singleton and never import from `vultron/demo/` (enforced by
+`test/architecture/test_core_no_demo_imports.py`).
 
 ```text
-vultron/demo/fuzzer/
+vultron/core/behaviors/call_out/     ← core-owned seam
+  __init__.py       ← re-exports CallOutBackendFactory, AlwaysSucceed, AlwaysFail
+  protocol.py       ← CallOutBackendFactory Protocol (canonical home)
+  nodes.py          ← deterministic AlwaysSucceed / AlwaysFail
   bundles/
-    __init__.py     ← re-exports all bundle classes and singletons
-    validation.py   ← ValidationCallOutBundle + singletons
+    __init__.py     ← re-exports all bundle classes + <DOMAIN>_DETERMINISTIC
+    validation.py   ← ValidationCallOutBundle + VALIDATION_DETERMINISTIC
     prioritization.py
     embargo.py
     publication.py
@@ -198,7 +209,21 @@ vultron/demo/fuzzer/
     acquire_exploit.py
     assign_vul_id.py
     close_report.py
+
+vultron/demo/fuzzer/                  ← simulation-only
+  base.py           ← WeightedBehavior family (incl. its own AlwaysSucceed/Fail)
+  bundles/
+    __init__.py     ← re-exports bundle classes + both DETERMINISTIC/STOCHASTIC
+    validation.py   ← VALIDATION_STOCHASTIC (+ re-exports core dataclass/default)
+    ...             ← one per domain, STOCHASTIC singletons only
 ```
+
+> **History**: the original 2026-07-23 design placed the dataclasses and
+> `<DOMAIN>_DETERMINISTIC` singletons under `vultron/demo/fuzzer/bundles/` and
+> had core tree builders import them — a core→demo inversion that violated
+> BT-16-001. Issue #1793 moved the core-owned pieces into
+> `vultron/core/behaviors/call_out/` and added the boundary ratchet. `vultron.core.behaviors.call_out_point` remains as a
+> backward-compatible re-export shim of the Protocol.
 
 ---
 

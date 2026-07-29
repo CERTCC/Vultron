@@ -189,11 +189,26 @@ The concrete form:
 - `specs/behavior-tree-integration.yaml` BT-18 captures the blackboard
   contract requirements that every call-out point implementation must satisfy.
 
-## Bundle Selection Mechanism (2026-07-23 amendment)
+## Bundle Selection Mechanism (2026-07-23 amendment, corrected 2026-07-29)
 
 The original ADR left open the question of **how running code chooses which
 factory to inject**. Issue #1631 (planning session 2026-07-23) resolved this
 design gap. The resulting mechanism is implemented by #1152 (FUZZ-08c).
+
+> **Correction (2026-07-29, issue #1793)**: The 2026-07-23 amendment as first
+> written located the bundle **dataclasses** and the `<DOMAIN>_DETERMINISTIC`
+> **singletons** in `vultron/demo/fuzzer/bundles/`, then had ~11 core tree
+> builders import them as their no-arg defaults. That **inverted the core→demo
+> dependency** and directly violated this ADR's own decision driver "keep
+> simulation artifacts (`vultron/demo/fuzzer/`) out of
+> `vultron/core/behaviors/` (BT-16-001)". The corrected design below moves the
+> dataclasses, the `CallOutBackendFactory` Protocol, the deterministic
+> `AlwaysSucceed`/`AlwaysFail` nodes, and the `<DOMAIN>_DETERMINISTIC`
+> singletons into `vultron/core/behaviors/call_out/`. Only the probabilistic
+> `WeightedBehavior` node family and the `<DOMAIN>_STOCHASTIC` singletons remain
+> in `vultron/demo/fuzzer/`. A ratchet
+> (`test/architecture/test_core_no_demo_imports.py`) now enforces the boundary.
+> The strikethrough/updated text below reflects the corrected locations.
 
 ### Three-mode model
 
@@ -216,18 +231,40 @@ a `frozen @dataclass` that holds all `CallOutBackendFactory` fields for a
 domain area. Two pre-built module-level singletons exist per domain:
 `<DOMAIN>_DETERMINISTIC` and `<DOMAIN>_STOCHASTIC`.
 
+**Layer split (corrected 2026-07-29):** the dataclass and the
+`<DOMAIN>_DETERMINISTIC` singleton live in
+`vultron/core/behaviors/call_out/bundles/<domain>.py` — they are core concerns
+(the DETERMINISTIC bundle is the production-usable happy-path default). The
+`<DOMAIN>_STOCHASTIC` singleton lives in
+`vultron/demo/fuzzer/bundles/<domain>.py` and wires in the probabilistic
+`WeightedBehavior` fuzzer nodes; that module re-exports the core dataclass and
+DETERMINISTIC singleton for backward-compatible import paths. Core tree builders
+default `call_out` to the core DETERMINISTIC singleton and never import from
+`vultron/demo/`.
+
 ```python
+# vultron/core/behaviors/call_out/bundles/validation.py  (core)
+from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
+from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
+
 @dataclass(frozen=True)
 class ValidationCallOutBundle:
-    credibility_factory: CallOutBackendFactory = AlwaysSucceed
-    validity_factory: CallOutBackendFactory = AlwaysSucceed
-    gather_info_factory: CallOutBackendFactory = AlwaysSucceed
+    credibility_factory: CallOutBackendFactory = lambda n: AlwaysSucceed(n)
+    validity_factory: CallOutBackendFactory = lambda n: AlwaysSucceed(n)
+    gather_info_factory: CallOutBackendFactory = lambda n: AlwaysSucceed(n)
 
 VALIDATION_DETERMINISTIC = ValidationCallOutBundle()
+
+# vultron/demo/fuzzer/bundles/validation.py  (simulation)
+from vultron.core.behaviors.call_out.bundles.validation import (
+    VALIDATION_DETERMINISTIC,   # re-exported for back-compat
+    ValidationCallOutBundle,
+)
+
 VALIDATION_STOCHASTIC = ValidationCallOutBundle(
-    credibility_factory=EvaluateReportCredibility,
-    validity_factory=EvaluateReportValidity,
-    gather_info_factory=GatherValidationInfo,
+    credibility_factory=lambda n: EvaluateReportCredibility(n),
+    validity_factory=lambda n: EvaluateReportValidity(n),
+    gather_info_factory=lambda n: GatherValidationInfo(n),
 )
 ```
 

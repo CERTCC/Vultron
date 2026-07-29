@@ -11,12 +11,14 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Call-out bundle for the fix deployment domain (BT-23-003, BT-23-005).
+"""STOCHASTIC call-out bundle for the fix deployment domain (BT-23-003, BT-23-005).
 
-Provides :class:`DeployFixCallOutBundle` plus the pre-built singletons
-:data:`DEPLOY_FIX_DETERMINISTIC` and :data:`DEPLOY_FIX_STOCHASTIC`.
+Provides the simulation-layer :data:`DEPLOY_FIX_STOCHASTIC` singleton.  The
+bundle dataclass and DETERMINISTIC default are core concerns
+(``vultron.core.behaviors.call_out.bundles.deploy_fix``) and are re-exported
+here for backward-compatible import paths.
 
-Ceiling/floor mapping (BT-23-002):
+Ceiling/floor mapping for the DETERMINISTIC counterpart (BT-23-002):
 
 - ``prioritize_deployment_factory``  — PrioritizeDeployment  (p=0.90) → AlwaysSucceed
 - ``deploy_mitigation_factory``      — DeployMitigation      (p=0.75) → AlwaysSucceed
@@ -27,23 +29,12 @@ Ceiling/floor mapping (BT-23-002):
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-
 import py_trees
 
-from vultron.core.behaviors.call_out_point import CallOutBackendFactory
-
-
-def _always_succeed(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.base import AlwaysSucceed
-
-    return AlwaysSucceed(name)
-
-
-def _always_fail(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.base import AlwaysFail
-
-    return AlwaysFail(name)
+from vultron.core.behaviors.call_out.bundles.deploy_fix import (  # noqa: F401
+    DEPLOY_FIX_DETERMINISTIC,
+    DeployFixCallOutBundle,
+)
 
 
 def _stochastic_prioritize_deployment(
@@ -87,34 +78,6 @@ def _stochastic_monitor_deployment(name: str) -> py_trees.behaviour.Behaviour:
 
     return MonitorDeployment(name)
 
-
-@dataclass(frozen=True)
-class DeployFixCallOutBundle:
-    """Call-out backend bundle for the fix deployment domain (BT-23-003).
-
-    Fields map to the corresponding factory parameters on
-    :func:`~vultron.core.behaviors.report.deploy_fix_tree.create_deploy_fix_tree`.
-    """
-
-    prioritize_deployment_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
-    )
-    deploy_mitigation_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
-    )
-    monitoring_requirement_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
-    )
-    deploy_fix_factory: CallOutBackendFactory = field(
-        default=_always_fail  # type: ignore[assignment]
-    )
-    monitor_deployment_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
-    )
-
-
-DEPLOY_FIX_DETERMINISTIC = DeployFixCallOutBundle()
-"""Deterministic bundle: ceiling/floor of stochastic p (BT-23-001, BT-23-002)."""
 
 DEPLOY_FIX_STOCHASTIC = DeployFixCallOutBundle(
     prioritize_deployment_factory=_stochastic_prioritize_deployment,  # type: ignore[arg-type]

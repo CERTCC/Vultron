@@ -74,7 +74,7 @@ from vultron.core.behaviors.report.publish_artifact_tree import (
 )
 
 if TYPE_CHECKING:
-    from vultron.demo.fuzzer.bundles.publication import (
+    from vultron.core.behaviors.call_out.bundles.publication import (
         PublicationCallOutBundle,
     )
 
@@ -296,13 +296,13 @@ def create_publication_tree(
     Args:
         case_id: ID of the VulnerabilityCase to publish for.
         call_out: Bundle of call-out backend factories for this domain.
-            Defaults to :data:`~vultron.demo.fuzzer.bundles.publication.PUBLICATION_DETERMINISTIC`
+            Defaults to :data:`~vultron.core.behaviors.call_out.bundles.publication.PUBLICATION_DETERMINISTIC`
             (BT-23-003, BT-23-005).
 
     Returns:
         Root Sequence node of the collapsed publication behavior tree.
     """
-    from vultron.demo.fuzzer.bundles.publication import (
+    from vultron.core.behaviors.call_out.bundles.publication import (
         PUBLICATION_DETERMINISTIC,
     )
 

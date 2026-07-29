@@ -24,7 +24,7 @@ import py_trees
 from vultron.core.behaviors.embargo.manage_embargo_tree import (
     create_manage_embargo_tree,
 )
-from vultron.demo.fuzzer.base import AlwaysFail, AlwaysSucceed
+from vultron.core.behaviors.call_out.nodes import AlwaysFail, AlwaysSucceed
 from vultron.demo.fuzzer.bundles.embargo import (
     EMBARGO_DETERMINISTIC,
     EMBARGO_STOCHASTIC,
