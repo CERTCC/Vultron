@@ -784,6 +784,12 @@ When auditing for compliance, grep for flat blackboard key registrations in
 tree factories called per-incoming-message and verify each inter-node handoff
 key includes the execution-scoped correlation ID segment.
 
+**Planned migration**: the imperative `register_key()` pattern is scheduled for
+replacement with py_trees typed Ports (`input_ports()` / `output_ports()`
+declarations), which enforce blackboard contracts at setup time rather than ad
+hoc. See `notes/py-trees-ports-adoption.md` for the planning analysis and the
+implementation issue sequence (#1808 → #1809).
+
 ---
 
 ## Blackboard List Mutation: Write-Back Is Redundant (But Needed for New Lists)
