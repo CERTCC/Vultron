@@ -27,11 +27,25 @@ to keep open Issues aligned with the codebase.
 1. Invoke `orient-agent` then `deepen-context` to load all specs and context.
 2. Run a gap analysis: compare `specs/` + `notes/` against `vultron/` and
    `test/`.
-3. For each gap, create a GitHub Issue (added to Project #24 with
-   Schedule=Someday) rather than a plan entry.
-4. Write any significant observations or open questions directly to the
+3. For each gap, create a GitHub Issue, then **route it onto the epic it
+   belongs to** via the `calve-epics` skill (rather than dropping it flat at
+   Someday).
+4. Surface any accumulated-mass observations as **calving candidates** for the
+   user; do not re-shape epics on your own.
+5. Write any significant observations or open questions directly to the
    appropriate `notes/*.md` file (not to `plan/incoming/learnings/`).
-5. Invoke `commit`.
+6. Invoke `commit`.
+
+## How the roadmap evolves (the glacier model)
+
+This skill generates *snowfall* — new issues precipitated from gap analysis —
+and then **routes** each onto the glacier or iceberg (epic) it matches.
+Routing is frequent, low-judgment classification and is this skill's job.
+**Calving** — deciding where to break off a new schedulable epic, or to fuse,
+split, or dissolve existing ones — is architectural judgment that requires a
+human. The full model and decision rules live in the **`calve-epics`** skill;
+this skill invokes it rather than duplicating that logic. If you only remember
+one rule: **route freely, calve only with a human.**
 
 ## Workflow
 
@@ -67,7 +81,7 @@ Compare the current `specs/` + `notes/` against `vultron/` and `test/`:
 
 > Do not assume missing functionality; confirm via code search first.
 
-### Phase 3 — Create GitHub Issues for gaps
+### Phase 3a — Create GitHub Issues for gaps, then route them
 
 For each confirmed gap, create a GitHub Issue using the `manage-github-issue`
 skill. If the issue has known blockers at creation time, wire them as
@@ -97,62 +111,42 @@ echo "Created gap issue #${ISSUE_NUMBER}"
 Set the `size:` label from AC count: 1–2 → `size:S`; 3–6 → `size:M`;
 7+ → `size:L`.
 
-Then add the issue to Project #24 with `Schedule=Someday`:
-
-```bash
-NODE_ID=$(gh api graphql -f query='{
-  repository(owner:"CERTCC", name:"Vultron") {
-    issue(number: '"${ISSUE_NUMBER}"') { id }
-  }
-}' --jq '.data.repository.issue.id')
-ITEM_ID=$(gh api graphql -f query="mutation {
-  addProjectV2ItemById(input: {
-    projectId: \"PVT_kwDOAjf0s84BZnre\"
-    contentId: \"${NODE_ID}\"
-  }) { item { id } }
-}" --jq '.data.addProjectV2ItemById.item.id')
-gh api graphql -f query="mutation {
-  updateProjectV2ItemFieldValue(input: {
-    projectId: \"PVT_kwDOAjf0s84BZnre\"
-    itemId: \"${ITEM_ID}\"
-    fieldId: \"PVTSSF_lADOAjf0s84BZnrezhUlFOM\"
-    value: { singleSelectOptionId: \"fcffa79d\" }
-  }) { projectV2Item { id } }
-}" >/dev/null
-```
-
 Do **not** add tasks to GitHub Issues outside the `manage-github-issue`
 workflow documented above.
 
-**Grouping related gaps (PAD-01-002, PAD-01-003):** When the gap analysis
-identifies **2 or more closely related gaps** in the same spec area (e.g.,
-multiple missing implementations of the same protocol feature), consider
-creating a **parent Task Issue** first, then wire the individual gap Issues
-as sub-issues. Use `manage-github-issue` for both the parent and the
-sub-issue wiring:
+**Then route each new issue onto the forest.** Do not drop new gap issues flat
+at `Schedule=Someday`. Instead, invoke the **`calve-epics`** skill in its
+routing mode to land each issue on the epic (glacier or iceberg) it matches:
 
-```bash
-# 1. Create the parent Task issue with the Task issue type
-PARENT_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
-  --title "<Parent task title>" \
-  --body "<Summary of the related gaps>" \
-  --issue-type-id "IT_kwDOAjf0s84AcFLo" \
-  --label "size:<S|M|L>")
+- The clear-match case is auto-parented onto its epic and inherits that epic's
+  Schedule tier.
+- An ambiguous match (two or more plausible epics) is presented to the user to
+  choose.
+- An issue with **no** plausible epic is left at root with `Schedule=Someday`
+  and recorded as a **calving candidate** for Phase 3b — do not invent an epic
+  for it on your own.
 
-# 2. Create each gap issue and wire as sub-issue of the parent
-CHILD_1=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
-  --title "<Gap 1>" --body "..." \
-  --label "size:S" \
-  --parent "${PARENT_NUMBER}")
+`calve-epics` queries the live Project #24 field/option IDs and delegates the
+board mutations, so this skill no longer hardcodes them.
 
-CHILD_2=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
-  --title "<Gap 2>" --body "..." \
-  --label "size:S" \
-  --parent "${PARENT_NUMBER}")
-```
+### Phase 3b — Flag calving candidates (do not calve on your own)
 
-Only create a parent Task if the gaps are genuinely related and benefit from
-grouping. Independent gaps MUST remain flat leaf Issues.
+The old heuristic — "if 2 or more related gaps, create a parent Task" — cut
+epics on convenience (size and superficial theme) rather than on design grain,
+and is retired. Grouping issues into a new epic is **calving**, an
+architectural act reserved for a human decision.
+
+When routing (3a) surfaces a region that has accumulated coherent mass — a set
+of new gaps that realize one design idea with no existing home, or a pile of
+root-level orphans — collect them and hand them to the user as calving
+candidates via the `calve-epics` skill (Mode 2). State the one-sentence design
+idea, list the issues, and let the user confirm the fracture line before any
+epic is created. Never create the epic unprompted.
+
+If the forest itself looks muddled (redundant epics, an epic mixing prod-only
+and buildable-soon work, a grab-bag with no coherent identity), note it and
+recommend a `calve-epics` recrystallization pass (Mode 3) — do not perform it
+inline as part of gap analysis.
 
 ### Phase 4 — Write Observations to notes/
 
@@ -179,6 +173,8 @@ specific message (e.g.,
 
 ## Project Board
 
-All Issues created by this skill are added to Project #24 ("Vultron Planning")
-with `Schedule=Someday`. Use `review-priorities` to move them to Now/Next/Later
-when they are ready to be scheduled.
+Issues created by this skill are added to Project #24 ("Vultron Planning") and
+routed onto an epic via `calve-epics`, inheriting that epic's Schedule tier.
+Only true orphans (no matching epic) stay at `Schedule=Someday` as calving
+candidates. Use `review-priorities` to re-tier items, and invoke `calve-epics`
+(Mode 2/3) when the epic structure itself needs to change.

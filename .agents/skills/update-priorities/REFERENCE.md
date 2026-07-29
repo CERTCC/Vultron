@@ -12,10 +12,11 @@ Technical details for the priority update workflow.
 |---|---|
 | Project node ID | `PVT_kwDOAjf0s84BZnre` |
 | Schedule field ID | `PVTSSF_lADOAjf0s84BZnrezhUlFOM` |
-| Now option ID | `1e84189c` |
-| Next option ID | `9fca00b2` |
-| Later option ID | `e2149d3e` |
-| Someday option ID | `fcffa79d` |
+| Focus option ID | `6bca50d7` |
+| Now option ID | `22e6679d` |
+| Next option ID | `1c1ed63d` |
+| Later option ID | `520032ef` |
+| Someday option ID | `a890eacc` |
 
 ## Querying All Board Items
 
@@ -57,22 +58,16 @@ gh api graphql -f query="mutation {
 
 ## Adding an Issue to the Board
 
+Add the issue and set its Schedule in one call via the shared helper, which is
+the single source of truth for the project / field / option IDs (accepts
+`Focus | Now | Next | Later | Someday`, default `Someday`):
+
 ```bash
-NODE_ID=$(gh api graphql -f query='{
-  repository(owner:"CERTCC", name:"Vultron") {
-    issue(number: '"${ISSUE_NUMBER}"') { id }
-  }
-}' --jq '.data.repository.issue.id')
-
-ITEM_ID=$(gh api graphql -f query="mutation {
-  addProjectV2ItemById(input: {
-    projectId: \"PVT_kwDOAjf0s84BZnre\"
-    contentId: \"${NODE_ID}\"
-  }) { item { id } }
-}" --jq '.data.addProjectV2ItemById.item.id')
-
-# Then set Schedule field as above
+bash .agents/skills/shared/add-to-project.sh "${ISSUE_NUMBER}" "${SCHEDULE:-Someday}"
 ```
+
+Do not re-implement the `addProjectV2ItemById` + set-Schedule mutation inline —
+that inline duplication is exactly how the option IDs drifted stale.
 
 ## Archiving a Completed Epic
 

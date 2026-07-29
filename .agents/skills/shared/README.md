@@ -26,10 +26,11 @@ Shared scripts and reference documents referenced by multiple skills.
 | Repo node ID | `R_kgDOIn77fA` |
 | Project #24 ID | `PVT_kwDOAjf0s84BZnre` |
 | Schedule field ID | `PVTSSF_lADOAjf0s84BZnrezhUlFOM` |
-| Schedule: Now | `1e84189c` |
-| Schedule: Next | `9fca00b2` |
-| Schedule: Later | `e2149d3e` |
-| Schedule: Someday | `fcffa79d` |
+| Schedule: Focus | `6bca50d7` |
+| Schedule: Now | `22e6679d` |
+| Schedule: Next | `1c1ed63d` |
+| Schedule: Later | `520032ef` |
+| Schedule: Someday | `a890eacc` |
 | Task issue type ID | `IT_kwDOAjf0s84AcFLo` |
 | Bug issue type ID | `IT_kwDOAjf0s84AcFLq` |
 | Epic issue type ID | `IT_kwDOAjf0s84B_E1A` |

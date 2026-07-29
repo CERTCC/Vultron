@@ -35,10 +35,11 @@ The skill will:
 |---|---|
 | Project node ID | `PVT_kwDOAjf0s84BZnre` |
 | Schedule field ID | `PVTSSF_lADOAjf0s84BZnrezhUlFOM` |
-| Now option ID | `1e84189c` |
-| Next option ID | `9fca00b2` |
-| Later option ID | `e2149d3e` |
-| Someday option ID | `fcffa79d` |
+| Focus option ID | `6bca50d7` |
+| Now option ID | `22e6679d` |
+| Next option ID | `1c1ed63d` |
+| Later option ID | `520032ef` |
+| Someday option ID | `a890eacc` |
 
 ## Workflows
 
@@ -78,35 +79,17 @@ The skill will:
 
 ### Add Issue to Board
 
-1. Resolve the issue's node ID:
+Add the issue to Project #24 and set its Schedule in one call via the shared
+helper (single source of truth for board/field/option IDs; accepts
+`Focus | Now | Next | Later | Someday`):
 
-   ```bash
-   NODE_ID=$(gh api graphql -f query='{
-     repository(owner:"CERTCC", name:"Vultron") {
-       issue(number: '"${ISSUE_NUMBER}"') { id }
-     }
-   }' --jq '.data.repository.issue.id')
-   ```
+```bash
+bash .agents/skills/shared/add-to-project.sh "${ISSUE_NUMBER}" "${SCHEDULE:-Someday}"
+```
 
-2. Add to project and set Schedule:
-
-   ```bash
-   ITEM_ID=$(gh api graphql -f query="mutation {
-     addProjectV2ItemById(input: {
-       projectId: \"PVT_kwDOAjf0s84BZnre\"
-       contentId: \"${NODE_ID}\"
-     }) { item { id } }
-   }" --jq '.data.addProjectV2ItemById.item.id')
-
-   gh api graphql -f query="mutation {
-     updateProjectV2ItemFieldValue(input: {
-       projectId: \"PVT_kwDOAjf0s84BZnre\"
-       itemId: \"${ITEM_ID}\"
-       fieldId: \"PVTSSF_lADOAjf0s84BZnrezhUlFOM\"
-       value: { singleSelectOptionId: \"fcffa79d\" }
-     }) { projectV2Item { id } }
-   }" >/dev/null
-   ```
+To **re-tier an item already on the board**, resolve its existing project item
+ID and set the Schedule field directly (the option IDs are listed in the
+Reference table below and in `.agents/skills/shared/README.md`).
 
 ### Archive a Completed Epic
 

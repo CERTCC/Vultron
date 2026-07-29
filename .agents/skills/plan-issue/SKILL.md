@@ -271,6 +271,14 @@ Add each new issue to Project #24:
 bash .agents/skills/shared/add-to-project.sh "${IMPL_NUMBER}"
 ```
 
+**Then route it onto the epic forest.** An impl issue wired as a sub-issue of a
+parent Epic (`EPIC_NUMBER` non-empty) is already on the right glacier — leave
+it at its inherited tier. But an impl issue with **no** parent epic should not
+be left flat at Someday: invoke the **`calve-epics`** skill (Mode 1) to route
+it onto the epic it matches, inheriting that epic's Schedule tier. If no epic
+fits, `calve-epics` leaves it at root as a calving candidate — do not mint a
+new epic inline here.
+
 ### Phase 8b — Add Implementation Issue References to Docs PR (Ideas and Concerns only)
 
 After all impl issues are created, edit the PR body to add a forward-tracing
@@ -341,8 +349,10 @@ See the loaded companion file for the type-specific completion step:
 - **Notes file names**: same base name as spec, `.md` in `notes/`
 - **Close behavior**: `Closes #N` in the PR body closes on merge for Ideas
   and Concerns. Epics are never closed by this skill.
-- **Project board**: all new issues added with `Schedule=Someday` via
-  `shared/add-to-project.sh`
+- **Project board**: new issues are added via `shared/add-to-project.sh`, then
+  routed onto the epic forest via `calve-epics` (Mode 1) — inheriting the parent
+  epic's Schedule tier. Only true orphans (no matching epic) stay at
+  `Schedule=Someday` as calving candidates.
 
 ## Relationship to Other Skills
 
