@@ -118,6 +118,104 @@ pilot subtree, not pre-committed here:
 - **`specs/behavior-tree-integration.yaml`**: update where it describes the
   blackboard/bridge contract if Ports change the bridge's setup path.
 
+## Migration recipe (established by #1808)
+
+Follow these steps when migrating any `DataLayerCondition` / `DataLayerAction`
+node to typed Ports (required for all new nodes; follow-on sweep in #1809).
+
+### 1. Change the base class
+
+```python
+# Before
+class MyNode(DataLayerCondition):
+    ...
+
+# After
+class MyNode(DataLayerConditionWithPorts):
+    ...
+```
+
+Use `DataLayerConditionWithPorts` for condition (read-only) nodes and
+`DataLayerActionWithPorts` for action (mutating) nodes.
+
+### 2. Add `input_ports()` and `output_ports()`
+
+Declare every blackboard key the node uses. The base classes already declare
+`datalayer`, `actor_id`, and (for actions) `trigger_activity_factory`.
+Override `input_ports()` to **add** domain-specific ports; call
+`super().input_ports()` first if you want to extend rather than replace:
+
+```python
+@classmethod
+def input_ports(cls) -> dict[str, PortInformation]:
+    ports = super().input_ports()          # inherit base ports
+    ports["report_id"] = PortInformation(data_type=str, required=True)
+    return ports
+
+@classmethod
+def output_ports(cls) -> dict[str, PortInformation]:
+    return {}                              # or declare output ports here
+```
+
+If the node has **no** domain-specific ports beyond the base class defaults,
+omit `input_ports()` and `output_ports()` entirely — the base class
+definitions are abstract but already implemented.
+
+### 3. Remove `setup()` overrides that only call `register_key()`
+
+The base class `setup()` calls `setup_ports()` with the standard BTBridge
+remappings. Only override `setup()` if you need to register **additional**
+domain-specific ports:
+
+```python
+def setup(self, **kwargs: Any) -> None:
+    super().setup(**kwargs)          # registers datalayer, actor_id
+    # register additional domain ports here if needed
+```
+
+### 4. Update `initialise()` to use `get_input()`
+
+```python
+# Before
+def initialise(self) -> None:
+    self.datalayer = self.blackboard.datalayer
+    self.actor_id = self.blackboard.actor_id
+
+# After — base class initialise() already does this; only override if
+# you need to read additional domain ports:
+def initialise(self) -> None:
+    super().initialise()             # sets self.datalayer, self.actor_id
+    self.report_id = self.get_input("report_id")
+```
+
+### 5. Leave `update()` unchanged
+
+The `update()` logic itself does not change — it still uses `self.datalayer`,
+`self.actor_id`, and the `_require_*` guard helpers.
+
+### 6. Add isolated-node tests
+
+Add at least two tests per migrated node:
+
+- **Happy path**: wire required ports, tick once, assert SUCCESS.
+- **Missing required port**: call `setup_ports()` without the required port
+  written to the blackboard; assert `NoDataAvailable` is raised at setup time.
+
+Use the `BTTestScenario` harness from `test/core/behaviors/bt_harness.py` for
+the happy-path test.  For the isolated-port test, call `setup_ports()` and
+`get_input()` directly:
+
+```python
+from py_trees.ports import NoDataAvailable
+import pytest
+
+def test_missing_required_port():
+    node = CheckRMStateValid(report_id="https://example.org/reports/1")
+    node.setup_ports()   # no remappings → default keys; blackboard is empty
+    with pytest.raises(NoDataAvailable):
+        node.get_input("datalayer")
+```
+
 ## Issue sequence
 
 Derived from the #1558 grill-me interview. All Tasks are children of Epic #427.

@@ -156,6 +156,50 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: BTND-03-001
+  - id: BTND-03-009
+    priority: MUST
+    kind: project
+    statement: New BT nodes in `vultron/core/behaviors/` MUST subclass `DataLayerConditionWithPorts` or
+      `DataLayerActionWithPorts` (from `helpers.py`) rather than `DataLayerCondition` / `DataLayerAction`. The typed
+      `input_ports()` / `output_ports()` class methods constitute the node's formal blackboard contract and MUST declare
+      every port the node reads or writes.
+    rationale: Typed port declarations are machine-readable, appear at the class level, and are the single source of truth
+      for a node's data-flow contract. The imperative `register_key()` approach scatters declarations across `setup()`,
+      `initialise()`, and `update()`. See ADR-0044.
+    relationships:
+    - rel_type: extends
+      spec_id: BTND-03-001
+    - rel_type: refines
+      spec_id: BTND-03-003
+  - id: BTND-03-010
+    priority: MUST
+    kind: project
+    statement: >
+      A `DataLayerConditionWithPorts` or `DataLayerActionWithPorts` subclass MUST call `setup_ports()` in its
+      `setup()` method with port remappings `{"datalayer": "/datalayer", "actor_id": "/actor_id"}` (plus
+      `"trigger_activity_factory": "/trigger_activity_factory"` for action nodes). These absolute-path remappings wire
+      the node's declared ports to the flat keys written by `BTBridge.setup_tree()`.
+    rationale: >
+      The `BehaviourWithPorts` default namespace scopes port keys under the node's subtree path, which does not
+      match the flat `/datalayer` and `/actor_id` keys that `BTBridge.setup_tree()` writes. Explicit absolute-path
+      remappings are required for compatibility. The base classes `DataLayerConditionWithPorts` and
+      `DataLayerActionWithPorts` implement this in their own `setup()` so subclasses that do not add extra ports need
+      not override `setup()`.
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-03-009
+  - id: BTND-03-011
+    priority: MUST
+    kind: project
+    statement: A `DataLayerConditionWithPorts` or `DataLayerActionWithPorts` subclass MUST read injected values via
+      `get_input(port_name)` in `initialise()` (not via direct `self.blackboard.<key>` attribute access). A missing
+      required port raises `NoDataAvailable` when `get_input()` is first called in `initialise()` — at the start of
+      the first tick, not during `setup()`.
+    rationale: Direct blackboard attribute access bypasses the typed port layer and its early error detection. Using
+      `get_input()` preserves type checking and `NoDataAvailable` detection for required ports.
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-03-009
 - id: BTND-04
   title: Module Ownership
   specs:
