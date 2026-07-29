@@ -1,7 +1,7 @@
 ---
 title: "BT-14-001 vs. receive-side no-factory: best-effort semantics for SendAnnounceEmbargoEventNode"
 type: learning
-timestamp: "2026-07-27"
+timestamp: "2026-07-27T00:00:00Z"
 source: ISSUE-1687
 signal: design-question
 ---
@@ -37,3 +37,6 @@ that has already fired, FAILURE semantics break the invariant that Selector
 "not active" branch means "nothing happened." A spec note or ADR clarifying
 when BT-14-001 best-effort override is appropriate would prevent this from being
 re-litigated in future nodes.
+
+**Promoted**: 2026-07-28 — captured in notes/peer-broadcast-failure-semantics.md § Best-Effort Override Exception.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1790>0>0>0>0>0>0>.

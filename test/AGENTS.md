@@ -76,6 +76,28 @@ as real. Clear `py_trees.blackboard.Blackboard.storage` in BT-using fixtures.
 
 ---
 
+## `test/demo/` Tests Are Auto-Marked `integration` by a Directory Hook
+
+`test/demo/conftest.py` has a `pytest_collection_modifyitems` hook that
+unconditionally adds `pytest.mark.integration` to **every** test collected from
+`test/demo/`, regardless of whether the test actually starts a FastAPI
+`TestClient`. Because the default `pyproject.toml` `addopts` is
+`-m 'not integration'`, a pure-unit test placed in `test/demo/` will be
+**silently deselected** by a bare `uv run pytest test/demo/test_something.py` —
+the run reports "N deselected" and 0 passed, which looks like a collection error
+but is not.
+
+**To run or confirm tests under `test/demo/`, always pass `-m ""`:**
+
+```bash
+uv run pytest test/demo/test_something.py -m ""
+```
+
+This is the same reason `AGENTS.md` requires the full suite
+(`uv run pytest -m ""`) whenever `vultron/demo/` or `test/demo/` is touched.
+
+---
+
 ## Demo Integration Test Isolation
 
 Each actor MUST use a **distinct `DataLayer` instance**; mark tests

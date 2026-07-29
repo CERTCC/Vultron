@@ -454,6 +454,15 @@ vs replicated canonical chain, and rejection handling.
 multi-actor case state synchronization, or evaluating the CaseActor assertion
 model.
 
+**`case-ledger-parsing.md`**
+Tolerant parsing patterns for case-ledger JSONL consumers: the three nesting
+shapes for RM/EM/VFD/PXA state (ADR-0036 dimension objects, legacy flat wire
+spellings, nested-under-Add), robust extraction helpers, malformed-field
+coercion, and multi-case partitioning (DRPT-02-006).
+**Load when**: writing any consumer of case-ledger JSONL (report tools,
+invariant checks, dashboards), debugging state extraction from devlogs, or
+implementing `payloadSnapshot` parsers.
+
 **`sync-ledger-replication.md`**
 Log-centric architecture overview: hash-chain design rationale, log position
 in activity `context`, implementation phases (SYNC-1–4), system invariants,

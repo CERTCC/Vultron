@@ -1,8 +1,8 @@
 ---
 title: "EmitCloseCaseNode: best-effort SUCCESS when case_manager_id absent from blackboard"
 type: learning
-timestamp: "2026-07-27"
-source: ISSUE-1716
+timestamp: "2026-07-27T00:00:00Z"
+source: ISSUE-1716-emit-close
 signal: design-question
 ---
 
@@ -19,3 +19,6 @@ a WARNING.
 
 The same pattern should be applied consistently wherever `DataLayerAction` nodes
 read optional blackboard keys.
+
+**Promoted**: 2026-07-28 — captured in notes/peer-broadcast-failure-semantics.md § Best-Effort Override Exception.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1790>0>0>0>0>0>0>.

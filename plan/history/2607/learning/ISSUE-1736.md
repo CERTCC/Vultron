@@ -19,3 +19,6 @@ is for DEPLOYER actors, update its docstring to remove the VENDOR role
 requirement (DEPLOYER actors need not be VENDOR), and add a
 `verify_fix_deployed_for_deployer` that checks for DEPLOYER role instead.
 Tracked as a DEFER from ISSUE-1736 review.
+
+**Promoted**: 2026-07-28 — rename tracked as ISSUE-1785.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1790>0>0>0>0>0>0>.

@@ -1,7 +1,7 @@
 ---
 title: "Issue #1665 fully implemented by predecessor PR #1664 before build started"
 type: learning
-timestamp: "2026-07-24"
+timestamp: "2026-07-24T00:00:00Z"
 source: ISSUE-1665
 signal: process-issue
 ---
@@ -22,3 +22,6 @@ framed as "docs/plan" but contains implementation. Check the actual files
 touched by referenced PRs, not just the PR title prefix. See also
 ISSUE-1612 (spec entries already present), ISSUE-1510 (feature already
 implemented), ISSUE-1661 AC-4/AC-5 (pitfall entries added by blocker PR).
+
+**Promoted**: 2026-07-28 — pattern covered by existing AGENTS.md pitfall 'Verify Issue ACs Against Current Code'.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1790>0>0>0>0>0>0>.

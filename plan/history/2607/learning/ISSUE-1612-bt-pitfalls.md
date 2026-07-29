@@ -1,8 +1,8 @@
 ---
 title: "bt-pitfalls.md intentionally exceeds 500-line guideline as a single-scenario file"
 type: learning
-timestamp: "2026-07-22"
-source: ISSUE-1612
+timestamp: "2026-07-22T00:00:00Z"
+source: ISSUE-1612-bt-pitfalls
 signal: design-question
 ---
 
@@ -16,3 +16,6 @@ The 500-line limit is a heuristic, not an absolute cap. Files with a single
 coherent "Load when" scenario that happen to accumulate many pitfall entries
 are exempt from splitting. The entry in notes/README.md makes the scenario
 explicit.
+
+**Promoted**: 2026-07-28 — no change needed; PD-01-003 heuristic is correctly applied, no doc update warranted.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1790>0>0>0>0>0>0>.

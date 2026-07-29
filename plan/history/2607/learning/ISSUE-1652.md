@@ -1,7 +1,7 @@
 ---
 title: "spec rel_type 'related_to' is not a valid enum value"
 type: learning
-timestamp: "2026-07-23"
+timestamp: "2026-07-23T00:00:00Z"
 source: ISSUE-1652
 signal: spec-ambiguity
 ---
@@ -18,3 +18,6 @@ Valid `rel_type` values (as of 2026-07-23):
 When the intent is "this spec is loosely related to another", use `refines`
 with a clarifying `note:` field, or omit the relationship altogether if no
 normative link exists.
+
+**Promoted**: 2026-07-28 — captured in specs/AGENTS.md § Valid rel_type Values.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1790>0>0>0>0>0>0>.

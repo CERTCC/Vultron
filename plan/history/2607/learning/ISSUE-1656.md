@@ -1,7 +1,7 @@
 ---
 title: DEMOCI-04 invariant-harness job needs Dependabot guard from DEMOCI-02-004
 type: learning
-timestamp: "2026-07-24"
+timestamp: "2026-07-24T00:00:00Z"
 source: ISSUE-1656
 signal: spec-gap
 ---
@@ -23,3 +23,6 @@ if: always() && !startsWith(github.head_ref, 'dependabot/')
 
 **Spec update**: DEMOCI-04-005 added to `specs/demo-ci.yaml` (v1.3.0) in
 PR #1666 to require the same Dependabot exclusion.
+
+**Promoted**: 2026-07-28 — already captured in specs/demo-ci.yaml DEMOCI-04-005 (added in PR #1666) before this learn run.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1790>0>0>0>0>0>0>.

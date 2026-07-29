@@ -144,6 +144,41 @@ Three distinct states must be distinguished when a second `Offer(Actor X)` arriv
 - Spec requirements CM-16 and CM-17 (in `specs/case-management.yaml`) capture
   the normative requirements derived from this decision.
 
+### Trust Rule: Roles Come From the Offer, Not the Accept
+
+When the CaseActor processes `Accept(Offer(CaseParticipant))` from the Case
+Owner, the roles assigned to the new participant MUST be taken from the
+**stored outgoing `Offer(CaseParticipant)`** that the CaseActor sent, not
+from the embedded `CaseParticipant` object inside the received `Accept`.
+
+**Why this is a security boundary, not just an implementation detail:**
+
+- The accepting actor (Case Owner) may modify the embedded `CaseParticipant`
+  in the `Accept` payload, or may send only a bare ID reference.
+- Reading roles from the received `Accept` allows the accepting actor to
+  unilaterally escalate or modify the roles the invitee would receive.
+- The stored `Offer` is the CaseActor's own record of what was proposed;
+  it is the authoritative source of truth for the intended participant roles.
+
+**Failure pattern that violates this rule:**
+
+- Reading the `CaseParticipant` role list from `event.object_.roles`
+  (the object embedded in the received `Accept`) instead of from the
+  stored `Offer` activity.
+- Reading roles from the BT blackboard across ticks: the blackboard is
+  cleared between BT executions, so a role written in the offer-received
+  tick is gone by the accept-received tick.
+
+**Implementation:** the CaseActor stores the outgoing `Offer(CaseParticipant)`
+in its DataLayer at offer-emit time. At accept-received time, it reads the
+stored offer to recover the intended roles, then creates the participant record.
+See `vultron/core/behaviors/case/nodes/suggest_actor/` for the canonical
+implementation pattern (PR #1745).
+
+*Source: ISSUE-1745, `plan/incoming/learnings/20260728-offer-trust-boundary-implicit.md`.*
+
+---
+
 ## More Information
 
 - ADR-0021: CaseActor Inbox Routing as the Sole Path to Canonical Ledger Entries

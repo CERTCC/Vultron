@@ -2,7 +2,7 @@
 title: "Snapshot bare-ref pattern (_drop_bare_inline_refs) must be applied to all model_dump() payloads"
 type: learning
 timestamp: 2026-07-27T00:00:00Z
-source: ISSUE-1689
+source: ISSUE-1689-snapshot
 signal: design-question
 ---
 
@@ -27,3 +27,6 @@ that used raw `model_dump` without this step — fixed before PR opened.
 This pattern should be documented as a project convention and enforced via
 an architecture lint or spec entry so future ledger emit nodes don't repeat
 the mistake.
+
+**Promoted**: 2026-07-28 — already in notes/case-ledger-authority.md § snapshot-bare-ref pattern.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1790>0>0>0>0>0>0>.
