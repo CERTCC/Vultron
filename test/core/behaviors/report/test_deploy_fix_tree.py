@@ -668,26 +668,99 @@ def test_stay_deferred_short_circuits(
     bt_scenario: BTTestScenario,
     case_with_deployer: VultronCase,
 ) -> None:
-    """Deferred deployer, no new info → _ShouldStayInRmDeferred SUCCESS."""
+    """Deferred deployer, no new info → _ShouldStayInRmDeferred SUCCESS.
+
+    Asserts SUCCESS *and* that no VFD status was appended — proving arm 2
+    (stay-deferred) produced the SUCCESS, not the always-succeeding monitor
+    arm masking a broken deploy arm.
+    """
     _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, rm=RM.DEFERRED)
+    case = bt_scenario.dl.read(CASE_ID)
+    assert isinstance(case, VultronCase)
+    participant_id = case.actor_participant_index[DEPLOYER_ACTOR_ID]
+    participant = bt_scenario.dl.read(participant_id)
+    assert isinstance(participant, CaseParticipant)
+    before = len(participant.participant_statuses)
+
     tree = create_deploy_fix_tree(case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID)
     result = bt_scenario.run(tree, actor_id=DEPLOYER_ACTOR_ID)
     assert result.status == Status.SUCCESS
 
+    # No deployment side effects: the deploy arm must not have run.
+    participant = bt_scenario.dl.read(participant_id)
+    assert isinstance(participant, CaseParticipant)
+    assert len(participant.participant_statuses) == before
+    assert bt_scenario.dl.outbox_list_for_actor(DEPLOYER_ACTOR_ID) == []
 
-def test_full_deploy_path_succeeds(
+
+def test_full_deploy_arm_completes_and_emits_cd(
     bt_scenario: BTTestScenario,
     case_with_deployer_and_case_manager: VultronCase,
 ) -> None:
-    """Deployer, RM ACCEPTED, fix ready-not-deployed → deploy arm runs to CD.
+    """Deployer, RM ACCEPTED, fix ready-not-deployed, DeployFix SUCCEEDS.
 
-    Uses the DETERMINISTIC bundle (PrioritizeDeployment=AlwaysSucceed,
-    DeployFix=AlwaysFail). Because DeployFix defaults to AlwaysFail, the
-    deploy arm fails and the Fallback falls through to the monitor arm — which
-    succeeds (MonitoringRequirement + MonitorDeployment both AlwaysSucceed).
-    So the overall tree SUCCEEDS.
+    Injects ``deploy_fix_factory=AlwaysSucceed`` so the ``_DeployFixIfReady``
+    Sequence runs to completion (guards pass → PrioritizeDeployment → DeployFix
+    → TransitionCStoFixDeployed → EmitCDActivity).  Asserts the deploy arm's
+    two production action nodes actually fired: a new VFD ``ParticipantStatus``
+    was appended and a CD activity was queued to the deployer's outbox.
+
+    This is the integration coverage the DETERMINISTIC default cannot provide
+    (its ``deploy_fix_factory`` is AlwaysFail, so the arm never reaches the
+    transition/emit nodes).
     """
     _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vfd=CS_vfd.VFd)
+    case = bt_scenario.dl.read(CASE_ID)
+    assert isinstance(case, VultronCase)
+    participant_id = case.actor_participant_index[DEPLOYER_ACTOR_ID]
+    participant = bt_scenario.dl.read(participant_id)
+    assert isinstance(participant, CaseParticipant)
+    before = len(participant.participant_statuses)
+
+    bundle = DeployFixCallOutBundle(
+        deploy_fix_factory=lambda n: AlwaysSucceed(n),  # type: ignore[arg-type]
+    )
+    tree = create_deploy_fix_tree(
+        case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID, call_out=bundle
+    )
+    result = bt_scenario.run(tree, actor_id=DEPLOYER_ACTOR_ID)
+    assert result.status == Status.SUCCESS
+
+    # TransitionCStoFixDeployed appended a new VFD (fix-deployed) status.
+    participant = bt_scenario.dl.read(participant_id)
+    assert isinstance(participant, CaseParticipant)
+    assert len(participant.participant_statuses) == before + 1
+    assert participant.participant_statuses[-1].vfd.state == CS_vfd.VFD
+
+    # EmitCDActivity queued a CD activity to the deployer's outbox.
+    outbox = bt_scenario.dl.outbox_list_for_actor(DEPLOYER_ACTOR_ID)
+    assert len(outbox) == 1
+
+
+def test_deploy_arm_falls_through_to_monitor_when_deployfix_fails(
+    bt_scenario: BTTestScenario,
+    case_with_deployer_and_case_manager: VultronCase,
+) -> None:
+    """DETERMINISTIC DeployFix=AlwaysFail → deploy arm fails, monitor arm wins.
+
+    Documents the default-bundle behavior: the deploy arm fails at DeployFix
+    (before the transition/emit nodes), so no VFD status is written, and the
+    overall SUCCESS comes from the always-succeeding monitor arm.
+    """
+    _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vfd=CS_vfd.VFd)
+    case = bt_scenario.dl.read(CASE_ID)
+    assert isinstance(case, VultronCase)
+    participant_id = case.actor_participant_index[DEPLOYER_ACTOR_ID]
+    participant = bt_scenario.dl.read(participant_id)
+    assert isinstance(participant, CaseParticipant)
+    before = len(participant.participant_statuses)
+
     tree = create_deploy_fix_tree(case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID)
     result = bt_scenario.run(tree, actor_id=DEPLOYER_ACTOR_ID)
     assert result.status == Status.SUCCESS
+
+    # DeployFix (AlwaysFail) short-circuited the arm before the transition node.
+    participant = bt_scenario.dl.read(participant_id)
+    assert isinstance(participant, CaseParticipant)
+    assert len(participant.participant_statuses) == before
+    assert bt_scenario.dl.outbox_list_for_actor(DEPLOYER_ACTOR_ID) == []
