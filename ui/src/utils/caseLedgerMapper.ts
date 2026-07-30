@@ -608,6 +608,26 @@ function handleEntry(
       return { nodes: [], logLines: ['  ↳ invite_actor_to_case (awaiting accept)'] }
     case 'accept_invite_actor_to_case':
       return handleAcceptInvite(entry, participants, shadow, x, laneIndex)
+    case 'submit_report':
+      return handleSubmitReport(entry, participants, shadow, x, laneIndex)
+    case 'accept_case_manager_role':
+      // The recorder (case-actor sub-actor) accepts the case-manager role it was
+      // offered at case creation. Bookkeeping that pairs with offer_case_manager_role
+      // (already rendered as "Case Created"); no machine change, so log-only.
+      return { nodes: [], logLines: ['  ↳ accept_case_manager_role (Case Manager role accepted)'] }
+    case 'offer_actor_to_case':
+      // First leg of the ADR-0026 suggest-actor handshake (Coordinator recommends a
+      // participant). Rendered as a single "Actor Recommended" node; the other two
+      // legs are folded in as log lines (see handleOfferActorToCase).
+      return handleOfferActorToCase(entry, participants, shadow, x, laneIndex)
+    case 'offer_case_participant':
+      // Second leg: CaseActor forwards the recommendation to the Case Owner.
+      // Folded into the single "Actor Recommended" node above; log-only here.
+      return { nodes: [], logLines: ['  ↳ offer_case_participant (recommendation forwarded to Case Owner)'] }
+    case 'accept_offer_case_participant':
+      // Third leg: Case Owner approves the recommendation. The actual join still
+      // renders via the subsequent invite/accept_invite pair; log-only here.
+      return { nodes: [], logLines: ['  ↳ accept_offer_case_participant (Case Owner approved recommendation)'] }
     default:
       return { nodes: [], logLines: [`  ↳ unhandled eventType "${entry.eventType}"`] }
   }
@@ -651,20 +671,34 @@ function handleOffer(
     logLines.push(`  ↳ seeded case PXA = ${cs.pxaState} (from offer)`)
   }
 
-  // Report-receipt seed: the vendor enters at RM.RECEIVED / VFD.Vfd so the later
-  // `validate_report` is a legal RECEIVED→VALID step (matches the Validated demo's
-  // receipt seed). Seeding the vendor at ACCEPTED would make `validate` illegal.
+  // Report-receipt seed: the case RECEIVER/OWNER enters at RM.RECEIVED so the
+  // later `validate_report` is a legal RECEIVED→VALID step (seeding at ACCEPTED
+  // would make `validate` illegal). The offer's case-object `attributedTo`
+  // identifies that receiver: the primary vendor in two-actor/fvv/fvcv-extension,
+  // but the COORDINATOR in fcv/fccv-extension (a coordinator can receive & own the
+  // case). Default to vendor-1 when attribution is absent (fvv's offer carries
+  // none and its receiver is the primary vendor).
   //
   // GUARDED on `=== undefined` (not on seededRm): some ledgers (e.g. fvv) log
-  // validate_report BEFORE the offer, so validate may have already advanced
-  // rm['vendor-1'] to VALID without marking it seeded — seeding here would
-  // regress it. We only set the baseline when the state was never touched, but
-  // always mark the lane seeded so later status snapshots are treated as
-  // transitions (and validated), not re-seeded.
-  if (shadow.rm['vendor-1'] === undefined) shadow.rm['vendor-1'] = 'RECEIVED'
-  shadow.seededRm.add('vendor-1')
-  if (shadow.vfd['vendor-1'] === undefined) shadow.vfd['vendor-1'] = 'Vfd'
-  shadow.seededVfd.add('vendor-1')
+  // validate_report BEFORE the offer, so the receiver's RM may already have
+  // advanced to VALID — seeding here would regress it. We only set the baseline
+  // when never touched, but always mark the lane seeded so later status snapshots
+  // are treated as transitions (and validated), not re-seeded.
+  const receiverLane: LaneId = (() => {
+    const id = actorUrlToLaneId(obj?.attributedTo)
+    return id === 'unknown' ? 'vendor-1' : id
+  })()
+  if (shadow.rm[receiverLane] === undefined) shadow.rm[receiverLane] = 'RECEIVED'
+  shadow.seededRm.add(receiverLane)
+  // VFD receipt (vfd→Vfd, "the vendor became aware and began fix development") is a
+  // VENDOR concept — seed it ONLY when the receiver is a vendor. A coordinator
+  // receiver owns the case but develops no fix, so we leave its VFD unseeded and
+  // let its own status snapshots seed it as-is; that surfaces any out-of-place
+  // coordinator VFD verbatim (a generator signal) instead of fabricating a Vfd start.
+  if (receiverLane.startsWith('vendor-')) {
+    if (shadow.vfd[receiverLane] === undefined) shadow.vfd[receiverLane] = 'Vfd'
+    shadow.seededVfd.add(receiverLane)
+  }
   // The Finder enters CVD already at RM.ACCEPTED (validated/prioritized privately
   // before disclosure — see Validated demo handleSubmitReport). VFD is seeded
   // lazily from the finder's first status snapshot.
@@ -685,12 +719,96 @@ function handleOffer(
     ],
     'Joined Case',
     (lane) =>
-      lane.id === 'vendor-1'
-        ? ['Report received', 'RM seeded → RECEIVED', 'VFD seeded → Vfd']
+      lane.id === receiverLane
+        ? lane.id.startsWith('vendor-')
+          ? ['Report received', 'RM seeded → RECEIVED', 'VFD seeded → Vfd']
+          : ['Report received', 'RM seeded → RECEIVED']
         : ['Case announced', 'RM (private) → ACCEPTED', 'Participant record created'],
     false
   )
   return { nodes, logLines }
+}
+
+// --- submit_report → finder submits the report -----------------------------
+
+/**
+ * The finder submits the vulnerability report (2026-07 scenarios; previously
+ * folded into the offer seed). `object.type = VulnerabilityReport`, `actor` = the
+ * finder. This is a demo-kind node (no machine slot of its own — the finder's
+ * private RM traversal to ACCEPTED is seeded at case creation, CLAUDE.md §9), so
+ * it emits a "Submit Report" decision node in the finder lane without touching the
+ * shadow. Note this entry may arrive AFTER the offer (fcv/fvcv/fccv order it at
+ * logIndex 1, one past the offer at 0), so the finder lane and its ACCEPTED seed
+ * already exist; ensureParticipant is defensive.
+ */
+function handleSubmitReport(
+  entry: CaseLedgerEntry,
+  participants: Map<string, ParticipantState>,
+  _shadow: ShadowState,
+  x: number,
+  laneIndex: LaneIndexMap
+): MapResult {
+  const laneId = actorUrlToLaneId(entry.payloadSnapshot?.actor)
+  ensureParticipant(participants, laneId, laneIndex)
+  const reportName = entry.payloadSnapshot?.object?.name ?? 'vulnerability report'
+  const nodes = synthesizeCluster(
+    entry,
+    participants,
+    laneId,
+    x,
+    'Submit Report',
+    [`Report: "${reportName}"`, 'Offer(VulnerabilityReport) → receiver', 'RM (finder, private) → ACCEPTED'],
+    'Report Submitted',
+    () => [`Finder submitted "${reportName}"`],
+    false
+  )
+  return { nodes, logLines: [] }
+}
+
+// --- offer_actor_to_case → ADR-0026 suggest-actor recommendation -----------
+
+/**
+ * First leg of the extension flow's suggest-actor handshake: a participant (the
+ * Coordinator in fvcv-extension; the actor5/vendor-2 host in fccv-extension)
+ * recommends a new actor to the case. The CaseActor then forwards it to the Case
+ * Owner (`offer_case_participant`) who approves it (`accept_offer_case_participant`)
+ * — both folded into this single node as log lines — after which the regular
+ * invite/accept pair performs the actual join (rendered by handleAcceptInvite).
+ *
+ * This is a deliberate demo OVERLAY that mirrors the protocol's ADR-0026
+ * suggest-actor-to-case flow (`_phase_coordinator_suggests_vendor2` in the
+ * scenario source): the recommendation is procedural coordination, not a
+ * declarative state-machine step, so it has no artifact to defer to. Emitted as
+ * one node in the recommender's lane to keep the teaching timeline focused on the
+ * decision (recommend), not the plumbing.
+ */
+function handleOfferActorToCase(
+  entry: CaseLedgerEntry,
+  participants: Map<string, ParticipantState>,
+  _shadow: ShadowState,
+  x: number,
+  laneIndex: LaneIndexMap
+): MapResult {
+  const laneId = actorUrlToLaneId(entry.payloadSnapshot?.actor)
+  ensureParticipant(participants, laneId, laneIndex)
+  const recommended = entry.payloadSnapshot?.object?.name ?? 'a new actor'
+  const recommender = participants.get(laneId)?.name ?? laneId
+  const nodes = synthesizeCluster(
+    entry,
+    participants,
+    laneId,
+    x,
+    'Actor Recommended',
+    [
+      `${recommender} recommends ${recommended} join the case`,
+      'Offer(Actor, Case) → Case Actor (ADR-0026)',
+      'Awaiting Case Owner approval + invite',
+    ],
+    'Actor Recommended',
+    () => [`${recommended} recommended to the case`],
+    false
+  )
+  return { nodes, logLines: [] }
 }
 
 // --- accept_invite_actor_to_case → invited vendor joins --------------------
@@ -717,27 +835,36 @@ function handleAcceptInvite(
     return { nodes: [], logLines: ['  ↳ accept_invite: could not resolve accepting actor'] }
   }
 
-  // Report-receipt seed for the joining vendor (mirrors the primary vendor seed
-  // in handleOffer). Guarded so a pre-existing status snapshot isn't regressed.
+  // Report-receipt seed for the joining participant (mirrors the receiver seed in
+  // handleOffer). Guarded so a pre-existing status snapshot isn't regressed. Every
+  // joiner — vendor OR coordinator — receives & manages the report, so RM is seeded
+  // for all. VFD (fix development) is seeded ONLY for a vendor joiner, matching
+  // handleOffer: a coordinator owns/manages but builds no fix, so its VFD is left
+  // unseeded and surfaced verbatim from its own status snapshots (a generator signal
+  // rather than a fabricated Vfd start).
+  const isVendorJoiner = laneId.startsWith('vendor-')
   if (!shadow.seededRm.has(laneId)) {
     shadow.rm[laneId] = 'RECEIVED'
     shadow.seededRm.add(laneId)
     logLines.push(`  ↳ seeded ${laneId} RM = RECEIVED (invite accepted)`)
   }
-  if (!shadow.seededVfd.has(laneId)) {
+  if (isVendorJoiner && !shadow.seededVfd.has(laneId)) {
     shadow.vfd[laneId] = 'Vfd'
     shadow.seededVfd.add(laneId)
   }
 
   const name = participants.get(laneId)?.name ?? laneId
+  const decisionBullets = isVendorJoiner
+    ? [`${name} accepted the invitation to the case`, 'RM seeded → RECEIVED', 'VFD seeded → Vfd']
+    : [`${name} accepted the invitation to the case`, 'RM seeded → RECEIVED']
   const nodes = synthesizeCluster(
     entry,
     participants,
     laneId,
     x,
     'Accept Invite',
-    [`${name} accepted the invitation to the case`, 'RM seeded → RECEIVED', 'VFD seeded → Vfd'],
-    'Vendor Joined',
+    decisionBullets,
+    'Participant Joined',
     () => [`${name} joined the case`],
     false
   )
@@ -775,6 +902,10 @@ function handleValidateReport(
     shadow.rm[laneId] = 'VALID'
   }
 
+  // The validator is the case receiver/owner, which is the primary vendor in
+  // two-actor/fvv/fvcv-extension but the COORDINATOR in fcv/fccv-extension — name
+  // the actual lane rather than assuming "Vendor".
+  const validatorName = participants.get(laneId)?.name ?? laneId
   const nodes = synthesizeCluster(
     entry,
     participants,
@@ -783,7 +914,7 @@ function handleValidateReport(
     'Validate Report',
     ['Accept(Offer) — report deemed legitimate', `RM: ${src} → ${shadow.rm[laneId]}`],
     'Report Validated',
-    () => ['Vendor validated the report', `RM: → ${shadow.rm[laneId]}`],
+    () => [`${validatorName} validated the report`, `RM: → ${shadow.rm[laneId]}`],
     violation,
     violationReason
   )
