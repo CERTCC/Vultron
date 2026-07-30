@@ -221,3 +221,20 @@ def test_phrase_format_map_with_defaults_returns_non_empty(entry):
     assert (
         result
     ), f"{entry.semantics.name} phrase produced empty string after format_map"
+
+
+def test_create_case_proposal_phrase_has_no_target_slot():
+    """CREATE_CASE_PROPOSAL must not reference a ``{target}`` slot (#1787).
+
+    ``create_case_proposal_activity`` builds a ``Create(as_CaseProposal)`` with
+    no ``target`` field, so a ``{target}`` slot can never be filled at render
+    time and always resolves to the em-dash fallback — producing a dangling
+    ``"proposed a case to —"``.  The two SE-07 tests above do not catch this:
+    they fill every slot from a ``defaultdict``, so an unfillable slot still
+    renders non-empty.  Pin the phrase to a form that carries no ``{target}``.
+    """
+    entry = lookup_entry(MessageSemantics.CREATE_CASE_PROPOSAL)
+    assert "{target}" not in entry.phrase, (
+        "CREATE_CASE_PROPOSAL phrase references {target}, but the factory "
+        "sets no target; the slot renders as a dangling em-dash. See #1787."
+    )
