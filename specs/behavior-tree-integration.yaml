@@ -678,19 +678,26 @@ groups:
   - id: BT-20-003
     priority: SHOULD
     kind: project
-    statement: The production `create_report_to_others_tree` factory SHOULD retain the outer loop structure (party identification
-      Retrievers, effort-gate Evaluators, typed vendor/coordinator/other sub-loops), and SHOULD invoke the `suggest-actor-to-case`
-      trigger in place of `InjectParticipant` family nodes. The `suggest-actor-to-case` trigger MUST be called with an explicit
-      role parameter (`CVDRole.VENDOR`, `CVDRole.COORDINATOR`, or `CVDRole.OTHER`) matching the sub-loop type; the current
-      assumption that all suggestions use `CVDRole.VENDOR` MUST be generalized.
-    rationale: 'The `InjectParticipant` family is a direct case-management write that bypasses the protocol''s
-      invite/accept handshake. In production the `suggest-actor-to-case` protocol (Offer → Invite → Accept → Record cascade)
-      replaces it. The outer loop remains because the BT must still ask "should we notify additional parties?" and iterate
-      through identified candidates. See `notes/bt-fuzzer-nodes-report-management.md` § "Production Collapse 3: Notification
-      loop" and ADR-0029.'
-    tracking_issue: '#1311 (implemented)'
+    statement: The production report-to-others workflow SHOULD be driven by a Sentinel coordination agent that proactively
+      queries the case for actors who are not yet participants but should be (party discovery), then fires `suggest-actor-to-case`
+      for each candidate. The `suggest-actor-to-case` protocol (Offer → CaseActor → CaseOwner → Invite → Accept → Record
+      cascade) handles the downstream flow; no inline tick-driven BT loop is needed at the outer level. If an inline subtree
+      is required (e.g. for a single-pass trigger-driven invocation), it SHOULD consist of a Retriever call-out that returns
+      candidate (actor_id, role) pairs and an Actuator per pair that fires `suggest-actor-to-case` with the explicit
+      `CVDRole` parameter.
+    rationale: >
+      The original Production Collapse 3 design (#1311, ADR-0029) retained a three-typed-sub-loop BT structure whose
+      inner blackboard queues (identified_vendors, identified_coordinators, identified_others) had no production
+      mechanism to populate them. Planning of #1252 surfaced that the identification step belongs in a Sentinel
+      coordination agent (see #1147/#1143) that periodically or event-triggered inspects the case and asynchronously
+      fires suggest-actor-to-case for each uninvited candidate. The downstream accept/invite/bootstrap cascade already
+      works; no inline BT loop is required. The tick-driven `create_report_to_others_tree` module from #1311 is an
+      implementation artifact of the intermediate design and is tracked for removal in a follow-on Task (see
+      notes/bt-fuzzer-rm-reporting.md § "Sentinel supersession note").
+    tracking_issue: '#1311 (partial implementation, superseded); #1252 (planning — closed; sentinel approach adopted)'
     adr:
     - ADR-0029
+    - ADR-0047
   - id: BT-20-004
     priority: SHOULD
     kind: project

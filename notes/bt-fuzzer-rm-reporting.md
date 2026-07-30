@@ -525,3 +525,46 @@ coordinated disclosure.
   with `CVDRole.OTHER` (Production Collapse 3, ADR-0029).
 
 ---
+
+## Sentinel supersession note (2026-07-30)
+
+Planning session for #1252 surfaced a design mismatch between the
+`create_report_to_others_tree` module (from Production Collapse 3, #1311,
+ADR-0029) and the production process model.
+
+**The mismatch**: the three-typed-sub-loop tree (vendor / coordinator / other
+sub-loops) assumes pre-populated blackboard queues (`identified_vendors`,
+`identified_coordinators`, `identified_others`). No production mechanism
+populates those queues — the `IdentifyX` call-out factories are stubs with
+no real implementation path. The `SuggestXTrigger` factories fire
+`suggest-actor-to-case`, but require an actor ID on the blackboard that
+only the stub provides in STOCHASTIC mode.
+
+**The correct production model** (resolved during #1252 planning): the party
+identification and invitation step belongs in a **Sentinel coordination agent**
+(see #1147 / #1143) that:
+
+1. Periodically or event-triggered inspects the case for actors who are known
+   but not yet participants (e.g., via CPE/NVD lookup, SBOM analysis, or an
+   LLM-backed evaluator)
+2. Fires `suggest-actor-to-case` for each candidate actor
+3. The downstream Offer → CaseActor → CaseOwner → Invite → Accept → Record
+   cascade handles the rest
+
+No inline tick-driven BT loop is required at the outer level. The
+`create_report_to_others_tree` module is an implementation artifact of the
+intermediate design and is tracked for removal in a follow-on Task (see
+BT-20-003 note in `specs/behavior-tree-integration.yaml`).
+
+**Files to remove** (tracked as a follow-on Task, not this PR):
+
+- `vultron/core/behaviors/report/report_to_others_tree.py`
+- `vultron/core/behaviors/call_out/bundles/report_to_others.py`
+- `vultron/demo/fuzzer/bundles/report_to_others.py`
+- `test/core/behaviors/report/test_report_to_others_tree.py`
+
+None of these have production callers outside their own test file.
+
+**New work**: a new Idea under #1147 tracks the participant discovery Sentinel
+design. When that Idea is planned, it should mine #1252 for any residual
+questions about whether an inline BT subtree is needed alongside the sentinel.
