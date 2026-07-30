@@ -159,18 +159,54 @@ def build_activity_payload_snapshot(
 def _find_case_actor_id(dl: CasePersistence, case_id: str) -> str | None:
     """Return the CaseActor Service ID for *case_id*, if present in the DataLayer.
 
-    First checks for a ``VultronReportCaseLink`` whose ``trusted_case_actor_id``
-    was established during bootstrap (CBT-01-006).  Falls back to the legacy
-    Service-object scan for backward compatibility.
+    Resolution order:
+
+    1. A ``VultronReportCaseLink`` whose ``trusted_case_actor_id`` was
+       established during bootstrap (CBT-01-006).
+    2. A *pending* ``VultronReportCaseLink`` whose ``trusted_case_creator_id``
+       matches the ``CVDRole.CASE_MANAGER`` participant of the case replica
+       (CBT-01-003), i.e. the proposal target has confirmed itself as case
+       manager but the link has not been completed yet.
+    3. A legacy scan for a ``Service`` object whose ``context`` is *case_id*.
+
+    Path 2 exists because paths 1 and 3 both have a window in which they
+    cannot answer.  The link only carries ``case_id``/``trusted_case_actor_id``
+    once ``Create(VulnerabilityCase)`` has been *fully processed*, and under
+    ADR-0041 the CaseActor ``Service`` object the receiver writes ahead of
+    ``Create(as_CaseProposal)`` has no ``context`` (the case does not exist
+    yet).  A participant-triggered action taken between replica seeding and
+    link completion — e.g. ``invite-actor-to-case`` immediately after
+    ``engage-case`` — would otherwise resolve ``None``, sending the Invite from
+    the owner's identity with no ``cc:`` to the CaseActor.  The invitee's
+    ``Accept`` then returns to a non-CASE_MANAGER, so no canonical
+    ``accept_invite_actor_to_case`` entry is ever committed.  The case replica
+    embeds the CASE_MANAGER participant from the moment it is seeded
+    (CP-09-004), so path 2 closes the window.
+
+    Path 2 is deliberately narrow: it requires *both* an outstanding proposal
+    to a known CaseActor *and* the case replica naming that same actor as
+    CASE_MANAGER.  A CASE_MANAGER participant alone is not sufficient evidence
+    of a CaseActor — cases whose manager is an ordinary participant have no
+    CaseActor and MUST still resolve ``None`` (ADR-0021).
 
     Returns ``None`` when no CaseActor Service can be found for *case_id*.
     This is the authoritative resolver for PCR-08-007 (invite sender) and
     PCR-08-008 (accept recipient).
     """
+    pending_creator_ids: set[str] = set()
     for link in dl.list_objects("ReportCaseLink"):
         if isinstance(link, VultronReportCaseLink):
             if link.case_id == case_id and link.trusted_case_actor_id:
                 return str(link.trusted_case_actor_id)
+            if link.case_id is None and link.trusted_case_creator_id:
+                pending_creator_ids.add(str(link.trusted_case_creator_id))
+
+    if pending_creator_ids:
+        case = dl.read(case_id)
+        if isinstance(case, VulnerabilityCase):
+            manager_id = _resolve_case_manager_id(case, dl)
+            if manager_id is not None and manager_id in pending_creator_ids:
+                return manager_id
 
     for service in dl.list_objects("Service"):
         if getattr(service, "context", None) == case_id:

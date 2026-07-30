@@ -42,9 +42,12 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.enums.roles import CVDRole
 from vultron.core.use_cases._helpers import (
+    _find_case_actor_id,
     _resolve_case_manager_id,
     resolve_case_participant_id_for_actor,
 )
@@ -369,3 +372,135 @@ class TestResolveCaseManagerId:
         assert isinstance(stored, VulnerabilityCase)
         result = _resolve_case_manager_id(stored, cm_dl)
         assert result == _CM_ACTOR_ID
+
+
+# ---------------------------------------------------------------------------
+# Tests for _find_case_actor_id
+# ---------------------------------------------------------------------------
+
+
+class TestFindCaseActorId:
+    """Contract tests for the three resolution paths of _find_case_actor_id.
+
+    The pending-link path (path 2) exists to close a real window that broke the
+    fccv-extension / fccv-handoff invariant harnesses: a participant-triggered
+    ``invite-actor-to-case`` issued between replica seeding and the
+    ``ReportCaseLink`` update resolved ``None``, so the Invite went out from the
+    owner's identity with no ``cc:`` to the CaseActor.  The invitee's ``Accept``
+    then reached a non-CASE_MANAGER and no canonical
+    ``accept_invite_actor_to_case`` ledger entry was ever committed.
+
+    Path 2 must stay narrow: a CASE_MANAGER participant on its own is not a
+    CaseActor, and cases without one MUST still resolve ``None`` (ADR-0021).
+    """
+
+    def test_link_path_takes_precedence(
+        self, cm_dl: SqliteDataLayer, cm_participant: CaseParticipant
+    ) -> None:
+        """A link with trusted_case_actor_id wins over the pending-link path."""
+        link_actor_id = "https://example.org/actors/case-actor-from-link"
+        cm_dl.create(
+            VultronReportCaseLink(
+                report_id="https://example.org/reports/r1",
+                case_id=_CM_CASE_ID,
+                trusted_case_actor_id=link_actor_id,
+            )
+        )
+        cm_dl.create(cm_participant)
+        case = VulnerabilityCase(id_=_CM_CASE_ID, name="Link Path")
+        case.add_participant(cm_participant)
+        cm_dl.create(case)
+
+        assert _find_case_actor_id(cm_dl, _CM_CASE_ID) == link_actor_id
+
+    def test_pending_link_plus_case_manager_path(
+        self, cm_dl: SqliteDataLayer, cm_participant: CaseParticipant
+    ) -> None:
+        """A pending link naming the replica's CASE_MANAGER resolves it.
+
+        This is the exact state the receiving container is in between
+        ``Create(VulnerabilityCase)`` seeding the replica and
+        ``CreateCaseReceivedUseCase`` writing ``case_id`` back to the link.
+        """
+        # Pending link: no case_id yet, so the path-1 lookup cannot match.
+        cm_dl.create(
+            VultronReportCaseLink(
+                report_id="https://example.org/reports/r1",
+                trusted_case_creator_id=_CM_ACTOR_ID,
+            )
+        )
+        # ADR-0041 CaseActor Service objects carry no context — the receiver
+        # writes them before the case exists, so path 3 cannot match either.
+        cm_dl.create(VultronCaseActor(id_=_CM_ACTOR_ID, name="CaseActor"))
+        cm_dl.create(cm_participant)
+        case = VulnerabilityCase(id_=_CM_CASE_ID, name="CM Path")
+        case.add_participant(cm_participant)
+        cm_dl.create(case)
+
+        assert _find_case_actor_id(cm_dl, _CM_CASE_ID) == _CM_ACTOR_ID
+
+    def test_case_manager_alone_is_not_a_case_actor(
+        self, cm_dl: SqliteDataLayer, cm_participant: CaseParticipant
+    ) -> None:
+        """ADR-0021: a CASE_MANAGER with no outstanding proposal is not a CaseActor.
+
+        Without a pending ``ReportCaseLink`` pointing at this actor there is no
+        evidence a CaseActor service exists, so callers must fall through to the
+        no-CaseActor branch rather than address an ordinary participant as one.
+        """
+        cm_dl.create(cm_participant)
+        case = VulnerabilityCase(id_=_CM_CASE_ID, name="No CaseActor")
+        case.add_participant(cm_participant)
+        cm_dl.create(case)
+
+        assert _find_case_actor_id(cm_dl, _CM_CASE_ID) is None
+
+    def test_pending_link_to_a_different_actor_is_ignored(
+        self, cm_dl: SqliteDataLayer, cm_participant: CaseParticipant
+    ) -> None:
+        """A pending proposal to some other CaseActor must not be borrowed."""
+        cm_dl.create(
+            VultronReportCaseLink(
+                report_id="https://example.org/reports/other",
+                trusted_case_creator_id=(
+                    "https://example.org/actors/case-actor-unrelated"
+                ),
+            )
+        )
+        cm_dl.create(cm_participant)
+        case = VulnerabilityCase(id_=_CM_CASE_ID, name="Unrelated Proposal")
+        case.add_participant(cm_participant)
+        cm_dl.create(case)
+
+        assert _find_case_actor_id(cm_dl, _CM_CASE_ID) is None
+
+    def test_service_context_path_still_works(
+        self, cm_dl: SqliteDataLayer
+    ) -> None:
+        """The legacy context-scan path is preserved for pre-ADR-0041 cases."""
+        service_id = "https://example.org/actors/case-actor-legacy"
+        cm_dl.create(
+            VultronCaseActor(
+                id_=service_id, name="Legacy CaseActor", context=_CM_CASE_ID
+            )
+        )
+        cm_dl.create(VulnerabilityCase(id_=_CM_CASE_ID, name="Legacy Path"))
+
+        assert _find_case_actor_id(cm_dl, _CM_CASE_ID) == service_id
+
+    def test_returns_none_when_unresolvable(
+        self, cm_dl: SqliteDataLayer, vendor_participant: CaseParticipant
+    ) -> None:
+        """No link, no CASE_MANAGER participant, no Service → None."""
+        cm_dl.create(vendor_participant)
+        case = VulnerabilityCase(id_=_CM_CASE_ID, name="Unresolvable")
+        case.add_participant(vendor_participant)
+        cm_dl.create(case)
+
+        assert _find_case_actor_id(cm_dl, _CM_CASE_ID) is None
+
+    def test_returns_none_when_case_absent(
+        self, cm_dl: SqliteDataLayer
+    ) -> None:
+        """A missing case must not raise — the participant path just skips."""
+        assert _find_case_actor_id(cm_dl, _CM_CASE_ID) is None
