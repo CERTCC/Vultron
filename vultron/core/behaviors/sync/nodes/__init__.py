@@ -24,6 +24,7 @@ Submodules:
 - ``conditions``: Idempotency guard and sender verification condition nodes
 - ``receive``: Log entry delivery and validation action nodes
 - ``chain``: Chain reconstruction and log entry creation action nodes
+- ``canonical_entry``: Canonical ``payloadSnapshot`` validation (CLP-07)
 - ``replay``: Replay and fan-out action nodes for replication
 """
 

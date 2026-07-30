@@ -302,10 +302,17 @@ def test_validate_canonical_entry_provenance_skipped_when_no_case_actor_id():
         ("add_participant_status_to_participant", "Add", "ParticipantStatus"),
     ],
 )
-def test_validate_canonical_entry_allows_case_actor_for_self_caseactor_prologue(
+def test_validate_canonical_entry_allows_case_actor_for_native_init(
     event_type, snapshot_type, object_type
 ):
-    """fvv regression: CaseActor may author prologue entries when vendor IS CaseActor."""
+    """CLP-12-002: the CaseActor may author its own native-init entries.
+
+    ADR-0041 makes the CaseActor commit the case-initialization entries
+    itself (CM-22-003), so these signatures must be in
+    ``_CASE_AUTHORED_SIGNATURES``.  Also an fvv regression: when the vendor
+    IS the CaseActor the snapshot actor equals ``case_actor_id``, which is
+    what triggers the CLP-07-003 provenance check.
+    """
     snapshot = {
         "type": snapshot_type,
         "actor": CASE_ACTOR_ID,
