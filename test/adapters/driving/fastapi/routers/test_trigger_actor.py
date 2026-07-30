@@ -32,6 +32,7 @@ from vultron.adapters.driving.fastapi.deps import (
     get_trigger_dl,
     get_trigger_service,
 )
+import vultron.adapters.driving.fastapi.outbox_handler as _outbox_handler
 from vultron.enums.roles import CVDRole
 from vultron.core.use_cases.triggers.service import TriggerService
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -50,8 +51,14 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 # ---------------------------------------------------------------------------
 
 
+class _NoopEmitter:
+    async def emit(self, activity, recipients):  # noqa: ARG002
+        pass
+
+
 @pytest.fixture
 def client_triggers(dl):
+    _outbox_handler._default_emitter = _NoopEmitter()
     app = FastAPI()
     app.include_router(trigger_actor_router.router)
     app.dependency_overrides[get_trigger_service] = lambda: TriggerService(
@@ -62,6 +69,7 @@ def client_triggers(dl):
     client = TestClient(app)
     yield client
     app.dependency_overrides = {}
+    _outbox_handler._default_emitter = None
 
 
 @pytest.fixture
