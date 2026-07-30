@@ -43,6 +43,7 @@ import pytest
 from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.use_cases._helpers import _find_case_actor_id
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -183,22 +184,6 @@ def _drain_case_actor_outbox(owner_iso, case_actor_id: str) -> None:
         asyncio.run(outbox_handler(case_actor_id, case_actor_dl, owner_iso.dl))
     finally:
         case_actor_dl.close()
-
-
-def _find_case_actor_id(dl, case_id: str) -> str | None:
-    """Return the CaseActor ID for *case_id*.
-
-    Checks ``VultronReportCaseLink.trusted_case_actor_id`` first (ADR-0041
-    path), then falls back to scanning ``Service`` objects for the legacy path.
-    """
-    for link in dl.list_objects("ReportCaseLink"):
-        if isinstance(link, VultronReportCaseLink):
-            if link.case_id == case_id and link.trusted_case_actor_id:
-                return str(link.trusted_case_actor_id)
-    for service in dl.list_objects("Service"):
-        if getattr(service, "context", None) == case_id:
-            return str(service.id_)
-    return None
 
 
 def _bootstrap_and_engage(

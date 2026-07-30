@@ -61,6 +61,7 @@ import pytest
 from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.use_cases._helpers import _find_case_actor_id
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -327,30 +328,6 @@ def _bootstrap_case(
     return case_id
 
 
-def _find_case_actor_id_in_dl(dl, case_id: str) -> str | None:
-    """Scan ``dl`` for a CaseActor ID for *case_id*.
-
-    Checks ``VultronReportCaseLink.trusted_case_actor_id`` first (ADR-0041
-    path), then falls back to scanning ``Service`` objects
-    (``VultronCaseActor`` with ``context=case_id``) for the pre-ADR-0041 path.
-
-    Args:
-        dl: A ``DataLayer`` instance (typically the owner's).
-        case_id: The ID of the ``VulnerabilityCase`` to match.
-
-    Returns:
-        The ``id_`` of the CaseActor, or ``None`` if not found.
-    """
-    for link in dl.list_objects("ReportCaseLink"):
-        if isinstance(link, VultronReportCaseLink):
-            if link.case_id == case_id and link.trusted_case_actor_id:
-                return str(link.trusted_case_actor_id)
-    for service in dl.list_objects("Service"):
-        if getattr(service, "context", None) == case_id:
-            return str(service.id_)
-    return None
-
-
 def _drain_case_actor_outbox(owner_iso, case_actor_id: str) -> None:
     """Drain the CaseActor's outbox via the real outbox_handler.
 
@@ -453,7 +430,7 @@ def _run_late_joiner_sequence(
     # CaseActor's outbox (not the owner's), so drain it explicitly here.
     # The background task triggered by the invite endpoint only drains the
     # owner's outbox; the CaseActor's outbox must be processed separately.
-    case_actor_id = _find_case_actor_id_in_dl(owner_iso.dl, case_id)
+    case_actor_id = _find_case_actor_id(owner_iso.dl, case_id)
     assert case_actor_id is not None, (
         f"Could not find CaseActor for case '{case_id}' in owner's "
         f"DataLayer.  CreateCaseActorNode may not have run during "
