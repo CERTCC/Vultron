@@ -262,6 +262,7 @@ nav:
       - HTTP-Only Inter-Actor Delivery: 'adr/0042-http-only-inter-actor-delivery.md'
       - ADR Status as Confidence Signal: 'adr/0043-adr-status-as-confidence-signal.md'
       - Adopt py_trees Typed Ports: 'adr/0044-py-trees-typed-ports-adoption.md'
+      - Correct Create(VulnerabilityCase) Field Assignment: 'adr/0045-create-vulnerability-case-field-assignment.md'
   - About:
     - Contributing: 'about/contributing.md'
     - FAQ: 'about/faq.md'

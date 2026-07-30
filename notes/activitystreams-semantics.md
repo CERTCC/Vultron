@@ -104,6 +104,42 @@ The key distinction is:
 
 ---
 
+## AS2 Field Conventions: `context` vs `inReplyTo`
+
+AS2 defines `context` and `inReplyTo` for related but distinct purposes.
+Conflating them causes inbox routing failures.
+
+### `context` — scoping/grouping key
+
+AS2 defines `context` as identifying something "not specific to the activity
+but generally applicable to one or more objects" — a **grouping or scoping
+key**, not a causal antecedent.
+
+**Rule**: `context` on any case-scoped Vultron activity MUST be the case URI.
+This convention holds across all 29+ case-scoped activity sites and is required
+for correct inbox deferral routing: `_activity_context_id()` reads `context` to
+determine which case an activity belongs to. Placing a non-case URI in `context`
+causes the deferral guard to treat the activity as belonging to an unknown case
+and queue it indefinitely — a bootstrap deadlock for `Create(VulnerabilityCase)`.
+
+**MUST NOT**: Do not place causal antecedents (the Accept that authorised an
+action, the Offer being responded to) in `context`. Use `inReplyTo` instead.
+
+### `inReplyTo` — causal antecedent
+
+AS2 defines `inReplyTo` as referencing "one or more Objects for which the
+object is considered a response." It is the correct field for recording **what
+prompted this activity**.
+
+**Rule**: When a case-actor emits `Create(VulnerabilityCase)` in response to an
+`Accept(CaseProposal)`, the Accept URI MUST appear in `in_reply_to`, not in
+`context`. The full causal chain is recoverable: `in_reply_to` → Accept →
+`object_` (inline `as_CaseProposal`).
+
+**Source**: CONCERN-1832; spec: CP-05-003; ADR: 0045.
+
+---
+
 ## Response Activity Conventions
 
 ### inReplyTo
