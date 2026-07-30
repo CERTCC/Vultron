@@ -158,6 +158,12 @@ class DataLayerClient(BaseModel):
     """
 
     base_url: str = BASE_URL
+    #: Per-request HTTP timeout (seconds).  Generous relative to httpx's 5s
+    #: default so a single GET against a container that is busy draining its
+    #: outbox (delivery retry/backoff can add several seconds under CI load)
+    #: does not fail with a bare read timeout.  Callers may override per-call
+    #: by passing ``timeout=`` in kwargs.
+    timeout: float = 30.0
 
     def call(self, method: HTTPMethod, path: str, **kwargs: Any) -> Any:
         """Make an HTTP request to the DataLayer API.
@@ -179,6 +185,7 @@ class DataLayerClient(BaseModel):
 
         url = f"{self.base_url}{path}"
         logger.debug(f"Calling {method.upper()} {url}")
+        kwargs.setdefault("timeout", self.timeout)
         response = httpx.request(method, url, **kwargs)
         logger.debug(f"Response status: {response.status_code}")
 

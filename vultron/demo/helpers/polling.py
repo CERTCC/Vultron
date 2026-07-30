@@ -78,7 +78,7 @@ def _poll_until(
 def wait_for_case_on_container(
     client: DataLayerClient,
     case_id: str,
-    timeout_seconds: float = 10.0,
+    timeout_seconds: float = 30.0,
     poll_interval: float = 0.5,
 ) -> None:
     """Poll *client*'s DataLayer until *case_id* appears.
@@ -117,7 +117,7 @@ def wait_for_case_on_container(
 def wait_for_finder_case(
     finder_client: DataLayerClient,
     case_id: str,
-    timeout_seconds: float = 10.0,
+    timeout_seconds: float = 30.0,
     poll_interval: float = 0.5,
 ) -> None:
     """Backward-compatible alias for :func:`wait_for_case_on_container`.
@@ -173,7 +173,7 @@ def wait_for_note_in_case(
     client: DataLayerClient,
     case_id: str,
     note_id: str,
-    timeout_seconds: float = 10.0,
+    timeout_seconds: float = 30.0,
     poll_interval: float = 0.5,
 ) -> None:
     """Poll until *note_id* appears in the ``notes`` list of the case.
@@ -529,7 +529,7 @@ def wait_for_participant_vfd_state(
     case_id: str,
     actor_id: str,
     expected_states: "set",
-    timeout_seconds: float = 10.0,
+    timeout_seconds: float = 30.0,
     poll_interval: float = 0.25,
 ) -> None:
     """Poll until *actor_id*'s latest participant ``vfd_state`` is in
@@ -611,7 +611,7 @@ def wait_for_participant_vfd_state(
 def wait_for_case_em_terminated(
     client: DataLayerClient,
     case_id: str,
-    timeout_seconds: float = 10.0,
+    timeout_seconds: float = 30.0,
     poll_interval: float = 0.25,
 ) -> None:
     """Poll until the case EM state is ``EM.EXITED``.
@@ -649,7 +649,7 @@ def wait_for_case_em_terminated(
 def wait_for_all_participants_rm_closed(
     client: DataLayerClient,
     case_id: str,
-    timeout_seconds: float = 10.0,
+    timeout_seconds: float = 30.0,
     poll_interval: float = 0.25,
 ) -> None:
     """Poll until all participants in *case_id* have ``RM.CLOSED`` as their
