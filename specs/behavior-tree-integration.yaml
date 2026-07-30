@@ -654,7 +654,7 @@ groups:
       in granular boolean flags that are unnecessary in production. Collapsing to two call-out points (Retriever + Evaluator)
       reduces seam count while keeping the exploit-repo query independently swappable. Implemented by issue #1309 (PR #1566).
       See `notes/bt-fuzzer-nodes-report-management.md` § "Production Collapse 1: Exploit-strategy subtree" and ADR-0027.'
-    tracking_issue: '#1200 (planning); #1309 (implementation — closed by PR #1566)'
+    tracking_issue: '#1200 (planning); #1249 (factory-fn Idea — already implemented on main); #1309 (implementation — closed by PR #1566)'
     adr:
     - ADR-0027
   - id: BT-20-002
