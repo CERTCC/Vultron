@@ -32,6 +32,11 @@ from vultron.demo.fuzzer.bundles.acquire_exploit import (
     ACQUIRE_EXPLOIT_STOCHASTIC,
     AcquireExploitCallOutBundle,
 )
+from vultron.demo.fuzzer.bundles.assign_cve_id import (
+    ASSIGN_CVE_ID_DETERMINISTIC,
+    ASSIGN_CVE_ID_STOCHASTIC,
+    AssignCveIdCallOutBundle,
+)
 from vultron.demo.fuzzer.bundles.assign_vul_id import (
     ASSIGN_VUL_ID_DETERMINISTIC,
     ASSIGN_VUL_ID_STOCHASTIC,
@@ -81,6 +86,7 @@ from vultron.demo.fuzzer.bundles.validation import (
 __all__ = [
     # Bundle classes
     "AcquireExploitCallOutBundle",
+    "AssignCveIdCallOutBundle",
     "DevelopFixCallOutBundle",
     "AssignVulIdCallOutBundle",
     "CloseReportCallOutBundle",
@@ -92,6 +98,7 @@ __all__ = [
     "ValidationCallOutBundle",
     # Deterministic singletons
     "ACQUIRE_EXPLOIT_DETERMINISTIC",
+    "ASSIGN_CVE_ID_DETERMINISTIC",
     "DEVELOP_FIX_DETERMINISTIC",
     "ASSIGN_VUL_ID_DETERMINISTIC",
     "CLOSE_REPORT_DETERMINISTIC",
@@ -103,6 +110,7 @@ __all__ = [
     "VALIDATION_DETERMINISTIC",
     # Stochastic singletons
     "ACQUIRE_EXPLOIT_STOCHASTIC",
+    "ASSIGN_CVE_ID_STOCHASTIC",
     "DEVELOP_FIX_STOCHASTIC",
     "ASSIGN_VUL_ID_STOCHASTIC",
     "CLOSE_REPORT_STOCHASTIC",

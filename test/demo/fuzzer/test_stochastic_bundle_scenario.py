@@ -137,6 +137,38 @@ def test_assign_vul_id_stochastic_bundle_end_to_end():
 
 
 # ---------------------------------------------------------------------------
+# Assign CVE-ID domain (full 16-node tree, issue #1817)
+# ---------------------------------------------------------------------------
+
+
+def test_assign_cve_id_stochastic_bundle_end_to_end():
+    """STOCHASTIC bundle wires all 14 call-out points to fuzzer nodes."""
+    from vultron.core.behaviors.report.assign_cve_id_tree import (
+        create_assign_cve_id_tree,
+    )
+    from vultron.demo.fuzzer.bundles.assign_cve_id import (
+        ASSIGN_CVE_ID_STOCHASTIC,
+    )
+    from vultron.demo.fuzzer.report_management.assign_vul_id import (
+        IdAssigned,
+        InScope,
+    )
+
+    case_id = "https://example.org/cases/demo-cve-001"
+    tree = create_assign_cve_id_tree(
+        case_id=case_id, call_out=ASSIGN_CVE_ID_STOCHASTIC
+    )
+    # Root Fallback: first child is IdAssigned (Retriever early-exit)
+    assert isinstance(tree.children[0], IdAssigned)
+    # Second child is _AssignIdIfInScope Sequence; its first child is InScope
+    assert isinstance(tree.children[1].children[0], InScope)
+
+    logger.info(
+        "STOCHASTIC assign-CVE-ID tree:\n%s", py_trees.display.ascii_tree(tree)
+    )
+
+
+# ---------------------------------------------------------------------------
 # Mode comparison: DETERMINISTIC vs STOCHASTIC vs CUSTOM
 # ---------------------------------------------------------------------------
 

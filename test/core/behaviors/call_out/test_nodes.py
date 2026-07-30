@@ -41,6 +41,7 @@ from vultron.core.behaviors.call_out import (
 )
 from vultron.core.behaviors.call_out.bundles import (
     ACQUIRE_EXPLOIT_DETERMINISTIC,
+    ASSIGN_CVE_ID_DETERMINISTIC,
     ASSIGN_VUL_ID_DETERMINISTIC,
     CLOSE_REPORT_DETERMINISTIC,
     DEPLOY_FIX_DETERMINISTIC,
@@ -51,9 +52,10 @@ from vultron.core.behaviors.call_out.bundles import (
     VALIDATION_DETERMINISTIC,
 )
 
-# All nine pre-built core DETERMINISTIC bundle singletons.
+# All pre-built core DETERMINISTIC bundle singletons.
 _DETERMINISTIC_BUNDLES = [
     ACQUIRE_EXPLOIT_DETERMINISTIC,
+    ASSIGN_CVE_ID_DETERMINISTIC,
     ASSIGN_VUL_ID_DETERMINISTIC,
     CLOSE_REPORT_DETERMINISTIC,
     DEPLOY_FIX_DETERMINISTIC,
