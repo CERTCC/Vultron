@@ -21,9 +21,8 @@ here for backward-compatible import paths.
 Ceiling/floor mapping for the DETERMINISTIC counterpart (BT-23-002):
 
 - ``prioritize_deployment_factory``  — PrioritizeDeployment  (p=0.90) → AlwaysSucceed
-- ``deploy_mitigation_factory``      — DeployMitigation      (p=0.75) → AlwaysSucceed
-- ``monitoring_requirement_factory`` — MonitoringRequirement (p=0.70) → AlwaysSucceed
 - ``deploy_fix_factory``             — DeployFix             (p=0.10) → AlwaysFail
+- ``monitoring_requirement_factory`` — MonitoringRequirement (p=0.70) → AlwaysSucceed
 - ``monitor_deployment_factory``     — MonitorDeployment     (p=1.0) → AlwaysSucceed
 """
 
@@ -45,14 +44,6 @@ def _stochastic_prioritize_deployment(
     )
 
     return PrioritizeDeployment(name)
-
-
-def _stochastic_deploy_mitigation(name: str) -> py_trees.behaviour.Behaviour:
-    from vultron.demo.fuzzer.report_management.deploy_fix import (
-        DeployMitigation,
-    )
-
-    return DeployMitigation(name)
 
 
 def _stochastic_monitoring_requirement(
@@ -81,7 +72,6 @@ def _stochastic_monitor_deployment(name: str) -> py_trees.behaviour.Behaviour:
 
 DEPLOY_FIX_STOCHASTIC = DeployFixCallOutBundle(
     prioritize_deployment_factory=_stochastic_prioritize_deployment,  # type: ignore[arg-type]
-    deploy_mitigation_factory=_stochastic_deploy_mitigation,  # type: ignore[arg-type]
     monitoring_requirement_factory=_stochastic_monitoring_requirement,  # type: ignore[arg-type]
     deploy_fix_factory=_stochastic_deploy_fix,  # type: ignore[arg-type]
     monitor_deployment_factory=_stochastic_monitor_deployment,  # type: ignore[arg-type]

@@ -21,10 +21,14 @@ lives in the simulation layer
 Ceiling/floor mapping (BT-23-002):
 
 - ``prioritize_deployment_factory``  — PrioritizeDeployment  (p=0.90) → AlwaysSucceed
-- ``deploy_mitigation_factory``      — DeployMitigation      (p=0.75) → AlwaysSucceed
-- ``monitoring_requirement_factory`` — MonitoringRequirement (p=0.70) → AlwaysSucceed
 - ``deploy_fix_factory``             — DeployFix             (p=0.10) → AlwaysFail
+- ``monitoring_requirement_factory`` — MonitoringRequirement (p=0.70) → AlwaysSucceed
 - ``monitor_deployment_factory``     — MonitorDeployment     (p=1.0) → AlwaysSucceed
+
+Mitigation deployment (``DeployMitigation``) is scoped OUT of this bundle
+(#1248) — it belongs to a distinct ``create_deploy_mitigation_tree`` (a peer
+Idea).  The Phase 1 stub's ``deploy_mitigation_factory`` field was removed when
+the full tree landed (#1825).
 """
 
 from __future__ import annotations
@@ -54,9 +58,6 @@ class DeployFixCallOutBundle:
     """
 
     prioritize_deployment_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
-    )
-    deploy_mitigation_factory: CallOutBackendFactory = field(
         default=_always_succeed  # type: ignore[assignment]
     )
     monitoring_requirement_factory: CallOutBackendFactory = field(

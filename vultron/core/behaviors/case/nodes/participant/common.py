@@ -211,6 +211,46 @@ def resolve_participant_state_from_dl(
     return RM.START, CS_vfd.vfd
 
 
+def resolve_case_manager_id(
+    case: VulnerabilityCase,
+    dl: CasePersistence,
+) -> str | None:
+    """Return the actor ID of the CASE_MANAGER participant, or None.
+
+    Checks ``actor_participant_index`` first (fast path), then falls back to
+    iterating ``case_participants`` for bootstrap-phase inline objects.
+
+    Behaviors-layer twin of
+    ``vultron.core.use_cases._helpers._resolve_case_manager_id``; kept here so
+    BT nodes (e.g. ``EmitCFActivity``, ``EmitCDActivity``) resolve the Case
+    Actor without a behaviors→use_cases import (BTND-04-003).
+    """
+    for p_id in case.actor_participant_index.values():
+        p = dl.read(p_id)
+        if not isinstance(p, CaseParticipant):
+            continue
+        if CVDRole.CASE_MANAGER in p.roles:
+            return _as_id(getattr(p, "attributed_to", None))
+
+    indexed_ids = set(case.actor_participant_index.values())
+    for p_ref in case.case_participants:
+        if not isinstance(p_ref, str):
+            if (
+                isinstance(p_ref, CaseParticipant)
+                and CVDRole.CASE_MANAGER in p_ref.roles
+            ):
+                return _as_id(getattr(p_ref, "attributed_to", None))
+            continue
+        if p_ref in indexed_ids:
+            continue
+        p = dl.read(p_ref)
+        if not isinstance(p, CaseParticipant):
+            continue
+        if CVDRole.CASE_MANAGER in p.roles:
+            return _as_id(getattr(p, "attributed_to", None))
+    return None
+
+
 def _queue_participant_add_notification(
     dl: CasePersistence,
     node_name: str,
