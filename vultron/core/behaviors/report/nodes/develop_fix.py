@@ -35,11 +35,11 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
 from vultron.core.behaviors.case.nodes.participant.common import (
+    resolve_case_manager_id,
     resolve_participant_state_from_dl,
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models._helpers import _as_id
 from vultron.core.models.dimensions import VfdDimension
 from vultron.core.ports.case_persistence import (
     CasePersistence,
@@ -50,44 +50,6 @@ from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
-
-
-def _resolve_case_manager_id(
-    case: VulnerabilityCase,
-    dl: CasePersistence,
-) -> str | None:
-    """Return the actor ID of the CASE_MANAGER participant, or None.
-
-    Checks ``actor_participant_index`` first (fast path), then falls back to
-    iterating ``case_participants`` for bootstrap-phase inline objects.
-
-    Inlined from ``vultron.core.use_cases._helpers._resolve_case_manager_id``
-    to avoid a behaviors→use_cases import (BTND-04-003).
-    """
-    for p_id in case.actor_participant_index.values():
-        p = dl.read(p_id)
-        if not isinstance(p, CaseParticipant):
-            continue
-        if CVDRole.CASE_MANAGER in p.roles:
-            return _as_id(getattr(p, "attributed_to", None))
-
-    indexed_ids = set(case.actor_participant_index.values())
-    for p_ref in case.case_participants:
-        if not isinstance(p_ref, str):
-            if (
-                isinstance(p_ref, CaseParticipant)
-                and CVDRole.CASE_MANAGER in p_ref.roles
-            ):
-                return _as_id(getattr(p_ref, "attributed_to", None))
-            continue
-        if p_ref in indexed_ids:
-            continue
-        p = dl.read(p_ref)
-        if not isinstance(p, CaseParticipant):
-            continue
-        if CVDRole.CASE_MANAGER in p.roles:
-            return _as_id(getattr(p, "attributed_to", None))
-    return None
 
 
 def _resolve_actor_roles(
@@ -422,7 +384,7 @@ class EmitCFActivity(DataLayerAction):
             )
             return Status.FAILURE
 
-        case_manager_id = _resolve_case_manager_id(case, self.datalayer)
+        case_manager_id = resolve_case_manager_id(case, self.datalayer)
         if not case_manager_id:
             self.feedback_message = (
                 f"No CASE_MANAGER found for case '{self._case_id}'"
