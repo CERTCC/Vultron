@@ -132,6 +132,14 @@ def test_outbox_handler_retries_and_aborts_after_too_many_errors(monkeypatch):
 
     monkeypatch.setattr(oh, "handle_outbox_item", always_raise)
 
+    # The retry path backs off with exponential asyncio.sleep (1s, 2s, 4s).
+    # Patch it to a no-op so the test exercises the retry-and-abort logic
+    # without real-time delay (would exceed the 5s pytest-timeout otherwise).
+    async def no_sleep(_seconds):
+        return None
+
+    monkeypatch.setattr(oh.asyncio, "sleep", no_sleep)
+
     asyncio.run(oh.outbox_handler("actor-xyz", mock_dl))
 
     # item should be back in the queue after the retry limit is hit
