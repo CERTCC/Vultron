@@ -45,6 +45,10 @@ from py_trees.common import Access, Status
 
 from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
+from vultron.core.behaviors.report.publication_tree import (
+    INTENT_DECISION_KEY,
+    PublicationIntentDecision,
+)
 
 
 def _always_succeed(name: str) -> py_trees.behaviour.Behaviour:
@@ -65,17 +69,17 @@ class _DeterministicPrioritizePublicationIntents(AlwaysSucceed):
     exploit.  A real Evaluator backend overrides these per case policy via
     ``call_out=PUBLICATION_STOCHASTIC`` (or a custom :class:`PublicationCallOutBundle`).
 
-    Uses lazy imports to avoid a circular import with
-    ``vultron.core.behaviors.report.publication_tree`` (which imports this
-    module's :data:`PUBLICATION_DETERMINISTIC` singleton).
+    Blackboard contract (BT-18-001):
+      Output keys: ``publication_intent_decision``: :class:`PublicationIntentDecision`
     """
+
+    #: BT-18-001: declared output keys written on SUCCESS (mirrors PrioritizePublicationIntents).
+    output_keys: dict[str, type] = {
+        INTENT_DECISION_KEY: PublicationIntentDecision
+    }
 
     def setup(self, **kwargs: Any) -> None:
         super().setup(**kwargs)
-        from vultron.core.behaviors.report.publication_tree import (
-            INTENT_DECISION_KEY,
-        )
-
         self._intent_key = INTENT_DECISION_KEY
         self._intent_bb = self.attach_blackboard_client(
             name=f"{self.__class__.__name__}_writer"
@@ -85,10 +89,6 @@ class _DeterministicPrioritizePublicationIntents(AlwaysSucceed):
     def update(self) -> Status:
         status = super().update()
         if status == Status.SUCCESS and hasattr(self, "_intent_bb"):
-            from vultron.core.behaviors.report.publication_tree import (
-                PublicationIntentDecision,
-            )
-
             setattr(
                 self._intent_bb, self._intent_key, PublicationIntentDecision()
             )
@@ -150,5 +150,4 @@ to the blackboard. All other factories use :class:`~vultron.core.behaviors.call_
 __all__ = [
     "PublicationCallOutBundle",
     "PUBLICATION_DETERMINISTIC",
-    "_DeterministicPrioritizePublicationIntents",
 ]
