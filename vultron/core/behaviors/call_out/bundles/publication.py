@@ -25,7 +25,7 @@ and
 
 Ceiling/floor mapping (BT-23-002):
 
-- ``prioritize_publication_intents_factory`` — PrioritizePublicationIntents (p=1.0) → AlwaysSucceed
+- ``prioritize_publication_intents_factory`` — PrioritizePublicationIntents (p=1.0) → _DeterministicPrioritizePublicationIntents
 - ``prepare_exploit_factory``               — PrepareExploit               (p=0.90) → AlwaysSucceed
 - ``prepare_fix_factory``                   — PrepareFix                   (p=0.90) → AlwaysSucceed
 - ``prepare_report_factory``                — PrepareReport                (p=0.90) → AlwaysSucceed
@@ -38,8 +38,10 @@ Ceiling/floor mapping (BT-23-002):
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 import py_trees
+from py_trees.common import Access, Status
 
 from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
@@ -47,6 +49,56 @@ from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
 
 def _always_succeed(name: str) -> py_trees.behaviour.Behaviour:
     return AlwaysSucceed(name)
+
+
+class _DeterministicPrioritizePublicationIntents(AlwaysSucceed):
+    """DETERMINISTIC PrioritizePublicationIntents: always succeeds and writes the default intent record.
+
+    Writes :class:`~vultron.core.behaviors.report.publication_tree.PublicationIntentDecision`
+    (``publish_fix=True``, ``publish_report=True``, ``publish_exploit=False``) to
+    :data:`~vultron.core.behaviors.report.publication_tree.INTENT_DECISION_KEY`
+    on SUCCESS so that the ``ShouldPublish*`` gate nodes can read it.
+
+    This is the core-layer DETERMINISTIC backend for the
+    ``prioritize_publication_intents_factory`` call-out point (BT-23-002). It
+    encodes the standard CVD outcome: publish the fix and advisory, withhold the
+    exploit.  A real Evaluator backend overrides these per case policy via
+    ``call_out=PUBLICATION_STOCHASTIC`` (or a custom :class:`PublicationCallOutBundle`).
+
+    Uses lazy imports to avoid a circular import with
+    ``vultron.core.behaviors.report.publication_tree`` (which imports this
+    module's :data:`PUBLICATION_DETERMINISTIC` singleton).
+    """
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        from vultron.core.behaviors.report.publication_tree import (
+            INTENT_DECISION_KEY,
+        )
+
+        self._intent_key = INTENT_DECISION_KEY
+        self._intent_bb = self.attach_blackboard_client(
+            name=f"{self.__class__.__name__}_writer"
+        )
+        self._intent_bb.register_key(self._intent_key, Access.WRITE)
+
+    def update(self) -> Status:
+        status = super().update()
+        if status == Status.SUCCESS and hasattr(self, "_intent_bb"):
+            from vultron.core.behaviors.report.publication_tree import (
+                PublicationIntentDecision,
+            )
+
+            setattr(
+                self._intent_bb, self._intent_key, PublicationIntentDecision()
+            )
+        return status
+
+
+def _deterministic_prioritize_intents(
+    name: str,
+) -> py_trees.behaviour.Behaviour:
+    return _DeterministicPrioritizePublicationIntents(name)
 
 
 @dataclass(frozen=True)
@@ -60,7 +112,7 @@ class PublicationCallOutBundle:
     """
 
     prioritize_publication_intents_factory: CallOutBackendFactory = field(
-        default=_always_succeed  # type: ignore[assignment]
+        default=_deterministic_prioritize_intents  # type: ignore[assignment]
     )
     prepare_exploit_factory: CallOutBackendFactory = field(
         default=_always_succeed  # type: ignore[assignment]
@@ -86,9 +138,17 @@ class PublicationCallOutBundle:
 
 
 PUBLICATION_DETERMINISTIC = PublicationCallOutBundle()
-"""Deterministic bundle: all nodes use AlwaysSucceed (BT-23-001, BT-23-002)."""
+"""Deterministic bundle: happy-path default for production use (BT-23-001, BT-23-002).
+
+``prioritize_publication_intents_factory`` uses
+:class:`_DeterministicPrioritizePublicationIntents` which returns SUCCESS and
+writes the standard CVD default intent record
+(:class:`~vultron.core.behaviors.report.publication_tree.PublicationIntentDecision`)
+to the blackboard. All other factories use :class:`~vultron.core.behaviors.call_out.nodes.AlwaysSucceed`.
+"""
 
 __all__ = [
     "PublicationCallOutBundle",
     "PUBLICATION_DETERMINISTIC",
+    "_DeterministicPrioritizePublicationIntents",
 ]
