@@ -16,6 +16,9 @@ Responsibilities:
 - Delivery failures are isolated per-recipient: exhausting retries for
   one recipient is logged at ERROR level but does not abort delivery to
   other recipients.
+- After all recipients have been attempted, if any failed,
+  ``DeliveryError`` is raised so ``outbox_handler`` can requeue the
+  activity for a future drain pass (OX-05-002).
 - Idempotency (OX-06-001) is enforced at the receiving inbox endpoint
   (``POST /actors/{id}/inbox/``), not here, because each actor runs as an
   isolated process with no direct DataLayer access to other actors.
@@ -33,6 +36,23 @@ from vultron.core.models.activity import VultronActivity
 from vultron.core.ports.emitter import (  # noqa: F401 — port reference
     ActivityEmitter,
 )
+
+
+class DeliveryError(RuntimeError):
+    """Raised by ``DemoHttpDeliveryAdapter.emit`` when one or more recipients
+    could not be reached after all retry attempts.
+
+    ``outbox_handler`` catches this and requeues the activity for a future
+    drain pass (OX-05-002).
+    """
+
+    def __init__(self, failed: list[str], activity_id: str | None) -> None:
+        self.failed_recipients = failed
+        super().__init__(
+            f"Delivery failed for activity {activity_id!r} "
+            f"to {len(failed)} recipient(s): {failed}"
+        )
+
 
 logger = logging.getLogger(__name__)
 
@@ -62,9 +82,10 @@ class DemoHttpDeliveryAdapter:
     Delivers outbound activities to recipient actor inboxes via HTTP POST
     (OX-1.1).  Each recipient is attempted up to ``max_retries + 1`` times
     with exponential backoff (SYNC-05-001, SYNC-05-002).  Delivery failures
-    for individual recipients after all retries are exhausted are logged at
-    ERROR level but do not raise, so one failed recipient never blocks
-    delivery to others.
+    for individual recipients are isolated: one failing recipient never blocks
+    delivery to others.  After all recipients are attempted, if any failed,
+    :class:`DeliveryError` is raised so ``outbox_handler`` can requeue the
+    activity for retry (OX-05-002).
 
     Args:
         max_retries: Maximum number of retry attempts after the initial
@@ -100,13 +121,19 @@ class DemoHttpDeliveryAdapter:
         JSON-serialised activity payload using an async HTTP client.
         Per-recipient failures are retried with exponential backoff; after
         all retries are exhausted the failure is logged at ERROR level and
-        delivery continues to the next recipient.
+        delivery continues to the next recipient.  After all recipients have
+        been attempted, :class:`DeliveryError` is raised if any failed so
+        that ``outbox_handler`` can requeue the activity (OX-05-002).
 
         Args:
             activity: The domain activity to deliver.  Must expose either
                 ``model_dump_json(by_alias=True)`` (Pydantic) or be convertible
                 via ``dict()``.
             recipients: List of recipient actor ID strings (full URIs).
+
+        Raises:
+            DeliveryError: If any recipient could not be reached after all
+                retry attempts.
         """
         activity_id = getattr(activity, "id_", None) or getattr(
             activity, "id", None
@@ -125,14 +152,21 @@ class DemoHttpDeliveryAdapter:
         else:
             json_body = json.dumps(dict(activity), default=str)
 
+        failed: list[str] = []
         async with httpx.AsyncClient() as client:
             for recipient_id in recipients:
-                await self._deliver_with_retry(
-                    client=client,
-                    json_body=json_body,
-                    recipient_id=recipient_id,
-                    activity_id=activity_id,
-                )
+                try:
+                    await self._deliver_with_retry(
+                        client=client,
+                        json_body=json_body,
+                        recipient_id=recipient_id,
+                        activity_id=activity_id,
+                    )
+                except DeliveryError:
+                    failed.append(recipient_id)
+
+        if failed:
+            raise DeliveryError(failed, activity_id)
 
     async def _deliver_with_retry(
         self,
@@ -193,3 +227,4 @@ class DemoHttpDeliveryAdapter:
                         self._max_retries + 1,
                         exc,
                     )
+                    raise DeliveryError([recipient_id], activity_id) from exc

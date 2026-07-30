@@ -34,7 +34,9 @@ names (including those used by ``monkeypatch.setattr``) via this module's
 namespace.
 """
 
+import asyncio
 import logging
+import random
 from typing import cast
 
 from vultron.adapters.driven.demo_http_delivery import DemoHttpDeliveryAdapter
@@ -260,3 +262,6 @@ async def outbox_handler(
                     actor_id,
                 )
                 break
+            # Back off before retrying to avoid hammering a busy recipient.
+            backoff = (2 ** (err_count - 1)) + random.uniform(0, 0.5)
+            await asyncio.sleep(backoff)

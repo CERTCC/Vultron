@@ -155,6 +155,8 @@ class TestDeliveryRetry:
         assert mock_sleep.call_count == 2
 
     def test_exponential_backoff_delay_sequence(self):
+        import pytest
+
         adapter = DemoHttpDeliveryAdapter(
             max_retries=3,
             initial_delay=1.0,
@@ -172,12 +174,15 @@ class TestDeliveryRetry:
 
         with patch("httpx2.AsyncClient.post", side_effect=fail):
             with patch("asyncio.sleep", side_effect=fake_sleep):
-                asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
+                with pytest.raises(Exception):
+                    asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
 
         # 3 retries → 3 sleep calls with delays 1.0, 2.0, 4.0
         assert sleep_calls == [1.0, 2.0, 4.0]
 
     def test_delay_capped_at_max_delay(self):
+        import pytest
+
         adapter = DemoHttpDeliveryAdapter(
             max_retries=5,
             initial_delay=10.0,
@@ -195,13 +200,16 @@ class TestDeliveryRetry:
 
         with patch("httpx2.AsyncClient.post", side_effect=fail):
             with patch("asyncio.sleep", side_effect=fake_sleep):
-                asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
+                with pytest.raises(Exception):
+                    asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
 
         # All delays after the first should be capped at max_delay
         for delay in sleep_calls[1:]:
             assert delay <= 30.0
 
     def test_exhaust_retries_logs_error(self, caplog):
+        import pytest
+
         adapter = DemoHttpDeliveryAdapter(
             max_retries=1, initial_delay=0.0, backoff_multiplier=1.0
         )
@@ -213,12 +221,15 @@ class TestDeliveryRetry:
         with patch("httpx2.AsyncClient.post", side_effect=fail):
             with patch("asyncio.sleep", new_callable=AsyncMock):
                 with caplog.at_level("ERROR"):
-                    asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
+                    with pytest.raises(Exception):
+                        asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
 
         assert any("Failed to deliver" in r.message for r in caplog.records)
 
     def test_one_failed_recipient_does_not_block_others(self):
-        """Delivery failure for one recipient does not abort others."""
+        """Delivery failure for one recipient does not abort others; raises after all attempted."""
+        import pytest
+
         adapter = DemoHttpDeliveryAdapter(max_retries=0, initial_delay=0.0)
         activity = _make_activity()
 
@@ -239,10 +250,29 @@ class TestDeliveryRetry:
         ]
 
         with patch("httpx2.AsyncClient.post", side_effect=side_effect):
-            asyncio.run(adapter.emit(activity, recipients))
+            with pytest.raises(Exception):
+                asyncio.run(adapter.emit(activity, recipients))
 
+        # bob was still delivered to before the exception was raised
         assert len(delivered) == 1
         assert "bob" in delivered[0]
+
+    def test_exhaust_retries_raises(self):
+        """emit() raises after all retries are exhausted so outbox_handler can requeue (OX-05-002)."""
+        import pytest
+
+        adapter = DemoHttpDeliveryAdapter(
+            max_retries=1, initial_delay=0.0, backoff_multiplier=1.0
+        )
+        activity = _make_activity()
+
+        async def fail(*args, **kwargs):
+            raise httpx.ConnectError("always fails")
+
+        with patch("httpx2.AsyncClient.post", side_effect=fail):
+            with patch("asyncio.sleep", new_callable=AsyncMock):
+                with pytest.raises(Exception):
+                    asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
 
     def test_zero_retries_attempts_once_only(self):
         adapter = DemoHttpDeliveryAdapter(max_retries=0, initial_delay=0.0)
@@ -257,7 +287,8 @@ class TestDeliveryRetry:
 
         with patch("httpx2.AsyncClient.post", side_effect=fail):
             with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
-                asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
+                with __import__("pytest").raises(Exception):
+                    asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
 
         assert call_count == 1
         mock_sleep.assert_not_called()
