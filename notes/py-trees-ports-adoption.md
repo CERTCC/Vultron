@@ -1,6 +1,6 @@
 ---
 title: py_trees Ports Adoption — Typed Blackboard Contracts and XML Authoring
-status: draft
+status: active
 description: >
   Planning analysis for adopting py_trees 2.5.0 typed Ports in vultron/core/behaviors/:
   the concrete wins (typed data contracts, early error detection, isolated node

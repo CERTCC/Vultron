@@ -191,6 +191,30 @@ class TestCheckRMStateValidPorts:
         )
         bt_scenario.assert_failure(result)
 
+    def test_sender_actor_id_checked_instead_of_blackboard_actor(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """sender_actor_id overrides blackboard actor_id (ADR-0022 single-BT)."""
+        SENDER_ID = "https://example.org/actors/reporter"
+        actor = VultronCaseActor(id_=ACTOR_ID, name="Vendor")
+        sender = VultronCaseActor(id_=SENDER_ID, name="Reporter")
+        report = VultronReport(id_=REPORT_ID, name="R1", content="c")
+        # Only the sender has a VALID status record, not the blackboard actor.
+        status = ParticipantStatus(
+            id_=_report_phase_status_id(SENDER_ID, REPORT_ID, RM.VALID.value),
+            context=REPORT_ID,
+            attributed_to=SENDER_ID,
+            rm=RmDimension(state=RM.VALID),
+        )
+        bt_scenario.seed(actor, sender, report, status)
+        # Tree runs under ACTOR_ID (blackboard actor_id = ACTOR_ID);
+        # node must check SENDER_ID's RM state and return SUCCESS.
+        result = bt_scenario.run(
+            CheckRMStateValid(report_id=REPORT_ID, sender_actor_id=SENDER_ID),
+            actor_id=ACTOR_ID,
+        )
+        bt_scenario.assert_success(result)
+
 
 # ---------------------------------------------------------------------------
 # Pilot: CheckRMStateReceivedOrInvalid
@@ -348,3 +372,18 @@ class TestTransitionRMtoValidPorts:
         )
         bt_scenario.assert_success(result)
         bt_scenario.assert_rm_state(REPORT_ID, RM.VALID, actor_id=ACTOR_ID)
+
+    def test_failure_when_datalayer_not_available(self) -> None:
+        """_require_datalayer() guard returns FAILURE when datalayer is None."""
+        py_trees.blackboard.Blackboard.storage.clear()
+        node = TransitionRMtoValid(report_id=REPORT_ID, offer_id=OFFER_ID)
+        # setup_ports() with no remappings → ports namespace keys; blackboard empty
+        node.setup_ports()
+        # initialise() would raise NoDataAvailable; set datalayer=None manually
+        # to test the _require_datalayer() guard path directly.
+        node.datalayer = None
+        node.actor_id = ACTOR_ID
+        from py_trees.common import Status
+
+        result = node.update()
+        assert result == Status.FAILURE
