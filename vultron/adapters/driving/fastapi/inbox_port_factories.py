@@ -111,6 +111,25 @@ def _submit_report_port_factory(dl: DataLayer) -> dict[str, Any]:
     return kwargs
 
 
+def _case_proposal_port_factory(dl: DataLayer) -> dict[str, Any]:
+    """Resolve the local ``ActorConfig`` for ``CREATE_CASE_PROPOSAL``.
+
+    ``CreateCaseProposalReceivedUseCase`` needs ``default_case_roles`` so the
+    CaseActor grants the proposing actor its real CVD roles alongside
+    ``CVDRole.CASE_OWNER`` (CFG-07-002, CFG-07-004).  Without it the node would
+    have to guess, and labelling a coordinator as ``CVDRole.VENDOR`` makes
+    downstream VFD fix-lifecycle checks demand a fix it never produces.
+
+    Falls back to omitting ``actor_config`` when config load fails, leaving the
+    receiver with ``CVDRole.CASE_OWNER`` only.
+    """
+    del dl  # no driven ports required; only local configuration
+    actor_config = _resolve_actor_config()
+    if actor_config is None:
+        return {}
+    return {"actor_config": actor_config}
+
+
 _SYNC_PORT_SEMANTICS = frozenset(
     {
         MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE,
@@ -162,3 +181,8 @@ _SYNC_AND_TRIGGER_PORT_SEMANTICS = frozenset(
 # runtime (CM-15-001, issue #1319).  Kept in a separate set so the disjoint
 # guard in make_dispatcher() does not need special-casing.
 _SUBMIT_REPORT_SEMANTICS = frozenset({MessageSemantics.SUBMIT_REPORT})
+
+# CREATE_CASE_PROPOSAL needs only the local actor's ActorConfig (no driven
+# ports) so the CaseActor can assign the proposing actor its configured CVD
+# roles (CFG-07-002, CFG-07-004).  Separate set for the same reason as above.
+_CASE_PROPOSAL_SEMANTICS = frozenset({MessageSemantics.CREATE_CASE_PROPOSAL})

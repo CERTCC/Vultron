@@ -277,15 +277,20 @@ groups:
     kind: protocol
     statement: >-
       When the CaseActor creates the `VulnerabilityCase` on proposal acceptance,
-      it MUST add the receiver (vendor) as a `CASE_OWNER` participant at
+      it MUST add the report receiver as a `CASE_OWNER` participant at
       `RM.RECEIVED` and the reporter as a participant at `RM.ACCEPTED` in the
       CaseActor's DataLayer.  These participant records MUST be created before
-      the CaseActor emits `Create(VulnerabilityCase)` to the vendor.
+      the CaseActor emits `Create(VulnerabilityCase)` to the receiver.  Any
+      additional CVD roles the receiver holds MUST come from
+      `ActorConfig.default_case_roles` (CFG-07-002) and MUST NOT be inferred —
+      a report receiver may be a coordinator rather than a vendor.
     rationale: >-
-      The vendor's replica is seeded from the embedded participant objects in
+      The receiver's replica is seeded from the embedded participant objects in
       `Create(VulnerabilityCase)`.  If participants are absent at emission time
-      the vendor replica starts with no participant records and downstream
-      operations that require them (e.g. embargo consent, role guards) fail.
+      the replica starts with no participant records and downstream operations
+      that require them (e.g. embargo consent, role guards) fail.  Hard-coding
+      `CVDRole.VENDOR` for the receiver additionally mislabels coordinators,
+      which makes VFD fix-lifecycle checks demand a fix they never produce.
     relationships:
     - rel_type: refines
       spec_id: CP-09-001
