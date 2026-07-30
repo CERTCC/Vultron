@@ -75,10 +75,51 @@ class CreateCaseReceivedUseCase:
             # Bootstrap trust path — CBT-01-005 / CBT-01-006
             self._handle_bootstrap(actor_id, case_id, case_obj, link)
         else:
+            # Non-vendor participant path (ADR-0041 AC-5)
+            self._handle_direct_participant_bootstrap(
+                actor_id, case_id, case_obj
+            )
+
+    def _handle_direct_participant_bootstrap(
+        self,
+        actor_id: str,
+        case_id: str,
+        case_obj: VulnerabilityCase,
+    ) -> None:
+        """Seed the case replica when receiver is a non-vendor participant.
+
+        Under ADR-0041 AC-5, CaseActor bootstraps reporters/finders directly by
+        including them in the ``to`` field of ``Create(VulnerabilityCase)``.
+        The reporter side has no ``VultronReportCaseLink``, so the standard
+        trust path is unavailable.  We fall back to trusting the CaseActor
+        identity embedded in the case snapshot: only accept when the sender's
+        actor ID matches the CASE_MANAGER participant in the snapshot.
+        """
+        case_manager_id = _resolve_case_manager_id(case_obj, self._dl)
+        if case_manager_id is not None and case_manager_id == actor_id:
+            existing = self._dl.read(case_id)
+            if not isinstance(existing, VulnerabilityCase):
+                try:
+                    self._dl.create(case_obj)
+                    logger.info(
+                        "create_case_received: stored case '%s' replica for "
+                        "non-vendor participant from CaseActor '%s' (ADR-0041 AC-5)",
+                        case_id,
+                        actor_id,
+                    )
+                except ValueError:
+                    logger.info(
+                        "create_case_received: case '%s' persisted concurrently"
+                        " — idempotent",
+                        case_id,
+                    )
+            _store_embedded_participants(case_obj, self._dl, case_id)
+        else:
             logger.info(
-                "create_case_received: no ReportCaseLink for case '%s' — "
-                "no bootstrap trust to record (not a known reporter)",
+                "create_case_received: no ReportCaseLink for case '%s' and "
+                "sender '%s' is not the CaseActor — skipping",
                 case_id,
+                actor_id,
             )
 
     def _handle_bootstrap(

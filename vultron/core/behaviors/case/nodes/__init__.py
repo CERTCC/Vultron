@@ -28,6 +28,7 @@ Submodules:
 - ``embargo``: Default embargo initialization action nodes
 - ``communication``: Outbound activity emission action nodes
 - ``lifecycle``: Case log entry commit action node
+- ``proposal``: CaseProposal send nodes (ADR-0041 vendor-side slimmed tree)
 - ``suggest_actor``: Suggest-actor workflow emit and duplicate-detection nodes
 
 Composite subtrees (``Sequence``/``Selector`` subclasses) are defined in
@@ -54,6 +55,9 @@ from vultron.core.behaviors.case.nodes.actor import (
     EvaluateDefaultRolesNode,
     ProposeCaseToActorNode,
 )
+from vultron.core.behaviors.case.nodes.proposal import (
+    ProposeReportCaseToActorNode,
+)
 from vultron.core.behaviors.case.nodes.case_setup import (
     PersistCase,
     RecordCaseCreatedEventNode,
@@ -75,6 +79,8 @@ from vultron.core.behaviors.case.nodes.conditions import (
     CheckCaseAlreadyExists,
     CheckCaseExistsForReport,
     CheckIsCaseManagerNode,
+    CheckPendingProposalExistsForReport,
+    WritePendingReportCaseLinkNode,
 )
 from vultron.core.behaviors.case.nodes.embargo import (
     AdvanceEMStateToActiveNode,
@@ -129,11 +135,14 @@ __all__ = [
     "EmitAcceptCaseInviteNode",
     "EvaluateDefaultRolesNode",
     "ProposeCaseToActorNode",
+    "ProposeReportCaseToActorNode",
     # conditions
     "CheckAutoCaseCreationEnabledNode",
     "CheckCaseAlreadyExists",
     "CheckCaseExistsForReport",
     "CheckIsCaseManagerNode",
+    "CheckPendingProposalExistsForReport",
+    "WritePendingReportCaseLinkNode",
     # case_setup (leaf nodes)
     "PersistCase",
     "SetCaseAttributedTo",

@@ -275,6 +275,7 @@ class CreateCaseRequest(BaseModel):
     name: NonEmptyString
     content: NonEmptyString
     report_id: NonEmptyString | None = None
+    to: list[str] | None = None
 
 
 class AddReportToCaseRequest(BaseModel):

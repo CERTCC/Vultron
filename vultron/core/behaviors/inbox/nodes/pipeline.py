@@ -46,7 +46,10 @@ from typing import Any
 import py_trees
 from py_trees.common import Access, Status
 
-from vultron.core.models.events import MessageSemantics
+from vultron.core.models.events import (
+    is_case_bootstrap,
+    resolve_case_context_id,
+)
 from vultron.semantic_registry import extract_event
 
 # Blackboard key constants — single source of truth used by both nodes
@@ -208,33 +211,16 @@ class ExtractSemanticsNode(_InboxNode):
 
         self.blackboard.inbox_event = event
 
-        # Resolve context_id: prefer event.context_id, fall back to
-        # activity.context_ (the AS2 context field — but only when it is
-        # a non-default, case-scoped URI), and finally to event.object_.id_
-        # for bootstrap (ANNOUNCE_VULNERABILITY_CASE) activities where the
-        # case ID is carried in the announce object rather than the context.
-        context_id: str | None = event.context_id
-        if context_id is None:
-            context = getattr(activity, "context_", None)
-            # Skip the default AS2 namespace URI — it is not a case ID.
-            if (
-                isinstance(context, str)
-                and context
-                and not context.startswith("https://www.w3.org/ns/")
-            ):
-                context_id = context
-            elif context is not None and not isinstance(context, str):
-                context_id = getattr(context, "id_", None)
-        if (
-            context_id is None
-            and event.semantic_type
-            == MessageSemantics.ANNOUNCE_VULNERABILITY_CASE
-            and event.object_ is not None
-        ):
-            # Bootstrap case: case ID is in the announced VulnerabilityCase.
-            candidate = getattr(event.object_, "id_", None)
-            if isinstance(candidate, str) and candidate:
-                context_id = candidate
+        # Resolve the case this activity is scoped to.  See
+        # ``vultron.core.models.events.case_context`` for the precedence rules
+        # and why bootstrap activities resolve from their inline case object
+        # rather than the AS2 ``context`` field.
+        # NB: ``context`` is the AS2 case-scoping field; ``context_`` is the
+        # JSON-LD ``@context`` namespace declaration.  Only the former can
+        # carry a case reference.
+        context_id = resolve_case_context_id(
+            event, wire_context=getattr(activity, "context", None)
+        )
         self.blackboard.inbox_context_id = context_id
 
         self.logger.debug(
@@ -249,11 +235,12 @@ class ExtractSemanticsNode(_InboxNode):
 class DeferCheckNode(_InboxNode):
     """Step 4: defer activity when its case context is not yet known.
 
-    If a case context ID is present, the activity semantic is not the
-    bootstrap ``ANNOUNCE_VULNERABILITY_CASE``, and the case is not yet
-    locally available, the activity is either queued for later replay
-    (``deferred`` outcome) or dropped when the queue has expired
-    (``rejected`` outcome).
+    If a case context ID is present, the activity semantic is not one of
+    the case-bootstrap semantics (see
+    :data:`~vultron.core.models.events.case_context.CASE_BOOTSTRAP_SEMANTICS`),
+    and the case is not yet locally available, the activity is either
+    queued for later replay (``deferred`` outcome) or dropped when the
+    queue has expired (``rejected`` outcome).
 
     Passes through to SUCCESS when no deferral is needed.
     """
@@ -279,12 +266,10 @@ class DeferCheckNode(_InboxNode):
             queue = None
 
         # No deferral needed when there is no case context, when
-        # processing the bootstrap itself, or when no queue port is
-        # available.
-        is_bootstrap = (
-            event.semantic_type == MessageSemantics.ANNOUNCE_VULNERABILITY_CASE
-        )
-        if context_id is None or is_bootstrap or queue is None:
+        # processing a bootstrap itself, or when no queue port is
+        # available.  Deferring a bootstrap would deadlock: nothing else
+        # can make its case known locally.
+        if context_id is None or is_case_bootstrap(event) or queue is None:
             return Status.SUCCESS
 
         # Non-URI context_id (e.g. a genesis hash from Reject(CaseLedgerEntry))
@@ -358,9 +343,6 @@ class DispatchNode(_InboxNode):
 
         # After bootstrap, replay any activities that were held pending
         # this case's local replica becoming available.
-        is_bootstrap = (
-            event.semantic_type == MessageSemantics.ANNOUNCE_VULNERABILITY_CASE
-        )
         try:
             context_id: str | None = self.blackboard.inbox_context_id
             queue = self.blackboard.inbox_queue
@@ -368,7 +350,11 @@ class DispatchNode(_InboxNode):
             context_id = None
             queue = None
 
-        if is_bootstrap and context_id is not None and queue is not None:
+        if (
+            is_case_bootstrap(event)
+            and context_id is not None
+            and queue is not None
+        ):
             queue.replay(context_id)
             self.logger.info(
                 "%s: triggered replay for case '%s'", self.name, context_id

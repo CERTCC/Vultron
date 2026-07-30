@@ -14,7 +14,9 @@ The normal-path Sequence performs CaseActor-native initialization per
 ADR-0041 before emitting outbound activities:
 
   1. Resolve (or create) the VulnerabilityCase
-  2. Add vendor (receiver) as CASE_OWNER participant at RM.RECEIVED (AC-1)
+  2. Add the proposing actor (report receiver) as CASE_OWNER participant at
+     RM.RECEIVED, with any additional roles from
+     ``ActorConfig.default_case_roles`` (AC-1)
   3. Add reporter as participant at RM.ACCEPTED (AC-2)
   4. Initialize the default embargo (AC-3)
   5. Seed vendor (CASE_OWNER) as embargo SIGNATORY (CM-13)
@@ -62,6 +64,7 @@ from typing import Any, cast
 import py_trees
 from py_trees.common import Status
 
+from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.participant.common import (
     _create_and_attach_participant,
@@ -69,6 +72,7 @@ from vultron.core.behaviors.case.nodes.participant.common import (
 )
 from vultron.core.behaviors.case.nodes.participant.owner import (
     _build_owner_initial_status,
+    _effective_case_roles,
 )
 from vultron.core.behaviors.case.nodes.prologue import (
     _build_add_case_status_snapshot,
@@ -234,12 +238,87 @@ class _CreateCaseFromProposalNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class _AddVendorOwnerParticipantNode(DataLayerAction):
-    """Add the vendor (receiver) as CASE_OWNER participant at RM.RECEIVED.
+class _AddCaseActorParticipantNode(DataLayerAction):
+    """Register the CaseActor itself as COORDINATOR + CASE_MANAGER participant.
 
-    The vendor sent the proposal — they are the case owner (receiver of the
+    Under ADR-0041 the CaseActor creates the VulnerabilityCase, so it must
+    also register itself as the CASE_MANAGER so that ResolveCaseManagerNode
+    can locate it later (e.g. add-note-to-case, send_tree).
+
+    Reads ``case_id`` from the blackboard.  No-ops if the CaseActor is
+    already in ``actor_participant_index`` (idempotent on duplicate delivery).
+    """
+
+    def __init__(self, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="case_id", access=py_trees.common.Access.READ
+        )
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
+
+        try:
+            case_id = self.blackboard.get("case_id")
+        except KeyError:
+            self.feedback_message = "case_id not found in blackboard"
+            return Status.FAILURE
+        if not isinstance(case_id, str):
+            self.feedback_message = "case_id is not a string"
+            return Status.FAILURE
+
+        stored_case = self.datalayer.read(case_id)
+        if isinstance(stored_case, VulnerabilityCase):
+            if self.actor_id in stored_case.actor_participant_index:
+                return Status.SUCCESS
+
+        participant = VultronParticipant(
+            attributed_to=self.actor_id,
+            context=case_id,
+            name=f"CaseActor for {case_id}",
+            case_roles=[CVDRole.COORDINATOR, CVDRole.CASE_MANAGER],
+        )
+
+        updated_case = _create_and_attach_participant(
+            self.datalayer,
+            participant,
+            case_id,
+            self.actor_id,
+            self.logger,
+        )
+        if updated_case is None:
+            self.feedback_message = f"Case '{case_id}' not found in DataLayer"
+            return Status.FAILURE
+
+        self.datalayer.save(updated_case)
+        logger.info(
+            "%s: Registered CaseActor '%s' as CASE_MANAGER for case '%s'",
+            self.name,
+            self.actor_id,
+            case_id,
+        )
+        return Status.SUCCESS
+
+
+class _AddVendorOwnerParticipantNode(DataLayerAction):
+    """Add the report receiver as CASE_OWNER participant at RM.RECEIVED.
+
+    The actor that sent the proposal is the case owner (receiver of the
     original vulnerability report).  Per ADR-0041 AC-1, the CaseActor adds
     them as CASE_OWNER at RM.RECEIVED in its own DataLayer.
+
+    The receiver's additional CVD roles come from
+    ``ActorConfig.default_case_roles`` (CFG-07-002, CFG-07-004) — the same
+    source the pre-ADR-0041 vendor-side ``CreateCaseOwnerParticipant`` used.
+    They must not be hard-coded: a coordinator that receives a report is a
+    CASE_OWNER but never a VENDOR, and giving it ``CVDRole.VENDOR`` makes
+    downstream VFD fix-lifecycle guards demand a fix it will never produce.
 
     Reads ``case_id`` from the blackboard (written by ResolveCaseIdSelector).
     """
@@ -248,11 +327,13 @@ class _AddVendorOwnerParticipantNode(DataLayerAction):
         self,
         vendor_uri: str,
         report_id: str | None,
+        actor_config: ActorConfig | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._vendor_uri = vendor_uri
         self._report_id = report_id
+        self._actor_config = actor_config
 
     def setup(self, **kwargs: Any) -> None:
         super().setup(**kwargs)
@@ -295,10 +376,15 @@ class _AddVendorOwnerParticipantNode(DataLayerAction):
             RM.RECEIVED,
         )
 
+        # Roles come from the local ActorConfig (CFG-07-002, CFG-07-004) so
+        # role guards (e.g. CheckVendorRoleNode) work for vendors without
+        # mislabelling coordinators as vendors.  A future spec amendment
+        # should carry role hints in the CaseProposal itself so the CaseActor
+        # does not have to rely on co-located configuration.
         participant = VultronParticipant(
             attributed_to=self._vendor_uri,
             context=case_id,
-            case_roles=[CVDRole.CASE_OWNER],
+            case_roles=_effective_case_roles(self._actor_config),
             participant_statuses=[initial_status],
         )
 
@@ -315,10 +401,11 @@ class _AddVendorOwnerParticipantNode(DataLayerAction):
 
         self.datalayer.save(updated_case)
         logger.info(
-            "%s: Added vendor '%s' as CASE_OWNER at RM.RECEIVED"
+            "%s: Added report receiver '%s' with roles %s at RM.RECEIVED"
             " in case '%s' (ADR-0041 AC-1)",
             self.name,
             self._vendor_uri,
+            [r.value for r in participant.case_roles],
             case_id,
         )
         return Status.SUCCESS
@@ -1002,6 +1089,34 @@ class _WriteCreateCaseMarkerNode(DataLayerAction):
             key="accept_activity_id", access=py_trees.common.Access.READ
         )
 
+    def _collect_reporter_uris(self, case_id: str) -> list[str]:
+        """Return URIs of REPORTER/FINDER participants in *case_id*, excluding vendor.
+
+        CaseActor bootstraps non-vendor participants (ADR-0041 AC-5) by including
+        them as direct ``to`` recipients of ``Create(VulnerabilityCase)`` so their
+        DataLayers can seed a case replica immediately via
+        ``CreateCaseReceivedUseCase`` without waiting for the
+        ``Offer(CaseManagerRole)`` round-trip (which ADR-0041 removes).
+        """
+        assert self.datalayer is not None
+        raw_case = self.datalayer.read(case_id)
+        if not isinstance(raw_case, VulnerabilityCase):
+            return []
+        uris: list[str] = []
+        for p_id in raw_case.actor_participant_index.values():
+            p = self.datalayer.read(p_id)
+            if not isinstance(p, CaseParticipant):
+                continue
+            if (
+                CVDRole.REPORTER not in p.roles
+                and CVDRole.FINDER not in p.roles
+            ):
+                continue
+            uri = getattr(p, "attributed_to", None)
+            if isinstance(uri, str) and uri and uri != self._vendor_uri:
+                uris.append(uri)
+        return uris
+
     def _build_case_object(self, case_id: str) -> "dict[str, Any] | None":
         assert self.datalayer is not None
         raw_case = self.datalayer.read(case_id)
@@ -1057,11 +1172,16 @@ class _WriteCreateCaseMarkerNode(DataLayerAction):
             logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
+        # ADR-0041 AC-5: bootstrap all known participants directly.
+        # Include REPORTER/FINDER URIs so their DataLayers receive the case
+        # replica immediately; CreateCaseReceivedUseCase handles them via the
+        # non-vendor participant path (no ReportCaseLink required).
+        reporter_uris = self._collect_reporter_uris(case_id)
         create_activity = VultronCreateCaseActivity(
             actor=self.actor_id,
             object_=case_object,
             context=accept_activity_id,
-            to=[self._vendor_uri],
+            to=[self._vendor_uri] + reporter_uris,
         )
         payload = create_activity.model_dump(by_alias=True)
 
@@ -1140,6 +1260,7 @@ def create_case_proposal_received_tree(
     proposal_id: str,
     vendor_uri: str,
     proposal_dict: dict | None = None,
+    actor_config: ActorConfig | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Return the received-side BT for processing a ``Create(as_CaseProposal)``.
 
@@ -1160,25 +1281,28 @@ def create_case_proposal_received_tree(
 
       Then CaseActor-native initialization steps (ADR-0041):
 
-      3. ``_AddVendorOwnerParticipantNode`` — vendor added as CASE_OWNER at
-         RM.RECEIVED (ADR-0041 AC-1)
-      4. ``_AddReporterParticipantNode`` — reporter added at RM.ACCEPTED
+      3. ``_AddCaseActorParticipantNode`` — CaseActor registered as
+         COORDINATOR + CASE_MANAGER (ADR-0041)
+      4. ``_AddVendorOwnerParticipantNode`` — proposing actor added as
+         CASE_OWNER (plus ``actor_config.default_case_roles``) at RM.RECEIVED
+         (ADR-0041 AC-1)
+      5. ``_AddReporterParticipantNode`` — reporter added at RM.ACCEPTED
          (ADR-0041 AC-2)
-      5. ``InitializeDefaultEmbargoNode`` — default embargo initialized
+      6. ``InitializeDefaultEmbargoNode`` — default embargo initialized
          (ADR-0041 AC-3)
-      6. ``_SeedVendorOwnerSignatoryNode`` — vendor (CASE_OWNER) seeded as
+      7. ``_SeedVendorOwnerSignatoryNode`` — vendor (CASE_OWNER) seeded as
          embargo SIGNATORY (CM-13)
-      7. ``_CommitNativeLedgerEntriesNode`` — canonical ledger entries
+      8. ``_CommitNativeLedgerEntriesNode`` — canonical ledger entries
          committed (ADR-0041 AC-4)
 
       Then the outbound messaging steps:
 
-      8. ``_EmitAcceptCaseProposalNode`` — emits Accept(as_CaseProposal)
-      9. ``_WriteCreateCaseMarkerNode`` — writes durable retry marker with
+      9. ``_EmitAcceptCaseProposalNode`` — emits Accept(as_CaseProposal)
+      10. ``_WriteCreateCaseMarkerNode`` — writes durable retry marker with
          inline case object (CP-05-005, ADR-0041 AC-5)
-      10. ``_EmitCreateVulnerabilityCaseNode`` — emits
+      11. ``_EmitCreateVulnerabilityCaseNode`` — emits
          Create(VulnerabilityCase) with inline participants
-      11. ``_ClearCreateCaseMarkerNode`` — removes marker on success
+      12. ``_ClearCreateCaseMarkerNode`` — removes marker on success
          (CP-05-005)
 
     If node 10 fails, the marker written in node 9 remains in the DataLayer so
@@ -1198,6 +1322,11 @@ def create_case_proposal_received_tree(
             When supplied, the Accept's ``object_`` carries the full inline proposal,
             satisfying CP-05-003 and the MV-09-001 outbox requirement. Falls back
             to bare URI when ``None``.
+        actor_config: Optional local actor configuration.  Its
+            ``default_case_roles`` determine the CVD roles the proposing
+            (report-receiving) actor is given alongside ``CVDRole.CASE_OWNER``
+            (CFG-07-002, CFG-07-004).  When ``None`` the receiver gets
+            ``CVDRole.CASE_OWNER`` only.
 
     Returns:
         A py_trees Selector behaviour ready for ``BTBridge.execute_with_setup``.
@@ -1223,10 +1352,13 @@ def create_case_proposal_received_tree(
         memory=False,
         children=[
             case_resolution,
+            # ADR-0041: register CaseActor as COORDINATOR + CASE_MANAGER
+            _AddCaseActorParticipantNode(),
             # ADR-0041 AC-1: add vendor as CASE_OWNER at RM.RECEIVED
             _AddVendorOwnerParticipantNode(
                 vendor_uri=vendor_uri,
                 report_id=report_id,
+                actor_config=actor_config,
             ),
             # ADR-0041 AC-2: add reporter at RM.ACCEPTED
             _AddReporterParticipantNode(report_id=report_id),

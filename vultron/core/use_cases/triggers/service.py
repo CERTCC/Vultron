@@ -218,6 +218,7 @@ class TriggerService:
         name: str,
         content: str,
         report_id: str | None = None,
+        to: list[str] | None = None,
     ) -> dict[str, Any]:
         """Create a local VulnerabilityCase and queue it for the CaseActor."""
         req = CreateCaseTriggerRequest(
@@ -225,6 +226,7 @@ class TriggerService:
             name=name,
             content=content,
             report_id=report_id,
+            to=to,
         )
         return SvcCreateCaseUseCase(
             self._dl, req, trigger_activity=self._trigger_activity

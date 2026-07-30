@@ -27,6 +27,7 @@ from vultron.core.states.cs import CS_vfd
 from vultron.core.states.em import is_em_embargo_active, is_em_exited
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
+from vultron.demo.helpers.polling import wait_for_case_on_container
 from vultron.demo.helpers.sync import _extract_ref_id
 from vultron.demo.helpers.verification import (
     _assert_participant_pxa_only,
@@ -99,7 +100,12 @@ def verify_case_active(
         " reporter) + case-actor present, EM.ACTIVE, embargo present"
     )
 
-    # Reporter side: replica must exist with matching participant index and embargo
+    # Reporter side: replica must exist with matching participant index and
+    # embargo.  The replica arrives via the receiver's outbox, which runs as a
+    # background task, so poll rather than reading once — the coordinator-side
+    # participant count can reach its target a few tens of milliseconds before
+    # the reporter's Create(VulnerabilityCase) has been processed.
+    wait_for_case_on_container(reporter_client, case_id)
     reporter_case_data = reporter_client.get(f"/datalayer/{case_id}")
     if not reporter_case_data:
         raise AssertionError(

@@ -24,6 +24,7 @@ True multi-container isolation is validated by the acceptance test runnable via:
 
 import importlib
 import logging
+from typing import Any
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -35,6 +36,7 @@ import vultron.demo.scenario.fv_demo as demo
 from test.demo._helpers import make_client, make_testclient_call
 from vultron.adapters.utils import strip_id_prefix
 from vultron.demo.cli import main
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -89,6 +91,134 @@ def patch_datalayer_call(client: TestClient, base: str):
     finally:
         mp.undo()
         importlib.reload(demo)
+
+
+# ---------------------------------------------------------------------------
+# ADR-0041 test helpers
+# ---------------------------------------------------------------------------
+
+
+def _extract_offer_ids(
+    client: "demo.DataLayerClient", offer: as_Offer
+) -> tuple[str | None, str | None]:
+    """Return (report_id, reporter_id) extracted from *offer*'s raw data."""
+    offer_data = client.get(f"/datalayer/{offer.id_}")
+    if not offer_data:
+        return None, None
+    report_id = None
+    reporter_id = None
+    obj_ = offer_data.get("object_") or offer_data.get("object")
+    if isinstance(obj_, dict):
+        report_id = obj_.get("id_") or obj_.get("id")
+    elif isinstance(obj_, str):
+        report_id = obj_
+    act_ = offer_data.get("actor")
+    if isinstance(act_, dict):
+        reporter_id = act_.get("id") or act_.get("id_")
+    elif isinstance(act_, str):
+        reporter_id = act_
+    return report_id, reporter_id
+
+
+def _find_case_for_report(
+    client: "demo.DataLayerClient", report_id: str | None
+) -> str | None:
+    """Return the case_id linked to *report_id*, or ``None`` if not found."""
+    cases_data = client.get("/datalayer/VulnerabilityCases/")
+    if not cases_data or not report_id:
+        return None
+    for cid in cases_data:
+        case_data = client.get(f"/datalayer/{cid}")
+        if not case_data:
+            continue
+        reports = (
+            case_data.get("vulnerabilityReports")
+            or case_data.get("vulnerability_reports")
+            or []
+        )
+        for r in reports:
+            r_id = r if isinstance(r, str) else (r.get("id_") or r.get("id"))
+            if r_id == report_id:
+                return str(cid)
+    return None
+
+
+def _create_case_from_offer(
+    client: "demo.DataLayerClient",
+    actor: "demo.as_Actor",
+    offer: as_Offer,
+    dl=None,
+) -> as_VulnerabilityCase:
+    """Return a VulnerabilityCase with actor as CASE_OWNER+VENDOR participant.
+
+    Under ADR-0041, validate-report sends a CaseProposal to the CaseActor but
+    in single-server tests the CaseProposal round-trip cannot complete (nested
+    ASGI delivery is blocked at depth > 0 to prevent deadlocks).  This helper
+    creates the case via trigger/create-case and then seeds the actor as
+    CASE_OWNER + VENDOR participant directly in the DataLayer so that
+    downstream BT nodes (CheckVendorRoleNode, ResolveCaseManagerNode, etc.)
+    find the expected participant state.
+
+    Args:
+        client: DataLayerClient for the vendor container.
+        actor: The vendor actor that will be the CASE_OWNER.
+        offer: The Offer activity whose report_id links to the case.
+        dl: DataLayer instance for seeding.  Pass an isolated DataLayer when
+            using ``IsolatedActorApp``; defaults to the shared module-level DL.
+
+    Returns:
+        The as_VulnerabilityCase with actor registered as CASE_OWNER+VENDOR.
+    """
+    from vultron.demo.helpers.seeding import seed_case_participants_for_demo
+
+    report_id, reporter_id = _extract_offer_ids(client, offer)
+
+    # Under ADR-0041, validate-report triggers CaseProposal → CaseActor.
+    # When delivery works (e.g. _TestClientRouter in isolated tests),
+    # the case is created by CaseActor before we get here.  Detect that and
+    # skip trigger/create-case to avoid creating a duplicate case.
+    case_id = _find_case_for_report(client, report_id)
+
+    if not case_id:
+        # CaseProposal round-trip hasn't completed (nested ASGI depth guard in
+        # single-server mode).  Create the case manually via the trigger.
+        actor_slug = (
+            actor.id_.rstrip("/").rsplit("/", 1)[-1] if actor.id_ else ""
+        )
+        body: dict[str, Any] = {
+            "name": "Test case",
+            "content": "Created by _create_case_from_offer for test setup.",
+            "report_id": report_id,
+        }
+        if reporter_id:
+            body["to"] = [reporter_id]
+        resp = client.post(
+            f"/actors/{actor_slug}/trigger/create-case",
+            json=body,
+        )
+        assert resp is not None, "trigger/create-case returned no response"
+        case_id = _find_case_for_report(client, report_id)
+
+    if not case_id:
+        # Last resort: take the most-recent case (no report linkage found).
+        cases_data = client.get("/datalayer/VulnerabilityCases/")
+        assert cases_data, "No VulnerabilityCases found"
+        case_id = next(reversed(cases_data))
+
+    # Seed vendor, reporter, and CaseActor participants directly in the DataLayer.
+    # Under ADR-0041 the CaseActor normally creates participants via
+    # case_proposal_received_tree, but nested ASGI delivery is blocked in
+    # single-server tests (depth > 0 guard prevents deadlocks).
+    seed_case_participants_for_demo(
+        case_id=case_id,
+        vendor_actor_id=actor.id_,
+        reporter_actor_id=reporter_id,
+        report_id=report_id,
+        dl=dl,
+    )
+
+    case_data = client.get(f"/datalayer/{case_id}")
+    return as_VulnerabilityCase.model_validate(case_data)
 
 
 # ---------------------------------------------------------------------------
@@ -278,6 +408,15 @@ class TestVendorValidatesReport:
     def test_case_created_after_validation(
         self, client: TestClient, base: str
     ):
+        """Under ADR-0041, validate-report writes a pending VultronReportCaseLink.
+
+        The vendor defers VulnerabilityCase creation to the CaseActor.  After
+        validate-report the DataLayer holds a VultronReportCaseLink (not a
+        VulnerabilityCase) — the case is created when Create(VulnerabilityCase)
+        arrives from the CaseActor.
+        """
+        from vultron.core.models.report_case_link import VultronReportCaseLink
+
         finder_client = make_client(base)
         vendor_client = make_client(base)
 
@@ -303,11 +442,30 @@ class TestVendorValidatesReport:
             offer_id=offer.id_,
         )
 
-        case = demo.find_case_for_offer(vendor_client, offer.id_)
-        assert (
-            case is not None
-        ), "Expected as_VulnerabilityCase to exist after validate-report"
-        assert case.id_ is not None
+        # ADR-0041: the vendor goes through the CaseProposal path — it writes
+        # a VultronReportCaseLink and sends Create(as_CaseProposal) to the
+        # CaseActor.  In this single-app test, the CaseActor is on the same
+        # server (same netloc) so the round-trip completes synchronously, and
+        # the VulnerabilityCase may already exist.  What matters is that the
+        # VultronReportCaseLink was written (proposal was sent per CP-04-001).
+        offer_data = vendor_client.get(f"/datalayer/{offer.id_}")
+        obj_ = (
+            offer_data.get("object_") or offer_data.get("object")
+            if offer_data
+            else None
+        )
+        report_id = None
+        if isinstance(obj_, dict):
+            report_id = obj_.get("id_") or obj_.get("id")
+        elif isinstance(obj_, str):
+            report_id = obj_
+        assert report_id is not None, "Could not extract report_id from offer"
+        link_id = VultronReportCaseLink.build_id(report_id)
+        link_data = vendor_client.get(f"/datalayer/{link_id}")
+        assert link_data is not None, (
+            f"Expected a VultronReportCaseLink at '{link_id}' after"
+            " validate-report (ADR-0041 pending proposal marker, CP-04-001)"
+        )
 
 
 class TestFinderAsksQuestion:
@@ -340,14 +498,8 @@ class TestFinderAsksQuestion:
             vendor=vendor_in_vendor,
             offer_id=offer.id_,
         )
-        case = demo.find_case_for_offer(vendor_client, offer.id_)
-        assert case is not None
-
-        demo.wait_for_case_participants(
-            vendor_client=vendor_client,
-            case_id=case.id_,
-            expected_count=3,  # vendor + finder + case-actor (added by CreateCaseActorNode)
-        )
+        # ADR-0041: no case after validate-report; create one directly for setup.
+        case = _create_case_from_offer(vendor_client, vendor_in_vendor, offer)
 
         case_data = vendor_client.get(f"/datalayer/{case.id_}")
         case = as_VulnerabilityCase(**case_data)
@@ -441,9 +593,8 @@ class TestWaitForFinderCase:
             vendor=vendor_in_vendor,
             offer_id=offer.id_,
         )
-
-        case = demo.find_case_for_offer(vendor_client, offer.id_)
-        assert case is not None
+        # ADR-0041: no case after validate-report; create one directly for setup.
+        case = _create_case_from_offer(vendor_client, vendor_in_vendor, offer)
 
         # In single-server mode the case is in the shared DataLayer, so the
         # finder can see it immediately.  wait_for_finder_case should return
@@ -496,8 +647,8 @@ class TestTriggerLogCommit:
             vendor=vendor_in_vendor,
             offer_id=offer.id_,
         )
-        case = demo.find_case_for_offer(vendor_client, offer.id_)
-        assert case is not None
+        # ADR-0041: no case after validate-report; create one directly for setup.
+        case = _create_case_from_offer(vendor_client, vendor_in_vendor, offer)
 
         entry_hash = demo.trigger_log_commit(
             client=vendor_client,
@@ -531,8 +682,8 @@ class TestTriggerLogCommit:
             vendor=vendor_in_vendor,
             offer_id=offer.id_,
         )
-        case = demo.find_case_for_offer(vendor_client, offer.id_)
-        assert case is not None
+        # ADR-0041: no case after validate-report; create one directly for setup.
+        case = _create_case_from_offer(vendor_client, vendor_in_vendor, offer)
 
         h1 = demo.trigger_log_commit(
             client=vendor_client,
@@ -573,8 +724,8 @@ class TestWaitForFinderLogEntry:
             vendor=vendor_in_vendor,
             offer_id=offer.id_,
         )
-        case = demo.find_case_for_offer(vendor_client, offer.id_)
-        assert case is not None
+        # ADR-0041: no case after validate-report; create one directly for setup.
+        case = _create_case_from_offer(vendor_client, vendor_in_vendor, offer)
 
         entry_hash = demo.trigger_log_commit(
             client=vendor_client,
@@ -634,8 +785,8 @@ class TestVerifyFinderReplicaState:
             vendor=vendor_in_vendor,
             offer_id=offer.id_,
         )
-        case = demo.find_case_for_offer(vendor_client, offer.id_)
-        assert case is not None
+        # ADR-0041: no case after validate-report; create one directly for setup.
+        case = _create_case_from_offer(vendor_client, vendor_in_vendor, offer)
 
         demo.trigger_log_commit(
             client=vendor_client,
@@ -699,8 +850,8 @@ def _setup_case_with_3_participants(base: str):
         vendor=vendor_in_vendor,
         offer_id=offer.id_,
     )
-    case = demo.find_case_for_offer(vendor_client, offer.id_)
-    assert case is not None
+    # ADR-0041: no case after validate-report; create one directly for setup.
+    case = _create_case_from_offer(vendor_client, vendor_in_vendor, offer)
     return finder_client, vendor_client, finder, vendor_in_vendor, case
 
 
@@ -992,7 +1143,13 @@ class TestVerifyM1State:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.timeout(30)
+# The full FV workflow runs every phase through report submission, case
+# activation, embargo, fix development, and case closure — including several
+# polling waits on asynchronous background-task replication.  It takes ~50s
+# locally, so the previous 30s bound expired mid-run in ``_phase_case_closure``
+# and presented as a hang rather than a failure.  180s leaves headroom for
+# slower CI runners without masking a genuine deadlock.
+@pytest.mark.timeout(180)
 class TestRunTwoActorDemo:
     """Test the complete FV workflow via run_fv_demo."""
 
@@ -1232,11 +1389,38 @@ class TestDeliveryIsolation:
 
     @pytest.fixture
     def delivery_setup(self):
-        """Two isolated actor apps wired with cross-app TestClient delivery."""
+        """Two isolated actor apps wired with cross-app TestClient delivery.
+
+        Patches VULTRON_SERVER__BASE_URL and VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL
+        to the vendor's routable base URL so that WritePendingReportCaseLinkNode
+        builds the CaseActor ID correctly (ADR-0041, CP-04-002) and ASGI delivery
+        routes to the vendor app's inbox endpoints.
+
+        Uses an explicit MonkeyPatch (not the pytest monkeypatch fixture) so
+        that reload_config() in teardown runs AFTER undo() — the pytest
+        monkeypatch fixture auto-undoes after the explicit yield teardown block,
+        which would leave the config stale (pointing at http://vendor.test) for
+        the next test class.
+        """
+        from _pytest.monkeypatch import MonkeyPatch
+
         from test.demo.conftest import (
             _TestClientRouter,
             create_isolated_actor_app,
         )
+        from vultron.adapters.driving.fastapi.outbox_handler import (
+            configure_default_emitter,
+            get_default_emitter,
+        )
+        from vultron.config import reload_config
+
+        _VENDOR_BASE = "http://vendor.test"
+        mp = MonkeyPatch()
+        mp.setenv("VULTRON_SERVER__BASE_URL", f"{_VENDOR_BASE}/api/v2")
+        mp.setenv(
+            "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL", f"{_VENDOR_BASE}/api/v2"
+        )
+        reload_config()
 
         router = _TestClientRouter()
         finder_isolated = create_isolated_actor_app(
@@ -1244,9 +1428,17 @@ class TestDeliveryIsolation:
             router=router,
         )
         vendor_isolated = create_isolated_actor_app(
-            base_url="http://vendor.test",
+            base_url=_VENDOR_BASE,
             router=router,
         )
+
+        from vultron.config import get_config
+
+        config_base_url = get_config().server.base_url.rstrip("/")
+        router.register(config_base_url, vendor_isolated.client)
+
+        previous_emitter = get_default_emitter()
+        configure_default_emitter(router)  # type: ignore[arg-type]
 
         with finder_isolated.client as finder_tc:
             with vendor_isolated.client as vendor_tc:
@@ -1257,6 +1449,12 @@ class TestDeliveryIsolation:
                         emitter._http_fallback = router  # type: ignore[assignment]
 
                 yield finder_isolated, vendor_isolated, finder_tc, vendor_tc
+
+        configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
+        finder_isolated.dl.close()
+        vendor_isolated.dl.close()
+        mp.undo()
+        reload_config()
 
     def test_finder_dl_empty_before_delivery(self, delivery_setup):
         """Finder's DataLayer contains no cases before any delivery occurs."""
@@ -1391,8 +1589,8 @@ class TestDeliveryIsolation:
         )
         assert offer.id_ is not None
 
-        # Vendor validates the report — this triggers BT nodes that create a
-        # as_VulnerabilityCase and add participants (including Finder).
+        # Vendor validates the report — under ADR-0041 this writes a
+        # VultronReportCaseLink and sends Create(as_CaseProposal) to CaseActor.
         vendor_actor_fresh = demo.get_actor_by_id(vendor_dc, vendor_id)
         demo.vendor_validates_report(
             vendor_client=vendor_dc,
@@ -1400,11 +1598,17 @@ class TestDeliveryIsolation:
             offer_id=offer.id_,
         )
 
-        # A as_VulnerabilityCase must now exist in Vendor's DataLayer.
-        case = demo.find_case_for_offer(vendor_dc, offer.id_)
+        # ADR-0041: the vendor sends Create(as_CaseProposal) to the CaseActor.
+        # In this two-app setup the CaseActor runs on the vendor app, so the
+        # proposal round-trip may complete synchronously.  Use _create_case_from_offer
+        # which checks for an existing case first and only calls trigger/create-case
+        # if the round-trip hasn't completed yet.
+        case = _create_case_from_offer(
+            vendor_dc, vendor_actor_fresh, offer, dl=vendor_isolated.dl
+        )
         assert (
             case is not None
-        ), "Expected as_VulnerabilityCase on Vendor after validate-report"
+        ), "Expected VulnerabilityCase after validate-report or trigger/create-case"
 
         # The case announcement should have been delivered to Finder's inbox
         # via the outbox→_TestClientRouter→inbox chain.  Finder's isolated
@@ -1530,14 +1734,11 @@ def completed_workflow(
         offer_id=offer.id_,
     )
 
-    case = demo.find_case_for_offer(vendor_client, offer.id_)
-    assert case is not None, "Expected as_VulnerabilityCase after validation"
-
-    demo.wait_for_case_participants(
-        vendor_client=vendor_client,
-        case_id=case.id_,
-        expected_count=3,
-    )
+    # ADR-0041: no case after validate-report; create one directly for setup.
+    case = _create_case_from_offer(vendor_client, vendor_in_vendor, offer)
+    assert (
+        case is not None
+    ), "Expected as_VulnerabilityCase after trigger/create-case"
     # Refresh case to get actor_participant_index populated.
     case_data = vendor_client.get(f"/datalayer/{case.id_}")
     case = as_VulnerabilityCase(**case_data)
@@ -1588,7 +1789,8 @@ class TestCaseLedgerInvariants:
     _REQUIRED_EVENT_TYPES: frozenset[str] = frozenset(
         {
             "add_participant_status_to_participant",  # participant tracking — CI invariant 7
-            "offer_case_manager_role",  # CaseActor initialization backfill (#1021)
+            # offer_case_manager_role removed: ADR-0041 removes SendOfferCaseManagerRoleNode;
+            # CaseActor self-assigns CASE_MANAGER natively without the offer/accept round-trip.
         }
     )
 

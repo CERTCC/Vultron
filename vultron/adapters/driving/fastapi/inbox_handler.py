@@ -32,7 +32,7 @@ from typing import Any, cast
 
 from vultron.wire.as2.rehydration import rehydrate
 from vultron.core.dispatcher import get_dispatcher
-from vultron.core.models.events import MessageSemantics, VultronEvent
+from vultron.core.models.events import VultronEvent, is_case_bootstrap
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
@@ -51,10 +51,12 @@ from vultron.adapters.driving.fastapi.inbox_port_factories import (  # noqa: F40
     _trigger_activity_port_factory,
     _sync_and_trigger_port_factory,
     _submit_report_port_factory,
+    _case_proposal_port_factory,
     _SYNC_PORT_SEMANTICS,
     _TRIGGER_ACTIVITY_PORT_SEMANTICS,
     _SYNC_AND_TRIGGER_PORT_SEMANTICS,
     _SUBMIT_REPORT_SEMANTICS,
+    _CASE_PROPOSAL_SEMANTICS,
 )
 
 # Re-export pending-queue helpers so existing callers and tests that
@@ -105,6 +107,7 @@ def make_dispatcher() -> ActivityDispatcher:
         _TRIGGER_ACTIVITY_PORT_SEMANTICS,
         _SYNC_AND_TRIGGER_PORT_SEMANTICS,
         _SUBMIT_REPORT_SEMANTICS,
+        _CASE_PROPOSAL_SEMANTICS,
     )
     for i, left in enumerate(_all_sets):
         for right in _all_sets[i + 1 :]:
@@ -135,6 +138,9 @@ def make_dispatcher() -> ActivityDispatcher:
     )
     port_factories.update(
         {sem: _submit_report_port_factory for sem in _SUBMIT_REPORT_SEMANTICS}
+    )
+    port_factories.update(
+        {sem: _case_proposal_port_factory for sem in _CASE_PROPOSAL_SEMANTICS}
     )
     d = get_dispatcher(
         use_case_map=_use_case_map(),
@@ -241,7 +247,7 @@ def _dispatch_or_defer_inbox_item(
     case_id = _activity_context_id(obj, event)
     if (
         case_id is not None
-        and event.semantic_type != MessageSemantics.ANNOUNCE_VULNERABILITY_CASE
+        and not is_case_bootstrap(event)
         and not isinstance(dl.read(case_id), VulnerabilityCase)
     ):
         expired = _expire_pending_case_activities(
@@ -314,11 +320,7 @@ def _process_inbox_item(
         )
         if event is not None:
             case_id = _activity_context_id(item, event)
-            if (
-                event.semantic_type
-                == MessageSemantics.ANNOUNCE_VULNERABILITY_CASE
-                and case_id is not None
-            ):
+            if is_case_bootstrap(event) and case_id is not None:
                 _replay_pending_case_activities(
                     case_id, dl, queue_dl, actor_id=canonical_actor_id
                 )

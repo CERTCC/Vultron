@@ -58,11 +58,14 @@ class SvcCreateCaseUseCase(SvcBTTriggerBase):
                 )
             report_id = getattr(raw, "id_", None) or report_id
         self._report_id: str | None = report_id
+        self._to: list[str] | None = request.to
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
+        to = self._to
+
         def _build_activity(case_id: str) -> tuple[str, dict[str, Any]]:
             return self._factory.create_case(
-                case_id=case_id, actor=self._actor_id
+                case_id=case_id, actor=self._actor_id, to=to
             )
 
         return create_case_trigger_bt(

@@ -42,6 +42,8 @@ import pytest
 
 from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
+from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.use_cases._helpers import _find_case_actor_id
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -184,14 +186,6 @@ def _drain_case_actor_outbox(owner_iso, case_actor_id: str) -> None:
         case_actor_dl.close()
 
 
-def _find_case_actor_id(dl, case_id: str) -> str | None:
-    """Return the CaseActor ID whose context matches *case_id*."""
-    for service in dl.list_objects("Service"):
-        if getattr(service, "context", None) == case_id:
-            return str(service.id_)
-    return None
-
-
 def _bootstrap_and_engage(
     owner_iso,
     reporter_iso,
@@ -244,12 +238,46 @@ def _bootstrap_and_engage(
     )
     _post_to_inbox(owner_tc, _actor_slug(owner_actor_id), offer)
 
-    all_cases = owner_iso.dl.get_all("VulnerabilityCase")
-    assert len(all_cases) >= 1, (
-        "Expected at least one VulnerabilityCase in owner's DataLayer "
-        "after SubmitReport delivery."
+    # ADR-0041: receive_report_case_tree writes a VultronReportCaseLink and
+    # sends Create(as_CaseProposal) — no VulnerabilityCase yet.
+    # Simulate the CaseActor's Create(VulnerabilityCase) response directly.
+    # Pass reporter as `to` so the outbound activity satisfies OX-08-001.
+    resp = owner_tc.post(
+        f"/api/v2/actors/{_actor_slug(owner_actor_id)}/trigger/create-case",
+        json={
+            "name": "PCR engage-case integration test case",
+            "content": "Case seeded by trigger/create-case (ADR-0041).",
+            "report_id": report.id_,
+            "to": [reporter_actor_id],
+        },
     )
-    case_id: str = all_cases[0]["id_"]
+    assert (
+        resp.status_code == 202
+    ), f"trigger/create-case failed ({resp.status_code}): {resp.text}"
+
+    # Find the canonical case by report_id to avoid picking up the extra
+    # VulnerabilityCase created by trigger/create-case above (ADR-0041 flow
+    # also creates one via case_proposal_received_tree).
+    case_from_proposal = owner_iso.dl.find_case_by_report_id(report.id_)
+    case_id: str
+    if case_from_proposal is not None:
+        case_id = str(case_from_proposal.id_)
+    else:
+        all_cases = owner_iso.dl.get_all("VulnerabilityCase")
+        assert len(all_cases) >= 1, (
+            "Expected at least one VulnerabilityCase in owner's DataLayer "
+            "after trigger/create-case."
+        )
+        case_id = str(all_cases[0]["id_"])
+
+    # In this test the owner acts as the CaseActor.  Register that identity
+    # in the VultronReportCaseLink so _find_case_actor_id resolves correctly.
+    for link in owner_iso.dl.list_objects("ReportCaseLink"):
+        if isinstance(link, VultronReportCaseLink):
+            link.case_id = case_id
+            link.trusted_case_actor_id = owner_actor_id
+            owner_iso.dl.save(link)
+            break
 
     # Validate the report → CaseActor queues Create(VulnerabilityCase).
     resp = owner_tc.post(

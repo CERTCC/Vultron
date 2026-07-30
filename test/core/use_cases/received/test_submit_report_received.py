@@ -10,7 +10,13 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Tests for SubmitReportReceivedUseCase: log messages, case creation, offer addressing."""
+"""Tests for SubmitReportReceivedUseCase: log messages, proposal flow, offer addressing.
+
+ADR-0041: SubmitReportReceivedUseCase no longer creates a VulnerabilityCase.
+Instead it writes a pending VultronReportCaseLink and sends Create(as_CaseProposal).
+"""
+
+import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -20,8 +26,24 @@ from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.report import SubmitReportReceivedEvent
 from vultron.core.models.report import VultronReport
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.report import SubmitReportReceivedUseCase
+
+_CASE_ACTOR_SERVICE_URL = "http://case-actor:7999/api/v2"
+
+
+@pytest.fixture(autouse=True)
+def configure_case_actor_url(monkeypatch):
+    """Set VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL for all tests in this module."""
+    monkeypatch.setenv(
+        "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL", _CASE_ACTOR_SERVICE_URL
+    )
+    from vultron.config.app import reload_config
+
+    reload_config()
+    yield
+    reload_config()
 
 
 class TestSubmitReportLogMessages:
@@ -73,10 +95,11 @@ class TestSubmitReportLogMessages:
 
 
 class TestSubmitReportCreatesCase:
-    """Tests that SubmitReportReceivedUseCase creates a case at RM.RECEIVED.
+    """Tests that SubmitReportReceivedUseCase writes a pending proposal at RM.RECEIVED.
 
-    Per ADR-0015, case creation moved from validate_report (RM.VALID) to
-    SubmitReportReceivedUseCase (RM.RECEIVED) via receive_report_case_tree.
+    Per ADR-0041, SubmitReportReceivedUseCase now writes a pending
+    VultronReportCaseLink and sends Create(as_CaseProposal) to the CaseActor.
+    It does NOT create a VulnerabilityCase locally.
     """
 
     VENDOR_ID = "https://example.org/actors/vendor"
@@ -109,40 +132,32 @@ class TestSubmitReportCreatesCase:
             receiving_actor_id=vendor_id,
         )
         dl = SqliteDataLayer("sqlite:///:memory:")
-        # CreateCaseNode reads the report from DataLayer.
         dl.save(report)
-        # CreateCaseParticipantNode reads the vendor actor from DataLayer.
         vendor_actor = VultronCaseActor(id_=vendor_id)
         dl.save(vendor_actor)
         return event, dl
 
     def test_submit_report_creates_case_at_received(self):
-        """SubmitReportReceivedUseCase creates a VulnerabilityCase in DataLayer.
+        """SubmitReportReceivedUseCase writes a pending VultronReportCaseLink (ADR-0041).
 
-        Per ADR-0015, the case is created by receive_report_case_tree during
-        RM.RECEIVED processing.
+        Per ADR-0041, the vendor no longer creates a VulnerabilityCase.
+        Instead it writes a pending link and sends Create(as_CaseProposal).
         """
         event, dl = self._make_event_and_dl()
         SubmitReportReceivedUseCase(
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
 
-        all_cases = dl.get_all("VulnerabilityCase")
-        assert len(all_cases) >= 1, "Expected at least one VulnerabilityCase"
-        # The case must reference our report ID.
-        report_ids = [
-            rid
-            for c in all_cases
-            for rid in (c.get("data_", {}) or {}).get(
-                "vulnerability_reports", []
-            )
-        ]
-        assert (
-            self.REPORT_ID in report_ids
-        ), f"VulnerabilityCase should reference report {self.REPORT_ID}"
+        link_id = VultronReportCaseLink.build_id(self.REPORT_ID)
+        link = dl.read(link_id)
+        assert isinstance(
+            link, VultronReportCaseLink
+        ), "Expected a pending VultronReportCaseLink (ADR-0041)"
+        assert link.report_id == self.REPORT_ID
+        assert link.case_id is None
 
     def test_submit_report_creates_vendor_participant_at_received(self):
-        """SubmitReportReceivedUseCase creates vendor CaseParticipant at RM.RECEIVED."""
+        """ADR-0041: no VulnerabilityCase → no CaseParticipant created by vendor."""
         event, dl = self._make_event_and_dl()
         SubmitReportReceivedUseCase(
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
@@ -155,16 +170,13 @@ class TestSubmitReportCreatesCase:
             if (p.get("data_", {}) or {}).get("attributed_to")
             == self.VENDOR_ID
         ]
-        assert (
-            len(vendor_participants) >= 1
-        ), f"Expected a CaseParticipant for vendor {self.VENDOR_ID}"
+        assert len(vendor_participants) == 0, (
+            "ADR-0041: vendor must not create CaseParticipant records"
+            " before the CaseActor confirms the case"
+        )
 
     def test_submit_report_creates_finder_participant_accepted(self):
-        """SubmitReportReceivedUseCase creates finder's RM.ACCEPTED status.
-
-        The finder submitted the report, so the BT records RM.ACCEPTED for
-        them via CreateCaseParticipantNode.
-        """
+        """ADR-0041: no CaseParticipant with RM.ACCEPTED created by vendor tree."""
         event, dl = self._make_event_and_dl()
         SubmitReportReceivedUseCase(
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
@@ -182,12 +194,13 @@ class TestSubmitReportCreatesCase:
                 == RM.ACCEPTED.value
             )
         ]
-        assert (
-            len(finder_accepted) >= 1
-        ), f"Expected a RM.ACCEPTED ParticipantStatus for finder {self.FINDER_ID}"
+        assert len(finder_accepted) == 0, (
+            "ADR-0041: vendor must not create finder ParticipantStatus records"
+            " before the CaseActor confirms the case"
+        )
 
     def test_submit_report_case_creation_is_idempotent(self):
-        """Calling SubmitReportReceivedUseCase twice creates only one case."""
+        """Calling SubmitReportReceivedUseCase twice creates only one pending link (ADR-0041)."""
         event, dl = self._make_event_and_dl()
         SubmitReportReceivedUseCase(
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
@@ -196,17 +209,15 @@ class TestSubmitReportCreatesCase:
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
 
-        all_cases = dl.get_all("VulnerabilityCase")
-        report_cases = [
-            c
-            for c in all_cases
-            if self.REPORT_ID
-            in (c.get("data_", {}) or {}).get("vulnerability_reports", [])
+        links = [
+            obj
+            for obj in dl.list_objects("ReportCaseLink")
+            if isinstance(obj, VultronReportCaseLink)
+            and obj.report_id == self.REPORT_ID
         ]
-        assert len(report_cases) == 1, (
-            f"Expected exactly one VulnerabilityCase for report {self.REPORT_ID} after"
-            " idempotent calls"
-        )
+        assert (
+            len(links) == 1
+        ), "Expected exactly one VultronReportCaseLink after idempotent calls"
 
     def test_submit_report_skips_case_creation_when_not_in_to(self):
         """SubmitReportReceivedUseCase skips BT when receiving actor not in to.
@@ -304,7 +315,7 @@ class TestSubmitReportAutoCreateCasePolicy:
         assert dl.outbox_list() == []
 
     def test_auto_create_enabled_creates_case(self):
-        """AC-1: auto_create_case=True (explicit) still creates the case."""
+        """AC-1: auto_create_case=True (explicit) writes a pending link (ADR-0041)."""
         from vultron.config.actor import ActorConfig
 
         event, dl = self._make_event_and_dl()
@@ -316,17 +327,19 @@ class TestSubmitReportAutoCreateCasePolicy:
             actor_config=ActorConfig(auto_create_case=True),
         ).execute()
 
-        assert len(dl.get_all("VulnerabilityCase")) >= 1
+        link_id = VultronReportCaseLink.build_id(self.REPORT_ID)
+        assert isinstance(dl.read(link_id), VultronReportCaseLink)
 
     def test_no_actor_config_creates_case(self):
-        """AC-1: absent ActorConfig preserves always-create behavior."""
+        """AC-1: absent ActorConfig preserves always-send-proposal behavior (ADR-0041)."""
         event, dl = self._make_event_and_dl()
         dl.save(VultronReport(id_=self.REPORT_ID))
         SubmitReportReceivedUseCase(
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
 
-        assert len(dl.get_all("VulnerabilityCase")) >= 1
+        link_id = VultronReportCaseLink.build_id(self.REPORT_ID)
+        assert isinstance(dl.read(link_id), VultronReportCaseLink)
 
 
 class TestOfferAddressingSemantics:
@@ -372,7 +385,7 @@ class TestOfferAddressingSemantics:
         return dl
 
     def test_receiving_actor_in_to_creates_case(self):
-        """HP-09-001: Receiving actor in Offer.to → case created."""
+        """HP-09-001: Receiving actor in Offer.to → pending link written (ADR-0041)."""
         event = self._make_event(
             to=[self.VENDOR_ID], receiving_actor_id=self.VENDOR_ID
         )
@@ -382,8 +395,10 @@ class TestOfferAddressingSemantics:
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
 
-        all_cases = dl.get_all("VulnerabilityCase")
-        assert len(all_cases) >= 1, "Expected case when receiving actor in to"
+        link_id = VultronReportCaseLink.build_id(self.REPORT_ID)
+        assert isinstance(
+            dl.read(link_id), VultronReportCaseLink
+        ), "Expected pending VultronReportCaseLink when receiving actor in to"
 
     def test_receiving_actor_in_cc_logs_warning_no_case(self, caplog):
         """HP-09-002: Receiving actor in Offer.cc → WARNING logged, no case."""
@@ -438,10 +453,10 @@ class TestOfferAddressingSemantics:
         ), "Expected WARNING to mention the receiving actor ID"
 
     def test_offer_target_not_consulted_to_wins(self):
-        """HP-09-002: Offer.target is not consulted; to field determines case creation.
+        """HP-09-002: Offer.target is not consulted; to field determines proposal (ADR-0041).
 
         With target=OTHER_ID but to=[VENDOR_ID] and receiving_actor_id=VENDOR_ID,
-        the case must be created (target is ignored).
+        a pending VultronReportCaseLink must be written (target is ignored).
         """
         event = self._make_event(
             to=[self.VENDOR_ID],
@@ -454,10 +469,11 @@ class TestOfferAddressingSemantics:
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
 
-        all_cases = dl.get_all("VulnerabilityCase")
-        assert (
-            len(all_cases) >= 1
-        ), "Expected case when receiving actor in to, even if target differs"
+        link_id = VultronReportCaseLink.build_id(self.REPORT_ID)
+        assert isinstance(dl.read(link_id), VultronReportCaseLink), (
+            "Expected pending VultronReportCaseLink when receiving actor in to,"
+            " even if target differs"
+        )
 
     def test_offer_target_set_but_not_in_to_no_case(self):
         """HP-09-002 inverse: target=VENDOR_ID but to=[OTHER_ID] → no case.

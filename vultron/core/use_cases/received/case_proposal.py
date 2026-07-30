@@ -34,6 +34,7 @@ import logging
 
 from py_trees.common import Status
 
+from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.accept_case_proposal_received_tree import (
     create_accept_case_proposal_received_tree,
@@ -76,9 +77,14 @@ class CreateCaseProposalReceivedUseCase:
         self,
         dl: CaseOutboxPersistence,
         request: CreateCaseProposalReceivedEvent,
+        actor_config: "ActorConfig | None" = None,
     ) -> None:
         self._dl = dl
         self._request: CreateCaseProposalReceivedEvent = request
+        # CFG-07-002/CFG-07-004: the CVD roles the proposing actor receives
+        # alongside CVDRole.CASE_OWNER come from the local actor config, not a
+        # hard-coded assumption that every report receiver is a vendor.
+        self._actor_config = actor_config
 
     def execute(self) -> None:
         request = self._request
@@ -134,6 +140,7 @@ class CreateCaseProposalReceivedUseCase:
             proposal_id=proposal_id,
             vendor_uri=vendor_uri,
             proposal_dict=proposal_dict,
+            actor_config=self._actor_config,
         )
         result = BTBridge(datalayer=self._dl).execute_with_setup(
             tree=tree,

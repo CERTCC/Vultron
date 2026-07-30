@@ -60,6 +60,8 @@ import pytest
 
 from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
+from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.use_cases._helpers import _find_case_actor_id
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -272,13 +274,47 @@ def _bootstrap_case(
     )
     _post_to_inbox(owner_tc, _actor_slug(owner_actor_id), offer)
 
-    all_cases = owner_iso.dl.get_all("VulnerabilityCase")
-    assert len(all_cases) >= 1, (
-        "Expected at least one VulnerabilityCase in owner's DataLayer "
-        "after SubmitReport delivery.  The create_receive_report_case_tree "
-        "BT may not have run."
+    # ADR-0041: receive_report_case_tree writes a VultronReportCaseLink and
+    # sends Create(as_CaseProposal) — no VulnerabilityCase yet.
+    # Simulate the CaseActor's Create(VulnerabilityCase) response directly.
+    # Pass reporter as `to` so the outbound activity satisfies OX-08-001.
+    resp = owner_tc.post(
+        f"/api/v2/actors/{_actor_slug(owner_actor_id)}/trigger/create-case",
+        json={
+            "name": "PCR-07-007 late-joiner test case",
+            "content": "Case seeded by trigger/create-case (ADR-0041).",
+            "report_id": report.id_,
+            "to": [reporter_actor_id],
+        },
     )
-    case_id: str = all_cases[0]["id_"]
+    assert (
+        resp.status_code == 202
+    ), f"trigger/create-case failed ({resp.status_code}): {resp.text}"
+
+    # Find the canonical case by report_id to avoid picking up the extra
+    # VulnerabilityCase created by trigger/create-case above (ADR-0041 flow
+    # also creates one via case_proposal_received_tree).
+    case_from_proposal = owner_iso.dl.find_case_by_report_id(report.id_)
+    case_id: str
+    if case_from_proposal is not None:
+        case_id = str(case_from_proposal.id_)
+    else:
+        all_cases = owner_iso.dl.get_all("VulnerabilityCase")
+        assert len(all_cases) >= 1, (
+            "Expected at least one VulnerabilityCase in owner's DataLayer "
+            "after trigger/create-case."
+        )
+        case_id = str(all_cases[0]["id_"])
+
+    # In this test the owner acts as the CaseActor.  Register that identity
+    # in the VultronReportCaseLink so _find_case_actor_id resolves correctly
+    # for invite-actor-to-case and accept-case-invite flows.
+    for link in owner_iso.dl.list_objects("ReportCaseLink"):
+        if isinstance(link, VultronReportCaseLink):
+            link.case_id = case_id
+            link.trusted_case_actor_id = owner_actor_id
+            owner_iso.dl.save(link)
+            break
 
     resp = owner_tc.post(
         f"/api/v2/actors/{_actor_slug(owner_actor_id)}"
@@ -290,26 +326,6 @@ def _bootstrap_case(
     ), f"validate-report trigger failed ({resp.status_code}): {resp.text}"
 
     return case_id
-
-
-def _find_case_actor_id_in_dl(dl, case_id: str) -> str | None:
-    """Scan ``dl`` for a CaseActor (Service) whose context matches *case_id*.
-
-    ``VultronCaseActor`` objects are stored with ``type_="Service"`` and
-    ``context=case_id``.  This helper mirrors the legacy-path fallback in
-    the production ``_find_case_actor_id`` function.
-
-    Args:
-        dl: A ``DataLayer`` instance (typically the owner's).
-        case_id: The ID of the ``VulnerabilityCase`` to match.
-
-    Returns:
-        The ``id_`` of the CaseActor, or ``None`` if not found.
-    """
-    for service in dl.list_objects("Service"):
-        if getattr(service, "context", None) == case_id:
-            return str(service.id_)
-    return None
 
 
 def _drain_case_actor_outbox(owner_iso, case_actor_id: str) -> None:
@@ -414,7 +430,7 @@ def _run_late_joiner_sequence(
     # CaseActor's outbox (not the owner's), so drain it explicitly here.
     # The background task triggered by the invite endpoint only drains the
     # owner's outbox; the CaseActor's outbox must be processed separately.
-    case_actor_id = _find_case_actor_id_in_dl(owner_iso.dl, case_id)
+    case_actor_id = _find_case_actor_id(owner_iso.dl, case_id)
     assert case_actor_id is not None, (
         f"Could not find CaseActor for case '{case_id}' in owner's "
         f"DataLayer.  CreateCaseActorNode may not have run during "

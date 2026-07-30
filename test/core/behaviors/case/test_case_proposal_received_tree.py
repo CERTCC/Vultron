@@ -505,13 +505,30 @@ def _seed_report(dl: SqliteDataLayer) -> None:
     dl.save(report)
 
 
-def _run_full_bt(make_payload, dl: SqliteDataLayer) -> None:
+def _run_full_bt(make_payload, dl: SqliteDataLayer, actor_config=None) -> None:
     from vultron.core.use_cases.received.case_proposal import (
         CreateCaseProposalReceivedUseCase,
     )
 
     event = _make_full_event(make_payload)
-    CreateCaseProposalReceivedUseCase(dl, event).execute()
+    CreateCaseProposalReceivedUseCase(
+        dl, event, actor_config=actor_config
+    ).execute()
+
+
+def _owner_roles(dl: SqliteDataLayer) -> list:
+    """Return the CVD roles of the proposing actor's participant record."""
+    from vultron.core.models.case import VulnerabilityCase
+
+    cases = list(dl.list_objects("VulnerabilityCase"))
+    assert cases
+    case = cases[0]
+    assert isinstance(case, VulnerabilityCase)
+    participant_id = case.actor_participant_index.get(_VENDOR_URI)
+    assert participant_id is not None
+    participant = dl.read(participant_id)
+    assert participant is not None
+    return list(getattr(participant, "case_roles", []))
 
 
 class TestADR0041VendorParticipant:
@@ -578,6 +595,61 @@ class TestADR0041VendorParticipant:
         assert (
             CVDRole.CASE_OWNER in roles
         ), f"Vendor must have CASE_OWNER role, got {roles}"
+
+
+class TestOwnerRolesComeFromActorConfig:
+    """The owner's non-CASE_OWNER roles come from ``ActorConfig`` (CFG-07-002).
+
+    Regression guard: the node used to hard-code ``[CASE_OWNER, VENDOR]``.
+    That mislabelled a coordinator that receives a report as a vendor, after
+    which VFD fix-lifecycle checks demanded a fix the coordinator never
+    produces (fccv-extension M6/M7 failure).
+    """
+
+    def test_vendor_config_yields_vendor_role(self, make_payload):
+        from vultron.config.actor import ActorConfig
+        from vultron.enums.roles import CVDRole
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        _seed_report(dl)
+        _run_full_bt(
+            make_payload,
+            dl,
+            actor_config=ActorConfig(default_case_roles=[CVDRole.VENDOR]),
+        )
+
+        roles = _owner_roles(dl)
+        assert CVDRole.CASE_OWNER in roles
+        assert CVDRole.VENDOR in roles
+
+    def test_coordinator_config_does_not_yield_vendor_role(self, make_payload):
+        from vultron.config.actor import ActorConfig
+        from vultron.enums.roles import CVDRole
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        _seed_report(dl)
+        _run_full_bt(
+            make_payload,
+            dl,
+            actor_config=ActorConfig(default_case_roles=[CVDRole.COORDINATOR]),
+        )
+
+        roles = _owner_roles(dl)
+        assert CVDRole.CASE_OWNER in roles
+        assert CVDRole.COORDINATOR in roles
+        assert (
+            CVDRole.VENDOR not in roles
+        ), f"a coordinator must not be labelled VENDOR, got {roles}"
+
+    def test_no_actor_config_yields_case_owner_only(self, make_payload):
+        from vultron.enums.roles import CVDRole
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        _seed_report(dl)
+        _run_full_bt(make_payload, dl, actor_config=None)
+
+        roles = _owner_roles(dl)
+        assert roles == [CVDRole.CASE_OWNER]
 
 
 class TestADR0041ReporterParticipant:

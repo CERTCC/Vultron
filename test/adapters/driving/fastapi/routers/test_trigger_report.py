@@ -132,28 +132,23 @@ def offer(dl, report, actor, reporter):
 
 
 @pytest.fixture
-def received_report(dl, actor, reporter, report, offer):
-    """Pre-create a as_VulnerabilityCase for the report at RM.RECEIVED.
+def received_report(dl, actor, report):
+    """Pre-create a VulnerabilityCase with embargo for the report at RM.RECEIVED.
 
-    Per ADR-0015, the case is created at report receipt.  The validate_report
-    BT's EnsureEmbargoExists node requires a case to exist.
+    ADR-0041: vendor tree no longer creates VulnerabilityCase.  Create one
+    directly to satisfy EnsureEmbargoExists in the validate_report BT.
     """
-    from vultron.core.behaviors.bridge import BTBridge
-    from vultron.core.behaviors.case.receive_report_case_tree import (
-        create_receive_report_case_tree,
-    )
-
-    bridge = BTBridge(datalayer=dl)
-    tree = create_receive_report_case_tree(
-        report_id=report.id_,
-        offer_id=offer.id_,
-        reporter_actor_id=reporter.id_,
-    )
-    bridge.execute_with_setup(tree, actor_id=actor.id_)
     from vultron.core.models.case import VulnerabilityCase
 
-    case_obj = dl.find_case_by_report_id(report.id_)
-    assert isinstance(case_obj, VulnerabilityCase)
+    embargo_id = f"{actor.id_}/embargoes/test-embargo"
+    case_obj = VulnerabilityCase(
+        id_=f"{actor.id_}/cases/test-case-received",
+        name="Test Case at Received",
+        attributed_to=actor.id_,
+        vulnerability_reports=[report.id_],
+        active_embargo=embargo_id,
+    )
+    dl.create(case_obj)
     case_actor = as_Service(name=f"Case Actor for {case_obj.name}")
     dl.create(case_actor)
     case_manager_participant = as_CaseParticipant(

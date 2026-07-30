@@ -161,36 +161,25 @@ def bridge_no_emit(datalayer):
 
 
 @pytest.fixture
-def case(
-    bridge,
-    datalayer,
-    actor_id,
-    report,
-    offer,
-    actor,
-    reporter_actor,
-    reporter_actor_id,
-):
-    """Pre-create the VulnerabilityCase at RM.RECEIVED.
+def case(datalayer, actor_id, report):
+    """Pre-create a VulnerabilityCase with an active embargo for validate_tree tests.
 
-    Mirrors what SubmitReportReceivedUseCase does via receive_report_case_tree
-    (per ADR-0015).  Tests that run the validate_report tree depend on this
-    fixture to satisfy the EnsureEmbargoExists precondition.
+    ADR-0041: the vendor tree no longer creates a VulnerabilityCase.  This
+    fixture creates one directly to satisfy the EnsureEmbargoExists precondition
+    in ValidateReportBT, simulating what the CaseActor would have provided after
+    accepting a CaseProposal.
     """
-    from vultron.core.behaviors.case.receive_report_case_tree import (
-        create_receive_report_case_tree,
-    )
+    from vultron.core.models.case import VulnerabilityCase
 
-    tree = create_receive_report_case_tree(
-        report_id=report.id_,
-        offer_id=offer.id_,
-        reporter_actor_id=reporter_actor_id,
+    case_obj = VulnerabilityCase(
+        id_=f"{actor_id}/cases/test-case-validate",
+        name="Validate-tree test case",
+        attributed_to=actor_id,
+        vulnerability_reports=[report.id_],
+        active_embargo=f"{actor_id}/embargoes/test-embargo",
     )
-    bridge.execute_with_setup(tree, actor_id=actor_id, datalayer=datalayer)
-    cases = datalayer.by_type("VulnerabilityCase")
-    assert cases, "Expected case fixture to create a VulnerabilityCase"
-    case_id = next(iter(cases))
-    return datalayer.read(case_id)
+    datalayer.create(case_obj)
+    return case_obj
 
 
 # ============================================================================
