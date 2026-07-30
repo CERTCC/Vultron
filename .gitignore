@@ -163,4 +163,6 @@ plan/data/
 .devcontainer/devcontainer.env
 .claude/settings.local.json
 .claude/pr-*.json
+# Board/project node-ID cache — auto-regenerated on first run, contains volatile timestamp
+.agents/skills/shared/board-ids.json
 .idea/
