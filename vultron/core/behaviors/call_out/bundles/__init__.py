@@ -62,6 +62,10 @@ from vultron.core.behaviors.call_out.bundles.report_to_others import (
     REPORT_TO_OTHERS_DETERMINISTIC,
     ReportToOthersCallOutBundle,
 )
+from vultron.core.behaviors.call_out.bundles.status_authorization import (
+    STATUS_AUTHORIZATION_DETERMINISTIC,
+    StatusAuthorizationCallOutBundle,
+)
 from vultron.core.behaviors.call_out.bundles.validation import (
     VALIDATION_DETERMINISTIC,
     ValidationCallOutBundle,
@@ -79,6 +83,7 @@ __all__ = [
     "PrioritizationCallOutBundle",
     "PublicationCallOutBundle",
     "ReportToOthersCallOutBundle",
+    "StatusAuthorizationCallOutBundle",
     "ValidationCallOutBundle",
     # Deterministic singletons
     "ACQUIRE_EXPLOIT_DETERMINISTIC",
@@ -91,5 +96,6 @@ __all__ = [
     "PRIORITIZATION_DETERMINISTIC",
     "PUBLICATION_DETERMINISTIC",
     "REPORT_TO_OTHERS_DETERMINISTIC",
+    "STATUS_AUTHORIZATION_DETERMINISTIC",
     "VALIDATION_DETERMINISTIC",
 ]

@@ -45,6 +45,10 @@ import logging
 
 import py_trees
 
+from vultron.core.behaviors.call_out.bundles.status_authorization import (
+    STATUS_AUTHORIZATION_DETERMINISTIC,
+    StatusAuthorizationCallOutBundle,
+)
 from vultron.core.models.events.status import (
     AddParticipantStatusToParticipantReceivedEvent,
 )
@@ -71,6 +75,9 @@ logger = logging.getLogger(__name__)
 def add_participant_status_tree(
     request: AddParticipantStatusToParticipantReceivedEvent,
     case_id: str | None = None,
+    call_out: StatusAuthorizationCallOutBundle = (
+        STATUS_AUTHORIZATION_DETERMINISTIC
+    ),
 ) -> py_trees.behaviour.Behaviour:
     """Create the behavior tree for the AddParticipantStatus workflow.
 
@@ -102,6 +109,16 @@ def add_participant_status_tree(
         inserted after precondition guards so the receiving CaseActor
         writes a canonical ledger entry (CLP-10-005).  Pass ``None``
         (with no derivable context) to skip the commit.
+    call_out: Status-authorization call-out backend bundle (ADR-0046
+        Seam 1).  Its ``status_update_guard_factory`` backs the
+        ``CaseOwnerApprovesStatusUpdate`` Evaluator call-out inside the
+        ``StatusUpdateGuard`` Fallback (RSH-01).  Defaults to
+        ``STATUS_AUTHORIZATION_DETERMINISTIC`` (AlwaysSucceed).  This is a
+        defaulted injection seam: the ``StatusUpdateGuard`` node that reads
+        ``status_update_guard_factory`` lands in #1841, so the parameter is
+        accepted but not yet consumed by the tree body.  Once #1841 wires
+        the guard, injecting a STOCHASTIC or REAL bundle will change the
+        adoption decision.
 
     Returns:
         Root node of the ``AddParticipantStatusBT`` Sequence.
