@@ -194,6 +194,27 @@ function makeParticipant(laneId: Exclude<LaneId, 'unknown'>, laneIndex: number):
       laneIndex,
     }
   }
+  if (laneId === 'coordinator') {
+    // A real coordinator PARTICIPANT (2026-07 scenarios), distinct from the
+    // virtual `caseactor` recorder above. Unlike the recorder, it has a genuine
+    // RM/VFD lifecycle (in fcv/fccv-extension it's the CASE_OWNER and validates
+    // the report; it also closes at case end), so it starts at the machine
+    // initials like the finder/vendor and is seeded from its first status
+    // snapshot — NOT the 'N/A' sentinel.
+    return {
+      id: 'coordinator',
+      name: 'Coordinator',
+      role: PARTICIPANT_ROLES.coordinator,
+      color: PARTICIPANT_COLORS.coordinator,
+      rmState: 'START',
+      vfdState: 'vfd',
+      embargoAccepted: false,
+      hasPublished: false,
+      hasClosed: false,
+      visible: true,
+      laneIndex,
+    }
+  }
   // vendor-N
   const n = vendorNumber(laneId)
   return {
@@ -252,6 +273,9 @@ function buildLaneIndex(entries: CaseLedgerEntry[]): LaneIndexMap {
   let idx = 0
   if (lanes.has('finder')) map.finder = idx++
   for (const v of vendors) map[v] = idx++
+  // The real coordinator participant sits below the vendors but above the
+  // caseactor recorder lane.
+  if (lanes.has('coordinator')) map.coordinator = idx++
   // caseactor is always last; assign the final index without a dangling increment.
   if (lanes.has('caseactor')) map.caseactor = idx
   return map

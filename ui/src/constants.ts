@@ -34,6 +34,8 @@ const VENDOR_COLOR_PALETTE = [
 const BASE_PARTICIPANT_COLORS = {
   finder: '#e3f2fd',      // Light blue
   caseactor: '#fff3e0',   // Light orange
+  coordinator: '#e0f7fa', // Light teal — a real coordinator participant, kept
+                          // visually distinct from the caseactor recorder's orange.
 }
 
 // Generate participant colors dynamically
@@ -100,6 +102,12 @@ const BASE_NODE_COLORS = {
     decisionHover: '#E65100',   // Darker orange on hover
     consequence: '#FFE0B2',     // Light orange for consequences
     consequenceHover: '#FFCC80' // Slightly darker on hover
+  },
+  coordinator: {
+    decision: '#00838F',        // Dark teal for decisions
+    decisionHover: '#006064',   // Darker teal on hover
+    consequence: '#B2EBF2',     // Light teal for consequences
+    consequenceHover: '#80DEEA' // Slightly darker on hover
   }
 }
 
@@ -130,6 +138,11 @@ export const PARTICIPANT_ROLES = {
   vendor: 'VENDOR, CASE_OWNER',
   vendor2: 'VENDOR',
   caseactor: 'COORDINATOR, CASE_MANAGER (virtual)',
+  // A real coordinator participant (distinct from the virtual caseactor recorder),
+  // 2026-07 coordinator scenarios. Its actual CVD role varies by scenario
+  // (COORDINATOR in fvcv-extension; CASE_OWNER in fcv/fccv-extension), so the
+  // static label is generic; the movable per-cvdRole label is deferred handoff work.
+  coordinator: 'COORDINATOR',
 }
 
 export const INITIAL_X_POSITION = 130

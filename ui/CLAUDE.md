@@ -322,6 +322,56 @@ verbs; (3) add mapper handlers; (4) tackle handoff's lane model last; (5) add
 we did for fvv. Validation stays: hand-trace against the artifact + user runs
 build/lint (no node in-container).
 
+**Decisions taken (2026-07 session, confirmed with the user):**
+- **actor5 → `vendor-2`.** The `actor5:` host is Vendor2's container (scenario
+  source seeds it as `vendor2` and runs it through the vendor fix lifecycle), so it
+  reuses the existing vendor-N machinery (`getVendorColor`, `vendorNumber`, the
+  vendor-N `makeParticipant` branch) as `vendor-2` — no bespoke lane.
+- **`coordinator` is its own lane, distinct from the `caseactor` recorder.** Lane
+  identity is keyed on the HOST, never on CVD role. The `case-actor-…` recorder
+  sub-actor keeps the always-bottom `caseactor` lane even when co-hosted with the
+  coordinator (fcv/fccv). The `coordinator:` host's real participant (which can be
+  CASE_OWNER and run `validate_report`) is the `coordinator` lane.
+- **Role labels are STATIC this pass**, set once from each lane's first `cvdRole`
+  snapshot. Making a role LABEL migrate between lanes is the deferred handoff work
+  (below) — it's the only place CASE_OWNER actually moves (vendor→coordinator).
+- **Suggest-actor trio → one "Actor Recommended" overlay node** in the coordinator
+  lane (documented as mirroring ADR-0026 `_phase_coordinator_suggests_vendor2`); the
+  other two verbs of the handshake become event-log lines. The actual join still
+  renders via the existing `accept_invite` node.
+- **Handoff (fvcv/fccv-handoff) DEFERRED.** No ledger verb / no state machine —
+  ownership transfer is behavior-tree only (`ownership_transfer_tree.py`,
+  TRIG-11-001/002, delivered actor→actor via inbox/outbox) and surfaces in the
+  ledger ONLY as a `cvdRole` change (CASE_OWNER vendor→coordinator) + the case
+  object's `attributedTo` flip. This is squarely a demo overlay (procedural rule,
+  §9 boundary). Those scenarios will replay but not depict the transfer until built.
+
+**Upstream quirk to raise with Allen (not a UI bug):** in `fvcv-handoff` and
+`fccv-extension`, actor5's `ParticipantStatus.cvdRole` reads `["COORDINATOR"]` even
+though the scenario seeds it as `vendor2` and drives it through the vendor fix
+lifecycle. The UI is insulated (label derives from lane identity, defaulting to
+"Vendor 2", not from that field), but it looks like a scenario seed bug.
+
+### ⚠️ Multi-Vendor demo — possible gaps surfaced by the coordinator JSONLs (2026-07, NOT yet acted on)
+
+While extending Log Replay for the coordinator scenarios, three things surfaced that
+the protocol-driven **Multi-Vendor** demo (`App-multivendor.tsx` + `actions/*` +
+`state/actionFilters.ts`) may not model. All three are **procedural/role** concerns
+(overlay territory per the §9 declarative-vs-procedural boundary, NOT artifact-deferral
+gaps), so they're recorded for later, not fixed here. None is confirmed — they need a
+read of `App-multivendor.tsx`/`actions/` to verify:
+1. **A real Coordinator participant that can be CASE_OWNER and validate the report.**
+   In `fcv`/`fccv-extension` the *coordinator* (a distinct participant, not the
+   virtual caseactor) is the CASE_OWNER/receiver and runs `validate_report` — not the
+   vendor. The Multi-Vendor roster is finder/vendor(s)/caseactor, where "caseactor" is
+   the *virtual* coordinator; it likely has no notion of a real coordinator
+   participant holding CASE_OWNER + an RM lifecycle.
+2. **Case-ownership handoff** — CASE_OWNER migrating vendor→coordinator mid-case
+   (see deferred handoff above). The demo almost certainly assumes a fixed owner.
+3. **The suggest-actor handshake** (coordinator recommends → CaseActor forwards →
+   owner approves → invite) — a multi-step onboarding distinct from the demo's direct
+   invite path.
+
 ---
 
 ## 6. How the protocol validates the log — and the format's quirks

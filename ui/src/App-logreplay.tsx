@@ -36,12 +36,13 @@ type NodePalette = { decision: string; decisionHover: string; consequence: strin
 
 /**
  * Node color palette for a participant id. Handles any `vendor-N` (via the
- * cycling vendor palette), plus finder and caseactor; falls back to finder's
- * palette for anything unrecognized.
+ * cycling vendor palette), plus finder, caseactor, and coordinator; falls back
+ * to finder's palette for anything unrecognized.
  */
 function nodeColorsFor(participantId: string): NodePalette {
   if (participantId === 'finder') return NODE_COLORS.finder
   if (participantId === 'caseactor') return NODE_COLORS.caseactor
+  if (participantId === 'coordinator') return NODE_COLORS.coordinator
   const m = participantId.match(/^vendor-(\d+)$/)
   if (m) return getVendorNodeColors(parseInt(m[1], 10))
   return NODE_COLORS.finder
@@ -720,12 +721,21 @@ function AppLogReplay() {
               role={participant.role}
               color={participant.color}
               // State AS OF the current playback step (currentSnapshot), not the
-              // final end-state. Guards match App-multivendor: VFD is vendor-only
-              // (the Finder/Case Actor have no fix to develop); PXA is case-level,
-              // shown on the Case Actor; EM is case-level, shown on all.
+              // final end-state. PXA is case-level, shown on the Case Actor; EM is
+              // case-level, shown on all.
+              //
+              // VFD is DATA-DRIVEN (2026-07): show it for any lane the JSONL carries
+              // a VFD state for — i.e. every real participant, which `vfdStateOf`
+              // reports as anything other than the 'N/A' recorder sentinel. We do
+              // NOT gate on role: conceptually only a VENDOR develops a fix, but the
+              // generator stamps a vfdState on the finder and coordinator too, so
+              // surfacing it makes an out-of-place VFD (e.g. on a pure coordinator)
+              // VISIBLE as a signal that something is off in the generated ledger,
+              // rather than silently hiding it. Only the caseactor recorder ('N/A')
+              // has no VFD row.
               rmState={rmStateOf(participant.id)}
               emState={emStateNow}
-              vfdState={participant.id.startsWith('vendor-') ? vfdStateOf(participant.id) : undefined}
+              vfdState={vfdStateOf(participant.id) !== 'N/A' ? vfdStateOf(participant.id) : undefined}
               pxaState={participant.id === 'caseactor' ? pxaStateNow : undefined}
               actions={[]} // No actions in replay mode
               onActionClick={() => {}}
