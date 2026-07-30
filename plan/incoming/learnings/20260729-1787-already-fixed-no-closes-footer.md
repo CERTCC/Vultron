@@ -1,5 +1,5 @@
 ---
-title: Bug #1787 was already fixed on main but left open with no Closes footer
+title: "Bug #1787 was already fixed on main but left open with no Closes footer"
 type: learning
 timestamp: 2026-07-29
 source: ISSUE-1787

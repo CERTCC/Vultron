@@ -533,7 +533,6 @@ class TestFriendlyNaming:
             payloadSnapshot={
                 "type": "Create",
                 "actor": "http://vendor:7999/api/v2/actors/vendor",
-                "object": {"id": "urn:uuid:cp1", "type": "as_CaseProposal"},
                 "context": "urn:case:1",
             },
         )
