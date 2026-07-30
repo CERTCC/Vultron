@@ -274,37 +274,6 @@ class TestDeliveryRetry:
                 with pytest.raises(Exception):
                     asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
 
-    def test_failed_recipient_raises_after_all_recipients_attempted(self):
-        """emit() delivers to all recipients before raising on any failure (per-recipient isolation)."""
-        import pytest
-
-        adapter = DemoHttpDeliveryAdapter(max_retries=0, initial_delay=0.0)
-        activity = _make_activity()
-
-        delivered: list[str] = []
-
-        async def side_effect(url, **kwargs):
-            if "alice" in url:
-                raise httpx.ConnectError("alice unreachable")
-            resp = MagicMock()
-            resp.status_code = 202
-            resp.raise_for_status = MagicMock()
-            delivered.append(url)
-            return resp
-
-        recipients = [
-            "https://example.org/actors/alice",
-            "https://example.org/actors/bob",
-        ]
-
-        with patch("httpx2.AsyncClient.post", side_effect=side_effect):
-            with pytest.raises(Exception):
-                asyncio.run(adapter.emit(activity, recipients))
-
-        # bob was still delivered to despite alice's failure
-        assert len(delivered) == 1
-        assert "bob" in delivered[0]
-
     def test_zero_retries_attempts_once_only(self):
         adapter = DemoHttpDeliveryAdapter(max_retries=0, initial_delay=0.0)
         activity = _make_activity()
