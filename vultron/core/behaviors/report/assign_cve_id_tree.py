@@ -103,32 +103,29 @@ class _IsIDAssignmentAuthorityNode(py_trees.behaviour.Behaviour):
     def update(self) -> Status:
         if not self.blackboard.exists(_ACTOR_ROLES_KEY):
             self.logger.debug(
-                "%s: %s not on blackboard — treating as non-CNA",
-                self.name,
-                _ACTOR_ROLES_KEY,
+                f"{self.name}: {_ACTOR_ROLES_KEY} not on blackboard"
+                " — treating as non-CNA"
             )
             return Status.FAILURE
 
         roles = self.blackboard.get(_ACTOR_ROLES_KEY)
         if not isinstance(roles, list):
             self.logger.warning(
-                "%s: %s is %s, not list — treating as non-CNA",
-                self.name,
-                _ACTOR_ROLES_KEY,
-                type(roles).__name__,
+                f"{self.name}: {_ACTOR_ROLES_KEY} is"
+                f" {type(roles).__name__}, not list — treating as non-CNA"
             )
             return Status.FAILURE
 
         if CVDRole.CVE_NUMBERING_AUTHORITY in roles:
             self.logger.debug(
-                "%s: actor holds CNA role — proceed to authority check",
-                self.name,
+                f"{self.name}: actor holds CNA role"
+                " — proceed to authority check"
             )
             return Status.SUCCESS
 
         self.logger.debug(
-            "%s: actor lacks CNA role — skip direct-assignment path",
-            self.name,
+            f"{self.name}: actor lacks CNA role"
+            " — skip direct-assignment path"
         )
         return Status.FAILURE
 
@@ -160,21 +157,18 @@ class _IsOrWillBePubliclyDisclosedNode(py_trees.behaviour.Behaviour):
     def update(self) -> Status:
         if not self.blackboard.exists(_PUBLICATION_INTENT_SET_KEY):
             self.logger.debug(
-                "%s: no publication intent on blackboard — FAILURE",
-                self.name,
+                f"{self.name}: no publication intent on blackboard — FAILURE"
             )
             return Status.FAILURE
 
         intent_set = self.blackboard.get(_PUBLICATION_INTENT_SET_KEY)
         if intent_set:
             self.logger.debug(
-                "%s: publication intent is set — SUCCESS", self.name
+                f"{self.name}: publication intent is set — SUCCESS"
             )
             return Status.SUCCESS
 
-        self.logger.debug(
-            "%s: publication intent not set — FAILURE", self.name
-        )
+        self.logger.debug(f"{self.name}: publication intent not set — FAILURE")
         return Status.FAILURE
 
 
