@@ -91,6 +91,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0043 Use the ADR `status` Field as the Confidence Signal (Extend Its Vocabulary Rather Than Add a New Field)](0043-adr-status-as-confidence-signal.md)
 - [ADR-0044 Adopt py_trees Typed Ports for BT Node Blackboard Contracts](0044-py-trees-typed-ports-adoption.md)
 - [ADR-0045 Correct Field Assignment on `Create(VulnerabilityCase)` — `context` to Case URI, `inReplyTo` to Accept URI](0045-create-vulnerability-case-field-assignment.md)
+- [ADR-0046 Two-Seam Authorization Model for Received-Side CaseStatus Canonicalization](0046-received-status-authorization.md) *(provisional)*
 
 ## Proposed ADRs
 

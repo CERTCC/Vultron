@@ -16,6 +16,23 @@ relevant_packages:
   - vultron/bt/report_management
 ---
 
+## Production Architecture Note (supersedes polling model)
+
+> **IDEA-1836 (2026-07-30)**: In production, threat monitoring is **event-driven**,
+> not polling. An external **sentinel actor** (or any informed participant) detects
+> a threat signal and posts `Add(ParticipantStatus, CaseParticipant)` to the CaseActor
+> with the appropriate PXA state change (X=True for exploit, A=True for attacks,
+> P=True for public disclosure). The CaseActor's received-side BT
+> (`add_participant_status_tree` → StatusUpdateGuard → self `Add(CaseStatus)` →
+> `add_case_status_tree` → SideEffectsGuard → ThreatTerminationBranchNode) handles
+> state canonicalization and embargo teardown.
+>
+> The four nodes catalogued below are valid fuzzer stubs for the **sentinel actor's
+> internal monitoring logic** — they model what the sentinel watches for. They are
+> not wired into the CaseActor's received-side pipeline.
+>
+> See `notes/received-status-authorization.md` and ADR-0046 for the production design.
+
 ## Threat Monitoring
 
 These nodes belong to the `MonitorThreats` fallback tree
@@ -23,6 +40,10 @@ These nodes belong to the `MonitorThreats` fallback tree
 continuous scanning for evidence that the vulnerability is being actively
 exploited in the wild. Threat detection can trigger embargo termination via
 `TerminateEmbargoBt`.
+
+In the simulation, this tree polls probabilistically each tick. In production,
+the sentinel actor runs equivalent logic and posts the result as an
+`Add(ParticipantStatus)` activity rather than mutating case state directly.
 
 ### `MonitorAttacks`
 
@@ -41,10 +62,11 @@ exploited in the wild. Threat detection can trigger embargo termination via
 - **Automation potential**: **High** — SIEM queries, IDS/IPS alert feeds, and threat-intelligence platform APIs can fully automate in-the-wild attack detection.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.monitor_threats.MonitorAttacks`
 - **Call-out point shape**: Retriever — synchronous per-tick query to threat-intelligence feeds or SIEM/IDS telemetry; returns SUCCESS if active attacks are detected, FAILURE otherwise. The BT invokes this node on-demand each tick; it does not run independently or fire a trigger endpoint (see BT-18-006).
-- **Factory-fn placement**: FUTURE:
-  `vultron.core.behaviors.report.create_monitor_threats_tree`
-  (issue #1250) — first Retriever child in the `MonitorThreats` Fallback;
-  queries SIEM/IDS feeds for evidence of active in-the-wild attacks
+- **Factory-fn placement**: Sentinel actor internal logic — not wired into
+  CaseActor received-side pipeline. Issue #1250 (polling factory) superseded
+  by IDEA-1836 (event-driven sentinel pattern). The sentinel runs equivalent
+  logic and posts `Add(ParticipantStatus)` with CS.A=True when attacks are
+  detected.
 
 ### `MonitorExploits`
 
@@ -63,11 +85,11 @@ exploited in the wild. Threat detection can trigger embargo termination via
 - **Automation potential**: **High** — exploit database feeds, CVE enrichment APIs, and threat-intel platforms can fully automate exploit publication monitoring.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.monitor_threats.MonitorExploits`
 - **Call-out point shape**: Retriever — synchronous per-tick query to exploit database feeds or threat-intelligence platforms; returns SUCCESS if a newly published exploit is found, FAILURE otherwise. The BT invokes this node on-demand each tick; it does not run independently or fire a trigger endpoint (see BT-18-006).
-- **Factory-fn placement**: FUTURE:
-  `vultron.core.behaviors.report.create_monitor_threats_tree`
-  (issue #1250) — second Retriever child in the `MonitorThreats` Fallback;
-  queries exploit-database feeds and CVE enrichment APIs for newly
-  published exploit code
+- **Factory-fn placement**: Sentinel actor internal logic — not wired into
+  CaseActor received-side pipeline. Issue #1250 (polling factory) superseded
+  by IDEA-1836 (event-driven sentinel pattern). The sentinel runs equivalent
+  logic and posts `Add(ParticipantStatus)` with CS.X=True when an exploit
+  is detected.
 
 ### `MonitorPublicReports`
 
@@ -86,10 +108,11 @@ exploited in the wild. Threat detection can trigger embargo termination via
 - **Automation potential**: **High** — RSS/news feed monitoring, OSINT tools, and social-media tracking APIs can automate public disclosure detection with high coverage.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.monitor_threats.MonitorPublicReports`
 - **Call-out point shape**: Retriever — synchronous per-tick query to OSINT feeds, news/RSS sources, or social-media tracking APIs; returns SUCCESS if public disclosure evidence is found, FAILURE otherwise. The BT invokes this node on-demand each tick; it does not run independently or fire a trigger endpoint (see BT-18-006).
-- **Factory-fn placement**: FUTURE:
-  `vultron.core.behaviors.report.create_monitor_threats_tree`
-  (issue #1250) — third Retriever child in the `MonitorThreats` Fallback;
-  queries OSINT/news feeds for public disclosure of the vulnerability
+- **Factory-fn placement**: Sentinel actor internal logic — not wired into
+  CaseActor received-side pipeline. Issue #1250 (polling factory) superseded
+  by IDEA-1836 (event-driven sentinel pattern). The sentinel runs equivalent
+  logic and posts `Add(ParticipantStatus)` with CS.P=True when public
+  disclosure is detected.
 
 ### `NoThreatsFound`
 
@@ -106,8 +129,8 @@ exploited in the wild. Threat detection can trigger embargo termination via
 - **Automation potential**: **TerminalPlaceholder** — terminal success placeholder; no real decision logic required.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.monitor_threats.NoThreatsFound`
 - **Call-out point shape**: ProtocolInternal — terminal success placeholder; AlwaysSucceed fallback leaf that prevents MonitorThreats from failing when no active threats are detected in this monitoring cycle; no external input, output, or monitoring seam.
-- **Factory-fn placement**: N/A — ProtocolInternal terminal success leaf;
-  `create_monitor_threats_tree` (issue #1250) will provide this node
-  internally as a hardcoded AlwaysSucceed fallback, not a call-out point
+- **Factory-fn placement**: N/A — ProtocolInternal terminal success leaf in
+  the sentinel actor's internal `MonitorThreats` tree. Issue #1250 (polling
+  factory) superseded by IDEA-1836. No CaseActor received-side role.
 
 ---
