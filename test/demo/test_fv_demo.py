@@ -24,6 +24,7 @@ True multi-container isolation is validated by the acceptance test runnable via:
 
 import importlib
 import logging
+from typing import Any
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -184,13 +185,16 @@ def _create_case_from_offer(
         actor_slug = (
             actor.id_.rstrip("/").rsplit("/", 1)[-1] if actor.id_ else ""
         )
+        body: dict[str, Any] = {
+            "name": "Test case",
+            "content": "Created by _create_case_from_offer for test setup.",
+            "report_id": report_id,
+        }
+        if reporter_id:
+            body["to"] = [reporter_id]
         resp = client.post(
             f"/actors/{actor_slug}/trigger/create-case",
-            json={
-                "name": "Test case",
-                "content": "Created by _create_case_from_offer for test setup.",
-                "report_id": report_id,
-            },
+            json=body,
         )
         assert resp is not None, "trigger/create-case returned no response"
         case_id = _find_case_for_report(client, report_id)
