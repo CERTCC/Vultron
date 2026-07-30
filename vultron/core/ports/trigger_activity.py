@@ -232,6 +232,23 @@ class TriggerActivityPort(Protocol):
         """
         ...
 
+    def add_case_status_to_case(
+        self,
+        status_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> str:
+        """Create and persist an ``Add(CaseStatus, VulnerabilityCase)`` activity.
+
+        Used by ``EmitAddCaseStatusToSelfNode`` to route a self-addressed
+        ``Add(CaseStatus)`` from the receiving actor to the CaseActor
+        (RSH-01-003).
+
+        Returns the activity ID (callers only need the ID for outbox queueing).
+        """
+        ...
+
     def create_case_proposal(
         self,
         actor: str,

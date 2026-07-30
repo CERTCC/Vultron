@@ -182,6 +182,143 @@ class PublicDisclosureBranchNode(py_trees.composites.Selector):
         )
 
 
+class EmitAddCaseStatusToSelfNode(DataLayerAction):
+    """Emit a self-addressed ``Add(CaseStatus, VulnerabilityCase)`` to the CaseActor.
+
+    When ``StatusUpdateGuard`` passes (RSH-01-003), this node:
+
+    1. Reads the ``ParticipantStatus`` from the DataLayer by ``participant_status_id``.
+    2. Extracts its embedded ``case_status`` field (an ``as_CaseStatus`` or
+       ``CaseStatus``).  If the case status is absent, returns FAILURE.
+    3. Ensures the case status is persisted (creates it if not already in the DL).
+    4. Calls ``trigger_activity_factory.add_case_status_to_case()`` addressed to
+       the executing actor itself (self-addressed: actor == to == CaseActor).
+    5. Queues the resulting activity in the actor's outbox.
+
+    The self-addressed activity routes through
+    ``AddCaseStatusToCaseReceivedUseCase`` → ``add_case_status_tree``, where
+    the canonical write and side-effects (Seam 2) execute.  This pattern
+    decouples Seam 1 (adoption authorization) from Seam 2 (side-effects).
+
+    Returns ``FAILURE`` when:
+    - ``trigger_activity_factory`` is absent (BT-14-001).
+    - ``participant_status_id`` or ``case_id`` are empty.
+    - The ``ParticipantStatus`` has no embedded ``case_status``.
+    - The factory raises an exception.
+
+    Returns ``SUCCESS`` when the activity is created and queued.
+
+    Per RSH-01-003, ADR-0046.
+    """
+
+    def __init__(
+        self,
+        participant_status_id: str,
+        case_id: str | None,
+        name: str | None = None,
+    ):
+        super().__init__(name=name or self.__class__.__name__)
+        self.participant_status_id = participant_status_id
+        self.case_id = case_id
+
+    def _resolve_case_status_id(self) -> "str | None":
+        """Read ParticipantStatus and persist its embedded CaseStatus.
+
+        Returns the persisted CaseStatus ID, or None on failure.
+        """
+        assert self.datalayer is not None
+
+        participant_status = self.datalayer.read(self.participant_status_id)
+        if participant_status is None:
+            self.logger.warning(
+                "EmitAddCaseStatusToSelf: ParticipantStatus '%s' not found",
+                self.participant_status_id,
+            )
+            return None
+
+        case_status = getattr(participant_status, "case_status", None)
+        if case_status is None:
+            self.logger.debug(
+                "EmitAddCaseStatusToSelf: ParticipantStatus '%s' has no"
+                " embedded case_status — skipping emit",
+                self.participant_status_id,
+            )
+            return None
+
+        case_status_id = getattr(case_status, "id_", None)
+        if not case_status_id:
+            self.logger.warning(
+                "EmitAddCaseStatusToSelf: embedded case_status has no id_"
+            )
+            return None
+
+        # Persist the case status so the factory can read it back.
+        try:
+            self.datalayer.create(case_status)
+        except ValueError:
+            pass  # already exists — idempotent
+
+        return str(case_status_id)
+
+    def update(self) -> Status:
+        if not self.participant_status_id or not self.case_id:
+            self.feedback_message = "EmitAddCaseStatusToSelf: missing participant_status_id or case_id"
+            self.logger.warning(self.feedback_message)
+            return Status.FAILURE
+
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
+
+        if (f := self._require_factory()) is not None:
+            self.logger.warning(
+                "EmitAddCaseStatusToSelf: no TriggerActivityPort — cannot"
+                " emit Add(CaseStatus) for case '%s'",
+                self.case_id,
+            )
+            return f
+
+        case_status_id = self._resolve_case_status_id()
+        if case_status_id is None:
+            # No embedded CaseStatus — no canonical update to emit; soft skip.
+            self.feedback_message = (
+                "EmitAddCaseStatusToSelf: no embedded case_status to emit"
+            )
+            self.logger.debug(self.feedback_message)
+            return Status.FAILURE
+
+        assert self.trigger_activity_factory is not None
+        try:
+            # Self-addressed: actor and to are both the executing CaseActor.
+            activity_id = (
+                self.trigger_activity_factory.add_case_status_to_case(
+                    status_id=case_status_id,
+                    case_id=self.case_id,
+                    actor=self.actor_id,
+                    to=[self.actor_id],
+                )
+            )
+            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
+                self.actor_id, activity_id
+            )
+            self.logger.info(
+                "EmitAddCaseStatusToSelf: queued Add(CaseStatus) '%s'"
+                " to self '%s' for case '%s' (RSH-01-003)",
+                activity_id,
+                self.actor_id,
+                self.case_id,
+            )
+        except Exception as e:
+            self.feedback_message = (
+                f"EmitAddCaseStatusToSelf: failed to emit Add(CaseStatus): {e}"
+            )
+            self.logger.error(self.feedback_message)
+            return Status.FAILURE
+
+        return Status.SUCCESS
+
+
 class EmitCloseCaseNode(DataLayerAction):
     """Step 5 emit: Queue a ``Leave(VulnerabilityCase)`` to the Case Manager.
 

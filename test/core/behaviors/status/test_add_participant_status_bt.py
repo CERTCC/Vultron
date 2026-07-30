@@ -15,16 +15,20 @@
 
 """Tests for AddParticipantStatus BT nodes and tree factory.
 
-Covers all four DEMOMA-07-003 steps (step 3 raw re-broadcast removed
-per DEMOMA-07-005):
+Covers the DEMOMA-07-003 steps (step 3 raw re-broadcast removed per DEMOMA-07-005)
+and Seam 1 authorization (ADR-0046, RSH-01-001 to RSH-01-004):
+
   1. VerifySenderIsParticipantNode             — unknown sender is rejected
   2. AppendParticipantStatusNode               — status appended, RM regression rejected
-  4. PublicDisclosureBranchNode               — always SUCCESS, only triggers teardown on CS.P + CASE_OWNER
+  Seam 1: CheckIsCaseOwnerNode                — CASE_OWNER gospel bypass (RSH-01-002)
+  Seam 1: StatusUpdateGuard                   — Fallback: bypass or call-out (RSH-01-002)
+  Seam 1: EmitAddCaseStatusToSelfNode         — self-addressed Add(CaseStatus) (RSH-01-003)
   5. AllParticipantsRMClosedConditionNode     — FAILURE when any participant not RM.CLOSED
      CloseNotYetEmittedConditionNode          — FAILURE when Leave already in outbox
      EmitCloseCaseNode                        — queues Leave(VulnerabilityCase)
 
 Per specs/multi-actor-demo.yaml DEMOMA-07-003, DEMOMA-07-005, DEMOMA-07-006.
+Per specs/received-status-handling.yaml RSH-01-001 to RSH-01-004.
 """
 
 import py_trees
@@ -32,7 +36,18 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.call_out.bundles.status_authorization import (
+    STATUS_AUTHORIZATION_DETERMINISTIC,
+    StatusAuthorizationCallOutBundle,
+)
+from vultron.core.behaviors.call_out.nodes import AlwaysFail
+from vultron.core.behaviors.case.nodes.vfd_role_guards import (
+    CheckIsCaseOwnerNode,
+)
 from vultron.core.behaviors.status.add_participant_status_tree import (
     add_participant_status_tree,
 )
@@ -44,6 +59,7 @@ from vultron.core.behaviors.status.nodes import (
     AppendStatusAndSaveParticipantNode,
     CheckStatusNotAlreadyAppendedNode,
     CloseNotYetEmittedConditionNode,
+    EmitAddCaseStatusToSelfNode,
     LoadParticipantNode,
     PublicDisclosureBranchNode,
     ResolveAndPersistStatusObjectNode,
@@ -878,14 +894,37 @@ class TestCloseNotYetEmittedConditionNode:
 
 
 class TestAddParticipantStatusTree:
-    def test_full_tree_succeeds_for_known_sender(
+    def _bridge_with_factory(self, dl: SqliteDataLayer) -> BTBridge:
+        return BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+        )
+
+    def test_full_tree_succeeds_for_case_owner_sender(
         self,
         populated_dl,
         make_payload,
     ):
-        """End-to-end: known sender → all five steps succeed."""
+        """End-to-end: CASE_OWNER sender bypasses StatusUpdateGuard → status
+        appended, self-addressed Add(CaseStatus) queued (RSH-01-001 to RSH-01-003).
+
+        Uses a ParticipantStatus with an embedded CaseStatus so
+        EmitAddCaseStatusToSelfNode can construct the outbound activity.
+        Runs with actor_id=ACTOR_ID (not CASE_MANAGER) to skip the
+        guarded ledger-commit subtree.
+        """
+        from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
+
+        cs = as_CaseStatus(id_=f"{STATUS_ID}/cs", context=CASE_ID)
+        status_with_cs = as_ParticipantStatus(
+            id_=STATUS_ID,
+            context=CASE_ID,
+            case_status=cs,
+        )
+        populated_dl.save(status_with_cs)
+
         activity = add_status_to_participant_activity(
-            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
+            status=status_with_cs,
             target=as_CaseParticipant(
                 id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
             ),
@@ -893,8 +932,9 @@ class TestAddParticipantStatusTree:
             context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
         )
         event = make_payload(activity)
-        bridge = BTBridge(datalayer=populated_dl)
-        tree = add_participant_status_tree(request=event)
+        bridge = self._bridge_with_factory(populated_dl)
+        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+        # actor_id=ACTOR_ID → not CASE_MANAGER → ledger commit is skipped
         result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
@@ -902,6 +942,12 @@ class TestAddParticipantStatusTree:
         assert p is not None
         status_ids = [getattr(s, "id_", s) for s in p.participant_statuses]
         assert STATUS_ID in status_ids
+
+        # RSH-01-003: self-addressed Add(CaseStatus) must be queued in outbox
+        outbox = populated_dl.outbox_list_for_actor(ACTOR_ID)
+        assert (
+            len(outbox) > 0
+        ), "EmitAddCaseStatusToSelfNode must queue Add(CaseStatus)"
 
     def test_full_tree_fails_for_unknown_sender(
         self,
@@ -918,8 +964,8 @@ class TestAddParticipantStatusTree:
             context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
         )
         event = make_payload(activity)
-        bridge = BTBridge(datalayer=populated_dl)
-        tree = add_participant_status_tree(request=event)
+        bridge = self._bridge_with_factory(populated_dl)
+        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
         result = bridge.execute_with_setup(tree=tree, actor_id=OUTSIDER_ID)
         assert result.status == Status.FAILURE
 
@@ -928,3 +974,296 @@ class TestAddParticipantStatusTree:
         # STATUS_ID was NOT appended; only the auto-initialised default status exists
         status_ids = [getattr(s, "id_", s) for s in p.participant_statuses]
         assert STATUS_ID not in status_ids
+
+    def test_guard_blocks_non_owner_when_call_out_fails(
+        self,
+        populated_dl,
+        make_payload,
+    ):
+        """Non-CASE_OWNER sender with AlwaysFail call-out → blocked at guard
+        (RSH-01-002): StatusUpdateGuard denied — Add(CaseStatus) NOT emitted to outbox.
+
+        Uses CASE_MANAGER_ID as the sender (not CASE_OWNER) so CheckIsCaseOwnerNode
+        returns FAILURE, routing to the AlwaysFail call-out which also fails.
+        Executes as ACTOR_ID (vendor) to skip the guarded ledger-commit subtree.
+        """
+        bridge = self._bridge_with_factory(populated_dl)
+        reject_bundle = StatusAuthorizationCallOutBundle(
+            status_update_guard_factory=lambda name: AlwaysFail(name)  # type: ignore[arg-type]
+        )
+        cm_status_id = f"{STATUS_ID}/cm"
+        cm_status = as_ParticipantStatus(id_=cm_status_id, context=CASE_ID)
+        populated_dl.create(cm_status)
+        # CASE_MANAGER_ID is NOT CASE_OWNER — CheckIsCaseOwnerNode will return FAILURE
+        cm_activity = add_status_to_participant_activity(
+            status=as_ParticipantStatus(id_=cm_status_id, context=CASE_ID),
+            target=as_CaseParticipant(
+                id_=CM_PARTICIPANT_ID,
+                context=CASE_ID,
+                attributed_to=CASE_MANAGER_ID,
+            ),
+            actor=CASE_MANAGER_ID,
+            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+        )
+        cm_event = make_payload(cm_activity)
+        cm_tree = add_participant_status_tree(
+            request=cm_event,
+            case_id=CASE_ID,
+            call_out=reject_bundle,
+        )
+        # Execute as the vendor (ACTOR_ID) — not CASE_MANAGER → ledger commit skipped
+        result = bridge.execute_with_setup(tree=cm_tree, actor_id=ACTOR_ID)
+        assert result.status == Status.FAILURE
+        # Outbox must be empty: guard blocked before EmitAddCaseStatusToSelfNode
+        outbox = populated_dl.outbox_list_for_actor(ACTOR_ID)
+        assert (
+            len(outbox) == 0
+        ), "Guard denied — no Add(CaseStatus) must be in outbox"
+
+    def test_no_side_effects_execute_directly_rsh_01_004(
+        self,
+        populated_dl,
+        make_payload,
+    ):
+        """add_participant_status_tree must NOT execute embargo teardown
+        directly (RSH-01-004).  After SUCCESS the tree has no PublicDisclosureBranchNode
+        in its children."""
+        activity = add_status_to_participant_activity(
+            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
+            target=as_CaseParticipant(
+                id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+            ),
+            actor=ACTOR_ID,
+            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+        )
+        event = make_payload(activity)
+        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+
+        # PublicDisclosureBranchNode must NOT appear anywhere in the tree
+        def _collect_nodes(node: py_trees.behaviour.Behaviour) -> list:
+            result_inner = [node]
+            for child in getattr(node, "children", []):
+                result_inner.extend(_collect_nodes(child))
+            return result_inner
+
+        all_nodes = _collect_nodes(tree)
+        node_types = [type(n).__name__ for n in all_nodes]
+        assert "PublicDisclosureBranchNode" not in node_types, (
+            "PublicDisclosureBranchNode must NOT be in add_participant_status_tree "
+            "(RSH-01-004: side-effects belong in add_case_status_tree)"
+        )
+
+    def test_emit_node_present_rsh_01_001(
+        self,
+        populated_dl,
+        make_payload,
+    ):
+        """EmitAddCaseStatusToSelfNode and StatusUpdateGuard must be present
+        in the tree (RSH-01-001)."""
+        activity = add_status_to_participant_activity(
+            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
+            target=as_CaseParticipant(
+                id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+            ),
+            actor=ACTOR_ID,
+            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+        )
+        event = make_payload(activity)
+        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+
+        def _collect_nodes(node: py_trees.behaviour.Behaviour) -> list:
+            result_inner = [node]
+            for child in getattr(node, "children", []):
+                result_inner.extend(_collect_nodes(child))
+            return result_inner
+
+        all_nodes = _collect_nodes(tree)
+        node_names = [n.name for n in all_nodes]
+
+        assert (
+            "EmitAddCaseStatusToSelf" in node_names
+        ), "EmitAddCaseStatusToSelfNode must be present (RSH-01-001)"
+        assert (
+            "StatusUpdateGuard" in node_names
+        ), "StatusUpdateGuard must be present (RSH-01-001)"
+        assert (
+            "CheckIsCaseOwner" in node_names
+        ), "CheckIsCaseOwnerNode must be present inside StatusUpdateGuard (RSH-01-002)"
+
+
+# ---------------------------------------------------------------------------
+# Seam 1: CheckIsCaseOwnerNode (RSH-01-002)
+# ---------------------------------------------------------------------------
+
+
+class TestCheckIsCaseOwnerNode:
+    def test_case_owner_returns_success(self, populated_bridge):
+        """CASE_OWNER sender → SUCCESS (gospel bypass)."""
+        node = CheckIsCaseOwnerNode(
+            sender_actor_id=ACTOR_ID,  # has CASE_OWNER role in fixture
+            case_id=CASE_ID,
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=node, actor_id=CASE_MANAGER_ID
+        )
+        assert result.status == Status.SUCCESS
+
+    def test_non_owner_returns_failure(self, populated_bridge):
+        """CASE_MANAGER sender (not CASE_OWNER) → FAILURE (proceeds to call-out)."""
+        node = CheckIsCaseOwnerNode(
+            sender_actor_id=CASE_MANAGER_ID,  # has CASE_MANAGER role, not CASE_OWNER
+            case_id=CASE_ID,
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=node, actor_id=CASE_MANAGER_ID
+        )
+        assert result.status == Status.FAILURE
+
+    def test_unknown_actor_returns_failure(self, populated_bridge):
+        """Actor not in actor_participant_index → FAILURE."""
+        node = CheckIsCaseOwnerNode(
+            sender_actor_id=OUTSIDER_ID,
+            case_id=CASE_ID,
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=node, actor_id=CASE_MANAGER_ID
+        )
+        assert result.status == Status.FAILURE
+
+    def test_no_case_returns_failure(self, bridge):
+        """No case in DataLayer → FAILURE."""
+        node = CheckIsCaseOwnerNode(
+            sender_actor_id=ACTOR_ID,
+            case_id="https://example.org/cases/nonexistent",
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.FAILURE
+
+    def test_no_case_id_returns_failure(self, bridge):
+        """No case_id at all → FAILURE."""
+        node = CheckIsCaseOwnerNode(
+            sender_actor_id=ACTOR_ID,
+            case_id=None,
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.FAILURE
+
+
+# ---------------------------------------------------------------------------
+# Seam 1: EmitAddCaseStatusToSelfNode (RSH-01-003)
+# ---------------------------------------------------------------------------
+
+
+class TestEmitAddCaseStatusToSelfNode:
+    def _bridge_with_factory(self, dl: SqliteDataLayer) -> BTBridge:
+        return BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+        )
+
+    def test_emits_activity_and_queues_in_outbox(self, dl):
+        """With a factory and embedded case_status: activity queued in outbox."""
+        from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
+
+        cs = as_CaseStatus(id_=f"{STATUS_ID}/cs", context=CASE_ID)
+        status_with_cs = as_ParticipantStatus(
+            id_=f"{STATUS_ID}/with-cs",
+            context=CASE_ID,
+            case_status=cs,
+        )
+        case = as_VulnerabilityCase(id_=CASE_ID, name="Test")
+        dl.create(case)
+        dl.create(status_with_cs)
+
+        bridge = self._bridge_with_factory(dl)
+        node = EmitAddCaseStatusToSelfNode(
+            participant_status_id=status_with_cs.id_,
+            case_id=CASE_ID,
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.SUCCESS
+
+        outbox = dl.outbox_list_for_actor(CASE_MANAGER_ID)
+        assert len(outbox) > 0, "Activity should be queued in outbox"
+
+    def test_fails_without_factory(self, populated_bridge):
+        """No TriggerActivityPort → FAILURE (BT-14-001)."""
+        node = EmitAddCaseStatusToSelfNode(
+            participant_status_id=STATUS_ID,
+            case_id=CASE_ID,
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=node, actor_id=CASE_MANAGER_ID
+        )
+        assert result.status == Status.FAILURE
+
+    def test_fails_when_participant_status_id_empty(self, populated_dl):
+        """Empty participant_status_id → FAILURE."""
+        bridge = self._bridge_with_factory(populated_dl)
+        node = EmitAddCaseStatusToSelfNode(
+            participant_status_id="", case_id=CASE_ID
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.FAILURE
+
+    def test_fails_when_case_id_none(self, populated_dl):
+        """None case_id → FAILURE."""
+        bridge = self._bridge_with_factory(populated_dl)
+        node = EmitAddCaseStatusToSelfNode(
+            participant_status_id=STATUS_ID, case_id=None
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.FAILURE
+
+    def test_returns_failure_when_status_has_no_case_status(
+        self, populated_dl
+    ):
+        """ParticipantStatus with no embedded case_status → FAILURE (soft skip)."""
+        bridge = self._bridge_with_factory(populated_dl)
+        # STATUS_ID in the fixture has no embedded case_status
+        node = EmitAddCaseStatusToSelfNode(
+            participant_status_id=STATUS_ID, case_id=CASE_ID
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
+        assert result.status == Status.FAILURE
+
+
+# ---------------------------------------------------------------------------
+# Seam 1: StatusAuthorizationCallOutBundle (RSH-01-002)
+# ---------------------------------------------------------------------------
+
+
+class TestStatusAuthorizationCallOutBundle:
+    def test_deterministic_singleton_approves_by_default(
+        self, populated_bridge
+    ):
+        """STATUS_AUTHORIZATION_DETERMINISTIC has AlwaysSucceed factory."""
+        node = STATUS_AUTHORIZATION_DETERMINISTIC.status_update_guard_factory(
+            "CaseOwnerApprovesStatusUpdate"
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=node, actor_id=CASE_MANAGER_ID
+        )
+        assert result.status == Status.SUCCESS
+
+    def test_custom_bundle_with_always_fail(self, populated_bridge):
+        """Custom bundle with AlwaysFail factory → call-out denies approval."""
+        bundle = StatusAuthorizationCallOutBundle(
+            status_update_guard_factory=lambda name: AlwaysFail(name)  # type: ignore[arg-type]
+        )
+        node = bundle.status_update_guard_factory(
+            "CaseOwnerApprovesStatusUpdate"
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=node, actor_id=CASE_MANAGER_ID
+        )
+        assert result.status == Status.FAILURE
+
+    def test_bundle_is_frozen(self):
+        """Bundle is immutable (frozen dataclass)."""
+        import dataclasses
+
+        assert dataclasses.is_dataclass(StatusAuthorizationCallOutBundle)
+        bundle = StatusAuthorizationCallOutBundle()
+        with pytest.raises((AttributeError, dataclasses.FrozenInstanceError)):
+            bundle.status_update_guard_factory = lambda name: None  # type: ignore[method-assign]

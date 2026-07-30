@@ -57,6 +57,7 @@ from vultron.core.behaviors.status.nodes.append import (
     ValidateRMTransitionNode,
 )
 from vultron.core.behaviors.status.nodes.lifecycle import (
+    EmitAddCaseStatusToSelfNode,
     EmitCloseCaseNode,
     PublicDisclosureBranchNode,
     _PublicDisclosureSkipConditionNode,
@@ -78,6 +79,7 @@ __all__ = [
     # lifecycle
     "_PublicDisclosureSkipConditionNode",
     "PublicDisclosureBranchNode",
+    "EmitAddCaseStatusToSelfNode",
     "EmitCloseCaseNode",
     # case_status
     "CASE_STATUS_ALREADY_PRESENT",
