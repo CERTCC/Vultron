@@ -12,6 +12,7 @@ from vultron.core.behaviors.case.update_support import (
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.states.rm import RM, is_monotonic_rm_forward
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +66,14 @@ def _store_embedded_participants(
 
     Idempotent: ``dl.save()`` upserts so repeated calls are safe.
 
+    A received snapshot is a remote point-in-time view, so it must never
+    regress local RM progress.  Bootstrap and Announce activities are built
+    before delivery and may arrive after the receiver has already advanced a
+    participant locally; blindly upserting would roll that participant back
+    (e.g. RECEIVED → START), after which the legitimate next transition is
+    rejected as invalid by the RM state machine.  Participants whose stored
+    RM state is already at or beyond the snapshot's are therefore left alone.
+
     Args:
         case_obj: The bootstrapped or announced case domain object.
         dl: DataLayer to persist participants into.
@@ -77,6 +86,8 @@ def _store_embedded_participants(
         pid = getattr(participant_ref, "id_", None)
         if pid is None:
             continue
+        if _would_regress_participant(participant_ref, dl, pid, case_id):
+            continue
         dl.save(participant_ref)
         logger.info(
             "store_embedded_participants: stored participant '%s'"
@@ -84,3 +95,46 @@ def _store_embedded_participants(
             pid,
             case_id,
         )
+
+
+def _participant_rm_state(participant: object) -> RM | None:
+    """Return the latest RM state recorded on *participant*, if any."""
+    statuses = getattr(participant, "participant_statuses", None) or []
+    if not statuses:
+        return None
+    rm = getattr(statuses[-1], "rm", None)
+    state = getattr(rm, "state", None)
+    return state if isinstance(state, RM) else None
+
+
+def _would_regress_participant(
+    incoming: object, dl: CasePersistence, pid: str, case_id: str
+) -> bool:
+    """Return ``True`` when saving *incoming* would roll back local RM state.
+
+    Only the RM dimension is compared: it is the dimension whose state machine
+    rejects backward transitions outright, so a regression there is what
+    actually breaks subsequent protocol progress.
+    """
+    existing = dl.read(pid)
+    if existing is None:
+        return False
+
+    existing_rm = _participant_rm_state(existing)
+    incoming_rm = _participant_rm_state(incoming)
+    if existing_rm is None or incoming_rm is None:
+        return False
+    if existing_rm == incoming_rm:
+        return False
+    if is_monotonic_rm_forward(existing_rm, incoming_rm):
+        return False
+
+    logger.info(
+        "store_embedded_participants: keeping local participant '%s' at RM.%s"
+        " for case '%s' — incoming snapshot is behind at RM.%s",
+        pid,
+        existing_rm,
+        case_id,
+        incoming_rm,
+    )
+    return True

@@ -25,7 +25,7 @@ import logging
 from datetime import timezone
 
 from vultron.config import get_config
-from vultron.core.models.events import VultronEvent
+from vultron.core.models.events import VultronEvent, resolve_case_context_id
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
@@ -38,13 +38,14 @@ logger = logging.getLogger(__name__)
 def _activity_context_id(
     activity: as_Activity, event: VultronEvent
 ) -> str | None:
-    """Return the case context ID carried by an activity, if any."""
-    if event.context_id is not None:
-        return event.context_id
-    context = getattr(activity, "context", None)
-    if isinstance(context, str) and context:
-        return context
-    return getattr(context, "id_", None)
+    """Return the case context ID carried by an activity, if any.
+
+    Thin wrapper over the core resolver so that the adapter layer and the
+    core inbox BT pipeline agree on which case an activity belongs to.
+    """
+    return resolve_case_context_id(
+        event, wire_context=getattr(activity, "context", None)
+    )
 
 
 def _queue_pending_case_activity(

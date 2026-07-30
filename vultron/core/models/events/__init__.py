@@ -7,6 +7,7 @@ Public surface:
 - MessageSemantics — enum of all recognised semantic types
 - VultronEvent — base class for all per-semantic inbound domain events
 - Per-semantic *ReceivedEvent classes imported from category submodules
+- Case-context resolution helpers used by the inbox deferral/replay path
 """
 
 from vultron.core.models.events.actor import (
@@ -20,6 +21,11 @@ from vultron.core.models.events.actor import (
 from vultron.core.models.events.base import (
     MessageSemantics,
     VultronEvent,
+)
+from vultron.core.models.events.case_context import (
+    CASE_BOOTSTRAP_SEMANTICS,
+    is_case_bootstrap,
+    resolve_case_context_id,
 )
 from vultron.core.models.events.case import (
     AddReportToCaseReceivedEvent,
@@ -71,6 +77,10 @@ from vultron.core.models.events.unknown import UnknownReceivedEvent
 __all__ = [
     "MessageSemantics",
     "VultronEvent",
+    # case-context resolution
+    "CASE_BOOTSTRAP_SEMANTICS",
+    "is_case_bootstrap",
+    "resolve_case_context_id",
     # report
     "CreateReportReceivedEvent",
     "SubmitReportReceivedEvent",

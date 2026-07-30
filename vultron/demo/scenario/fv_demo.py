@@ -453,6 +453,10 @@ def _phase_report_submission(
             "name": "Vendor case for CVD report",
             "content": "Case created after CaseActor accepted proposal.",
             "report_id": report_id,
+            # OX-08-001: every outbound activity MUST address at least one
+            # recipient.  Without this the vendor's outbox aborts on the
+            # resulting Create(VulnerabilityCase).
+            "to": [finder.id_],
         },
     )
     logger.info("trigger/create-case result: %s", create_case_result)

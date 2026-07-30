@@ -1143,7 +1143,13 @@ class TestVerifyM1State:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.timeout(30)
+# The full FV workflow runs every phase through report submission, case
+# activation, embargo, fix development, and case closure — including several
+# polling waits on asynchronous background-task replication.  It takes ~50s
+# locally, so the previous 30s bound expired mid-run in ``_phase_case_closure``
+# and presented as a hang rather than a failure.  180s leaves headroom for
+# slower CI runners without masking a genuine deadlock.
+@pytest.mark.timeout(180)
 class TestRunTwoActorDemo:
     """Test the complete FV workflow via run_fv_demo."""
 
