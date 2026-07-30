@@ -30,6 +30,10 @@ import logging
 
 import py_trees
 
+from vultron.core.behaviors.call_out.bundles.status_authorization import (
+    STATUS_AUTHORIZATION_DETERMINISTIC,
+    StatusAuthorizationCallOutBundle,
+)
 from vultron.core.models.events.status import AddCaseStatusToCaseReceivedEvent
 from vultron.core.behaviors.status.nodes import (
     AppendCaseStatusToCaseNode,
@@ -42,6 +46,9 @@ logger = logging.getLogger(__name__)
 
 def add_case_status_tree(
     request: AddCaseStatusToCaseReceivedEvent,
+    call_out: StatusAuthorizationCallOutBundle = (
+        STATUS_AUTHORIZATION_DETERMINISTIC
+    ),
 ) -> py_trees.behaviour.Behaviour:
     """Create the behavior tree for the AddCaseStatusToCase workflow.
 
@@ -54,6 +61,13 @@ def add_case_status_tree(
 
     Args:
         request: The parsed inbound domain event.
+        call_out: Status-authorization call-out backend bundle (ADR-0046
+            Seam 2).  Its ``side_effects_guard_factory`` backs the
+            ``SideEffectsGuard`` Evaluator call-out that gates
+            ``ThreatTerminationBranchNode`` (embargo teardown) after the
+            canonical write (RSH-02).  Defaults to
+            ``STATUS_AUTHORIZATION_DETERMINISTIC`` (AlwaysSucceed); inject a
+            STOCHASTIC or REAL bundle to change the side-effect decision.
 
     Returns:
         Root node of the ``AddCaseStatusToCaseBT`` Sequence.

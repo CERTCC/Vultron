@@ -110,6 +110,10 @@ def test_bundle_fields_satisfy_protocol():
             "vultron.demo.fuzzer.bundles.close_report",
             "CloseReportCallOutBundle",
         ),
+        (
+            "vultron.demo.fuzzer.bundles.status_authorization",
+            "StatusAuthorizationCallOutBundle",
+        ),
     ],
 )
 def test_bundle_is_frozen_dataclass(module_path, class_name):
@@ -191,6 +195,11 @@ def test_bundle_is_frozen_dataclass(module_path, class_name):
             "CLOSE_REPORT_DETERMINISTIC",
             "CLOSE_REPORT_STOCHASTIC",
         ),
+        (
+            "vultron.demo.fuzzer.bundles.status_authorization",
+            "STATUS_AUTHORIZATION_DETERMINISTIC",
+            "STATUS_AUTHORIZATION_STOCHASTIC",
+        ),
     ],
 )
 def test_singletons_are_immutable(module_path, det_name, sto_name):
@@ -224,6 +233,7 @@ def test_bundles_init_re_exports_all_classes_and_singletons():
         "AssignCveIdCallOutBundle",
         "AssignVulIdCallOutBundle",
         "CloseReportCallOutBundle",
+        "StatusAuthorizationCallOutBundle",
     ]
     expected_singletons = [
         "VALIDATION_DETERMINISTIC",
@@ -246,6 +256,8 @@ def test_bundles_init_re_exports_all_classes_and_singletons():
         "ASSIGN_VUL_ID_STOCHASTIC",
         "CLOSE_REPORT_DETERMINISTIC",
         "CLOSE_REPORT_STOCHASTIC",
+        "STATUS_AUTHORIZATION_DETERMINISTIC",
+        "STATUS_AUTHORIZATION_STOCHASTIC",
     ]
     for name in expected_classes + expected_singletons:
         assert hasattr(
