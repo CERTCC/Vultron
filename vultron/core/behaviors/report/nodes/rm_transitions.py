@@ -17,7 +17,10 @@
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import (
+    DataLayerAction,
+    DataLayerActionWithPorts,
+)
 from vultron.core.models.dimensions import PecDimension, RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.case import VulnerabilityCase
@@ -96,14 +99,19 @@ def _transition_case_participant_rm(
     return Status.SUCCESS
 
 
-class TransitionRMtoValid(DataLayerAction):
-    """
-    Transition report to RM.VALID and offer to ACCEPTED.
+class TransitionRMtoValid(DataLayerActionWithPorts):
+    """Transition report to RM.VALID and offer to ACCEPTED.
 
-    Updates both report status (RM.VALID) and offer status (ACCEPTED) in the
-    status layer. Logs state transitions at INFO level.
+    Updates both report status (RM.VALID) and the CaseParticipant RM state.
+    Logs state transitions at INFO level.
 
-    This node implements the core state transition from the validate_report handler.
+    Input ports (inherited + declared):
+        datalayer (object, required): CasePersistence, remapped to /datalayer.
+        actor_id (str, required): Executing actor ID, remapped to /actor_id.
+        trigger_activity_factory (object, optional): remapped to
+            /trigger_activity_factory.
+
+    Per BTND-03-009: typed port declarations replace register_key().
     """
 
     def __init__(
@@ -113,17 +121,16 @@ class TransitionRMtoValid(DataLayerAction):
         sender_actor_id: str | None = None,
         name: str | None = None,
     ):
-        """
-        Initialize TransitionRMtoValid node.
+        """Initialize TransitionRMtoValid node.
 
         Args:
-            report_id: ID of VulnerabilityReport to update
-            offer_id: ID of Offer to update
+            report_id: ID of VulnerabilityReport to update.
+            offer_id: ID of Offer to update.
             sender_actor_id: Explicit actor ID to use instead of the blackboard
                 ``actor_id``.  Thread this in when the tree runs under
                 ``receiving_actor_id`` but the RM transition must target the
                 message sender (ADR-0022 single-BT pattern).
-            name: Optional custom node name (defaults to class name)
+            name: Optional custom node name (defaults to class name).
         """
         super().__init__(name=name or self.__class__.__name__)
         self.report_id = report_id

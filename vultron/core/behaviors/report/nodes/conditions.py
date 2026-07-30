@@ -19,6 +19,7 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import (
     DataLayerCondition,
+    DataLayerConditionWithPorts,
     FindParticipantByActorIdNode,
 )
 from vultron.core.states.rm import RM
@@ -26,14 +27,17 @@ from vultron.core.models._helpers import _report_phase_status_id
 from vultron.errors import VultronInvalidStateTransitionError
 
 
-class CheckRMStateValid(DataLayerCondition):
-    """
-    Check if report is already in RM.VALID state.
+class CheckRMStateValid(DataLayerConditionWithPorts):
+    """Check if report is already in RM.VALID state.
 
     Returns SUCCESS if report status is RM.VALID (early exit optimization).
     Returns FAILURE if report is in any other state.
 
-    This node implements the early-exit check from the simulation BT.
+    Input ports (inherited + declared):
+        datalayer (object, required): CasePersistence, remapped to /datalayer.
+        actor_id (str, required): Executing actor ID, remapped to /actor_id.
+
+    Per BTND-03-009: typed port declarations replace register_key().
     """
 
     def __init__(
@@ -42,28 +46,21 @@ class CheckRMStateValid(DataLayerCondition):
         sender_actor_id: str | None = None,
         name: str | None = None,
     ):
-        """
-        Initialize CheckRMStateValid node.
+        """Initialize CheckRMStateValid node.
 
         Args:
-            report_id: ID of VulnerabilityReport to check
+            report_id: ID of VulnerabilityReport to check.
             sender_actor_id: Explicit actor ID to use instead of the blackboard
                 ``actor_id``.  Thread this in when the tree runs under
                 ``receiving_actor_id`` but the RM check must target the message
                 sender (ADR-0022 single-BT pattern).
-            name: Optional custom node name (defaults to class name)
+            name: Optional custom node name (defaults to class name).
         """
         super().__init__(name=name or self.__class__.__name__)
         self.report_id = report_id
         self.sender_actor_id = sender_actor_id
 
     def update(self) -> Status:
-        """
-        Check if report is in RM.VALID state.
-
-        Returns:
-            SUCCESS if report is RM.VALID, FAILURE otherwise
-        """
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
@@ -88,14 +85,17 @@ class CheckRMStateValid(DataLayerCondition):
         return Status.FAILURE
 
 
-class CheckRMStateReceivedOrInvalid(DataLayerCondition):
-    """
-    Check if report is in RM.RECEIVED or RM.INVALID state.
+class CheckRMStateReceivedOrInvalid(DataLayerConditionWithPorts):
+    """Check if report is in RM.RECEIVED or RM.INVALID state.
 
     Returns SUCCESS if report is in acceptable precondition state.
     Returns FAILURE if report is in any other state (e.g., CLOSED, VALID).
 
-    This node implements the precondition check from the simulation BT.
+    Input ports (inherited + declared):
+        datalayer (object, required): CasePersistence, remapped to /datalayer.
+        actor_id (str, required): Executing actor ID, remapped to /actor_id.
+
+    Per BTND-03-009: typed port declarations replace register_key().
     """
 
     def __init__(
@@ -104,28 +104,21 @@ class CheckRMStateReceivedOrInvalid(DataLayerCondition):
         sender_actor_id: str | None = None,
         name: str | None = None,
     ):
-        """
-        Initialize CheckRMStateReceivedOrInvalid node.
+        """Initialize CheckRMStateReceivedOrInvalid node.
 
         Args:
-            report_id: ID of VulnerabilityReport to check
+            report_id: ID of VulnerabilityReport to check.
             sender_actor_id: Explicit actor ID to use instead of the blackboard
                 ``actor_id``.  Thread this in when the tree runs under
                 ``receiving_actor_id`` but the RM check must target the message
                 sender (ADR-0022 single-BT pattern).
-            name: Optional custom node name (defaults to class name)
+            name: Optional custom node name (defaults to class name).
         """
         super().__init__(name=name or self.__class__.__name__)
         self.report_id = report_id
         self.sender_actor_id = sender_actor_id
 
     def update(self) -> Status:
-        """
-        Check if report is in RM.RECEIVED or RM.INVALID state.
-
-        Returns:
-            SUCCESS if report is in acceptable state, FAILURE otherwise
-        """
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
@@ -151,38 +144,33 @@ class CheckRMStateReceivedOrInvalid(DataLayerCondition):
         return Status.SUCCESS
 
 
-class EnsureEmbargoExists(DataLayerCondition):
-    """
-    Check that the case linked to this report has an active embargo.
+class EnsureEmbargoExists(DataLayerConditionWithPorts):
+    """Check that the case linked to this report has an active embargo.
 
     Returns SUCCESS if the case exists and has a non-None ``active_embargo``.
     Returns FAILURE if the case is not found or its ``active_embargo`` is None.
 
-    This node implements DUR-07-004: an embargo end time MUST be established
-    before the case reaches RM.VALID. It runs after ``TransitionRMtoValid``
-    in ``ValidationActions`` to confirm that the default embargo seeded at
-    RM.RECEIVED (DUR-07-002, via ``InitializeDefaultEmbargoNode``) is
-    present before validation completes.
+    Implements DUR-07-004: an embargo end time MUST be established before the
+    case reaches RM.VALID.
+
+    Input ports (inherited + declared):
+        datalayer (object, required): CasePersistence, remapped to /datalayer.
+        actor_id (str, required): Executing actor ID, remapped to /actor_id.
+
+    Per BTND-03-009: typed port declarations replace register_key().
     """
 
     def __init__(self, report_id: str, name: str | None = None):
-        """
-        Initialize EnsureEmbargoExists node.
+        """Initialize EnsureEmbargoExists node.
 
         Args:
-            report_id: ID of VulnerabilityReport whose linked case to check
-            name: Optional custom node name (defaults to class name)
+            report_id: ID of VulnerabilityReport whose linked case to check.
+            name: Optional custom node name (defaults to class name).
         """
         super().__init__(name=name or self.__class__.__name__)
         self.report_id = report_id
 
     def update(self) -> Status:
-        """
-        Verify the case linked to this report has an active embargo.
-
-        Returns:
-            SUCCESS if case has active_embargo, FAILURE otherwise
-        """
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None

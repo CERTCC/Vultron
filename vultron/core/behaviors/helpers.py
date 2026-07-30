@@ -23,6 +23,15 @@ Per specs/behavior-tree-integration.yaml:
 - BT-07-001: BT nodes interact with DataLayer via Protocol interface
 - BT-07-002: BT nodes use type-safe DataLayer wrappers
 - BT-07-003: State transitions logged via DataLayer integration helpers
+
+Per specs/behavior-tree-node-design.yaml BTND-03-009 through BTND-03-011:
+- BTND-03-009: Typed-Ports nodes declare blackboard contracts via input_ports()
+  and output_ports() rather than imperative register_key() calls.
+- BTND-03-010: Typed-Ports nodes call setup_ports() in setup() with remappings
+  {"datalayer": "/datalayer", "actor_id": "/actor_id"} to wire the BTBridge
+  flat keys.
+- BTND-03-011: Typed-Ports nodes read injected values via get_input() in
+  initialise() rather than direct blackboard attribute access.
 """
 
 import logging
@@ -31,6 +40,7 @@ from typing import TYPE_CHECKING, Any, cast
 import py_trees
 from pydantic import BaseModel
 from py_trees.common import Status
+from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -686,3 +696,156 @@ class UpdateActorOutbox(DataLayerAction):
         except Exception as e:
             self.logger.error(f"{self.name}: Error updating actor outbox: {e}")
             return Status.FAILURE
+
+
+# ---------------------------------------------------------------------------
+# Typed-Ports base classes (BTND-03-009 through BTND-03-011)
+# ---------------------------------------------------------------------------
+
+# BTBridge writes datalayer and actor_id as flat root-level blackboard keys.
+# Ports nodes remap their port names to these absolute paths so that
+# get_input("datalayer") reads the same value that was written by
+# BTBridge.setup_tree().
+_DL_KEY = "/datalayer"
+_ACTOR_KEY = "/actor_id"
+
+
+class DataLayerConditionWithPorts(BehaviourWithPorts):
+    """Base class for typed-Ports BT condition nodes with DataLayer access.
+
+    Declares ``datalayer`` and ``actor_id`` as required input ports, remapped
+    to the flat BTBridge blackboard keys ``/datalayer`` and ``/actor_id``.
+    Subclasses must implement ``input_ports()``, ``output_ports()``, and
+    ``update()``.  They read injected values via ``get_input()`` in
+    ``initialise()``.
+
+    Per BTND-03-009: typed port declarations replace imperative register_key().
+    Per BTND-03-010: setup_ports() with remappings wires BTBridge flat keys.
+    Per BTND-03-011: get_input() replaces direct blackboard attribute access.
+    """
+
+    logger: logging.Logger  # type: ignore[assignment]
+
+    def __init__(self, name: str):
+        super().__init__(name=name)
+        self.logger = logging.getLogger(
+            f"{self.__class__.__module__}.{self.__class__.__name__}"
+        )
+        self.datalayer: CasePersistence | None = None
+        self.actor_id: str | None = None
+
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "datalayer": PortInformation(data_type=object, required=True),
+            "actor_id": PortInformation(data_type=str, required=True),
+        }
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {}
+
+    def setup(self, **kwargs: Any) -> None:
+        self.setup_ports(
+            port_remappings={"datalayer": _DL_KEY, "actor_id": _ACTOR_KEY}
+        )
+
+    def initialise(self) -> None:
+        self.datalayer = self.get_input("datalayer")
+        self.actor_id = self.get_input("actor_id")
+
+    def _require_datalayer(self) -> Status | None:
+        if self.datalayer is None:
+            self.feedback_message = "DataLayer not available"
+            return Status.FAILURE
+        return None
+
+    def _require_datalayer_and_actor(self) -> Status | None:
+        if self.datalayer is None or self.actor_id is None:
+            self.feedback_message = "DataLayer or actor_id not available"
+            return Status.FAILURE
+        return None
+
+    def update(self) -> Status:
+        raise NotImplementedError(
+            f"{self.__class__.__name__}.update() must be implemented"
+        )
+
+
+class DataLayerActionWithPorts(BehaviourWithPorts):
+    """Base class for typed-Ports BT action nodes with DataLayer access.
+
+    Declares ``datalayer``, ``actor_id``, and optionally
+    ``trigger_activity_factory`` as input ports, remapped to BTBridge flat
+    keys.  Subclasses must implement ``input_ports()``, ``output_ports()``,
+    and ``update()``.
+
+    Per BTND-03-009 through BTND-03-011.
+    """
+
+    logger: logging.Logger  # type: ignore[assignment]
+
+    def __init__(self, name: str):
+        super().__init__(name=name)
+        self.logger = logging.getLogger(
+            f"{self.__class__.__module__}.{self.__class__.__name__}"
+        )
+        self.datalayer: CasePersistence | None = None
+        self.actor_id: str | None = None
+        self.trigger_activity_factory: "TriggerActivityPort | None" = None
+
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        return {
+            "datalayer": PortInformation(data_type=object, required=True),
+            "actor_id": PortInformation(data_type=str, required=True),
+            "trigger_activity_factory": PortInformation(
+                data_type=object, required=False
+            ),
+        }
+
+    @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {}
+
+    def setup(self, **kwargs: Any) -> None:
+        self.setup_ports(
+            port_remappings={
+                "datalayer": _DL_KEY,
+                "actor_id": _ACTOR_KEY,
+                "trigger_activity_factory": "/trigger_activity_factory",
+            }
+        )
+
+    def initialise(self) -> None:
+        self.datalayer = self.get_input("datalayer")
+        self.actor_id = self.get_input("actor_id")
+        try:
+            self.trigger_activity_factory = self.get_input(
+                "trigger_activity_factory"
+            )
+        except NoDataAvailable:
+            self.trigger_activity_factory = None
+
+    def _require_datalayer(self) -> Status | None:
+        if self.datalayer is None:
+            self.feedback_message = "DataLayer not available"
+            return Status.FAILURE
+        return None
+
+    def _require_datalayer_and_actor(self) -> Status | None:
+        if self.datalayer is None or self.actor_id is None:
+            self.feedback_message = "DataLayer or actor_id not available"
+            return Status.FAILURE
+        return None
+
+    def _require_factory(self) -> Status | None:
+        if self.trigger_activity_factory is None:
+            self.feedback_message = "trigger_activity_factory not available"
+            return Status.FAILURE
+        return None
+
+    def update(self) -> Status:
+        raise NotImplementedError(
+            f"{self.__class__.__name__}.update() must be implemented"
+        )
