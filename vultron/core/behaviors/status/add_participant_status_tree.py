@@ -113,8 +113,12 @@ def add_participant_status_tree(
         Seam 1).  Its ``status_update_guard_factory`` backs the
         ``CaseOwnerApprovesStatusUpdate`` Evaluator call-out inside the
         ``StatusUpdateGuard`` Fallback (RSH-01).  Defaults to
-        ``STATUS_AUTHORIZATION_DETERMINISTIC`` (AlwaysSucceed); inject a
-        STOCHASTIC or REAL bundle to change the adoption decision.
+        ``STATUS_AUTHORIZATION_DETERMINISTIC`` (AlwaysSucceed).  This is a
+        defaulted injection seam: the ``StatusUpdateGuard`` node that reads
+        ``status_update_guard_factory`` lands in #1841, so the parameter is
+        accepted but not yet consumed by the tree body.  Once #1841 wires
+        the guard, injecting a STOCHASTIC or REAL bundle will change the
+        adoption decision.
 
     Returns:
         Root node of the ``AddParticipantStatusBT`` Sequence.

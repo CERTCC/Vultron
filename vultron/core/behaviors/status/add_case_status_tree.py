@@ -66,8 +66,12 @@ def add_case_status_tree(
             ``SideEffectsGuard`` Evaluator call-out that gates
             ``ThreatTerminationBranchNode`` (embargo teardown) after the
             canonical write (RSH-02).  Defaults to
-            ``STATUS_AUTHORIZATION_DETERMINISTIC`` (AlwaysSucceed); inject a
-            STOCHASTIC or REAL bundle to change the side-effect decision.
+            ``STATUS_AUTHORIZATION_DETERMINISTIC`` (AlwaysSucceed).  This is a
+            defaulted injection seam: the ``SideEffectsGuard`` node that reads
+            ``side_effects_guard_factory`` lands in #1842, so the parameter is
+            accepted but not yet consumed by the tree body.  Once #1842 wires
+            the guard, injecting a STOCHASTIC or REAL bundle will change the
+            side-effect decision.
 
     Returns:
         Root node of the ``AddCaseStatusToCaseBT`` Sequence.
