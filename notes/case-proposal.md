@@ -72,7 +72,8 @@ Vendor                              CaseActor Service
   |                                       |
   | <-- Create(VulnerabilityCase) ------- |
   |         actor: case-actor URI         |
-  |         context: Accept URI           |
+  |         context: case URI             |
+  |         in_reply_to: Accept URI       |
   |         [inline participants]         |
   |                                       |
   |    -- OR --                           |
@@ -105,12 +106,16 @@ activities back to the vendor:
 
 2. **`Create(VulnerabilityCase)`** — the actual case creation announcement.
    - `actor` = case-actor URI (preserving AS2 "I created this" semantics)
-   - `context` = URI of the `Accept(CaseProposal)` activity (proximate cause)
+   - `context` = URI of the new `VulnerabilityCase` (consistent with all
+     other case-scoped activities; required for inbox deferral routing)
+   - `in_reply_to` = URI of the `Accept(CaseProposal)` activity (causal
+     antecedent, in the AS2-correct field for responses)
 
-Setting `context` to the Accept URI (not the CaseProposal URI directly) was
-chosen because the `Accept` is the proximate causal decision. The proposal
-is already embedded in the Accept's `object_`, so causal traceability is
-preserved transitively.
+`in_reply_to` carries the Accept URI rather than putting it in `context`.
+AS2 defines `context` as a **scoping/grouping key** and `inReplyTo` as the
+field for **causal antecedents** (what this activity is responding to).
+The full causal chain is recoverable: `in_reply_to` → Accept → `object_`
+(inline `as_CaseProposal`). See ADR-0045.
 
 ### Step 2b: Case-actor rejects
 

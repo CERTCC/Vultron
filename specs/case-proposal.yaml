@@ -123,10 +123,13 @@ groups:
     kind: protocol
     statement: 'When accepting a proposal, the case-actor service MUST send two activities in sequence: first `Accept(as_CaseProposal)`
       (with the `as_CaseProposal` inline as `object_`), then `Create(VulnerabilityCase)` (with `actor` set to the case-actor
-      URI and `context` set to the URI of the `Accept(CaseProposal)` activity).'
+      URI, `context` set to the URI of the new `VulnerabilityCase`, and `in_reply_to` set to the URI of the
+      `Accept(CaseProposal)` activity).'
     rationale: '`Accept(CaseProposal)` acknowledges the vendor''s proposal. `Create(VulnerabilityCase)` with `actor=case-actor`
       preserves AS2 "I created this" semantics: only the authoritative creator MUST be the `actor` of a `Create` activity.
-      Setting `context` to the Accept URI establishes the proximate causal link.'
+      `context` MUST be the case URI (consistent with all other case-scoped activities; required for inbox deferral routing).
+      `in_reply_to` carries the causal antecedent (the Accept URI) in the AS2-correct field for responses.
+      See ADR-0045.'
   - id: CP-05-004
     priority: MUST
     kind: protocol

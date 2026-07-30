@@ -124,3 +124,21 @@ the proximate causal decision. The proposal is embedded inline in the Accept's
 - Notes: `notes/case-proposal.md`
 
 Generated spec requirements: `specs/case-proposal.yaml` CP-01 through CP-07.
+
+## Field Assignment Correction (2026-07-30)
+
+The original decision above specified `context = Accept(CaseProposal) URI` on
+`Create(VulnerabilityCase)` to record the proximate causal link. This was later
+found to violate AS2 semantics (context is a scoping key, not a causal
+antecedent) and to conflict with the inbox deferral router's assumption that
+`context` always carries the case URI.
+
+**Corrected assignment** (see ADR-0045):
+
+- `context` = URI of the new `VulnerabilityCase` (AS2 scoping key; consistent
+  with all other case-scoped activities)
+- `in_reply_to` = URI of the `Accept(CaseProposal)` activity (AS2 causal
+  antecedent field)
+
+The rest of this ADR — the `CaseProposal` vocabulary type, the two-activity
+positive-path flow, and the reject path — remains correct and unaffected.
