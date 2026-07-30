@@ -303,6 +303,17 @@ bundles. Derived from #1631 planning; implemented by #1152.
 demo scenarios or tests; designing the bundle/singleton layout in
 `vultron/demo/fuzzer/bundles/`; understanding the three-mode backend model.
 
+**`received-status-authorization.md`**
+Two-seam design for received-side CaseStatus canonicalization: StatusUpdateGuard
+(Seam 1 in `add_participant_status_tree`) for status adoption authorization,
+SideEffectsGuard + ThreatTerminationBranchNode (Seam 2 in `add_case_status_tree`)
+for embargo teardown. Documents CASE_OWNER gospel-bypass rationale, self-addressed
+Add(CaseStatus) threading pattern, and migration from PublicDisclosureBranchNode.
+Derived from IDEA-1836 / ADR-0046.
+**Load when**: implementing #1836 or any changes to received-side status handling,
+StatusUpdateGuard, SideEffectsGuard, or ThreatTerminationBranchNode;
+understanding the sentinel actor integration pattern.
+
 **`bt-fuzzer-nodes.md`**
 Index and background for the fuzzer node catalog. Fuzzer nodes are stub
 implementations in the legacy BT simulation (`vultron/bt/`) that stand in for

@@ -76,6 +76,7 @@ Load additional files only when the task touches the relevant area. See the
 | Case / state management | `case-management.yaml`, `state-machine.yaml`, `case-ledger-processing.yaml` |
 | Lifecycle-staged domain types | `lifecycle-staged-types.yaml`, `notes/lifecycle-staged-types.md` |
 | Status dimension objects (per-machine EM/PXA/RM/VFD/PEC decomposition) | `status-dimension-objects.yaml`, `notes/status-dimension-objects.md` |
+| Received-side status authorization (StatusUpdateGuard, SideEffectsGuard, ThreatTerminationBranchNode) | `received-status-handling.yaml`, `notes/received-status-authorization.md` |
 | CaseProposal protocol (distributed case actor initialization) | `case-proposal.yaml` |
 | Protocol conformance | `vultron-protocol-spec.yaml`, `vultron-as2-mapping.yaml`, `message-semantics-mapping.yaml` |
 | Wire vocabulary | `vocabulary-model.yaml` |
@@ -481,6 +482,7 @@ is reserved for `testability.yaml`).
 | `PROTO` | `prototype-shortcuts.yaml` |
 | `RF` | `response-format.yaml` |
 | `SE` | `semantic-extraction.yaml` |
+| `RSH` | `received-status-handling.yaml` |
 | `SDO` | `status-dimension-objects.yaml` |
 | `SM` | `state-machine.yaml` |
 | `SL` | `structured-logging.yaml` |

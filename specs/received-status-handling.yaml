@@ -1,0 +1,129 @@
+id: RSH
+title: Received-Side Status Authorization
+description: >
+  Requirements for the two-seam authorization model governing how a CaseActor
+  adopts an inbound participant's reported CaseStatus as canonical (Seam 1)
+  and whether to execute embargo teardown side-effects (Seam 2).
+  Derived from ADR-0046 and IDEA-1836 planning session.
+version: 0.1.0
+scope:
+- prototype
+- production
+tags:
+- behavior-tree
+- protocol
+- state-machine
+groups:
+- id: RSH-01
+  title: StatusUpdateGuard (Seam 1)
+  description: >
+    Controls whether a participant's reported CaseStatus is adopted as
+    canonical by the CaseActor.
+  specs:
+  - id: RSH-01-001
+    priority: MUST
+    kind: protocol
+    statement: >
+      `add_participant_status_tree` MUST include a StatusUpdateGuard node
+      positioned after `AppendParticipantStatusNode` and before any
+      canonicalization step.
+    rationale: >
+      Seam 1 of ADR-0046 — separates the "record the claim" step from the
+      "adopt the claim as canonical" decision.
+  - id: RSH-01-002
+    priority: MUST
+    kind: protocol
+    statement: >
+      StatusUpdateGuard MUST be implemented as a Fallback with two children:
+      (1) `CheckIsCaseOwnerNode` as a hard bypass and (2) a
+      `CaseOwnerApprovesStatusUpdate` Evaluator call-out point.
+    rationale: >
+      CASE_OWNER reports are authoritative by definition (gospel bypass).
+      Non-owner reports pass through a configurable approval seam per ADR-0046.
+  - id: RSH-01-003
+    priority: MUST
+    kind: protocol
+    statement: >
+      When StatusUpdateGuard passes, `add_participant_status_tree` MUST emit
+      a self-addressed `Add(CaseStatus, VulnerabilityCase)` activity to the
+      CaseActor acting as CASE_MANAGER.
+    rationale: >
+      The self-addressed Add(CaseStatus) threads the two seams together without
+      coupling the trees directly. See ADR-0046 §"Self-addressed pattern".
+  - id: RSH-01-004
+    priority: MUST_NOT
+    kind: protocol
+    statement: >
+      `add_participant_status_tree` MUST NOT directly execute embargo teardown
+      or other canonical-state side-effects; these MUST occur only via the
+      `add_case_status_tree` pipeline triggered by the self-addressed message.
+    rationale: >
+      Side-effects must run after the canonical write, which lives in
+      `add_case_status_tree`. Running teardown in `add_participant_status_tree`
+      would violate write-before-side-effect ordering.
+
+- id: RSH-02
+  title: SideEffectsGuard (Seam 2)
+  description: >
+    Controls whether embargo teardown or other side-effects execute after a
+    canonical CaseStatus write.
+  specs:
+  - id: RSH-02-001
+    priority: MUST
+    kind: protocol
+    statement: >
+      `add_case_status_tree` MUST include a `SideEffectsGuard` Evaluator
+      call-out node positioned after `AppendCaseStatusToCaseNode` and before
+      `ThreatTerminationBranchNode`.
+    rationale: >
+      Seam 2 of ADR-0046 — provides a hook to gate side-effect execution
+      independently of the canonical write authorization.
+  - id: RSH-02-002
+    priority: MUST
+    kind: protocol
+    statement: >
+      The default backend for `SideEffectsGuard` MUST be `AlwaysSucceed`,
+      preserving existing behavior until a real policy engine is wired in.
+    rationale: >
+      Prototype-stage default per ADR-0025 ceiling/floor rule. Changing the
+      default would alter existing demo behavior.
+
+- id: RSH-03
+  title: ThreatTerminationBranchNode
+  description: >
+    Node that triggers embargo teardown on any of the three threat-signal
+    CaseStatus flags.
+  specs:
+  - id: RSH-03-001
+    priority: MUST
+    kind: protocol
+    statement: >
+      `ThreatTerminationBranchNode` MUST trigger embargo teardown when the
+      canonical CaseStatus carries CS.P (public awareness), CS.X (exploit
+      public), or CS.A (attacks observed).
+    rationale: >
+      All three flags signal a breach of the conditions that justify an active
+      embargo. Covering only CS.P (as the prior `PublicDisclosureBranchNode`
+      did) leaves exploit and attack signals without a teardown trigger.
+  - id: RSH-03-002
+    priority: MUST_NOT
+    kind: protocol
+    statement: >
+      `ThreatTerminationBranchNode` MUST NOT gate teardown on sender role
+      (e.g., CASE_OWNER). Authorization is the responsibility of Seam 1;
+      by the time this node runs, the canonical write is already authorized.
+    rationale: >
+      Duplicating a CASE_OWNER gate here would prevent teardown when the
+      self-addressed `Add(CaseStatus)` arrives from the CaseActor itself
+      (sender = CASE_MANAGER, not CASE_OWNER).
+  - id: RSH-03-003
+    priority: MUST
+    kind: protocol
+    statement: >
+      `PublicDisclosureBranchNode` MUST be removed from
+      `add_participant_status_tree` and replaced by `ThreatTerminationBranchNode`
+      in `add_case_status_tree`.
+    rationale: >
+      The node belongs in the tree that writes canonical state. Its presence
+      in `add_participant_status_tree` predates the two-seam design and must
+      be migrated as part of implementing RSH-01 and RSH-02.

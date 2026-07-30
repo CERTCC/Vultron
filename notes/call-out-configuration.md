@@ -167,6 +167,7 @@ sub-module layout):
 | `AcquireExploitCallOutBundle` | Exploit acquisition | `create_acquire_exploit_tree`, `create_acquire_exploit_strategy_tree` |
 | `AssignVulIdCallOutBundle` | Vulnerability ID assignment | `create_assign_vul_id_tree` |
 | `CloseReportCallOutBundle` | Report closure | `create_close_report_tree` |
+| `StatusAuthorizationCallOutBundle` | Received-side status authorization | `add_participant_status_tree`, `add_case_status_tree` |
 
 ### PrioritizationCallOutBundle fields
 
@@ -209,6 +210,7 @@ vultron/core/behaviors/call_out/     ← core-owned seam
     acquire_exploit.py
     assign_vul_id.py
     close_report.py
+    status_authorization.py   ← StatusAuthorizationCallOutBundle + STATUS_AUTHORIZATION_DETERMINISTIC
 
 vultron/demo/fuzzer/                  ← simulation-only
   base.py           ← WeightedBehavior family (incl. its own AlwaysSucceed/Fail)
