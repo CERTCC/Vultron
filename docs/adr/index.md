@@ -94,6 +94,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0046 Two-Seam Authorization Model for Received-Side CaseStatus Canonicalization](0046-received-status-authorization.md) *(provisional)*
 - [ADR-0047 Report-to-Others Party Discovery: Sentinel Over Inline BT Loop](0047-report-to-others-sentinel-over-inline-bt.md)
 - [ADR-0048 PEC `NO_EMBARGO` Means Absence of Embargo, Not Pre-Consent](0048-pec-no-embargo-is-absence-not-pre-consent.md)
+- [ADR-0049 Core Does Not Model Inbound Protocol Error Message Types; No `create_inbound_error_followup_tree`](0049-core-does-not-model-error-message-types.md)
 
 ## Proposed ADRs
 

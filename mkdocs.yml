@@ -266,6 +266,7 @@ nav:
       - Two-Seam Received-Side Status Authorization: 'adr/0046-received-status-authorization.md'
       - Report-to-Others Party Discovery Sentinel: 'adr/0047-report-to-others-sentinel-over-inline-bt.md'
       - PEC NO_EMBARGO Is Absence Not Pre-Consent: 'adr/0048-pec-no-embargo-is-absence-not-pre-consent.md'
+      - No Core Error Message Types or Error-Followup Factory: 'adr/0049-core-does-not-model-error-message-types.md'
   - About:
     - Contributing: 'about/contributing.md'
     - FAQ: 'about/faq.md'
