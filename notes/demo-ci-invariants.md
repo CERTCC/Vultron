@@ -85,3 +85,68 @@ When a scenario phase is added or removed, update both:
 Both MUST change in the same PR per DEMOMA-16-008. Failure to update the spec
 is a latent silent-failure risk; failure to update the test means the new spec
 requirement is untested.
+
+---
+
+## Post-Merge Validation on `main` (DEMOCI-05)
+
+**Problem**: `demo-integration.yml` originally triggered only on
+`pull_request`, so the demo + invariant harness validated only the *ephemeral
+merge commit* (PR head merged onto `main` at test time) — never the actual
+merged `main` HEAD. Two PRs each green in isolation can interact to break
+`main`, and nothing re-ran the demos/invariants against the real merged result.
+Because the trigger is path-filtered, a broken `main` could persist untested
+until a *later* PR happened to touch a filtered path. The default branch had no
+demo/invariant baseline at all — the classic "green PRs, red main" failure mode
+(CONCERN-1859).
+
+**Design**: `demo-integration.yml` also triggers on `push` to `main` with the
+**same path filter** as the `pull_request` trigger (DEMOCI-02-003,
+DEMOCI-05-001). The on-main run executes the full demo + invariant-harness
+matrix against the merged `main` HEAD, producing a per-commit pass/fail signal.
+
+### Why `push` (with concurrency) rather than a cron schedule
+
+`push` gives an immediate per-commit signal with no blind window and preserves
+single-commit failure attribution for bisection. A `schedule:` cron was
+considered but rejected for this concern: it introduces up to a multi-hour
+blind window, runs even when nothing merged, and attributes failures to a
+commit *range* rather than a single commit. GitHub Actions has no native
+"run at most once every N hours" throttle for `push`; the cost is bounded
+instead by (a) the path filter — docs/spec-only merges cost nothing — and
+(b) the concurrency group.
+
+### Concurrency (DEMOCI-02-011, DEMOCI-05-002)
+
+A single workflow file serves both triggers, so `cancel-in-progress` is an
+expression: `true` off the default branch (PR bursts collapse to the newest
+commit), `false` on `main` (every qualifying merge runs to completion and keeps
+its own signal). Keyed on `${{ github.workflow }}-${{ github.ref }}`:
+
+```yaml
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+```
+
+Note: DEMOCI-02-011 was authored as a SHOULD but never implemented — neither
+workflow carried a `concurrency` block before CONCERN-1859. It is now a MUST
+and is wired on both triggers.
+
+### Cache-warm workflow removal (DEMOCI-05-003)
+
+`demo-image-cache-warm.yml` existed *only* because `demo-integration.yml` did
+not run on `main`: it built the demo images on push-to-main and exported them
+to the `demo-integration-main` GHA cache scope so new PR branches got a warm
+fallback cache (PR-branch caches are not visible across branches). Once the
+on-main run of `demo-integration.yml` exports that same scope, the dedicated
+cache-warm workflow is a redundant second image build and is **removed**. One
+on-main build now both validates the demo and warms the cache.
+
+### Out of scope: merge queue
+
+The concurrent-merge *interaction* gap (two green PRs that break `main` when
+combined) is only fully closed by a GitHub **merge queue**, which re-runs
+required checks against the actual merged result before landing. That is a
+larger branch-protection / required-checks decision tracked separately as a
+follow-up Idea; DEMOCI-05 only adds the post-merge baseline signal.
