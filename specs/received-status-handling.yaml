@@ -50,6 +50,14 @@ groups:
     rationale: >
       The self-addressed Add(CaseStatus) threads the two seams together without
       coupling the trees directly. See ADR-0046 §"Self-addressed pattern".
+    notes: >
+      Implementation pattern for obtaining the `CaseStatus` ID: read the
+      `ParticipantStatus` record by `participant_status_id`, extract the
+      embedded `.case_status` field (a `CaseStatus` object), persist it
+      idempotently via `datalayer.create()` (catching `ValueError` on
+      duplicate), then pass the resulting `case_status.id_` to the factory.
+      If `.case_status` is absent on the `ParticipantStatus`, the node MUST
+      return FAILURE (ISSUE-1841).
   - id: RSH-01-004
     priority: MUST_NOT
     kind: protocol

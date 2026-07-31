@@ -1,7 +1,7 @@
 ---
 title: "Bug #1787 was already fixed on main but left open with no Closes footer"
 type: learning
-timestamp: 2026-07-29
+timestamp: "2026-07-29T00:00:00Z"
 source: ISSUE-1787
 signal: process-issue
 ---
@@ -25,3 +25,6 @@ before writing any code. If the fix is present, pivot the session to what is
 actually missing (usually a regression test) rather than re-applying the fix,
 and ensure the closing PR carries `Closes #N`. When a docs/learn PR fixes a bug
 as a side effect, it MUST include the `Closes #N` footer for that bug issue.
+
+**Promoted**: 2026-07-31 — captured in `AGENTS.md` (Closes #N pitfall entries).
+Docs PR: TBD.

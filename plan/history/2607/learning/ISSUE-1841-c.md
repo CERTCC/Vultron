@@ -2,7 +2,7 @@
 title: Issue #1841 and #1843 overlap on StatusAuthorizationCallOutBundle
 type: learning
 timestamp: 2026-07-30T00:00:00Z
-source: ISSUE-1841
+source: ISSUE-1841-c
 signal: process-issue
 ---
 
@@ -16,3 +16,6 @@ updated to note that Seam 1 is already done and to focus on adding Seam 2 fields
 (`side_effects_guard_factory`) and the stochastic singleton when Seam 2 work lands.
 
 Alternatively, #1843 could be closed once the Seam 2 issue is created and tracked separately.
+
+**Promoted**: 2026-07-31 — process note only; no durable doc update needed. Tracked in the issues themselves (#1841 closed, #1843 updated).
+Docs PR: TBD.

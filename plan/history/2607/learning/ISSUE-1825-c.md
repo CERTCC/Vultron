@@ -1,8 +1,8 @@
 ---
 title: "create_deploy_fix_tree omits legacy non-vendor public-aware deploy gate"
 type: learning
-timestamp: 2026-07-30
-source: ISSUE-1825
+timestamp: "2026-07-30T00:00:00Z"
+source: ISSUE-1825-c
 signal: design-question
 ---
 
@@ -27,3 +27,6 @@ for non-vendor deployers, file a follow-up issue to add a
 `CSinStateNotDeployedButPublicAware`-equivalent guard to the deploy arm (or
 confirm in the spec that vendor-role gating alone is sufficient). See
 [[20260730-1825-checkcsfixnotyetdeployed-guard-strength]].
+
+**Promoted**: 2026-07-31 — captured in `notes/do-work-behaviors.md` (deploy-fix public-aware precondition section).
+Docs PR: TBD.

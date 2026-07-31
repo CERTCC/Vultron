@@ -1,7 +1,7 @@
 ---
 title: Cross-actor TestClient router must offload blocking POST off the portal loop
 type: learning
-timestamp: 2026-07-29
+timestamp: "2026-07-29T00:00:00Z"
 source: ISSUE-1779
 signal: design-question
 ---
@@ -47,3 +47,6 @@ Candidate destination if promoted: `test/AGENTS.md` §"SYNC Replication Test
 Patterns" or a short note under `notes/` on the multi-actor test harness
 threading model. Relates to [[sync-ledger-adapter-write-conflict]] (same
 isolated-app harness).
+
+**Promoted**: 2026-07-31 — captured in `notes/codebase-structure-fastapi-patterns.md` (cross-actor TestClient threading section).
+Docs PR: TBD.

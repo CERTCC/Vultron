@@ -252,6 +252,38 @@ objects/vultron_actor.py` (`VultronActorMixin.embargo_policy`).
 
 ---
 
+---
+
+## Deploy-Fix Tree: Non-Vendor Public-Aware Precondition Is Not Implemented
+
+(ISSUE-1825, 2026-07-30)
+
+The **legacy** `Deployment` tree (`vultron/bt/report_management/_behaviors/
+deploy_fix.py`) gated non-vendor deployers via:
+
+```text
+_DecideAbilityToDeploy = RoleIsVendor OR CSinStateNotDeployedButPublicAware
+```
+
+A non-vendor deployer (e.g., Deployer role only) could only deploy a fix after
+the case became public. The **new** `create_deploy_fix_tree`
+(ISSUE-1825 AC-1) gates only on `CheckDeployerRoleNode` +
+`CheckRMStateAccepted` + `CheckCSFixNotYetDeployed` + call-outs — the
+public-aware check for non-vendor deployers was **not re-introduced**.
+
+**This is a protocol-behavior difference from the legacy simulation.** A
+non-vendor deployer can now deploy before public awareness. This was accepted
+as a best-judgment call (honoring the AC as written, not re-introducing the
+legacy gate as an unscoped expansion).
+
+**If MPCVD correctness requires the public-aware precondition**: add a
+`CheckCSPublicAwareOrVendorDeployer` guard node to the `_DeployFixIfReady`
+arm. That change requires a spec entry and potentially an ADR amendment.
+
+<!-- Source: ISSUE-1825 -->
+
+---
+
 ## Relationship to Specifications
 
 | Topic | Specification |

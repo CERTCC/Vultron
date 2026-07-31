@@ -2,7 +2,7 @@
 title: Revise a recent ADR in place rather than appending an amendment that contradicts it
 type: learning
 timestamp: "2026-07-31T00:30:00+00:00"
-source: ISSUE-1777
+source: ISSUE-1777-e
 signal: process-issue
 ---
 
@@ -32,3 +32,6 @@ why — enough for provenance, not a narrative. If the decision itself changed,
 supersede and archive instead. Amendment sections suit genuinely *additive*
 discoveries (ADR-0024's fifth node shape), not corrections. Recent authorship
 strengthens the case for revision: little has been built on the wrong text yet.
+
+**Promoted**: 2026-07-31 — captured in `docs/adr/index.md` (Revising vs. amending an ADR section).
+Docs PR: TBD.

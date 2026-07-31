@@ -320,6 +320,42 @@ without modification; no new mechanism is needed.
 
 ---
 
+## Production-Only Domains: STOCHASTIC Bundle Without Fuzzer Nodes
+
+(ISSUE-1843, 2026-07-30)
+
+Some call-out domains are **production-only patterns** with no legacy simulator
+counterpart — the call-out seams did not exist in the old `vultron/bt/`
+simulation and no named probabilistic fuzzer classes were written for them.
+`StatusAuthorizationCallOutBundle` (ADR-0046, #1843) is the first such domain.
+
+**How to build the STOCHASTIC singleton for a production-only domain**:
+
+Use the **generic `WeightedBehavior` subclass whose success rate equals the
+`p` implied by the DETERMINISTIC ceiling**:
+
+- DETERMINISTIC ceiling is `AlwaysSucceed` (p → 1.0): use `AlmostAlwaysSucceed`
+  (p = 0.90) for the STOCHASTIC singleton.
+- DETERMINISTIC ceiling is `AlwaysFail` (p → 0.0): use `AlmostAlwaysFail` for
+  the STOCHASTIC singleton.
+
+**Rationale**: `AlmostAlwaysSucceed` (p = 0.90) matches the p = 0.90
+convention used by other Evaluator call-outs (e.g., report credibility/validity)
+and aligns with the ceiling/floor rule already established for all other
+domains. It still occasionally exercises the reject/block path during fuzz
+runs — which a literal mirror of DETERMINISTIC (both `AlwaysSucceed`) would
+not.
+
+**Contrast with domains that have fuzzer node counterparts**: For domains with
+existing named simulator nodes (e.g., `EvaluateReportCredibility`), the
+STOCHASTIC singleton wires those named classes directly. Only for production-
+only domains does the generic `AlmostAlwaysSucceed`/`AlmostAlwaysFail`
+fallback apply.
+
+<!-- Source: ISSUE-1843; user confirmed the AlmostAlwaysSucceed choice -->
+
+---
+
 ## Relationship to ADR-0025
 
 ADR-0025 established the factory injection seam but left the question of

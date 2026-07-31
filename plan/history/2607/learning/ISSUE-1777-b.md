@@ -2,7 +2,7 @@
 title: Leaf modules sitting at the BTND-07-004 500-line cap block documentation edits
 type: learning
 timestamp: "2026-07-30T22:05:00+00:00"
-source: ISSUE-1777
+source: ISSUE-1777-b
 signal: concern
 ---
 
@@ -25,3 +25,6 @@ semantic concern into a sibling submodule (BTND-07-006) *before* writing the
 documentation, rather than trimming prose to fit. Here the canonical-entry
 validation concern moved to `sync/nodes/canonical_entry.py`, taking chain.py to
 340 lines. Other leaf modules near the cap are worth a sweep — this will recur.
+
+**Promoted**: 2026-07-31 — captured in `AGENTS.md` (leaf modules near 500-line cap pitfall).
+Docs PR: TBD.

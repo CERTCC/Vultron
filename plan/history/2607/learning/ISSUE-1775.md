@@ -1,7 +1,7 @@
 ---
 title: build Phase 7 references a code-review agent type that does not exist
 type: learning
-timestamp: 2026-07-29
+timestamp: "2026-07-29T00:00:00Z"
 source: ISSUE-1775
 signal: tooling-issue
 ---
@@ -31,3 +31,6 @@ Either (a) register a dedicated `code-review` agent type, or (b) update the
 spawn a `general-purpose` agent with a standard review prompt. The current
 wording causes an "Agent type not found" failure that a strict reading of the
 skill cannot recover from.
+
+**Promoted**: 2026-07-31 — captured in `AGENTS.md` (use general-purpose agent with explicit review prompt when code-review agent type is unavailable).
+Docs PR: TBD.

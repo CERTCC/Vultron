@@ -2,7 +2,7 @@
 title: EmitAddCaseStatusToSelfNode CaseStatus extraction from ParticipantStatus
 type: learning
 timestamp: 2026-07-30T00:00:00Z
-source: ISSUE-1841
+source: ISSUE-1841-b
 signal: spec-ambiguity
 ---
 
@@ -22,3 +22,6 @@ This pattern relies on `ParticipantStatus.case_status` being populated at the ti
 `EmitAddCaseStatusToSelfNode` runs. If the field is `None`, the node returns FAILURE.
 The spec should be updated to explicitly state that `CaseStatus` is extracted from the
 embedded field of the `ParticipantStatus` record.
+
+**Promoted**: 2026-07-31 — captured in `specs/received-status-handling.yaml` RSH-01-003 notes field.
+Docs PR: TBD.

@@ -1,9 +1,9 @@
 ---
 title: "ADR-0025 amendment created a core→demo import inversion (blocks #1732)"
 type: learning
-timestamp: "2026-07-29"
-source: ISSUE-1732
-signal: architecture-violation
+timestamp: "2026-07-29T00:00:00Z"
+source: ISSUE-1732-adr-inversion
+signal: design-question
 ---
 
 While scoping #1732 (in-process fuzz simulation scenario), found that ADR-0025's
@@ -34,3 +34,6 @@ amendment to record the correction.
 Tracked as #1793, wired to block #1732. The seam-injection mechanism for #1732
 (threading `call_out` explicitly through `TriggerService` → `Svc*UseCase` →
 `_build_tree`) is chosen but implemented after #1793 lands.
+
+**Promoted**: 2026-07-31 — fixed in code via PR #1793 (ADR-0025 correction); architecture boundary now enforced by `test/architecture/test_core_no_demo_imports.py`. No additional durable doc update needed.
+Docs PR: TBD.
