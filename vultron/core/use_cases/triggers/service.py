@@ -38,6 +38,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
+from vultron.enums.roles import CVDRole
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases.triggers.actor import (
     SvcAcceptActorRecommendationUseCase,
@@ -488,19 +489,17 @@ class TriggerService:
         actor_id: str,
         case_id: str,
         target_actor_id: str,
-        role: str = "CASE_MANAGER",
+        role: CVDRole = CVDRole.CASE_MANAGER,
     ) -> dict[str, Any]:
         """Offer a CVDRole to a target Actor via the canonical ADR-0039 wire format.
 
         Emits ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``.
         """
-        from vultron.enums.roles import CVDRole
-
         req = OfferCaseParticipantRoleTriggerRequest(
             actor_id=actor_id,
             case_id=case_id,
             target_actor_id=target_actor_id,
-            role=CVDRole(role),
+            role=role,
         )
         return SvcOfferCaseParticipantRoleUseCase(
             self._dl, req, trigger_activity=self._trigger_activity

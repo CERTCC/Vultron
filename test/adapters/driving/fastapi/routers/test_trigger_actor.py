@@ -445,6 +445,79 @@ def test_trigger_offer_case_manager_role_no_case_actor_returns_404(
 
 
 # ===========================================================================
+# Tests for trigger/offer-case-participant-role
+# ===========================================================================
+
+
+@pytest.fixture
+def target_actor(dl):
+    """A second actor to receive the role offer."""
+    target = as_Service(name="Target Actor")
+    dl.create(target)
+    return target
+
+
+def test_trigger_offer_case_participant_role_returns_202(
+    client_triggers, actor, case_obj, target_actor
+):
+    """POST /actors/{id}/trigger/offer-case-participant-role returns 202."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/offer-case-participant-role",
+        json={
+            "case_id": case_obj.id_,
+            "target_actor_id": target_actor.id_,
+            "role": "case_manager",
+        },
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_offer_case_participant_role_response_contains_activity(
+    client_triggers, actor, case_obj, target_actor
+):
+    """Successful trigger response body contains 'activity' key with Offer type."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/offer-case-participant-role",
+        json={
+            "case_id": case_obj.id_,
+            "target_actor_id": target_actor.id_,
+        },
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    data = resp.json()
+    assert "activity" in data
+    assert data["activity"] is not None
+    assert data["activity"]["type"] == "Offer"
+
+
+def test_trigger_offer_case_participant_role_missing_required_fields_returns_422(
+    client_triggers, actor
+):
+    """Missing case_id or target_actor_id returns HTTP 422."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/offer-case-participant-role",
+        json={"role": "CASE_MANAGER"},
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+def test_trigger_offer_case_participant_role_unknown_actor_returns_404(
+    client_triggers,
+):
+    """Unknown actor_id returns HTTP 404."""
+    resp = client_triggers.post(
+        "/actors/nonexistent-actor/trigger/offer-case-participant-role",
+        json={
+            "case_id": "urn:uuid:any-case",
+            "target_actor_id": "urn:uuid:any-actor",
+        },
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+    data = resp.json()
+    assert data["detail"]["error"] == "NotFound"
+
+
+# ===========================================================================
 # Tests for trigger/invite-actor-to-case
 # ===========================================================================
 
