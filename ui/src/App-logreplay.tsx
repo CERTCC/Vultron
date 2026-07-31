@@ -159,6 +159,9 @@ function AppLogReplay() {
   const [demoState, setDemoState] = useState<DemoState | null>(null)
   const [accumulatedEntries, setAccumulatedEntries] = useState<CaseLedgerEntry[]>([])
   const [uploadCount, setUploadCount] = useState(0)
+  // Human-readable name of the pre-given scenario currently loaded (shown in the
+  // Case Timeline header). Null when the case came from a manual file upload.
+  const [loadedScenarioName, setLoadedScenarioName] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [hoveredEvent, setHoveredEvent] = useState<string | null>(null)
@@ -199,6 +202,8 @@ function AppLogReplay() {
       const allEntries = shouldAccumulate ? [...accumulatedEntries, ...newEntries] : newEntries
       setAccumulatedEntries(allEntries)
       setUploadCount(prev => prev + 1)
+      // Manual uploads aren't one of the named catalog scenarios.
+      setLoadedScenarioName(null)
 
       rebuildFromEntries(allEntries)
     } catch (err) {
@@ -232,8 +237,12 @@ function AppLogReplay() {
   }, [rebuildFromEntries])
 
   // Load any catalog scenario by its raw ledger + title (data-driven picker).
+  // Record its name (title minus the leading ▶/⚠️ glyph) for the timeline header.
   const handleLoadScenario = useCallback(
-    (scenario: SampleScenario) => loadRawLedger(scenario.raw, scenario.title),
+    (scenario: SampleScenario) => {
+      loadRawLedger(scenario.raw, scenario.title)
+      setLoadedScenarioName(scenario.title.replace(/^[▶⚠️\s]+/, '').trim())
+    },
     [loadRawLedger]
   )
 
@@ -249,6 +258,7 @@ function AppLogReplay() {
     setUploadCount(0)
     setCurrentEventIndex(0)
     setError(null)
+    setLoadedScenarioName(null)
   }, [])
 
   // Playback controls
@@ -657,6 +667,19 @@ function AppLogReplay() {
           <h3 style={{ margin: 0, color: 'white', fontSize: '1.125rem' }}>
             Case Timeline ({demoState.timelineEvents.length} events)
           </h3>
+          {loadedScenarioName && (
+            <span style={{
+              color: '#90caf9',
+              fontSize: '0.9rem',
+              fontWeight: 'bold',
+              padding: '0.125rem 0.5rem',
+              background: 'rgba(144, 202, 249, 0.15)',
+              borderRadius: '4px',
+              whiteSpace: 'nowrap',
+            }}>
+              {loadedScenarioName}
+            </span>
+          )}
           <div style={{
             marginLeft: 'auto',
             display: 'flex',
@@ -857,7 +880,11 @@ function AppLogReplay() {
             top: 0,
             left: 0,
             right: 0,
-            bottom: eventLogCollapsed ? '40px' : '200px',
+            // Fill the whole timeline column. The Event Log is now a sibling of the
+            // body row (root-column level, like the Multi-Vendor demo) rather than
+            // an overlay inside this column — so the sidebar and timeline scroll
+            // viewports are always the same height and vertical scroll stays synced.
+            bottom: 0,
             overflowY: 'auto',
             overflowX: 'auto',
             background: '#fafafa',
@@ -1181,75 +1208,76 @@ function AppLogReplay() {
             })()}
           </div>
         </div>
+      </div>
+      </div>
 
-        {/* Event log panel */}
-        <div style={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: eventLogCollapsed ? '40px' : '200px',
-          background: '#2d2d2d',
-          borderTop: '2px solid #0d47a1',
-          transition: 'height 0.3s ease',
-        }}>
-          <div
-            onClick={() => setEventLogCollapsed(!eventLogCollapsed)}
+      {/* Event log panel — a root-column sibling of the body row (matching the
+          Multi-Vendor demo), so it spans the FULL width beneath both the sidebar
+          and the timeline. Keeping it out of the timeline column is also what keeps
+          the sidebar/timeline scroll viewports the same height (see the timeline
+          scroll container's `bottom: 0`). */}
+      <div style={{
+        flexShrink: 0,
+        height: eventLogCollapsed ? '40px' : '200px',
+        background: '#2d2d2d',
+        borderTop: '2px solid #0d47a1',
+        transition: 'height 0.3s ease',
+      }}>
+        <div
+          onClick={() => setEventLogCollapsed(!eventLogCollapsed)}
+          style={{
+            height: '40px',
+            display: 'flex',
+            alignItems: 'center',
+            padding: '0 1rem',
+            cursor: 'pointer',
+            background: '#0d47a1',
+            color: 'white',
+            fontWeight: 'bold',
+          }}
+        >
+          <span>Event Log ({demoState.eventLog.length} entries)</span>
+          <button
+            onClick={(e) => {
+              e.stopPropagation() // don't toggle collapse when copying
+              handleCopyEventLog()
+            }}
+            disabled={demoState.eventLog.length === 0}
+            title="Copy the full event log to the clipboard"
             style={{
-              height: '40px',
-              display: 'flex',
-              alignItems: 'center',
-              padding: '0 1rem',
-              cursor: 'pointer',
-              background: '#0d47a1',
+              marginLeft: 'auto',
+              padding: '0.2rem 0.6rem',
+              fontSize: '0.75rem',
+              background: eventLogCopied ? '#4caf50' : 'rgba(255,255,255,0.15)',
               color: 'white',
-              fontWeight: 'bold',
+              border: '1px solid rgba(255,255,255,0.4)',
+              borderRadius: '4px',
+              cursor: demoState.eventLog.length === 0 ? 'not-allowed' : 'pointer',
             }}
           >
-            <span>Event Log ({demoState.eventLog.length} entries)</span>
-            <button
-              onClick={(e) => {
-                e.stopPropagation() // don't toggle collapse when copying
-                handleCopyEventLog()
-              }}
-              disabled={demoState.eventLog.length === 0}
-              title="Copy the full event log to the clipboard"
-              style={{
-                marginLeft: 'auto',
-                padding: '0.2rem 0.6rem',
-                fontSize: '0.75rem',
-                background: eventLogCopied ? '#4caf50' : 'rgba(255,255,255,0.15)',
-                color: 'white',
-                border: '1px solid rgba(255,255,255,0.4)',
-                borderRadius: '4px',
-                cursor: demoState.eventLog.length === 0 ? 'not-allowed' : 'pointer',
-              }}
-            >
-              {eventLogCopied ? '✓ Copied' : '📋 Copy'}
-            </button>
-            <span style={{ marginLeft: '0.75rem' }}>
-              {eventLogCollapsed ? '▲' : '▼'}
-            </span>
-          </div>
-
-          {!eventLogCollapsed && (
-            <div style={{
-              height: '160px',
-              overflowY: 'auto',
-              padding: '0.5rem 1rem',
-              fontFamily: 'monospace',
-              fontSize: '0.875rem',
-              color: '#ddd',
-            }}>
-              {demoState.eventLog.map((log, idx) => (
-                <div key={idx} style={{ marginBottom: '0.25rem' }}>
-                  {log}
-                </div>
-              ))}
-            </div>
-          )}
+            {eventLogCopied ? '✓ Copied' : '📋 Copy'}
+          </button>
+          <span style={{ marginLeft: '0.75rem' }}>
+            {eventLogCollapsed ? '▲' : '▼'}
+          </span>
         </div>
-      </div>
+
+        {!eventLogCollapsed && (
+          <div style={{
+            height: '160px',
+            overflowY: 'auto',
+            padding: '0.5rem 1rem',
+            fontFamily: 'monospace',
+            fontSize: '0.875rem',
+            color: '#ddd',
+          }}>
+            {demoState.eventLog.map((log, idx) => (
+              <div key={idx} style={{ marginBottom: '0.25rem' }}>
+                {log}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
