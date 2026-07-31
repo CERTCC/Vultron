@@ -22,18 +22,23 @@ The tree no longer creates a VulnerabilityCase.  Instead it:
    (ProposeReportCaseToActorNode).
 
 Tests are grouped by concern:
-- TestTreeStructure   — root shape, child count, node types
-- TestPolicyGate      — auto_create_case=False skips the flow
-- TestHappyPath       — link written + proposal queued
-- TestIdempotency     — second run is a no-op (CP-04-001)
+- TestTreeStructure       — root shape, child count, node types
+- TestPolicyGate          — auto_create_case=False skips the flow
+- TestHappyPath           — link written + proposal queued
+- TestIdempotency         — second run is a no-op (CP-04-001)
+- TestConcurrentExecution — two parallel invocations don't corrupt each other
+                            (BTND-03-004)
 
 Fixtures defined in conftest.py and shared with sibling tree test files.
 """
 
-import pytest
+import threading
+
 import py_trees
+import pytest
 from py_trees.common import Status
 
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes import (
     CheckAutoCaseCreationEnabledNode,
     CheckPendingProposalExistsForReport,
@@ -567,3 +572,176 @@ class TestIdempotency:
         assert (
             count_after_retry > count_before_retry
         ), "Re-triggering after proposal_rejected=True must enqueue a new proposal"
+
+
+# ============================================================================
+# Concurrent execution tests (BTND-03-004)
+# ============================================================================
+
+
+class TestConcurrentExecution:
+    """Two parallel invocations with distinct report_ids don't corrupt each other.
+
+    The py_trees blackboard is process-global (BTND-03-004).  The slimmed
+    tree uses only constructor-injected ``report_id`` values (not inter-node
+    handoff blackboard keys), so concurrent executions for distinct reports
+    MUST NOT corrupt each other's DataLayer state.
+
+    This class exercises the ``_BT_GLOBAL_LOCK`` serialisation in
+    ``BTBridge.execute_with_setup`` and verifies that per-report isolation
+    holds even when two bridge instances race on the global lock.
+    """
+
+    @staticmethod
+    def _make_report_offer(
+        datalayer, reporter_actor_id, actor_id, report_id, name, content
+    ):
+        from vultron.wire.as2.factories import rm_submit_report_activity
+        from vultron.wire.as2.vocab.objects.vulnerability_report import (
+            as_VulnerabilityReport,
+        )
+
+        report = as_VulnerabilityReport(
+            id_=report_id, name=name, content=content
+        )
+        datalayer.create(report)
+        offer = rm_submit_report_activity(
+            report=report, actor=reporter_actor_id, to=actor_id
+        )
+        datalayer.create(offer)
+        return report, offer
+
+    @staticmethod
+    def _spawn_and_join(datalayer, actor_id, reporter_actor_id, pairs):
+        """Spawn one thread per (report, offer, key) pair; join all; return results dict.
+
+        ``pairs`` is a list of ``(report_obj, offer_obj, key_str)`` tuples.
+        Returns ``{key: Status}`` for each thread that completed successfully.
+        Asserts no deadlock (``is_alive()`` after join) and no thread errors.
+        Both ``results`` and ``errors`` are written under the same lock so
+        all inter-thread writes are consistently protected.
+        """
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+
+        results: dict[str, Status] = {}
+        errors: list[str] = []
+        _lock = threading.Lock()
+
+        def _run(
+            report_id: str, offer_id: str, offer: object, key: str
+        ) -> None:
+            try:
+                bridge = BTBridge(
+                    datalayer=datalayer,
+                    trigger_activity=TriggerActivityAdapter(datalayer),
+                )
+                tree = create_receive_report_case_tree(
+                    report_id=report_id,
+                    offer_id=offer_id,
+                    reporter_actor_id=reporter_actor_id,
+                )
+                result = bridge.execute_with_setup(
+                    tree=tree, actor_id=actor_id, activity=offer
+                )
+                with _lock:
+                    results[key] = result.status
+            except Exception as exc:
+                with _lock:
+                    errors.append(f"{key}: {exc}")
+
+        threads = [
+            threading.Thread(target=_run, args=(r.id_, o.id_, o, k))
+            for r, o, k in pairs
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=10)
+
+        for i, t in enumerate(threads):
+            assert (
+                not t.is_alive()
+            ), f"Thread {i} timed out — possible deadlock"
+        assert not errors, f"Thread errors: {errors}"
+        return results
+
+    def test_two_threads_both_succeed(
+        self,
+        datalayer,
+        actor,
+        reporter_actor_id,
+    ):
+        """Both threads complete with Status.SUCCESS (BTND-03-004)."""
+        report_a, offer_a = self._make_report_offer(
+            datalayer,
+            reporter_actor_id,
+            actor.id_,
+            "https://example.org/reports/CONCURRENT-A",
+            "Concurrent Report A",
+            "Test content A",
+        )
+        report_b, offer_b = self._make_report_offer(
+            datalayer,
+            reporter_actor_id,
+            actor.id_,
+            "https://example.org/reports/CONCURRENT-B",
+            "Concurrent Report B",
+            "Test content B",
+        )
+        results = self._spawn_and_join(
+            datalayer,
+            actor.id_,
+            reporter_actor_id,
+            [(report_a, offer_a, "a"), (report_b, offer_b, "b")],
+        )
+        assert (
+            results.get("a") == Status.SUCCESS
+        ), f"Thread A status: {results.get('a')}"
+        assert (
+            results.get("b") == Status.SUCCESS
+        ), f"Thread B status: {results.get('b')}"
+
+    def test_two_threads_produce_distinct_links(
+        self,
+        datalayer,
+        actor,
+        reporter_actor_id,
+    ):
+        """Each thread writes its own VultronReportCaseLink; two distinct records exist."""
+        report_a, offer_a = self._make_report_offer(
+            datalayer,
+            reporter_actor_id,
+            actor.id_,
+            "https://example.org/reports/LINK-A",
+            "Link Report A",
+            "Content A",
+        )
+        report_b, offer_b = self._make_report_offer(
+            datalayer,
+            reporter_actor_id,
+            actor.id_,
+            "https://example.org/reports/LINK-B",
+            "Link Report B",
+            "Content B",
+        )
+        self._spawn_and_join(
+            datalayer,
+            actor.id_,
+            reporter_actor_id,
+            [(report_a, offer_a, "a"), (report_b, offer_b, "b")],
+        )
+
+        link_a = datalayer.read(VultronReportCaseLink.build_id(report_a.id_))
+        link_b = datalayer.read(VultronReportCaseLink.build_id(report_b.id_))
+
+        assert isinstance(
+            link_a, VultronReportCaseLink
+        ), "VultronReportCaseLink for report A must exist"
+        assert isinstance(
+            link_b, VultronReportCaseLink
+        ), "VultronReportCaseLink for report B must exist"
+        assert link_a.report_id == report_a.id_
+        assert link_b.report_id == report_b.id_
+        assert link_a.id_ != link_b.id_, "Links must be distinct records"
