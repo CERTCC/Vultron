@@ -184,6 +184,26 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-05-001
+  - id: DEMOMA-05-004
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      Demo trigger endpoints and demo helper functions MUST NOT manipulate an actor's
+      DataLayer directly (e.g., calling `add_participant_status` or equivalent) or write
+      directly to an actor's outbox as a substitute for invoking a triggerable use case.
+      Puppeteering an actor means calling a trigger endpoint that invokes the actor's own
+      use case, which in turn emits the correct protocol message and awaits any required
+      round-trip confirmation (e.g., a CaseActor ledger entry).
+    rationale: >-
+      Direct DataLayer writes bypass the protocol entirely: no ActivityStreams message is
+      emitted, no CaseActor ledger round-trip occurs, and the actor's local state is never
+      established through the protocol. This produces demos that appear to work but do not
+      exercise the real protocol path. For example, a demo that stamps RM.CLOSED directly
+      via `add_participant_status` gives the appearance that the participant left the case,
+      but no `Leave(VulnerabilityCase)` message was ever sent or confirmed by the CaseActor.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-05-001
 - id: DEMOMA-06
   title: FV Scenario Workflow
   trigger:
