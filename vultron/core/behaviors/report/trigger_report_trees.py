@@ -184,8 +184,8 @@ def create_close_case_trigger_tree(
 
         CloseCaseTriggerBT (Sequence)
         ├─ CheckCaseOwner           # guard: FAILURE if actor is not CASE_OWNER
-        ├─ PreCloseAction           # Actuator call-out; default = AlwaysSucceed
         ├─ CheckReportNotClosed     # guard: FAILURE + error if already CLOSED
+        ├─ PreCloseAction           # Actuator call-out; default = AlwaysSucceed
         ├─ EmitCloseReportActivity  # emit activity + queue in outbox
         └─ TransitionRMtoClosed     # persist report-phase RM.CLOSED
 
@@ -229,11 +229,11 @@ def create_close_case_trigger_tree(
                 case_id=case_id,
                 name="CheckCaseOwner",
             ),
-            pre_close_node,
             CheckReportNotClosed(
                 report_id=report_id,
                 result_out=result_out,
             ),
+            pre_close_node,
             EmitCloseReportActivity(
                 offer_id=offer_id,
                 report_id=report_id,
@@ -246,8 +246,7 @@ def create_close_case_trigger_tree(
         ],
     )
     logger.debug(
-        "Created CloseCaseTriggerBT for actor=%s case=%s offer=%s report=%s",
-        actor_id,
+        "Created CloseCaseTriggerBT for case=%s offer=%s report=%s",
         case_id,
         offer_id,
         report_id,

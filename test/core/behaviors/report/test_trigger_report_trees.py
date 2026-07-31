@@ -21,10 +21,12 @@ Covers SUCCESS and FAILURE paths for:
   - ``CloseCaseTriggerBT``        (create_close_case_trigger_tree)
 """
 
+import py_trees
 import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
 from vultron.core.behaviors.report.trigger_report_trees import (
     create_close_case_trigger_tree,
     create_invalidate_report_trigger_tree,
@@ -428,3 +430,41 @@ class TestCloseCaseTriggerTree:
             tree, actor_id=ACTOR_ID, case_id=case_with_owner.id_
         )
         assert result.status == Status.FAILURE
+
+    def test_custom_call_out_factory_is_used(
+        self,
+        scenario: BTTestScenario,
+        actor,
+        report,
+        offer,
+        case_with_owner: VulnerabilityCase,
+    ):
+        """SUCCESS: a custom call_out bundle's pre_close_action_factory is invoked."""
+        from vultron.core.behaviors.call_out.bundles.close_report import (
+            CloseReportCallOutBundle,
+        )
+
+        invoked: list[str] = []
+
+        def tracking_factory(name: str) -> py_trees.behaviour.Behaviour:
+            invoked.append(name)
+            return AlwaysSucceed(name)
+
+        custom_bundle = CloseReportCallOutBundle(
+            pre_close_action_factory=tracking_factory  # type: ignore[arg-type]
+        )
+
+        result_out: dict = {}
+        tree = create_close_case_trigger_tree(
+            actor_id=ACTOR_ID,
+            case_id=case_with_owner.id_,
+            offer_id=offer.id_,
+            report_id=report.id_,
+            result_out=result_out,
+            call_out=custom_bundle,
+        )
+        result = scenario.run(tree, case_id=case_with_owner.id_)
+        scenario.assert_success(result)
+        assert invoked == [
+            "PreCloseAction"
+        ], "Custom pre_close_action_factory was not called"
