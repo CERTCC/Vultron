@@ -1138,29 +1138,39 @@ class _WriteCreateCaseMarkerNode(DataLayerAction):
         case_dict.setdefault("type", "VulnerabilityCase")
         return case_dict
 
+    def _read_str_key(
+        self, key: str
+    ) -> "tuple[str, None] | tuple[None, Status]":
+        """Read a required string key from the blackboard.
+
+        Returns ``(value, None)`` on success or ``(None, FAILURE)`` on missing
+        or non-string, setting ``feedback_message`` in the failure case.
+        """
+        try:
+            val = self.blackboard.get(key)
+        except KeyError:
+            self.feedback_message = f"{key} not found in blackboard"
+            return None, Status.FAILURE
+        if not isinstance(val, str):
+            self.feedback_message = f"{key} is not a string"
+            return None, Status.FAILURE
+        return val, None
+
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        try:
-            case_id = self.blackboard.get("case_id")
-        except KeyError:
-            self.feedback_message = "case_id not found in blackboard"
-            return Status.FAILURE
+        case_id, err = self._read_str_key("case_id")
+        if err is not None:
+            return err
+        assert isinstance(case_id, str)
 
-        try:
-            accept_activity_id = self.blackboard.get("accept_activity_id")
-        except KeyError:
-            self.feedback_message = (
-                "accept_activity_id not found in blackboard"
-            )
-            return Status.FAILURE
-
-        if not isinstance(accept_activity_id, str):
-            self.feedback_message = "accept_activity_id is not a string"
-            return Status.FAILURE
+        accept_activity_id, err = self._read_str_key("accept_activity_id")
+        if err is not None:
+            return err
+        assert isinstance(accept_activity_id, str)
 
         # Pre-construct the payload that will be (re-)sent as
         # Create(VulnerabilityCase).  Mirrors the logic in

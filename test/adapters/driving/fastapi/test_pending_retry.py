@@ -68,11 +68,12 @@ def dl() -> SqliteDataLayer:
 
 
 def _build_activity() -> VultronCreateCaseActivity:
-    """Return a pre-constructed Create(VulnerabilityCase) activity."""
+    """Return a pre-constructed Create(VulnerabilityCase) activity (ADR-0045 field assignment)."""
     return VultronCreateCaseActivity(
         actor=_CASE_ACTOR_ID,
         object_=_CASE_ID,
-        context=_ACCEPT_ID,
+        context=_CASE_ID,
+        in_reply_to=_ACCEPT_ID,
         to=[_VENDOR_URI],
     )
 
@@ -558,3 +559,40 @@ class TestStartupRecovery:
         assert (
             outbox.count(activity.id_) == 1
         ), "Activity should appear exactly once in the outbox"
+
+
+# ---------------------------------------------------------------------------
+# ADR-0045: context/inReplyTo field round-trip through stored payload
+# ---------------------------------------------------------------------------
+
+
+class TestFieldRoundTrip:
+    """Verify context and inReplyTo survive the marker payload round-trip.
+
+    The retry runner stores the activity as ``model_dump(by_alias=True)`` and
+    replays it verbatim via ``model_validate(payload)``.  A regression in the
+    serialization alias would silently drop ``inReplyTo`` or rename ``context``.
+    ADR-0045 requires ``context = case URI`` and ``inReplyTo = Accept URI``.
+    """
+
+    def test_context_and_in_reply_to_survive_round_trip(self):
+        """context and inReplyTo survive model_dump → model_validate round-trip."""
+        activity = _build_activity()
+        payload = activity.model_dump(by_alias=True)
+
+        assert payload.get("context") == _CASE_ID, (
+            f"context in payload should be the case URI {_CASE_ID!r}; "
+            f"got {payload.get('context')!r}"
+        )
+        assert payload.get("inReplyTo") == _ACCEPT_ID, (
+            f"inReplyTo in payload should be the Accept URI {_ACCEPT_ID!r}; "
+            f"got {payload.get('inReplyTo')!r}"
+        )
+        assert "in_reply_to" not in payload, (
+            "Payload must not contain snake_case 'in_reply_to' key — "
+            "the wire format requires camelCase 'inReplyTo'"
+        )
+
+        restored = VultronCreateCaseActivity.model_validate(payload)
+        assert restored.context == _CASE_ID
+        assert restored.in_reply_to == _ACCEPT_ID
