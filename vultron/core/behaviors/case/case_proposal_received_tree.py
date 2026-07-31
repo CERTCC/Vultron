@@ -884,8 +884,8 @@ class _EmitAcceptCaseProposalNode(DataLayerAction):
     """Build Accept(CaseProposal), store it, and queue it to the outbox.
 
     Sets ``accept_activity_id`` on the blackboard so the downstream
-    ``_EmitCreateVulnerabilityCaseNode`` can set the causal ``context``
-    link (CP-05-003).
+    ``_WriteCreateCaseMarkerNode`` can set the causal ``in_reply_to``
+    link on ``Create(VulnerabilityCase)`` (CP-05-003, ADR-0045).
 
     Reads ``case_id`` from the blackboard (written by either
     ``_LoadExistingCaseNode`` or ``_CreateCaseFromProposalNode``) and
@@ -1158,6 +1158,10 @@ class _WriteCreateCaseMarkerNode(DataLayerAction):
             )
             return Status.FAILURE
 
+        if not isinstance(accept_activity_id, str):
+            self.feedback_message = "accept_activity_id is not a string"
+            return Status.FAILURE
+
         # Pre-construct the payload that will be (re-)sent as
         # Create(VulnerabilityCase).  Mirrors the logic in
         # _EmitCreateVulnerabilityCaseNode so the retry runner (#1139)
@@ -1176,11 +1180,14 @@ class _WriteCreateCaseMarkerNode(DataLayerAction):
         # Include REPORTER/FINDER URIs so their DataLayers receive the case
         # replica immediately; CreateCaseReceivedUseCase handles them via the
         # non-vendor participant path (no ReportCaseLink required).
+        # CP-05-003 / ADR-0045: context = case URI (deferral routing key);
+        # in_reply_to = Accept URI (causal antecedent, AS2-correct field).
         reporter_uris = self._collect_reporter_uris(case_id)
         create_activity = VultronCreateCaseActivity(
             actor=self.actor_id,
             object_=case_object,
-            context=accept_activity_id,
+            context=case_id,
+            in_reply_to=accept_activity_id,
             to=[self._vendor_uri] + reporter_uris,
         )
         payload = create_activity.model_dump(by_alias=True)

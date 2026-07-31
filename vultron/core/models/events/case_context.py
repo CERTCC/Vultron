@@ -31,16 +31,14 @@ Why ``object_id`` wins for bootstrap activities
 A bootstrap activity carries the ``VulnerabilityCase`` inline as its
 ``object_``, which makes ``event.object_id`` the authoritative case
 identifier: it is derived from the case snapshot itself and cannot disagree
-with it.  The AS2 ``context`` field, by contrast, is not a reliable case
-reference on every bootstrap activity.  ``Create(VulnerabilityCase)`` sets
-``context`` to the URI of the preceding ``Accept(CaseProposal)`` activity as
-CP-05-003 requires, so reading ``context`` there yields an *activity* URI, not
-a case URI — which previously caused the bootstrap message to defer itself
-against a case ID that would never become known.
+with it.
 
-Preferring the inline object for bootstrap semantics is correct regardless of
-how the ``context``-versus-``inReplyTo`` question in CP-05-003 is eventually
-resolved, because the inline case snapshot is authoritative either way.
+Per CP-05-003 and ADR-0045, ``Create(VulnerabilityCase)`` now sets
+``context`` to the case URI (not the Accept URI), so the deferral guard works
+correctly for this activity even without the bootstrap exemption.  The
+bootstrap exemption is retained for correctness under any ordering of replica
+seeding: the inline case object is always authoritative, regardless of what
+``context`` contains.
 """
 
 from vultron.core.models.events.base import MessageSemantics, VultronEvent

@@ -193,11 +193,13 @@ class TestWriteCreateCaseMarkerNode:
     def test_marker_contains_create_payload(self):
         """Marker create_activity_payload is non-empty and contains actor (AC-1)."""
         dl = SqliteDataLayer("sqlite:///:memory:")
+        case_id = "https://example.org/cases/c-001"
+        accept_id = "https://example.org/activities/a-001"
         self._run_node(
             dl,
             actor_id=_CASE_ACTOR_URI,
-            case_id="https://example.org/cases/c-001",
-            accept_id="https://example.org/activities/a-001",
+            case_id=case_id,
+            accept_id=accept_id,
         )
         marker_id = PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
         marker = dl.read(marker_id)
@@ -209,6 +211,34 @@ class TestWriteCreateCaseMarkerNode:
             or payload.get("attributedTo") == _CASE_ACTOR_URI
             or _CASE_ACTOR_URI in str(payload)
         ), "Payload must reference the case-actor URI"
+
+    def test_marker_payload_uses_case_id_as_context(self):
+        """AC-1 (ADR-0045): Create(VulnerabilityCase) payload carries context=case_uri.
+
+        CP-05-003 requires context = case URI for inbox deferral routing.  The
+        old assignment (context = Accept URI) caused a bootstrap deadlock.
+        """
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case_id = "https://example.org/cases/c-field-test"
+        accept_id = "https://example.org/activities/accept-field-test"
+        self._run_node(
+            dl,
+            actor_id=_CASE_ACTOR_URI,
+            case_id=case_id,
+            accept_id=accept_id,
+        )
+        marker_id = PendingCreateCaseActivity.build_id(_PROPOSAL_URI)
+        marker = dl.read(marker_id)
+        assert isinstance(marker, PendingCreateCaseActivity)
+        payload = marker.create_activity_payload
+        assert payload.get("context") == case_id, (
+            "context MUST be the case URI (CP-05-003, ADR-0045); "
+            f"got {payload.get('context')!r}"
+        )
+        assert payload.get("in_reply_to") == accept_id, (
+            "in_reply_to MUST be the Accept URI (CP-05-003, ADR-0045); "
+            f"got {payload.get('in_reply_to')!r}"
+        )
 
     def test_fails_when_case_id_missing(self):
         """FAILURE returned when case_id is absent from blackboard."""
