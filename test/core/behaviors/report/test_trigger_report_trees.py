@@ -13,37 +13,40 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Tests for the report trigger BT factories (issue #849 AC-4).
+"""Tests for the report trigger BT factories (issue #849 AC-4, #1854 AC-1/AC-2).
 
 Covers SUCCESS and FAILURE paths for:
   - ``InvalidateReportTriggerBT`` (create_invalidate_report_trigger_tree)
   - ``RejectReportTriggerBT``     (create_reject_report_trigger_tree)
-  - ``CloseReportTriggerBT``      (create_close_report_trigger_tree)
+  - ``CloseCaseTriggerBT``        (create_close_case_trigger_tree)
 """
 
+import py_trees
 import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
 from vultron.core.behaviors.report.trigger_report_trees import (
-    create_close_report_trigger_tree,
+    create_close_case_trigger_tree,
     create_invalidate_report_trigger_tree,
     create_reject_report_trigger_tree,
 )
 from vultron.core.models.activity import VultronOffer
 from vultron.core.models.case_actor import VultronCaseActor
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VultronReport
 from vultron.core.states.rm import RM
 from vultron.core.models._helpers import _report_phase_status_id
+from vultron.enums.roles import CVDRole
 from vultron.errors import VultronInvalidStateTransitionError
-
-# noqa: F401 — vocabulary registration side-effect
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
+from vultron.core.models.case import VulnerabilityCase
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -51,6 +54,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
 
 ACTOR_ID = "https://example.org/actors/vendor"
 REPORTER_ID = "https://example.org/actors/reporter"
+CASE_MANAGER_ID = "https://example.org/actors/case-manager"
 
 
 # ---------------------------------------------------------------------------
@@ -106,6 +110,56 @@ def closed_status(
     )
     scenario.dl.create(status)
     return status
+
+
+@pytest.fixture
+def case_with_owner(
+    scenario: BTTestScenario, report: VultronReport
+) -> VulnerabilityCase:
+    """Create a VulnerabilityCase where ACTOR_ID is CASE_OWNER and a separate CASE_MANAGER exists for routing."""
+    owner_participant = CaseParticipant(
+        attributed_to=ACTOR_ID,
+        case_roles=[CVDRole.CASE_OWNER],
+    )
+    manager_actor = VultronCaseActor(id_=CASE_MANAGER_ID, name="Case Manager")
+    manager_participant = CaseParticipant(
+        attributed_to=CASE_MANAGER_ID,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    case = VulnerabilityCase(name="Test Case")
+    case.vulnerability_reports.append(report.id_)
+    case.actor_participant_index[ACTOR_ID] = owner_participant.id_
+    case.actor_participant_index[CASE_MANAGER_ID] = manager_participant.id_
+    scenario.dl.create(manager_actor)
+    scenario.dl.create(owner_participant)
+    scenario.dl.create(manager_participant)
+    scenario.dl.create(case)
+    return case
+
+
+@pytest.fixture
+def case_with_non_owner(
+    scenario: BTTestScenario, report: VultronReport
+) -> VulnerabilityCase:
+    """Create a VulnerabilityCase where ACTOR_ID is VENDOR (not CASE_OWNER) with a CASE_MANAGER for routing."""
+    vendor_participant = CaseParticipant(
+        attributed_to=ACTOR_ID,
+        case_roles=[CVDRole.VENDOR],
+    )
+    manager_actor = VultronCaseActor(id_=CASE_MANAGER_ID, name="Case Manager")
+    manager_participant = CaseParticipant(
+        attributed_to=CASE_MANAGER_ID,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    case = VulnerabilityCase(name="Test Case Non-Owner")
+    case.vulnerability_reports.append(report.id_)
+    case.actor_participant_index[ACTOR_ID] = vendor_participant.id_
+    case.actor_participant_index[CASE_MANAGER_ID] = manager_participant.id_
+    scenario.dl.create(manager_actor)
+    scenario.dl.create(vendor_participant)
+    scenario.dl.create(manager_participant)
+    scenario.dl.create(case)
+    return case
 
 
 # ---------------------------------------------------------------------------
@@ -232,36 +286,74 @@ class TestRejectReportTriggerTree:
 
 
 # ---------------------------------------------------------------------------
-# CloseReportTriggerBT tests
+# CloseCaseTriggerBT tests
 # ---------------------------------------------------------------------------
 
 
-class TestCloseReportTriggerTree:
+class TestCloseCaseTriggerTree:
     def test_success_emits_activity_and_sets_rm_closed(
-        self, scenario: BTTestScenario, actor, report, offer
+        self,
+        scenario: BTTestScenario,
+        actor,
+        report,
+        offer,
+        case_with_owner: VulnerabilityCase,
     ):
         """SUCCESS: emits activity and persists RM.CLOSED ParticipantStatus."""
         result_out: dict = {}
-        tree = create_close_report_trigger_tree(
-            offer_id=offer.id_, report_id=report.id_, result_out=result_out
+        tree = create_close_case_trigger_tree(
+            actor_id=ACTOR_ID,
+            case_id=case_with_owner.id_,
+            offer_id=offer.id_,
+            report_id=report.id_,
+            result_out=result_out,
         )
-        result = scenario.run(tree)
+        result = scenario.run(tree, case_id=case_with_owner.id_)
         scenario.assert_success(result)
         scenario.assert_rm_state(report.id_, RM.CLOSED)
         assert "error" not in result_out
 
     def test_success_adds_to_outbox(
-        self, scenario: BTTestScenario, actor, report, offer
+        self,
+        scenario: BTTestScenario,
+        actor,
+        report,
+        offer,
+        case_with_owner: VulnerabilityCase,
     ):
         """SUCCESS: activity is added to the actor's outbox."""
         before = set(scenario.dl.outbox_list_for_actor(ACTOR_ID))
         result_out: dict = {}
-        tree = create_close_report_trigger_tree(
-            offer_id=offer.id_, report_id=report.id_, result_out=result_out
+        tree = create_close_case_trigger_tree(
+            actor_id=ACTOR_ID,
+            case_id=case_with_owner.id_,
+            offer_id=offer.id_,
+            report_id=report.id_,
+            result_out=result_out,
         )
-        scenario.run(tree)
+        scenario.run(tree, case_id=case_with_owner.id_)
         after = set(scenario.dl.outbox_list_for_actor(ACTOR_ID))
         assert len(after - before) >= 1
+
+    def test_failure_non_case_owner_blocked(
+        self,
+        scenario: BTTestScenario,
+        actor,
+        report,
+        offer,
+        case_with_non_owner: VulnerabilityCase,
+    ):
+        """FAILURE: actor is not CASE_OWNER — CheckCaseOwner guard blocks tree."""
+        result_out: dict = {}
+        tree = create_close_case_trigger_tree(
+            actor_id=ACTOR_ID,
+            case_id=case_with_non_owner.id_,
+            offer_id=offer.id_,
+            report_id=report.id_,
+            result_out=result_out,
+        )
+        result = scenario.run(tree, case_id=case_with_non_owner.id_)
+        scenario.assert_failure(result)
 
     def test_failure_already_closed_writes_error(
         self,
@@ -269,14 +361,19 @@ class TestCloseReportTriggerTree:
         actor,
         report,
         offer,
+        case_with_owner: VulnerabilityCase,
         closed_status: ParticipantStatus,
     ):
         """FAILURE: already-closed report writes VultronInvalidStateTransitionError."""
         result_out: dict = {}
-        tree = create_close_report_trigger_tree(
-            offer_id=offer.id_, report_id=report.id_, result_out=result_out
+        tree = create_close_case_trigger_tree(
+            actor_id=ACTOR_ID,
+            case_id=case_with_owner.id_,
+            offer_id=offer.id_,
+            report_id=report.id_,
+            result_out=result_out,
         )
-        result = scenario.run(tree)
+        result = scenario.run(tree, case_id=case_with_owner.id_)
         scenario.assert_failure(result)
         assert "error" in result_out
         assert isinstance(
@@ -289,20 +386,30 @@ class TestCloseReportTriggerTree:
         actor,
         report,
         offer,
+        case_with_owner: VulnerabilityCase,
         closed_status: ParticipantStatus,
     ):
         """The error message references the report ID."""
         result_out: dict = {}
-        tree = create_close_report_trigger_tree(
-            offer_id=offer.id_, report_id=report.id_, result_out=result_out
+        tree = create_close_case_trigger_tree(
+            actor_id=ACTOR_ID,
+            case_id=case_with_owner.id_,
+            offer_id=offer.id_,
+            report_id=report.id_,
+            result_out=result_out,
         )
-        scenario.run(tree)
+        scenario.run(tree, case_id=case_with_owner.id_)
         error = result_out.get("error")
         assert error is not None
         assert report.id_ in str(error)
 
     def test_failure_no_trigger_activity_factory(
-        self, scenario: BTTestScenario, actor, report, offer
+        self,
+        scenario: BTTestScenario,
+        actor,
+        report,
+        offer,
+        case_with_owner: VulnerabilityCase,
     ):
         """FAILURE: no TriggerActivityPort on the blackboard → tree fails."""
         import py_trees
@@ -311,9 +418,53 @@ class TestCloseReportTriggerTree:
 
         bridge_no_factory = BTBridge(datalayer=scenario.dl)
         result_out: dict = {}
-        tree = create_close_report_trigger_tree(
-            offer_id=offer.id_, report_id=report.id_, result_out=result_out
+        tree = create_close_case_trigger_tree(
+            actor_id=ACTOR_ID,
+            case_id=case_with_owner.id_,
+            offer_id=offer.id_,
+            report_id=report.id_,
+            result_out=result_out,
         )
         py_trees.blackboard.Blackboard.storage.clear()
-        result = bridge_no_factory.execute_with_setup(tree, actor_id=ACTOR_ID)
+        result = bridge_no_factory.execute_with_setup(
+            tree, actor_id=ACTOR_ID, case_id=case_with_owner.id_
+        )
         assert result.status == Status.FAILURE
+
+    def test_custom_call_out_factory_is_used(
+        self,
+        scenario: BTTestScenario,
+        actor,
+        report,
+        offer,
+        case_with_owner: VulnerabilityCase,
+    ):
+        """SUCCESS: a custom call_out bundle's pre_close_action_factory is invoked."""
+        from vultron.core.behaviors.call_out.bundles.close_report import (
+            CloseReportCallOutBundle,
+        )
+
+        invoked: list[str] = []
+
+        def tracking_factory(name: str) -> py_trees.behaviour.Behaviour:
+            invoked.append(name)
+            return AlwaysSucceed(name)
+
+        custom_bundle = CloseReportCallOutBundle(
+            pre_close_action_factory=tracking_factory  # type: ignore[arg-type]
+        )
+
+        result_out: dict = {}
+        tree = create_close_case_trigger_tree(
+            actor_id=ACTOR_ID,
+            case_id=case_with_owner.id_,
+            offer_id=offer.id_,
+            report_id=report.id_,
+            result_out=result_out,
+            call_out=custom_bundle,
+        )
+        result = scenario.run(tree, case_id=case_with_owner.id_)
+        scenario.assert_success(result)
+        assert invoked == [
+            "PreCloseAction"
+        ], "Custom pre_close_action_factory was not called"

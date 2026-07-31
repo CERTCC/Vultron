@@ -47,7 +47,7 @@ complete (or otherwise concluded).
   (`other_close_criteria_factory` param; DETERMINISTIC default = `AlwaysFail`).
   This tree is a seam-only stub — it is **not invoked autonomously**. Case
   closure is always Case Owner-triggered via
-  `create_close_report_trigger_tree`. The `OtherCloseCriteriaMet` Evaluator
+  `create_close_case_trigger_tree`. The `OtherCloseCriteriaMet` Evaluator
   seam is the injection point for a future Close Readiness Monitoring Sentinel
   (see epic #1147 / #1143 Sentinel agent type) that observes protocol state
   and posts an observational note to the Case Owner when objective closure
@@ -70,13 +70,14 @@ complete (or otherwise concluded).
 - **Automation potential**: **Medium** — archiving and standard notification steps can be automated; QA review and final approvals typically require human involvement.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.close_report.PreCloseAction`
 - **Call-out point shape**: Actuator — fires integration hooks before case closure; invokes QA pipeline checks, final notification APIs, and case-archiving services. There is no content artifact placed on the blackboard; the side effects in external systems are the seam.
-- **Factory-fn placement**: Belongs in `create_close_report_trigger_tree`
-  (issue T1 from IDEA-1253 planning) — wired as an Actuator node between
-  `CheckReportNotClosed` (or equivalent guard) and `TransitionRMtoClosed`.
-  The DETERMINISTIC default is `AlwaysSucceed` (pre-close hooks are
-  optional infrastructure; absence of a real implementation must not block
-  closure). Not placed in `create_close_report_tree` — that tree is a
-  seam-only stub for autonomous monitoring, not the trigger path.
+- **Factory-fn placement**: Wired in `create_close_case_trigger_tree`
+  (issue T1 from IDEA-1253 planning, completed in #1854) — wired as an
+  Actuator node between `CheckReportNotClosed` (or equivalent guard) and
+  `TransitionRMtoClosed`. The DETERMINISTIC default is `AlwaysSucceed`
+  (pre-close hooks are optional infrastructure; absence of a real
+  implementation must not block closure). Not placed in
+  `create_close_report_tree` — that tree is a seam-only stub for autonomous
+  monitoring, not the trigger path.
 
 ---
 
@@ -112,8 +113,8 @@ Close Readiness Monitoring Sentinel (see **Close Readiness Monitoring** below).
 ### `PreCloseAction` belongs in the trigger tree
 
 `PreCloseAction` (Actuator) fires *after* the Case Owner has decided to close
-— it belongs in `create_close_report_trigger_tree`, wired between the
-not-already-closed guard and `TransitionRMtoClosed`. It is a pre-close hook
+— it is wired in `create_close_case_trigger_tree` (completed in #1854),
+between the not-already-closed guard and `TransitionRMtoClosed`. It is a pre-close hook
 for QA pipelines, archiving, and final notification. The DETERMINISTIC default
 is `AlwaysSucceed`; pre-close hooks must not block closure when no real
 backend is injected.
@@ -146,7 +147,7 @@ is:
 This pattern avoids inventing a new `Question` → `Answer` message exchange.
 The Sentinel fires into `OtherCloseCriteriaMet` seam in
 `create_close_report_tree`; the Case Owner's subsequent `Leave` flows through
-`create_close_report_trigger_tree` as usual.
+`create_close_case_trigger_tree` as usual.
 
 Track under epic #1147 (Coordination Agents), linked to #1143 (Sentinel
 agent type).

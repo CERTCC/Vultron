@@ -21,19 +21,27 @@ operations:
 
 - ``InvalidateReport`` — emit TentativeReject activity + transition RM → INVALID
 - ``RejectReport``     — emit CloseReport activity + transition RM → CLOSED
-- ``CloseReport``      — guard (not already closed) + emit CloseReport + RM → CLOSED
+- ``CloseCase``        — Case Owner guard + PreCloseAction hook +
+                         guard (not already closed) + emit CloseReport + RM → CLOSED
 
 Trees are run via ``BTBridge.execute_with_setup()`` in the corresponding
 trigger use case.
 
 Per issue #849 AC-1 through AC-3 and specs/behavior-tree-integration.yaml
 BT-15-001, BT-15-002.
+Per issue #1854 AC-1 through AC-5: CheckCaseOwner guard, PreCloseAction
+call-out point, and rename to ``create_close_case_trigger_tree`` /
+``SvcCloseCaseUseCase``.
 """
 
 import logging
+from typing import TYPE_CHECKING
 
 import py_trees
 
+from vultron.core.behaviors.case.nodes.vfd_role_guards import (
+    CheckIsCaseOwnerNode,
+)
 from vultron.core.behaviors.report.nodes.conditions import CheckReportNotClosed
 from vultron.core.behaviors.report.nodes.emit import (
     EmitCloseReportActivity,
@@ -44,6 +52,11 @@ from vultron.core.behaviors.report.nodes.rm_transitions import (
     TransitionRMtoClosed,
     TransitionRMtoInvalid,
 )
+
+if TYPE_CHECKING:
+    from vultron.core.behaviors.call_out.bundles.close_report import (
+        CloseReportCallOutBundle,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -146,32 +159,43 @@ def create_reject_report_trigger_tree(
     return root
 
 
-def create_close_report_trigger_tree(
+def create_close_case_trigger_tree(
+    actor_id: str,
+    case_id: str,
     offer_id: str,
     report_id: str,
     result_out: dict,
     captured: dict | None = None,
+    call_out: "CloseReportCallOutBundle | None" = None,
 ) -> py_trees.behaviour.Behaviour:
-    """Create the BT for the close-report trigger workflow.
+    """Create the BT for the close-case trigger workflow.
 
-    Guards against duplicate-close, emits ``RmCloseReportActivity``, and
-    records the actor's RM state as CLOSED.  On a duplicate-close attempt
-    ``CheckReportNotClosed`` writes a
+    Guards that only the Case Owner may close the case, runs the
+    ``PreCloseAction`` Actuator call-out hook, guards against
+    duplicate-close, emits ``RmCloseReportActivity``, and records the
+    actor's RM state as CLOSED.
+
+    On a duplicate-close attempt ``CheckReportNotClosed`` writes a
     :class:`~vultron.errors.VultronInvalidStateTransitionError` into
     ``result_out["error"]`` so the calling use case can re-raise the domain
     exception.
 
     Structure::
 
-        CloseReportTriggerBT (Sequence)
+        CloseCaseTriggerBT (Sequence)
+        ├─ CheckCaseOwner           # guard: FAILURE if actor is not CASE_OWNER
         ├─ CheckReportNotClosed     # guard: FAILURE + error if already CLOSED
+        ├─ PreCloseAction           # Actuator call-out; default = AlwaysSucceed
         ├─ EmitCloseReportActivity  # emit activity + queue in outbox
         └─ TransitionRMtoClosed     # persist report-phase RM.CLOSED
 
     Per issue #849 AC-3: the duplicate-close guard is a BT condition node, not
     a procedural ``raise`` in ``execute()``.
+    Per issue #1854 AC-1/AC-2: CheckCaseOwner guard and PreCloseAction wired.
 
     Args:
+        actor_id: ID of the actor attempting to close the case.
+        case_id: ID of the VulnerabilityCase to close.
         offer_id: ID of the Offer being closed.
         report_id: ID of the VulnerabilityReport.
         result_out: Mutable dict for surfacing domain errors back to the caller.
@@ -180,9 +204,72 @@ def create_close_report_trigger_tree(
             closed.
         captured: Optional dict; ``captured["activity"]`` is set to the
             serialised activity dict on success (DL-06-001, AC-1).
+        call_out: Optional :class:`~vultron.core.behaviors.call_out.bundles
+            .close_report.CloseReportCallOutBundle` supplying a custom
+            ``pre_close_action_factory``.  Defaults to
+            :data:`~vultron.core.behaviors.call_out.bundles.close_report
+            .CLOSE_REPORT_DETERMINISTIC` (``AlwaysSucceed``).
 
     Returns:
-        Root node of the ``CloseReportTriggerBT`` Sequence.
+        Root node of the ``CloseCaseTriggerBT`` Sequence.
+    """
+    from vultron.core.behaviors.call_out.bundles.close_report import (
+        CLOSE_REPORT_DETERMINISTIC,
+    )
+
+    bundle = call_out if call_out is not None else CLOSE_REPORT_DETERMINISTIC
+    pre_close_node = bundle.pre_close_action_factory("PreCloseAction")
+
+    root = py_trees.composites.Sequence(
+        name="CloseCaseTriggerBT",
+        memory=False,
+        children=[
+            CheckIsCaseOwnerNode(
+                sender_actor_id=actor_id,
+                case_id=case_id,
+                name="CheckCaseOwner",
+            ),
+            CheckReportNotClosed(
+                report_id=report_id,
+                result_out=result_out,
+            ),
+            pre_close_node,
+            EmitCloseReportActivity(
+                offer_id=offer_id,
+                report_id=report_id,
+                captured=captured,
+            ),
+            TransitionRMtoClosed(
+                report_id=report_id,
+                offer_id=offer_id,
+            ),
+        ],
+    )
+    logger.debug(
+        "Created CloseCaseTriggerBT for case=%s offer=%s report=%s",
+        case_id,
+        offer_id,
+        report_id,
+    )
+    return root
+
+
+def create_close_report_trigger_tree(
+    offer_id: str,
+    report_id: str,
+    result_out: dict,
+    captured: dict | None = None,
+) -> py_trees.behaviour.Behaviour:
+    """Deprecated alias for :func:`create_close_case_trigger_tree`.
+
+    .. deprecated::
+        Use :func:`create_close_case_trigger_tree` directly.  This shim
+        exists only for callers that have not yet been updated; it omits the
+        ``actor_id`` / ``case_id`` / ``call_out`` parameters and therefore
+        bypasses the ``CheckCaseOwner`` guard and ``PreCloseAction`` hook.
+
+    Returns:
+        Root node of the ``CloseReportTriggerBT`` Sequence (legacy structure).
     """
     root = py_trees.composites.Sequence(
         name="CloseReportTriggerBT",
@@ -204,7 +291,7 @@ def create_close_report_trigger_tree(
         ],
     )
     logger.debug(
-        "Created CloseReportTriggerBT for offer=%s report=%s",
+        "Created CloseReportTriggerBT (legacy) for offer=%s report=%s",
         offer_id,
         report_id,
     )

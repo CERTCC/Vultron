@@ -22,7 +22,7 @@ type).
 
 Case closure in Vultron is always Case Owner-triggered: the Case Owner (or
 Case Manager acting on their behalf) issues a ``Leave(VulnerabilityCase)``
-activity, which flows through :func:`create_close_report_trigger_tree`.
+activity, which flows through :func:`create_close_case_trigger_tree`.
 There is no autonomous close path because:
 
 - Standard simulator closure criteria (CS.DEPLOYED, RM.DEFERRED, RM.INVALID)
@@ -36,9 +36,9 @@ Its intended future use is: a Sentinel backend injected via
 objective close conditions are met, and posts an observational note to the
 Case Owner.  The Case Owner then issues the ``Leave`` voluntarily.
 
-``PreCloseAction`` (the pre-close Actuator) belongs in
-:func:`create_close_report_trigger_tree`, wired between the
-``CheckReportNotClosed`` guard and ``TransitionRMtoClosed`` (issue #1253 T1).
+``PreCloseAction`` (the pre-close Actuator) is wired in
+:func:`create_close_case_trigger_tree` (completed in #1854), between the
+``CheckReportNotClosed`` guard and ``TransitionRMtoClosed``.
 
 Nodes hosted here
 -----------------
@@ -76,11 +76,11 @@ def create_close_report_tree(
     injection seam for a future Close Readiness Monitoring Sentinel.  The
     DETERMINISTIC default (``AlwaysFail``) is correct: this tree should not
     fire unless a real Sentinel backend is injected — case closure is always
-    Case Owner-triggered via :func:`create_close_report_trigger_tree`.
+    Case Owner-triggered via :func:`create_close_case_trigger_tree`.
 
     The ``pre_close_action_factory`` bundle field is not wired here;
-    ``PreCloseAction`` belongs in :func:`create_close_report_trigger_tree`
-    (see IDEA-1253 T1 and ``notes/bt-fuzzer-rm-closure.md``).
+    ``PreCloseAction`` is wired in :func:`create_close_case_trigger_tree`
+    (completed in #1854 — see ``notes/bt-fuzzer-rm-closure.md``).
 
     Args:
         case_id: ID of VulnerabilityCase being processed.

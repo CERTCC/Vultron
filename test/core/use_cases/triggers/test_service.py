@@ -171,12 +171,39 @@ def received_report(dl, actor, report):
 
 
 @pytest.fixture
-def accepted_report(report):
+def accepted_report(dl, report, actor):
+    """Seed the report as ready for close: actor holds CASE_OWNER in linked case."""
+    from vultron.core.models.case import VulnerabilityCase
+    from vultron.core.models.case_participant import CaseParticipant
+
+    owner_p = CaseParticipant(
+        attributed_to=actor.id_,
+        case_roles=[CVDRole.CASE_OWNER],
+    )
+    case_obj = VulnerabilityCase(name="Owner Case for Close")
+    case_obj.vulnerability_reports.append(report.id_)
+    case_obj.actor_participant_index[actor.id_] = owner_p.id_
+    dl.create(owner_p)
+    _add_case_manager(case_obj, dl)
     return report
 
 
 @pytest.fixture
 def closed_report(dl, report, actor):
+    """Seed report as CLOSED (duplicate-close guard test); also needs a linked case."""
+    from vultron.core.models.case import VulnerabilityCase
+    from vultron.core.models.case_participant import CaseParticipant
+
+    owner_p = CaseParticipant(
+        attributed_to=actor.id_,
+        case_roles=[CVDRole.CASE_OWNER],
+    )
+    case_obj = VulnerabilityCase(name="Owner Case for Closed")
+    case_obj.vulnerability_reports.append(report.id_)
+    case_obj.actor_participant_index[actor.id_] = owner_p.id_
+    dl.create(owner_p)
+    _add_case_manager(case_obj, dl)
+
     status = ParticipantStatus(
         id_=_report_phase_status_id(actor.id_, report.id_, RM.CLOSED.value),
         context=report.id_,
@@ -463,7 +490,7 @@ def test_close_report_trigger_returns_activity_dict(
     """close_report_trigger returns dict with non-None 'activity'."""
     result = TriggerService(
         dl, trigger_activity=TriggerActivityAdapter(dl)
-    ).close_report(actor.id_, offer.id_, None)
+    ).close_case(actor.id_, offer.id_, None)
     assert isinstance(result, dict)
     assert result["activity"] is not None
 
@@ -475,7 +502,7 @@ def test_close_report_trigger_already_closed_raises_409(
     with pytest.raises(VultronInvalidStateTransitionError):
         TriggerService(
             dl, trigger_activity=TriggerActivityAdapter(dl)
-        ).close_report(actor.id_, offer.id_, None)
+        ).close_case(actor.id_, offer.id_, None)
 
 
 def test_close_report_trigger_unknown_actor_raises_404(dl, offer):

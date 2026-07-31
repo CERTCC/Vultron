@@ -41,14 +41,12 @@ from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.core.models._helpers import _report_phase_status_id
 from vultron.core.use_cases.triggers.report import (
-    SvcCloseReportUseCase,
     SvcInvalidateReportUseCase,
     SvcRejectReportUseCase,
     SvcSubmitReportUseCase,
     SvcValidateReportUseCase,
 )
 from vultron.core.use_cases.triggers.requests import (
-    CloseReportTriggerRequest,
     InvalidateReportTriggerRequest,
     RejectReportTriggerRequest,
     SubmitReportTriggerRequest,
@@ -415,7 +413,7 @@ class TestSvcValidateReportUseCase:
 
 
 # ---------------------------------------------------------------------------
-# SvcInvalidateReportUseCase / SvcRejectReportUseCase / SvcCloseReportUseCase
+# SvcInvalidateReportUseCase / SvcRejectReportUseCase
 # ---------------------------------------------------------------------------
 
 
@@ -521,40 +519,6 @@ class TestSvcRejectReportUseCase(_ReportTriggerBase):
         )
         before = set(self.dl.outbox_list_for_actor(self.vendor.id_))
         SvcRejectReportUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-        ).execute()
-        after = set(self.dl.outbox_list_for_actor(self.vendor.id_))
-        assert len(after - before) >= 1
-
-
-class TestSvcCloseReportUseCase(_ReportTriggerBase):
-    """execute() path tests for SvcCloseReportUseCase."""
-
-    def test_close_report_returns_activity_dict(self):
-        """execute() returns result['activity'] as Reject(Offer) dict (DL-06-001)."""
-        request = CloseReportTriggerRequest(
-            actor_id=self.vendor.id_,
-            offer_id=self.offer.id_,
-        )
-        result = SvcCloseReportUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-        ).execute()
-
-        assert result.get("activity") is not None
-        assert result["activity"].get("type") == "Reject"
-
-    def test_close_report_queues_activity_in_outbox(self):
-        """execute() enqueues at least one activity in the actor's outbox."""
-        request = CloseReportTriggerRequest(
-            actor_id=self.vendor.id_,
-            offer_id=self.offer.id_,
-        )
-        before = set(self.dl.outbox_list_for_actor(self.vendor.id_))
-        SvcCloseReportUseCase(
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),

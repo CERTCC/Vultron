@@ -171,15 +171,41 @@ def invalid_report(report):
     return report
 
 
+def _seed_owner_case(dl, actor_id, report_id):
+    """Seed a VulnerabilityCase where *actor_id* is CASE_OWNER with a CASE_MANAGER for routing."""
+    from vultron.core.models.case import VulnerabilityCase
+    from vultron.core.models.case_participant import CaseParticipant
+
+    owner_p = CaseParticipant(
+        attributed_to=actor_id,
+        case_roles=[CVDRole.CASE_OWNER],
+    )
+    manager_actor = as_Service(name="Case Manager")
+    manager_p = CaseParticipant(
+        attributed_to=manager_actor.id_,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    case = VulnerabilityCase(name="Owner Case for Close")
+    case.vulnerability_reports.append(report_id)
+    case.actor_participant_index[actor_id] = owner_p.id_
+    case.actor_participant_index[manager_actor.id_] = manager_p.id_
+    dl.create(manager_actor)
+    dl.create(owner_p)
+    dl.create(manager_p)
+    dl.create(case)
+
+
 @pytest.fixture
-def accepted_report(report):
-    """Report in an acceptable state for close-report (no CLOSED record)."""
+def accepted_report(dl, report, actor):
+    """Report in an acceptable state for close-case (actor is CASE_OWNER in linked case)."""
+    _seed_owner_case(dl, actor.id_, report.id_)
     return report
 
 
 @pytest.fixture
 def closed_report(dl, report, actor):
-    """Put the report into RM.CLOSED state (triggers 409 on close-report)."""
+    """Put the report into RM.CLOSED state (triggers 409 on close-report); actor is CASE_OWNER."""
+    _seed_owner_case(dl, actor.id_, report.id_)
     status = ParticipantStatus(
         id_=_report_phase_status_id(actor.id_, report.id_, RM.CLOSED.value),
         context=report.id_,
