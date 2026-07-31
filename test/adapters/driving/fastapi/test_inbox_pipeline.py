@@ -259,3 +259,51 @@ def test_process_defers_unknown_case_activity(test_pipeline):
     pending = queue_dl.read(VultronPendingCaseInbox.build_id(UNKNOWN_CASE_ID))
     assert isinstance(pending, VultronPendingCaseInbox)
     assert activity.id_ in pending.activity_ids
+
+
+def test_create_case_with_correct_context_not_deferred(
+    test_pipeline, monkeypatch
+):
+    """AC-4 (ADR-0045): Create(VulnerabilityCase) with context=case_uri is NOT
+    deferred even when the case does not yet exist in the DataLayer.
+
+    This is the bootstrap path: CREATE_CASE is in CASE_BOOTSTRAP_SEMANTICS, so
+    the deferral guard is bypassed and the activity is dispatched immediately.
+    The corrected CP-05-003 field assignment (context=case_uri, not Accept URI)
+    ensures the deferral guard works here: if context carried the Accept URI, the
+    guard would read an activity URI as the case ID and queue it indefinitely.
+    """
+    marker_id = "https://example.org/markers/create-case-ac4"
+    _patch_execute_with_marker(
+        monkeypatch, CreateCaseReceivedUseCase, marker_id
+    )
+
+    new_case_id = "https://example.org/cases/case-ac4-new"
+    case = as_VulnerabilityCase(id_=new_case_id, name="AC4-New")
+    # Build a Create(VulnerabilityCase) whose context = case_uri (ADR-0045).
+    activity = create_case_activity(
+        case,
+        actor=SENDER_ID,
+        to=[RECEIVER_ID],
+        context=new_case_id,
+    )
+
+    pipeline, dl = test_pipeline
+    # The DataLayer stores object_ by URI reference (not inline). Both the
+    # VulnerabilityCase and the activity must be saved so rehydration can
+    # reconstruct the full wire object.  The case is "new" in the sense
+    # that no use-case has processed it yet — CreateCaseReceivedUseCase
+    # would normally establish it, which is what the monkeypatched marker
+    # proves was invoked.
+    dl.save(case)
+    dl.save(activity)
+
+    result = pipeline.process(activity.id_)
+
+    assert result is not None, (
+        "Create(VulnerabilityCase) bootstrap MUST NOT be deferred"
+        " — it must be dispatched immediately (ADR-0045 AC-4)"
+    )
+    assert result.semantic_type.name == "CREATE_CASE"
+    # Marker proves execute() ran (i.e. the activity was dispatched, not deferred).
+    assert dl.read(marker_id) is not None

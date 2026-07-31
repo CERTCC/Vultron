@@ -84,7 +84,11 @@ class VultronObject(VultronBase):
     generator: Any | None = None
     context: Any | None = None
     tag: Any | None = None
-    in_reply_to: Any | None = None
+    in_reply_to: Any | None = Field(
+        default=None,
+        validation_alias="inReplyTo",
+        serialization_alias="inReplyTo",
+    )
 
     duration: timedelta | None = None
     start_time: datetime | None = None

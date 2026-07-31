@@ -183,8 +183,12 @@ class TestCreateCaseProposalReceivedUseCase:
             len(cases) == 0
         ), "No case should be created without receiving_actor_id"
 
-    def test_create_activity_context_is_accept_uri(self, make_payload):
-        """Create(VulnerabilityCase) context must point to the Accept activity (CP-05-003)."""
+    def test_create_activity_fields_adhere_to_adr_0045(self, make_payload):
+        """Create(VulnerabilityCase) must use context=case_uri, in_reply_to=accept_uri (ADR-0045 / CP-05-003).
+
+        The old assignment (context=accept_uri) caused the inbox deferral router to
+        mistake an activity URI for a case ID, deadlocking the bootstrap flow.
+        """
         dl = SqliteDataLayer("sqlite:///:memory:")
         proposal = _make_proposal()
         activity = as_Create(
@@ -203,16 +207,23 @@ class TestCreateCaseProposalReceivedUseCase:
         assert accept_rows, "No Accept activity stored"
         accept_id = accept_rows[0].id_
 
+        case_rows = dl.list_objects("VulnerabilityCase")
+        assert case_rows, "No VulnerabilityCase stored"
+        case_id = case_rows[0].id_
+
         create_rows = dl.list_objects("Create")
         assert create_rows, "No Create activity stored"
         create_obj = dl.read(create_rows[0].id_)
-        # After DataLayer round-trip, the object may come back as a wire-layer
-        # _CreateCaseActivity rather than VultronCreateCaseActivity; check the
-        # context attribute directly (CP-05-003).
+        # After DataLayer round-trip the object is a wire-layer _CreateCaseActivity.
         context_val = getattr(create_obj, "context", None)
-        assert context_val == accept_id, (
-            f"Create(VulnerabilityCase).context should be Accept URI '{accept_id}'"
-            f", got '{context_val}'"
+        in_reply_to_val = getattr(create_obj, "in_reply_to", None)
+        assert context_val == case_id, (
+            f"Create(VulnerabilityCase).context MUST be the case URI '{case_id}'"
+            f" (ADR-0045); got '{context_val}'"
+        )
+        assert in_reply_to_val == accept_id, (
+            f"Create(VulnerabilityCase).in_reply_to MUST be the Accept URI '{accept_id}'"
+            f" (ADR-0045); got '{in_reply_to_val}'"
         )
 
 

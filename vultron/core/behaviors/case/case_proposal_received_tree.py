@@ -888,8 +888,8 @@ class _EmitAcceptCaseProposalNode(DataLayerAction):
     """Build Accept(CaseProposal), store it, and queue it to the outbox.
 
     Sets ``accept_activity_id`` on the blackboard so the downstream
-    ``_EmitCreateVulnerabilityCaseNode`` can set the causal ``context``
-    link (CP-05-003).
+    ``_WriteCreateCaseMarkerNode`` can set the causal ``in_reply_to``
+    link on ``Create(VulnerabilityCase)`` (CP-05-003, ADR-0045).
 
     Reads ``case_id`` from the blackboard (written by either
     ``_LoadExistingCaseNode`` or ``_CreateCaseFromProposalNode``) and
@@ -1142,25 +1142,39 @@ class _WriteCreateCaseMarkerNode(DataLayerAction):
         case_dict.setdefault("type", "VulnerabilityCase")
         return case_dict
 
+    def _read_str_key(
+        self, key: str
+    ) -> "tuple[str, None] | tuple[None, Status]":
+        """Read a required string key from the blackboard.
+
+        Returns ``(value, None)`` on success or ``(None, FAILURE)`` on missing
+        or non-string, setting ``feedback_message`` in the failure case.
+        """
+        try:
+            val = self.blackboard.get(key)
+        except (KeyError, AttributeError):
+            self.feedback_message = f"{key} not found in blackboard"
+            return None, Status.FAILURE
+        if not isinstance(val, str):
+            self.feedback_message = f"{key} is not a string"
+            return None, Status.FAILURE
+        return val, None
+
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        try:
-            case_id = self.blackboard.get("case_id")
-        except KeyError:
-            self.feedback_message = "case_id not found in blackboard"
-            return Status.FAILURE
+        case_id, err = self._read_str_key("case_id")
+        if err is not None:
+            return err
+        assert isinstance(case_id, str)
 
-        try:
-            accept_activity_id = self.blackboard.get("accept_activity_id")
-        except KeyError:
-            self.feedback_message = (
-                "accept_activity_id not found in blackboard"
-            )
-            return Status.FAILURE
+        accept_activity_id, err = self._read_str_key("accept_activity_id")
+        if err is not None:
+            return err
+        assert isinstance(accept_activity_id, str)
 
         # Pre-construct the payload that will be (re-)sent as
         # Create(VulnerabilityCase).  Mirrors the logic in
@@ -1180,11 +1194,14 @@ class _WriteCreateCaseMarkerNode(DataLayerAction):
         # Include REPORTER/FINDER URIs so their DataLayers receive the case
         # replica immediately; CreateCaseReceivedUseCase handles them via the
         # non-vendor participant path (no ReportCaseLink required).
+        # CP-05-003 / ADR-0045: context = case URI (deferral routing key);
+        # in_reply_to = Accept URI (causal antecedent, AS2-correct field).
         reporter_uris = self._collect_reporter_uris(case_id)
         create_activity = VultronCreateCaseActivity(
             actor=self.actor_id,
             object_=case_object,
-            context=accept_activity_id,
+            context=case_id,
+            in_reply_to=accept_activity_id,
             to=[self._vendor_uri] + reporter_uris,
         )
         payload = create_activity.model_dump(by_alias=True)

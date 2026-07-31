@@ -142,7 +142,10 @@ groups:
       it MUST retry `Create(VulnerabilityCase)` independently. The `Accept` is irrevocable once sent and MUST NOT be resent
       on retry; only `Create(VulnerabilityCase)` requires retry.
     rationale: The two-activity sequence is not atomic at the network level. Resending `Accept` on retry would cause the vendor
-      to see a duplicate acceptance and potentially re-enter the initialization flow.
+      to see a duplicate acceptance and potentially re-enter the initialization flow. The `PendingCreateCaseActivity` marker
+      stores the pre-constructed `Create(VulnerabilityCase)` payload verbatim. The corrected field assignment
+      (`context=case_uri`, `in_reply_to=accept_uri` per CP-05-003 and ADR-0045) is baked into the payload so the retry
+      runner can replay the exact activity without re-running the BT.
   - id: CP-05-006
     priority: SHOULD
     kind: protocol

@@ -111,8 +111,12 @@ class VultronCreateCaseActivity(VultronActivity):
     Mirrors the essential fields of ``as_CreateCase``.
     ``type_`` is ``"Create"`` to match the wire value.
 
-    ``context`` carries the URI of the ``Accept(CaseProposal)`` activity
-    that authorised case creation (CP-05-003 causal traceability).
+    Per CP-05-003 and ADR-0045:
+
+    - ``context`` MUST be the URI of the new ``VulnerabilityCase`` (consistent
+      with all other case-scoped activities; required for inbox deferral routing).
+    - ``in_reply_to`` carries the URI of the ``Accept(CaseProposal)`` activity
+      that authorised case creation (causal antecedent in the AS2-correct field).
     """
 
     type_: Literal["Create"] = Field(
@@ -122,5 +126,17 @@ class VultronCreateCaseActivity(VultronActivity):
     )
     context: str | None = Field(
         default=None,
-        description="URI of the Accept(CaseProposal) that authorised this Create.",
+        description=(
+            "URI of the VulnerabilityCase this activity is scoped to "
+            "(CP-05-003, ADR-0045). MUST be the case URI, not the Accept URI."
+        ),
+    )
+    in_reply_to: str | None = Field(
+        default=None,
+        validation_alias="inReplyTo",
+        serialization_alias="inReplyTo",
+        description=(
+            "URI of the Accept(CaseProposal) that authorised this Create "
+            "(CP-05-003, ADR-0045). Causal antecedent in the AS2-correct field."
+        ),
     )
