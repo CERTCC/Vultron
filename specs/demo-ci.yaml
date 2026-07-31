@@ -6,7 +6,7 @@ description: >-
   when the demo fails — closing the gap where tests pass while the demo produces
   silent failures. Includes requirements for the invariant harness to run as an
   independent CI gate so failures are visible even when the demo itself also fails.
-version: 1.3.0
+version: 1.4.0
 scope:
   - prototype
   - production
@@ -116,19 +116,28 @@ groups:
         kind: project
         statement: >-
           The demo workflow MUST trigger on pull_request events targeting the
-          main branch and on workflow_dispatch events.
+          main branch, on push events to the main branch (see DEMOCI-05), and
+          on workflow_dispatch events.
+        rationale: >-
+          The pull_request trigger validates the ephemeral merge commit before
+          a PR lands. The push-to-main trigger validates the actual merged
+          main HEAD after a PR lands, closing the "green PRs, red main" gap
+          where two individually-green PRs interact to break main with no
+          post-merge signal (see DEMOCI-05).
 
       - id: DEMOCI-02-003
         priority: MUST
         kind: project
         statement: >-
-          The pull_request trigger MUST include a paths filter covering:
-          vultron/**, docker/**, integration_tests/**, pyproject.toml, and
-          uv.lock.
+          Both the pull_request and push triggers MUST include the same paths
+          filter, covering: vultron/**, docker/**, integration_tests/**,
+          test/ci/**, pyproject.toml, and uv.lock.
         rationale: >-
-          These are the files whose changes can affect demo container behaviour.
-          Filtering avoids running the expensive workflow on pure docs or
-          spec changes.
+          These are the files whose changes can affect demo container behaviour
+          or the invariant assertions that validate it. Filtering avoids running
+          the expensive workflow on pure docs or spec changes. The push and
+          pull_request filters MUST match so that any change validated pre-merge
+          is also validated post-merge on main.
 
       - id: DEMOCI-02-004
         priority: MUST
@@ -200,25 +209,29 @@ groups:
           accumulate stale Docker state if teardown is skipped.
 
       - id: DEMOCI-02-011
-        priority: SHOULD
+        priority: MUST
         kind: project
         statement: >-
-          Both demo workflows (demo-integration.yml and
-          demo-image-cache-warm.yml) SHOULD define a `concurrency` group keyed
-          on `${{ github.workflow }}-${{ github.ref }}`. The demo-integration
-          workflow (pull_request-triggered) MUST set `cancel-in-progress: true`
-          so a newer push to a PR branch cancels superseded in-progress and
-          queued runs. The demo-image-cache-warm workflow (push-to-main
-          triggered) MUST set `cancel-in-progress: false` so main-branch cache
-          warms always run to completion.
+          The demo-integration.yml workflow MUST define a `concurrency` group
+          keyed on `${{ github.workflow }}-${{ github.ref }}`. On
+          pull_request-triggered runs it MUST set `cancel-in-progress: true` so
+          a newer push to a PR branch cancels superseded in-progress and queued
+          runs. On push-to-main-triggered runs it MUST set
+          `cancel-in-progress: false` so main-branch runs always run to
+          completion (see DEMOCI-05-002). Because a single workflow file serves
+          both triggers, `cancel-in-progress` MUST be expressed as an expression
+          that evaluates to `false` on the default branch and `true` otherwise,
+          e.g. `${{ github.ref != 'refs/heads/main' }}`.
         rationale: >-
           When commits land quickly during iterative work, queued demo runs
           pile up and waste CI minutes while delaying feedback; a newer commit
           renders earlier PR-branch runs pointless. Cancelling superseded PR
-          runs reclaims those minutes. Cache-warm runs on main are never
-          cancelled because each successful warm protects the fallback cache
-          scope that new PR branches read from (see the workflow header and
-          DEMOCI-02-007).
+          runs reclaims those minutes. On-main runs are never cancelled because
+          each run both validates the merged main HEAD (DEMOCI-05-001) and
+          protects the fallback cache scope that new PR branches read from (see
+          DEMOCI-02-007 and DEMOCI-05-003). Keyed on the ref, a burst of merges
+          to main still runs each qualifying commit to completion rather than
+          collapsing to the newest, preserving per-commit failure attribution.
 
   - id: DEMOCI-03
     title: Extensibility for Additional Demo Scenarios
@@ -382,3 +395,88 @@ groups:
             spec_id: DEMOCI-04-002
           - rel_type: refines
             spec_id: DEMOCI-02-004
+
+  - id: DEMOCI-05
+    title: Post-Merge Validation on the Default Branch
+    specs:
+      - id: DEMOCI-05-001
+        priority: MUST
+        kind: project
+        statement: >-
+          The demo workflow MUST run the full demo + invariant-harness matrix
+          against the main branch HEAD on push events to main (path-filtered
+          per DEMOCI-02-003), producing a commit status on the merged result.
+        rationale: >-
+          The pull_request trigger validates only the ephemeral merge commit
+          (PR head merged onto main at test time), not the actual merged result
+          of PRs that land concurrently. Two PRs each green in isolation can
+          interact to break main, and without an on-main run nothing re-validates
+          the demos or invariants against the real merged main HEAD. The
+          path-filtered pull_request trigger only re-checks the demos when a
+          later PR happens to touch a filtered path, so a broken main can persist
+          untested until then. A push-to-main run gives the default branch its
+          own per-commit demo/invariant baseline.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-02-002
+
+      - id: DEMOCI-05-002
+        priority: MUST
+        kind: project
+        statement: >-
+          On-main demo runs MUST NOT be cancelled by the concurrency group
+          (cancel-in-progress: false on push-to-main runs, per DEMOCI-02-011),
+          so that every qualifying merge to main runs to completion and retains
+          an independent per-commit pass/fail signal for bisection.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-05-001
+          - rel_type: refines
+            spec_id: DEMOCI-02-011
+
+      - id: DEMOCI-05-003
+        priority: MUST
+        kind: project
+        statement: >-
+          The on-main run of demo-integration.yml MUST export its Docker image
+          layers to the `demo-integration-main` GitHub Actions cache scope so
+          that new PR branches read a warm fallback cache (per DEMOCI-02-007).
+          The dedicated demo-image-cache-warm.yml workflow, whose sole purpose
+          was to warm this cache on main, MUST be removed once the on-main demo
+          run performs the same cache export, to avoid a redundant second image
+          build on every qualifying push to main.
+        rationale: >-
+          Before this change, demo-integration.yml ran only on pull_request, so
+          a separate demo-image-cache-warm.yml existed purely to build the demo
+          images on main and populate the demo-integration-main cache scope for
+          new PR branches. Once demo-integration.yml itself runs on push to main
+          and writes that scope, a second cache-only build is pure waste. Folding
+          the cache export into the on-main run gives one build that both
+          validates the demo and warms the cache.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-05-001
+          - rel_type: refines
+            spec_id: DEMOCI-02-007
+
+      - id: DEMOCI-05-004
+        priority: MUST
+        kind: project
+        statement: >-
+          The push-to-main trigger MUST carry the same Dependabot exclusion
+          semantics as the pull_request trigger where applicable. Because
+          push events to main do not originate from `dependabot/` head refs,
+          the guard need not be duplicated on the push path, but the workflow
+          MUST NOT gate the on-main run behind `github.head_ref`-based
+          conditions (which are empty on push events) in a way that would
+          skip the on-main run entirely.
+        rationale: >-
+          The existing `!startsWith(github.head_ref, 'dependabot/')` guards
+          (DEMOCI-02-004, DEMOCI-04-005) evaluate against the PR head ref, which
+          is empty on push events. A naive reuse of that condition as a job-level
+          `if:` would still pass on push (empty string does not start with
+          'dependabot/'), but authors MUST verify the on-main run is not
+          inadvertently skipped when consolidating the guard expressions.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-05-001
