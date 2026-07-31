@@ -18,10 +18,14 @@ DECLINED    – Participant explicitly declined (current invite or lapsed terms)
 Transitions
 -----------
 INVITE  : NO_EMBARGO | LAPSED | DECLINED → INVITED
-ACCEPT  : INVITED | LAPSED → SIGNATORY
-DECLINE : INVITED | LAPSED → DECLINED
+ACCEPT  : NO_EMBARGO | INVITED | LAPSED → SIGNATORY
+DECLINE : NO_EMBARGO | INVITED | LAPSED → DECLINED
 REVISE  : SIGNATORY → LAPSED
 RESET   : * → NO_EMBARGO  (embargo terminated or removed)
+
+``NO_EMBARGO`` means *no embargo is in scope* (ADR-0048), not *pre-consent*.
+``ACCEPT`` and ``DECLINE`` are therefore valid directly from ``NO_EMBARGO``
+for self-determined embargoes and implicit-consent cases (CM-14-005).
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -86,14 +90,20 @@ _transitions: list[dict] = [
     PECTransition(
         trigger=PEC_Trigger.INVITE, source=PEC.DECLINED, dest=PEC.INVITED
     ).model_dump(),
-    # ACCEPT transitions
+    # ACCEPT transitions (ADR-0048: NO_EMBARGO is absence-of-embargo, not pre-consent)
+    PECTransition(
+        trigger=PEC_Trigger.ACCEPT, source=PEC.NO_EMBARGO, dest=PEC.SIGNATORY
+    ).model_dump(),
     PECTransition(
         trigger=PEC_Trigger.ACCEPT, source=PEC.INVITED, dest=PEC.SIGNATORY
     ).model_dump(),
     PECTransition(
         trigger=PEC_Trigger.ACCEPT, source=PEC.LAPSED, dest=PEC.SIGNATORY
     ).model_dump(),
-    # DECLINE transitions
+    # DECLINE transitions (ADR-0048: symmetric with ACCEPT from NO_EMBARGO)
+    PECTransition(
+        trigger=PEC_Trigger.DECLINE, source=PEC.NO_EMBARGO, dest=PEC.DECLINED
+    ).model_dump(),
     PECTransition(
         trigger=PEC_Trigger.DECLINE, source=PEC.INVITED, dest=PEC.DECLINED
     ).model_dump(),
