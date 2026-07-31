@@ -34,7 +34,6 @@ from vultron.adapters.driven.datalayer_sqlite import (
 )
 from vultron.adapters.driving.fastapi.app import create_app
 from vultron.adapters.driving.fastapi.main import app as api_app
-from vultron.adapters.driven.asgi_emitter import ASGIEmitter
 from vultron.adapters.driving.fastapi.outbox_handler import get_default_emitter
 from vultron.core.models.activity import VultronActivity
 from test.demo._helpers import (  # noqa: F401 (re-exported for test modules)
@@ -49,46 +48,15 @@ demo_utils.DEFAULT_WAIT_SECONDS = 0.0
 logger = logging.getLogger(__name__)
 
 
-class _NullDeliveryAdapter:
-    """No-op ``ActivityEmitter`` that silently drops deliveries.
-
-    Used in tests to replace ``DemoHttpDeliveryAdapter`` as the HTTP fallback
-    inside ``ASGIEmitter``.  Demo actors use fictional URLs
-    (e.g. ``https://vultron.example/users/finndervul``) that are unreachable
-    in the test environment.  The default ``DemoHttpDeliveryAdapter`` attempts
-    real HTTP POST requests with a 5 s timeout and 3 retries (3.5 s of
-    ``asyncio.sleep`` per recipient), which caused the integration suite to
-    take 17+ minutes in CI (#527).
-
-    Replacing the fallback with this no-op adapter eliminates all HTTP
-    overhead.  The outbox pipeline (emitter → ``_is_local_recipient`` →
-    fallback) is still exercised; only the unreachable HTTP delivery is
-    skipped.
-    """
-
-    async def emit(
-        self, activity: VultronActivity, recipients: list[str]
-    ) -> None:
-        logger.debug(
-            "NullDeliveryAdapter: skipping HTTP delivery to %d"
-            " unreachable recipient(s): %s",
-            len(recipients),
-            recipients,
-        )
-
-
 class _TestClientRouter:
     """Cross-app delivery adapter for isolated multi-actor test setups.
 
     Routes outbound activity delivery to the correct actor app based on the
     recipient's base URL, POSTing to that app's :class:`TestClient` inbox
-    endpoint.  Replace each actor app's ``ASGIEmitter._http_fallback`` (and,
-    via ``configure_default_emitter``, the module-level default emitter) with a
-    shared instance of this class so that when Actor A delivers to a recipient
-    hosted on Actor B's app, the activity is routed to Actor B's
-    ``TestClient`` — the only sanctioned in-process transport (ADR-0042,
-    ``outbox.yaml`` OX-12-003) — instead of a hand-rolled
-    ``httpx.ASGITransport`` or a real HTTP request.
+    endpoint.  Install via ``configure_default_emitter`` so that when Actor A
+    delivers to a recipient hosted on Actor B's app, the activity is routed
+    to Actor B's ``TestClient`` — the only sanctioned in-process transport
+    (ADR-0042, ``outbox.yaml`` OX-12-003) — instead of a real HTTP request.
 
     Use :meth:`register` to map base URLs to their ``TestClient`` instances
     after entering each client's context (the ``TestClient`` must be entered so
@@ -115,8 +83,8 @@ class _TestClientRouter:
         self, activity: VultronActivity, recipients: list[str]
     ) -> None:
         """Deliver *activity* to each recipient via the registered client."""
-        # serialize_as_any=True mirrors the production emitters (ASGIEmitter /
-        # DemoHttpDeliveryAdapter) so inline nested-object subtype fields
+        # serialize_as_any=True mirrors the production HttpDeliveryAdapter so
+        # inline nested-object subtype fields
         # (e.g. a CaseLedgerEntry's case_id/event_type) survive the wire hop
         # between isolated apps — otherwise this test double would silently
         # drop them and mask SYNC-02-004 / SYNC-13-004 regressions.
@@ -167,7 +135,7 @@ class IsolatedActorApp:
 
     Each ``IsolatedActorApp`` instance represents a separate logical actor
     container in tests.  The ``app`` has its own ``DataLayer`` injected via
-    ``dependency_overrides`` and its own ``ASGIEmitter`` stored on
+    ``dependency_overrides`` and its own ``HttpDeliveryAdapter`` stored on
     ``app.state.emitter``, so no state leaks between actors.
 
     Attributes:
@@ -192,13 +160,9 @@ def create_isolated_actor_app(
 
     Creates a fresh :class:`FastAPI` application via :func:`create_app`,
     injects an in-memory :class:`SqliteDataLayer` via ``dependency_overrides``,
-    and wires a :class:`_TestClientRouter` as the ``ASGIEmitter`` HTTP fallback
-    so that deliveries to other actors are routed to their registered
-    ``TestClient`` inboxes instead of making real HTTP requests.
-
-    The ``ASGIEmitter`` is stored on ``app.state.emitter`` during the lifespan
-    startup.  After ``TestClient.__enter__`` fires, the emitter's
-    ``_http_fallback`` is replaced with the shared ``_TestClientRouter``.
+    and registers the app with the shared :class:`_TestClientRouter` so that
+    deliveries to this actor are routed to its ``TestClient`` inbox instead of
+    making real HTTP requests (ADR-0042, OX-12-003).
 
     The actor's ``TestClient`` is registered with *router* under *base_url*.
     The client reference is stable, but callers MUST enter its context
@@ -307,36 +271,52 @@ def client():
     shutdown) are triggered, which initialises the inbox dispatcher via
     :func:`vultron.adapters.driving.fastapi.inbox_handler.init_dispatcher`.
 
-    After the lifespan fires, the ``ASGIEmitter``'s HTTP fallback adapter is
-    replaced with a ``_NullDeliveryAdapter`` that silently drops deliveries.
-    Demo actors use fictional URLs
-    (e.g. ``https://vultron.example/users/finndervul``) that are unreachable
-    in the test environment.  The default ``DemoHttpDeliveryAdapter`` retries
-    3 × with exponential backoff (≈ 3.5 s per recipient), causing 17+ min
-    CI slowdowns (#527).  The no-op adapter eliminates that overhead.
+    After the lifespan fires, the module-level default emitter is replaced
+    with a ``_TestClientRouter`` that routes all actor URLs hosted on
+    ``api_app`` back to *test_client* (so cc:-to-self loopback deliveries work
+    in-process), while silently dropping deliveries to fictional external URLs
+    (e.g. ``https://vultron.example/users/...``) that are unreachable in the
+    test environment.  Without this, the ``HttpDeliveryAdapter`` on
+    ``api_app.state.emitter`` would attempt real HTTP POST requests with
+    retries, which caused the integration suite to take 17+ min in CI (#527).
 
-    .. note::
+    Both the module-level default emitter (used by trigger-endpoint
+    BackgroundTasks) *and* ``api_app.state.emitter`` (used by inbox-endpoint
+    BackgroundTasks) are replaced, so all outbox drains route through the
+    same ``_TestClientRouter``.
 
-       The lifespan-configured ``ASGIEmitter`` uses the config default
-       ``base_url`` (``http://localhost:7999``), while TestClient creates
-       actor IDs under ``http://testserver``.  This means
-       ``_is_local_recipient`` classifies test actors as non-local, so
-       their deliveries also flow through the fallback adapter.
-       Aligning the ``base_url`` would enable ASGI delivery for test
-       actors, but the demo workflow tests currently assume no
-       inter-actor delivery occurs (state changes are driven by
-       explicit trigger-endpoint calls).  Enabling ASGI delivery is
-       deferred until the test fixtures support it (#530).
-
-    See also: #530 (actors sharing a single DataLayer in tests — a separate
-    correctness bug).
+    See also: #530 (actors sharing a single DataLayer in tests).
     """
+    from vultron.adapters.driving.fastapi.outbox_handler import (
+        configure_default_emitter,
+    )
+
     with TestClient(api_app) as test_client:
-        # Replace the HTTP fallback with a no-op adapter.  All non-local
-        # deliveries (both fictional demo hosts and testserver-based test
-        # actors) are silently dropped.  See docstring note above for why
-        # test actors are also classified as non-local.
-        emitter = get_default_emitter()
-        if isinstance(emitter, ASGIEmitter):
-            emitter._http_fallback = _NullDeliveryAdapter()  # type: ignore[assignment]
-        yield test_client
+        # Build a router that routes deliveries back to the single app and
+        # drops anything sent to external fictional URLs.
+        router = _TestClientRouter()
+        # Register both the TestClient's base_url (http://testserver) and the
+        # config's server base_url (e.g. http://localhost:7999) so that all
+        # actor IDs hosted on api_app — regardless of which base URL was used
+        # to construct them — route back to this TestClient.
+        from urllib.parse import urlparse as _urlparse
+        from vultron.config import get_config
+
+        tc_base = str(test_client.base_url).rstrip("/")
+        router.register(tc_base, test_client)
+        cfg_base_url = get_config().server.base_url
+        if cfg_base_url:
+            parsed = _urlparse(str(cfg_base_url))
+            cfg_netloc_base = f"{parsed.scheme}://{parsed.netloc}"
+            if cfg_netloc_base != tc_base:
+                router.register(cfg_netloc_base, test_client)
+
+        previous_emitter = get_default_emitter()
+        previous_app_emitter = getattr(api_app.state, "emitter", None)
+        configure_default_emitter(router)  # type: ignore[arg-type]
+        api_app.state.emitter = router  # type: ignore[assignment]
+        try:
+            yield test_client
+        finally:
+            configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
+            api_app.state.emitter = previous_app_emitter

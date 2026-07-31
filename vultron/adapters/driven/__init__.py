@@ -9,9 +9,8 @@ implementation.
 Modules:
 
 - ``datalayer.py``  — Concrete activity persistence (e.g., TinyDB).
-- ``demo_http_delivery.py`` — Unsigned HTTP transport for outbound
-                           ActivityStreams payloads; receives serialized
-                           AS2 from the wire layer.
+- ``http_delivery.py`` — HTTP transport for outbound ActivityStreams payloads;
+                      sole inter-actor delivery path (ADR-0042, OX-12-001).
 - ``prod_http_delivery.py`` — Stub implementation for future signed remote
                            delivery; raises ``NotImplementedError`` when
                            instantiated (OX-10-004).

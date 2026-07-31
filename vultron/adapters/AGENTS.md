@@ -46,8 +46,8 @@
 - **Errors**: `vultron/errors.py`,
   `vultron/adapters/driving/fastapi/errors.py`
 - **TinyDB adapter**: `vultron/adapters/driven/datalayer_tinydb.py`
-- **ASGI Emitter**: `vultron/adapters/driven/asgi_emitter.py` — routes
-  in-process deliveries via ASGI; see
+- **HTTP Delivery Adapter**: `vultron/adapters/driven/http_delivery.py` —
+  sole inter-actor delivery adapter (ADR-0042); see
   [vultron/adapters/driven/AGENTS.md](../../vultron/adapters/driven/AGENTS.md)
 
 ---
@@ -71,9 +71,6 @@ See [notes/architecture-adapters.md](../../notes/architecture-adapters.md)
 for:
 
 - Avoid `BaseModel` in Port/Adapter Type Hints
-- Co-located Actor IDs Must Be HTTP-Routable; Wire Up `ASGIEmitter` at
-  Startup
-- ASGIEmitter Path Construction: Use Scheme+Netloc Only as `httpx` Base URL
 - `create_app()` MUST NOT Mutate Module-Level Singletons
 - **DataLayer Scope Boundaries: Shared vs. Actor-Scoped** — queue methods
   (`inbox_list`, `inbox_pop`, `inbox_append`, `outbox_list`, `outbox_pop`,

@@ -119,7 +119,7 @@ def test_create_app_lifespan_cleanup(app1):
     with TestClient(app1):
         pass
 
-    assert app1.state.emitter is None
+    assert not hasattr(app1.state, "emitter")
     assert app1.state.dispatcher is None
     assert getattr(app1.state, "shared_dl", None) is None
     assert get_shared_dl not in app1.dependency_overrides

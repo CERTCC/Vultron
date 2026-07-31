@@ -83,22 +83,27 @@ def participant_setup():
 
     The case replica is seeded directly via a hand-crafted
     ``Announce(as_VulnerabilityCase)`` (fast, sufficient for routing coverage).
-    The ``_TestClientRouter`` is wired as the ASGI emitter fallback so that any
-    outbound deliveries from the participant stay in-process.
+    The ``_TestClientRouter`` is installed as the default emitter so that any
+    outbound deliveries from the participant stay in-process (ADR-0042).
 
     Yields:
         Tuple of (IsolatedActorApp, TestClient).
     """
+    from vultron.adapters.driving.fastapi.outbox_handler import (
+        configure_default_emitter,
+        get_default_emitter,
+    )
+
     router = _TestClientRouter()
     participant_isolated = create_isolated_actor_app(
         base_url=_PARTICIPANT_BASE,
         router=router,
     )
+    previous_emitter = get_default_emitter()
+    configure_default_emitter(router)  # type: ignore[arg-type]
     with participant_isolated.client as participant_tc:
-        emitter = getattr(participant_isolated.app.state, "emitter", None)
-        if hasattr(emitter, "_http_fallback"):
-            emitter._http_fallback = router  # type: ignore[assignment]
         yield participant_isolated, participant_tc
+    configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
     participant_isolated.dl.close()
 
 
@@ -113,18 +118,14 @@ def two_app_setup():
 
     Lifecycle:
       1. Enters both TestClient contexts (triggers lifespan startup).
-      2. Replaces each app's ``ASGIEmitter._http_fallback`` with the shared
-         router so cross-app deliveries POST to each target TestClient inbox
-         instead of real HTTP.
-      3. Configures the module-level ``_default_emitter`` to the shared
-         router so that trigger-endpoint ``outbox_handler`` calls (which
-         don't pass an explicit emitter) POST to each target TestClient inbox
-         instead of making real HTTP requests via ``DemoHttpDeliveryAdapter``.
-      4. Registers the config-default base_url with the router pointing to
-         the owner's app so that deliveries to the CaseActor (whose ID uses
-         the config base_url) are routed correctly.
-      5. Yields the two ``IsolatedActorApp`` instances and their test clients.
-      6. On teardown restores the previous default emitter and closes DLs.
+      2. Configures the module-level default emitter to the shared router so
+         all outbox_handler deliveries POST to each target TestClient inbox
+         instead of making real HTTP requests (ADR-0042).
+      3. Registers the config-default base_url with the router so that
+         deliveries to the CaseActor (whose ID uses that URL) are routed
+         correctly.
+      4. Yields the two ``IsolatedActorApp`` instances and their test clients.
+      5. On teardown restores the previous default emitter and closes DLs.
 
     Yields:
         Tuple of (owner_iso, participant_iso, owner_tc, participant_tc).
@@ -151,18 +152,14 @@ def two_app_setup():
     config_base_url = get_config().server.base_url.rstrip("/")
     router.register(config_base_url, owner_iso.client)
 
-    # Save and replace the module-level default emitter so outbox_handler
-    # calls from trigger endpoints use the router instead of
-    # DemoHttpDeliveryAdapter (real HTTP with retry backoff).
+    # Replace the module-level default emitter so outbox_handler calls from
+    # trigger endpoints use the router instead of HttpDeliveryAdapter (real
+    # HTTP with retry backoff).
     previous_emitter = get_default_emitter()
     configure_default_emitter(router)  # type: ignore[arg-type]
 
     with owner_iso.client as owner_tc:
         with participant_iso.client as participant_tc:
-            for iso in (owner_iso, participant_iso):
-                emitter = getattr(iso.app.state, "emitter", None)
-                if hasattr(emitter, "_http_fallback"):
-                    emitter._http_fallback = router  # type: ignore[assignment]
             yield owner_iso, participant_iso, owner_tc, participant_tc
 
     # Restore previous emitter to avoid polluting other tests.

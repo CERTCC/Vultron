@@ -80,7 +80,7 @@ class OutboxMonitor:
             ``record_outbox_item`` calls on the shared DL trigger immediate
             wakeup.
         emitter: ``ActivityEmitter`` implementation for HTTP delivery.
-            Defaults to ``DemoHttpDeliveryAdapter`` (resolved inside
+            Defaults to ``HttpDeliveryAdapter`` (resolved inside
             :func:`outbox_handler`).
         depth_warn_threshold: When set, emit a WARNING log for any actor
             whose outbox depth exceeds this value on a drain pass.  ``None``

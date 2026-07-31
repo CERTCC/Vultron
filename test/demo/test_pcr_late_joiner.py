@@ -98,15 +98,13 @@ def three_app_setup(monkeypatch):
          lacks the ``/api/v2/`` prefix and gets a 404 from the owner's ASGI
          app (its routes are at ``/api/v2/actors/…``).
       2. Enters all three TestClient contexts (triggers lifespan startup).
-      3. Replaces each app's ``ASGIEmitter._http_fallback`` with the shared
-         router so cross-app deliveries POST to each target TestClient inbox.
-      4. Configures the module-level ``_default_emitter`` to the shared
-         router so trigger-endpoint ``outbox_handler`` calls POST to each
-         target TestClient inbox instead of making real HTTP requests.
-      5. Registers the patched ``base_url`` with the router pointing to the
+      3. Configures the module-level default emitter to the shared router so
+         all outbox_handler deliveries POST to each target TestClient inbox
+         instead of making real HTTP requests (ADR-0042).
+      4. Registers the patched ``base_url`` with the router pointing to the
          owner's app so that CaseActor deliveries are routed correctly.
-      6. Yields the three ``IsolatedActorApp`` instances and their clients.
-      7. On teardown restores the previous default emitter, closes DLs, and
+      5. Yields the three ``IsolatedActorApp`` instances and their clients.
+      6. On teardown restores the previous default emitter, closes DLs, and
          reloads config to remove the patched env var.
 
     Yields:
@@ -148,19 +146,15 @@ def three_app_setup(monkeypatch):
     config_base_url = get_config().server.base_url.rstrip("/")
     router.register(config_base_url, owner_iso.client)
 
-    # Save and replace the module-level default emitter so outbox_handler
-    # calls from trigger endpoints use the router instead of
-    # DemoHttpDeliveryAdapter (real HTTP with retry backoff).
+    # Replace the module-level default emitter so outbox_handler calls from
+    # trigger endpoints use the router instead of HttpDeliveryAdapter (real
+    # HTTP with retry backoff).
     previous_emitter = get_default_emitter()
     configure_default_emitter(router)  # type: ignore[arg-type]
 
     with owner_iso.client as owner_tc:
         with reporter_iso.client as reporter_tc:
             with late_joiner_iso.client as late_joiner_tc:
-                for iso in (owner_iso, reporter_iso, late_joiner_iso):
-                    emitter = getattr(iso.app.state, "emitter", None)
-                    if hasattr(emitter, "_http_fallback"):
-                        emitter._http_fallback = router  # type: ignore[assignment]
                 yield (
                     owner_iso,
                     reporter_iso,
