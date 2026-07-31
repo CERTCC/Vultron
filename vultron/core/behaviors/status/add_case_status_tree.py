@@ -16,14 +16,22 @@
 """
 AddCaseStatus behavior tree composition.
 
-Composes the three-step AddCaseStatus workflow as a Sequence BT:
+Seam 2 of the two-seam authorization model (ADR-0046, RSH-02-001 to
+RSH-03-003): after the canonical CaseStatus write, a ``SideEffectsGuard``
+(Selector/Fallback) gates side-effect execution, and
+``ThreatTerminationBranchNode`` fires embargo teardown when the CaseStatus
+signals a threat (P=True OR X=True OR A=True).
 
     AddCaseStatusToCaseBT (Sequence)
     ├─ CheckCaseStatusIdempotencyNode   # AC-1: status not already present
     ├─ ValidateCaseStatusTransitionNode # AC-2: EM/PXA transitions are valid
-    └─ AppendCaseStatusToCaseNode       # AC-1: append status and persist
+    ├─ AppendCaseStatusToCaseNode       # AC-1: append status and persist
+    ├─ SideEffectsGuard (Selector)      # Seam 2 gate (RSH-02-001)
+    │   └─ SideEffectsApproved         # call-out; default AlwaysSucceed
+    └─ ThreatTerminationBranchNode      # Embargo teardown (RSH-03-001)
 
-Per issue #758 (BT-SM Integration: AddCaseStatusToCaseReceivedUseCase).
+Per issue #758 (BT-SM Integration: AddCaseStatusToCaseReceivedUseCase),
+RSH-02-001 to RSH-03-003, ADR-0046.
 """
 
 import logging
@@ -40,38 +48,37 @@ from vultron.core.behaviors.status.nodes import (
     CheckCaseStatusIdempotencyNode,
     ValidateCaseStatusTransitionNode,
 )
+from vultron.core.behaviors.status.nodes.threat_termination import (
+    ThreatTerminationBranchNode,
+)
 
 logger = logging.getLogger(__name__)
 
 
 def add_case_status_tree(
     request: AddCaseStatusToCaseReceivedEvent,
-    call_out: StatusAuthorizationCallOutBundle = (
-        STATUS_AUTHORIZATION_DETERMINISTIC
-    ),
+    call_out: StatusAuthorizationCallOutBundle = STATUS_AUTHORIZATION_DETERMINISTIC,
 ) -> py_trees.behaviour.Behaviour:
     """Create the behavior tree for the AddCaseStatusToCase workflow.
 
     Handles receipt of an ``Add(CaseStatus, VulnerabilityCase)`` activity.
-    Implements three steps as BT nodes in a Sequence:
+    Implements five nodes in a Sequence:
 
     1. Idempotency check — fail fast if the status is already present.
     2. Transition validation — reject invalid EM or PXA state transitions.
     3. Append and persist — write the new CaseStatus to the case record.
+    4. ``SideEffectsGuard`` (Selector) — Seam 2 call-out gate (RSH-02-001).
+       Default is ``AlwaysSucceed``; production adapters may inject a guard
+       that blocks side-effects for certain actors or scenarios.
+    5. ``ThreatTerminationBranchNode`` — fires embargo teardown when the
+       CaseStatus has at least one of P=True, X=True, or A=True and the case
+       has an active embargo (RSH-03-001 to RSH-03-003).
 
     Args:
         request: The parsed inbound domain event.
-        call_out: Status-authorization call-out backend bundle (ADR-0046
-            Seam 2).  Its ``side_effects_guard_factory`` backs the
-            ``SideEffectsGuard`` Evaluator call-out that gates
-            ``ThreatTerminationBranchNode`` (embargo teardown) after the
-            canonical write (RSH-02).  Defaults to
-            ``STATUS_AUTHORIZATION_DETERMINISTIC`` (AlwaysSucceed).  This is a
-            defaulted injection seam: the ``SideEffectsGuard`` node that reads
-            ``side_effects_guard_factory`` lands in #1842, so the parameter is
-            accepted but not yet consumed by the tree body.  Once #1842 wires
-            the guard, injecting a STOCHASTIC or REAL bundle will change the
-            side-effect decision.
+        call_out: Call-out backend bundle for the ``SideEffectsGuard``.
+            Defaults to :data:`STATUS_AUTHORIZATION_DETERMINISTIC` which
+            approves all side-effects (historical behavior).
 
     Returns:
         Root node of the ``AddCaseStatusToCaseBT`` Sequence.
@@ -98,12 +105,20 @@ def add_case_status_tree(
                 status_id=status_id,
                 status_obj_fallback=status_obj,
             ),
+            call_out.side_effects_guard_factory("SideEffectsGuard"),
+            ThreatTerminationBranchNode(
+                status_obj=status_obj,
+                case_id=case_id or None,
+                name="ThreatTerminationBranch",
+            ),
         ],
     )
     logger.debug(
-        "Created AddCaseStatusToCaseBT for status=%s case=%s actor=%s",
+        "Created AddCaseStatusToCaseBT for status=%s case=%s actor=%s"
+        " (Seam 2 call-out: %s)",
         status_id,
         case_id,
         request.actor_id,
+        call_out.__class__.__name__,
     )
     return root

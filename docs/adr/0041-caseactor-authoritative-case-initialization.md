@@ -36,6 +36,14 @@ The concrete problems this gap causes:
    `_validate_canonical_entry` guard because the CaseActor is stamping a
    vendor-authored snapshot.
 
+   The guard has two distinct failure modes, and they need separate fixes.
+   It only rejects when the snapshot's `actor` **equals** the CaseActor's own
+   ID. In a multi-actor deployment the vendor URI is the snapshot actor, so the
+   guard never fires and removing the back-fill is sufficient. In a single-actor
+   deployment (the `fvv` scenario, where the vendor *is* the CaseActor) the
+   snapshot actor equals `case_actor_id`, the guard does fire, and the
+   `("Add", "CaseStatus")` signature must additionally be authorized.
+
 4. **Latent scenario-dependent breakage**: the prologue `add_case_status_to_case`
    entry is silently skipped in passing runs (the genesis `CaseStatus` is
    already inlined in the `create_case` entry), so the ledger "works" while
@@ -51,8 +59,8 @@ created, and what does the receiver hold locally during the proposal window?**
 - Preserve AS2 "I created this" semantics end-to-end (ADR-0023)
 - Single authoritative init path: no back-fill workarounds
 - Receiver needs no local `VulnerabilityCase` before the CaseActor responds
-- Remove `WritePrologueLedgerEntriesNode` and the `Offer(CaseManagerRole)` path
-  as they become unnecessary
+- Remove `WritePrologueLedgerEntriesNode`, and remove `Offer(CaseManagerRole)`
+  from the initialization path, as both become unnecessary there
 
 ## Considered Options
 
@@ -69,10 +77,16 @@ created, and what does the receiver hold locally during the proposal window?**
    Requires complex merge/supersession logic and still violates AS2 `actor`
    semantics on the vendor-side copy.
 
-3. **Add `("Add", "CaseStatus")` to `_CASE_AUTHORED_SIGNATURES`** (symptom
-   fix only): addresses Issue #1767 but leaves the underlying two-init-path
-   architecture intact. Rejected: treats the symptom without removing the
-   cause.
+3. **Authorize `("Add", "CaseStatus")` and stop there**: add the signature to
+   `_CASE_AUTHORED_SIGNATURES` as the *whole* response to Issue #1767, leaving
+   the two-init-path architecture intact. Rejected: it silences the guard while
+   the vendor continues to author and back-fill initialization entries it has no
+   authority over. Attempted in commit `256ef3e1` and reverted in `f6578c22`.
+
+   Note that authorizing the signature is **not** rejected in itself — Option 1
+   requires it, because the CaseActor authors that entry natively and must be
+   permitted to. What is rejected is treating it as a substitute for removing
+   the back-fill. See "Signature authorization" under Decision Outcome.
 
 ## Decision Outcome
 
@@ -108,11 +122,34 @@ Receiver (on Create(VulnerabilityCase)):
   write pending link → `ProposeCaseToActorNode` → done.
 - `WritePrologueLedgerEntriesNode` (Issue #1688) — the back-fill is no longer
   needed when the CaseActor commits init entries natively.
-- `SendOfferCaseManagerRoleNode` and the `Offer(CaseManagerRole)` / accept
-  path from the vendor tree — the CaseActor adds itself as `CASE_MANAGER` when
-  creating the case natively.
-- `CreateCaseActorNode` from the vendor tree — the CaseActor is a pre-existing
-  service; the vendor does not spawn it.
+- `SendOfferCaseManagerRoleNode` from `receive_report_case_tree.py`, and the
+  prologue node from `offer_case_manager_role_received_tree.py` — the CaseActor
+  adds itself as `CASE_MANAGER` when creating the case natively, so the
+  `Offer(CaseManagerRole)` handshake is no longer part of case initialization.
+
+  **Scope limit:** what is removed is the handshake's role in *initialization*,
+  not the handshake. `Offer(CaseManagerRole)` remains a protocol operation in
+  its own right — explicit CASE_MANAGER delegation to a service actor while the
+  vendor retains CASE_OWNER — required by DEMOMA-08-002, DEMOMA-08-003, and
+  DEMOMA-08-006 through DEMOMA-08-009, and reachable via the manual trigger
+  `offer_case_manager_role_trigger_bt`. `create_offer_case_manager_role_received_tree`
+  therefore keeps its accept/reject path fully functional, which also means
+  traffic from pre-ADR-0041 actors is answered rather than silently dropped.
+- `CreateCaseActorNode` from the vendor's `receive_report_case_tree.py` — the
+  CaseActor is a pre-existing service; the vendor does not spawn it at report
+  receipt. The node itself is **retained**: `create_tree.py` still uses it for
+  standalone case construction outside the report-receipt flow.
+
+### Signature authorization
+
+Because the CaseActor now authors the four initialization entries itself,
+`_CASE_AUTHORED_SIGNATURES` MUST authorize every signature it emits during
+initialization: `("Create", "VulnerabilityCase")`, `("Add", "VulnerabilityReport")`,
+`("Add", "ParticipantStatus")`, and `("Add", "CaseStatus")`. The last of these
+was previously absent, which is the mechanical half of Issue #1767. Normative in
+CLP-12-001 (the specific entry) and CLP-12-002 (the general completeness rule).
+
+This is a consequence of Option 1, not an alternative to it — see Option 3.
 
 ### What stays
 
@@ -131,11 +168,13 @@ Receiver (on Create(VulnerabilityCase)):
 
 - **Good**: AS2 `actor` semantics are correct end-to-end — only the CaseActor
   bears `actor` on `Create(VulnerabilityCase)`.
-- **Good**: Single initialization path; `WritePrologueLedgerEntriesNode` and
-  the `Offer(CaseManagerRole)` path are removed entirely.
-- **Good**: Issue #1767 is resolved as a consequence — the
-  `add_case_status_to_case` signature conflict disappears because the back-fill
-  is gone.
+- **Good**: Single initialization path; `WritePrologueLedgerEntriesNode` is
+  removed entirely and `Offer(CaseManagerRole)` no longer participates in
+  initialization.
+- **Good**: Issue #1767 is resolved by the two halves together — removing the
+  back-fill eliminates the vendor-authored snapshot in multi-actor deployments,
+  and authorizing `("Add", "CaseStatus")` covers the single-actor deployment
+  where the guard still fires. Neither half is sufficient alone.
 - **Good**: `receive_report_case_tree.py` becomes significantly simpler.
 - **Neutral**: `case_proposal_received_tree.py` gains participant creation,
   embargo initialization, and ledger commit responsibility. This is the correct
@@ -160,10 +199,12 @@ testable:
    so the CaseActor's `Create(VulnerabilityCase)` carries full participant
    data.
 
-3. **Remove prologue and `Offer(CaseManagerRole)` path** (Issue C, blocked by
-   Issue A): delete `WritePrologueLedgerEntriesNode`, gut
-   `offer_case_manager_role_received_tree.py`, remove `SendOfferCaseManagerRoleNode`
-   and `CreateCaseActorNode` from vendor tree. Closes Issue #1767.
+3. **Remove prologue and decouple `Offer(CaseManagerRole)` from init** (Issue C,
+   blocked by Issue A): delete `WritePrologueLedgerEntriesNode`, remove the
+   prologue node from `offer_case_manager_role_received_tree.py` while keeping
+   its accept/reject path functional, remove `SendOfferCaseManagerRoleNode` and
+   `CreateCaseActorNode` from the vendor's report-receipt tree, and authorize
+   `("Add", "CaseStatus")`. Closes Issue #1767.
 
 4. **Spec and notes updates** (Issue D, parallel with B/C): update CP, CM, CLP
    specs and `notes/case-proposal.md`, `notes/case-bootstrap-trust.md`.
@@ -178,3 +219,22 @@ testable:
 - Generated spec requirements: `specs/case-proposal.yaml` CP-09,
   `specs/case-management.yaml` CM-22 (CaseActor-authoritative init),
   `specs/case-ledger-processing.yaml` CLP-12
+- Retained by scope limit: DEMOMA-08-002, DEMOMA-08-003, DEMOMA-08-006 through
+  DEMOMA-08-009 (`Offer(CaseManagerRole)` as a standalone delegation operation)
+
+### Revision history
+
+Revised 2026-07-31 during Issue #1777 (PR #1851), the implementation of step 3.
+The decision is unchanged; three statements that misdescribed it were corrected
+in place rather than appended to, so the document reads as the decision now
+stands:
+
+- Option 3 previously read as rejecting the `("Add", "CaseStatus")`
+  authorization outright, which the chosen option in fact requires. It now
+  rejects only *substituting* that authorization for removal of the back-fill.
+- "What is removed" listed the `Offer(CaseManagerRole)` accept path and
+  `CreateCaseActorNode` without qualification, conflicting with MUST-level
+  DEMOMA-08 specs and with `create_tree.py`'s live use of the node. Both entries
+  are now scoped to the report-receipt path.
+- The Issue #1767 consequence claimed removal of the back-fill was sufficient on
+  its own. It is sufficient only for multi-actor deployments.

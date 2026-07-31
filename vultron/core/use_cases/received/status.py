@@ -45,10 +45,14 @@ class CreateCaseStatusReceivedUseCase:
 
 class AddCaseStatusToCaseReceivedUseCase:
     def __init__(
-        self, dl: CasePersistence, request: AddCaseStatusToCaseReceivedEvent
+        self,
+        dl: CasePersistence,
+        request: AddCaseStatusToCaseReceivedEvent,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: AddCaseStatusToCaseReceivedEvent = request
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> None:
         request = self._request
@@ -69,7 +73,10 @@ class AddCaseStatusToCaseReceivedUseCase:
         )
 
         tree = add_case_status_tree(request=request)
-        bridge = BTBridge(datalayer=self._dl)
+        bridge = BTBridge(
+            datalayer=self._dl,
+            trigger_activity=self._trigger_activity,
+        )
         result = bridge.execute_with_setup(
             tree=tree,
             actor_id=request.actor_id,

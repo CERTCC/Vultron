@@ -74,12 +74,12 @@ from vultron.core.behaviors.case.nodes.participant.owner import (
     _build_owner_initial_status,
     _effective_case_roles,
 )
-from vultron.core.behaviors.case.nodes.prologue import (
-    _build_add_case_status_snapshot,
-    _build_add_participant_status_snapshot,
-    _build_add_report_to_case_snapshot,
-    _build_create_case_snapshot,
-    _obj_to_inline_dict,
+from vultron.core.behaviors.case.ledger_snapshots import (
+    build_add_case_status_snapshot,
+    build_add_participant_status_snapshot,
+    build_add_report_to_case_snapshot,
+    build_create_case_snapshot,
+    obj_to_inline_dict,
 )
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.behaviors.sync.commit_tree import (
@@ -552,8 +552,10 @@ class _CommitNativeLedgerEntriesNode(DataLayerAction):
       1. ``create_case``                     actor=CaseActor
       2. ``add_report_to_case``              actor=CaseActor
       3. ``add_participant_status_to_participant`` × N  actor=CaseActor
-      4. ``add_case_status_to_case``         actor=vendor (not CaseActor —
-         ``("Add","CaseStatus")`` is not in ``_CASE_AUTHORED_SIGNATURES``)
+      4. ``add_case_status_to_case``         actor=vendor (the vendor set the
+         genesis case status; ``("Add","CaseStatus")`` is nonetheless in
+         ``_CASE_AUTHORED_SIGNATURES`` per CLP-12-001, so a CaseActor-authored
+         entry would also validate)
 
     Best-effort: a single failed entry logs a warning but does not abort
     the Sequence; initialization proceeds regardless (the ledger is an
@@ -630,7 +632,7 @@ class _CommitNativeLedgerEntriesNode(DataLayerAction):
                     report_id,
                 )
                 continue
-            snapshot = _build_add_report_to_case_snapshot(
+            snapshot = build_add_report_to_case_snapshot(
                 raw_report, case, self.actor_id, case_id
             )
             self._commit_one(
@@ -671,7 +673,7 @@ class _CommitNativeLedgerEntriesNode(DataLayerAction):
             status_id = getattr(status, "id_", None)
             if not status_id:
                 continue
-            snapshot = _build_add_participant_status_snapshot(
+            snapshot = build_add_participant_status_snapshot(
                 status, participant, self.actor_id, case_id
             )
             self._commit_one(
@@ -698,7 +700,7 @@ class _CommitNativeLedgerEntriesNode(DataLayerAction):
             status_id = getattr(status, "id_", None)
             if not status_id:
                 continue
-            snapshot = _build_add_case_status_snapshot(
+            snapshot = build_add_case_status_snapshot(
                 status, case, self._vendor_uri, case_id
             )
             self._commit_one(
@@ -744,7 +746,7 @@ class _CommitNativeLedgerEntriesNode(DataLayerAction):
             case_id,
             case_id,
             "create_case",
-            _build_create_case_snapshot(case, self.actor_id, case_id),
+            build_create_case_snapshot(case, self.actor_id, case_id),
         ):
             self.feedback_message = (
                 f"genesis create_case ledger commit failed for case"
@@ -756,7 +758,9 @@ class _CommitNativeLedgerEntriesNode(DataLayerAction):
         self._commit_add_reports(case, case_id)
         # 3. add_participant_status × N  (actor = CaseActor)
         self._commit_participant_statuses(case, case_id)
-        # 4. add_case_status  (actor = vendor_uri — not in _CASE_AUTHORED_SIGNATURES)
+        # 4. add_case_status  (actor = vendor_uri — provenance, not a guard
+        #    constraint: ("Add","CaseStatus") IS in _CASE_AUTHORED_SIGNATURES
+        #    per CLP-12-001, so a CaseActor-authored entry validates too)
         self._commit_case_statuses(case, case_id)
 
         logger.info(
@@ -1134,7 +1138,7 @@ class _WriteCreateCaseMarkerNode(DataLayerAction):
         case_copy = raw_case.model_copy(
             update={"case_participants": materialized}
         )
-        case_dict = _obj_to_inline_dict(case_copy)
+        case_dict = obj_to_inline_dict(case_copy)
         case_dict.setdefault("type", "VulnerabilityCase")
         return case_dict
 

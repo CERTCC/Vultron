@@ -94,9 +94,6 @@ from vultron.core.behaviors.case.nodes.lifecycle import (
     create_guarded_commit_case_ledger_entry_tree,
     create_receive_activity_tree,
 )
-from vultron.core.behaviors.case.nodes.prologue import (
-    WritePrologueLedgerEntriesNode,
-)
 from vultron.core.behaviors.case.nodes.participant import (
     CreateParticipantStatusNode,
     RecordOwnerJoinedEventNode,
@@ -119,6 +116,7 @@ from vultron.core.behaviors.case.nodes.ownership_transfer import (
 )
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     CheckDeployerRoleNode,
+    CheckIsCaseOwnerNode,
     CheckVendorRoleNode,
 )
 from vultron.core.behaviors.case.nodes.update import (
@@ -141,6 +139,7 @@ __all__ = [
     "CheckCaseAlreadyExists",
     "CheckCaseExistsForReport",
     "CheckIsCaseManagerNode",
+    "CheckIsCaseOwnerNode",
     "CheckPendingProposalExistsForReport",
     "WritePendingReportCaseLinkNode",
     # case_setup (leaf nodes)
@@ -181,8 +180,6 @@ __all__ = [
     "CommitCaseLedgerEntryNode",
     "create_guarded_commit_case_ledger_entry_tree",
     "create_receive_activity_tree",
-    # prologue
-    "WritePrologueLedgerEntriesNode",
     # update
     "CheckCaseUpdateOwnerNode",
     "CaptureCaseUpdateBroadcastExclusionsNode",

@@ -476,7 +476,7 @@ groups:
   title: CaseActor-Authored Signature Completeness
   description: >-
     Requirements on the set of canonical-entry signatures the CaseActor is
-    authorized to author (`_CASE_AUTHORED_SIGNATURES` in `chain.py`), ensuring
+    authorized to author (`_CASE_AUTHORED_SIGNATURES` in `canonical_entry.py`), ensuring
     all case-initialization operations are expressible without falling back to
     vendor authorship or back-fill workarounds.
   specs:
@@ -484,7 +484,8 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      `_CASE_AUTHORED_SIGNATURES` in `vultron/core/behaviors/sync/nodes/chain.py`
+      `_CASE_AUTHORED_SIGNATURES` in
+      `vultron/core/behaviors/sync/nodes/canonical_entry.py`
       MUST include `("Add", "CaseStatus")` so that `add_case_status_to_case`
       ledger entries authored by the CaseActor are accepted by
       `_validate_canonical_entry`.

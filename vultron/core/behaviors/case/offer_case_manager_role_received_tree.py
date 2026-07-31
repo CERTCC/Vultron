@@ -15,7 +15,27 @@
 
 """Received-side BT factory for the OfferCaseManagerRole workflow (ADR-0022).
 
-See DEMOMA-08-002, DEMOMA-08-003; Issue #469, Issue #1021.
+Scope after ADR-0041 (Issue #1777)
+----------------------------------
+
+ADR-0041 makes the CaseActor the authoritative creator of the case: it adds
+itself as ``CVDRole.CASE_MANAGER`` while handling ``Create(as_CaseProposal)``
+(``case_proposal_received_tree.py``).  The ``Offer(CaseManagerRole)``
+handshake is therefore **no longer part of case initialization** — the vendor
+tree no longer sends it (``receive_report_case_tree.py``), and the
+``WritePrologueLedgerEntriesNode`` back-fill it used to carry is deleted.
+
+The handshake itself is **retained** rather than stubbed out, because it
+remains a spec-mandated protocol operation in its own right: explicit
+CASE_MANAGER delegation to a service actor while the vendor keeps
+``CASE_OWNER`` (DEMOMA-08-002, DEMOMA-08-003, DEMOMA-08-006 through
+DEMOMA-08-009).  Its live entry point is now the manual trigger
+``offer_case_manager_role_trigger_bt`` in ``actor_trigger_trees.py`` rather
+than an automatic step at report receipt.  Keeping the accept/reject path
+functional also means ``Offer(CaseManagerRole)`` traffic from pre-ADR-0041
+actors is still answered rather than silently dropped.
+
+See DEMOMA-08-002, DEMOMA-08-003; Issue #469, Issue #1021, Issue #1777.
 """
 
 import logging
@@ -29,9 +49,6 @@ from vultron.core.behaviors.case.nodes.delegation import (
 )
 from vultron.core.behaviors.case.nodes.lifecycle import (
     create_receive_activity_tree,
-)
-from vultron.core.behaviors.case.nodes.prologue import (
-    WritePrologueLedgerEntriesNode,
 )
 from vultron.core.behaviors.report.nodes.storage import StoreActivityNode
 
@@ -48,11 +65,10 @@ def create_offer_case_manager_role_received_tree(
     """Single-BT received-side tree for OfferCaseManagerRole (ADR-0022).
 
     Idempotently stores the incoming Offer, then — when the receiving actor
-    holds ``CVDRole.CASE_MANAGER`` — commits the initialization
-    ``CaseLedgerEntry`` that back-fills the canonical record
-    (DEMOMA-08-002, DEMOMA-08-003).  The guarded commit runs BEFORE the
-    auto-accept so the canonical ledger entry for the Offer exists before
-    the ``Accept`` is sent to the offering Vendor.
+    holds ``CVDRole.CASE_MANAGER`` — commits the ``offer_case_manager_role``
+    ``CaseLedgerEntry`` (DEMOMA-08-002, DEMOMA-08-003).  The guarded commit
+    runs BEFORE the auto-accept so the canonical ledger entry for the Offer
+    exists before the ``Accept`` is sent to the offering Vendor.
 
     Finally, the tree attempts to auto-accept the offer by emitting
     ``Accept(Offer(CaseManagerRole))`` to the offering Vendor.  If the
@@ -77,16 +93,15 @@ def create_offer_case_manager_role_received_tree(
         │   ├── SkipIfNotCaseManager (Sequence)
         │   │   └── Inverter(CheckIsCaseManagerNode)
         │   └── CommitCaseLedgerEntryNode              # offer_case_manager_role
-        ├── WritePrologueLedgerEntriesNode             # Issue #1688 prologue backfill
         ├── StoreActivityNode("OfferCaseManagerRole")
         └── AcceptOrReject (Selector)
             ├── AutoAcceptCaseManagerRoleNode
             └── EmitRejectCaseManagerRoleNode
 
-    The ``WritePrologueLedgerEntriesNode`` runs *after* the guarded ledger
-    commit for ``offer_case_manager_role`` (CLP-10-006 ordering) but *before*
-    the ``StoreActivityNode`` and auto-accept.  It back-fills the
-    initialization entries that preceded ledger existence (Issue #1688).
+    Per ADR-0041 (Issue #1777) this tree no longer back-fills
+    case-initialization ledger entries: ``WritePrologueLedgerEntriesNode`` is
+    deleted and the CaseActor commits those entries natively while handling
+    ``Create(as_CaseProposal)`` (CM-22-003).
 
     Args:
         offer_id: ID of the ``Offer(CaseManagerRole)`` activity.
@@ -117,21 +132,11 @@ def create_offer_case_manager_role_received_tree(
         ],
     )
 
-    prologue_nodes: list[Any] = []
-    if case_id and vendor_id:
-        prologue_nodes.append(
-            WritePrologueLedgerEntriesNode(
-                case_id=case_id,
-                vendor_id=vendor_id,
-            )
-        )
-
     return create_receive_activity_tree(
         name="OfferCaseManagerRoleReceivedBT",
         case_id=case_id if case_id else None,
         precondition_guards=[],
         effect_nodes=[
-            *prologue_nodes,
             StoreActivityNode(
                 activity_id=offer_id,
                 activity_obj=offer_obj,

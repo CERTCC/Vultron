@@ -25,10 +25,12 @@ from vultron.wire.as2.factories import (
     rm_engage_case_activity,
 )
 from vultron.wire.as2.factories.case import (
+    add_status_to_case_activity,
     announce_vulnerability_case_activity,
     create_case_proposal_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Add
+from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -138,6 +140,34 @@ class _CasesMixin:
                 activity.id_,
             )
         return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+
+    def add_case_status_to_case(
+        self,
+        status_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> str:
+        """Create and persist an ``Add(CaseStatus, VulnerabilityCase)`` activity.
+
+        Used by ``EmitAddCaseStatusToSelfNode`` to emit a self-addressed
+        ``Add(CaseStatus)`` from the receiving actor to the CaseActor
+        (RSH-01-003).  Returns the activity ID for outbox queueing.
+        """
+        status = _to_wire(self._dl.read(status_id), as_CaseStatus)
+        case = _to_wire(self._dl.read(case_id), as_VulnerabilityCase)
+        activity = add_status_to_case_activity(
+            status=status, target=case, actor=actor, to=to
+        )
+        try:
+            self._dl.create(activity)
+        except ValueError:
+            logger.warning(
+                "add_case_status_to_case: activity '%s' already exists"
+                " — skipping",
+                activity.id_,
+            )
+        return activity.id_
 
     def announce_vulnerability_case(
         self,
