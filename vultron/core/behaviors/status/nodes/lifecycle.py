@@ -15,10 +15,15 @@
 
 """Case lifecycle trigger nodes for DEMOMA-07-003 steps 4–5.
 
-Contains the public-disclosure embargo teardown branch (step 4) and the
+Contains the public-disclosure embargo teardown branch (step 4, legacy
+``PublicDisclosureBranchNode``, kept for export compatibility), and the
 auto-close emit node (step 5).  The auto-close precondition and idempotency
 guards are in ``conditions.py``; the routing guard is
 :class:`~vultron.core.behaviors.sender.nodes.actions.ResolveCaseManagerNode`.
+
+Seam 2 nodes (``ThreatTerminationBranchNode``) live in
+:mod:`~vultron.core.behaviors.status.nodes.threat_termination` and are
+re-exported from here for backward-compatible import paths.
 """
 
 import logging
@@ -35,6 +40,10 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.protocols import PersistableModel
 from vultron.enums.roles import CVDRole
 from vultron.core.models._helpers import _as_id
+from vultron.core.behaviors.status.nodes.threat_termination import (  # noqa: F401
+    ThreatTerminationBranchNode,
+    _ThreatTerminationSkipConditionNode,
+)
 
 logger = logging.getLogger(__name__)
 

@@ -31,7 +31,7 @@ Submodules:
   ValidateRMTransitionNode, AppendStatusAndSaveParticipantNode)
 - ``lifecycle``: Public disclosure and auto-close emit lifecycle nodes
   (_PublicDisclosureSkipConditionNode, PublicDisclosureBranchNode,
-  EmitCloseCaseNode)
+  ThreatTerminationBranchNode, EmitAddCaseStatusToSelfNode, EmitCloseCaseNode)
 - ``case_status``: Idempotency guard, EM/PXA transition validation, and
   append nodes for the AddCaseStatusToCase workflow
 """
@@ -60,6 +60,7 @@ from vultron.core.behaviors.status.nodes.lifecycle import (
     EmitAddCaseStatusToSelfNode,
     EmitCloseCaseNode,
     PublicDisclosureBranchNode,
+    ThreatTerminationBranchNode,
     _PublicDisclosureSkipConditionNode,
 )
 
@@ -79,6 +80,7 @@ __all__ = [
     # lifecycle
     "_PublicDisclosureSkipConditionNode",
     "PublicDisclosureBranchNode",
+    "ThreatTerminationBranchNode",
     "EmitAddCaseStatusToSelfNode",
     "EmitCloseCaseNode",
     # case_status

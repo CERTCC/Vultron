@@ -11,7 +11,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Call-out bundle for received-side status update authorization (RSH-01-002).
+"""Call-out bundle for received-side status update authorization (ADR-0046).
 
 Provides :class:`StatusAuthorizationCallOutBundle` and the pre-built core
 deterministic singleton :data:`STATUS_AUTHORIZATION_DETERMINISTIC`.  A
@@ -20,13 +20,16 @@ probabilistic STOCHASTIC singleton lives in the simulation/demo layer.
 Ceiling/floor mapping:
 
 - ``status_update_guard_factory`` — CaseOwnerApprovesStatusUpdate → AlwaysSucceed
+  (Seam 1, RSH-01-002)
+- ``side_effects_guard_factory`` — SideEffectsGuard → AlwaysSucceed
+  (Seam 2, RSH-02-001)
 
 The deterministic singleton approves all non-CASE_OWNER status updates,
 which preserves the historical behavior of ``add_participant_status_tree``
 before Seam 1 was introduced.  Production adapters (e.g. a human-in-the-loop
-review queue) replace this factory via constructor injection.
+review queue) replace these factories via constructor injection.
 
-Per RSH-01-002, ADR-0046.
+Per RSH-01-002, RSH-02-001, ADR-0046.
 """
 
 from __future__ import annotations
@@ -45,27 +48,35 @@ def _always_succeed(name: str) -> py_trees.behaviour.Behaviour:
 
 @dataclass(frozen=True)
 class StatusAuthorizationCallOutBundle:
-    """Call-out backend bundle for received-side status authorization (RSH-01-002).
+    """Call-out backend bundle for received-side status authorization.
 
-    Fields map to the corresponding factory parameters on
-    :func:`~vultron.core.behaviors.status.add_participant_status_tree.add_participant_status_bt`.
+    Fields map to the corresponding factory parameters on the two seams of the
+    two-seam authorization model (ADR-0046).
 
     ``status_update_guard_factory`` backs the ``CaseOwnerApprovesStatusUpdate``
-    call-out node inside ``StatusUpdateGuard``.  When ``CheckIsCaseOwnerNode``
-    already returns SUCCESS, this factory is never called (the Fallback's
-    first child short-circuits).
+    call-out node inside ``StatusUpdateGuard`` (Seam 1, RSH-01-002).  When
+    ``CheckIsCaseOwnerNode`` already returns SUCCESS, this factory is never
+    called (the Fallback's first child short-circuits).
+
+    ``side_effects_guard_factory`` backs the ``SideEffectsGuard`` call-out
+    node inside ``add_case_status_tree`` (Seam 2, RSH-02-001).  When the
+    guard returns SUCCESS, ``ThreatTerminationBranchNode`` and any other
+    side-effect nodes are allowed to execute.
     """
 
     status_update_guard_factory: CallOutBackendFactory = field(
         default=_always_succeed  # type: ignore[assignment]
     )
+    side_effects_guard_factory: CallOutBackendFactory = field(
+        default=_always_succeed  # type: ignore[assignment]
+    )
 
 
 STATUS_AUTHORIZATION_DETERMINISTIC = StatusAuthorizationCallOutBundle()
-"""Deterministic bundle: approves all non-CASE_OWNER status updates.
+"""Deterministic bundle: approves all updates through both seams.
 
-Preserves historical ``add_participant_status_tree`` behavior before
-Seam 1 authorization was introduced (ADR-0046).
+Preserves historical behavior before the two-seam authorization model
+was introduced (ADR-0046).
 """
 
 __all__ = [
