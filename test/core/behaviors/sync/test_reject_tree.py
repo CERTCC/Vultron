@@ -94,7 +94,7 @@ def _make_event(
 def test_create_reject_log_entry_tree_returns_sequence():
     tree = create_reject_log_entry_tree()
     assert tree.name == "RejectLogEntryReceivedBT"
-    assert len(tree.children) == 3
+    assert len(tree.children) == 4
 
 
 def test_reject_tree_updates_replication_state_and_replays_entries(
@@ -149,3 +149,92 @@ def test_reject_tree_replays_all_entries_when_hash_not_found(
 
     assert result.status == Status.SUCCESS
     assert sync_port.send_announce_log_entry.call_count == 2
+
+
+def test_genesis_reject_queues_announce_vulnerability_case(
+    datalayer, case_actor
+):
+    """When last_accepted_hash='', AnnounceVulnerabilityCase is sent before
+    entry replay so the peer can anchor its hash chain (SYNC-15-002).
+    """
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
+
+    entry = _make_entry(0)
+    datalayer.save(entry)
+    event = _make_event(entry, tail_hash="")
+    sync_port = MagicMock(spec=SyncActivityPort)
+    trigger_activity = MagicMock(spec=TriggerActivityPort)
+    trigger_activity.announce_vulnerability_case.return_value = (
+        "https://example.org/activities/announce-case-1"
+    )
+
+    bridge = BTBridge(
+        datalayer=datalayer,
+        sync_port=sync_port,
+        trigger_activity=trigger_activity,
+    )
+    result = bridge.execute_with_setup(
+        tree=create_reject_log_entry_tree(),
+        actor_id=OWNER_ACTOR_ID,
+        activity=event,
+        sync_port=sync_port,
+    )
+
+    assert result.status == Status.SUCCESS
+    trigger_activity.announce_vulnerability_case.assert_called_once()
+    call_kwargs = trigger_activity.announce_vulnerability_case.call_args.kwargs
+    assert call_kwargs["case_id"] == CASE_ID
+    assert call_kwargs["to"] == [PEER_ID]
+
+
+def test_genesis_reject_without_trigger_port_still_succeeds(
+    bridge, datalayer, case_actor
+):
+    """Missing trigger port is a WARNING, not a FAILURE — replay continues
+    (SYNC-15-002 is best-effort; replay remains the backstop).
+    """
+    entry = _make_entry(0)
+    datalayer.save(entry)
+    event = _make_event(entry, tail_hash="")
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    result = bridge.execute_with_setup(
+        tree=create_reject_log_entry_tree(),
+        actor_id=OWNER_ACTOR_ID,
+        activity=event,
+        sync_port=sync_port,
+    )
+
+    assert result.status == Status.SUCCESS
+
+
+def test_non_genesis_reject_skips_announce_vulnerability_case(
+    datalayer, case_actor
+):
+    """When last_accepted_hash is non-empty the node is a no-op — the peer
+    already has the case and does not need re-seeding (SYNC-15-002).
+    """
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
+
+    first_entry = _make_entry(0)
+    second_entry = _make_entry(1, first_entry.entry_hash)
+    datalayer.save(first_entry)
+    datalayer.save(second_entry)
+    event = _make_event(second_entry, tail_hash=first_entry.entry_hash)
+    sync_port = MagicMock(spec=SyncActivityPort)
+    trigger_activity = MagicMock(spec=TriggerActivityPort)
+
+    bridge = BTBridge(
+        datalayer=datalayer,
+        sync_port=sync_port,
+        trigger_activity=trigger_activity,
+    )
+    result = bridge.execute_with_setup(
+        tree=create_reject_log_entry_tree(),
+        actor_id=OWNER_ACTOR_ID,
+        activity=event,
+        sync_port=sync_port,
+    )
+
+    assert result.status == Status.SUCCESS
+    trigger_activity.announce_vulnerability_case.assert_not_called()

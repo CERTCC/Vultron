@@ -127,6 +127,12 @@ class ReconstructChainTailNode(DataLayerAction):
                 case_id,
                 exc,
             )
+            # Write sentinel values so a downstream reject node can fire even
+            # though the tree would normally stop at this FAILURE.  An empty
+            # tail_hash signals "replay from genesis" to the CaseActor
+            # (SYNC-15-001, CLP-08-005).
+            self.blackboard.tail_hash = ""
+            self.blackboard.tail_index = -1
             return Status.FAILURE
         self.blackboard.tail_hash = tail_hash
         self.blackboard.tail_index = tail_index

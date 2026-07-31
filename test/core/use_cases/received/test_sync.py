@@ -273,6 +273,42 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         to_field = getattr(reject_obj, "to", None) or []
         assert ACTOR_URI in to_field
 
+    def test_missing_case_queues_reject_with_empty_tail_hash(self, dl):
+        """Announce before VulnerabilityCase is seeded MUST send Reject (SYNC-15-001).
+
+        When no VulnerabilityCase exists in the DataLayer, ReconstructChainTailNode
+        cannot derive the per-case genesis hash (CLP-08-005) and the entry cannot
+        be accepted.  A Reject with last_accepted_hash="" MUST be sent so the
+        CaseActor replays all entries from the beginning once the case is delivered.
+        Without this Reject the dropped entry is permanently lost (issue #1873).
+        """
+        entry = _make_entry(CASE_URI, 0, "any_hash" * 8)
+        event = self._make_event(entry)
+        event = event.model_copy(update={"receiving_actor_id": RECEIVER_URI})
+        sync_port = SyncActivityAdapter(dl)
+        AnnounceLedgerEntryReceivedUseCase(
+            dl, event, sync_port=sync_port
+        ).execute()
+
+        # Entry must NOT be stored (no case → cannot validate genesis)
+        assert dl.read(entry.id_) is None
+
+        # A Reject MUST be queued so CaseActor retries delivery (SYNC-15-001)
+        queued = dl.outbox_list_for_actor(RECEIVER_URI)
+        assert len(queued) == 1, (
+            "Expected a Reject activity — missing case silently dropped the entry "
+            "(regression for issue #1873)"
+        )
+        reject_obj = dl.read(queued[0])
+        from vultron.wire.as2.enums import as_TransitiveActivityType
+
+        assert (
+            getattr(reject_obj, "type_", None)
+            == as_TransitiveActivityType.REJECT
+        )
+        # context field carries last_accepted_hash="" (replay from genesis)
+        assert getattr(reject_obj, "context", None) == ""
+
     def test_idempotent_second_accept(self, dl, first_entry):
         """Calling execute twice with the same entry stores it only once."""
         dl.save(first_entry)  # pre-store

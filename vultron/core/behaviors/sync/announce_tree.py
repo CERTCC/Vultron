@@ -19,6 +19,7 @@ from vultron.core.behaviors.sync.nodes import (
     LogDeliveryConfirmationNode,
     PersistReceivedLogEntryNode,
     ReconstructChainTailNode,
+    SendRejectLogEntryNode,
     VerifySenderIsOwnIdNode,
 )
 
@@ -138,11 +139,26 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
             ),
         ],
     )
+    # When the VulnerabilityCase is not yet seeded on this replica, chain tail
+    # reconstruction fails and no tail_hash is available for the mismatch check.
+    # Wrap reconstruct in a Selector so that on failure we still send a Reject
+    # (with last_accepted_hash="" meaning "replay from genesis") and exit the
+    # Sequence without persisting the entry (SYNC-15-001, CLP-08-005).
+    reconstruct_or_reject = py_trees.composites.Selector(
+        name="ReconstructOrRejectOnMissingCase",
+        memory=False,
+        children=[
+            ReconstructChainTailNode(name="ReconstructChainTail"),
+            # Fallback: send Reject carrying the sentinel tail_hash="" that
+            # ReconstructChainTailNode wrote before failing.
+            SendRejectLogEntryNode(name="RejectOnMissingCase"),
+        ],
+    )
     process_and_store = py_trees.composites.Sequence(
         name="ProcessAndStore",
         memory=False,
         children=[
-            ReconstructChainTailNode(name="ReconstructChainTail"),
+            reconstruct_or_reject,
             CheckHashOrRejectOnMismatchNode(
                 name="CheckHashOrRejectOnMismatch"
             ),

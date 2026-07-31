@@ -47,6 +47,7 @@ from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.sync_helpers import _reconstruct_tail_hash
 from vultron.errors import VultronValidationError
 
@@ -285,10 +286,12 @@ class RejectLedgerEntryReceivedUseCase:
         dl: CaseOutboxPersistence,
         request: RejectLogEntryReceivedEvent,
         sync_port: SyncActivityPort | None = None,
+        trigger_activity: TriggerActivityPort | None = None,
     ) -> None:
         self._dl = dl
         self._request = request
         self._sync_port = sync_port
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> None:
         request = self._request
@@ -308,11 +311,14 @@ class RejectLedgerEntryReceivedUseCase:
             rejected_entry.case_id,
             request.last_accepted_hash,
         )
-        result = BTBridge(datalayer=self._dl).execute_with_setup(
+        result = BTBridge(
+            datalayer=self._dl,
+            sync_port=self._sync_port,
+            trigger_activity=self._trigger_activity,
+        ).execute_with_setup(
             tree=create_reject_log_entry_tree(),
             actor_id=request.receiving_actor_id or "unknown",
             activity=request,
-            sync_port=self._sync_port,
         )
         if result.status == Status.FAILURE:
             logger.debug(

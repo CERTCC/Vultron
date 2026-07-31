@@ -137,7 +137,6 @@ _SYNC_PORT_SEMANTICS = frozenset(
         MessageSemantics.ADD_NOTE_TO_CASE,
         MessageSemantics.CLOSE_CASE,
         MessageSemantics.INVITE_ACTOR_TO_CASE,
-        MessageSemantics.REJECT_CASE_LEDGER_ENTRY,
         MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE,
         MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE,
     }
@@ -178,6 +177,10 @@ _SYNC_AND_TRIGGER_PORT_SEMANTICS = frozenset(
         MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
         MessageSemantics.OFFER_CASE_MANAGER_ROLE,
         MessageSemantics.OFFER_CASE_PARTICIPANT_ROLE,
+        # REJECT_CASE_LEDGER_ENTRY needs trigger_activity so that
+        # AnnounceCaseOnGenesisRejectNode can send Announce(VulnerabilityCase)
+        # to a peer that has no case yet before replaying entries (SYNC-15-002).
+        MessageSemantics.REJECT_CASE_LEDGER_ENTRY,
     }
 )
 

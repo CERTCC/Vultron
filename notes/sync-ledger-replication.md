@@ -451,6 +451,32 @@ from the beginning; each entry passes the `CheckLedgerEntryAlreadyStoredNode` ga
 
 This is tracked as issue #1446.
 
+## Genesis-Unavailable Reject (SYNC-15)
+
+`Announce(CaseLedgerEntry)` can arrive at a participant replica before
+`Create(VulnerabilityCase)` has been processed (a delivery-order race under HTTP
+BackgroundTasks). When that happens, `ReconstructChainTailNode` cannot derive the
+per-case genesis hash (CLP-08-005) and returns FAILURE.
+
+**Before the fix (issue #1873)**: FAILURE from `ReconstructChainTailNode` exited
+the `ProcessAndStore` Sequence without reaching `CheckHashOrRejectOnMismatchNode`,
+so no `Reject(CaseLedgerEntry)` was sent. The CaseActor never learned about the
+failure and never replayed the entry → permanent data loss on the replica.
+
+**After the fix**: `ReconstructChainTailNode` writes sentinel values
+(`tail_hash=""`, `tail_index=-1`) before returning FAILURE. The announce tree
+wraps the node in a Selector whose fallback is `SendRejectLogEntryNode`, so the
+Reject fires even when chain reconstruction fails. The Reject carries
+`last_accepted_hash=""` (meaning "I have no entries; replay from genesis") so
+the CaseActor re-announces all entries once the case is delivered.
+
+**Implementation**: `vultron/core/behaviors/sync/nodes/chain.py`
+(`ReconstructChainTailNode.update`) and
+`vultron/core/behaviors/sync/announce_tree.py` (`ReconstructOrRejectOnMissingCase`
+Selector). Spec: SYNC-15-001, SYNC-15-002. Regression test:
+`test/core/use_cases/received/test_sync.py::TestAnnounceLedgerEntryReceivedUseCase
+::test_missing_case_queues_reject_with_empty_tail_hash`.
+
 ## Related
 
 - `specs/sync-ledger-replication.yaml` — normative requirements
