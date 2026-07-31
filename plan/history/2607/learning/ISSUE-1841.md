@@ -21,3 +21,6 @@ call sites import from the package and are unaware of the submodule change.
 
 Future: if `conditions.py` continues to grow, consider extracting the proposal-related
 nodes into `proposal_conditions.py`.
+
+**Promoted**: 2026-07-31 — captured in `AGENTS.md` (CheckIsCaseOwnerNode module placement pitfall).
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1900>0>0>0>0>.

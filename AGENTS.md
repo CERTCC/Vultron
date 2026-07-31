@@ -475,6 +475,41 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   be fully implemented by a prior PR that did not include a `Closes #N` footer.
   Check current `main` against all ACs before writing any code; if satisfied, close
   the issue with a reference comment instead. *Sources: ISSUE-1510, ISSUE-1484*
+- **Docs/Learn PRs That Fix a Bug Must Include `Closes #N`** — when a docs PR
+  fixes a bug as a side effect, the closing footer is the only thing that
+  closes the issue automatically. Without it the issue stays OPEN after merge.
+  *Source: ISSUE-1787*
+- **Guard Name Must Reflect the State-Machine Transition Precondition, Not Just
+  Symptom Absence** — look up the transition in `vultron/core/states/` before
+  naming and implementing a guard node; "not yet X" names under-constrain the
+  guard and allow invalid state jumps. See
+  [notes/bt-pitfalls.md](notes/bt-pitfalls.md) § "Guard Name Must Match…".
+  *Source: ISSUE-1825*
+- **Leaf Modules Near the 500-Line Cap Block Documentation Edits** — check
+  `wc -l` before adding docstrings or audit comments to a leaf module. If it is
+  within ~20 lines of 500, extract a semantic concern into a sibling submodule
+  (BTND-07-006) *first*, then write the documentation. See BTND-07-004,
+  BTND-07-006. *Source: ISSUE-1777*
+- **`CheckIsCaseOwnerNode` Lives in `vfd_role_guards.py`, Not `conditions.py`** —
+  placed there because `conditions.py` was at the 500-line cap when the node was
+  added (ISSUE-1841). `__init__.py` re-exports it alongside the other role guards.
+  If `conditions.py` grows further, consider extracting proposal-related nodes
+  into `proposal_conditions.py`. *Source: ISSUE-1841*
+- **ADR "What Is Removed" Lists Are Scoped to One Use, Not Global Existence** —
+  grep the spec corpus for MUSTs describing the *operation* the node implements
+  before deleting it. An ADR may list a component as removed from one specific
+  initialization flow while spec entries still require it in another. *Source:
+  ISSUE-1777; see also [notes/bt-pitfalls.md](notes/bt-pitfalls.md)*
+- **Large Migration Tasks: Partition by Node Shape (Type), Then Domain for Size**
+  — for tasks that migrate many nodes (e.g., Ports adoption), classify nodes by
+  their structural shape first (trivial reparent / read-only extra inputs /
+  complex output ports), then split by domain only to balance PR size. "Each PR
+  should be a lot of the same thing." See ISSUE-1809 for the typed-Ports chain
+  decomposition as the reference example.
+- **When a `Closes #N` Footer Is Missing from a Merged PR, the Issue Stays Open**
+  — check open issues before starting a session; an issue may be fully implemented
+  but not closed. Use `git log -S "<fix string>" -- <file>` against `origin/main`
+  to confirm. *Source: ISSUE-1787*
 
 ---
 

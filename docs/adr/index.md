@@ -40,6 +40,29 @@ You do **not** need an ADR for:
 If you're unsure, err on the side of writing one — a brief ADR is better than
 losing context.
 
+### Revising vs. amending an ADR
+
+An ADR records the decision that was made and why. Its value to a future reader
+is that they can understand the current expectation in one pass.
+
+**When to revise in-place**: If a recently-accepted ADR contains a statement
+that its own implementation contradicted — e.g., an option label that says
+"rejected" for something the chosen option actually requires, or a "what is
+removed" list that conflicts with MUST-level spec entries — **revise the ADR
+body directly** to make the current expectation accurate.
+
+**When to write a new ADR**: If the decision itself changed (you adopted a
+different option than originally chosen), write a new ADR that supersedes the
+old one.
+
+**Do not append `### Amendment` sections**: An append-only trail of amendments
+forces future readers to reconcile the body against its own addenda to determine
+which statement is currently authoritative. This defeats the primary purpose of
+the record. The only exception is an ADR with `status: provisional` where the
+amendment explicitly finalises that status.
+
+Source: ISSUE-1777 / learning 2026-07-31
+
 ### How to write an ADR
 
 For new ADRs, please use [adr-template.md](_adr-template.md) as basis.

@@ -2,7 +2,7 @@
 title: test_communication.py::test_queues_offer_and_writes_activity_id is order-dependent on ActorConfig env
 type: learning
 timestamp: "2026-07-30T22:15:00+00:00"
-source: ISSUE-1777
+source: ISSUE-1777-d
 signal: tooling-issue
 ---
 
@@ -24,3 +24,6 @@ clean base before investigating your own diff. The real fix is for the test to
 set the ActorConfig env/monkeypatch in its own fixture — worth a Concern issue if
 it bites again. Related: [[feedback_completeness_doctrine]] § Finding Severity on
 pre-existing-failure proof.
+
+**Promoted**: 2026-07-31 — captured in `notes/bt-pitfalls.md` (test order-dependence note). GitHub concern: #1897.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1900>0>0>0>0>.

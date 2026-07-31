@@ -1,7 +1,7 @@
 ---
 title: "AC-3 guard name understated the required VFD precondition"
 type: learning
-timestamp: 2026-07-30
+timestamp: "2026-07-30T00:00:00Z"
 source: ISSUE-1825
 signal: spec-ambiguity
 ---
@@ -28,3 +28,6 @@ action performs.
 condition from the source state(s) of the transition the guarded action
 triggers, not from the guard's name. Cross-check against the legacy simulation
 tree's equivalent guard.
+
+**Promoted**: 2026-07-31 — captured in `notes/bt-pitfalls.md` (guard name must match transition precondition section) and `AGENTS.md`.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1900>0>0>0>0>.

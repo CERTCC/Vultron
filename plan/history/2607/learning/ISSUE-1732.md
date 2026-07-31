@@ -1,9 +1,9 @@
 ---
 title: "#1732 (in-process fuzz scenario) was premature — depends on Epic #1285 builders"
 type: learning
-timestamp: "2026-07-29"
+timestamp: "2026-07-29T00:00:00Z"
 source: ISSUE-1732
-signal: scope-dependency
+signal: design-question
 ---
 
 Issue #1732 (FUZZ-08e: in-process FCV fuzz simulation) was picked up for build after
@@ -41,3 +41,6 @@ its ACs assume are actually reachable in code (not just that the named blockers
 closed) — the same "verify ACs against current code before starting" pitfall,
 extended to cross-epic capability dependencies. The `blockedBy` graph here was
 missing the entire #1285 dependency, which is what let #1732 look ready.
+
+**Promoted**: 2026-07-31 — captured in `AGENTS.md` (cross-epic blocked-by verification pitfall).
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1900>0>0>0>0>.

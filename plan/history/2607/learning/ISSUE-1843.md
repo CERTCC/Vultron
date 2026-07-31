@@ -1,7 +1,7 @@
 ---
 title: "STOCHASTIC call-out bundle for a production-only domain with no simulator fuzzer nodes"
 type: learning
-timestamp: 2026-07-30
+timestamp: "2026-07-30T00:00:00Z"
 source: ISSUE-1843
 signal: design-question
 ---
@@ -50,3 +50,6 @@ a pattern that has no simulation counterpart.
 Consider capturing this as a short rule in
 `notes/call-out-configuration.md` (§ "Three-Mode Model" or a new
 "production-only domains" note) if more such domains appear.
+
+**Promoted**: 2026-07-31 — captured in `notes/call-out-configuration.md` (production-only domains section).
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1900>0>0>0>0>.

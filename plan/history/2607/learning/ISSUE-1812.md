@@ -20,3 +20,6 @@ both the fast-path (`actor_participant_index`) and the fallback iteration over
 
 Long-term unification (deduplicate to a shared `core.behaviors` helper or
 move the canonical to a layer both can import) is tracked by #1428.
+
+**Promoted**: 2026-07-31 — captured in `notes/bt-pitfalls.md` (_resolve_case_manager_id duplication section).
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1900>0>0>0>0>.

@@ -1,8 +1,8 @@
 ---
 title: defaultdict-based phrase tests cannot catch unfillable slot bugs
 type: learning
-timestamp: 2026-07-29
-source: ISSUE-1787
+timestamp: "2026-07-29T00:00:00Z"
+source: ISSUE-1787-phrase-defaultdict
 signal: concern
 ---
 
@@ -32,3 +32,6 @@ type. Do not rely on the defaultdict SE-07 tests as a slot-correctness guard —
 they only prove non-emptiness. For a phrase whose event carries no target
 (e.g. `Create(as_CaseProposal)`, where the factory sets no `target`), assert
 `"{target}" not in entry.phrase` and add a symptom-level `summary` render test.
+
+**Promoted**: 2026-07-31 — captured in `notes/codebase-structure-fastapi-patterns.md` (phrase defaultdict section). GitHub concern: #1898.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1900>0>0>0>0>.

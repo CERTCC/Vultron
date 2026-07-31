@@ -2,7 +2,7 @@
 title: A reverted "symptom-only" fix can still be the correct fix once the root cause is removed
 type: learning
 timestamp: "2026-07-30T22:10:00+00:00"
-source: ISSUE-1777
+source: ISSUE-1777-c
 signal: spec-ambiguity
 ---
 
@@ -23,3 +23,6 @@ item's priority before inheriting the revert's conclusion — a MUST in the spec
 corpus outranks an inference from a commit message. Note the revert's reasoning
 in the notes file alongside the eventual re-application so the next reader sees
 both halves.
+
+**Promoted**: 2026-07-31 — captured in `notes/bt-pitfalls.md` (reverted symptom-only fix section).
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1900>0>0>0>0>.

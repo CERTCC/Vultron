@@ -1015,3 +1015,132 @@ primary index path entirely untested. Code review caught the gap; a 7th test
 test per path where that path is the *sole* source of truth — all other paths
 are left empty or unpopulated. "One test exercises both paths" means neither
 path is verified independently.
+
+---
+
+## Guard Name Must Match the State-Machine Transition Precondition, Not Just the Absent Target
+
+(ISSUE-1825, 2026-07-30)
+
+When naming a guard node, derive the name from the state(s) that the guarded
+action's state-machine transition actually requires — not from the informal
+description of "not yet done" in the issue AC.
+
+**Anti-pattern**: AC says "Create `CheckCSFixNotYetDeployed` guard." Read
+literally, that name only requires the `D` bit to be unset, which is true for
+`vfd`, `Vfd`, and `VFd`. But the transition the guard protects (`vfd→VFD` via
+`TransitionCStoFixDeployed`) is only valid from `VFd`. Implementing the guard
+as "D is unset" allows an invalid `vfd → VFD` jump.
+
+**Rule**: Before implementing a guard node, look up the state-machine
+transition the guarded action performs and use that transition's domain
+precondition as the guard's correctness criterion. Name the node to reflect
+the specific state required (e.g., `CheckCSFixReadyNotDeployed` — VFd
+specifically), not the weaker absence predicate. Catching this requires reading
+`vultron/core/states/cs.py` `_vfd_transitions`, not just the AC text.
+
+<!-- Source: ISSUE-1825 -->
+
+---
+
+## `_resolve_case_manager_id` Is Duplicated in `develop_fix.py` — Do Not Canonicalise Yet
+
+(ISSUE-1812, 2026-07-29; tracked for unification in #1428)
+
+`vultron/core/behaviors/report/nodes/develop_fix.py` contains a local copy of
+`_resolve_case_manager_id` that mirrors the canonical version in
+`vultron.core.use_cases._helpers`. This duplication was deliberate: BT nodes
+in `vultron/core/behaviors/` cannot import from `vultron/core/use_cases/`
+(BTND-04-003), and no shared `core.behaviors` helper location exists yet.
+
+**Do not unify or move these helpers until #1428 is addressed.** Adding a
+shared helper module under `vultron/core/behaviors/` is a design decision
+requiring an ADR or spec entry (see the BTND-04 hierarchy rules). Until then,
+keep the inlined copy in `develop_fix.py` — it is not tech debt to fix in the
+same PR.
+
+<!-- Source: ISSUE-1812 -->
+
+---
+
+## `NoDataAvailable` Surfaces in `initialise()`, Not `setup_ports()`
+
+(ADR-0044 / BTND-03-011, 2026-07-29)
+
+`py_trees.behaviour.BehaviourWithPorts` raises `NoDataAvailable` when
+`get_input()` is called for a port whose blackboard key has no value. This
+happens in `initialise()` at the **start of the first tick** — not in
+`setup_ports()` or `setup()`. `setup_ports()` only registers key access;
+the read and the potential raise occur at the first actual `get_input()` call.
+
+**ADR-0044 and BTND-03-011 use "early error detection" to mean "at
+`initialise()`, before the main `update()` logic"** — not "before any tick."
+The practical improvement over direct attribute access (`self.blackboard.key`)
+is that a missing key raises a typed `NoDataAvailable` (not `AttributeError` or
+`KeyError`) at the tree's first tick entry point.
+
+**Test pattern for missing-required-port coverage**:
+
+```python
+# ❌ Wrong — setup_ports() does not raise; test passes vacuously
+node.setup_ports()
+# no assertion needed here; setup_ports() never raises
+
+# ✅ Correct — the raise happens in initialise()
+node.setup_ports()  # register keys; blackboard is still empty
+with pytest.raises(py_trees.blackboard.timebomb.NoDataAvailable):
+    node.initialise()  # calls get_input() → raises here
+```
+
+<!-- Source: ISSUE-1808; spec: BTND-03-011; ADR: ADR-0044 -->
+
+---
+
+## Reverted "Symptom-Only" Fix May Be Correct After Root Cause Is Removed
+
+(ISSUE-1777, 2026-07-30)
+
+When git history shows a change was **reverted as a "symptom-only fix"**, that
+label means the change was *premature* — not that the change itself was wrong.
+After the root cause is removed, the reverted change may be exactly what
+MUST-level spec requirements demand.
+
+**Pattern from ADR-0041**: `("Add", "CaseStatus")` was added to
+`_CASE_AUTHORED_SIGNATURES`, then reverted as a "symptom fix." After the
+vendor-authored back-fill was removed and the CaseActor began authoring those
+entries natively (CM-22-003), adding the signature back was required by
+CLP-12-001.
+
+**Rule**: Before inheriting a revert's conclusion, check:
+
+1. Was the revert motivated by the change being *wrong* or merely *premature*?
+2. Does a MUST-level spec require the change once the root cause is resolved?
+
+A "symptom fix" label in a commit message does not mean "do not apply ever."
+Read the revert's commit message for its actual reasoning, then check the
+governing spec.
+
+<!-- Source: ISSUE-1777 -->
+
+---
+
+## State-Validation Bypass: `CreateParticipantStatusNode` Does Not Validate Transitions
+
+(ISSUE-1825, 2026-07-30; see also `notes/case-state-model.md`)
+
+`CreateParticipantStatusNode.update()` constructs `VfdDimension(state=<target>)`
+and persists it directly without calling `VfdDimension.transition()` or
+`is_valid_vfd_transition`. **State validity is enforced entirely by upstream BT
+guard nodes** — nothing at the persistence boundary rejects an invalid jump
+(e.g., `vfd → VFD`).
+
+This is a known fragility (GitHub concern #1896): if a guard node is too weak
+(see "Guard Name Must Match the State-Machine Transition Precondition" above),
+an invalid status snapshot can be persisted silently. The same issue applies
+to RM and PXA dimension writes through this node.
+
+**When writing or reviewing guard nodes that precede `CreateParticipantStatusNode`**:
+treat the guard as the *only* line of defence for transition validity and verify
+it against the state-machine transitions defined in `vultron/core/states/`.
+
+<!-- Source: ISSUE-1825; GitHub concern #1896 -->

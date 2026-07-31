@@ -3,7 +3,7 @@ title: Large "migrate every node" tasks split type-first, not domain-first, for 
 type: learning
 timestamp: "2026-07-31T00:00:00+00:00"
 source: ISSUE-1809
-signal: scope-too-large
+signal: process-issue
 ---
 
 Issue #1809 ("Migrate remaining core/behaviors/ BT nodes to typed py_trees
@@ -47,3 +47,6 @@ by shape first so the hard shape's design decision is made once and the trivial
 shapes become homogeneous reviewable sweeps. Chain them blocked-by when the
 partitions edit overlapping files. See `notes/py-trees-ports-adoption.md` for
 the recipe the trivial shapes follow.
+
+**Promoted**: 2026-07-31 — captured in `AGENTS.md` (large migration tasks: partition by node shape pitfall).
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1900>0>0>0>0>.
