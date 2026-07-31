@@ -237,11 +237,15 @@ function AppLogReplay() {
   }, [rebuildFromEntries])
 
   // Load any catalog scenario by its raw ledger + title (data-driven picker).
-  // Record its name (title minus the leading ▶/⚠️ glyph) for the timeline header.
+  // Record its name for the timeline header, stripping the leading ▶/⚠️ glyph +
+  // spaces (i.e. any non-letter run up to the first letter). Matching the glyphs
+  // via a negated Unicode-letter class rather than listing the emoji literally
+  // avoids no-misleading-character-class (⚠️ is ⚠ + an invisible variation
+  // selector, which is misleading inside a `[...]` character class).
   const handleLoadScenario = useCallback(
     (scenario: SampleScenario) => {
       loadRawLedger(scenario.raw, scenario.title)
-      setLoadedScenarioName(scenario.title.replace(/^[▶⚠️\s]+/, '').trim())
+      setLoadedScenarioName(scenario.title.replace(/^[^\p{L}]+/u, '').trim())
     },
     [loadRawLedger]
   )
