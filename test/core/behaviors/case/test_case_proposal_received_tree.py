@@ -235,9 +235,9 @@ class TestWriteCreateCaseMarkerNode:
             "context MUST be the case URI (CP-05-003, ADR-0045); "
             f"got {payload.get('context')!r}"
         )
-        assert payload.get("in_reply_to") == accept_id, (
-            "in_reply_to MUST be the Accept URI (CP-05-003, ADR-0045); "
-            f"got {payload.get('in_reply_to')!r}"
+        assert payload.get("inReplyTo") == accept_id, (
+            "inReplyTo MUST be the Accept URI (CP-05-003, ADR-0045); "
+            f"got {payload.get('inReplyTo')!r}"
         )
 
     def test_fails_when_case_id_missing(self):

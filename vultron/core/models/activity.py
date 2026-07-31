@@ -133,6 +133,8 @@ class VultronCreateCaseActivity(VultronActivity):
     )
     in_reply_to: str | None = Field(
         default=None,
+        validation_alias="inReplyTo",
+        serialization_alias="inReplyTo",
         description=(
             "URI of the Accept(CaseProposal) that authorised this Create "
             "(CP-05-003, ADR-0045). Causal antecedent in the AS2-correct field."
