@@ -3,7 +3,7 @@ title: Case Management
 description: Requirements for VulnerabilityCase lifecycle management, CaseActor responsibilities, and the RM/EM/CS/VFD state
   model. Covers actor isolation at the protocol level, the distinction between participant-specific and participant-agnostic
   state, case initialization sequencing, embargo acceptance ownership, and the invitation acceptance lifecycle.
-version: 1.1.0
+version: 1.2.0
 scope:
 - prototype
 - production
@@ -875,10 +875,15 @@ groups:
     priority: MUST
     kind: protocol
     statement: 'Each participant''s embargo consent MUST be tracked as a `ParticipantEmbargoConsent` (PEC) value with five
-      possible states: `NO_EMBARGO` (initial), `INVITED` (invite sent, awaiting response), `SIGNATORY` (accepted), `LAPSED`
-      (timer expired with no response), and `DECLINED` (explicitly refused).'
+      possible states: `NO_EMBARGO` (no embargo is in scope for this participant), `INVITED` (invite sent, awaiting response),
+      `SIGNATORY` (accepted), `LAPSED` (timer expired with no response), and `DECLINED` (explicitly refused).'
     rationale: 'The five-state PEC machine formalizes the "pocket veto" mechanism: a participant who is invited but never
-      responds causes the embargo to lapse rather than block progress. Source: `notes/participant-embargo-consent.md`.'
+      responds causes the embargo to lapse rather than block progress. Source: `notes/participant-embargo-consent.md`.
+      Per ADR-0048, `NO_EMBARGO` denotes the *absence of an embargo in scope*, not a "not yet consented" pre-consent state:
+      it is correct for a participant in a case with `EM.NONE`, and it is the `RESET` destination when an embargo is
+      terminated. It MUST NOT be read as implying that consent is pending or that an invitation is owed.'
+    adr:
+    - ADR-0048
   - id: CM-18-002
     priority: MUST
     kind: protocol
@@ -893,16 +898,24 @@ groups:
   - id: CM-18-003
     priority: MUST
     kind: project
-    statement: 'The valid PEC state transitions are: `NO_EMBARGO | LAPSED | DECLINED → INVITED` (INVITE trigger); `INVITED
-      | LAPSED → SIGNATORY` (ACCEPT trigger); `INVITED | LAPSED → DECLINED` (DECLINE trigger); `SIGNATORY → LAPSED` (REVISE
-      trigger); and `* → NO_EMBARGO` (RESET trigger, embargo terminated). Any other transition MUST be rejected as a protocol
-      error.'
+    statement: 'The valid PEC state transitions are: `NO_EMBARGO | LAPSED | DECLINED → INVITED` (INVITE trigger); `NO_EMBARGO
+      | INVITED | LAPSED → SIGNATORY` (ACCEPT trigger); `NO_EMBARGO | INVITED | LAPSED → DECLINED` (DECLINE trigger);
+      `SIGNATORY → LAPSED` (REVISE trigger); and `* → NO_EMBARGO` (RESET trigger, embargo terminated). Any other transition
+      MUST be rejected as a protocol error.'
     rationale: 'The `LAPSED` and `DECLINED` states are not terminal: a participant who lapsed or declined can be re-invited
       (e.g., when embargo terms change). `SIGNATORY → LAPSED` occurs when the embargo enters REVISE and the participant''s
-      prior consent no longer covers the revised terms. See `vultron/core/states/participant_embargo_consent.py`.'
+      prior consent no longer covers the revised terms. Per ADR-0048, `ACCEPT` and `DECLINE` are valid directly from
+      `NO_EMBARGO`, because consent is not always mediated by an invitation: a Finder who sets the embargo on their own case
+      has no inviter; participants added during case initialization already have an embargo in scope (ADR-0041); and the
+      reporter''s consent is implicit in submitting the report (CM-14-005). Requiring a synthetic `INVITED` step for these
+      paths would record an invitation event that never occurred. `DECLINE` is valid from `NO_EMBARGO` for symmetry, so a
+      participant added to an embargoed case can refuse without a formal invitation. See
+      `vultron/core/states/participant_embargo_consent.py`.'
     relationships:
     - rel_type: refines
       spec_id: CM-18-001
+    adr:
+    - ADR-0048
   - id: CM-18-004
     priority: MUST_NOT
     kind: protocol
@@ -912,6 +925,60 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-18-003
+  - id: CM-18-005
+    priority: MUST
+    kind: project
+    statement: A participant's PEC state MUST be changed by applying a `PEC_Trigger` through `PecDimension.transition()` and
+      persisting the resulting `ParticipantStatus`. Code MUST NOT set `CaseParticipant.embargo_consent_state` by direct field
+      assignment as the means of recording a consent change.
+    rationale: '`PecDimension.transition()` (ADR-0036, SDO-01-001) validates the trigger against the PEC machine and raises
+      `VultronInvalidStateTransitionError` on an illegal transition, making consent writes fail-closed regardless of upstream
+      BT guard coverage. Direct assignment to the scalar `embargo_consent_state` field bypasses both the state machine and
+      `_sync_latest_status_metadata()`, so the participant''s latest `ParticipantStatus` retains its previous `consent.state`.
+      Observed on `main` at ten consent-write sites: the participant reads `SIGNATORY` while the emitted ledger snapshot carries
+      the self-contradictory pair `{"embargoAdherence": true, "emConsentState": "NO_EMBARGO"}`. Three of the ten assign the
+      scalar field with no FSM involvement; the other seven route the trigger through `apply_pec_trigger()` and are still
+      non-conforming, because validating the trigger does not persist the `ParticipantStatus`. Per ADR-0048.'
+    relationships:
+    - rel_type: refines
+      spec_id: CM-18-003
+    adr:
+    - ADR-0048
+  - id: CM-18-006
+    priority: MUST
+    kind: project
+    statement: A PEC state change that is protocol-significant MUST be recorded in the canonical case ledger as an
+      `Add(ParticipantStatus)` entry whose `payloadSnapshot` carries the participant's post-transition PEC value. The snapshot's
+      `emConsentState` MUST agree with the participant's `embargo_consent_state`, and `embargoAdherence` MUST be `true` if and
+      only if that state is `SIGNATORY`.
+    rationale: 'PEC state lives on `ParticipantStatus.consent`, so `Add(ParticipantStatus)` is the correct ledger entry type
+      for a consent change; no separate embargo-event entry type is needed. Requiring agreement between the snapshot and the
+      participant record prevents the contradictory-snapshot defect described in CM-18-005 from reaching ledger consumers,
+      which read `emConsentState` to render per-participant consent (DRPT-02-008). Per ADR-0048.'
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-18-005
+    adr:
+    - ADR-0048
+  - id: CM-18-007
+    priority: MUST
+    kind: project
+    statement: 'The case-initialization sequence MUST establish the default embargo before fixing each participant''s PEC state,
+      so that each participant''s initial `ParticipantStatus` carries its true post-initialization consent value. Case
+      initialization MUST commit exactly one `add_participant_status_to_participant` ledger entry per participant: it MUST NOT
+      commit a `NO_EMBARGO` placeholder entry followed by a corrective consent entry.'
+    rationale: 'Because `ACCEPT` is valid directly from `NO_EMBARGO` (CM-18-003, ADR-0048), an initialization participant reaches
+      its consent state in a single transition, so a placeholder entry is unnecessary. Emitting two entries per participant would
+      also shift every downstream `log_index`; PR #1746 was reverted for exactly that, having broken `fvcv-extension` VFD
+      replication timing. Holding initialization to one entry per participant keeps `log_index` order stable and preserves the
+      ADR-0041 property that `log_index` order is causal order.'
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-18-006
+    - rel_type: depends_on
+      spec_id: CM-14-003
+    adr:
+    - ADR-0048
 - id: CM-19
   title: Participant Index Discipline
   specs:
