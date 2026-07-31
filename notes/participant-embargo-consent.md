@@ -146,6 +146,32 @@ value will report success while recording nothing. This is exactly how
 `_SignEmbargoConsentLeafNode` came to log `"signed embargo consent for
 invitee"` while leaving the participant at `NO_EMBARGO`.
 
+**Routing through `apply_pec_trigger` is necessary but not sufficient.** It
+validates the trigger, but the write it feeds is still
+`participant.embargo_consent_state = <new state>` — a scalar assignment that
+does not sync `ParticipantStatus`. So an `apply_pec_trigger`-based site has the
+*machine* right and the *snapshot* wrong, and still violates CM-18-006. Both
+halves are required: validate the trigger **and** persist the resulting
+`ParticipantStatus`.
+
+Consent-write sites as of ADR-0048 (all ten need the helper):
+
+| Site | Validates trigger? | Syncs status? |
+|---|---|---|
+| `case/case_proposal_received_tree.py:873` | no | no |
+| `case/nodes/embargo.py:433` | no | no |
+| `case/nodes/participant/participant_add.py:389` | no | no |
+| `case/accept_invite_tree.py:494` | yes (rejected — see above) | no |
+| `embargo/nodes/proposal.py:84` | yes | no |
+| `use_cases/_helpers.py:488` | yes | no |
+| `services/embargo_lifecycle.py:690, 841, 894, 935, 968` | yes | no |
+
+The first three are the pure direct-assignment cases. The rest are the
+subtler failure: correct machine use, stale snapshot. `EmbargoLifecycle` is the
+intended long-term owner of all PEC transitions (see
+[embargo-lifecycle.md](embargo-lifecycle.md) and #538), so its five sites
+matter most.
+
 ---
 
 ## Pocket Veto (Timer-Based Transitions)

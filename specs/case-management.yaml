@@ -882,6 +882,8 @@ groups:
       Per ADR-0048, `NO_EMBARGO` denotes the *absence of an embargo in scope*, not a "not yet consented" pre-consent state:
       it is correct for a participant in a case with `EM.NONE`, and it is the `RESET` destination when an embargo is
       terminated. It MUST NOT be read as implying that consent is pending or that an invitation is owed.'
+    adr:
+    - ADR-0048
   - id: CM-18-002
     priority: MUST
     kind: protocol
@@ -912,6 +914,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-18-001
+    adr:
+    - ADR-0048
   - id: CM-18-004
     priority: MUST_NOT
     kind: protocol
@@ -936,6 +940,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-18-003
+    adr:
+    - ADR-0048
   - id: CM-18-006
     priority: MUST
     kind: project
@@ -950,6 +956,8 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: CM-18-005
+    adr:
+    - ADR-0048
   - id: CM-18-007
     priority: MUST
     kind: project
@@ -967,6 +975,8 @@ groups:
       spec_id: CM-18-006
     - rel_type: depends_on
       spec_id: CM-14-003
+    adr:
+    - ADR-0048
 - id: CM-19
   title: Participant Index Discipline
   specs:

@@ -36,8 +36,12 @@ The embargo lifecycle involves three interacting state machines:
 1. **EM** (`vultron/core/states/em.py`) — the case-level embargo state:
    `NO_EMBARGO → PROPOSED → ACTIVE ↔ REVISE → EXITED`
 2. **PEC** (`vultron/core/states/participant_embargo_consent.py`) — the
-   per-participant consent state:
-   `NO_EMBARGO → INVITED → SIGNATORY / DECLINED / LAPSED`
+   per-participant consent state, over `NO_EMBARGO`, `INVITED`, `SIGNATORY`,
+   `LAPSED`, `DECLINED`. `NO_EMBARGO` means *no embargo is in scope*, so
+   `ACCEPT`/`DECLINE` are valid directly from it — consent is not always
+   mediated by an invitation (ADR-0048, CM-18-003). See
+   `notes/participant-embargo-consent.md` for the full transition table and
+   the direct-assignment pitfall (CM-18-005).
 3. **`VulnerabilityCase.active_embargo`** — the pointer to the currently
    active `VultronEmbargoEvent` object
 

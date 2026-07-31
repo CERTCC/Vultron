@@ -202,5 +202,7 @@ divergent seed sites (CS-22-001).
   back-fill, so the requirement was retargeted to the native initialization path
 - Related: CM-14-005 (reporter seeded `SIGNATORY`) is unimplemented —
   `_AddReporterParticipantNode` hardcodes `PEC.NO_EMBARGO`
+- Generated spec requirements: `case-management.yaml` CM-18-005 through
+  CM-18-007 (CM-18-001 and CM-18-003 amended)
 - Notes: `notes/participant-embargo-consent.md`,
   `notes/case-ledger-authority.md`

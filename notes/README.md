@@ -505,7 +505,7 @@ relationship to SYNC-1/SYNC-2 implementation phases.
 
 **`participant-embargo-consent.md`**
 Design decisions for per-participant embargo acceptance tracking: a 5-state
-consent machine (`NO_EMBARGO → INVITED → SIGNATORY / DECLINED / LAPSED`),
+consent machine (`NO_EMBARGO`, `INVITED`, `SIGNATORY`, `LAPSED`, `DECLINED`),
 embargo meta-protocol delivery to `DECLINED`/`LAPSED` participants, and the
 `Accept(Invite(case))` → implicit consent rule. Records why `NO_EMBARGO` means
 *absence of embargo* rather than pre-consent (ADR-0048), so `ACCEPT`/`DECLINE`
