@@ -753,3 +753,140 @@ class TestAddCaseStatusTreeSeam2:
             "add_case_status_tree must contain ThreatTerminationBranchNode"
             " (RSH-03-001, ADR-0046)"
         )
+
+
+# ---------------------------------------------------------------------------
+# Regression: new pipeline (ThreatTerminationBranchNode) vs old
+#             (PublicDisclosureBranchNode) — CS.P teardown outcome
+# ---------------------------------------------------------------------------
+
+
+class TestRegressionCSPTeardownPath:
+    """Regression: Seam 2 ThreatTerminationBranchNode produces the same
+    end-state as the legacy PublicDisclosureBranchNode for a CS.P update
+    sent by a CASE_OWNER.
+
+    Both paths must result in EM=EXITED and active_embargo=None (BT-14-001
+    means FAILURE when no broadcast factory, but the state transition is
+    committed before broadcast in both paths).
+
+    The new pipeline uses ThreatTerminationBranchNode directly (Seam 2).
+    ValidateCaseStatusTransitionNode is tested separately; this regression
+    focuses on teardown outcome parity.
+
+    AC #8 from issue #1844.
+    """
+
+    def _build_dl_with_active_embargo(self):
+        """Return a fresh DataLayer with a case in ACTIVE embargo."""
+        from vultron.enums.roles import CVDRole
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        cm_participant = as_CaseParticipant(
+            id_=f"{CASE_ID}/participants/cm",
+            context=CASE_ID,
+            attributed_to=CASE_MANAGER_ID,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        embargo = as_EmbargoEvent(
+            id_=f"{CASE_ID}/embargo_events/e1", context=CASE_ID
+        )
+        case = as_VulnerabilityCase(id_=CASE_ID, name="Regression Case")
+        case.add_participant(cm_participant)
+        case.active_embargo = embargo.id_
+        case.current_status.em_state = EM.ACTIVE
+        dl.create(case)
+        dl.create(cm_participant)
+        dl.create(embargo)
+        return dl
+
+    def test_new_pipeline_csp_teardown_matches_old_path_end_state(self):
+        """Seam 2 (ThreatTerminationBranchNode, new pipeline) produces the
+        same end-state as legacy PublicDisclosureBranchNode for CS.P with a
+        CASE_OWNER sender: EM=EXITED and active_embargo=None.
+
+        Both nodes delegate to terminate_embargo_bt and FAIL when no broadcast
+        factory is present (BT-14-001); the EM state transition is committed
+        before the broadcast attempt in both cases.
+        """
+        from typing import cast as c
+
+        from vultron.core.behaviors.status.nodes.lifecycle import (
+            PublicDisclosureBranchNode,
+        )
+        from vultron.core.models.case import VulnerabilityCase
+        from vultron.core.states.em import EM
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.case_status import (
+            as_ParticipantStatus,
+        )
+
+        # — New pipeline: ThreatTerminationBranchNode (Seam 2) —
+        dl_new = self._build_dl_with_active_embargo()
+        new_status_obj = as_CaseStatus(
+            id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.Pxa
+        )
+        dl_new.create(new_status_obj)
+
+        new_node = ThreatTerminationBranchNode(
+            status_obj=new_status_obj, case_id=CASE_ID
+        )
+        new_bridge = BTBridge(datalayer=dl_new)
+        # No broadcast factory → FAILURE (BT-14-001), but EM state committed
+        new_result = new_bridge.execute_with_setup(
+            tree=new_node, actor_id=ACTOR_ID
+        )
+        assert new_result.status == Status.FAILURE
+
+        new_case = c(VulnerabilityCase, dl_new.read(CASE_ID))
+        new_em_state = new_case.current_status.em.state
+        new_embargo = new_case.active_embargo
+
+        # — Legacy path: PublicDisclosureBranchNode (CASE_OWNER + CS.P) —
+        dl_old = self._build_dl_with_active_embargo()
+        owner_participant = as_CaseParticipant(
+            id_=f"{CASE_ID}/participants/vendor",
+            context=CASE_ID,
+            attributed_to=ACTOR_ID,
+            case_roles=[CVDRole.CASE_OWNER],
+        )
+        dl_old.create(owner_participant)
+        case_old = c(VulnerabilityCase, dl_old.read(CASE_ID))
+        case_old.actor_participant_index[ACTOR_ID] = owner_participant.id_
+        dl_old.save(case_old)
+
+        cs_old = as_CaseStatus()
+        cs_old.pxa_state = CS_pxa.Pxa
+        ps_with_cs = as_ParticipantStatus(
+            id_=f"{CASE_ID}/participants/vendor/statuses/s1",
+            context=CASE_ID,
+        )
+        ps_with_cs.case_status = cs_old
+
+        old_node = PublicDisclosureBranchNode(
+            status_obj=ps_with_cs,
+            sender_actor_id=ACTOR_ID,
+            case_id=CASE_ID,
+        )
+        old_bridge = BTBridge(datalayer=dl_old)
+        # No factory → FAILURE from broadcast (BT-14-001)
+        old_result = old_bridge.execute_with_setup(
+            tree=old_node, actor_id=CASE_MANAGER_ID
+        )
+        assert old_result.status == Status.FAILURE
+
+        old_case = c(VulnerabilityCase, dl_old.read(CASE_ID))
+        old_em_state = old_case.current_status.em.state
+        old_embargo = old_case.active_embargo
+
+        # Both paths must produce identical end-state
+        assert new_em_state == old_em_state == EM.EXITED, (
+            f"New pipeline EM={new_em_state}, old path EM={old_em_state};"
+            " both must be EXITED for CS.P teardown (AC #8, issue #1844)"
+        )
+        assert (
+            new_embargo is None and old_embargo is None
+        ), "Both paths must clear active_embargo after CS.P teardown"
