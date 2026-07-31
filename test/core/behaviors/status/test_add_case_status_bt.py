@@ -51,6 +51,7 @@ from vultron.core.behaviors.status.nodes.lifecycle import (
 )
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
+from vultron.core.models.events.status import AddCaseStatusToCaseReceivedEvent
 from vultron.core.use_cases.received.status import (
     AddCaseStatusToCaseReceivedUseCase,
 )
@@ -675,7 +676,7 @@ class TestAddCaseStatusTreeSeam2:
         activity = add_status_to_case_activity(
             status_obj, target=case, actor=ACTOR_ID
         )
-        return extract_event(activity)
+        return cast(AddCaseStatusToCaseReceivedEvent, extract_event(activity))
 
     def test_side_effects_guard_always_fail_blocks_threat_termination(self):
         """SideEffectsGuard=AlwaysFail → ThreatTerminationBranch never runs.
@@ -715,7 +716,7 @@ class TestAddCaseStatusTreeSeam2:
         activity = add_status_to_case_activity(
             status_obj, target=case, actor=ACTOR_ID
         )
-        event = extract_event(activity)
+        event = cast(AddCaseStatusToCaseReceivedEvent, extract_event(activity))
 
         def _always_fail(name: str):
             return AlwaysFail(name)

@@ -1215,17 +1215,22 @@ class TestEmitAddCaseStatusToSelfNode:
         result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.FAILURE
 
-    def test_returns_failure_when_status_has_no_case_status(
+    def test_returns_success_when_status_has_no_case_status(
         self, populated_dl
     ):
-        """ParticipantStatus with no embedded case_status → FAILURE (soft skip)."""
+        """ParticipantStatus with no embedded case_status → SUCCESS (soft skip).
+
+        No canonical update to emit; the Sequence must continue to
+        AutoCloseIfCaseManager (DEMOMA-07-003 step 5), so the node returns
+        SUCCESS rather than blocking the sequence with FAILURE.
+        """
         bridge = self._bridge_with_factory(populated_dl)
         # STATUS_ID in the fixture has no embedded case_status
         node = EmitAddCaseStatusToSelfNode(
             participant_status_id=STATUS_ID, case_id=CASE_ID
         )
         result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
-        assert result.status == Status.FAILURE
+        assert result.status == Status.SUCCESS
 
 
 # ---------------------------------------------------------------------------

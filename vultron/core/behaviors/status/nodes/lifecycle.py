@@ -290,12 +290,13 @@ class EmitAddCaseStatusToSelfNode(DataLayerAction):
 
         case_status_id = self._resolve_case_status_id()
         if case_status_id is None:
-            # No embedded CaseStatus — no canonical update to emit; soft skip.
+            # No embedded CaseStatus — nothing to emit; soft skip so the
+            # Sequence continues to AutoCloseIfCaseManager (DEMOMA-07-003).
             self.feedback_message = (
                 "EmitAddCaseStatusToSelf: no embedded case_status to emit"
             )
             self.logger.debug(self.feedback_message)
-            return Status.FAILURE
+            return Status.SUCCESS
 
         assert self.trigger_activity_factory is not None
         try:
