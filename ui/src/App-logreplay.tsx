@@ -497,24 +497,17 @@ function AppLogReplay() {
             >
               📁 {uploadCount > 0 ? 'Add More Log Files' : 'Select Log Files'}
             </label>
-            <p style={{
-              textAlign: 'center',
-              marginTop: '1rem',
-              fontSize: '0.875rem',
-              color: '#666',
-              lineHeight: '1.5',
-            }}>
-              {uploadCount === 0 ? (
-                <>
-                  <strong>Upload from each folder separately:</strong><br />
-                  1. Select file(s) from <code style={{ background: '#fff', padding: '0.125rem 0.375rem', borderRadius: '3px' }}>devlogs/two-actor/finder/</code><br />
-                  2. Click "Add More" and select from <code style={{ background: '#fff', padding: '0.125rem 0.375rem', borderRadius: '3px' }}>vendor/</code><br />
-                  3. Click "Add More" and select from <code style={{ background: '#fff', padding: '0.125rem 0.375rem', borderRadius: '3px' }}>case-actor/</code>
-                </>
-              ) : (
-                <>You can add more files from other folders</>
-              )}
-            </p>
+            {uploadCount > 0 && (
+              <p style={{
+                textAlign: 'center',
+                marginTop: '1rem',
+                fontSize: '0.875rem',
+                color: '#666',
+                lineHeight: '1.5',
+              }}>
+                You can add more files from other folders
+              </p>
+            )}
 
             {uploadCount > 0 && (
               <button
