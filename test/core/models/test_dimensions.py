@@ -186,9 +186,10 @@ class TestPecDimension:
         assert d2.state == PEC.INVITED
 
     def test_transition_invalid_raises(self):
-        d = PecDimension(state=PEC.NO_EMBARGO)
+        # CM-18-004: SIGNATORY → INVITED is still invalid (ADR-0048)
+        d = PecDimension(state=PEC.SIGNATORY)
         with pytest.raises(VultronInvalidStateTransitionError):
-            d.transition(PEC_Trigger.ACCEPT)
+            d.transition(PEC_Trigger.INVITE)
 
     def test_is_signatory(self):
         assert PecDimension(state=PEC.SIGNATORY).is_signatory()

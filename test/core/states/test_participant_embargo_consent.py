@@ -86,22 +86,28 @@ class TestApplyPecTrigger:
         result = apply_pec_trigger(state, PEC_Trigger.RESET)
         assert result == PEC.NO_EMBARGO
 
-    # --- Invalid transitions return current state (no raise) ---
+    # --- ADR-0048: ACCEPT and DECLINE directly from NO_EMBARGO ---
+    def test_accept_from_no_embargo(self) -> None:
+        result = apply_pec_trigger(PEC.NO_EMBARGO, PEC_Trigger.ACCEPT)
+        assert result == PEC.SIGNATORY
+
+    def test_decline_from_no_embargo(self) -> None:
+        result = apply_pec_trigger(PEC.NO_EMBARGO, PEC_Trigger.DECLINE)
+        assert result == PEC.DECLINED
+
+    # --- CM-18-004: SIGNATORY → INVITED must remain invalid ---
     def test_invite_from_signatory_is_invalid(self) -> None:
         result = apply_pec_trigger(PEC.SIGNATORY, PEC_Trigger.INVITE)
         assert result == PEC.SIGNATORY  # unchanged
 
-    def test_accept_from_no_embargo_is_invalid(self) -> None:
-        result = apply_pec_trigger(PEC.NO_EMBARGO, PEC_Trigger.ACCEPT)
-        assert result == PEC.NO_EMBARGO  # unchanged
-
+    # --- Other invalid transitions return current state (no raise) ---
     def test_accept_from_declined_is_invalid(self) -> None:
         result = apply_pec_trigger(PEC.DECLINED, PEC_Trigger.ACCEPT)
         assert result == PEC.DECLINED  # unchanged
 
-    def test_decline_from_no_embargo_is_invalid(self) -> None:
-        result = apply_pec_trigger(PEC.NO_EMBARGO, PEC_Trigger.DECLINE)
-        assert result == PEC.NO_EMBARGO  # unchanged
+    def test_decline_from_declined_is_invalid(self) -> None:
+        result = apply_pec_trigger(PEC.DECLINED, PEC_Trigger.DECLINE)
+        assert result == PEC.DECLINED  # unchanged
 
     def test_revise_from_invited_is_invalid(self) -> None:
         result = apply_pec_trigger(PEC.INVITED, PEC_Trigger.REVISE)
