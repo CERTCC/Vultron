@@ -439,3 +439,49 @@ groups:
       entry farthest ahead of the current gap (highest log_index) and log a warning. Eviction
       is recoverable because SYNC-14-002 already sent a Reject, so eviction MUST NOT be relied
       upon to trigger recovery by itself.
+- id: SYNC-15
+  title: Genesis-Unavailable Reject
+  description: >-
+    A participant replica receives Announce(CaseLedgerEntry) activities from the CaseActor
+    over an unordered transport.  If the CaseActor delivers a ledger entry before the
+    Create(VulnerabilityCase) activity has been processed by the participant (a delivery
+    race under HTTP BackgroundTasks), the replica cannot reconstruct the per-case genesis
+    hash (CLP-08-005) and must not silently drop the entry.  Silently dropping causes the
+    entry to be permanently lost because the CaseActor never learns that delivery failed
+    and never replays.  Sending a Reject triggers the same replay backstop as the
+    hash-mismatch path (SYNC-08-005, SYNC-14-002), allowing convergence once the case is
+    delivered.
+  specs:
+  - id: SYNC-15-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When a participant receives an Announce(CaseLedgerEntry) but cannot reconstruct the
+      per-case genesis hash because the VulnerabilityCase is not yet present in its DataLayer
+      (CLP-08-005), the participant MUST NOT silently discard the entry; it MUST send a
+      Reject(CaseLedgerEntry) with last_accepted_hash="" to the CaseActor so that the
+      CaseActor replays all entries from the beginning once the case is delivered.
+    rationale: >-
+      last_accepted_hash="" is the conventional signal for "I have no entries; replay from
+      genesis."  The CaseActor's replay path (SYNC-03-002) replays all entries after the
+      supplied hash; an empty string matches no recorded entry, so it replays the full log.
+      Without the Reject the participant is permanently stuck (issue #1873).
+    relationships:
+    - rel_type: depends_on
+      spec_id: CLP-08-005
+      note: The missing-case failure originates from the genesis-hash requirement in CLP-08-005
+    - rel_type: depends_on
+      spec_id: SYNC-08-005
+      note: Reject-on-divergence applies equally to the genesis-unavailable case
+  - id: SYNC-15-002
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A participant MUST NOT persist a CaseLedgerEntry when the per-case genesis hash is
+      unavailable; the entry MUST NOT be treated as committed and its domain effects MUST
+      NOT be applied (SYNC-12-001).
+    relationships:
+    - rel_type: depends_on
+      spec_id: SYNC-12-001
+      note: Effects-before-persist invariant applies; an entry whose genesis is unknown
+            cannot be safely committed

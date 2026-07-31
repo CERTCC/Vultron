@@ -598,6 +598,21 @@ def _phase_sync_verification(
     # The vendor's report-acceptance creates canonical ledger entries whose
     # Announce(CaseLedgerEntry) fan-out is an async BackgroundTask; without
     # this wait intermediate entries may not have arrived yet (issue #1434).
+    # Checkpoint: ensure the Finder has the VulnerabilityCase (and its genesis
+    # hash) before waiting for ledger coverage.  If the Finder does not hold the
+    # case, ReconstructChainTailNode cannot anchor the chain (CLP-08-005), so
+    # Announce(CaseLedgerEntry) deliveries would be rejected and replayed rather
+    # than accepted, extending the time needed to reach full coverage.  Failing
+    # here fast surfaces the real problem instead of a confusing coverage timeout
+    # (SYNC-15-001, issue #1873).
+    with demo_check(
+        "Finder case seeded before ledger coverage wait (SYNC-15)"
+    ):
+        wait_for_case_on_container(
+            client=finder_client,
+            case_id=case.id_,
+        )
+
     vendor_entries = _get_log_entries_for_case(vendor_client, case.id_)
     if vendor_entries:
         vendor_tail = max(vendor_entries, key=lambda e: e["log_index"])
