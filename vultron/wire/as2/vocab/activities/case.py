@@ -36,6 +36,9 @@ from vultron.core.models.actor import CoreActor
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor, as_ActorRef
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.case_participant_role import (
+    as_CaseParticipantRole,
+)
 from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -176,6 +179,32 @@ class _RmCloseCaseActivity(as_Leave):
 
     object_: as_VulnerabilityCase = Field(
         ..., validation_alias="object", serialization_alias="object"
+    )
+
+
+class _OfferCaseParticipantRoleActivity(as_Offer):
+    """Offer a CVDRole to an Actor in a VulnerabilityCase context (ADR-0039).
+
+    Wire format: ``Offer(CaseParticipantRole, target=Actor,
+    context=VulnerabilityCase)``
+
+    Replaces the deprecated ``_OfferCaseManagerRoleActivity`` for role
+    delegation.  The ``object_`` carries the specific ``CVDRole`` being
+    offered, making the activity self-describing and eliminating the
+    target-field ambiguity of the previous format.
+
+    object_: as_CaseParticipantRole (required — carries the CVDRole)
+    target: as_Actor (required — the Actor receiving the role offer)
+    context: as_VulnerabilityCase or str URI (required)
+
+    See SE-08-003, ADR-0039.
+    """
+
+    object_: as_CaseParticipantRole = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+    target: as_Actor = Field(
+        ..., validation_alias="target", serialization_alias="target"
     )
 
 

@@ -9,6 +9,9 @@ from vultron.core.use_cases.received.actor.case_manager_role import (
     OfferCaseManagerRoleReceivedUseCase,
     RejectCaseManagerRoleReceivedUseCase,
 )
+from vultron.core.use_cases.received.actor.case_participant_role import (
+    OfferCaseParticipantRoleReceivedUseCase,
+)
 from vultron.core.use_cases.received.actor.invite import (
     AcceptInviteActorToCaseReceivedUseCase,
     InviteActorToCaseReceivedUseCase,

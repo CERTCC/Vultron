@@ -346,12 +346,32 @@ class InviteActorToCaseRequest(BaseModel):
     roles: list[CVDRole] | None = None
 
 
+class OfferCaseParticipantRoleRequest(BaseModel):
+    """Request body for the offer-case-participant-role trigger endpoint (ADR-0039).
+
+    Emits ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``
+    from the requesting actor.  ``role`` defaults to ``"CASE_MANAGER"`` for
+    backward-compatibility with callers that previously used the deprecated
+    offer-case-manager-role endpoint.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    case_id: UriString
+    target_actor_id: UriString
+    role: str = "CASE_MANAGER"
+
+
 class OfferCaseManagerRoleRequest(BaseModel):
     """Request body for the offer-case-manager-role trigger endpoint.
 
     TB-03-001: Must include case_id identifying the target case.
     TB-03-002: Unknown fields are silently ignored (extra="ignore").
     The Case Actor for the case must already exist in the DataLayer.
+
+    .. deprecated::
+        Use ``OfferCaseParticipantRoleRequest`` for the canonical
+        ``Offer(CaseParticipantRole, ...)`` wire format (ADR-0039).
     """
 
     model_config = ConfigDict(extra="ignore")

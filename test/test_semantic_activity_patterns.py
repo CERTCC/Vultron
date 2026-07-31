@@ -16,6 +16,7 @@ from vultron.wire.as2.factories import (
     announce_vulnerability_case_activity,
     offer_case_manager_role_activity,
     offer_case_ownership_transfer_activity,
+    offer_case_participant_role_activity,
     reject_case_manager_role_activity,
     rm_accept_invite_to_case_activity,
     rm_invite_to_case_activity,
@@ -594,6 +595,80 @@ def test_accept_case_manager_role_rejects_bare_ownership_offer():
     )
     with pytest.raises(VultronActivityConstructionError):
         accept_case_manager_role_activity(wrong_offer, actor=_CASE_ACTOR_URI)
+
+
+# ---------------------------------------------------------------------------
+# CaseParticipantRole pattern tests (ADR-0039, SE-08-003)
+# ---------------------------------------------------------------------------
+
+
+def _make_target_actor() -> as_Actor:
+    return as_Actor(id_=_CASE_ACTOR_URI)
+
+
+def test_offer_case_participant_role_dispatches_correctly():
+    """Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase) must
+    be classified as OFFER_CASE_PARTICIPANT_ROLE (ADR-0039, SE-08-003).
+
+    The self-describing object type eliminates the target-field ambiguity of
+    the deprecated Offer(VulnerabilityCase, target=CaseParticipant) format.
+    """
+    from vultron.enums.roles import CVDRole
+
+    case = _make_case_manager_case()
+    actor = _make_target_actor()
+    offer = offer_case_participant_role_activity(
+        role=CVDRole.CASE_MANAGER,
+        target_actor=actor,
+        case=case,
+        actor=_VENDOR_URI,
+    )
+    result = find_matching_semantics(offer)
+    assert (
+        result == MessageSemantics.OFFER_CASE_PARTICIPANT_ROLE
+    ), f"Expected OFFER_CASE_PARTICIPANT_ROLE, got {result}"
+
+
+def test_offer_case_participant_role_not_confused_with_ownership_transfer():
+    """Offer(CaseParticipantRole) must NOT be classified as
+    OFFER_CASE_OWNERSHIP_TRANSFER or OFFER_CASE_MANAGER_ROLE.
+
+    The distinct object type (CASE_PARTICIPANT_ROLE) makes the shape
+    unambiguously self-describing. See SE-08-003.
+    """
+    from vultron.enums.roles import CVDRole
+
+    case = _make_case_manager_case()
+    actor = _make_target_actor()
+    offer = offer_case_participant_role_activity(
+        role=CVDRole.CASE_MANAGER,
+        target_actor=actor,
+        case=case,
+        actor=_VENDOR_URI,
+    )
+    result = find_matching_semantics(offer)
+    assert (
+        result != MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER
+    ), "OFFER_CASE_PARTICIPANT_ROLE misclassified as OFFER_CASE_OWNERSHIP_TRANSFER"
+    assert (
+        result != MessageSemantics.OFFER_CASE_MANAGER_ROLE
+    ), "OFFER_CASE_PARTICIPANT_ROLE misclassified as OFFER_CASE_MANAGER_ROLE"
+
+
+def test_offer_case_participant_role_for_coordinator():
+    """offer_case_participant_role_activity accepts any CVDRole, not just CASE_MANAGER."""
+    from vultron.enums.roles import CVDRole
+
+    case = _make_case_manager_case()
+    actor = _make_target_actor()
+    offer = offer_case_participant_role_activity(
+        role=CVDRole.COORDINATOR,
+        target_actor=actor,
+        case=case,
+        actor=_VENDOR_URI,
+    )
+    result = find_matching_semantics(offer)
+    assert result == MessageSemantics.OFFER_CASE_PARTICIPANT_ROLE
 
 
 # ---------------------------------------------------------------------------

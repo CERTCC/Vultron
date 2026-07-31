@@ -28,6 +28,7 @@ from vultron.core.models.events.actor import (
     OfferCaseManagerRoleReceivedEvent,
     OfferCaseOwnershipTransferReceivedEvent,
     OfferCaseParticipantReceivedEvent,
+    OfferCaseParticipantRoleReceivedEvent,
     RejectCaseManagerRoleReceivedEvent,
     RejectCaseOwnershipTransferReceivedEvent,
     RejectInviteActorToCaseReceivedEvent,
@@ -45,6 +46,7 @@ from vultron.core.use_cases.received.actor import (
     OfferCaseManagerRoleReceivedUseCase,
     OfferCaseOwnershipTransferReceivedUseCase,
     OfferCaseParticipantReceivedUseCase,
+    OfferCaseParticipantRoleReceivedUseCase,
     RejectCaseManagerRoleReceivedUseCase,
     RejectCaseOwnershipTransferReceivedUseCase,
     RejectInviteActorToCaseReceivedUseCase,
@@ -61,6 +63,7 @@ from vultron.wire.as2.extractor import (
     OfferActorToCasePattern,
     OfferCaseManagerRolePattern,
     OfferCaseOwnershipTransferActivityPattern,
+    OfferCaseParticipantRolePattern,
     RejectActorRecommendationPattern,
     RejectCaseManagerRolePattern,
     RejectCaseOwnershipTransferActivityPattern,
@@ -79,6 +82,7 @@ from vultron.wire.as2.vocab.activities.case import (
     _AnnounceVulnerabilityCaseActivity,
     _OfferCaseManagerRoleActivity,
     _OfferCaseOwnershipTransferActivity,
+    _OfferCaseParticipantRoleActivity,
     _RejectCaseManagerRoleActivity,
     _RejectCaseOwnershipTransferActivity,
     _RmAcceptInviteToCaseActivity,
@@ -126,6 +130,19 @@ ENTRIES: list[SemanticEntry] = [
         wire_activity_class=_RejectCaseParticipantOfferActivity,
         include_activity=True,
     ),
+    # ADR-0039: canonical role-delegation wire format (placed before the
+    # deprecated OFFER_CASE_MANAGER_ROLE entry per SE-08-001)
+    SemanticEntry(
+        semantics=MessageSemantics.OFFER_CASE_PARTICIPANT_ROLE,
+        pattern=OfferCaseParticipantRolePattern,
+        event_class=OfferCaseParticipantRoleReceivedEvent,
+        use_case_class=OfferCaseParticipantRoleReceivedUseCase,
+        phrase="{actor} offered {object} role to {target} in the case",
+        wire_activity_class=_OfferCaseParticipantRoleActivity,
+        include_activity=True,
+    ),
+    # Deprecated: use OFFER_CASE_PARTICIPANT_ROLE for new role-delegation
+    # traffic. Retained for pre-ADR-0039 actor interoperability (ADR-0039).
     SemanticEntry(
         semantics=MessageSemantics.OFFER_CASE_MANAGER_ROLE,
         pattern=OfferCaseManagerRolePattern,

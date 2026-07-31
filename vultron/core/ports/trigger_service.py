@@ -213,6 +213,14 @@ class TriggerServicePort(Protocol):
         roles: list | None = None,
     ) -> dict[str, Any]: ...
 
+    def offer_case_participant_role(
+        self,
+        actor_id: str,
+        case_id: str,
+        target_actor_id: str,
+        role: str = "CASE_MANAGER",
+    ) -> dict[str, Any]: ...
+
     def offer_case_manager_role(
         self,
         actor_id: str,

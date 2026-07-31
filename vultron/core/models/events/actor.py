@@ -28,12 +28,31 @@ class OfferActorToCaseReceivedEvent(VultronEvent):
     activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
 
 
+class OfferCaseParticipantRoleReceivedEvent(VultronEvent):
+    """Actor offered a CVDRole to a target Actor in a VulnerabilityCase context.
+
+    Canonical ADR-0039 role-delegation wire format:
+    ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``.
+    Replaces the deprecated ``OfferCaseManagerRoleReceivedEvent`` wire format.
+    See SE-08-003, ADR-0039.
+    """
+
+    semantic_type: Literal[MessageSemantics.OFFER_CASE_PARTICIPANT_ROLE] = (
+        MessageSemantics.OFFER_CASE_PARTICIPANT_ROLE
+    )
+    activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
+
+
 class OfferCaseManagerRoleReceivedEvent(VultronEvent):
     """Vendor offered the CASE_MANAGER role to a Case Actor participant.
 
     Distinct from ``OfferCaseOwnershipTransferReceivedEvent``: the offering
     actor retains ``CASE_OWNER``; only operational management authority is
     delegated.  See DEMOMA-08-002, DEMOMA-08-003.
+
+    .. deprecated::
+        Use ``OfferCaseParticipantRoleReceivedEvent`` for the canonical
+        ``Offer(CaseParticipantRole, ...)`` wire format (ADR-0039).
     """
 
     semantic_type: Literal[MessageSemantics.OFFER_CASE_MANAGER_ROLE] = (
