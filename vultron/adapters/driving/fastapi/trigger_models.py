@@ -359,7 +359,7 @@ class OfferCaseParticipantRoleRequest(BaseModel):
 
     case_id: UriString
     target_actor_id: UriString
-    role: str = "CASE_MANAGER"
+    role: CVDRole = CVDRole.CASE_MANAGER
 
 
 class OfferCaseManagerRoleRequest(BaseModel):

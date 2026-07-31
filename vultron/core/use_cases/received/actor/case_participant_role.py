@@ -67,11 +67,22 @@ class OfferCaseParticipantRoleReceivedUseCase:
         case_id = _as_id(getattr(request.activity, "context", None))
         target_id = _as_id(getattr(request.activity, "target", None))
 
+        # ADR-0039: target is an Actor URI; BT expects a CaseParticipant URI.
+        # Resolve via actor_participant_index which maps actor_id → participant_id.
+        case_obj = self._dl.read(case_id) if case_id else None
+        participant_id = (
+            getattr(case_obj, "actor_participant_index", {}).get(
+                target_id or ""
+            )
+            or target_id
+            or ""
+        )
+
         tree = create_offer_case_manager_role_received_tree(
             offer_id=offer_id,
             offer_obj=request.activity,
             case_id=case_id or "",
-            participant_id=target_id or "",
+            participant_id=participant_id,
             vendor_id=vendor_id or "",
         )
         result = BTBridge(

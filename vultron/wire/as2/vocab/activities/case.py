@@ -206,6 +206,9 @@ class _OfferCaseParticipantRoleActivity(as_Offer):
     target: as_Actor = Field(
         ..., validation_alias="target", serialization_alias="target"
     )
+    context: as_VulnerabilityCase | str = Field(
+        ..., validation_alias="context", serialization_alias="context"
+    )
 
 
 class _OfferCaseManagerRoleActivity(as_Offer):
