@@ -874,7 +874,9 @@ class TestADR0041LedgerEntries:
             actor = snapshot.get("actor", "")
             assert actor != _CASE_ACTOR_URI, (
                 "add_case_status_to_case must NOT use CaseActor as actor"
-                " (not in _CASE_AUTHORED_SIGNATURES)"
+                " — the vendor set the genesis status, so the vendor URI is"
+                " the correct provenance (the signature IS case-authored per"
+                " CLP-12-001, so the guard would not have caught this)"
             )
             assert (
                 actor == _VENDOR_URI

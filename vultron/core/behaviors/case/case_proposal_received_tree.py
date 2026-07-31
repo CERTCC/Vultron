@@ -758,7 +758,9 @@ class _CommitNativeLedgerEntriesNode(DataLayerAction):
         self._commit_add_reports(case, case_id)
         # 3. add_participant_status × N  (actor = CaseActor)
         self._commit_participant_statuses(case, case_id)
-        # 4. add_case_status  (actor = vendor_uri — not in _CASE_AUTHORED_SIGNATURES)
+        # 4. add_case_status  (actor = vendor_uri — provenance, not a guard
+        #    constraint: ("Add","CaseStatus") IS in _CASE_AUTHORED_SIGNATURES
+        #    per CLP-12-001, so a CaseActor-authored entry validates too)
         self._commit_case_statuses(case, case_id)
 
         logger.info(
