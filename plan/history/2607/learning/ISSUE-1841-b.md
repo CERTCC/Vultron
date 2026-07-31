@@ -24,4 +24,4 @@ The spec should be updated to explicitly state that `CaseStatus` is extracted fr
 embedded field of the `ParticipantStatus` record.
 
 **Promoted**: 2026-07-31 — captured in `specs/received-status-handling.yaml` RSH-01-003 notes field.
-Docs PR: TBD.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1900>0>0>0>0>.

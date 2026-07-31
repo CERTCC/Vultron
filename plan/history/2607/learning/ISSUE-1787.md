@@ -27,4 +27,4 @@ and ensure the closing PR carries `Closes #N`. When a docs/learn PR fixes a bug
 as a side effect, it MUST include the `Closes #N` footer for that bug issue.
 
 **Promoted**: 2026-07-31 — captured in `AGENTS.md` (Closes #N pitfall entries).
-Docs PR: TBD.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1900>0>0>0>0>.

@@ -25,4 +25,4 @@ in the notes file alongside the eventual re-application so the next reader sees
 both halves.
 
 **Promoted**: 2026-07-31 — captured in `notes/bt-pitfalls.md` (reverted symptom-only fix section).
-Docs PR: TBD.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1900>0>0>0>0>.

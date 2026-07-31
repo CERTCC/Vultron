@@ -49,4 +49,4 @@ partitions edit overlapping files. See `notes/py-trees-ports-adoption.md` for
 the recipe the trivial shapes follow.
 
 **Promoted**: 2026-07-31 — captured in `AGENTS.md` (large migration tasks: partition by node shape pitfall).
-Docs PR: TBD.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1900>0>0>0>0>.

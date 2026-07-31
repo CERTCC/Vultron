@@ -27,4 +27,4 @@ validation concern moved to `sync/nodes/canonical_entry.py`, taking chain.py to
 340 lines. Other leaf modules near the cap are worth a sweep — this will recur.
 
 **Promoted**: 2026-07-31 — captured in `AGENTS.md` (leaf modules near 500-line cap pitfall).
-Docs PR: TBD.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1900>0>0>0>0>.

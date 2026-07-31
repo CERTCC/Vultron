@@ -37,4 +37,4 @@ rather than append an amendment, see
 [[20260731-revise-recent-adrs-not-amend]].
 
 **Promoted**: 2026-07-31 — captured in `AGENTS.md` (ADR "what is removed" lists are scoped section).
-Docs PR: TBD.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1900>0>0>0>0>.

@@ -33,4 +33,4 @@ wording causes an "Agent type not found" failure that a strict reading of the
 skill cannot recover from.
 
 **Promoted**: 2026-07-31 — captured in `AGENTS.md` (use general-purpose agent with explicit review prompt when code-review agent type is unavailable).
-Docs PR: TBD.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1900>0>0>0>0>.

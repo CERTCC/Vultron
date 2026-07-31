@@ -31,4 +31,4 @@ coverage. Worth a GitHub Concern issue if not already tracked.
 See [[20260730-1825-checkcsfixnotyetdeployed-guard-strength]].
 
 **Promoted**: 2026-07-31 — captured in `notes/bt-pitfalls.md` (CreateParticipantStatusNode bypass section). GitHub concern: #1896.
-Docs PR: TBD.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1900>0>0>0>0>.

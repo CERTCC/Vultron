@@ -26,4 +26,4 @@ source of confusion: "early error detection" means "at the start of the first ti
 and asserting an error there will produce a false-passing test.
 
 **Promoted**: 2026-07-31 — captured in `notes/bt-pitfalls.md` (NoDataAvailable timing section) and `specs/behavior-tree-node-design.yaml` BTND-03-011 already corrected.
-Docs PR: TBD.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1900>0>0>0>0>.

@@ -30,4 +30,4 @@ triggers, not from the guard's name. Cross-check against the legacy simulation
 tree's equivalent guard.
 
 **Promoted**: 2026-07-31 — captured in `notes/bt-pitfalls.md` (guard name must match transition precondition section) and `AGENTS.md`.
-Docs PR: TBD.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1900>0>0>0>0>.

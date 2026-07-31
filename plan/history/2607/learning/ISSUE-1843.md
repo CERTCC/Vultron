@@ -52,4 +52,4 @@ Consider capturing this as a short rule in
 "production-only domains" note) if more such domains appear.
 
 **Promoted**: 2026-07-31 — captured in `notes/call-out-configuration.md` (production-only domains section).
-Docs PR: TBD.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1900>0>0>0>0>.

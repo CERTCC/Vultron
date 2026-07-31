@@ -43,4 +43,4 @@ extended to cross-epic capability dependencies. The `blockedBy` graph here was
 missing the entire #1285 dependency, which is what let #1732 look ready.
 
 **Promoted**: 2026-07-31 — captured in `AGENTS.md` (cross-epic blocked-by verification pitfall).
-Docs PR: TBD.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1900>0>0>0>0>.

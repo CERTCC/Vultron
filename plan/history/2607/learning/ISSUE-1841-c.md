@@ -18,4 +18,4 @@ updated to note that Seam 1 is already done and to focus on adding Seam 2 fields
 Alternatively, #1843 could be closed once the Seam 2 issue is created and tracked separately.
 
 **Promoted**: 2026-07-31 — process note only; no durable doc update needed. Tracked in the issues themselves (#1841 closed, #1843 updated).
-Docs PR: TBD.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1900>0>0>0>0>.

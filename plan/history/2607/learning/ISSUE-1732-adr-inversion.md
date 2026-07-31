@@ -36,4 +36,4 @@ Tracked as #1793, wired to block #1732. The seam-injection mechanism for #1732
 `_build_tree`) is chosen but implemented after #1793 lands.
 
 **Promoted**: 2026-07-31 — fixed in code via PR #1793 (ADR-0025 correction); architecture boundary now enforced by `test/architecture/test_core_no_demo_imports.py`. No additional durable doc update needed.
-Docs PR: TBD.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1900>0>0>0>0>.

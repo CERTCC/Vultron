@@ -26,4 +26,4 @@ it bites again. Related: [[feedback_completeness_doctrine]] § Finding Severity 
 pre-existing-failure proof.
 
 **Promoted**: 2026-07-31 — captured in `notes/bt-pitfalls.md` (test order-dependence note). GitHub concern: #1897.
-Docs PR: TBD.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1900>0>0>0>0>.

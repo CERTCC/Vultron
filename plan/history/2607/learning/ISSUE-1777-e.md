@@ -34,4 +34,4 @@ discoveries (ADR-0024's fifth node shape), not corrections. Recent authorship
 strengthens the case for revision: little has been built on the wrong text yet.
 
 **Promoted**: 2026-07-31 — captured in `docs/adr/index.md` (Revising vs. amending an ADR section).
-Docs PR: TBD.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/1900>0>0>0>0>.
