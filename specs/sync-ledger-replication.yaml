@@ -483,5 +483,4 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: SYNC-12-001
-      note: Effects-before-persist invariant applies; an entry whose genesis is unknown
-            cannot be safely committed
+      note: "Effects-before-persist invariant applies; an entry whose genesis is unknown cannot be safely committed"
