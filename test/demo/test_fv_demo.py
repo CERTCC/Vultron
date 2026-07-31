@@ -1442,12 +1442,6 @@ class TestDeliveryIsolation:
 
         with finder_isolated.client as finder_tc:
             with vendor_isolated.client as vendor_tc:
-                # Replace each app's ASGIEmitter fallback with the cross router.
-                for isolated in (finder_isolated, vendor_isolated):
-                    emitter = getattr(isolated.app.state, "emitter", None)
-                    if hasattr(emitter, "_http_fallback"):
-                        emitter._http_fallback = router  # type: ignore[assignment]
-
                 yield finder_isolated, vendor_isolated, finder_tc, vendor_tc
 
         configure_default_emitter(previous_emitter)  # type: ignore[arg-type]

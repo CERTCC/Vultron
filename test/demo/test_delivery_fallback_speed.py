@@ -15,16 +15,14 @@
 """Regression test for #527: delivery to unreachable hosts must not block tests.
 
 Demo actors use fictional URLs (e.g. ``https://vultron.example/...``) that
-cannot be reached via HTTP.  The ``ASGIEmitter`` correctly classifies these
-as non-local and delegates to a ``DemoHttpDeliveryAdapter`` HTTP fallback.
+cannot be reached via HTTP.  The default ``HttpDeliveryAdapter`` would
+attempt real HTTP POST requests with 3 retries and exponential backoff
+(≈ 3.5 s per recipient), which caused the integration suite to take 17+
+minutes in CI.
 
-In production the fallback's retry/backoff (3 retries, 3.5 s sleep total
-per recipient) is appropriate.  In tests it is catastrophic — the demo
-test suite took 17+ minutes in CI because every outbox delivery burned
-3.5 s of ``asyncio.sleep`` per unreachable recipient.
-
-This test verifies that the conftest patches the fallback adapter so that
-deliveries to unreachable hosts complete in under 1 second.
+This test verifies that the conftest replaces the default emitter with a
+``_TestClientRouter`` so that deliveries to unreachable hosts complete in
+under 1 second.
 """
 
 import time
@@ -62,12 +60,11 @@ def test_demo_completes_under_5_seconds(demo_env, caplog):
     The ``demo_validate_report`` flow creates actors, submits a report, and
     validates it — exercising several inbox → outbox → delivery cycles.
 
-    Without the conftest fallback patch, each delivery to an unreachable
+    Without the conftest null-emitter patch, each delivery to an unreachable
     host (``vultron.example``) burns ≈ 3.5 s of ``asyncio.sleep`` retries.
     A single demo function hits 4+ deliveries, so baseline is ≈ 14 s.
 
-    With the patch, the fallback adapter is a no-op and the demo completes
-    in < 1 s.
+    With the patch, the emitter drops unknown recipients and the demo completes in < 1 s.
     """
     import logging
 

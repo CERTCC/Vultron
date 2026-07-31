@@ -39,7 +39,7 @@ import logging
 import random
 from typing import cast
 
-from vultron.adapters.driven.demo_http_delivery import DemoHttpDeliveryAdapter
+from vultron.adapters.driven.http_delivery import HttpDeliveryAdapter
 
 # ---------------------------------------------------------------------------
 # Re-exports from outbox_addressing (keep in this namespace for compat)
@@ -78,26 +78,25 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Default emitter singleton
 # ---------------------------------------------------------------------------
-# Set via ``configure_default_emitter()`` during app startup so all
-# ``outbox_handler`` calls use local ASGI delivery for co-located actors.
-# Falls back to ``DemoHttpDeliveryAdapter`` (HTTP-only) when not configured.
+# Set via ``configure_default_emitter()`` during app startup so the
+# HttpDeliveryAdapter is the module-level default for all outbox drains.
+# Falls back to a fresh ``HttpDeliveryAdapter`` when not configured.
 _default_emitter: ActivityEmitter | None = None
 
 
 def configure_default_emitter(emitter: ActivityEmitter) -> None:
     """Set the default ``ActivityEmitter`` for ``outbox_handler``.
 
-    Called once during app lifespan to install the ``ASGIEmitter`` so
-    co-located actors (e.g. Case Actor) receive messages through the
-    normal inbox pipeline rather than failing silently on HTTP delivery.
+    Called once during app lifespan to install the ``HttpDeliveryAdapter``
+    (ADR-0042) so all inter-actor deliveries use the uniform HTTP path.
     """
     global _default_emitter  # noqa: PLW0603
     _default_emitter = emitter
 
 
 def get_default_emitter() -> ActivityEmitter:
-    """Return the configured default emitter, or ``DemoHttpDeliveryAdapter``."""
-    return _default_emitter or DemoHttpDeliveryAdapter()
+    """Return the configured default emitter, or a fresh ``HttpDeliveryAdapter``."""
+    return _default_emitter or HttpDeliveryAdapter()
 
 
 def _prepare_activity_object_for_delivery(
@@ -207,7 +206,7 @@ async def outbox_handler(
     ``ActivityEmitter`` port (OX-03-001).
 
     Delivery is performed by the emitter (HTTP POST for
-    ``DemoHttpDeliveryAdapter``) and does not block the HTTP response because
+    ``HttpDeliveryAdapter``) and does not block the HTTP response because
     this coroutine is scheduled as a FastAPI BackgroundTask (OX-03-003).
 
     OX-1.3 idempotency is enforced at the receiving inbox endpoint, not
@@ -221,8 +220,8 @@ async def outbox_handler(
             the ``POST /outbox`` case where activities are stored in the
             actor's own DL).
         emitter: The ActivityEmitter port to use for delivery. Defaults to
-            the configured emitter (``ASGIEmitter`` when available, otherwise
-            ``DemoHttpDeliveryAdapter``).
+            the configured emitter (``HttpDeliveryAdapter`` by default,
+            ADR-0042).
     """
     _emitter = cast(
         ActivityEmitter,

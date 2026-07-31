@@ -29,10 +29,10 @@ Use these terms consistently:
 - **Dispatch** (inbound): driving adapter -> dispatcher/use case in core.
 - **Emit** (outbound): core action -> adapter delivery to recipients.
 
-Two emitter adapters are currently used:
+One emitter adapter is used for all inter-actor delivery (ADR-0042):
 
-- `DemoHttpDeliveryAdapter` (remote HTTP delivery path).
-- `ASGIEmitter` (co-located ASGI delivery, HTTP fallback when non-local).
+- `HttpDeliveryAdapter` — HTTP POST to `{actor_uri}/inbox/`; treats every
+  recipient as remote (OX-12-001).
 
 ## Use Cases as Incoming Ports
 

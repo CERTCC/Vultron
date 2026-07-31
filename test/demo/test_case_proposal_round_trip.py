@@ -82,7 +82,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 )
 
 # ---------------------------------------------------------------------------
-# Constants — all IDs use HTTP-routable URIs (required for ASGI routing)
+# Constants — all IDs use HTTP-routable URIs (required for _TestClientRouter)
 # ---------------------------------------------------------------------------
 
 _VENDOR_BASE = "http://vendor-cp.test"
@@ -182,10 +182,6 @@ def two_app_setup(monkeypatch):
 
     with vendor_iso.client as vendor_tc:
         with reporter_iso.client as reporter_tc:
-            for iso in (vendor_iso, reporter_iso):
-                emitter = getattr(iso.app.state, "emitter", None)
-                if hasattr(emitter, "_http_fallback"):
-                    emitter._http_fallback = router  # type: ignore[assignment]
             yield vendor_iso, reporter_iso, vendor_tc, reporter_tc
 
     configure_default_emitter(previous_emitter)  # type: ignore[arg-type]

@@ -11,7 +11,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Tests for SYNC-5: DemoHttpDeliveryAdapter retry/backoff behaviour.
+"""Tests for SYNC-5: HttpDeliveryAdapter retry/backoff behaviour.
 
 Spec: SYNC-05-001, SYNC-05-002.
 """
@@ -21,12 +21,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx2 as httpx
 
-from vultron.adapters.driven.demo_http_delivery import (
+from vultron.adapters.driven.http_delivery import (
     DEFAULT_BACKOFF_MULTIPLIER,
     DEFAULT_INITIAL_DELAY,
     DEFAULT_MAX_DELAY,
     DEFAULT_MAX_RETRIES,
-    DemoHttpDeliveryAdapter,
+    HttpDeliveryAdapter,
 )
 from vultron.core.models.activity import VultronActivity
 
@@ -58,18 +58,18 @@ class TestDefaultConstants:
         assert DEFAULT_MAX_DELAY == 30.0
 
 
-class TestDemoHttpDeliveryAdapterInit:
-    """DemoHttpDeliveryAdapter accepts configurable retry parameters (SYNC-05-002)."""
+class TestHttpDeliveryAdapterInit:
+    """HttpDeliveryAdapter accepts configurable retry parameters (SYNC-05-002)."""
 
     def test_default_params(self):
-        adapter = DemoHttpDeliveryAdapter()
+        adapter = HttpDeliveryAdapter()
         assert adapter._max_retries == DEFAULT_MAX_RETRIES
         assert adapter._initial_delay == DEFAULT_INITIAL_DELAY
         assert adapter._backoff_multiplier == DEFAULT_BACKOFF_MULTIPLIER
         assert adapter._max_delay == DEFAULT_MAX_DELAY
 
     def test_custom_params(self):
-        adapter = DemoHttpDeliveryAdapter(
+        adapter = HttpDeliveryAdapter(
             max_retries=5,
             initial_delay=1.0,
             backoff_multiplier=3.0,
@@ -81,7 +81,7 @@ class TestDemoHttpDeliveryAdapterInit:
         assert adapter._max_delay == 60.0
 
     def test_zero_retries_disables_retry(self):
-        adapter = DemoHttpDeliveryAdapter(max_retries=0)
+        adapter = HttpDeliveryAdapter(max_retries=0)
         assert adapter._max_retries == 0
 
 
@@ -89,7 +89,7 @@ class TestDeliverySuccess:
     """Successful delivery requires no retries."""
 
     def test_delivers_on_first_attempt(self):
-        adapter = DemoHttpDeliveryAdapter(max_retries=2, initial_delay=0.0)
+        adapter = HttpDeliveryAdapter(max_retries=2, initial_delay=0.0)
         activity = _make_activity()
 
         mock_response = MagicMock()
@@ -105,7 +105,7 @@ class TestDeliverySuccess:
         mock_post.assert_called_once()
 
     def test_delivers_to_all_recipients(self):
-        adapter = DemoHttpDeliveryAdapter(max_retries=0, initial_delay=0.0)
+        adapter = HttpDeliveryAdapter(max_retries=0, initial_delay=0.0)
         activity = _make_activity()
         recipients = [
             "https://example.org/actors/alice",
@@ -129,7 +129,7 @@ class TestDeliveryRetry:
     """Failed delivery is retried with exponential backoff (SYNC-05-001)."""
 
     def test_retries_on_failure_then_succeeds(self):
-        adapter = DemoHttpDeliveryAdapter(
+        adapter = HttpDeliveryAdapter(
             max_retries=2, initial_delay=0.0, backoff_multiplier=2.0
         )
         activity = _make_activity()
@@ -157,7 +157,7 @@ class TestDeliveryRetry:
     def test_exponential_backoff_delay_sequence(self):
         import pytest
 
-        adapter = DemoHttpDeliveryAdapter(
+        adapter = HttpDeliveryAdapter(
             max_retries=3,
             initial_delay=1.0,
             backoff_multiplier=2.0,
@@ -183,7 +183,7 @@ class TestDeliveryRetry:
     def test_delay_capped_at_max_delay(self):
         import pytest
 
-        adapter = DemoHttpDeliveryAdapter(
+        adapter = HttpDeliveryAdapter(
             max_retries=5,
             initial_delay=10.0,
             backoff_multiplier=10.0,
@@ -210,7 +210,7 @@ class TestDeliveryRetry:
     def test_exhaust_retries_logs_error(self, caplog):
         import pytest
 
-        adapter = DemoHttpDeliveryAdapter(
+        adapter = HttpDeliveryAdapter(
             max_retries=1, initial_delay=0.0, backoff_multiplier=1.0
         )
         activity = _make_activity()
@@ -230,7 +230,7 @@ class TestDeliveryRetry:
         """Delivery failure for one recipient does not abort others; raises after all attempted."""
         import pytest
 
-        adapter = DemoHttpDeliveryAdapter(max_retries=0, initial_delay=0.0)
+        adapter = HttpDeliveryAdapter(max_retries=0, initial_delay=0.0)
         activity = _make_activity()
 
         delivered: list[str] = []
@@ -261,7 +261,7 @@ class TestDeliveryRetry:
         """emit() raises after all retries are exhausted so outbox_handler can requeue (OX-05-002)."""
         import pytest
 
-        adapter = DemoHttpDeliveryAdapter(
+        adapter = HttpDeliveryAdapter(
             max_retries=1, initial_delay=0.0, backoff_multiplier=1.0
         )
         activity = _make_activity()
@@ -275,7 +275,7 @@ class TestDeliveryRetry:
                     asyncio.run(adapter.emit(activity, [RECIPIENT_URI]))
 
     def test_zero_retries_attempts_once_only(self):
-        adapter = DemoHttpDeliveryAdapter(max_retries=0, initial_delay=0.0)
+        adapter = HttpDeliveryAdapter(max_retries=0, initial_delay=0.0)
         activity = _make_activity()
 
         call_count = 0

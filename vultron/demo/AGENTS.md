@@ -170,7 +170,7 @@ The distinction that matters:
 (`BackgroundTasks`) before the activity is fully processed. Naive polling
 after a trigger timed out, so mail-carrying was added as a workaround. The
 correct fix is to use a polling helper with a sufficient timeout — the real
-HTTP delivery path (`DemoHttpDeliveryAdapter`) with its retry/backoff will
+HTTP delivery path (`HttpDeliveryAdapter`) with its retry/backoff will
 complete; the demo just needs to wait long enough.
 
 **How to apply:**

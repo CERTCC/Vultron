@@ -78,13 +78,11 @@ def two_app_setup(monkeypatch):
          default ``http://localhost:7999`` which lacks the ``/api/v2/``
          prefix and therefore gets a 404 from the owner's ASGI app).
       2. Enters both TestClient contexts (triggers lifespan startup).
-      3. Replaces each app's ``ASGIEmitter._http_fallback`` with the shared
-         router so cross-app deliveries POST to each target TestClient inbox.
-      4. Configures the module-level ``_default_emitter`` to the shared
-         router so trigger-endpoint ``outbox_handler`` calls POST to each
-         target TestClient inbox instead of making real HTTP requests.
-      5. Registers the patched base URL with the router pointing to the
-         owner's app so that CaseActor deliveries are routed correctly.
+      3. Configures the module-level default emitter to the shared router so
+         all outbox_handler deliveries POST to each target TestClient inbox
+         instead of making real HTTP requests (ADR-0042).
+      4. Registers the patched base URL with the router so that CaseActor
+         deliveries are routed to the owner's app correctly.
 
     Yields:
         Tuple of (owner_iso, reporter_iso, owner_tc, reporter_tc).
@@ -123,10 +121,6 @@ def two_app_setup(monkeypatch):
 
     with owner_iso.client as owner_tc:
         with reporter_iso.client as reporter_tc:
-            for iso in (owner_iso, reporter_iso):
-                emitter = getattr(iso.app.state, "emitter", None)
-                if hasattr(emitter, "_http_fallback"):
-                    emitter._http_fallback = router  # type: ignore[assignment]
             yield (owner_iso, reporter_iso, owner_tc, reporter_tc)
 
     configure_default_emitter(previous_emitter)  # type: ignore[arg-type]

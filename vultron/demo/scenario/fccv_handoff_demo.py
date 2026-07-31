@@ -527,7 +527,7 @@ def _phase_c2_invites_vendor(
     accept = as_TransitiveActivity.model_validate(accept_result["activity"])
     logger.info("Vendor sent Accept(Invite): %s", accept.id_)
 
-    # DemoHttpDeliveryAdapter delivers Vendor's Accept to the CaseActor inbox
+    # HttpDeliveryAdapter delivers Vendor's Accept to the CaseActor inbox
     # via the real HTTP path (PCR-08-008).  Poll for the case replica as proof
     # that CaseActor processed the Accept and fanned out Announce(VulnerabilityCase).
     # Wait for Vendor's case replica.
