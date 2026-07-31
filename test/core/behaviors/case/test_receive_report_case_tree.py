@@ -592,50 +592,42 @@ class TestConcurrentExecution:
     holds even when two bridge instances race on the global lock.
     """
 
-    def test_two_threads_both_succeed(
-        self,
-        datalayer,
-        actor,
-        reporter_actor_id,
+    @staticmethod
+    def _make_report_offer(
+        datalayer, reporter_actor_id, actor_id, report_id, name, content
     ):
-        """Both threads complete with Status.SUCCESS (BTND-03-004)."""
-        from vultron.adapters.driven.trigger_activity_adapter import (
-            TriggerActivityAdapter,
-        )
         from vultron.wire.as2.factories import rm_submit_report_activity
         from vultron.wire.as2.vocab.objects.vulnerability_report import (
             as_VulnerabilityReport,
         )
 
-        report_a = as_VulnerabilityReport(
-            id_="https://example.org/reports/CONCURRENT-A",
-            name="Concurrent Report A",
-            content="Test content A",
+        report = as_VulnerabilityReport(
+            id_=report_id, name=name, content=content
         )
-        report_b = as_VulnerabilityReport(
-            id_="https://example.org/reports/CONCURRENT-B",
-            name="Concurrent Report B",
-            content="Test content B",
+        datalayer.create(report)
+        offer = rm_submit_report_activity(
+            report=report, actor=reporter_actor_id, to=actor_id
         )
-        datalayer.create(report_a)
-        datalayer.create(report_b)
+        datalayer.create(offer)
+        return report, offer
 
-        offer_a = rm_submit_report_activity(
-            report=report_a,
-            actor=reporter_actor_id,
-            to=actor.id_,
+    @staticmethod
+    def _spawn_and_join(datalayer, actor_id, reporter_actor_id, pairs):
+        """Spawn one thread per (report, offer, key) pair; join all; return results dict.
+
+        ``pairs`` is a list of ``(report_obj, offer_obj, key_str)`` tuples.
+        Returns ``{key: Status}`` for each thread that completed successfully.
+        Asserts no deadlock (``is_alive()`` after join) and no thread errors.
+        Both ``results`` and ``errors`` are written under the same lock so
+        all inter-thread writes are consistently protected.
+        """
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
         )
-        offer_b = rm_submit_report_activity(
-            report=report_b,
-            actor=reporter_actor_id,
-            to=actor.id_,
-        )
-        datalayer.create(offer_a)
-        datalayer.create(offer_b)
 
         results: dict[str, Status] = {}
-        _lock = threading.Lock()
         errors: list[str] = []
+        _lock = threading.Lock()
 
         def _run(
             report_id: str, offer_id: str, offer: object, key: str
@@ -651,29 +643,59 @@ class TestConcurrentExecution:
                     reporter_actor_id=reporter_actor_id,
                 )
                 result = bridge.execute_with_setup(
-                    tree=tree, actor_id=actor.id_, activity=offer
+                    tree=tree, actor_id=actor_id, activity=offer
                 )
-                results[key] = result.status
+                with _lock:
+                    results[key] = result.status
             except Exception as exc:
                 with _lock:
                     errors.append(f"{key}: {exc}")
 
-        t_a = threading.Thread(
-            target=_run,
-            args=(report_a.id_, offer_a.id_, offer_a, "a"),
-        )
-        t_b = threading.Thread(
-            target=_run,
-            args=(report_b.id_, offer_b.id_, offer_b, "b"),
-        )
-        t_a.start()
-        t_b.start()
-        t_a.join(timeout=10)
-        t_b.join(timeout=10)
+        threads = [
+            threading.Thread(target=_run, args=(r.id_, o.id_, o, k))
+            for r, o, k in pairs
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=10)
 
-        assert not t_a.is_alive(), "Thread A timed out — possible deadlock"
-        assert not t_b.is_alive(), "Thread B timed out — possible deadlock"
+        for i, t in enumerate(threads):
+            assert (
+                not t.is_alive()
+            ), f"Thread {i} timed out — possible deadlock"
         assert not errors, f"Thread errors: {errors}"
+        return results
+
+    def test_two_threads_both_succeed(
+        self,
+        datalayer,
+        actor,
+        reporter_actor_id,
+    ):
+        """Both threads complete with Status.SUCCESS (BTND-03-004)."""
+        report_a, offer_a = self._make_report_offer(
+            datalayer,
+            reporter_actor_id,
+            actor.id_,
+            "https://example.org/reports/CONCURRENT-A",
+            "Concurrent Report A",
+            "Test content A",
+        )
+        report_b, offer_b = self._make_report_offer(
+            datalayer,
+            reporter_actor_id,
+            actor.id_,
+            "https://example.org/reports/CONCURRENT-B",
+            "Concurrent Report B",
+            "Test content B",
+        )
+        results = self._spawn_and_join(
+            datalayer,
+            actor.id_,
+            reporter_actor_id,
+            [(report_a, offer_a, "a"), (report_b, offer_b, "b")],
+        )
         assert (
             results.get("a") == Status.SUCCESS
         ), f"Thread A status: {results.get('a')}"
@@ -688,79 +710,28 @@ class TestConcurrentExecution:
         reporter_actor_id,
     ):
         """Each thread writes its own VultronReportCaseLink; two distinct records exist."""
-        from vultron.adapters.driven.trigger_activity_adapter import (
-            TriggerActivityAdapter,
+        report_a, offer_a = self._make_report_offer(
+            datalayer,
+            reporter_actor_id,
+            actor.id_,
+            "https://example.org/reports/LINK-A",
+            "Link Report A",
+            "Content A",
         )
-        from vultron.wire.as2.factories import rm_submit_report_activity
-        from vultron.wire.as2.vocab.objects.vulnerability_report import (
-            as_VulnerabilityReport,
+        report_b, offer_b = self._make_report_offer(
+            datalayer,
+            reporter_actor_id,
+            actor.id_,
+            "https://example.org/reports/LINK-B",
+            "Link Report B",
+            "Content B",
         )
-
-        report_a = as_VulnerabilityReport(
-            id_="https://example.org/reports/LINK-A",
-            name="Link Report A",
-            content="Content A",
+        self._spawn_and_join(
+            datalayer,
+            actor.id_,
+            reporter_actor_id,
+            [(report_a, offer_a, "a"), (report_b, offer_b, "b")],
         )
-        report_b = as_VulnerabilityReport(
-            id_="https://example.org/reports/LINK-B",
-            name="Link Report B",
-            content="Content B",
-        )
-        datalayer.create(report_a)
-        datalayer.create(report_b)
-
-        offer_a = rm_submit_report_activity(
-            report=report_a,
-            actor=reporter_actor_id,
-            to=actor.id_,
-        )
-        offer_b = rm_submit_report_activity(
-            report=report_b,
-            actor=reporter_actor_id,
-            to=actor.id_,
-        )
-        datalayer.create(offer_a)
-        datalayer.create(offer_b)
-
-        _lock = threading.Lock()
-        errors: list[str] = []
-
-        def _run(
-            report_id: str, offer_id: str, offer: object, key: str
-        ) -> None:
-            try:
-                bridge = BTBridge(
-                    datalayer=datalayer,
-                    trigger_activity=TriggerActivityAdapter(datalayer),
-                )
-                tree = create_receive_report_case_tree(
-                    report_id=report_id,
-                    offer_id=offer_id,
-                    reporter_actor_id=reporter_actor_id,
-                )
-                bridge.execute_with_setup(
-                    tree=tree, actor_id=actor.id_, activity=offer
-                )
-            except Exception as exc:
-                with _lock:
-                    errors.append(f"{key}: {exc}")
-
-        t_a = threading.Thread(
-            target=_run,
-            args=(report_a.id_, offer_a.id_, offer_a, "a"),
-        )
-        t_b = threading.Thread(
-            target=_run,
-            args=(report_b.id_, offer_b.id_, offer_b, "b"),
-        )
-        t_a.start()
-        t_b.start()
-        t_a.join(timeout=10)
-        t_b.join(timeout=10)
-
-        assert not t_a.is_alive(), "Thread A timed out — possible deadlock"
-        assert not t_b.is_alive(), "Thread B timed out — possible deadlock"
-        assert not errors, f"Thread errors: {errors}"
 
         link_a = datalayer.read(VultronReportCaseLink.build_id(report_a.id_))
         link_b = datalayer.read(VultronReportCaseLink.build_id(report_b.id_))
