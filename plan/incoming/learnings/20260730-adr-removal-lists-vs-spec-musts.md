@@ -28,3 +28,10 @@ still require the operation, remove only the coupling the ADR actually
 supersedes, keep the component functional, and record the narrowed scope in the
 module docstring so the next reader does not re-litigate it. See
 [[feedback_completeness_doctrine]].
+
+**Resolved:** ADR-0041 was revised in PR #1851 to scope both the
+`Offer(CaseManagerRole)` and `CreateCaseActorNode` removal entries to the
+report-receipt path, so the conflict no longer exists in the document. The
+detection habit above is still the transferable part. On the choice to revise
+rather than append an amendment, see
+[[20260731-revise-recent-adrs-not-amend]].
