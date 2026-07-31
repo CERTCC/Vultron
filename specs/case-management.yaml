@@ -1141,7 +1141,8 @@ groups:
       entries MUST NOT be authored by the vendor and back-filled via
       `WritePrologueLedgerEntriesNode` or any equivalent mechanism.
     rationale: >-
-      `_validate_canonical_entry` in `chain.py` rejects entries where the
+      `_validate_canonical_entry` (in `sync/nodes/canonical_entry.py`) rejects
+      entries where the
       `actor_id` does not match `_CASE_AUTHORED_SIGNATURES`.  Vendor-authored
       entries fail this check (the root cause of Issue #1767).  Native
       CaseActor authorship is the only compliant path.
