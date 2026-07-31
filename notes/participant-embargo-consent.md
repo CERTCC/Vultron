@@ -16,10 +16,14 @@ relevant_packages:
 
 # Participant Embargo Consent State Machine
 
-**Status**: Design decision — not yet implemented
+**Status**: Implemented — `vultron/core/states/participant_embargo_consent.py`
+(machine), `PecDimension` in `vultron/core/models/dimensions.py` (validated
+transitions), `ParticipantStatus.consent` (persistence)
 **Source**: `archived_notes/demo-review-26042001.md` + architectural review
-2026-04-20
-**See also**: `specs/case-management.yaml` CM-03-008, CM-04-003; `notes/stub-objects.md`
+2026-04-20; transition table revised by ADR-0048 (Issue #1714)
+**See also**: `specs/case-management.yaml` CM-18 (authoritative), CM-03-008,
+CM-04-003; `docs/adr/0048-pec-no-embargo-is-absence-not-pre-consent.md`;
+`notes/stub-objects.md`
 
 ---
 
@@ -58,6 +62,8 @@ participant's consent state is `SIGNATORY`; `False` for all other states.
 | From | Trigger | To |
 |---|---|---|
 | `NO_EMBARGO` | Embargo proposed; participant invited | `INVITED` |
+| `NO_EMBARGO` | Direct/implicit/self-determined consent | `SIGNATORY` |
+| `NO_EMBARGO` | Refusal without a formal invitation | `DECLINED` |
 | `INVITED` | `Accept(Invite(Embargo))` received | `SIGNATORY` |
 | `INVITED` | `Reject(Invite(Embargo))` received | `DECLINED` |
 | `INVITED` | Invitation timeout (pocket veto) | `DECLINED` |
@@ -67,6 +73,78 @@ participant's consent state is `SIGNATORY`; `False` for all other states.
 | `LAPSED` | Re-acceptance timeout (pocket veto) | `DECLINED` |
 | `DECLINED` | Case owner re-extends invitation | `INVITED` |
 | Any | Shared EM exits (`EXITED`) | `NO_EMBARGO` |
+
+Normative: `specs/case-management.yaml` CM-18-003. Decision: ADR-0048.
+
+---
+
+## `NO_EMBARGO` Is Absence of Embargo, Not Pre-Consent
+
+*Spec: CM-18-001, CM-18-003. Decision: ADR-0048.*
+
+`NO_EMBARGO` means **no embargo is in scope for this participant**. It does
+*not* mean "has not consented yet". Read the second way, it implies every
+consent must be preceded by an invitation — which is false:
+
+- A Finder who creates a case for their own finding and sets its default
+  embargo has **no inviter**.
+- Participants added during case initialization (ADR-0041) already have an
+  embargo in scope from the moment they exist, because the CaseActor
+  initializes the default embargo in the same BT sequence.
+- The reporter's consent is **implicit** in submitting the report (CM-14-005);
+  no invitation is ever sent.
+
+So `ACCEPT` and `DECLINE` are valid directly from `NO_EMBARGO`. Requiring a
+synthetic `INVITED` hop for these paths would write an invitation event into the
+canonical ledger that never occurred (contra ADR-0019).
+
+`NO_EMBARGO` keeps two real jobs: it is correct for a participant in a case with
+`EM.NONE`, and it is the `RESET` destination when an embargo is terminated. That
+`RESET` semantics is itself evidence for the absence reading — `RESET` fires
+when the embargo *goes away*, not when consent is pending.
+
+**What this costs:** the machine no longer enforces "consent implies a prior
+invitation". That invariant was never true of self-determined embargoes, so the
+enforcement was spurious — but treat any code that leaned on it as suspect.
+
+---
+
+## Pitfall: Never Set `embargo_consent_state` by Direct Assignment
+
+*Spec: CM-18-005, CM-18-006.*
+
+Record a consent change by applying a `PEC_Trigger` through
+`PecDimension.transition()` (ADR-0036) and persisting the resulting
+`ParticipantStatus`. Prefer a shared helper over open-coding it.
+
+Assigning the scalar field directly:
+
+```python
+participant.embargo_consent_state = PEC.SIGNATORY   # WRONG
+```
+
+is a plain Pydantic write. It bypasses the state machine **and**
+`_sync_latest_status_metadata()`, so the participant's latest
+`ParticipantStatus` keeps its old `consent.state`. The emitted ledger snapshot
+then contradicts itself:
+
+```text
+participant.embargo_consent_state = SIGNATORY
+snapshot: {"embargoAdherence": true, "emConsentState": "NO_EMBARGO"}
+```
+
+Ledger consumers read `emConsentState` to render per-participant consent
+(DRPT-02-008), so they report the stale value. `PecDimension.transition()`
+raises `VultronInvalidStateTransitionError` on an illegal trigger, which makes
+consent writes fail-closed regardless of whether the upstream BT guard is
+correct — the fail-open concern raised for `CreateParticipantStatusNode` in
+ISSUE-1825.
+
+**Corollary — `apply_pec_trigger` returns the state unchanged on an invalid
+trigger.** It logs a warning and does *not* raise. Code that ignores the return
+value will report success while recording nothing. This is exactly how
+`_SignEmbargoConsentLeafNode` came to log `"signed embargo consent for
+invitee"` while leaving the participant at `NO_EMBARGO`.
 
 ---
 
