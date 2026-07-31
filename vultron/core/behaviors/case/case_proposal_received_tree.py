@@ -1152,7 +1152,7 @@ class _WriteCreateCaseMarkerNode(DataLayerAction):
         """
         try:
             val = self.blackboard.get(key)
-        except KeyError:
+        except (KeyError, AttributeError):
             self.feedback_message = f"{key} not found in blackboard"
             return None, Status.FAILURE
         if not isinstance(val, str):
