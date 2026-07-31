@@ -35,7 +35,7 @@ from vultron.core.use_cases.triggers.embargo import (
     SvcTerminateEmbargoUseCase,
 )
 from vultron.core.use_cases.triggers.report import (
-    SvcCloseReportUseCase,
+    SvcCloseCaseUseCase,
     SvcInvalidateReportUseCase,
     SvcRejectReportUseCase,
     SvcValidateReportUseCase,
@@ -101,7 +101,7 @@ def mcp_close_report(
     request = CloseReportTriggerRequest(
         actor_id=actor_id, offer_id=offer_id, note=note
     )
-    return SvcCloseReportUseCase(dl, request, trigger_activity).execute()
+    return SvcCloseCaseUseCase(dl, request, trigger_activity).execute()
 
 
 def mcp_engage_case(actor_id: str, case_id: str) -> dict[str, Any]:

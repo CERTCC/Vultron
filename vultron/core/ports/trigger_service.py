@@ -77,6 +77,13 @@ class TriggerServicePort(Protocol):
         note: str | None = None,
     ) -> dict[str, Any]: ...
 
+    def close_case(
+        self,
+        actor_id: str,
+        offer_id: str,
+        note: str | None = None,
+    ) -> dict[str, Any]: ...
+
     def close_report(
         self,
         actor_id: str,

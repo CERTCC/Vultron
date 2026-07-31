@@ -65,7 +65,7 @@ from vultron.core.use_cases.triggers.embargo import (
 )
 from vultron.core.use_cases.triggers.note import SvcAddNoteToCaseUseCase
 from vultron.core.use_cases.triggers.report import (
-    SvcCloseReportUseCase,
+    SvcCloseCaseUseCase,
     SvcInvalidateReportUseCase,
     SvcRejectReportUseCase,
     SvcSubmitReportUseCase,
@@ -194,19 +194,28 @@ class TriggerService:
             self._dl, req, trigger_activity=self._trigger_activity
         ).execute()
 
+    def close_case(
+        self,
+        actor_id: str,
+        offer_id: str,
+        note: str | None = None,
+    ) -> dict[str, Any]:
+        """Close a VulnerabilityCase via the RM lifecycle (Case Owner only)."""
+        req = CloseReportTriggerRequest(
+            actor_id=actor_id, offer_id=offer_id, note=note
+        )
+        return SvcCloseCaseUseCase(
+            self._dl, req, trigger_activity=self._trigger_activity
+        ).execute()
+
     def close_report(
         self,
         actor_id: str,
         offer_id: str,
         note: str | None = None,
     ) -> dict[str, Any]:
-        """Close a report that has progressed through the RM lifecycle."""
-        req = CloseReportTriggerRequest(
-            actor_id=actor_id, offer_id=offer_id, note=note
-        )
-        return SvcCloseReportUseCase(
-            self._dl, req, trigger_activity=self._trigger_activity
-        ).execute()
+        """Deprecated alias for :meth:`close_case`."""
+        return self.close_case(actor_id, offer_id, note)
 
     # -----------------------------------------------------------------------
     # Case triggers

@@ -24,6 +24,8 @@ execute() path against a real in-memory DataLayer and asserts:
   3. the documented failure modes the use case is documented to raise.
 """
 
+from typing import Any
+
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -41,6 +43,7 @@ from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.core.models._helpers import _report_phase_status_id
 from vultron.core.use_cases.triggers.report import (
+    SvcCloseCaseUseCase,
     SvcCloseReportUseCase,
     SvcInvalidateReportUseCase,
     SvcRejectReportUseCase,
@@ -529,16 +532,94 @@ class TestSvcRejectReportUseCase(_ReportTriggerBase):
         assert len(after - before) >= 1
 
 
-class TestSvcCloseReportUseCase(_ReportTriggerBase):
-    """execute() path tests for SvcCloseReportUseCase."""
+def _make_case_with_case_owner(
+    dl: SqliteDataLayer,
+    owner_id: str,
+    report_id: str,
+    manager_id: str | None = None,
+) -> "Any":
+    """Build a VulnerabilityCase where *owner_id* holds CVDRole.CASE_OWNER.
 
-    def test_close_report_returns_activity_dict(self):
+    If *manager_id* is provided, also seed a CASE_MANAGER participant so that
+    ``EmitCloseReportActivity`` can route the outbound activity.
+    """
+    from vultron.core.models.case_participant import CaseParticipant
+    from vultron.core.models.case import VulnerabilityCase
+
+    owner_participant = CaseParticipant(
+        attributed_to=owner_id,
+        case_roles=[CVDRole.CASE_OWNER],
+    )
+    case = VulnerabilityCase(name="Owner Case")
+    case.vulnerability_reports.append(report_id)
+    case.actor_participant_index[owner_id] = owner_participant.id_
+    dl.create(owner_participant)
+
+    if manager_id is not None:
+        manager_participant = CaseParticipant(
+            attributed_to=manager_id,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        case.actor_participant_index[manager_id] = manager_participant.id_
+        dl.create(manager_participant)
+
+    dl.create(case)
+    return case
+
+
+class TestSvcCloseCaseUseCase(_ReportTriggerBase):
+    """execute() path tests for SvcCloseCaseUseCase (primary rename).
+
+    The vendor actor is seeded as CASE_OWNER so CheckCaseOwner passes.
+    SvcCloseReportUseCase is also imported to verify the backward-compat alias.
+    """
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        self.vendor, self.dl = _make_actor_dl("Vendor Co")
+        self.finder, self.finder_dl = _make_actor_dl("Finder Co")
+        self.case_actor, self.case_actor_dl = _make_actor_dl("Case Actor")
+
+        self.report = as_VulnerabilityReport(
+            name="CVE-TEST",
+            content="Vulnerability report content",
+            attributed_to=self.finder.id_,
+        )
+        self.dl.create(self.report)
+
+        self.offer = _make_offer(
+            self.dl,
+            self.report,
+            self.vendor.id_,
+            actor_id=self.finder.id_,
+        )
+
+        # vendor is CASE_OWNER; case_actor is CASE_MANAGER for routing
+        self.owner_case = _make_case_with_case_owner(
+            self.dl,
+            owner_id=self.vendor.id_,
+            manager_id=self.case_actor.id_,
+            report_id=self.report.id_,
+        )
+
+        yield
+        self.dl.clear_all()
+        self.dl.close()
+        self.finder_dl.clear_all()
+        self.finder_dl.close()
+        self.case_actor_dl.clear_all()
+        self.case_actor_dl.close()
+        reset_datalayer(self.vendor.id_)
+        reset_datalayer(self.finder.id_)
+        reset_datalayer(self.case_actor.id_)
+
+    def test_close_case_returns_activity_dict(self):
         """execute() returns result['activity'] as Reject(Offer) dict (DL-06-001)."""
         request = CloseReportTriggerRequest(
             actor_id=self.vendor.id_,
             offer_id=self.offer.id_,
         )
-        result = SvcCloseReportUseCase(
+        result = SvcCloseCaseUseCase(
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
@@ -547,20 +628,52 @@ class TestSvcCloseReportUseCase(_ReportTriggerBase):
         assert result.get("activity") is not None
         assert result["activity"].get("type") == "Reject"
 
-    def test_close_report_queues_activity_in_outbox(self):
+    def test_close_case_queues_activity_in_outbox(self):
         """execute() enqueues at least one activity in the actor's outbox."""
         request = CloseReportTriggerRequest(
             actor_id=self.vendor.id_,
             offer_id=self.offer.id_,
         )
         before = set(self.dl.outbox_list_for_actor(self.vendor.id_))
-        SvcCloseReportUseCase(
+        SvcCloseCaseUseCase(
             self.dl,
             request,
             trigger_activity=TriggerActivityAdapter(self.dl),
         ).execute()
         after = set(self.dl.outbox_list_for_actor(self.vendor.id_))
         assert len(after - before) >= 1
+
+    def test_backward_compat_alias_works(self):
+        """SvcCloseReportUseCase alias delegates to SvcCloseCaseUseCase."""
+        assert SvcCloseReportUseCase is SvcCloseCaseUseCase
+
+    def test_close_case_raises_when_no_linked_case(self):
+        """VultronNotFoundError raised when report has no linked VulnerabilityCase."""
+        vendor2, dl2 = _make_actor_dl("Vendor2 Co")
+        try:
+            report2 = as_VulnerabilityReport(
+                name="Unlinked",
+                content="No case",
+                attributed_to=vendor2.id_,
+            )
+            dl2.create(report2)
+            offer2 = _make_offer(
+                dl2, report2, vendor2.id_, actor_id=vendor2.id_
+            )
+            request = CloseReportTriggerRequest(
+                actor_id=vendor2.id_,
+                offer_id=offer2.id_,
+            )
+            with pytest.raises(VultronNotFoundError):
+                SvcCloseCaseUseCase(
+                    dl2,
+                    request,
+                    trigger_activity=TriggerActivityAdapter(dl2),
+                ).execute()
+        finally:
+            dl2.clear_all()
+            dl2.close()
+            reset_datalayer(vendor2.id_)
 
 
 # ---------------------------------------------------------------------------
