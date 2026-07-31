@@ -28,7 +28,9 @@ from vultron.core.models.case_ledger_entry import (
     CaseLedgerEntry,
     VultronCaseLedgerEntry,
 )
+from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.use_cases._helpers import case_addressees
 from vultron.errors import VultronError
 
@@ -262,6 +264,81 @@ class SendMissingEntriesNode(DataLayerAction):
             peer_id,
             entry.case_id,
         )
+        return Status.SUCCESS
+
+
+class AnnounceCaseOnGenesisRejectNode(DataLayerAction):
+    """Queue Announce(VulnerabilityCase) to a peer that rejected from genesis.
+
+    When a peer sends ``Reject(last_accepted_hash="")`` it has no copy of
+    VulnerabilityCase yet.  Replaying ledger entries without first seeding the
+    case object causes ReconstructChainTailNode to fail again on every entry,
+    producing an exponential reject-replay loop (SYNC-15-002).  This node
+    fires first so the VulnerabilityCase arrives before the entry replay.
+
+    Returns SUCCESS unconditionally (missing trigger port is only a WARNING so
+    that the replay still runs in environments without a trigger port).
+    """
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="activity", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="case_actor_id", access=py_trees.common.Access.READ
+        )
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        activity = self.blackboard.activity
+        if activity.last_accepted_hash != "":
+            return Status.SUCCESS
+
+        factory = cast(
+            TriggerActivityPort | None,
+            self.trigger_activity_factory,
+        )
+        if factory is None:
+            self.logger.warning(
+                "%s: trigger_activity_factory not available;"
+                " cannot pre-seed VulnerabilityCase for peer '%s' (SYNC-15-002)",
+                self.name,
+                activity.actor_id,
+            )
+            return Status.SUCCESS
+
+        entry = _require_rejected_entry(activity, self.name)
+        peer_id = activity.actor_id
+        case_actor_id = self.blackboard.case_actor_id
+
+        try:
+            activity_id = factory.announce_vulnerability_case(
+                case_id=entry.case_id,
+                actor=case_actor_id,
+                context_id=entry.case_id,
+                to=[peer_id],
+            )
+            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
+                case_actor_id, activity_id
+            )
+            self.logger.info(
+                "%s: queued AnnounceVulnerabilityCase '%s' to peer '%s'"
+                " before entry replay (SYNC-15-002)",
+                self.name,
+                activity_id,
+                peer_id,
+            )
+        except Exception as exc:
+            self.logger.warning(
+                "%s: could not queue AnnounceVulnerabilityCase for peer '%s': %s",
+                self.name,
+                peer_id,
+                exc,
+            )
         return Status.SUCCESS
 
 

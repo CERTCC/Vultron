@@ -4,6 +4,7 @@
 import py_trees
 
 from vultron.core.behaviors.sync.nodes import (
+    AnnounceCaseOnGenesisRejectNode,
     FindCaseActorNode,
     ReplayMissingEntriesNode,
     UpdateReplicationStateNode,
@@ -17,6 +18,12 @@ def create_reject_log_entry_tree() -> py_trees.behaviour.Behaviour:
         children=[
             UpdateReplicationStateNode(name="UpdateReplicationState"),
             FindCaseActorNode(name="FindCaseActor"),
+            # When the peer has no VulnerabilityCase yet (last_accepted_hash=""),
+            # send Announce(VulnerabilityCase) before replaying entries so the
+            # peer can anchor its hash chain (SYNC-15-002).
+            AnnounceCaseOnGenesisRejectNode(
+                name="AnnounceCaseOnGenesisReject"
+            ),
             ReplayMissingEntriesNode(name="ReplayMissingEntries"),
         ],
     )

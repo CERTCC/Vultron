@@ -62,6 +62,7 @@ from vultron.core.behaviors.sync.nodes.effects import (
     ApplyParticipantStatusFromLedgerNode,
 )
 from vultron.core.behaviors.sync.nodes.replay import (
+    AnnounceCaseOnGenesisRejectNode,
     CollectAndSortCaseLedgerEntriesNode,
     CollectLogEntryRecipientsNode,
     FanOutLogEntryNode,
@@ -100,6 +101,7 @@ __all__ = [
     "CreateLogEntryNode",
     "PersistLogEntryNode",
     # replay
+    "AnnounceCaseOnGenesisRejectNode",
     "FindCaseActorNode",
     "CollectAndSortCaseLedgerEntriesNode",
     "FindDivergenceIndexNode",
