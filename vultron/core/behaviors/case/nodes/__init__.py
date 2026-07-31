@@ -119,6 +119,7 @@ from vultron.core.behaviors.case.nodes.ownership_transfer import (
 )
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     CheckDeployerRoleNode,
+    CheckIsCaseOwnerNode,
     CheckVendorRoleNode,
 )
 from vultron.core.behaviors.case.nodes.update import (
@@ -141,6 +142,7 @@ __all__ = [
     "CheckCaseAlreadyExists",
     "CheckCaseExistsForReport",
     "CheckIsCaseManagerNode",
+    "CheckIsCaseOwnerNode",
     "CheckPendingProposalExistsForReport",
     "WritePendingReportCaseLinkNode",
     # case_setup (leaf nodes)

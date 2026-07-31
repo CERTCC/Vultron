@@ -16,8 +16,17 @@
 """
 AddParticipantStatus behavior tree composition.
 
-Composes the four-step DEMOMA-07-003 workflow as a Sequence BT
-(step 3 raw peer re-broadcast removed per DEMOMA-07-005):
+Composes the DEMOMA-07-003 workflow as a Sequence BT
+(step 3 raw peer re-broadcast removed per DEMOMA-07-005).
+
+Seam 1 of the two-seam authorization model (ADR-0046, RSH-01-001 to RSH-01-004):
+after ``AppendParticipantStatusNode`` records the raw peer update, a
+``StatusUpdateGuard`` (Selector/Fallback) decides whether the CaseActor
+should adopt the status, then ``EmitAddCaseStatusToSelfNode`` emits a
+self-addressed ``Add(CaseStatus)`` to trigger Seam 2 in
+``add_case_status_tree``.  Embargo teardown and other side-effects belong in
+Seam 2; ``add_participant_status_tree`` does not execute them directly
+(RSH-01-004).
 
     AddParticipantStatusBT (Sequence)
     ├─ VerifySenderIsParticipantNode          # Step 1: sender must be known participant
@@ -27,7 +36,10 @@ Composes the four-step DEMOMA-07-003 workflow as a Sequence BT
     │   │   └─ Inverter(CheckIsCaseManagerNode)
     │   └─ CommitCaseLedgerEntryNode
     ├─ AppendParticipantStatusNode            # Step 2: append status to participant record
-    ├─ PublicDisclosureBranchNode             # Step 4: embargo teardown on CS.P + CASE_OWNER
+    ├─ StatusUpdateGuard (Selector)           # Seam 1 authorization (RSH-01-002)
+    │   ├─ CheckIsCaseOwnerNode               # Hard bypass: CASE_OWNER gospel (RSH-01-002)
+    │   └─ CaseOwnerApprovesStatusUpdate      # Call-out: non-owners need approval
+    ├─ EmitAddCaseStatusToSelfNode            # Seam 1 emit → triggers Seam 2 (RSH-01-003)
     └─ AutoCloseIfCaseManager (Selector)      # Step 5: auto-close only when CASE_MANAGER
         ├─ Sequence
         │   ├─ CheckIsCaseManagerNode
@@ -39,6 +51,7 @@ Composes the four-step DEMOMA-07-003 workflow as a Sequence BT
         └─ Success (skip if not CASE_MANAGER)
 
 Per specs/multi-actor-demo.yaml DEMOMA-07-003, DEMOMA-07-005, DEMOMA-07-006.
+Per specs/received-status-handling.yaml RSH-01-001 to RSH-01-004.
 """
 
 import logging
@@ -49,10 +62,12 @@ from vultron.core.behaviors.call_out.bundles.status_authorization import (
     STATUS_AUTHORIZATION_DETERMINISTIC,
     StatusAuthorizationCallOutBundle,
 )
-from vultron.core.models.events.status import (
-    AddParticipantStatusToParticipantReceivedEvent,
+from vultron.core.behaviors.case.nodes.conditions import (
+    CheckIsCaseManagerNode,
 )
-from vultron.core.behaviors.case.nodes.conditions import CheckIsCaseManagerNode
+from vultron.core.behaviors.case.nodes.vfd_role_guards import (
+    CheckIsCaseOwnerNode,
+)
 from vultron.core.behaviors.case.nodes.lifecycle import (
     create_receive_activity_tree,
 )
@@ -64,9 +79,12 @@ from vultron.core.behaviors.status.nodes import (
     AllParticipantsRMClosedConditionNode,
     CheckParticipantRMNotClosedNode,
     CloseNotYetEmittedConditionNode,
+    EmitAddCaseStatusToSelfNode,
     EmitCloseCaseNode,
-    PublicDisclosureBranchNode,
     VerifySenderIsParticipantNode,
+)
+from vultron.core.models.events.status import (
+    AddParticipantStatusToParticipantReceivedEvent,
 )
 
 logger = logging.getLogger(__name__)
@@ -75,15 +93,13 @@ logger = logging.getLogger(__name__)
 def add_participant_status_tree(
     request: AddParticipantStatusToParticipantReceivedEvent,
     case_id: str | None = None,
-    call_out: StatusAuthorizationCallOutBundle = (
-        STATUS_AUTHORIZATION_DETERMINISTIC
-    ),
+    call_out: StatusAuthorizationCallOutBundle = STATUS_AUTHORIZATION_DETERMINISTIC,
 ) -> py_trees.behaviour.Behaviour:
     """Create the behavior tree for the AddParticipantStatus workflow.
 
     Handles receipt of an ``Add(ParticipantStatus, CaseParticipant)``
-    activity.  Implements the four remaining steps of DEMOMA-07-003 as BT
-    nodes in a Sequence (step 3 raw re-broadcast removed per DEMOMA-07-005).
+    activity.  Implements the DEMOMA-07-003 workflow with Seam 1
+    authorization (ADR-0046, RSH-01-001 to RSH-01-004).
 
     When ``case_id`` is provided (or derived from the inline status object),
     a guarded-commit subtree is inserted after precondition guards so the
@@ -98,27 +114,30 @@ def add_participant_status_tree(
     is not available in the inline object, the
     ``VerifySenderIsParticipantNode`` will perform a DataLayer lookup.
 
-    ``PublicDisclosureBranchNode`` uses the ``trigger_activity_factory`` that
-    the caller places on the py_trees blackboard via
-    ``BTBridge(trigger_activity=...)``.
+    After ``AppendParticipantStatusNode`` records the raw peer update, a
+    ``StatusUpdateGuard`` (Selector/Fallback) decides whether the CaseActor
+    should adopt the status:
+
+    - ``CheckIsCaseOwnerNode`` — hard bypass for CASE_OWNER gospel (RSH-01-002)
+    - ``CaseOwnerApprovesStatusUpdate`` — call-out backed by
+      ``call_out.status_update_guard_factory``; default is ``AlwaysSucceed``
+
+    When the guard passes, ``EmitAddCaseStatusToSelfNode`` emits a
+    self-addressed ``Add(CaseStatus)`` to the executing CaseActor, decoupling
+    Seam 2 (side-effects, embargo teardown) in ``add_case_status_tree``
+    (RSH-01-003).  This tree does NOT execute embargo teardown directly
+    (RSH-01-004).
 
     Args:
         request: The parsed inbound domain event.
-    case_id: ID of the VulnerabilityCase.  When provided (or derivable
-        from the inline status object), a guarded-commit subtree is
-        inserted after precondition guards so the receiving CaseActor
-        writes a canonical ledger entry (CLP-10-005).  Pass ``None``
-        (with no derivable context) to skip the commit.
-    call_out: Status-authorization call-out backend bundle (ADR-0046
-        Seam 1).  Its ``status_update_guard_factory`` backs the
-        ``CaseOwnerApprovesStatusUpdate`` Evaluator call-out inside the
-        ``StatusUpdateGuard`` Fallback (RSH-01).  Defaults to
-        ``STATUS_AUTHORIZATION_DETERMINISTIC`` (AlwaysSucceed).  This is a
-        defaulted injection seam: the ``StatusUpdateGuard`` node that reads
-        ``status_update_guard_factory`` lands in #1841, so the parameter is
-        accepted but not yet consumed by the tree body.  Once #1841 wires
-        the guard, injecting a STOCHASTIC or REAL bundle will change the
-        adoption decision.
+        case_id: ID of the VulnerabilityCase.  When provided (or derivable
+            from the inline status object), a guarded-commit subtree is
+            inserted after precondition guards so the receiving CaseActor
+            writes a canonical ledger entry (CLP-10-005).  Pass ``None``
+            (with no derivable context) to skip the commit.
+        call_out: Call-out backend bundle for ``StatusUpdateGuard``.
+            Defaults to :data:`STATUS_AUTHORIZATION_DETERMINISTIC` which
+            approves all non-CASE_OWNER updates (historical behavior).
 
     Returns:
         Root node of the ``AddParticipantStatusBT`` Sequence.
@@ -163,6 +182,23 @@ def add_participant_status_tree(
         ],
     )
 
+    # Seam 1 authorization (RSH-01-002): CASE_OWNER gospel bypass first; all
+    # others route through the CaseOwnerApprovesStatusUpdate call-out.
+    status_update_guard = py_trees.composites.Selector(
+        name="StatusUpdateGuard",
+        memory=False,
+        children=[
+            CheckIsCaseOwnerNode(
+                sender_actor_id=actor_id,
+                case_id=tree_case_id,
+                name="CheckIsCaseOwner",
+            ),
+            call_out.status_update_guard_factory(
+                "CaseOwnerApprovesStatusUpdate"
+            ),
+        ],
+    )
+
     root = create_receive_activity_tree(
         name="AddParticipantStatusBT",
         case_id=tree_case_id,
@@ -183,20 +219,22 @@ def add_participant_status_tree(
                 participant_id=participant_id,
                 status_obj_fallback=status_obj,
             ),
-            PublicDisclosureBranchNode(
-                status_obj=status_obj,
-                sender_actor_id=actor_id,
+            status_update_guard,
+            EmitAddCaseStatusToSelfNode(
+                participant_status_id=status_id,
                 case_id=tree_case_id,
+                name="EmitAddCaseStatusToSelf",
             ),
             auto_close_selector,
         ],
     )
     logger.debug(
         "Created AddParticipantStatusBT for status=%s participant=%s"
-        " actor=%s case=%s",
+        " actor=%s case=%s (Seam 1 authorization: %s)",
         status_id,
         participant_id,
         actor_id,
         tree_case_id,
+        call_out.__class__.__name__,
     )
     return root
