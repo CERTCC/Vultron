@@ -53,10 +53,11 @@ embargoed case is recorded as having never consented, violating CM-10-001. The
 author of that node clearly expected `NO_EMBARGO → SIGNATORY` to be legal; the
 FSM silently disagreed.
 
-A second, related defect motivates the same fix. Three sites seed consent by
-assigning the scalar field directly
-(`case_proposal_received_tree.py:873`, `nodes/embargo.py:433`,
-`nodes/participant/participant_add.py:389`):
+A second, related defect motivates the same fix. A sweep of
+`embargo_consent_state =` finds **ten** consent-write sites, none of which
+persists the resulting `ParticipantStatus`. Three assign the scalar field with no
+FSM involvement at all (`case_proposal_received_tree.py:873`,
+`nodes/embargo.py:433`, `nodes/participant/participant_add.py:389`):
 
 ```python
 participant.embargo_consent_state = PEC.SIGNATORY
@@ -71,6 +72,16 @@ snapshot is internally contradictory — verified directly:
 participant.embargo_consent_state = SIGNATORY
 snapshot: {"embargoAdherence": true, "emConsentState": "NO_EMBARGO"}
 ```
+
+The remaining seven fail more subtly: they route the trigger through
+`apply_pec_trigger()` — so the *machine* is used correctly — but the write it
+feeds is still a scalar assignment, so the *snapshot* is stale in exactly the
+same way (`accept_invite_tree.py:494`, `embargo/nodes/proposal.py:84`,
+`use_cases/_helpers.py:488`, and `services/embargo_lifecycle.py:690, 841, 894,
+935, 968`). Routing through `apply_pec_trigger` is necessary but not sufficient.
+Five of the seven are in `EmbargoLifecycle`, the intended long-term owner of all
+PEC transitions (#538), which makes them the highest-value conversions rather
+than the safest to skip.
 
 The correct machinery to prevent this already exists and is simply unused:
 `ParticipantStatus.consent` is a `PecDimension` (ADR-0036, SDO-01-001), and
@@ -158,8 +169,9 @@ value. Consequences:
 
 Consent MUST be set by applying a PEC trigger via `PecDimension.transition()`
 and appending/syncing the resulting `ParticipantStatus`, never by assigning
-`participant.embargo_consent_state` directly. A shared helper replaces the three
-divergent seed sites (CS-22-001).
+`participant.embargo_consent_state` directly. A shared helper replaces all ten
+divergent write sites (CS-22-001) — including the seven that already call
+`apply_pec_trigger`, since validating the trigger does not persist the status.
 
 ### Consequences
 
@@ -190,6 +202,10 @@ divergent seed sites (CS-22-001).
   `embargoAdherence`
 - A test asserting exactly one `add_participant_status_to_participant` entry per
   participant at initialization, guarding against `log_index` regrowth
+- A grep sweep over `embargo_consent_state =` confirming no consent write
+  remains outside the shared helper; the sweep must also cover
+  `apply_pec_trigger` call sites, since a validated trigger paired with a stale
+  `ParticipantStatus` still violates CM-18-006
 
 ## More Information
 

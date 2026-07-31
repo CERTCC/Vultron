@@ -935,8 +935,10 @@ groups:
       `VultronInvalidStateTransitionError` on an illegal transition, making consent writes fail-closed regardless of upstream
       BT guard coverage. Direct assignment to the scalar `embargo_consent_state` field bypasses both the state machine and
       `_sync_latest_status_metadata()`, so the participant''s latest `ParticipantStatus` retains its previous `consent.state`.
-      Observed on `main` at three seed sites: the participant reads `SIGNATORY` while the emitted ledger snapshot carries the
-      self-contradictory pair `{"embargoAdherence": true, "emConsentState": "NO_EMBARGO"}`. Per ADR-0048.'
+      Observed on `main` at ten consent-write sites: the participant reads `SIGNATORY` while the emitted ledger snapshot carries
+      the self-contradictory pair `{"embargoAdherence": true, "emConsentState": "NO_EMBARGO"}`. Three of the ten assign the
+      scalar field with no FSM involvement; the other seven route the trigger through `apply_pec_trigger()` and are still
+      non-conforming, because validating the trigger does not persist the `ParticipantStatus`. Per ADR-0048.'
     relationships:
     - rel_type: refines
       spec_id: CM-18-003
