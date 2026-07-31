@@ -32,6 +32,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Protocol
 
+from vultron.enums.roles import CVDRole
+
 
 class TriggerServicePort(Protocol):
     """Inbound port for all actor-initiated trigger operations.
@@ -218,6 +220,14 @@ class TriggerServicePort(Protocol):
         case_id: str,
         invitee_id: str,
         roles: list | None = None,
+    ) -> dict[str, Any]: ...
+
+    def offer_case_participant_role(
+        self,
+        actor_id: str,
+        case_id: str,
+        target_actor_id: str,
+        role: CVDRole = CVDRole.CASE_MANAGER,
     ) -> dict[str, Any]: ...
 
     def offer_case_manager_role(

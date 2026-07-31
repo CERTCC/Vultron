@@ -177,6 +177,7 @@ _SYNC_AND_TRIGGER_PORT_SEMANTICS = frozenset(
         MessageSemantics.ENGAGE_CASE,
         MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
         MessageSemantics.OFFER_CASE_MANAGER_ROLE,
+        MessageSemantics.OFFER_CASE_PARTICIPANT_ROLE,
     }
 )
 

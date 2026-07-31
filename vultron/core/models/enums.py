@@ -25,6 +25,7 @@ class VultronObjectType(StrEnum):
     CASE_REFERENCE = "CaseReference"
     EMBARGO_POLICY = "EmbargoPolicy"
     CASE_PARTICIPANT = "CaseParticipant"
+    CASE_PARTICIPANT_ROLE = "CaseParticipantRole"
     CASE_STATUS = "CaseStatus"
     PARTICIPANT_STATUS = "ParticipantStatus"
     CASE_LEDGER_ENTRY = "CaseLedgerEntry"

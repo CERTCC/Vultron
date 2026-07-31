@@ -35,6 +35,7 @@ from vultron.core.use_cases.triggers.actor import (
     SvcAcceptCaseInviteUseCase,
     SvcInviteActorToCaseUseCase,
     SvcOfferCaseManagerRoleUseCase,
+    SvcOfferCaseParticipantRoleUseCase,
     SvcSuggestActorToCaseUseCase,
 )
 from vultron.core.use_cases.triggers.requests import (
@@ -42,6 +43,7 @@ from vultron.core.use_cases.triggers.requests import (
     AcceptCaseInviteTriggerRequest,
     InviteActorToCaseTriggerRequest,
     OfferCaseManagerRoleTriggerRequest,
+    OfferCaseParticipantRoleTriggerRequest,
     SuggestActorToCaseTriggerRequest,
 )
 from vultron.errors import VultronNotFoundError, VultronValidationError
@@ -1220,4 +1222,64 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         with pytest.raises(VultronNotFoundError):
             SvcAcceptCaseOwnershipTransferUseCase(
                 dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
+
+
+class TestSvcOfferCaseParticipantRoleUseCase:
+    """Tests for SvcOfferCaseParticipantRoleUseCase (SE-08-003, ADR-0039)."""
+
+    def _setup(self):
+        actor, dl = _make_actor_dl("Vendor")
+        target, _ = _make_actor_dl("Coordinator")
+        dl.create(target)
+        case = as_VulnerabilityCase(
+            attributed_to=actor.id_, name="CPR Test Case", content="Content"
+        )
+        dl.create(case)
+        return actor, target, dl, case
+
+    def test_happy_path_returns_activity(self):
+        """SE-08-003: successful offer returns activity_id and activity dict."""
+        actor, target, dl, case = self._setup()
+        request = OfferCaseParticipantRoleTriggerRequest(
+            actor_id=actor.id_,
+            case_id=case.id_,
+            target_actor_id=target.id_,
+            role=CVDRole.CASE_MANAGER,
+        )
+        result = SvcOfferCaseParticipantRoleUseCase(
+            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        assert "activity_id" in result
+        assert "activity" in result
+        assert result["activity"]["type"] == "Offer"
+
+    def test_happy_path_activity_persisted(self):
+        """Emitted Offer activity is readable from the DataLayer."""
+        actor, target, dl, case = self._setup()
+        request = OfferCaseParticipantRoleTriggerRequest(
+            actor_id=actor.id_,
+            case_id=case.id_,
+            target_actor_id=target.id_,
+            role=CVDRole.VENDOR,
+        )
+        result = SvcOfferCaseParticipantRoleUseCase(
+            dl, request, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        stored = dl.read(result["activity_id"])
+        assert stored is not None
+
+    def test_raises_when_trigger_activity_missing(self):
+        """RuntimeError when trigger_activity is None (SE-08-003 guard)."""
+        actor, target, dl, case = self._setup()
+        request = OfferCaseParticipantRoleTriggerRequest(
+            actor_id=actor.id_,
+            case_id=case.id_,
+            target_actor_id=target.id_,
+        )
+        with pytest.raises(RuntimeError):
+            SvcOfferCaseParticipantRoleUseCase(
+                dl, request, trigger_activity=None
             ).execute()

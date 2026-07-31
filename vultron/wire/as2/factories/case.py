@@ -29,6 +29,7 @@ from pydantic import ValidationError
 
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
+from vultron.enums.roles import CVDRole
 from vultron.core.states.em import EM
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.base.objects.activities.intransitive import (
@@ -36,6 +37,7 @@ from vultron.wire.as2.vocab.base.objects.activities.intransitive import (
 )
 from vultron.wire.as2.vocab.activities.case import (
     _AcceptCaseManagerRoleActivity,
+    _OfferCaseParticipantRoleActivity,
     _AcceptCaseOwnershipTransferActivity,
     _AddNoteToCaseActivity,
     _AddReportToCaseActivity,
@@ -71,6 +73,9 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor, as_ActorRef
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.case_participant_role import (
+    as_CaseParticipantRole,
+)
 from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.embargo_event import (
     as_EmbargoEvent as WireEmbargoEvent,
@@ -398,6 +403,57 @@ def rm_close_case_activity(
         logger.warning("rm_close_case_activity: invalid arguments: %s", exc)
         raise VultronActivityConstructionError(
             "rm_close_case_activity: invalid arguments"
+        ) from exc
+
+
+def offer_case_participant_role_activity(
+    role: CVDRole,
+    target_actor: as_Actor,
+    case: as_VulnerabilityCase,
+    **kwargs,
+) -> as_Offer:
+    """Build Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase).
+
+    This is the canonical role-delegation wire format introduced in ADR-0039.
+    It replaces the deprecated ``offer_case_manager_role_activity`` format
+    (``Offer(VulnerabilityCase, target=CaseParticipant)``) which was structurally
+    ambiguous with ownership-transfer offers.
+
+    The ``as_CaseParticipantRole`` object carries the specific ``CVDRole`` being
+    offered, making the activity self-describing.  The ``target`` is the Actor
+    receiving the role; the case is carried in ``context``.
+
+    Args:
+        role: The ``CVDRole`` to offer.  Becomes the ``role`` field on the
+            ``as_CaseParticipantRole`` object.
+        target_actor: The ``as_Actor`` that will receive the role offer.
+        case: The ``as_VulnerabilityCase`` context.  Passed as the AS2
+            ``context`` field so the receiver can identify the case.
+        **kwargs: Optional AS2 fields forwarded to the constructor
+            (e.g. ``actor``).
+
+    Returns:
+        An ``as_Offer`` whose ``object_`` is an ``as_CaseParticipantRole``,
+        ``target`` is the target Actor, and ``context`` is the case URI/object.
+
+    Raises:
+        VultronActivityConstructionError: If Pydantic validation fails.
+    """
+    try:
+        role_obj = as_CaseParticipantRole(role=role)
+        return _OfferCaseParticipantRoleActivity(
+            object_=role_obj,
+            target=target_actor,
+            context=case,
+            **kwargs,
+        )
+    except ValidationError as exc:
+        logger.warning(
+            "offer_case_participant_role_activity: invalid arguments: %s",
+            exc,
+        )
+        raise VultronActivityConstructionError(
+            "offer_case_participant_role_activity: invalid arguments"
         ) from exc
 
 

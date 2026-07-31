@@ -414,14 +414,21 @@ presence or absence of `target=CaseParticipant`:
    `as_CaseParticipant` (required, not optional). A sender omitting it gets a
    `ValidationError` at construction time. See SE-08-002.
 
-**Root cause and planned fix** — target-field discrimination is semantically
-odd (the conceptual target is the Actor, not the CaseParticipant wrapper) and
-leaves a latent misrouting risk for buggy or minimally-conformant external
-senders. ADR-0039 records the decision to introduce a dedicated
-`as_CaseParticipantRole` wire object type with
-`Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)` as the
-general-purpose role-delegation wire format. The implementation is tracked as
-a GitHub Task issue (blocked by CONCERN-1674). See SE-08-003.
+**Resolution (ADR-0039, Issue #1726)** — the dedicated `as_CaseParticipantRole`
+wire object type has been introduced.  New senders MUST emit
+`Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)` using the
+`OFFER_CASE_PARTICIPANT_ROLE` semantic (factory:
+`offer_case_participant_role_activity`).  Receivers continue to handle the
+deprecated `OFFER_CASE_MANAGER_ROLE` format for interoperability with
+pre-ADR-0039 actors.  See SE-08-003, SE-08-004.
+
+**Migration checklist for senders**:
+
+1. Replace `offer_case_manager_role_activity(...)` calls with
+   `offer_case_participant_role_activity(role=CVDRole.CASE_MANAGER, ...)`.
+2. Remove `target=CaseParticipant` construction — the new format carries the
+   Actor as `target` and the case as `context`.
+3. No receiver-side change required; the registry handles both formats.
 
 **Rule for new patterns sharing `Offer(VulnerabilityCase)`** — if a new
 semantic requires `Offer(VulnerabilityCase)`, it MUST either (a) use a distinct

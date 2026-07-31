@@ -38,6 +38,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
+from vultron.enums.roles import CVDRole
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases.triggers.actor import (
     SvcAcceptActorRecommendationUseCase,
@@ -46,6 +47,7 @@ from vultron.core.use_cases.triggers.actor import (
     SvcInviteActorToCaseUseCase,
     SvcOfferCaseManagerRoleUseCase,
     SvcOfferCaseOwnershipTransferUseCase,
+    SvcOfferCaseParticipantRoleUseCase,
     SvcSuggestActorToCaseUseCase,
 )
 from vultron.core.use_cases.triggers.case import (
@@ -88,6 +90,7 @@ from vultron.core.use_cases.triggers.requests import (
     InviteActorToCaseTriggerRequest,
     OfferCaseManagerRoleTriggerRequest,
     OfferCaseOwnershipTransferTriggerRequest,
+    OfferCaseParticipantRoleTriggerRequest,
     ProposeEmbargoRevisionTriggerRequest,
     ProposeEmbargoTriggerRequest,
     RejectEmbargoTriggerRequest,
@@ -487,6 +490,27 @@ class TriggerService:
             case_id=case_id,
         )
         return SvcOfferCaseManagerRoleUseCase(
+            self._dl, req, trigger_activity=self._trigger_activity
+        ).execute()
+
+    def offer_case_participant_role(
+        self,
+        actor_id: str,
+        case_id: str,
+        target_actor_id: str,
+        role: CVDRole = CVDRole.CASE_MANAGER,
+    ) -> dict[str, Any]:
+        """Offer a CVDRole to a target Actor via the canonical ADR-0039 wire format.
+
+        Emits ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``.
+        """
+        req = OfferCaseParticipantRoleTriggerRequest(
+            actor_id=actor_id,
+            case_id=case_id,
+            target_actor_id=target_actor_id,
+            role=role,
+        )
+        return SvcOfferCaseParticipantRoleUseCase(
             self._dl, req, trigger_activity=self._trigger_activity
         ).execute()
 

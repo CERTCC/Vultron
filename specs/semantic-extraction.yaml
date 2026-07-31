@@ -277,3 +277,23 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: SE-08-001
+  - id: SE-08-004
+    priority: MUST
+    kind: protocol
+    status: deprecated
+    statement: >-
+      The `OFFER_CASE_MANAGER_ROLE` semantic and its wire format
+      `Offer(VulnerabilityCase, target=CaseParticipant)` are **deprecated** in favour of
+      `OFFER_CASE_PARTICIPANT_ROLE` (`Offer(CaseParticipantRole, target=Actor,
+      context=VulnerabilityCase)`) introduced by ADR-0039. New senders MUST emit the
+      `OFFER_CASE_PARTICIPANT_ROLE` wire format. Receivers MUST continue to handle
+      `OFFER_CASE_MANAGER_ROLE` traffic for interoperability with pre-ADR-0039 actors.
+    rationale: >-
+      ADR-0039 resolves the wire ambiguity identified in CONCERN-1674 by introducing a
+      self-describing `as_CaseParticipantRole` object type, eliminating reliance on the
+      target-field discriminator that SE-08-001 through SE-08-003 document.
+      `OFFER_CASE_MANAGER_ROLE` is retained in the registry as a fallback-only entry
+      that appears after `OFFER_CASE_PARTICIPANT_ROLE` (SE-08-001).
+    relationships:
+    - rel_type: refines
+      spec_id: SE-08-003

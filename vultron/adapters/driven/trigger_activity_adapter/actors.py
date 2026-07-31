@@ -38,11 +38,13 @@ from vultron.wire.as2.factories import (
     rm_accept_invite_to_case_activity,
     rm_invite_to_case_activity,
 )
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories.case import (
     accept_case_manager_role_activity,
     accept_case_ownership_transfer_activity,
     offer_case_manager_role_activity,
     offer_case_ownership_transfer_activity,
+    offer_case_participant_role_activity,
     reject_case_manager_role_activity,
 )
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
@@ -467,6 +469,42 @@ class _ActorsMixin:
         except ValueError:
             logger.warning(
                 "offer_case_manager_role: activity '%s' already exists"
+                " — skipping",
+                activity.id_,
+            )
+        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+
+    def offer_case_participant_role(
+        self,
+        case_id: str,
+        role: CVDRole,
+        target_actor_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, dict]:
+        """Create and persist ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``.
+
+        The canonical role-delegation wire format introduced by ADR-0039.
+        Replaces the deprecated :meth:`offer_case_manager_role` for new senders.
+
+        Returns ``(activity_id, activity_dict)``.
+        """
+        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+
+        case = _to_wire(self._dl.read(case_id), as_VulnerabilityCase)
+        target = as_Actor(id_=target_actor_id)
+        activity = offer_case_participant_role_activity(
+            role=role,
+            target_actor=target,
+            case=case,
+            actor=actor,
+            to=to,
+        )
+        try:
+            self._dl.create(activity)
+        except ValueError:
+            logger.warning(
+                "offer_case_participant_role: activity '%s' already exists"
                 " — skipping",
                 activity.id_,
             )

@@ -46,6 +46,7 @@ from vultron.core.use_cases.triggers.requests import (
     InviteActorToCaseTriggerRequest,
     OfferCaseManagerRoleTriggerRequest,
     OfferCaseOwnershipTransferTriggerRequest,
+    OfferCaseParticipantRoleTriggerRequest,
     SuggestActorToCaseTriggerRequest,
 )
 from vultron.errors import VultronNotFoundError
@@ -335,6 +336,53 @@ class SvcAcceptCaseOwnershipTransferUseCase(SvcBTTriggerBase):
             self._actor_id,
             self._offer_id,
         )
+
+
+class SvcOfferCaseParticipantRoleUseCase:
+    """Offer a CVDRole to a target Actor via the canonical ADR-0039 wire format.
+
+    Emits ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``
+    from the requesting actor.  The trigger_activity adapter's
+    ``offer_case_participant_role`` method handles wire construction and
+    DataLayer persistence.  No BT orchestration is needed on the sending side.
+
+    See SE-08-003, ADR-0039.
+    """
+
+    def __init__(
+        self,
+        dl: object,
+        request: object,
+        trigger_activity: object = None,
+    ) -> None:
+        self._dl = dl
+        self._request = request
+        self._trigger_activity = trigger_activity
+
+    def execute(self) -> dict[str, Any]:
+        from vultron.core.ports.trigger_activity import TriggerActivityPort
+
+        if self._trigger_activity is None:
+            raise RuntimeError(
+                "SvcOfferCaseParticipantRoleUseCase requires a TriggerActivityPort"
+            )
+        req = cast(OfferCaseParticipantRoleTriggerRequest, self._request)
+        factory = cast(TriggerActivityPort, self._trigger_activity)
+        activity_id, activity_dict = factory.offer_case_participant_role(
+            case_id=req.case_id,
+            role=req.role,
+            target_actor_id=req.target_actor_id,
+            actor=req.actor_id,
+        )
+        logger.info(
+            "SvcOfferCaseParticipantRoleUseCase: queued Offer(CaseParticipantRole)"
+            " '%s' for case '%s' role '%s' → actor '%s'",
+            activity_id,
+            req.case_id,
+            req.role,
+            req.target_actor_id,
+        )
+        return {"activity_id": activity_id, "activity": activity_dict}
 
 
 class SvcAcceptCaseManagerRoleUseCase:

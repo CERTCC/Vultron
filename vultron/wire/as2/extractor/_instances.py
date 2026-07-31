@@ -227,12 +227,25 @@ RejectActorRecommendationPattern = ActivityPattern(
     activity_=TAtype.REJECT,
     object_=OfferActorToCasePattern,
 )
+OfferCaseParticipantRolePattern = ActivityPattern(
+    description=(
+        "Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase) "
+        "— the canonical role-delegation wire format introduced in ADR-0039. "
+        "Replaces the deprecated Offer(VulnerabilityCase, target=CaseParticipant) "
+        "format. Self-describing: the object type unambiguously identifies this "
+        "as a role offer. See SE-08-003."
+    ),
+    activity_=TAtype.OFFER,
+    object_=VOtype.CASE_PARTICIPANT_ROLE,
+    context_=VOtype.VULNERABILITY_CASE,
+)
 OfferCaseManagerRolePattern = ActivityPattern(
     description=(
         "Vendor offers the CASE_MANAGER role to a Case Actor participant. "
         "Distinct from OFFER_CASE_OWNERSHIP_TRANSFER: the offering actor "
         "retains CASE_OWNER; only operational management authority is "
         "delegated. Identified by target being a CASE_PARTICIPANT record. "
+        "Deprecated in favour of OfferCaseParticipantRolePattern (ADR-0039). "
         "See DEMOMA-08-002, DEMOMA-08-003."
     ),
     activity_=TAtype.OFFER,

@@ -44,6 +44,7 @@ See also:
 from typing import Any, Protocol
 
 from vultron.core.models.case import VulnerabilityCase
+from vultron.enums.roles import CVDRole
 
 
 class TriggerActivityPort(Protocol):
@@ -448,6 +449,24 @@ class TriggerActivityPort(Protocol):
     # Case Actor / CASE_MANAGER delegation
     # -----------------------------------------------------------------------
 
+    def offer_case_participant_role(
+        self,
+        case_id: str,
+        role: CVDRole,
+        target_actor_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``.
+
+        Canonical role-delegation wire format (ADR-0039).  ``role`` is the
+        :class:`CVDRole` being offered; ``target_actor_id`` is the Actor URI
+        receiving the offer; ``case_id`` supplies the VulnerabilityCase context.
+
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
     def offer_case_manager_role(
         self,
         case_id: str,
@@ -462,6 +481,10 @@ class TriggerActivityPort(Protocol):
         ``CASE_MANAGER`` role (the Case Actor participant).
 
         Returns ``(activity_id, activity_dict)``.
+
+        .. deprecated::
+            Use :meth:`offer_case_participant_role` for the canonical
+            ``Offer(CaseParticipantRole, ...)`` wire format (ADR-0039).
         """
         ...
 

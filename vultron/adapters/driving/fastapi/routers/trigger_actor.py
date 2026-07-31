@@ -36,6 +36,7 @@ from vultron.adapters.driving.fastapi.trigger_models import (
     InviteActorToCaseRequest,
     OfferCaseManagerRoleRequest,
     OfferCaseOwnershipTransferRequest,
+    OfferCaseParticipantRoleRequest,
     SuggestActorToCaseRequest,
 )
 from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
@@ -238,6 +239,40 @@ def trigger_offer_case_manager_role(
     emitting_dl = dl.clone_for_actor(emitting_actor_id)
     background_tasks.add_task(
         outbox_handler, emitting_actor_id, emitting_dl, dl
+    )
+    return result
+
+
+@router.post(
+    "/{actor_id}/trigger/offer-case-participant-role",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Offer a CVDRole to an Actor in a case (ADR-0039).",
+    description=(
+        "Emits Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase) "
+        "from the requesting actor.  This is the canonical role-delegation wire "
+        "format introduced by ADR-0039, replacing the deprecated "
+        "offer-case-manager-role endpoint.  The ``role`` field defaults to "
+        "``CASE_MANAGER`` for backward-compatibility.  See SE-08-003."
+    ),
+    operation_id="actors_trigger_offer_case_participant_role",
+)
+def trigger_offer_case_participant_role(
+    actor_id: str,
+    body: OfferCaseParticipantRoleRequest,
+    background_tasks: BackgroundTasks,
+    svc: TriggerServicePort = Depends(get_trigger_service),
+    dl: DataLayer = Depends(get_trigger_dl),
+) -> dict:
+    """Trigger Offer(CaseParticipantRole) from the requesting actor (ADR-0039)."""
+    with domain_error_translation():
+        result = svc.offer_case_participant_role(
+            actor_id=actor_id,
+            case_id=body.case_id,
+            target_actor_id=body.target_actor_id,
+            role=body.role,
+        )
+    background_tasks.add_task(
+        outbox_handler, actor_id, dl.clone_for_actor(actor_id), dl
     )
     return result
 
