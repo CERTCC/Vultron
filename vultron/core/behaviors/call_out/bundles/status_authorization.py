@@ -11,25 +11,41 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Call-out bundle for received-side status update authorization (ADR-0046).
+"""Call-out bundle for the received-side status authorization domain (BT-23).
 
 Provides :class:`StatusAuthorizationCallOutBundle` and the pre-built core
-deterministic singleton :data:`STATUS_AUTHORIZATION_DETERMINISTIC`.  A
-probabilistic STOCHASTIC singleton lives in the simulation/demo layer.
+DETERMINISTIC singleton :data:`STATUS_AUTHORIZATION_DETERMINISTIC`.  The matching
+STOCHASTIC singleton lives in the simulation layer
+(:data:`vultron.demo.fuzzer.bundles.status_authorization.STATUS_AUTHORIZATION_STOCHASTIC`).
 
-Ceiling/floor mapping:
+The two fields back the two authorization seams of the received-side
+CaseStatus canonicalization model (ADR-0046):
+
+- ``status_update_guard_factory`` — Seam 1, the ``CaseOwnerApprovesStatusUpdate``
+  Evaluator call-out inside the ``StatusUpdateGuard`` Fallback in
+  ``add_participant_status_tree``.  Decides whether a non-owner participant's
+  reported CaseStatus is adopted as canonical (RSH-01).
+- ``side_effects_guard_factory`` — Seam 2, the ``SideEffectsGuard`` Evaluator
+  call-out in ``add_case_status_tree``.  Gates execution of
+  ``ThreatTerminationBranchNode`` (embargo teardown) after the canonical write
+  (RSH-02).
+
+Ceiling/floor mapping (BT-23-002):
 
 - ``status_update_guard_factory`` — CaseOwnerApprovesStatusUpdate → AlwaysSucceed
-  (Seam 1, RSH-01-002)
-- ``side_effects_guard_factory`` — SideEffectsGuard → AlwaysSucceed
-  (Seam 2, RSH-02-001)
+  (all status updates adopted automatically until a real policy engine is wired
+  in; RSH-01-002)
+- ``side_effects_guard_factory``  — SideEffectsGuard → AlwaysSucceed
+  (teardown side-effects execute by default; RSH-02-002)
 
-The deterministic singleton approves all non-CASE_OWNER status updates,
-which preserves the historical behavior of ``add_participant_status_tree``
-before Seam 1 was introduced.  Production adapters (e.g. a human-in-the-loop
-review queue) replace these factories via constructor injection.
-
-Per RSH-01-002, RSH-02-001, ADR-0046.
+References
+----------
+- ADR-0025: ``docs/adr/0025-call-out-point-abstraction-layer.md``
+- ADR-0046: ``docs/adr/0046-received-status-authorization.md``
+- Spec: ``specs/behavior-tree-integration.yaml`` BT-23;
+  ``specs/received-status-handling.yaml`` RSH-01, RSH-02
+- Notes: ``notes/received-status-authorization.md``,
+  ``notes/call-out-configuration.md``
 """
 
 from __future__ import annotations
@@ -48,20 +64,21 @@ def _always_succeed(name: str) -> py_trees.behaviour.Behaviour:
 
 @dataclass(frozen=True)
 class StatusAuthorizationCallOutBundle:
-    """Call-out backend bundle for received-side status authorization.
+    """Call-out backend bundle for the received-side status authorization domain.
 
-    Fields map to the corresponding factory parameters on the two seams of the
-    two-seam authorization model (ADR-0046).
+    Fields map to the two authorization seams of ADR-0046:
 
-    ``status_update_guard_factory`` backs the ``CaseOwnerApprovesStatusUpdate``
-    call-out node inside ``StatusUpdateGuard`` (Seam 1, RSH-01-002).  When
-    ``CheckIsCaseOwnerNode`` already returns SUCCESS, this factory is never
-    called (the Fallback's first child short-circuits).
+    - ``status_update_guard_factory`` → the ``CaseOwnerApprovesStatusUpdate``
+      Evaluator call-out in
+      :func:`~vultron.core.behaviors.status.add_participant_status_tree.add_participant_status_tree`
+      (Seam 1).
+    - ``side_effects_guard_factory`` → the ``SideEffectsGuard`` Evaluator
+      call-out in
+      :func:`~vultron.core.behaviors.status.add_case_status_tree.add_case_status_tree`
+      (Seam 2).
 
-    ``side_effects_guard_factory`` backs the ``SideEffectsGuard`` call-out
-    node inside ``add_case_status_tree`` (Seam 2, RSH-02-001).  When the
-    guard returns SUCCESS, ``ThreatTerminationBranchNode`` and any other
-    side-effect nodes are allowed to execute.
+    Both default to ``AlwaysSucceed`` so existing behavior is unchanged until a
+    real policy engine or human-in-the-loop backend is injected (BT-23-002).
     """
 
     status_update_guard_factory: CallOutBackendFactory = field(
@@ -73,11 +90,7 @@ class StatusAuthorizationCallOutBundle:
 
 
 STATUS_AUTHORIZATION_DETERMINISTIC = StatusAuthorizationCallOutBundle()
-"""Deterministic bundle: approves all updates through both seams.
-
-Preserves historical behavior before the two-seam authorization model
-was introduced (ADR-0046).
-"""
+"""Deterministic bundle: both seams use AlwaysSucceed (BT-23-001, BT-23-002)."""
 
 __all__ = [
     "StatusAuthorizationCallOutBundle",
