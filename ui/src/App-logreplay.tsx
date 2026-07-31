@@ -31,6 +31,113 @@ import violationLedgerRaw from './sample-logs/synthetic/violations-case-ledger.j
 // (all four folder copies carry the same 19 entries; they differ only per
 // perspective, so we load one copy rather than relying on entryHash dedup).
 import fvvLedgerRaw from './sample-logs/fvv/urn_uuid_4e4ee04a-6503-495d-ba34-50bcce4ebc18-case-ledger.jsonl?raw'
+// 2026-07 coordinator container scenarios (F/V/C notation: Finder/Vendor/
+// Coordinator, with -extension vs -handoff variants). Each is the case-actor
+// (authoritative) copy. fcv + the two -extension logs were hand-traced clean
+// against the protocol artifact; the two -handoff logs replay too but the case-
+// ownership TRANSFER is not yet depicted (deferred — see ui/CLAUDE.md §5), so the
+// CASE_OWNER migration shows only as role changes we don't yet render.
+import fcvLedgerRaw from './sample-logs/fcv/urn_uuid_c06ec856-0b70-4169-9a58-60326a9c1b13-case-ledger.jsonl?raw'
+import fvcvExtLedgerRaw from './sample-logs/fvcv-extension/urn_uuid_0c6ab883-7209-44d3-ad75-44d991c77119-case-ledger.jsonl?raw'
+import fccvExtLedgerRaw from './sample-logs/fccv-extension/urn_uuid_7bf543e9-42a6-4ce1-9017-0aed4cd4e923-case-ledger.jsonl?raw'
+import fvcvHandoffLedgerRaw from './sample-logs/fvcv-handoff/urn_uuid_8a4478fe-c269-4d3c-84d2-49e99c610e04-case-ledger.jsonl?raw'
+import fccvHandoffLedgerRaw from './sample-logs/fccv-handoff/urn_uuid_6603f0d3-5d54-48bb-b4de-e50889ef3c30-case-ledger.jsonl?raw'
+
+// ---------------------------------------------------------------------------
+// Sample scenario catalog — drives the data-driven picker on the landing view.
+// Adding a scenario = importing its ledger above + one entry here (no new JSX).
+// ---------------------------------------------------------------------------
+
+type ScenarioGroup = 'Core' | 'Coordinator' | 'Diagnostic'
+
+interface SampleScenario {
+  /** Stable key (used as the React list key + telemetry label). */
+  id: string
+  /** Short button title. */
+  title: string
+  /** One-line description shown under the title. */
+  blurb: string
+  /** The raw JSONL text imported via `?raw`. */
+  raw: string
+  /** Grouping for the picker layout. */
+  group: ScenarioGroup
+  /** Accent color for the card's left border / title. */
+  accent: string
+  /** Optional caveat badge (e.g. unverified logs, feature not yet depicted). */
+  note?: string
+}
+
+const SAMPLE_SCENARIOS: SampleScenario[] = [
+  {
+    id: 'two-actor',
+    title: '▶ Two-Actor Case',
+    blurb: 'Finder + Vendor happy path. The simplest end-to-end case.',
+    raw: sampleLedgerRaw,
+    group: 'Core',
+    accent: '#2e7d32',
+  },
+  {
+    id: 'fvv',
+    title: '▶ FVV — Finder + 2 Vendors',
+    blurb: 'Vendor invites a second vendor. Multi-vendor coordination.',
+    raw: fvvLedgerRaw,
+    group: 'Core',
+    accent: '#1565c0',
+    note: 'Unverified logs — violations (if any) flagged in red',
+  },
+  {
+    id: 'fcv',
+    title: '▶ FCV — Finder + Coordinator + Vendor',
+    blurb: 'A Coordinator receives, owns, and validates the case; a vendor joins.',
+    raw: fcvLedgerRaw,
+    group: 'Coordinator',
+    accent: '#00838f',
+  },
+  {
+    id: 'fvcv-extension',
+    title: '▶ FVCV — Extension',
+    blurb: 'Vendor owns the case; Coordinator recommends a 2nd vendor (ADR-0026).',
+    raw: fvcvExtLedgerRaw,
+    group: 'Coordinator',
+    accent: '#00838f',
+  },
+  {
+    id: 'fccv-extension',
+    title: '▶ FCCV — Extension',
+    blurb: 'Coordinator owns the case; a 2nd coordinator recommends a vendor.',
+    raw: fccvExtLedgerRaw,
+    group: 'Coordinator',
+    accent: '#00838f',
+  },
+  {
+    id: 'fvcv-handoff',
+    title: '▶ FVCV — Handoff',
+    blurb: 'Vendor transfers case ownership to the Coordinator mid-case.',
+    raw: fvcvHandoffLedgerRaw,
+    group: 'Coordinator',
+    accent: '#6a1b9a',
+    note: 'Ownership transfer not yet depicted (deferred)',
+  },
+  {
+    id: 'fccv-handoff',
+    title: '▶ FCCV — Handoff',
+    blurb: 'Ownership transfers between coordinators mid-case.',
+    raw: fccvHandoffLedgerRaw,
+    group: 'Coordinator',
+    accent: '#6a1b9a',
+    note: 'Ownership transfer not yet depicted (deferred)',
+  },
+  {
+    id: 'synthetic-violation',
+    title: '⚠️ Violation Sample',
+    blurb: 'Hand-authored fixture with two illegal transitions, flagged in red.',
+    raw: violationLedgerRaw,
+    group: 'Diagnostic',
+    accent: '#c62828',
+  },
+]
+
+const SCENARIO_GROUPS: ScenarioGroup[] = ['Core', 'Coordinator', 'Diagnostic']
 
 type NodePalette = { decision: string; decisionHover: string; consequence: string; consequenceHover: string }
 
@@ -124,16 +231,9 @@ function AppLogReplay() {
     }
   }, [rebuildFromEntries])
 
-  const handleLoadSample = useCallback(
-    () => loadRawLedger(sampleLedgerRaw, 'sample logs'),
-    [loadRawLedger]
-  )
-  const handleLoadViolationSample = useCallback(
-    () => loadRawLedger(violationLedgerRaw, 'violation sample'),
-    [loadRawLedger]
-  )
-  const handleLoadFvv = useCallback(
-    () => loadRawLedger(fvvLedgerRaw, 'FVV logs'),
+  // Load any catalog scenario by its raw ledger + title (data-driven picker).
+  const handleLoadScenario = useCallback(
+    (scenario: SampleScenario) => loadRawLedger(scenario.raw, scenario.title),
     [loadRawLedger]
   )
 
@@ -256,12 +356,13 @@ function AppLogReplay() {
           padding: '2rem',
           borderRadius: '8px',
           boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-          maxWidth: '600px',
+          maxWidth: '760px',
           textAlign: 'center',
         }}>
           <h2 style={{ marginTop: 0, color: '#0d47a1' }}>Log Replay Demo</h2>
           <p style={{ color: '#666', marginBottom: '0.5rem' }}>
-            Upload participant JSONL log files to visualize the Vultron protocol execution.
+            Pick a committed sample scenario below to visualize the Vultron protocol
+            execution — or upload your own participant JSONL log files.
           </p>
 
           {uploadCount > 0 && accumulatedEntries.length > 0 && (
@@ -277,76 +378,75 @@ function AppLogReplay() {
             </div>
           )}
 
-          {/* Primary action: load the committed sample case ledger directly */}
-          <button
-            onClick={handleLoadSample}
-            style={{
-              display: 'block',
-              margin: '1.5rem auto 0.5rem',
-              padding: '1rem 2rem',
-              background: '#2e7d32',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-              fontSize: '1rem',
-              width: 'fit-content',
-            }}
-          >
-            ▶ Load Sample Case
-          </button>
-          <p style={{ fontSize: '0.8rem', color: '#888', margin: '0 0 0.5rem' }}>
-            Loads the committed <code style={{ background: '#fff', padding: '0.125rem 0.375rem', borderRadius: '3px' }}>two-actor</code> sample — or upload your own below
-          </p>
-
-          {/* Secondary action: load the synthetic fixture that deliberately
-              contains illegal transitions, to demo the violation flagging. */}
-          <button
-            onClick={handleLoadViolationSample}
-            style={{
-              display: 'block',
-              margin: '0.5rem auto 0.5rem',
-              padding: '0.625rem 1.5rem',
-              background: '#c62828',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-              fontSize: '0.9rem',
-              width: 'fit-content',
-            }}
-          >
-            ⚠️ Load Violation Sample
-          </button>
-          <p style={{ fontSize: '0.8rem', color: '#888', margin: '0 0 0.5rem' }}>
-            Loads the committed <code style={{ background: '#fff', padding: '0.125rem 0.375rem', borderRadius: '3px' }}>synthetic</code> fixture — two illegal transitions flagged in red
-          </p>
-
-          {/* Three-party case: finder + two vendors. Unverified logs — any
-              protocol violations will surface via the red flagging. */}
-          <button
-            onClick={handleLoadFvv}
-            style={{
-              display: 'block',
-              margin: '0.5rem auto 0.5rem',
-              padding: '0.625rem 1.5rem',
-              background: '#1565c0',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-              fontSize: '0.9rem',
-              width: 'fit-content',
-            }}
-          >
-            ▶ Load FVV Case (finder + 2 vendors)
-          </button>
-          <p style={{ fontSize: '0.8rem', color: '#888', margin: '0 0 0.5rem' }}>
-            Loads the committed <code style={{ background: '#fff', padding: '0.125rem 0.375rem', borderRadius: '3px' }}>fvv</code> sample — unverified 3-party case; violations (if any) flagged in red
-          </p>
+          {/* Data-driven scenario picker: a grid of cards grouped by category.
+              Adding a scenario is a one-line entry in SAMPLE_SCENARIOS above —
+              no new JSX here. */}
+          <div style={{ margin: '1.5rem 0 0.5rem', textAlign: 'left' }}>
+            {SCENARIO_GROUPS.map((group) => {
+              const scenarios = SAMPLE_SCENARIOS.filter((s) => s.group === group)
+              if (scenarios.length === 0) return null
+              return (
+                <div key={group} style={{ marginBottom: '1.25rem' }}>
+                  <div style={{
+                    fontSize: '0.75rem',
+                    fontWeight: 'bold',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    color: '#999',
+                    marginBottom: '0.5rem',
+                  }}>
+                    {group}
+                  </div>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+                    gap: '0.5rem',
+                  }}>
+                    {scenarios.map((scenario) => (
+                      <button
+                        key={scenario.id}
+                        onClick={() => handleLoadScenario(scenario)}
+                        style={{
+                          display: 'block',
+                          textAlign: 'left',
+                          padding: '0.75rem 0.875rem',
+                          background: '#fff',
+                          color: '#333',
+                          border: '1px solid #e0e0e0',
+                          borderLeft: `4px solid ${scenario.accent}`,
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          width: '100%',
+                        }}
+                      >
+                        <div style={{
+                          fontWeight: 'bold',
+                          fontSize: '0.9rem',
+                          color: scenario.accent,
+                          marginBottom: '0.25rem',
+                        }}>
+                          {scenario.title}
+                        </div>
+                        <div style={{ fontSize: '0.78rem', color: '#666', lineHeight: 1.4 }}>
+                          {scenario.blurb}
+                        </div>
+                        {scenario.note && (
+                          <div style={{
+                            fontSize: '0.72rem',
+                            color: '#b26a00',
+                            marginTop: '0.375rem',
+                            fontStyle: 'italic',
+                          }}>
+                            ⚠ {scenario.note}
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
 
           <div style={{
             margin: '1rem 0 2rem',
