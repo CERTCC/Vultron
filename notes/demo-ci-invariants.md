@@ -63,6 +63,7 @@ DEMOMA-16-008 are the normative source; the test constants implement them.
 | FVCV-handoff | same | invite_actor_to_case, accept_invite_actor_to_case |
 | FCCV-handoff | same | invite_actor_to_case, accept_invite_actor_to_case |
 | FCV | same | invite_actor_to_case |
+| FCVCV | same | invite_actor_to_case (≥3), offer_case_participant (≥1), accept_invite_actor_to_case (≥3) |
 
 ### Relationship to scenario-specific test functions
 
