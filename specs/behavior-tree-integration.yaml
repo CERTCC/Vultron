@@ -565,6 +565,28 @@ groups:
       spec_id: BT-18-005
       note: BT-18-005 establishes that shape is determined by the seam-structure decision tree; BT-18-006 resolves the specific
         Sentinel vs. Retriever ambiguity for binary-result external queries.
+  - id: BT-18-007
+    priority: MUST
+    kind: project
+    statement: An Evaluator call-out point that needs to block downstream BT execution — for any reason (editorial rejection,
+      legal hold, compliance failure, or other non-approval decision) — MUST return Status.FAILURE from its update() method.
+      Setting a structured output field to a "rejected" value while returning Status.SUCCESS does not block a Sequence and
+      MUST NOT be used as a blocking mechanism.
+    rationale: >
+      A BT Sequence halts and returns FAILURE as soon as any child returns FAILURE; this is the universal py_trees
+      blocking idiom. Relying on a field value (e.g., approved=False) to signal rejection is ineffective because
+      the Sequence has no gate that reads it — only Status.FAILURE stops execution. This requirement resolves the
+      deferred design question from ADR-0030 / issue #1312 (whether AdvisoryReviewDecision.approved=False should
+      gate submission): the answer is no, because the field was redundant with Status.FAILURE. The approved field
+      was removed from AdvisoryReviewDecision (issue #1783) to eliminate the trap. The principle generalises: any
+      Evaluator whose output record carries a boolean approval flag is a design smell unless that flag is the
+      sole input to a subsequent ProtocolInternal gate node.
+    tracking_issue: '#1783'
+    relationships:
+    - rel_type: refines
+      spec_id: BT-18-002
+      note: BT-18-002 states that SUCCESS MUST accompany all declared output writes; BT-18-007 is the complementary
+        rule — FAILURE is the correct signal when the Evaluator's decision is to block, regardless of output field values.
 - id: BT-19
   title: Routing-Gated State Mutation in Lifecycle BT Sequences
   specs:

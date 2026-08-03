@@ -185,7 +185,7 @@ it cannot revert. This forms a 64-state lattice (2^6 combinations).
 | **CVDRole** | A StrEnum representing individual, atomic CVD roles (FINDER, REPORTER, VENDOR, DEPLOYER, COORDINATOR, OTHER, CASE_OWNER, CASE_MANAGER); participants hold zero or more roles represented as `list[CVDRole]`; preferred representation for new code (replaces legacy bitmask) | Role value, role enum |
 | **Dimension Object** | A small immutable `BaseModel` capturing the state of exactly one state machine (RM, EM, VFD, or PXA) at a point in time; replaces flat fields in `CaseStatus`/`ParticipantStatus` per ADR-0036 | Status sub-object, state fragment |
 | **Advisory** | A public disclosure document summarizing a vulnerability's details, remediation, and affected parties; produced by the publication pipeline via a Draft → Review → Submit sequence | Security advisory, disclosure document, bulletin |
-| **Advisory Review Decision** | A record produced by a **Reviewer** (Evaluator-type **Coordination Agent**) capturing whether an **Advisory** draft needs revision; the `needs_revision` flag gates the BT pipeline; the `approved` field is informational metadata only | Review result, review outcome |
+| **Advisory Review Decision** | A record produced by a **Reviewer** (Evaluator-type **Coordination Agent**) capturing whether an **Advisory** draft needs revision; the `needs_revision` flag gates the BT pipeline; to block submission for any reason, the Evaluator MUST return `Status.FAILURE` (BT-18-007) | Review result, review outcome |
 | **Publication Intent** | A domain object recording a participant's decision about *how* and *when* to disclose a vulnerability (e.g., which advisory platform, embargo exit condition); gates the BT publish pipeline | Disclosure intent, publish intent |
 | **CVDRolesFlag** | Legacy bitmask-based Flag enum using bitwise arithmetic to represent combined roles; retained for backward compatibility with the `vultron.bt` simulator layer only; **do not use in new code** — use `list[CVDRole]` instead | Bitmask roles, legacy roles |
 | **CASE_OWNER** | A **CVDRole** value marking a participant as the human decision-maker who owns and administers the VulnerabilityCase (BTND-05-001); distinct from CASE_MANAGER which is the service actor | Owner role |
@@ -451,23 +451,18 @@ it cannot revert. This forms a 64-state lattice (2^6 combinations).
      - **CVDRolesFlag** is a legacy Flag enum (bitmask) used only by the `vultron.bt` simulator layer; it existed before the migration to list-based roles and is retained for backward compatibility only.
      - **Recommendation**: Always use `list[CVDRole]` in new code; never use **CVDRolesFlag** outside the `vultron.bt` simulator. When discussing roles, say "CVDRole" or "role list," never "CVDRoles" (plural, deprecated name).
 
-16. **"approved" vs. "needs_revision" in Advisory Review Decision**:
-     - `AdvisoryReviewDecision.approved` is metadata the **Evaluator** backend sets to record its stance; the BT pipeline does **not** read it as a gate.
-     - `AdvisoryReviewDecision.needs_revision` is the actual BT gate; `_NeedsRevisionGate` reads this field to decide whether to route back for edits.
-     - **Recommendation**: When describing pipeline gating logic, say "the pipeline checks `needs_revision`." Reserve "approved" for describing the reviewer's recorded decision. Do not say "the advisory was approved" when you mean "the pipeline passed the review gate."
-
-17. **"Call-Out Point" vs. "Fuzzer Node"**:
+16. **"Call-Out Point" vs. "Fuzzer Node"**:
      - A **Call-Out Point** is the abstract concept — a BT location requiring external input.
      - A **Fuzzer Node** is the concrete simulator-layer stub that occupies that location until a real **Coordination Agent** is wired in.
      - **Recommendation**: Use "**Call-Out Point**" when discussing design or integration seams; use "**Fuzzer Node**" only when discussing the simulator implementation.
 
-18. **"Composer" vs. "Actuator"**:
+17. **"Composer" vs. "Actuator"**:
      - A **Composer** reads context, runs a generation process, and writes a content artifact to the blackboard (e.g., advisory draft text).
      - An **Actuator** receives a trigger, calls an external system, and confirms the side effect; no artifact is placed on the blackboard.
      - Misclassification risk: nodes that "do something" to an external system look like Composers if you only notice they dispatch outbound calls. The discriminator is whether a content artifact lands on the blackboard. If not, it is an **Actuator**.
      - **Recommendation**: Before classifying a node as Composer, verify it writes a content artifact to the blackboard. If the only output is a SUCCESS/FAILURE confirming an external side effect, it is an **Actuator**.
 
-19. **"Dimension Object" vs. "status field"**:
+18. **"Dimension Object" vs. "status field"**:
      - A **Dimension Object** (per ADR-0036) is an immutable `BaseModel` containing the state of one machine; it is a first-class structured type, not a flat field.
      - "Status field" is informal language that may mean a flat scalar (`rmState: "ACCEPTED"`) or a **Dimension Object** (`rm: {"state": "ACCEPTED"}`); both appear in real ledger snapshots.
      - **Recommendation**: Say "**Dimension Object**" when referring to the structured sub-model; say "flat legacy field" when referring to the pre-ADR-0036 serialization. When extracting state from JSONL, probe both shapes (see 2026-07-22 learning on three nesting shapes).
@@ -571,12 +566,12 @@ it cannot revert. This forms a 64-state lattice (2^6 combinations).
 > returns SUCCESS or FAILURE probabilistically. In production you wire in a **Coordination Agent** —
 > an **Evaluator** subtype — that reviews the draft and records an **Advisory Review Decision**."
 >
-> **Developer:** "What does the BT read from that decision? The `approved` flag?"
+> **Developer:** "What does the BT read from that decision? Just `needs_revision`?"
 >
-> **Domain Expert:** "No — `approved` is metadata for the reviewer backend to record its intent.
-> The BT reads `needs_revision`. If that's true, the pipeline fails and the draft goes back for
-> revision. If you want to block outright without requesting edits — say, a legal hold — your
-> **Evaluator** returns `FAILURE` directly from `update()`. The BT never reads `approved` as a gate."
+> **Domain Expert:** "Yes. If `needs_revision=True`, the pipeline routes to the revision arm before
+> submit. If you want to block outright without requesting edits — say, a legal hold — your
+> **Evaluator** returns `FAILURE` directly from `update()`. That's the universal BT blocking idiom
+> (BT-18-007)."
 >
 > **Developer:** "And if there's no human reviewer yet, we just leave the **Fuzzer Node** in place?"
 >
