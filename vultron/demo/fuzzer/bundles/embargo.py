@@ -33,6 +33,8 @@ Ceiling/floor mapping for the DETERMINISTIC counterpart (BT-23-002):
 - ``on_embargo_exit_factory``                  — OnEmbargoExit                 (p=1.0) → AlwaysSucceed
 - ``on_embargo_accept_factory``                — OnEmbargoAccept               (p=1.0) → AlwaysSucceed
 - ``on_embargo_reject_factory``                — OnEmbargoReject               (p=1.0) → AlwaysSucceed
+- ``embargo_exit_policy_guard_factory``        — EmbargoExitPolicyGuard        (p=1.0) → AlwaysSucceed
+- ``embargo_exit_override_factory``            — EmbargoExitOverride           (p=0.0) → AlwaysFail
 """
 
 from __future__ import annotations
@@ -127,6 +129,22 @@ def _stochastic_on_reject(name: str) -> py_trees.behaviour.Behaviour:
     return OnEmbargoReject(name)
 
 
+def _stochastic_embargo_exit_policy_guard(
+    name: str,
+) -> py_trees.behaviour.Behaviour:
+    from vultron.demo.fuzzer.embargo import EmbargoExitPolicyGuard
+
+    return EmbargoExitPolicyGuard(name)
+
+
+def _stochastic_embargo_exit_override(
+    name: str,
+) -> py_trees.behaviour.Behaviour:
+    from vultron.demo.fuzzer.embargo import EmbargoExitOverride
+
+    return EmbargoExitOverride(name)
+
+
 EMBARGO_STOCHASTIC = EmbargoCallOutBundle(
     exit_embargo_when_deployed_factory=_stochastic_exit_when_deployed,  # type: ignore[arg-type]
     exit_embargo_when_fix_ready_factory=_stochastic_exit_when_fix_ready,  # type: ignore[arg-type]
@@ -141,6 +159,8 @@ EMBARGO_STOCHASTIC = EmbargoCallOutBundle(
     on_embargo_exit_factory=_stochastic_on_exit,  # type: ignore[arg-type]
     on_embargo_accept_factory=_stochastic_on_accept,  # type: ignore[arg-type]
     on_embargo_reject_factory=_stochastic_on_reject,  # type: ignore[arg-type]
+    embargo_exit_policy_guard_factory=_stochastic_embargo_exit_policy_guard,  # type: ignore[arg-type]
+    embargo_exit_override_factory=_stochastic_embargo_exit_override,  # type: ignore[arg-type]
 )
 """Stochastic bundle: all nodes use probabilistic fuzzer classes."""
 
