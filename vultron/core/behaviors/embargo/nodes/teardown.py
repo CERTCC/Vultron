@@ -18,13 +18,13 @@
 import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.embargo.nodes.emit import _SendEmbargoActivityBase
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.dimensions import EmDimension
 from vultron.core.states.em import EM, is_valid_em_transition
 from vultron.core.use_cases._helpers import (
     _as_id,
-    add_activity_to_outbox,
     reset_case_participant_embargo_consent,
     _resolve_case_manager_id,
 )
@@ -111,7 +111,7 @@ class ApplyEmbargoTeardownNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class SendAnnounceEmbargoEventNode(DataLayerAction):
+class SendAnnounceEmbargoEventNode(_SendEmbargoActivityBase):
     """Emit an ``Announce(EmbargoEvent)`` after embargo teardown.
 
     Resolves the Case Manager actor ID from the case, builds the outbound
@@ -136,74 +136,19 @@ class SendAnnounceEmbargoEventNode(DataLayerAction):
         embargo_id: str,
         name: str | None = None,
     ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self._case_id = case_id
+        super().__init__(case_id=case_id, name=name)
         self._embargo_id = embargo_id
 
-    def _build_and_queue_announce(
-        self, actor_id: str, case_manager_id: str
-    ) -> Status:
-        """Build the Announce(EmbargoEvent) activity and write it to the outbox.
-
-        Separated from ``update()`` to keep cyclomatic complexity under the
-        project limit.  Returns FAILURE if the factory call raises, SUCCESS
-        (best-effort) if the outbox write fails after the activity is already
-        constructed.
-        """
-        assert self.trigger_activity_factory is not None
-        assert self.datalayer is not None
-
-        try:
-            announce_id, _ = self.trigger_activity_factory.announce_embargo(
-                embargo_id=self._embargo_id,
-                case_id=self._case_id,
-                actor=actor_id,
-                to=[case_manager_id],
-            )
-        except Exception as exc:
-            self.feedback_message = (
-                f"Announce(EmbargoEvent) factory failed for"
-                f" case '{self._case_id}': {exc}"
-            )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-
-        try:
-            add_activity_to_outbox(
-                actor_id,
-                announce_id,
-                self.datalayer,  # type: ignore[arg-type]
-            )
-        except Exception as exc:
-            self.feedback_message = (
-                f"Outbox write failed for Announce(EmbargoEvent)"
-                f" '{announce_id}': {exc}"
-                " — activity constructed but not queued"
-            )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.SUCCESS
-
+    def _on_factory_unavailable(self) -> Status:
         self.feedback_message = (
-            f"Queued Announce(EmbargoEvent) '{announce_id}'"
-            f" for case '{self._case_id}'"
+            "trigger_activity_factory not available"
+            " — Announce(EmbargoEvent) skipped"
         )
-        self.logger.info("%s: %s", self.name, self.feedback_message)
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.SUCCESS
 
-    def update(self) -> Status:
-        if self.trigger_activity_factory is None:
-            self.feedback_message = (
-                "trigger_activity_factory not available"
-                " — Announce(EmbargoEvent) skipped"
-            )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.SUCCESS
-
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
+    def _resolve_embargo_and_manager(self) -> "tuple[str, str] | Status":
         assert self.datalayer is not None
-        assert self.actor_id is not None
-
         try:
             case = self.datalayer.read(self._case_id)
         except Exception as exc:
@@ -227,7 +172,29 @@ class SendAnnounceEmbargoEventNode(DataLayerAction):
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
 
-        return self._build_and_queue_announce(self.actor_id, case_manager_id)
+        return self._embargo_id, case_manager_id
+
+    def _call_factory(
+        self, actor_id: str, embargo_id: str, case_manager_id: str
+    ) -> tuple[str, object]:
+        assert self.trigger_activity_factory is not None
+        return self.trigger_activity_factory.announce_embargo(
+            embargo_id=embargo_id,
+            case_id=self._case_id,
+            actor=actor_id,
+            to=[case_manager_id],
+        )
+
+    def _on_outbox_write_failure(
+        self, activity_id: str, exc: Exception
+    ) -> Status:
+        self.feedback_message = (
+            f"Outbox write failed for Announce(EmbargoEvent)"
+            f" '{activity_id}': {exc}"
+            " — activity constructed but not queued"
+        )
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.SUCCESS
 
 
 class RemoveFromProposedEmbargoesNode(DataLayerAction):

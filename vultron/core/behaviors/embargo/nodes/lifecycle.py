@@ -24,6 +24,7 @@ from vultron.core.behaviors.embargo.nodes.em_state import (
     ReadEmStateNode,
     WriteEmStateNode,
 )
+from vultron.core.behaviors.embargo.nodes.emit import _SendEmbargoActivityBase
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.dimensions import EmDimension
@@ -38,7 +39,6 @@ from vultron.core.states.em import (
     is_valid_em_transition,
 )
 from vultron.core.models._helpers import _as_id
-from vultron.core.use_cases._helpers import add_activity_to_outbox
 from vultron.errors import (
     VultronError,
     VultronInvalidStateTransitionError,
@@ -335,7 +335,7 @@ class ReadEmbargoIdNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class SendTerminateEmbargoActivityNode(DataLayerAction):
+class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
     """Build and queue a ``Terminate(EmbargoEvent)`` activity.
 
     Reads ``embargo_id`` and ``case_manager_id`` from the blackboard and
@@ -347,8 +347,7 @@ class SendTerminateEmbargoActivityNode(DataLayerAction):
     """
 
     def __init__(self, case_id: str, name: str | None = None) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self._case_id = case_id
+        super().__init__(case_id=case_id, name=name)
 
     def setup(self, **kwargs: object) -> None:
         super().setup(**kwargs)
@@ -361,47 +360,43 @@ class SendTerminateEmbargoActivityNode(DataLayerAction):
             access=py_trees.common.Access.READ,
         )
 
-    def update(self) -> Status:
-        if (f := self._require_factory()) is not None:
-            self.feedback_message = (
-                "trigger_activity_factory not available"
-                " — broadcast FAILURE (BT-14-001)"
-            )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return f
-        assert self.trigger_activity_factory is not None
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        assert self.datalayer is not None
-        assert self.actor_id is not None
+    def _on_factory_unavailable(self) -> Status:
+        self.feedback_message = (
+            "trigger_activity_factory not available"
+            " — broadcast FAILURE (BT-14-001)"
+        )
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
 
+    def _resolve_embargo_and_manager(self) -> "tuple[str, str] | Status":
         try:
             embargo_id: str = self.blackboard.embargo_id
             case_manager_id: str = self.blackboard.case_manager_id
         except KeyError as exc:
             self.feedback_message = f"Required blackboard key missing: {exc}"
             return Status.FAILURE
+        return embargo_id, case_manager_id
 
-        try:
-            announce_id, _ = self.trigger_activity_factory.terminate_embargo(
-                embargo_id=embargo_id,
-                case_id=self._case_id,
-                actor=self.actor_id,
-                to=[case_manager_id],
-            )
-            add_activity_to_outbox(
-                self.actor_id,
-                announce_id,
-                self.datalayer,  # type: ignore[arg-type]
-            )
-        except Exception as exc:
-            self.feedback_message = (
-                f"activity dispatch failed for case '{self._case_id}': {exc}"
-            )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
+    def _call_factory(
+        self, actor_id: str, embargo_id: str, case_manager_id: str
+    ) -> tuple[str, object]:
+        assert self.trigger_activity_factory is not None
+        return self.trigger_activity_factory.terminate_embargo(
+            embargo_id=embargo_id,
+            case_id=self._case_id,
+            actor=actor_id,
+            to=[case_manager_id],
+        )
 
-        return Status.SUCCESS
+    def _on_outbox_write_failure(
+        self, activity_id: str, exc: Exception
+    ) -> Status:
+        self.feedback_message = (
+            f"Outbox write failed for Terminate(EmbargoEvent)"
+            f" '{activity_id}': {exc}"
+        )
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
 
 
 class SetEmbargoActiveNode(DataLayerAction):

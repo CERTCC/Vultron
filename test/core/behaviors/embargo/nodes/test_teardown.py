@@ -355,7 +355,9 @@ class TestSendAnnounceEmbargoEventNode:
         bt = py_trees.trees.BehaviourTree(root=node)
         bt.setup()
 
-        patch_target = "vultron.core.behaviors.embargo.nodes.teardown.add_activity_to_outbox"
+        patch_target = (
+            "vultron.core.behaviors.embargo.nodes.emit.add_activity_to_outbox"
+        )
         with patch(patch_target, side_effect=RuntimeError("outbox error")):
             bt.tick()
 
