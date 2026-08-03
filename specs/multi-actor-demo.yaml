@@ -411,10 +411,18 @@ groups:
     - order: 4
       actor: case_actor
       action: >-
-        If the new ParticipantStatus indicates CS.P (public awareness) and the
-        sender holds CASE_OWNER role and an active embargo exists,
-        emit ET (Embargo Termination) to initiate teardown
-      expected: Embargo teardown triggered; EM transitions to EXITED
+        If the new CaseStatus (derived from the participant status update) indicates
+        at least one of CS.P, CS.X, or CS.A and an active embargo exists, trigger
+        embargo teardown automatically via ThreatTerminationBranchNode (RSH-03-001).
+        A SideEffectsGuard call-out seam (RSH-02-001) precedes the teardown node;
+        it defaults to AlwaysSucceed (auto-approve) but is designed to accommodate
+        a future "ask CASE_OWNER to confirm" policy. The CASE_OWNER gate previously
+        stated here is incorrect — the code fires teardown for any participant's
+        CS.P/X/A, not only the Case Owner's. See ThreatTerminationBranchNode
+        (RSH-03-002: no sender-role gate) and ADR-0046.
+      expected: >-
+        Embargo teardown triggered (EM.EXITED) when any participant's CaseStatus
+        carries CS.P, CS.X, or CS.A and an active embargo is present
     - order: 5
       actor: case_actor
       action: >-
@@ -432,7 +440,8 @@ groups:
     postconditions:
     - description: >-
         Participant record updated; CaseLedgerEntry committed and broadcast;
-        embargo teardown triggered if CS.P+CASE_OWNER.
+        embargo teardown triggered when any participant's CaseStatus carries
+        CS.P, CS.X, or CS.A and an active embargo exists.
     relationships:
     - rel_type: refines
       spec_id: SYNC-02-002
@@ -1776,24 +1785,26 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The `receiver_actor_id` argument passed to `verify_fix_ready` and
-      `verify_fix_deployed` in `vultron/demo/helpers/milestones.py` MUST be the
-      full URI of an actor that holds `CVDRole.VENDOR` in the case's participant
-      index. Passing the ID of an actor that does not hold `CVDRole.VENDOR` (e.g.,
-      a COORDINATOR or CASE_OWNER) is a caller error. Both helpers MUST enforce
-      this precondition at runtime by fetching the participant record and asserting
-      `CVDRole.VENDOR in participant.case_roles`, raising `AssertionError` with the
-      actor ID and its actual roles if the assertion fails.
+      `verify_fix_ready` in `vultron/demo/helpers/milestones.py` MUST accept only
+      actor IDs holding `CVDRole.VENDOR` in the case's participant index; the f→F
+      (fix-ready) transition is gated on VENDOR by `CheckVendorRoleNode`.
+      `verify_fix_deployed` MUST accept actor IDs holding `CVDRole.VENDOR` OR
+      `CVDRole.DEPLOYER`; the d→D (fix-deployed) transition is gated on DEPLOYER
+      by `CheckDeployerRoleNode`. Passing any other actor (e.g. COORDINATOR or
+      CASE_OWNER) to either helper is a caller error. Each helper MUST enforce its
+      precondition at runtime, raising `AssertionError` with the actor ID and its
+      actual roles if the assertion fails.
     rationale: >-
-      Only actors holding `CVDRole.VENDOR` participate in the VFD fix lifecycle
-      (vfd → Vfd → VFd → VFD). Actors holding only `CVDRole.COORDINATOR` or
-      `CVDRole.CASE_OWNER` have no fix path and their `vfd_state` will never
-      advance beyond `vfd`. Without the precondition guard, a caller that
-      accidentally passes a Coordinator actor ID will observe `vfd_state=vfd` and
-      receive a misleading failure that reports an unexpected state rather than
-      identifying the wrong actor as the root cause. This was the root cause of
-      the M4/M5 CI failures in PR #1623 (issue #1593), where `fcv_demo.py`
-      passed `coordinator.id_` instead of `vendor.id_`.
+      The f→F (fix-ready) transition requires CVDRole.VENDOR; coordinators have no
+      vendor fix path. The d→D (fix-deployed) transition requires CVDRole.DEPLOYER;
+      a vendor who is not a deployer stops at VFd. An actor may hold both roles
+      (e.g. [vendor, deployer]) and passes both checks. The original spec listed
+      VENDOR for both helpers, which was an overfit to single-vendor scenarios
+      where Vendor and Deployer were always the same actor. The FCVCV scenario
+      introduced a distinct Vendor-Deployer actor (V2) that makes the distinction
+      observable. This was the root cause of the M4/M5 CI failures in PR #1623
+      (issue #1593), where `fcv_demo.py` passed `coordinator.id_` instead of
+      `vendor.id_`.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-06-002
@@ -1934,6 +1945,32 @@ groups:
     - rel_type: refines
       spec_id: DEMOCI-04-004
 
+  - id: DEMOMA-16-009
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCVCV scenario expected-event-types list MUST include
+      `invite_actor_to_case`, `offer_case_participant`, and
+      `accept_invite_actor_to_case` in addition to the four universal types
+      (DEMOMA-16-001). `invite_actor_to_case` appears at least three times
+      (C1 invites V1, C1 invites C2, and CaseActor invites V2 via the
+      ADR-0026 path); `offer_case_participant` appears at least once (C2
+      suggests V2 to C1 via the ADR-0026 suggest-actor flow);
+      `accept_invite_actor_to_case` appears at least three times (V1, C2,
+      and V2 each accept their respective invitations).
+    rationale: >-
+      FCVCV is the first scenario with two independent coordinators and two
+      independent vendor actors. C1 directly invites V1 and C2; C2 suggests
+      V2 via ADR-0026 (offer_case_participant → CaseActor invite → V2
+      accept); all three vendor/coordinator invitees issue explicit accepts.
+      Verifying these event types confirms the full ADR-0026 suggest-actor
+      path and the multi-vendor invitation chain are exercised end-to-end.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-16-001
+    - rel_type: refines
+      spec_id: DEMOMA-19-001
+
 - id: DEMOMA-18
   title: In-Process Fuzz Simulation Scenario
   specs:
@@ -2071,3 +2108,247 @@ groups:
     - rel_type: refines
       spec_id: DEMOMA-03-001
       note: acceptance test scenario files are also subject to this rule
+
+- id: DEMOMA-19
+  title: FCVCV 5-Party Scenario (Finder + Coordinator1 + Vendor1 + Coordinator2 + Vendor2)
+  description: >-
+    Specifies the FCVCV multi-actor demo scenario: a 5-party CVD case with
+    Finder (F), Coordinator1 (C1), Vendor1 (V1), Coordinator2 (C2), and
+    Vendor2 (V2). C1 receives the report and creates the case. C1 invites V1
+    and C2. C2 suggests V2 to C1 via the ADR-0026 suggest-actor flow; C1
+    approves; CaseActor invites V2. V1 holds only CVDRole.VENDOR (reaches VFd,
+    fix-ready, but has no deploy path). V2 holds both CVDRole.VENDOR and
+    CVDRole.DEPLOYER (full VFD path). V1 triggers CS.P first, causing
+    CaseActor to initiate embargo teardown via ThreatTerminationBranchNode.
+    This scenario is the first to exercise: (a) two independent coordinators,
+    (b) two vendor actors with different role sets, (c) embargo teardown
+    triggered by a non-CASE_OWNER vendor participant's publication.
+  specs:
+  - id: DEMOMA-19-001
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCVCV scenario MUST add an `actor6` service to
+      `docker/docker-compose-multi-actor.yml`, configured identically to
+      the existing `actor5` service (same `*actor-service` anchor, port
+      pattern, data volume) with `VULTRON_SERVER__BASE_URL=http://actor6:7999/api/v2/`,
+      `VULTRON_ACTOR_ID=http://actor6:7999/api/v2/actors/vendor-deployer`,
+      `VULTRON_ACTOR__DEFAULT_CASE_ROLES=["vendor","deployer"]`, and
+      `VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-actor6.yaml`. A
+      corresponding `seed-actor6.yaml` seed config MUST be created in
+      `docker/seed-configs/` with `local_actor.id=http://actor6:7999/api/v2/actors/vendor-deployer`,
+      `local_actor.name=VendorDeployer`, and a peers list covering the five
+      other actors (finder, vendor, coordinator, actor5, case-actor). The
+      `demo-runner` service MUST add `actor6` to its `depends_on` list and
+      expose `VULTRON_VENDOR_DEPLOYER_BASE_URL=http://actor6:7999/api/v2` in
+      its environment block.
+    rationale: >-
+      The FCVCV scenario requires five independent actor containers — one per
+      CVD-role actor — to force all inter-actor communication over the network
+      wire protocol (DEMOMA-01-001). The existing four non-CaseActor containers
+      are insufficient; a sixth container (`actor6`) carries V2 (VendorDeployer).
+      Keeping one actor per container preserves the architectural isolation
+      invariant that prevents intra-container data-layer shortcuts (ADR-0042).
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-01-001
+    - rel_type: refines
+      spec_id: DEMOMA-02-001
+
+  - id: DEMOMA-19-002
+    priority: MUST
+    kind: project
+    statement: >-
+      A `seed_containers_fcvcv` function MUST be added to
+      `vultron/demo/helpers/seeding.py` accepting five `DataLayerClient`
+      arguments (finder_client, c1_client, v1_client, c2_client, v2_client)
+      and five optional deterministic actor ID arguments. It MUST create
+      five local actors: Finder (Person), Coordinator1 (Organization), Vendor1
+      (Organization), Coordinator2 (Organization), VendorDeployer (Organization).
+      It MUST then register every actor as a known peer on each of the other
+      four containers (N×(N-1) = 20 cross-registrations total, following the
+      same Phase 1 / Phase 2 pattern as `seed_containers_fccv`).
+    rationale: >-
+      The 5-actor cross-registration ensures that every actor can locate and
+      deliver activities to every other actor without runtime DNS surprises.
+      The N×(N-1) pattern is established by all existing multi-actor seed
+      functions (seed_containers_fvv, seed_containers_fvcv, seed_containers_fccv).
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-19-001
+    - rel_type: refines
+      spec_id: DEMOMA-02-002
+
+  - id: DEMOMA-19-003
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCVCV scenario file MUST be implemented at
+      `vultron/demo/scenario/fcvcv_demo.py`. It MUST be structured with the
+      following phases executed in order: (1) report_submission — F submits
+      report to C1, C1 validates, C1 creates case, C1 invites V1 and C2;
+      (2) c2_suggests_v2 — C2 sends suggest-actor-to-case for V2 to
+      CaseActor, C1 approves the CaseParticipant Offer, CaseActor sends
+      Invite to V2, V2 accepts; (3) sync_verification — M1 milestone check
+      (all five containers hold the case replica); (4) notes_exchange — each
+      of the five actors posts a note; (5) fix_lifecycle — V1 advances to
+      VFd (fix-ready; no deploy step); V2 advances to VFD (fix-ready then
+      fix-deployed); (6) publication — V1 publishes first (triggering CS.P
+      and embargo teardown via CaseActor), then V2 publishes; (7) case_closure
+      — all participants close; (8) dump_case_ledgers — devlog output.
+    rationale: >-
+      The phased structure mirrors the FCCV-extension scenario (the closest
+      prior template) while adding V1's vendor-only VFd path and V2's full
+      VFD path. Having V1 publish first exercises the
+      ThreatTerminationBranchNode on a non-CASE_OWNER vendor participant, a
+      path not covered by any prior scenario (DEMOMA-07-003 correction).
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-01-001
+    - rel_type: refines
+      spec_id: DEMOMA-03-002
+    - rel_type: refines
+      spec_id: DEMOMA-17-001
+
+  - id: DEMOMA-19-004
+    priority: MUST
+    kind: project
+    statement: >-
+      In the FCVCV scenario, V1 MUST be assigned `CVDRole.VENDOR` only (no
+      DEPLOYER role) and V2 MUST be assigned both `CVDRole.VENDOR` and
+      `CVDRole.DEPLOYER`. The fix lifecycle phase MUST call `verify_fix_ready`
+      for both V1 and V2 after they each advance to VFd. It MUST then call
+      `verify_fix_deployed` for V2 only after V2 advances to VFD.
+      `verify_fix_ready` MUST NOT be called with a DEPLOYER-only actor ID;
+      `verify_fix_deployed` MUST NOT be called with a VENDOR-only (no DEPLOYER)
+      actor ID such as V1.
+    rationale: >-
+      V1's vendor-only role set (stops at VFd) and V2's vendor-deployer role
+      set (reaches VFD) are the key differentiators of this scenario. The
+      distinction verifies DEMOMA-15-001's corrected precondition guards:
+      `verify_fix_ready` requires VENDOR; `verify_fix_deployed` requires
+      VENDOR or DEPLOYER. Using V1 in a `verify_fix_deployed` call would
+      exercise the wrong path and mask a future regression where the d→D BT
+      gate is weakened.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-15-001
+    - rel_type: refines
+      spec_id: DEMOMA-19-003
+
+  - id: DEMOMA-19-005
+    priority: MUST
+    kind: project
+    statement: >-
+      In the FCVCV scenario, V1 MUST publish before V2. After V1 sends its
+      participant status update indicating CS.P, the scenario MUST wait for
+      CaseActor to process that update and emit the embargo teardown
+      (EM.EXITED) before V2 publishes. The `verify_publicly_disclosed`
+      check MUST be called after both V1 and V2 have published.
+    rationale: >-
+      Having V1 publish first exercises the ThreatTerminationBranchNode code
+      path where a VENDOR participant (not the CASE_OWNER) triggers embargo
+      teardown — the scenario path corrected in DEMOMA-07-003. Waiting for
+      EM.EXITED before V2 publishes avoids a timing race where the
+      teardown-triggered publication arrives concurrently with V2's
+      publication and produces a non-deterministic ledger order.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-07-003
+    - rel_type: refines
+      spec_id: DEMOMA-19-003
+
+  - id: DEMOMA-19-006
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCVCV scenario MUST be registered as the `fcvcv` sub-command in
+      `vultron/demo/cli.py`, consistent with the naming convention of existing
+      scenario commands (fv, fvv, fcv, fvcv, fccv).
+    rationale: >-
+      The CLI is the single entry point for all demo scenarios (DC-01-001).
+      Omitting the sub-command leaves the scenario unreachable from
+      `vultron demo fcvcv` and from the CI matrix DEMO variable override.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-01-001
+
+  - id: DEMOMA-19-007
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCVCV scenario MUST be added to the CI demo-integration matrix in
+      `.github/workflows/demo-integration.yml` with `DEMO=fcvcv`, and
+      `actor6` MUST be listed as a service dependency alongside the existing
+      five services. The CI devlogs directory for the FCVCV run MUST use the
+      scenario-role naming convention: `finder`, `c1`, `v1`, `c2`, `v2`,
+      `case-actor` (not docker service names).
+    rationale: >-
+      CI coverage of all demo scenarios is required by DEMOCI-04-001. The
+      FCVCV scenario introduces the actor6 container, which must be listed as
+      a service dependency so CI spins it up. Scenario-role names in devlogs
+      match the names used in scenario code, making log archaeology easier.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOCI-04-001
+    - rel_type: refines
+      spec_id: DEMOMA-19-001
+
+  - id: DEMOMA-19-008
+    priority: MUST
+    kind: project
+    statement: >-
+      An invariant harness file MUST be created at
+      `test/ci/invariants/test_fcvcv_invariants.py`. It MUST define
+      `_FCVCV_EXPECTED_EVENT_TYPES` per DEMOMA-16-009, a `_CHAIN_ACTORS`
+      list of scenario-role actor names (finder, c1, v1, c2, v2, case-actor),
+      and the universal invariant tests (Invariants 1–5) plus at minimum the
+      following scenario-specific invariant tests: (a)
+      `invite_actor_to_case` appears at least three times (C1→V1, C1→C2,
+      CaseActor→V2); (b) `offer_case_participant` appears at least once (C2
+      suggests V2 via ADR-0026); (c) `accept_invite_actor_to_case` appears
+      at least three times (V1, C2, V2 each accept). The harness MUST be
+      added to `test/ci/invariants/conftest.py` under the `fcvcv` scenario
+      key.
+    rationale: >-
+      The invariant harness is the CI-level acceptance test for the scenario.
+      The three scenario-specific count checks verify that the multi-party
+      invitation and suggest-actor flows were exercised end-to-end. The
+      per-actor chain checks confirm ledger contiguity for all five actor
+      devlogs. Derived from the FCCV-extension invariant harness as the
+      closest prior template.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOCI-04-001
+    - rel_type: refines
+      spec_id: DEMOMA-16-009
+    - rel_type: refines
+      spec_id: DEMOMA-19-003
+
+  - id: DEMOMA-19-009
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCVCV scenario MUST exercise the ADR-0026 suggest-actor flow for
+      V2's onboarding. The flow sequence is: (1) C2 posts `suggest-actor-to-case`
+      trigger (Offer(Actor, Case) sent to CaseActor); (2) CaseActor stores the
+      offer and forwards an `Offer(CaseParticipant)` to the CASE_OWNER (C1);
+      (3) C1 posts `accept-actor-recommendation` trigger providing the
+      CaseParticipant offer ID; (4) CaseActor sends `Invite` to V2; (5) V2
+      receives the `Invite` and posts `accept-case-invite`. The scenario MUST
+      use polling helpers (not `post_to_inbox_and_wait`) to deliver the invite
+      to V2's inbox, consistent with the no-mail-carrying rule (DEMOMA-03-003).
+    rationale: >-
+      The ADR-0026 flow is the accepted pattern for coordinator-to-case actor
+      suggestion (ADR-0026). The FCVCV scenario is the first to exercise C2
+      (a non-CASE_OWNER coordinator) suggesting a vendor; prior scenarios
+      (FCCV-extension) exercised C2 suggesting an existing vendor, but FCVCV
+      adds V2 as a new participant. The no-mail-carrying rule (DEMOMA-03-003)
+      requires that the demo orchestrator never post directly to another
+      actor's inbox; the invite must arrive via the normal routing path and
+      be detected by polling.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-03-003
+    - rel_type: refines
+      spec_id: DEMOMA-19-003
