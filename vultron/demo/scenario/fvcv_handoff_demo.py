@@ -972,10 +972,6 @@ def _phase_dump_case_ledgers(
     vendor_client: DataLayerClient,
     coordinator_client: DataLayerClient,
     vendor2_client: DataLayerClient,
-    finder: as_Actor,
-    vendor: as_Actor,
-    coordinator: as_Actor,
-    vendor2: as_Actor,
     case: as_VulnerabilityCase,
     demo_name: str = "fvcv-handoff",
 ) -> None:
@@ -1208,10 +1204,6 @@ def run_fvcv_handoff_demo(
         vendor_client=vendor_client,
         coordinator_client=coordinator_client,
         vendor2_client=vendor2_client,
-        finder=finder,
-        vendor=vendor,
-        coordinator=coordinator,
-        vendor2=vendor2_in_vendor2,
         case=case,
     )
 
