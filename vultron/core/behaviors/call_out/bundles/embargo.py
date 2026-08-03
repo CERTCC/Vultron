@@ -61,8 +61,9 @@ class EmbargoCallOutBundle:
 
     Fields map to the corresponding factory parameters on
     :func:`~vultron.core.behaviors.embargo.manage_embargo_tree.create_manage_embargo_tree`
-    and (for termination-specific fields) the future
-    ``create_terminate_active_embargo_tree`` factory (issue #1256).
+    and (for termination-specific fields)
+    :func:`~vultron.core.behaviors.embargo.terminate_active_embargo_tree.create_terminate_active_embargo_tree`
+    (issue #1891).
     """
 
     exit_embargo_when_deployed_factory: CallOutBackendFactory = field(
