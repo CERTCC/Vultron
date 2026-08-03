@@ -99,7 +99,7 @@ from vultron.core.models.pending_create_case_activity import (
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.vultron_types import VultronParticipant
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 
@@ -869,19 +869,28 @@ class _SeedVendorOwnerSignatoryNode(DataLayerAction):
             )
             return Status.SUCCESS
 
+        self._seed_signatory(stored_case, participant)
+        return Status.SUCCESS
+
+    def _seed_signatory(
+        self,
+        stored_case: VulnerabilityCase,
+        participant: CaseParticipant,
+    ) -> None:
         embargo_id = stored_case.active_embargo
-        participant.embargo_consent_state = PEC.SIGNATORY
+        if participant.embargo_consent_state != PEC.SIGNATORY:
+            participant.apply_pec_transition(PEC_Trigger.ACCEPT)
         if embargo_id and embargo_id not in participant.accepted_embargo_ids:
             participant.accepted_embargo_ids.append(embargo_id)
+        assert self.datalayer is not None
         self.datalayer.save(participant)
         logger.info(
             "%s: Seeded vendor '%s' as embargo SIGNATORY in case '%s'"
             " (CM-13)",
             self.name,
             self._vendor_uri,
-            case_id,
+            stored_case.id_,
         )
-        return Status.SUCCESS
 
 
 class _EmitAcceptCaseProposalNode(DataLayerAction):

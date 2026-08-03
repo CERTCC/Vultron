@@ -345,14 +345,17 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   `RM.CLOSED` terminal rules before `current == new` no-op check.
 - **Do Not Downgrade Existing Consent on Idempotent Retries** — preserve non-null
   consent on embargo accept/reject retry paths.
-- **PEC Consent Must Go Through `PecDimension.transition()`, Never Direct Field
+- **PEC Consent Must Go Through `apply_pec_transition()`, Never Direct Field
   Assignment** — `participant.embargo_consent_state = PEC.SIGNATORY` bypasses both
   the PEC machine and `_sync_latest_status_metadata()`, leaving the latest
   `ParticipantStatus` stale so the ledger snapshot emits the contradictory pair
-  `{"embargoAdherence": true, "emConsentState": "NO_EMBARGO"}`. Also:
-  `apply_pec_trigger` returns the state **unchanged** (warning, no raise) on an
-  invalid trigger — never ignore its return value. See CM-18-005, CM-18-006,
-  ADR-0048, [notes/participant-embargo-consent.md](notes/participant-embargo-consent.md).
+  `{"embargoAdherence": true, "emConsentState": "NO_EMBARGO"}`. Use
+  `participant.apply_pec_transition(trigger)` as the single authoritative
+  consent-write path — it is fail-closed and raises
+  `VultronInvalidStateTransitionError` on an illegal trigger. Guard idempotent
+  sites with `if participant.embargo_consent_state != PEC.<TARGET>:` before
+  calling. See CM-18-005, CM-18-006, ADR-0048,
+  [notes/participant-embargo-consent.md](notes/participant-embargo-consent.md).
 - **DataLayer Scope Tests: Use `call_args.args`, Not `call_args[0]`** — named
   attribute raises `AttributeError` clearly; index returns empty tuple silently.
 - **Inbox Policy Logic Must Live in the Core BT Module** — all inbox processing

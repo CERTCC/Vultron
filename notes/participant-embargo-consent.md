@@ -154,23 +154,22 @@ does not sync `ParticipantStatus`. So an `apply_pec_trigger`-based site has the
 halves are required: validate the trigger **and** persist the resulting
 `ParticipantStatus`.
 
-Consent-write sites as of ADR-0048 (all ten need the helper):
+Consent-write sites after CM-18-005 (all ten route through `apply_pec_transition()`):
 
-| Site | Validates trigger? | Syncs status? |
+| Site | Uses `apply_pec_transition()`? | Syncs status? |
 |---|---|---|
-| `case/case_proposal_received_tree.py:873` | no | no |
-| `case/nodes/embargo.py:433` | no | no |
-| `case/nodes/participant/participant_add.py:389` | no | no |
-| `case/accept_invite_tree.py:494` | yes (rejected — see above) | no |
-| `embargo/nodes/proposal.py:84` | yes | no |
-| `use_cases/_helpers.py:488` | yes | no |
-| `services/embargo_lifecycle.py:690, 841, 894, 935, 968` | yes | no |
+| `case/case_proposal_received_tree.py` | yes | yes |
+| `case/nodes/embargo.py` | yes | yes |
+| `case/nodes/participant/participant_add.py` | yes | yes |
+| `case/accept_invite_tree.py` | yes | yes |
+| `embargo/nodes/proposal.py` | yes | yes |
+| `use_cases/_helpers.py` | yes | yes |
+| `services/embargo_lifecycle.py` (5 sites) | yes | yes |
 
-The first three are the pure direct-assignment cases. The rest are the
-subtler failure: correct machine use, stale snapshot. `EmbargoLifecycle` is the
-intended long-term owner of all PEC transitions (see
-[embargo-lifecycle.md](embargo-lifecycle.md) and #538), so its five sites
-matter most.
+All ten sites now use `apply_pec_transition()` as the single authoritative
+consent-write path (CM-18-005). `EmbargoLifecycle` is the intended long-term
+owner of all PEC transitions (see [embargo-lifecycle.md](embargo-lifecycle.md)
+and #538), so its five sites remain the most critical to keep correct.
 
 ---
 

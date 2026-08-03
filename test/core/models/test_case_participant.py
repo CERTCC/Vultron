@@ -16,6 +16,7 @@ from vultron.core.models.case_participant import (
 )
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole, validate_roles
 
@@ -329,3 +330,101 @@ class TestCNARoleOnParticipant:
         status = p.participant_status
         assert status is not None
         assert CVDRole.CVE_NUMBERING_AUTHORITY in status.cvd_role
+
+
+# ---------------------------------------------------------------------------
+# apply_pec_transition — CM-18-005 / CM-18-006 / ADR-0048
+# ---------------------------------------------------------------------------
+
+
+class TestApplyPecTransition:
+    """apply_pec_transition() is the single authoritative consent-write path."""
+
+    def test_ac3_snapshot_em_consent_state_agrees_with_scalar(self):
+        """AC-3: participant_status.consent.state agrees with embargo_consent_state.
+
+        After apply_pec_transition(ACCEPT), the snapshot emConsentState MUST
+        equal SIGNATORY — it must not be the stale NO_EMBARGO pre-fix value
+        (CM-18-006).
+        """
+        from vultron.core.states.participant_embargo_consent import PEC_Trigger
+
+        p = _make()
+        assert p.embargo_consent_state == PEC.NO_EMBARGO
+        p.apply_pec_transition(PEC_Trigger.ACCEPT)
+        assert p.embargo_consent_state == PEC.SIGNATORY
+        status = p.participant_status
+        assert status is not None
+        assert status.consent is not None
+        assert status.consent.state == PEC.SIGNATORY
+
+    def test_ac4_embargo_adherence_true_iff_signatory(self):
+        """AC-4: no contradictory (embargoAdherence=true, emConsentState≠SIGNATORY) pair.
+
+        embargo_adherence is a separate flag managed independently; this test
+        verifies that the consent snapshot is coherent — once a participant
+        has been set to SIGNATORY via apply_pec_transition, the snapshot's
+        emConsentState is SIGNATORY (not a stale pre-consent value).
+        """
+        from vultron.core.states.participant_embargo_consent import PEC_Trigger
+
+        p = _make()
+        p.apply_pec_transition(PEC_Trigger.ACCEPT)
+        status = p.participant_status
+        assert status is not None
+        assert status.consent is not None
+        assert status.consent.state == PEC.SIGNATORY
+        assert status.embargo_adherence is True
+
+    def test_ac4_non_signatory_consent_state_preserved(self):
+        """AC-4: DECLINED state is faithfully preserved in the snapshot.
+
+        Ensures the consent snapshot never reads SIGNATORY when the FSM
+        is in a non-signatory state.
+        """
+        from vultron.core.states.participant_embargo_consent import PEC_Trigger
+
+        p = _make()
+        p.apply_pec_transition(PEC_Trigger.DECLINE)
+        status = p.participant_status
+        assert status is not None
+        assert status.consent is not None
+        assert status.consent.state == PEC.DECLINED
+        assert status.consent.state != PEC.SIGNATORY
+
+    def test_ac5_illegal_trigger_raises(self):
+        """AC-5: illegal trigger raises VultronInvalidStateTransitionError.
+
+        ACCEPT from SIGNATORY is not a valid PEC transition; it must raise
+        rather than silently returning the current state (old apply_pec_trigger
+        soft-fail behaviour was the bug).
+        """
+        from vultron.core.states.participant_embargo_consent import PEC_Trigger
+        from vultron.errors import VultronInvalidStateTransitionError
+
+        p = _make(embargo_consent_state=PEC.SIGNATORY)
+        with pytest.raises(VultronInvalidStateTransitionError):
+            p.apply_pec_transition(PEC_Trigger.ACCEPT)
+
+    def test_ac5_state_unchanged_after_raise(self):
+        """AC-5: state is not mutated when an illegal trigger raises."""
+        from vultron.core.states.participant_embargo_consent import PEC_Trigger
+        from vultron.errors import VultronInvalidStateTransitionError
+
+        p = _make(embargo_consent_state=PEC.SIGNATORY)
+        with pytest.raises(VultronInvalidStateTransitionError):
+            p.apply_pec_transition(PEC_Trigger.ACCEPT)
+        assert p.embargo_consent_state == PEC.SIGNATORY
+
+    def test_multiple_transitions_keep_snapshot_in_sync(self):
+        """Snapshot stays in sync across a chain of valid transitions."""
+        from vultron.core.states.participant_embargo_consent import PEC_Trigger
+
+        p = _make()
+        p.apply_pec_transition(PEC_Trigger.ACCEPT)
+        p.apply_pec_transition(PEC_Trigger.REVISE)
+        assert p.embargo_consent_state == PEC.LAPSED
+        status = p.participant_status
+        assert status is not None
+        assert status.consent is not None
+        assert status.consent.state == PEC.LAPSED

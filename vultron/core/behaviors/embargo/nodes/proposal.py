@@ -24,11 +24,7 @@ from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
 )
-from vultron.core.states.participant_embargo_consent import (
-    PEC,
-    PEC_Trigger,
-    apply_pec_trigger,
-)
+from vultron.core.states.participant_embargo_consent import PEC_Trigger
 
 
 class UpdateParticipantEmbargoPecNode(DataLayerAction):
@@ -39,10 +35,11 @@ class UpdateParticipantEmbargoPecNode(DataLayerAction):
     OptionalLookupParticipantNode pattern: when participant doesn't exist on this
     peer, skip the PEC update but continue to cascade log entry to all peers.
 
-    Always returns SUCCESS (idempotent best-effort update). Actual PEC state is
-    only updated if participant exists on the local blackboard. Missing
-    participant is treated as a temporary local state gap that will be resolved
-    by peer broadcast.
+    Returns SUCCESS when the participant is absent or the DataLayer is
+    unavailable. Raises ``VultronInvalidStateTransitionError`` (via
+    ``apply_pec_transition``) if the trigger is illegal for the current
+    PEC state — callers should ensure the trigger is valid for the
+    participant's current consent state before invoking this node.
     """
 
     def __init__(
@@ -78,10 +75,7 @@ class UpdateParticipantEmbargoPecNode(DataLayerAction):
             )
             return Status.SUCCESS
 
-        new_state = apply_pec_trigger(
-            PEC(participant.embargo_consent_state), self.pec_trigger
-        )
-        participant.embargo_consent_state = new_state
+        participant.apply_pec_transition(self.pec_trigger)
         self.datalayer.save(participant)
 
         self.feedback_message = (

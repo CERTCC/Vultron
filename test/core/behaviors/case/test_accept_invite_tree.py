@@ -92,16 +92,31 @@ class TestSignEmbargoConsentLeafNode:
         assert status == Status.SUCCESS
         assert participant.embargo_consent_state == PEC.SIGNATORY
 
-    def test_already_signatory_is_no_op(
+    def test_already_signatory_raises_on_accept(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        """Participant already SIGNATORY: ACCEPT is invalid, state unchanged."""
-        status, participant = _run_sign_node(
-            bt_scenario, starting_pec=PEC.SIGNATORY
+        """Participant already SIGNATORY: ACCEPT is an illegal trigger → FAILURE.
+
+        With the fail-closed apply_pec_transition(), ACCEPT from SIGNATORY
+        raises VultronInvalidStateTransitionError; the BTBridge catches it and
+        returns FAILURE with the error in feedback_message (AC-5, CM-18-005).
+        The old soft-fail apply_pec_trigger() silently returned the state
+        unchanged — that silent no-op is the bug this test pins down.
+        """
+        node = _SignEmbargoConsentLeafNode(invitee_id=_ACTOR_ID)
+        participant = CaseParticipant(
+            id_=_ACTOR_ID,
+            attributed_to=_ACTOR_ID,
+            embargo_consent_state=PEC.SIGNATORY,
         )
-        # apply_pec_trigger returns the state unchanged on an invalid trigger
-        assert status == Status.SUCCESS
-        assert participant.embargo_consent_state == PEC.SIGNATORY
+        result = bt_scenario.run(
+            node,
+            actor_id=_ACTOR_ID,
+            new_invite_participant=participant,
+            active_embargo_id=_EMBARGO_ID,
+        )
+        assert result.status == Status.FAILURE
+        assert "does not accept trigger" in result.feedback_message
 
     def test_embargo_id_recorded_on_participant(
         self, bt_scenario: BTTestScenario
@@ -111,6 +126,23 @@ class TestSignEmbargoConsentLeafNode:
             bt_scenario, starting_pec=PEC.NO_EMBARGO
         )
         assert _EMBARGO_ID in participant.accepted_embargo_ids
+
+    def test_snapshot_em_consent_state_agrees_with_scalar(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """AC-7: ledger snapshot emConsentState agrees with embargo_consent_state.
+
+        After the sign node runs, participant_status.consent.state MUST equal
+        embargo_consent_state — the snapshot must not be stale (CM-18-006).
+        """
+        _, participant = _run_sign_node(
+            bt_scenario, starting_pec=PEC.NO_EMBARGO
+        )
+        assert participant.embargo_consent_state == PEC.SIGNATORY
+        status = participant.participant_status
+        assert status is not None
+        assert status.consent is not None
+        assert status.consent.state == PEC.SIGNATORY
 
     def test_failure_when_participant_missing(
         self, bt_scenario: BTTestScenario

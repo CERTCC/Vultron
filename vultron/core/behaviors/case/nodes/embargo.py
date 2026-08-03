@@ -30,13 +30,14 @@ notes/protocol-event-cascades.md D5-6-EMBARGORCP.
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any, cast
+from typing import Any
 
 import isodate  # type: ignore[import-untyped]
 import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.enums import VultronObjectType
 from vultron.core.models.case import VulnerabilityCase
@@ -47,7 +48,7 @@ from vultron.core.services.embargo_lifecycle import (
 )
 from vultron.core.models.dimensions import EmDimension
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.core.models._helpers import _as_id
 from vultron.errors import VultronError
 
@@ -417,12 +418,10 @@ class SeedOwnerAsSignatoryNode(DataLayerAction):
         participant = self.datalayer.read(
             participant_id, raise_on_missing=False
         )
-        if participant is None or not hasattr(
-            participant, "embargo_consent_state"
-        ):
+        if not isinstance(participant, CaseParticipant):
             self.logger.warning(
-                "%s: Participant '%s' not found or lacks embargo_consent_state"
-                " in case '%s' — cannot seed SIGNATORY",
+                "%s: Participant '%s' not found in case '%s'"
+                " — cannot seed SIGNATORY",
                 self.name,
                 participant_id,
                 case_id,
@@ -430,12 +429,10 @@ class SeedOwnerAsSignatoryNode(DataLayerAction):
             return Status.SUCCESS
 
         embargo_id = _as_id(stored_case.active_embargo)
-        cast(Any, participant).embargo_consent_state = PEC.SIGNATORY
-        if (
-            embargo_id
-            and embargo_id not in cast(Any, participant).accepted_embargo_ids
-        ):
-            cast(Any, participant).accepted_embargo_ids.append(embargo_id)
+        if participant.embargo_consent_state != PEC.SIGNATORY:
+            participant.apply_pec_transition(PEC_Trigger.ACCEPT)
+        if embargo_id and embargo_id not in participant.accepted_embargo_ids:
+            participant.accepted_embargo_ids.append(embargo_id)
         self.datalayer.save(participant)
         self.logger.info(
             "Seeded case-owner participant '%s' (actor '%s') as SIGNATORY"
