@@ -913,6 +913,74 @@ class TestADR0041LedgerEntries:
             ), f"add_case_status_to_case actor must be vendor URI, got {actor!r}"
 
 
+class TestCM18007InitLedgerEntries:
+    """CM-18-007 and CM-14-003: one init entry per participant; vendor is SIGNATORY."""
+
+    def test_exactly_one_participant_status_entry_per_participant(
+        self, make_payload
+    ):
+        """Each participant gets exactly one add_participant_status_to_participant
+        ledger entry — no NO_EMBARGO placeholder followed by a corrective entry
+        (CM-18-007 AC-3)."""
+        from vultron.core.models.case import VulnerabilityCase
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        _seed_report(dl)
+        _run_full_bt(make_payload, dl)
+
+        cases = list(dl.list_objects("VulnerabilityCase"))
+        assert cases
+        case = cases[0]
+        assert isinstance(case, VulnerabilityCase)
+        participant_count = len(case.case_participants)
+
+        entries = list(dl.list_objects("CaseLedgerEntry"))
+        ps_entries = [
+            e
+            for e in entries
+            if getattr(e, "event_type", None)
+            == "add_participant_status_to_participant"
+        ]
+        assert len(ps_entries) == participant_count, (
+            f"Expected exactly {participant_count} "
+            "add_participant_status_to_participant entries (one per participant),"
+            f" got {len(ps_entries)} (CM-18-007)"
+        )
+
+    def test_vendor_case_owner_appears_as_signatory_in_init_ledger(
+        self, make_payload
+    ):
+        """Vendor (CASE_OWNER) init ledger entry must show SIGNATORY consent
+        (CM-14-003 AC-4)."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        _seed_report(dl)
+        _run_full_bt(make_payload, dl)
+
+        entries = list(dl.list_objects("CaseLedgerEntry"))
+        vendor_ps_entries = [
+            e
+            for e in entries
+            if getattr(e, "event_type", None)
+            == "add_participant_status_to_participant"
+            and _VENDOR_URI
+            in str(
+                getattr(e, "payload_snapshot", {})
+                .get("object", {})
+                .get("attributedTo", "")
+            )
+        ]
+        assert vendor_ps_entries, (
+            "Vendor must have an add_participant_status_to_participant"
+            " init ledger entry (CM-14-003)"
+        )
+        entry = vendor_ps_entries[0]
+        obj = getattr(entry, "payload_snapshot", {}).get("object", {})
+        assert obj.get("emConsentState") == "SIGNATORY", (
+            f"Vendor init entry must show SIGNATORY, got"
+            f" {obj.get('emConsentState')!r} (CM-14-003)"
+        )
+
+
 class TestADR0041InlineParticipantsPayload:
     """ADR-0041 AC-5: Create(VulnerabilityCase) embeds inline participant objects."""
 
