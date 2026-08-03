@@ -1476,3 +1476,68 @@ groups:
     - rel_type: satisfies
       spec_id: EMB-01-002
       note: Mandatory rejection when public/exploit/attacks overrides default-accept
+
+- id: EMB-16
+  title: CS Public/Exploit/Attacks Detected While EM Proposed
+  description: >-
+    Behaviors required when a Participant detects that the vulnerability has
+    become public (q^cs ∈ ···P··), an exploit is available (q^cs ∈ ····X·),
+    or attacks have been observed (q^cs ∈ ·····A) while the case EM state is
+    still Proposed (q^em ∈ P). Embargo negotiation is not viable in any of
+    these states; the proposed embargo MUST be abandoned.
+  trigger:
+    type: state_entered
+    value: CS.public_exploit_attacks
+  specs:
+  - id: EMB-16-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Participant in EM Proposed (q^em ∈ P) that detects a CS transition into
+      a public (q^cs ∈ ···P··), exploit-available (q^cs ∈ ····X·), or
+      attacks-observed (q^cs ∈ ·····A) state MUST abandon the proposed embargo
+      by transitioning EM from Proposed to None (q^em P → N) and MUST emit ER
+      to notify other Participants.
+    rationale: >-
+      EMB-01-002 establishes that embargo negotiation is not viable once public
+      disclosure, exploit availability, or attacks have occurred. EMB-01-002 is
+      framed as a guard on receiving EP, but the same viability constraint
+      applies when a P/X/A state change arrives while a proposal is already in
+      flight. Continuing to negotiate a proposed embargo in these conditions
+      would be misleading to other Participants and counter to the purpose of
+      coordinated disclosure. The existing reject path (EM P → N + ER) is the
+      correct mechanism; no new transition is introduced.
+    testable: true
+    preconditions:
+    - em_state:
+        - PROPOSED
+      description: EM state is Proposed
+    - cs_pattern: "...P.."
+      description: CS transitions to public (q^cs ∈ ···P··)
+    - cs_pattern: "....X."
+      description: CS transitions to exploit-available (q^cs ∈ ····X·)
+    - cs_pattern: ".....A"
+      description: CS transitions to attacks-observed (q^cs ∈ ·····A)
+    steps:
+    - order: 1
+      actor: system
+      action: >-
+        Detect that CS has transitioned to a P/X/A state while EM is Proposed
+      expected: PublicDisclosureBranchNode recognises EM is Proposed (not skipped)
+    - order: 2
+      actor: system
+      action: >-
+        Transition EM from Proposed to None via reject_embargo_trigger_bt
+        (RejectEmbargoLifecycleNode → sender_side_bt)
+      expected: EM state transitions to NO_EMBARGO; ER queued for sender
+    postconditions:
+    - description: EM state is NO_EMBARGO; ER emitted; proposed embargo abandoned
+    relationships:
+    - rel_type: extends
+      spec_id: EMB-01-002
+      note: >-
+        EMB-01-002 guards against entering PROPOSED with P/X/A set;
+        this entry covers the symmetric case where P/X/A fires while already in PROPOSED
+    - rel_type: refines
+      spec_id: EMB-06-001
+      note: ER emission semantics apply; EM returns to NONE
