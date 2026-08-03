@@ -211,6 +211,45 @@ def verify_fix_ready(
     logger.info("✓ fix ready: both replicas show CS includes F (fix ready)")
 
 
+def _assert_deployer_or_vendor_role(
+    client: DataLayerClient,
+    case_id: str,
+    actor_id: str,
+    label: str,
+) -> None:
+    """Assert that *actor_id* holds ``CVDRole.DEPLOYER`` or ``CVDRole.VENDOR``.
+
+    The d→D (fix-deployed) transition is gated on ``CVDRole.DEPLOYER`` by
+    ``CheckDeployerRoleNode``; an actor that holds only ``CVDRole.VENDOR`` but
+    not ``CVDRole.DEPLOYER`` stops at VFd and cannot reach VFD.  An actor may
+    hold both roles and passes this check.
+
+    Spec: DEMOMA-15-001.
+
+    Args:
+        client: DataLayerClient for the target container.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        actor_id: Full URI of the actor to check.
+        label: Human-readable label for the ``AssertionError`` message.
+
+    Raises:
+        AssertionError: If the participant is not found or holds neither
+            ``CVDRole.DEPLOYER`` nor ``CVDRole.VENDOR``.
+    """
+    participant = _fetch_participant(client, case_id, actor_id)
+    if participant is None:
+        raise AssertionError(
+            f"{label}: actor {actor_id!r} not found as a participant in case"
+            f" {case_id!r}"
+        )
+    vfd_roles = {CVDRole.VENDOR, CVDRole.DEPLOYER}
+    if not (vfd_roles & set(participant.case_roles or [])):
+        raise AssertionError(
+            f"{label}: actor {actor_id!r} holds neither CVDRole.VENDOR nor"
+            f" CVDRole.DEPLOYER; actual roles: {participant.case_roles!r}"
+        )
+
+
 def verify_fix_deployed(
     receiver_client: DataLayerClient,
     reporter_client: DataLayerClient,
@@ -220,9 +259,11 @@ def verify_fix_deployed(
     """Verify that both replicas show CS includes D (fix deployed).
 
     The ``receiver_actor_id`` MUST be the full URI of an actor holding
-    ``CVDRole.VENDOR`` in the case.  Passing any other actor (e.g. a
-    Coordinator) is a caller error and will raise ``AssertionError`` before
-    the state check runs.
+    ``CVDRole.DEPLOYER`` or ``CVDRole.VENDOR`` in the case.  The d→D
+    transition is gated on ``CVDRole.DEPLOYER``; an actor with only
+    ``CVDRole.VENDOR`` and no deployer role cannot advance beyond VFd.
+    Passing any other actor (e.g. a Coordinator) is a caller error and will
+    raise ``AssertionError`` before the state check runs.
 
     Specs: DEMOMA-06-002, DEMOMA-15-001.
 
@@ -234,11 +275,11 @@ def verify_fix_deployed(
             participant vfd_state to check.
 
     Raises:
-        AssertionError: If ``receiver_actor_id`` does not hold
-            ``CVDRole.VENDOR``, or if either replica does not reflect
-            fix-deployed state.
+        AssertionError: If ``receiver_actor_id`` holds neither
+            ``CVDRole.DEPLOYER`` nor ``CVDRole.VENDOR``, or if either
+            replica does not reflect fix-deployed state.
     """
-    _assert_vendor_role(
+    _assert_deployer_or_vendor_role(
         receiver_client, case_id, receiver_actor_id, "verify_fix_deployed"
     )
     deployed_state = {CS_vfd.VFD}
