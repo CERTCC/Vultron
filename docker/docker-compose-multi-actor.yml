@@ -1,7 +1,7 @@
 # Multi-Actor Vultron Demo — Docker Compose Configuration
 #
-# Defines five isolated actor services (finder, vendor, coordinator,
-# actor5, case-actor), each
+# Defines six isolated actor services (finder, vendor, coordinator,
+# actor5, actor6, case-actor), each
 # with its own DataLayer volume, health check, and network membership.
 #
 # DEMO-MA-02-001: Each actor service has a /health/ready healthcheck.
@@ -77,7 +77,7 @@
 # See docker/README.md for full usage instructions.
 
 # ── Shared actor-service template ─────────────────────────────────────────
-# All five actor services are built from the same Dockerfile target and share
+# All six actor services are built from the same Dockerfile target and share
 # the same health-check configuration.  Defining these once here and merging
 # them with <<: *actor-service avoids redundant image builds and keeps the
 # per-service stanzas focused on what actually differs (env, volumes, ports).
@@ -231,6 +231,32 @@ services:
       # Ephemeral host port → container 7999.  Set ACTOR5_HOST_PORT to pin.
       - "${ACTOR5_HOST_PORT:-0}:7999"
 
+  # ── Actor6 (VendorDeployer — FCVCV sixth actor slot) ─────────────────────
+  # Sixth actor container for the FCVCV scenario (DEMOMA-19-001).  Hosts V2
+  # (VendorDeployer), which holds both CVDRole.VENDOR and CVDRole.DEPLOYER and
+  # follows the full VFD fix path.  The neutral service name (actor6) avoids
+  # hard-coding a specific CVD role, consistent with the actor5 naming pattern.
+  actor6:
+    <<: *actor-service
+    environment:
+      - PYTHONPATH=/app
+      - VULTRON_SERVER__BASE_URL=http://actor6:7999/api/v2/
+      - VULTRON_DATABASE__DB_URL=sqlite:////app/data/mydb.sqlite
+      - VULTRON_ACTOR_ID=http://actor6:7999/api/v2/actors/vendor-deployer
+      - VULTRON_SEED_CONFIG=/app/docker/seed-configs/seed-actor6.yaml
+      - VULTRON_SERVER__LOG_LEVEL=${VULTRON_SERVER__LOG_LEVEL:-INFO}
+      # DEMOMA-19-001: actor6 hosts V2 (VendorDeployer) with both VENDOR and
+      # DEPLOYER roles so it can traverse the full VFD fix-deploy path.
+      - VULTRON_ACTOR__DEFAULT_CASE_ROLES=["vendor","deployer"]
+      # CP-08-003: actor6 self-hosts its CaseActors until #1700 is resolved.
+      - VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=http://actor6:7999/api/v2
+    volumes:
+      - "../vultron:/app/vultron"
+      - actor6-data:/app/data
+    ports:
+      # Ephemeral host port → container 7999.  Set ACTOR6_HOST_PORT to pin.
+      - "${ACTOR6_HOST_PORT:-0}:7999"
+
   # ── Demo orchestration container ──────────────────────────────────────────
   # Runs the configured multi-actor acceptance workflow. The script resets
   # the participating containers to a clean baseline, seeds the required
@@ -256,6 +282,8 @@ services:
         condition: service_healthy
       actor5:
         condition: service_healthy
+      actor6:
+        condition: service_healthy
     environment:
       - PYTHONPATH=/app
       # Base URLs for each actor service, accessible via Docker network.
@@ -264,6 +292,7 @@ services:
       - VULTRON_COORDINATOR_BASE_URL=http://coordinator:7999/api/v2
       - VULTRON_CASE_ACTOR_BASE_URL=http://case-actor:7999/api/v2
       - VULTRON_VENDOR2_BASE_URL=http://actor5:7999/api/v2
+      - VULTRON_VENDOR_DEPLOYER_BASE_URL=http://actor6:7999/api/v2
       # Run the selected multi-actor demo non-interactively. Override DEMO
       # at runtime (for example, DEMO=fvv) to switch scenarios.
       - DEMO=${DEMO:-fv}
@@ -291,3 +320,4 @@ volumes:
   coordinator-data:
   case-actor-data:
   actor5-data:
+  actor6-data:
