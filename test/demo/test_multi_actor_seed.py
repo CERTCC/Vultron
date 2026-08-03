@@ -37,6 +37,8 @@ VENDOR_ID = "http://vendor:7999/api/v2/actors/vendor"
 COORDINATOR_ID = "http://coordinator:7999/api/v2/actors/coordinator"
 CASE_ACTOR_ID = "http://case-actor:7999/api/v2/actors/case-actor"
 VENDOR2_ID = "http://actor5:7999/api/v2/actors/vendor2"
+VENDOR_DEPLOYER_ID = "http://actor6:7999/api/v2/actors/vendor-deployer"
+COORDINATOR2_ID = "http://actor5:7999/api/v2/actors/coordinator2"
 
 # Path to the docker/seed-configs/ directory (relative to project root).
 _REPO_ROOT = Path(__file__).parents[2]
@@ -178,14 +180,66 @@ class TestSeedCaseActorConfig:
 
 
 # ---------------------------------------------------------------------------
+# Tests for seed-actor6.yaml (FCVCV VendorDeployer — DEMOMA-19-001)
+# ---------------------------------------------------------------------------
+
+
+class TestSeedActor6Config:
+    def test_file_exists(self):
+        assert (_SEED_CONFIGS_DIR / "seed-actor6.yaml").exists()
+
+    def test_valid_seed_config_schema(self):
+        cfg = _load_seed_config("seed-actor6.yaml")
+        assert isinstance(cfg, SeedConfig)
+
+    def test_local_actor_id_is_deterministic(self):
+        cfg = _load_seed_config("seed-actor6.yaml")
+        assert cfg.local_actor.id_ == VENDOR_DEPLOYER_ID
+
+    def test_local_actor_type_is_organization(self):
+        cfg = _load_seed_config("seed-actor6.yaml")
+        assert cfg.local_actor.actor_type == "Organization"
+
+    def test_local_actor_name(self):
+        cfg = _load_seed_config("seed-actor6.yaml")
+        assert cfg.local_actor.name == "VendorDeployer"
+
+    def test_peers_include_finder_vendor_coordinator_coordinator2_case_actor(
+        self,
+    ):
+        cfg = _load_seed_config("seed-actor6.yaml")
+        peer_ids = {p.id_ for p in cfg.peers}
+        assert FINDER_ID in peer_ids
+        assert VENDOR_ID in peer_ids
+        assert COORDINATOR_ID in peer_ids
+        assert COORDINATOR2_ID in peer_ids
+        assert CASE_ACTOR_ID in peer_ids
+
+    def test_does_not_list_itself_as_peer(self):
+        cfg = _load_seed_config("seed-actor6.yaml")
+        peer_ids = {p.id_ for p in cfg.peers}
+        assert VENDOR_DEPLOYER_ID not in peer_ids
+
+    def test_has_exactly_five_peers(self):
+        cfg = _load_seed_config("seed-actor6.yaml")
+        assert len(cfg.peers) == 5, f"expected 5 peers, got {len(cfg.peers)}"
+
+
+# ---------------------------------------------------------------------------
 # Cross-config consistency tests
 # ---------------------------------------------------------------------------
 
 
 class TestSeedConfigCrossConsistency:
-    """All five configs must describe a consistent peer mesh."""
+    """All five original configs must describe a consistent peer mesh.
+
+    actor6 (seed-actor6.yaml) is excluded here: it has 5 peers (not 4) and the
+    other five actors do not yet list actor6 as a peer — that cross-registration
+    is deferred to DEMOMA-19-002 (seed_containers_fcvcv function).
+    """
 
     def test_all_configs_load_successfully(self):
+        # actor6 excluded — see class docstring (DEMOMA-19-002 pending)
         for filename in (
             "seed-finder.yaml",
             "seed-vendor.yaml",
@@ -360,3 +414,23 @@ class TestSeedCLIWithDeterministicId:
                 f"{filename}: expected 5 seed_actor calls "
                 f"(1 local + 4 peers), got {len(calls)}"
             )
+
+    def test_vendor_deployer_seed_uses_deterministic_id(self):
+        config_path = _SEED_CONFIGS_DIR / "seed-actor6.yaml"
+        calls, exit_code = self._run_seed_with_config(config_path)
+        assert exit_code == 0
+        local_call = next(
+            (c for c in calls if c["name"] == "VendorDeployer"), None
+        )
+        assert local_call is not None
+        assert local_call["actor_id"] == VENDOR_DEPLOYER_ID
+
+    def test_actor6_seed_call_count_is_six(self):
+        """actor6 has 5 peers (not 4), so CLI must make 6 seed_actor calls."""
+        config_path = _SEED_CONFIGS_DIR / "seed-actor6.yaml"
+        calls, exit_code = self._run_seed_with_config(config_path)
+        assert exit_code == 0
+        assert len(calls) == 6, (
+            f"seed-actor6.yaml: expected 6 seed_actor calls "
+            f"(1 local + 5 peers), got {len(calls)}"
+        )

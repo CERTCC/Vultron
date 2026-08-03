@@ -29,6 +29,7 @@
 #   CASE_ACTOR_HOST_PORT  Pin a specific host port for the case-actor service.
 #   COORDINATOR_HOST_PORT Pin a specific host port for the coordinator service.
 #   ACTOR5_HOST_PORT      Pin a specific host port for the actor5 service.
+#   ACTOR6_HOST_PORT      Pin a specific host port for the actor6 service.
 #   COMPOSE_SERVICE_COLORS
 #                         Path to a service-colors.env file that maps service
 #                         names to hex colors (default: docker/service-colors.env).
