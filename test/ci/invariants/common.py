@@ -357,19 +357,38 @@ def check_no_rm_state_oscillation(
 def check_rm_closed_termination(
     replicas: dict[str, list[dict]],
 ) -> list[str]:
-    """The log terminates with every participant in RM=CLOSED (Invariant 7)."""
+    """The log terminates with every participant in RM=CLOSED (Invariant 7).
+
+    Recognises two event types as RM-state carriers:
+
+    - ``add_participant_status_to_participant``: explicit RM state for the
+      participant in the ``payloadSnapshot`` (pre-ADR-0050 CS transitions).
+    - ``close_case``: signals ``RM=CLOSED`` for the departing actor whose ID
+      is in ``payloadSnapshot.actor`` (ADR-0050 canonical closure path via
+      ``Leave(VulnerabilityCase)``).
+    """
     auth = auth_entries(replicas)
     latest_rm: dict[str, str] = {}
     for e in auth:
-        if event_type(e) != "add_participant_status_to_participant":
-            continue
-        p_id, rm_state = participant_status_identity_and_rm(payload(e))
-        if p_id and rm_state:
-            latest_rm[p_id] = rm_state
+        et = event_type(e)
+        snap = payload(e)
+        if et == "add_participant_status_to_participant":
+            p_id, rm_state = participant_status_identity_and_rm(snap)
+            if p_id and rm_state:
+                latest_rm[p_id] = rm_state
+        elif et == "close_case":
+            # close_case entries record the departing actor in payloadSnapshot.actor
+            # (ADR-0050: Leave(VulnerabilityCase) is the canonical RM closure path).
+            actor_val = snap.get("actor")
+            if isinstance(actor_val, dict):
+                actor_val = actor_val.get("id")
+            if isinstance(actor_val, str) and actor_val:
+                latest_rm[actor_val] = "CLOSED"
 
     if not latest_rm:
         return [
-            "No add_participant_status_to_participant entries found in case-actor log"
+            "No add_participant_status_to_participant or close_case entries"
+            " found in case-actor log"
         ]
 
     return [

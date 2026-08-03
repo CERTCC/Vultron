@@ -1045,16 +1045,18 @@ class TestWaitForAllParticipantsRmClosed:
         )
         assert result is True
 
-    def test_url_based_participant_id_handled_gracefully(
+    def test_url_based_actor_keys_handled_gracefully(
         self, client: TestClient, base: str
     ):
-        """URL-based participant IDs (HTTP URLs with slashes) are now fetchable.
+        """URL-based actor IDs in actor_participant_index keys are fetchable.
 
-        Regression test for #610.  The Case Actor's participant ID is an HTTP
-        URL.  After the fix (``/{key:path}`` catch-all route), the DataLayer
-        endpoint correctly decodes the URL key and returns the stored record.
-        ``_all_fetchable_participants_rm_closed`` must also handle URL-based
-        IDs without error.
+        Regression test for #610.  The Case Actor's actor ID (index key) is an
+        HTTP URL; its participant record is stored under a ``urn:uuid:`` ID
+        (index value).  After the fix (``/{key:path}`` catch-all route), both
+        the Service object (HTTP-URL key) and the CaseParticipant (urn:uuid:
+        key) are fetchable via the DataLayer endpoint.
+        ``_all_fetchable_participants_rm_closed`` must also handle this layout
+        without error.
         """
         from urllib.parse import quote
 
@@ -1063,26 +1065,28 @@ class TestWaitForAllParticipantsRmClosed:
         )
         case_data = vendor_client.get(f"/datalayer/{case.id_}")
         fetched_case = as_VulnerabilityCase.model_validate(case_data)
-        url_based_ids = [
-            p_id
-            for p_id in fetched_case.actor_participant_index.values()
-            if p_id.startswith("http")
+
+        # actor_participant_index keys are actor IDs; the CaseActor key is an
+        # HTTP URL while participant IDs (values) are urn:uuid: URNs.
+        url_based_actor_ids = [
+            actor_id
+            for actor_id in fetched_case.actor_participant_index.keys()
+            if actor_id.startswith("http")
         ]
         assert (
-            url_based_ids
-        ), "Expected at least one URL-based participant ID (Case Actor)"
+            url_based_actor_ids
+        ), "Expected at least one URL-based actor ID (Case Actor) in index keys"
 
-        # After fix: URL-based participant IDs must be fetchable via
-        # the DataLayer endpoint with percent-encoded slashes.
-        p_id = url_based_ids[0]
-        encoded = quote(p_id, safe="")
+        # The CaseActor Service object (HTTP-URL key) must be fetchable.
+        actor_id = url_based_actor_ids[0]
+        encoded = quote(actor_id, safe="")
         result = vendor_client.get(f"/datalayer/{encoded}")
         assert (
-            isinstance(result, dict) and result.get("id") == p_id
-        ), f"Expected participant record for URL-format ID {p_id!r}, got {result!r}"
+            isinstance(result, dict) and result.get("id") == actor_id
+        ), f"Expected Service record for URL-format ID {actor_id!r}, got {result!r}"
 
-        # _all_fetchable_participants_rm_closed must also handle URL-based
-        # participant IDs without error.
+        # _all_fetchable_participants_rm_closed must also handle this layout
+        # without error.
         try:
             demo._all_fetchable_participants_rm_closed(
                 vendor_client, fetched_case
@@ -1090,7 +1094,7 @@ class TestWaitForAllParticipantsRmClosed:
         except Exception as exc:
             pytest.fail(
                 f"_all_fetchable_participants_rm_closed crashed on"
-                f" URL-based participant ID {p_id!r}: {exc}"
+                f" URL-based actor ID {actor_id!r}: {exc}"
             )
 
 
@@ -1825,8 +1829,11 @@ class TestCaseLedgerInvariants:
     ) -> None:
         """All tracked participants end in RM=CLOSED at scenario completion.
 
-        Scans add_participant_status entries in the combined case log and
-        checks the final RM state recorded for each participant.
+        Scans add_participant_status and close_case entries in the combined
+        case log to determine the final RM state per participant.
+        ``add_participant_status_to_participant`` entries carry the RM state
+        explicitly; ``close_case`` entries signal RM=CLOSED for the departing
+        actor recorded in ``payloadSnapshot.actor`` (ADR-0050, CM-23-002/003).
         Corresponds to CI invariant 7 (terminal RM state check) from
         test/ci/test_case_ledger_invariants.py.
         Spec: CLP-07.
@@ -1837,18 +1844,24 @@ class TestCaseLedgerInvariants:
         # CI invariant 7 — last RM state per participant must be CLOSED.
         latest_rm: dict[str, str] = {}
         for entry in entries:
-            if (
-                _log_event_type(entry)
-                != "add_participant_status_to_participant"
-            ):
-                continue
-            p_id, rm_state = _participant_id_and_rm(_log_payload(entry))
-            if p_id and rm_state:
-                latest_rm[p_id] = rm_state
+            event_type = _log_event_type(entry)
+            payload = _log_payload(entry)
+            if event_type == "add_participant_status_to_participant":
+                p_id, rm_state = _participant_id_and_rm(payload)
+                if p_id and rm_state:
+                    latest_rm[p_id] = rm_state
+            elif event_type == "close_case":
+                # close_case entries signal RM=CLOSED for the departing actor
+                # (ADR-0050: Leave(VulnerabilityCase) is the canonical closure path).
+                actor_id = payload.get("actor") or payload.get("attributedTo")
+                if isinstance(actor_id, dict):
+                    actor_id = actor_id.get("id")
+                if actor_id:
+                    latest_rm[str(actor_id)] = "CLOSED"
 
         assert latest_rm, (
-            "No add_participant_status_to_participant entries found in"
-            " combined case log; cannot verify terminal RM states."
+            "No add_participant_status_to_participant or close_case entries"
+            " found in combined case log; cannot verify terminal RM states."
         )
 
         not_closed = {
