@@ -166,3 +166,6 @@ plan/data/
 # Board/project node-ID cache — auto-regenerated on first run, contains volatile timestamp
 .agents/skills/shared/board-ids.json
 .idea/
+
+# graphify knowledge graph output
+graphify-out/

@@ -64,3 +64,20 @@ docker-compose up docs
 Then browse to <http://localhost:8000>
 
 The "real" site lives at <https://certcc.github.io/Vultron/>
+
+## Set up local development hooks
+
+After cloning, install the git hooks used in this project:
+
+```shell
+# Code quality hooks (black, markdownlint, flake8, spec/ADR validators)
+pre-commit install
+
+# Knowledge graph hooks (rebuilds graphify-out/ after commits and branch switches)
+# Optional — requires graphify: pip install graphifyy
+graphify hook install
+```
+
+The graphify hooks run in the background and only fire when `graphify-out/` already
+exists (i.e., after you've run `/graphify .` at least once). They won't interfere
+with the pre-commit hooks or slow down your commits.
