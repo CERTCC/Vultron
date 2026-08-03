@@ -100,7 +100,7 @@ KNOWN_VIOLATIONS: frozenset[str] = frozenset(
         "vultron/core/behaviors/case/nodes/conditions.py",
         "vultron/core/behaviors/case/nodes/lifecycle.py",
         "vultron/core/behaviors/case/nodes/participant/owner.py",
-        "vultron/core/behaviors/embargo/nodes/lifecycle.py",
+        "vultron/core/behaviors/embargo/nodes/emit.py",
         "vultron/core/behaviors/embargo/nodes/proposal.py",
         "vultron/core/behaviors/embargo/nodes/teardown.py",
         "vultron/core/behaviors/report/nodes/emit.py",
