@@ -792,8 +792,11 @@ def _seed_reporter_participant(
 
 
 def _seed_case_actor_participant(case_obj, report_id: str | None, dl) -> None:
+    import uuid as _uuid
+
     from vultron.config.app import get_config
     from vultron.core.behaviors.case.nodes.conditions import _derive_case_slug
+    from vultron.core.models.case_actor import CaseActor
     from vultron.core.models.case_participant import CaseParticipant
     from vultron.enums.roles import CVDRole
 
@@ -808,8 +811,29 @@ def _seed_case_actor_participant(case_obj, report_id: str | None, dl) -> None:
     case_actor_id = f"{base_url}/actors/case-actor-{case_slug}"
     if case_actor_id in case_obj.actor_participant_index:
         return
-    manager_p = CaseParticipant(
+
+    # Create the CaseActor Service object so that inbox delivery to the
+    # CaseActor succeeds in single-container test environments (the inbox
+    # endpoint resolves actors by short ID, which requires a Service row).
+    actor_obj = CaseActor(
         id_=case_actor_id,
+        name=f"CaseActor for {case_id}",
+        attributed_to=case_actor_id,
+        context=case_id,
+    )
+    try:
+        dl.create(actor_obj)
+    except ValueError:
+        pass
+
+    # CaseParticipant needs a distinct ID from the Service object —
+    # matching production where RegisterCaseActorParticipantNode creates
+    # the participant with a separate UUID attributed to case_actor_id.
+    participant_id = (
+        f"urn:uuid:{_uuid.uuid5(_uuid.NAMESPACE_URL, case_actor_id)}"
+    )
+    manager_p = CaseParticipant(
+        id_=participant_id,
         attributed_to=case_actor_id,
         context=case_id,
         name=f"CaseActor participant for {case_id}",

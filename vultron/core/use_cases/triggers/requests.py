@@ -92,6 +92,17 @@ class DeferCaseTriggerRequest(CaseTriggerRequest):
     pass
 
 
+class LeaveCaseTriggerRequest(CaseTriggerRequest):
+    """Trigger request for an actor to send Leave(VulnerabilityCase).
+
+    Routes ``Leave(VulnerabilityCase)`` to the Case Actor inbox so the
+    Case Actor can commit a ``close_case`` ledger entry and broadcast it
+    to all participants (ADR-0050).
+    """
+
+    pass
+
+
 class ProposeEmbargoTriggerRequest(CaseTriggerRequest):
     end_time: datetime  # pyright: ignore[reportGeneralTypeIssues]
 

@@ -145,20 +145,23 @@ def actor_closes_case(
     actor: as_Actor,
     case_id: str,
 ) -> dict:
-    """Self-report case closed (RM.CLOSED) via the demo trigger endpoint.
+    """Send Leave(VulnerabilityCase) via the demo trigger endpoint (ADR-0050).
 
-    When all participants report RM.CLOSED, the Case Actor automatically
-    closes the case (DEMOMA-07-003 step 5).
+    Triggers the canonical RM case closure path: the actor sends
+    ``Leave(VulnerabilityCase)`` to the Case Actor, which commits a
+    ``close_case`` ``CaseLedgerEntry`` and broadcasts it to all participants.
+    Each replica then advances the departing actor's RM state to ``RM.CLOSED``
+    via ``ApplyCloseCaseFromLedgerNode`` (CM-23-002/CM-23-003).
 
     Args:
         client: DataLayerClient connected to the actor's container.
-        actor: The actor closing the case.
+        actor: The actor sending Leave.
         case_id: Full URI of the ``VulnerabilityCase``.
 
     Returns:
         Response dict from the trigger endpoint.
 
-    Spec: DEMOMA-07-001.
+    Spec: DEMOMA-07-001, CM-23-002, CM-23-003.
     """
     with demo_step(f"Actor {ref_id(actor)} closes case"):
         return post_to_trigger(
