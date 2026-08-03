@@ -102,6 +102,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0030 Publish Leaf Expansion: Single Actuator → Draft-Review-Submit Pipeline](0030-publish-leaf-draft-review-submit-pipeline.md)
 - [ADR-0031 Introduce `vultron/enums/` as a Bottom-of-Stack Neutral Layer for Cross-Cutting Enumerations](0031-vultron-enums-neutral-layer.md)
 - [ADR-0032 Validate at the Edge, Promote to Strict Core Types](0032-validate-at-edge-promote-to-core.md)
+- [ADR-0033 Lifecycle-Staged Domain Types Anchored on Guaranteed-Field Changes](0033-lifecycle-staged-case-types.md)
 - [ADR-0034 DataLayer Port Returns Core Domain Objects](0034-datalayer-returns-core-objects.md)
 - [ADR-0035 Core Activity Representation and Envelope Reconstitution](0035-core-activity-representation-and-envelope-reconstitution.md)
 - [ADR-0036 Per-Machine Dimension Objects for CaseStatus and ParticipantStatus](0036-status-dimension-objects.md)
@@ -122,7 +123,6 @@ General information about architectural decision records is available at <https:
 ## Proposed ADRs
 
 - [ADR-0020 Move Inbox Orchestration into a Core BT Module with a Typed `process_payload` Seam](0020-inbox-bt-orchestration.md)
-- [ADR-0033 Lifecycle-Staged Domain Types Anchored on Guaranteed-Field Changes](0033-lifecycle-staged-case-types.md)
 
 ## Rejected ADRs
 
@@ -134,4 +134,4 @@ Retired ADRs (`status: deprecated` or `superseded`) are moved to
 `docs/adr/archived/` so they stay out of the default `docs/adr/` context sweep.
 Each is listed here with a forward link to its replacement.
 
-- [ADR-0015 Create VulnerabilityCase at Report Receipt (RM.RECEIVED)](0015-create-case-at-report-receipt.md) — superseded by 0041-caseactor-authoritative-case-initialization.md
+- [ADR-0015 Create VulnerabilityCase at Report Receipt (RM.RECEIVED)](archived/0015-create-case-at-report-receipt.md) — superseded by 0041-caseactor-authoritative-case-initialization.md

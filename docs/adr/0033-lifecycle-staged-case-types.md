@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-07-15
 deciders: Allen D. Householder
 consulted: Claude Code (design session)
@@ -115,10 +115,10 @@ cases and BT nodes already do. No stored "stage" field and no explicit
 `transition()` constructors, which would create a second place transitions can
 happen and risk divergence from the existing write paths.
 
-*(Recorded at ~70% confidence. The alternative — explicit transition
-constructors such as `case.to_embargoed(embargo)` — is documented below and may
-be reopened if the code-migration audit shows the field-mutation path is
-error-prone in practice.)*
+*(The alternative — explicit transition constructors such as
+`case.to_embargoed(embargo)` — is documented below and tracked as a revisit
+candidate in #1912; it may be reopened if the migration audit shows the
+field-mutation path is error-prone in practice.)*
 
 ### Consequences
 
@@ -187,6 +187,7 @@ Related:
 - ADR-0017 — Domain/Wire Object Separation (staged types live on the core
   branch).
 - #1362 — the source Idea.
+- #1912 — Idea: evaluate explicit transition constructors as a future write-path alternative.
 - `notes/lifecycle-staged-types.md` — full design guidance, three-class
   analysis, and the per-dimension-status **Future direction** trailhead.
 - `notes/domain-model-separation.md`, `notes/domain-validation.md`.
