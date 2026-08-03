@@ -179,7 +179,7 @@ class TestVerifyFixReadyVendorGuard:
 
 
 class TestVerifyFixDeployedVendorGuard:
-    """DEMOMA-15-001: verify_fix_deployed raises when actor is not a VENDOR."""
+    """DEMOMA-15-001: verify_fix_deployed raises when actor holds neither CVDRole.VENDOR nor CVDRole.DEPLOYER."""
 
     def test_non_vendor_actor_raises_assertionerror(self):
         """Passing a Coordinator actor ID raises AssertionError."""
