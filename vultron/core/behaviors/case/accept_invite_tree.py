@@ -58,10 +58,7 @@ from vultron.core.models.vultron_types import VultronParticipant
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import (
-    PEC_Trigger,
-    apply_pec_trigger,
-)
+from vultron.core.states.participant_embargo_consent import PEC_Trigger
 from vultron.core.states.rm import RM
 from vultron.enums.roles import validate_roles
 from vultron.core.models._helpers import _as_id
@@ -490,9 +487,7 @@ class _SignEmbargoConsentLeafNode(DataLayerAction):
             return Status.FAILURE
 
         participant.accepted_embargo_ids.append(active_embargo_id)
-        participant.embargo_consent_state = apply_pec_trigger(
-            participant.embargo_consent_state, PEC_Trigger.ACCEPT
-        )
+        participant.apply_pec_transition(PEC_Trigger.ACCEPT)
         self.logger.info(
             "%s: signed embargo consent for invitee '%s' (EM.ACTIVE,"
             " CM-10-001)",

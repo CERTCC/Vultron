@@ -55,7 +55,6 @@ from vultron.core.states.em import EM, EM_Trigger, EMAdapter, create_em_machine
 from vultron.core.states.participant_embargo_consent import (
     PEC,
     PEC_Trigger,
-    apply_pec_trigger,
 )
 from vultron.core.models._helpers import _as_id
 from vultron.errors import (
@@ -682,12 +681,10 @@ class EmbargoLifecycle:
             )
 
         pec_before = participant.embargo_consent_state
-        current_pec = PEC(pec_before)
         changed = False
 
-        new_pec = apply_pec_trigger(current_pec, pec_trigger)
-        if new_pec != current_pec:
-            participant.embargo_consent_state = new_pec
+        participant.apply_pec_transition(pec_trigger)
+        if participant.embargo_consent_state != pec_before:
             changed = True
 
         if pec_trigger == PEC_Trigger.ACCEPT and embargo_id is not None:
@@ -834,13 +831,10 @@ class EmbargoLifecycle:
             return []
 
         pec_before = participant.embargo_consent_state
-        current_pec = PEC(pec_before)
         changed = False
 
-        if current_pec != PEC.SIGNATORY:
-            participant.embargo_consent_state = apply_pec_trigger(
-                current_pec, PEC_Trigger.ACCEPT
-            )
+        if participant.embargo_consent_state != PEC.SIGNATORY.value:
+            participant.apply_pec_transition(PEC_Trigger.ACCEPT)
             changed = True
 
         if embargo_id not in participant.accepted_embargo_ids:
@@ -887,13 +881,10 @@ class EmbargoLifecycle:
             return []
 
         pec_before = participant.embargo_consent_state
-        current_pec = PEC(pec_before)
         changed = False
 
-        if current_pec != PEC.DECLINED:
-            participant.embargo_consent_state = apply_pec_trigger(
-                current_pec, PEC_Trigger.DECLINE
-            )
+        if participant.embargo_consent_state != PEC.DECLINED.value:
+            participant.apply_pec_transition(PEC_Trigger.DECLINE)
             changed = True
 
         if embargo_id in participant.accepted_embargo_ids:
@@ -932,9 +923,7 @@ class EmbargoLifecycle:
             if participant.embargo_consent_state == PEC.NO_EMBARGO.value:
                 continue
             pec_before = participant.embargo_consent_state
-            participant.embargo_consent_state = apply_pec_trigger(
-                PEC(pec_before), PEC_Trigger.RESET
-            )
+            participant.apply_pec_transition(PEC_Trigger.RESET)
             self._persistence.save(participant)
             changes.append(
                 ParticipantPECChange(
@@ -965,9 +954,7 @@ class EmbargoLifecycle:
                 continue
             if participant.embargo_consent_state == PEC.SIGNATORY.value:
                 pec_before = participant.embargo_consent_state
-                participant.embargo_consent_state = apply_pec_trigger(
-                    PEC.SIGNATORY, PEC_Trigger.REVISE
-                )
+                participant.apply_pec_transition(PEC_Trigger.REVISE)
                 self._persistence.save(participant)
                 changes.append(
                     ParticipantPECChange(

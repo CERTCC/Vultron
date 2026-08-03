@@ -24,11 +24,7 @@ from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
 )
-from vultron.core.states.participant_embargo_consent import (
-    PEC,
-    PEC_Trigger,
-    apply_pec_trigger,
-)
+from vultron.core.states.participant_embargo_consent import PEC_Trigger
 
 
 class UpdateParticipantEmbargoPecNode(DataLayerAction):
@@ -78,10 +74,7 @@ class UpdateParticipantEmbargoPecNode(DataLayerAction):
             )
             return Status.SUCCESS
 
-        new_state = apply_pec_trigger(
-            PEC(participant.embargo_consent_state), self.pec_trigger
-        )
-        participant.embargo_consent_state = new_state
+        participant.apply_pec_transition(self.pec_trigger)
         self.datalayer.save(participant)
 
         self.feedback_message = (

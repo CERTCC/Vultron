@@ -19,7 +19,6 @@ from vultron.core.ports.case_persistence import (
 from vultron.core.states.participant_embargo_consent import (
     PEC,
     PEC_Trigger,
-    apply_pec_trigger,
 )
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
@@ -485,9 +484,7 @@ def reset_case_participant_embargo_consent(
         if not isinstance(participant, CaseParticipant):
             continue
         if participant.embargo_consent_state != PEC.NO_EMBARGO.value:
-            participant.embargo_consent_state = apply_pec_trigger(
-                PEC(participant.embargo_consent_state), PEC_Trigger.RESET
-            )
+            participant.apply_pec_transition(PEC_Trigger.RESET)
             dl.save(participant)
 
 

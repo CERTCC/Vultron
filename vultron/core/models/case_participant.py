@@ -45,7 +45,7 @@ from vultron.core.models.participant_status import (
     coerce_cvd_roles,
     coerce_em_consent_state,
 )
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.core.states.rm import RM, is_valid_rm_transition
 from vultron.enums.roles import CVDRole, serialize_roles, validate_roles
 
@@ -129,6 +129,26 @@ class CaseParticipant(CoreObject):
             if _consent_state is not None
             else None
         )
+
+    def apply_pec_transition(self, trigger: PEC_Trigger) -> None:
+        """Apply *trigger* to the PEC state machine and sync ParticipantStatus.
+
+        Uses ``PecDimension.transition()`` for fail-closed FSM validation
+        (raises ``VultronInvalidStateTransitionError`` on an illegal trigger),
+        then updates ``embargo_consent_state`` and syncs the latest
+        ``ParticipantStatus.consent`` via ``_sync_latest_status_metadata()``.
+
+        This is the single authoritative consent-write path (CM-18-005,
+        CM-18-006, ADR-0048).  All sites that record a PEC change MUST call
+        this method instead of assigning ``embargo_consent_state`` directly or
+        using the ``apply_pec_trigger()`` helper.
+        """
+        current_pec = coerce_em_consent_state(self.embargo_consent_state)
+        if current_pec is None:
+            current_pec = PEC.NO_EMBARGO
+        new_dim = PecDimension(state=current_pec).transition(trigger)
+        self.embargo_consent_state = new_dim.state
+        self._sync_latest_status_metadata()
 
     @property
     def participant_status(self) -> ParticipantStatus | None:

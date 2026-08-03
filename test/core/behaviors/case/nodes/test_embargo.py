@@ -286,3 +286,48 @@ class TestInitializeDefaultEmbargoNode:
         assert calls == [
             ("propose", case_obj.id_, embargo.id_, "STRICT"),
         ]
+
+
+class TestSeedOwnerAsSignatoryNode:
+    """SeedOwnerAsSignatoryNode is idempotent when participant is already SIGNATORY."""
+
+    def test_already_signatory_is_idempotent(
+        self,
+        bt_scenario: BTTestScenario,
+        actor: VultronCaseActor,
+        actor_id: str,
+        case_obj: VultronCase,
+    ) -> None:
+        """AC-5: SIGNATORY participant stays SIGNATORY without raising.
+
+        SeedOwnerAsSignatoryNode guards against ACCEPT from SIGNATORY
+        (which would raise VultronInvalidStateTransitionError). The node
+        must succeed idempotently when the participant is already SIGNATORY.
+        """
+        bt_scenario.run(
+            CreateCaseOwnerParticipant(),
+            actor_id=actor_id,
+            case_id=case_obj.id_,
+        )
+
+        bt_scenario.run(
+            InitializeDefaultEmbargoNode(),
+            actor_id=actor_id,
+            case_id=case_obj.id_,
+        )
+
+        stored_case = cast(Any, bt_scenario.dl.read(case_obj.id_))
+        participant_id = stored_case.actor_participant_index.get(actor_id)
+        participant = cast(Any, bt_scenario.dl.read(participant_id))
+        assert participant.embargo_consent_state == PEC.SIGNATORY
+
+        result = bt_scenario.run(
+            SeedOwnerAsSignatoryNode(),
+            actor_id=actor_id,
+            case_id=case_obj.id_,
+            default_embargo_initialized=True,
+        )
+        assert result.status == Status.SUCCESS
+
+        refreshed = cast(Any, bt_scenario.dl.read(participant_id))
+        assert refreshed.embargo_consent_state == PEC.SIGNATORY
