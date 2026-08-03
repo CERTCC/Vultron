@@ -81,8 +81,11 @@ Chosen option: **`Leave(VulnerabilityCase)` only**, because:
   is the implementation of the `Leave` receive path.
 - `create_close_case_received_tree` in
   `vultron/core/behaviors/case/receive_close_case_tree.py` is the BT factory.
-- Tests verifying RM.CLOSED is reached only after the ledger round-trip:
-  `test/core/use_cases/test_leave_case_round_trip.py`.
+- Tests for the `Leave` receive path:
+  `test/core/use_cases/received/test_close_case_routing.py` and
+  `test/core/use_cases/triggers/test_close_case_trigger.py`.
+  A dedicated ledger round-trip test is planned in the sidecar
+  implementation issues (#1916, #1917).
 - After #1901 lands: no `AutoCloseSequence` in `add_participant_status_tree`
   (regression test AC on the cleanup issue from #1910).
 
