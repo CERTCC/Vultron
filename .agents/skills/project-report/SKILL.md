@@ -102,12 +102,24 @@ Write the full report following the structure and tone guidelines in
 - **Footer line**: `*Report covers: <start> through <end> | Repository:
   [CERTCC/Vultron](https://github.com/CERTCC/Vultron)*`
 
+**Before holding the draft**, do a mandatory jargon scan: read every sentence
+and ask "would a work sponsor who has never read the source code understand
+this?" For each insider term found, either add a brief inline gloss the first
+time it appears, or rewrite the sentence in plain language. See
+[REFERENCE.md](REFERENCE.md) for the known-jargon list and rewrite examples.
+
 Hold the draft in memory — do not write to the output path yet.
 
 ### Phase 5 — Review with user
 
-Use `ask_user` to present the draft. Offer:
-`["Looks good — write it out", "I have feedback"]`
+Use `ask_user` to present the draft. Frame the review question explicitly for
+a non-developer audience:
+
+> "Does this draft read clearly for a work sponsor who doesn't know the Vultron
+> codebase? Please flag any terms or passages that need plain-language rewrites,
+> or select 'Looks good' to write the file."
+
+Offer: `["Looks good — write it out", "I have feedback"]`
 
 If the user selects "I have feedback", incorporate the feedback and ask again.
 
