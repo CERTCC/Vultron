@@ -36,6 +36,9 @@ Always-relevant notes for implementation work:
 
 - `notes/architecture-hexagonal.md` — layer rules and import constraints
 - `notes/codebase-structure.md` — common pitfalls and file organization
+- `notes/triggers-test-coverage.md` — **always read when the task adds or
+  touches any `SvcXxxUseCase` class**; documents which trigger use-cases
+  require a dedicated test file under `test/core/use_cases/triggers/`
 
 Read additional notes files based on focus hints. When in doubt, read
 rather than skip — missing context causes incorrect implementation.

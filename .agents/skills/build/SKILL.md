@@ -153,6 +153,14 @@ on what "done" means — loaded by `orient-agent` in Phase 1.
    test is not done.
 4. Reuse existing helpers and keep the implementation DRY.
 5. Sub-agents may help, but main-agent validation is mandatory.
+6. **Pattern-change checklist** — run this before opening the PR:
+   - If this PR retires a method or establishes a new pattern, grep
+     `AGENTS.md` for the old name and update any stale pitfalls in this PR.
+   - Grep `notes/` for references to any symbol, method, or table entry
+     you changed and update stale rows in this PR.
+   - If any new `SvcXxxUseCase` class was added, confirm a matching file
+     exists under `test/core/use_cases/triggers/` (see
+     `notes/triggers-test-coverage.md`).
 
 **Scope expansion judgment:** If implementing this task reveals adjacent work
 that clearly belongs with it, apply the following:
