@@ -83,9 +83,21 @@ Read from `docs/reference/codebase/` based on task scope:
 
 ### Step 4 — Scan the codebase
 
-Search `vultron/` and `test/` to verify assumptions about what is currently
-implemented. Do not assert missing functionality without evidence from code
-search.
+If `graphify-out/graph.json` exists, use the graph as the primary search tool:
+
+- `graphify query "<focus hint or concept>"` — broad orientation: which files,
+  communities, and nodes are relevant to this area
+- `graphify path "<ConceptA>" "<ConceptB>"` — trace the connection between two
+  concepts when the task spans a seam (e.g. wire layer → BT integration)
+- `graphify explain "<ClassName or function>"` — plain-language summary of a
+  specific node before reading its source
+
+After graph traversal, read raw source files only for lines you need to
+verify or modify — the graph gives you the map; file reads give you the exact
+text. Do not grep blindly when `graphify query` will orient you first.
+
+If no graph exists, fall back to searching `vultron/` and `test/` directly.
+Do not assert missing functionality without evidence from code search.
 
 ## Notes
 
