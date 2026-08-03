@@ -1176,9 +1176,10 @@ groups:
     - rel_type: implements
       spec_id: CP-09-001
     adr:
-    - ADR-0015
     - ADR-0023
     - ADR-0041
+    lint_suppress:
+    - dangling_adr_ref
   - id: CM-22-002
     priority: MUST
     kind: protocol

@@ -162,17 +162,17 @@ groups:
     statement: Protocol shorthand `EE` (Embargo Management Error) has no dedicated `MessageSemantics` dispatch value and no
       entry in `SEMANTICS_ACTIVITY_PATTERNS`; it is a protocol-layer error signal with no AS2 wire representation in the current
       semantic registry.
-    testable: false
-    rationale: 'Symmetric with MSM-01-007 (`RE`): embargo-layer error signals are not modeled as AS2 semantic dispatch entries.'
+    rationale: 'Symmetric with MSM-01-007 (`RE`): embargo-layer error signals are not modeled as AS2 semantic dispatch entries.
+      Tests SHOULD assert that `EE` is absent from `MessageSemantics` and `SEMANTICS_ACTIVITY_PATTERNS` to catch unintended
+      additions.'
   - id: MSM-02-009
     priority: MUST
     kind: protocol
     statement: Protocol shorthand `EK` (Embargo Management Acknowledgment) has no dedicated `MessageSemantics` dispatch value
       and no entry in `SEMANTICS_ACTIVITY_PATTERNS`; it is a protocol-layer acknowledgment signal with no AS2 wire representation
       in the current semantic registry.
-    testable: false
     rationale: 'Symmetric with MSM-01-007 (`RE`): embargo-layer acknowledgment signals are not modeled as AS2 semantic dispatch
-      entries.'
+      entries. Tests SHOULD assert that `EK` is absent from `MessageSemantics` and `SEMANTICS_ACTIVITY_PATTERNS`.'
 - id: MSM-03
   title: CS Protocol Message Shorthands
   description: Normative shorthand-to-semantic mappings for CVD Case State (CS) protocol messages, covering CV, CF, CD, CP,
@@ -239,15 +239,13 @@ groups:
     statement: Protocol shorthand `CE` (Case State Error) has no dedicated `MessageSemantics` dispatch value and no entry
       in `SEMANTICS_ACTIVITY_PATTERNS`; it is a protocol-layer error signal with no AS2 wire representation in the current
       semantic registry.
-    testable: false
     rationale: 'Symmetric with MSM-01-007 (`RE`): case-state-layer error signals are not modeled as AS2 semantic dispatch
-      entries.'
+      entries. Tests SHOULD assert that `CE` is absent from `MessageSemantics` and `SEMANTICS_ACTIVITY_PATTERNS`.'
   - id: MSM-03-008
     priority: MUST
     kind: protocol
     statement: Protocol shorthand `CK` (Case State Acknowledgment) has no dedicated `MessageSemantics` dispatch value and
       no entry in `SEMANTICS_ACTIVITY_PATTERNS`; it is a protocol-layer acknowledgment signal with no AS2 wire representation
       in the current semantic registry.
-    testable: false
     rationale: 'Symmetric with MSM-01-007 (`RE`): case-state-layer acknowledgment signals are not modeled as AS2 semantic
-      dispatch entries.'
+      dispatch entries. Tests SHOULD assert that `CK` is absent from `MessageSemantics` and `SEMANTICS_ACTIVITY_PATTERNS`.'
