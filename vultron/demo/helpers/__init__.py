@@ -27,7 +27,9 @@ Sub-modules
 - :mod:`~vultron.demo.helpers.runner` — ``run_exchange_demos`` and
   ``check_all_containers``.
 - :mod:`~vultron.demo.helpers.seeding` — ``_dl_key``, ``get_actor_by_id``,
-  ``seed_containers``, ``seed_containers_fvv``, and ``reset_containers``.
+  ``seed_containers``, ``seed_containers_fvv``, ``seed_containers_fccv``,
+  ``seed_containers_fcv``, ``seed_containers_fcvcv``, and
+  ``reset_containers``.
 - :mod:`~vultron.demo.helpers.sync` — SYNC-2 ``trigger_log_commit`` and
   ``verify_replica_state``.
 - :mod:`~vultron.demo.helpers.verification` — lower-level participant and
@@ -86,6 +88,9 @@ from vultron.demo.helpers.seeding import (  # noqa: F401
     get_actor_by_id,
     reset_containers,
     seed_containers,
+    seed_containers_fccv,
+    seed_containers_fcv,
+    seed_containers_fcvcv,
     seed_containers_fvv,
 )
 from vultron.demo.helpers.sync import (  # noqa: F401

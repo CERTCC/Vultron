@@ -76,22 +76,38 @@ class TestSeedContainersFcvcv:
         for actor in (finder, c1, v1, c2, v2):
             assert actor.id_ is not None
 
-    def test_finder_container_knows_all_peers(self, base: str):
+    def test_all_containers_know_all_peers(self, base: str):
         finder_client = make_client(base)
+        c1_client = make_client(base)
+        v1_client = make_client(base)
+        c2_client = make_client(base)
+        v2_client = make_client(base)
         seed_containers_fcvcv(
             finder_client=finder_client,
-            c1_client=make_client(base),
-            v1_client=make_client(base),
-            c2_client=make_client(base),
-            v2_client=make_client(base),
+            c1_client=c1_client,
+            v1_client=v1_client,
+            c2_client=c2_client,
+            v2_client=v2_client,
         )
-        actors = finder_client.get("/actors/")
-        names = {a.get("name") for a in actors if isinstance(a, dict)}
-        assert "Finder" in names
-        assert "Coordinator1" in names
-        assert "Vendor1" in names
-        assert "Coordinator2" in names
-        assert "VendorDeployer" in names
+        expected_names = {
+            "Finder",
+            "Coordinator1",
+            "Vendor1",
+            "Coordinator2",
+            "VendorDeployer",
+        }
+        for label, client in [
+            ("finder", finder_client),
+            ("c1", c1_client),
+            ("v1", v1_client),
+            ("c2", c2_client),
+            ("v2", v2_client),
+        ]:
+            actors = client.get_list("/actors/")
+            names = {a.get("name") for a in actors if isinstance(a, dict)}
+            assert (
+                expected_names <= names
+            ), f"{label} container missing peers: {expected_names - names}"
 
     def test_deterministic_ids_are_honored(self, base: str):
         finder_id = f"{base}/actors/finder-fcvcv-det"
