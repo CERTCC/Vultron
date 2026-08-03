@@ -156,10 +156,21 @@ in [#1484](https://github.com/CERTCC/Vultron/issues/1484)). Migrating the
 received-side EM transitions to `EmbargoLifecycle` (AC-3 of #1484) is still
 pending.
 
-**Auto-terminate on publication** (CS.P event): handled by
-`PublicDisclosureBranchNode` in `vultron/core/behaviors/status/nodes/lifecycle.py`,
-which delegates to the shared `terminate_embargo_bt` factory. This is the
-cascade path for AC-2 of issue #1454.
+**Auto-terminate on publication** (CS.P/X/A event): handled by
+`PublicDisclosureBranchNode` in `vultron/core/behaviors/status/nodes/lifecycle.py`.
+The node is a Selector with two arms depending on the current EM state:
+
+- **EM ACTIVE or REVISE** → delegates to `terminate_embargo_bt` (ET + EM →
+  EXITED). This is the cascade path for AC-2 of issue #1454.
+- **EM PROPOSED** → delegates to `reject_embargo_trigger_bt` (ER + EM →
+  NO_EMBARGO). EMB-16-001: continuing to negotiate a proposed embargo after
+  P/X/A is set is not viable; the proposal must be abandoned immediately.
+- **EM NO_EMBARGO or EXITED** → skip (nothing to tear down).
+
+Prior to the fix in issue #1892, the skip condition used
+`case.active_embargo is None` to detect "no embargo", which silently bypassed
+the PROPOSED arm — `active_embargo` is always None when EM is PROPOSED because
+the embargo has not yet been activated. The fix checks EM state directly.
 
 Trigger use cases are thin orchestrators: resolve actors/cases → call
 `EmbargoLifecycle` → build and send the outbound activity.
@@ -204,6 +215,12 @@ When implementing any code that transitions embargo state:
 5. **OBSERVED mode** (received-side): pass
    `transition_mode=TransitionMode.OBSERVED` to sync local state with a remote
    assertion. All guards and PEC cascades are bypassed in OBSERVED mode.
+6. **PROPOSED + P/X/A**: when a CS public/exploit/attacks event fires while EM
+   is PROPOSED, use `reject_embargo_trigger_bt` (not `terminate_embargo_bt`).
+   `terminate_embargo_bt` requires an active embargo (`HasActiveEmbargoNode`
+   guard); it fails when EM is PROPOSED. `reject_embargo_trigger_bt` calls
+   `reject_embargo_invite()` which handles PROPOSED → NO_EMBARGO correctly
+   (EMB-16-001).
 
 ---
 
