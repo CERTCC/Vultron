@@ -932,10 +932,6 @@ def _phase_dump_case_ledgers(
     c1_client: DataLayerClient,
     c2_client: DataLayerClient,
     vendor_client: DataLayerClient,
-    finder: as_Actor,
-    c1: as_Actor,
-    c2: as_Actor,
-    vendor: as_Actor,
     case: as_VulnerabilityCase,
     demo_name: str = "fccv-handoff",
 ) -> None:
@@ -1164,10 +1160,6 @@ def run_fccv_handoff_demo(
         c1_client=c1_client,
         c2_client=c2_client,
         vendor_client=vendor_client,
-        finder=finder,
-        c1=c1,
-        c2=c2,
-        vendor=vendor_in_vendor,
         case=case,
     )
 

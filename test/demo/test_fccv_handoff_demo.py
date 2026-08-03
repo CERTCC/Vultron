@@ -325,3 +325,99 @@ class TestFccvHandoffCliCommand:
         runner = CliRunner()
         result = runner.invoke(main, ["fccv-handoff", "--help"])
         assert "--case-actor-url" in result.output
+
+
+# ---------------------------------------------------------------------------
+# Unit tests for _phase_dump_case_ledgers
+# ---------------------------------------------------------------------------
+
+
+class TestPhaseDumpCaseLedgersFccv:
+    """Tests for the case-ledger dump phase in the FCCV-handoff demo."""
+
+    def test_writes_jsonl_files_for_all_four_actors(
+        self, tmp_path, monkeypatch
+    ):
+        finder_client = MagicMock()
+        c1_client = MagicMock()
+        c2_client = MagicMock()
+        vendor_client = MagicMock()
+        finder_client.get_list.return_value = [{"logIndex": 0}]
+        c1_client.get_list.return_value = [{"logIndex": 0}]
+        c2_client.get_list.return_value = [{"logIndex": 0}]
+        vendor_client.get_list.return_value = [{"logIndex": 0}]
+
+        case = demo.as_VulnerabilityCase(
+            id_="https://example.org/cases/fccv-test-case"
+        )
+        monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
+
+        demo._phase_dump_case_ledgers(
+            finder_client=finder_client,
+            c1_client=c1_client,
+            c2_client=c2_client,
+            vendor_client=vendor_client,
+            case=case,
+        )
+
+        case_slug = "https_example.org_cases_fccv-test-case"
+        assert (
+            tmp_path
+            / "fccv-handoff"
+            / "finder"
+            / f"{case_slug}-case-ledger.jsonl"
+        ).exists()
+        assert (
+            tmp_path
+            / "fccv-handoff"
+            / "vendor"
+            / f"{case_slug}-case-ledger.jsonl"
+        ).exists()
+        assert (
+            tmp_path
+            / "fccv-handoff"
+            / "coordinator"
+            / f"{case_slug}-case-ledger.jsonl"
+        ).exists()
+        assert (
+            tmp_path
+            / "fccv-handoff"
+            / "vendor2"
+            / f"{case_slug}-case-ledger.jsonl"
+        ).exists()
+
+    def test_includes_case_actor_when_in_participant_index(
+        self, tmp_path, monkeypatch
+    ):
+        finder_client = MagicMock()
+        c1_client = MagicMock()
+        c2_client = MagicMock()
+        vendor_client = MagicMock()
+        finder_client.get_list.return_value = [{"logIndex": 0}]
+        c1_client.get_list.return_value = [{"logIndex": 0}]
+        c2_client.get_list.return_value = [{"logIndex": 0}]
+        vendor_client.get_list.return_value = [{"logIndex": 0}]
+
+        case = demo.as_VulnerabilityCase(
+            id_="https://example.org/cases/fccv-with-ca",
+            actor_participant_index={
+                "https://example.org/actors/case-actor-fccv": (
+                    "https://example.org/cases/fccv-with-ca/participants/case-actor"
+                )
+            },
+        )
+        monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
+
+        demo._phase_dump_case_ledgers(
+            finder_client=finder_client,
+            c1_client=c1_client,
+            c2_client=c2_client,
+            vendor_client=vendor_client,
+            case=case,
+        )
+
+        assert any(
+            "/actors/case-actor-fccv/demo/cases/fccv-with-ca/log"
+            in call.args[0]
+            for call in c1_client.get_list.call_args_list
+        )
