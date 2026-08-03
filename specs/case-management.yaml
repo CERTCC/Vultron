@@ -1235,3 +1235,146 @@ groups:
       spec_id: CP-09-003
     adr:
     - ADR-0041
+
+- id: CM-23
+  title: RM Case Closure via Leave(VulnerabilityCase)
+  description: >-
+    Requirements for the canonical RM case closure path: Leave(VulnerabilityCase)
+    is the sole mechanism for advancing a participant's RM state to CLOSED.
+    Add(ParticipantStatus, rm_state=RM.CLOSED) is not a valid closure trigger.
+    See ADR-0050 (Leave is canonical for RM closure) and ADR-0051
+    (CaseActor RM lifecycle).
+  specs:
+  - id: CM-23-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      RM case closure MUST flow through Leave(VulnerabilityCase) → Case Actor
+      ledger commit → broadcast → each replica advances the leaving participant's
+      RM state to RM.CLOSED on receipt of the Announce(CaseLedgerEntry).
+      Add(ParticipantStatus, rm_state=RM.CLOSED) MUST NOT be used as a closure
+      trigger.
+    rationale: >-
+      The Leave round-trip makes the Case Actor the authority for closure and
+      prevents ghost-departures from lost messages: a participant cannot
+      silently reach RM.CLOSED on peers without the Case Actor having committed
+      and broadcast a ledger entry.  See ADR-0050.
+    adr:
+    - ADR-0050
+  - id: CM-23-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the Case Actor receives Leave(VulnerabilityCase) from the Case Owner,
+      it MUST execute the following sequence:
+      (1) advance the Case Owner participant to RM.CLOSED,
+      (2) advance the Case Actor's own CaseParticipant to RM.CLOSED,
+      (3) emit a final case_fully_closed CaseLedgerEntry as the last ledger entry
+          for the case,
+      (4) fan-out the final entry to all participants not already at RM.CLOSED.
+    rationale: >-
+      The Case Owner's departure is the authoritative termination event for a
+      case.  Making the Case Actor's own RM.CLOSED the penultimate step and
+      case_fully_closed the final entry gives all replicas an unambiguous
+      terminal anchor in the ledger chain.  See ADR-0050, ADR-0051.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-23-001
+    adr:
+    - ADR-0050
+    - ADR-0051
+  - id: CM-23-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the Case Actor receives Leave(VulnerabilityCase) from a non-owner
+      participant, it MUST advance only that participant's RM state to RM.CLOSED
+      and commit a CaseLedgerEntry recording the departure.  The case MUST remain
+      open for the remaining participants.
+    rationale: >-
+      Non-owner departure is a participant-scoped event, not a case termination
+      event.  Treating a non-owner Leave identically to an owner Leave would
+      prematurely close the case and violate the Case Owner's authority over the
+      case lifecycle.  See ADR-0050.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-23-001
+    adr:
+    - ADR-0050
+  - id: CM-23-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Case Actor fan-out of CaseLedgerEntry MUST NOT send entries to participants
+      whose latest ParticipantStatus has rm_state=RM.CLOSED.
+    rationale: >-
+      Once a participant reaches RM.CLOSED they have departed the case and no
+      longer need (or should receive) case updates.  Continuing to send them
+      entries wastes bandwidth and may trigger erroneous processing on stale
+      replicas.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-23-001
+  - id: CM-23-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The Case Actor MUST track its own RM lifecycle via a CaseParticipant
+      record with ParticipantStatus entries that advance through
+      RM.RECEIVED, RM.VALID, and RM.ACCEPTED during case initialization,
+      and RM.CLOSED on case termination (owner Leave).  Each transition
+      MUST be recorded as a CaseLedgerEntry.
+    rationale: >-
+      Uniform RM lifecycle tracking across all participants (including the
+      coordinator) enables case-level RM state to be read consistently from
+      the ledger without special-casing the Case Actor.  See ADR-0051.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-23-002
+    adr:
+    - ADR-0051
+  - id: CM-23-006
+    priority: MUST
+    kind: protocol
+    statement: >-
+      For the Case Actor's CaseParticipant, the RM states have the following
+      case-actor-specific meanings:
+      RM.RECEIVED = a CaseProposal has been received and is being evaluated;
+      RM.VALID = the CaseProposal is correctly formatted and actionable by this
+      Case Actor, and case creation has begun;
+      RM.ACCEPTED = the case has been successfully created and is being
+      coordinated;
+      RM.CLOSED = the Case Owner has left the case and the case is fully closed.
+    rationale: >-
+      The RM state machine models a lifecycle that applies to any actor
+      processing a case, but its transition labels (RECEIVED, VALID, ACCEPTED,
+      CLOSED) map to case-level events for the coordinator rather than to
+      report-validation events as for other participants.  See ADR-0051.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-23-005
+    adr:
+    - ADR-0051
+  - id: CM-23-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      During case initialization (after accepting a CaseProposal), the Case
+      Actor MUST emit CaseLedgerEntry records for each of its own RM transitions:
+      (a) CaseActor→RM.RECEIVED when the CaseProposal arrives,
+      (b) CaseActor→RM.VALID when the proposal is validated and case creation
+          begins,
+      (c) CaseActor→RM.ACCEPTED when the VulnerabilityCase is successfully
+          created and initialized.
+    rationale: >-
+      Ledger entries for the Case Actor's own RM transitions create a traceable,
+      timestamped protocol-significant history of case initialization, consistent
+      with CM-02-009 (CaseActor applies its own timestamp to every state-changing
+      event).  See ADR-0051.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-23-005
+    - rel_type: refines
+      spec_id: CM-02-009
+    adr:
+    - ADR-0051

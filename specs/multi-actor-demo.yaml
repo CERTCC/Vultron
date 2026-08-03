@@ -346,10 +346,21 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      CS state transitions (fix-ready, fix-deployed, published) and RM case closure MUST
-      all be driven through participant status updates via
-      Add(ParticipantStatus, target=Case) sent to the Case Actor inbox, not through dedicated
-      low-level state-machine endpoints
+      CS state transitions (fix-ready, fix-deployed, published) MUST be driven through
+      participant status updates via Add(ParticipantStatus, target=Case) sent to the Case
+      Actor inbox, not through dedicated low-level state-machine endpoints.
+      RM case closure is explicitly excluded from this requirement: RM.CLOSED MUST be
+      reached via the Leave(VulnerabilityCase) round-trip (CM-23-001), not via
+      Add(ParticipantStatus, rm_state=RM.CLOSED).
+    rationale: >-
+      PR #1909 (issue #1858) changed RM case closure to flow through
+      Leave(VulnerabilityCase) → Case Actor ledger commit → broadcast, rather than
+      Add(ParticipantStatus, rm_state=RM.CLOSED).  This makes the Case Actor the
+      authority for closure and prevents ghost-departures from lost messages.
+      See ADR-0050.
+    relationships:
+    - rel_type: implements
+      spec_id: CM-23-001
   - id: DEMOMA-07-002
     priority: MUST
     kind: project
@@ -407,14 +418,21 @@ groups:
     - order: 5
       actor: case_actor
       action: >-
-        If all non-CASE_MANAGER participants have RM.CLOSED as their latest status
-        and no Leave(VulnerabilityCase) has already been emitted for this case,
-        emit Leave(VulnerabilityCase) to the Case Actor to close the case
-      expected: close_case activity queued; case closure initiated
+        [SUPERSEDED] This step previously described an all-participants-RM.CLOSED
+        check that emitted Leave(VulnerabilityCase) from the Case Actor to trigger
+        case closure.  This step is retired: RM case closure now flows through each
+        participant's own Leave(VulnerabilityCase) round-trip (CM-23-001).
+        The owner-Leave path (CM-23-002) replaces this step; when the Case Owner
+        sends Leave(VulnerabilityCase), the Case Actor closes the case and
+        advances the CaseActor participant to RM.CLOSED (CM-23-004, ADR-0051).
+        Implementation: see #1901.
+      expected: >-
+        [SUPERSEDED] No AutoCloseSequence fires in add_participant_status_tree.
+        Case closure is triggered by Leave(VulnerabilityCase) from the Case Owner.
     postconditions:
     - description: >-
         Participant record updated; CaseLedgerEntry committed and broadcast;
-        embargo teardown triggered if CS.P+CASE_OWNER; case closed if all RM.CLOSED
+        embargo teardown triggered if CS.P+CASE_OWNER.
     relationships:
     - rel_type: refines
       spec_id: SYNC-02-002
@@ -423,24 +441,22 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The all-participants-RM-CLOSED check (DEMOMA-07-003 step 5) MUST be implemented
-      as a DataLayerCondition BT node (not as procedural logic inside a DataLayerAction
-      node's update() method). The condition node MUST: (a) iterate all
-      actor_participant_index entries, (b) skip participants holding CVDRole.CASE_MANAGER,
-      and (c) return FAILURE if any remaining participant's latest status rm_state is not
-      RM.CLOSED. The emit step that follows MUST also check that no Leave(VulnerabilityCase)
-      has already been written to the outbox for the case (idempotency via DataLayer
-      query, not via a process-level in-memory set).
+      [SUPERSEDED by CM-23-001 and ADR-0050]  The BT node decomposition
+      requirements for DEMOMA-07-003 step 5 (AllParticipantsRMClosedConditionNode,
+      CloseNotYetEmittedConditionNode, EmitCloseCaseNode) are retired from the
+      add_participant_status_tree path.  Those nodes MUST NOT be wired into
+      add_participant_status_tree; they were live dead code after PR #1909 because
+      the AutoCloseSequence evaluated AllParticipantsRMClosedConditionNode only
+      when Add(ParticipantStatus) arrived, which always precedes any Leave and
+      therefore could never observe all participants at RM.CLOSED.
+      The equivalent closure logic belongs in the Leave(VulnerabilityCase) receive
+      path, implemented by #1901 (CM-23-002, CM-23-003, ADR-0051).
     testable: true
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-07-003
       note: >-
-        Mandates BT node decomposition for step 5 close-ready precondition;
-        prohibits god-node pattern (BT-IDM-03)
-    - rel_type: refines
-      spec_id: BT-06-001
-      note: all protocol-significant behavior must be in the BT
+        Step 5 is superseded; AutoCloseSequence removed from add_participant_status_tree
   - id: DEMOMA-07-004
     priority: SHOULD
     kind: project
