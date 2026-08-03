@@ -143,6 +143,10 @@ finding list before the artifact is written.
 - If any file under `demo/` or `adapters/` was changed: verify the PR body or
   CI confirms the integration test suite ran.
 - Flag any public function or use-case `execute()` path with no test.
+- **`SvcXxx` trigger-test check**: grep the diff for new classes whose names
+  match `Svc[A-Z][A-Za-z]+UseCase`. For each one found, confirm a matching
+  file exists under `test/core/use_cases/triggers/`. If absent: **IMPROVE**
+  (see `notes/triggers-test-coverage.md` for the required coverage pattern).
 
 ### Phase 11 — Linter / CI Status
 

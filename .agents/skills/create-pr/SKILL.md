@@ -74,10 +74,48 @@ If still absent, proceed without a closing reference.
 **Title inference** (if not provided): use the most recent commit subject,
 stripping any commit-hash prefix.
 
-**Body inference** (if not provided): compose using the template from
-`.agents/skills/shared/pr-body-guide.md` for the inferred type.
-For `implementation`: Summary + Changes + Verification sections.
-For `docs`: Summary + Changes sections (no Verification).
+**Body inference** (if not provided): compose using the exact scaffold below
+(also in `.agents/skills/shared/pr-body-guide.md`). Do not invent different
+section names — use these verbatim.
+
+For `implementation`:
+
+```markdown
+- Closes #N
+<!-- ⚠️  MUST BE FIRST — before any ## header -->
+
+## Summary
+
+<1–2 sentences, present tense>
+
+## Changes
+
+- **`path/to/file.py`**: <what changed and why>
+
+## Verification
+
+- All N unit tests pass (M new)
+- Black, flake8, mypy, pyright clean
+```
+
+For `docs`:
+
+```markdown
+- Closes #N
+<!-- ⚠️  MUST BE FIRST — before any ## header -->
+
+## Summary
+
+<1–2 sentences>
+
+## Changes
+
+- **`path/to/file.md`**: <what changed>
+```
+
+The `Closes #N` bullet **must be the very first line** of the body string
+passed to `gh pr create --body`. If it ends up after a `##` header, GitHub
+will not link the issue in the sidebar and triage will flag a FAIL.
 
 ---
 
