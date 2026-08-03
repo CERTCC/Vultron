@@ -22,10 +22,10 @@ ADR-0041 before emitting outbound activities:
   5. Seed vendor (CASE_OWNER) as embargo SIGNATORY (CM-13)
   6. Seed reporter as embargo SIGNATORY (CM-14-005)
   7. Commit canonical ledger entries natively (AC-4)
-  7. Emit ``Accept(as_CaseProposal)``
-  8. Write durable retry marker (CP-05-005)
-  9. Emit ``Create(VulnerabilityCase)`` with inline participants (AC-5)
-  10. Clear retry marker on success
+  8. Emit ``Accept(as_CaseProposal)``
+  9. Write durable retry marker (CP-05-005)
+  10. Emit ``Create(VulnerabilityCase)`` with inline participants (AC-5)
+  11. Clear retry marker on success
 
 Idempotency (CP-05-006):
 
@@ -99,7 +99,10 @@ from vultron.core.models.pending_create_case_activity import (
 )
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.vultron_types import VultronParticipant
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_persistence import (
+    CaseOutboxPersistence,
+    CasePersistence,
+)
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
@@ -772,6 +775,36 @@ class _CommitNativeLedgerEntriesNode(DataLayerAction):
         return Status.SUCCESS
 
 
+def _seed_participant_as_signatory(
+    datalayer: CasePersistence,
+    stored_case: VulnerabilityCase,
+    participant: CaseParticipant,
+    log_label: str,
+    spec_ref: str,
+) -> None:
+    """Seed *participant* as embargo SIGNATORY on *stored_case*'s active embargo.
+
+    Shared by ``_SeedVendorOwnerSignatoryNode`` (CM-13) and
+    ``_SeedReporterSignatoryNode`` (CM-14-005). Uses
+    ``apply_pec_transition(PEC_Trigger.ACCEPT)`` — the authoritative
+    consent-write path (CM-18-005, ADR-0048) — to update both the PEC state
+    machine and ``ParticipantStatus.consent`` atomically. The idempotency
+    guard (``!= PEC.SIGNATORY``) prevents double-transitions on retries.
+    """
+    embargo_id = stored_case.active_embargo
+    if participant.embargo_consent_state != PEC.SIGNATORY:
+        participant.apply_pec_transition(PEC_Trigger.ACCEPT)
+    if embargo_id and embargo_id not in participant.accepted_embargo_ids:
+        participant.accepted_embargo_ids.append(embargo_id)
+    datalayer.save(participant)
+    logger.info(
+        "Seeded %s as embargo SIGNATORY in case '%s' (%s)",
+        log_label,
+        stored_case.id_,
+        spec_ref,
+    )
+
+
 class _SeedVendorOwnerSignatoryNode(DataLayerAction):
     """Seed the vendor (CASE_OWNER) participant as embargo SIGNATORY (CM-13).
 
@@ -878,19 +911,13 @@ class _SeedVendorOwnerSignatoryNode(DataLayerAction):
         stored_case: VulnerabilityCase,
         participant: CaseParticipant,
     ) -> None:
-        embargo_id = stored_case.active_embargo
-        if participant.embargo_consent_state != PEC.SIGNATORY:
-            participant.apply_pec_transition(PEC_Trigger.ACCEPT)
-        if embargo_id and embargo_id not in participant.accepted_embargo_ids:
-            participant.accepted_embargo_ids.append(embargo_id)
         assert self.datalayer is not None
-        self.datalayer.save(participant)
-        logger.info(
-            "%s: Seeded vendor '%s' as embargo SIGNATORY in case '%s'"
-            " (CM-13)",
-            self.name,
-            self._vendor_uri,
-            stored_case.id_,
+        _seed_participant_as_signatory(
+            self.datalayer,
+            stored_case,
+            participant,
+            log_label=f"vendor '{self._vendor_uri}'",
+            spec_ref="CM-13",
         )
 
 
@@ -1038,18 +1065,13 @@ class _SeedReporterSignatoryNode(DataLayerAction):
         stored_case: VulnerabilityCase,
         participant: CaseParticipant,
     ) -> None:
-        embargo_id = stored_case.active_embargo
-        if participant.embargo_consent_state != PEC.SIGNATORY:
-            participant.apply_pec_transition(PEC_Trigger.ACCEPT)
-        if embargo_id and embargo_id not in participant.accepted_embargo_ids:
-            participant.accepted_embargo_ids.append(embargo_id)
         assert self.datalayer is not None
-        self.datalayer.save(participant)
-        logger.info(
-            "%s: Seeded reporter as embargo SIGNATORY in case '%s'"
-            " (CM-14-005)",
-            self.name,
-            stored_case.id_,
+        _seed_participant_as_signatory(
+            self.datalayer,
+            stored_case,
+            participant,
+            log_label="reporter",
+            spec_ref="CM-14-005",
         )
 
 
