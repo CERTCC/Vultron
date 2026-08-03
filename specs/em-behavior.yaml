@@ -1153,3 +1153,123 @@ groups:
     - rel_type: satisfies
       spec_id: VP-14-003
       note: Once Attacks observed, new embargoes SHALL NOT be sought
+
+- id: EMB-14
+  title: Actor-Voluntary Embargo Termination (Trigger Side)
+  trigger:
+    type: state_entered
+    value: EM.ACTIVE
+  specs:
+  - id: EMB-14-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The create_terminate_active_embargo_tree factory MUST require the actor
+      to supply a termination reason before delegating to terminate_embargo_bt.
+      Valid reasons are: fix-deployed, fix-ready, or other. The reason is
+      recorded via the matching Evaluator call-out point (ExitEmbargoWhenDeployed,
+      ExitEmbargoWhenFixReady, or ExitEmbargoForOtherReason).
+    rationale: >-
+      Voluntary termination requires an auditable reason. Structuring reason
+      selection as a Selector of Evaluator call-out points gives actors a
+      clear interface (three buttons) while preserving the audit trail and
+      allowing policy-rule backends to be injected per ADR-0025.
+    testable: true
+    preconditions:
+    - em_state:
+        - ACTIVE
+        - REVISE
+      description: EM state is Active or Revise
+    steps:
+    - order: 1
+      actor: actor
+      action: Select termination reason (ExitEmbargoWhenDeployed,
+        ExitEmbargoWhenFixReady, or ExitEmbargoForOtherReason)
+      expected: Matching Evaluator call-out point returns SUCCESS; reason recorded
+    - order: 2
+      actor: system
+      action: Run EmbargoExitPolicyGuard or EmbargoExitOverride
+      expected: Policy check passes or actor override accepted
+    - order: 3
+      actor: system
+      action: Run OnEmbargoExit actuator
+      expected: Site-specific integration hooks execute
+    - order: 4
+      actor: system
+      action: Delegate to terminate_embargo_bt
+      expected: ET emitted; EM transitions to EXITED
+    postconditions:
+    - description: EM state is EXITED; ET queued; termination reason recorded
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-07-001
+      note: Voluntary actor termination is a sub-case of active-embargo termination
+
+  - id: EMB-14-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The create_terminate_active_embargo_tree factory MUST include an
+      EmbargoExitPolicyGuard Evaluator call-out point that runs after the
+      reason Selector and before OnEmbargoExit. The guard MAY veto termination
+      regardless of the chosen reason.
+    rationale: >-
+      Separating the reason selection (actor intent) from the policy check
+      (system authorization) allows external policy engines to block termination
+      on grounds orthogonal to the stated reason (e.g., active revision
+      negotiation, pending approvals) without coupling the guard logic to the
+      reason semantics.
+    testable: true
+    preconditions:
+    - em_state:
+        - ACTIVE
+        - REVISE
+      description: EM state is Active or Revise; reason Selector has succeeded
+    steps:
+    - order: 1
+      actor: system
+      action: Run EmbargoExitPolicyGuard call-out point
+      expected: Returns SUCCESS (policy permits) or FAILURE (policy vetoes)
+    postconditions:
+    - description: >-
+        SUCCESS: pipeline continues to OnEmbargoExit and terminate_embargo_bt.
+        FAILURE: termination blocked; actor may retry with override.
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-14-001
+
+  - id: EMB-14-003
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      The create_terminate_active_embargo_tree factory SHOULD include an
+      EmbargoExitOverride Evaluator call-out point in a Selector alongside
+      EmbargoExitPolicyGuard. When the actor explicitly accepts responsibility
+      for overriding policy, EmbargoExitOverride SHOULD return SUCCESS so that
+      termination proceeds despite a policy veto.
+    rationale: >-
+      Providing an override seam lets actors exercise their authority to exit
+      in exceptional circumstances without requiring code changes. The override
+      is a distinct call-out point so that integrators can log, gate, or audit
+      it separately from the normal policy path.
+    testable: true
+    preconditions:
+    - em_state:
+        - ACTIVE
+        - REVISE
+      description: >-
+        EM state is Active or Revise; reason Selector succeeded;
+        EmbargoExitPolicyGuard returned FAILURE
+    steps:
+    - order: 1
+      actor: actor
+      action: Invoke EmbargoExitOverride call-out point
+      expected: Override accepted; pipeline continues to OnEmbargoExit
+    postconditions:
+    - description: Override recorded; termination proceeds; audit trail reflects override
+    lint_suppress:
+    - testable_without_steps
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-14-002
+      note: Override is the fallback arm of the policy authorization Selector

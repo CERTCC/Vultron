@@ -33,6 +33,8 @@ Ceiling/floor mapping (BT-23-002):
 - ``on_embargo_exit_factory``                  — OnEmbargoExit                 (p=1.0) → AlwaysSucceed
 - ``on_embargo_accept_factory``                — OnEmbargoAccept               (p=1.0) → AlwaysSucceed
 - ``on_embargo_reject_factory``                — OnEmbargoReject               (p=1.0) → AlwaysSucceed
+- ``embargo_exit_policy_guard_factory``        — EmbargoExitPolicyGuard        (p=1.0) → AlwaysSucceed
+- ``embargo_exit_override_factory``            — EmbargoExitOverride           (p=0.0) → AlwaysFail
 """
 
 from __future__ import annotations
@@ -58,7 +60,9 @@ class EmbargoCallOutBundle:
     """Call-out backend bundle for the embargo management domain (BT-23-003).
 
     Fields map to the corresponding factory parameters on
-    :func:`~vultron.core.behaviors.embargo.manage_embargo_tree.create_manage_embargo_tree`.
+    :func:`~vultron.core.behaviors.embargo.manage_embargo_tree.create_manage_embargo_tree`
+    and (for termination-specific fields) the future
+    ``create_terminate_active_embargo_tree`` factory (issue #1256).
     """
 
     exit_embargo_when_deployed_factory: CallOutBackendFactory = field(
@@ -99,6 +103,12 @@ class EmbargoCallOutBundle:
     )
     on_embargo_reject_factory: CallOutBackendFactory = field(
         default=_always_succeed  # type: ignore[assignment]
+    )
+    embargo_exit_policy_guard_factory: CallOutBackendFactory = field(
+        default=_always_succeed  # type: ignore[assignment]
+    )
+    embargo_exit_override_factory: CallOutBackendFactory = field(
+        default=_always_fail  # type: ignore[assignment]
     )
 
 
