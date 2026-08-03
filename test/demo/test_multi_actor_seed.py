@@ -231,9 +231,15 @@ class TestSeedActor6Config:
 
 
 class TestSeedConfigCrossConsistency:
-    """All five configs must describe a consistent peer mesh."""
+    """All five original configs must describe a consistent peer mesh.
+
+    actor6 (seed-actor6.yaml) is excluded here: it has 5 peers (not 4) and the
+    other five actors do not yet list actor6 as a peer — that cross-registration
+    is deferred to DEMOMA-19-002 (seed_containers_fcvcv function).
+    """
 
     def test_all_configs_load_successfully(self):
+        # actor6 excluded — see class docstring (DEMOMA-19-002 pending)
         for filename in (
             "seed-finder.yaml",
             "seed-vendor.yaml",
@@ -408,3 +414,23 @@ class TestSeedCLIWithDeterministicId:
                 f"{filename}: expected 5 seed_actor calls "
                 f"(1 local + 4 peers), got {len(calls)}"
             )
+
+    def test_vendor_deployer_seed_uses_deterministic_id(self):
+        config_path = _SEED_CONFIGS_DIR / "seed-actor6.yaml"
+        calls, exit_code = self._run_seed_with_config(config_path)
+        assert exit_code == 0
+        local_call = next(
+            (c for c in calls if c["name"] == "VendorDeployer"), None
+        )
+        assert local_call is not None
+        assert local_call["actor_id"] == VENDOR_DEPLOYER_ID
+
+    def test_actor6_seed_call_count_is_six(self):
+        """actor6 has 5 peers (not 4), so CLI must make 6 seed_actor calls."""
+        config_path = _SEED_CONFIGS_DIR / "seed-actor6.yaml"
+        calls, exit_code = self._run_seed_with_config(config_path)
+        assert exit_code == 0
+        assert len(calls) == 6, (
+            f"seed-actor6.yaml: expected 6 seed_actor calls "
+            f"(1 local + 5 peers), got {len(calls)}"
+        )
