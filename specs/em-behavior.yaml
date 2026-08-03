@@ -1430,8 +1430,6 @@ groups:
     - description: >-
         Counter EP emitted via the existing proposal mechanism; no new
         counter-specific transition introduced
-    lint_suppress:
-    - testable_without_steps
     relationships:
     - rel_type: refines
       spec_id: EMB-15-001
