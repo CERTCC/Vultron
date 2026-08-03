@@ -34,6 +34,7 @@ from vultron.enums.roles import CVDRole
 
 _VENDOR_ACTOR_ID = "http://vendor:7999/api/v2/actors/vendor"
 _COORDINATOR_ACTOR_ID = "http://coordinator:7999/api/v2/actors/coordinator"
+_DEPLOYER_ACTOR_ID = "http://deployer:7999/api/v2/actors/deployer"
 _CASE_ID = "urn:uuid:test-case-0001"
 
 
@@ -291,3 +292,70 @@ class TestVerifyFixDeployedVendorGuard:
                 _CASE_ID,
                 _VENDOR_ACTOR_ID,
             )
+
+    def test_vendor_and_deployer_passes_guard(self):
+        """AC-5c: VENDOR+DEPLOYER actor passes the guard — the V2 case."""
+        participant = _make_participant_mock(
+            [CVDRole.VENDOR, CVDRole.DEPLOYER]
+        )
+
+        with patch(
+            "vultron.demo.helpers.milestones._fetch_participant",
+            return_value=participant,
+        ), patch(
+            "vultron.demo.helpers.milestones._check_participant_vfd_state_in"
+        ):
+            verify_fix_deployed(
+                MagicMock(),
+                MagicMock(),
+                _CASE_ID,
+                _VENDOR_ACTOR_ID,
+            )
+
+    def test_deployer_only_passes_guard(self):
+        """AC-5d: DEPLOYER-only actor passes _assert_deployer_or_vendor_role.
+
+        The guard requires VENDOR *or* DEPLOYER (DEMOMA-15-001); a
+        DEPLOYER-only actor satisfies the OR condition and passes.
+        """
+        participant = _make_participant_mock([CVDRole.DEPLOYER])
+
+        with patch(
+            "vultron.demo.helpers.milestones._fetch_participant",
+            return_value=participant,
+        ), patch(
+            "vultron.demo.helpers.milestones._check_participant_vfd_state_in"
+        ):
+            verify_fix_deployed(
+                MagicMock(),
+                MagicMock(),
+                _CASE_ID,
+                _DEPLOYER_ACTOR_ID,
+            )
+
+
+class TestVerifyFixReadyDeployerGuard:
+    """AC-5e: verify_fix_ready raises for DEPLOYER-only actor (no VENDOR)."""
+
+    def test_deployer_only_raises_assertionerror(self):
+        """AC-5e: DEPLOYER-only actor raises AssertionError in verify_fix_ready.
+
+        verify_fix_ready uses _assert_vendor_role which requires CVDRole.VENDOR.
+        A DEPLOYER-only actor does not hold VENDOR and must be rejected.
+        """
+        participant = _make_participant_mock([CVDRole.DEPLOYER])
+
+        with patch(
+            "vultron.demo.helpers.milestones._fetch_participant",
+            return_value=participant,
+        ):
+            with pytest.raises(AssertionError) as exc_info:
+                verify_fix_ready(
+                    MagicMock(),
+                    MagicMock(),
+                    _CASE_ID,
+                    _DEPLOYER_ACTOR_ID,
+                )
+
+        msg = str(exc_info.value)
+        assert "CVDRole.VENDOR" in msg
