@@ -781,11 +781,6 @@ groups:
       note: >
         DeployMitigationCallOutBundle and DeploymentMonitoringBundle follow the
         domain bundle pattern from BT-23-003.
-    - rel_type: refines
-      spec_id: BT-20-004
-      note: >
-        Peer production collapse for the fix deployment arm; mitigation and fix
-        trees compose into create_deploy_tree.
 
 - id: BT-21
   title: Fuzzer Node Replacement Lifecycle
