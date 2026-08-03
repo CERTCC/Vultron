@@ -5,6 +5,7 @@ import py_trees
 
 from vultron.core.behaviors.embargo.nodes import ApplyEmbargoTeardownNode
 from vultron.core.behaviors.sync.nodes import (
+    ApplyCloseCaseFromLedgerNode,
     ApplyInviteAcceptFromLedgerNode,
     ApplyNoteFromLedgerNode,
     ApplyParticipantStatusFromLedgerNode,
@@ -13,6 +14,7 @@ from vultron.core.behaviors.sync.nodes import (
     CheckIsNotOwnCaseActorNode,
     CheckLedgerEntryAlreadyStoredNode,
     IsAddNoteEventNode,
+    IsCloseCaseEventNode,
     IsInviteAcceptEventNode,
     IsParticipantStatusEventNode,
     IsRemoveEmbargoEventNode,
@@ -133,6 +135,28 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
                         name="SkipIfNotInviteAcceptEvent",
                         child=IsInviteAcceptEventNode(
                             name="CheckNotInviteAcceptEvent"
+                        ),
+                    ),
+                ],
+            ),
+            py_trees.composites.Selector(
+                name="CloseCaseEffects",
+                memory=False,
+                children=[
+                    py_trees.composites.Sequence(
+                        name="ApplyCloseCaseEffectsSeq",
+                        memory=False,
+                        children=[
+                            IsCloseCaseEventNode(name="IsCloseCaseEvent"),
+                            ApplyCloseCaseFromLedgerNode(
+                                name="ApplyCloseCaseFromLedger"
+                            ),
+                        ],
+                    ),
+                    py_trees.decorators.Inverter(
+                        name="SkipIfNotCloseCaseEvent",
+                        child=IsCloseCaseEventNode(
+                            name="CheckNotCloseCaseEvent"
                         ),
                     ),
                 ],

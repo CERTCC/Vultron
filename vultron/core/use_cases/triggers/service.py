@@ -57,6 +57,7 @@ from vultron.core.use_cases.triggers.case import (
     SvcCreateCaseUseCase,
     SvcDeferCaseUseCase,
     SvcEngageCaseUseCase,
+    SvcLeaveCaseUseCase,
 )
 from vultron.core.use_cases.triggers.embargo import (
     SvcAcceptEmbargoUseCase,
@@ -86,6 +87,7 @@ from vultron.core.use_cases.triggers.requests import (
     CreateCaseTriggerRequest,
     DeferCaseTriggerRequest,
     EngageCaseTriggerRequest,
+    LeaveCaseTriggerRequest,
     InvalidateReportTriggerRequest,
     InviteActorToCaseTriggerRequest,
     OfferCaseManagerRoleTriggerRequest,
@@ -263,6 +265,23 @@ class TriggerService:
         """Defer a case, transitioning RM state to DEFERRED."""
         req = DeferCaseTriggerRequest(actor_id=actor_id, case_id=case_id)
         return SvcDeferCaseUseCase(
+            self._dl, req, trigger_activity=self._trigger_activity
+        ).execute()
+
+    def leave_case(
+        self,
+        actor_id: str,
+        case_id: str,
+    ) -> dict[str, Any]:
+        """Send Leave(VulnerabilityCase) to the Case Actor (ADR-0050).
+
+        Routes ``Leave(VulnerabilityCase)`` to the Case Actor inbox so the
+        Case Actor can commit a ``close_case`` ledger entry and broadcast it
+        to all participants.  The receiver-side role semantics (owner closes
+        all, non-owner departs only) are applied on the Case Actor replica.
+        """
+        req = LeaveCaseTriggerRequest(actor_id=actor_id, case_id=case_id)
+        return SvcLeaveCaseUseCase(
             self._dl, req, trigger_activity=self._trigger_activity
         ).execute()
 

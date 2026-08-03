@@ -27,8 +27,13 @@ Currently implemented effects:
 - :class:`ApplyInviteAcceptFromLedgerNode`: applies an
   ``accept_invite_actor_to_case`` event to the local case replica by creating
   a stub ``CaseParticipant`` for the new invitee and calling ``add_participant``.
+- :class:`ApplyCloseCaseFromLedgerNode`: applies a ``close_case`` event to
+  the local case replica by advancing the departing actor's
+  :class:`~vultron.core.models.participant_status.ParticipantStatus` to
+  ``RM.CLOSED`` (CM-23-003, ADR-0050).
 
-Per specs/multi-actor-demo.yaml DEMOMA-07-003 step 3 and
+Per specs/multi-actor-demo.yaml DEMOMA-07-003 step 3,
+specs/case-management.yaml CM-23-003, and
 specs/sync-ledger-replication.yaml SYNC-02-002.
 """
 
@@ -361,6 +366,128 @@ class ApplyInviteAcceptFromLedgerNode(DataLayerAction):
             " (SYNC-02-002, DEMOMA-07-003)",
             self.name,
             invitee_id,
+            case_id,
+        )
+        return Status.SUCCESS
+
+
+class ApplyCloseCaseFromLedgerNode(DataLayerAction):
+    """Apply a ``close_case`` ledger entry to the local case replica.
+
+    When a non-CaseActor participant receives ``Announce(CaseLedgerEntry)``
+    and the entry's ``event_type`` is ``close_case``, this node extracts the
+    departing actor ID from ``payload_snapshot["actor"]`` and advances that
+    actor's :class:`~vultron.core.models.participant_status.ParticipantStatus`
+    to ``RM.CLOSED`` on the local DataLayer replica.
+
+    This is the fan-out counterpart of the CaseActor's ``receive_close_case_tree``
+    effect: both paths MUST produce the same end state on every replica
+    (CM-23-003, CM-23-004, ADR-0050).
+
+    Lenient on missing data: if the case replica is absent, the departing actor
+    ID is not extractable, or the participant record is missing, the node
+    returns SUCCESS to avoid blocking the ``Announce`` processing flow.
+
+    Per specs/case-management.yaml CM-23-003, CM-23-004,
+    specs/sync-ledger-replication.yaml SYNC-02-002.
+    """
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="activity", access=py_trees.common.Access.READ
+        )
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        from vultron.core.behaviors.sync.nodes.conditions import (
+            _require_log_entry,
+        )
+        from vultron.core.behaviors.case.nodes.participant.status import (
+            CreateParticipantStatusNode,
+        )
+        from vultron.core.states.rm import RM
+
+        entry = _require_log_entry(self.blackboard.activity, self.name)
+        snapshot = entry.payload_snapshot
+        case_id = entry.case_id
+
+        departing_actor_id = _extract_id_from_field(snapshot.get("actor"))
+        if not departing_actor_id or not case_id:
+            self.logger.debug(
+                "%s: payload_snapshot missing 'actor' id or case_id"
+                " — skipping close-case apply (non-fatal)",
+                self.name,
+            )
+            return Status.SUCCESS
+
+        case = self.datalayer.read(case_id)
+        if not isinstance(case, VulnerabilityCase):
+            self.logger.debug(
+                "%s: case '%s' not found in local DataLayer"
+                " — skipping (non-fatal, partial case view)",
+                self.name,
+                case_id,
+            )
+            return Status.SUCCESS
+
+        if departing_actor_id not in case.actor_participant_index:
+            self.logger.debug(
+                "%s: departing actor '%s' not in actor_participant_index"
+                " for case '%s' — skipping (non-fatal)",
+                self.name,
+                departing_actor_id,
+                case_id,
+            )
+            return Status.SUCCESS
+
+        # Idempotency: skip if already at RM.CLOSED
+        participant_id = case.actor_participant_index[departing_actor_id]
+        participant = self.datalayer.read(participant_id)
+        if isinstance(participant, CaseParticipant):
+            for ps in participant.participant_statuses:
+                rm_dim = getattr(ps, "rm", None)
+                if getattr(rm_dim, "state", None) == RM.CLOSED:
+                    self.logger.debug(
+                        "%s: departing actor '%s' already at RM.CLOSED — no-op",
+                        self.name,
+                        departing_actor_id,
+                    )
+                    return Status.SUCCESS
+
+        # Advance the departing actor to RM.CLOSED using CreateParticipantStatusNode
+        # logic directly (avoids re-entering the BT machinery).
+        result_out: dict = {}
+        node = CreateParticipantStatusNode(
+            case_id=case_id,
+            actor_id=departing_actor_id,
+            rm_state=RM.CLOSED,
+            vfd_state=None,
+            pxa_state=None,
+            result_out=result_out,
+            name=f"{self.name}.CreateParticipantStatus",
+        )
+        node.datalayer = self.datalayer
+        node.actor_id = departing_actor_id
+        result = node.update()
+        if result != Status.SUCCESS:
+            self.logger.warning(
+                "%s: failed to advance departing actor '%s' to RM.CLOSED"
+                " in case '%s'",
+                self.name,
+                departing_actor_id,
+                case_id,
+            )
+            return Status.FAILURE
+
+        self.logger.info(
+            "%s: applied ledger close-case for departing actor '%s'"
+            " in case '%s' (CM-23-003, SYNC-02-002)",
+            self.name,
+            departing_actor_id,
             case_id,
         )
         return Status.SUCCESS

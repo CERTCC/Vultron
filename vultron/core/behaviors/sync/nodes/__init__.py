@@ -40,6 +40,7 @@ from vultron.core.behaviors.sync.nodes.conditions import (
     CheckLedgerEntryAlreadyStoredNode,
     CheckLedgerFreshnessNode,
     IsAddNoteEventNode,
+    IsCloseCaseEventNode,
     IsInviteAcceptEventNode,
     IsParticipantStatusEventNode,
     IsRemoveEmbargoEventNode,
@@ -57,6 +58,7 @@ from vultron.core.behaviors.sync.nodes.receive import (
     SendRejectLogEntryNode,
 )
 from vultron.core.behaviors.sync.nodes.effects import (
+    ApplyCloseCaseFromLedgerNode,
     ApplyInviteAcceptFromLedgerNode,
     ApplyNoteFromLedgerNode,
     ApplyParticipantStatusFromLedgerNode,
@@ -84,10 +86,12 @@ __all__ = [
     "IsParticipantStatusEventNode",
     "IsAddNoteEventNode",
     "IsInviteAcceptEventNode",
+    "IsCloseCaseEventNode",
     # effects
     "ApplyParticipantStatusFromLedgerNode",
     "ApplyNoteFromLedgerNode",
     "ApplyInviteAcceptFromLedgerNode",
+    "ApplyCloseCaseFromLedgerNode",
     # receive
     "LogDeliveryConfirmationNode",
     "PersistReceivedLogEntryNode",

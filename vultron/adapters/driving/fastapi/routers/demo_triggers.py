@@ -238,11 +238,11 @@ def demo_notify_published(
 @router.post(
     "/{actor_id}/demo/close-case",
     status_code=status.HTTP_202_ACCEPTED,
-    summary="[Demo] Report that the actor is closing the case (RM.CLOSED).",
+    summary="[Demo] Actor sends Leave(VulnerabilityCase) to close the case.",
     description=(
         "Demo-only scaffold. "
-        "Self-reports RM state CLOSED "
-        "to the Case Manager via Add(ParticipantStatus, CaseParticipant). "
+        "Triggers Leave(VulnerabilityCase) via the canonical RM closure path "
+        "(ADR-0050). "
         "Only available in ``RunMode.PROTOTYPE``. "
         "Spec: DEMOMA-07-001."
     ),
@@ -256,17 +256,18 @@ def demo_close_case(
     dl: DataLayer = Depends(get_trigger_dl),
     actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
 ) -> dict[str, Any]:
-    """Report that the actor is closing the case (demo scaffold).
+    """Trigger Leave(VulnerabilityCase) for the given actor and case.
+
+    Implements the canonical RM case closure path (ADR-0050): emits
+    Leave(VulnerabilityCase) to the Case Actor inbox, which commits a
+    ``close_case`` CaseLedgerEntry and fans it out to all participants.
 
     Implements: DEMOMA-07-001, TRIG-09-001, TB-01-001, TB-06-001.
     """
-    from vultron.core.states.rm import RM
-
     with domain_error_translation():
-        result = svc.add_participant_status(
+        result = svc.leave_case(
             actor_id=actor_id,
             case_id=body.case_id,
-            rm_state=RM.CLOSED,
         )
     background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
     return result
