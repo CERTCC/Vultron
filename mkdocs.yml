@@ -232,7 +232,7 @@ nav:
       - Per-Actor DataLayer Isolation: 'adr/0012-per-actor-datalayer-isolation.md'
       - Unify RM State Tracking: 'adr/0013-unify-rm-state-tracking.md'
       - Pin GitHub Actions to SHAs: 'adr/0014-sha-pin-github-actions.md'
-      - Create Case at Report Receipt: 'adr/0015-create-case-at-report-receipt.md'
+      - Create Case at Report Receipt: 'adr/archived/0015-create-case-at-report-receipt.md'
       - SQLModel/SQLite DataLayer: 'adr/0016-sqlmodel-sqlite-datalayer.md'
       - Domain/Wire Object Separation: 'adr/0017-domain-wire-object-separation.md'
       - Canonical Case History Convergence: 'adr/0018-canonical-case-history-convergence.md'
