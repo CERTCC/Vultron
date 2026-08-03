@@ -5,7 +5,7 @@ description: >-
   is triggered by either a received EM message or a local EM state transition, and
   specifies typed preconditions, ordered steps, and postconditions that implementations
   must satisfy.
-version: 0.1.0
+version: 0.2.0
 tags:
 - behavioral
 - state-machine
@@ -1273,3 +1273,208 @@ groups:
     - rel_type: refines
       spec_id: EMB-14-002
       note: Override is the fallback arm of the policy authorization Selector
+
+- id: EMB-15
+  title: Inbound Embargo-Response Decision (Received Side)
+  description: >-
+    Behaviors triggered when an actor receives an inbound embargo overture and
+    must decide how to respond. Two overture flows are distinguished: (Flow A)
+    an EM-level embargo proposal (EP) proposing terms, whose acceptance moves
+    the shared EM state; and (Flow B) a PEC-level invitation
+    (InviteToEmbargoOnCase) asking the actor to become a signatory to an
+    embargo, whose acceptance advances that participant's Participant Embargo
+    Consent (PEC) state. The pre-PEC simulator conflated these into a single
+    _ChooseEmProposedResponse fallback; the production protocol separates the
+    shared EM lifecycle (EMB-01..EMB-09) from per-participant consent (CM-18,
+    ADR-0048). This group specifies a single decision seam layered over both
+    flows: it selects the response (accept / defer-to-owner / reject / counter)
+    while delegating the mechanical transition to the existing received and
+    trigger BTs. The mechanics already exist (invite/accept/reject trees,
+    propose/accept/reject trigger use cases); what is missing is the decision
+    layer that chooses among them, with a default-accept policy and a
+    plug-in seam for owner adjudication.
+  trigger:
+    type: message_received
+    value: EP | InviteToEmbargoOnCase
+  specs:
+  - id: EMB-15-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The inbound embargo-response decision seam MUST default to accepting a
+      well-formed embargo overture (Flow A: EP proposing terms; Flow B:
+      InviteToEmbargoOnCase). When no external adjudication backend is injected,
+      the EvaluateEmbargoProposal Evaluator call-out point MUST return SUCCESS
+      so the actor accepts by default, delegating to the existing acceptance
+      mechanism (accept_embargo_trigger_bt for Flow A;
+      accept_invite_to_embargo_tree for Flow B).
+    rationale: >-
+      The recommended CVD behavior is to accept an offered embargo and negotiate
+      revisions separately rather than block coordination. A deterministic
+      accept-by-default keeps actors runnable without a human in the loop, and
+      the DETERMINISTIC call-out bundle (BT-23) supplies the default. Structuring
+      acceptance as an Evaluator call-out point preserves the seam for later
+      owner/agent adjudication without changing the tree.
+    testable: true
+    preconditions:
+    - description: >-
+        Inbound EP or InviteToEmbargoOnCase received; case is embargo-eligible
+        (CS not public/exploit/attacks per EMB-01-002); no external
+        adjudication backend injected (deterministic default in force).
+    steps:
+    - order: 1
+      actor: system
+      action: Run EvaluateEmbargoProposal Evaluator call-out point
+      expected: Returns SUCCESS (default-accept) under the DETERMINISTIC bundle
+    - order: 2
+      actor: system
+      action: Delegate to the flow-appropriate acceptance BT
+      expected: >-
+        Flow A activates/records via accept_embargo_trigger_bt; Flow B advances
+        PEC to SIGNATORY via accept_invite_to_embargo_tree
+    postconditions:
+    - description: >-
+        Overture accepted by default; EM (Flow A) or PEC (Flow B) advanced by
+        the existing mechanism
+    relationships:
+    - rel_type: satisfies
+      spec_id: BT-18-004
+      note: Decision node accepts a CallOutBackendFactory; deterministic default
+    - rel_type: refines
+      spec_id: EMB-01-001
+      note: Adds the response-decision layer above EP receipt
+    - rel_type: refines
+      spec_id: CM-18-003
+      note: Flow B acceptance advances the PEC state machine (INVITED → SIGNATORY)
+
+  - id: EMB-15-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The decision seam MUST include a CASE_OWNER hard-bypass arm ahead of the
+      adjudication call-out point: when the deciding actor holds
+      CVDRole.CASE_OWNER, the owner's stated response is authoritative and the
+      seam MUST NOT require external approval. Non-owner actors (e.g. a CaseActor
+      processing an overture on the owner's behalf) MUST route through the
+      CaseOwnerApprovesEmbargoResponse call-out point, which defaults to SUCCESS
+      under the DETERMINISTIC bundle.
+    rationale: >-
+      This mirrors the two-seam authorization model (ADR-0046) and the
+      case_proposal_received_tree pattern: the CASE_OWNER is the human
+      decision-maker whose choice is gospel, while other actors need an
+      adjudication seam that a UI or LLM agent can later fulfil. The distinction
+      matters because a CaseActor may process an overture routed to it without
+      being the party whose consent is being recorded.
+    testable: true
+    preconditions:
+    - description: Inbound EP or InviteToEmbargoOnCase received by the deciding actor
+    steps:
+    - order: 1
+      actor: system
+      action: Run CheckIsCaseOwner guard (hard-bypass arm of the Selector)
+      expected: >-
+        SUCCESS when actor holds CASE_OWNER (owner's response is authoritative);
+        FAILURE otherwise, falling through to the adjudication call-out point
+    - order: 2
+      actor: system
+      action: >-
+        For non-owners, run CaseOwnerApprovesEmbargoResponse call-out point
+      expected: Returns SUCCESS (default) or FAILURE (adjudication withholds)
+    postconditions:
+    - description: >-
+        Owner responses proceed unconditionally; non-owner responses gated by
+        the adjudication seam
+    relationships:
+    - rel_type: satisfies
+      spec_id: BT-18-004
+    - rel_type: refines
+      spec_id: EMB-15-001
+
+  - id: EMB-15-003
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      For Flow A (EP proposing terms), the decision seam SHOULD provide a
+      counter-proposal arm gated by a WillingToCounterEmbargoProposal Evaluator
+      call-out point. Countering MUST NOT introduce a new mechanism: when the
+      arm is taken, the seam delegates to the existing embargo proposal trigger
+      (propose_embargo_trigger_bt via SvcProposeEmbargoUseCase), which emits a
+      fresh EP while the EM state remains PROPOSED. The default DETERMINISTIC
+      backend for this call-out point SHOULD return FAILURE (do not counter),
+      reflecting the recommended practice of accepting and revising rather than
+      countering.
+    rationale: >-
+      A counter-proposal is operationally identical to proposing: the propose
+      trigger already records a "counter-proposed, no state change" outcome when
+      invoked in PROPOSED. Modeling counter as routing to the existing trigger
+      avoids duplicate mechanism and keeps the EM lifecycle single-sourced.
+      Countering is intentionally low-automation and off by default; the
+      recommended path is accept-then-revise.
+    testable: true
+    preconditions:
+    - em_state:
+        - PROPOSED
+      description: >-
+        Flow A only; inbound EP received; actor declined to accept outright and
+        the adjudication arm elects to counter
+    steps:
+    - order: 1
+      actor: system
+      action: Run WillingToCounterEmbargoProposal Evaluator call-out point
+      expected: SUCCESS elects the counter arm; FAILURE (default) skips it
+    - order: 2
+      actor: actor
+      action: Delegate to propose_embargo_trigger_bt with new terms
+      expected: New EP emitted; EM remains PROPOSED (counter recorded)
+    postconditions:
+    - description: >-
+        Counter EP emitted via the existing proposal mechanism; no new
+        counter-specific transition introduced
+    lint_suppress:
+    - testable_without_steps
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-15-001
+    - rel_type: satisfies
+      spec_id: EMB-01-001
+      note: Counter reuses the EP proposal path
+
+  - id: EMB-15-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the decision resolves to reject, the seam MUST delegate to the
+      flow-appropriate existing rejection mechanism rather than duplicating the
+      transition: reject_embargo_trigger_bt (Flow A, emitting ER and returning
+      the shared EM to NONE per EMB-06) or reject_invite_to_embargo_tree
+      (Flow B, advancing that participant's PEC to DECLINED per CM-18-003). The
+      seam MUST also honor the mandatory rejection required by EMB-01-002 when
+      CS is public/exploit/attacks, independent of any adjudication outcome.
+    rationale: >-
+      Rejection paths are already implemented and carry the correct EM-vs-PEC
+      semantics. The decision layer selects among them; it must not re-implement
+      the transition. The pre-public constraint (EMB-01-002) is a hard protocol
+      rule that overrides the default-accept policy.
+    testable: true
+    preconditions:
+    - description: >-
+        Inbound overture received; decision resolves to reject, OR CS is
+        public/exploit/attacks forcing rejection (EMB-01-002)
+    steps:
+    - order: 1
+      actor: system
+      action: Select the flow-appropriate rejection BT
+      expected: >-
+        Flow A emits ER (EM → NONE); Flow B advances PEC to DECLINED
+    postconditions:
+    - description: Overture rejected via the existing mechanism with correct semantics
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-06-001
+      note: Flow A rejection reuses the ER emission path
+    - rel_type: refines
+      spec_id: CM-18-003
+      note: Flow B rejection advances PEC to DECLINED
+    - rel_type: satisfies
+      spec_id: EMB-01-002
+      note: Mandatory rejection when public/exploit/attacks overrides default-accept

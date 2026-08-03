@@ -231,10 +231,14 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Call-out point shape**: Evaluator
 - **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
   `vultron.core.behaviors.embargo.manage_embargo_tree.create_manage_embargo_tree`
-  (`stop_proposing_embargo_factory` param). FUTURE full placement:
-  `vultron.core.behaviors.embargo.create_propose_embargo_decision_tree`
-  (issue #1257) — Evaluator condition guard in
-  `_ConsiderAbandoningProposedEmbargo` Selector
+  (`stop_proposing_embargo_factory` param). FUTURE full placement (revised by
+  #1257 planning): **simulator-only** — this gates the sim's tick-based
+  "keep proposing until effort exhausted" negotiation loop
+  (`_EnsureSufficientEffortToAchieveEmbargo`), which has no event trigger in
+  the trunk-removed prototype. Like `StopProposingEmbargo` in the #1256
+  termination analysis, it is dropped from production factory placement. The
+  Phase-1 stub seam remains for simulation parity only; there is no
+  `create_propose_embargo_decision_tree`.
 
 ### `SelectEmbargoOfferTerms`
 
@@ -254,10 +258,13 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Call-out point shape**: Evaluator
 - **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
   `vultron.core.behaviors.embargo.manage_embargo_tree.create_manage_embargo_tree`
-  (`select_embargo_offer_terms_factory` param). FUTURE full placement:
-  `vultron.core.behaviors.embargo.create_propose_embargo_decision_tree`
-  (issue #1257) — Evaluator action node in `_ProposeNewEmbargo` and
-  `_ProposeEmbargoRevision` Sequences, before the proposal trigger BT
+  (`select_embargo_offer_terms_factory` param). FUTURE full placement (revised
+  by #1257 planning): belongs to the **outbound propose** flow, not the inbound
+  response seam. The outbound propose decision is already the propose trigger
+  use case (`SvcProposeEmbargoUseCase` → `propose_embargo_trigger_bt`); this
+  term-selection Evaluator is the seam that supplies proposal terms ahead of
+  it. It is also reused by the EMB-15-003 counter arm (counter = re-propose).
+  No monolithic `create_propose_embargo_decision_tree`.
 
 ### `WantToProposeEmbargo`
 
@@ -276,10 +283,13 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Call-out point shape**: Evaluator
 - **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
   `vultron.core.behaviors.embargo.manage_embargo_tree.create_manage_embargo_tree`
-  (`want_to_propose_embargo_factory` param). FUTURE full placement:
-  `vultron.core.behaviors.embargo.create_propose_embargo_decision_tree`
-  (issue #1257) — Evaluator condition guard in `_ConsiderProposingEmbargo`
-  Sequence (within `_EmNone` Selector)
+  (`want_to_propose_embargo_factory` param). FUTURE full placement (revised by
+  #1257 planning): belongs to the **outbound propose** flow, not the inbound
+  response seam. In the trunk-removed prototype, "do I want to propose an
+  embargo?" is the operator/policy decision to *invoke*
+  `SvcProposeEmbargoUseCase` at all — i.e. a gate on triggering the propose
+  use case, not a node in a decision tree. The Phase-1 stub seam is retained;
+  no monolithic `create_propose_embargo_decision_tree`.
 
 ### `WillingToCounterEmbargoProposal`
 
@@ -299,11 +309,13 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Call-out point shape**: Evaluator
 - **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
   `vultron.core.behaviors.embargo.manage_embargo_tree.create_manage_embargo_tree`
-  (`willing_to_counter_factory` param). FUTURE full placement:
-  `vultron.core.behaviors.embargo.create_propose_embargo_decision_tree`
-  (issue #1257) — Evaluator condition guard in `_AvoidCounterProposal`
-  Selector; determines whether a counter-proposal is sent instead of
-  accept/reject
+  (`willing_to_counter_factory` param). FUTURE full placement (revised by
+  #1257 planning): Evaluator gating the **counter arm** of the inbound
+  embargo-response decision seam (spec `EMB-15-003`), Flow A (EP) only. Its
+  DETERMINISTIC default is FAILURE (do not counter — accept-then-revise is
+  preferred). When SUCCESS, the arm delegates to `propose_embargo_trigger_bt`
+  (counter = re-propose; no new mechanism). Not a monolithic
+  `create_propose_embargo_decision_tree`.
 
 ### `ReasonToProposeEmbargoWhenDeployed`
 
@@ -322,10 +334,12 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Call-out point shape**: Evaluator
 - **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
   `vultron.core.behaviors.embargo.manage_embargo_tree.create_manage_embargo_tree`
-  (`reason_to_propose_when_deployed_factory` param). FUTURE full placement:
-  `vultron.core.behaviors.embargo.create_propose_embargo_decision_tree`
-  (issue #1257) — Evaluator condition guard in
-  `_AvoidNewEmbargoesInCsDeployedUnlessReason` Selector
+  (`reason_to_propose_when_deployed_factory` param). FUTURE full placement
+  (revised by #1257 planning): belongs to the **outbound propose** flow as an
+  exceptional-case guard on invoking `SvcProposeEmbargoUseCase` after fix
+  deployment (CS ···D··). It is a precondition on the propose trigger, not a
+  node in a monolithic decision tree; no
+  `create_propose_embargo_decision_tree`.
 
 ### `EvaluateEmbargoProposal`
 
@@ -345,11 +359,14 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Call-out point shape**: Evaluator
 - **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
   `vultron.core.behaviors.embargo.manage_embargo_tree.create_manage_embargo_tree`
-  (`evaluate_embargo_proposal_factory` param). FUTURE full placement:
-  `vultron.core.behaviors.embargo.create_propose_embargo_decision_tree`
-  (issue #1257) — Evaluator condition guard in
-  `_EvaluateAndAcceptProposedEmbargo` Sequence; precedes
-  `accept_embargo_trigger_bt`
+  (`evaluate_embargo_proposal_factory` param). FUTURE full placement
+  (revised by #1257 planning): the **inbound embargo-response decision seam**
+  (spec `EMB-15`), NOT a monolithic `create_propose_embargo_decision_tree`.
+  This is the default-accept Evaluator (EMB-15-001): under the DETERMINISTIC
+  bundle it returns SUCCESS so the actor accepts, then delegates to the
+  flow-appropriate accept BT (`accept_embargo_trigger_bt` for a Flow A EP;
+  `accept_invite_to_embargo_tree` for a Flow B invitation). Sits behind the
+  CASE_OWNER-bypass authorization Selector (EMB-15-002).
 
 ### `OnEmbargoAccept`
 
@@ -366,11 +383,10 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Automation potential**: **High** — notification dispatch, timer initialization, and state-update actions are all integration-automatable via APIs.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.OnEmbargoAccept`
 - **Call-out point shape**: Actuator — fires integration hooks on embargo acceptance; invokes notification APIs, embargo timer-service initialization calls, and case-management state writes. There is no content artifact placed on the blackboard; the side effects in external systems are the seam.
-- **Factory-fn placement**: FUTURE:
-  `vultron.core.behaviors.embargo.create_propose_embargo_decision_tree`
-  (issue #1257) — Actuator effect node in
-  `_EvaluateAndAcceptProposedEmbargo` Sequence, after the Evaluator and
-  `accept_embargo_trigger_bt`
+- **Factory-fn placement**: FUTURE (revised by #1257 planning): Actuator
+  effect node on the accept arm of the **inbound embargo-response decision
+  seam** (spec `EMB-15`), firing after the flow-appropriate accept BT. Not a
+  monolithic `create_propose_embargo_decision_tree`.
 
 ### `OnEmbargoReject`
 
@@ -387,11 +403,11 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Automation potential**: **High** — notification dispatch and logging actions are fully automatable via APIs.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.OnEmbargoReject`
 - **Call-out point shape**: Actuator — fires integration hooks on embargo rejection; invokes notification APIs and case-management state writes for the rejection rationale. There is no content artifact placed on the blackboard; the side effects in external systems are the seam.
-- **Factory-fn placement**: FUTURE:
-  `vultron.core.behaviors.embargo.create_propose_embargo_decision_tree`
-  (issue #1257) — Actuator effect node in `_RejectProposedEmbargo`
-  Sequence (within `_ChooseEmProposedResponse`), after
-  `reject_embargo_trigger_bt`
+- **Factory-fn placement**: FUTURE (revised by #1257 planning): Actuator
+  effect node on the reject arm of the **inbound embargo-response decision
+  seam** (spec `EMB-15-004`), firing after the flow-appropriate reject BT
+  (`reject_embargo_trigger_bt` for Flow A; `reject_invite_to_embargo_tree`
+  for Flow B). Not a monolithic `create_propose_embargo_decision_tree`.
 
 ### `CurrentEmbargoAcceptable`
 
@@ -410,10 +426,11 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Call-out point shape**: Evaluator
 - **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
   `vultron.core.behaviors.embargo.manage_embargo_tree.create_manage_embargo_tree`
-  (`current_embargo_acceptable_factory` param). FUTURE full placement:
-  `vultron.core.behaviors.embargo.create_propose_embargo_decision_tree`
-  (issue #1257) — Evaluator condition guard in `_ChooseEmActiveResponse`
-  Selector; SUCCESS = no revision needed, FAILURE = revision proposal path
-  taken
+  (`current_embargo_acceptable_factory` param). FUTURE full placement (revised
+  by #1257 planning): this is a **continuous-monitoring** evaluator with no
+  inbound-message trigger — it belongs to the active-embargo review/monitoring
+  concern (Sentinel shape, like `EmbargoTimerExpired`), tracked as a companion
+  Idea under monitoring epic #1147, NOT the inbound embargo-response decision
+  seam (EMB-15) and NOT a monolithic `create_propose_embargo_decision_tree`.
 
 ---
