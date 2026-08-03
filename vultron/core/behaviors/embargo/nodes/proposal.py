@@ -35,10 +35,11 @@ class UpdateParticipantEmbargoPecNode(DataLayerAction):
     OptionalLookupParticipantNode pattern: when participant doesn't exist on this
     peer, skip the PEC update but continue to cascade log entry to all peers.
 
-    Always returns SUCCESS (idempotent best-effort update). Actual PEC state is
-    only updated if participant exists on the local blackboard. Missing
-    participant is treated as a temporary local state gap that will be resolved
-    by peer broadcast.
+    Returns SUCCESS when the participant is absent or the DataLayer is
+    unavailable. Raises ``VultronInvalidStateTransitionError`` (via
+    ``apply_pec_transition``) if the trigger is illegal for the current
+    PEC state — callers should ensure the trigger is valid for the
+    participant's current consent state before invoking this node.
     """
 
     def __init__(

@@ -386,7 +386,8 @@ class SeedParticipantAsSignatoryNode(DataLayerAction):
             )
             return Status.FAILURE
 
-        participant.apply_pec_transition(PEC_Trigger.ACCEPT)
+        if participant.embargo_consent_state != PEC.SIGNATORY:
+            participant.apply_pec_transition(PEC_Trigger.ACCEPT)
         if active_embargo_id not in participant.accepted_embargo_ids:
             participant.accepted_embargo_ids.append(active_embargo_id)
         self.datalayer.save(participant)
