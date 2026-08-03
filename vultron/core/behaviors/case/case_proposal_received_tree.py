@@ -20,7 +20,8 @@ ADR-0041 before emitting outbound activities:
   3. Add reporter as participant at RM.ACCEPTED (AC-2)
   4. Initialize the default embargo (AC-3)
   5. Seed vendor (CASE_OWNER) as embargo SIGNATORY (CM-13)
-  6. Commit canonical ledger entries natively (AC-4)
+  6. Seed reporter as embargo SIGNATORY (CM-14-005)
+  7. Commit canonical ledger entries natively (AC-4)
   7. Emit ``Accept(as_CaseProposal)``
   8. Write durable retry marker (CP-05-005)
   9. Emit ``Create(VulnerabilityCase)`` with inline participants (AC-5)
@@ -893,6 +894,165 @@ class _SeedVendorOwnerSignatoryNode(DataLayerAction):
         )
 
 
+class _SeedReporterSignatoryNode(DataLayerAction):
+    """Seed the reporter participant as embargo SIGNATORY (CM-14-005).
+
+    CM-14-005 requires: "When the reporter is added as a participant during
+    case initialization, they MUST be seeded as SIGNATORY on any active
+    embargo."  The reporter's consent is *implicit* in submitting the report
+    (ADR-0048) — no invitation round-trip is needed.
+
+    This node runs after ``InitializeDefaultEmbargoNode`` (so the embargo is
+    already ACTIVE) and after ``_AddReporterParticipantNode`` (so the
+    participant record exists).  It resolves the reporter URI from the report
+    in the DataLayer, looks up the participant, and calls
+    ``apply_pec_transition(PEC_Trigger.ACCEPT)`` via the shared helper so that
+    both the PEC state machine and the ``ParticipantStatus.consent`` dimension
+    are updated atomically (CM-18-005, CM-18-006, ADR-0048).
+
+    Best-effort: if the report, reporter URI, or participant cannot be
+    resolved, or if there is no active embargo, the node logs a warning and
+    returns SUCCESS so the enclosing Sequence is not blocked.
+
+    Reads ``case_id`` from the blackboard.
+    """
+
+    def __init__(
+        self,
+        report_id: str | None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._report_id = report_id
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="case_id", access=py_trees.common.Access.READ
+        )
+
+    def _resolve_reporter_uri(self, report_id: str) -> str | None:
+        assert self.datalayer is not None
+        raw_report = self.datalayer.read(report_id)
+        if not isinstance(raw_report, VulnerabilityReport):
+            logger.warning(
+                "%s: report '%s' not found — skipping reporter SIGNATORY"
+                " seed (best-effort)",
+                self.name,
+                report_id,
+            )
+            return None
+        reporter_uri = getattr(raw_report, "attributed_to", None)
+        if not isinstance(reporter_uri, str) or not reporter_uri:
+            logger.warning(
+                "%s: report '%s' has no attributed_to — skipping reporter"
+                " SIGNATORY seed (best-effort)",
+                self.name,
+                report_id,
+            )
+            return None
+        return reporter_uri
+
+    def _resolve_participant(
+        self, case_id: str, reporter_uri: str
+    ) -> tuple[VulnerabilityCase | None, CaseParticipant | None]:
+        """Return (case, participant) for *reporter_uri*, or (None, None) on miss."""
+        assert self.datalayer is not None
+        stored_case = self.datalayer.read(case_id, raise_on_missing=False)
+        if not isinstance(stored_case, VulnerabilityCase):
+            logger.warning(
+                "%s: case '%s' not found — cannot seed reporter SIGNATORY"
+                " (best-effort)",
+                self.name,
+                case_id,
+            )
+            return None, None
+        if stored_case.active_embargo is None:
+            logger.debug(
+                "%s: no active embargo on case '%s' — nothing to seed for"
+                " reporter",
+                self.name,
+                case_id,
+            )
+            return None, None
+        participant_id = stored_case.actor_participant_index.get(reporter_uri)
+        if not participant_id:
+            logger.warning(
+                "%s: reporter '%s' has no participant in case '%s' —"
+                " cannot seed SIGNATORY (best-effort)",
+                self.name,
+                reporter_uri,
+                case_id,
+            )
+            return None, None
+        participant = self.datalayer.read(
+            participant_id, raise_on_missing=False
+        )
+        if not isinstance(participant, CaseParticipant):
+            logger.warning(
+                "%s: reporter participant '%s' not found in case '%s' —"
+                " cannot seed SIGNATORY (best-effort)",
+                self.name,
+                participant_id,
+                case_id,
+            )
+            return None, None
+        return stored_case, participant
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        if self._report_id is None:
+            logger.debug(
+                "%s: no report_id — skipping reporter SIGNATORY seed",
+                self.name,
+            )
+            return Status.SUCCESS
+
+        try:
+            case_id = self.blackboard.get("case_id")
+        except KeyError:
+            self.feedback_message = "case_id not found in blackboard"
+            return Status.FAILURE
+        if not isinstance(case_id, str):
+            self.feedback_message = "case_id is not a string"
+            return Status.FAILURE
+
+        reporter_uri = self._resolve_reporter_uri(self._report_id)
+        if reporter_uri is None:
+            return Status.SUCCESS
+
+        stored_case, participant = self._resolve_participant(
+            case_id, reporter_uri
+        )
+        if stored_case is None or participant is None:
+            return Status.SUCCESS
+
+        self._seed_signatory(stored_case, participant)
+        return Status.SUCCESS
+
+    def _seed_signatory(
+        self,
+        stored_case: VulnerabilityCase,
+        participant: CaseParticipant,
+    ) -> None:
+        embargo_id = stored_case.active_embargo
+        if participant.embargo_consent_state != PEC.SIGNATORY:
+            participant.apply_pec_transition(PEC_Trigger.ACCEPT)
+        if embargo_id and embargo_id not in participant.accepted_embargo_ids:
+            participant.accepted_embargo_ids.append(embargo_id)
+        assert self.datalayer is not None
+        self.datalayer.save(participant)
+        logger.info(
+            "%s: Seeded reporter as embargo SIGNATORY in case '%s'"
+            " (CM-14-005)",
+            self.name,
+            stored_case.id_,
+        )
+
+
 class _EmitAcceptCaseProposalNode(DataLayerAction):
     """Build Accept(CaseProposal), store it, and queue it to the outbox.
 
@@ -1322,20 +1482,22 @@ def create_case_proposal_received_tree(
          (ADR-0041 AC-3)
       7. ``_SeedVendorOwnerSignatoryNode`` — vendor (CASE_OWNER) seeded as
          embargo SIGNATORY (CM-13)
-      8. ``_CommitNativeLedgerEntriesNode`` — canonical ledger entries
+      8. ``_SeedReporterSignatoryNode`` — reporter seeded as embargo
+         SIGNATORY (CM-14-005); implicit consent per ADR-0048
+      9. ``_CommitNativeLedgerEntriesNode`` — canonical ledger entries
          committed (ADR-0041 AC-4)
 
       Then the outbound messaging steps:
 
-      9. ``_EmitAcceptCaseProposalNode`` — emits Accept(as_CaseProposal)
-      10. ``_WriteCreateCaseMarkerNode`` — writes durable retry marker with
+      10. ``_EmitAcceptCaseProposalNode`` — emits Accept(as_CaseProposal)
+      11. ``_WriteCreateCaseMarkerNode`` — writes durable retry marker with
          inline case object (CP-05-005, ADR-0041 AC-5)
-      11. ``_EmitCreateVulnerabilityCaseNode`` — emits
+      12. ``_EmitCreateVulnerabilityCaseNode`` — emits
          Create(VulnerabilityCase) with inline participants
-      12. ``_ClearCreateCaseMarkerNode`` — removes marker on success
+      13. ``_ClearCreateCaseMarkerNode`` — removes marker on success
          (CP-05-005)
 
-    If node 10 fails, the marker written in node 9 remains in the DataLayer so
+    If node 11 fails, the marker written in node 10 remains in the DataLayer so
     that a retry runner (#1139) can complete the ``Create(VulnerabilityCase)``
     delivery independently.
 
@@ -1399,6 +1561,10 @@ def create_case_proposal_received_tree(
             # actor_id (the CaseActor), which is not a participant here, so it
             # no-ops; this node seeds the vendor explicitly.
             _SeedVendorOwnerSignatoryNode(vendor_uri=vendor_uri),
+            # CM-14-005: seed the reporter as embargo SIGNATORY.
+            # Reporter consent is implicit in submitting the report (ADR-0048);
+            # no invitation round-trip is needed or appropriate.
+            _SeedReporterSignatoryNode(report_id=report_id),
             # ADR-0041 AC-4: commit canonical ledger entries natively
             _CommitNativeLedgerEntriesNode(
                 vendor_uri=vendor_uri,
