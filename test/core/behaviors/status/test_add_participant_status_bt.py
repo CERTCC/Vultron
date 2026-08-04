@@ -776,44 +776,53 @@ class TestAllParticipantsRMClosedConditionNode:
         self,
         populated_dl,
         participant,
+        case_manager_participant,
     ):
-        """All CVD participants RM.CLOSED → SUCCESS."""
-        closed_status = as_ParticipantStatus(
+        """All CVD participants (including CaseActor) at RM.CLOSED → SUCCESS (ADR-0051)."""
+        closed_vendor = as_ParticipantStatus(
             id_=f"{STATUS_ID}/closed",
             context=CASE_ID,
             rm_state=RM.CLOSED,
         )
-        populated_dl.create(closed_status)
-        participant.participant_statuses.append(closed_status)
+        closed_cm = as_ParticipantStatus(
+            id_=f"{CM_PARTICIPANT_ID}/statuses/closed",
+            context=CASE_ID,
+            rm_state=RM.CLOSED,
+        )
+        populated_dl.create(closed_vendor)
+        populated_dl.create(closed_cm)
+        participant.participant_statuses.append(closed_vendor)
         populated_dl.save(participant)
+        case_manager_participant.participant_statuses.append(closed_cm)
+        populated_dl.save(case_manager_participant)
 
         bridge = BTBridge(datalayer=populated_dl)
         node = AllParticipantsRMClosedConditionNode(case_id=CASE_ID)
         result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
         assert result.status == Status.SUCCESS
 
-    def test_skips_case_manager_participant(
+    def test_fails_when_case_manager_participant_not_closed(
         self,
         populated_dl,
         participant,
         case_manager_participant,
     ):
-        """CASE_MANAGER participant is excluded from the RM.CLOSED check."""
-        # Only vendor has CLOSED — case_manager_participant has no status
-        closed_status = as_ParticipantStatus(
+        """CaseActor not at RM.CLOSED → FAILURE; no CASE_MANAGER skip (ADR-0051)."""
+        # Only the vendor is CLOSED; case_manager_participant has no RM.CLOSED status
+        closed_vendor = as_ParticipantStatus(
             id_=f"{STATUS_ID}/closed",
             context=CASE_ID,
             rm_state=RM.CLOSED,
         )
-        populated_dl.create(closed_status)
-        participant.participant_statuses.append(closed_status)
+        populated_dl.create(closed_vendor)
+        participant.participant_statuses.append(closed_vendor)
         populated_dl.save(participant)
 
         bridge = BTBridge(datalayer=populated_dl)
         node = AllParticipantsRMClosedConditionNode(case_id=CASE_ID)
         result = bridge.execute_with_setup(tree=node, actor_id=CASE_MANAGER_ID)
-        # CASE_MANAGER is skipped, so only vendor matters → SUCCESS
-        assert result.status == Status.SUCCESS
+        # CaseActor is not RM.CLOSED → FAILURE (ADR-0051 removes the old skip)
+        assert result.status == Status.FAILURE
 
     def test_fails_when_no_case_id(self, bridge):
         """No case_id → FAILURE."""
