@@ -63,6 +63,10 @@ from vultron.core.behaviors.sync.nodes.effects import (
     ApplyNoteFromLedgerNode,
     ApplyParticipantStatusFromLedgerNode,
 )
+from vultron.core.behaviors.sync.nodes.fanout import (
+    CollectNonClosedLogEntryRecipientsNode,
+    FanOutLogEntryExcludingClosedNode,
+)
 from vultron.core.behaviors.sync.nodes.replay import (
     AnnounceCaseOnGenesisRejectNode,
     CollectAndSortCaseLedgerEntriesNode,
@@ -112,8 +116,10 @@ __all__ = [
     "SendMissingEntriesNode",
     "ReplayMissingEntriesNode",
     "CollectLogEntryRecipientsNode",
+    "CollectNonClosedLogEntryRecipientsNode",
     "SendLogEntryToEachNode",
     "FanOutLogEntryNode",
+    "FanOutLogEntryExcludingClosedNode",
     # re-exported helper functions (backward compat)
     "_find_case_actor",
     "_require_case_actor_id",

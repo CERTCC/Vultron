@@ -18,9 +18,9 @@
 Implements receiver-side role semantics for Leave(VulnerabilityCase):
 
 - **Owner Leave** (sender holds ``CVDRole.CASE_OWNER``): advances the leaving
-  participant to ``RM.CLOSED``, then advances the CaseActor to ``RM.CLOSED``,
-  completing the full case closure sequence on the Case Actor replica
-  (CM-23-002).
+  participant to ``RM.CLOSED``, advances the CaseActor to ``RM.CLOSED``,
+  commits a ``case_fully_closed`` CaseLedgerEntry, and fans out to
+  non-RM.CLOSED participants (CM-23-002, CM-23-004).
 - **Non-owner Leave**: advances only the leaving participant to ``RM.CLOSED``;
   the case remains open for remaining participants (CM-23-003).
 
@@ -29,10 +29,9 @@ The role check is performed by :class:`~vultron.core.behaviors.case.nodes
 BTND-08-001/BTND-08-002 (role checks MUST be in the tree, not in action node
 ``update()`` logic).
 
-Fan-out to non-CaseActor replicas is handled by
-:class:`~vultron.core.behaviors.sync.nodes.effects.ApplyCloseCaseFromLedgerNode`
-in the announce tree, which mirrors the participant departure effect on every
-other replica.
+Per ADR-0050: ``Leave(VulnerabilityCase)`` is the only canonical RM closure
+path.  The ``case_fully_closed`` ledger entry is written here on the Case Actor
+receive path; all other replicas learn via Announce(CaseLedgerEntry) fan-out.
 """
 
 import logging
@@ -51,6 +50,12 @@ from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     CheckIsCaseOwnerNode,
 )
 from vultron.core.behaviors.report.nodes.storage import StoreActivityNode
+from vultron.core.behaviors.sync.nodes import (
+    CreateLogEntryNode,
+    FanOutLogEntryExcludingClosedNode,
+    PersistLogEntryNode,
+    ReconstructChainTailNode,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -84,11 +89,16 @@ def create_close_case_received_tree(
         │   │   └── Inverter(CheckIsCaseManagerNode)
         │   └── CommitCaseLedgerEntryNode
         ├── OwnerOrNonOwnerEffects (Selector)           # Role discriminator
-        │   ├── OwnerLeaveSeq (Sequence)                # Owner path
+        │   ├── OwnerLeaveSeq (Sequence)                # Owner path (CM-23-002)
         │   │   ├── CheckIsCaseOwnerNode                # guard: sender IS CASE_OWNER
         │   │   ├── AdvanceParticipantToRMClosedNode    # step 1: owner → RM.CLOSED
-        │   │   └── AdvanceCaseActorToRMClosedNode      # step 2: CaseActor → RM.CLOSED
-        │   └── NonOwnerLeaveFallbackSeq (Sequence)     # Non-owner path (fallback)
+        │   │   ├── AdvanceCaseActorToRMClosedNode      # step 2: CaseActor → RM.CLOSED
+        │   │   └── CommitCaseFullyClosedBT (Sequence)  # steps 3-4: commit + fan-out
+        │   │       ├── ReconstructChainTailNode        # step 3a: tail hash
+        │   │       ├── CreateCaseFullyClosedEntry      # step 3b: build entry
+        │   │       ├── PersistCaseFullyClosedEntry     # step 3c: write to DataLayer
+        │   │       └── FanOutLogEntryExcludingClosedNode # step 4: fan-out (CM-23-004)
+        │   └── NonOwnerLeaveFallbackSeq (Sequence)     # Non-owner path (CM-23-003)
         │       └── AdvanceParticipantToRMClosedNode    # departing participant → RM.CLOSED
         └── StoreActivityNode("Leave")                  # Persist inbound Leave activity
 
@@ -131,6 +141,33 @@ def create_close_case_received_tree(
         name="AdvanceLeavingParticipantToRMClosed",
     )
 
+    case_fully_closed_commit = py_trees.composites.Sequence(
+        name="CommitCaseFullyClosedBT",
+        memory=False,
+        children=[
+            ReconstructChainTailNode(
+                case_id=case_id, name="ReconstructChainTail"
+            ),
+            CreateLogEntryNode(
+                case_id=case_id,
+                object_id=activity_id,
+                event_type="case_fully_closed",
+                payload_snapshot={
+                    "type": "Leave",
+                    "actor": sender_actor_id,
+                    "object_": {"type": "VulnerabilityCase", "id_": case_id},
+                    "context": case_id,
+                },
+                name="CreateCaseFullyClosedEntry",
+            ),
+            PersistLogEntryNode(name="PersistCaseFullyClosedEntry"),
+            FanOutLogEntryExcludingClosedNode(
+                case_id=case_id,
+                name="FanOutCaseFullyClosedExcludingClosed",
+            ),
+        ],
+    )
+
     owner_leave_children: list[py_trees.behaviour.Behaviour] = [
         CheckIsCaseOwnerNode(
             sender_actor_id=sender_actor_id,
@@ -151,6 +188,7 @@ def create_close_case_received_tree(
                 name="AdvanceCaseActorToRMClosed",
             )
         )
+    owner_leave_children.append(case_fully_closed_commit)
 
     owner_or_non_owner_effects = py_trees.composites.Selector(
         name="OwnerOrNonOwnerEffects",

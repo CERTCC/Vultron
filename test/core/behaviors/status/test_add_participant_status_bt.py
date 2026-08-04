@@ -23,11 +23,11 @@ and Seam 1 authorization (ADR-0046, RSH-01-001 to RSH-01-004):
   Seam 1: CheckIsCaseOwnerNode                — CASE_OWNER gospel bypass (RSH-01-002)
   Seam 1: StatusUpdateGuard                   — Fallback: bypass or call-out (RSH-01-002)
   Seam 1: EmitAddCaseStatusToSelfNode         — self-addressed Add(CaseStatus) (RSH-01-003)
-  5. AllParticipantsRMClosedConditionNode     — FAILURE when any participant not RM.CLOSED
-     CloseNotYetEmittedConditionNode          — FAILURE when Leave already in outbox
-     EmitCloseCaseNode                        — queues Leave(VulnerabilityCase)
 
-Per specs/multi-actor-demo.yaml DEMOMA-07-003, DEMOMA-07-005, DEMOMA-07-006.
+AutoCloseSequence was removed per ADR-0050: canonical RM closure is routed
+through the Leave(VulnerabilityCase) receive path in receive_close_case_tree.
+
+Per specs/multi-actor-demo.yaml DEMOMA-07-003, DEMOMA-07-005.
 Per specs/received-status-handling.yaml RSH-01-001 to RSH-01-004.
 """
 
@@ -1089,6 +1089,69 @@ class TestAddParticipantStatusTree:
         assert (
             "CheckIsCaseOwner" in node_names
         ), "CheckIsCaseOwnerNode must be present inside StatusUpdateGuard (RSH-01-002)"
+
+
+# ---------------------------------------------------------------------------
+# Regression: AutoCloseSequence must NOT be present (ADR-0050)
+# ---------------------------------------------------------------------------
+
+
+class TestNoAutoCloseSequenceInTree:
+    """Regression guard: AutoCloseSequence is dead code per ADR-0050.
+
+    Canonical RM closure is routed through Leave(VulnerabilityCase) receive
+    path in receive_close_case_tree.  This tree must NOT contain any
+    AutoCloseSequence, AutoCloseIfCaseManager, EmitCloseCaseNode, or
+    ResolveCaseManagerNode subtrees.
+    """
+
+    def _all_nodes(self, node: py_trees.behaviour.Behaviour) -> list:
+        result = [node]
+        for child in getattr(node, "children", []):
+            result.extend(self._all_nodes(child))
+        return result
+
+    def test_no_auto_close_sequence_node(self, make_payload):
+        """AutoCloseSequence must not appear in add_participant_status_tree."""
+        activity = add_status_to_participant_activity(
+            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
+            target=as_CaseParticipant(
+                id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+            ),
+            actor=ACTOR_ID,
+            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+        )
+        event = make_payload(activity)
+        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+        all_nodes = self._all_nodes(tree)
+        node_names = [n.name for n in all_nodes]
+        assert (
+            "AutoCloseSequence" not in node_names
+        ), "AutoCloseSequence must be removed per ADR-0050"
+        assert (
+            "AutoCloseIfCaseManager" not in node_names
+        ), "AutoCloseIfCaseManager must be removed per ADR-0050"
+
+    def test_no_emit_close_case_node(self, make_payload):
+        """EmitCloseCaseNode must not appear in add_participant_status_tree."""
+        from vultron.core.behaviors.status.nodes.lifecycle import (
+            EmitCloseCaseNode,
+        )
+
+        activity = add_status_to_participant_activity(
+            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
+            target=as_CaseParticipant(
+                id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+            ),
+            actor=ACTOR_ID,
+            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+        )
+        event = make_payload(activity)
+        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+        all_nodes = self._all_nodes(tree)
+        assert not any(
+            isinstance(n, EmitCloseCaseNode) for n in all_nodes
+        ), "EmitCloseCaseNode must not be in add_participant_status_tree (ADR-0050)"
 
 
 # ---------------------------------------------------------------------------

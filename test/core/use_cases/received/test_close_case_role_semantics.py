@@ -240,6 +240,76 @@ class TestOwnerLeaveReceivePath:
             f" — fan-out handles that; rm_states={rm_states}"
         )
 
+    def test_owner_leave_creates_case_fully_closed_ledger_entry(self):
+        """Owner Leave: a case_fully_closed CaseLedgerEntry is written (CM-23-002 step 3)."""
+        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+
+        dl = _make_full_dl()
+        CloseCaseReceivedUseCase(
+            dl=dl,
+            request=_make_close_case_event(sender_actor_id=OWNER_ID),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        entries = [
+            obj
+            for obj in dl.list_objects("CaseLedgerEntry")
+            if isinstance(obj, CaseLedgerEntry)
+            and getattr(obj, "case_id", None) == CASE_ID
+        ]
+        event_types = [getattr(e, "event_type", None) for e in entries]
+        assert "case_fully_closed" in event_types, (
+            f"Owner Leave must create a case_fully_closed ledger entry (CM-23-002 step 3);"
+            f" found event_types={event_types}"
+        )
+
+    def test_owner_leave_case_fully_closed_fanout_skips_rm_closed(self):
+        """Owner Leave: case_fully_closed fan-out skips OWNER and CASE_ACTOR (both RM.CLOSED, CM-23-004).
+
+        The initial GuardedCommit for the Leave receipt legitimately fans out to all
+        participants (OWNER is not yet RM.CLOSED at that point).  The *second* fan-out
+        (for the ``case_fully_closed`` entry) must skip already-closed actors.
+        """
+        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+
+        dl = _make_full_dl()
+        sync_mock = MagicMock(spec=SyncActivityPort)
+        CloseCaseReceivedUseCase(
+            dl=dl,
+            request=_make_close_case_event(sender_actor_id=OWNER_ID),
+            sync_port=sync_mock,
+        ).execute()
+
+        assert (
+            sync_mock.send_announce_log_entry.called
+        ), "Fan-out must call sync_port.send_announce_log_entry after owner Leave (CM-23-004)"
+
+        # Identify calls for the case_fully_closed entry specifically
+        case_fully_closed_recipients: list[str] = []
+        for c in sync_mock.send_announce_log_entry.call_args_list:
+            entry = c.kwargs.get("entry") or (c.args[0] if c.args else None)
+            if (
+                isinstance(entry, CaseLedgerEntry)
+                and getattr(entry, "event_type", None) == "case_fully_closed"
+            ):
+                recipients = c.kwargs.get("to") or (
+                    c.args[2] if len(c.args) > 2 else []
+                )
+                case_fully_closed_recipients.extend(recipients)
+
+        assert VENDOR_ID in case_fully_closed_recipients, (
+            f"case_fully_closed fan-out must include VENDOR_ID;"
+            f" actual recipients: {case_fully_closed_recipients}"
+        )
+        assert OWNER_ID not in case_fully_closed_recipients, (
+            f"case_fully_closed fan-out must NOT include OWNER_ID (already RM.CLOSED, CM-23-004);"
+            f" actual recipients: {case_fully_closed_recipients}"
+        )
+        assert CASE_ACTOR_ID not in case_fully_closed_recipients, (
+            f"case_fully_closed fan-out must NOT include CASE_ACTOR_ID (already RM.CLOSED, CM-23-004);"
+            f" actual recipients: {case_fully_closed_recipients}"
+        )
+
 
 class TestNonOwnerLeaveReceivePath:
     """CM-23-003: Non-owner Leave advances only the leaving participant."""
