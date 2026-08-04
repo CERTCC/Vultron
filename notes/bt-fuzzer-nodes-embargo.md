@@ -68,12 +68,12 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Automation potential**: **Medium** — deployment status check is automatable via patch-management or case-state APIs; the *decision* to exit still requires policy-rule evaluation or human confirmation.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.ExitEmbargoWhenDeployed`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
+- **Factory-fn placement**: Wired in two factories —
   `vultron.core.behaviors.embargo.manage_embargo_tree.create_manage_embargo_tree`
-  (`exit_embargo_when_deployed_factory` param). FUTURE full placement:
-  `vultron.core.behaviors.embargo.create_terminate_active_embargo_tree`
-  (issue #1256) — condition guard in the Reason Selector, checked
-  before delegating to `terminate_embargo_bt`
+  (`exit_embargo_when_deployed_factory` param, PR #1357) and
+  `vultron.core.behaviors.embargo.terminate_active_embargo_tree.create_terminate_active_embargo_tree`
+  (`exit_embargo_when_deployed_factory` param, PR #1957 / issue #1891) —
+  condition guard in the ReasonSelector, checked before delegating to `terminate_embargo_bt`
 
 ### `ExitEmbargoWhenFixReady`
 
@@ -90,12 +90,12 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Automation potential**: **Medium** — fix-readiness flag is queryable automatically; the exit decision depends on configurable organizational policy that may require human override.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.ExitEmbargoWhenFixReady`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
+- **Factory-fn placement**: Wired in two factories —
   `vultron.core.behaviors.embargo.manage_embargo_tree.create_manage_embargo_tree`
-  (`exit_embargo_when_fix_ready_factory` param). FUTURE full placement:
-  `vultron.core.behaviors.embargo.create_terminate_active_embargo_tree`
-  (issue #1256) — condition guard in the Reason Selector, checked
-  before delegating to `terminate_embargo_bt`
+  (`exit_embargo_when_fix_ready_factory` param, PR #1357) and
+  `vultron.core.behaviors.embargo.terminate_active_embargo_tree.create_terminate_active_embargo_tree`
+  (`exit_embargo_when_fix_ready_factory` param, PR #1957 / issue #1891) —
+  condition guard in the ReasonSelector, checked before delegating to `terminate_embargo_bt`
 
 ### `ExitEmbargoForOtherReason`
 
@@ -112,12 +112,12 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Automation potential**: **Low** — rare edge case representing extraordinary circumstances; fundamentally requires human judgment that cannot be anticipated by a general policy rule.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.ExitEmbargoForOtherReason`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: Phase 1 stub now exists as of PR #1357 —
+- **Factory-fn placement**: Wired in two factories —
   `vultron.core.behaviors.embargo.manage_embargo_tree.create_manage_embargo_tree`
-  (`exit_embargo_for_other_reason_factory` param). FUTURE full placement:
-  `vultron.core.behaviors.embargo.create_terminate_active_embargo_tree`
-  (issue #1256) — rare fallback condition guard in the Reason
-  Selector for extraordinary circumstances
+  (`exit_embargo_for_other_reason_factory` param, PR #1357) and
+  `vultron.core.behaviors.embargo.terminate_active_embargo_tree.create_terminate_active_embargo_tree`
+  (`exit_embargo_for_other_reason_factory` param, PR #1957 / issue #1891) —
+  rare fallback condition guard in the ReasonSelector for extraordinary circumstances
 
 ### `EmbargoTimerExpired`
 
@@ -161,18 +161,18 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
 - **Automation potential**: **High** — integration hook (notifications, state updates, downstream triggers); can be fully automated via API calls to notification and case-management systems.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.OnEmbargoExit`
 - **Call-out point shape**: Actuator — fires integration hooks on embargo exit; invokes notification APIs, case-management state-write calls, and downstream trigger endpoints. There is no content artifact placed on the blackboard; the side effects in external systems are the seam.
-- **Factory-fn placement**: FUTURE:
-  `vultron.core.behaviors.embargo.create_terminate_active_embargo_tree`
-  (issue #1256) — Actuator effect node in
-  `_ConsiderTerminatingActiveEmbargo` Sequence, after the condition Selector
-  succeeds and before `terminate_embargo_bt`
+- **Factory-fn placement**: Implemented in PR #1957 (issue #1891) —
+  `vultron.core.behaviors.embargo.terminate_active_embargo_tree.create_terminate_active_embargo_tree`
+  (`on_embargo_exit_factory` param) — Actuator effect node in the
+  `TerminateActiveEmbargoBT` Sequence, after the AuthorizeEmbargoExit Selector
+  and before `terminate_embargo_bt`
 
 ### `EmbargoExitPolicyGuard`
 
 - **Node name**: `EmbargoExitPolicyGuard`
 - **btz type**: `AlwaysSucceed` (p=1.00)
-- **Source file**: `vultron/demo/fuzzer/embargo.py` (to be added)
-- **Parent tree**: `_AuthorizeEmbargoExit` (within
+- **Source file**: `vultron/demo/fuzzer/embargo.py`
+- **Parent tree**: `AuthorizeEmbargoExit` (within
   `create_terminate_active_embargo_tree`)
 - **Semantic function**: Condition — check whether site policy permits the
   actor to proceed with voluntary embargo termination after a reason has been
@@ -185,17 +185,18 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
   approval status) are fully automatable via case-management API calls.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.EmbargoExitPolicyGuard`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: FUTURE:
-  `vultron.core.behaviors.embargo.create_terminate_active_embargo_tree`
-  (issue #1256) — first arm of the authorization Selector, after the reason
-  Selector succeeds and before OnEmbargoExit
+- **Factory-fn placement**: Implemented in PR #1957 (issue #1891) —
+  `vultron.core.behaviors.embargo.terminate_active_embargo_tree.create_terminate_active_embargo_tree`
+  (`embargo_exit_policy_guard_factory` param) — first arm of the
+  AuthorizeEmbargoExit Selector, after the ReasonSelector succeeds and before
+  OnEmbargoExit
 
 ### `EmbargoExitOverride`
 
 - **Node name**: `EmbargoExitOverride`
 - **btz type**: `AlwaysFail` (p=0.00)
-- **Source file**: `vultron/demo/fuzzer/embargo.py` (to be added)
-- **Parent tree**: `_AuthorizeEmbargoExit` (within
+- **Source file**: `vultron/demo/fuzzer/embargo.py`
+- **Parent tree**: `AuthorizeEmbargoExit` (within
   `create_terminate_active_embargo_tree`)
 - **Semantic function**: Condition — actor explicitly accepts responsibility
   for overriding a policy veto and proceeding with voluntary embargo
@@ -209,10 +210,11 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
   acknowledgment for accountability; should not be auto-approved.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.EmbargoExitOverride`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: FUTURE:
-  `vultron.core.behaviors.embargo.create_terminate_active_embargo_tree`
-  (issue #1256) — second (fallback) arm of the authorization Selector;
-  reached only when EmbargoExitPolicyGuard returns FAILURE
+- **Factory-fn placement**: Implemented in PR #1957 (issue #1891) —
+  `vultron.core.behaviors.embargo.terminate_active_embargo_tree.create_terminate_active_embargo_tree`
+  (`embargo_exit_override_factory` param) — second (fallback) arm of the
+  AuthorizeEmbargoExit Selector; reached only when EmbargoExitPolicyGuard
+  returns FAILURE
 
 ### `StopProposingEmbargo`
 
