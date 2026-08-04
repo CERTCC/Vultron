@@ -49,7 +49,7 @@ be treated as working implementations.
 | FVCV-handoff | #1214 | V1 transfers ownership to C; C invites V2 | — | **implemented** (#1561) — `fvcv-handoff` CLI command + CI job |
 | FCCV-extension | #1215 | C1 retains case; C2 is participant; C2 asks C1 to invite V | — | **implemented** (#1620) — `fccv-extension` CLI command + CI job |
 | FCCV-handoff | #1216 | C1 transfers to C2; C2 invites V | — | **implemented** (#1216) — `fccv-handoff` CLI command + CI job |
-| FCVCV | #1217 | F+C1+V1+C2+V2 (5 actors) | #1212, #1215 | planned |
+| FCVCV | #1217 | F+C1+V1+C2+V2 (5 actors) | #1212, #1215 | **implemented** (#1962) — `fcvcv` CLI command + CI job |
 
 ### Fuzz simulation scenarios
 

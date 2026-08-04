@@ -748,6 +748,18 @@ def _phase_fix_lifecycle(
             actor_id=v2.id_,
             expected_states={CS_vfd.VFd, CS_vfd.VFD},
         )
+        wait_for_participant_vfd_state(
+            client=finder_client,
+            case_id=case.id_,
+            actor_id=v1.id_,
+            expected_states={CS_vfd.VFd, CS_vfd.VFD},
+        )
+        wait_for_participant_vfd_state(
+            client=finder_client,
+            case_id=case.id_,
+            actor_id=v2.id_,
+            expected_states={CS_vfd.VFd, CS_vfd.VFD},
+        )
         verify_fix_ready(
             receiver_client=v1_client,
             reporter_client=finder_client,
@@ -787,6 +799,18 @@ def _phase_fix_lifecycle(
         )
         wait_for_participant_vfd_state(
             client=c1_client,
+            case_id=case.id_,
+            actor_id=v2.id_,
+            expected_states={CS_vfd.VFD},
+        )
+        wait_for_participant_vfd_state(
+            client=finder_client,
+            case_id=case.id_,
+            actor_id=v1.id_,
+            expected_states={CS_vfd.VFd},
+        )
+        wait_for_participant_vfd_state(
+            client=finder_client,
             case_id=case.id_,
             actor_id=v2.id_,
             expected_states={CS_vfd.VFD},
