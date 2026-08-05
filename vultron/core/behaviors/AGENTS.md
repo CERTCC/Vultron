@@ -102,6 +102,36 @@ See `notes/bt-pitfalls.md` for related blackboard pitfalls.
 
 ---
 
+## PEC Consent Writes — Never Direct-Assign `embargo_consent_state`
+
+**Pitfall** (CM-18-005, CM-18-006; CONCERN-1970):
+
+```python
+# WRONG — bypasses state machine and does not sync ParticipantStatus
+participant.embargo_consent_state = PEC.SIGNATORY
+```
+
+This is a plain Pydantic field write. It skips the PEC state machine validation
+**and** `_sync_latest_status_metadata()`, so the canonical ledger snapshot
+retains the stale `emConsentState` while `embargoAdherence` reports the new
+value — a self-contradicting record.
+
+**Always use `apply_pec_transition()` and persist the resulting
+`ParticipantStatus`:**
+
+```python
+# CORRECT
+participant.apply_pec_transition(PEC_Trigger.ACCEPT)
+dl.save(participant)
+```
+
+`apply_pec_transition()` validates the trigger, advances the machine, and syncs
+`_latest_status_metadata`. Both steps are required: the machine write alone is
+not sufficient without the persist. See `notes/participant-embargo-consent.md`
+§ "Pitfall: Never Set `embargo_consent_state` by Direct Assignment".
+
+---
+
 ## See Also
 
 - `notes/bt-integration.md` — architecture decisions, actor isolation,
