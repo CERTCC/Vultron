@@ -454,3 +454,78 @@ def test_check_cs_state_transitions_observed_detects_no_status_entries():
     replicas = {"case-actor": [entry]}
     violations = check_cs_state_transitions_observed(replicas)
     assert violations
+
+
+# ---------------------------------------------------------------------------
+# Positive-case (happy-path) tests using conftest fixtures
+# ---------------------------------------------------------------------------
+
+
+class TestAllInvariantsPassOnValidChain:
+    """Each invariant function returns no violations on a well-formed 5-entry chain.
+
+    Uses the ``single_actor_replicas`` and ``two_actor_replicas`` fixtures from
+    conftest.py to confirm that valid data never triggers false-positive violations.
+    """
+
+    def test_check_hash_chain_passes_on_valid_chain(
+        self, single_actor_replicas
+    ):
+        entries = single_actor_replicas["case-actor"]
+        assert check_hash_chain("case-actor", entries) == []
+
+    def test_check_cross_actor_hash_agreement_passes_on_identical_replicas(
+        self, two_actor_replicas
+    ):
+        assert check_cross_actor_hash_agreement(two_actor_replicas) == []
+
+    def test_check_cross_actor_payload_actor_agreement_passes(
+        self, two_actor_replicas
+    ):
+        assert (
+            check_cross_actor_payload_actor_agreement(two_actor_replicas) == []
+        )
+
+    def test_check_non_empty_payload_snapshots_passes(
+        self, single_actor_replicas
+    ):
+        assert check_non_empty_payload_snapshots(single_actor_replicas) == []
+
+    def test_check_no_rm_state_oscillation_passes(self, single_actor_replicas):
+        assert check_no_rm_state_oscillation(single_actor_replicas) == []
+
+    def test_check_rm_closed_termination_passes(self, single_actor_replicas):
+        assert check_rm_closed_termination(single_actor_replicas) == []
+
+    def test_check_participant_status_schema_completeness_passes(
+        self, single_actor_replicas
+    ):
+        assert (
+            check_participant_status_schema_completeness(single_actor_replicas)
+            == []
+        )
+
+    def test_check_nested_objects_inlined_passes(self, single_actor_replicas):
+        assert check_nested_objects_inlined(single_actor_replicas) == []
+
+    def test_check_payload_context_uses_case_uri_passes(
+        self, single_actor_replicas
+    ):
+        assert check_payload_context_uses_case_uri(single_actor_replicas) == []
+
+    def test_check_genesis_entry_present_passes(self, single_actor_replicas):
+        entries = single_actor_replicas["case-actor"]
+        assert check_genesis_entry_present("case-actor", entries) == []
+
+    def test_check_log_starts_at_genesis_passes(self, single_actor_replicas):
+        entries = single_actor_replicas["case-actor"]
+        assert check_log_starts_at_genesis("case-actor", entries) == []
+
+    def test_check_no_gaps_in_log_indices_passes(self, single_actor_replicas):
+        entries = single_actor_replicas["case-actor"]
+        assert check_no_gaps_in_log_indices("case-actor", entries) == []
+
+    def test_check_cs_state_transitions_observed_passes(
+        self, single_actor_replicas
+    ):
+        assert check_cs_state_transitions_observed(single_actor_replicas) == []

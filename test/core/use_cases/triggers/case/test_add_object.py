@@ -152,7 +152,11 @@ class TestSvcAddObjectToCaseUseCase:
         activity = self.dl.read(activity_id)
         assert activity is not None
         # Document current ``to`` value as regression anchor (PCR-08-001).
-        to = getattr(activity, "to", "MISSING")
+        _absent = object()
+        to = getattr(activity, "to", _absent)
+        assert (
+            to is not _absent
+        ), "PCR-08-001: ``to`` attribute must exist on the activity"
         assert to is None or isinstance(
             to, (str, list)
         ), f"PCR-08-001: ``to`` field must be None or a list/str; got {to!r}"

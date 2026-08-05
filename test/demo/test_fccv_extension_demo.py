@@ -209,8 +209,12 @@ class TestFccvExtensionMilestoneAssertions:
 
         with (
             patch.object(demo, "actor_notifies_fix_ready") as mock_fix_ready,
-            patch.object(demo, "wait_for_participant_vfd_state"),
-            patch.object(demo, "_check_participant_vfd_state_in"),
+            patch.object(
+                demo, "wait_for_participant_vfd_state"
+            ) as mock_wait_vfd,
+            patch.object(
+                demo, "_check_participant_vfd_state_in"
+            ) as mock_check_vfd,
             patch.object(
                 demo,
                 "demo_check",
@@ -225,6 +229,8 @@ class TestFccvExtensionMilestoneAssertions:
                 case=case,
             )
         mock_fix_ready.assert_called()
+        mock_wait_vfd.assert_called()
+        mock_check_vfd.assert_called()
 
     def test_phase_publication_calls_verify_publicly_disclosed(self):
         """_phase_publication calls verify_publicly_disclosed at M7."""
