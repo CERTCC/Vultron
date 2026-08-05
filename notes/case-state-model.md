@@ -504,6 +504,63 @@ from the start.
 
 ---
 
+## Invite-Path Participant RM Entry Point
+
+> **Source**: CONCERN-1756. Corrects CM-11-001 and `CreateInviteeParticipantAtAcceptedNode`.
+
+Participants who join a case via the invite-accept path enter at **RM.RECEIVED**,
+not RM.ACCEPTED. This is a protocol-correctness requirement, not merely a
+demo-visibility gap.
+
+### Why Accept(Invite) ≠ RM.ACCEPTED
+
+When an actor sends `Accept(Invite(actor, case))`, they have seen only a redacted
+or stub view of the `VulnerabilityCase` — enough to agree to join and consent to
+the embargo, but not the full vulnerability details (report, description, affected
+versions, etc.). The full case is replicated to them *after* the CaseActor
+processes their Accept. Therefore:
+
+- `Accept(Invite)` = "I am willing to join this case and accept its embargo terms."
+- It does NOT mean "I have validated the vulnerability and committed to remediation."
+
+Recording the invitee at RM.ACCEPTED on Accept is incorrect because RM.ACCEPTED
+means the participant has validated the report and chosen to engage. An actor
+cannot be in that state before seeing the report.
+
+### Correct Lifecycle for Invited Participants
+
+After the CaseActor processes `Accept(Invite)`:
+
+1. CaseActor records invitee at **RM.RECEIVED**.
+2. CaseActor replicates the full `VulnerabilityCase` to the invitee via
+   `Announce(VulnerabilityCase)` and join-time ledger backfill.
+3. Invitee reviews the full case, runs their own validation:
+   - Transitions to **RM.VALID** or **RM.INVALID** and notifies the CaseActor.
+4. If valid, invitee decides to engage or defer:
+   - Transitions to **RM.ACCEPTED** or **RM.DEFERRED** and notifies the CaseActor.
+5. CaseActor updates its representation of the invitee's RM state based on
+   the received status messages (CM-11-002).
+
+### Scope Boundary
+
+This rule applies to **post-initialization invitees** only — participants added
+to an existing case via `Invite(actor, case)`. It does not apply to the initial
+reporter and receiver participants created during case initialization (CM-12,
+CM-13), whose RM states are set as part of the case creation sequence.
+
+### Implementation
+
+- **`CreateInviteeParticipantAtReceivedNode`** (renamed from
+  `CreateInviteeParticipantAtAcceptedNode`) records only `RM.RECEIVED` for
+  the invitee in the CaseActor's DataLayer.
+- The invitee's subsequent V/A transitions are driven by received RM status
+  messages from the invitee themselves.
+
+**Normative requirements**: `specs/case-management.yaml` CM-11-001 through
+CM-11-004.
+
+---
+
 ## Pre-Case Event Backfill on Case Creation
 
 > **Note**: Under ADR-0015, the case is created at report receipt, so

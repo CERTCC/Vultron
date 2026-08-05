@@ -439,7 +439,29 @@ groups:
   - id: CM-11-001
     priority: MUST
     kind: protocol
-    statement: When an actor accepts a case invitation, the accepting actor's RM state MUST advance to ACCEPTED
+    statement: >-
+      When an actor accepts a case invitation, the CaseActor MUST record the accepting actor's
+      RM state as RM.RECEIVED — not RM.ACCEPTED. `Accept(Invite)` signals willingness to join
+      the case and, when an active embargo is in scope, consent to the embargo. It does NOT
+      constitute validation of the vulnerability report. The accepting actor has received only
+      a case stub at that point and has not yet seen the full case (report details, vulnerability
+      description, etc.). The full VALID/INVALID and ACCEPTED/DEFERRED triage cycle is a
+      distinct subsequent step that the invitee runs after the case replica has been replicated
+      to them.
+    note: >-
+      This corrects the prior statement ("MUST advance to ACCEPTED"), which conflated two
+      distinct protocol acts: joining the case and validating its content. The correction
+      applies only to post-initialization invitees — the initial reporter and receiver
+      participants are established during case creation at their correct RM states.
+    rationale: >-
+      An actor who accepts an invitation has seen only a redacted or stub view of the
+      `VulnerabilityCase`. Recording them at RM.ACCEPTED before they have reviewed the
+      full case violates the RM state machine semantics (a participant cannot accept what
+      they have not seen). The `Accept(Invite)` message means "I am willing to participate
+      and I accept the embargo terms"; it does not mean "I have validated the vulnerability
+      and committed to remediation." Only after the full case replica is delivered and the
+      invitee has run their triage cycle (RECEIVED → VALID or INVALID → ACCEPTED or DEFERRED)
+      should their RM state advance past RECEIVED.
     relationships:
     - rel_type: implements
       spec_id: VP-03-012
@@ -448,11 +470,35 @@ groups:
   - id: CM-11-002
     priority: SHOULD
     kind: protocol
-    statement: After auto-engagement (CM-11-001), the accepting actor SHOULD emit an `RmEngageCaseActivity` to notify the
-      case owner
+    statement: >-
+      After accepting a case invitation and receiving the full case replica, the accepting
+      actor SHOULD run the standard RM triage cycle: validating the reported vulnerability
+      (RM.VALID or RM.INVALID), then deciding to engage or defer (RM.ACCEPTED or RM.DEFERRED).
+      Each transition SHOULD be communicated to the CaseActor via the appropriate RM status
+      message so the CaseActor can update its representation of the invitee's RM state.
+    note: Prior text read "After auto-engagement (CM-11-001), the accepting actor SHOULD emit an RmEngageCaseActivity
+      to notify the case owner." That text assumed CM-11-001 advanced the state to ACCEPTED;
+      under the corrected CM-11-001 the engagement notification is part of the triage cycle
+      described here.
     relationships:
     - rel_type: depends_on
       spec_id: OX-02-001
+    - rel_type: depends_on
+      spec_id: CM-11-001
+  - id: CM-11-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CaseActor MUST NOT treat an invited participant as having committed to the case
+      (RM.ACCEPTED) until it receives the corresponding RM status message from the invitee
+      confirming that state transition.
+    rationale: >-
+      Only the invitee can confirm they have validated the vulnerability and chosen to
+      engage. The CaseActor cannot infer acceptance from the `Accept(Invite)` alone
+      because at that point the invitee has not yet received the full case content.
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-11-001
   - id: CM-11-003
     priority: MUST
     kind: protocol
