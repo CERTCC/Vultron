@@ -59,7 +59,7 @@ CaseActor inbox receives Offer
   → OfferCaseOwnershipTransferReceivedUseCase:
       1. Records the Offer object (idempotent).
       2. Commits CaseLedgerEntry (offer-recorded).
-      3. Announce(CaseLedgerEntry) → all participants.   ← CM-21-006 cascade
+      3. Announce(CaseLedgerEntry) → all participants.   ← CM-21-005 rationale
       4. Forwards Offer to transferee's inbox.
 ```
 
