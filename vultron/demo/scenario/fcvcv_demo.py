@@ -504,7 +504,7 @@ def _phase_c2_suggests_v2(
             client=v2_client,
             case_id=case.id_,
             invitee_id=v2.id_,
-            timeout_seconds=20.0,
+            timeout_seconds=40.0,
         )
         logger.info("V2 received CaseActor invite: %s", invite_id)
 
@@ -521,7 +521,7 @@ def _phase_c2_suggests_v2(
         wait_for_case_on_container(
             client=v2_client,
             case_id=case.id_,
-            timeout_seconds=20.0,
+            timeout_seconds=40.0,
         )
     logger.info("V2 received case replica via CaseActor (ADR-0026 path)")
 
@@ -530,7 +530,7 @@ def _phase_c2_suggests_v2(
         vendor_client=c1_client,
         case_id=case.id_,
         expected_count=6,
-        timeout_seconds=20.0,
+        timeout_seconds=40.0,
     )
     logger.info("✓ V2 joined case (6 participants)")
 

@@ -107,6 +107,7 @@ class as_Offer(as_TransitiveActivity):
         validation_alias="type",
         serialization_alias="type",
     )
+    suggested_roles: list[str] | None = None
 
 
 class as_Invite(as_Offer):
