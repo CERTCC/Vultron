@@ -28,7 +28,9 @@ Covers:
 """
 
 import py_trees
+import pytest
 
+from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.call_out.nodes import AlwaysFail, AlwaysSucceed
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     CheckIsCaseOwnerNode,
@@ -40,12 +42,14 @@ from vultron.core.behaviors.call_out.bundles.embargo import (
     EMBARGO_DETERMINISTIC,
     EmbargoCallOutBundle,
 )
+from vultron.core.models.vultron_types import VultronCase, VultronParticipant
 from vultron.demo.fuzzer.bundles.embargo import EMBARGO_STOCHASTIC
 from vultron.demo.fuzzer.embargo import (
     CaseOwnerApprovesEmbargoResponse,
     EvaluateEmbargoProposal,
     WillingToCounterEmbargoProposal,
 )
+from vultron.enums.roles import CVDRole
 
 CASE_ID = "https://example.org/cases/emb15-test"
 DECIDING_ACTOR_ID = "https://example.org/actors/local-deciding-actor"
@@ -349,3 +353,374 @@ class TestRejectArm:
         """Flow A: reject arm is child[2] (last, index 2)."""
         tree = _make_tree(counter=True)
         assert tree.children[2].name == "RejectDelegate"
+
+
+# ---------------------------------------------------------------------------
+# BTBridge integration tests (EMB-15 end-to-end via real DataLayer)
+# ---------------------------------------------------------------------------
+
+_OWNER_ACTOR = "https://example.org/actors/case-owner"
+_NON_OWNER_ACTOR = "https://example.org/actors/non-owner"
+_UNKNOWN_ACTOR = "https://example.org/actors/unknown"
+_INT_CASE_ID = "https://example.org/cases/emb15-integration"
+
+
+def _make_participant(
+    actor_id: str,
+    role: CVDRole,
+    case_id: str = _INT_CASE_ID,
+) -> VultronParticipant:
+    slug = actor_id.rsplit("/", 1)[-1]
+    return VultronParticipant(
+        id_=f"{case_id}/participants/{slug}",
+        attributed_to=actor_id,
+        context=case_id,
+        case_roles=[role],
+    )
+
+
+def _make_case_with_participants(
+    scenario: BTTestScenario,
+    *participants: VultronParticipant,
+) -> VultronCase:
+    case = VultronCase(
+        id_=_INT_CASE_ID,
+        name="EMB-15 Integration Test Case",
+        case_participants=[p.id_ for p in participants],
+        actor_participant_index={
+            str(p.attributed_to): p.id_ for p in participants
+        },
+    )
+    scenario.seed(*participants, case)
+    return case
+
+
+def _tracking_stub(name: str) -> tuple[py_trees.behaviour.Behaviour, dict]:
+    """Return a stub that records whether it was ticked, plus the call log."""
+    log: dict = {"ticked": False}
+
+    class _Tracking(py_trees.behaviour.Behaviour):
+        def update(self) -> py_trees.common.Status:
+            log["ticked"] = True
+            return py_trees.common.Status.SUCCESS
+
+    return _Tracking(name=name), log
+
+
+def _failing_stub(name: str) -> py_trees.behaviour.Behaviour:
+    class _Fail(py_trees.behaviour.Behaviour):
+        def update(self) -> py_trees.common.Status:
+            return py_trees.common.Status.FAILURE
+
+    return _Fail(name=name)
+
+
+class TestBTBridgeIntegration:
+    """End-to-end integration tests for create_embargo_response_decision_tree.
+
+    Ticks the tree through BTBridge with a real in-memory SQLite DataLayer and
+    verifies routing decisions (EMB-15-001 through EMB-15-004).
+    """
+
+    @pytest.fixture(autouse=True)
+    def _clear_blackboard(self):
+        py_trees.blackboard.Blackboard.storage.clear()
+        yield
+        py_trees.blackboard.Blackboard.storage.clear()
+
+    # ------------------------------------------------------------------
+    # CASE_OWNER gospel bypass (EMB-15-002)
+    # ------------------------------------------------------------------
+
+    def test_case_owner_reaches_accept_bt(self):
+        """CASE_OWNER actor: accept arm fires; accept_bt is ticked."""
+        scenario = BTTestScenario(actor_id=_OWNER_ACTOR)
+        owner_p = _make_participant(_OWNER_ACTOR, CVDRole.CASE_OWNER)
+        _make_case_with_participants(scenario, owner_p)
+
+        accept_bt, accept_log = _tracking_stub("AcceptDelegate")
+        tree = create_embargo_response_decision_tree(
+            case_id=_INT_CASE_ID,
+            deciding_actor_id=_OWNER_ACTOR,
+            accept_bt=accept_bt,
+            reject_bt=_failing_stub("RejectDelegate"),
+        )
+        result = scenario.run(tree, actor_id=_OWNER_ACTOR)
+        scenario.assert_success(result)
+        assert accept_log["ticked"], "accept_bt must be ticked for CASE_OWNER"
+
+    def test_case_owner_skips_case_owner_approves_call_out(self):
+        """CASE_OWNER gospel bypass: CaseOwnerApproves call-out is never reached."""
+        called: dict = {"flag": False}
+
+        def tracking_approves_factory(
+            name: str,
+        ) -> py_trees.behaviour.Behaviour:
+            class _Track(py_trees.behaviour.Behaviour):
+                def update(self) -> py_trees.common.Status:
+                    called["flag"] = True
+                    return py_trees.common.Status.SUCCESS
+
+            return _Track(name=name)
+
+        bundle = EmbargoCallOutBundle(
+            case_owner_approves_embargo_response_factory=tracking_approves_factory  # type: ignore[arg-type]
+        )
+        scenario = BTTestScenario(actor_id=_OWNER_ACTOR)
+        owner_p = _make_participant(_OWNER_ACTOR, CVDRole.CASE_OWNER)
+        _make_case_with_participants(scenario, owner_p)
+
+        accept_bt, _ = _tracking_stub("AcceptDelegate")
+        tree = create_embargo_response_decision_tree(
+            case_id=_INT_CASE_ID,
+            deciding_actor_id=_OWNER_ACTOR,
+            accept_bt=accept_bt,
+            reject_bt=_failing_stub("RejectDelegate"),
+            call_out=bundle,
+        )
+        scenario.run(tree, actor_id=_OWNER_ACTOR)
+        assert not called[
+            "flag"
+        ], "CaseOwnerApprovesEmbargoResponse must NOT be called for CASE_OWNER"
+
+    # ------------------------------------------------------------------
+    # Non-owner routes through call-out seam (EMB-15-002)
+    # ------------------------------------------------------------------
+
+    def test_non_owner_routes_through_case_owner_approves_call_out(self):
+        """Non-owner: CaseOwnerApprovesEmbargoResponse call-out IS invoked."""
+        called: dict = {"flag": False}
+
+        def tracking_approves_factory(
+            name: str,
+        ) -> py_trees.behaviour.Behaviour:
+            class _Track(py_trees.behaviour.Behaviour):
+                def update(self) -> py_trees.common.Status:
+                    called["flag"] = True
+                    return py_trees.common.Status.SUCCESS
+
+            return _Track(name=name)
+
+        bundle = EmbargoCallOutBundle(
+            case_owner_approves_embargo_response_factory=tracking_approves_factory  # type: ignore[arg-type]
+        )
+        scenario = BTTestScenario(actor_id=_NON_OWNER_ACTOR)
+        non_owner_p = _make_participant(_NON_OWNER_ACTOR, CVDRole.COORDINATOR)
+        _make_case_with_participants(scenario, non_owner_p)
+
+        accept_bt, _ = _tracking_stub("AcceptDelegate")
+        tree = create_embargo_response_decision_tree(
+            case_id=_INT_CASE_ID,
+            deciding_actor_id=_NON_OWNER_ACTOR,
+            accept_bt=accept_bt,
+            reject_bt=_failing_stub("RejectDelegate"),
+            call_out=bundle,
+        )
+        scenario.run(tree, actor_id=_NON_OWNER_ACTOR)
+        assert called[
+            "flag"
+        ], "CaseOwnerApprovesEmbargoResponse must be called for non-owner"
+
+    def test_unknown_actor_falls_through_to_reject(self):
+        """Actor not in case: CheckIsCaseOwner → FAILURE; call-out denies → reject."""
+        deny_factory_called: dict = {"flag": False}
+
+        def deny_factory(name: str) -> py_trees.behaviour.Behaviour:
+            class _Deny(py_trees.behaviour.Behaviour):
+                def update(self) -> py_trees.common.Status:
+                    deny_factory_called["flag"] = True
+                    return py_trees.common.Status.FAILURE
+
+            return _Deny(name=name)
+
+        bundle = EmbargoCallOutBundle(
+            case_owner_approves_embargo_response_factory=deny_factory  # type: ignore[arg-type]
+        )
+        scenario = BTTestScenario(actor_id=_UNKNOWN_ACTOR)
+        # Seed case with no entry for _UNKNOWN_ACTOR
+        known_p = _make_participant(_NON_OWNER_ACTOR, CVDRole.COORDINATOR)
+        _make_case_with_participants(scenario, known_p)
+
+        reject_bt, reject_log = _tracking_stub("RejectDelegate")
+        tree = create_embargo_response_decision_tree(
+            case_id=_INT_CASE_ID,
+            deciding_actor_id=_UNKNOWN_ACTOR,
+            accept_bt=_failing_stub("AcceptDelegate"),
+            reject_bt=reject_bt,
+            call_out=bundle,
+        )
+        result = scenario.run(tree, actor_id=_UNKNOWN_ACTOR)
+        scenario.assert_success(result)
+        assert reject_log[
+            "ticked"
+        ], "reject_bt must be ticked for unknown actor"
+
+    # ------------------------------------------------------------------
+    # Flow A — accept/counter/reject delegation (EMB-15-001 / EMB-15-003 / EMB-15-004)
+    # ------------------------------------------------------------------
+
+    def test_flow_a_accept_delegation(self):
+        """Flow A: deterministic default → accept_bt is ticked, result is SUCCESS."""
+        scenario = BTTestScenario(actor_id=_OWNER_ACTOR)
+        owner_p = _make_participant(_OWNER_ACTOR, CVDRole.CASE_OWNER)
+        _make_case_with_participants(scenario, owner_p)
+
+        accept_bt, accept_log = _tracking_stub("FlowAAccept")
+        reject_bt, reject_log = _tracking_stub("FlowAReject")
+        counter_bt, counter_log = _tracking_stub("FlowACounter")
+
+        tree = create_embargo_response_decision_tree(
+            case_id=_INT_CASE_ID,
+            deciding_actor_id=_OWNER_ACTOR,
+            accept_bt=accept_bt,
+            reject_bt=reject_bt,
+            counter_bt=counter_bt,
+        )
+        result = scenario.run(tree, actor_id=_OWNER_ACTOR)
+        scenario.assert_success(result)
+        assert accept_log[
+            "ticked"
+        ], "accept_bt must be ticked in Flow A default-accept"
+        assert not counter_log[
+            "ticked"
+        ], "counter_bt must NOT be ticked on default-accept"
+        assert not reject_log[
+            "ticked"
+        ], "reject_bt must NOT be ticked on default-accept"
+
+    def test_flow_a_counter_delegation_when_willing(self):
+        """Flow A: WillingToCounter → SUCCESS → counter_bt is ticked."""
+        # Accept arm fails because AuthorizeSelector fails:
+        # _UNKNOWN_ACTOR is not in case → CheckIsCaseOwner FAILURE,
+        # CaseOwnerApproves also returns FAILURE → AuthorizeSelector FAILURE
+        # → AcceptArm Sequence short-circuits at child[0] (never reaches
+        # EvaluateProposal or accept_bt).
+        # WillingToCounter returns SUCCESS so counter arm is then taken.
+        accept_fail_bundle = EmbargoCallOutBundle(
+            case_owner_approves_embargo_response_factory=lambda name: _failing_stub(name),  # type: ignore[arg-type]
+            willing_to_counter_factory=lambda name: _stub(name),  # type: ignore[arg-type]
+        )
+        scenario = BTTestScenario(actor_id=_UNKNOWN_ACTOR)
+        known_p = _make_participant(_NON_OWNER_ACTOR, CVDRole.COORDINATOR)
+        # Case has no entry for _UNKNOWN_ACTOR so CheckIsCaseOwner returns FAILURE
+        case = VultronCase(
+            id_=_INT_CASE_ID,
+            name="Flow A Counter Test",
+            case_participants=[known_p.id_],
+            actor_participant_index={_NON_OWNER_ACTOR: known_p.id_},
+        )
+        scenario.seed(known_p, case)
+
+        counter_bt, counter_log = _tracking_stub("FlowACounter")
+        reject_bt, reject_log = _tracking_stub("FlowAReject")
+        tree = create_embargo_response_decision_tree(
+            case_id=_INT_CASE_ID,
+            deciding_actor_id=_UNKNOWN_ACTOR,
+            accept_bt=_failing_stub("FlowAAccept"),
+            reject_bt=reject_bt,
+            counter_bt=counter_bt,
+            call_out=accept_fail_bundle,
+        )
+        result = scenario.run(tree, actor_id=_UNKNOWN_ACTOR)
+        scenario.assert_success(result)
+        assert counter_log[
+            "ticked"
+        ], "counter_bt must be ticked when WillingToCounter succeeds"
+        assert not reject_log[
+            "ticked"
+        ], "reject_bt must NOT be ticked when counter arm taken"
+
+    def test_flow_a_reject_delegation_when_all_arms_fail(self):
+        """Flow A: accept + counter arms fail → reject_bt is ticked (EMB-15-004).
+
+        Accept arm fails via AuthorizeSelector: _UNKNOWN_ACTOR not in case →
+        CheckIsCaseOwner FAILURE; CaseOwnerApproves → FAILURE → AcceptArm fails.
+        Counter arm fails because WillingToCounter → FAILURE.
+        """
+        deny_all = EmbargoCallOutBundle(
+            case_owner_approves_embargo_response_factory=lambda name: _failing_stub(name),  # type: ignore[arg-type]
+            willing_to_counter_factory=lambda name: _failing_stub(name),  # type: ignore[arg-type]
+        )
+        scenario = BTTestScenario(actor_id=_UNKNOWN_ACTOR)
+        known_p = _make_participant(_NON_OWNER_ACTOR, CVDRole.COORDINATOR)
+        case = VultronCase(
+            id_=_INT_CASE_ID,
+            name="Flow A Reject Test",
+            case_participants=[known_p.id_],
+            actor_participant_index={_NON_OWNER_ACTOR: known_p.id_},
+        )
+        scenario.seed(known_p, case)
+
+        reject_bt, reject_log = _tracking_stub("FlowAReject")
+        tree = create_embargo_response_decision_tree(
+            case_id=_INT_CASE_ID,
+            deciding_actor_id=_UNKNOWN_ACTOR,
+            accept_bt=_failing_stub("FlowAAccept"),
+            reject_bt=reject_bt,
+            counter_bt=_failing_stub("FlowACounter"),
+            call_out=deny_all,
+        )
+        result = scenario.run(tree, actor_id=_UNKNOWN_ACTOR)
+        scenario.assert_success(result)
+        assert reject_log[
+            "ticked"
+        ], "reject_bt must be ticked when all other arms fail"
+
+    # ------------------------------------------------------------------
+    # Flow B — accept/reject delegation (no counter arm)
+    # ------------------------------------------------------------------
+
+    def test_flow_b_accept_delegation(self):
+        """Flow B: CASE_OWNER + default-accept → accept_bt ticked, no counter arm."""
+        scenario = BTTestScenario(actor_id=_OWNER_ACTOR)
+        owner_p = _make_participant(_OWNER_ACTOR, CVDRole.CASE_OWNER)
+        _make_case_with_participants(scenario, owner_p)
+
+        accept_bt, accept_log = _tracking_stub("FlowBAccept")
+        reject_bt, reject_log = _tracking_stub("FlowBReject")
+
+        # Flow B: counter_bt=None (default)
+        tree = create_embargo_response_decision_tree(
+            case_id=_INT_CASE_ID,
+            deciding_actor_id=_OWNER_ACTOR,
+            accept_bt=accept_bt,
+            reject_bt=reject_bt,
+        )
+        result = scenario.run(tree, actor_id=_OWNER_ACTOR)
+        scenario.assert_success(result)
+        assert accept_log[
+            "ticked"
+        ], "accept_bt must be ticked in Flow B default-accept"
+        assert not reject_log[
+            "ticked"
+        ], "reject_bt must NOT be ticked on Flow B accept"
+
+    def test_flow_b_reject_delegation(self):
+        """Flow B: accept arm fails → reject_bt is ticked (EMB-15-004)."""
+        deny_accept = EmbargoCallOutBundle(
+            case_owner_approves_embargo_response_factory=lambda name: _failing_stub(name),  # type: ignore[arg-type]
+            evaluate_embargo_proposal_factory=lambda name: _failing_stub(name),  # type: ignore[arg-type]
+        )
+        scenario = BTTestScenario(actor_id=_UNKNOWN_ACTOR)
+        known_p = _make_participant(_NON_OWNER_ACTOR, CVDRole.COORDINATOR)
+        case = VultronCase(
+            id_=_INT_CASE_ID,
+            name="Flow B Reject Test",
+            case_participants=[known_p.id_],
+            actor_participant_index={_NON_OWNER_ACTOR: known_p.id_},
+        )
+        scenario.seed(known_p, case)
+
+        reject_bt, reject_log = _tracking_stub("FlowBReject")
+        tree = create_embargo_response_decision_tree(
+            case_id=_INT_CASE_ID,
+            deciding_actor_id=_UNKNOWN_ACTOR,
+            accept_bt=_failing_stub("FlowBAccept"),
+            reject_bt=reject_bt,
+            call_out=deny_accept,
+        )
+        result = scenario.run(tree, actor_id=_UNKNOWN_ACTOR)
+        scenario.assert_success(result)
+        assert reject_log[
+            "ticked"
+        ], "reject_bt must be ticked in Flow B when accept fails"
