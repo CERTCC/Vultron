@@ -116,7 +116,7 @@ class TestBuildInventory:
 
     @pytest.mark.xfail(
         reason="CM-22 derives-from-non-accepted-adr signal not yet firing. "
-        "Tracked in #1994."
+        "Tracked in #1993."
     )
     def test_known_landmine_surfaces(self, inventory):
         """CM-22 derives from superseded ADR-0015 — the moved-premise signal

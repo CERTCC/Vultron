@@ -39,7 +39,7 @@ def demo_env(client):
     reason=(
         "Demo flow uses pre-CBT case seeding pattern; CBT correctly blocks "
         "case replication without prior trust setup. #464 (Two-Actor Demo Redesign) "
-        "is closed without resolving this. Tracked in #1992."
+        "is closed without resolving this. Tracked in #1994."
     ),
     strict=False,
 )
