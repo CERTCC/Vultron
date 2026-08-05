@@ -56,6 +56,7 @@ DEMOTED_FRAGMENTS: tuple[str, ...] = (
     "store_embedded_participants: stored participant",
     "already exists locally",
     "already received by",
+    "already stored — skipping",
 )
 
 

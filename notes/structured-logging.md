@@ -88,17 +88,24 @@ each line is emitted from.
 
 | Domain | Message to add | Location |
 |---|---|---|
-| RM per-participant | `Actor '<id>' RM: <A> → <B> for case '<case_id>'` | `update_participant_rm_state()` — the single per-participant RM write path |
+| RM per-participant | `Actor '<id>' RM: <A> → <B> for case '<case_id>'` | `update_participant_rm_state()` **and** `CreateParticipantStatusNode` — the two per-participant RM write paths |
 | CS/VFD | `Actor '<id>' CS: <vfd_before> → <vfd_after> (<event>) for case '<case_id>'` | `CreateParticipantStatusNode` (shared writer for fix-ready / fix-deployed) |
 | CS/PXA | `Actor '<id>' CS: <pxa_before> → <pxa_after> (<event>) for case '<case_id>'` | `CreateParticipantStatusNode` (same node, PXA branch) |
 | Case engagement | `Actor '<id>' engaged case '<case_id>' (RM VALID → ACCEPTED)` | `SvcEngageCaseUseCase._handle_result()` |
 | EM PROPOSED→ACTIVE | `Actor '<id>' embargo PROPOSED → ACTIVE for case '<case_id>'` | `SetEmbargoActiveNode._apply_transition()` |
 | EM ACTIVE→EXITED | `Actor '<id>' embargo ACTIVE → EXITED for case '<case_id>'` | `ClearActiveEmbargoNode`, `ApplyEmbargoTeardownNode` |
 | Invite receipt | `Actor '<id>' received case invite for '<case_id>' from '<sender>'` | `InviteActorToCaseReceivedUseCase` (invitee path) |
-| BT FAILURE reason | `Actor '<id>' BT execution FAILURE for case '<case_id>': <reason>` | `BTBridge.execute_with_setup` (non-SUCCESS path) |
+| BT FAILURE reason | folded into the existing `BT execution completed: <status> after <N> ticks - <reason>` line | `BTBridge.execute_tree` (FAILURE path) |
 
 The EM terminal state is spelled **EXITED** (`EM.EXITED`), not "TERMINATED":
 the trigger is named `terminate` but the resulting state is `EXITED`.
+
+The BT-failure row is deliberately *not* a separate narrative line. `BTBridge`
+folds `get_failure_reason()` into the record it already emits, because a second
+line would double-log, would fire for the many callers that treat `FAILURE` as
+an expected idempotent skip (and log their own reason at DEBUG), and has no
+reliable `case_id`: no production `execute_with_setup` call site passes one.
+See the closing `NOTE` in `narrative_log.py`.
 
 ---
 
@@ -116,7 +123,10 @@ wording cannot drift (CS-22-001):
 | `log_em_transition()` | `Actor '<id>' embargo <A> → <B> for case '<id>'` |
 | `log_case_engagement()` | `Actor '<id>' engaged case '<id>' (RM <A> → <B>)` |
 | `log_invite_received()` | `Actor '<id>' received case invite for '<id>' from '<id>'` |
-| `log_bt_failure()` | `Actor '<id>' BT execution FAILURE for case '<id>': <reason>` |
+| `log_rm_transition()` | `Actor '<id>' RM: <A> → <B> for case '<id>'` |
+
+There is deliberately **no** `log_bt_failure()` helper — see the BT-failure note
+above and the closing `NOTE` in `narrative_log.py`.
 
 `cs_event_label()` derives the event name (`fix ready`, `publicly known`, …) by
 diffing the `CS_vfd`/`CS_pxa` sub-dimensions, so a multi-step transition names
@@ -136,10 +146,16 @@ logging co-located with the protocol-significant action.
 Prefer the **narrowest choke point that knows the before-state**. Two examples
 from the #1988 implementation:
 
-- RM: `update_participant_rm_state()` in `vultron/core/use_cases/_helpers.py`
-  is the single write path for per-participant RM state, so one call there
-  covers every RM transition node. It reads the before-state from the latest
-  `ParticipantStatus` (falling back to `RM.START`).
+- RM: per-participant RM state has **two** write paths, and both log.
+  `update_participant_rm_state()` in `vultron/core/use_cases/_helpers.py` covers
+  the nodes that call it (`TransitionParticipantRMtoAccepted`,
+  `TransitionRMtoValid`, …), reading the before-state from the latest
+  `ParticipantStatus` and falling back to `RM.START`.
+  `CreateParticipantStatusNode` is the second path — `leave.py`,
+  `sync/nodes/effects.py`, and `add_participant_status_trigger_tree.py` set
+  `rm_state=` on it directly without going through the helper — so it logs the
+  RM line itself. A new RM-writing node MUST route through one of these two, or
+  its transition will be missing from the INFO narrative.
 - CS: `CreateParticipantStatusNode` is the shared writer for both VFD and PXA
   snapshots. `TransitionCStoFixReady` / `TransitionCStoFixDeployed` delegate to
   it and log only at DEBUG — they know the target state but not the origin.

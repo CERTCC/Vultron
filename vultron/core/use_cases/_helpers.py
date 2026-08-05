@@ -8,6 +8,7 @@ import hashlib
 import logging
 from typing import Any
 
+from vultron.core.behaviors.narrative_log import log_rm_transition
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -238,7 +239,9 @@ def _idempotent_create(
     if not type_key or not id_key:
         return
     if dl.read(id_key) is not None:
-        logger.info("'%s' already stored — skipping (idempotent)", id_key)
+        # Routine idempotency skip — infrastructure, not protocol story
+        # (SL-04-007).  Fires on essentially every received-side activity.
+        logger.debug("'%s' already stored — skipping (idempotent)", id_key)
         return
     if obj is not None:
         dl.create(obj)
@@ -336,10 +339,6 @@ def update_participant_rm_state(
             dl.save(participant)
             # SL-04-001/SL-04-006 narrative template: the per-participant RM
             # transition is the primary RM story line at INFO.
-            from vultron.core.behaviors.narrative_log import (
-                log_rm_transition,
-            )
-
             log_rm_transition(
                 logger,
                 actor_id,
