@@ -493,3 +493,82 @@ class TestDemoGetCaseLedgerEntry:
         assert "caseId" in data
         assert "log_object_id" not in data
         assert "event_type" not in data
+
+
+# ---------------------------------------------------------------------------
+# Tests: POST /actors/{actor_id}/demo/close-case  (TRIG-09-001, DEMOMA-07-001)
+# ---------------------------------------------------------------------------
+
+
+class TestDemoCloseCase:
+    """Tests for the demo close-case endpoint."""
+
+    def test_returns_202_on_success(
+        self, client_demo: TestClient, actor, case_with_actor
+    ):
+        """Successful close-case returns 202 Accepted."""
+        response = client_demo.post(
+            f"/actors/{actor.id_}/demo/close-case",
+            json={"case_id": case_with_actor.id_},
+        )
+        assert response.status_code == status.HTTP_202_ACCEPTED
+
+    def test_leave_activity_in_response(
+        self, client_demo: TestClient, actor, case_with_actor
+    ):
+        """Response body contains a Leave activity with correct type and actor fields."""
+        response = client_demo.post(
+            f"/actors/{actor.id_}/demo/close-case",
+            json={"case_id": case_with_actor.id_},
+        )
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        data = response.json()
+        assert "activity" in data, "Response must contain 'activity' key"
+        activity = data["activity"]
+        assert (
+            activity.get("type") == "Leave"
+        ), f"Activity type must be 'Leave'; got {activity.get('type')}"
+        assert (
+            activity.get("actor") == actor.id_
+        ), f"Activity actor must be actor.id_; got {activity.get('actor')}"
+
+    def test_rm_not_closed_at_send_time(
+        self, client_demo: TestClient, actor, case_with_actor, dl
+    ):
+        """RM.CLOSED must NOT appear at send time — only after ledger round-trip (AC-2)."""
+        from vultron.core.models.case import VulnerabilityCase
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.core.states.rm import RM
+
+        client_demo.post(
+            f"/actors/{actor.id_}/demo/close-case",
+            json={"case_id": case_with_actor.id_},
+        )
+        case = dl.read(case_with_actor.id_)
+        assert isinstance(case, VulnerabilityCase)
+        participant_id = case.actor_participant_index.get(actor.id_)
+        assert (
+            participant_id is not None
+        ), "actor must have a participant entry in actor_participant_index"
+        participant = dl.read(participant_id)
+        assert isinstance(participant, CaseParticipant), (
+            f"dl.read({participant_id!r}) must return CaseParticipant;"
+            f" got {type(participant)}"
+        )
+        rm_states = [
+            ps.rm.state
+            for ps in participant.participant_statuses
+            if hasattr(ps, "rm") and ps.rm is not None
+        ]
+        assert RM.CLOSED not in rm_states, (
+            "RM.CLOSED must not be set at send time (AC-2);"
+            f" rm_states={rm_states}"
+        )
+
+    def test_unknown_case_returns_404(self, client_demo: TestClient, actor):
+        """Request for a non-existent case must return 404."""
+        response = client_demo.post(
+            f"/actors/{actor.id_}/demo/close-case",
+            json={"case_id": "urn:uuid:no-such-case"},
+        )
+        assert response.status_code == status.HTTP_404_NOT_FOUND

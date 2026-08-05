@@ -20,6 +20,7 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.states.em import EM
+from vultron.core.states.rm import RM
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import announce_log_entry_activity
@@ -678,3 +679,165 @@ class TestEffectsFailureBlocksPersist:
 
         assert result.status == Status.FAILURE
         assert datalayer.read(entry.id_) is None
+
+    def test_apply_close_case_failure_blocks_persist(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        """PersistReceivedLogEntry must NOT run when ApplyCloseCaseFromLedger returns FAILURE."""
+        entry = _make_close_case_entry(0, case_obj.genesis_hash)
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        tree = create_announce_log_entry_tree()
+        apply_node = _find_node_by_name(tree, "ApplyCloseCaseFromLedger")
+        assert apply_node is not None
+        apply_node.update = lambda: Status.FAILURE  # type: ignore[method-assign]
+
+        result = bridge.execute_with_setup(
+            tree=tree,
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
+
+        assert result.status == Status.FAILURE
+        assert datalayer.read(entry.id_) is None
+
+
+# ---------------------------------------------------------------------------
+# Announce tree applies close_case ledger entry (CloseCaseEffects slot)
+# ---------------------------------------------------------------------------
+
+DEPARTING_ACTOR_ID = "https://example.org/actors/departing"
+DEPARTING_PARTICIPANT_ID = "https://example.org/participants/departing"
+
+
+def _make_close_case_entry(
+    log_index: int, prev_hash: str = _ZERO_HASH
+) -> VultronCaseLedgerEntry:
+    """Build a close_case ledger entry with payload_snapshot carrying actor."""
+    return _to_persistable_entry(
+        HashChainLedgerRecord(
+            case_id=CASE_ID,
+            log_index=log_index,
+            object_id=f"https://example.org/activities/leave-{log_index}",
+            event_type="close_case",
+            payload_snapshot={"actor": DEPARTING_ACTOR_ID},
+            prev_log_hash=prev_hash,
+        )
+    )
+
+
+def _make_case_with_departing_participant(
+    datalayer: SqliteDataLayer,
+) -> as_VulnerabilityCase:
+    """Seed CASE_ID with a departing participant so the apply node can find them."""
+    case = as_VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+    participant = CaseParticipant(
+        id_=DEPARTING_PARTICIPANT_ID,
+        attributed_to=DEPARTING_ACTOR_ID,
+        context=CASE_ID,
+    )
+    datalayer.create(participant)
+    case.actor_participant_index[DEPARTING_ACTOR_ID] = DEPARTING_PARTICIPANT_ID
+    datalayer.save(case)
+    return case
+
+
+class TestAnnounceLogEntryAppliesCloseCase:
+    """Participant receiving close_case ledger entry must advance departing actor to RM.CLOSED."""
+
+    def test_participant_advances_departing_actor_to_rm_closed(
+        self, bridge, datalayer, case_actor
+    ):
+        """BT advances the departing actor to RM.CLOSED on close_case entry (CM-23-003, CM-23-004)."""
+        case_obj = _make_case_with_departing_participant(datalayer)
+        entry = _make_close_case_entry(0, case_obj.genesis_hash)
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = bridge.execute_with_setup(
+            tree=create_announce_log_entry_tree(),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
+
+        assert result.status == Status.SUCCESS
+        updated = datalayer.read(DEPARTING_PARTICIPANT_ID)
+        assert updated is not None
+        rm_states = [
+            ps.rm.state
+            for ps in updated.participant_statuses
+            if hasattr(ps, "rm") and ps.rm is not None
+        ]
+        assert RM.CLOSED in rm_states, (
+            f"Departing actor must reach RM.CLOSED after close_case announce;"
+            f" rm_states={rm_states}"
+        )
+
+    def test_close_case_not_applied_for_other_event_types(
+        self, bridge, datalayer, case_actor, case_obj
+    ):
+        """CloseCaseEffects Selector short-circuits for unrelated event_types."""
+        _make_case_with_departing_participant(datalayer)
+        entry = _make_entry(
+            0, case_obj.genesis_hash
+        )  # event_type="test_event"
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = bridge.execute_with_setup(
+            tree=create_announce_log_entry_tree(),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
+
+        assert result.status == Status.SUCCESS
+        updated = datalayer.read(DEPARTING_PARTICIPANT_ID)
+        assert updated is not None
+        rm_states = [
+            ps.rm.state
+            for ps in updated.participant_statuses
+            if hasattr(ps, "rm") and ps.rm is not None
+        ]
+        assert RM.CLOSED not in rm_states, (
+            f"Non-close-case entry must NOT advance departing actor to RM.CLOSED;"
+            f" rm_states={rm_states}"
+        )
+
+    def test_close_case_apply_is_idempotent(self, datalayer):
+        """ApplyCloseCaseFromLedgerNode called twice must not create duplicate RM.CLOSED entries.
+
+        Calls the apply node directly (bypassing CheckLogEntryAlreadyStored)
+        so we verify the node's own idempotency guard, not the tree-level guard.
+        """
+        from vultron.core.behaviors.case.nodes.leave import (
+            AdvanceParticipantToRMClosedNode,
+        )
+
+        _make_case_with_departing_participant(datalayer)
+
+        def _run_advance() -> None:
+            node = AdvanceParticipantToRMClosedNode(
+                leaving_actor_id=DEPARTING_ACTOR_ID,
+                case_id=CASE_ID,
+            )
+            node.datalayer = datalayer
+            node.setup()
+            node.update()
+
+        _run_advance()
+        _run_advance()
+
+        updated = datalayer.read(DEPARTING_PARTICIPANT_ID)
+        assert updated is not None
+        closed_count = sum(
+            1
+            for ps in updated.participant_statuses
+            if hasattr(ps, "rm")
+            and ps.rm is not None
+            and ps.rm.state == RM.CLOSED
+        )
+        assert closed_count == 1, (
+            f"Expected exactly 1 RM.CLOSED ParticipantStatus;"
+            f" found {closed_count}"
+        )
