@@ -162,7 +162,7 @@ The node is a Selector with two arms depending on the current EM state:
 
 - **EM ACTIVE or REVISE** → delegates to `terminate_embargo_bt` (ET + EM →
   EXITED). This is the cascade path for AC-2 of issue #1454.
-- **EM PROPOSED** → delegates to `reject_embargo_trigger_bt` (ER + EM →
+- **EM PROPOSED** → delegates to `reject_proposed_embargo_bt` (ER + EM →
   NO_EMBARGO). EMB-16-001: continuing to negotiate a proposed embargo after
   P/X/A is set is not viable; the proposal must be abandoned immediately.
 - **EM NO_EMBARGO or EXITED** → skip (nothing to tear down).
@@ -216,9 +216,9 @@ When implementing any code that transitions embargo state:
    `transition_mode=TransitionMode.OBSERVED` to sync local state with a remote
    assertion. All guards and PEC cascades are bypassed in OBSERVED mode.
 6. **PROPOSED + P/X/A**: when a CS public/exploit/attacks event fires while EM
-   is PROPOSED, use `reject_embargo_trigger_bt` (not `terminate_embargo_bt`).
+   is PROPOSED, use `reject_proposed_embargo_bt` (not `terminate_embargo_bt`).
    `terminate_embargo_bt` requires an active embargo (`HasActiveEmbargoNode`
-   guard); it fails when EM is PROPOSED. `reject_embargo_trigger_bt` calls
+   guard); it fails when EM is PROPOSED. `reject_proposed_embargo_bt` calls
    `reject_embargo_invite()` which handles PROPOSED → NO_EMBARGO correctly
    (EMB-16-001).
 
