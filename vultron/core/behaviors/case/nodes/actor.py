@@ -412,15 +412,47 @@ class EvaluateDefaultRolesNode(py_trees.behaviour.Behaviour):
         self.suggested_actor_id = suggested_actor_id
         self.case_id = case_id
         self.recommendation_id = recommendation_id
-        self._injected_roles: list[CVDRole] | None = None
-        if injected_roles:
-            try:
-                self._injected_roles = [CVDRole(r) for r in injected_roles]
-            except ValueError:
-                self._injected_roles = None
         self.logger = logging.getLogger(  # type: ignore[assignment]
             f"{self.__class__.__module__}.{self.__class__.__name__}"
         )
+        self._injected_roles = self._coerce_injected_roles(injected_roles)
+
+    def _coerce_injected_roles(
+        self, injected_roles: list[str] | None
+    ) -> list[CVDRole] | None:
+        """Coerce caller-supplied role strings to ``CVDRole``, keeping valid ones.
+
+        An unrecognized role string is dropped with a warning rather than
+        discarding the whole list: falling back to the hardcoded default would
+        silently substitute roles the caller did not ask for, which CM-16-003
+        forbids.  ``None`` is returned only when nothing usable remains, in
+        which case ``_compute_roles()`` legitimately owns the decision.
+        """
+        if not injected_roles:
+            return None
+        coerced: list[CVDRole] = []
+        for raw in injected_roles:
+            try:
+                coerced.append(CVDRole(raw))
+            except ValueError:
+                self.logger.warning(
+                    "%s: ignoring unrecognized injected role %r for actor"
+                    " '%s' in case '%s'",
+                    self.name,
+                    raw,
+                    self.suggested_actor_id,
+                    self.case_id,
+                )
+        if not coerced:
+            self.logger.warning(
+                "%s: no injected role in %r was recognized for actor '%s';"
+                " falling back to _compute_roles()",
+                self.name,
+                injected_roles,
+                self.suggested_actor_id,
+            )
+            return None
+        return coerced
 
     def setup(self, **kwargs: Any) -> None:
         super().setup(**kwargs)

@@ -70,6 +70,9 @@ class VultronActivity(VultronObject):
         validation_alias="suggestedRoles",
         serialization_alias="suggestedRoles",
     )
+    # Single-word, so the camelCase wire name is identical and no alias is
+    # needed; stated explicitly because the neighbouring field shows what the
+    # omission costs when the names do differ.
     roles: list[str] | None = None
 
 

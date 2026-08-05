@@ -314,3 +314,54 @@ def test_reject_at_advanced_hash_replays_again(bridge, datalayer, case_actor):
 
     # Progress at index 0, 1, 2 → 3 + 2 + 1 = 6 replayed entries.
     assert sync_port.send_announce_log_entry.call_count == 6
+
+
+def test_reject_at_tail_then_growth_replays_the_new_suffix(
+    bridge, datalayer, case_actor
+):
+    """A Reject that needs nothing must not start a cooldown against its position.
+
+    Regression guard for the guard itself: the replay position used to be
+    recorded *before* the replay loop ran, so a peer already at the ledger tail
+    (zero entries to send) still started a cooldown.  When the ledger then grew,
+    that peer's next Reject reported the same ``last_accepted_hash`` — now
+    genuinely stale, with a real suffix missing — and was suppressed.  The peer
+    waited out the full cooldown having never received a single entry, which is
+    the late-joiner stall SYNC-15-003 exists to prevent.
+    """
+    entries = [_make_entry(0)]
+    for index in range(1, 4):
+        entries.append(_make_entry(index, entries[-1].entry_hash))
+    for entry in entries:
+        datalayer.save(entry)
+
+    sync_port = MagicMock(spec=SyncActivityPort)
+    tail_hash = entries[-1].entry_hash
+
+    # The peer is fully caught up; its Reject needs no entries replayed.
+    py_trees.blackboard.Blackboard.storage.clear()
+    result = bridge.execute_with_setup(
+        tree=create_reject_log_entry_tree(),
+        actor_id=OWNER_ACTOR_ID,
+        activity=_make_event(entries[-1], tail_hash=tail_hash),
+        sync_port=sync_port,
+    )
+    assert result.status == Status.SUCCESS
+    assert sync_port.send_announce_log_entry.call_count == 0
+
+    # The ledger grows by three entries.
+    for index in range(4, 7):
+        entries.append(_make_entry(index, entries[-1].entry_hash))
+        datalayer.save(entries[-1])
+
+    # The peer Rejects at the same hash it reported before — but that position
+    # is now three entries behind, so the suffix MUST be replayed.
+    py_trees.blackboard.Blackboard.storage.clear()
+    result = bridge.execute_with_setup(
+        tree=create_reject_log_entry_tree(),
+        actor_id=OWNER_ACTOR_ID,
+        activity=_make_event(entries[-1], tail_hash=tail_hash),
+        sync_port=sync_port,
+    )
+    assert result.status == Status.SUCCESS
+    assert sync_port.send_announce_log_entry.call_count == 3

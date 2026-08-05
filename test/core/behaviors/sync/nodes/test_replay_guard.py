@@ -6,8 +6,9 @@ from datetime import timedelta
 from vultron.core.behaviors.sync.nodes.replay_guard import (
     GENESIS_REPLAY_COOLDOWN_SECONDS,
     REPLAY_COOLDOWN_SECONDS,
-    claim_replay_position,
+    record_replay,
     replay_from_hash,
+    should_replay,
 )
 from vultron.core.models.replication_state import VultronReplicationState
 
@@ -36,8 +37,25 @@ class TestReplayFromHash:
         assert replay_from_hash([], 3) == ""
 
 
+def claim_replay_position(datalayer, *, case_id, peer_id, from_hash) -> bool:
+    """Ask-then-record, as ``SendMissingEntriesNode`` does for a non-empty replay.
+
+    The two steps are separate in production so a replay that sends nothing
+    never records a position (see ``record_replay``); these tests exercise the
+    common path where entries do go out.
+    """
+    if not should_replay(
+        datalayer, case_id=case_id, peer_id=peer_id, from_hash=from_hash
+    ):
+        return False
+    record_replay(
+        datalayer, case_id=case_id, peer_id=peer_id, from_hash=from_hash
+    )
+    return True
+
+
 class TestClaimReplayPosition:
-    """``claim_replay_position`` admits progress and suppresses stalls."""
+    """The ask-then-record pair admits progress and suppresses stalls."""
 
     def test_first_claim_is_admitted_and_persists_state(self, datalayer):
         admitted = claim_replay_position(
@@ -178,3 +196,44 @@ class TestClaimReplayPosition:
         )
 
         assert admitted is True
+
+
+class TestZeroEntryReplayDoesNotRecordPosition:
+    """A replay that sends nothing must not start a cooldown.
+
+    Regression guard: recording the position before knowing whether any entry
+    would be sent meant a peer already at the ledger tail (0 entries replayed)
+    started a cooldown anyway.  Once the ledger grew, that peer's next Reject —
+    now naming a genuinely stale position — was suppressed, so it waited out the
+    full cooldown having received nothing.  That is the stall the guard exists
+    to prevent, reintroduced by the guard itself.
+    """
+
+    def test_position_is_unrecorded_when_nothing_was_replayed(self, datalayer):
+        assert should_replay(
+            datalayer,
+            case_id=CASE_ID,
+            peer_id=PARTICIPANT_ACTOR_ID,
+            from_hash="tail",
+        )
+        # No record_replay() — the caller sent zero entries.
+        state_id = VultronReplicationState(
+            case_id=CASE_ID, peer_id=PARTICIPANT_ACTOR_ID
+        ).id_
+        assert datalayer.read(state_id) is None
+
+    def test_later_reject_at_same_position_still_replays(self, datalayer):
+        should_replay(
+            datalayer,
+            case_id=CASE_ID,
+            peer_id=PARTICIPANT_ACTOR_ID,
+            from_hash="tail",
+        )
+        # Ledger has since grown; the peer Rejects at the same position, and a
+        # real suffix is now missing.  It must not be suppressed.
+        assert should_replay(
+            datalayer,
+            case_id=CASE_ID,
+            peer_id=PARTICIPANT_ACTOR_ID,
+            from_hash="tail",
+        )

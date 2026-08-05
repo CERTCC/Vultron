@@ -107,7 +107,16 @@ class as_Offer(as_TransitiveActivity):
         validation_alias="type",
         serialization_alias="type",
     )
-    suggested_roles: list[str] | None = None
+    # Declared on the base rather than only on _RecommendActorActivity because
+    # VOCABULARY["Offer"] resolves to this class: an inbound Offer is
+    # reconstructed as a bare as_Offer, so without the field here the suggested
+    # roles are dropped on the DataLayer round-trip (#1990).  Aliased
+    # explicitly, matching the convention in this module.
+    suggested_roles: list[str] | None = Field(
+        default=None,
+        validation_alias="suggestedRoles",
+        serialization_alias="suggestedRoles",
+    )
 
 
 class as_Invite(as_Offer):

@@ -30,6 +30,11 @@ immediately and is rate-limited to at most one replay per
 :data:`REPLAY_COOLDOWN_SECONDS`.  A Reject at an advanced position always
 replays, so a peer that is making progress is never delayed.
 
+The position is recorded (:func:`record_replay`) only after entries have really
+been sent, separately from the decision to replay (:func:`should_replay`).  A
+replay that sends nothing must not start a cooldown — see
+:func:`record_replay`.
+
 The cooldown is deliberately a rate limit rather than permanent suppression:
 if a replayed entry is lost in transit, the peer's next Reject must eventually
 be able to trigger a fresh replay, or the peer would stay permanently
@@ -39,6 +44,7 @@ convergence.
 
 from __future__ import annotations
 
+import logging
 from datetime import timedelta
 from typing import cast
 
@@ -80,14 +86,31 @@ def replay_from_hash(entries: list[CaseLedgerEntry], from_index: int) -> str:
     return ""
 
 
-def claim_replay_position(
+def _read_state(
+    datalayer: CasePersistence, *, case_id: str, peer_id: str
+) -> VultronReplicationState | None:
+    """Return the stored replication state for *peer_id*, or ``None``."""
+    state_key = VultronReplicationState(case_id=case_id, peer_id=peer_id).id_
+    existing = datalayer.read(state_key)
+    if existing is None:
+        return None
+    return cast(VultronReplicationState, existing)
+
+
+def should_replay(
     datalayer: CasePersistence,
     *,
     case_id: str,
     peer_id: str,
     from_hash: str,
+    log: logging.Logger | None = None,
+    node_name: str = "SendMissingEntriesNode",
 ) -> bool:
-    """Record a replay to *peer_id* and report whether it should proceed.
+    """Report whether a replay to *peer_id* should proceed.
+
+    Read-only: the position is recorded by :func:`record_replay`, and only
+    once entries have actually been sent.  Splitting the two matters — see
+    that function's docstring.
 
     Args:
         datalayer: Persistence port holding the per-peer replication state.
@@ -95,14 +118,16 @@ def claim_replay_position(
         peer_id: URI of the peer that sent the Reject.
         from_hash: Replication position the replay would resume from, as
             returned by :func:`replay_from_hash`.
+        log: Optional logger; a suppressed replay is logged at INFO so the
+            storm-vs-stall distinction is visible in container logs.
+        node_name: Name used as the log prefix.
 
     Returns:
         ``True`` when the replay should proceed — the peer's position has moved
-        since the last replay we sent it, the cooldown for an unchanged position
-        has elapsed, or the peer is at genesis (see below).  ``False`` when the
-        position is unchanged and still within
-        :data:`REPLAY_COOLDOWN_SECONDS`, which is what breaks the amplification
-        loop described in this module's docstring.
+        since the last replay we sent it, or the cooldown for an unchanged
+        position has elapsed.  ``False`` when the position is unchanged and
+        still within the cooldown, which is what breaks the amplification loop
+        described in this module's docstring.
 
     Genesis (``from_hash == ""``) gets a much shorter cooldown
     (:data:`GENESIS_REPLAY_COOLDOWN_SECONDS`) rather than the full one.  A peer
@@ -118,15 +143,53 @@ def claim_replay_position(
 
     Spec: SYNC-15-003.
     """
-    now = _now_utc()
+    state = _read_state(datalayer, case_id=case_id, peer_id=peer_id)
+    if state is None or state.last_replayed_at is None:
+        return True
+    if state.last_replayed_from_hash != from_hash:
+        return True
     cooldown = (
         GENESIS_REPLAY_COOLDOWN_SECONDS
         if from_hash == ""
         else REPLAY_COOLDOWN_SECONDS
     )
-    state_key = VultronReplicationState(case_id=case_id, peer_id=peer_id).id_
-    existing = datalayer.read(state_key)
-    if existing is None:
+    if _now_utc() - state.last_replayed_at >= timedelta(seconds=cooldown):
+        return True
+    if log is not None:
+        log.info(
+            "%s: peer '%s' re-Rejected at unchanged position %.16s… for case"
+            " '%s'; rate-limiting duplicate replay (SYNC-15-003)",
+            node_name,
+            peer_id,
+            from_hash or "genesis",
+            case_id,
+        )
+    return False
+
+
+def record_replay(
+    datalayer: CasePersistence,
+    *,
+    case_id: str,
+    peer_id: str,
+    from_hash: str,
+) -> None:
+    """Record that entries were replayed to *peer_id* from *from_hash*.
+
+    Call this only after at least one entry has actually been sent.  A replay
+    that sends nothing — the peer's acknowledged position is already the ledger
+    tail — must not update the recorded position: doing so would start a
+    cooldown against a position at which we have never delivered anything, so a
+    later Reject at that same position, once the ledger has grown and a genuine
+    suffix is missing, would be suppressed for no reason.  The peer would wait
+    out the cooldown having received nothing, which is the stall this guard
+    exists to prevent.
+
+    Spec: SYNC-15-003.
+    """
+    now = _now_utc()
+    state = _read_state(datalayer, case_id=case_id, peer_id=peer_id)
+    if state is None:
         datalayer.save(
             VultronReplicationState(
                 case_id=case_id,
@@ -135,19 +198,8 @@ def claim_replay_position(
                 last_replayed_at=now,
             )
         )
-        return True
-
-    state = cast(VultronReplicationState, existing)
-    unchanged_position = state.last_replayed_from_hash == from_hash
-    if (
-        unchanged_position
-        and state.last_replayed_at is not None
-        and now - state.last_replayed_at < timedelta(seconds=cooldown)
-    ):
-        return False
-
+        return
     state.last_replayed_from_hash = from_hash
     state.last_replayed_at = now
     state.updated_at = now
     datalayer.save(state)
-    return True

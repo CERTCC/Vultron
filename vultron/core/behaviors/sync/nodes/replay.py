@@ -24,8 +24,9 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.behaviors.sync.nodes.replay_guard import (
-    claim_replay_position,
+    record_replay,
     replay_from_hash,
+    should_replay,
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import (
@@ -253,26 +254,19 @@ class SendMissingEntriesNode(DataLayerAction):
         )
         from_index = cast(int, self.blackboard.replay_from_index)
 
-        # SYNC-15-003: suppress no-progress replays.  A peer that cannot anchor
-        # its hash chain re-Rejects every entry we replay; replaying the full
-        # ledger again on each Reject is a self-sustaining amplification loop
-        # that starves the actor.  Replay only when the peer's acknowledged
-        # position has actually moved since the last replay we sent it.
+        # SYNC-15-003: rate-limit no-progress replays.  A peer that cannot
+        # anchor its hash chain re-Rejects every entry we replay; replaying the
+        # full ledger again on each Reject is a self-sustaining amplification
+        # loop that starves the actor.
         from_hash = replay_from_hash(entries, from_index)
-        if not claim_replay_position(
+        if not should_replay(
             cast(CasePersistence, self.datalayer),
             case_id=entry.case_id,
             peer_id=peer_id,
             from_hash=from_hash,
+            log=self.logger,
+            node_name=self.name,
         ):
-            self.logger.info(
-                "%s: peer '%s' re-Rejected at unchanged position %.16s… for"
-                " case '%s'; suppressing duplicate replay (SYNC-15-003)",
-                self.name,
-                peer_id,
-                from_hash or "genesis",
-                entry.case_id,
-            )
             return Status.SUCCESS
 
         replayed = 0
@@ -285,6 +279,16 @@ class SendMissingEntriesNode(DataLayerAction):
                 to=[peer_id],
             )
             replayed += 1
+
+        # Record the position only when entries actually went out; a
+        # zero-entry replay must not start a cooldown (SYNC-15-003).
+        if replayed:
+            record_replay(
+                cast(CasePersistence, self.datalayer),
+                case_id=entry.case_id,
+                peer_id=peer_id,
+                from_hash=from_hash,
+            )
 
         self.logger.info(
             "%s: replayed %d entries to peer '%s' for case '%s'",
