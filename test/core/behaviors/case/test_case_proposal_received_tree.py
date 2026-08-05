@@ -1125,9 +1125,12 @@ class TestCM18007InitLedgerEntries:
     def test_exactly_one_participant_status_entry_per_participant(
         self, make_payload
     ):
-        """Each participant gets exactly one add_participant_status_to_participant
-        ledger entry — no NO_EMBARGO placeholder followed by a corrective entry
-        (CM-18-007 AC-3)."""
+        """CaseActor gets 3 bootstrap entries (CM-23-007); other participants get 1.
+
+        Total add_participant_status_to_participant ledger entries ==
+        (participant_count - 1) + 3 == participant_count + 2 (CM-18-007 AC-3,
+        CM-23-005/ADR-0051).
+        """
         from vultron.core.models.case import VulnerabilityCase
 
         dl = SqliteDataLayer("sqlite:///:memory:")
@@ -1147,10 +1150,13 @@ class TestCM18007InitLedgerEntries:
             if getattr(e, "event_type", None)
             == "add_participant_status_to_participant"
         ]
-        assert len(ps_entries) == participant_count, (
-            f"Expected exactly {participant_count} "
-            "add_participant_status_to_participant entries (one per participant),"
-            f" got {len(ps_entries)} (CM-18-007)"
+        # CaseActor contributes 3 bootstrap RM entries (CM-23-007/ADR-0051);
+        # every other participant contributes 1.
+        expected = participant_count + 2
+        assert len(ps_entries) == expected, (
+            f"Expected {expected} add_participant_status_to_participant entries"
+            f" ({participant_count} participants, CaseActor has 3 bootstrap"
+            f" entries per CM-23-007), got {len(ps_entries)} (CM-18-007)"
         )
 
     def test_vendor_case_owner_appears_as_signatory_in_init_ledger(
@@ -1405,4 +1411,295 @@ class TestADR0041GenesisCommitFailure:
         assert node.update() == Status.SUCCESS, (
             "case-not-found must be best-effort SUCCESS (the ledger is an"
             " audit record, not a precondition for the outbound emissions)"
+        )
+
+
+# ---------------------------------------------------------------------------
+# CM-23-005/006/007 — CaseActor RM lifecycle bootstrap (ADR-0051)
+# ---------------------------------------------------------------------------
+
+
+class TestCaseActorRMLifecycleBootstrap:
+    """CM-23-005/007: CaseActor emits 3 bootstrap ParticipantStatus records."""
+
+    def test_bootstrap_statuses_created_on_case_init(self, make_payload):
+        """Three bootstrap ParticipantStatus records exist after initialization.
+
+        CM-23-005: CaseActor MUST track its own RM lifecycle via a
+        CaseParticipant record with RM.RECEIVED, RM.VALID, and RM.ACCEPTED
+        ParticipantStatus entries during case initialization.
+        """
+        from vultron.core.models.case import VulnerabilityCase
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.core.models.participant_status import ParticipantStatus
+        from vultron.core.states.rm import RM
+        from vultron.enums.roles import CVDRole
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        _seed_report(dl)
+        _run_full_bt(make_payload, dl)
+
+        cases = list(dl.list_objects("VulnerabilityCase"))
+        assert cases, "A VulnerabilityCase must be created"
+        case = cases[0]
+        assert isinstance(case, VulnerabilityCase)
+
+        # Locate the CaseActor participant
+        participant_id = case.actor_participant_index.get(_CASE_ACTOR_URI)
+        assert (
+            participant_id is not None
+        ), "CaseActor must be in actor_participant_index"
+        participant = dl.read(participant_id)
+        assert isinstance(participant, CaseParticipant)
+        assert CVDRole.CASE_MANAGER in participant.roles
+
+        # Extract inline or persisted ParticipantStatus records
+        statuses = []
+        for ps_ref in participant.participant_statuses:
+            if isinstance(ps_ref, ParticipantStatus):
+                statuses.append(ps_ref)
+            elif isinstance(ps_ref, str):
+                ps = dl.read(ps_ref)
+                if isinstance(ps, ParticipantStatus):
+                    statuses.append(ps)
+
+        rm_states = [ps.rm.state for ps in statuses if ps.rm is not None]
+        assert (
+            RM.RECEIVED in rm_states
+        ), "Bootstrap must include RM.RECEIVED (CM-23-005, CM-23-006)"
+        assert (
+            RM.VALID in rm_states
+        ), "Bootstrap must include RM.VALID (CM-23-005, CM-23-006)"
+        assert (
+            RM.ACCEPTED in rm_states
+        ), "Bootstrap must include RM.ACCEPTED (CM-23-005, CM-23-006)"
+
+    def test_bootstrap_statuses_produce_ledger_entries(self, make_payload):
+        """Three RM transitions are represented in the canonical ledger.
+
+        CM-23-007: CaseActor MUST emit CaseLedgerEntry records for each of its
+        RM transitions (RM.RECEIVED, RM.VALID, RM.ACCEPTED) during
+        initialization.  _CommitNativeLedgerEntriesNode iterates all
+        participant_statuses entries, including the CaseActor's three bootstrap
+        records.
+        """
+        from vultron.core.states.rm import RM
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        _seed_report(dl)
+        _run_full_bt(make_payload, dl)
+
+        # Each CaseLedgerEntry for add_participant_status_to_participant has
+        # payload_snapshot["object"]["attributedTo"] = the actor URI and
+        # payload_snapshot["object"]["rmState"] (or "rm_state") for RM state.
+        entries = list(dl.list_objects("CaseLedgerEntry"))
+        case_actor_rm_states = set()
+        for entry in entries:
+            et = getattr(entry, "event_type", None)
+            if et != "add_participant_status_to_participant":
+                continue
+            snap = getattr(entry, "payload_snapshot", {}) or {}
+            obj = snap.get("object", {}) or {}
+            attributed = obj.get("attributedTo") or obj.get("attributed_to")
+            if attributed != _CASE_ACTOR_URI:
+                continue
+            rm_val = obj.get("rmState") or obj.get("rm_state")
+            if rm_val is None:
+                # Try nested dimension object: {"rm": {"state": "..."}}
+                rm_dim = obj.get("rm") or {}
+                rm_val = (
+                    rm_dim.get("state") if isinstance(rm_dim, dict) else None
+                )
+            if rm_val is not None:
+                try:
+                    case_actor_rm_states.add(RM(rm_val))
+                except ValueError:
+                    pass
+
+        assert RM.RECEIVED in case_actor_rm_states, (
+            "Ledger must have add_participant_status entry for CaseActor"
+            " RM.RECEIVED (CM-23-007)"
+        )
+        assert RM.VALID in case_actor_rm_states, (
+            "Ledger must have add_participant_status entry for CaseActor"
+            " RM.VALID (CM-23-007)"
+        )
+        assert RM.ACCEPTED in case_actor_rm_states, (
+            "Ledger must have add_participant_status entry for CaseActor"
+            " RM.ACCEPTED (CM-23-007)"
+        )
+
+    def test_bootstrap_statuses_idempotent_on_duplicate(self, make_payload):
+        """Duplicate proposal does not add extra CaseActor statuses.
+
+        The idempotency guard in _AddCaseActorParticipantNode returns SUCCESS
+        immediately when the CaseActor is already in actor_participant_index,
+        so a second CreateCaseProposalReceivedUseCase run must not grow the
+        participant's status list.
+        """
+        from vultron.core.models.case import VulnerabilityCase
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.core.models.participant_status import ParticipantStatus
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        _seed_report(dl)
+        _run_full_bt(make_payload, dl)
+
+        # Run a second time — duplicate delivery
+        _run_full_bt(make_payload, dl)
+
+        cases = list(dl.list_objects("VulnerabilityCase"))
+        assert cases
+        case = cases[0]
+        assert isinstance(case, VulnerabilityCase)
+
+        participant_id = case.actor_participant_index.get(_CASE_ACTOR_URI)
+        assert participant_id is not None
+        participant = dl.read(participant_id)
+        assert isinstance(participant, CaseParticipant)
+
+        statuses = [
+            ps
+            for ps_ref in participant.participant_statuses
+            for ps in [
+                (
+                    ps_ref
+                    if isinstance(ps_ref, ParticipantStatus)
+                    else dl.read(ps_ref)
+                )
+            ]
+            if isinstance(ps, ParticipantStatus)
+            and getattr(ps, "attributed_to", None) == _CASE_ACTOR_URI
+        ]
+        assert len(statuses) == 3, (
+            f"Expected exactly 3 bootstrap statuses for CaseActor, got"
+            f" {len(statuses)} — duplicate delivery must not add extras"
+        )
+
+
+# ---------------------------------------------------------------------------
+# AllParticipantsRMClosedConditionNode — Case Actor participates in check
+# ---------------------------------------------------------------------------
+
+
+class TestAllParticipantsRMClosedIncludesCaseActor:
+    """ADR-0051: CASE_MANAGER skip removed; CaseActor RM.CLOSED is required."""
+
+    def _make_case_with_participants(self, dl):
+        """Seed a case with vendor (CASE_OWNER) and case-actor (CASE_MANAGER)."""
+        from vultron.core.models.case import VulnerabilityCase
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.core.models.dimensions import PecDimension, RmDimension
+        from vultron.core.models.participant_status import ParticipantStatus
+        from vultron.core.states.participant_embargo_consent import PEC
+        from vultron.core.states.rm import RM
+        from vultron.enums.roles import CVDRole
+
+        def _mk_ps(actor_uri, rm_state):
+            ps = ParticipantStatus(
+                context=_CASE_URI,
+                rm=RmDimension(state=rm_state),
+                attributed_to=actor_uri,
+                cvd_role=[CVDRole.CASE_OWNER],
+                consent=PecDimension(state=PEC.NO_EMBARGO),
+            )
+            dl.save(ps)
+            return ps
+
+        vendor_ps = _mk_ps(_VENDOR_URI, RM.CLOSED)
+        vendor_participant = CaseParticipant(
+            attributed_to=_VENDOR_URI,
+            context=_CASE_URI,
+            case_roles=[CVDRole.CASE_OWNER],
+            participant_statuses=[vendor_ps],
+        )
+        dl.save(vendor_participant)
+
+        case_actor_ps_list = [
+            _mk_ps(_CASE_ACTOR_URI, RM.RECEIVED),
+            _mk_ps(_CASE_ACTOR_URI, RM.VALID),
+            _mk_ps(_CASE_ACTOR_URI, RM.ACCEPTED),
+        ]
+        case_actor_participant = CaseParticipant(
+            attributed_to=_CASE_ACTOR_URI,
+            context=_CASE_URI,
+            case_roles=[CVDRole.COORDINATOR, CVDRole.CASE_MANAGER],
+            participant_statuses=case_actor_ps_list,
+        )
+        dl.save(case_actor_participant)
+
+        case = VulnerabilityCase(id_=_CASE_URI, attributed_to=_CASE_ACTOR_URI)
+        case.add_participant(vendor_participant)
+        case.add_participant(case_actor_participant)
+        dl.save(case)
+        return case
+
+    def test_returns_failure_when_case_actor_not_closed(self):
+        """FAILURE when CaseActor is at RM.ACCEPTED, not RM.CLOSED.
+
+        ADR-0051: the CASE_MANAGER skip was removed so that the CaseActor's
+        RM.CLOSED participates in the all-closed check.
+        """
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.behaviors.status.nodes.conditions import (
+            AllParticipantsRMClosedConditionNode,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        self._make_case_with_participants(dl)
+        # CaseActor is at RM.ACCEPTED (not RM.CLOSED) — should block.
+
+        node = AllParticipantsRMClosedConditionNode(case_id=_CASE_URI)
+        node.datalayer = dl
+
+        from py_trees.common import Status
+
+        result = node.update()
+        assert result == Status.FAILURE, (
+            "AllParticipantsRMClosed must return FAILURE when CaseActor is"
+            " not yet at RM.CLOSED (ADR-0051 — CASE_MANAGER skip removed)"
+        )
+
+    def test_returns_success_when_all_including_case_actor_closed(self):
+        """SUCCESS when every participant (including CaseActor) is RM.CLOSED."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.behaviors.status.nodes.conditions import (
+            AllParticipantsRMClosedConditionNode,
+        )
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.core.models.dimensions import PecDimension, RmDimension
+        from vultron.core.models.participant_status import ParticipantStatus
+        from vultron.core.states.participant_embargo_consent import PEC
+        from vultron.core.states.rm import RM
+        from vultron.enums.roles import CVDRole
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case = self._make_case_with_participants(dl)
+
+        # Advance CaseActor to RM.CLOSED
+        participant_id = case.actor_participant_index.get(_CASE_ACTOR_URI)
+        assert participant_id is not None
+        participant = dl.read(participant_id)
+        assert isinstance(participant, CaseParticipant)
+
+        closed_ps = ParticipantStatus(
+            context=_CASE_URI,
+            rm=RmDimension(state=RM.CLOSED),
+            attributed_to=_CASE_ACTOR_URI,
+            cvd_role=[CVDRole.COORDINATOR, CVDRole.CASE_MANAGER],
+            consent=PecDimension(state=PEC.NO_EMBARGO),
+        )
+        dl.save(closed_ps)
+        participant.participant_statuses.append(closed_ps)
+        dl.save(participant)
+
+        node = AllParticipantsRMClosedConditionNode(case_id=_CASE_URI)
+        node.datalayer = dl
+
+        from py_trees.common import Status
+
+        result = node.update()
+        assert result == Status.SUCCESS, (
+            "AllParticipantsRMClosed must return SUCCESS when all participants"
+            " including the CaseActor are at RM.CLOSED (ADR-0051)"
         )

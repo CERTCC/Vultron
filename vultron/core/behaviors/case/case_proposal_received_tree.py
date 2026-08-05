@@ -93,6 +93,7 @@ from vultron.core.models.activity import (
 from vultron.core.models.case import VulnerabilityCase, VultronCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.dimensions import PecDimension, RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
@@ -249,6 +250,15 @@ class _AddCaseActorParticipantNode(DataLayerAction):
     also register itself as the CASE_MANAGER so that ResolveCaseManagerNode
     can locate it later (e.g. add-note-to-case, send_tree).
 
+    Per CM-23-005 and ADR-0051, the CaseActor MUST have a full RM lifecycle.
+    Three bootstrap ParticipantStatus records are emitted at creation:
+      - RM.RECEIVED  = CaseProposal received and being evaluated
+      - RM.VALID     = CaseProposal validated; case creation begun
+      - RM.ACCEPTED  = VulnerabilityCase successfully created and coordinated
+
+    These statuses are later committed as CaseLedgerEntries by
+    _CommitNativeLedgerEntriesNode (CM-23-007).
+
     Reads ``case_id`` from the blackboard.  No-ops if the CaseActor is
     already in ``actor_participant_index`` (idempotent on duplicate delivery).
     """
@@ -261,6 +271,82 @@ class _AddCaseActorParticipantNode(DataLayerAction):
         self.blackboard.register_key(
             key="case_id", access=py_trees.common.Access.READ
         )
+
+    def _build_bootstrap_statuses(
+        self, case_id: str
+    ) -> list[ParticipantStatus]:
+        """Return the three bootstrap ParticipantStatus records (CM-23-005/006)."""
+        assert self.actor_id is not None
+        return [
+            ParticipantStatus(
+                context=case_id,
+                rm=RmDimension(state=RM.RECEIVED),
+                attributed_to=self.actor_id,
+                cvd_role=[CVDRole.COORDINATOR, CVDRole.CASE_MANAGER],
+                consent=PecDimension(state=PEC.NO_EMBARGO),
+            ),
+            ParticipantStatus(
+                context=case_id,
+                rm=RmDimension(state=RM.VALID),
+                attributed_to=self.actor_id,
+                cvd_role=[CVDRole.COORDINATOR, CVDRole.CASE_MANAGER],
+                consent=PecDimension(state=PEC.NO_EMBARGO),
+            ),
+            ParticipantStatus(
+                context=case_id,
+                rm=RmDimension(state=RM.ACCEPTED),
+                attributed_to=self.actor_id,
+                cvd_role=[CVDRole.COORDINATOR, CVDRole.CASE_MANAGER],
+                consent=PecDimension(state=PEC.NO_EMBARGO),
+            ),
+        ]
+
+    def _register_participant(self, case_id: str) -> Status:
+        """Create the participant with bootstrap statuses and attach to case."""
+        assert self.datalayer is not None
+        assert self.actor_id is not None
+
+        bootstrap_statuses = self._build_bootstrap_statuses(case_id)
+        for status in bootstrap_statuses:
+            try:
+                self.datalayer.create(status)
+            except ValueError as e:
+                logger.debug(
+                    "_register_participant: create status idempotent or"
+                    " error for actor '%s': %s",
+                    self.actor_id,
+                    e,
+                )
+
+        participant = VultronParticipant(
+            attributed_to=self.actor_id,
+            context=case_id,
+            name=f"CaseActor for {case_id}",
+            case_roles=[CVDRole.COORDINATOR, CVDRole.CASE_MANAGER],
+            participant_statuses=bootstrap_statuses,
+        )
+
+        updated_case = _create_and_attach_participant(
+            self.datalayer,
+            participant,
+            case_id,
+            self.actor_id,
+            self.logger,
+        )
+        if updated_case is None:
+            self.feedback_message = f"Case '{case_id}' not found in DataLayer"
+            return Status.FAILURE
+
+        self.datalayer.save(updated_case)
+        logger.info(
+            "%s: Registered CaseActor '%s' as CASE_MANAGER for case '%s'"
+            " with bootstrap RM lifecycle (RM.RECEIVED → RM.VALID →"
+            " RM.ACCEPTED) per CM-23-005/ADR-0051",
+            self.name,
+            self.actor_id,
+            case_id,
+        )
+        return Status.SUCCESS
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -282,32 +368,7 @@ class _AddCaseActorParticipantNode(DataLayerAction):
             if self.actor_id in stored_case.actor_participant_index:
                 return Status.SUCCESS
 
-        participant = VultronParticipant(
-            attributed_to=self.actor_id,
-            context=case_id,
-            name=f"CaseActor for {case_id}",
-            case_roles=[CVDRole.COORDINATOR, CVDRole.CASE_MANAGER],
-        )
-
-        updated_case = _create_and_attach_participant(
-            self.datalayer,
-            participant,
-            case_id,
-            self.actor_id,
-            self.logger,
-        )
-        if updated_case is None:
-            self.feedback_message = f"Case '{case_id}' not found in DataLayer"
-            return Status.FAILURE
-
-        self.datalayer.save(updated_case)
-        logger.info(
-            "%s: Registered CaseActor '%s' as CASE_MANAGER for case '%s'",
-            self.name,
-            self.actor_id,
-            case_id,
-        )
-        return Status.SUCCESS
+        return self._register_participant(case_id)
 
 
 class _AddVendorOwnerParticipantNode(DataLayerAction):
