@@ -62,6 +62,12 @@ def test_create_deploy_tree_root_name():
     assert tree.name == "DeployOrMitigateBT"
 
 
+def test_root_selector_has_no_memory():
+    tree = create_deploy_tree(case_id=CASE_ID, actor_id=ACTOR_ID)
+    assert isinstance(tree, py_trees.composites.Selector)
+    assert tree.memory is False
+
+
 def test_tree_root_is_fallback():
     """Root node is a py_trees Selector (Fallback) (AC-1)."""
     tree = create_deploy_tree(case_id=CASE_ID, actor_id=ACTOR_ID)
