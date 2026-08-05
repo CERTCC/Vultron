@@ -36,11 +36,10 @@ def demo_env(client):
 
 
 @pytest.mark.xfail(
-    run=False,
     reason=(
         "Demo flow uses pre-CBT case seeding pattern; CBT correctly blocks "
-        "case replication without prior trust setup. Demo will be redesigned "
-        "by #464 (Priority 470 — Two-Actor Demo Redesign)."
+        "case replication without prior trust setup. #464 (Two-Actor Demo Redesign) "
+        "is closed without resolving this. Tracked in #1992."
     ),
     strict=False,
 )

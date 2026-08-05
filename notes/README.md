@@ -537,6 +537,16 @@ use cases, designing the `EmbargoLifecycle` service (#538), auditing inline
 
 ---
 
+**`flaky-tests.md`**
+Fast-lookup catalog of known flaky tests and CI jobs → tracking issue numbers.
+Used by `pr-execute` as a cache before querying GitHub. GitHub is ground truth;
+this file is a speed hint. Maintained by `pr-execute` (add) and `bugfix`/`build`
+(remove on issue close).
+**Load when**: triaging a pre-existing test failure in `pr-execute`, or auditing
+the current set of known-flaky tests.
+
+---
+
 ## Codebase, Infrastructure, and Demos
 
 **`codebase-structure.md`**

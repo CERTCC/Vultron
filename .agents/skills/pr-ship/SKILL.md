@@ -159,6 +159,18 @@ Overall verdict: READY-TO-MERGE / GAPS-FOUND / PENDING-CI
 PR URL: https://github.com/CERTCC/Vultron/pull/N
 ```
 
+If any findings in the execute artifact have `outcome: skipped` and a
+`skip_reason` referencing a flaky-test issue, append a warning block:
+
+```text
+⚠ Flaky test skips:
+  - <node_id or job_name> → #<issue_number> (blocked N PRs to date)
+```
+
+Fetch the blocked-PR count by counting `## Blocked PRs` list entries in the
+issue body: `gh issue view <N> --json body`. This keeps recurring failures
+visible at merge time.
+
 If `GAPS-FOUND`: print which findings are unresolved. To retry:
 
 1. Address the gaps manually (or re-run `/pr-execute` after deleting

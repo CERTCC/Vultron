@@ -61,6 +61,73 @@ in demo orchestration, architectural breaking changes, or infrastructure
 problems (docker, network). All require evidence-based triage — not just
 "looks unrelated."
 
+### Flaky Test Dedup (pre-existing failures)
+
+When a test failure is confirmed pre-existing, use this fractal search before
+creating a new issue — cheapest check first:
+
+**Level 1 — Local catalog** (`notes/flaky-tests.md`):
+
+- For unit tests: exact match on pytest node ID (e.g.
+  `test/bt/test_vultrabot.py::MyTestCase::test_main`).
+- For CI/demo jobs: exact match on job name (e.g. `fvcv-extension`).
+- If match found: `gh issue view <N> --json state,title`
+  - `open` → post a comment on the issue:
+
+    ```text
+    Blocked PR #<N> on <date>. Step: <failure description>. Evidence: <log excerpt>.
+    ```
+
+    Use that issue number in `skip_reason`. **Do not create a new issue.**
+  - `closed` → evict the stale catalog entry; fall through to Level 2.
+
+**Level 2 — Exact GitHub search**:
+
+```bash
+gh issue list --label flaky-test --state open --search '"<node_id_or_job_name>"'
+```
+
+If one match: post comment as above; use that issue.
+
+**Level 3 — File-path GitHub search** (unit tests only):
+
+Strip `::Class::method`, search on the file path alone. If exactly one match:
+use it. If multiple: proceed to Level 4.
+
+**Level 4 — Agent judgment**:
+
+Read top 3 search results. If one is clearly the same failure: use it.
+**When in doubt: create a new issue** rather than incorrectly merging two
+distinct failures.
+
+**Creating a new flaky-test issue**:
+
+- Labels: `bug` + `flaky-test`
+- Title: `Flaky: <job_name or test_node_id>`
+- Body must include:
+  - The exact node ID or job name (for future exact-phrase search)
+  - A `## Blocked PRs` section with the first occurrence entry
+  - Clean-base proof and causality check summary as evidence
+- Add to Project #24: `bash .agents/skills/shared/add-to-project.sh <N>`
+- Add entry to `notes/flaky-tests.md`
+
+### xfail Ratchet
+
+After running the test suite, scan `XFAIL` lines in pytest output. For each:
+
+1. Extract `#<N>` from the `reason` string (regex `#(\d+)`).
+2. If no issue number found: this is an unmanaged xfail — file a new `bug` +
+   `flaky-test` issue, update the `reason` string in the PR to reference it,
+   record as `outcome: filed`.
+3. If issue number found: `gh issue view <N> --json state`
+   - `open` → fine, no action needed.
+   - `closed` → the fix landed without removing the marker; file a new tracking
+     issue, update the reason string, record as `outcome: filed`.
+
+The rule: **every `xfail` must point to a live open issue**. An xfail with a
+dead or missing reference is treated as unmanaged debt and triggers a
+`new-issue-no-ask` finding.
+
 ### When to Stop and Report
 
 Stop and surface to the user if:
