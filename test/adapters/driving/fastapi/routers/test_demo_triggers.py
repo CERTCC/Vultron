@@ -516,7 +516,7 @@ class TestDemoCloseCase:
     def test_leave_activity_in_response(
         self, client_demo: TestClient, actor, case_with_actor
     ):
-        """Response body contains a Leave activity addressed to the Case Actor (DEMOMA-07-001)."""
+        """Response body contains a Leave activity with correct type and actor fields."""
         response = client_demo.post(
             f"/actors/{actor.id_}/demo/close-case",
             json={"case_id": case_with_actor.id_},
@@ -547,18 +547,23 @@ class TestDemoCloseCase:
         case = dl.read(case_with_actor.id_)
         assert isinstance(case, VulnerabilityCase)
         participant_id = case.actor_participant_index.get(actor.id_)
-        if participant_id is not None:
-            participant = dl.read(participant_id)
-            if isinstance(participant, CaseParticipant):
-                rm_states = [
-                    ps.rm.state
-                    for ps in participant.participant_statuses
-                    if hasattr(ps, "rm") and ps.rm is not None
-                ]
-                assert RM.CLOSED not in rm_states, (
-                    "RM.CLOSED must not be set at send time (AC-2);"
-                    f" rm_states={rm_states}"
-                )
+        assert (
+            participant_id is not None
+        ), "actor must have a participant entry in actor_participant_index"
+        participant = dl.read(participant_id)
+        assert isinstance(participant, CaseParticipant), (
+            f"dl.read({participant_id!r}) must return CaseParticipant;"
+            f" got {type(participant)}"
+        )
+        rm_states = [
+            ps.rm.state
+            for ps in participant.participant_statuses
+            if hasattr(ps, "rm") and ps.rm is not None
+        ]
+        assert RM.CLOSED not in rm_states, (
+            "RM.CLOSED must not be set at send time (AC-2);"
+            f" rm_states={rm_states}"
+        )
 
     def test_unknown_case_returns_404(self, client_demo: TestClient, actor):
         """Request for a non-existent case must return 404."""

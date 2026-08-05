@@ -120,9 +120,10 @@ def _seed_case(
         context=case_id,
         case_roles=[CVDRole.CASE_MANAGER],
     )
-    # Bootstrap CaseActor with 3 statuses + RM.CLOSED so AllParticipantsRMClosed
-    # can succeed after owner Leave (ADR-0051, CM-23-005).
-    for state in [RM.RECEIVED, RM.VALID, RM.ACCEPTED, RM.CLOSED]:
+    # Bootstrap CaseActor with RM lifecycle up to ACCEPTED only.
+    # RM.CLOSED is intentionally absent — AdvanceCaseActorToRMClosedNode must
+    # add it during owner Leave; pre-seeding would make the assertion vacuous.
+    for state in [RM.RECEIVED, RM.VALID, RM.ACCEPTED]:
         cm_participant.participant_statuses.append(
             WireParticipantStatus(context=case_id, rm_state=state)
         )
@@ -316,9 +317,18 @@ class TestLeaveCaseRoundTrip:
             f"Lost Leave must NOT set RM.CLOSED on vendor replica;"
             f" rm_states={vendor_rm}"
         )
+        # CA replica check: _participant_rm_states on an untouched DL verifies
+        # the seeding itself did not create RM.CLOSED (sanity guard) AND that
+        # SvcLeaveCaseUseCase did not bypass protocol and write to a foreign DL.
         ca_rm = _participant_rm_states(ca_dl, case.id_, vendor.id_)
         assert RM.CLOSED not in ca_rm, (
             f"Lost Leave must NOT set RM.CLOSED on Case Actor replica;"
+            f" rm_states={ca_rm}"
+        )
+        # Explicit: seeding ends at RM.ACCEPTED, so RM.CLOSED absence confirms
+        # neither SvcLeaveCaseUseCase nor the seeding wrote it.
+        assert RM.ACCEPTED in ca_rm, (
+            "CA replica must still be at RM.ACCEPTED (never advanced);"
             f" rm_states={ca_rm}"
         )
 
@@ -327,7 +337,13 @@ class TestLeaveCaseRoundTrip:
         vendor_and_dl: tuple[as_Service, SqliteDataLayer],
         case_actor_and_dl: tuple[as_Service, SqliteDataLayer],
     ):
-        """Owner Leave round-trip: CaseActor advances to RM.CLOSED (CM-23-002 step 2)."""
+        """Owner Leave round-trip: RM.CLOSED after ledger delivery (CM-23-002 step 2).
+
+        Step 1: SvcLeaveCaseUseCase queues Leave in the vendor's outbox.
+        Step 2: RM.CLOSED must NOT be set at send time (AC-2).
+        Step 3: CloseCaseReceivedUseCase processes Leave on the Case Actor's DL.
+        Step 4: Both owner and CaseActor are at RM.CLOSED on the CA replica.
+        """
         vendor, vendor_dl = vendor_and_dl
         case_actor, ca_dl = case_actor_and_dl
         case_id = "https://example.org/cases/rt-owner"
@@ -347,6 +363,29 @@ class TestLeaveCaseRoundTrip:
             case_actor_id=case_actor.id_,
         )
 
+        # Step 1: vendor (Case Owner) triggers Leave
+        request = LeaveCaseTriggerRequest(
+            actor_id=vendor.id_,
+            case_id=case.id_,
+        )
+        before = set(vendor_dl.outbox_list_for_actor(vendor.id_))
+        SvcLeaveCaseUseCase(
+            vendor_dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(vendor_dl),
+        ).execute()
+        after = set(vendor_dl.outbox_list_for_actor(vendor.id_))
+        assert after - before, "Owner Leave must be queued in vendor outbox"
+
+        # Step 2: AC-2 — RM.CLOSED must NOT be set at send time
+        assert RM.CLOSED not in _participant_rm_states(
+            vendor_dl, case.id_, vendor.id_
+        ), "RM.CLOSED must not be set at send time on owner path (AC-2)"
+        assert RM.CLOSED not in _participant_rm_states(
+            ca_dl, case_id, case_actor.id_
+        ), "CaseActor RM.CLOSED must not be pre-set before ledger delivery"
+
+        # Step 3: Case Actor receives the Leave
         event = _make_close_case_event(
             activity_id="https://example.org/activities/owner-leave-rt",
             sender_actor_id=vendor.id_,
@@ -359,6 +398,7 @@ class TestLeaveCaseRoundTrip:
             sync_port=SyncActivityAdapter(ca_dl),
         ).execute()
 
+        # Step 4: owner and CaseActor are both RM.CLOSED on the CA replica
         owner_rm = _participant_rm_states(ca_dl, case_id, vendor.id_)
         assert RM.CLOSED in owner_rm, (
             f"Owner Leave must advance owner to RM.CLOSED (CM-23-002);"
