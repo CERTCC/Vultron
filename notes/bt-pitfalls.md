@@ -9,6 +9,7 @@ description: >
 related_specs:
   - specs/behavior-tree-integration.yaml
   - specs/behavior-tree-node-design.yaml
+  - specs/case-ledger-processing.yaml
 related_notes:
   - notes/bt-integration.md
   - notes/bt-canonical-reference.md

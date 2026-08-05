@@ -539,8 +539,7 @@ groups:
       A BT idempotency guard that detects a duplicate and returns
       ``Status.FAILURE`` to abort processing MUST NOT write a
       ``CaseLedgerEntry`` of any disposition (``"recorded"`` or
-      ``"rejected"``).  The guard MUST emit only a Python
-      ``logger.info`` / ``logger.debug`` message.
+      ``"rejected"``).
     rationale: >-
       Concern #1754: when ``CheckInviteeNotAlreadyParticipantNode`` fired
       (actor already a participant), it caused a downstream
@@ -570,5 +569,21 @@ groups:
       future call sites from inadvertently re-introducing ledger writes on
       guard no-ops.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
+      spec_id: CLP-13-001
+  - id: CLP-13-003
+    priority: MUST
+    kind: project
+    statement: >-
+      When an idempotency guard fires and returns ``Status.FAILURE``, it
+      MUST emit a Python ``logger.info`` or ``logger.debug`` message
+      recording the duplicate detection.  No other observable side effect
+      (ledger write, outbox enqueue, DataLayer mutation) is permitted.
+    rationale: >-
+      Separating the positive logging obligation (CLP-13-003, priority: MUST)
+      from the prohibition on ledger writes (CLP-13-001, priority: MUST_NOT)
+      makes each requirement independently testable and visible to tooling
+      that filters by priority level.
+    relationships:
+    - rel_type: implements
       spec_id: CLP-13-001
