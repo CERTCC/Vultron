@@ -30,6 +30,19 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 )
 
 
+def _to_ids(activity) -> list[str]:
+    """Extract the ``to`` field from an activity as a flat list of ID strings."""
+    to = getattr(activity, "to", None)
+    if isinstance(to, list):
+        return [
+            item if isinstance(item, str) else getattr(item, "id_", str(item))
+            for item in to
+        ]
+    if isinstance(to, str):
+        return [to]
+    return []
+
+
 def _make_actor(name: str) -> as_Service:
     return as_Service(name=name, url=f"https://example.org/{name.lower()}")
 
@@ -110,6 +123,7 @@ class TestDeferCaseRMTransitionViaBT:
             actor_id=self.vendor.id_,
             case_id=self.case.id_,
         )
+        before = set(self.dl.outbox_list_for_actor(self.vendor.id_))
         SvcDeferCaseUseCase(
             self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
         ).execute()
@@ -119,6 +133,20 @@ class TestDeferCaseRMTransitionViaBT:
         assert isinstance(updated, CaseParticipant)
         assert updated.participant_statuses
         assert updated.participant_statuses[-1].rm.state == RM.DEFERRED
+
+        after = set(self.dl.outbox_list_for_actor(self.vendor.id_))
+        new_ids = after - before
+        assert new_ids, "DeferCase must queue at least one outbox activity"
+        activity_id = next(iter(new_ids))
+        activity = self.dl.read(activity_id)
+        assert activity is not None
+        to_ids = _to_ids(activity)
+        assert (
+            self.case_actor.id_ in to_ids
+        ), f"PCR-08-001: activity must be addressed to CaseActor; to={to_ids!r}"
+        assert (
+            len(to_ids) == 1
+        ), f"PCR-08-001: exactly one recipient expected, got {to_ids!r}"
 
     def test_defer_case_actor_not_found_raises_error(self):
         request = DeferCaseTriggerRequest(

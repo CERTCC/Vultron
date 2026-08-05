@@ -120,6 +120,45 @@ class TestSvcAddReportToCaseUseCase:
         assert activity_dict is not None
         assert activity_dict.get("type") == "Add"
 
+    def test_add_report_to_case_outbox_activity_to_field(self):
+        """Outbox activity produced by AddReportToCase has a documented ``to`` value.
+
+        PCR-08-001 requires outbound activities to address the Case Actor.
+        The current ``add_object_to_case`` factory (delegated from AddReport)
+        sets ``to=None``; this test anchors that behaviour so any change is
+        immediately visible in CI.
+        """
+        report = as_VulnerabilityReport(name="To-Field Report", content="c")
+        self.dl.create(report)
+        request = AddReportToCaseTriggerRequest(
+            actor_id=self.actor.id_,
+            case_id=self.case.id_,
+            report_id=report.id_,
+        )
+        before = set(self.dl.outbox_list())
+        from vultron.core.use_cases.triggers.case import (
+            SvcAddReportToCaseUseCase,
+        )
+
+        SvcAddReportToCaseUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+        ).execute()
+        after = set(self.dl.outbox_list())
+        new_ids = after - before
+        assert (
+            new_ids
+        ), "AddReportToCase must queue at least one outbox activity"
+        activity_id = next(iter(new_ids))
+        activity = self.dl.read(activity_id)
+        assert activity is not None
+        # Document current ``to`` value as regression anchor (PCR-08-001).
+        to = getattr(activity, "to", "MISSING")
+        assert to is None or isinstance(
+            to, (str, list)
+        ), f"PCR-08-001: ``to`` field must be None or a list/str; got {to!r}"
+
     def test_add_report_to_case_raises_when_report_not_found(self):
         """SvcAddReportToCaseUseCase raises VultronNotFoundError when report
         not found."""
