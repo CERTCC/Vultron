@@ -108,6 +108,12 @@ def create_embargo_response_decision_tree(
     (``reject_embargo_trigger_bt`` for Flow A; ``reject_invite_to_embargo_tree``
     for Flow B).
 
+    .. note::
+        This tree does **not** enforce EMB-01-002 (mandatory rejection when
+        CS is public/exploit/attacks).  Callers MUST check EMB-01-002 before
+        invoking this tree and route directly to the flow-appropriate
+        ``reject_bt`` (or skip the tree entirely) when that condition holds.
+
     Args:
         case_id: ID of the VulnerabilityCase.  Used to resolve CASE_OWNER
             status for the gospel-bypass guard.

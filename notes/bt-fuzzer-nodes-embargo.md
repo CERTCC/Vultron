@@ -411,6 +411,35 @@ evaluation, and lifecycle management of coordinated disclosure embargoes.
   (`reject_embargo_trigger_bt` for Flow A; `reject_invite_to_embargo_tree`
   for Flow B). Not a monolithic `create_propose_embargo_decision_tree`.
 
+### `CaseOwnerApprovesEmbargoResponse`
+
+- **Node name**: `CaseOwnerApprovesEmbargoResponse`
+- **btz type**: `AlwaysSucceed` (p=1.00)
+- **Source file**: `vultron/demo/fuzzer/embargo.py`
+- **Parent tree**: `AuthorizeSelector` (within `create_embargo_response_decision_tree`,
+  as the second child of the `AuthorizeSelector` Selector — reached only when
+  the deciding actor is NOT a `CVDRole.CASE_OWNER`)
+- **Semantic function**: Condition — a non-CASE_OWNER actor (e.g. a CaseActor
+  processing an inbound overture on the owner's behalf) requests authorization
+  from the case owner before accepting or countering. Defaults to approval in
+  simulation (owner approval assumed).
+- **Input dependency**: Human approval / adjudication — final authority rests
+  with the case owner (a human or configured policy agent)
+- **Notes**: Gate only; no content artifact placed on the blackboard. In
+  production this seam would be fulfilled by an Evaluator-type Coordination
+  Agent (UI prompt, LLM adjudicator, or policy rule) returning the owner's
+  decision.
+- **Automation potential**: **Low** — final authority rests with the case
+  owner; not auto-approvable by default.
+- **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.CaseOwnerApprovesEmbargoResponse`
+- **Call-out point shape**: Evaluator — records an adjudication decision
+  (approve/deny); no blackboard output_keys (pass/fail gate only per BT-18-006).
+- **Factory-fn placement**: Implemented in PR #1983 (issue #1942) —
+  `vultron.core.behaviors.embargo.response_decision_tree.create_embargo_response_decision_tree`
+  (`case_owner_approves_embargo_response_factory` param in
+  `EmbargoCallOutBundle`) — second child of the `AuthorizeSelector`,
+  reached when `CheckIsCaseOwnerNode` returns FAILURE (EMB-15-002).
+
 ### `CurrentEmbargoAcceptable`
 
 - **Node name**: `CurrentEmbargoAcceptable`

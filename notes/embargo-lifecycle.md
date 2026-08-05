@@ -226,7 +226,7 @@ When implementing any code that transitions embargo state:
 
 ## Inbound Embargo-Response Decision (EMB-15)
 
-**Status**: Planned — issue #1257 (plan/1257). Spec group `EMB-15` in
+**Status**: Implemented — PR #1983 / issue #1942. Spec group `EMB-15` in
 `specs/em-behavior.yaml`; call-out catalog in
 `notes/bt-fuzzer-nodes-embargo.md`.
 
