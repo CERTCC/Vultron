@@ -99,5 +99,4 @@ rapid pushes.
 - Follow-on: CERTCC/Vultron#1794 epic — scenario coverage analysis will
   determine whether a minimum PR validation set can reduce the number of matrix
   entries that participate in the barrier, further reducing worst-case lag.
-- Generated spec requirements: `specs/demo-ci.yaml` DEMOCI-06 (to be added
-  when the scenario coverage split is designed).
+- Generated spec requirements: `specs/demo-ci.yaml` DEMOCI-06-001 through DEMOCI-06-003.
