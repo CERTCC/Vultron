@@ -59,10 +59,11 @@ class _PublicDisclosureSkipConditionNode(DataLayerCondition):
     - DataLayer or case_id is unavailable, OR
     - The sender is not a known case participant, OR
     - The sender does NOT hold the CASE_OWNER role, OR
-    - The case has no active embargo (nothing to terminate).
+    - The EM state is NONE or EXITED (nothing to tear down).
 
     Returns FAILURE (proceed to teardown) when the sender IS a CASE_OWNER
-    who has sent a public-aware status update AND the case has an active embargo.
+    who has sent a public-aware status update AND EM state is ACTIVE, REVISE,
+    or PROPOSED (EMB-16-001).
     """
 
     def __init__(
