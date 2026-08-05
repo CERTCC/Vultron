@@ -260,8 +260,12 @@ _CASES = [
     (
         RejectInviteActorToCaseReceivedEvent,
         MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE,
-        {"object_": _activity},
-        [("invite_id", "object_id"), ("invite", "object_")],
+        {"object_": _activity, "activity": _activity, "inner_target": _case},
+        [
+            ("invite_id", "object_id"),
+            ("invite", "object_"),
+            ("case_id", "inner_target_id"),
+        ],
     ),
     # ── case_participant.py ───────────────────────────────────────────────────
     (

@@ -219,6 +219,7 @@ ENTRIES: list[SemanticEntry] = [
         use_case_class=RejectInviteActorToCaseReceivedUseCase,
         phrase="{actor} declined the case invitation",
         wire_activity_class=_RmRejectInviteToCaseActivity,
+        include_activity=True,
     ),
     SemanticEntry(
         semantics=MessageSemantics.ANNOUNCE_VULNERABILITY_CASE,
