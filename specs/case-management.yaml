@@ -1171,6 +1171,70 @@ groups:
       spec_id: CM-21-002
     - rel_type: refines
       spec_id: CM-21-003
+  - id: CM-21-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An actor emitting `Offer(VulnerabilityCase)` (ownership-transfer variant)
+      MUST address the activity to the CaseActor's inbox (`to: [case_actor_id]`)
+      rather than directly to the transferee.  The CaseActor MUST forward the
+      Offer to the transferee's inbox after recording it.
+    rationale: >-
+      Routing the Offer through the CaseActor enables it to commit a
+      `CaseLedgerEntry` for the offer-in-flight and broadcast
+      `Announce(CaseLedgerEntry)` to all participants (including those not
+      involved in the transfer, such as a Finder or second Vendor).  Direct
+      actor-to-actor delivery bypasses the canonical log and leaves non-involved
+      participants unaware that a transfer is being negotiated.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-21-001
+    adr:
+    - ADR-0053
+  - id: CM-21-006
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An actor emitting `Accept(Offer(VulnerabilityCase))` (ownership-transfer
+      variant) MUST address the activity to the CaseActor's inbox
+      (`to: [case_actor_id]`) rather than directly to the offerer.
+    rationale: >-
+      Routing the Accept through the CaseActor is required for the
+      `AcceptCaseOwnershipTransferReceivedUseCase` to run on the authoritative
+      CaseActor and trigger the post-transfer CaseLedgerEntry cascade
+      (CM-21-007).  Addressing the Accept to the offerer's inbox means the use
+      case only runs there; the CaseActor never learns of the completed transfer
+      and cannot broadcast it.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-21-001
+    - rel_type: refines
+      spec_id: CM-21-005
+    adr:
+    - ADR-0053
+  - id: CM-21-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      After `AcceptCaseOwnershipTransferReceivedUseCase` successfully applies
+      the ownership-role changes (CM-21-002, CM-21-003, CM-21-004), the
+      CaseActor MUST commit a `CaseLedgerEntry` recording the completed transfer
+      and MUST broadcast `Announce(CaseLedgerEntry)` to all case participants.
+    rationale: >-
+      The CaseLedgerEntry broadcast is the only mechanism by which participants
+      not involved in the transfer (e.g., a Finder or second Vendor) learn that
+      the case owner has changed.  Without it, those participants have no
+      reliable way to determine who is currently responsible for the case,
+      leading to messages being directed to the wrong actor and coordination
+      breakdown.  This requirement closes the surface-level symptom described
+      in CONCERN-1755.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-21-002
+    - rel_type: refines
+      spec_id: CM-21-006
+    adr:
+    - ADR-0053
 - id: CM-22
   title: CaseActor-Authoritative Case Creation
   description: >-

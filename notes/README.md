@@ -685,6 +685,16 @@ flowchart and future BT automation notes.
 **Load when**: understanding or evolving the agent skill pipeline, automating
 the development loop, or deciding which skill to run next.
 
+**`ownership-transfer.md`**
+Implementation guidance for the ownership-transfer routing model (ADR-0053):
+Offer and Accept MUST route through the CaseActor; correct flow for
+`EmitOfferCaseOwnershipTransferNode`, `EmitAcceptCaseOwnershipTransferNode`,
+`OfferCaseOwnershipTransferReceivedUseCase`, and the cascade wiring in
+`ownership_transfer_tree.py`. Includes the demo workaround removal checklist.
+**Load when**: implementing ownership-transfer routing fixes (CM-21-005,
+CM-21-006, CM-21-007), auditing transfer routing in demos, or understanding
+why the CaseActor must be the intermediary for ownership transfers.
+
 **`coordination-agents.md`**
 Design guidance for coordination agents — external capabilities (human, skill,
 or LLM agent) that answer Vultron call-out points. Covers the two-surface
