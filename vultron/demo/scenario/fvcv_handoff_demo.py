@@ -76,6 +76,7 @@ from vultron.demo.helpers.milestones import (
     verify_publicly_disclosed,
 )
 from vultron.demo.helpers.polling import (
+    find_case_actor_participant_id,
     find_case_invite_for_actor,
     wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
@@ -150,26 +151,6 @@ def reset_containers(
 # ---------------------------------------------------------------------------
 # Polling helpers
 # ---------------------------------------------------------------------------
-
-
-def _find_case_actor_participant_id(
-    vendor_client: DataLayerClient,
-    case_id: str,
-) -> str | None:
-    """Return the CaseActor participant URI for *case_id* from Vendor1's DataLayer.
-
-    Scans ``actor_participant_index`` for an actor ID starting with "case-actor".
-    Returns ``None`` if not found.
-    """
-    try:
-        case_data = vendor_client.get(f"/datalayer/{case_id}")
-        case = as_VulnerabilityCase.model_validate(case_data)
-        for actor_id in case.actor_participant_index:
-            if strip_id_prefix(actor_id).startswith("case-actor"):
-                return actor_id
-    except Exception:  # noqa: BLE001
-        pass
-    return None
 
 
 def _wait_for_case_attributed_to(
@@ -1091,7 +1072,7 @@ def run_fvcv_handoff_demo(
 
     # The CaseActor is a dynamic sub-actor on the vendor container (not the
     # case-actor service).  Discover its ID from the case data before proceeding.
-    dynamic_case_actor_id = _find_case_actor_participant_id(
+    dynamic_case_actor_id = find_case_actor_participant_id(
         vendor_client, case.id_
     )
     if dynamic_case_actor_id is None:

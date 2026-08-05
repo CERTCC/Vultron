@@ -88,6 +88,7 @@ def create_recommend_actor_to_case_received_tree(
     recommended_id: str,
     case_id: str,
     offer_content: str | None = None,
+    suggested_roles: list[str] | None = None,
 ) -> py_trees.composites.Sequence:
     """Received-side BT for Offer(Actor, Case) on the CaseActor inbox.
 
@@ -187,6 +188,7 @@ def create_recommend_actor_to_case_received_tree(
                 suggested_actor_id=recommended_id,
                 case_id=case_id,
                 recommendation_id=recommendation_id,
+                injected_roles=suggested_roles,
             ),
             EmitOfferCaseParticipantToOwnerNode(
                 recommendation_id=recommendation_id,

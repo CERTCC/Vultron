@@ -47,6 +47,7 @@ import vultron.demo.exchange.suggest_actor_demo as suggest_actor_demo
 import vultron.demo.scenario.fccv_extension_demo as fccv_extension_demo
 import vultron.demo.scenario.fccv_handoff_demo as fccv_handoff_demo
 import vultron.demo.scenario.fcv_demo as fcv_demo
+import vultron.demo.scenario.fcvcv_demo as fcvcv_demo
 import vultron.demo.scenario.fvcv_extension_demo as fvcv_extension_demo
 import vultron.demo.scenario.fvcv_handoff_demo as fvcv_handoff_demo
 import vultron.demo.scenario.fvv_demo as fvv_demo
@@ -906,6 +907,130 @@ def fccv_handoff(
         c2_id=c2_id,
         case_actor_id=case_actor_id,
         vendor_id=vendor_id,
+    )
+
+
+# ---------------------------------------------------------------------------
+# FCVCV sub-command — Finder + C1(CASE_OWNER) + V1(VENDOR) + C2(COORDINATOR) + V2(VENDOR+DEPLOYER)
+# ---------------------------------------------------------------------------
+
+
+@main.command(name="fcvcv")
+@click.option(
+    "--finder-url",
+    envvar="VULTRON_FINDER_BASE_URL",
+    default=fcvcv_demo.FINDER_BASE_URL,
+    show_default=True,
+    help="Base URL for the Finder actor container.",
+)
+@click.option(
+    "--c1-url",
+    envvar="VULTRON_COORDINATOR_BASE_URL",
+    default=fcvcv_demo.C1_BASE_URL,
+    show_default=True,
+    help="Base URL for the C1 (Coordinator1/CASE_OWNER) actor container.",
+)
+@click.option(
+    "--v1-url",
+    envvar="VULTRON_VENDOR_BASE_URL",
+    default=fcvcv_demo.V1_BASE_URL,
+    show_default=True,
+    help="Base URL for the V1 (Vendor1) actor container.",
+)
+@click.option(
+    "--c2-url",
+    envvar="VULTRON_VENDOR2_BASE_URL",
+    default=fcvcv_demo.C2_BASE_URL,
+    show_default=True,
+    help="Base URL for the C2 (Coordinator2) actor container.",
+)
+@click.option(
+    "--v2-url",
+    envvar="VULTRON_VENDOR_DEPLOYER_BASE_URL",
+    default=fcvcv_demo.V2_BASE_URL,
+    show_default=True,
+    help="Base URL for the V2 (VendorDeployer) actor container.",
+)
+@click.option(
+    "--finder-id",
+    envvar="VULTRON_FINDER_ACTOR_ID",
+    default=None,
+    help="Deterministic URI for the Finder actor.",
+)
+@click.option(
+    "--c1-id",
+    envvar="VULTRON_COORDINATOR_ACTOR_ID",
+    default=None,
+    help="Deterministic URI for the C1 actor.",
+)
+@click.option(
+    "--v1-id",
+    envvar="VULTRON_VENDOR_ACTOR_ID",
+    default=None,
+    help="Deterministic URI for the V1 actor.",
+)
+@click.option(
+    "--c2-id",
+    envvar="VULTRON_VENDOR2_ACTOR_ID",
+    default=None,
+    help="Deterministic URI for the C2 actor.",
+)
+@click.option(
+    "--v2-id",
+    envvar="VULTRON_VENDOR_DEPLOYER_ACTOR_ID",
+    default=None,
+    help="Deterministic URI for the V2 (VendorDeployer) actor.",
+)
+@click.option(
+    "--skip-health-check",
+    is_flag=True,
+    default=False,
+    help="Skip server availability checks at startup.",
+)
+def fcvcv(
+    finder_url: str,
+    c1_url: str,
+    v1_url: str,
+    c2_url: str,
+    v2_url: str,
+    finder_id: str | None,
+    c1_id: str | None,
+    v1_id: str | None,
+    c2_id: str | None,
+    v2_id: str | None,
+    skip_health_check: bool,
+) -> None:
+    """Run the FCVCV 5-party CVD demo (DEMOMA-19).
+
+    Five actors coordinate a full CVD lifecycle:
+    Finder + C1 (CASE_OWNER) + V1 (VENDOR) + C2 (COORDINATOR) + V2
+    (VENDOR+DEPLOYER).
+
+    \b
+    Workflow:
+      1. Reset and seed all five containers.
+      2. Finder submits a report to C1; C1 validates and engages.
+      3. C1 invites V1 (VENDOR) and C2 (COORDINATOR).
+      4. C2 suggests V2 via ADR-0026; C1 approves; V2 joins via CaseActor.
+      5. Verify SYNC-2 replication across all six participants.
+      6. All five actors exchange notes.
+      7. Fix lifecycle: V1 → VFd (no deploy); V2 → VFD (fix-deployed).
+      8. Publication: V1 publishes first → embargo terminates; all publish.
+      9. All actors close the case.
+     10. Export case ledger JSONL for each actor (devlogs).
+    """
+    fcvcv_demo.main(
+        skip_health_check=skip_health_check,
+        finder_url=finder_url,
+        c1_url=c1_url,
+        v1_url=v1_url,
+        c2_url=c2_url,
+        v2_url=v2_url,
+        finder_id=finder_id,
+        c1_id=c1_id,
+        v1_id=v1_id,
+        c2_id=c2_id,
+        v2_id=v2_id,
     )
 
 

@@ -205,6 +205,7 @@ class TriggerServicePort(Protocol):
         actor_id: str,
         case_id: str,
         suggested_actor_id: str,
+        roles: list | None = None,
     ) -> dict[str, Any]: ...
 
     def accept_case_invite(

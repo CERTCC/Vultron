@@ -451,12 +451,18 @@ class TriggerService:
         actor_id: str,
         case_id: str,
         suggested_actor_id: str,
+        roles: list | None = None,
     ) -> dict[str, Any]:
         """Recommend another actor to a case owner."""
         req = SuggestActorToCaseTriggerRequest(
             actor_id=actor_id,
             case_id=case_id,
             suggested_actor_id=suggested_actor_id,
+            roles=(
+                [CVDRole(r) if isinstance(r, str) else r for r in roles]
+                if roles
+                else None
+            ),
         )
         return SvcSuggestActorToCaseUseCase(
             self._dl, req, trigger_activity=self._trigger_activity

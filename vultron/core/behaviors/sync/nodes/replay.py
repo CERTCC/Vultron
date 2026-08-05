@@ -23,12 +23,20 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.sync.nodes.replay_guard import (
+    record_replay,
+    replay_from_hash,
+    should_replay,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import (
     CaseLedgerEntry,
     VultronCaseLedgerEntry,
 )
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_persistence import (
+    CaseOutboxPersistence,
+    CasePersistence,
+)
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.use_cases._helpers import case_addressees
@@ -246,6 +254,21 @@ class SendMissingEntriesNode(DataLayerAction):
         )
         from_index = cast(int, self.blackboard.replay_from_index)
 
+        # SYNC-15-003: rate-limit no-progress replays.  A peer that cannot
+        # anchor its hash chain re-Rejects every entry we replay; replaying the
+        # full ledger again on each Reject is a self-sustaining amplification
+        # loop that starves the actor.
+        from_hash = replay_from_hash(entries, from_index)
+        if not should_replay(
+            cast(CasePersistence, self.datalayer),
+            case_id=entry.case_id,
+            peer_id=peer_id,
+            from_hash=from_hash,
+            log=self.logger,
+            node_name=self.name,
+        ):
+            return Status.SUCCESS
+
         replayed = 0
         for log_entry in entries:
             if log_entry.log_index <= from_index:
@@ -256,6 +279,16 @@ class SendMissingEntriesNode(DataLayerAction):
                 to=[peer_id],
             )
             replayed += 1
+
+        # Record the position only when entries actually went out; a
+        # zero-entry replay must not start a cooldown (SYNC-15-003).
+        if replayed:
+            record_replay(
+                cast(CasePersistence, self.datalayer),
+                case_id=entry.case_id,
+                peer_id=peer_id,
+                from_hash=from_hash,
+            )
 
         self.logger.info(
             "%s: replayed %d entries to peer '%s' for case '%s'",
