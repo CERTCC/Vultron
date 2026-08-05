@@ -39,19 +39,12 @@ Seam 2; ``add_participant_status_tree`` does not execute them directly
     ├─ StatusUpdateGuard (Selector)           # Seam 1 authorization (RSH-01-002)
     │   ├─ CheckIsCaseOwnerNode               # Hard bypass: CASE_OWNER gospel (RSH-01-002)
     │   └─ CaseOwnerApprovesStatusUpdate      # Call-out: non-owners need approval
-    ├─ EmitAddCaseStatusToSelfNode            # Seam 1 emit → triggers Seam 2 (RSH-01-003)
-    └─ AutoCloseIfCaseManager (Selector)      # Step 5: auto-close only when CASE_MANAGER
-        ├─ Sequence
-        │   ├─ CheckIsCaseManagerNode
-        │   └─ AutoCloseSequence (Sequence)   # DEMOMA-07-006 decomposed auto-close
-        │       ├─ AllParticipantsRMClosedConditionNode
-        │       ├─ CloseNotYetEmittedConditionNode
-        │       ├─ ResolveCaseManagerNode
-        │       └─ EmitCloseCaseNode
-        └─ Success (skip if not CASE_MANAGER)
+    └─ EmitAddCaseStatusToSelfNode            # Seam 1 emit → triggers Seam 2 (RSH-01-003)
 
-Per specs/multi-actor-demo.yaml DEMOMA-07-003, DEMOMA-07-005, DEMOMA-07-006.
+Per specs/multi-actor-demo.yaml DEMOMA-07-003, DEMOMA-07-005.
 Per specs/received-status-handling.yaml RSH-01-001 to RSH-01-004.
+Per ADR-0050: canonical RM closure is routed through Leave(VulnerabilityCase)
+receive path in receive_close_case_tree, not here.
 """
 
 import logging
@@ -62,25 +55,18 @@ from vultron.core.behaviors.call_out.bundles.status_authorization import (
     STATUS_AUTHORIZATION_DETERMINISTIC,
     StatusAuthorizationCallOutBundle,
 )
-from vultron.core.behaviors.case.nodes.conditions import (
-    CheckIsCaseManagerNode,
-)
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     CheckIsCaseOwnerNode,
 )
 from vultron.core.behaviors.case.nodes.lifecycle import (
     create_receive_activity_tree,
 )
-from vultron.core.behaviors.sender.nodes.actions import ResolveCaseManagerNode
 from vultron.core.behaviors.status.append_participant_status_tree import (
     append_participant_status_tree,
 )
 from vultron.core.behaviors.status.nodes import (
-    AllParticipantsRMClosedConditionNode,
     CheckParticipantRMNotClosedNode,
-    CloseNotYetEmittedConditionNode,
     EmitAddCaseStatusToSelfNode,
-    EmitCloseCaseNode,
     VerifySenderIsParticipantNode,
 )
 from vultron.core.models.events.status import (
@@ -155,33 +141,6 @@ def add_participant_status_tree(
         if context_field:
             tree_case_id = str(context_field)
 
-    auto_close_sequence = py_trees.composites.Sequence(
-        name="AutoCloseSequence",
-        memory=False,
-        children=[
-            AllParticipantsRMClosedConditionNode(case_id=tree_case_id),
-            CloseNotYetEmittedConditionNode(case_id=tree_case_id),
-            ResolveCaseManagerNode(case_id=tree_case_id or ""),
-            EmitCloseCaseNode(case_id=tree_case_id),
-        ],
-    )
-
-    auto_close_selector = py_trees.composites.Selector(
-        name="AutoCloseIfCaseManager",
-        memory=False,
-        children=[
-            py_trees.composites.Sequence(
-                name="CaseManagerAutoClose",
-                memory=False,
-                children=[
-                    CheckIsCaseManagerNode(case_id=tree_case_id),
-                    auto_close_sequence,
-                ],
-            ),
-            py_trees.behaviours.Success(name="AutoCloseSkippedNotCaseManager"),
-        ],
-    )
-
     # Seam 1 authorization (RSH-01-002): CASE_OWNER gospel bypass first; all
     # others route through the CaseOwnerApprovesStatusUpdate call-out.
     status_update_guard = py_trees.composites.Selector(
@@ -225,7 +184,6 @@ def add_participant_status_tree(
                 case_id=tree_case_id,
                 name="EmitAddCaseStatusToSelf",
             ),
-            auto_close_selector,
         ],
     )
     logger.debug(
