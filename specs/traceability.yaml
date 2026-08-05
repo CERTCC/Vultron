@@ -19,7 +19,7 @@ groups:
     kind: project
     statement: >-
       A traceability file MUST exist at `docs/reference/user_stories/traceability.md` mapping each user story
-      in `docs/topics/user_stories/` to the implementing specification(s) and specific requirement
+      in `docs/reference/user_stories/` to the implementing specification(s) and specific requirement
       ID(s)
   - id: TRACE-01-002
     priority: MUST

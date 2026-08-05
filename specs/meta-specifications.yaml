@@ -547,21 +547,23 @@ groups:
     priority: MUST
     kind: process
     statement: >-
-      A spec item's `statement` MUST NOT reference a repo-relative file path that
-      does not exist. A spec-first requirement that deliberately names a file yet
-      to be created MUST either use a placeholder form (e.g.
-      `test_XXX_invariants.py`) or opt out with
-      `lint_suppress: [phantom_path_ref]`. Enforced as a hard error by spec-lint.
+      A spec item's `statement` MUST NOT reference a file path that does not
+      exist, and MUST NOT use an absolute path or a `..` segment. A path rooted
+      at a top-level repo directory is resolved repo-relatively; any other path
+      is resolved as a suffix of some file in the tree, so a package-relative
+      illustration is permitted but a mistyped leading segment is not. A
+      spec-first requirement that deliberately names a file yet to be created
+      MUST either use a placeholder form (e.g. `test_XXX_invariants.py`) or opt
+      out with `lint_suppress: [phantom_path_ref]`. Enforced as a hard error by
+      spec-lint.
     rationale: >-
       A normative statement naming non-existent infrastructure is a stale-premise
-      landmine: the agent implementing it either invents something inconsistent
-      with the rest of the codebase or silently ignores a MUST, and either way the
-      spec stops describing the system. DEMOMA-19-008 required registering an
-      invariant harness in a `test/ci/invariants/conftest.py` that had never
-      existed on any branch (CONCERN-2004); an audit found 18 such clauses across
-      13 phantom paths, most stale after a file move or a module-to-package
-      refactor. Only `statement` is checked — `rationale` narrates history by
-      design and legitimately cites paths that are gone.
+      landmine: the implementing agent either invents something inconsistent with
+      the codebase or silently ignores a MUST, and the spec stops describing the
+      system. DEMOMA-19-008 named a `conftest.py` registry that had never existed
+      (CONCERN-2004); an audit found 18 such clauses across 13 phantom paths.
+      Only `statement` is checked — `rationale` narrates history by design and
+      legitimately cites paths that are gone.
     relationships:
     - rel_type: derives_from
       spec_id: MS-04-001

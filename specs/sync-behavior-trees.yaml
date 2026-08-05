@@ -220,7 +220,8 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          The existing `CommitCaseLedgerEntryNode` in `case/nodes.py` MUST be
+          The existing `CommitCaseLedgerEntryNode` in
+          `vultron/core/behaviors/case/nodes/lifecycle.py` MUST be
           refactored to invoke CommitLogEntryBT as a subtree rather than
           calling `commit_log_entry_trigger()` procedurally.
 
