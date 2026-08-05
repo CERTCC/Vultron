@@ -52,6 +52,11 @@ from vultron.demo.fuzzer.bundles.deploy_fix import (
     DEPLOY_FIX_STOCHASTIC,
     DeployFixCallOutBundle,
 )
+from vultron.demo.fuzzer.bundles.deploy_mitigation import (
+    DEPLOY_MITIGATION_DETERMINISTIC,
+    DEPLOY_MITIGATION_STOCHASTIC,
+    DeployMitigationCallOutBundle,
+)
 from vultron.demo.fuzzer.bundles.develop_fix import (
     DEVELOP_FIX_DETERMINISTIC,
     DEVELOP_FIX_STOCHASTIC,
@@ -96,6 +101,7 @@ __all__ = [
     "AssignVulIdCallOutBundle",
     "CloseReportCallOutBundle",
     "DeployFixCallOutBundle",
+    "DeployMitigationCallOutBundle",
     "EmbargoCallOutBundle",
     "PrioritizationCallOutBundle",
     "PublicationCallOutBundle",
@@ -122,6 +128,8 @@ __all__ = [
     "ASSIGN_VUL_ID_STOCHASTIC",
     "CLOSE_REPORT_STOCHASTIC",
     "DEPLOY_FIX_STOCHASTIC",
+    "DEPLOY_MITIGATION_DETERMINISTIC",
+    "DEPLOY_MITIGATION_STOCHASTIC",
     "EMBARGO_STOCHASTIC",
     "PRIORITIZATION_STOCHASTIC",
     "PUBLICATION_STOCHASTIC",

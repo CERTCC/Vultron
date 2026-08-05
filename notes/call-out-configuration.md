@@ -164,6 +164,7 @@ sub-module layout):
 | `PublicationCallOutBundle` | Publication pipeline | `create_publication_tree`, `create_publish_artifact_tree` |
 | `ReportToOthersCallOutBundle` | Reporting to others | `create_report_to_others_tree` |
 | `DeployFixCallOutBundle` | Fix deployment | `create_deploy_fix_tree` |
+| `DeployMitigationCallOutBundle` | Mitigation deployment | `create_deploy_mitigation_tree` |
 | `AcquireExploitCallOutBundle` | Exploit acquisition | `create_acquire_exploit_tree`, `create_acquire_exploit_strategy_tree` |
 | `AssignVulIdCallOutBundle` | Vulnerability ID assignment | `create_assign_vul_id_tree` |
 | `CloseReportCallOutBundle` | Report closure | `create_close_report_tree` |
@@ -206,7 +207,9 @@ vultron/core/behaviors/call_out/     ← core-owned seam
     embargo.py
     publication.py
     report_to_others.py
-    deploy_fix.py
+    deploy_monitoring.py  ← DeploymentMonitoringBundle (shared base)
+    deploy_fix.py         ← DeployFixCallOutBundle + DEPLOY_FIX_DETERMINISTIC
+    deploy_mitigation.py  ← DeployMitigationCallOutBundle + DEPLOY_MITIGATION_DETERMINISTIC
     acquire_exploit.py
     assign_vul_id.py
     close_report.py

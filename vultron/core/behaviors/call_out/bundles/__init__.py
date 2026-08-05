@@ -42,6 +42,13 @@ from vultron.core.behaviors.call_out.bundles.deploy_fix import (
     DEPLOY_FIX_DETERMINISTIC,
     DeployFixCallOutBundle,
 )
+from vultron.core.behaviors.call_out.bundles.deploy_mitigation import (
+    DEPLOY_MITIGATION_DETERMINISTIC,
+    DeployMitigationCallOutBundle,
+)
+from vultron.core.behaviors.call_out.bundles.deploy_monitoring import (
+    DeploymentMonitoringBundle,
+)
 from vultron.core.behaviors.call_out.bundles.develop_fix import (
     DEVELOP_FIX_DETERMINISTIC,
     DevelopFixCallOutBundle,
@@ -79,6 +86,8 @@ __all__ = [
     "AssignVulIdCallOutBundle",
     "CloseReportCallOutBundle",
     "DeployFixCallOutBundle",
+    "DeployMitigationCallOutBundle",
+    "DeploymentMonitoringBundle",
     "EmbargoCallOutBundle",
     "PrioritizationCallOutBundle",
     "PublicationCallOutBundle",
@@ -92,6 +101,7 @@ __all__ = [
     "ASSIGN_VUL_ID_DETERMINISTIC",
     "CLOSE_REPORT_DETERMINISTIC",
     "DEPLOY_FIX_DETERMINISTIC",
+    "DEPLOY_MITIGATION_DETERMINISTIC",
     "EMBARGO_DETERMINISTIC",
     "PRIORITIZATION_DETERMINISTIC",
     "PUBLICATION_DETERMINISTIC",

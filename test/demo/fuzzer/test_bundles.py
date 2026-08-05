@@ -95,6 +95,10 @@ def test_bundle_fields_satisfy_protocol():
         ),
         ("vultron.demo.fuzzer.bundles.deploy_fix", "DeployFixCallOutBundle"),
         (
+            "vultron.demo.fuzzer.bundles.deploy_mitigation",
+            "DeployMitigationCallOutBundle",
+        ),
+        (
             "vultron.demo.fuzzer.bundles.acquire_exploit",
             "AcquireExploitCallOutBundle",
         ),
@@ -176,6 +180,11 @@ def test_bundle_is_frozen_dataclass(module_path, class_name):
             "DEPLOY_FIX_STOCHASTIC",
         ),
         (
+            "vultron.demo.fuzzer.bundles.deploy_mitigation",
+            "DEPLOY_MITIGATION_DETERMINISTIC",
+            "DEPLOY_MITIGATION_STOCHASTIC",
+        ),
+        (
             "vultron.demo.fuzzer.bundles.acquire_exploit",
             "ACQUIRE_EXPLOIT_DETERMINISTIC",
             "ACQUIRE_EXPLOIT_STOCHASTIC",
@@ -229,6 +238,7 @@ def test_bundles_init_re_exports_all_classes_and_singletons():
         "PublicationCallOutBundle",
         "ReportToOthersCallOutBundle",
         "DeployFixCallOutBundle",
+        "DeployMitigationCallOutBundle",
         "AcquireExploitCallOutBundle",
         "AssignCveIdCallOutBundle",
         "AssignVulIdCallOutBundle",
@@ -248,6 +258,8 @@ def test_bundles_init_re_exports_all_classes_and_singletons():
         "REPORT_TO_OTHERS_STOCHASTIC",
         "DEPLOY_FIX_DETERMINISTIC",
         "DEPLOY_FIX_STOCHASTIC",
+        "DEPLOY_MITIGATION_DETERMINISTIC",
+        "DEPLOY_MITIGATION_STOCHASTIC",
         "ACQUIRE_EXPLOIT_DETERMINISTIC",
         "ACQUIRE_EXPLOIT_STOCHASTIC",
         "ASSIGN_CVE_ID_DETERMINISTIC",
