@@ -76,12 +76,11 @@ class TestCoreVocabularyHierarchy:
 
     @pytest.mark.xfail(
         strict=False,
-        reason="Known pre-existing violation from ADR-0017 migration (issue #800). "
+        reason="Known pre-existing violation tracked in #1991. "
         "CoreObject subclasses VultronPerson, VultronOrganization, VultronService, "
-        "VultronApplication, VultronGroup, and CoreActorCollection inherit "
-        "alias_generator=to_camel from as_Base (wire layer), but they reside in "
-        "the core branch. This test documents the violation and will pass once "
-        "these classes are refactored to remove wire-specific serialization config.",
+        "VultronApplication, VultronGroup, CoreActorCollection, CaseStatus, and "
+        "ParticipantStatus inherit alias_generator=to_camel from as_Base (wire layer). "
+        "Tracked in #1991; xfail removed once those classes are refactored.",
     )
     def test_no_core_object_has_to_camel_alias_generator(self) -> None:
         """No CoreObject subclass may use alias_generator=to_camel.
@@ -110,11 +109,10 @@ class TestWireVocabularyHierarchy:
 
     @pytest.mark.xfail(
         strict=False,
-        reason="Known pre-existing violation from ADR-0017 migration (issue #800). "
-        "Core-layer actor classes (CoreActor, VultronPerson, etc.) are registered "
-        "in the wire VOCABULARY registry under keys like 'Actor', 'Person', etc. "
-        "This test documents the violation and will pass once core-layer actor "
-        "vocabulary is kept separate from wire-layer vocabulary.",
+        reason="Known pre-existing violation tracked in #1992. "
+        "Core-layer classes (CoreActor, VultronOfferRecord, PendingCaseInbox, etc.) "
+        "are registered in the wire VOCABULARY registry. "
+        "Tracked in #1992; xfail removed once core-layer vocabulary is kept separate.",
     )
     def test_all_vocabulary_are_as_base_subclasses(self) -> None:
         """All VOCABULARY classes must be subclasses of as_Base.
