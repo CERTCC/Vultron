@@ -149,6 +149,68 @@ class TestEngageCaseRMTransitionViaBT:
             len(to_ids) == 1
         ), f"PCR-08-001: exactly one recipient expected, got {to_ids!r}"
 
+    def test_engage_logged_with_actual_before_state(self, caplog):
+        """Engagement reports the real RM before-state (SL-04-006, AC-15).
+
+        The fixture seeds the vendor at RM.VALID, so the narrative line must
+        read ``RM VALID → ACCEPTED`` — not a bare ``RM → ACCEPTED``.
+        """
+        import logging
+
+        request = EngageCaseTriggerRequest(
+            actor_id=self.vendor.id_,
+            case_id=self.case.id_,
+        )
+
+        with caplog.at_level(logging.INFO):
+            SvcEngageCaseUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
+
+        narrative = [
+            r
+            for r in caplog.records
+            if "engaged case" in r.getMessage() and r.levelno == logging.INFO
+        ]
+        assert narrative, "Expected a narrative engagement line at INFO"
+        assert (
+            narrative[0].getMessage()
+            == f"Actor '{self.vendor.id_}' engaged case '{self.case.id_}'"
+            " (RM VALID → ACCEPTED)"
+        )
+
+    def test_repeat_engage_emits_no_engagement_line(self, caplog):
+        """Re-engaging an already-engaged case did not engage it.
+
+        ``update_participant_rm_state`` takes its idempotent branch and returns
+        ``True``, so the BT succeeds and ``_handle_result`` still runs. The
+        after-state is read back from storage, so before == after and the line
+        is suppressed rather than claiming ``RM ACCEPTED → ACCEPTED``.
+        """
+        import logging
+
+        request = EngageCaseTriggerRequest(
+            actor_id=self.vendor.id_,
+            case_id=self.case.id_,
+        )
+        SvcEngageCaseUseCase(
+            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+        ).execute()
+
+        caplog.clear()
+        with caplog.at_level(logging.INFO):
+            SvcEngageCaseUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
+
+        assert not [
+            r for r in caplog.records if "engaged case" in r.getMessage()
+        ], "A repeat engage is a no-op and must not claim an engagement"
+
     def test_engage_case_rm_not_updated_when_no_participant(self):
         case_solo = as_VulnerabilityCase(name="Solo Case")
         case_solo.actor_participant_index[self.vendor.id_] = (

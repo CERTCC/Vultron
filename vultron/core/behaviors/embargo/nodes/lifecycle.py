@@ -31,6 +31,7 @@ from vultron.core.behaviors.embargo.nodes.reject_proposed import (  # noqa: F401
     SendRejectEmbargoActivityNode,
 )
 from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.narrative_log import log_em_transition
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.dimensions import EmDimension
 from vultron.core.services.embargo_lifecycle import (
@@ -449,7 +450,15 @@ class SetEmbargoActiveNode(DataLayerAction):
             f"Activated embargo '{self.embargo_id}' on case"
             f" '{self.case_id}' (EM {current_em} → ACTIVE)"
         )
-        self.logger.info("%s: %s", self.name, self.feedback_message)
+        self.logger.debug("%s: %s", self.name, self.feedback_message)
+        # SL-04-001/SL-04-006: embargo activation is a protocol milestone.
+        log_em_transition(
+            self.logger,
+            self.actor_id or "<unknown>",
+            self.case_id,
+            current_em,
+            EM.ACTIVE,
+        )
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:

@@ -54,6 +54,7 @@ import vultron.demo.scenario.fvv_demo as fvv_demo
 import vultron.demo.exchange.transfer_ownership_demo as transfer_ownership_demo
 import vultron.demo.exchange.trigger_demo as trigger_demo
 import vultron.demo.scenario.fv_demo as fv_demo
+from vultron.logging_setup import suppress_third_party_info_noise
 from vultron.demo.seed_config import SeedConfig
 from vultron.demo.utils import DataLayerClient, BASE_URL, seed_actor
 import vultron.bt.base.demo.pacman as pacman_demo
@@ -105,6 +106,7 @@ def main(ctx: click.Context, debug: bool, log_file: str | None) -> None:
         handlers=handlers,
         force=True,
     )
+    suppress_third_party_info_noise(level)
     ctx.ensure_object(dict)
     ctx.obj["debug"] = debug
 

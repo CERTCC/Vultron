@@ -497,6 +497,54 @@ class TestSetEmbargoActiveNode:
         updated = cast(VulnerabilityCase, dl.read(case.id_))
         assert updated.current_status.em.state == EM.ACTIVE
 
+    def test_activation_logged_in_narrative_form(self, caplog):
+        """EM PROPOSED → ACTIVE is logged at INFO (SL-04-001, AC-16)."""
+        import logging
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, embargo = make_case_and_embargo(
+            "sea-narrative", em_state=EM.PROPOSED
+        )
+        case.active_embargo = None
+        dl.create(case)
+
+        with caplog.at_level(logging.INFO):
+            status = self._run(dl, case.id_, embargo.id_)
+
+        assert status == py_trees.common.Status.SUCCESS
+        narrative = [
+            r
+            for r in caplog.records
+            if "embargo PROPOSED → ACTIVE" in r.getMessage()
+            and r.levelno == logging.INFO
+        ]
+        assert narrative, "Expected a narrative embargo-activation line"
+        message = narrative[0].getMessage()
+        assert (
+            message == f"Actor '{ACTOR_ID}' embargo PROPOSED → ACTIVE"
+            f" for case '{case.id_}'"
+        )
+
+    def test_activated_embargo_detail_line_is_debug(self, caplog):
+        """The verbose "Activated embargo ..." detail line is DEBUG."""
+        import logging
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, embargo = make_case_and_embargo(
+            "sea-detail", em_state=EM.PROPOSED
+        )
+        case.active_embargo = None
+        dl.create(case)
+
+        with caplog.at_level(logging.DEBUG):
+            self._run(dl, case.id_, embargo.id_)
+
+        detail = [
+            r for r in caplog.records if "Activated embargo" in r.getMessage()
+        ]
+        assert detail, "Expected the 'Activated embargo' detail line"
+        assert all(r.levelno == logging.DEBUG for r in detail)
+
     def test_idempotent_when_embargo_already_active(self):
         """Returns SUCCESS without state mutation when embargo is already active."""
         dl = SqliteDataLayer("sqlite:///:memory:")

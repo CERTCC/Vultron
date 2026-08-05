@@ -70,7 +70,8 @@ MUST be at DEBUG or lower. Verify with a grep after any bulk refactor.
 | `Parsing activity from request body` / `Parsing activity from body` | `vultron/adapters/driving/fastapi/routers/actors/_inbox.py:62`, `vultron/wire/as2/parser.py:113` | HTTP handler internals; duplicate pair |
 | `Processing outbox for actor ...` | `vultron/adapters/driving/fastapi/outbox_handler.py:242` | Preamble; delivery result is the meaningful line |
 | `Dispatch: dispatched X activity_id=...` / `process_payload: outcome status=processed` / `run_inbox_pipeline: status=processed` | `vultron/core/behaviors/inbox/_process_payload.py:214`, `vultron/adapters/driving/fastapi/inbox_orchestration.py:370,386` | Mechanical pipeline completion repeats |
-| `EM FSM: Finished processing state X exit/enter callbacks` | `vultron/core/states/em.py` (transitions callback) | FSM internals; the `Actor X proposed embargo Y (EM A → B)` already captures this |
+| `EM FSM: Finished processing state X exit/enter callbacks` | `transitions` library logger (see below) | FSM internals; the `Actor X proposed embargo Y (EM A → B)` already captures this |
+| `Final BT state:\n<tree>` (after every execution) | `vultron/core/behaviors/bridge.py` | Same scaffolding as `BT structure` |
 | `sync adapter: queued Announce(CaseLedgerEntry) 'UUID' → ['actor']` | `vultron/adapters/driven/sync_activity_adapter.py:116` | Fires per recipient per entry |
 | `store_embedded_participants: stored participant 'UUID'` | `vultron/core/use_cases/received/case/_helpers.py:92` | Fires per participant on every case announcement |
 | `SeedAnnouncedCaseNode: case already exists locally — skipping save` | `vultron/core/behaviors/case/nodes/announce.py:78` | Routine idempotency skip |
@@ -82,21 +83,58 @@ MUST be at DEBUG or lower. Verify with a grep after any bulk refactor.
 ## Missing INFO Messages to Add (SL-04-001 violations)
 
 These state transitions happened with no INFO output as of CONCERN-1968.
+All of these are implemented as of #1988; the "Location" column records where
+each line is emitted from.
 
 | Domain | Message to add | Location |
 |---|---|---|
-| RM per-participant | `Actor '<id>' RM: <A> → <B> for case '<case_id>'` | BT nodes that write `ParticipantStatus` with a new RM state |
-| CS/VFD | `Actor '<id>' CS: <vfd_before> → <vfd_after> (<event>) for case '<case_id>'` | BT nodes for fix-ready, fix-deployed |
-| CS/PXA | `Actor '<id>' CS: <pxa_before> → <pxa_after> (<event>) for case '<case_id>'` | BT nodes for publish |
-| Case engagement | `Actor '<id>' engaged case '<case_id>' (RM VALID → ACCEPTED)` | engage-case trigger BT |
-| EM PROPOSED→ACTIVE | `Actor '<id>' embargo PROPOSED → ACTIVE for case '<case_id>'` | embargo-accept BT when all signatories have accepted |
-| EM ACTIVE→TERMINATED | `Actor '<id>' embargo ACTIVE → TERMINATED for case '<case_id>'` | embargo-terminate BT |
-| Invite receipt | `Actor '<id>' received case invite for '<case_id>' from '<sender>'` | received-invite use case / BT |
-| BT FAILURE reason | `Actor '<id>' BT execution FAILURE for case '<case_id>': <reason>` | `BTBridge.execute_with_setup` (non-SUCCESS path) |
+| RM per-participant | `Actor '<id>' RM: <A> → <B> for case '<case_id>'` | `update_participant_rm_state()` **and** `CreateParticipantStatusNode` — the two per-participant RM write paths |
+| CS/VFD | `Actor '<id>' CS: <vfd_before> → <vfd_after> (<event>) for case '<case_id>'` | `CreateParticipantStatusNode` (shared writer for fix-ready / fix-deployed) |
+| CS/PXA | `Actor '<id>' CS: <pxa_before> → <pxa_after> (<event>) for case '<case_id>'` | `CreateParticipantStatusNode` (same node, PXA branch) |
+| Case engagement | `Actor '<id>' engaged case '<case_id>' (RM VALID → ACCEPTED)` | `SvcEngageCaseUseCase._handle_result()` |
+| EM PROPOSED→ACTIVE | `Actor '<id>' embargo PROPOSED → ACTIVE for case '<case_id>'` | `SetEmbargoActiveNode._apply_transition()` |
+| EM ACTIVE→EXITED | `Actor '<id>' embargo ACTIVE → EXITED for case '<case_id>'` | `ClearActiveEmbargoNode`, `ApplyEmbargoTeardownNode` |
+| Invite receipt | `Actor '<id>' received case invite for '<case_id>' from '<sender>'` | `InviteActorToCaseReceivedUseCase` (invitee path) |
+| BT FAILURE reason | folded into the existing `BT execution completed: <status> after <N> ticks - <reason>` line | `BTBridge.execute_tree` (FAILURE path) |
+
+The EM terminal state is spelled **EXITED** (`EM.EXITED`), not "TERMINATED":
+the trigger is named `terminate` but the resulting state is `EXITED`.
+
+The BT-failure row is deliberately *not* a separate narrative line. `BTBridge`
+folds `get_failure_reason()` into the record it already emits, because a second
+line would double-log, would fire for the many callers that treat `FAILURE` as
+an expected idempotent skip (and log their own reason at DEBUG), and has no
+reliable `case_id`: no production `execute_with_setup` call site passes one.
+See the closing `NOTE` in `narrative_log.py`.
 
 ---
 
 ## Implementation Guidance
+
+### Use the shared helpers — do not hand-format the template
+
+`vultron/core/behaviors/narrative_log.py` owns the SL-04-006 template. Call the
+helper for the domain instead of formatting the string at the call site, so the
+wording cannot drift (CS-22-001):
+
+| Helper | Emits |
+|---|---|
+| `log_cs_transition()` | `Actor '<id>' CS: <A> → <B> (<event>) for case '<id>'` |
+| `log_em_transition()` | `Actor '<id>' embargo <A> → <B> for case '<id>'` |
+| `log_case_engagement()` | `Actor '<id>' engaged case '<id>' (RM <A> → <B>)` |
+| `log_invite_received()` | `Actor '<id>' received case invite for '<id>' from '<id>'` |
+| `log_rm_transition()` | `Actor '<id>' RM: <A> → <B> for case '<id>'` |
+
+There is deliberately **no** `log_bt_failure()` helper — see the BT-failure note
+above and the closing `NOTE` in `narrative_log.py`.
+
+`cs_event_label()` derives the event name (`fix ready`, `publicly known`, …) by
+diffing the `CS_vfd`/`CS_pxa` sub-dimensions, so a multi-step transition names
+every dimension that advanced.
+
+**No-op writes emit nothing.** `log_cs_transition()` and `log_em_transition()`
+return early when before == after: re-asserting the current state is not a
+protocol event and would reintroduce noise (SL-04-007).
 
 ### Where to add new log lines
 
@@ -105,12 +143,46 @@ use-case `execute()` wrapper. This mirrors the existing embargo proposal
 pattern (`AdvanceEMStateToProposedNode` etc.) and keeps protocol-significant
 logging co-located with the protocol-significant action.
 
-Use `self.logger.info(...)` (on `DataLayerAction`) or `logger.info(...)` from
-a module-level logger. Include `actor_id` and `case_id` in every message.
+Prefer the **narrowest choke point that knows the before-state**. Two examples
+from the #1988 implementation:
+
+- RM: per-participant RM state has **two** write paths, and both log.
+  `update_participant_rm_state()` in `vultron/core/use_cases/_helpers.py` covers
+  the nodes that call it (`TransitionParticipantRMtoAccepted`,
+  `TransitionRMtoValid`, …), reading the before-state from the latest
+  `ParticipantStatus` and falling back to `RM.START`.
+  `CreateParticipantStatusNode` is the second path — `leave.py`,
+  `sync/nodes/effects.py`, and `add_participant_status_trigger_tree.py` set
+  `rm_state=` on it directly without going through the helper — so it logs the
+  RM line itself. A new RM-writing node MUST route through one of these two, or
+  its transition will be missing from the INFO narrative.
+- CS: `CreateParticipantStatusNode` is the shared writer for both VFD and PXA
+  snapshots. `TransitionCStoFixReady` / `TransitionCStoFixDeployed` delegate to
+  it and log only at DEBUG — they know the target state but not the origin.
+
+When a trigger use case needs the before-state, capture it in `_prepare()`
+**before** the BT mutates anything (see `SvcEngageCaseUseCase` and
+`current_participant_rm_state()`).
+
+### Third-party FSM noise
+
+The `transitions` library logs `Finished processing state X enter/exit
+callbacks.` and `Executed callback '<f>'` at INFO on every RM/EM/CS/PEC step.
+Because the messages come from library code, they cannot be demoted at the call
+site. `vultron/logging_setup.suppress_third_party_info_noise()` pins those
+loggers to `WARNING` whenever the app level is above DEBUG; it is called from
+both `configure_logging()` (server) and the demo CLI's `main()`. Add any future
+noisy library to `NOISY_INFO_LOGGERS` there.
 
 ### Grep check after refactor
 
-After any bulk logging-level change, always run:
+This check is automated as
+`test/architecture/test_infrastructure_logs_not_at_info.py`, which walks
+`vultron/` with `ast` and fails when any demoted fragment appears in a
+`logger.info(...)` format string. Add new demoted patterns to its
+`DEMOTED_FRAGMENTS` tuple rather than relying on a manual grep.
+
+For a quick manual spot-check:
 
 ```bash
 grep -rn "logger\.info.*DataLayer stored\|logger\.info.*DataLayer saved\|logger\.info.*BT structure\|logger\.info.*Processing outbox" vultron/

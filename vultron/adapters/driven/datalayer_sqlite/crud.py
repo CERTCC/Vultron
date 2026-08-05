@@ -67,7 +67,7 @@ def create(
         )
         session.add(row)
         session.commit()
-    logger.info("DataLayer stored %s '%s'", rec.type_, rec.id_)
+    logger.debug("DataLayer stored %s '%s'", rec.type_, rec.id_)
 
 
 def read(
@@ -149,7 +149,7 @@ def save(
             row.data = rec.data_
         session.add(row)
         session.commit()
-    logger.info("DataLayer saved %s '%s'", rec.type_, rec.id_)
+    logger.debug("DataLayer saved %s '%s'", rec.type_, rec.id_)
     if rec.type_ == "CaseParticipant":
         logger.debug(
             "DataLayer saved CaseParticipant '%s' (dl_actor_id=%r): %s",
@@ -192,7 +192,7 @@ def save_many(
             session.add(row)
         session.commit()
     for rec in rows:
-        logger.info("DataLayer saved %s '%s' (batch)", rec.type_, rec.id_)
+        logger.debug("DataLayer saved %s '%s' (batch)", rec.type_, rec.id_)
 
 
 def delete(
@@ -298,7 +298,7 @@ def update(
         row.data = record.data_
         session.add(row)
         session.commit()
-        logger.info("DataLayer updated %s '%s'", record.type_, id_)
+        logger.debug("DataLayer updated %s '%s'", record.type_, id_)
         return True
 
 

@@ -239,7 +239,7 @@ async def outbox_handler(
         logger.warning("Actor %s not found in outbox_handler.", actor_id)
         return
 
-    logger.info("Processing outbox for actor %s", actor_id)
+    logger.debug("Processing outbox for actor %s", actor_id)
     err_count = 0
     while dl.outbox_list():
         activity_id = dl.outbox_pop()

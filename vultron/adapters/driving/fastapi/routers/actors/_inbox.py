@@ -59,7 +59,7 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
         HTTPException: 400 if the `type` field is missing; 422 for all other
             parse failures (unknown type, validation error).
     """
-    logger.info(
+    logger.debug(
         "Parsing activity from request body (type=%r):\n%s",
         body.get("type"),
         json.dumps(body, indent=2, default=str),

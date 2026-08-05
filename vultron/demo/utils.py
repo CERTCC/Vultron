@@ -258,6 +258,16 @@ def reset_datalayer(client: DataLayerClient, init: bool = True) -> dict:
     return client.delete("/datalayer/reset/", params={"init": init})
 
 
+def _log_discovered_actor(role: str, actor: as_Actor) -> None:
+    """Log a discovered demo actor: ID at INFO, full object at DEBUG.
+
+    The full ``logfmt()`` dump is DEBUG-only per SL-04-007; only the actor ID
+    carries narrative value at INFO.
+    """
+    logger.info("Found %s actor: %s", role, actor.id_ or "<unknown>")
+    logger.debug("Found %s actor: %s", role, logfmt(actor))
+
+
 def discover_actors(
     client: DataLayerClient,
 ) -> Tuple[as_Actor, as_Actor, as_Actor]:
@@ -277,13 +287,13 @@ def discover_actors(
         actor = as_Actor(**actor_json)
         if actor.name and actor.name.startswith("Finn"):
             finder = actor
-            logger.info(f"Found finder actor: {logfmt(finder)}")
+            _log_discovered_actor("finder", finder)
         elif actor.name and actor.name.startswith("Vendor"):
             vendor = actor
-            logger.info(f"Found vendor actor: {logfmt(vendor)}")
+            _log_discovered_actor("vendor", vendor)
         elif actor.name and actor.name.startswith("Coordinator"):
             coordinator = actor
-            logger.info(f"Found coordinator actor: {logfmt(coordinator)}")
+            _log_discovered_actor("coordinator", coordinator)
 
     if finder is None:
         raise ValueError("Finder actor not found.")

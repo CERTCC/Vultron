@@ -75,7 +75,7 @@ class SeedAnnouncedCaseNode(DataLayerAction):
         existing = self.datalayer.read(self.case_id)
         if existing is not None:
             # Idempotent path — case already present locally (MV-10-004).
-            self.logger.info(
+            self.logger.debug(
                 "%s: case '%s' already exists locally"
                 " — skipping save (idempotent, MV-10-004)",
                 self.name,

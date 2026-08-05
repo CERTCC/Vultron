@@ -376,8 +376,10 @@ class TransitionCStoFixDeployed(DataLayerAction):
         try:
             status = node.update()
             if status == Status.SUCCESS:
-                self.logger.info(
-                    "%s: VFD → VFD (fix deployed) for actor '%s' in case '%s'",
+                # The narrative INFO line (SL-04-006) is emitted by
+                # CreateParticipantStatusNode, which knows the before-state.
+                self.logger.debug(
+                    "%s: VFd → VFD (fix deployed) for actor '%s' in case '%s'",
                     self.name,
                     self._actor_id,
                     self._case_id,

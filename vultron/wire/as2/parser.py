@@ -110,7 +110,7 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
         VultronParseUnknownTypeError: If the `type` value is not in the vocabulary.
         VultronParseValidationError: If Pydantic validation fails.
     """
-    logger.info("Parsing activity from body (type=%r)", body.get("type"))
+    logger.debug("Parsing activity from body (type=%r)", body.get("type"))
 
     type_ = body.get("type")
     if type_ is None:

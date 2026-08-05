@@ -573,6 +573,50 @@ class TestTransitionCStoFixDeployed:
         )
         assert result.status == Status.FAILURE
 
+    def test_fix_deployed_logged_in_narrative_form(
+        self,
+        bt_scenario: BTTestScenario,
+        case_with_deployer: VultronCase,
+        caplog,
+    ) -> None:
+        """AC-13: the d→D transition reads as a CVD milestone at INFO.
+
+        The narrative line comes from ``CreateParticipantStatusNode``, which is
+        the only place that knows the VFd before-state; this node's own
+        message is DEBUG detail (SL-04-007).
+        """
+        import logging
+
+        _seed_status(bt_scenario, CASE_ID, DEPLOYER_ACTOR_ID, vfd=CS_vfd.VFd)
+        node = TransitionCStoFixDeployed(
+            case_id=CASE_ID, actor_id=DEPLOYER_ACTOR_ID, result_out={}
+        )
+
+        with caplog.at_level(logging.DEBUG):
+            assert (
+                bt_scenario.run(node, actor_id=DEPLOYER_ACTOR_ID).status
+                == Status.SUCCESS
+            )
+
+        narrative = [
+            r
+            for r in caplog.records
+            if " CS: " in r.getMessage() and r.levelno == logging.INFO
+        ]
+        assert narrative, "Expected a CS narrative line at INFO"
+        message = narrative[0].getMessage()
+        assert f"Actor '{DEPLOYER_ACTOR_ID}' CS: VFd → VFD" in message
+        assert "(fix deployed)" in message
+
+        detail = [
+            r
+            for r in caplog.records
+            if "VFd → VFD (fix deployed)" in r.getMessage()
+            and r.name.endswith("TransitionCStoFixDeployed")
+        ]
+        assert detail, "Expected the node's own detail line"
+        assert all(r.levelno == logging.DEBUG for r in detail)
+
 
 class TestEmitCDActivity:
     def test_success_emits_cd_activity(
