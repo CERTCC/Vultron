@@ -22,10 +22,14 @@ import py_trees
 from vultron.core.behaviors.embargo.nodes import (
     AcceptEmbargoLifecycleNode,
     HasActiveEmbargoNode,
+    IsProposedEmbargoNode,
     PersistEmbargoEventNode,
     ProposeEmbargoLifecycleNode,
     ReadEmbargoIdNode,
+    ReadProposedEmbargoIdNode,
     RejectEmbargoLifecycleNode,
+    RejectProposedEmbargoLifecycleNode,
+    SendRejectEmbargoActivityNode,
     SendTerminateEmbargoActivityNode,
     TerminateEmbargoLifecycleNode,
     ValidateEmbargoRevisionStateNode,
@@ -135,6 +139,43 @@ def reject_embargo_trigger_bt(
                 result_out=result_out,
             ),
             sender_side_bt(case_id=case_id, activity_builder=activity_builder),
+        ],
+    )
+
+
+def reject_proposed_embargo_bt(
+    *,
+    case_id: str,
+    result_out: dict[str, object],
+) -> py_trees.behaviour.Behaviour:
+    """Shared BT for abandoning a proposed embargo (EMB-16-001).
+
+    Used by :class:`PublicDisclosureBranchNode` when CS.P/X/A fires while the
+    case EM state is PROPOSED.  Mirrors the routing-guard ordering of
+    :func:`terminate_embargo_bt`:
+
+    1. ``IsProposedEmbargoNode`` — guard: EM must be PROPOSED; FAILURE otherwise.
+    2. ``ReadProposedEmbargoIdNode`` — read embargo_id from proposed_embargoes.
+    3. ``ResolveCaseManagerNode`` — routing guard; FAILURE = no state change.
+    4. ``RejectEmbargoLifecycleNode`` — EM state mutation (PROPOSED → NO_EMBARGO).
+    5. ``SendRejectEmbargoActivityNode`` — queue ER to Case Manager.
+
+    Both the routing guard (step 3) and state mutation (step 4) are ordered per
+    BT-19-001/BT-19-002 so that routing prerequisites are always verified before
+    the DataLayer state change is committed.
+    """
+    return py_trees.composites.Sequence(
+        name="RejectProposedEmbargoBT",
+        memory=True,
+        children=[
+            IsProposedEmbargoNode(case_id=case_id),
+            ReadProposedEmbargoIdNode(case_id=case_id),
+            ResolveCaseManagerNode(case_id=case_id),
+            RejectProposedEmbargoLifecycleNode(
+                case_id=case_id,
+                result_out=result_out,
+            ),
+            SendRejectEmbargoActivityNode(case_id=case_id),
         ],
     )
 

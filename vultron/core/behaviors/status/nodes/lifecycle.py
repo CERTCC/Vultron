@@ -32,14 +32,17 @@ from typing import cast
 import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
+from vultron.core.behaviors.embargo.trigger_tree import (
+    reject_proposed_embargo_bt,
+    terminate_embargo_bt,
+)
 from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.protocols import PersistableModel
+from vultron.core.states.em import EM
 from vultron.enums.roles import CVDRole
-from vultron.core.models._helpers import _as_id
 from vultron.core.behaviors.status.nodes.threat_termination import (  # noqa: F401
     ThreatTerminationBranchNode,
     _ThreatTerminationSkipConditionNode,
@@ -115,6 +118,13 @@ class _PublicDisclosureSkipConditionNode(DataLayerCondition):
         )
         return CVDRole.CASE_OWNER in roles
 
+    def _em_state(self, case: VulnerabilityCase) -> EM:
+        """Return current EM state; falls back to NONE on missing status."""
+        try:
+            return case.current_status.em.state
+        except (ValueError, AttributeError):
+            return EM.NONE
+
     def update(self) -> Status:
         if not self._public_aware():
             return Status.SUCCESS
@@ -129,11 +139,15 @@ class _PublicDisclosureSkipConditionNode(DataLayerCondition):
         if not self._sender_is_case_owner(case):
             return Status.SUCCESS
 
-        if _as_id(case.active_embargo) is None:
+        # Check EM state directly (EMB-16-001): teardown is required for
+        # ACTIVE, REVISE (terminate path) and PROPOSED (reject path).
+        # NO_EMBARGO and EXITED have nothing to tear down.
+        em_state = self._em_state(case)
+        if em_state not in (EM.ACTIVE, EM.REVISE, EM.PROPOSED):
             return Status.SUCCESS
 
         # Condition met: sender is CASE_OWNER reporting public awareness AND
-        # there is an active embargo to terminate.
+        # there is an active or proposed embargo to handle.
         return Status.FAILURE
 
 
@@ -143,9 +157,13 @@ class PublicDisclosureBranchNode(py_trees.composites.Selector):
     Condition: the new ParticipantStatus has CS.P (public-aware) set AND
     the sender holds the CASE_OWNER role.
 
-    When the condition is met, delegates to the shared ``terminate_embargo_bt``
-    factory (BT-19-002), which places the routing guard before the EM state
-    mutation.  Skips silently if conditions are not met.
+    When the condition is met, routes teardown based on EM state (EMB-16-001):
+
+    - EM ACTIVE/REVISE → ``terminate_embargo_bt`` (terminate path).
+    - EM PROPOSED → ``reject_proposed_embargo_bt`` (reject path, EMB-16-001).
+
+    Skips silently if conditions are not met (EM NONE/EXITED, or sender is not
+    CASE_OWNER, or status is not public-aware).
 
     Returns SUCCESS when teardown conditions are not met (skip path) or
     when teardown completes and the broadcast activity is queued.
@@ -155,10 +173,11 @@ class PublicDisclosureBranchNode(py_trees.composites.Selector):
     Implemented as a ``py_trees.composites.Selector`` (memory=False):
 
     - Child 1 ``_PublicDisclosureSkipConditionNode``: SUCCESS → skip teardown.
-    - Child 2 ``TerminateEmbargoBT``: SUCCESS on success; FAILURE when routing
-      prerequisites are absent or dispatch fails (BT-14-001).
+    - Child 2 Teardown Selector: tries ACTIVE/REVISE arm then PROPOSED arm.
+      - ``TerminateEmbargoBT``: for EM ACTIVE/REVISE.
+      - ``RejectProposedEmbargoBT``: for EM PROPOSED (EMB-16-001).
 
-    Per DEMOMA-07-003 step 4.
+    Per DEMOMA-07-003 step 4, EMB-16-001.
     """
 
     def __init__(
@@ -170,14 +189,26 @@ class PublicDisclosureBranchNode(py_trees.composites.Selector):
     ):
         super().__init__(name=name or self.__class__.__name__, memory=False)
         result_out: dict[str, object] = {}
-        terminate_subtree = (
-            terminate_embargo_bt(
+        if case_id is None:
+            teardown_subtree: py_trees.behaviour.Behaviour = (
+                py_trees.behaviours.Success(name="TeardownSkipped")
+            )
+        else:
+            reject_proposed_subtree = reject_proposed_embargo_bt(
                 case_id=case_id,
                 result_out=result_out,
             )
-            if case_id is not None
-            else py_trees.behaviours.Success(name="TerminateEmbargoSkipped")
-        )
+            terminate_subtree = terminate_embargo_bt(
+                case_id=case_id,
+                result_out=result_out,
+            )
+            # Selector: try terminate (ACTIVE/REVISE) first; if it fails because
+            # there is no active embargo, try reject (PROPOSED).
+            teardown_subtree = py_trees.composites.Selector(
+                name="TeardownSelector",
+                memory=False,
+                children=[terminate_subtree, reject_proposed_subtree],
+            )
         self.add_children(
             [
                 _PublicDisclosureSkipConditionNode(
@@ -186,7 +217,7 @@ class PublicDisclosureBranchNode(py_trees.composites.Selector):
                     case_id=case_id,
                     name="SkipCondition",
                 ),
-                terminate_subtree,
+                teardown_subtree,
             ]
         )
 

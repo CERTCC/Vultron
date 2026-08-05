@@ -294,6 +294,49 @@ class HasActiveEmbargoNode(DataLayerCondition):
         return Status.SUCCESS
 
 
+class IsProposedEmbargoNode(DataLayerCondition):
+    """Check that the case EM state is PROPOSED.
+
+    Returns SUCCESS when ``case.current_status.em.state == EM.PROPOSED``.
+    Returns FAILURE for any other EM state (including ACTIVE, REVISE, NONE,
+    EXITED), halting the parent Sequence so the proposed-embargo arm is skipped.
+
+    Analogous to :class:`IsActiveEmbargoNode` but for the PROPOSED state.
+    """
+
+    def __init__(self, case_id: str, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        case = self.datalayer.read(self.case_id)
+        if not isinstance(case, VulnerabilityCase):
+            self.feedback_message = f"Case '{self.case_id}' not found"
+            return Status.FAILURE
+
+        try:
+            em_state = case.current_status.em.state
+        except (ValueError, AttributeError):
+            self.feedback_message = (
+                f"Case '{self.case_id}' has no materialized CaseStatus"
+            )
+            return Status.FAILURE
+
+        from vultron.core.states.em import EM
+
+        if em_state != EM.PROPOSED:
+            self.feedback_message = (
+                f"Case '{self.case_id}' EM state is '{em_state}', not PROPOSED"
+            )
+            return Status.FAILURE
+
+        return Status.SUCCESS
+
+
 class HasCaseStatusesNode(DataLayerCondition):
     """Guard that the case has at least one CaseStatus entry.
 
