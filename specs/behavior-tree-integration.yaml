@@ -218,8 +218,13 @@ groups:
   - id: BT-10-005
     priority: SHOULD
     kind: protocol
-    statement: When an actor accepts a case invitation, the system SHOULD automatically advance the accepting actor's RM state
-      to ACCEPTED via BT or use-case execution
+    statement: >-
+      When an actor accepts a case invitation, the system SHOULD automatically record the accepting actor's RM state as
+      RM.RECEIVED via BT or use-case execution. The invitee's subsequent triage (RM.VALID/INVALID → RM.ACCEPTED/DEFERRED)
+      is driven by RM status messages from the invitee after the full case replica has been delivered to them.
+    note: >-
+      Prior text read "advance the accepting actor's RM state to ACCEPTED", which conflated joining the case with validating
+      its vulnerability content. Corrected to align with CM-11-001 (as amended in CONCERN-1756).
     relationships:
     - rel_type: implements
       spec_id: CM-11-001
