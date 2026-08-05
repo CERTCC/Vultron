@@ -402,6 +402,33 @@ class OnEmbargoReject(ActuatorCallOutPoint, AlwaysSucceed):
 
 
 # ---------------------------------------------------------------------------
+# Inbound embargo-response decision nodes (EMB-15)
+# ---------------------------------------------------------------------------
+
+
+class CaseOwnerApprovesEmbargoResponse(EvaluatorCallOutPoint, AlwaysSucceed):
+    """Adjudication call-out: non-owner actor requests CASE_OWNER approval.
+
+    Semantic function:
+        Condition — a non-CASE_OWNER actor (e.g. a CaseActor processing an
+        inbound overture on the owner's behalf) requests authorization from the
+        case owner before accepting or countering.  Defaults to approval in
+        simulation (owner approval assumed).
+
+    Blackboard contract (BT-18-001):
+      Input keys:  (none — reads actor/case context from construction time)
+      Output keys: (none — pass/fail gate only)
+
+    Input category: Human approval / adjudication.
+
+    Success probability: 1.00 (``AlwaysSucceed``).
+
+    Automation potential: **Low** — final authority rests with the case owner
+    (a human or a configured policy agent).
+    """
+
+
+# ---------------------------------------------------------------------------
 # Embargo exit authorization nodes
 # ---------------------------------------------------------------------------
 

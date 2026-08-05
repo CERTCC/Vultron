@@ -20,21 +20,22 @@ lives in the simulation layer
 
 Ceiling/floor mapping (BT-23-002):
 
-- ``exit_embargo_when_deployed_factory``       — ExitEmbargoWhenDeployed       (p=0.33) → AlwaysFail
-- ``exit_embargo_when_fix_ready_factory``      — ExitEmbargoWhenFixReady       (p=0.25) → AlwaysFail
-- ``exit_embargo_for_other_reason_factory``    — ExitEmbargoForOtherReason     (p=0.005) → AlwaysFail
-- ``stop_proposing_embargo_factory``           — StopProposingEmbargo          (p=0.25) → AlwaysFail
-- ``select_embargo_offer_terms_factory``       — SelectEmbargoOfferTerms       (p=1.0) → AlwaysSucceed
-- ``want_to_propose_embargo_factory``          — WantToProposeEmbargo          (p=0.50) → AlwaysSucceed (tie-break)
-- ``willing_to_counter_factory``               — WillingToCounterEmbargoProposal (p=0.25) → AlwaysFail
-- ``reason_to_propose_when_deployed_factory``  — ReasonToProposeEmbargoWhenDeployed (p=0.07) → AlwaysFail
-- ``evaluate_embargo_proposal_factory``        — EvaluateEmbargoProposal       (p=0.75) → AlwaysSucceed
-- ``current_embargo_acceptable_factory``       — CurrentEmbargoAcceptable      (p=0.90) → AlwaysSucceed
-- ``on_embargo_exit_factory``                  — OnEmbargoExit                 (p=1.0) → AlwaysSucceed
-- ``on_embargo_accept_factory``                — OnEmbargoAccept               (p=1.0) → AlwaysSucceed
-- ``on_embargo_reject_factory``                — OnEmbargoReject               (p=1.0) → AlwaysSucceed
-- ``embargo_exit_policy_guard_factory``        — EmbargoExitPolicyGuard        (p=1.0) → AlwaysSucceed
-- ``embargo_exit_override_factory``            — EmbargoExitOverride           (p=0.0) → AlwaysFail
+- ``exit_embargo_when_deployed_factory``              — ExitEmbargoWhenDeployed             (p=0.33) → AlwaysFail
+- ``exit_embargo_when_fix_ready_factory``             — ExitEmbargoWhenFixReady             (p=0.25) → AlwaysFail
+- ``exit_embargo_for_other_reason_factory``           — ExitEmbargoForOtherReason           (p=0.005) → AlwaysFail
+- ``stop_proposing_embargo_factory``                  — StopProposingEmbargo                (p=0.25) → AlwaysFail
+- ``select_embargo_offer_terms_factory``              — SelectEmbargoOfferTerms             (p=1.0) → AlwaysSucceed
+- ``want_to_propose_embargo_factory``                 — WantToProposeEmbargo                (p=0.50) → AlwaysSucceed (tie-break)
+- ``willing_to_counter_factory``                      — WillingToCounterEmbargoProposal     (p=0.25) → AlwaysFail
+- ``reason_to_propose_when_deployed_factory``         — ReasonToProposeEmbargoWhenDeployed  (p=0.07) → AlwaysFail
+- ``evaluate_embargo_proposal_factory``               — EvaluateEmbargoProposal             (p=0.75) → AlwaysSucceed
+- ``current_embargo_acceptable_factory``              — CurrentEmbargoAcceptable            (p=0.90) → AlwaysSucceed
+- ``on_embargo_exit_factory``                         — OnEmbargoExit                       (p=1.0) → AlwaysSucceed
+- ``on_embargo_accept_factory``                       — OnEmbargoAccept                     (p=1.0) → AlwaysSucceed
+- ``on_embargo_reject_factory``                       — OnEmbargoReject                     (p=1.0) → AlwaysSucceed
+- ``case_owner_approves_embargo_response_factory``    — CaseOwnerApprovesEmbargoResponse    (p=1.0) → AlwaysSucceed
+- ``embargo_exit_policy_guard_factory``               — EmbargoExitPolicyGuard              (p=1.0) → AlwaysSucceed
+- ``embargo_exit_override_factory``                   — EmbargoExitOverride                 (p=0.0) → AlwaysFail
 """
 
 from __future__ import annotations
@@ -103,6 +104,11 @@ class EmbargoCallOutBundle:
         default=_always_succeed  # type: ignore[assignment]
     )
     on_embargo_reject_factory: CallOutBackendFactory = field(
+        default=_always_succeed  # type: ignore[assignment]
+    )
+    case_owner_approves_embargo_response_factory: (
+        CallOutBackendFactory
+    ) = field(
         default=_always_succeed  # type: ignore[assignment]
     )
     embargo_exit_policy_guard_factory: CallOutBackendFactory = field(
