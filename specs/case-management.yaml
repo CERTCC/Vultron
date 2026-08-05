@@ -453,6 +453,25 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: OX-02-001
+  - id: CM-11-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When processing a `Reject(Invite(actor, case))` activity, the use case MUST resolve
+      `case_id` from the nested Invite's `target` field (`inner_target_id`) rather than from
+      the top-level `target` of the Reject activity; the top-level `target` is not populated
+      by `extract_event` for this activity pattern and will always be `None`.
+    note: >-
+      `Accept(Invite(actor, case))` follows the same nesting — `AcceptInviteActorToCaseReceivedEvent`
+      already exposes a `case_id` property as `inner_target_id`. The symmetric property must
+      be present on `RejectInviteActorToCaseReceivedEvent` and used in
+      `RejectInviteActorToCaseReceivedUseCase.execute()`. Failure to read `inner_target_id`
+      causes the use case to early-return without committing the canonical `CaseLedgerEntry`
+      for the rejection (pre-existing gap introduced in #1293, documented in #1747).
+    rationale: >-
+      The `Reject(Invite(actor, case))` wire activity wraps the Invite as its `object_`; the
+      case reference is therefore on `object_.target`, which `extract_event` maps to
+      `inner_target`. There is no top-level `target` on the Reject itself.
 - id: CM-12
   title: Case Creation Timing
   specs:

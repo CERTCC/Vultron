@@ -514,6 +514,14 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   — check open issues before starting a session; an issue may be fully implemented
   but not closed. Use `git log -S "<fix string>" -- <file>` against `origin/main`
   to confirm. *Source: ISSUE-1787*
+- **`Reject(Invite(actor, case))` Carries the Case in `inner_target`, Not Top-Level `target`**
+  — `extract_event` does NOT populate `request.target` for the Reject; the case
+  reference is on the nested Invite's `target` field, exposed as `request.inner_target_id`.
+  Always read `request.inner_target_id or request.target_id` (or use a typed `case_id`
+  property on the event class) when resolving `case_id` for
+  `RejectInviteActorToCaseReceivedUseCase`. The same nesting applies to
+  `Accept(Invite(actor, case))` — `AcceptInviteActorToCaseReceivedEvent.case_id` already
+  follows this pattern. See CM-11-003. *Source: ISSUE-1747*
 
 ---
 
