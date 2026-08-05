@@ -52,6 +52,12 @@ from vultron.core.ports.case_persistence import CasePersistence
 #: storm, short enough that a genuinely dropped replay is retried promptly.
 REPLAY_COOLDOWN_SECONDS: float = 30.0
 
+#: Cooldown applied when the peer reports genesis (no entries at all).  Much
+#: shorter than :data:`REPLAY_COOLDOWN_SECONDS` because a genesis peer is
+#: mid-bootstrap (SYNC-15-002) and needs its history promptly, but still
+#: non-zero so a peer that never anchors cannot drive an unbounded storm.
+GENESIS_REPLAY_COOLDOWN_SECONDS: float = 2.0
+
 
 def replay_from_hash(entries: list[CaseLedgerEntry], from_index: int) -> str:
     """Return the ``entry_hash`` a replay resumes from, or ``""`` for genesis.
@@ -91,15 +97,33 @@ def claim_replay_position(
             returned by :func:`replay_from_hash`.
 
     Returns:
-        ``True`` when the replay should proceed — either the peer's position has
-        moved since the last replay we sent it, or the cooldown for an
-        unchanged position has elapsed.  ``False`` when the position is
-        unchanged and still within :data:`REPLAY_COOLDOWN_SECONDS`, which is
-        what breaks the amplification loop described in this module's docstring.
+        ``True`` when the replay should proceed — the peer's position has moved
+        since the last replay we sent it, the cooldown for an unchanged position
+        has elapsed, or the peer is at genesis (see below).  ``False`` when the
+        position is unchanged and still within
+        :data:`REPLAY_COOLDOWN_SECONDS`, which is what breaks the amplification
+        loop described in this module's docstring.
+
+    Genesis (``from_hash == ""``) gets a much shorter cooldown
+    (:data:`GENESIS_REPLAY_COOLDOWN_SECONDS`) rather than the full one.  A peer
+    at genesis holds no entries at all, and convergence there is owned by
+    ``AnnounceCaseOnGenesisRejectNode`` (SYNC-15-002), which seeds the
+    VulnerabilityCase and then relies on the replay that follows to deliver the
+    history.  Rate-limiting that replay as aggressively as a mid-chain stall
+    would starve the bootstrap it exists to complete, leaving the peer with an
+    empty replica — but leaving genesis wholly unbounded would re-admit the
+    amplification loop, since a peer that cannot anchor its chain reports
+    genesis on every Reject.  A short cooldown satisfies both: the bootstrap
+    proceeds promptly while the storm stays bounded.
 
     Spec: SYNC-15-003.
     """
     now = _now_utc()
+    cooldown = (
+        GENESIS_REPLAY_COOLDOWN_SECONDS
+        if from_hash == ""
+        else REPLAY_COOLDOWN_SECONDS
+    )
     state_key = VultronReplicationState(case_id=case_id, peer_id=peer_id).id_
     existing = datalayer.read(state_key)
     if existing is None:
@@ -118,8 +142,7 @@ def claim_replay_position(
     if (
         unchanged_position
         and state.last_replayed_at is not None
-        and now - state.last_replayed_at
-        < timedelta(seconds=REPLAY_COOLDOWN_SECONDS)
+        and now - state.last_replayed_at < timedelta(seconds=cooldown)
     ):
         return False
 

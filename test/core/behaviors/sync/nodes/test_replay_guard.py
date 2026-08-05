@@ -4,6 +4,7 @@
 from datetime import timedelta
 
 from vultron.core.behaviors.sync.nodes.replay_guard import (
+    GENESIS_REPLAY_COOLDOWN_SECONDS,
     REPLAY_COOLDOWN_SECONDS,
     claim_replay_position,
     replay_from_hash,
@@ -125,6 +126,41 @@ class TestClaimReplayPosition:
 
         assert first is True
         assert second is False
+
+    def test_genesis_uses_a_shorter_cooldown_than_mid_chain(self, datalayer):
+        """A genesis peer is mid-bootstrap (SYNC-15-002) and must not be starved.
+
+        Regression guard: a full-length cooldown at genesis suppressed the
+        replay that ``AnnounceCaseOnGenesisRejectNode`` depends on, leaving the
+        peer with an empty replica ("SYNC-2 replication did not complete").
+        Genesis still gets *a* cooldown, so the storm stays bounded.
+        """
+        assert GENESIS_REPLAY_COOLDOWN_SECONDS < REPLAY_COOLDOWN_SECONDS
+
+        claim_replay_position(
+            datalayer,
+            case_id=CASE_ID,
+            peer_id=PARTICIPANT_ACTOR_ID,
+            from_hash="",
+        )
+        state_id = VultronReplicationState(
+            case_id=CASE_ID, peer_id=PARTICIPANT_ACTOR_ID
+        ).id_
+        state = datalayer.read(state_id)
+        # Older than the genesis cooldown, but well inside the mid-chain one.
+        state.last_replayed_at = state.last_replayed_at - timedelta(
+            seconds=GENESIS_REPLAY_COOLDOWN_SECONDS + 1
+        )
+        datalayer.save(state)
+
+        admitted = claim_replay_position(
+            datalayer,
+            case_id=CASE_ID,
+            peer_id=PARTICIPANT_ACTOR_ID,
+            from_hash="",
+        )
+
+        assert admitted is True
 
     def test_peers_are_tracked_independently(self, datalayer):
         other_peer = "https://example.org/actors/late-joiner"
