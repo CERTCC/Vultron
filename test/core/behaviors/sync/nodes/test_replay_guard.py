@@ -1,7 +1,10 @@
 #!/usr/bin/env python
 """Unit tests for the Reject-replay convergence guard (SYNC-15-003)."""
 
+from datetime import timedelta
+
 from vultron.core.behaviors.sync.nodes.replay_guard import (
+    REPLAY_COOLDOWN_SECONDS,
     claim_replay_position,
     replay_from_hash,
 )
@@ -61,6 +64,34 @@ class TestClaimReplayPosition:
             )
         assert admitted is False
 
+    def test_suppression_lapses_after_cooldown(self, datalayer):
+        """The guard is a rate limit, not permanent suppression — otherwise a
+        dropped replay would leave the peer un-synced forever.
+        """
+        claim_replay_position(
+            datalayer,
+            case_id=CASE_ID,
+            peer_id=PARTICIPANT_ACTOR_ID,
+            from_hash="abc",
+        )
+        state_id = VultronReplicationState(
+            case_id=CASE_ID, peer_id=PARTICIPANT_ACTOR_ID
+        ).id_
+        state = datalayer.read(state_id)
+        state.last_replayed_at = state.last_replayed_at - timedelta(
+            seconds=REPLAY_COOLDOWN_SECONDS + 1
+        )
+        datalayer.save(state)
+
+        admitted = claim_replay_position(
+            datalayer,
+            case_id=CASE_ID,
+            peer_id=PARTICIPANT_ACTOR_ID,
+            from_hash="abc",
+        )
+
+        assert admitted is True
+
     def test_claim_at_advanced_hash_is_admitted(self, datalayer):
         claim_replay_position(
             datalayer,
@@ -77,7 +108,7 @@ class TestClaimReplayPosition:
 
         assert admitted is True
 
-    def test_genesis_claim_is_admitted_once_then_suppressed(self, datalayer):
+    def test_genesis_claim_is_admitted_once_then_rate_limited(self, datalayer):
         """``""`` is a real position, not "unset" — it must still converge."""
         first = claim_replay_position(
             datalayer,

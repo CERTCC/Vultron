@@ -26,18 +26,31 @@ for a single case, starving the actor until unrelated DataLayer reads timed out.
 The guard breaks the loop by tracking, per peer, the replication position of
 the last replay actually sent.  A Reject that reports the *same* position as
 the previous replay carries no new information, so replaying again cannot help
-and is suppressed.  A Reject at an advanced position replays normally, so a
-peer that is making progress is never wedged.
+immediately and is rate-limited to at most one replay per
+:data:`REPLAY_COOLDOWN_SECONDS`.  A Reject at an advanced position always
+replays, so a peer that is making progress is never delayed.
+
+The cooldown is deliberately a rate limit rather than permanent suppression:
+if a replayed entry is lost in transit, the peer's next Reject must eventually
+be able to trigger a fresh replay, or the peer would stay permanently
+un-synced.  Bounding the *rate* removes the storm while preserving eventual
+convergence.
 """
 
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import cast
 
 from vultron.core.models._helpers import _now_utc
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.ports.case_persistence import CasePersistence
+
+#: Minimum interval between replays sent to a peer that has not advanced its
+#: replication position.  Long enough that a stuck peer cannot drive an event
+#: storm, short enough that a genuinely dropped replay is retried promptly.
+REPLAY_COOLDOWN_SECONDS: float = 30.0
 
 
 def replay_from_hash(entries: list[CaseLedgerEntry], from_index: int) -> str:
@@ -78,13 +91,15 @@ def claim_replay_position(
             returned by :func:`replay_from_hash`.
 
     Returns:
-        ``True`` when the peer's position has moved since the last replay we
-        sent it (replay should proceed), ``False`` when the position is
-        unchanged and the replay must be suppressed to avoid the amplification
-        loop described in this module's docstring.
+        ``True`` when the replay should proceed — either the peer's position has
+        moved since the last replay we sent it, or the cooldown for an
+        unchanged position has elapsed.  ``False`` when the position is
+        unchanged and still within :data:`REPLAY_COOLDOWN_SECONDS`, which is
+        what breaks the amplification loop described in this module's docstring.
 
     Spec: SYNC-15-003.
     """
+    now = _now_utc()
     state_key = VultronReplicationState(case_id=case_id, peer_id=peer_id).id_
     existing = datalayer.read(state_key)
     if existing is None:
@@ -93,15 +108,23 @@ def claim_replay_position(
                 case_id=case_id,
                 peer_id=peer_id,
                 last_replayed_from_hash=from_hash,
+                last_replayed_at=now,
             )
         )
         return True
 
     state = cast(VultronReplicationState, existing)
-    if state.last_replayed_from_hash == from_hash:
+    unchanged_position = state.last_replayed_from_hash == from_hash
+    if (
+        unchanged_position
+        and state.last_replayed_at is not None
+        and now - state.last_replayed_at
+        < timedelta(seconds=REPLAY_COOLDOWN_SECONDS)
+    ):
         return False
 
     state.last_replayed_from_hash = from_hash
-    state.updated_at = _now_utc()
+    state.last_replayed_at = now
+    state.updated_at = now
     datalayer.save(state)
     return True

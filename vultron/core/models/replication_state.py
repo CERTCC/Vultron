@@ -91,6 +91,17 @@ class VultronReplicationState(VultronObject):
         validation_alias="lastReplayedFromHash",
         serialization_alias="lastReplayedFromHash",
     )
+    last_replayed_at: Optional[datetime] = Field(
+        default=None,
+        description=(
+            "When the most recent Reject-triggered replay was sent to this"
+            " peer, used with last_replayed_from_hash to rate-limit replays to"
+            " a peer that has made no progress; None means no replay has run"
+            " yet (SYNC-15-003)"
+        ),
+        validation_alias="lastReplayedAt",
+        serialization_alias="lastReplayedAt",
+    )
     join_backfill_complete: bool = Field(
         default=True,
         description=(
