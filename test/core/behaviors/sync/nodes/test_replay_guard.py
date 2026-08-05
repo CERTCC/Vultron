@@ -1,0 +1,113 @@
+#!/usr/bin/env python
+"""Unit tests for the Reject-replay convergence guard (SYNC-15-003)."""
+
+from vultron.core.behaviors.sync.nodes.replay_guard import (
+    claim_replay_position,
+    replay_from_hash,
+)
+from vultron.core.models.replication_state import VultronReplicationState
+
+from test.core.behaviors.sync.nodes.conftest import (
+    CASE_ID,
+    PARTICIPANT_ACTOR_ID,
+    _make_entry,
+)
+
+
+class TestReplayFromHash:
+    """``replay_from_hash`` maps a divergence index to a position hash."""
+
+    def test_negative_index_is_genesis(self):
+        assert replay_from_hash([_make_entry(0)], -1) == ""
+
+    def test_returns_hash_at_matching_index(self):
+        first = _make_entry(0)
+        second = _make_entry(1, first.entry_hash)
+        assert replay_from_hash([first, second], 1) == second.entry_hash
+
+    def test_missing_index_falls_back_to_genesis(self):
+        assert replay_from_hash([_make_entry(0)], 7) == ""
+
+    def test_empty_entries_is_genesis(self):
+        assert replay_from_hash([], 3) == ""
+
+
+class TestClaimReplayPosition:
+    """``claim_replay_position`` admits progress and suppresses stalls."""
+
+    def test_first_claim_is_admitted_and_persists_state(self, datalayer):
+        admitted = claim_replay_position(
+            datalayer,
+            case_id=CASE_ID,
+            peer_id=PARTICIPANT_ACTOR_ID,
+            from_hash="abc",
+        )
+
+        assert admitted is True
+        state_id = VultronReplicationState(
+            case_id=CASE_ID, peer_id=PARTICIPANT_ACTOR_ID
+        ).id_
+        stored = datalayer.read(state_id)
+        assert stored is not None
+        assert stored.last_replayed_from_hash == "abc"
+
+    def test_repeat_claim_at_same_hash_is_suppressed(self, datalayer):
+        for _ in range(2):
+            admitted = claim_replay_position(
+                datalayer,
+                case_id=CASE_ID,
+                peer_id=PARTICIPANT_ACTOR_ID,
+                from_hash="abc",
+            )
+        assert admitted is False
+
+    def test_claim_at_advanced_hash_is_admitted(self, datalayer):
+        claim_replay_position(
+            datalayer,
+            case_id=CASE_ID,
+            peer_id=PARTICIPANT_ACTOR_ID,
+            from_hash="abc",
+        )
+        admitted = claim_replay_position(
+            datalayer,
+            case_id=CASE_ID,
+            peer_id=PARTICIPANT_ACTOR_ID,
+            from_hash="def",
+        )
+
+        assert admitted is True
+
+    def test_genesis_claim_is_admitted_once_then_suppressed(self, datalayer):
+        """``""`` is a real position, not "unset" — it must still converge."""
+        first = claim_replay_position(
+            datalayer,
+            case_id=CASE_ID,
+            peer_id=PARTICIPANT_ACTOR_ID,
+            from_hash="",
+        )
+        second = claim_replay_position(
+            datalayer,
+            case_id=CASE_ID,
+            peer_id=PARTICIPANT_ACTOR_ID,
+            from_hash="",
+        )
+
+        assert first is True
+        assert second is False
+
+    def test_peers_are_tracked_independently(self, datalayer):
+        other_peer = "https://example.org/actors/late-joiner"
+        claim_replay_position(
+            datalayer,
+            case_id=CASE_ID,
+            peer_id=PARTICIPANT_ACTOR_ID,
+            from_hash="abc",
+        )
+        admitted = claim_replay_position(
+            datalayer,
+            case_id=CASE_ID,
+            peer_id=other_peer,
+            from_hash="abc",
+        )
+
+        assert admitted is True

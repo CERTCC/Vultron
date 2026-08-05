@@ -238,3 +238,79 @@ def test_non_genesis_reject_skips_announce_vulnerability_case(
 
     assert result.status == Status.SUCCESS
     trigger_activity.announce_vulnerability_case.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Reject/replay amplification guard (SYNC-15-003)
+# ---------------------------------------------------------------------------
+
+
+def test_repeated_reject_at_same_hash_does_not_replay_unboundedly(
+    bridge, datalayer, case_actor
+):
+    """A peer stuck at the same ``last_accepted_hash`` must not trigger an
+    unbounded full-ledger replay on every Reject.
+
+    Regression guard for the reject/replay amplification loop: a late-joining
+    participant that cannot anchor its hash chain re-Rejects each replayed
+    entry, and each Reject previously re-replayed the *entire* ledger.  With a
+    25-entry ledger this produced thousands of Announce activities, starving
+    the container until unrelated DataLayer reads timed out.
+
+    The first Reject at a given hash SHOULD replay; subsequent Rejects at the
+    *same* hash MUST NOT replay again, because nothing has changed — the peer
+    has made no progress, so re-sending the same entries cannot help.
+    """
+    entries = [_make_entry(0)]
+    for index in range(1, 25):
+        entries.append(_make_entry(index, entries[-1].entry_hash))
+    for entry in entries:
+        datalayer.save(entry)
+
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    # The peer is stuck: it never advances past entry 0.
+    stuck_hash = entries[0].entry_hash
+    for _ in range(10):
+        py_trees.blackboard.Blackboard.storage.clear()
+        result = bridge.execute_with_setup(
+            tree=create_reject_log_entry_tree(),
+            actor_id=OWNER_ACTOR_ID,
+            activity=_make_event(entries[-1], tail_hash=stuck_hash),
+            sync_port=sync_port,
+        )
+        assert result.status == Status.SUCCESS
+
+    # Without a guard this is 10 rounds × 24 missing entries = 240 announces.
+    # With the guard only the first round replays.
+    assert sync_port.send_announce_log_entry.call_count == len(entries) - 1
+
+
+def test_reject_at_advanced_hash_replays_again(bridge, datalayer, case_actor):
+    """The guard must not wedge a peer that *is* making progress.
+
+    When a peer's ``last_accepted_hash`` advances between Rejects, the replay
+    MUST fire again for the newly-missing suffix.
+    """
+    entries = [_make_entry(0)]
+    for index in range(1, 4):
+        entries.append(_make_entry(index, entries[-1].entry_hash))
+    for entry in entries:
+        datalayer.save(entry)
+
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    for stuck_at in range(3):
+        py_trees.blackboard.Blackboard.storage.clear()
+        result = bridge.execute_with_setup(
+            tree=create_reject_log_entry_tree(),
+            actor_id=OWNER_ACTOR_ID,
+            activity=_make_event(
+                entries[-1], tail_hash=entries[stuck_at].entry_hash
+            ),
+            sync_port=sync_port,
+        )
+        assert result.status == Status.SUCCESS
+
+    # Progress at index 0, 1, 2 → 3 + 2 + 1 = 6 replayed entries.
+    assert sync_port.send_announce_log_entry.call_count == 6

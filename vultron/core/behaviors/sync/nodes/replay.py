@@ -23,12 +23,19 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.sync.nodes.replay_guard import (
+    claim_replay_position,
+    replay_from_hash,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import (
     CaseLedgerEntry,
     VultronCaseLedgerEntry,
 )
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.ports.case_persistence import (
+    CaseOutboxPersistence,
+    CasePersistence,
+)
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.use_cases._helpers import case_addressees
@@ -245,6 +252,28 @@ class SendMissingEntriesNode(DataLayerAction):
             list[CaseLedgerEntry], self.blackboard.replay_case_ledger_entries
         )
         from_index = cast(int, self.blackboard.replay_from_index)
+
+        # SYNC-15-003: suppress no-progress replays.  A peer that cannot anchor
+        # its hash chain re-Rejects every entry we replay; replaying the full
+        # ledger again on each Reject is a self-sustaining amplification loop
+        # that starves the actor.  Replay only when the peer's acknowledged
+        # position has actually moved since the last replay we sent it.
+        from_hash = replay_from_hash(entries, from_index)
+        if not claim_replay_position(
+            cast(CasePersistence, self.datalayer),
+            case_id=entry.case_id,
+            peer_id=peer_id,
+            from_hash=from_hash,
+        ):
+            self.logger.info(
+                "%s: peer '%s' re-Rejected at unchanged position %.16s… for"
+                " case '%s'; suppressing duplicate replay (SYNC-15-003)",
+                self.name,
+                peer_id,
+                from_hash or "genesis",
+                entry.case_id,
+            )
+            return Status.SUCCESS
 
         replayed = 0
         for log_entry in entries:
