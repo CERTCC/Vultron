@@ -1294,11 +1294,11 @@ def main(
             v1_client=v1_client,
             c2_client=c2_client,
             v2_client=v2_client,
-            finder_id=finder_id,
-            c1_id=c1_id,
-            v1_id=v1_id,
-            c2_id=c2_id,
-            v2_id=v2_id,
+            finder_id=finder_id or FINDER_ACTOR_ID,
+            c1_id=c1_id or C1_ACTOR_ID,
+            v1_id=v1_id or V1_ACTOR_ID,
+            c2_id=c2_id or C2_ACTOR_ID,
+            v2_id=v2_id or V2_ACTOR_ID,
         )
     finally:
         assert_demo_success()
