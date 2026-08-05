@@ -545,12 +545,15 @@ class TestBTBridgeIntegration:
         tree = create_embargo_response_decision_tree(
             case_id=_INT_CASE_ID,
             deciding_actor_id=_UNKNOWN_ACTOR,
-            accept_bt=_failing_stub("AcceptDelegate"),
+            accept_bt=_stub("AcceptDelegate"),
             reject_bt=reject_bt,
             call_out=bundle,
         )
         result = scenario.run(tree, actor_id=_UNKNOWN_ACTOR)
         scenario.assert_success(result)
+        assert deny_factory_called[
+            "flag"
+        ], "CaseOwnerApproves call-out seam must be reached for unknown actor"
         assert reject_log[
             "ticked"
         ], "reject_bt must be ticked for unknown actor"
@@ -696,10 +699,14 @@ class TestBTBridgeIntegration:
         ], "reject_bt must NOT be ticked on Flow B accept"
 
     def test_flow_b_reject_delegation(self):
-        """Flow B: accept arm fails → reject_bt is ticked (EMB-15-004)."""
+        """Flow B: accept arm fails → reject_bt is ticked (EMB-15-004).
+
+        AuthorizeSelector fails because _UNKNOWN_ACTOR is not in the case:
+        CheckIsCaseOwner → FAILURE; CaseOwnerApproves → FAILURE.
+        EvaluateEmbargoProposal is never reached, so no factory override needed.
+        """
         deny_accept = EmbargoCallOutBundle(
             case_owner_approves_embargo_response_factory=lambda name: _failing_stub(name),  # type: ignore[arg-type]
-            evaluate_embargo_proposal_factory=lambda name: _failing_stub(name),  # type: ignore[arg-type]
         )
         scenario = BTTestScenario(actor_id=_UNKNOWN_ACTOR)
         known_p = _make_participant(_NON_OWNER_ACTOR, CVDRole.COORDINATOR)
