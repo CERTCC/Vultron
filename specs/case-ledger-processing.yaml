@@ -522,3 +522,53 @@ groups:
     adr:
     - ADR-0015
     - ADR-0041
+
+- id: CLP-13
+  title: Idempotency Guard Silence
+  description: >-
+    Requirements ensuring that BT idempotency guards (duplicate-detection
+    conditions that abort processing when an event has already been handled)
+    do NOT write ledger entries of any disposition.  The canonical case ledger
+    records protocol assertions; internal guard no-ops are process-log content
+    only (ADR-0019).
+  specs:
+  - id: CLP-13-001
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      A BT idempotency guard that detects a duplicate and returns
+      ``Status.FAILURE`` to abort processing MUST NOT write a
+      ``CaseLedgerEntry`` of any disposition (``"recorded"`` or
+      ``"rejected"``).  The guard MUST emit only a Python
+      ``logger.info`` / ``logger.debug`` message.
+    rationale: >-
+      Concern #1754: when ``CheckInviteeNotAlreadyParticipantNode`` fired
+      (actor already a participant), it caused a downstream
+      ``disposition="rejected"`` ledger entry to be written.  That entry
+      appeared in demo reports as "Invited an actor to the case [rejected]"
+      with no actor name and no state transition — a misleading non-event
+      in the canonical audit trail.  ADR-0019 states the ledger "should
+      either record the event or stay silent."  An already-handled
+      duplicate is a guard no-op, not a protocol event; it belongs in the
+      process log (Python ``logging``), not in the replicated ledger.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-07-001
+    adr:
+    - ADR-0019
+  - id: CLP-13-002
+    priority: MUST
+    kind: project
+    statement: >-
+      Idempotency guard behaviour MUST be encapsulated in a reusable
+      ``SilentIdempotencyGuardMixin`` (or equivalent composable BT pattern)
+      so that the silent-failure-on-duplicate invariant is expressed once
+      and tested once, not re-implemented per call site.
+    rationale: >-
+      Concern #1754 audit revealed multiple ad-hoc duplicate-detection
+      checks scattered across BT trees.  Centralising the pattern prevents
+      future call sites from inadvertently re-introducing ledger writes on
+      guard no-ops.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-13-001

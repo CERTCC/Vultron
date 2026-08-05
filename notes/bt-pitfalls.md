@@ -897,6 +897,51 @@ via `GuardedCommit` in `create_receive_activity_tree`).
 
 ---
 
+## Idempotency Guards Must Be Silent — No Ledger Write on Duplicate
+
+(CONCERN-1754, 2026-08-05)
+
+`disposition="rejected"` is valid for **emit-side correlation markers** (see
+above).  It is **not** valid for **idempotency guard no-ops**.
+
+An idempotency guard is a `DataLayerCondition` node that detects "this event
+was already processed" and returns `Status.FAILURE` to abort the tree.
+Examples: `CheckInviteeNotAlreadyParticipantNode` (actor already a
+participant), `CheckCaseStatusIdempotencyNode` (status already appended).
+
+When a guard fires, **no ledger entry of any disposition must be written**
+(CLP-13-001).  Use only `logger.info` / `logger.debug`:
+
+```python
+self.logger.info(
+    "%s: actor '%s' already participant in case '%s' — skipping (idempotent)",
+    self.name, self.invitee_id, self.case_id,
+)
+return Status.FAILURE
+```
+
+**Why it matters**: A spurious `disposition="rejected"` entry for
+`invite_actor_to_case` appeared in the `fvcv_handoff_demo` ledger as
+"Invited an actor to the case [rejected]" with no actor name and no state
+transition.  Because the canonical ledger is replicated and contributes to
+the hash chain, any non-protocol content pollutes participants' replicas and
+misleads human readers and tooling alike (ADR-0019).
+
+**Distinction table**:
+
+| Pattern | Ledger entry? | Disposition | Use case |
+|---|---|---|---|
+| Emit-side correlation marker | ✅ yes | `"rejected"` | Dedup guard for outbound activities |
+| Received-side canonical entry | ✅ yes | `"recorded"` | CaseActor accepts a protocol assertion |
+| Idempotency guard no-op | ❌ **no** | — | Already-processed duplicate detected |
+
+Implement idempotency guards using `SilentIdempotencyGuardMixin`
+(CLP-13-002) once it exists, or follow the same `logger.info → FAILURE`
+pattern and add a unit test that asserts no `create_commit_log_entry_tree`
+call is made when the guard fires.
+
+---
+
 ## suggest-actor Accept Path Does Not Thread Roles Into Invite
 
 (ISSUE-1406, 2026-07-14)
