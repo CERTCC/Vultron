@@ -299,11 +299,14 @@ boundary and creates circular dependency risk. If a helper is needed in
 both a use case and a BT node, it MUST be extracted to a shared utility
 module (e.g., `vultron/core/behaviors/shared/` or a domain-model method).
 
-Example violation: `ApplyEmbargoTeardownNode` in
-`vultron/core/behaviors/embargo/nodes.py` imported
-`_reset_case_participant_embargo_consent` from
-`vultron.core.use_cases.received.embargo`. Fix: move the helper to a
-shared location importable by both layers.
+Example pattern (resolved): the former `ApplyEmbargoTeardownNode` in
+`vultron/core/behaviors/embargo/nodes/teardown.py` once imported a
+helper from `vultron.core.use_cases.received.embargo`. The violation was
+resolved by moving `reset_case_participant_embargo_consent` to
+`vultron.core.use_cases._helpers` (a shared utility module importable by
+both layers) and by decomposing the god node into three single-responsibility
+nodes: `HasEmbargoActiveNode`, `ClearActiveEmbargoNode`, and
+`ResetParticipantConsentNode` (issue #1554).
 
 ---
 
