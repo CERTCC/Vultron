@@ -465,12 +465,13 @@ def _phase_c2_suggests_v2(
 
     # CaseActor processes Offer(Actor, Case) and forwards
     # Offer(CaseParticipant) to C1.  Poll C1's DataLayer for the offer.
+    cp_offer_id = None
     with demo_check("Offer(CaseParticipant) for V2 arrived in C1's DataLayer"):
         cp_offer_id = _find_cp_offer_for_case(
             client=c1_client,
             case_id=case.id_,
         )
-    logger.info("Offer(CaseParticipant) ID: %s", cp_offer_id)
+        logger.info("Offer(CaseParticipant) ID: %s", cp_offer_id)
 
     # Find the CaseActor's participant ID so we can route the Accept back.
     case_actor_id = _find_case_actor_participant_id(c1_client, case.id_)
@@ -497,6 +498,7 @@ def _phase_c2_suggests_v2(
     # invite, then puppeteer V2's accept (DEMOMA-19-009: polling only).
     v2_in_v2 = get_actor_by_id(v2_client, v2.id_)
 
+    invite_id = None
     with demo_check("V2 received invite from CaseActor (ADR-0026 path)"):
         invite_id = find_case_invite_for_actor(
             client=v2_client,
@@ -504,7 +506,7 @@ def _phase_c2_suggests_v2(
             invitee_id=v2.id_,
             timeout_seconds=20.0,
         )
-    logger.info("V2 received CaseActor invite: %s", invite_id)
+        logger.info("V2 received CaseActor invite: %s", invite_id)
 
     with demo_step("V2 accepts the CaseActor invitation"):
         post_to_trigger(
