@@ -22,7 +22,7 @@ groups:
   - id: VAM-01-002
     priority: MUST_NOT
     kind: project
-    statement: The AS2 activity patterns defined in this document MUST be implemented in `vultron/wire/as2/extractor.py` as
+    statement: The AS2 activity patterns defined in this document MUST be implemented in `vultron/wire/as2/extractor/` (pattern instances in `_instances.py`) as
       `ActivityPattern` objects and MUST NOT be duplicated in any other module
   - id: VAM-01-003
     priority: MUST

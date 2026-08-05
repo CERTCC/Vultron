@@ -82,8 +82,8 @@ groups:
   - id: PD-04-002
     priority: MUST
     kind: project
-    statement: Validation MUST occur after markdown linting (via `.github/skills/format-markdown/SKILL.md`) and before test
-      runs, in the build-and-test workflow documented in `.github/skills/build-docs/SKILL.md`
+    statement: Validation MUST occur after markdown linting (via `.claude/skills/format-markdown/SKILL.md`) and before test
+      runs, in the build-and-test workflow documented in `.claude/skills/build-docs/SKILL.md`
   - id: PD-04-003
     priority: SHOULD
     kind: project
@@ -129,15 +129,27 @@ groups:
   - id: PD-06-004
     priority: MUST_NOT
     kind: process
-    statement: Priority ordering is the sole responsibility of `plan/PRIORITIES.md`. GitHub Issue
-      titles and `plan/PRIORITIES.md` headings MUST NOT encode priority information as numeric
-      prefixes or rely on ordering to imply priority.
+    statement: >-
+      Priority ordering is the sole responsibility of the `Schedule` field
+      (Now/Next/Later/Someday) on GitHub Project #24. GitHub Issue titles MUST NOT
+      encode priority information as numeric prefixes or rely on ordering to imply
+      priority.
+    rationale: >-
+      Priority lived in `plan/PRIORITIES.md` until it was archived in favour of the
+      GitHub Project board (#693); the board's `Schedule` field is now the single
+      source of ordering. Encoding priority in issue titles would reintroduce a
+      second, silently-drifting ranking.
   - id: PD-06-005
     priority: SHOULD
     kind: process
-    statement: '`plan/PRIORITIES.md` entries SHOULD reference the relevant GitHub Issue numbers to link
-      priority assignments to implementation work. No rigid format is required because PRIORITIES.md is primarily human-edited;
-      a brief reference to the issue number or topic is sufficient.'
+    statement: >-
+      Every issue carrying a `Schedule` value on GitHub Project #24 SHOULD also be
+      wired to the Epic it belongs to (as a sub-issue), so a priority assignment is
+      traceable to the thematic group it advances.
+    rationale: >-
+      Replaces the former requirement that `plan/PRIORITIES.md` entries cite issue
+      numbers; with priorities held on the board, the equivalent linkage is the
+      issue-to-Epic relationship rather than a hand-maintained list.
 - id: PD-09
   title: Task Granularity and GitHub Issues Coordination
   specs:
@@ -184,7 +196,7 @@ groups:
       or `create_commit_log_entry_tree` in `vultron/core/behaviors/`, or any call site that invokes
       these directly.
     rationale: >-
-      The aggregate invariant suite (`test/ci/test_case_ledger_invariants.py`) can pass on `main`
+      The aggregate invariant suite (the per-scenario harnesses in `test/ci/invariants/`) can pass on `main`
       throughout a ledger-path Epic while protocol-correctness bugs — such as hash-chain forks and
       RM oscillation loops — remain invisible. Such bugs are only detectable from a direct
       side-by-side review of each actor's JSONL log. Without a standing rule requiring this review

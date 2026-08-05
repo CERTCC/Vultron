@@ -540,3 +540,34 @@ groups:
     - tooling
     adr:
     - ADR-0027
+- id: MS-15
+  title: Spec Statements Must Not Reference Phantom Paths
+  specs:
+  - id: MS-15-001
+    priority: MUST
+    kind: process
+    statement: >-
+      A spec item's `statement` MUST NOT reference a file path that does not
+      exist, and MUST NOT use an absolute path or a `..` segment. A path rooted
+      at a top-level repo directory is resolved repo-relatively; any other path
+      is resolved as a suffix of some file in the tree, so a package-relative
+      illustration is permitted but a mistyped leading segment is not. A
+      spec-first requirement that deliberately names a file yet to be created
+      MUST either use a placeholder form (e.g. `test_XXX_invariants.py`) or opt
+      out with `lint_suppress: [phantom_path_ref]`. Enforced as a hard error by
+      spec-lint.
+    rationale: >-
+      A normative statement naming non-existent infrastructure is a stale-premise
+      landmine: the implementing agent either invents something inconsistent with
+      the codebase or silently ignores a MUST, and the spec stops describing the
+      system. DEMOMA-19-008 named a `conftest.py` registry that had never existed
+      (CONCERN-2004); an audit found 18 such clauses across 13 phantom paths.
+      Only `statement` is checked — `rationale` narrates history by design and
+      legitimately cites paths that are gone.
+    relationships:
+    - rel_type: derives_from
+      spec_id: MS-04-001
+      note: extends spec-authoring rules with a path-existence guarantee
+    tags:
+    - documentation
+    - tooling

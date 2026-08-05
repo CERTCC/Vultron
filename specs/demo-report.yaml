@@ -38,7 +38,7 @@ groups:
     rationale: >-
       This mirrors the layout written by `fv_demo._phase_dump_case_ledgers`
       (`{DEVLOGS_DIR}/{demo_name}/{actor_name}/{case_id_slug}-case-ledger.jsonl`)
-      and read by `test/ci/test_case_ledger_invariants.py`.
+      and read by the invariant harnesses in `test/ci/invariants/`.
   - id: DRPT-01-003
     priority: MUST
     kind: project
@@ -101,7 +101,7 @@ groups:
       The parser MUST tolerate both camelCase and snake_case field spellings in
       source entries (e.g. `logIndex`/`log_index`, `entryHash`/`entry_hash`,
       `payloadSnapshot`/`payload_snapshot`), consistent with the tolerance
-      already present in `test/ci/test_case_ledger_invariants.py`.
+      already present in `test/ci/invariants/common.py`.
   - id: DRPT-02-004
     priority: MUST
     kind: project

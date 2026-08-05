@@ -241,7 +241,7 @@ groups:
     priority: SHOULD
     kind: process
     statement: >-
-      Once the `core` and `wire` packages are fully separated (see `specs/architecture.md`
+      Once the `core` and `wire` packages are fully separated (see `specs/architecture.yaml`
       and `archived_notes/architecture-review.md`), architecture boundary tests SHOULD be
       added to enforce layer separation rules
     rationale: >-

@@ -191,6 +191,7 @@ class LintWarningCode(StrEnum):
     RATIONALE_TOO_LONG = "rationale_too_long"
     MISSING_TAGS = "missing_tags"
     DANGLING_ADR_REF = "dangling_adr_ref"
+    PHANTOM_PATH_REF = "phantom_path_ref"
 
 
 class Relationship(BaseModel):

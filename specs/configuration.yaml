@@ -15,7 +15,7 @@ groups:
   - id: CFG-01-001
     priority: MUST
     kind: project
-    statement: The application MUST provide a top-level neutral module `vultron/config.py` containing `AppConfig`, `get_config()`,
+    statement: The application MUST provide a top-level neutral package `vultron/config/` whose `app.py` module contains `AppConfig`, `get_config()`,
       and `reload_config()`.
   - id: CFG-01-002
     priority: MUST
@@ -39,7 +39,7 @@ groups:
   - id: CFG-01-006
     priority: MUST_NOT
     kind: project
-    statement: '`vultron/config.py` MUST NOT import from adapter-layer or FastAPI modules; it is a neutral shared module usable
+    statement: '`vultron/config/` MUST NOT import from adapter-layer or FastAPI modules; it is a neutral shared module usable
       by all layers.'
     relationships:
     - rel_type: refines
@@ -190,7 +190,7 @@ groups:
     priority: MUST
     kind: project
     statement: A neutral `ActorConfig` Pydantic model MUST be defined outside the demo layer (e.g., in `vultron/core/models/`
-      or `vultron/config.py`) so it can be used by BT nodes, API adapters, and CLI entry points without importing from `vultron/demo/`.
+      or `vultron/config/actor.py`) so it can be used by BT nodes, API adapters, and CLI entry points without importing from `vultron/demo/`.
     rationale: '`LocalActorConfig` (in `vultron/demo/seed_config.py`) is demo scaffolding. BT nodes that need actor role information
       MUST NOT import from the demo layer (BTND-04-002). A neutral `ActorConfig` provides the same information without the
       layering violation.'

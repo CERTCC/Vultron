@@ -115,7 +115,7 @@ groups:
   - id: SR-02-007
     priority: MUST
     kind: project
-    statement: '`SpecTag` MUST be a controlled vocabulary StrEnum; initial values are defined in `notes/spec-registry.md`.'
+    statement: '`SpecTag` MUST be a controlled vocabulary StrEnum, defined in `vultron/metadata/specs/schema.py`.'
   - id: SR-02-008
     priority: MUST
     kind: project
