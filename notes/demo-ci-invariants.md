@@ -39,6 +39,44 @@ invariant-harness (matrix: fv) → downloads artifact → runs pytest
 
 ---
 
+## Harness File Conventions
+
+Each scenario gets **one self-contained harness file**,
+`test/ci/invariants/test_<scenario>_invariants.py`. There is no shared
+per-scenario base class and no registry module. A new harness follows the
+existing eight:
+
+1. Declare `_DEMO_NAME = "<scenario>"` at module scope.
+2. Load replicas with `load_devlogs(demo_name=_DEMO_NAME)`, imported from
+   `test/ci/invariants/common.py`.
+3. Declare `_CHAIN_ACTORS` (scenario-role names, not docker service names) and
+   `_<SCENARIO>_EXPECTED_EVENT_TYPES`.
+4. Call the shared check functions from `common.py`; keep scenario-specific
+   assertions in the scenario file.
+
+**The scenario→harness registry is the CI matrix**, not a Python module. The
+`demo:` / `test_file:` pairs in `.github/workflows/demo-integration.yml` are the
+sole mapping from a scenario name to its harness file; the pairs appear in both
+the `demo` and `invariant-harness` jobs and must be kept in step.
+
+> **Do not add a `conftest.py` scenario registry.** DEMOMA-19-008 originally
+> required registering the FCVCV harness in `test/ci/invariants/conftest.py`
+> "under the `fcvcv` scenario key". No such registry has ever existed, and the
+> clause was written spec-first with no implementation to check against
+> (CONCERN-2004). It has been amended to describe the pattern above.
+>
+> A `test/ci/invariants/conftest.py` *does* exist as of issue #1976, but it
+> holds synthetic in-memory JSONL fixtures for unit-testing the check functions
+> in `common.py` — it carries no scenario mapping. Do not bolt scenario routing
+> onto it.
+
+Known duplication: all eight harnesses re-implement the same ~14 universal
+invariant tests as near-identical thin wrappers over `common.py`. Extracting
+them is tracked separately; the per-file `_DEMO_NAME` + `load_devlogs` idiom is
+not the duplication worth fixing.
+
+---
+
 ## Per-Scenario Expected Event Types (DEMOMA-16)
 
 **Problem**: All per-scenario `_XXX_EXPECTED_EVENT_TYPES` lists historically

@@ -2307,9 +2307,15 @@ groups:
       `invite_actor_to_case` appears at least three times (C1→V1, C1→C2,
       CaseActor→V2); (b) `offer_case_participant` appears at least once (C2
       suggests V2 via ADR-0026); (c) `accept_invite_actor_to_case` appears
-      at least three times (V1, C2, V2 each accept). The harness MUST be
-      added to `test/ci/invariants/conftest.py` under the `fcvcv` scenario
-      key.
+      at least three times (V1, C2, V2 each accept). The harness MUST set
+      `_DEMO_NAME = "fcvcv"` and load its replicas via
+      `load_devlogs(demo_name=_DEMO_NAME)` from
+      `test/ci/invariants/common.py`, following the same self-contained
+      pattern as every prior scenario harness. The scenario MUST be routed to
+      this file by the `demo`/`test_file` matrix in
+      `.github/workflows/demo-integration.yml`, which is the sole
+      scenario-to-harness registry; harnesses MUST NOT be registered via a
+      `conftest.py` scenario mapping.
     rationale: >-
       The invariant harness is the CI-level acceptance test for the scenario.
       The three scenario-specific count checks verify that the multi-party

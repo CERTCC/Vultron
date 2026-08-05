@@ -370,7 +370,7 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: Domain objects MUST NOT directly inherit from ActivityStreams base types; explicit `from_core()` / `to_core()`
-      translation methods MUST be provided at the wire boundary (see `specs/architecture.md` ARCH-12-001 through ARCH-12-007
+      translation methods MUST be provided at the wire boundary (see `specs/architecture.yaml` ARCH-12-001 through ARCH-12-007
       and `notes/domain-model-separation.md`)
 - id: CM-09
   title: Redacted Case View

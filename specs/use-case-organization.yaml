@@ -47,15 +47,18 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      Any relocation or rename of a use-case class MUST update `USE_CASE_MAP` in `vultron/core/use_cases/use_case_map.py`
-      in the same commit
+      Any relocation or rename of a use-case class MUST update its
+      `SEMANTIC_REGISTRY` entry in `vultron/semantic_registry/` in the same commit.
+      The registry is the single source of the `MessageSemantics` → use-case-class
+      mapping, projected by `use_case_map()` in
+      `vultron/semantic_registry/__init__.py`
   - id: UCORG-02-002
     priority: MUST
     kind: project
     statement: >-
-      A dispatch coverage test MUST verify that every `MessageSemantics` value registered
-      in `USE_CASE_MAP` resolves to a callable class and that dispatch succeeds for a representative
-      event
+      A dispatch coverage test MUST verify that every `MessageSemantics` value
+      registered in `SEMANTIC_REGISTRY` resolves to a callable class and that
+      dispatch succeeds for a representative event
 - id: UCORG-03
   title: Test Layout
   specs:

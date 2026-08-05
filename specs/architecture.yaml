@@ -103,7 +103,7 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      `SyncActivityPort` MUST be defined as a `typing.Protocol` in `vultron/core/ports/sync_activity_port.py`
+      `SyncActivityPort` MUST be defined as a `typing.Protocol` in `vultron/core/ports/sync_activity.py`
       with two fire-and-forget methods: `send_reject_log_entry(entry, tail_hash, actor_id, to)` and
       `send_announce_log_entry(entry, actor_id, to)`. The concrete adapter (`SyncActivityAdapter`)
       MUST be implemented in `vultron/adapters/driven/sync_activity_adapter.py` and own the full

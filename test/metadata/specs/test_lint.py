@@ -595,3 +595,90 @@ def test_lint_adr_status_prose_suppress(tmp_path, capsys):
     captured = capsys.readouterr()
     assert result == 0
     assert "MS-14-002" not in captured.out
+
+
+# ---------------------------------------------------------------------------
+# MS-15-001: phantom path references in spec statements
+# ---------------------------------------------------------------------------
+
+
+def _repo_with_specs(tmp_path):
+    """Return (repo_root, spec_dir) — lint() treats spec_dir.parent as the root."""
+    spec_dir = tmp_path / "specs"
+    spec_dir.mkdir()
+    (tmp_path / "vultron").mkdir()
+    return tmp_path, spec_dir
+
+
+def test_lint_phantom_path_is_hard_error(tmp_path, capsys):
+    """A statement naming a non-existent repo-relative path fails (MS-15-001)."""
+    repo, spec_dir = _repo_with_specs(tmp_path)
+    data = _minimal_spec()
+    data["groups"][0]["specs"][0][
+        "statement"
+    ] = "The harness MUST be registered in `vultron/nope.py`"
+    _write_yaml(spec_dir, data)
+    result = lint(spec_dir)
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "MS-15-001" in captured.err
+    assert "vultron/nope.py" in captured.err
+
+
+def test_lint_phantom_path_existing_file_passes(tmp_path):
+    """A statement naming a path that exists is accepted."""
+    repo, spec_dir = _repo_with_specs(tmp_path)
+    (repo / "vultron" / "real.py").write_text("x = 1\n")
+    data = _minimal_spec()
+    data["groups"][0]["specs"][0][
+        "statement"
+    ] = "The thing MUST live in `vultron/real.py`"
+    _write_yaml(spec_dir, data)
+    assert lint(spec_dir) == 0
+
+
+def test_lint_phantom_path_placeholder_exempt(tmp_path):
+    """Placeholder path forms describe a shape, not a file, and are exempt."""
+    repo, spec_dir = _repo_with_specs(tmp_path)
+    data = _minimal_spec()
+    data["groups"][0]["specs"][0][
+        "statement"
+    ] = "Each scenario MUST have a `test/ci/invariants/test_XXX_invariants.py`"
+    _write_yaml(spec_dir, data)
+    assert lint(spec_dir) == 0
+
+
+def test_lint_phantom_path_package_relative_exempt(tmp_path):
+    """A path whose first segment is not a top-level repo dir is an illustration."""
+    repo, spec_dir = _repo_with_specs(tmp_path)
+    data = _minimal_spec()
+    data["groups"][0]["specs"][0][
+        "statement"
+    ] = "Patterns MUST be defined in `received/sync.py`"
+    _write_yaml(spec_dir, data)
+    assert lint(spec_dir) == 0
+
+
+def test_lint_phantom_path_rationale_not_scanned(tmp_path):
+    """rationale narrates history and may cite paths that no longer exist."""
+    repo, spec_dir = _repo_with_specs(tmp_path)
+    data = _minimal_spec()
+    data["groups"][0]["specs"][0][
+        "rationale"
+    ] = "`vultron/old_config.py` has been converted to a package."
+    _write_yaml(spec_dir, data)
+    assert lint(spec_dir) == 0
+
+
+def test_lint_phantom_path_suppress(tmp_path, capsys):
+    """lint_suppress: [phantom_path_ref] allows a deliberate forward reference."""
+    repo, spec_dir = _repo_with_specs(tmp_path)
+    data = _minimal_spec(extra={"lint_suppress": ["phantom_path_ref"]})
+    data["groups"][0]["specs"][0][
+        "statement"
+    ] = "A new module MUST be created at `vultron/planned.py`"
+    _write_yaml(spec_dir, data)
+    result = lint(spec_dir)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "MS-15-001" not in captured.err

@@ -107,6 +107,68 @@ def _check_adr_status(
     return errors, warnings
 
 
+#: MS-15: a backticked token in a spec statement that looks like a
+#: repo-relative file path (has a directory separator and a known extension).
+_SPEC_PATH_RE = re.compile(
+    r"`([A-Za-z0-9_./-]+/[A-Za-z0-9_.-]+\.(?:py|ya?ml|md|json|toml))`"
+)
+
+#: Placeholder forms that name a *shape* of path rather than a real one
+#: (e.g. `test_XXX_invariants.py`, `plan/history/YYMM/README.md`). These are
+#: intentionally generic and are exempt from the existence check.
+_PATH_PLACEHOLDER_RE = re.compile(
+    r"XXX|YYMM|NNNN|new-topic|new-spec|<|\{",
+)
+
+
+def _check_phantom_paths(registry: SpecRegistry, repo_root: Path) -> list[str]:
+    """Hard error when a spec ``statement`` names a file that does not exist (MS-15-001).
+
+    A normative statement that points at a non-existent path is a stale-premise
+    landmine: an agent reads the MUST, cannot find the infrastructure, and
+    either invents something inconsistent or silently ignores the requirement.
+    DEMOMA-19-008 (issue #2004) named a ``test/ci/invariants/conftest.py`` that
+    had never existed on any branch.
+
+    Only ``statement`` is scanned. ``rationale`` narrates history by design
+    ("X has been converted to Y", "if X stays in Z...") and legitimately
+    references paths that no longer exist.
+
+    Exemptions:
+
+    - Placeholder forms (:data:`_PATH_PLACEHOLDER_RE`) that describe a path
+      shape rather than a specific file.
+    - Paths whose first segment is not a real top-level repo directory, which
+      are package-relative illustrations rather than repo-relative references.
+    - Per-spec opt-out via ``lint_suppress: [phantom_path_ref]``, for a
+      spec-first requirement that deliberately names a file yet to be created.
+    """
+    top_level = {
+        p.name
+        for p in repo_root.iterdir()
+        if p.is_dir() and not p.name.startswith(".")
+    } | {".github"}
+
+    errors: list[str] = []
+    for spec_id, spec in registry.all_specs.items():
+        if LintWarningCode.PHANTOM_PATH_REF in set(spec.lint_suppress or []):
+            continue
+        for match in _SPEC_PATH_RE.findall(spec.statement or ""):
+            if _PATH_PLACEHOLDER_RE.search(match):
+                continue
+            if match.split("/")[0] not in top_level:
+                continue
+            if (repo_root / match).exists():
+                continue
+            errors.append(
+                f"{spec_id}: statement references '{match}' which does not "
+                f"exist (MS-15-001). Point at the real path, or — if the file "
+                f"is intentionally yet to be created — suppress with "
+                f"lint_suppress: [phantom_path_ref]."
+            )
+    return errors
+
+
 def _check_prefix_consistency(registry: SpecRegistry) -> list[str]:
     """Verify each group ID prefix matches its containing file prefix
     (SR-01-007)."""
@@ -281,6 +343,7 @@ def lint(spec_dir: Path, adr_dir: Path | None = None) -> int:
     hard_errors.extend(_check_prefix_consistency(registry))
     hard_errors.extend(_check_spec_id_prefix_consistency(registry))
     hard_errors.extend(_check_scenario_start_groups(registry))
+    hard_errors.extend(_check_phantom_paths(registry, spec_dir.parent))
 
     for spec_id, spec in registry.all_specs.items():
         suppressed = set(spec.lint_suppress or [])
