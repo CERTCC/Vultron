@@ -599,3 +599,154 @@ class TestCreateParticipantStatusNode:
         assert isinstance(stored, ParticipantStatus)
         # No prior statuses → defaults to RM.START
         assert stored.rm.state == RM.START
+
+    def _cs_narrative_records(self, caplog):
+        """Return INFO-level CS narrative records emitted during the run."""
+        import logging
+
+        return [
+            r
+            for r in caplog.records
+            if " CS: " in r.getMessage() and r.levelno == logging.INFO
+        ]
+
+    def test_vfd_transition_logged_at_info(self, caplog):
+        """A VFD advance emits the SL-04-006 CS narrative line at INFO."""
+        import logging
+
+        with caplog.at_level(logging.INFO):
+            self._run_node(rm_state=None, vfd_state=CS_vfd.Vfd, pxa_state=None)
+
+        records = self._cs_narrative_records(caplog)
+        assert records, "Expected a CS narrative line at INFO for VFD advance"
+        message = records[0].getMessage()
+        assert f"Actor '{self.actor.id_}' CS: vfd → Vfd" in message
+        assert "(vendor aware)" in message
+        assert f"for case '{self.case.id_}'" in message
+
+    def test_pxa_transition_logged_at_info(self, caplog):
+        """A PXA advance emits the SL-04-006 CS narrative line at INFO."""
+        import logging
+
+        from vultron.core.states.cs import CS_pxa
+
+        with caplog.at_level(logging.INFO):
+            self._run_node(rm_state=None, vfd_state=None, pxa_state=CS_pxa.Pxa)
+
+        records = self._cs_narrative_records(caplog)
+        assert records, "Expected a CS narrative line at INFO for PXA advance"
+        message = records[0].getMessage()
+        assert f"Actor '{self.actor.id_}' CS: pxa → Pxa" in message
+        assert "(publicly known)" in message
+
+    def test_no_cs_line_when_no_cs_dimension_changes(self, caplog):
+        """An RM-only snapshot emits no CS narrative line (SL-04-007)."""
+        import logging
+
+        from vultron.core.states.rm import RM
+
+        with caplog.at_level(logging.INFO):
+            self._run_node(
+                rm_state=RM.ACCEPTED, vfd_state=None, pxa_state=None
+            )
+
+        assert not self._cs_narrative_records(caplog)
+
+    def test_no_cs_line_when_vfd_state_unchanged(self, caplog):
+        """Re-asserting the current VFD state is not a transition."""
+        import logging
+
+        with caplog.at_level(logging.INFO):
+            self._run_node(rm_state=None, vfd_state=CS_vfd.vfd, pxa_state=None)
+
+        assert not self._cs_narrative_records(caplog)
+
+    def test_created_participantstatus_line_is_debug(self, caplog):
+        """The "Created ParticipantStatus" bookkeeping line is DEBUG."""
+        import logging
+
+        with caplog.at_level(logging.DEBUG):
+            self._run_node(rm_state=None, vfd_state=None, pxa_state=None)
+
+        created = [
+            r
+            for r in caplog.records
+            if "Created ParticipantStatus" in r.getMessage()
+        ]
+        assert created, "Expected the ParticipantStatus creation line"
+        assert all(r.levelno == logging.DEBUG for r in created)
+
+    def test_repeat_pxa_write_emits_no_second_cs_line(self, caplog):
+        """The same public-disclosure milestone is not re-logged.
+
+        The before-state must come from the participant's own latest
+        ``case_status.pxa``: this node never appends to ``case.case_statuses``,
+        so reading ``case.current_status`` reported a stale ``pxa`` and made
+        every repeat write look like a fresh disclosure event.
+        """
+        import logging
+
+        from vultron.core.states.cs import CS_pxa
+
+        self._run_node(rm_state=None, vfd_state=None, pxa_state=CS_pxa.Pxa)
+
+        caplog.clear()
+        with caplog.at_level(logging.INFO):
+            self._run_node(rm_state=None, vfd_state=None, pxa_state=CS_pxa.Pxa)
+
+        assert not self._cs_narrative_records(caplog), (
+            "A repeat PXA write is a no-op and must not re-announce the"
+            " public-disclosure milestone"
+        )
+
+    def _rm_narrative_records(self, caplog):
+        import logging
+
+        return [
+            r
+            for r in caplog.records
+            if " RM: " in r.getMessage() and r.levelno == logging.INFO
+        ]
+
+    def test_rm_transition_logged_at_info(self, caplog):
+        """AC-12: this node is a second per-participant RM write path.
+
+        ``update_participant_rm_state()`` is not the only RM writer — this node
+        appends a ``ParticipantStatus`` with an explicit ``rm_state`` directly
+        (used by e.g. the leave-case RM → CLOSED nodes), so it must emit the
+        narrative RM line itself.
+        """
+        import logging
+
+        from vultron.core.states.rm import RM
+
+        with caplog.at_level(logging.INFO):
+            self._run_node(
+                rm_state=RM.RECEIVED, vfd_state=None, pxa_state=None
+            )
+
+        records = self._rm_narrative_records(caplog)
+        assert records, "Expected a narrative RM line at INFO"
+        message = records[0].getMessage()
+        assert f"Actor '{self.actor.id_}' RM: START → RECEIVED" in message
+        assert f"for case '{self.case.id_}'" in message
+
+    def test_no_rm_line_when_rm_state_unchanged(self, caplog):
+        """Re-asserting the current RM state is not a transition."""
+        import logging
+
+        from vultron.core.states.rm import RM
+
+        with caplog.at_level(logging.INFO):
+            self._run_node(rm_state=RM.START, vfd_state=None, pxa_state=None)
+
+        assert not self._rm_narrative_records(caplog)
+
+    def test_no_rm_line_when_rm_state_not_requested(self, caplog):
+        """A CS-only snapshot emits no RM narrative line."""
+        import logging
+
+        with caplog.at_level(logging.INFO):
+            self._run_node(rm_state=None, vfd_state=CS_vfd.Vfd, pxa_state=None)
+
+        assert not self._rm_narrative_records(caplog)

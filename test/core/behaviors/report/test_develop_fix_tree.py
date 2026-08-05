@@ -492,6 +492,52 @@ class TestTransitionCStoFixReady:
         )
         assert result.status == Status.FAILURE
 
+    def test_fix_ready_logged_in_narrative_form(
+        self,
+        bt_scenario: BTTestScenario,
+        case_with_vendor: VultronCase,
+        caplog,
+    ) -> None:
+        """AC-13: the f→F transition reads as a CVD milestone at INFO.
+
+        The narrative line comes from ``CreateParticipantStatusNode``, the only
+        place that knows the before-state; this node's own message is DEBUG
+        detail (SL-04-007).
+        """
+        import logging
+
+        _seed_rm_state(bt_scenario, CASE_ID, VENDOR_ACTOR_ID, RM.ACCEPTED)
+        node = TransitionCStoFixReady(
+            case_id=CASE_ID, actor_id=VENDOR_ACTOR_ID, result_out={}
+        )
+
+        with caplog.at_level(logging.DEBUG):
+            assert (
+                bt_scenario.run(node, actor_id=VENDOR_ACTOR_ID).status
+                == Status.SUCCESS
+            )
+
+        narrative = [
+            r
+            for r in caplog.records
+            if " CS: " in r.getMessage() and r.levelno == logging.INFO
+        ]
+        assert narrative, "Expected a CS narrative line at INFO"
+        message = narrative[0].getMessage()
+        # The fixture participant starts at `vfd`, so this single write
+        # advances two sub-dimensions and the label names both.
+        assert f"Actor '{VENDOR_ACTOR_ID}' CS: vfd → VFd" in message
+        assert "fix ready" in message
+
+        detail = [
+            r
+            for r in caplog.records
+            if "VFD → VFd" in r.getMessage()
+            and r.name.endswith("TransitionCStoFixReady")
+        ]
+        assert detail, "Expected the node's own detail line"
+        assert all(r.levelno == logging.DEBUG for r in detail)
+
 
 CASE_MANAGER_ACTOR_ID = "https://example.org/actors/case-manager-001"
 

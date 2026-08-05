@@ -196,3 +196,58 @@ def test_outbox_handler_resolves_actor_by_short_id(monkeypatch):
     asyncio.run(oh.outbox_handler("bob", mock_dl))
 
     mock_dl.find_actor_by_short_id.assert_called_once_with("bob")
+
+
+# ---------------------------------------------------------------------------
+# Log-level contract (SL-04-007)
+# ---------------------------------------------------------------------------
+
+
+def _preamble_records(caplog):
+    return [
+        r
+        for r in caplog.records
+        if "Processing outbox for actor" in r.getMessage()
+    ]
+
+
+def test_processing_outbox_preamble_is_debug(monkeypatch, caplog):
+    """The "Processing outbox for actor" preamble is DEBUG (SL-04-007).
+
+    It is a prefix with no outcome information; the per-item delivery result
+    lines that follow are the meaningful INFO output.
+    """
+    import logging
+
+    queue = _make_queue("urn:test:item-log")
+    mock_dl = _mock_dl_with_queue(queue)
+
+    async def fake_handle(actor_id, activity_id, dl, emitter):
+        return None
+
+    monkeypatch.setattr(oh, "handle_outbox_item", fake_handle)
+
+    with caplog.at_level(logging.DEBUG):
+        asyncio.run(oh.outbox_handler("actor-xyz", mock_dl))
+
+    records = _preamble_records(caplog)
+    assert records, "Expected the outbox preamble log entry"
+    assert all(r.levelno == logging.DEBUG for r in records)
+
+
+def test_processing_outbox_preamble_not_emitted_at_info(monkeypatch, caplog):
+    """No outbox preamble record reaches an INFO-only handler."""
+    import logging
+
+    queue = _make_queue("urn:test:item-log-2")
+    mock_dl = _mock_dl_with_queue(queue)
+
+    async def fake_handle(actor_id, activity_id, dl, emitter):
+        return None
+
+    monkeypatch.setattr(oh, "handle_outbox_item", fake_handle)
+
+    with caplog.at_level(logging.INFO):
+        asyncio.run(oh.outbox_handler("actor-xyz", mock_dl))
+
+    assert not _preamble_records(caplog)

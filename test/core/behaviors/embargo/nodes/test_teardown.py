@@ -144,6 +144,55 @@ class TestClearActiveEmbargoNode:
         assert updated.current_status.em.state == EM.EXITED
         assert updated.active_embargo is None
 
+    def test_teardown_logged_in_narrative_form(self, caplog):
+        """EM ACTIVE → EXITED is logged at INFO (SL-04-001, AC-16)."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, _ = make_case_and_embargo("caen-narr", em_state=EM.ACTIVE)
+        dl.create(case)
+
+        setup_blackboard(dl, actor_id=ACTOR_ID)
+        node = ClearActiveEmbargoNode(case_id=case.id_)
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+
+        with caplog.at_level(logging.INFO):
+            bt.tick()
+
+        narrative = [
+            r
+            for r in caplog.records
+            if "embargo ACTIVE → EXITED" in r.getMessage()
+            and r.levelno == logging.INFO
+        ]
+        assert narrative, "Expected a narrative embargo-teardown line"
+        assert (
+            narrative[0].getMessage()
+            == f"Actor '{ACTOR_ID}' embargo ACTIVE → EXITED"
+            f" for case '{case.id_}'"
+        )
+
+    def test_cleared_embargo_detail_line_is_debug(self, caplog):
+        """The verbose "Cleared active embargo" detail line is DEBUG."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, _ = make_case_and_embargo("caen-detail", em_state=EM.ACTIVE)
+        dl.create(case)
+
+        setup_blackboard(dl)
+        node = ClearActiveEmbargoNode(case_id=case.id_)
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+
+        with caplog.at_level(logging.DEBUG):
+            bt.tick()
+
+        detail = [
+            r
+            for r in caplog.records
+            if "Cleared active embargo" in r.getMessage()
+        ]
+        assert detail, "Expected the 'Cleared active embargo' detail line"
+        assert all(r.levelno == logging.DEBUG for r in detail)
+
     def test_transitions_em_revise_to_exited(self):
         """Transitions EM.REVISE → EXITED."""
         dl = SqliteDataLayer("sqlite:///:memory:")
@@ -312,6 +361,51 @@ class TestApplyEmbargoTeardownNode:
         updated = cast(VulnerabilityCase, dl.read(case.id_))
         assert updated.current_status.em.state == EM.EXITED
         assert updated.active_embargo is None
+
+    def test_teardown_logged_in_narrative_form(self, caplog):
+        """ApplyEmbargoTeardownNode logs EM ACTIVE → EXITED at INFO."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, _ = make_case_and_embargo("atn-narr", em_state=EM.ACTIVE)
+        dl.create(case)
+
+        setup_blackboard(dl)
+        node = ApplyEmbargoTeardownNode(case_id=case.id_)
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+
+        with caplog.at_level(logging.INFO):
+            bt.tick()
+
+        narrative = [
+            r
+            for r in caplog.records
+            if "embargo ACTIVE → EXITED" in r.getMessage()
+            and r.levelno == logging.INFO
+        ]
+        assert narrative, "Expected a narrative embargo-teardown line"
+        assert f"for case '{case.id_}'" in narrative[0].getMessage()
+
+    def test_teardown_applied_detail_line_is_debug(self, caplog):
+        """The verbose "Embargo teardown applied" detail line is DEBUG."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, _ = make_case_and_embargo("atn-detail", em_state=EM.ACTIVE)
+        dl.create(case)
+
+        setup_blackboard(dl)
+        node = ApplyEmbargoTeardownNode(case_id=case.id_)
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+
+        with caplog.at_level(logging.DEBUG):
+            bt.tick()
+
+        detail = [
+            r
+            for r in caplog.records
+            if "Embargo teardown applied" in r.getMessage()
+        ]
+        assert detail, "Expected the 'Embargo teardown applied' detail line"
+        assert all(r.levelno == logging.DEBUG for r in detail)
 
     def test_transitions_em_revise_to_exited(self):
         """Node transitions EM.REVISE → EM.EXITED (also a valid terminate path)."""

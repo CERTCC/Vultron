@@ -367,7 +367,7 @@ async def run_inbox_pipeline(
     # task runs first, the hash-chain check fails → spurious Reject (issue #1525).
     async with _get_actor_lock(actor_id):
         outcome = process_payload(payload, ingress, dispatch_adp, queue)
-        logger.info(
+        logger.debug(
             "run_inbox_pipeline: status=%s context_id=%s",
             outcome.status,
             outcome.context_id,
@@ -383,7 +383,7 @@ async def run_inbox_pipeline(
             replay_outcome = process_payload(
                 item_id, stored_ingress, dispatch_adp, queue
             )
-            logger.info(
+            logger.debug(
                 "run_inbox_pipeline: replayed status=%s context_id=%s",
                 replay_outcome.status,
                 replay_outcome.context_id,

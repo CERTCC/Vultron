@@ -21,6 +21,8 @@ import py_trees.behaviour
 from vultron.core.behaviors.case.engage_defer_trigger_tree import (
     engage_case_trigger_bt,
 )
+from vultron.core.behaviors.narrative_log import log_case_engagement
+from vultron.core.use_cases._helpers import current_participant_rm_state
 from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
     resolve_actor,
@@ -42,7 +44,13 @@ class SvcEngageCaseUseCase(SvcBTTriggerBase):
         request = cast(EngageCaseTriggerRequest, self._request)
         actor = resolve_actor(request.actor_id, self._dl)
         self._actor_id = actor.id_
-        self._case_id = resolve_case(request.case_id, self._dl).id_
+        case = resolve_case(request.case_id, self._dl)
+        self._case_id = case.id_
+        # Captured before the BT runs so the narrative log can report the
+        # actual RM transition rather than only the target state (SL-04-006).
+        self._rm_before = current_participant_rm_state(
+            case, self._actor_id, self._dl
+        )
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         def _build_activities(case_manager_id: str) -> list[str]:
@@ -61,8 +69,15 @@ class SvcEngageCaseUseCase(SvcBTTriggerBase):
         )
 
     def _handle_result(self) -> None:
-        logger.info(
-            "Actor '%s' engaged case '%s' (RM → ACCEPTED)",
+        # Read the after-state back from storage rather than assuming
+        # RM.ACCEPTED: the BT can succeed via an idempotent no-op path, and
+        # the narrative line must not claim a transition that did not occur
+        # (SL-04-006).
+        case = resolve_case(self._case_id, self._dl)
+        log_case_engagement(
+            logger,
             self._actor_id,
             self._case_id,
+            self._rm_before,
+            current_participant_rm_state(case, self._actor_id, self._dl),
         )

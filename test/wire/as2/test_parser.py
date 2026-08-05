@@ -104,3 +104,23 @@ def test_parse_activity_extracts_invite_response_semantics_from_nested_stub_case
             getattr(event, "invitee_id", None)
             == "https://example.org/actors/coordinator"
         )
+
+
+def test_parsing_activity_line_is_debug_not_info(caplog):
+    """ "Parsing activity from body" is HTTP handler internals (SL-04-007)."""
+    import logging
+
+    with caplog.at_level(logging.DEBUG, logger="vultron.wire.as2.parser"):
+        parse_activity(
+            {
+                "type": "Create",
+                "actor": "https://example.org/alice",
+                "object": "https://example.org/notes/1",
+            }
+        )
+
+    parsing = [
+        r for r in caplog.records if "Parsing activity from" in r.getMessage()
+    ]
+    assert parsing, "Expected the 'Parsing activity from body' log entry"
+    assert all(r.levelno == logging.DEBUG for r in parsing)

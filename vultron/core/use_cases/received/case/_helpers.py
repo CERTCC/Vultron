@@ -89,7 +89,7 @@ def _store_embedded_participants(
         if _would_regress_participant(participant_ref, dl, pid, case_id):
             continue
         dl.save(participant_ref)
-        logger.info(
+        logger.debug(
             "store_embedded_participants: stored participant '%s'"
             " for case '%s' (CBT-05-005, #566)",
             pid,

@@ -101,6 +101,69 @@ class TestInviteActorUseCases:
         stored = dl.get(invite.type_.value, invite.id_)
         assert stored is not None
 
+    def test_invite_receipt_logged_in_narrative_form(
+        self, make_payload, caplog
+    ):
+        """The invitee logs the invite receipt at INFO (SL-04-001, AC-17)."""
+        import logging
+
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        invitee_id = "https://example.org/users/coordinator"
+        sender_id = "https://example.org/users/owner"
+        case_id = "https://example.org/cases/case1"
+
+        invite = rm_invite_to_case_activity(
+            as_Actor(id_=invitee_id),
+            target=case_id,
+            actor=sender_id,
+            id_=f"{case_id}/invitations/narrative-1",
+        )
+        event = make_payload(invite)
+
+        with caplog.at_level(logging.INFO):
+            InviteActorToCaseReceivedUseCase(dl, event).execute()
+
+        narrative = [
+            r
+            for r in caplog.records
+            if "received case invite" in r.getMessage()
+            and r.levelno == logging.INFO
+        ]
+        assert narrative, "Expected a narrative invite-receipt line at INFO"
+        message = narrative[0].getMessage()
+        assert (
+            message == f"Actor '{invitee_id}' received case invite"
+            f" for '{case_id}' from '{sender_id}'"
+        )
+
+    def test_invite_stub_awaiting_line_is_debug(self, make_payload, caplog):
+        """The "Awaiting AnnounceVulnerabilityCase" note is DEBUG detail."""
+        import logging
+
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        invite = rm_invite_to_case_activity(
+            as_Actor(id_="https://example.org/users/coordinator"),
+            target="https://example.org/cases/case1",
+            actor="https://example.org/users/owner",
+            id_="https://example.org/cases/case1/invitations/narrative-2",
+        )
+        event = make_payload(invite)
+
+        with caplog.at_level(logging.DEBUG):
+            InviteActorToCaseReceivedUseCase(dl, event).execute()
+
+        awaiting = [
+            r
+            for r in caplog.records
+            if "Awaiting AnnounceVulnerabilityCase" in r.getMessage()
+        ]
+        assert awaiting, "Expected the case-stub awaiting log entry"
+        assert all(r.levelno == logging.DEBUG for r in awaiting)
+
     def test_invite_actor_to_case_idempotent(self, monkeypatch, make_payload):
         """InviteActorToCaseReceivedUseCase skips storing a duplicate Invite."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer

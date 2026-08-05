@@ -51,7 +51,12 @@ CASE_ID2 = "https://example.org/cases/case-announce-01"
 
 @pytest.fixture
 def dl():
-    return SqliteDataLayer("sqlite:///:memory:")
+    # Explicitly closed: an unclosed sqlite3 connection is collected at an
+    # unpredictable moment and pytest promotes the resulting ResourceWarning
+    # to a failure via PytestUnraisableExceptionWarning.
+    datalayer = SqliteDataLayer("sqlite:///:memory:")
+    yield datalayer
+    datalayer.close()
 
 
 @pytest.fixture
@@ -322,6 +327,30 @@ class TestSeedAnnouncedCaseNode:
         )
         assert result.status == Status.SUCCESS
         assert dl.read(CASE_ID2) is not None
+
+    def test_idempotent_skip_line_is_debug(
+        self, bridge, dl, case, announce_event, caplog
+    ) -> None:
+        """The routine idempotency skip is DEBUG, not INFO (SL-04-007)."""
+        import logging
+
+        dl.create(case)
+        tree = SeedAnnouncedCaseNode(
+            case_id=CASE_ID2, case_obj=case, request=announce_event
+        )
+
+        with caplog.at_level(logging.DEBUG):
+            bridge.execute_with_setup(
+                tree=tree, actor_id=ACTOR_ID, activity=announce_event
+            )
+
+        skip_records = [
+            r
+            for r in caplog.records
+            if "already exists locally" in r.getMessage()
+        ]
+        assert skip_records, "Expected the idempotent-skip log entry"
+        assert all(r.levelno == logging.DEBUG for r in skip_records)
 
 
 # ---------------------------------------------------------------------------

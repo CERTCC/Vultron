@@ -66,6 +66,11 @@ def configure_logging() -> None:
     # to reduce DEBUG output noise by ~30%.
     logging.getLogger("httpx2").setLevel(logging.WARNING)
 
+    # Drop `transitions` FSM callback chatter from INFO (SL-04-007).
+    from vultron.logging_setup import suppress_third_party_info_noise
+
+    suppress_third_party_info_noise(log_level)
+
 
 def _auto_inject_isolated_datalayer(application: FastAPI) -> None:
     """Auto-inject an in-memory DataLayer if none is already registered.
@@ -171,6 +176,14 @@ def _make_lifespan(*, configure_globals: bool = True):
         # TestClient lifetimes on the same app singleton.
         if configure_globals:
             application.state.emitter = None
+            # configure_logging() pinned third-party logger levels globally;
+            # undo it so a TestClient lifetime does not reconfigure logging
+            # for everything that runs after it.
+            from vultron.logging_setup import (
+                restore_third_party_log_levels,
+            )
+
+            restore_third_party_log_levels()
 
         if not configure_globals:
             _teardown_per_app_state(application)

@@ -308,10 +308,12 @@ def update_participant_rm_state(
             else getattr(actor_ref, "id_", str(actor_ref))
         )
         if p_actor_id == actor_id:
+            rm_before: RM | None = None
             if participant.participant_statuses:
                 latest = participant.participant_statuses[-1]
-                if latest.rm.state == new_rm_state:
-                    logger.info(
+                rm_before = latest.rm.state
+                if rm_before == new_rm_state:
+                    logger.debug(
                         "Participant '%s' already in RM state %s in case '%s' "
                         "(idempotent)",
                         actor_id,
@@ -332,11 +334,18 @@ def update_participant_rm_state(
                 )
                 return False
             dl.save(participant)
-            logger.info(
-                "Set participant '%s' RM state to %s in case '%s'",
+            # SL-04-001/SL-04-006 narrative template: the per-participant RM
+            # transition is the primary RM story line at INFO.
+            from vultron.core.behaviors.narrative_log import (
+                log_rm_transition,
+            )
+
+            log_rm_transition(
+                logger,
                 actor_id,
-                new_rm_state,
                 case_id,
+                rm_before if rm_before is not None else RM.START,
+                new_rm_state,
             )
             return True
 
@@ -347,6 +356,28 @@ def update_participant_rm_state(
         case_id,
     )
     return False
+
+
+def current_participant_rm_state(
+    case: VulnerabilityCase, actor_id: str, dl: CasePersistence
+) -> RM:
+    """Return *actor_id*'s latest RM state in *case*, or ``RM.START``.
+
+    Used by narrative logging (SL-04-006) to report the before-state of an RM
+    transition.  Returns ``RM.START`` when the actor is not yet a participant
+    or has no recorded status, which is the RM machine's initial state.
+    """
+    participant_id = resolve_case_participant_id_for_actor(case, actor_id, dl)
+    if participant_id is None:
+        return RM.START
+    participant = dl.read(participant_id)
+    if not isinstance(participant, CaseParticipant):
+        return RM.START
+    statuses = participant.participant_statuses
+    if not statuses:
+        return RM.START
+    state = statuses[-1].rm.state
+    return state if isinstance(state, RM) else RM.START
 
 
 def _resolve_case_manager_id(

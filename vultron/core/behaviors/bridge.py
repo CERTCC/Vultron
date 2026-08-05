@@ -204,9 +204,10 @@ class BTBridge:
 
         self.logger.info(f"BT setup complete for actor {actor_id}")
 
-        # Log tree structure for visibility (INFO level) — shows behavioral decisions
-        tree_repr = unicode_tree(tree, show_status=True)
-        self.logger.info(f"BT structure:\n{tree_repr}")
+        # BT scaffolding, not protocol story — DEBUG only (SL-04-007).
+        if self.logger.isEnabledFor(logging.DEBUG):
+            tree_repr = unicode_tree(tree, show_status=True)
+            self.logger.debug(f"BT structure:\n{tree_repr}")
 
         return bt
 
@@ -248,11 +249,28 @@ class BTBridge:
                 if root_status in (Status.SUCCESS, Status.FAILURE):
                     feedback = bt.root.feedback_message
 
+                    # SL-04-001/AC-18: a bare "Status.FAILURE" is not a story.
+                    # Fold the failing leaf's reason into the line that was
+                    # already emitted, rather than adding a second record —
+                    # many callers treat FAILURE as an expected idempotent
+                    # skip and log their own explanation at DEBUG.
+                    detail = feedback
+                    if root_status == Status.FAILURE:
+                        detail = (
+                            detail
+                            or self.get_failure_reason(bt.root)
+                            or "<no reason reported>"
+                        )
                     self.logger.info(
-                        f"BT execution completed: {root_status} after {iteration} ticks - {feedback}"
+                        "BT execution completed: %s after %d ticks - %s",
+                        root_status,
+                        iteration,
+                        detail,
                     )
-                    tree_repr = unicode_tree(bt.root, show_status=True)
-                    self.logger.info(f"Final BT state:\n{tree_repr}")
+                    # Tree dump is scaffolding, not story — DEBUG (SL-04-007).
+                    if self.logger.isEnabledFor(logging.DEBUG):
+                        tree_repr = unicode_tree(bt.root, show_status=True)
+                        self.logger.debug(f"Final BT state:\n{tree_repr}")
 
                     return BTExecutionResult(
                         status=root_status,

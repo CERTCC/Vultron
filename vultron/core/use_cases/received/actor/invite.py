@@ -13,6 +13,7 @@ from vultron.core.behaviors.case.invite_actor_to_case_received_tree import (
     create_invite_actor_to_case_received_tree,
     create_reject_invite_actor_to_case_received_tree,
 )
+from vultron.core.behaviors.narrative_log import log_invite_received
 from vultron.core.models.events.actor import (
     AcceptInviteActorToCaseReceivedEvent,
     InviteActorToCaseReceivedEvent,
@@ -93,7 +94,15 @@ class InviteActorToCaseReceivedUseCase:
             # details arrive later in an AnnounceVulnerabilityCase (MV-10-003).
             case_stub_id = request.target_id
             if case_stub_id:
-                logger.info(
+                # SL-04-001/SL-04-006: the invitee's receipt of the invite is a
+                # protocol milestone and must read in human terms at INFO.
+                log_invite_received(
+                    logger,
+                    request.object_id or "<unknown>",
+                    case_stub_id,
+                    request.actor_id or "<unknown>",
+                )
+                logger.debug(
                     "InviteActorToCase: received invite with case stub '%s'."
                     " Awaiting AnnounceVulnerabilityCase before creating case.",
                     case_stub_id,

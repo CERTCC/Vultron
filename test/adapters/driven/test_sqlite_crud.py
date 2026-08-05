@@ -270,3 +270,67 @@ def test_exists_returns_false_after_delete(dl, record_factory):
 
 def test_ping_returns_true(dl):
     assert dl.ping() is True
+
+
+# ---------------------------------------------------------------------------
+# Log-level contract (SL-04-007)
+# ---------------------------------------------------------------------------
+
+
+class TestPersistenceLogLevels:
+    """DataLayer store/save/update lines are persistence internals → DEBUG.
+
+    SL-04-007: these fire on every write and drown out the CVD protocol
+    story on the INFO channel.  The higher-level "Created X" messages that
+    surround them remain at INFO.
+    """
+
+    _CRUD_LOGGER = "vultron.adapters.driven.datalayer_sqlite.crud"
+
+    def _datalayer_records(self, caplog):
+        return [
+            r
+            for r in caplog.records
+            if r.getMessage().startswith("DataLayer ")
+        ]
+
+    def test_create_logs_stored_at_debug(self, caplog):
+        import logging
+
+        instance = SqliteDataLayer("sqlite:///:memory:")
+        try:
+            with caplog.at_level(logging.DEBUG, logger=self._CRUD_LOGGER):
+                instance.create(Record(id_="urn:x:1", type_="Note", data_={}))
+        finally:
+            instance.close()
+
+        records = self._datalayer_records(caplog)
+        assert records, "Expected a 'DataLayer stored' log entry"
+        assert all(r.levelno == logging.DEBUG for r in records)
+
+    def test_save_logs_saved_at_debug(self, caplog):
+        import logging
+
+        instance = SqliteDataLayer("sqlite:///:memory:")
+        try:
+            with caplog.at_level(logging.DEBUG, logger=self._CRUD_LOGGER):
+                instance.save(Record(id_="urn:x:2", type_="Note", data_={}))
+        finally:
+            instance.close()
+
+        records = self._datalayer_records(caplog)
+        assert records, "Expected a 'DataLayer saved' log entry"
+        assert all(r.levelno == logging.DEBUG for r in records)
+
+    def test_no_datalayer_lines_reach_info(self, caplog):
+        import logging
+
+        instance = SqliteDataLayer("sqlite:///:memory:")
+        try:
+            with caplog.at_level(logging.INFO, logger=self._CRUD_LOGGER):
+                instance.create(Record(id_="urn:x:3", type_="Note", data_={}))
+                instance.save(Record(id_="urn:x:3", type_="Note", data_={}))
+        finally:
+            instance.close()
+
+        assert not self._datalayer_records(caplog)

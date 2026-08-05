@@ -21,6 +21,7 @@ from py_trees.common import Status
 from vultron.core.behaviors.embargo.nodes.em_state import ReadEmStateNode
 from vultron.core.behaviors.embargo.nodes.emit import _SendEmbargoActivityBase
 from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
+from vultron.core.behaviors.narrative_log import log_em_transition
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.dimensions import EmDimension
 from vultron.core.states.em import EM, is_valid_em_transition
@@ -134,7 +135,15 @@ class ClearActiveEmbargoNode(DataLayerAction):
             f"Cleared active embargo on case '{self.case_id}'"
             f" (EM {current_em} → EXITED)"
         )
-        self.logger.info("%s: %s", self.name, self.feedback_message)
+        self.logger.debug("%s: %s", self.name, self.feedback_message)
+        # SL-04-001/SL-04-006: embargo teardown is a protocol milestone.
+        log_em_transition(
+            self.logger,
+            self.actor_id or "<unknown>",
+            self.case_id,
+            current_em,
+            EM.EXITED,
+        )
         return Status.SUCCESS
 
 
@@ -246,7 +255,15 @@ class ApplyEmbargoTeardownNode(DataLayerAction):
             f"Embargo teardown applied on case '{case_id}'"
             f" (EM {current_em} → EXITED)"
         )
-        self.logger.info("%s: %s", self.name, self.feedback_message)
+        self.logger.debug("%s: %s", self.name, self.feedback_message)
+        # SL-04-001/SL-04-006: embargo teardown is a protocol milestone.
+        log_em_transition(
+            self.logger,
+            self.actor_id or "<unknown>",
+            case_id,
+            current_em,
+            EM.EXITED,
+        )
         return Status.SUCCESS
 
 

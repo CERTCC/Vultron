@@ -362,7 +362,7 @@ def post_actor_inbox(
     canonical_actor_id = actor.id_
 
     if _activity_already_received(actor, activity.id_):
-        logger.info(
+        logger.debug(
             "Activity %s already received by %s; ignoring duplicate submission.",
             activity.id_,
             canonical_actor_id,
