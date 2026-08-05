@@ -122,6 +122,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0050 Leave(VulnerabilityCase) Is the Canonical RM Case Closure Mechanism](0050-leave-vul-case-canonical-rm-closure.md)
 - [ADR-0051 CaseActor Has Its Own RM Lifecycle Tracked via CaseParticipant](0051-caseactor-rm-lifecycle.md)
 - [ADR-0052 Demo CI Job Structure: Accept Barrier + Concurrency Group Over Job Consolidation](0052-demo-ci-job-structure-barrier-accepted.md) *(provisional)*
+- [ADR-0053 Route Ownership-Transfer Offer and Accept Through the CaseActor](0053-ownership-transfer-routed-via-caseactor.md)
 
 ## Proposed ADRs
 
