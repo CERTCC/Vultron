@@ -121,7 +121,7 @@ value — a self-contradicting record.
 
 ```python
 # CORRECT
-apply_pec_transition(participant, PEC_Trigger.ACCEPT)
+participant.apply_pec_transition(PEC_Trigger.ACCEPT)
 dl.save(participant)
 ```
 
