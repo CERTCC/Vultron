@@ -51,7 +51,10 @@ from vultron.core.behaviors.embargo.nodes.proposal import (
 )
 from vultron.core.behaviors.embargo.nodes.teardown import (
     ApplyEmbargoTeardownNode,
+    ClearActiveEmbargoNode,
+    HasEmbargoActiveNode,
     RemoveFromProposedEmbargoesNode,
+    ResetParticipantConsentNode,
     SendAnnounceEmbargoEventNode,
 )
 
@@ -67,6 +70,9 @@ __all__ = [
     "ReadEmStateNode",
     "WriteEmStateNode",
     # Teardown
+    "HasEmbargoActiveNode",
+    "ClearActiveEmbargoNode",
+    "ResetParticipantConsentNode",
     "ApplyEmbargoTeardownNode",
     "RemoveFromProposedEmbargoesNode",
     "SendAnnounceEmbargoEventNode",

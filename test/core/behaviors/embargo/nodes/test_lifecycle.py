@@ -24,6 +24,7 @@ import pytest
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.nodes.lifecycle import (
+    SetEmbargoActiveNode,
     ValidateEmbargoRevisionStateNode,
 )
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
@@ -48,7 +49,7 @@ def _make_case_with_manager(
 ) -> tuple[as_VulnerabilityCase, as_CaseParticipant, SqliteDataLayer]:
     """Return a populated DataLayer with a case + CASE_MANAGER participant."""
     dl = SqliteDataLayer("sqlite:///:memory:")
-    case, _embargo = make_case_and_embargo(suffix, em_state=em_state)
+    case, _ = make_case_and_embargo(suffix, em_state=em_state)
 
     cm_participant = as_CaseParticipant(
         id_=f"{case.id_}/participants/cm",
@@ -403,6 +404,24 @@ class TestValidateEmbargoRevisionStateNode:
         assert status == py_trees.common.Status.FAILURE
         assert "error" in result_out
 
+    def test_reads_em_state_via_read_em_state_node(self):
+        """AC-1: em_before in result_out is populated by ReadEmStateNode."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, _ = make_case_and_embargo("rev7", em_state=EM.ACTIVE)
+        dl.create(case)
+
+        result_out: dict = {}
+        self._setup_blackboard(dl)
+        node = ValidateEmbargoRevisionStateNode(
+            case_id=case.id_, result_out=result_out
+        )
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert node.status == py_trees.common.Status.SUCCESS
+        assert result_out.get("em_before") == EM.ACTIVE
+
     def test_returns_failure_when_current_status_raises_value_error(self):
         """FAILURE when case.current_status raises ValueError (no materialized status).
 
@@ -435,3 +454,117 @@ class TestValidateEmbargoRevisionStateNode:
 
         assert result == py_trees.common.Status.FAILURE
         assert "error" in result_out
+
+
+# ---------------------------------------------------------------------------
+# SetEmbargoActiveNode — AC-1 of issue #1554
+# ---------------------------------------------------------------------------
+
+
+def _setup_blackboard_simple(dl: SqliteDataLayer) -> None:
+    py_trees.blackboard.Blackboard.enable_activity_stream()
+    py_trees.blackboard.Blackboard.storage.clear()
+    bb = py_trees.blackboard.Client(name="test-sea")
+    for key in ("datalayer", "actor_id"):
+        bb.register_key(key=key, access=py_trees.common.Access.WRITE)
+    bb.datalayer = dl
+    bb.actor_id = ACTOR_ID
+
+
+class TestSetEmbargoActiveNode:
+    """Tests for SetEmbargoActiveNode (AC-1 of issue #1554)."""
+
+    def _run(
+        self, dl: SqliteDataLayer, case_id: str, embargo_id: str
+    ) -> py_trees.common.Status:
+        _setup_blackboard_simple(dl)
+        node = SetEmbargoActiveNode(case_id=case_id, embargo_id=embargo_id)
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+        return node.status
+
+    def test_transitions_proposed_to_active(self):
+        """Transitions EM.PROPOSED → EM.ACTIVE and persists."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, embargo = make_case_and_embargo("sea1", em_state=EM.PROPOSED)
+        case.active_embargo = None
+        dl.create(case)
+
+        status = self._run(dl, case.id_, embargo.id_)
+
+        assert status == py_trees.common.Status.SUCCESS
+        updated = cast(VulnerabilityCase, dl.read(case.id_))
+        assert updated.current_status.em.state == EM.ACTIVE
+
+    def test_idempotent_when_embargo_already_active(self):
+        """Returns SUCCESS without state mutation when embargo is already active."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, embargo = make_case_and_embargo("sea2", em_state=EM.ACTIVE)
+        case.active_embargo = embargo.id_
+        dl.create(case)
+
+        status = self._run(dl, case.id_, embargo.id_)
+
+        assert status == py_trees.common.Status.SUCCESS
+        updated = cast(VulnerabilityCase, dl.read(case.id_))
+        assert updated.current_status.em.state == EM.ACTIVE
+
+    def test_reads_em_state_via_read_em_state_node(self):
+        """AC-1: _apply_transition receives em_state read by ReadEmStateNode."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, embargo = make_case_and_embargo("sea3", em_state=EM.PROPOSED)
+        case.active_embargo = None
+        dl.create(case)
+
+        _setup_blackboard_simple(dl)
+        node = SetEmbargoActiveNode(case_id=case.id_, embargo_id=embargo.id_)
+
+        calls: list = []
+        original_apply = node._apply_transition
+
+        def recording_apply(case, current_em):  # type: ignore[override]
+            calls.append(current_em)
+            return original_apply(case, current_em)
+
+        node._apply_transition = recording_apply  # type: ignore[method-assign]
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert node.status == py_trees.common.Status.SUCCESS
+        assert calls == [EM.PROPOSED]
+
+    def test_returns_failure_when_case_missing(self):
+        """Returns FAILURE when the case is not found in the DataLayer."""
+        dl = SqliteDataLayer("sqlite:///:memory:")
+
+        status = self._run(
+            dl,
+            "https://example.org/cases/nonexistent",
+            "https://example.org/cases/nonexistent/embargo_events/e1",
+        )
+
+        assert status == py_trees.common.Status.FAILURE
+
+    def test_state_sync_override_logs_warning(self, caplog):
+        """Logs WARNING for non-standard EM transitions (state-sync override)."""
+        import logging
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case, embargo = make_case_and_embargo("sea5", em_state=EM.NONE)
+        case.active_embargo = None
+        dl.create(case)
+
+        _setup_blackboard_simple(dl)
+        node = SetEmbargoActiveNode(case_id=case.id_, embargo_id=embargo.id_)
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+
+        with caplog.at_level(logging.WARNING):
+            bt.tick()
+
+        assert node.status == py_trees.common.Status.SUCCESS
+        assert any("state-sync override" in r.message for r in caplog.records)
+        updated = cast(VulnerabilityCase, dl.read(case.id_))
+        assert updated.current_status.em.state == EM.ACTIVE

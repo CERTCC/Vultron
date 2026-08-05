@@ -426,9 +426,8 @@ class SetEmbargoActiveNode(DataLayerAction):
             return None
         return case
 
-    def _apply_transition(self, case: Any) -> None:
+    def _apply_transition(self, case: Any, current_em: EM) -> None:
         """Apply EM → ACTIVE transition and persist; warn on non-standard path."""
-        current_em = case.current_status.em.state
         if not is_valid_em_transition(current_em, EM.ACTIVE):
             self.logger.warning(
                 "%s: EM transition %s → ACTIVE is not a standard machine"
@@ -465,5 +464,17 @@ class SetEmbargoActiveNode(DataLayerAction):
             self.logger.info("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
 
-        self._apply_transition(case)
+        result_out: dict[str, object] = {}
+        read_node = ReadEmStateNode(
+            case_id=self.case_id, result_out=result_out
+        )
+        read_node.datalayer = self.datalayer
+        read_status = read_node.update()
+        if read_status != Status.SUCCESS:
+            self.feedback_message = read_node.feedback_message
+            return Status.FAILURE
+        current_em = result_out["em_before"]
+        assert isinstance(current_em, EM)
+
+        self._apply_transition(case, current_em)
         return Status.SUCCESS
