@@ -52,7 +52,7 @@ from vultron.core.behaviors.case.nodes.vfd_role_guards import (
 from vultron.core.behaviors.report.nodes.storage import StoreActivityNode
 from vultron.core.behaviors.sync.nodes import (
     CreateLogEntryNode,
-    FanOutLogEntryExcludingClosedNode,
+    FanOutLogEntryNode,
     PersistLogEntryNode,
     ReconstructChainTailNode,
 )
@@ -97,7 +97,7 @@ def create_close_case_received_tree(
         │   │       ├── ReconstructChainTailNode        # step 3a: tail hash
         │   │       ├── CreateCaseFullyClosedEntry      # step 3b: build entry
         │   │       ├── PersistCaseFullyClosedEntry     # step 3c: write to DataLayer
-        │   │       └── FanOutLogEntryExcludingClosedNode # step 4: fan-out (CM-23-004)
+        │   │       └── FanOutLogEntryNode                # step 4: fan-out to non-CaseActor
         │   └── NonOwnerLeaveFallbackSeq (Sequence)     # Non-owner path (CM-23-003)
         │       └── AdvanceParticipantToRMClosedNode    # departing participant → RM.CLOSED
         └── StoreActivityNode("Leave")                  # Persist inbound Leave activity
@@ -161,9 +161,9 @@ def create_close_case_received_tree(
                 name="CreateCaseFullyClosedEntry",
             ),
             PersistLogEntryNode(name="PersistCaseFullyClosedEntry"),
-            FanOutLogEntryExcludingClosedNode(
+            FanOutLogEntryNode(
                 case_id=case_id,
-                name="FanOutCaseFullyClosedExcludingClosed",
+                name="FanOutCaseFullyClosed",
             ),
         ],
     )

@@ -263,12 +263,15 @@ class TestOwnerLeaveReceivePath:
             f" found event_types={event_types}"
         )
 
-    def test_owner_leave_case_fully_closed_fanout_skips_rm_closed(self):
-        """Owner Leave: case_fully_closed fan-out skips OWNER and CASE_ACTOR (both RM.CLOSED, CM-23-004).
+    def test_owner_leave_case_fully_closed_fanout_includes_all_non_case_actor(
+        self,
+    ):
+        """Owner Leave: case_fully_closed fan-out reaches all participants except the sending CaseActor.
 
-        The initial GuardedCommit for the Leave receipt legitimately fans out to all
-        participants (OWNER is not yet RM.CLOSED at that point).  The *second* fan-out
-        (for the ``case_fully_closed`` entry) must skip already-closed actors.
+        ``FanOutLogEntryNode`` excludes only ``self.actor_id`` (the CaseActor); it does NOT
+        filter by RM state.  The ``case_fully_closed`` entry is the replica-completeness
+        termination signal and must reach all replicas regardless of their RM state so every
+        participant learns the case is fully closed.
         """
         from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 
@@ -282,7 +285,7 @@ class TestOwnerLeaveReceivePath:
 
         assert (
             sync_mock.send_announce_log_entry.called
-        ), "Fan-out must call sync_port.send_announce_log_entry after owner Leave (CM-23-004)"
+        ), "Fan-out must call sync_port.send_announce_log_entry after owner Leave (CM-23-002)"
 
         # Identify calls for the case_fully_closed entry specifically
         case_fully_closed_recipients: list[str] = []
@@ -301,12 +304,12 @@ class TestOwnerLeaveReceivePath:
             f"case_fully_closed fan-out must include VENDOR_ID;"
             f" actual recipients: {case_fully_closed_recipients}"
         )
-        assert OWNER_ID not in case_fully_closed_recipients, (
-            f"case_fully_closed fan-out must NOT include OWNER_ID (already RM.CLOSED, CM-23-004);"
+        assert OWNER_ID in case_fully_closed_recipients, (
+            f"case_fully_closed fan-out must include OWNER_ID (replica-completeness signal);"
             f" actual recipients: {case_fully_closed_recipients}"
         )
         assert CASE_ACTOR_ID not in case_fully_closed_recipients, (
-            f"case_fully_closed fan-out must NOT include CASE_ACTOR_ID (already RM.CLOSED, CM-23-004);"
+            f"case_fully_closed fan-out must NOT include CASE_ACTOR_ID (excluded as self.actor_id);"
             f" actual recipients: {case_fully_closed_recipients}"
         )
 
