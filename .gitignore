@@ -169,3 +169,4 @@ plan/data/
 
 # graphify knowledge graph output
 graphify-out/
+.DS_Store

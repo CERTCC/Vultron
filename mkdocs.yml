@@ -269,6 +269,7 @@ nav:
       - No Core Error Message Types or Error-Followup Factory: 'adr/0049-core-does-not-model-error-message-types.md'
       - Leave(VulnerabilityCase) Is the Canonical RM Closure Mechanism: 'adr/0050-leave-vul-case-canonical-rm-closure.md'
       - CaseActor Has Its Own RM Lifecycle via CaseParticipant: 'adr/0051-caseactor-rm-lifecycle.md'
+      - Demo CI Job Structure — Accept Barrier and Concurrency Group: 'adr/0052-demo-ci-job-structure-barrier-accepted.md'
   - About:
     - Contributing: 'about/contributing.md'
     - FAQ: 'about/faq.md'

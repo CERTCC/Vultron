@@ -480,3 +480,67 @@ groups:
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-05-001
+
+  - id: DEMOCI-06
+    title: Demo Scenario Coverage Model — PR Validation Set vs. Full Post-Merge Set
+    specs:
+      - id: DEMOCI-06-001
+        priority: MUST
+        kind: project
+        statement: >-
+          A scenario coverage analysis MUST be performed that maps each of the
+          7 demo scenarios to the distinct Vultron protocol phases and
+          message-type milestones it exercises, producing a coverage matrix.
+          The analysis MUST inspect the actual milestone sets defined in each
+          scenario script (not assume they are complete), and MAY update
+          scenario milestone sets where copy-paste from simpler scenarios has
+          left them incomplete.
+        rationale: >-
+          The 7 scenarios share common helper phases but each exercises a
+          distinct set of protocol phases (e.g. invite_actor_to_case,
+          offer_case_participant, accept_invite_actor_to_case). Milestone sets
+          were often copied from simpler scenarios and may under-report what a
+          scenario actually exercises. A complete per-scenario coverage matrix
+          is prerequisite to designing a minimum PR validation set.
+        relationships:
+          - rel_type: implements
+            spec_id: DEMOCI-03-001
+          - rel_type: refines
+            spec_id: DEMOCI-04-004
+
+      - id: DEMOCI-06-002
+        priority: MUST
+        kind: project
+        statement: >-
+          Based on the coverage matrix (DEMOCI-06-001), a minimum PR validation
+          scenario set MUST be defined: the smallest subset of scenarios that
+          together covers all distinct protocol phases exercised by the full
+          scenario suite. Scenarios not in the minimum set SHOULD run only on
+          the post-merge (push-to-main) trigger, reducing the PR matrix size
+          and thus the fan-in barrier wall-clock cost.
+        rationale: >-
+          Running all scenarios on every PR commit incurs a fan-in barrier
+          proportional to the slowest scenario. A minimum set that preserves
+          full protocol coverage lets the PR run faster while the post-merge
+          run retains full coverage for regression detection. See ADR-0052.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-06-001
+
+      - id: DEMOCI-06-003
+        priority: MUST
+        kind: project
+        statement: >-
+          The full scenario suite MUST continue to run on push events to main
+          (DEMOCI-05-001), regardless of which subset runs for PR validation,
+          so that all scenario variants continue to generate case-log invariant
+          signals on the default branch.
+        rationale: >-
+          The post-merge run is the safety net for cross-PR regressions; it
+          must cover all scenarios to ensure no scenario silently degrades after
+          its covered phases are removed from the PR validation set.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-06-002
+          - rel_type: refines
+            spec_id: DEMOCI-05-001
