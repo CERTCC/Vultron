@@ -39,6 +39,19 @@ def _make_actor_dl(name: str) -> tuple[as_Service, SqliteDataLayer]:
     return actor, dl
 
 
+def _to_ids(activity) -> list[str]:
+    """Extract the ``to`` field from an activity as a flat list of ID strings."""
+    to = getattr(activity, "to", None)
+    if isinstance(to, list):
+        return [
+            item if isinstance(item, str) else getattr(item, "id_", str(item))
+            for item in to
+        ]
+    if isinstance(to, str):
+        return [to]
+    return []
+
+
 def _make_case_with_case_manager(
     dl: SqliteDataLayer,
     actor_id: str,
@@ -111,6 +124,7 @@ class TestEngageCaseRMTransitionViaBT:
             actor_id=self.vendor.id_,
             case_id=self.case.id_,
         )
+        before = set(self.dl.outbox_list_for_actor(self.vendor.id_))
         SvcEngageCaseUseCase(
             self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
         ).execute()
@@ -120,6 +134,20 @@ class TestEngageCaseRMTransitionViaBT:
         assert isinstance(updated, CaseParticipant)
         assert updated.participant_statuses
         assert updated.participant_statuses[-1].rm.state == RM.ACCEPTED
+
+        after = set(self.dl.outbox_list_for_actor(self.vendor.id_))
+        new_ids = after - before
+        assert new_ids, "EngageCase must queue at least one outbox activity"
+        activity_id = next(iter(new_ids))
+        activity = self.dl.read(activity_id)
+        assert activity is not None
+        to_ids = _to_ids(activity)
+        assert (
+            self.case_actor.id_ in to_ids
+        ), f"PCR-08-001: activity must be addressed to CaseActor; to={to_ids!r}"
+        assert (
+            len(to_ids) == 1
+        ), f"PCR-08-001: exactly one recipient expected, got {to_ids!r}"
 
     def test_engage_case_rm_not_updated_when_no_participant(self):
         case_solo = as_VulnerabilityCase(name="Solo Case")

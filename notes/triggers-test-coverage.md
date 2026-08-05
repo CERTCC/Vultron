@@ -38,8 +38,8 @@ real (in-memory) `DataLayer` and asserts:
 
 The outbox `to`-field assertion (PCR-08-001) applies to **all** trigger use
 cases, not only the six case-trigger ones listed in the table below. Embargo
-trigger tests already follow this pattern; case trigger tests are the known
-gap (CONCERN-1970).
+trigger tests already follow this pattern; case trigger `to`-field tests were
+added in PR #2005 (closes CONCERN-1970).
 
 Existing coverage anchors:
 

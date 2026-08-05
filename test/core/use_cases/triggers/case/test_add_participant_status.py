@@ -281,6 +281,55 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
             reset_datalayer(actor_id)
             reset_datalayer(self.case_actor.id_)
 
+    def _to_ids(self, activity) -> list[str]:
+        to = getattr(activity, "to", None)
+        if isinstance(to, list):
+            return [
+                (
+                    item
+                    if isinstance(item, str)
+                    else getattr(item, "id_", str(item))
+                )
+                for item in to
+            ]
+        if isinstance(to, str):
+            return [to]
+        return []
+
+    def test_outbox_activity_addressed_to_case_actor(self):
+        """Activity queued by execute() is addressed to the Case Actor only (PCR-08-001)."""
+        from vultron.core.use_cases.triggers.case import (
+            SvcAddParticipantStatusUseCase,
+        )
+        from vultron.core.use_cases.triggers.requests import (
+            AddParticipantStatusTriggerRequest,
+        )
+
+        request = AddParticipantStatusTriggerRequest(
+            actor_id=self.actor.id_,
+            case_id=self.case.id_,
+            rm_state=RM.ACCEPTED,
+        )
+        before = set(self.dl.outbox_list_for_actor(self.actor.id_))
+        SvcAddParticipantStatusUseCase(
+            self.dl, request, trigger_activity=self.trigger_activity
+        ).execute()
+        after = set(self.dl.outbox_list_for_actor(self.actor.id_))
+        new_ids = after - before
+        assert (
+            new_ids
+        ), "AddParticipantStatus must queue at least one outbox activity"
+        activity_id = next(iter(new_ids))
+        activity = self.dl.read(activity_id)
+        assert activity is not None
+        to_ids = self._to_ids(activity)
+        assert (
+            self.case_actor.id_ in to_ids
+        ), f"PCR-08-001: activity must be addressed to CaseActor; to={to_ids!r}"
+        assert (
+            len(to_ids) == 1
+        ), f"PCR-08-001: exactly one recipient expected, got {to_ids!r}"
+
     def test_execute_appends_status_to_sender_participant(self):
         """After execute(), sender's participant_statuses contains the new status.
 

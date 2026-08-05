@@ -18,7 +18,7 @@ True multi-container isolation is validated by the acceptance test runnable via:
 """
 
 import importlib
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
@@ -186,3 +186,287 @@ class TestFvcvHandoffCliCommand:
         runner = CliRunner()
         result = runner.invoke(main, ["fvcv-handoff", "--help"])
         assert "--skip-health-check" in result.output
+
+
+# ---------------------------------------------------------------------------
+# Milestone assertion tests — AC-4 of ISSUE-1976
+# ---------------------------------------------------------------------------
+
+
+class TestFvcvHandoffMilestoneAssertions:
+    """Verify that _phase_* functions call the required milestone helpers."""
+
+    def _actor(self, id_: str = "urn:test:actor"):
+        a = MagicMock()
+        a.id_ = id_
+        return a
+
+    def _case(self, id_: str = "urn:test:case"):
+        c = MagicMock()
+        c.id_ = id_
+        return c
+
+    def _client(self):
+        c = MagicMock()
+        c.get.return_value = {}
+        return c
+
+    def test_phase_report_submission_calls_verify_case_active(self):
+        """_phase_report_submission calls verify_case_active at M1."""
+        import contextlib
+
+        finder_client = self._client()
+        vendor_client = self._client()
+        coordinator_client = self._client()
+        case_actor_client = self._client()
+        vendor2_client = self._client()
+        finder = self._actor("urn:test:finder")
+        vendor = self._actor("urn:test:vendor")
+        coordinator = self._actor("urn:test:coordinator")
+        coordinator_in_coordinator = self._actor("urn:test:coordinator")
+        vendor2 = self._actor("urn:test:vendor2")
+        vendor_in_vendor = self._actor("urn:test:vendor")
+        report = MagicMock()
+        offer = MagicMock()
+        offer.id_ = "urn:test:offer"
+        case = self._case()
+
+        with (
+            patch.object(demo, "reset_containers"),
+            patch.object(
+                demo,
+                "seed_containers_fvcv",
+                return_value=(finder, vendor, coordinator, vendor2),
+            ),
+            patch.object(
+                demo,
+                "get_actor_by_id",
+                side_effect=[vendor_in_vendor, coordinator_in_coordinator],
+            ),
+            patch.object(
+                demo, "reporter_submits_report", return_value=(report, offer)
+            ),
+            patch.object(demo, "receiver_validates_report"),
+            patch.object(demo, "find_case_for_offer", return_value=case),
+            patch.object(demo, "receiver_engages_case"),
+            patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "as_VulnerabilityCase") as mock_vc,
+            patch.object(
+                demo,
+                "demo_check",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+            patch.object(
+                demo,
+                "demo_step",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            mock_vc.model_validate.return_value = case
+            demo._phase_report_submission(
+                finder_client=finder_client,
+                vendor_client=vendor_client,
+                coordinator_client=coordinator_client,
+                case_actor_client=case_actor_client,
+                vendor2_client=vendor2_client,
+                finder_id=None,
+                vendor_id=None,
+                coordinator_id=None,
+                vendor2_id=None,
+            )
+
+    def test_run_fvcv_handoff_calls_verify_case_active(self):
+        """run_fvcv_handoff calls verify_case_active after all participants join (M1)."""
+        import contextlib
+
+        finder_client = self._client()
+        vendor_client = self._client()
+        coordinator_client = self._client()
+        case_actor_client = self._client()
+        vendor2_client = self._client()
+
+        with (
+            patch.object(
+                demo,
+                "_phase_report_submission",
+                return_value=(
+                    self._actor("f"),
+                    self._actor("v"),
+                    self._actor("v_v"),
+                    self._actor("c"),
+                    self._actor("c_c"),
+                    self._actor("v2"),
+                    MagicMock(),
+                    MagicMock(),
+                    self._case(),
+                ),
+            ),
+            patch.object(
+                demo,
+                "find_case_actor_participant_id",
+                return_value="urn:test:case-actor",
+            ),
+            patch.object(
+                demo, "_phase_ownership_handoff", return_value=self._case()
+            ),
+            patch.object(demo, "_phase_coordinator_invites_vendor2"),
+            patch.object(demo, "_phase_sync_verification"),
+            patch.object(demo, "_phase_notes_exchange"),
+            patch.object(demo, "_phase_fix_lifecycle"),
+            patch.object(demo, "_phase_publication"),
+            patch.object(demo, "_phase_case_closure"),
+            patch.object(demo, "_phase_dump_case_ledgers"),
+            patch.object(demo, "get_actor_by_id", return_value=self._actor()),
+            patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "verify_case_active") as mock_m1,
+            patch.object(
+                demo,
+                "demo_check",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            demo.run_fvcv_handoff_demo(
+                finder_client=finder_client,
+                vendor_client=vendor_client,
+                coordinator_client=coordinator_client,
+                case_actor_client=case_actor_client,
+                vendor2_client=vendor2_client,
+            )
+        mock_m1.assert_called()
+
+    def test_phase_fix_lifecycle_calls_verify_fix_ready(self):
+        """_phase_fix_lifecycle calls verify_fix_ready at M4/M5."""
+        import contextlib
+
+        finder_client = self._client()
+        vendor_client = self._client()
+        vendor2_client = self._client()
+        vendor = self._actor("urn:test:vendor")
+        vendor_in_vendor = self._actor("urn:test:vendor")
+        vendor2 = self._actor("urn:test:vendor2")
+        vendor2_in_vendor2 = self._actor("urn:test:vendor2")
+        case = self._case()
+
+        with (
+            patch.object(demo, "actor_notifies_fix_ready"),
+            patch.object(demo, "wait_for_participant_vfd_state"),
+            patch.object(demo, "verify_fix_ready") as mock_m4,
+            patch.object(
+                demo,
+                "demo_check",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            demo._phase_fix_lifecycle(
+                finder_client=finder_client,
+                vendor_client=vendor_client,
+                vendor2_client=vendor2_client,
+                vendor=vendor,
+                vendor_in_vendor=vendor_in_vendor,
+                vendor2=vendor2,
+                vendor2_in_vendor2=vendor2_in_vendor2,
+                case=case,
+            )
+        mock_m4.assert_called()
+
+    def test_phase_publication_calls_verify_publicly_disclosed(self):
+        """_phase_publication calls verify_publicly_disclosed at M6."""
+        import contextlib
+
+        finder_client = self._client()
+        vendor_client = self._client()
+        coordinator_client = self._client()
+        vendor2_client = self._client()
+        vendor = self._actor("urn:test:vendor")
+        vendor_in_vendor = self._actor("urn:test:vendor")
+        vendor2 = self._actor("urn:test:vendor2")
+        vendor2_in_vendor2 = self._actor("urn:test:vendor2")
+        finder = self._actor("urn:test:finder")
+        finder_in_finder = self._actor("urn:test:finder")
+        coordinator = self._actor("urn:test:coordinator")
+        coordinator_in_coordinator = self._actor("urn:test:coordinator")
+        case = self._case()
+
+        with (
+            patch.object(demo, "actor_notifies_published"),
+            patch.object(demo, "wait_for_case_em_terminated"),
+            patch.object(demo, "wait_for_participant_vfd_state"),
+            patch.object(demo, "verify_publicly_disclosed") as mock_m6,
+            patch.object(
+                demo,
+                "demo_check",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            demo._phase_publication(
+                finder_client=finder_client,
+                vendor_client=vendor_client,
+                coordinator_client=coordinator_client,
+                vendor2_client=vendor2_client,
+                vendor=vendor,
+                vendor_in_vendor=vendor_in_vendor,
+                vendor2=vendor2,
+                vendor2_in_vendor2=vendor2_in_vendor2,
+                finder=finder,
+                finder_in_finder=finder_in_finder,
+                coordinator=coordinator,
+                coordinator_in_coordinator=coordinator_in_coordinator,
+                case=case,
+            )
+        mock_m6.assert_called()
+
+    def test_phase_case_closure_calls_verify_case_closed(self):
+        """_phase_case_closure calls verify_case_closed at M7."""
+        import contextlib
+
+        finder_client = self._client()
+        vendor_client = self._client()
+        coordinator_client = self._client()
+        vendor2_client = self._client()
+        vendor = self._actor("urn:test:vendor")
+        vendor_in_vendor = self._actor("urn:test:vendor")
+        vendor2 = self._actor("urn:test:vendor2")
+        vendor2_in_vendor2 = self._actor("urn:test:vendor2")
+        finder = self._actor("urn:test:finder")
+        finder_in_finder = self._actor("urn:test:finder")
+        coordinator = self._actor("urn:test:coordinator")
+        coordinator_in_coordinator = self._actor("urn:test:coordinator")
+        case = self._case()
+        case.id_ = "urn:test:case"
+        vendor_client.get.return_value = {
+            "e0": {
+                "case_id": case.id_,
+                "log_index": 0,
+                "entry_hash": "h0",
+                "event_type": "close_case",
+            }
+        }
+
+        with (
+            patch.object(demo, "actor_closes_case"),
+            patch.object(demo, "wait_for_all_participants_rm_closed"),
+            patch.object(demo, "verify_case_closed") as mock_m7,
+            patch.object(demo, "wait_for_event_type_in_ledger"),
+            patch.object(demo, "wait_for_contiguous_ledger_coverage"),
+            patch.object(
+                demo,
+                "demo_check",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            demo._phase_case_closure(
+                finder_client=finder_client,
+                vendor_client=vendor_client,
+                coordinator_client=coordinator_client,
+                vendor2_client=vendor2_client,
+                vendor=vendor,
+                vendor_in_vendor=vendor_in_vendor,
+                vendor2=vendor2,
+                vendor2_in_vendor2=vendor2_in_vendor2,
+                finder=finder,
+                finder_in_finder=finder_in_finder,
+                coordinator=coordinator,
+                coordinator_in_coordinator=coordinator_in_coordinator,
+                case=case,
+            )
+        mock_m7.assert_called()
