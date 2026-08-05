@@ -62,6 +62,7 @@ class VultronActivity(VultronObject):
     origin: NonEmptyString | None = None
     to: list[str] | None = None
     cc: list[str] | None = None
+    suggested_roles: list[str] | None = None
 
 
 class VultronOffer(VultronActivity):
