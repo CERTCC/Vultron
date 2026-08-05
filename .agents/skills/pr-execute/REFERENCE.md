@@ -128,6 +128,14 @@ The rule: **every `xfail` must point to a live open issue**. An xfail with a
 dead or missing reference is treated as unmanaged debt and triggers a
 `new-issue-no-ask` finding.
 
+> **xfail-tracking issues vs flaky-test issues**: these are distinct categories.
+> An xfail-tracking issue documents a known architectural violation or pre-existing
+> test failure that cannot yet be fixed (e.g. ARCH-12 cleanup debt). A flaky-test
+> issue tracks a test that *sometimes* fails due to timing/ordering/probabilistic
+> behavior. xfail-tracking issues should use the `bug` label (not `flaky-test`),
+> so they do not pollute the `--label flaky-test` GitHub search in Level 2 of the
+> dedup procedure above.
+
 ### When to Stop and Report
 
 Stop and surface to the user if:

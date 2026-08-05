@@ -114,6 +114,10 @@ file a Bug issue with evidence via `manage-github-issue`, wire structured blocke
 and record the finding outcome as `skipped` with a `skip_reason` referencing the
 issue number.
 
+After tests pass, also run the xfail ratchet per
+[REFERENCE.md](REFERENCE.md) § "xfail Ratchet" — scan `XFAIL` output lines
+and verify each references a live open issue.
+
 Do not proceed to Phase 5 until tests pass or all remaining failures are
 documented as pre-existing with linked Bug issues.
 

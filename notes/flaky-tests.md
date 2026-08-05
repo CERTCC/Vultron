@@ -19,6 +19,10 @@ Entries are removed by `bugfix` or `build` when the tracking issue is closed.
 
 ## Unit Tests (pytest node IDs)
 
+A `—` in the Issue column means no tracking issue has been filed yet.
+When `pr-execute` encounters a match with `—`, skip the `gh issue view` step
+and fall through to Level 2 (GitHub label search).
+
 | Test node ID | Issue | Last blocked |
 |---|---|---|
 | `test/bt/test_vultrabot.py::MyTestCase::test_main` | — | 2026-05-05 |
