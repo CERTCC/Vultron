@@ -28,7 +28,9 @@ activity (protocol ET message).  Sequence:
     └─ TeardownIfActive (Selector)        # run teardown if active; skip silently
        ├─ ActiveTeardown (Sequence)
        │  ├─ IsActiveEmbargoNode          # guard: is this the active embargo?
-       │  ├─ ApplyEmbargoTeardownNode     # ACTIVE/REVISE→EXITED, clear, reset PEC
+       │  ├─ HasEmbargoActiveNode         # guard: EM state not already EXITED
+       │  ├─ ClearActiveEmbargoNode       # ACTIVE/REVISE→EXITED + clear active_embargo
+       │  ├─ ResetParticipantConsentNode  # reset all participant PEC to NO_EMBARGO
        │  └─ SendAnnounceEmbargoEventNode # emit Announce(EmbargoEvent) to CaseActor
        └─ Success                         # embargo was only in proposed — not an error
 
@@ -43,13 +45,15 @@ from vultron.core.behaviors.case.nodes import (
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.embargo.nodes import (
-    ApplyEmbargoTeardownNode,
+    ClearActiveEmbargoNode,
     CreateAndStoreInviteNode,
+    HasEmbargoActiveNode,
     IsActiveEmbargoNode,
     OptionalLookupParticipantNode,
     RecordParticipantAcceptanceNode,
     RemoveFromProposedEmbargoesNode,
     RemoveStaleAcceptanceNode,
+    ResetParticipantConsentNode,
     SendAnnounceEmbargoEventNode,
     SetEmbargoActiveNode,
     UpdateParticipantEmbargoPecNode,
@@ -99,7 +103,9 @@ def remove_embargo_from_case_tree(
                     IsActiveEmbargoNode(
                         case_id=case_id, embargo_id=embargo_id
                     ),
-                    ApplyEmbargoTeardownNode(case_id=case_id),
+                    HasEmbargoActiveNode(case_id=case_id),
+                    ClearActiveEmbargoNode(case_id=case_id),
+                    ResetParticipantConsentNode(case_id=case_id),
                     SendAnnounceEmbargoEventNode(
                         case_id=case_id, embargo_id=embargo_id
                     ),

@@ -18,8 +18,9 @@
 import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.embargo.nodes.em_state import ReadEmStateNode
 from vultron.core.behaviors.embargo.nodes.emit import _SendEmbargoActivityBase
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.dimensions import EmDimension
 from vultron.core.states.em import EM, is_valid_em_transition
@@ -28,6 +29,144 @@ from vultron.core.use_cases._helpers import (
     reset_case_participant_embargo_consent,
     _resolve_case_manager_id,
 )
+
+
+class HasEmbargoActiveNode(DataLayerCondition):
+    """Condition: EM state is ACTIVE or REVISE (embargo is active).
+
+    Returns SUCCESS when ``case.current_status.em.state`` is not EXITED
+    (i.e., the embargo is still active and teardown has not been applied).
+    Returns FAILURE when EM is EXITED (teardown already done — idempotent
+    guard) or when the case is not found.
+
+    Uses ``ReadEmStateNode`` to read EM state (AC-1 of issue #1554).
+    """
+
+    def __init__(self, case_id: str, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        result_out: dict[str, object] = {}
+        read_node = ReadEmStateNode(
+            case_id=self.case_id, result_out=result_out
+        )
+        read_node.datalayer = self.datalayer
+        read_status = read_node.update()
+        if read_status != Status.SUCCESS:
+            self.feedback_message = read_node.feedback_message
+            return Status.FAILURE
+
+        em_state = result_out["em_before"]
+        assert isinstance(em_state, EM)
+        if em_state == EM.EXITED:
+            self.feedback_message = f"Case '{self.case_id}' EM already EXITED — teardown not needed"
+            return Status.FAILURE
+
+        return Status.SUCCESS
+
+
+class ClearActiveEmbargoNode(DataLayerAction):
+    """Apply EM → EXITED transition and clear active_embargo.
+
+    Reads the current EM state via ``ReadEmStateNode``, transitions
+    ``em_state`` to EXITED, clears ``active_embargo = None``, and persists
+    both fields in a single ``datalayer.save()`` (batched write — AC-3 of
+    issue #1554).
+
+    Handles idempotency: returns SUCCESS without modifying state when EM is
+    already EXITED.  Logs a WARNING for non-standard transitions (state-sync
+    override).
+    """
+
+    def __init__(self, case_id: str, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        result_out: dict[str, object] = {}
+        read_node = ReadEmStateNode(
+            case_id=self.case_id, result_out=result_out
+        )
+        read_node.datalayer = self.datalayer
+        read_status = read_node.update()
+        if read_status != Status.SUCCESS:
+            self.feedback_message = read_node.feedback_message
+            return Status.FAILURE
+        current_em = result_out["em_before"]
+        assert isinstance(current_em, EM)
+
+        if current_em == EM.EXITED:
+            self.feedback_message = (
+                f"Case '{self.case_id}' EM already EXITED — idempotent no-op"
+            )
+            self.logger.info("%s: %s", self.name, self.feedback_message)
+            return Status.SUCCESS
+
+        if not is_valid_em_transition(current_em, EM.EXITED):
+            self.logger.warning(
+                "%s: EM transition %s → EXITED is not a standard machine"
+                " transition for case '%s'; applying state-sync override",
+                self.name,
+                current_em,
+                self.case_id,
+            )
+
+        case = self.datalayer.read(self.case_id)
+        if not isinstance(case, VulnerabilityCase):
+            self.feedback_message = f"Case '{self.case_id}' not found"
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        case.current_status.em = EmDimension(state=EM.EXITED)
+        case.active_embargo = None
+        self.datalayer.save(case)
+
+        self.feedback_message = (
+            f"Cleared active embargo on case '{self.case_id}'"
+            f" (EM {current_em} → EXITED)"
+        )
+        self.logger.info("%s: %s", self.name, self.feedback_message)
+        return Status.SUCCESS
+
+
+class ResetParticipantConsentNode(DataLayerAction):
+    """Reset all participant embargo consent states to NO_EMBARGO.
+
+    Calls ``reset_case_participant_embargo_consent`` for the given case.
+    Returns FAILURE when the case is not found.  Returns SUCCESS when
+    consent reset completes (including when the case has no participants).
+    """
+
+    def __init__(self, case_id: str, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        case = self.datalayer.read(self.case_id)
+        if not isinstance(case, VulnerabilityCase):
+            self.feedback_message = f"Case '{self.case_id}' not found"
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        reset_case_participant_embargo_consent(self.datalayer, case)
+        self.feedback_message = (
+            f"Reset participant embargo consent for case '{self.case_id}'"
+        )
+        self.logger.info("%s: %s", self.name, self.feedback_message)
+        return Status.SUCCESS
 
 
 class ApplyEmbargoTeardownNode(DataLayerAction):
