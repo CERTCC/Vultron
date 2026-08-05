@@ -448,6 +448,8 @@ def _phase_c2_suggests_v2(
     logger.info("─" * 80)
 
     # C2 sends suggest-actor-to-case (Offer(Actor, Case) → CaseActor).
+    # roles must be explicit so EvaluateDefaultRolesNode doesn't fall back to
+    # the hardcoded [VENDOR] default (issue #1969).
     with demo_step("C2 suggests V2 to CaseActor"):
         post_to_trigger(
             client=c2_client,
@@ -456,6 +458,7 @@ def _phase_c2_suggests_v2(
             body={
                 "case_id": case.id_,
                 "suggested_actor_id": v2.id_,
+                "roles": ["vendor", "deployer"],
             },
         )
     logger.info("C2 sent suggest-actor-to-case for V2 (%s)", v2.id_)

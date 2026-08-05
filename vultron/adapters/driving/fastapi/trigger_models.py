@@ -302,6 +302,7 @@ class SuggestActorToCaseRequest(BaseModel):
 
     case_id: UriString
     suggested_actor_id: UriString
+    roles: list[CVDRole] | None = None
 
 
 class AcceptCaseInviteRequest(BaseModel):

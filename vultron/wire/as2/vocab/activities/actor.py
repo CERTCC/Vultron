@@ -37,6 +37,7 @@ class _RecommendActorActivity(as_Offer):
         ..., validation_alias="object", serialization_alias="object"
     )
     target: as_VulnerabilityCaseRef = None
+    suggested_roles: list[str] | None = None
 
 
 class _AcceptActorRecommendationActivity(as_Accept):

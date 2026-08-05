@@ -193,6 +193,7 @@ class SuggestActorToCaseTriggerRequest(CaseTriggerRequest):
     """
 
     suggested_actor_id: NonEmptyString
+    roles: list[CVDRole] | None = None
 
 
 class AcceptCaseInviteTriggerRequest(TriggerRequest):

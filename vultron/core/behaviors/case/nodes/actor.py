@@ -392,8 +392,10 @@ class EvaluateDefaultRolesNode(py_trees.behaviour.Behaviour):
 
     ADR-0024 Evaluator shape.  Writes ``suggested_roles_{id_segment}``
     (namespaced by ``recommendation_id``, BTND-03-004) to the blackboard.
-    Prototype writes ``[CVDRole.VENDOR]``.  Subclasses may override
-    ``_compute_roles()``; an empty return produces ``FAILURE`` (AC-1).
+    When ``injected_roles`` is provided those roles are used directly;
+    otherwise falls back to ``_compute_roles()`` (default: ``[CVDRole.VENDOR]``).
+    Subclasses may override ``_compute_roles()``; an empty return produces
+    ``FAILURE`` (AC-1).
     """
 
     logger: logging.Logger  # type: ignore[assignment]
@@ -403,12 +405,19 @@ class EvaluateDefaultRolesNode(py_trees.behaviour.Behaviour):
         suggested_actor_id: str,
         case_id: str,
         recommendation_id: str,
+        injected_roles: list[str] | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.suggested_actor_id = suggested_actor_id
         self.case_id = case_id
         self.recommendation_id = recommendation_id
+        self._injected_roles: list[CVDRole] | None = None
+        if injected_roles:
+            try:
+                self._injected_roles = [CVDRole(r) for r in injected_roles]
+            except ValueError:
+                self._injected_roles = None
         self.logger = logging.getLogger(  # type: ignore[assignment]
             f"{self.__class__.__module__}.{self.__class__.__name__}"
         )
@@ -427,7 +436,11 @@ class EvaluateDefaultRolesNode(py_trees.behaviour.Behaviour):
         return [CVDRole.VENDOR]
 
     def update(self) -> Status:
-        roles = self._compute_roles()
+        roles = (
+            self._injected_roles
+            if self._injected_roles
+            else self._compute_roles()
+        )
         if not roles:
             self.feedback_message = (
                 f"{self.name}: _compute_roles() returned an empty list "

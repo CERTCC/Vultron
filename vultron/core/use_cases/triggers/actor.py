@@ -72,6 +72,9 @@ class SvcSuggestActorToCaseUseCase(SvcBTTriggerBase):
             raise VultronNotFoundError("Actor", request.suggested_actor_id)
 
         self._suggested_actor_id = request.suggested_actor_id
+        self._suggested_roles = (
+            [r.value for r in request.roles] if request.roles else None
+        )
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         def _build_activities(case_manager_id: str) -> list[str]:
@@ -80,6 +83,7 @@ class SvcSuggestActorToCaseUseCase(SvcBTTriggerBase):
                 case_id=self._case.id_,
                 actor=self._actor_id,
                 to=[case_manager_id],
+                roles=self._suggested_roles,
             )
             self._captured["activity"] = activity_dict
             return [activity_id]

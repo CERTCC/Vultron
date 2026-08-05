@@ -333,10 +333,13 @@ class TriggerActivityPort(Protocol):
         actor: str,
         to: list[str] | None = None,
         id_: str | None = None,
+        roles: list[str] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist a ``Offer(Actor, Case)`` recommendation activity.
 
         ``id_`` allows callers to supply a deterministic ID for idempotency.
+        ``roles`` carries serialized CVD role strings into the wire object so
+        the CaseActor can use them in place of the hardcoded VENDOR default.
         Returns ``(activity_id, activity_dict)``.
         """
         ...

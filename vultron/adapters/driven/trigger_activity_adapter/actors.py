@@ -203,6 +203,7 @@ class _ActorsMixin:
         actor: str,
         to: list[str] | None = None,
         id_: str | None = None,
+        roles: list[str] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Create and persist a ``Offer(Actor, Case)`` recommendation activity."""
         extra: dict[str, Any] = {"actor": actor, "to": to}
@@ -212,6 +213,7 @@ class _ActorsMixin:
         activity = recommend_actor_activity(
             recommended=CoreActor(id_=recommended_id),
             target=case_id,
+            suggested_roles=roles,
             **extra,
         )
         try:
