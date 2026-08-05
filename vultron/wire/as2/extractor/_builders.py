@@ -117,6 +117,7 @@ def _build_activity_snapshot(
         summary=getattr(activity, "summary", None) or None,
         content=getattr(activity, "content", None) or None,
         suggested_roles=getattr(activity, "suggested_roles", None) or None,
+        roles=getattr(activity, "roles", None) or None,
     )
 
 
