@@ -310,8 +310,13 @@ class _AddCaseActorParticipantNode(DataLayerAction):
         for status in bootstrap_statuses:
             try:
                 self.datalayer.create(status)
-            except ValueError:
-                pass
+            except ValueError as e:
+                logger.debug(
+                    "_register_participant: create status idempotent or"
+                    " error for actor '%s': %s",
+                    self.actor_id,
+                    e,
+                )
 
         participant = VultronParticipant(
             attributed_to=self.actor_id,
