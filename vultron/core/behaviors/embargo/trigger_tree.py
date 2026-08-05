@@ -157,7 +157,7 @@ def reject_proposed_embargo_bt(
     1. ``IsProposedEmbargoNode`` — guard: EM must be PROPOSED; FAILURE otherwise.
     2. ``ReadProposedEmbargoIdNode`` — read embargo_id from proposed_embargoes.
     3. ``ResolveCaseManagerNode`` — routing guard; FAILURE = no state change.
-    4. ``RejectEmbargoLifecycleNode`` — EM state mutation (PROPOSED → NO_EMBARGO).
+    4. ``RejectProposedEmbargoLifecycleNode`` — EM state mutation (PROPOSED → NO_EMBARGO).
     5. ``SendRejectEmbargoActivityNode`` — queue ER to Case Manager.
 
     Both the routing guard (step 3) and state mutation (step 4) are ordered per

@@ -217,6 +217,14 @@ class TestPublicDisclosureSkipConditionNode:
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
+    # AC-4 case 3b: EXITED + public-aware PXA → SUCCESS (skip; embargo already gone)
+    def test_exited_em_public_aware_returns_success(self, public_aware_status):
+        """EM EXITED + CS.P set → skip-condition returns SUCCESS (nothing to tear down)."""
+        dl = _make_dl_with_em_state(EM.EXITED)
+        bridge, node = self._make_bridge_and_node(dl, public_aware_status)
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.SUCCESS
+
     # AC-4 case 4: non-public-aware status → SUCCESS (skip regardless of EM)
     def test_non_public_aware_status_always_returns_success(
         self, status_obj, populated_bridge
