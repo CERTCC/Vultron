@@ -564,8 +564,12 @@ def _phase_sync_verification(
             (finder_client, "Finder"),
             (v1_client, "V1"),
             (c2_client, "C2"),
+            # V2 is a late joiner that must catch up from genesis; allow extra
+            # time for the full history to be delivered (SYNC-2 late-joiner).
             (v2_client, "V2"),
         ]:
+            # V2 joins after Phase 1 completes, so it has more entries to sync.
+            timeout = 45.0 if label == "V2" else 15.0
             with demo_check(
                 f"{label} ledger coverage (sync-verification phase)"
             ):
@@ -573,14 +577,18 @@ def _phase_sync_verification(
                     client=replica_client,
                     case_id=case.id_,
                     expected_tail_index=c1_tail_index,
+                    timeout_seconds=timeout,
                 )
             logger.info("  %s ledger synchronized", label)
 
     for replica_client in (finder_client, v1_client, c2_client, v2_client):
+        # V2 is a late joiner — allow extra time for participant index propagation.
+        p_timeout = 30.0 if replica_client is v2_client else 10.0
         wait_for_case_participants(
             vendor_client=replica_client,
             case_id=case.id_,
             expected_count=6,
+            timeout_seconds=p_timeout,
         )
 
     with demo_check("Finder replica matches authoritative C1 state"):
