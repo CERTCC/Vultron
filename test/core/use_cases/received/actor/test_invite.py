@@ -124,61 +124,87 @@ class TestInviteActorUseCases:
         stored = dl.get(invite.type_.value, invite.id_)
         assert stored is not None
 
-    def test_reject_invite_actor_to_case_ledgers_rejection(self, make_payload):
-        """RejectInviteActorToCaseReceivedUseCase logs without raising."""
-        invite = rm_invite_to_case_activity(
-            as_Actor(id_="https://example.org/users/coordinator"),
-            target="https://example.org/cases/case1",
-            actor="https://example.org/users/owner",
-            id_="https://example.org/cases/case1/invitations/3",
-        )
-        reject = rm_reject_invite_to_case_activity(
-            invite,
-            actor="https://example.org/users/coordinator",
-        )
-
-        event = make_payload(reject)
-
-        result = RejectInviteActorToCaseReceivedUseCase(
-            MagicMock(), event
-        ).execute()
-        assert result is None
-
-    def test_reject_invite_skips_ledger_when_target_id_absent(
+    def test_reject_invite_actor_to_case_commits_ledger_entry(
         self, make_payload
     ):
-        """RejectInviteActorToCaseReceivedUseCase returns without error when case_id cannot be resolved.
+        """RejectInviteActorToCaseReceivedUseCase commits a CaseLedgerEntry (AC-3).
 
         Reject(Invite(actor, case)) carries the case reference in the nested
-        Invite's ``target`` field, not at the top-level ``target`` of the
-        Reject.  ``extract_event`` populates ``inner_target`` but not ``target``,
-        so ``request.target_id`` is None and the use case short-circuits.
-        This is tracked as a known gap to be addressed separately.
+        Invite's ``target`` field (``inner_target_id``), not the top-level
+        ``target`` of the Reject.  CM-11-003: use ``request.case_id`` which
+        reads ``inner_target_id``.
         """
-        from unittest.mock import MagicMock
-
-        invite = rm_invite_to_case_activity(
-            as_Actor(id_="https://example.org/users/coordinator"),
-            target=VulnerabilityCaseStub(
-                id_="https://example.org/cases/case-ri1"
-            ),
-            actor="https://example.org/users/owner",
-            id_="https://example.org/cases/case-ri1/invitations/3",
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.models.case_ledger_entry import (
+            CaseLedgerEntry as WireCaseLedgerEntry,
         )
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+        case_id = "https://example.org/cases/case-reject-ri1"
+        case_actor_id = f"{case_id}/actor"
+        invitee_id = "https://example.org/users/coordinator"
+
+        case = as_VulnerabilityCase(
+            id_=case_id,
+            name="TEST-REJECT-INVITE",
+            attributed_to=case_actor_id,
+        )
+        case_manager_participant = as_CaseParticipant(
+            id_=f"{case_id}/participants/case-actor-p",
+            attributed_to=case_actor_id,
+            context=case_id,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        case.case_participants.append(case_manager_participant.id_)
+        case.actor_participant_index[case_actor_id] = (
+            case_manager_participant.id_
+        )
+        invite = rm_invite_to_case_activity(
+            as_Actor(id_=invitee_id),
+            target=VulnerabilityCaseStub(id_=case_id),
+            actor=case_actor_id,
+            id_=f"{case_id}/invitations/1",
+        )
+        dl.create(case_manager_participant)
+        dl.create(case)
+        dl.create(invite)
+
         reject = rm_reject_invite_to_case_activity(
             invite,
-            actor="https://example.org/users/coordinator",
+            actor=invitee_id,
         )
-
         event = make_payload(reject)
+
         assert (
             event.target_id is None
         ), "Precondition: Reject(Invite) has no top-level target"
+        assert (
+            event.case_id == case_id
+        ), "Precondition: case_id resolves via inner_target_id"
 
-        result = RejectInviteActorToCaseReceivedUseCase(
-            MagicMock(), event
+        RejectInviteActorToCaseReceivedUseCase(
+            dl,
+            event.model_copy(update={"receiving_actor_id": case_actor_id}),
         ).execute()
-        assert result is None
+
+        entries = [
+            e
+            for e in dl.list_objects("CaseLedgerEntry")
+            if isinstance(e, WireCaseLedgerEntry) and e.case_id == case_id
+        ]
+        assert (
+            len(entries) >= 1
+        ), "Expected at least one CaseLedgerEntry after reject-invite"
+        assert any(
+            "reject" in e.event_type for e in entries
+        ), f"Expected a reject-invite ledger entry; got: {[e.event_type for e in entries]}"
 
     def test_accept_invite_actor_to_case_adds_participant(
         self, monkeypatch, make_payload

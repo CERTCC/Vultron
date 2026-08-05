@@ -173,6 +173,7 @@ class RejectInviteActorToCaseReceivedEvent(VultronEvent):
     semantic_type: Literal[MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE] = (
         MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE
     )
+    activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
 
     @property
     def invite_id(self) -> str | None:
@@ -181,6 +182,10 @@ class RejectInviteActorToCaseReceivedEvent(VultronEvent):
     @property
     def invite(self) -> "VultronActivity | None":
         return cast("VultronActivity | None", self.object_)
+
+    @property
+    def case_id(self) -> str | None:
+        return self.inner_target_id
 
 
 class AnnounceVulnerabilityCaseReceivedEvent(VultronEvent):

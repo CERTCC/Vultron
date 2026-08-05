@@ -226,7 +226,7 @@ class RejectInviteActorToCaseReceivedUseCase:
             request.actor_id,
             request.invite_id,
         )
-        case_id = request.target_id or ""
+        case_id = request.case_id or ""
         if not case_id:
             logger.warning(
                 "RejectInviteActorToCase: missing case_id for invite '%s'"
