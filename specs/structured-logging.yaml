@@ -3,7 +3,7 @@ title: Structured Logging Requirements
 description: >-
   Logging requirements for the Vultron API, covering log format, correlation IDs, log levels,
   state transition logging, error context, and authorization and data-access audit records.
-version: 1.0.0
+version: 1.1.0
 scope:
 - prototype
 - production
@@ -85,6 +85,24 @@ groups:
     kind: project
     statement: >-
       Demo scripts and stepwise workflows SHOULD use structured, consistent lifecycle logs
+  - id: SL-04-006
+    priority: SHOULD
+    kind: project
+    statement: >-
+      State transition log messages SHOULD follow the narrative template
+      "Actor '<actor_id>' <verb> '<object_id>' (<STATE_A> → <STATE_B>)" so
+      that reading an actor's INFO log tells the complete protocol story
+      without requiring DEBUG. See notes/structured-logging.md for the
+      full template inventory and the list of infrastructure patterns that
+      MUST be demoted to DEBUG.
+  - id: SL-04-007
+    priority: MUST
+    kind: project
+    statement: >-
+      Infrastructure log lines (persistence store/save/update, BT scaffolding,
+      HTTP handler parsing echoes, pipeline completion repeats, FSM internal
+      callbacks, per-recipient sync queue entries) MUST NOT be logged at INFO;
+      they MUST be logged at DEBUG or lower.
 - id: SL-05
   title: Error Context
   specs:

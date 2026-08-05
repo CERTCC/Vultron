@@ -113,6 +113,16 @@ AKM-08).
 **Load when**: implementing actor knowledge queries, designing inter-actor
 trust or awareness logic, or working on AKM spec requirements.
 
+**`structured-logging.md`**
+Narrative log template (SL-04-006), infrastructure demotion list (SL-04-007),
+and per-module guidance for keeping actor INFO logs readable as a CVD protocol
+story. Documents the approved verb–template inventory (`Actor '<id>' RM: A → B
+for case '<id>'`), the ~10 infrastructure patterns that MUST be at DEBUG, and
+the ~8 missing INFO messages required by SL-04-001. Source: CONCERN-1968.
+**Load when**: adding a new BT node that writes RM/CS/EM state (must add INFO
+log), auditing logging levels in actor container output, or implementing
+CONCERN-1968 logging remediation.
+
 **`configuration.md`**
 Design decisions for YAML-backed Pydantic configuration loading in Vultron:
 `ActorConfig` neutral model, `LocalActorConfig` composition, default embargo
