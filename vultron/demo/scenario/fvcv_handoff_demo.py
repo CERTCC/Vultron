@@ -891,13 +891,14 @@ def _phase_case_closure(
         case_id=case.id_,
     )
     actor_closes_case(
-        client=coordinator_client,
-        actor=coordinator_in_coordinator,
-        case_id=case.id_,
-    )
-    actor_closes_case(
         client=finder_client,
         actor=finder_in_finder,
+        case_id=case.id_,
+    )
+    # Coordinator is the case owner and closes last (case owner closes last).
+    actor_closes_case(
+        client=coordinator_client,
+        actor=coordinator_in_coordinator,
         case_id=case.id_,
     )
 
