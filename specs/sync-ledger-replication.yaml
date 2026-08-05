@@ -484,3 +484,44 @@ groups:
     - rel_type: depends_on
       spec_id: SYNC-12-001
       note: "Effects-before-persist invariant applies; an entry whose genesis is unknown cannot be safely committed"
+  - id: SYNC-15-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CaseActor MUST bound the rate at which it replays entries to a peer whose
+      acknowledged replication position has not advanced.  It MUST record, per peer, the
+      position (the `entry_hash` a replay resumed from, or `""` for genesis) of the last
+      replay in which at least one entry was actually sent, together with the time it was
+      sent.  A Reject reporting an unchanged position within the cooldown MUST NOT trigger
+      another replay.  A Reject reporting an advanced position MUST always replay.  A replay
+      in which zero entries were sent MUST NOT update the recorded position, because no
+      delivery was attempted at that position.
+    rationale: >-
+      Reject-triggered replay (SYNC-08-005, SYNC-14-002) is unconditional by default, and a peer
+      that cannot anchor its hash chain Rejects every entry replayed to it.  Each Reject replays
+      the full missing suffix and each replayed entry produces another Reject — a self-sustaining
+      amplification loop, observed in CI as 4825 `Announce(CaseLedgerEntry)` activities for a
+      26-entry ledger (~185x), starving the actor until unrelated DataLayer reads timed out
+      (issue #1989).
+    note: >-
+      The bound must be a rate limit rather than permanent suppression: if a replayed entry is
+      lost in transit, a later Reject at the same position must still eventually trigger a fresh
+      replay, or the peer would never converge.  The zero-entry carve-out follows from the same
+      requirement — recording a position at which nothing was delivered would start a cooldown
+      that suppresses the first replay genuinely owed to that peer once the ledger grows.
+      Genesis (`last_accepted_hash == ""`) SHOULD use a shorter cooldown than a mid-chain stall:
+      a peer at genesis holds no entries at all and its convergence is owned by
+      SYNC-15-001/SYNC-15-002, which seed the VulnerabilityCase and then rely on the following
+      replay to deliver the history, so rate-limiting that replay as aggressively as a mid-chain
+      stall starves the bootstrap it exists to complete.  Genesis cannot be exempted outright,
+      however, because a peer that cannot anchor its chain reports genesis on every Reject.
+    relationships:
+    - rel_type: depends_on
+      spec_id: SYNC-08-005
+      note: Bounds the replay this rule triggers; the reject-on-divergence contract itself is unchanged
+    - rel_type: depends_on
+      spec_id: SYNC-03-002
+      note: The replay-from-hash path whose rate this rule limits
+    - rel_type: refines
+      spec_id: SYNC-15-001
+      note: The genesis Reject that SYNC-15-001 mandates is the highest-volume source of no-progress replays

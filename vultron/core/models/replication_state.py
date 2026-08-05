@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import urllib.parse
 from datetime import datetime
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import Field, model_validator
 
@@ -79,6 +79,28 @@ class VultronReplicationState(VultronObject):
         ),
         validation_alias="joinBackfillLastSentIndex",
         serialization_alias="joinBackfillLastSentIndex",
+    )
+    last_replayed_from_hash: Optional[str] = Field(
+        default=None,
+        description=(
+            "entry_hash the most recent Reject-triggered replay started from,"
+            " used to suppress repeated full-ledger replays to a peer that has"
+            " made no progress; None means no replay has run yet"
+            " (SYNC-15-003)"
+        ),
+        validation_alias="lastReplayedFromHash",
+        serialization_alias="lastReplayedFromHash",
+    )
+    last_replayed_at: Optional[datetime] = Field(
+        default=None,
+        description=(
+            "When the most recent Reject-triggered replay was sent to this"
+            " peer, used with last_replayed_from_hash to rate-limit replays to"
+            " a peer that has made no progress; None means no replay has run"
+            " yet (SYNC-15-003)"
+        ),
+        validation_alias="lastReplayedAt",
+        serialization_alias="lastReplayedAt",
     )
     join_backfill_complete: bool = Field(
         default=True,

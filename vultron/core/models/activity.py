@@ -62,6 +62,18 @@ class VultronActivity(VultronObject):
     origin: NonEmptyString | None = None
     to: list[str] | None = None
     cc: list[str] | None = None
+    # CM-16-003: the wire dump this model is validated from is camelCase, so
+    # the alias is required — without it the field silently validates to None
+    # and the suggested roles vanish from the delivered activity.
+    suggested_roles: list[str] | None = Field(
+        default=None,
+        validation_alias="suggestedRoles",
+        serialization_alias="suggestedRoles",
+    )
+    # Single-word, so the camelCase wire name is identical and no alias is
+    # needed; stated explicitly because the neighbouring field shows what the
+    # omission costs when the names do differ.
+    roles: list[str] | None = None
 
 
 class VultronOffer(VultronActivity):

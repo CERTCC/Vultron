@@ -590,6 +590,14 @@ sync-log-entry context field, and testing patterns.
 the resolved design rationale for the trigger architecture, or auditing trigger
 classification (demo-only vs general-purpose).
 
+**`flaky-tests.md`**
+Fast-lookup catalog of known flaky tests and CI jobs → tracking issue numbers.
+Used by `pr-execute` as a cache before querying GitHub. GitHub is ground truth;
+this file is a speed hint. Maintained by `pr-execute` (add) and `bugfix`/`build`
+(remove on issue close).
+**Load when**: triaging a pre-existing test failure in `pr-execute`, or auditing
+the current set of known-flaky tests.
+
 **`docker-build.md`**
 Project-specific Docker build observations: dependency layer caching, image
 content scoping, health check coordination between services, and a general

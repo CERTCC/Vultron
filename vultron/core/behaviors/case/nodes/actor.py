@@ -392,8 +392,10 @@ class EvaluateDefaultRolesNode(py_trees.behaviour.Behaviour):
 
     ADR-0024 Evaluator shape.  Writes ``suggested_roles_{id_segment}``
     (namespaced by ``recommendation_id``, BTND-03-004) to the blackboard.
-    Prototype writes ``[CVDRole.VENDOR]``.  Subclasses may override
-    ``_compute_roles()``; an empty return produces ``FAILURE`` (AC-1).
+    When ``injected_roles`` is provided those roles are used directly;
+    otherwise falls back to ``_compute_roles()`` (default: ``[CVDRole.VENDOR]``).
+    Subclasses may override ``_compute_roles()``; an empty return produces
+    ``FAILURE`` (AC-1).
     """
 
     logger: logging.Logger  # type: ignore[assignment]
@@ -403,6 +405,7 @@ class EvaluateDefaultRolesNode(py_trees.behaviour.Behaviour):
         suggested_actor_id: str,
         case_id: str,
         recommendation_id: str,
+        injected_roles: list[str] | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
@@ -412,6 +415,44 @@ class EvaluateDefaultRolesNode(py_trees.behaviour.Behaviour):
         self.logger = logging.getLogger(  # type: ignore[assignment]
             f"{self.__class__.__module__}.{self.__class__.__name__}"
         )
+        self._injected_roles = self._coerce_injected_roles(injected_roles)
+
+    def _coerce_injected_roles(
+        self, injected_roles: list[str] | None
+    ) -> list[CVDRole] | None:
+        """Coerce caller-supplied role strings to ``CVDRole``, keeping valid ones.
+
+        An unrecognized role string is dropped with a warning rather than
+        discarding the whole list: falling back to the hardcoded default would
+        silently substitute roles the caller did not ask for, which CM-16-003
+        forbids.  ``None`` is returned only when nothing usable remains, in
+        which case ``_compute_roles()`` legitimately owns the decision.
+        """
+        if not injected_roles:
+            return None
+        coerced: list[CVDRole] = []
+        for raw in injected_roles:
+            try:
+                coerced.append(CVDRole(raw))
+            except ValueError:
+                self.logger.warning(
+                    "%s: ignoring unrecognized injected role %r for actor"
+                    " '%s' in case '%s'",
+                    self.name,
+                    raw,
+                    self.suggested_actor_id,
+                    self.case_id,
+                )
+        if not coerced:
+            self.logger.warning(
+                "%s: no injected role in %r was recognized for actor '%s';"
+                " falling back to _compute_roles()",
+                self.name,
+                injected_roles,
+                self.suggested_actor_id,
+            )
+            return None
+        return coerced
 
     def setup(self, **kwargs: Any) -> None:
         super().setup(**kwargs)
@@ -427,7 +468,11 @@ class EvaluateDefaultRolesNode(py_trees.behaviour.Behaviour):
         return [CVDRole.VENDOR]
 
     def update(self) -> Status:
-        roles = self._compute_roles()
+        roles = (
+            self._injected_roles
+            if self._injected_roles
+            else self._compute_roles()
+        )
         if not roles:
             self.feedback_message = (
                 f"{self.name}: _compute_roles() returned an empty list "

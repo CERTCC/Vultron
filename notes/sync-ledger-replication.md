@@ -477,6 +477,66 @@ Selector). Spec: SYNC-15-001, SYNC-15-002. Regression test:
 `test/core/use_cases/received/test_sync.py::TestAnnounceLedgerEntryReceivedUseCase
 ::test_missing_case_queues_reject_with_empty_tail_hash`.
 
+## Reject/Replay Amplification (SYNC-15-003)
+
+The Reject → replay backstop above is a *recovery* mechanism, and recovery paths
+that fire unconditionally can amplify. `SendMissingEntriesNode` originally
+replayed the whole missing suffix on every `Reject(CaseLedgerEntry)`, with no
+convergence check. A peer that cannot anchor its hash chain — typically a late
+joiner — Rejects *every* entry replayed to it, so each Reject triggered a
+full-ledger replay and each replayed entry triggered another Reject: a
+self-sustaining loop.
+
+Observed in the `fcvcv` demo (issue #1989): **4825** `Announce(CaseLedgerEntry)`
+activities for a single 26-entry case (~185x amplification), 4201 of them aimed at
+one late-joining actor, at a steady ~2 replays/sec of the same 25-entry ledger with
+zero progress between rounds. The event storm starved the containers until
+*unrelated* DataLayer reads failed with `ReadTimeout`, which surfaced as misleading
+`"replica matches authoritative state: timed out"` demo failures. This is also the
+mechanism behind the flakiness that rotated across `fvcv-extension` /
+`fvcv-handoff` / `fccv-extension` on unrelated branches (#1839, #1911) — the
+reject/replay path is shared code, so any scenario could trip it under CI load.
+
+Note the existing genesis guard (`AnnounceCaseOnGenesisRejectNode`, SYNC-15-002)
+did not cover this: it only handles `last_accepted_hash == ""`, and a peer stuck at
+a *non-empty* hash falls straight through it.
+
+**Resolution**: `vultron/core/behaviors/sync/nodes/replay_guard.py` bounds the
+replay *rate* per peer. `VultronReplicationState` gained
+`last_replayed_from_hash` / `last_replayed_at`, and the node asks
+`should_replay()` before replaying, then calls `record_replay()` after.
+
+Three properties are load-bearing, and each has a regression test:
+
+- **Rate limit, not suppression.** A Reject at an unchanged position is
+  rate-limited (30s), never permanently blocked — if a replayed entry is lost in
+  transit, a later Reject must still be able to trigger a fresh replay or the peer
+  never converges.
+- **Ask and record are separate steps.** The position is recorded only once at
+  least one entry has actually gone out. Recording at decision time meant a peer
+  already at the ledger tail (zero entries to send) started a cooldown anyway; when
+  the ledger then grew, that peer's next Reject — reporting the same hash, now
+  genuinely stale — was suppressed, so it waited out the cooldown having received
+  nothing. That is the very stall the guard exists to prevent, reintroduced by the
+  guard.
+- **Genesis gets a short cooldown, not an exemption.** Genesis convergence is owned
+  by SYNC-15-001/002, which seed the case and rely on the *following* replay to
+  deliver history; a full-length cooldown there starved the bootstrap (caught by
+  `fccv-handoff` in CI: 34 suppressions against a Finder stuck at genesis, ending in
+  "SYNC-2 replication did not complete"). Exempting genesis outright would re-admit
+  the storm, since a peer that cannot anchor reports genesis on every Reject — 43 of
+  51 suppressions in the fixed `fcvcv` run were at genesis. So: 2s, not 0s and not
+  30s.
+
+The guard lives in its own module rather than in `replay.py` to keep that leaf
+module under the 500-line BTND-07-004 limit.
+
+Spec: SYNC-15-003. Regression tests:
+`test/core/behaviors/sync/nodes/test_replay_guard.py` (unit) and
+`test/core/behaviors/sync/test_reject_tree.py` (through the tree — the loop
+reproduced there as 240 replays where 24 were correct). These run in-process in
+seconds rather than requiring a 20-minute demo-integration cycle (#1970).
+
 ## Related
 
 - `specs/sync-ledger-replication.yaml` — normative requirements

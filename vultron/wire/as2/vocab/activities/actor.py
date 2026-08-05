@@ -37,6 +37,8 @@ class _RecommendActorActivity(as_Offer):
         ..., validation_alias="object", serialization_alias="object"
     )
     target: as_VulnerabilityCaseRef = None
+    # suggested_roles is inherited from as_Offer, aliased there; redeclaring it
+    # here would shadow the base field and drop the camelCase alias (#1990).
 
 
 class _AcceptActorRecommendationActivity(as_Accept):

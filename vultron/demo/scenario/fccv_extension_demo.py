@@ -39,7 +39,6 @@ import logging
 import os
 import pathlib
 import sys
-import time
 
 import httpx2 as httpx
 
@@ -80,7 +79,9 @@ from vultron.demo.helpers.milestones import (
 from vultron.demo.helpers.verification import _check_participant_vfd_state_in
 from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.helpers.polling import (
+    find_case_actor_participant_id,
     find_case_invite_for_actor,
+    find_cp_offer_for_case,
     wait_for_all_participants_rm_closed,
     wait_for_case_em_terminated,
     wait_for_case_on_container,
@@ -154,89 +155,6 @@ def reset_containers(
 # ---------------------------------------------------------------------------
 # Polling helpers
 # ---------------------------------------------------------------------------
-
-
-def _is_cp_offer_for_case(obj_data: dict, case_id: str) -> bool:
-    """Return True if *obj_data* looks like an Offer(CaseParticipant) for *case_id*."""
-    if obj_data.get("type") != "Offer":
-        return False
-    target_raw = obj_data.get("target")
-    target_id = (
-        target_raw.get("id") if isinstance(target_raw, dict) else target_raw
-    )
-    if target_id != case_id:
-        return False
-    inner = obj_data.get("object")
-    if not isinstance(inner, dict):
-        return False
-    return bool(
-        inner.get("type") in ("CaseParticipant", "as_CaseParticipant")
-        or inner.get("case_roles")
-    )
-
-
-def _find_cp_offer_for_case(
-    client: DataLayerClient,
-    case_id: str,
-    timeout_seconds: float = 15.0,
-    poll_interval: float = 0.5,
-) -> str:
-    """Poll until an Offer(CaseParticipant) for *case_id* appears in DataLayer.
-
-    After C2 sends suggest-actor-to-case, the CaseActor processes the
-    Offer(Actor, Case) and forwards an Offer(CaseParticipant) to C1's inbox
-    (the CASE_OWNER).  This helper polls C1's DataLayer for any Offer whose
-    ``target`` matches *case_id* and whose ``object`` resembles a CaseParticipant.
-
-    Returns the offer ID string.
-
-    Raises:
-        AssertionError: If no such offer is found within *timeout_seconds*.
-    """
-    deadline = time.monotonic() + timeout_seconds
-    while time.monotonic() < deadline:
-        try:
-            all_objects = client.get("/datalayer/")
-            if isinstance(all_objects, dict):
-                for raw_id, obj_data in all_objects.items():
-                    obj_id = str(raw_id)
-                    if not isinstance(obj_data, dict):
-                        continue
-                    if _is_cp_offer_for_case(obj_data, case_id):
-                        logger.info(
-                            "Found Offer(CaseParticipant) for case %s: %s",
-                            case_id,
-                            obj_id,
-                        )
-                        return obj_id
-        except Exception:  # noqa: BLE001
-            pass
-        time.sleep(poll_interval)
-
-    raise AssertionError(
-        f"Timed out waiting for Offer(CaseParticipant) for case {case_id!r}"
-        f" to appear in DataLayer at {client.base_url}"
-    )
-
-
-def _find_case_actor_participant_id(
-    c1_client: DataLayerClient,
-    case_id: str,
-) -> str | None:
-    """Return the CaseActor participant URI for *case_id* from C1's DataLayer.
-
-    Scans ``actor_participant_index`` for an actor ID starting with "case-actor".
-    Returns ``None`` if not found.
-    """
-    try:
-        case_data = c1_client.get(f"/datalayer/{case_id}")
-        case = as_VulnerabilityCase.model_validate(case_data)
-        for actor_id in case.actor_participant_index:
-            if strip_id_prefix(actor_id).startswith("case-actor"):
-                return actor_id
-    except Exception:  # noqa: BLE001
-        pass
-    return None
 
 
 # ---------------------------------------------------------------------------
@@ -424,14 +342,14 @@ def _phase_c2_suggests_vendor(
     with demo_check(
         "Offer(CaseParticipant) for Vendor arrived in C1's DataLayer"
     ):
-        cp_offer_id = _find_cp_offer_for_case(
+        cp_offer_id = find_cp_offer_for_case(
             client=c1_client,
             case_id=case.id_,
         )
     logger.info("Offer(CaseParticipant) ID: %s", cp_offer_id)
 
     # Find the CaseActor's participant ID so we can route the Accept back.
-    case_actor_id = _find_case_actor_participant_id(c1_client, case.id_)
+    case_actor_id = find_case_actor_participant_id(c1_client, case.id_)
     if case_actor_id is None:
         raise AssertionError(
             "CaseActor participant not found in case — cannot route Accept"

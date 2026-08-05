@@ -542,7 +542,7 @@ class TestFccvHandoffMilestoneAssertions:
             ),
             patch.object(
                 demo,
-                "_find_case_actor_participant_id",
+                "find_case_actor_participant_id",
                 return_value="urn:test:case-actor",
             ),
             patch.object(

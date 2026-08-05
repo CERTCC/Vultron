@@ -22,6 +22,7 @@ import logging
 import time
 from typing import Callable
 
+from vultron.adapters.utils import strip_id_prefix
 from vultron.demo.utils import DataLayerClient, logfmt
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -469,6 +470,106 @@ def find_case_invite_for_actor(
         f"Timed out waiting for CaseActor Invite for actor {invitee_id!r} on"
         f" case {case_id!r} to appear in DataLayer at {client.base_url}"
     )
+
+
+def _is_cp_offer_for_case(obj_data: dict, case_id: str) -> bool:
+    """Return True if *obj_data* looks like an Offer(CaseParticipant) for *case_id*."""
+    if obj_data.get("type") != "Offer":
+        return False
+    target_raw = obj_data.get("target")
+    target_id = (
+        target_raw.get("id") if isinstance(target_raw, dict) else target_raw
+    )
+    if target_id != case_id:
+        return False
+    inner = obj_data.get("object")
+    if not isinstance(inner, dict):
+        return False
+    return bool(
+        inner.get("type") in ("CaseParticipant", "as_CaseParticipant")
+        or inner.get("case_roles")
+    )
+
+
+def find_cp_offer_for_case(
+    client: DataLayerClient,
+    case_id: str,
+    timeout_seconds: float = 15.0,
+    poll_interval: float = 0.5,
+) -> str:
+    """Poll until an Offer(CaseParticipant) for *case_id* appears in DataLayer.
+
+    After a Coordinator sends suggest-actor-to-case, the CaseActor processes the
+    Offer(Actor, Case) and forwards an Offer(CaseParticipant) to the Case
+    Owner's inbox (ADR-0026).  This helper polls the Case Owner's DataLayer for
+    any Offer whose ``target`` matches *case_id* and whose ``object`` resembles
+    a CaseParticipant, so the demo can drive the approve step.
+
+    Args:
+        client: DataLayerClient connected to the Case Owner's container.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        timeout_seconds: Maximum time to wait before raising.
+        poll_interval: Seconds between DataLayer poll attempts.
+
+    Returns:
+        The offer activity ID string.
+
+    Raises:
+        AssertionError: If no such offer is found within *timeout_seconds*.
+    """
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        try:
+            all_objects = client.get("/datalayer/")
+            if isinstance(all_objects, dict):
+                for raw_id, obj_data in all_objects.items():
+                    if not isinstance(obj_data, dict):
+                        continue
+                    if _is_cp_offer_for_case(obj_data, case_id):
+                        obj_id = str(raw_id)
+                        logger.info(
+                            "Found Offer(CaseParticipant) for case %s: %s",
+                            case_id,
+                            obj_id,
+                        )
+                        return obj_id
+        except Exception:  # noqa: BLE001
+            pass
+        time.sleep(poll_interval)
+
+    raise AssertionError(
+        f"Timed out waiting for Offer(CaseParticipant) for case {case_id!r}"
+        f" to appear in DataLayer at {client.base_url}"
+    )
+
+
+def find_case_actor_participant_id(
+    client: DataLayerClient,
+    case_id: str,
+) -> str | None:
+    """Return the CaseActor participant URI for *case_id* from *client*'s replica.
+
+    Scans ``actor_participant_index`` for an actor ID whose bare segment starts
+    with ``"case-actor"``.  A single read, not a poll: callers use it to resolve
+    the CaseActor's URI once the case replica is already known to be present.
+
+    Args:
+        client: DataLayerClient connected to any container holding the case.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+
+    Returns:
+        The CaseActor participant URI, or ``None`` when the case is unreadable
+        or has no CaseActor participant.
+    """
+    try:
+        case_data = client.get(f"/datalayer/{case_id}")
+        case = as_VulnerabilityCase.model_validate(case_data)
+        for actor_id in case.actor_participant_index:
+            if strip_id_prefix(actor_id).startswith("case-actor"):
+                return actor_id
+    except Exception:  # noqa: BLE001
+        pass
+    return None
 
 
 def wait_for_object_stored(
