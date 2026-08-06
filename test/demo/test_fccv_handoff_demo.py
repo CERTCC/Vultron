@@ -670,7 +670,7 @@ class TestFccvHandoffMilestoneAssertions:
         vendor_in_vendor = self._actor("urn:test:vendor")
         case = self._case()
         case.id_ = "urn:test:case"
-        c1_client.get.return_value = {
+        c2_client.get.return_value = {
             "e0": {
                 "case_id": case.id_,
                 "log_index": 0,
@@ -722,7 +722,7 @@ class TestFccvHandoffMilestoneAssertions:
         vendor_in_vendor = self._actor("urn:test:vendor")
         case = self._case()
         case.id_ = "urn:test:case"
-        c1_client.get.return_value = {
+        c2_client.get.return_value = {
             "e0": {
                 "case_id": case.id_,
                 "log_index": 0,
