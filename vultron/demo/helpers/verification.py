@@ -24,6 +24,7 @@ from typing import Optional
 import httpx2 as httpx
 
 from vultron.adapters.utils import parse_id
+from vultron.core.predicates.participants import all_participants_rm_closed
 from vultron.core.states.cs import (
     CS_pxa,
     CS_vfd,
@@ -33,7 +34,6 @@ from vultron.core.states.cs import (
 )
 from vultron.core.states.em import is_em_embargo_active
 from vultron.core.states.rm import RM
-from vultron.enums.roles import CVDRole
 from vultron.demo.helpers.seeding import _dl_key, get_actor_by_id
 from vultron.demo.utils import DataLayerClient, logfmt, ref_id
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
@@ -310,31 +310,27 @@ def _all_fetchable_participants_rm_closed(
     ``RM.CLOSED``.
 
     Participants on remote containers (fetch returns ``None``) are skipped
-    since their state is not locally observable.
+    since their state is not locally observable.  Convergence logic is
+    delegated to
+    :func:`~vultron.core.predicates.participants.all_participants_rm_closed`.
 
     Args:
         client: DataLayerClient for the container to query.
         case: The ``as_VulnerabilityCase`` whose participant index to walk.
 
     Returns:
-        ``True`` if all locally-fetchable non-receiver participants are
+        ``True`` if all locally-fetchable non-CASE_MANAGER participants are
         ``RM.CLOSED``; ``False`` otherwise.
     """
+    core_participants = []
     for p_id in case.actor_participant_index.values():
         p_data = _fetch_participant_data(client, p_id)
         if p_data is None:
             continue  # remote container — not fetchable here
         if not p_data:
             return False
-        p = as_CaseParticipant(**p_data)
-        if CVDRole.CASE_MANAGER in (p.case_roles or []):
-            continue
-        latest = p.participant_status
-        if latest is None:
-            return False
-        if latest.rm_state != RM.CLOSED:
-            return False
-    return True
+        core_participants.append(as_CaseParticipant(**p_data).to_core())
+    return all_participants_rm_closed(core_participants)
 
 
 def verify_activity_in_inbox(
