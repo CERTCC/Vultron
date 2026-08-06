@@ -470,3 +470,72 @@ class TestFvcvHandoffMilestoneAssertions:
                 case=case,
             )
         mock_m7.assert_called()
+
+    def test_phase_case_closure_coordinator_closes_last(self):
+        """Coordinator (case owner) must close after Vendor1, Vendor2, and Finder."""
+        import contextlib
+
+        finder_client = self._client()
+        vendor_client = self._client()
+        coordinator_client = self._client()
+        vendor2_client = self._client()
+        vendor = self._actor("urn:test:vendor")
+        vendor_in_vendor = self._actor("urn:test:vendor")
+        vendor2 = self._actor("urn:test:vendor2")
+        vendor2_in_vendor2 = self._actor("urn:test:vendor2")
+        finder = self._actor("urn:test:finder")
+        finder_in_finder = self._actor("urn:test:finder")
+        coordinator = self._actor("urn:test:coordinator")
+        coordinator_in_coordinator = self._actor("urn:test:coordinator")
+        case = self._case()
+        case.id_ = "urn:test:case"
+        vendor_client.get.return_value = {
+            "e0": {
+                "case_id": case.id_,
+                "log_index": 0,
+                "entry_hash": "h0",
+                "event_type": "close_case",
+            }
+        }
+
+        mock_close = MagicMock()
+
+        with (
+            patch.object(demo, "actor_closes_case", mock_close),
+            patch.object(demo, "wait_for_all_participants_rm_closed"),
+            patch.object(demo, "verify_case_closed"),
+            patch.object(demo, "wait_for_event_type_in_ledger"),
+            patch.object(demo, "wait_for_contiguous_ledger_coverage"),
+            patch.object(
+                demo,
+                "demo_check",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            demo._phase_case_closure(
+                finder_client=finder_client,
+                vendor_client=vendor_client,
+                coordinator_client=coordinator_client,
+                vendor2_client=vendor2_client,
+                vendor=vendor,
+                vendor_in_vendor=vendor_in_vendor,
+                vendor2=vendor2,
+                vendor2_in_vendor2=vendor2_in_vendor2,
+                finder=finder,
+                finder_in_finder=finder_in_finder,
+                coordinator=coordinator,
+                coordinator_in_coordinator=coordinator_in_coordinator,
+                case=case,
+            )
+
+        actors_closed = [
+            call.kwargs["actor"].id_ for call in mock_close.call_args_list
+        ]
+        assert (
+            actors_closed[-1] == coordinator_in_coordinator.id_
+        ), "Coordinator (case owner) must close last; got order: " + str(
+            actors_closed
+        )
+        assert actors_closed.index(finder_in_finder.id_) < actors_closed.index(
+            coordinator_in_coordinator.id_
+        ), "Finder must close before Coordinator"
