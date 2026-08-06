@@ -20,3 +20,4 @@ try:
 except ImportError:
     __version__ = "unknown version"
     version_tuple = (0, 0, "unknown version")
+# hook-test
