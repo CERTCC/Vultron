@@ -210,7 +210,7 @@ This is a pre-case "find me a contact" flow not yet modelled in Vultron.
 them" phase. Would require a coordinator discovery service or a new pre-case
 message type.
 
-**Idea issue**: tracked separately under epic #1160.
+**Idea issue**: #2060
 
 ---
 
@@ -224,7 +224,7 @@ Reporter's identity.
 Anonymous/proxy reporting requires a new actor identity model or explicit
 privacy-preserving routing primitives.
 
-**Idea issue**: tracked separately under epic #1160.
+**Idea issue**: #2061
 
 ---
 
@@ -238,7 +238,7 @@ monitoring rather than a Reporter inbox.
 Modelling vendor-discovers-from-public requires a new entry point (Vendor
 learns from CS.P transition without a prior RM.RECEIVED).
 
-**Idea issue**: tracked separately under epic #1160.
+**Idea issue**: #2062
 
 ---
 
@@ -252,7 +252,7 @@ pacing.
 **Gap**: Existing MPCVD demos don't model an explicit "upstream vendor discovers
 downstream dependents and invites them" pattern with policy synchronisation.
 
-**Idea issue**: tracked separately under epic #1160.
+**Idea issue**: #2063
 
 ---
 
@@ -265,7 +265,7 @@ downstream self-identification.
 **Gap**: Same as x16 plus requires a mechanism for downstream vendors to
 self-register as affected after public disclosure.
 
-**Idea issue**: tracked separately under epic #1160.
+**Idea issue**: #2064
 
 ---
 
@@ -279,7 +279,7 @@ role, not just as a participant.
 Coordinator. Mid-case coordinator escalation requires case ownership transfer or
 a new "invite coordinator mid-case" flow.
 
-**Idea issue**: tracked separately under epic #1160.
+**Idea issue**: #2065
 
 ---
 
@@ -304,22 +304,22 @@ worth modelling as demo injects.
 | Recipe | Title (abbreviated) | Tier | Issue |
 |---|---|---|---|
 | x01 | Finder lacks resources | C | — |
-| x02 | Active exploitation during embargo | A | Task TBD |
-| x03 | Can't find vendor contact | B | Idea TBD |
+| x02 | Active exploitation during embargo | A | #2052 |
+| x03 | Can't find vendor contact | B | #2060 |
 | x04 | No bug bounty | C | — |
-| x05 | Vendor hostile to reporters | B | Idea TBD |
-| x06 | Vendor stops responding | A | Task TBD |
-| x07 | Vendor declines to act | A | Task TBD |
-| x08/x19 | Vendor requests embargo extension | A | Task TBD |
+| x05 | Vendor hostile to reporters | B | #2061 |
+| x06 | Vendor stops responding | A | #2053 |
+| x07 | Vendor declines to act | A | #2054 |
+| x08/x19 | Vendor requests embargo extension | A | #2055 |
 | x09 | Too many vendors | C | — |
-| x10 | Reporter stops responding | A | Task TBD |
-| x11 | Premature public disclosure | A | Task TBD |
-| x12 | Vuln public before vendor aware | B | Idea TBD |
+| x10 | Reporter stops responding | A | #2056 |
+| x11 | Premature public disclosure | A | #2057 |
+| x12 | Vuln public before vendor aware | B | #2062 |
 | x13 | Out-of-scope report | C | — |
 | x14 | Policy violation in discovery | C | — |
-| x15 | Second independent report | A | Task TBD |
-| x16 | Known downstream vendors | B | Idea TBD |
-| x17 | Unknown downstream vendors | B | Idea TBD |
-| x18 | Incompatible disclosure policies | A | Task TBD |
+| x15 | Second independent report | A | #2058 |
+| x16 | Known downstream vendors | B | #2063 |
+| x17 | Unknown downstream vendors | B | #2064 |
+| x18 | Incompatible disclosure policies | A | #2059 |
 | x20 | Unanticipated media attention | C | — |
-| x21 | Failing case — escalate to coordinator | B | Idea TBD |
+| x21 | Failing case — escalate to coordinator | B | #2065 |
