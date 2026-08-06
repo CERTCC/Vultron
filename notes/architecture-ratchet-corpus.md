@@ -1,5 +1,5 @@
 ---
-title: Architecture Ratchet Corpus — Test-Suite Performance Design Notes
+title: Architecture Ratchet Corpus
 status: active
 ---
 
