@@ -936,10 +936,12 @@ misleads human readers and tooling alike (ADR-0019).
 | Received-side canonical entry | ✅ yes | `"recorded"` | CaseActor accepts a protocol assertion |
 | Idempotency guard no-op | ❌ **no** | — | Already-processed duplicate detected |
 
-Implement idempotency guards using `SilentIdempotencyGuardMixin`
-(CLP-13-002) once it exists, or follow the same `logger.info → FAILURE`
-pattern and add a unit test that asserts no `create_commit_log_entry_tree`
-call is made when the guard fires.
+**Resolved** (issue #2010, PR #2024, 2026-08-06): `SilentIdempotencyGuardMixin`
+(`vultron/core/behaviors/idempotency.py`) now exists and satisfies CLP-13-002.
+Both `CheckInviteeNotAlreadyParticipantNode` and `CheckCaseStatusIdempotencyNode`
+inherit it.  Implement all idempotency guards using this mixin — the
+`_idempotent_failure()` method returns `FAILURE` immediately after logging,
+making the "no ledger write" guarantee structural.
 
 ---
 
