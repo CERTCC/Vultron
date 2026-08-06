@@ -80,6 +80,19 @@ def reporter_submits_report(
     tests), the report and offer are constructed in memory and posted directly
     to the receiver container (backward-compatible path).
 
+    **Default embargo — no explicit negotiation required.**
+    When the receiver processes the submitted report,
+    ``InitializeDefaultEmbargoNode`` automatically initializes the embargo
+    using the receiver's published default policy.  Because the reporter
+    submits without a counter-proposal, this constitutes *tacit acceptance*
+    of the receiver's default (EP-04-001), and the case reaches ``EM.ACTIVE``
+    immediately — no ``ProposeEmbargo`` / ``AcceptEmbargo`` message exchange
+    occurs.  This is intentional protocol behavior, not a missing step.  All
+    demo scenarios that call this function exercise this default path.  A
+    demo that includes an explicit embargo-negotiation round-trip is
+    implementing the *negotiated path* (EP-04-003), which is distinct.
+    See ``notes/embargo-default-semantics.md`` for the full model.
+
     Args:
         receiver_client: Client connected to the receiver's container.
         reporter: Reporter ``as_Actor``.
