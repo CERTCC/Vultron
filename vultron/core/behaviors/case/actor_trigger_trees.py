@@ -265,15 +265,17 @@ def offer_case_ownership_transfer_trigger_bt(
 
 def accept_case_ownership_transfer_trigger_bt(
     offer_id: str,
+    case_id: str,
     captured: dict | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Return the trigger-side BT for the accept-case-ownership-transfer workflow.
 
-    Emits ``Accept(Offer(VulnerabilityCase))`` from the accepting actor back
-    to the offering actor (TRIG-11-002).
+    Emits ``Accept(Offer(VulnerabilityCase))`` addressed to the CaseActor
+    (TRIG-11-002, CM-21-006).
 
     Args:
         offer_id: ID of the ``_OfferCaseOwnershipTransferActivity`` being accepted.
+        case_id: ID of the VulnerabilityCase; used to resolve the CaseActor.
         captured: Optional dict; ``captured["activity"]`` is set on success.
 
     Returns:
@@ -285,11 +287,14 @@ def accept_case_ownership_transfer_trigger_bt(
         children=[
             EmitAcceptCaseOwnershipTransferNode(
                 offer_id=offer_id,
+                case_id=case_id,
                 captured=captured,
             ),
         ],
     )
     logger.debug(
-        "Created AcceptCaseOwnershipTransferTriggerBT for offer=%s", offer_id
+        "Created AcceptCaseOwnershipTransferTriggerBT for offer=%s case=%s",
+        offer_id,
+        case_id,
     )
     return root

@@ -61,9 +61,15 @@ class TestOwnershipTransferUseCases:
     def test_accept_case_ownership_transfer_updates_attributed_to(
         self, monkeypatch, make_payload
     ):
-        """AcceptCaseOwnershipTransferReceivedUseCase updates case.attributed_to to new owner."""
+        """AcceptCaseOwnershipTransferReceivedUseCase updates case.attributed_to to new owner.
+
+        receiving_actor_id is the CaseActor (coordinator); the guarded-commit
+        gate ensures the ledger entry is only written when the receiving actor
+        is the case manager (ADR-0053, CM-21-007).
+        """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
+        coordinator_id = "https://example.org/users/coordinator"
         dl = SqliteDataLayer("sqlite:///:memory:")
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_ot2",
@@ -74,7 +80,7 @@ class TestOwnershipTransferUseCases:
 
         offer = offer_case_ownership_transfer_activity(
             case,
-            target="https://example.org/users/coordinator",
+            target=coordinator_id,
             actor="https://example.org/users/vendor",
             id_="https://example.org/activities/offer_ot2",
         )
@@ -82,9 +88,12 @@ class TestOwnershipTransferUseCases:
 
         activity = accept_case_ownership_transfer_activity(
             offer,
-            actor="https://example.org/users/coordinator",
+            actor=coordinator_id,
         )
-        event = make_payload(activity)
+        # receiving_actor_id must be set so AcceptCaseOwnershipTransferReceivedUseCase
+        # does not skip (CLP-10-005 guard). It represents the actor whose inbox
+        # received the Accept — here the coordinator (future CASE_OWNER).
+        event = make_payload(activity, receiving_actor_id=coordinator_id)
 
         AcceptCaseOwnershipTransferReceivedUseCase(dl, event).execute()
 

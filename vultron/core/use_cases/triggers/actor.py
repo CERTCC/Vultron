@@ -321,16 +321,27 @@ class SvcAcceptCaseOwnershipTransferUseCase(SvcBTTriggerBase):
         actor = resolve_actor(request.actor_id, self._dl)
         self._actor_id = actor.id_
 
-        if self._dl.read(request.offer_id) is None:
+        offer = self._dl.read(request.offer_id)
+        if offer is None:
             raise VultronNotFoundError(
                 "_OfferCaseOwnershipTransferActivity", request.offer_id
             )
 
         self._offer_id = request.offer_id
 
+        from vultron.core.models._helpers import _as_id  # noqa: PLC0415
+
+        raw_case_id = _as_id(getattr(offer, "object_", None))
+        if raw_case_id is None:
+            raise VultronNotFoundError(
+                "VulnerabilityCase (in Offer.object_)", request.offer_id
+            )
+        self._case_id = raw_case_id
+
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         return accept_case_ownership_transfer_trigger_bt(
             offer_id=self._offer_id,
+            case_id=self._case_id,
             captured=self._captured,
         )
 
