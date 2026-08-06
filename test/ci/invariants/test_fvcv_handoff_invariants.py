@@ -43,6 +43,7 @@ from test.ci.invariants.common import (
     check_log_starts_at_genesis,
     check_nested_objects_inlined,
     check_no_gaps_in_log_indices,
+    check_no_rejected_invite_entries,
     check_no_rm_state_oscillation,
     check_non_empty_payload_snapshots,
     check_participant_status_schema_completeness,
@@ -195,6 +196,23 @@ def test_invariant_9_participant_status_schema_completeness(
     assert not violations, (
         f"{len(violations)} ParticipantStatus entries missing required fields:\n"
         + "\n".join(violations[:20])
+    )
+
+
+@pytest.mark.case_ledger_invariants
+def test_invariant_clp13_no_rejected_invite_entries(
+    fvcv_handoff_replicas: dict[str, list[dict]],
+) -> None:
+    """No invite_actor_to_case entries with disposition=rejected exist (CLP-13-001).
+
+    Idempotency guards MUST NOT write any CaseLedgerEntry when detecting a
+    duplicate.  A spurious rejected invite entry indicates the guard incorrectly
+    called create_commit_log_entry_tree.
+    """
+    violations = check_no_rejected_invite_entries(fvcv_handoff_replicas)
+    assert not violations, (
+        f"Found {len(violations)} spurious rejected invite_actor_to_case"
+        f" entries (CLP-13-001 violation):\n" + "\n".join(violations)
     )
 
 
