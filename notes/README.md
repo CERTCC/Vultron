@@ -630,6 +630,16 @@ Describes what each scenario would demonstrate and open design questions.
 **Load when**: designing new demo scripts or extending the existing demo suite
 beyond the current FV scenario.
 
+**`cvd-recipe-injects.md`**
+Classification of all 21 CERT Guide to CVD problem-solving recipes as Vultron
+scenario injects. Each recipe is mapped to RM/EM/CS protocol constructs and
+assigned to a tier: A (implementable now), B (needs protocol/infra work), or
+C (out of scope). Tier A recipes each have a Task issue under epic #1160;
+Tier B recipes each have an Idea issue. Source: IDEA-1223.
+**Load when**: designing new failure-path or abnormal-flow demo scenarios,
+selecting which CVD recipes to implement as inject variations, or checking
+whether a recipe has already been classified and tracked.
+
 **`vultron/core/use_cases/triggers/AGENTS.md`**
 Trigger classification guidance: demo-specific vs general-purpose
 triggers, `/demo/` vs `/trigger/` routing, `RunMode`, wrapper patterns,
