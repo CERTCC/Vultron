@@ -66,6 +66,10 @@ _FVCV_EXPECTED_EVENT_TYPES = [
     pytest.param(
         "accept_invite_actor_to_case", id="accept_invite_actor_to_case"
     ),
+    # Vendor1 approves Coordinator's actor recommendation (ADR-0026 suggest-actor flow).
+    pytest.param(
+        "accept_actor_recommendation", id="accept_actor_recommendation"
+    ),
 ]
 
 #: Actors with per-actor chain / contiguity / completeness checks.

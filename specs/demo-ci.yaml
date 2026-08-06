@@ -514,20 +514,21 @@ groups:
         kind: project
         statement: >-
           The minimum PR validation scenario set is `fv`, `fvcv-handoff`, and
-          `fcvcv`. Together these three scenarios cover all 7 distinct protocol
+          `fcvcv`. Together these three scenarios cover all 8 distinct protocol
           event types exercised by the full 8-scenario suite: the four universal
-          types plus `invite_actor_to_case`, `offer_case_participant`, and
-          `accept_invite_actor_to_case`. The `demo-integration.yml` workflow
-          MUST use this 3-scenario set as the `pull_request` matrix and run
-          only these scenarios on every PR commit.
+          types plus `invite_actor_to_case`, `offer_case_participant`,
+          `accept_invite_actor_to_case`, and `accept_actor_recommendation`. The
+          `demo-integration.yml` workflow MUST use this 3-scenario set as the
+          `pull_request` matrix and run only these scenarios on every PR commit.
         rationale: >-
           Running all 8 scenarios on every PR commit incurs a fan-in barrier
           proportional to the slowest scenario. The 3-scenario minimum set
           preserves full protocol-phase coverage while reducing PR wall-clock
           cost. FV covers the 2-actor baseline; FVCV-handoff adds invite +
-          accept + ownership-transfer; FCVCV adds offer_case_participant and
-          ≥3-actor invite/accept chains. Rationale recorded in
-          `notes/demo-ci-scenario-coverage.md`. See ADR-0052.
+          accept + ownership-transfer; FCVCV adds offer_case_participant,
+          accept_actor_recommendation, and ≥3-actor invite/accept chains.
+          Rationale recorded in `notes/demo-ci-scenario-coverage.md`. See
+          ADR-0052.
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-06-001

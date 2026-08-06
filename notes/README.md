@@ -558,6 +558,15 @@ scenario, and the spec-test sync rule.
 adding or changing a scenario's expected event types, or debugging a silent
 invariant harness failure in CI.
 
+**`demo-ci-scenario-coverage.md`**
+Coverage matrix mapping all 8 demo scenarios to the distinct protocol
+`event_type` values each exercises, plus the minimum-PR-validation-set
+analysis (DEMOCI-06): which 3 scenarios cover all 7 event types, rationale
+for the minimum set, and workflow implementation notes.
+**Load when**: evaluating which demo scenarios to include in the PR gate,
+adding a new scenario and determining whether it changes the minimum set, or
+auditing `full_suite_only` assignments in `demo-integration.yml`.
+
 **`codebase-structure-fastapi-patterns.md`**
 FastAPI and test infrastructure patterns: router test override pattern
 (`_shared_dl`, `dependency_overrides`), circular import fix pattern

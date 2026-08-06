@@ -70,7 +70,7 @@ jobs:
     # minimum 3-scenario PR validation set runs.
     if: >-
       !startsWith(github.head_ref, 'dependabot/') &&
-      (github.event_name != 'pull_request' || matrix.full_suite_only == false)
+      (github.event_name != 'pull_request' || matrix.full_suite_only != true)
     strategy:
       fail-fast: false
       matrix:
@@ -181,7 +181,7 @@ jobs:
     if: >-
       always() &&
       !startsWith(github.head_ref, 'dependabot/') &&
-      (github.event_name != 'pull_request' || matrix.full_suite_only == false)
+      (github.event_name != 'pull_request' || matrix.full_suite_only != true)
     strategy:
       fail-fast: false
       matrix:
