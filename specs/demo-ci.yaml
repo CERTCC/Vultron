@@ -513,20 +513,24 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          The minimum PR validation scenario set is `fv`, `fvcv-handoff`, and
-          `fcvcv`. Together these three scenarios cover all 8 distinct protocol
-          event types exercised by the full 8-scenario suite: the four universal
-          types plus `invite_actor_to_case`, `offer_case_participant`,
-          `accept_invite_actor_to_case`, and `accept_actor_recommendation`. The
-          `demo-integration.yml` workflow MUST use this 3-scenario set as the
-          `pull_request` matrix and run only these scenarios on every PR commit.
+          The minimum PR validation scenario set is `fv`, `fvcv-handoff`,
+          `fcvcv`, and `fcv-reject`. Together these four scenarios cover all
+          distinct protocol event types exercised by the full scenario suite:
+          the four universal types plus `invite_actor_to_case`,
+          `offer_case_participant`, `accept_invite_actor_to_case`,
+          `accept_actor_recommendation`, and `reject_invite_actor_to_case`.
+          The `demo-integration.yml` workflow MUST use this 4-scenario set as
+          the `pull_request` matrix and run only these scenarios on every PR
+          commit.
         rationale: >-
-          Running all 8 scenarios on every PR commit incurs a fan-in barrier
-          proportional to the slowest scenario. The 3-scenario minimum set
-          preserves full protocol-phase coverage while reducing PR wall-clock
-          cost. FV covers the 2-actor baseline; FVCV-handoff adds invite +
-          accept + ownership-transfer; FCVCV adds offer_case_participant,
-          accept_actor_recommendation, and ≥3-actor invite/accept chains.
+          Running all scenarios on every PR commit incurs a fan-in barrier
+          proportional to the slowest scenario. The minimum set preserves full
+          protocol-phase coverage while reducing PR wall-clock cost. FV covers
+          the 2-actor baseline; FVCV-handoff adds invite + accept +
+          ownership-transfer; FCVCV adds offer_case_participant,
+          accept_actor_recommendation, and ≥3-actor invite/accept chains;
+          FCV-reject adds reject_invite_actor_to_case (the only scenario that
+          exercises a vendor rejecting an invitation after entering RM.RECEIVED).
           Rationale recorded in `notes/demo-ci-scenario-coverage.md`. See
           ADR-0052.
         relationships:
@@ -541,9 +545,9 @@ groups:
           of which subset runs for PR validation, so that all scenario variants
           continue to generate case-log invariant signals on the default branch.
           The `demo-integration.yml` workflow MUST include a `push: branches:
-          ["main"]` trigger that runs all 8 scenarios (`fv`, `fvv`,
+          ["main"]` trigger that runs all 9 scenarios (`fv`, `fvv`,
           `fvcv-extension`, `fvcv-handoff`, `fccv-extension`, `fccv-handoff`,
-          `fcvcv`, `fcv`).
+          `fcvcv`, `fcv`, `fcv-reject`).
         rationale: >-
           The post-merge run is the safety net for cross-PR regressions; it
           must cover all scenarios to ensure no scenario silently degrades after

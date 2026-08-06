@@ -2000,6 +2000,21 @@ groups:
     - rel_type: refines
       spec_id: DEMOMA-13-001
 
+  - id: DEMOMA-16-011
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCV-reject scenario expected-event-types list MUST include
+      `invite_actor_to_case`, `accept_invite_actor_to_case`, and
+      `reject_invite_actor_to_case` in addition to the four universal types
+      (DEMOMA-16-001), because the Coordinator invites the Vendor, the Vendor
+      accepts the invitation (RM: Received), then transitions RM to Invalid and
+      Closed by sending RI then RC, producing the `reject_invite_actor_to_case`
+      ledger entry on the CaseActor.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-16-001
+
 - id: DEMOMA-18
   title: In-Process Fuzz Simulation Scenario
   specs:
