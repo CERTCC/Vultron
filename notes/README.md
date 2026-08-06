@@ -419,9 +419,11 @@ for idiom conformance, or learning the canonical BT construction style.
 **`embargo-default-semantics.md`**
 Design decisions for `specs/embargo-policy.yaml` EP-04: default embargo state
 (MUST produce `EM.ACTIVE`, not `EM.PROPOSED`), atomic PROPOSE+ACCEPT sequence,
-and default embargo duration semantics.
-**Load when**: implementing or debugging `InitializeDefaultEmbargoNode`, or
-working on EP-04-001/EP-04-002 requirements (TASK-EMDEFAULT).
+default embargo duration semantics, and the published-default / tacit-acceptance
+model explaining why no EP/EA exchange appears on the happy path.
+**Load when**: implementing or debugging `InitializeDefaultEmbargoNode`,
+working on EP-04-001/EP-04-002 requirements, or distinguishing the default
+embargo path from the negotiated path in demos or protocol traces.
 
 **`do-work-behaviors.md`**
 Scope analysis of "do work" BT behaviors: out-of-scope, not-implementable, and
