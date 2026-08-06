@@ -157,15 +157,16 @@ Do **not** write anything until grill-me is complete.
 If the interview surfaces focus areas not covered in Phase 3, invoke
 `deepen-context` again with those additional hints before proceeding.
 
-### Phase 4b — Create Task Branch
+### Phase 4b — Claim the Issue and Create Task Branch
 
-Always create a `plan/` branch, regardless of whether Phase 5 will produce
-doc changes. Re-sync first to catch any updates that landed during the
-planning session:
+Always claim the issue, regardless of whether Phase 5 will produce doc
+changes. Re-sync first to catch any updates that landed during the planning
+session, then delegate to `claim-issue.sh` for idempotency guard, branch
+creation, assignee, and claim comment — exactly as `build` and `bugfix` do:
 
 ```bash
 git fetch origin main && git reset --hard origin/main
-git switch -c "plan/${ISSUE_NUMBER}-<slug>"
+bash .agents/skills/shared/claim-issue.sh "${ISSUE_NUMBER}" plan "<slug>"
 ```
 
 ### Phase 5 — Update Docs (conditional)
@@ -329,7 +330,7 @@ See the loaded companion file for the type-specific completion step:
 - [ ] All grill-me branches resolved (shared + type-specific)
 - [ ] `deepen-context` re-invoked if new focus areas emerged during grilling
 - [ ] Worktree re-synced to `origin/main` before branch creation (Phase 4b — catches updates during planning session)
-- [ ] Task branch created (`plan/<N>-<slug>`) — always
+- [ ] Issue claimed via `claim-issue.sh` (`plan/<N>-<slug>`) — always
 - [ ] Docs updated — optional for all types (or consciously skipped with a note)
 - [ ] Markdown lint clean (if docs changed)
 - [ ] PR opened with `specs-notes` label — always
@@ -343,7 +344,7 @@ See the loaded companion file for the type-specific completion step:
 
 ## Conventions
 
-- **Branch name**: `plan/<N>-<slug>` (always created in Phase 4b)
+- **Branch name**: `plan/<N>-<slug>` (always created via `claim-issue.sh` in Phase 4b)
 - **History source**: `IDEA-<N>` for Ideas; `CONCERN-<N>` for Concerns (not used for Epics)
 - **History type**: `idea` for Ideas; `learning` for Concerns (not used for Epics)
 - **Spec file names**: lowercase hyphenated `.yaml` in `specs/`
