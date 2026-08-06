@@ -1,0 +1,16 @@
+#!/bin/sh
+# Forwarder: core.hooksPath REPLACES the hooks directory wholesale, so pointing it
+# at .githooks/ would silently disable the repo's real pre-commit hook (installed by
+# the pre-commit framework into $GIT_COMMON_DIR/hooks). This delegates back to it so
+# Black/flake8/markdownlint still run.
+#
+# Keep this file for any hook that exists in the shared hooks dir but that we do not
+# override here; without it, that hook stops firing in this worktree.
+
+set -e
+
+_SHARED="$(git rev-parse --git-common-dir)/hooks/pre-commit"
+if [ -x "$_SHARED" ]; then
+    exec "$_SHARED" "$@"
+fi
+exit 0

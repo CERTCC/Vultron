@@ -81,3 +81,37 @@ graphify hook install
 The graphify hooks run in the background and only fire when `graphify-out/` already
 exists (i.e., after you've run `/graphify .` at least once). They won't interfere
 with the pre-commit hooks or slow down your commits.
+
+### Knowledge graph hooks in a linked worktree
+
+`graphify hook install` writes to the shared hooks directory, and its hook
+deliberately exits early in any linked worktree (it compares `git rev-parse
+--git-dir` against `--git-common-dir` and bails when they differ). That guard is
+correct: hooks are shared across worktrees but `graphify-out/` is per-worktree, so
+without it a commit in one worktree would rebuild whichever `graphify-out/` happened
+to be in the current directory.
+
+To opt a single worktree back in, point that worktree at the tracked `.githooks/`
+directory:
+
+```shell
+git config extensions.worktreeConfig true
+git config --worktree core.hooksPath .githooks
+```
+
+Use `--worktree`, not `--local`: `--local` writes to the shared `.git/config` and
+would apply to every worktree at once.
+
+Two caveats:
+
+- `core.hooksPath` **replaces** the hooks directory wholesale, which is why
+  `.githooks/pre-commit` and `.githooks/post-checkout` forward to the shared hooks.
+  Without those forwarders, `pre-commit` (black, flake8, markdownlint) silently
+  stops running in that worktree.
+- The rebuild covers code files only (AST, no LLM). It re-runs community detection,
+  so descriptive community names may be replaced by hub-node symbol names. Run
+  `/graphify . --update` to refresh doc coverage and community labels.
+
+`.graphifyignore` excludes `plan/history/` from the graph: those 1000+ append-only
+archive entries are historical narrative that add weakly-connected nodes and distort
+community detection.
