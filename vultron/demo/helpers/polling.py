@@ -747,6 +747,85 @@ def wait_for_case_em_terminated(
     )
 
 
+def wait_for_participant_rm_state(
+    client: DataLayerClient,
+    case_id: str,
+    actor_id: str,
+    expected_states: "set",
+    timeout_seconds: float = 30.0,
+    poll_interval: float = 0.25,
+) -> None:
+    """Poll until *actor_id*'s latest participant ``rm_state`` is in
+    *expected_states*.
+
+    Args:
+        client: DataLayerClient for the target container.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        actor_id: Full URI of the actor to check.
+        expected_states: Set of ``RM`` values that satisfy the condition.
+        timeout_seconds: Maximum time to wait (default: 30 s).
+        poll_interval: Seconds between DataLayer poll attempts.
+
+    Raises:
+        AssertionError: If the state is not reached within *timeout_seconds*.
+    """
+    from vultron.demo.helpers.verification import (  # noqa: PLC0415
+        _fetch_participant,
+    )
+
+    deadline = time.monotonic() + timeout_seconds
+    poll_count = 0
+    while time.monotonic() < deadline:
+        poll_count += 1
+        participant = _fetch_participant(client, case_id, actor_id)
+        if participant is not None:
+            latest = participant.participant_status
+            n_statuses = len(participant.participant_statuses or [])
+            latest_rm = latest.rm_state if latest is not None else None
+            logger.debug(
+                "wait_for_participant_rm_state poll #%d: "
+                "actor=%r case=%r participant=%r "
+                "n_statuses=%d latest_rm=%r expected=%r",
+                poll_count,
+                actor_id,
+                case_id,
+                participant.id_,
+                n_statuses,
+                latest_rm,
+                expected_states,
+            )
+            if latest is not None and latest.rm_state in expected_states:
+                return
+        else:
+            logger.debug(
+                "wait_for_participant_rm_state poll #%d: "
+                "actor=%r case=%r participant=<not found>",
+                poll_count,
+                actor_id,
+                case_id,
+            )
+        time.sleep(poll_interval)
+
+    participant = _fetch_participant(client, case_id, actor_id)
+    latest = (
+        participant.participant_status if participant is not None else None
+    )
+    current_rm = latest.rm_state if latest is not None else "unknown"
+    logger.debug(
+        "wait_for_participant_rm_state timed out after %.1f s: "
+        "actor=%r case=%r rm_state=%r expected=%r",
+        timeout_seconds,
+        actor_id,
+        case_id,
+        current_rm,
+        expected_states,
+    )
+    raise AssertionError(
+        f"Timed out waiting for actor '{actor_id}' rm_state to be in "
+        f"{expected_states!r}; current={current_rm!r}"
+    )
+
+
 def wait_for_all_participants_rm_closed(
     client: DataLayerClient,
     case_id: str,

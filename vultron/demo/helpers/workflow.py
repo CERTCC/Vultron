@@ -224,6 +224,54 @@ def receiver_engages_case(
     return result
 
 
+def seed_offer_record_for_actor(
+    client: DataLayerClient,
+    actor: as_Actor,
+    offer_id: str,
+    report_id: str,
+    offer_actor_id: str,
+) -> dict:
+    """Seed a VultronOfferRecord on an invited actor's DataLayer (CM-11-002).
+
+    Invited actors (e.g. Vendor2) join a case via invite-accept and do not
+    receive an Offer(Report) directly, so their DataLayer has no
+    VultronOfferRecord.  This endpoint seeds the record so they can call
+    ``validate-report`` to run the standard RM triage cycle.
+
+    Only valid in ``RunMode.PROTOTYPE``.
+
+    Args:
+        client: Client connected to the actor's container.
+        actor: The actor whose DataLayer will be seeded.
+        offer_id: Full URI of the original submit-report Offer activity.
+        report_id: Full URI of the VulnerabilityReport in the case.
+        offer_actor_id: Full URI of the actor that originally submitted the
+            Offer (the reporter/finder).
+
+    Returns:
+        Response dict from the seed endpoint.
+    """
+    actor_obj_id = parse_id(actor.id_)["object_id"]
+    with demo_step(
+        "Seeding offer record for invited actor (CM-11-002 triage)"
+    ):
+        result = post_to_trigger(
+            client=client,
+            actor_id=actor.id_,
+            behavior="seed-offer-record",
+            path_prefix="demo",
+            body={
+                "offer_id": offer_id,
+                "report_id": report_id,
+                "offer_actor_id": offer_actor_id,
+            },
+        )
+    logger.info(
+        "Offer record seeded for actor %s: offer=%s", actor_obj_id, offer_id
+    )
+    return result
+
+
 def _report_id_from_offer_data(
     offer_data: dict[str, object],
     offer_id: str,
