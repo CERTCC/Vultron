@@ -3,7 +3,9 @@ title: Embargo Default Semantics — Implementation Notes
 status: active
 description: >
   Design decisions for embargo policy EP-04 requirements; default embargo
-  duration and expiry semantics.
+  duration and expiry semantics; and the published-default / tacit-acceptance
+  model that explains why the happy-path embargo requires no explicit
+  negotiation exchange.
 related_specs:
   - specs/case-management.yaml
   - specs/embargo-policy.yaml
@@ -17,6 +19,72 @@ relevant_packages:
 
 Design decisions, implementation patterns, and known gaps for
 `specs/embargo-policy.yaml` EP-04 requirements.
+
+---
+
+## The Published-Default / Tacit-Acceptance Model
+
+### What it is
+
+The Vultron protocol uses a **published-default / tacit-acceptance** model
+for embargo establishment on the happy path:
+
+1. The **receiver** (typically a Vendor or Coordinator) publishes a default
+   embargo period as part of their Vulnerability Disclosure Policy.
+2. When a **reporter** submits a report *without* including a counter-proposal,
+   that silence constitutes **tacit acceptance** of the receiver's published
+   default.
+3. Because both parties have effectively agreed — the receiver by publishing
+   the policy, the reporter by not objecting — the embargo transitions directly
+   to `EM.ACTIVE` without an explicit `EP` (Embargo Proposal) / `EA` (Embargo
+   Accept) exchange.
+
+This is defined in `specs/embargo-policy.yaml` EP-04-001 and derives from the
+protocol guidance in `docs/topics/process_models/em/defaults.md`.
+
+### Why no EP/EA exchange appears on the happy path
+
+A reader of a demo scenario or protocol trace may notice that `EM.ACTIVE` is
+reached with no visible `ProposeEmbargo` or `AcceptEmbargo` activity. This is
+**intentional and correct**, not a missing step. The implicit agreement is:
+
+- The receiver's published policy is the standing proposal.
+- The reporter's submission without objection is the acceptance.
+- The protocol machinery (`InitializeDefaultEmbargoNode`) converts this
+  implicit agreement into a concrete `EM.ACTIVE` state atomically — it applies
+  the PROPOSE and ACCEPT state-machine transitions internally without emitting
+  them as protocol messages, because no message exchange between the parties
+  is required.
+
+### Default path vs. negotiated path
+
+| Scenario | Protocol path | EM outcome |
+|---|---|---|
+| Receiver has default, reporter proposes nothing | Default path (tacit acceptance) | `EM.ACTIVE` immediately (EP-04-001) |
+| Receiver has default, reporter proposes *shorter* | Negotiated path | Shorter → `EM.ACTIVE`; receiver default → `EM.REVISE` (EP-04-003) |
+| Receiver has default, reporter proposes *longer* | Negotiated path | Receiver default → `EM.ACTIVE`; longer → `EM.REVISE` (EP-04-003) |
+| Neither party has a default or proposal | No embargo | `EM.NONE` remains |
+
+The **default path** is the common happy-path scenario. No EP or EA message
+is emitted; no per-participant acceptance round-trip occurs. The demo
+scenarios all use this path because no reporter-side embargo proposal
+mechanism yet exists in the implementation (see "Known Gap" below).
+
+The **negotiated path** requires a reporter-proposal mechanism that is not
+yet implemented (EP-04-003 / EP-04-004). When it is, it will involve an
+explicit message exchange before `EM.ACTIVE` is reached.
+
+### Implications for demos and implementers
+
+- A demo that reaches `EM.ACTIVE` after `reporter_submits_report()` with no
+  intervening embargo-negotiation steps is exercising the default path
+  correctly. The absence of `ProposeEmbargo` / `AcceptEmbargo` activities is
+  **not a gap** in the demo — it reflects the protocol rule.
+- Future demos that implement the negotiated path MUST document clearly that
+  they are doing so, so readers can distinguish the two paths.
+- Implementers who add a UI or agent integration at the `EvaluateEmbargoProposal`
+  call-out point are adding the *negotiated path* seam. The default path will
+  still apply when that seam is not triggered.
 
 ---
 
@@ -35,39 +103,14 @@ Design decisions, implementation patterns, and known gaps for
 
 ## Implementation: `InitializeDefaultEmbargoNode`
 
-**Current (incorrect)** — sets `EM.PROPOSED`, leaving the case in limbo:
+`InitializeDefaultEmbargoNode` (in `vultron/core/behaviors/case/nodes/embargo.py`)
+implements the default path by delegating to `EmbargoLifecycle.propose_embargo()`
+followed by an internal accept, landing the case at `EM.ACTIVE` atomically. The
+intermediate `EM.PROPOSED` state is never persisted or externally observable
+(EP-04-002).
 
-```python
-stored_case.current_status.em_state = EM.PROPOSED
-```
-
-**Required** — apply both transitions atomically so em_state lands at `EM.ACTIVE`:
-
-```python
-from vultron.core.states.em import create_em_machine, EMAdapter, EM
-
-em_machine = create_em_machine()
-adapter = EMAdapter(EM.NONE)
-em_machine.add_model(adapter, initial=EM.NONE)
-adapter.propose()  # NONE → PROPOSED
-adapter.accept()   # PROPOSED → ACTIVE
-stored_case.current_status.em_state = EM(adapter.state)  # EM.ACTIVE
-```
-
-The same `em_machine` + `EMAdapter` pattern is already used in
-`vultron/core/use_cases/triggers/embargo.py` for the accept-embargo trigger.
-
----
-
-## Test Updates Required
-
-Files that assert `EM.PROPOSED` after default-embargo initialization must
-be updated to assert `EM.ACTIVE`:
-
-- `test/core/behaviors/case/test_receive_report_case_tree.py` — assertions
-  in the `InitializeDefaultEmbargoNode` test class
-- Any demo-level integration tests that check the final embargo state after
-  case creation (e.g., `test/demo/test_fv_demo.py` or similar)
+The case owner is seeded as a `SIGNATORY` in the same BT subtree immediately
+after the embargo is activated (see "Case Owner Initial Embargo Consent" below).
 
 ---
 
