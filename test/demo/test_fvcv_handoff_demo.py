@@ -415,6 +415,61 @@ class TestFvcvHandoffMilestoneAssertions:
             )
         mock_m6.assert_called()
 
+    def test_phase_publication_order_vendor1_vendor2_finder_coordinator(self):
+        """Phase 6 notifies published in CVD order: Vendor1, Vendor2, Finder, Coordinator last."""
+        import contextlib
+
+        finder_client = self._client()
+        vendor_client = self._client()
+        coordinator_client = self._client()
+        vendor2_client = self._client()
+        vendor_in_vendor = self._actor("urn:test:vendor")
+        vendor2_in_vendor2 = self._actor("urn:test:vendor2")
+        finder_in_finder = self._actor("urn:test:finder")
+        coordinator_in_coordinator = self._actor("urn:test:coordinator")
+        case = self._case()
+
+        call_order: list[str] = []
+
+        def _notify(**kwargs):
+            call_order.append(kwargs["actor"].id_)
+
+        with (
+            patch.object(
+                demo, "actor_notifies_published", side_effect=_notify
+            ),
+            patch.object(demo, "wait_for_case_em_terminated"),
+            patch.object(demo, "wait_for_participant_vfd_state"),
+            patch.object(demo, "verify_publicly_disclosed"),
+            patch.object(
+                demo,
+                "demo_check",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            demo._phase_publication(
+                finder_client=finder_client,
+                vendor_client=vendor_client,
+                coordinator_client=coordinator_client,
+                vendor2_client=vendor2_client,
+                vendor=self._actor("urn:test:vendor"),
+                vendor_in_vendor=vendor_in_vendor,
+                vendor2=self._actor("urn:test:vendor2"),
+                vendor2_in_vendor2=vendor2_in_vendor2,
+                finder=self._actor("urn:test:finder"),
+                finder_in_finder=finder_in_finder,
+                coordinator=self._actor("urn:test:coordinator"),
+                coordinator_in_coordinator=coordinator_in_coordinator,
+                case=case,
+            )
+
+        assert call_order == [
+            "urn:test:vendor",
+            "urn:test:vendor2",
+            "urn:test:finder",
+            "urn:test:coordinator",
+        ], f"Unexpected publication order: {call_order}"
+
     def test_phase_case_closure_calls_verify_case_closed(self):
         """_phase_case_closure calls verify_case_closed at M7."""
         import contextlib

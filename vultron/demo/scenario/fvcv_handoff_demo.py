@@ -795,22 +795,10 @@ def _phase_publication(
     )
     logger.info("─" * 80)
 
-    # Coordinator is the CASE_OWNER after the Phase 2 handoff; only the
-    # CASE_OWNER's notify-published triggers embargo teardown (DEMOMA-07-003 step 4).
-    actor_notifies_published(
-        client=coordinator_client,
-        actor=coordinator_in_coordinator,
-        case_id=case.id_,
-    )
-
-    with demo_check(
-        "Embargo terminated (EM.EXITED) after Coordinator (CASE_OWNER) reports published"
-    ):
-        wait_for_case_em_terminated(
-            client=coordinator_client,
-            case_id=case.id_,
-        )
-
+    # Realistic CVD publication order: vendors publish their advisories first,
+    # then Finder may publish an independent writeup, then Coordinator publishes
+    # last as the CASE_OWNER whose notify-published triggers embargo teardown
+    # (DEMOMA-07-003 step 4).
     actor_notifies_published(
         client=vendor_client,
         actor=vendor_in_vendor,
@@ -826,6 +814,21 @@ def _phase_publication(
         actor=finder_in_finder,
         case_id=case.id_,
     )
+
+    # Coordinator publishes last — as CASE_OWNER this triggers embargo teardown.
+    actor_notifies_published(
+        client=coordinator_client,
+        actor=coordinator_in_coordinator,
+        case_id=case.id_,
+    )
+
+    with demo_check(
+        "Embargo terminated (EM.EXITED) after Coordinator (CASE_OWNER) reports published"
+    ):
+        wait_for_case_em_terminated(
+            client=coordinator_client,
+            case_id=case.id_,
+        )
 
     with demo_check(
         "All replicas CS.VFdPxa, EM.EXITED, all participants public-aware"
