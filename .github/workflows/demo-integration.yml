@@ -1,10 +1,14 @@
-# Demo Integration — build and run the two-actor Vultron demo on PRs.
+# Demo Integration — build and run the Vultron multi-actor demo on PRs and pushes.
 #
 # Kept separate from python-app.yml so that the Docker-compose build time
 # does not block the unit-test and lint pipeline; both workflows run
 # concurrently on PRs.  See specs/demo-ci.yaml DEMOCI-02-001.
 #
-# Triggers: PRs to main (path-filtered) and workflow_dispatch.
+# Triggers:
+#   pull_request  — minimum PR validation set (3 scenarios, DEMOCI-06-002)
+#   push to main  — full 8-scenario suite (DEMOCI-06-003, DEMOCI-05-001)
+#   workflow_dispatch — full 8-scenario suite (for manual re-runs)
+#
 # Dependabot PRs are skipped — python-app.yml still guards broken deps.
 # See DEMOCI-02-002, DEMOCI-02-003, DEMOCI-02-004.
 #
@@ -14,6 +18,17 @@
 #
 # This gives each scenario two independent pass/fail statuses on the PR so
 # invariant failures are visible even when the demo job itself fails.
+#
+# Minimum PR set (DEMOCI-06-002): fv, fvcv-handoff, fcvcv
+#   - fv covers the 4 universal event types (2-actor baseline)
+#   - fvcv-handoff adds invite_actor_to_case + accept_invite_actor_to_case
+#     + ownership-transfer protocol path
+#   - fcvcv adds offer_case_participant and ≥3-actor invite/accept chains
+# Full set adds: fvv, fvcv-extension, fccv-extension, fccv-handoff, fcv
+#
+# The matrix includes a boolean `full_suite_only` field. On pull_request events
+# the job `if:` condition skips entries where full_suite_only==true, leaving
+# only the 3-scenario minimum PR set running. On push/dispatch all 8 run.
 
 name: Demo Integration
 
@@ -26,6 +41,15 @@ on:
       - "integration_tests/**"
       # Invariant harness / CI test changes must re-run the demos that feed
       # them, else a broken assertion merges untested (see #1602 regression).
+      - "test/ci/**"
+      - "pyproject.toml"
+      - "uv.lock"
+  push:
+    branches: ["main"]
+    paths:
+      - "vultron/**"
+      - "docker/**"
+      - "integration_tests/**"
       - "test/ci/**"
       - "pyproject.toml"
       - "uv.lock"
@@ -42,29 +66,41 @@ jobs:
     # DEMOCI-02-009: 15-minute cap to prevent indefinite hangs.
     timeout-minutes: 15
     # DEMOCI-02-004: skip Dependabot PRs; python-app.yml guards broken deps.
-    if: "!startsWith(github.head_ref, 'dependabot/')"
-    # DEMOCI-03-003, DEMOCI-03-004, DEMOCI-03-005: matrix over scenarios so
-    # failures are independently reported and each entry declares its test_file.
+    # DEMOCI-06-002: on pull_request, skip full-suite-only entries so only the
+    # minimum 3-scenario PR validation set runs.
+    if: >-
+      !startsWith(github.head_ref, 'dependabot/') &&
+      (github.event_name != 'pull_request' || matrix.full_suite_only == false)
     strategy:
       fail-fast: false
       matrix:
+        # DEMOCI-06-002 minimum PR validation set (full_suite_only: false).
+        # DEMOCI-06-003 additional scenarios (full_suite_only: true — push/dispatch only).
         include:
           - demo: fv
             test_file: test/ci/invariants/test_fv_invariants.py
-          - demo: fvv
-            test_file: test/ci/invariants/test_fvv_invariants.py
-          - demo: fvcv-extension
-            test_file: test/ci/invariants/test_fvcv_extension_invariants.py
+            full_suite_only: false
           - demo: fvcv-handoff
             test_file: test/ci/invariants/test_fvcv_handoff_invariants.py
-          - demo: fccv-extension
-            test_file: test/ci/invariants/test_fccv_extension_invariants.py
-          - demo: fccv-handoff
-            test_file: test/ci/invariants/test_fccv_handoff_invariants.py
+            full_suite_only: false
           - demo: fcvcv
             test_file: test/ci/invariants/test_fcvcv_invariants.py
+            full_suite_only: false
+          - demo: fvv
+            test_file: test/ci/invariants/test_fvv_invariants.py
+            full_suite_only: true
+          - demo: fvcv-extension
+            test_file: test/ci/invariants/test_fvcv_extension_invariants.py
+            full_suite_only: true
+          - demo: fccv-extension
+            test_file: test/ci/invariants/test_fccv_extension_invariants.py
+            full_suite_only: true
+          - demo: fccv-handoff
+            test_file: test/ci/invariants/test_fccv_handoff_invariants.py
+            full_suite_only: true
           - demo: fcv
             test_file: test/ci/invariants/test_fcv_invariants.py
+            full_suite_only: true
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -140,28 +176,40 @@ jobs:
     runs-on: ubuntu-latest
     # DEMOCI-04-002: always run after the demo job, even on demo failure.
     # DEMOCI-02-004: skip Dependabot PRs (demo is skipped, no artifact exists).
+    # DEMOCI-06-002: mirror the demo job gate — skip full-suite-only entries on PR.
     needs: demo
-    if: always() && !startsWith(github.head_ref, 'dependabot/')
+    if: >-
+      always() &&
+      !startsWith(github.head_ref, 'dependabot/') &&
+      (github.event_name != 'pull_request' || matrix.full_suite_only == false)
     strategy:
       fail-fast: false
       matrix:
         include:
           - demo: fv
             test_file: test/ci/invariants/test_fv_invariants.py
-          - demo: fvv
-            test_file: test/ci/invariants/test_fvv_invariants.py
-          - demo: fvcv-extension
-            test_file: test/ci/invariants/test_fvcv_extension_invariants.py
+            full_suite_only: false
           - demo: fvcv-handoff
             test_file: test/ci/invariants/test_fvcv_handoff_invariants.py
-          - demo: fccv-extension
-            test_file: test/ci/invariants/test_fccv_extension_invariants.py
-          - demo: fccv-handoff
-            test_file: test/ci/invariants/test_fccv_handoff_invariants.py
+            full_suite_only: false
           - demo: fcvcv
             test_file: test/ci/invariants/test_fcvcv_invariants.py
+            full_suite_only: false
+          - demo: fvv
+            test_file: test/ci/invariants/test_fvv_invariants.py
+            full_suite_only: true
+          - demo: fvcv-extension
+            test_file: test/ci/invariants/test_fvcv_extension_invariants.py
+            full_suite_only: true
+          - demo: fccv-extension
+            test_file: test/ci/invariants/test_fccv_extension_invariants.py
+            full_suite_only: true
+          - demo: fccv-handoff
+            test_file: test/ci/invariants/test_fccv_handoff_invariants.py
+            full_suite_only: true
           - demo: fcv
             test_file: test/ci/invariants/test_fcv_invariants.py
+            full_suite_only: true
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -184,7 +232,3 @@ jobs:
         env:
           TEST_FILE: ${{ matrix.test_file }}
         run: uv run pytest "$TEST_FILE" -v --tb=short
-
-# Future scenarios to add when stable:
-#   - three-actor  (multi-coordinator; add as matrix entry per DEMOCI-03-003)
-#   - multi-vendor (add as matrix entry per DEMOCI-03-003)

@@ -489,14 +489,15 @@ groups:
         kind: project
         statement: >-
           A scenario coverage analysis MUST be performed that maps each of the
-          7 demo scenarios to the distinct Vultron protocol phases and
+          8 demo scenarios to the distinct Vultron protocol phases and
           message-type milestones it exercises, producing a coverage matrix.
           The analysis MUST inspect the actual milestone sets defined in each
           scenario script (not assume they are complete), and MAY update
           scenario milestone sets where copy-paste from simpler scenarios has
-          left them incomplete.
+          left them incomplete. The validated coverage matrix MUST be recorded
+          in `notes/demo-ci-scenario-coverage.md`.
         rationale: >-
-          The 7 scenarios share common helper phases but each exercises a
+          The 8 scenarios share common helper phases but each exercises a
           distinct set of protocol phases (e.g. invite_actor_to_case,
           offer_case_participant, accept_invite_actor_to_case). Milestone sets
           were often copied from simpler scenarios and may under-report what a
@@ -512,17 +513,21 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          Based on the coverage matrix (DEMOCI-06-001), a minimum PR validation
-          scenario set MUST be defined: the smallest subset of scenarios that
-          together covers all distinct protocol phases exercised by the full
-          scenario suite. Scenarios not in the minimum set SHOULD run only on
-          the post-merge (push-to-main) trigger, reducing the PR matrix size
-          and thus the fan-in barrier wall-clock cost.
+          The minimum PR validation scenario set is `fv`, `fvcv-handoff`, and
+          `fcvcv`. Together these three scenarios cover all 7 distinct protocol
+          event types exercised by the full 8-scenario suite: the four universal
+          types plus `invite_actor_to_case`, `offer_case_participant`, and
+          `accept_invite_actor_to_case`. The `demo-integration.yml` workflow
+          MUST use this 3-scenario set as the `pull_request` matrix and run
+          only these scenarios on every PR commit.
         rationale: >-
-          Running all scenarios on every PR commit incurs a fan-in barrier
-          proportional to the slowest scenario. A minimum set that preserves
-          full protocol coverage lets the PR run faster while the post-merge
-          run retains full coverage for regression detection. See ADR-0052.
+          Running all 8 scenarios on every PR commit incurs a fan-in barrier
+          proportional to the slowest scenario. The 3-scenario minimum set
+          preserves full protocol-phase coverage while reducing PR wall-clock
+          cost. FV covers the 2-actor baseline; FVCV-handoff adds invite +
+          accept + ownership-transfer; FCVCV adds offer_case_participant and
+          ≥3-actor invite/accept chains. Rationale recorded in
+          `notes/demo-ci-scenario-coverage.md`. See ADR-0052.
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-06-001
@@ -531,10 +536,13 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          The full scenario suite MUST continue to run on push events to main
-          (DEMOCI-05-001), regardless of which subset runs for PR validation,
-          so that all scenario variants continue to generate case-log invariant
-          signals on the default branch.
+          The full 8-scenario suite MUST run on push events to main, regardless
+          of which subset runs for PR validation, so that all scenario variants
+          continue to generate case-log invariant signals on the default branch.
+          The `demo-integration.yml` workflow MUST include a `push: branches:
+          ["main"]` trigger that runs all 8 scenarios (`fv`, `fvv`,
+          `fvcv-extension`, `fvcv-handoff`, `fccv-extension`, `fccv-handoff`,
+          `fcvcv`, `fcv`).
         rationale: >-
           The post-merge run is the safety net for cross-PR regressions; it
           must cover all scenarios to ensure no scenario silently degrades after

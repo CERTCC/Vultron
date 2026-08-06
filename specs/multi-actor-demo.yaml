@@ -1861,8 +1861,10 @@ groups:
     kind: project
     statement: >-
       The FVV scenario expected-event-types list MUST include
-      `invite_actor_to_case` in addition to the four universal types
-      (DEMOMA-16-001), because Vendor1 invites Vendor2 into the case.
+      `invite_actor_to_case` and `accept_invite_actor_to_case` in addition
+      to the four universal types (DEMOMA-16-001), because Vendor1 invites
+      Vendor2 into the case and Vendor2 explicitly accepts via the
+      `accept-case-invite` trigger.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-16-001
@@ -1874,10 +1876,12 @@ groups:
     kind: project
     statement: >-
       The FVCV-extension scenario expected-event-types list MUST include
-      `invite_actor_to_case` and `offer_case_participant` in addition to the
-      four universal types (DEMOMA-16-001), because Vendor1 invites
-      Coordinator, and Coordinator uses the ADR-0026 suggest-actor flow
-      (`offer_case_participant`) to propose Vendor2.
+      `invite_actor_to_case`, `offer_case_participant`, and
+      `accept_invite_actor_to_case` in addition to the four universal types
+      (DEMOMA-16-001), because Vendor1 invites Coordinator, Coordinator uses
+      the ADR-0026 suggest-actor flow (`offer_case_participant`) to propose
+      Vendor2, CaseActor converts the proposal into an invitation, and Vendor2
+      explicitly accepts via the `accept-case-invite` trigger.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-16-001
@@ -1919,9 +1923,10 @@ groups:
     kind: project
     statement: >-
       The FCV scenario expected-event-types list MUST include
-      `invite_actor_to_case` in addition to the four universal types
-      (DEMOMA-16-001), because the Coordinator invites both the Finder
-      and the Vendor into the case.
+      `invite_actor_to_case` and `accept_invite_actor_to_case` in addition
+      to the four universal types (DEMOMA-16-001), because the Coordinator
+      invites both the Finder and the Vendor into the case, and both Finder
+      and Vendor explicitly accept via the `accept-case-invite` trigger.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-16-001
@@ -1970,6 +1975,23 @@ groups:
       spec_id: DEMOMA-16-001
     - rel_type: refines
       spec_id: DEMOMA-19-001
+
+  - id: DEMOMA-16-010
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCCV-extension scenario expected-event-types list MUST include
+      `invite_actor_to_case`, `offer_case_participant`, and
+      `accept_invite_actor_to_case` in addition to the four universal types
+      (DEMOMA-16-001), because Coordinator1 invites Coordinator2, Coordinator2
+      uses the ADR-0026 suggest-actor flow (`offer_case_participant`) to propose
+      the Vendor, CaseActor converts the proposal into an invitation, and the
+      Vendor explicitly accepts via the `accept-case-invite` trigger.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-16-001
+    - rel_type: refines
+      spec_id: DEMOMA-13-001
 
 - id: DEMOMA-18
   title: In-Process Fuzz Simulation Scenario

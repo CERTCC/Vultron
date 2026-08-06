@@ -10,6 +10,7 @@ Universal invariants (1–15) are applied via ``common.py``.
 
 FVV-specific invariants:
 - ``invite_actor_to_case`` appears at least once (Vendor1 invites Vendor2).
+- ``accept_invite_actor_to_case`` appears at least once (Vendor2 accepts).
 - Vendor2 replica holds the complete log from genesis (late-joiner backfill).
 - Finder replica holds the complete log from genesis (late-joiner backfill).
 
@@ -55,8 +56,11 @@ _FVV_EXPECTED_EVENT_TYPES = [
     ),
     pytest.param("close_case", id="close_case"),
     pytest.param("add_note_to_case", id="add_note_to_case"),
-    # DEMOMA-16-003: Vendor1 invites Vendor2.
+    # DEMOMA-16-003: Vendor1 invites Vendor2; Vendor2 accepts.
     pytest.param("invite_actor_to_case", id="invite_actor_to_case"),
+    pytest.param(
+        "accept_invite_actor_to_case", id="accept_invite_actor_to_case"
+    ),
 ]
 
 #: Actors with per-actor chain / contiguity / completeness checks.
