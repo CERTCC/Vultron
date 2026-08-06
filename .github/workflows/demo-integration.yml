@@ -130,17 +130,22 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       # DEMOCI-02-007: Docker layer caching via Buildx GHA cache.
-      # This workflow only triggers on pull_request, so a cache it writes
-      # (scope=demo-integration) is only visible to that same PR branch —
-      # GitHub Actions cache entries from a branch aren't visible to other
-      # branches. cache-from-extra-scope reads the cache written by
-      # demo-image-cache-warm.yml on pushes to main, so a brand-new PR
-      # branch still gets a warm cache instead of starting fully cold.
+      # On push-to-main runs, write to the "demo-integration-main" scope so
+      # new PR branches can read it as a warm fallback (DEMOCI-05-003).
+      # On pull_request runs, write to "demo-integration" (visible only to
+      # the same PR branch) and read "demo-integration-main" as a fallback so
+      # a brand-new PR branch still gets a warm start.
       - name: Build Docker images
         uses: ./.github/actions/build-demo-images
         with:
-          cache-scope: demo-integration
-          cache-from-extra-scope: demo-integration-main
+          cache-scope: >-
+            ${{ github.ref == 'refs/heads/main'
+              && 'demo-integration-main'
+              || 'demo-integration' }}
+          cache-from-extra-scope: >-
+            ${{ github.ref != 'refs/heads/main'
+              && 'demo-integration-main'
+              || '' }}
 
       # DEMOCI-02-005, DEMOCI-02-006: run demo; detect failure via
       # exit code of the demo-runner container.
