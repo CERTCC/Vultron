@@ -16,10 +16,21 @@ description: >
 
 ### Step 0 — Graph orientation (if graph exists)
 
-Check whether `graphify-out/GRAPH_REPORT.md` exists. If it does, read it now.
-It contains god nodes (highest-connectivity files), surprising cross-community
-connections, and community labels — the structural map of the codebase. This
-primes the agent with topology context before reading docs or selecting an issue.
+If `graphify-out/graph.json` exists, sync the graph with any code changes that
+landed since the last commit (fast-forward merges and cherry-picks don't fire the
+post-commit hook, so the graph can be stale after a `git pull`):
+
+```bash
+graphify update . 2>/dev/null || true
+```
+
+This is AST-only — no LLM, no API key, typically a few seconds. Run it
+unconditionally when the graph is present; skip silently if the file is absent.
+
+Then read `graphify-out/GRAPH_REPORT.md`. It contains god nodes
+(highest-connectivity files), surprising cross-community connections, and community
+labels — the structural map of the codebase. This primes the agent with topology
+context before reading docs or selecting an issue.
 
 Skip this step silently if the file is absent.
 
