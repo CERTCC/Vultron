@@ -25,6 +25,7 @@ from typing import Any
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
+from vultron.core.behaviors.idempotency import SilentIdempotencyGuardMixin
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.protocols import PersistableModel
@@ -40,11 +41,14 @@ logger = logging.getLogger(__name__)
 CASE_STATUS_ALREADY_PRESENT = "case_status_already_present"
 
 
-class CheckCaseStatusIdempotencyNode(DataLayerCondition):
+class CheckCaseStatusIdempotencyNode(
+    SilentIdempotencyGuardMixin, DataLayerCondition
+):
     """AC-1: Verify the CaseStatus has not already been added to the case.
 
     Returns FAILURE with ``feedback_message == CASE_STATUS_ALREADY_PRESENT``
-    when *status_id* is already in ``case.case_statuses`` — a benign no-op.
+    when *status_id* is already in ``case.case_statuses`` — a benign no-op
+    with no ledger write (CLP-13-001, CLP-13-002).
 
     Returns FAILURE with a distinct message when the case itself is not found.
 
@@ -80,13 +84,13 @@ class CheckCaseStatusIdempotencyNode(DataLayerCondition):
         existing_ids = [_as_id(s) for s in case.case_statuses]
         if self.status_id in existing_ids:
             self.feedback_message = CASE_STATUS_ALREADY_PRESENT
-            self.logger.debug(
+            return self._idempotent_failure(
+                self.logger,
                 "CheckCaseStatusIdempotency: status '%s' already in case '%s'"
-                " — skipping (idempotent)",
+                " — skipping (idempotent, CLP-13-001)",
                 self.status_id,
                 self.case_id,
             )
-            return Status.FAILURE
 
         return Status.SUCCESS
 

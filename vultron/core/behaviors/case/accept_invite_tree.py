@@ -50,6 +50,7 @@ from vultron.core.behaviors.case.nodes.accept_invite import (
     EmitAddCaseParticipantNode,
 )
 from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
+from vultron.core.behaviors.idempotency import SilentIdempotencyGuardMixin
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
@@ -149,12 +150,29 @@ class CapturePreCommitBackfillTargetNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class CheckInviteeNotAlreadyParticipantNode(DataLayerCondition):
-    """Idempotency guard: FAILURE when invitee is already a participant.
+class CheckInviteeNotAlreadyParticipantNode(
+    SilentIdempotencyGuardMixin, DataLayerCondition
+):
+    """Idempotency guard: FAILURE when invitee is already a fully-joined participant.
 
     Returns SUCCESS (allow proceeding) when the invitee is NOT yet
-    registered in ``case.actor_participant_index``.
-    Returns FAILURE (abort tree) when the invitee is already a participant.
+    registered in ``case.actor_participant_index``, or when the invitee IS
+    registered but join-time backfill is still incomplete (resume path).
+
+    Returns FAILURE (abort tree) with no ledger write when the invitee is
+    already a participant AND backfill is complete — a true idempotent no-op
+    (CLP-13-001, CLP-13-002).
+
+    Three paths:
+
+    1. **Fresh invite**: invitee not yet a participant → SUCCESS, tree runs in full.
+    2. **Backfill-incomplete resume**: invitee is a participant but backfill is
+       still in progress → SUCCESS with ``invitee_already_participant = True``,
+       so downstream effect nodes skip participant-creation while the commit and
+       backfill steps still run.
+    3. **Backfill-complete (true duplicate)**: invitee is a participant and
+       backfill is done → ``_idempotent_failure`` (FAILURE, INFO log, no ledger
+       write — CLP-13-001).
     """
 
     def __init__(
@@ -200,16 +218,21 @@ class CheckInviteeNotAlreadyParticipantNode(DataLayerCondition):
                 state.join_backfill_complete
                 or state.join_backfill_target_index == -1
             ):
-                self.logger.info(
+                # True duplicate: backfill complete — silent FAILURE, no ledger
+                # write (CLP-13-001).
+                self.blackboard.invitee_already_participant = True
+                return self._idempotent_failure(
+                    self.logger,
                     "%s: actor '%s' already participant in case '%s'"
-                    " — skipping (idempotent)",
+                    " — skipping (idempotent, CLP-13-001)",
                     self.name,
                     self.invitee_id,
                     self.case_id,
                 )
-                self.blackboard.invitee_already_participant = True
-                return Status.FAILURE
 
+            # Resume path: backfill is incomplete (or no marker yet).  Set the
+            # flag so downstream effect nodes skip participant-creation, but
+            # return SUCCESS to allow the commit + backfill steps to run.
             if state is None:
                 self.logger.info(
                     "%s: actor '%s' already participant in case '%s' with no "
@@ -815,6 +838,14 @@ def create_accept_invite_actor_to_case_tree(
         ├── EmitAddCaseParticipantNode             — emit Add(CaseParticipant), commit ledger
         ├── EmitAnnounceCaseToInviteeNode          — queue Announce to invitee
         └── BackfillCanonicalLedgerToInviteeNode   — send prior ledger to invitee
+
+    The idempotency guard ``CheckInviteeNotAlreadyParticipantNode`` uses
+    :class:`~vultron.core.behaviors.idempotency.SilentIdempotencyGuardMixin`
+    to enforce CLP-13-001: when a true duplicate is detected (invitee already
+    joined AND backfill is complete), the guard returns ``Status.FAILURE`` with
+    an INFO log and no ledger write.  When backfill is incomplete, it returns
+    SUCCESS with ``invitee_already_participant = True`` so the tree continues
+    to the commit + backfill steps without re-creating the participant.
 
     Args:
         case_id: ID of the VulnerabilityCase the invitee accepted.

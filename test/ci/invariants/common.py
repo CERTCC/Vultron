@@ -644,3 +644,28 @@ def check_cs_state_transitions_observed(
             "pxa_state starting with 'P' (published/public-aware) never observed"
         )
     return missing
+
+
+def check_no_rejected_invite_entries(
+    replicas: dict[str, list[dict]],
+) -> list[str]:
+    """No invite_actor_to_case entries with disposition=rejected exist (CLP-13-001).
+
+    Idempotency guards MUST NOT write any CaseLedgerEntry.  A spurious
+    ``disposition="rejected"`` entry on an ``invite_actor_to_case`` event type
+    indicates an idempotency guard incorrectly wrote to the ledger.
+
+    Returns one violation string per offending entry.
+    """
+    violations: list[str] = []
+    for actor, entries in replicas.items():
+        for e in entries:
+            if (
+                event_type(e) == "invite_actor_to_case"
+                and e.get("disposition") == "rejected"
+            ):
+                violations.append(
+                    f"Actor {actor!r} logIndex={log_index(e)}: spurious"
+                    f" rejected invite_actor_to_case entry (CLP-13-001 violation)"
+                )
+    return violations
