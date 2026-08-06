@@ -1,0 +1,10 @@
+#!/bin/sh
+# Forwarder: see .githooks/pre-commit for why core.hooksPath needs these.
+# The shared post-checkout has the same worktree gate as post-commit, so it will
+# exit 0 here anyway -- but forwarding keeps behavior identical to not overriding.
+set -e
+_SHARED="$(git rev-parse --git-common-dir)/hooks/post-checkout"
+if [ -x "$_SHARED" ]; then
+    exec "$_SHARED" "$@"
+fi
+exit 0
