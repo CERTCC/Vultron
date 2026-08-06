@@ -758,11 +758,6 @@ def _phase_case_closure(
     logger.info("─" * 80)
 
     actor_closes_case(
-        client=vendor_client,
-        actor=vendor_in_vendor,
-        case_id=case.id_,
-    )
-    actor_closes_case(
         client=vendor2_client,
         actor=vendor2_in_vendor2,
         case_id=case.id_,
@@ -775,6 +770,12 @@ def _phase_case_closure(
     actor_closes_case(
         client=finder_client,
         actor=finder_in_finder,
+        case_id=case.id_,
+    )
+    # Vendor1 is the case owner (CASE_OWNER throughout) and closes last.
+    actor_closes_case(
+        client=vendor_client,
+        actor=vendor_in_vendor,
         case_id=case.id_,
     )
 

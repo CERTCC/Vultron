@@ -707,3 +707,68 @@ class TestFccvHandoffMilestoneAssertions:
                 case=case,
             )
         mock_m7.assert_called()
+
+    def test_phase_case_closure_c2_closes_last(self):
+        """C2 (case owner post-handoff) must close after C1, Vendor, and Finder."""
+        import contextlib
+
+        finder_client = self._client()
+        c1_client = self._client()
+        c2_client = self._client()
+        vendor_client = self._client()
+        c1_in_c1 = self._actor("urn:test:c1")
+        c2_in_c2 = self._actor("urn:test:c2")
+        finder_in_finder = self._actor("urn:test:finder")
+        vendor_in_vendor = self._actor("urn:test:vendor")
+        case = self._case()
+        case.id_ = "urn:test:case"
+        c1_client.get.return_value = {
+            "e0": {
+                "case_id": case.id_,
+                "log_index": 0,
+                "entry_hash": "h0",
+                "event_type": "close_case",
+            }
+        }
+
+        mock_close = MagicMock()
+
+        with (
+            patch.object(demo, "actor_closes_case", mock_close),
+            patch.object(demo, "wait_for_all_participants_rm_closed"),
+            patch.object(demo, "verify_case_closed"),
+            patch.object(demo, "wait_for_event_type_in_ledger"),
+            patch.object(demo, "wait_for_contiguous_ledger_coverage"),
+            patch.object(
+                demo,
+                "demo_check",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            demo._phase_case_closure(
+                finder_client=finder_client,
+                c1_client=c1_client,
+                c2_client=c2_client,
+                vendor_client=vendor_client,
+                c1=self._actor("urn:test:c1"),
+                c1_in_c1=c1_in_c1,
+                c2=self._actor("urn:test:c2"),
+                c2_in_c2=c2_in_c2,
+                finder=self._actor("urn:test:finder"),
+                finder_in_finder=finder_in_finder,
+                vendor=self._actor("urn:test:vendor"),
+                vendor_in_vendor=vendor_in_vendor,
+                case=case,
+            )
+
+        actors_closed = [
+            call.kwargs["actor"].id_ for call in mock_close.call_args_list
+        ]
+        assert (
+            actors_closed[-1] == c2_in_c2.id_
+        ), "C2 (case owner post-handoff) must close last; got order: " + str(
+            actors_closed
+        )
+        assert actors_closed.index(finder_in_finder.id_) < actors_closed.index(
+            c2_in_c2.id_
+        ), "Finder must close before C2"

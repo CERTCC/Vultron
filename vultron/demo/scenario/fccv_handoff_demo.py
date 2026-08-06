@@ -848,11 +848,6 @@ def _phase_case_closure(
         case_id=case.id_,
     )
     actor_closes_case(
-        client=c2_client,
-        actor=c2_in_c2,
-        case_id=case.id_,
-    )
-    actor_closes_case(
         client=vendor_client,
         actor=vendor_in_vendor,
         case_id=case.id_,
@@ -860,6 +855,12 @@ def _phase_case_closure(
     actor_closes_case(
         client=finder_client,
         actor=finder_in_finder,
+        case_id=case.id_,
+    )
+    # C2 is the case owner post-handoff (TRIG-11-002) and closes last.
+    actor_closes_case(
+        client=c2_client,
+        actor=c2_in_c2,
         case_id=case.id_,
     )
 
