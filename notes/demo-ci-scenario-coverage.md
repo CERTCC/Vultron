@@ -166,3 +166,49 @@ regression coverage without increasing PR wall-clock cost.
 
 See ADR-0052 for the accepted barrier + concurrency group design that DEMOCI-06
 finalises.
+
+## RM State-Transition Path Coverage
+
+The event-type matrix (above) captures which protocol coordination phases each
+scenario exercises, but it does not distinguish *which RM state-to-state paths*
+are taken within those phases. Because `validate_report` is emitted on both the
+linear R → V path and the non-linear R → I → V path, and `add_participant_status_to_participant`
+is emitted on both A → D and D → A, the invariant harness alone cannot verify
+non-linear RM paths. These are validated by `demo_check` assertions in the
+scenario scripts themselves.
+
+The table below maps the distinct RM state-transition paths to the scenarios
+that exercise them. "Linear" paths are those shown in a typical happy-path
+trace; "non-linear" paths are detours the RM state machine permits but that
+do not appear in any scenario unless explicitly scripted.
+
+| RM transition path | Type | Exercised by scenario |
+|---|---|---|
+| S → R (report received) | linear | all scenarios |
+| R → V (report valid) | linear | all scenarios |
+| V → A (report accepted / engaged) | linear | all scenarios |
+| A → C (case closed) | linear | all scenarios |
+| R → I (report invalid) | non-linear | `fvcv-handoff` (Var A) |
+| I → V (re-validated after rejection) | non-linear | `fvcv-handoff` (Var A) |
+| A → D (report deferred) | non-linear | `fcvcv` (Var B) |
+| D → A (resumed after deferral) | non-linear | `fcvcv` (Var B) |
+| I → C (closed from invalid) | non-linear | not yet exercised by any scenario |
+| V → D (deferred without accepting) | non-linear | not yet exercised by any scenario |
+
+**Notes:**
+
+- Variation A (`fvcv-handoff`, R → I → V): Vendor1 initially calls
+  `invalidate-report` (RI), then the Finder posts a clarifying case note and
+  Vendor1 calls `validate-report` (RV), advancing to V before engaging. The
+  `demo_check` assertion verifies Vendor1's RM state is INVALID before
+  re-validation and VALID immediately after.
+- Variation B (`fcvcv`, A → D → A): V1 calls `engage-case` (RA), then
+  `defer-case` (RD), then `engage-case` again (RV → accepted). The
+  `demo_check` assertions verify the DEFERRED state before the second
+  `engage-case` call. The RM state machine already supports `ACCEPT:
+  DEFERRED → ACCEPTED` (rm.py line 145); no new BT nodes are needed.
+- The `I → C` and `V → D` paths are valid per the RM state machine but are
+  not exercised by any current scenario. They are candidates for a future
+  scenario or scenario extension.
+
+Source: ISSUE-1221 planning (2026-08-06).

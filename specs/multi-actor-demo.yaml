@@ -1899,6 +1899,15 @@ groups:
       to the four universal types (DEMOMA-16-001), because Vendor1 invites
       Coordinator, the Coordinator accepts and becomes the new CASE_OWNER,
       and Coordinator then invites Vendor2 who also accepts.
+    rationale: >-
+      In addition to the event-type coverage, FVCV-handoff is the scenario
+      that exercises the non-linear RM path R → I → V (tentative rejection
+      then acceptance): Vendor1 initially invalidates the report (RI), then
+      re-validates after the Finder provides clarifying information via a
+      case note. This RM state-transition path is verified by `demo_check`
+      assertions in the scenario script, not by `event_type` presence in the
+      invariant harness, because R → I → V produces the same `validate_report`
+      ledger event as the linear R → V path.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-16-001
@@ -1975,6 +1984,15 @@ groups:
       vendor/coordinator invitees issue explicit accepts. Verifying these
       event types confirms the full ADR-0026 suggest-actor path and the
       multi-vendor invitation chain are exercised end-to-end.
+
+      In addition to event-type coverage, FCVCV is the scenario that exercises
+      the non-linear RM path A → D → A (accepted, then deferred, then
+      re-accepted): V1 accepts the case, defers due to competing priorities
+      (RD message), then resumes and engages again (RV message). This RM
+      state-transition path is verified by `demo_check` assertions in the
+      scenario script. The `defer-case` and `engage-case` trigger endpoints
+      both support this path without new BT nodes, since the RM state machine
+      already declares `ACCEPT: DEFERRED → ACCEPTED` as a valid transition.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-16-001
