@@ -50,10 +50,13 @@ import importlib
 from typing import TYPE_CHECKING
 
 from vultron.core.behaviors.case.nodes.actor import (
-    EmitAcceptCaseInviteNode,
     EmitInviteActorToCaseNode,
     EvaluateDefaultRolesNode,
     ProposeCaseToActorNode,
+)
+from vultron.core.behaviors.case.nodes.invite_response import (
+    EmitAcceptCaseInviteNode,
+    EmitRejectCaseInviteNode,
 )
 from vultron.core.behaviors.case.nodes.proposal import (
     ProposeReportCaseToActorNode,

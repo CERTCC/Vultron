@@ -48,6 +48,7 @@ from vultron.core.use_cases.triggers.actor import (
     SvcOfferCaseManagerRoleUseCase,
     SvcOfferCaseOwnershipTransferUseCase,
     SvcOfferCaseParticipantRoleUseCase,
+    SvcRejectCaseInviteUseCase,
     SvcSuggestActorToCaseUseCase,
 )
 from vultron.core.use_cases.triggers.case import (
@@ -95,6 +96,7 @@ from vultron.core.use_cases.triggers.requests import (
     OfferCaseParticipantRoleTriggerRequest,
     ProposeEmbargoRevisionTriggerRequest,
     ProposeEmbargoTriggerRequest,
+    RejectCaseInviteTriggerRequest,
     RejectEmbargoTriggerRequest,
     RejectReportTriggerRequest,
     SubmitReportTriggerRequest,
@@ -479,6 +481,20 @@ class TriggerService:
             invite_id=invite_id,
         )
         return SvcAcceptCaseInviteUseCase(
+            self._dl, req, trigger_activity=self._trigger_activity
+        ).execute()
+
+    def reject_case_invite(
+        self,
+        actor_id: str,
+        invite_id: str,
+    ) -> dict[str, Any]:
+        """Reject a case invitation."""
+        req = RejectCaseInviteTriggerRequest(
+            actor_id=actor_id,
+            invite_id=invite_id,
+        )
+        return SvcRejectCaseInviteUseCase(
             self._dl, req, trigger_activity=self._trigger_activity
         ).execute()
 

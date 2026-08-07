@@ -352,6 +352,95 @@ def test_trigger_accept_case_invite_unknown_invite_returns_404(
 
 
 # ===========================================================================
+# Tests for trigger/reject-case-invite
+# ===========================================================================
+
+
+def test_trigger_reject_case_invite_returns_202(
+    client_triggers, other_actor, invite, dl
+):
+    """TB-01-002: POST /actors/{id}/trigger/reject-case-invite returns 202."""
+    resp = client_triggers.post(
+        f"/actors/{other_actor.id_}/trigger/reject-case-invite",
+        json={"invite_id": invite.id_},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_reject_case_invite_response_contains_activity(
+    client_triggers, other_actor, invite, dl
+):
+    """TB-04-001: Successful trigger response body contains 'activity' key."""
+    resp = client_triggers.post(
+        f"/actors/{other_actor.id_}/trigger/reject-case-invite",
+        json={"invite_id": invite.id_},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    data = resp.json()
+    assert "activity" in data
+    assert data["activity"] is not None
+
+
+def test_trigger_reject_case_invite_object_is_invite(
+    client_triggers, other_actor, invite, dl
+):
+    """DR-05: Reject activity object_ must be the original invite, not the case."""
+    resp = client_triggers.post(
+        f"/actors/{other_actor.id_}/trigger/reject-case-invite",
+        json={"invite_id": invite.id_},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    data = resp.json()
+    assert data["activity"]["object"]["id"] == invite.id_
+
+
+def test_trigger_reject_case_invite_missing_invite_id_returns_422(
+    client_triggers, other_actor
+):
+    """TB-03-001: Missing invite_id returns HTTP 422."""
+    resp = client_triggers.post(
+        f"/actors/{other_actor.id_}/trigger/reject-case-invite",
+        json={},
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+def test_trigger_reject_case_invite_ignores_unknown_fields(
+    client_triggers, other_actor, invite, dl
+):
+    """TB-03-002: Unknown fields are silently ignored."""
+    resp = client_triggers.post(
+        f"/actors/{other_actor.id_}/trigger/reject-case-invite",
+        json={"invite_id": invite.id_, "extra": "ignored"},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_reject_case_invite_unknown_actor_returns_404(
+    client_triggers,
+):
+    """TB-01-003: Unknown actor_id returns HTTP 404."""
+    resp = client_triggers.post(
+        "/actors/nonexistent-actor/trigger/reject-case-invite",
+        json={"invite_id": "urn:uuid:any-invite"},
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+    data = resp.json()
+    assert data["detail"]["error"] == "NotFound"
+
+
+def test_trigger_reject_case_invite_unknown_invite_returns_404(
+    client_triggers, other_actor
+):
+    """TB-01-003: Unknown invite_id returns HTTP 404."""
+    resp = client_triggers.post(
+        f"/actors/{other_actor.id_}/trigger/reject-case-invite",
+        json={"invite_id": "urn:uuid:nonexistent-invite"},
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+# ===========================================================================
 # Tests for trigger/offer-case-manager-role
 # ===========================================================================
 

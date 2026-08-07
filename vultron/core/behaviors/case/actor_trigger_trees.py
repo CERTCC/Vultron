@@ -36,8 +36,11 @@ from vultron.core.behaviors.case.communication_tree import (
     SendOfferCaseManagerRoleNode,
 )
 from vultron.core.behaviors.case.nodes.actor import (
-    EmitAcceptCaseInviteNode,
     EmitInviteActorToCaseNode,
+)
+from vultron.core.behaviors.case.nodes.invite_response import (
+    EmitAcceptCaseInviteNode,
+    EmitRejectCaseInviteNode,
 )
 from vultron.core.behaviors.case.nodes.ownership_transfer import (
     EmitAcceptCaseOwnershipTransferNode,
@@ -147,6 +150,36 @@ def accept_case_invite_trigger_bt(
         ],
     )
     logger.debug("Created AcceptCaseInviteTriggerBT for invite=%s", invite_id)
+    return root
+
+
+def reject_case_invite_trigger_bt(
+    invite_id: str,
+    captured: dict | None = None,
+) -> py_trees.behaviour.Behaviour:
+    """Return the trigger-side BT for the reject-case-invite workflow.
+
+    Emits Reject(Invite) from the invitee's identity; the factory derives
+    the recipient from the persisted invite object.
+
+    Args:
+        invite_id: ID of the RmInviteToCaseActivity being rejected.
+        captured: Optional dict; ``captured["activity"]`` is set on success.
+
+    Returns:
+        Sequence containing a single EmitRejectCaseInviteNode.
+    """
+    root = py_trees.composites.Sequence(
+        name="RejectCaseInviteTriggerBT",
+        memory=False,
+        children=[
+            EmitRejectCaseInviteNode(
+                invite_id=invite_id,
+                captured=captured,
+            ),
+        ],
+    )
+    logger.debug("Created RejectCaseInviteTriggerBT for invite=%s", invite_id)
     return root
 
 
