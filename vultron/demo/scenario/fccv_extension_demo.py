@@ -44,8 +44,13 @@ import httpx2 as httpx
 
 from vultron.adapters.utils import strip_id_prefix
 from vultron.core.states.cs import CS_vfd
+from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Offer,
     as_TransitiveActivity,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
@@ -88,6 +93,7 @@ from vultron.demo.helpers.polling import (
     wait_for_case_participants,
     wait_for_contiguous_ledger_coverage,
     wait_for_event_type_in_ledger,
+    wait_for_participant_rm_state,
     wait_for_participant_vfd_state,
 )
 from vultron.demo.helpers.seeding import (
@@ -104,6 +110,7 @@ from vultron.demo.helpers.workflow import (
     receiver_engages_case,
     receiver_validates_report,
     reporter_submits_report,
+    seed_offer_record_for_actor,
 )
 
 logger = logging.getLogger(__name__)
@@ -177,6 +184,8 @@ def _phase_report_submission(
     as_Actor,
     as_Actor,
     as_Actor,
+    as_VulnerabilityReport,
+    as_Offer,
     as_VulnerabilityCase,
 ]:
     """Reset, seed, submit report, validate, engage, invite C2, M1 check."""
@@ -206,7 +215,7 @@ def _phase_report_submission(
     c1_in_c1 = get_actor_by_id(c1_client, c1.id_)
     c2_in_c2 = get_actor_by_id(c2_client, c2.id_)
 
-    _, offer = reporter_submits_report(
+    report, offer = reporter_submits_report(
         receiver_client=c1_client,
         reporter=finder,
         receiver=c1_in_c1,
@@ -305,6 +314,8 @@ def _phase_report_submission(
         c1_in_c1,
         c2_in_c2,
         vendor,
+        report,
+        offer,
         case,
     )
 
@@ -318,6 +329,9 @@ def _phase_c2_suggests_vendor(
     vendor: as_Actor,
     vendor_in_vendor: as_Actor,
     case: as_VulnerabilityCase,
+    offer: as_Offer,
+    report: as_VulnerabilityReport,
+    finder: as_Actor,
 ) -> None:
     """C2 suggests Vendor via ADR-0026; C1 approves; Vendor joins."""
     logger.info("─" * 80)
@@ -411,6 +425,49 @@ def _phase_c2_suggests_vendor(
         timeout_seconds=20.0,
     )
     logger.info("✓ M3: Vendor joined case (%d participants)", 5)
+
+    # CM-11-002: Vendor joined via invite-accept and must run the standard RM
+    # triage cycle (RECEIVED → VALID → ACCEPTED) after receiving the full case
+    # replica.  Seed a VultronOfferRecord so validate-report can find the offer.
+    seed_offer_record_for_actor(
+        client=vendor_client,
+        actor=vendor_in_vendor,
+        offer_id=offer.id_,
+        report_id=report.id_,
+        offer_actor_id=finder.id_,
+    )
+
+    receiver_validates_report(
+        receiver_client=vendor_client,
+        receiver=vendor_in_vendor,
+        offer_id=offer.id_,
+    )
+
+    with demo_check("CaseActor reflects Vendor at RM.VALID"):
+        wait_for_participant_rm_state(
+            client=c1_client,
+            case_id=case.id_,
+            actor_id=vendor.id_,
+            expected_states={RM.VALID, RM.ACCEPTED},
+            timeout_seconds=20.0,
+        )
+    logger.info("✓ Vendor RM state reached VALID on C1's replica")
+
+    receiver_engages_case(
+        receiver_client=vendor_client,
+        receiver=vendor_in_vendor,
+        case_id=case.id_,
+    )
+
+    with demo_check("CaseActor reflects Vendor at RM.ACCEPTED"):
+        wait_for_participant_rm_state(
+            client=c1_client,
+            case_id=case.id_,
+            actor_id=vendor.id_,
+            expected_states={RM.ACCEPTED},
+            timeout_seconds=20.0,
+        )
+    logger.info("✓ Vendor RM state reached ACCEPTED on C1's replica")
 
 
 def _phase_sync_verification(
@@ -890,6 +947,8 @@ def run_fccv_extension_demo(
         c1_in_c1,
         c2_in_c2,
         vendor,
+        report,
+        offer,
         case,
     ) = _phase_report_submission(
         finder_client,
@@ -913,6 +972,9 @@ def run_fccv_extension_demo(
         vendor=vendor,
         vendor_in_vendor=vendor_in_vendor,
         case=case,
+        offer=offer,
+        report=report,
+        finder=finder,
     )
 
     finder_in_finder = get_actor_by_id(finder_client, finder.id_)
