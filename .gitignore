@@ -148,7 +148,7 @@ mydb.json
 /package-lock.json
 /ontology/*.properties
 catalog-*.xml
-/wip_notes/
+/wip_notes
 /wip_outputs/
 devlogs
 .codebase-scan.txt
