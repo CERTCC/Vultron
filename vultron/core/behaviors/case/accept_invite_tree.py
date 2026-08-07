@@ -591,7 +591,7 @@ class PersistInviteeParticipantNode(DataLayerAction):
         self.datalayer.save(case)
         self.logger.info(
             "%s: participant '%s' persisted and attached to case '%s'"
-            " (RM.ACCEPTED, PCR-08-010)",
+            " (RM.RECEIVED, CM-11-001)",
             self.name,
             participant.id_,
             self.case_id,
