@@ -206,6 +206,16 @@ class AcceptCaseInviteTriggerRequest(TriggerRequest):
     invite_id: NonEmptyString
 
 
+class RejectCaseInviteTriggerRequest(TriggerRequest):
+    """Trigger request for an invitee to reject a case invitation.
+
+    Emits an RmRejectInviteToCaseActivity queued in the actor's outbox for
+    delivery to the Case Actor that issued the invitation.
+    """
+
+    invite_id: NonEmptyString
+
+
 class AcceptActorRecommendationTriggerRequest(TriggerRequest):
     """Trigger request for the Case Owner to accept an actor recommendation.
 

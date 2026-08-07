@@ -40,6 +40,7 @@ import httpx2 as httpx
 from vultron.adapters.utils import strip_id_prefix
 from vultron.core.states.cs import CS_vfd
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Offer,
     as_TransitiveActivity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -104,6 +105,7 @@ from vultron.demo.helpers.workflow import (
     receiver_engages_case,
     receiver_validates_report,
     reporter_submits_report,
+    run_invite_path_rm_triage,
 )
 
 logger = logging.getLogger(__name__)
@@ -224,7 +226,7 @@ def _phase_report_submission(
     as_Actor,
     as_Actor,
     as_VulnerabilityReport,
-    object,
+    as_Offer,
     as_VulnerabilityCase,
 ]:
     """Reset, seed, submit report, validate, engage, and wait for initial participants."""
@@ -466,6 +468,9 @@ def _phase_c2_invites_vendor(
     vendor: as_Actor,
     vendor_in_vendor: as_Actor,
     case: as_VulnerabilityCase,
+    offer: as_Offer,
+    report: as_VulnerabilityReport,
+    finder: as_Actor,
 ) -> None:
     """C2 (new CASE_OWNER) invites Vendor and Vendor joins the case (AC-2)."""
     logger.info("─" * 80)
@@ -528,6 +533,19 @@ def _phase_c2_invites_vendor(
         timeout_seconds=90.0,
     )
     logger.info("✓ Vendor joined case (%d participants)", 5)
+
+    # CM-11-002: Vendor joined via invite-accept — run standard RM triage cycle.
+    run_invite_path_rm_triage(
+        invited_client=vendor_client,
+        invited_actor=vendor_in_vendor,
+        offer=offer,
+        report=report,
+        finder=finder,
+        auth_client=c1_client,
+        case=case,
+        invited_obj=vendor,
+        timeout_seconds=90.0,
+    )
 
 
 def _phase_sync_verification(
@@ -848,11 +866,6 @@ def _phase_case_closure(
         case_id=case.id_,
     )
     actor_closes_case(
-        client=c2_client,
-        actor=c2_in_c2,
-        case_id=case.id_,
-    )
-    actor_closes_case(
         client=vendor_client,
         actor=vendor_in_vendor,
         case_id=case.id_,
@@ -862,10 +875,16 @@ def _phase_case_closure(
         actor=finder_in_finder,
         case_id=case.id_,
     )
+    # C2 is the case owner post-handoff (TRIG-11-002) and closes last.
+    actor_closes_case(
+        client=c2_client,
+        actor=c2_in_c2,
+        case_id=case.id_,
+    )
 
     with demo_check("All participants RM.CLOSED on all replicas"):
         wait_for_all_participants_rm_closed(
-            client=c1_client,
+            client=c2_client,
             case_id=case.id_,
         )
         wait_for_all_participants_rm_closed(
@@ -873,38 +892,38 @@ def _phase_case_closure(
             case_id=case.id_,
         )
         verify_case_closed(
-            receiver_client=c1_client,
+            receiver_client=c2_client,
             reporter_client=finder_client,
             case_id=case.id_,
         )
 
-    with demo_check("close_case entry present on authoritative actor (c1)"):
+    with demo_check("close_case entry present on authoritative actor (c2)"):
         wait_for_event_type_in_ledger(
-            client=c1_client,
+            client=c2_client,
             case_id=case.id_,
             event_type="close_case",
         )
-    c1_entries = _get_log_entries_for_case(c1_client, case.id_)
-    if c1_entries:
-        c1_tail = max(c1_entries, key=lambda e: e["log_index"])
-        c1_tail_index: int = c1_tail["log_index"]
-        c1_tail_hash: str = c1_tail["entry_hash"]
+    c2_entries = _get_log_entries_for_case(c2_client, case.id_)
+    if c2_entries:
+        c2_tail = max(c2_entries, key=lambda e: e["log_index"])
+        c2_tail_index: int = c2_tail["log_index"]
+        c2_tail_hash: str = c2_tail["entry_hash"]
         logger.info(
-            "Waiting for replicas to receive C1 tail after closure"
+            "Waiting for replicas to receive C2 tail after closure"
             " (hash=%s… index=%d)",
-            c1_tail_hash[:16],
-            c1_tail_index,
+            c2_tail_hash[:16],
+            c2_tail_index,
         )
         for replica_client, label in [
             (finder_client, "Finder"),
-            (c2_client, "C2"),
+            (c1_client, "C1"),
             (vendor_client, "Vendor"),
         ]:
             with demo_check(f"{label} ledger coverage (close phase)"):
                 wait_for_contiguous_ledger_coverage(
                     client=replica_client,
                     case_id=case.id_,
-                    expected_tail_index=c1_tail_index,
+                    expected_tail_index=c2_tail_index,
                 )
 
 
@@ -1059,6 +1078,9 @@ def run_fccv_handoff_demo(
         vendor=vendor,
         vendor_in_vendor=vendor_in_vendor,
         case=case,
+        offer=offer,
+        report=report,
+        finder=finder,
     )
 
     # Verify case active now that all participants have joined.

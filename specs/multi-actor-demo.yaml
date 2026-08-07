@@ -1861,8 +1861,10 @@ groups:
     kind: project
     statement: >-
       The FVV scenario expected-event-types list MUST include
-      `invite_actor_to_case` in addition to the four universal types
-      (DEMOMA-16-001), because Vendor1 invites Vendor2 into the case.
+      `invite_actor_to_case` and `accept_invite_actor_to_case` in addition
+      to the four universal types (DEMOMA-16-001), because Vendor1 invites
+      Vendor2 into the case and Vendor2 explicitly accepts via the
+      `accept-case-invite` trigger.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-16-001
@@ -1874,10 +1876,14 @@ groups:
     kind: project
     statement: >-
       The FVCV-extension scenario expected-event-types list MUST include
-      `invite_actor_to_case` and `offer_case_participant` in addition to the
-      four universal types (DEMOMA-16-001), because Vendor1 invites
-      Coordinator, and Coordinator uses the ADR-0026 suggest-actor flow
-      (`offer_case_participant`) to propose Vendor2.
+      `invite_actor_to_case`, `offer_case_participant`,
+      `accept_invite_actor_to_case`, and `accept_actor_recommendation` in
+      addition to the four universal types (DEMOMA-16-001), because Vendor1
+      invites Coordinator, Coordinator uses the ADR-0026 suggest-actor flow
+      (`offer_case_participant`) to propose Vendor2, Vendor1 approves the
+      recommendation (`accept_actor_recommendation`), CaseActor converts the
+      approval into an invitation, and Vendor2 explicitly accepts via the
+      `accept-case-invite` trigger.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-16-001
@@ -1893,6 +1899,16 @@ groups:
       to the four universal types (DEMOMA-16-001), because Vendor1 invites
       Coordinator, the Coordinator accepts and becomes the new CASE_OWNER,
       and Coordinator then invites Vendor2 who also accepts.
+    rationale: >-
+      In addition to the event-type coverage, FVCV-handoff is the scenario
+      planned to exercise the non-linear RM path R → I → V (tentative
+      rejection then acceptance, implementation tracked in #2050): Vendor1
+      will initially invalidate the report (RI), then re-validate after the
+      Finder provides clarifying information via a case note. This RM
+      state-transition path will be verified by `demo_check` assertions in
+      the scenario script, not by `event_type` presence in the invariant
+      harness, because R → I → V produces the same `validate_report` ledger
+      event as the linear R → V path.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-16-001
@@ -1919,9 +1935,10 @@ groups:
     kind: project
     statement: >-
       The FCV scenario expected-event-types list MUST include
-      `invite_actor_to_case` in addition to the four universal types
-      (DEMOMA-16-001), because the Coordinator invites both the Finder
-      and the Vendor into the case.
+      `invite_actor_to_case` and `accept_invite_actor_to_case` in addition
+      to the four universal types (DEMOMA-16-001), because the Coordinator
+      invites both the Finder and the Vendor into the case, and both Finder
+      and Vendor explicitly accept via the `accept-case-invite` trigger.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-16-001
@@ -1950,26 +1967,75 @@ groups:
     kind: project
     statement: >-
       The FCVCV scenario expected-event-types list MUST include
-      `invite_actor_to_case`, `offer_case_participant`, and
-      `accept_invite_actor_to_case` in addition to the four universal types
-      (DEMOMA-16-001). `invite_actor_to_case` appears at least three times
-      (C1 invites V1, C1 invites C2, and CaseActor invites V2 via the
-      ADR-0026 path); `offer_case_participant` appears at least once (C2
-      suggests V2 to C1 via the ADR-0026 suggest-actor flow);
+      `invite_actor_to_case`, `offer_case_participant`,
+      `accept_invite_actor_to_case`, and `accept_actor_recommendation` in
+      addition to the four universal types (DEMOMA-16-001).
+      `invite_actor_to_case` appears at least three times (C1 invites V1, C1
+      invites C2, and CaseActor invites V2 via the ADR-0026 path);
+      `offer_case_participant` appears at least once (C2 suggests V2 to C1
+      via the ADR-0026 suggest-actor flow); `accept_actor_recommendation`
+      appears at least once (C1 approves C2's recommendation);
       `accept_invite_actor_to_case` appears at least three times (V1, C2,
       and V2 each accept their respective invitations).
     rationale: >-
       FCVCV is the first scenario with two independent coordinators and two
       independent vendor actors. C1 directly invites V1 and C2; C2 suggests
-      V2 via ADR-0026 (offer_case_participant → CaseActor invite → V2
-      accept); all three vendor/coordinator invitees issue explicit accepts.
-      Verifying these event types confirms the full ADR-0026 suggest-actor
-      path and the multi-vendor invitation chain are exercised end-to-end.
+      V2 via ADR-0026 (offer_case_participant → C1 approves via
+      accept_actor_recommendation → CaseActor invite → V2 accept); all three
+      vendor/coordinator invitees issue explicit accepts. Verifying these
+      event types confirms the full ADR-0026 suggest-actor path and the
+      multi-vendor invitation chain are exercised end-to-end.
+
+      In addition to event-type coverage, FCVCV is the scenario planned to
+      exercise the non-linear RM path A → D → A (accepted, then deferred,
+      then re-accepted, implementation tracked in #2050): V1 will accept the
+      case, defer due to competing priorities (RD message), then resume and
+      engage again (RV message). This RM state-transition path will be
+      verified by `demo_check` assertions in the scenario script. The
+      `defer-case` and `engage-case` trigger endpoints both support this path
+      without new BT nodes, since the RM state machine already declares
+      `ACCEPT: DEFERRED → ACCEPTED` as a valid transition.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-16-001
     - rel_type: refines
       spec_id: DEMOMA-19-001
+
+  - id: DEMOMA-16-010
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCCV-extension scenario expected-event-types list MUST include
+      `invite_actor_to_case`, `offer_case_participant`,
+      `accept_invite_actor_to_case`, and `accept_actor_recommendation` in
+      addition to the four universal types (DEMOMA-16-001), because
+      Coordinator1 invites Coordinator2, Coordinator2 uses the ADR-0026
+      suggest-actor flow (`offer_case_participant`) to propose the Vendor,
+      Coordinator1 approves the recommendation (`accept_actor_recommendation`),
+      CaseActor converts the approval into an invitation, and the Vendor
+      explicitly accepts via the `accept-case-invite` trigger.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-16-001
+    - rel_type: refines
+      spec_id: DEMOMA-13-001
+
+  - id: DEMOMA-16-011
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCV-reject scenario expected-event-types list MUST include
+      `invite_actor_to_case` and `reject_invite_actor_to_case` in addition to
+      the four universal types (DEMOMA-16-001), because the Coordinator invites
+      the Vendor and the Vendor sends `Reject(Invite(actor, case))` (an
+      invitation-layer rejection), which triggers
+      `RejectInviteActorToCaseReceivedUseCase` on the CaseActor and produces
+      the `reject_invite_actor_to_case` ledger entry. The Vendor never sends
+      `Accept(Invite(actor, case))`, so `accept_invite_actor_to_case` does NOT
+      appear in this scenario.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-16-001
 
 - id: DEMOMA-18
   title: In-Process Fuzz Simulation Scenario
@@ -2358,3 +2424,382 @@ groups:
       spec_id: DEMOMA-03-003
     - rel_type: refines
       spec_id: DEMOMA-19-003
+
+- id: DEMOMA-20
+  title: RCV Embargo Scenario (Reporter + Coordinator + Vendor, deliberate termination)
+  description: >-
+    Specifies the rcv-embargo demo scenario: a 3-party CVD case with Reporter
+    (R), Coordinator (C), and Vendor (V), exercising embargo lifecycle variations
+    (b) post-submission negotiation and (e) deliberate early termination. After
+    report submission and case setup, R proposes an embargo (EP); C accepts (EA),
+    advancing EM to ACTIVE with all three parties as SIGNATORY. The fix lifecycle
+    then proceeds. Before the natural embargo window expires, C deliberately
+    terminates the embargo (ET), advancing EM to EXITED. The case continues to
+    the normal P-transition and closure sequence. This scenario is the first to
+    exercise: (a) embargo proposal initiated after report submission (variation
+    b), (b) the full EP→EA→ET arc (propose, activate, terminate without revision),
+    (c) PEC transitions from NO_EMBARGO through INVITED → SIGNATORY for all three
+    parties.
+  specs:
+  - id: DEMOMA-20-001
+    priority: MUST
+    kind: project
+    statement: >-
+      The rcv-embargo scenario file MUST be implemented at
+      `vultron/demo/scenario/rcv_embargo_demo.py`. It MUST be structured with
+      the following phases executed in order: (1) report_submission — R submits
+      report to C, C validates, C creates the case, C invites R and V; (2)
+      embargo_proposal — R proposes an embargo (EP trigger), C accepts (EA
+      trigger), all three parties reach `emConsentState=SIGNATORY` and
+      `em_state=ACTIVE`; (3) fix_lifecycle — V advances through the fix-ready
+      path (VFd); (4) embargo_termination — C posts the terminate-embargo
+      trigger (ET), advancing `em_state` to EXITED; (5) publication — C
+      triggers the P-transition (CS.P); (6) case_closure — all participants
+      close; (7) dump_case_ledgers — devlog output. After each phase the
+      scenario MUST assert the expected EM state before proceeding to the
+      next phase.
+    rationale: >-
+      The phased structure mirrors prior FCV/FVCV scenarios while inserting
+      embargo lifecycle phases between report setup and fix-lifecycle. Asserting
+      EM state at phase boundaries catches regressions where an embargo trigger
+      silently fails and the scenario continues in an unexpected state.
+      Variation (b) places the EP message after report submission, consistent
+      with the protocol definition: R already has an established case before
+      proposing embargo terms.
+    lint_suppress:
+    - phantom_path_ref
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-01-001
+    - rel_type: refines
+      spec_id: DEMOMA-12-001
+
+  - id: DEMOMA-20-002
+    priority: MUST
+    kind: project
+    statement: >-
+      An exchange helper function `demo_propose_and_activate_embargo` MUST be
+      added to `vultron/demo/exchange/`. It MUST accept `(reporter_client,
+      coordinator_client, vendor_client, case_id)` arguments and execute the
+      following sequence: (1) reporter posts `trigger_propose_embargo` with a
+      valid embargo event (deadline, sequence); (2) coordinator polls for the
+      EP message and posts `trigger_accept_embargo`; (3) vendor polls for the
+      EA message. After step 3, the helper MUST assert `em_state == EM.ACTIVE`
+      on the coordinator's case replica and `emConsentState == SIGNATORY` for
+      all three participants. The helper MUST use `demo_step` and `demo_check`
+      for all assertions, consistent with existing exchange helpers.
+    rationale: >-
+      Extracting the propose-and-activate sequence as a reusable exchange
+      helper follows DEMOMA-17-001 (DRY for demo code). The three-party
+      propose→accept→active flow is a composable unit that both rcv-embargo
+      and rcvv-embargo scenarios require; a single helper prevents duplication
+      and ensures both scenarios exercise identical protocol steps.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-17-001
+
+  - id: DEMOMA-20-003
+    priority: MUST
+    kind: project
+    statement: >-
+      An exchange helper function `demo_terminate_embargo` MUST be added to
+      `vultron/demo/exchange/`. It MUST accept `(terminating_client, case_id)`
+      arguments — where `terminating_client` is any SIGNATORY participant
+      authorized to terminate — and post `trigger_terminate_embargo`. After
+      delivery, the helper MUST assert `em_state == EM.EXITED` on the
+      terminating actor's case replica using `demo_check`. The helper MUST NOT
+      assert PEC states for other participants; PEC propagation is asynchronous
+      and belongs in scenario-level phase assertions, not in the exchange helper.
+    rationale: >-
+      The terminate-embargo exchange is a single-actor trigger that can be
+      reused by any scenario exercising variation (e). Keeping it in
+      `vultron/demo/exchange/` (not inline in the scenario file) satisfies
+      DEMOMA-17-001. Restricting assertions to the terminating actor's EM state
+      keeps the helper side-effect-free with respect to peer-replica polling,
+      which varies by scenario topology.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-17-001
+    - rel_type: refines
+      spec_id: DEMOMA-20-002
+
+  - id: DEMOMA-20-004
+    priority: MUST
+    kind: project
+    statement: >-
+      The rcv-embargo scenario MUST be registered as the `rcv-embargo`
+      sub-command in `vultron/demo/cli.py`, consistent with the naming
+      convention of existing scenario commands.
+    rationale: >-
+      The CLI is the single entry point for all demo scenarios (DC-01-001).
+      The `rcv-embargo` name makes the embargo-lifecycle focus explicit and
+      distinguishes this scenario from the base `rcv` scenario if one is
+      ever added.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-01-001
+
+  - id: DEMOMA-20-005
+    priority: MUST
+    kind: project
+    statement: >-
+      The rcv-embargo scenario MUST be added to the CI demo-integration matrix
+      in `.github/workflows/demo-integration.yml` with `DEMO=rcv-embargo` and
+      `full_suite_only: false` (runs on every PR). The CI devlogs directory for
+      the run MUST use the scenario-role naming convention: `reporter`,
+      `coordinator`, `vendor`, `case-actor`.
+    rationale: >-
+      CI coverage of the embargo lifecycle from day one avoids the deferred-add
+      pattern that required a later DEMOCI-06 amendment for earlier scenarios.
+      `full_suite_only: false` places the scenario in the minimum PR set,
+      consistent with the decision recorded in issue #1222 planning: default to
+      add-now/remove-later rather than deferred adds.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOCI-04-001
+
+  - id: DEMOMA-20-006
+    priority: MUST
+    kind: project
+    statement: >-
+      An invariant harness file MUST be created at
+      `test/ci/invariants/test_rcv_embargo_invariants.py`. It MUST define
+      `_DEMO_NAME = "rcv-embargo"`, `_CHAIN_ACTORS` covering `reporter`,
+      `coordinator`, `vendor`, and `case-actor`, and the full set of universal
+      invariants (Invariants 1–15) following the pattern in
+      `test_fcv_invariants.py`. It MUST additionally include the following
+      scenario-specific invariant tests: (a) an embargo-propose event type is
+      present in the log (variation b: EP message delivered); (b) an
+      embargo-accept event type is present (EA message delivered, EM reached
+      ACTIVE); (c) an embargo-terminate event type is present (ET message
+      delivered, variation e exercised); (d) `emConsentState` transitions
+      through INVITED and SIGNATORY are observable in at least one participant's
+      `add_participant_status_to_participant` entries. The exact event type
+      strings for (a)–(c) MUST be confirmed from the case-ledger output of a
+      first successful local run and recorded in the harness as a comment
+      referencing the spec ID that required them.
+    rationale: >-
+      The scenario-specific invariants confirm that all three embargo protocol
+      messages (EP, EA, ET) were recorded in the ledger — not just that the
+      scenario ran without crashing. The PEC consent-state check verifies that
+      participant embargo consent transitions were emitted and recorded, which
+      is the minimal proof that the PEC state machine was exercised. Requiring
+      event-type confirmation from a first live run prevents the harness from
+      silently passing with wrong or missing event type strings.
+    lint_suppress:
+    - phantom_path_ref
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOCI-04-001
+    - rel_type: refines
+      spec_id: DEMOMA-16-009
+    - rel_type: refines
+      spec_id: DEMOMA-20-001
+
+- id: DEMOMA-21
+  title: RCVV Embargo Scenario (Reporter + Coordinator + V1 + V2, revision and accidental collapse)
+  description: >-
+    Specifies the rcvv-embargo demo scenario: a 4-party CVD case with Reporter
+    (R), Coordinator (C), Vendor1 (V1), and Vendor2 (V2), exercising embargo
+    lifecycle variations (b) post-submission negotiation, (c) revision during
+    active embargo (EV→ER→EJ), (f) deliberate notification delay for V2
+    (late invitation simulating a short-deadline vendor), and (d) accidental
+    collapse via CS.P. After R proposes and C accepts an initial embargo (EP→EA),
+    EM reaches ACTIVE with R, C, and V1 as SIGNATORY. C then proposes a
+    revision (EV), V1 accepts (EJ), and EM returns to ACTIVE with updated terms.
+    V2 is not invited until after the revision is accepted, simulating a
+    coordinator holding off on inviting a short-deadline vendor until the
+    embargo window is near its close. V2 accepts the case invite and becomes
+    SIGNATORY. Finally, R publishes (CS.P fires), triggering
+    `PublicDisclosureBranchNode` which auto-terminates the embargo (EM→EXITED).
+    This scenario is the first to exercise: (a) an embargo revision cycle
+    (EV→ER/EJ arc), (b) a late-invitee V2 joining an active embargo (PEC
+    INVITED→SIGNATORY after EM.ACTIVE), (c) accidental embargo collapse via
+    external P-event rather than deliberate termination.
+  specs:
+  - id: DEMOMA-21-001
+    priority: MUST
+    kind: project
+    statement: >-
+      The rcvv-embargo scenario file MUST be implemented at
+      `vultron/demo/scenario/rcvv_embargo_demo.py`. It MUST be structured with
+      the following phases executed in order: (1) report_submission — R submits
+      report to C, C validates and creates the case, C invites R and V1; (2)
+      embargo_proposal — R proposes an embargo (EP), C accepts (EA), R and V1
+      reach `emConsentState=SIGNATORY` and `em_state=ACTIVE`; (3)
+      embargo_revision — C proposes a revision (EV, `em_state→REVISE`), V1
+      accepts the revision (EJ, `em_state→ACTIVE`); (4) v2_late_invite — C
+      invites V2 to the case; V2 accepts the case invite and the in-force
+      embargo (`emConsentState→SIGNATORY`); (5) fix_lifecycle — V1 and V2 each
+      advance through their fix-ready paths; (6) accidental_collapse — R
+      publishes (`actor_notifies_published`), triggering CS.P and causing
+      CaseActor to auto-terminate the embargo (`em_state→EXITED`) via
+      `PublicDisclosureBranchNode`; (7) case_closure — all participants close;
+      (8) dump_case_ledgers — devlog output. After phases 2, 3, 4, and 6 the
+      scenario MUST assert the expected EM state before proceeding.
+    rationale: >-
+      The phased ordering reflects the temporal constraints of the embargo
+      protocol: revision requires an ACTIVE embargo (phase 3 must follow
+      phase 2); V2 late-invite after revision simulates a short-deadline vendor
+      pattern (variation f); accidental collapse via CS.P must come after both
+      vendors have progressed through the fix lifecycle so the ledger contains
+      a complete picture of fix-ready states before collapse. Phase-boundary
+      assertions catch silent failures.
+    lint_suppress:
+    - phantom_path_ref
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-01-001
+    - rel_type: refines
+      spec_id: DEMOMA-12-001
+
+  - id: DEMOMA-21-002
+    priority: MUST
+    kind: project
+    statement: >-
+      An exchange helper function `demo_propose_embargo_revision` MUST be added
+      to `vultron/demo/exchange/`. It MUST accept `(proposing_client,
+      accepting_client, case_id)` arguments and execute the following sequence:
+      (1) `proposing_client` posts `trigger_propose_embargo_revision`
+      (`em_state: ACTIVE → REVISE`); (2) `accepting_client` polls for the EV
+      message and posts `trigger_accept_embargo` (`em_state: REVISE → ACTIVE`).
+      After step 2, the helper MUST assert `em_state == EM.ACTIVE` on the
+      accepting client's case replica using `demo_check`. The function MUST be
+      importable from `vultron/demo/exchange/` and MUST NOT duplicate the
+      propose-and-activate logic already in `demo_propose_and_activate_embargo`
+      (DEMOMA-20-002).
+    rationale: >-
+      The revision exchange (EV→EJ) is a self-contained composable unit that
+      can be reused if future scenarios add multiple revision cycles. Accepting
+      from REVISE state uses the same `trigger_accept_embargo` endpoint as
+      accepting from PROPOSED, because `AcceptEmbargoLifecycleNode` handles
+      both states (confirmed in `vultron/core/behaviors/embargo/trigger_tree.py`
+      and `vultron/core/behaviors/embargo/nodes/proposal.py`). No new endpoint
+      is needed.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-17-001
+    - rel_type: refines
+      spec_id: DEMOMA-20-002
+
+  - id: DEMOMA-21-003
+    priority: MUST
+    kind: project
+    statement: >-
+      The v2_late_invite phase of rcvv-embargo MUST invite V2 to the case only
+      after the embargo revision (phase 3) is complete and `em_state` is
+      confirmed ACTIVE. On receiving the case invite, V2 MUST also receive the
+      current embargo event and accept it, reaching `emConsentState=SIGNATORY`.
+      The scenario MUST assert that V2's `emConsentState` is SIGNATORY before
+      proceeding to the fix_lifecycle phase. The scenario MUST use polling
+      helpers (not `post_to_inbox_and_wait`) to detect the invite in V2's
+      inbox, consistent with the no-mail-carrying rule (DEMOMA-03-003).
+    rationale: >-
+      Inviting V2 after the revision is complete — rather than before — is the
+      defining characteristic of variation (f): the coordinator delays
+      notification of a short-deadline vendor until the embargo terms are
+      settled. Asserting V2's SIGNATORY state before fix_lifecycle ensures that
+      V2 is fully enrolled in the embargo before it is accidentally collapsed by
+      CS.P, making the ledger record unambiguous about V2's consent at time of
+      collapse.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-03-003
+    - rel_type: refines
+      spec_id: DEMOMA-21-001
+
+  - id: DEMOMA-21-004
+    priority: MUST
+    kind: project
+    statement: >-
+      The accidental_collapse phase of rcvv-embargo MUST trigger the P-transition
+      by calling `actor_notifies_published` on the reporter's client, which posts
+      to the `demo/notify-published` endpoint. The scenario MUST then poll for
+      CaseActor to emit the embargo teardown (the EM.EXITED transition driven by
+      `PublicDisclosureBranchNode`) before asserting `em_state == EM.EXITED` on
+      the coordinator's replica. The scenario MUST NOT call
+      `trigger_terminate_embargo` directly for this phase; the collapse MUST
+      arrive as an automatic consequence of CS.P, not a deliberate termination.
+    rationale: >-
+      Variation (d) specifically exercises the accidental/automatic embargo
+      collapse path rather than the deliberate termination (ET) path.
+      `PublicDisclosureBranchNode` fires when CS.P is detected on the CaseActor,
+      emitting the EM termination activity automatically. Using `actor_notifies_published`
+      from `vultron/demo/helpers/actions.py` exercises this code path end-to-end.
+      Calling `trigger_terminate_embargo` directly would test variation (e)
+      instead and would not exercise `PublicDisclosureBranchNode`.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-21-001
+    - rel_type: refines
+      spec_id: DEMOMA-07-003
+
+  - id: DEMOMA-21-005
+    priority: MUST
+    kind: project
+    statement: >-
+      The rcvv-embargo scenario MUST be registered as the `rcvv-embargo`
+      sub-command in `vultron/demo/cli.py`, consistent with the naming
+      convention of existing scenario commands.
+    rationale: >-
+      The CLI is the single entry point for all demo scenarios (DC-01-001).
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-01-001
+
+  - id: DEMOMA-21-006
+    priority: MUST
+    kind: project
+    statement: >-
+      The rcvv-embargo scenario MUST be added to the CI demo-integration matrix
+      in `.github/workflows/demo-integration.yml` with `DEMO=rcvv-embargo` and
+      `full_suite_only: false` (runs on every PR). The CI devlogs directory for
+      the run MUST use the scenario-role naming convention: `reporter`,
+      `coordinator`, `vendor`, `vendor2`, `case-actor`.
+    rationale: >-
+      CI coverage from day one, consistent with the decision recorded in issue
+      #1222 planning: default to add-now/remove-later rather than deferred adds.
+      `full_suite_only: false` places the scenario in the minimum PR set.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOCI-04-001
+
+  - id: DEMOMA-21-007
+    priority: MUST
+    kind: project
+    statement: >-
+      An invariant harness file MUST be created at
+      `test/ci/invariants/test_rcvv_embargo_invariants.py`. It MUST define
+      `_DEMO_NAME = "rcvv-embargo"`, `_CHAIN_ACTORS` covering `reporter`,
+      `coordinator`, `vendor`, `vendor2`, and `case-actor`, and the full set of
+      universal invariants (Invariants 1–15). It MUST additionally include the
+      following scenario-specific invariant tests: (a) an embargo-propose event
+      type is present (variation b, EP delivered); (b) an embargo-accept event
+      type is present at least twice — once for the initial activation (EA) and
+      once for the revision acceptance (EJ); (c) an embargo-revise event type is
+      present (EV delivered, variation c); (d) `invite_actor_to_case` appears at
+      least twice (V1 and V2 each receive an invite); (e) V2 is a late joiner —
+      V2's replica MUST contain all ledger entries present in the coordinator
+      replica (backfill check, following the FCV late-joiner pattern); (f) a
+      CS.P-triggered EM termination is observable — `em_state=EXITED` is
+      present in the final snapshot without a corresponding explicit ET message
+      (or with CaseActor as the terminating actor, confirming auto-collapse).
+      The exact event type strings MUST be confirmed from a first successful
+      local run and recorded as a comment referencing the spec ID.
+    rationale: >-
+      The scenario-specific invariants confirm all four embargo-variation
+      protocol paths were exercised and recorded: EP (b), EV (c), EJ (c), and
+      auto-collapse via CS.P (d). The late-joiner backfill check for V2
+      verifies that the ledger synchronization worked correctly when V2 joined
+      mid-scenario after an embargo revision. Invariant (f) distinguishes
+      accidental collapse from deliberate termination, ensuring the scenario
+      exercised the correct code path.
+    lint_suppress:
+    - phantom_path_ref
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOCI-04-001
+    - rel_type: refines
+      spec_id: DEMOMA-16-009
+    - rel_type: refines
+      spec_id: DEMOMA-21-001

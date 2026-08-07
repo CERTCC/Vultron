@@ -560,6 +560,15 @@ scenario, and the spec-test sync rule.
 adding or changing a scenario's expected event types, or debugging a silent
 invariant harness failure in CI.
 
+**`demo-ci-scenario-coverage.md`**
+Coverage matrix mapping all 8 demo scenarios to the distinct protocol
+`event_type` values each exercises, plus the minimum-PR-validation-set
+analysis (DEMOCI-06): which 3 scenarios cover all 7 event types, rationale
+for the minimum set, and workflow implementation notes.
+**Load when**: evaluating which demo scenarios to include in the PR gate,
+adding a new scenario and determining whether it changes the minimum set, or
+auditing `full_suite_only` assignments in `demo-integration.yml`.
+
 **`codebase-structure-fastapi-patterns.md`**
 FastAPI and test infrastructure patterns: router test override pattern
 (`_shared_dl`, `dependency_overrides`), circular import fix pattern
@@ -592,6 +601,15 @@ sync-log-entry context field, and testing patterns.
 the resolved design rationale for the trigger architecture, or auditing trigger
 classification (demo-only vs general-purpose).
 
+**`architecture-ratchet-corpus.md`**
+Design decisions and measurements for the shared corpus pattern in
+`test/architecture/`: why a module-level source cache beats a session fixture
+(timeout-window constraints), the prefilter approach, memory budget comparison,
+xdist compatibility notes, and alternatives considered.
+**Load when**: implementing or reviewing `test/architecture/_corpus.py`, adding
+a new architecture ratchet test, auditing full-suite performance, or evaluating
+xdist compatibility.
+
 **`flaky-tests.md`**
 Fast-lookup catalog of known flaky tests and CI jobs → tracking issue numbers.
 Used by `pr-execute` as a cache before querying GitHub. GitHub is ground truth;
@@ -620,6 +638,16 @@ Three-Actor (Finder + Vendor + Coordinator), MultiParty (ownership transfer).
 Describes what each scenario would demonstrate and open design questions.
 **Load when**: designing new demo scripts or extending the existing demo suite
 beyond the current FV scenario.
+
+**`cvd-recipe-injects.md`**
+Classification of all 21 CERT Guide to CVD problem-solving recipes as Vultron
+scenario injects. Each recipe is mapped to RM/EM/CS protocol constructs and
+assigned to a tier: A (implementable now), B (needs protocol/infra work), or
+C (out of scope). Tier A recipes each have a Task issue under epic #1160;
+Tier B recipes each have an Idea issue. Source: IDEA-1223.
+**Load when**: designing new failure-path or abnormal-flow demo scenarios,
+selecting which CVD recipes to implement as inject variations, or checking
+whether a recipe has already been classified and tracked.
 
 **`vultron/core/use_cases/triggers/AGENTS.md`**
 Trigger classification guidance: demo-specific vs general-purpose

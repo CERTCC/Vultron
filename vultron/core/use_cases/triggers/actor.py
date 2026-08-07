@@ -31,8 +31,10 @@ from vultron.core.behaviors.case.actor_trigger_trees import (
     invite_actor_to_case_trigger_bt,
     offer_case_manager_role_trigger_bt,
     offer_case_ownership_transfer_trigger_bt,
+    reject_case_invite_trigger_bt,
     suggest_actor_to_case_trigger_bt,
 )
+from vultron.core.models._helpers import _as_id
 from vultron.core.use_cases._helpers import _find_case_actor_id
 from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
@@ -47,6 +49,7 @@ from vultron.core.use_cases.triggers.requests import (
     OfferCaseManagerRoleTriggerRequest,
     OfferCaseOwnershipTransferTriggerRequest,
     OfferCaseParticipantRoleTriggerRequest,
+    RejectCaseInviteTriggerRequest,
     SuggestActorToCaseTriggerRequest,
 )
 from vultron.errors import VultronNotFoundError
@@ -219,6 +222,39 @@ class SvcAcceptCaseInviteUseCase(SvcBTTriggerBase):
         )
 
 
+class SvcRejectCaseInviteUseCase(SvcBTTriggerBase):
+    """Reject a case invitation by emitting RmRejectInviteToCaseActivity.
+
+    The invitee actor reads the invite from the DataLayer and queues the
+    Reject activity for delivery to the Case Actor.
+    """
+
+    def _prepare(self) -> None:
+        request = cast(RejectCaseInviteTriggerRequest, self._request)
+        actor = resolve_actor(request.actor_id, self._dl)
+        self._actor_id = actor.id_
+
+        if self._dl.read(request.invite_id) is None:
+            raise VultronNotFoundError(
+                "RmInviteToCaseActivity", request.invite_id
+            )
+
+        self._invite_id = request.invite_id
+
+    def _build_tree(self) -> py_trees.behaviour.Behaviour:
+        return reject_case_invite_trigger_bt(
+            invite_id=self._invite_id,
+            captured=self._captured,
+        )
+
+    def _handle_result(self) -> None:
+        logger.info(
+            "Actor '%s' rejected case invite '%s'",
+            self._actor_id,
+            self._invite_id,
+        )
+
+
 class SvcOfferCaseManagerRoleUseCase(SvcBTTriggerBase):
     """Offer the CASE_MANAGER role to the Case Actor (trigger-side path).
 
@@ -321,16 +357,25 @@ class SvcAcceptCaseOwnershipTransferUseCase(SvcBTTriggerBase):
         actor = resolve_actor(request.actor_id, self._dl)
         self._actor_id = actor.id_
 
-        if self._dl.read(request.offer_id) is None:
+        offer = self._dl.read(request.offer_id)
+        if offer is None:
             raise VultronNotFoundError(
                 "_OfferCaseOwnershipTransferActivity", request.offer_id
             )
 
         self._offer_id = request.offer_id
 
+        raw_case_id = _as_id(getattr(offer, "object_", None))
+        if raw_case_id is None:
+            raise VultronNotFoundError(
+                "VulnerabilityCase (in Offer.object_)", request.offer_id
+            )
+        self._case_id = raw_case_id
+
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         return accept_case_ownership_transfer_trigger_bt(
             offer_id=self._offer_id,
+            case_id=self._case_id,
             captured=self._captured,
         )
 

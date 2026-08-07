@@ -69,6 +69,8 @@ _FVCV_HANDOFF_EXPECTED_EVENT_TYPES = [
     pytest.param(
         "accept_invite_actor_to_case", id="accept_invite_actor_to_case"
     ),
+    # CM-11-002: Vendor2 runs the RM triage cycle after joining.
+    pytest.param("engage_case", id="engage_case"),
 ]
 
 #: Actors with per-actor chain / contiguity / completeness checks.
@@ -331,6 +333,28 @@ def test_fvcv_handoff_accept_invite_at_least_twice(
     """
     violations = check_event_type_count(
         fvcv_handoff_replicas, "accept_invite_actor_to_case", min_count=2
+    )
+    assert not violations, violations[0] if violations else ""
+
+
+@pytest.mark.case_ledger_invariants
+def test_fvcv_handoff_vendor2_rm_triage_observed(
+    fvcv_handoff_replicas: dict[str, list[dict]],
+) -> None:
+    """Vendor2 RM triage cycle (VALID then ACCEPTED) is observed in the ledger.
+
+    Per CM-11-002, Vendor2 SHOULD run the standard triage cycle after
+    receiving the full case replica.  Both ``validate_report`` and
+    ``engage_case`` entries must appear at least twice in total — the
+    original receiver (Vendor1) and Vendor2 each contribute one of each.
+    """
+    violations = check_event_type_count(
+        fvcv_handoff_replicas, "validate_report", min_count=2
+    )
+    assert not violations, violations[0] if violations else ""
+
+    violations = check_event_type_count(
+        fvcv_handoff_replicas, "engage_case", min_count=2
     )
     assert not violations, violations[0] if violations else ""
 

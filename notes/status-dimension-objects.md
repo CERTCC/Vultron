@@ -198,6 +198,45 @@ methods (`rm.is_validated()`) over the free-standing helpers
 
 ---
 
+## Write-Side Validation at BT Nodes
+
+Dimension objects that are constructed directly by target state value
+(e.g. `VfdDimension(state=target)`) rather than via `transition()` **bypass
+the transition contract** in SDO-02-002. BT write nodes that use this pattern
+MUST validate the `(current → target)` pair before persisting.
+
+The valid-transition helper functions in `vultron/core/states/` provide this:
+
+```python
+from vultron.core.states.cs import is_valid_vfd_transition, is_valid_pxa_transition
+from vultron.core.states.rm import is_valid_rm_transition
+
+# In a write node's update():
+if target_state is not None and target_state != current_state:
+    if not is_valid_vfd_transition(current_state, target_state):
+        self.feedback_message = (
+            f"Invalid VFD transition {current_state!r} → {target_state!r}"
+        )
+        return Status.FAILURE
+```
+
+Rules:
+
+- `target == current` → proceed (status confirmation; valid protocol observation)
+- `is_valid_*_transition(current, target)` is `True` → proceed
+- Otherwise → `Status.FAILURE` with a descriptive `feedback_message`
+- `None` target → skip validation (caller is preserving current state)
+
+This makes write nodes fail-closed regardless of whether an upstream guard
+is present, weak, or bypassed. See BTND-10-001, SDO-02-004, CSB-16-001/002.
+
+The primary write boundary is `CreateParticipantStatusNode` in
+`vultron/core/behaviors/case/nodes/participant/status.py` — all VFD/RM/PXA
+state-write paths in the prototype route through it or should follow the same
+pattern.
+
+---
+
 ## Relationship to EmbargoLifecycle
 
 `EmbargoLifecycle` currently mutates `em_state` and `em_consent_state` fields

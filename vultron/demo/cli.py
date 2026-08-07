@@ -47,6 +47,7 @@ import vultron.demo.exchange.suggest_actor_demo as suggest_actor_demo
 import vultron.demo.scenario.fccv_extension_demo as fccv_extension_demo
 import vultron.demo.scenario.fccv_handoff_demo as fccv_handoff_demo
 import vultron.demo.scenario.fcv_demo as fcv_demo
+import vultron.demo.scenario.fcv_reject_demo as fcv_reject_demo
 import vultron.demo.scenario.fcvcv_demo as fcvcv_demo
 import vultron.demo.scenario.fvcv_extension_demo as fvcv_extension_demo
 import vultron.demo.scenario.fvcv_handoff_demo as fvcv_handoff_demo
@@ -1127,6 +1128,107 @@ def fcv(
      10. All participants close the case (RM.CLOSED on all replicas).
     """
     fcv_demo.main(
+        skip_health_check=skip_health_check,
+        finder_url=finder_url,
+        coordinator_url=coordinator_url,
+        vendor_url=vendor_url,
+        case_actor_url=case_actor_url,
+        finder_id=finder_id,
+        coordinator_id=coordinator_id,
+        vendor_id=vendor_id,
+    )
+
+
+# ---------------------------------------------------------------------------
+# FCV-Reject sub-command — FCV with Vendor rejecting the invitation
+# ---------------------------------------------------------------------------
+
+
+@main.command(name="fcv-reject")
+@click.option(
+    "--finder-url",
+    envvar="VULTRON_FINDER_BASE_URL",
+    default=fcv_reject_demo.FINDER_BASE_URL,
+    show_default=True,
+    help="Base URL of the Finder container API "
+    "(env: VULTRON_FINDER_BASE_URL).",
+)
+@click.option(
+    "--coordinator-url",
+    envvar="VULTRON_COORDINATOR_BASE_URL",
+    default=fcv_reject_demo.COORDINATOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the Coordinator container API "
+    "(env: VULTRON_COORDINATOR_BASE_URL).",
+)
+@click.option(
+    "--vendor-url",
+    envvar="VULTRON_VENDOR_BASE_URL",
+    default=fcv_reject_demo.VENDOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the Vendor container API "
+    "(env: VULTRON_VENDOR_BASE_URL).",
+)
+@click.option(
+    "--case-actor-url",
+    envvar="VULTRON_CASE_ACTOR_BASE_URL",
+    default=fcv_reject_demo.CASE_ACTOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the CaseActor container API "
+    "(env: VULTRON_CASE_ACTOR_BASE_URL).",
+)
+@click.option(
+    "--finder-id",
+    default=None,
+    help="Deterministic full URI for the Finder actor (optional).",
+)
+@click.option(
+    "--coordinator-id",
+    default=None,
+    help="Deterministic full URI for the Coordinator actor (optional).",
+)
+@click.option(
+    "--vendor-id",
+    default=None,
+    help="Deterministic full URI for the Vendor actor (optional).",
+)
+@click.option(
+    "--skip-health-check",
+    is_flag=True,
+    default=False,
+    help="Skip container availability checks.",
+)
+def fcv_reject(
+    finder_url: str,
+    coordinator_url: str,
+    vendor_url: str,
+    case_actor_url: str,
+    finder_id: str | None,
+    coordinator_id: str | None,
+    vendor_id: str | None,
+    skip_health_check: bool,
+) -> None:
+    """Run the FCV-Reject (Finder + Coordinator + Vendor rejection) CVD demo (#2047).
+
+    Coordinator receives the Finder's report, creates the authoritative case
+    (CASE_OWNER), and the CaseActor service manages the case ledger.  Coordinator
+    invites Vendor, but Vendor rejects the invitation via ``reject-case-invite``.
+    Vendor is NOT added as a case participant.  Finder and Coordinator proceed to
+    publication and closure.
+
+    \b
+    Workflow:
+      1. Seed Finder, Coordinator, and Vendor containers.
+      2. Finder submits a vulnerability report to Coordinator's inbox.
+      3. Coordinator validates the report and engages the case (CASE_OWNER).
+      4. Coordinator invites Vendor directly (invite-actor-to-case).
+      5. Vendor rejects the case invitation (reject-case-invite).
+      6. Verify participant count stable at 3 (Vendor not added).
+      7. Two-way notes exchange between Finder and Coordinator.
+      8. Coordinator and Finder publish; embargo terminates (EM.EXITED).
+      9. Coordinator and Finder close the case (RM.CLOSED on all replicas).
+    """
+    fcv_reject_demo.main(
         skip_health_check=skip_health_check,
         finder_url=finder_url,
         coordinator_url=coordinator_url,

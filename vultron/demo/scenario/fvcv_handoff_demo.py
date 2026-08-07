@@ -52,15 +52,11 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     check_server_availability,
     demo_check,
     demo_step,
-    post_to_inbox_and_wait,
     post_to_trigger,
     reset_datalayer,
     reset_demo_failures,
     setup_demo_logging,
-    verify_object_stored,
 )
-
-# post_to_inbox_and_wait is retained for self-delivery (CONCERN-1653 exception).
 from vultron.demo.helpers.actions import (
     actor_closes_case,
     actor_notifies_fix_ready,
@@ -101,6 +97,7 @@ from vultron.demo.helpers.workflow import (
     receiver_engages_case,
     receiver_validates_report,
     reporter_submits_report,
+    run_invite_path_rm_triage,
 )
 
 logger = logging.getLogger(__name__)
@@ -417,22 +414,6 @@ def _phase_ownership_handoff(
         accept_ownership.id_,
     )
 
-    # The trigger-side BT (TRIG-11-002) queues the Accept in Coordinator's
-    # outbox addressed only to the offerer (Vendor1); Coordinator's own
-    # DataLayer copy is therefore never updated by that path.  Deliver the
-    # Accept to Coordinator's own inbox so AcceptCaseOwnershipTransferReceived-
-    # UseCase runs locally and sets case.attributed_to = Coordinator on
-    # Coordinator's replica.  (Vendor1's copy updates automatically when
-    # Coordinator's outbox delivers the Accept to Vendor1's inbox.)
-    with demo_step("Delivering ownership Accept to Coordinator's own inbox"):
-        post_to_inbox_and_wait(
-            coordinator_client,
-            coordinator_in_coordinator.id_,
-            accept_ownership,
-        )
-    with demo_check("Ownership Accept stored in Coordinator's DataLayer"):
-        verify_object_stored(coordinator_client, accept_ownership.id_)
-
     # Verify Vendor1's case now shows Coordinator as attributed_to.
     with demo_check(
         "Case attributed_to updated to Coordinator on Vendor1's DataLayer (AC-1)"
@@ -474,8 +455,11 @@ def _phase_coordinator_invites_vendor2(
     vendor2: as_Actor,
     vendor2_in_vendor2: as_Actor,
     case: as_VulnerabilityCase,
+    offer: object,
+    report: as_VulnerabilityReport,
+    finder: as_Actor,
 ) -> None:
-    """Coordinator (new CASE_OWNER) invites Vendor2 and Vendor2 joins the case."""
+    """Coordinator (new CASE_OWNER) invites Vendor2; Vendor2 runs RM triage."""
     logger.info("─" * 80)
     logger.info("Phase 3: Coordinator invites Vendor2 (AC-2)")
     logger.info("─" * 80)
@@ -536,6 +520,19 @@ def _phase_coordinator_invites_vendor2(
         timeout_seconds=90.0,
     )
     logger.info("✓ Vendor2 joined case (%d participants)", 5)
+
+    # CM-11-002: Vendor2 joined via invite-accept — run standard RM triage cycle.
+    run_invite_path_rm_triage(
+        invited_client=vendor2_client,
+        invited_actor=vendor2_in_vendor2,
+        offer=offer,
+        report=report,
+        finder=finder,
+        auth_client=vendor_client,
+        case=case,
+        invited_obj=vendor2,
+        timeout_seconds=90.0,
+    )
 
 
 def _phase_sync_verification(
@@ -1108,6 +1105,9 @@ def run_fvcv_handoff_demo(
         vendor2=vendor2,
         vendor2_in_vendor2=vendor2_in_vendor2,
         case=case,
+        offer=offer,
+        report=report,
+        finder=finder,
     )
 
     # Verify case active now that all participants have joined.

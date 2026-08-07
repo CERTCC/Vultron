@@ -97,6 +97,7 @@ from vultron.demo.helpers.workflow import (
     receiver_engages_case,
     receiver_validates_report,
     reporter_submits_report,
+    run_invite_path_rm_triage,
 )
 
 logger = logging.getLogger(__name__)
@@ -263,6 +264,18 @@ def _phase_report_submission(
         vendor_client=vendor_client,
         case_id=case.id_,
         expected_count=4,
+    )
+
+    # CM-11-002: Vendor2 joined via invite-accept — run standard RM triage cycle.
+    run_invite_path_rm_triage(
+        invited_client=vendor2_client,
+        invited_actor=vendor2_in_vendor2,
+        offer=offer,
+        report=report,
+        finder=finder,
+        auth_client=vendor_client,
+        case=case,
+        invited_obj=vendor2,
     )
 
     with demo_check(

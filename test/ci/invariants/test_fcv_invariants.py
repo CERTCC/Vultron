@@ -9,6 +9,7 @@ Actor set: ``finder``, ``coordinator``, ``vendor``, ``case-actor``.
 FCV-specific invariants (DEMOMA-12-008/009):
 - ``validate_report`` event type is present (Coordinator validates Finder's report).
 - ``invite_actor_to_case`` appears at least twice (Finder + Vendor invitations).
+- ``accept_invite_actor_to_case`` appears at least twice (Finder and Vendor each accept).
 - ``close_case`` event type is present.
 - CS transitions VFd and VFD observed in Vendor's add_participant_status entries.
 - P-transition observed in Coordinator's add_participant_status entries.
@@ -59,8 +60,11 @@ _FCV_EXPECTED_EVENT_TYPES = [
     ),
     pytest.param("close_case", id="close_case"),
     pytest.param("add_note_to_case", id="add_note_to_case"),
-    # DEMOMA-16-007: Coordinator invites both Finder and Vendor.
+    # DEMOMA-16-007: Coordinator invites both Finder and Vendor; both accept.
     pytest.param("invite_actor_to_case", id="invite_actor_to_case"),
+    pytest.param(
+        "accept_invite_actor_to_case", id="accept_invite_actor_to_case"
+    ),
 ]
 
 #: Actors with per-actor chain / contiguity / completeness checks.

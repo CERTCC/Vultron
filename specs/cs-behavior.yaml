@@ -1368,3 +1368,88 @@ groups:
       note: >-
         P event trigger must not imply D event; separates participant-agnostic
         public awareness from participant-specific fix deployment
+
+- id: CSB-16
+  title: CS Write-Boundary Transition Validation
+  description: >-
+    Requirements for CS state write paths (VFD and PXA) to validate
+    source→target transition validity before persisting a ParticipantStatus
+    snapshot. Complements CSB-15 (trigger-side role preconditions) and
+    SDO-02-002 (dimension object transition contract) by requiring that
+    the BT write node itself is fail-closed regardless of upstream guard
+    coverage.
+  specs:
+  - id: CSB-16-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A BT node or helper that writes a VFD state (CS_vfd) to a ParticipantStatus
+      snapshot MUST validate that the (current_vfd_state → target_vfd_state)
+      transition is permitted by the VFD state machine before persisting.
+      A same-state write is permitted (status confirmation). A backward move or
+      illegal jump (e.g. vfd → VFD skipping Vfd) MUST cause the node to return
+      Status.FAILURE without writing to the DataLayer.
+    rationale: >-
+      Upstream BT guards (e.g. CheckCSFixNotYetDeployed) are necessary but
+      insufficient: a guard that is too weak, missing, or bypassed allows an
+      invalid VFD state jump to reach the write node unchecked. Validating at
+      the write boundary makes illegal VFD transitions fail-closed regardless
+      of guard coverage. Source: concern #1896, which surfaced when the
+      CheckCSFixNotYetDeployed guard was too weak in issue #1825.
+    testable: true
+    preconditions:
+    - description: A non-None CS_vfd target state is passed to a ParticipantStatus write node
+    steps:
+    - order: 1
+      actor: write_node
+      action: Read the participant's current VFD state from the DataLayer
+      expected: Current CS_vfd state available
+    - order: 2
+      actor: write_node
+      action: >-
+        If target == current, proceed. If is_valid_vfd_transition(current, target)
+        is True, proceed. Otherwise return Status.FAILURE.
+      expected: Only valid transitions or same-state writes reach the DataLayer
+    postconditions:
+    - description: No ParticipantStatus with an illegal VFD jump is persisted
+    relationships:
+    - rel_type: implements
+      spec_id: SDO-02-004
+    - rel_type: refines
+      spec_id: BTND-10-001
+
+  - id: CSB-16-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A BT node or helper that writes a PXA state (CS_pxa) to a CaseStatus or
+      ParticipantStatus snapshot MUST validate that the (current_pxa_state →
+      target_pxa_state) transition is permitted by the PXA state machine before
+      persisting. A same-state write is permitted. A backward move MUST cause
+      the node to return Status.FAILURE without writing to the DataLayer.
+    rationale: >-
+      PXA state transitions are forward-only (p→P, x→X, a→A). An invalid
+      backward PXA write would produce a misleading public-disclosure regression
+      in the case record. The same fail-closed boundary that protects VFD applies
+      equally to PXA. Source: concern #1896.
+    testable: true
+    preconditions:
+    - description: A non-None CS_pxa target state is passed to a ParticipantStatus write node
+    steps:
+    - order: 1
+      actor: write_node
+      action: Read the participant's current PXA state
+      expected: Current CS_pxa state available
+    - order: 2
+      actor: write_node
+      action: >-
+        If target == current, proceed. If is_valid_pxa_transition(current, target)
+        is True, proceed. Otherwise return Status.FAILURE.
+      expected: Only valid transitions or same-state writes reach the DataLayer
+    postconditions:
+    - description: No ParticipantStatus with an illegal PXA regression is persisted
+    relationships:
+    - rel_type: implements
+      spec_id: SDO-02-004
+    - rel_type: refines
+      spec_id: BTND-10-001

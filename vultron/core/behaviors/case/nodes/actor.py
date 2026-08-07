@@ -16,11 +16,15 @@
 """Actor-participation emit nodes for case behavior trees.
 
 Provides leaf action nodes that emit outbound activities for actor
-invitation and invite-acceptance workflows, and for applying received
-ownership-transfer decisions to the case record.
+invitation workflows, and for applying received ownership-transfer
+decisions to the case record.
 
 Also provides :class:`EvaluateDefaultRolesNode`, the ADR-0024 Evaluator
 call-out point that assigns default roles for a suggested actor (CM-16-003).
+
+Invite-response nodes (Accept / Reject) live in the sibling
+``invite_response.py`` module and are re-exported here for backwards
+compatibility (BTND-07-004: 500-line leaf-module limit).
 
 Composite subtrees assembling these leaf nodes are defined in the sibling
 ``actor_trigger_trees.py`` and ``ownership_transfer_tree.py`` modules at
@@ -28,6 +32,7 @@ the process-area root per BTND-07-003:
 
 - ``invite_actor_to_case_trigger_bt``
 - ``accept_case_invite_trigger_bt``
+- ``reject_case_invite_trigger_bt``
 - ``create_accept_ownership_transfer_tree``
 """
 
@@ -39,6 +44,10 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.case.nodes.invite_response import (  # noqa: F401
+    EmitAcceptCaseInviteNode,
+    EmitRejectCaseInviteNode,
+)
 from vultron.core.behaviors.case.nodes.suggest_actor._snapshot import (
     _drop_bare_inline_refs,
 )
@@ -187,57 +196,6 @@ class EmitInviteActorToCaseNode(DataLayerAction):
             return Status.SUCCESS
         except Exception as e:
             self.feedback_message = f"EmitInviteActorToCase failed: {e}"
-            self.logger.error(self.feedback_message)
-            return Status.FAILURE
-
-
-class EmitAcceptCaseInviteNode(DataLayerAction):
-    """Create Accept(Invite) and queue in the invitee's outbox.
-
-    Uses ``trigger_activity_factory.accept_case_invite()`` — the factory
-    derives the recipient from the persisted invite object.
-    """
-
-    def __init__(
-        self,
-        invite_id: str,
-        captured: dict | None = None,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self.invite_id = invite_id
-        self._captured = captured
-
-    def _emit(self) -> tuple[str, dict]:
-        assert self.trigger_activity_factory is not None
-        assert self.actor_id is not None
-        return self.trigger_activity_factory.accept_case_invite(
-            invite_id=self.invite_id,
-            actor=self.actor_id,
-        )
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        if (f := self._require_factory()) is not None:
-            self.logger.error(self.feedback_message)
-            return f
-
-        try:
-            activity_id, activity_dict = self._emit()
-            cast(CaseOutboxPersistence, self.datalayer).record_outbox_item(
-                self.actor_id, activity_id  # type: ignore[arg-type]
-            )
-            if self._captured is not None:
-                self._captured["activity"] = activity_dict
-            self.logger.info(
-                "Actor '%s' accepted case invite '%s'",
-                self.actor_id,
-                self.invite_id,
-            )
-            return Status.SUCCESS
-        except Exception as e:
-            self.feedback_message = f"EmitAcceptCaseInvite failed: {e}"
             self.logger.error(self.feedback_message)
             return Status.FAILURE
 

@@ -317,6 +317,18 @@ class AcceptCaseInviteRequest(BaseModel):
     invite_id: NonEmptyString
 
 
+class RejectCaseInviteRequest(BaseModel):
+    """Request body for the reject-case-invite trigger endpoint.
+
+    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    invite_id identifies the RmInviteToCaseActivity to reject.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    invite_id: NonEmptyString
+
+
 class AcceptActorRecommendationRequest(BaseModel):
     """Request body for the accept-actor-recommendation trigger endpoint.
 
@@ -458,6 +470,27 @@ class CloseCaseRequest(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     case_id: UriString
+
+
+class SeedOfferRecordRequest(BaseModel):
+    """Request body for the demo seed-offer-record trigger.
+
+    Seeds a ``VultronOfferRecord`` (and a ``VulnerabilityReport`` stub if
+    needed) on an actor's DataLayer so that invited actors can call
+    ``validate-report`` using the original offer ID.
+
+    This endpoint is for demo scaffolding only (TRIG-09-001) — in a real
+    deployment the offer record is created by the adapter layer at report
+    submission time and is only present on the original receiving actor.
+
+    TB-03-002: Unknown fields are silently ignored.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    offer_id: UriString
+    report_id: UriString
+    offer_actor_id: UriString
 
 
 class SyncLogEntryRequest(BaseModel):

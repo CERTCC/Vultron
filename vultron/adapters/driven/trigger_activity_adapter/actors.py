@@ -46,6 +46,7 @@ from vultron.wire.as2.factories.case import (
     offer_case_ownership_transfer_activity,
     offer_case_participant_role_activity,
     reject_case_manager_role_activity,
+    rm_reject_invite_to_case_activity,
 )
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
@@ -157,6 +158,37 @@ class _ActorsMixin:
         except ValueError:
             logger.warning(
                 "accept_case_invite: activity '%s' already exists — skipping",
+                activity.id_,
+            )
+        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+
+    def reject_case_invite(
+        self,
+        invite_id: str,
+        actor: str,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist a ``Reject(Invite)`` activity.
+
+        The ``to:`` field is derived from ``invite.actor`` (the original
+        sender of the invitation) so that the Reject is routable via the
+        outbox handler.  Mirrors ``accept_case_invite`` but uses
+        ``rm_reject_invite_to_case_activity``.
+        """
+        invite = cast(Any, self._dl.read(invite_id))
+        invite_actor_id = _as_id(getattr(invite, "actor", None))
+        if not invite_actor_id:
+            raise VultronValidationError(
+                f"reject_case_invite: invite '{invite_id}' has no routable"
+                " actor field; cannot derive Reject recipient"
+            )
+        activity = rm_reject_invite_to_case_activity(
+            invite=invite, actor=actor, to=[invite_actor_id]
+        )
+        try:
+            self._dl.create(activity)
+        except ValueError:
+            logger.warning(
+                "reject_case_invite: activity '%s' already exists — skipping",
                 activity.id_,
             )
         return activity.id_, activity.model_dump(**_DUMP_KWARGS)

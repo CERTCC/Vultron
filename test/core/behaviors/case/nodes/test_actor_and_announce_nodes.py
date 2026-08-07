@@ -761,3 +761,144 @@ class TestEmitAddCaseParticipantNode:
         assert existing_actor_2 in to_arg
         # The new invitee must NOT be in the recipients (it's the one being added)
         assert EMIT_ADD_INVITEE_ID not in to_arg
+
+
+# ---------------------------------------------------------------------------
+# AC-5a / AC-5b: EmitOfferCaseOwnershipTransferNode and
+#               EmitAcceptCaseOwnershipTransferNode BT-layer routing tests
+# ---------------------------------------------------------------------------
+
+_OT_OWNER_ID = "https://example.org/actors/ot-owner"
+_OT_CASE_ACTOR_ID = "https://example.org/actors/ot-case-actor"
+_OT_TRANSFEREE_ID = "https://example.org/actors/ot-transferee"
+_OT_CASE_ID = "https://example.org/cases/ot-emit-test-01"
+
+
+def _make_ot_case(dl: SqliteDataLayer) -> None:
+    """Seed a case with a CASE_MANAGER participant so _resolve_case_manager_id
+    returns _OT_CASE_ACTOR_ID from _OT_CASE_ID."""
+    from vultron.core.models.case_participant import CaseParticipant
+    from vultron.enums.roles import CVDRole as _CVDRole
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase as _VC,
+    )
+
+    case = _VC(
+        id_=_OT_CASE_ID,
+        name="OT Emit Test",
+        attributed_to=_OT_OWNER_ID,
+    )
+    owner_p = CaseParticipant(
+        id_=f"{_OT_CASE_ID}/participants/owner",
+        attributed_to=_OT_OWNER_ID,
+        context=_OT_CASE_ID,
+        case_roles=[_CVDRole.CASE_OWNER],
+    )
+    ca_p = CaseParticipant(
+        id_=f"{_OT_CASE_ID}/participants/case-actor",
+        attributed_to=_OT_CASE_ACTOR_ID,
+        context=_OT_CASE_ID,
+        case_roles=[_CVDRole.CASE_MANAGER],
+    )
+    case.actor_participant_index[_OT_OWNER_ID] = owner_p.id_
+    case.actor_participant_index[_OT_CASE_ACTOR_ID] = ca_p.id_
+    case.case_participants.append(owner_p.id_)
+    case.case_participants.append(ca_p.id_)
+    dl.create(case)
+    dl.create(owner_p)
+    dl.create(ca_p)
+
+
+class TestEmitOwnershipTransferNodes:
+    """AC-5a / AC-5b: Emit nodes address activities to the CaseActor (ADR-0053)."""
+
+    def test_emit_offer_to_is_case_actor_id(self, dl):
+        """AC-5a: EmitOfferCaseOwnershipTransferNode sets to=[case_actor_id]."""
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.core.behaviors.case.nodes.ownership_transfer import (
+            EmitOfferCaseOwnershipTransferNode,
+        )
+
+        _make_ot_case(dl)
+
+        captured: dict = {}
+        node = EmitOfferCaseOwnershipTransferNode(
+            case_id=_OT_CASE_ID,
+            transferee_id=_OT_TRANSFEREE_ID,
+            captured=captured,
+        )
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=_OT_OWNER_ID)
+
+        assert (
+            result.status == Status.SUCCESS
+        ), f"EmitOfferCaseOwnershipTransferNode must succeed; feedback: {node.feedback_message}"
+        activity = captured.get("activity", {})
+        # ADR-0053 / CM-21-005: Offer is routed to the CaseActor, not the transferee.
+        assert _OT_CASE_ACTOR_ID in activity.get("to", []), (
+            f"Offer must be addressed to the CaseActor ({_OT_CASE_ACTOR_ID}); "
+            f"got to={activity.get('to')!r}"
+        )
+        # The transferee is named as the intended new owner in the target field.
+        assert _OT_TRANSFEREE_ID == activity.get("target"), (
+            f"Offer.target must name the transferee ({_OT_TRANSFEREE_ID}); "
+            f"got target={activity.get('target')!r}"
+        )
+
+    def test_emit_accept_to_is_case_actor_id(self, dl):
+        """AC-5b: EmitAcceptCaseOwnershipTransferNode sets to=[case_actor_id].
+
+        Uses a mock TriggerActivityAdapter to capture the ``to`` kwarg that
+        the node passes to ``accept_case_ownership_transfer()``.  The node
+        resolves the CaseActor via ``_resolve_case_manager_id`` *before*
+        calling the factory, so the mock's call_args faithfully records the
+        routing decision (ADR-0053 / CM-21-006).
+        """
+        from unittest.mock import MagicMock
+
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.core.behaviors.case.nodes.ownership_transfer import (
+            EmitAcceptCaseOwnershipTransferNode,
+        )
+
+        _make_ot_case(dl)
+
+        _accept_id = "https://example.org/activities/ot-accept-mock-01"
+        mock_factory = MagicMock(spec=TriggerActivityAdapter)
+        mock_factory.accept_case_ownership_transfer.return_value = (
+            _accept_id,
+            {"id": _accept_id, "type": "Accept", "to": [_OT_CASE_ACTOR_ID]},
+        )
+
+        node = EmitAcceptCaseOwnershipTransferNode(
+            offer_id="https://example.org/activities/ot-offer-01",
+            case_id=_OT_CASE_ID,
+        )
+        bridge = BTBridge(datalayer=dl, trigger_activity=mock_factory)
+        result = bridge.execute_with_setup(
+            tree=node, actor_id=_OT_TRANSFEREE_ID
+        )
+
+        assert (
+            result.status == Status.SUCCESS
+        ), f"EmitAcceptCaseOwnershipTransferNode must succeed; feedback: {node.feedback_message}"
+        mock_factory.accept_case_ownership_transfer.assert_called_once()
+        call_kwargs = mock_factory.accept_case_ownership_transfer.call_args
+        to_arg = call_kwargs.kwargs.get("to") or (
+            call_kwargs.args[2] if len(call_kwargs.args) > 2 else None
+        )
+        # ADR-0053 / CM-21-006: Accept is routed to the CaseActor.
+        assert (
+            to_arg is not None
+        ), "to= must be passed to accept_case_ownership_transfer"
+        assert _OT_CASE_ACTOR_ID in to_arg, (
+            f"Accept must be addressed to the CaseActor ({_OT_CASE_ACTOR_ID}); "
+            f"got to={to_arg!r}"
+        )

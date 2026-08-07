@@ -8,7 +8,9 @@ Actor set: ``finder``, ``vendor``, ``coordinator``, ``vendor2``,
 ``case-actor``.
 
 FVCV-extension-specific invariants:
-- ``invite_actor_to_case`` appears at least twice (Finder, then Vendor2).
+- ``invite_actor_to_case`` appears at least twice (Finder, then Vendor2 via CaseActor).
+- ``offer_case_participant`` appears at least once (Coordinator suggests Vendor2).
+- ``accept_invite_actor_to_case`` appears at least once (Vendor2 accepts CaseActor invite).
 - Vendor2 is a late joiner — replica holds the complete log from genesis.
 - Finder is a late joiner — replica holds the complete log from genesis.
 - Coordinator is a late joiner — replica holds the complete log from genesis.
@@ -56,10 +58,18 @@ _FVCV_EXPECTED_EVENT_TYPES = [
     ),
     pytest.param("close_case", id="close_case"),
     pytest.param("add_note_to_case", id="add_note_to_case"),
-    # DEMOMA-16-004: Vendor1 invites Coordinator and Coordinator
-    # uses the suggest-actor flow to propose Vendor2.
+    # DEMOMA-16-004: Vendor1 invites Coordinator; Coordinator uses the
+    # suggest-actor flow (offer_case_participant) to propose Vendor2;
+    # CaseActor converts the offer to an invite; Vendor2 accepts.
     pytest.param("invite_actor_to_case", id="invite_actor_to_case"),
     pytest.param("offer_case_participant", id="offer_case_participant"),
+    pytest.param(
+        "accept_invite_actor_to_case", id="accept_invite_actor_to_case"
+    ),
+    # Vendor1 approves Coordinator's actor recommendation (ADR-0026 suggest-actor flow).
+    pytest.param(
+        "accept_actor_recommendation", id="accept_actor_recommendation"
+    ),
 ]
 
 #: Actors with per-actor chain / contiguity / completeness checks.

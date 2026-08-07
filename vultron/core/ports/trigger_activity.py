@@ -312,6 +312,17 @@ class TriggerActivityPort(Protocol):
         """
         ...
 
+    def reject_case_invite(
+        self,
+        invite_id: str,
+        actor: str,
+    ) -> tuple[str, dict[str, Any]]:
+        """Create and persist a ``Reject(Invite)`` activity.
+
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
     def accept_case_participant_offer(
         self,
         cp_offer_id: str,

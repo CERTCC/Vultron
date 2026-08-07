@@ -125,6 +125,7 @@ from vultron.demo.helpers.workflow import (  # noqa: F401
     receiver_engages_case,
     receiver_validates_report,
     reporter_submits_report,
+    run_invite_path_rm_triage,
     setup_initialized_case,
     setup_two_participant_case,
 )

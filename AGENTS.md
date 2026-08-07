@@ -522,6 +522,14 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   `RejectInviteActorToCaseReceivedUseCase`. The same nesting applies to
   `Accept(Invite(actor, case))` — `AcceptInviteActorToCaseReceivedEvent.case_id` already
   follows this pattern. See CM-11-003. *Source: ISSUE-1747*
+- **Retiring a File or Label Requires Auditing All Specs for Bare-Filename References** —
+  `MS-15` (`_check_phantom_paths`) only flags backtick-quoted tokens containing a directory
+  separator (e.g. `` `plan/PRIORITIES.md` ``). Bare filenames such as `PRIORITIES.md` or
+  bare label names such as `group:unscheduled` written without backticks or without a `/`
+  pass the lint check silently. When retiring any file, label, or convention, grep
+  `specs/` for the bare name as well as the quoted/path form, and update every spec entry
+  that references it — including `statement:`, `rationale:`, and cross-reference fields.
+  *Source: ISSUE-2011*
 
 ---
 
@@ -566,7 +574,7 @@ message.
   scalar string. Schema: `vultron/metadata/notes/schema.py`.
 - **Docs links must be relative**: links in `docs/` MUST be relative and MUST NOT
   go above `docs/`. Run `uv run mkdocs build --strict` before committing docs.
-  Use `mkdocs.dev.yml` to validate `docs/developer/` locally.
+  `docs/developer/` pages are draft docs — visible in `mkdocs serve` but excluded from production builds.
 - **Demo script lifecycle logging**: see
   [`vultron/adapters/AGENTS.md`](vultron/adapters/AGENTS.md) for `demo_step` /
   `demo_check` pattern.

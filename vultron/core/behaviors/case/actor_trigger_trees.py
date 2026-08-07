@@ -36,8 +36,11 @@ from vultron.core.behaviors.case.communication_tree import (
     SendOfferCaseManagerRoleNode,
 )
 from vultron.core.behaviors.case.nodes.actor import (
-    EmitAcceptCaseInviteNode,
     EmitInviteActorToCaseNode,
+)
+from vultron.core.behaviors.case.nodes.invite_response import (
+    EmitAcceptCaseInviteNode,
+    EmitRejectCaseInviteNode,
 )
 from vultron.core.behaviors.case.nodes.ownership_transfer import (
     EmitAcceptCaseOwnershipTransferNode,
@@ -147,6 +150,36 @@ def accept_case_invite_trigger_bt(
         ],
     )
     logger.debug("Created AcceptCaseInviteTriggerBT for invite=%s", invite_id)
+    return root
+
+
+def reject_case_invite_trigger_bt(
+    invite_id: str,
+    captured: dict | None = None,
+) -> py_trees.behaviour.Behaviour:
+    """Return the trigger-side BT for the reject-case-invite workflow.
+
+    Emits Reject(Invite) from the invitee's identity; the factory derives
+    the recipient from the persisted invite object.
+
+    Args:
+        invite_id: ID of the RmInviteToCaseActivity being rejected.
+        captured: Optional dict; ``captured["activity"]`` is set on success.
+
+    Returns:
+        Sequence containing a single EmitRejectCaseInviteNode.
+    """
+    root = py_trees.composites.Sequence(
+        name="RejectCaseInviteTriggerBT",
+        memory=False,
+        children=[
+            EmitRejectCaseInviteNode(
+                invite_id=invite_id,
+                captured=captured,
+            ),
+        ],
+    )
+    logger.debug("Created RejectCaseInviteTriggerBT for invite=%s", invite_id)
     return root
 
 
@@ -265,15 +298,17 @@ def offer_case_ownership_transfer_trigger_bt(
 
 def accept_case_ownership_transfer_trigger_bt(
     offer_id: str,
+    case_id: str,
     captured: dict | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Return the trigger-side BT for the accept-case-ownership-transfer workflow.
 
-    Emits ``Accept(Offer(VulnerabilityCase))`` from the accepting actor back
-    to the offering actor (TRIG-11-002).
+    Emits ``Accept(Offer(VulnerabilityCase))`` addressed to the CaseActor
+    (TRIG-11-002, CM-21-006).
 
     Args:
         offer_id: ID of the ``_OfferCaseOwnershipTransferActivity`` being accepted.
+        case_id: ID of the VulnerabilityCase; used to resolve the CaseActor.
         captured: Optional dict; ``captured["activity"]`` is set on success.
 
     Returns:
@@ -285,11 +320,14 @@ def accept_case_ownership_transfer_trigger_bt(
         children=[
             EmitAcceptCaseOwnershipTransferNode(
                 offer_id=offer_id,
+                case_id=case_id,
                 captured=captured,
             ),
         ],
     )
     logger.debug(
-        "Created AcceptCaseOwnershipTransferTriggerBT for offer=%s", offer_id
+        "Created AcceptCaseOwnershipTransferTriggerBT for offer=%s case=%s",
+        offer_id,
+        case_id,
     )
     return root

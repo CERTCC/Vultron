@@ -25,15 +25,17 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          Issues MUST be organized in up to three levels: Epic (Priority
-          Group), Task (coherent unit of work), and Subtask (atomic PR-sized
+          Issues MUST be organized in up to three levels: Epic (thematic
+          group), Task (coherent unit of work), and Subtask (atomic PR-sized
           chunk). Leaf issues (those with no sub-issues) are the claimable
           work units.
       - id: PAD-01-003
         priority: MUST
         kind: process
         statement: >-
-          Epic Issues MUST correspond to a named priority group in PRIORITIES.md.
+          Epic Issues MUST be wired on GitHub Project #24 with a `Schedule`
+          field value (Now/Next/Later/Someday) that reflects the current
+          priority tier of the thematic group they represent.
       - id: PAD-01-005
         priority: MUST
         kind: process
@@ -64,17 +66,13 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          Every Issue MUST carry a `group:<name>` label whose value matches
-          the corresponding priority group name in PRIORITIES.md (e.g.,
-          `group:architecture-hardening`).
-      - id: PAD-02-002
-        priority: MUST
-        kind: process
-        statement: >-
-          Issues that have not yet been slotted into PRIORITIES.md MUST carry
-          the label `group:unscheduled`. Only humans (and the
-          `review-priorities` skill) may change a `group:unscheduled` label
-          to a named group label.
+          Every Issue added to GitHub Project #24 MUST have a `Schedule`
+          field value (Now/Next/Later/Someday). Issues not yet prioritised
+          default to `Schedule=Someday`.
+        rationale: >-
+          `group:<name>` labels and `PRIORITIES.md` were retired in June 2026
+          in favour of the Project #24 `Schedule` field. Do not create new
+          `group:` labels.
       - id: PAD-02-004
         priority: MUST
         kind: process
@@ -104,58 +102,30 @@ groups:
           Docs-only PRs (containing only `specs/` and `notes/` changes) MUST
           carry the `specs-notes` label to identify them as docs-only for
           reviewers.
-      - id: PAD-02-007
-        priority: MUST_NOT
-        kind: process
-        statement: >-
-          The `group:` label name MUST NOT include a priority number. The label
-          name MUST be a short, descriptive kebab-case slug derived from the
-          priority group title (e.g., `group:architecture-hardening` for
-          "Priority 473: Architecture Hardening"). Priority ordering is expressed
-          in PRIORITIES.md; embedding numbers in label names causes conflicts
-          when priorities are reordered.
-      - id: PAD-02-012
-        priority: MUST
-        kind: process
-        statement: >-
-          When creating a new `group:` label on GitHub, the label description
-          MUST use the priority group title (not the priority number) so it
-          remains accurate if the priority number changes.
-        relationships:
-        - rel_type: refines
-          spec_id: PAD-02-007
       - id: PAD-02-008
         priority: MUST
         kind: process
         statement: >-
-          Every priority group that has two or more open leaf Issues MUST have
-          exactly one open Epic Issue. A leaf Issue is any Issue with no open
-          sub-issues.
+          Every thematic group that has two or more open leaf Issues MUST have
+          exactly one open Epic Issue on GitHub Project #24. A leaf Issue is
+          any Issue with no open sub-issues.
       - id: PAD-02-009
         priority: MUST
         kind: process
         statement: >-
           Epic Issues MUST be created using the GitHub `Epic` issue type (via
           GraphQL `createIssue` with the appropriate `issueTypeId`) and MUST
-          carry the `group:<name>` label matching their priority group.
+          be added to GitHub Project #24 with the appropriate `Schedule` value.
       - id: PAD-02-013
         priority: MUST
         kind: process
         statement: >-
           The `create-epic` skill MUST be used to create Epic Issues to ensure
-          consistent wiring of sub-issues and correct issue type assignment.
+          consistent sub-issue wiring, correct issue type assignment, and
+          addition to Project #24.
         relationships:
         - rel_type: implements
           spec_id: PAD-02-009
-      - id: PAD-02-010
-        priority: MUST
-        kind: process
-        statement: >-
-          The Epic Issue number for each priority group MUST be recorded in
-          `PRIORITIES.md` next to the group heading, e.g.
-          `## Priority 473 — Epic #NNN: Architecture Hardening`. This serves
-          as the authoritative lookup for agents that need to find or link to
-          the Epic for a given group.
 
   - id: PAD-03
     title: Priority Ordering Authority
@@ -164,23 +134,27 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          PRIORITIES.md MUST remain the authoritative ordering document for
-          work priority. Priority changes MUST be made by editing PRIORITIES.md
-          and updating affected Issues' `group:` labels — not by reordering
-          issues in the GitHub tracker.
+          The `Schedule` field (Now/Next/Later/Someday) on GitHub Project #24
+          MUST be the authoritative source for work priority ordering.
+          Priority changes MUST be made by updating the `Schedule` field on
+          the relevant Epic or Issue — not by maintaining any external file.
+        rationale: >-
+          `plan/PRIORITIES.md` was archived in June 2026 (PR #693). The
+          Project #24 board is the single source of truth for scheduling.
       - id: PAD-03-002
         priority: MUST_NOT
         kind: process
         statement: >-
-          Agents MUST NOT write to PRIORITIES.md. Only humans and the
-          `review-priorities` skill may modify it.
+          Agents MUST NOT create or write to any external priority-ordering
+          file. Only the `review-priorities` skill (and humans directly) may
+          change `Schedule` field values on GitHub Project #24.
       - id: PAD-03-003
         priority: MUST
         kind: process
         statement: >-
-          When the `build` skill selects a task, it MUST read PRIORITIES.md
-          once to determine the current top-priority group name, then query
-          GitHub for open, unblocked leaf Issues with that `group:` label.
+          When the `build` skill selects a task, it MUST query GitHub
+          Project #24 for Epics with `Schedule=Now`, then select an open
+          unblocked leaf Issue that is a sub-issue of one of those Epics.
 
   - id: PAD-04
     title: Task Claiming Protocol
@@ -292,10 +266,10 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          The `build` skill MUST select work by querying GitHub for open,
-          unblocked leaf Issues in the top-priority group (as determined by
-          reading PRIORITIES.md), filtered to exclude Issues with
-          `stale-claim` or that are already assigned.
+          The `build` skill MUST select work by querying GitHub Project #24
+          for Epics with `Schedule=Now`, then querying for open unblocked
+          leaf Issues that are sub-issues of those Epics, filtered to exclude
+          Issues with `stale-claim` or that are already assigned.
       - id: PAD-08-002
         priority: MUST
         kind: process
@@ -334,15 +308,17 @@ groups:
         statement: >-
           After the docs-only PR is opened, `ingest-idea` MUST create a
           GitHub Issue with: a title and description derived from the spec,
-          the `group:unscheduled` label, the appropriate `size:` label (from
-          AC count per PAD-05-001), and a link to the spec file in the body.
+          the appropriate `size:` label (from AC count per PAD-05-001), and a
+          link to the spec file in the body. The Issue MUST be added to
+          GitHub Project #24 (defaulting to `Schedule=Someday`).
       - id: PAD-09-003
         priority: MUST_NOT
         kind: process
         statement: >-
           `ingest-idea` MUST NOT begin implementation work. It MUST stop after
-          creating the Issue. Implementation work begins only when a human runs
-          `review-priorities` to slot the Issue into PRIORITIES.md.
+          creating the Issue. Implementation work begins only when a human (or
+          the `review-priorities` skill) promotes the Issue to an active
+          `Schedule` tier on GitHub Project #24.
 
   - id: PAD-10
     title: Orphan Recovery — Stale Claim Sweeper
@@ -395,29 +371,30 @@ groups:
           resolve the conflict and remove the label.
 
   - id: PAD-12
-    title: Review-Priorities — Unscheduled Issue Triage
+    title: Review-Priorities — Issue Triage
     specs:
       - id: PAD-12-001
         priority: MUST
         kind: process
         statement: >-
-          The `review-priorities` skill MUST fetch all open GitHub Issues
-          carrying the `group:unscheduled` label and surface them as a triage
-          list alongside any untracked PRIORITIES.md items.
+          The `review-priorities` skill MUST query GitHub Project #24 for
+          Issues with `Schedule=Someday` and surface them as a triage list
+          for the current review session.
       - id: PAD-12-002
         priority: MUST
         kind: process
         statement: >-
-          For each `group:unscheduled` Issue, the `review-priorities` skill
-          MUST use `ask_user` to determine where to slot it in PRIORITIES.md
-          or whether to close or defer it.
+          For each `Schedule=Someday` Issue surfaced in triage, the
+          `review-priorities` skill MUST use `ask_user` to determine which
+          Schedule tier (Now/Next/Later) to promote it to, or whether to
+          close or defer it.
       - id: PAD-12-003
         priority: MUST
         kind: process
         statement: >-
           After the user confirms a placement, the `review-priorities` skill
-          MUST update the Issue's `group:` label from `group:unscheduled` to
-          the chosen group label and update PRIORITIES.md accordingly.
+          MUST update the Issue's `Schedule` field on GitHub Project #24 to
+          the chosen tier via the GitHub API.
 
   - id: PAD-13
     title: Update-Plan — Issue Creation
@@ -433,9 +410,9 @@ groups:
         priority: MUST
         kind: process
         statement: >-
-          Issues created by `update-plan` MUST carry the `group:unscheduled`
-          label and the appropriate initial `size:` label (from AC count per
-          PAD-05-001).
+          Issues created by `update-plan` MUST be added to GitHub Project #24
+          with `Schedule=Someday` and the appropriate initial `size:` label
+          (from AC count per PAD-05-001).
 
   - id: PAD-14
     title: GitHub Actions Requirements

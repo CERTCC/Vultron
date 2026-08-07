@@ -98,6 +98,7 @@ from vultron.demo.helpers.workflow import (
     receiver_engages_case,
     receiver_validates_report,
     reporter_submits_report,
+    run_invite_path_rm_triage,
 )
 
 logger = logging.getLogger(__name__)
@@ -261,6 +262,9 @@ def _phase_invite_vendor(
     coordinator_in_coordinator: as_Actor,
     vendor: as_Actor,
     case: as_VulnerabilityCase,
+    offer: as_Offer,
+    report: as_VulnerabilityReport,
+    finder: as_Actor,
 ) -> as_Actor:
     """Coordinator invites Vendor directly; Vendor accepts.
 
@@ -321,6 +325,19 @@ def _phase_invite_vendor(
         timeout_seconds=20.0,
     )
     logger.info("✓ M2: Vendor joined case (4 participants)")
+
+    # CM-11-002: Vendor joined via invite-accept — run standard RM triage cycle.
+    run_invite_path_rm_triage(
+        invited_client=vendor_client,
+        invited_actor=vendor_in_vendor,
+        offer=offer,
+        report=report,
+        finder=finder,
+        auth_client=coordinator_client,
+        case=case,
+        invited_obj=vendor,
+        timeout_seconds=20.0,
+    )
 
     return vendor_in_vendor
 
@@ -757,8 +774,8 @@ def run_fcv_demo(
         coordinator,
         coordinator_in_coordinator,
         vendor_obj,
-        _report,
-        _offer,
+        report,
+        offer,
         case,
     ) = _phase_report_submission(
         finder_client=finder_client,
@@ -776,6 +793,9 @@ def run_fcv_demo(
         coordinator_in_coordinator=coordinator_in_coordinator,
         vendor=vendor_obj,
         case=case,
+        offer=offer,
+        report=report,
+        finder=finder,
     )
 
     _phase_sync_verification(

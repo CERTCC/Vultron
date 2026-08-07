@@ -636,6 +636,7 @@ class TestFvvMilestoneAssertions:
             patch.object(demo, "wait_for_case_on_container"),
             patch.object(demo, "as_TransitiveActivity") as mock_ta,
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
+            patch.object(demo, "run_invite_path_rm_triage"),
             patch.object(demo, "verify_case_active") as mock_m1,
             patch.object(
                 demo,
