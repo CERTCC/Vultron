@@ -40,6 +40,7 @@ import httpx2 as httpx
 from vultron.adapters.utils import strip_id_prefix
 from vultron.core.states.cs import CS_vfd
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Offer,
     as_TransitiveActivity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -104,6 +105,7 @@ from vultron.demo.helpers.workflow import (
     receiver_engages_case,
     receiver_validates_report,
     reporter_submits_report,
+    run_invite_path_rm_triage,
 )
 
 logger = logging.getLogger(__name__)
@@ -224,7 +226,7 @@ def _phase_report_submission(
     as_Actor,
     as_Actor,
     as_VulnerabilityReport,
-    object,
+    as_Offer,
     as_VulnerabilityCase,
 ]:
     """Reset, seed, submit report, validate, engage, and wait for initial participants."""
@@ -466,6 +468,9 @@ def _phase_c2_invites_vendor(
     vendor: as_Actor,
     vendor_in_vendor: as_Actor,
     case: as_VulnerabilityCase,
+    offer: as_Offer,
+    report: as_VulnerabilityReport,
+    finder: as_Actor,
 ) -> None:
     """C2 (new CASE_OWNER) invites Vendor and Vendor joins the case (AC-2)."""
     logger.info("─" * 80)
@@ -528,6 +533,19 @@ def _phase_c2_invites_vendor(
         timeout_seconds=90.0,
     )
     logger.info("✓ Vendor joined case (%d participants)", 5)
+
+    # CM-11-002: Vendor joined via invite-accept — run standard RM triage cycle.
+    run_invite_path_rm_triage(
+        invited_client=vendor_client,
+        invited_actor=vendor_in_vendor,
+        offer=offer,
+        report=report,
+        finder=finder,
+        auth_client=c1_client,
+        case=case,
+        invited_obj=vendor,
+        timeout_seconds=90.0,
+    )
 
 
 def _phase_sync_verification(
@@ -1060,6 +1078,9 @@ def run_fccv_handoff_demo(
         vendor=vendor,
         vendor_in_vendor=vendor_in_vendor,
         case=case,
+        offer=offer,
+        report=report,
+        finder=finder,
     )
 
     # Verify case active now that all participants have joined.

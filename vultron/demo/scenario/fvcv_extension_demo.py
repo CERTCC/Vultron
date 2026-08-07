@@ -97,6 +97,7 @@ from vultron.demo.helpers.workflow import (
     receiver_engages_case,
     receiver_validates_report,
     reporter_submits_report,
+    run_invite_path_rm_triage,
 )
 
 logger = logging.getLogger(__name__)
@@ -314,6 +315,9 @@ def _phase_coordinator_suggests_vendor2(
     vendor2: as_Actor,
     vendor2_in_vendor2: as_Actor,
     case: as_VulnerabilityCase,
+    offer: as_Offer,
+    report: as_VulnerabilityReport,
+    finder: as_Actor,
 ) -> None:
     """Coordinator suggests Vendor2 via ADR-0026; Vendor1 approves; Vendor2 joins."""
     logger.info("─" * 80)
@@ -417,6 +421,18 @@ def _phase_coordinator_suggests_vendor2(
         timeout_seconds=60.0,
     )
     logger.info("✓ M3: Vendor2 joined case (%d participants)", 5)
+
+    run_invite_path_rm_triage(
+        invited_client=vendor2_client,
+        invited_actor=vendor2_in_vendor2,
+        offer=offer,
+        report=report,
+        finder=finder,
+        auth_client=vendor_client,
+        case=case,
+        invited_obj=vendor2,
+        timeout_seconds=60.0,
+    )
 
 
 def _phase_sync_verification(
@@ -955,6 +971,9 @@ def run_fvcv_extension_demo(
         vendor2=vendor2,
         vendor2_in_vendor2=vendor2_in_vendor2,
         case=case,
+        offer=offer,
+        report=report,
+        finder=finder,
     )
 
     finder_in_finder = get_actor_by_id(finder_client, finder.id_)

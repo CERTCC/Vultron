@@ -45,7 +45,11 @@ import httpx2 as httpx
 from vultron.adapters.utils import strip_id_prefix
 from vultron.core.states.cs import CS_vfd
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Offer,
     as_TransitiveActivity,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
@@ -104,6 +108,7 @@ from vultron.demo.helpers.workflow import (
     receiver_engages_case,
     receiver_validates_report,
     reporter_submits_report,
+    run_invite_path_rm_triage,
 )
 
 logger = logging.getLogger(__name__)
@@ -177,6 +182,8 @@ def _phase_report_submission(
     as_Actor,
     as_Actor,
     as_Actor,
+    as_VulnerabilityReport,
+    as_Offer,
     as_VulnerabilityCase,
 ]:
     """Reset, seed, submit report, validate, engage, invite C2, M1 check."""
@@ -206,7 +213,7 @@ def _phase_report_submission(
     c1_in_c1 = get_actor_by_id(c1_client, c1.id_)
     c2_in_c2 = get_actor_by_id(c2_client, c2.id_)
 
-    _, offer = reporter_submits_report(
+    report, offer = reporter_submits_report(
         receiver_client=c1_client,
         reporter=finder,
         receiver=c1_in_c1,
@@ -305,6 +312,8 @@ def _phase_report_submission(
         c1_in_c1,
         c2_in_c2,
         vendor,
+        report,
+        offer,
         case,
     )
 
@@ -318,6 +327,9 @@ def _phase_c2_suggests_vendor(
     vendor: as_Actor,
     vendor_in_vendor: as_Actor,
     case: as_VulnerabilityCase,
+    offer: as_Offer,
+    report: as_VulnerabilityReport,
+    finder: as_Actor,
 ) -> None:
     """C2 suggests Vendor via ADR-0026; C1 approves; Vendor joins."""
     logger.info("─" * 80)
@@ -411,6 +423,18 @@ def _phase_c2_suggests_vendor(
         timeout_seconds=20.0,
     )
     logger.info("✓ M3: Vendor joined case (%d participants)", 5)
+
+    run_invite_path_rm_triage(
+        invited_client=vendor_client,
+        invited_actor=vendor_in_vendor,
+        offer=offer,
+        report=report,
+        finder=finder,
+        auth_client=c1_client,
+        case=case,
+        invited_obj=vendor,
+        timeout_seconds=20.0,
+    )
 
 
 def _phase_sync_verification(
@@ -890,6 +914,8 @@ def run_fccv_extension_demo(
         c1_in_c1,
         c2_in_c2,
         vendor,
+        report,
+        offer,
         case,
     ) = _phase_report_submission(
         finder_client,
@@ -913,6 +939,9 @@ def run_fccv_extension_demo(
         vendor=vendor,
         vendor_in_vendor=vendor_in_vendor,
         case=case,
+        offer=offer,
+        report=report,
+        finder=finder,
     )
 
     finder_in_finder = get_actor_by_id(finder_client, finder.id_)
