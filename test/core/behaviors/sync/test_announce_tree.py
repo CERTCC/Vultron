@@ -17,8 +17,11 @@ from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import RmDimension, VfdDimension
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.states.cs import CS_vfd
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
@@ -730,7 +733,7 @@ def _make_close_case_entry(
 def _make_case_with_departing_participant(
     datalayer: SqliteDataLayer,
 ) -> as_VulnerabilityCase:
-    """Seed CASE_ID with a departing participant so the apply node can find them."""
+    """Seed CASE_ID with a departing participant at RM.ACCEPTED so CLOSE is valid."""
     case = as_VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
     participant = CaseParticipant(
         id_=DEPARTING_PARTICIPANT_ID,
@@ -738,6 +741,16 @@ def _make_case_with_departing_participant(
         context=CASE_ID,
     )
     datalayer.create(participant)
+    # Seed at RM.ACCEPTED so ACCEPTED→CLOSED is a valid RM transition.
+    seed_status = ParticipantStatus(
+        context=CASE_ID,
+        attributed_to=DEPARTING_ACTOR_ID,
+        rm=RmDimension(state=RM.ACCEPTED),
+        vfd=VfdDimension(state=CS_vfd.vfd),
+    )
+    datalayer.create(seed_status)
+    participant.participant_statuses.append(seed_status)
+    datalayer.save(participant)
     case.actor_participant_index[DEPARTING_ACTOR_ID] = DEPARTING_PARTICIPANT_ID
     datalayer.save(case)
     return case

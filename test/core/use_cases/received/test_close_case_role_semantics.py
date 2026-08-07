@@ -43,6 +43,9 @@ from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.case import CloseCaseReceivedEvent
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.models.dimensions import RmDimension, VfdDimension
+from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.states.cs import CS_vfd
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.case.lifecycle import (
     CloseCaseReceivedUseCase,
@@ -86,6 +89,28 @@ def _clear_blackboard():
 
 def _make_dl() -> SqliteDataLayer:
     return SqliteDataLayer("sqlite:///:memory:")
+
+
+def _seed_rm(dl: SqliteDataLayer, case_id: str, actor_id: str, rm: RM) -> None:
+    """Append a ParticipantStatus at *rm* so CLOSED writes have a valid source."""
+    case = dl.read(case_id)
+    if not isinstance(case, VulnerabilityCase):
+        return
+    participant_id = case.actor_participant_index.get(actor_id)
+    if not participant_id:
+        return
+    participant = dl.read(participant_id)
+    if not isinstance(participant, CaseParticipant):
+        return
+    status = ParticipantStatus(
+        context=case_id,
+        attributed_to=actor_id,
+        rm=RmDimension(state=rm),
+        vfd=VfdDimension(state=CS_vfd.vfd),
+    )
+    dl.create(status)
+    participant.participant_statuses.append(status)
+    dl.save(participant)
 
 
 def _make_full_dl(
@@ -141,6 +166,11 @@ def _make_full_dl(
         )
 
     dl.save(case)
+
+    # Seed all participants at RM.ACCEPTED so ACCEPTED→CLOSED is a valid transition.
+    for actor_id in list(case.actor_participant_index.keys()):
+        _seed_rm(dl, CASE_ID, actor_id, RM.ACCEPTED)
+
     return dl
 
 
