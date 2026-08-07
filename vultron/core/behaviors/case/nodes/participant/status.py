@@ -157,7 +157,7 @@ class CreateParticipantStatusNode(DataLayerAction):
         err = self._validate_transitions(current_rm, current_vfd, pxa_before)
         if err is not None:
             self.feedback_message = err
-            self.logger.warning("%s: %s", self.name, err)
+            self.logger.info("%s: %s", self.name, err)
             return Status.FAILURE
 
         case_status: CaseStatus | None = None

@@ -49,9 +49,7 @@ _WRITE_CONSTRUCTORS: frozenset[str] = frozenset(
     {"VfdDimension", "RmDimension", "PxaDimension"}
 )
 
-# Each entry is (relative_path_from_behaviors_root, line_number, constructor_name).
-# Line numbers come from the AC-7 audit; they will drift if lines are added above
-# a site — update the line number when you edit the file, not the category.
+# Each entry is (relative_path_from_behaviors_root, constructor_name).
 AUDITED_WRITE_SITES: frozenset[tuple[str, str]] = frozenset(
     {
         # validated-write: inside CreateParticipantStatusNode, after transition check
