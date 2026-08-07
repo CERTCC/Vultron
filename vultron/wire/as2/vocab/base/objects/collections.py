@@ -30,9 +30,7 @@ class as_Collection(as_Object):
     items: List[as_ObjectRef | None] = Field(default_factory=list)
     current: int | None = 0
 
-    # TODO implement a way to ignore duplicates
-    # _ids: Set[as_Object] = field(default_factory=set, repr=False)
-    # _duplicates: bool = field(default=False, repr=False)
+    # see #2110 — duplicate-ignoring not yet implemented
 
     @property
     def first(self):

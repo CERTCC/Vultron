@@ -159,7 +159,7 @@ class as_Relationship(as_Object):
 
     subject: as_ObjectRef | None = None
     object: as_ObjectRef | None = None
-    # TODO: should relationship be a str or uri? Usually it'd be a term from https://vocab.org/relationship/ http://xmlns.com/foaf/spec/
+    # AS2 spec allows a string term or a URI (e.g. from https://vocab.org/relationship/); str covers both
     relationship: str | None = None
 
 
