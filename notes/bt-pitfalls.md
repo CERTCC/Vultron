@@ -1172,23 +1172,29 @@ governing spec.
 
 ---
 
-## State-Validation Bypass: `CreateParticipantStatusNode` Does Not Validate Transitions
+## State-Validation at `CreateParticipantStatusNode`
 
-(ISSUE-1825, 2026-07-30; see also `notes/case-state-model.md`)
+(ISSUE-1825 / #1896 concern tracked; fixed in #2081 / PR #2095;
+see also `notes/case-state-model.md`, `notes/status-dimension-objects.md`)
 
-`CreateParticipantStatusNode.update()` constructs `VfdDimension(state=<target>)`
-and persists it directly without calling `VfdDimension.transition()` or
-`is_valid_vfd_transition`. **State validity is enforced entirely by upstream BT
-guard nodes** — nothing at the persistence boundary rejects an invalid jump
-(e.g., `vfd → VFD`).
+`CreateParticipantStatusNode.update()` now validates VFD, RM, and PXA
+transitions **before persisting**. An invalid jump (e.g., `vfd → VFD`,
+`START → ACCEPTED`) returns `Status.FAILURE` with a descriptive
+`feedback_message` and no `ParticipantStatus` record is written.
 
-This is a known fragility (GitHub concern #1896): if a guard node is too weak
-(see "Guard Name Must Match the State-Machine Transition Precondition" above),
-an invalid status snapshot can be persisted silently. The same issue applies
-to RM and PXA dimension writes through this node.
+Validation rules (per `_validate_transitions()`):
 
-**When writing or reviewing guard nodes that precede `CreateParticipantStatusNode`**:
-treat the guard as the *only* line of defence for transition validity and verify
-it against the state-machine transitions defined in `vultron/core/states/`.
+- `target == current` → proceed (status confirmation; valid protocol
+  observation).
+- `is_valid_*_transition(current, target)` is `True` → proceed.
+- Otherwise → `Status.FAILURE` with an informational log line.
+- `None` target → skip validation (caller is preserving current state).
 
-<!-- Source: ISSUE-1825; GitHub concern #1896 -->
+**When writing guard nodes that precede `CreateParticipantStatusNode`**:
+guards remain the *first* line of defence — they prevent the BT from
+reaching an invalid write in the first place. The node-level validation
+is a safety net, not a replacement for correct guards. Verify guard
+preconditions against the state-machine transitions in
+`vultron/core/states/`.
+
+<!-- Source: ISSUE-1825; GitHub concern #1896; fixed PR #2095 -->
