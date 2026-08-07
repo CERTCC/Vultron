@@ -71,17 +71,26 @@ _TotalEffortLimitMet = invert(
 )
 
 _IdentifyVendors = sequence_node(
-    "_IdentifyVendors", """XXX""", MoreVendors, InjectVendor
+    "_IdentifyVendors",
+    "Checks for more vendors to notify, then injects one into the candidate list",
+    MoreVendors,
+    InjectVendor,
 )
 
 
 _IdentifyCoordinators = sequence_node(
-    "_IdentifyCoordinators", """XXX""", MoreCoordinators, InjectCoordinator
+    "_IdentifyCoordinators",
+    "Checks for more coordinators to notify, then injects one into the candidate list",
+    MoreCoordinators,
+    InjectCoordinator,
 )
 
 
 _IdentifyOthers = sequence_node(
-    "_IdentifyOthers", """XXX""", MoreOthers, InjectOther
+    "_IdentifyOthers",
+    "Checks for more other parties to notify, then injects one into the candidate list",
+    MoreOthers,
+    InjectOther,
 )
 
 
@@ -135,7 +144,7 @@ _RemoveRecipient = action_node("RemoveRecipient", remove_recipient)
 
 _PruneRecipients = sequence_node(
     "_PruneRecipients",
-    """XXX""",
+    "Decides whether to prune a recipient, then removes them from the candidate list",
     _DecideWhetherToPruneRecipient,
     _RemoveRecipient,
 )

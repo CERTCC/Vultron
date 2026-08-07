@@ -264,7 +264,7 @@ class BtNode:
                 parts.append("graph LR")
 
         def fixname(nstr: str) -> str:
-            # TODO these should be subclass attributes
+            # see #2109 — prefix table should move to subclass attributes
             nstr = re.sub(r"^>_", "&rarr; ", nstr)
             nstr = re.sub(r"^\^_", "#8645; ", nstr)
             nstr = re.sub(r"^z_", "#127922; ", nstr)
