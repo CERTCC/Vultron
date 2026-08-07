@@ -40,9 +40,14 @@ from vultron.core.models.dimensions import (
     RmDimension,
     VfdDimension,
 )
-from vultron.core.states.cs import CS_pxa, CS_vfd
+from vultron.core.states.cs import (
+    CS_pxa,
+    CS_vfd,
+    is_valid_pxa_transition,
+    is_valid_vfd_transition,
+)
 from vultron.core.states.em import EM
-from vultron.core.states.rm import RM
+from vultron.core.states.rm import RM, is_valid_rm_transition
 
 
 def _resolve_em_state(case: object) -> EM:
@@ -148,10 +153,15 @@ class CreateParticipantStatusNode(DataLayerAction):
         )
         participant_obj = dl.read(participant_id)
 
+        pxa_before = _resolve_pxa_state(case, participant_obj)
+        err = self._validate_transitions(current_rm, current_vfd, pxa_before)
+        if err is not None:
+            self.feedback_message = err
+            self.logger.warning("%s: %s", self.name, err)
+            return Status.FAILURE
+
         case_status: CaseStatus | None = None
-        pxa_before: CS_pxa | None = None
         if self._pxa_state is not None:
-            pxa_before = _resolve_pxa_state(case, participant_obj)
             case_status = CaseStatus(
                 context=self._case_id,
                 attributed_to=self._actor_id,
@@ -227,6 +237,32 @@ class CreateParticipantStatusNode(DataLayerAction):
         )
         self._log_transitions(current_rm, current_vfd, pxa_before)
         return Status.SUCCESS
+
+    def _validate_transitions(
+        self,
+        current_rm: RM,
+        current_vfd: CS_vfd,
+        pxa_before: CS_pxa,
+    ) -> str | None:
+        """Return an error string if any requested transition is invalid, else None."""
+        if self._rm_state is not None and self._rm_state != current_rm:
+            if not is_valid_rm_transition(current_rm, self._rm_state):
+                return f"Invalid RM transition {current_rm!r} → {self._rm_state!r}"
+        if self._vfd_state is not None and self._vfd_state != current_vfd:
+            if not is_valid_vfd_transition(current_vfd, self._vfd_state):
+                return (
+                    f"Invalid VFD transition"
+                    f" {current_vfd!r} → {self._vfd_state!r}"
+                )
+        if (
+            self._pxa_state is not None
+            and self._pxa_state != pxa_before
+            and not is_valid_pxa_transition(pxa_before, self._pxa_state)
+        ):
+            return (
+                f"Invalid PXA transition {pxa_before!r} → {self._pxa_state!r}"
+            )
+        return None
 
     def _log_transitions(
         self,
