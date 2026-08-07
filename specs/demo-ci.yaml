@@ -130,14 +130,25 @@ groups:
         kind: project
         statement: >-
           Both the pull_request and push triggers MUST include the same paths
-          filter, covering: vultron/**, docker/**, integration_tests/**,
-          test/ci/**, pyproject.toml, and uv.lock.
+          filter, covering: vultron/** (excluding vultron/metadata/** and
+          vultron/bt/**), docker/**, integration_tests/**, test/ci/**,
+          pyproject.toml, uv.lock,
+          .github/workflows/demo-integration.yml, and
+          .github/actions/build-demo-images/**.
         rationale: >-
           These are the files whose changes can affect demo container behaviour
           or the invariant assertions that validate it. Filtering avoids running
           the expensive workflow on pure docs or spec changes. The push and
           pull_request filters MUST match so that any change validated pre-merge
-          is also validated post-merge on main.
+          is also validated post-merge on main. vultron/metadata/** is excluded
+          because it contains only tooling (spec/ADR/notes loaders and CLI entry
+          points) that is never imported by actor services or the demo runner
+          container at runtime. vultron/bt/** is excluded because the demo layer
+          is architecturally prohibited from importing the legacy simulation
+          layer (enforced by test/architecture/test_demo_no_bt_imports.py).
+          .github/workflows/demo-integration.yml and
+          .github/actions/build-demo-images/** are included so that changes to
+          the workflow or the shared build action itself trigger a validation run.
 
       - id: DEMOCI-02-004
         priority: MUST
