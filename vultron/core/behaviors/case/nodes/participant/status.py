@@ -108,6 +108,7 @@ class CreateParticipantStatusNode(DataLayerAction):
         pxa_state: "CS_pxa | None",
         result_out: dict,
         name: str | None = None,
+        skip_transition_validation: bool = False,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
@@ -116,6 +117,64 @@ class CreateParticipantStatusNode(DataLayerAction):
         self._vfd_state = vfd_state
         self._pxa_state = pxa_state
         self._result_out = result_out
+        self._skip_transition_validation = skip_transition_validation
+
+    def _build_status(
+        self,
+        case: VulnerabilityCase,
+        participant_obj: object,
+        current_rm: "RM",
+        current_vfd: "CS_vfd",
+        pxa_before: "CS_pxa",
+    ) -> "ParticipantStatus":
+        """Construct the ParticipantStatus record to persist."""
+        case_status: CaseStatus | None = None
+        if self._pxa_state is not None:
+            case_status = CaseStatus(
+                context=self._case_id,
+                attributed_to=self._actor_id,
+                em=EmDimension(state=_resolve_em_state(case)),
+                pxa=PxaDimension(state=self._pxa_state),
+            )
+
+        participant_roles = (
+            participant_obj.roles  # type: ignore[union-attr]
+            if isinstance(participant_obj, CaseParticipant)
+            else []
+        )
+        raw_consent = (
+            getattr(participant_obj, "embargo_consent_state", None)
+            if isinstance(participant_obj, CaseParticipant)
+            else None
+        )
+        em_consent_state = coerce_em_consent_state(raw_consent)
+        consent_dim = (
+            PecDimension(state=em_consent_state)
+            if em_consent_state is not None
+            else None
+        )
+
+        return ParticipantStatus(
+            context=self._case_id,
+            attributed_to=self._actor_id,
+            rm=RmDimension(
+                state=(
+                    self._rm_state
+                    if self._rm_state is not None
+                    else current_rm
+                )
+            ),
+            vfd=VfdDimension(
+                state=(
+                    self._vfd_state
+                    if self._vfd_state is not None
+                    else current_vfd
+                )
+            ),
+            consent=consent_dim,
+            cvd_role=coerce_cvd_roles(participant_roles),
+            case_status=case_status,
+        )
 
     def update(self) -> Status:
         dl = self.datalayer
@@ -154,59 +213,17 @@ class CreateParticipantStatusNode(DataLayerAction):
         participant_obj = dl.read(participant_id)
 
         pxa_before = _resolve_pxa_state(case, participant_obj)
-        err = self._validate_transitions(current_rm, current_vfd, pxa_before)
-        if err is not None:
-            self.feedback_message = err
-            self.logger.info("%s: %s", self.name, err)
-            return Status.FAILURE
-
-        case_status: CaseStatus | None = None
-        if self._pxa_state is not None:
-            case_status = CaseStatus(
-                context=self._case_id,
-                attributed_to=self._actor_id,
-                em=EmDimension(state=_resolve_em_state(case)),
-                pxa=PxaDimension(state=self._pxa_state),
+        if not self._skip_transition_validation:
+            err = self._validate_transitions(
+                current_rm, current_vfd, pxa_before
             )
+            if err is not None:
+                self.feedback_message = err
+                self.logger.info("%s: %s", self.name, err)
+                return Status.FAILURE
 
-        participant_roles = (
-            participant_obj.roles
-            if isinstance(participant_obj, CaseParticipant)
-            else []
-        )
-        status_roles = coerce_cvd_roles(participant_roles)
-        raw_consent = (
-            getattr(participant_obj, "embargo_consent_state", None)
-            if isinstance(participant_obj, CaseParticipant)
-            else None
-        )
-        em_consent_state = coerce_em_consent_state(raw_consent)
-        consent_dim = (
-            PecDimension(state=em_consent_state)
-            if em_consent_state is not None
-            else None
-        )
-
-        status = ParticipantStatus(
-            context=self._case_id,
-            attributed_to=self._actor_id,
-            rm=RmDimension(
-                state=(
-                    self._rm_state
-                    if self._rm_state is not None
-                    else current_rm
-                )
-            ),
-            vfd=VfdDimension(
-                state=(
-                    self._vfd_state
-                    if self._vfd_state is not None
-                    else current_vfd
-                )
-            ),
-            consent=consent_dim,
-            cvd_role=status_roles,
-            case_status=case_status,
+        status = self._build_status(
+            case, participant_obj, current_rm, current_vfd, pxa_before
         )
         try:
             dl.create(status)

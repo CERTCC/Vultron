@@ -460,6 +460,9 @@ class ApplyCloseCaseFromLedgerNode(DataLayerAction):
 
         # Advance the departing actor to RM.CLOSED using CreateParticipantStatusNode
         # logic directly (avoids re-entering the BT machinery).
+        # skip_transition_validation=True: this is an authoritative ledger-replication
+        # write — the CaseActor's close_case event is the source of truth regardless
+        # of the local replica's current RM state (CM-23-003, SYNC-02-002).
         result_out: dict = {}
         node = CreateParticipantStatusNode(
             case_id=case_id,
@@ -469,6 +472,7 @@ class ApplyCloseCaseFromLedgerNode(DataLayerAction):
             pxa_state=None,
             result_out=result_out,
             name=f"{self.name}.CreateParticipantStatus",
+            skip_transition_validation=True,
         )
         node.datalayer = self.datalayer
         node.actor_id = departing_actor_id
