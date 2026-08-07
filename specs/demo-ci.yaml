@@ -632,18 +632,25 @@ groups:
           and `rcvv-embargo` are implemented and passing in CI. The analysis
           MUST evaluate whether the 3-scenario minimum PR set defined in
           DEMOCI-06-002 requires expansion to preserve full embargo lifecycle
-          protocol coverage, and MUST update `notes/demo-ci-scenario-coverage.md`
-          and DEMOCI-06-002 accordingly. If the embargo scenarios introduce
-          protocol event types not covered by `fv`, `fvcv-handoff`, or `fcvcv`,
-          the minimum PR set MUST be expanded.
+          protocol coverage, and MUST update `notes/demo-ci-scenario-coverage.md`,
+          DEMOCI-06-002, and DEMOCI-06-003 accordingly. If the embargo scenarios
+          introduce protocol event types not covered by `fv`, `fvcv-handoff`, or
+          `fcvcv`, the minimum PR set MUST be expanded. DEMOCI-06-003 names the
+          full scenario suite explicitly; it MUST be updated to include
+          `rcv-embargo` and `rcvv-embargo` when they are wired into CI.
         rationale: >-
           DEMOCI-06-002 defined the minimum PR set before embargo-lifecycle
           scenarios existed. The embargo protocol messages (EP, EA, EV, EJ, ET)
           are not exercised by any scenario in the current minimum set.
-          This SHOULD-priority spec creates an explicit obligation to revisit
-          the coverage model rather than letting the gap go unnoticed.
+          DEMOCI-06-003 was updated in this PR to list exactly 8 scenarios by
+          name; after #2073 adds rcv-embargo and rcvv-embargo to the CI matrix
+          that count becomes 10, so DEMOCI-06-003 must be updated in the same
+          pass. This SHOULD-priority spec creates an explicit obligation to
+          revisit both coverage specs rather than letting either gap go unnoticed.
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-06-001
           - rel_type: refines
             spec_id: DEMOCI-06-002
+          - rel_type: refines
+            spec_id: DEMOCI-06-003
