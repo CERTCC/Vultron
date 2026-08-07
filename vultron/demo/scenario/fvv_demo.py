@@ -34,7 +34,6 @@ import httpx2 as httpx
 
 from vultron.adapters.utils import strip_id_prefix
 from vultron.core.states.cs import CS_vfd
-from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Offer,
     as_TransitiveActivity,
@@ -82,7 +81,6 @@ from vultron.demo.helpers.polling import (
     wait_for_event_type_in_ledger,
     wait_for_finder_case,
     wait_for_participant_vfd_state,
-    wait_for_participant_rm_state,
 )
 from vultron.demo.helpers.seeding import (
     get_actor_by_id,
@@ -99,7 +97,7 @@ from vultron.demo.helpers.workflow import (
     receiver_engages_case,
     receiver_validates_report,
     reporter_submits_report,
-    seed_offer_record_for_actor,
+    run_invite_path_rm_triage,
 )
 
 logger = logging.getLogger(__name__)
@@ -268,46 +266,17 @@ def _phase_report_submission(
         expected_count=4,
     )
 
-    # CM-11-002: Vendor2 joined via invite-accept and must run the standard RM
-    # triage cycle (RECEIVED → VALID → ACCEPTED) after receiving the full case
-    # replica.  Seed a VultronOfferRecord so validate-report can find the offer.
-    seed_offer_record_for_actor(
-        client=vendor2_client,
-        actor=vendor2_in_vendor2,
-        offer_id=offer.id_,
-        report_id=report.id_,
-        offer_actor_id=finder.id_,
+    # CM-11-002: Vendor2 joined via invite-accept — run standard RM triage cycle.
+    run_invite_path_rm_triage(
+        invited_client=vendor2_client,
+        invited_actor=vendor2_in_vendor2,
+        offer=offer,
+        report=report,
+        finder=finder,
+        auth_client=vendor_client,
+        case=case,
+        invited_obj=vendor2,
     )
-
-    receiver_validates_report(
-        receiver_client=vendor2_client,
-        receiver=vendor2_in_vendor2,
-        offer_id=offer.id_,
-    )
-
-    with demo_check("CaseActor reflects Vendor2 at RM.VALID"):
-        wait_for_participant_rm_state(
-            client=vendor_client,
-            case_id=case.id_,
-            actor_id=vendor2.id_,
-            expected_states={RM.VALID, RM.ACCEPTED},
-        )
-    logger.info("✓ Vendor2 RM state reached VALID on Vendor1's replica")
-
-    receiver_engages_case(
-        receiver_client=vendor2_client,
-        receiver=vendor2_in_vendor2,
-        case_id=case.id_,
-    )
-
-    with demo_check("CaseActor reflects Vendor2 at RM.ACCEPTED"):
-        wait_for_participant_rm_state(
-            client=vendor_client,
-            case_id=case.id_,
-            actor_id=vendor2.id_,
-            expected_states={RM.ACCEPTED},
-        )
-    logger.info("✓ Vendor2 RM state reached ACCEPTED on Vendor1's replica")
 
     with demo_check(
         "M1: required participants (≥4), EM.ACTIVE, finder + vendor2 have replicas"

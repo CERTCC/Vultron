@@ -46,7 +46,6 @@ import httpx2 as httpx
 
 from vultron.adapters.utils import strip_id_prefix
 from vultron.core.states.cs import CS_vfd
-from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Offer,
     as_TransitiveActivity,
@@ -97,7 +96,6 @@ from vultron.demo.helpers.polling import (
     wait_for_case_participants,
     wait_for_contiguous_ledger_coverage,
     wait_for_event_type_in_ledger,
-    wait_for_participant_rm_state,
     wait_for_participant_vfd_state,
 )
 from vultron.demo.helpers.seeding import (
@@ -114,7 +112,7 @@ from vultron.demo.helpers.workflow import (
     receiver_engages_case,
     receiver_validates_report,
     reporter_submits_report,
-    seed_offer_record_for_actor,
+    run_invite_path_rm_triage,
 )
 
 logger = logging.getLogger(__name__)
@@ -294,46 +292,16 @@ def _phase_report_submission(
             case_id=case.id_,
         )
 
-    # CM-11-002: V1 joined via invite-accept and must run the standard RM
-    # triage cycle (RECEIVED → VALID → ACCEPTED) after receiving the full case
-    # replica.  Seed a VultronOfferRecord so validate-report can find the offer.
-    seed_offer_record_for_actor(
-        client=v1_client,
-        actor=v1_in_v1,
-        offer_id=offer.id_,
-        report_id=report.id_,
-        offer_actor_id=finder.id_,
+    run_invite_path_rm_triage(
+        invited_client=v1_client,
+        invited_actor=v1_in_v1,
+        offer=offer,
+        report=report,
+        finder=finder,
+        auth_client=c1_client,
+        case=case,
+        invited_obj=v1,
     )
-
-    receiver_validates_report(
-        receiver_client=v1_client,
-        receiver=v1_in_v1,
-        offer_id=offer.id_,
-    )
-
-    with demo_check("CaseActor reflects V1 at RM.VALID"):
-        wait_for_participant_rm_state(
-            client=c1_client,
-            case_id=case.id_,
-            actor_id=v1.id_,
-            expected_states={RM.VALID, RM.ACCEPTED},
-        )
-    logger.info("✓ V1 RM state reached VALID on C1's replica")
-
-    receiver_engages_case(
-        receiver_client=v1_client,
-        receiver=v1_in_v1,
-        case_id=case.id_,
-    )
-
-    with demo_check("CaseActor reflects V1 at RM.ACCEPTED"):
-        wait_for_participant_rm_state(
-            client=c1_client,
-            case_id=case.id_,
-            actor_id=v1.id_,
-            expected_states={RM.ACCEPTED},
-        )
-    logger.info("✓ V1 RM state reached ACCEPTED on C1's replica")
 
     # C1 invites C2 with CVDRole.COORDINATOR.
     with demo_step("C1 invites C2 with CVDRole.COORDINATOR"):
@@ -511,48 +479,17 @@ def _phase_c2_suggests_v2(
     )
     logger.info("✓ V2 joined case (6 participants)")
 
-    # CM-11-002: V2 joined via invite-accept and must run the standard RM
-    # triage cycle (RECEIVED → VALID → ACCEPTED) after receiving the full case
-    # replica.  Seed a VultronOfferRecord so validate-report can find the offer.
-    seed_offer_record_for_actor(
-        client=v2_client,
-        actor=v2_in_v2,
-        offer_id=offer.id_,
-        report_id=report.id_,
-        offer_actor_id=finder.id_,
+    run_invite_path_rm_triage(
+        invited_client=v2_client,
+        invited_actor=v2_in_v2,
+        offer=offer,
+        report=report,
+        finder=finder,
+        auth_client=c1_client,
+        case=case,
+        invited_obj=v2,
+        timeout_seconds=40.0,
     )
-
-    receiver_validates_report(
-        receiver_client=v2_client,
-        receiver=v2_in_v2,
-        offer_id=offer.id_,
-    )
-
-    with demo_check("CaseActor reflects V2 at RM.VALID"):
-        wait_for_participant_rm_state(
-            client=c1_client,
-            case_id=case.id_,
-            actor_id=v2.id_,
-            expected_states={RM.VALID, RM.ACCEPTED},
-            timeout_seconds=40.0,
-        )
-    logger.info("✓ V2 RM state reached VALID on C1's replica")
-
-    receiver_engages_case(
-        receiver_client=v2_client,
-        receiver=v2_in_v2,
-        case_id=case.id_,
-    )
-
-    with demo_check("CaseActor reflects V2 at RM.ACCEPTED"):
-        wait_for_participant_rm_state(
-            client=c1_client,
-            case_id=case.id_,
-            actor_id=v2.id_,
-            expected_states={RM.ACCEPTED},
-            timeout_seconds=40.0,
-        )
-    logger.info("✓ V2 RM state reached ACCEPTED on C1's replica")
 
 
 def _phase_sync_verification(

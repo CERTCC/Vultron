@@ -39,7 +39,6 @@ import httpx2 as httpx
 
 from vultron.adapters.utils import strip_id_prefix
 from vultron.core.states.cs import CS_vfd
-from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Offer,
     as_TransitiveActivity,
@@ -90,7 +89,6 @@ from vultron.demo.helpers.polling import (
     wait_for_contiguous_ledger_coverage,
     wait_for_event_type_in_ledger,
     wait_for_object_stored,
-    wait_for_participant_rm_state,
     wait_for_participant_vfd_state,
 )
 from vultron.demo.helpers.seeding import (
@@ -107,7 +105,7 @@ from vultron.demo.helpers.workflow import (
     receiver_engages_case,
     receiver_validates_report,
     reporter_submits_report,
-    seed_offer_record_for_actor,
+    run_invite_path_rm_triage,
 )
 
 logger = logging.getLogger(__name__)
@@ -536,48 +534,18 @@ def _phase_c2_invites_vendor(
     )
     logger.info("✓ Vendor joined case (%d participants)", 5)
 
-    # CM-11-002: Vendor joined via invite-accept and must run the standard RM
-    # triage cycle (RECEIVED → VALID → ACCEPTED) after receiving the full case
-    # replica.  Seed a VultronOfferRecord so validate-report can find the offer.
-    seed_offer_record_for_actor(
-        client=vendor_client,
-        actor=vendor_in_vendor,
-        offer_id=offer.id_,
-        report_id=report.id_,
-        offer_actor_id=finder.id_,
+    # CM-11-002: Vendor joined via invite-accept — run standard RM triage cycle.
+    run_invite_path_rm_triage(
+        invited_client=vendor_client,
+        invited_actor=vendor_in_vendor,
+        offer=offer,
+        report=report,
+        finder=finder,
+        auth_client=c1_client,
+        case=case,
+        invited_obj=vendor,
+        timeout_seconds=90.0,
     )
-
-    receiver_validates_report(
-        receiver_client=vendor_client,
-        receiver=vendor_in_vendor,
-        offer_id=offer.id_,
-    )
-
-    with demo_check("CaseActor reflects Vendor at RM.VALID (AC-2)"):
-        wait_for_participant_rm_state(
-            client=c1_client,
-            case_id=case.id_,
-            actor_id=vendor.id_,
-            expected_states={RM.VALID, RM.ACCEPTED},
-            timeout_seconds=90.0,
-        )
-    logger.info("✓ Vendor RM state reached VALID on C1's replica")
-
-    receiver_engages_case(
-        receiver_client=vendor_client,
-        receiver=vendor_in_vendor,
-        case_id=case.id_,
-    )
-
-    with demo_check("CaseActor reflects Vendor at RM.ACCEPTED (AC-2)"):
-        wait_for_participant_rm_state(
-            client=c1_client,
-            case_id=case.id_,
-            actor_id=vendor.id_,
-            expected_states={RM.ACCEPTED},
-            timeout_seconds=90.0,
-        )
-    logger.info("✓ Vendor RM state reached ACCEPTED on C1's replica")
 
 
 def _phase_sync_verification(

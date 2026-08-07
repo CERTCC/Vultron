@@ -24,6 +24,8 @@ import logging
 from typing import Optional, Tuple
 
 from vultron.adapters.utils import parse_id
+from vultron.core.states.rm import RM
+from vultron.demo.helpers.polling import wait_for_participant_rm_state
 from vultron.demo.utils import (
     DataLayerClient,
     demo_check,
@@ -270,6 +272,85 @@ def seed_offer_record_for_actor(
         "Offer record seeded for actor %s: offer=%s", actor_obj_id, offer_id
     )
     return result
+
+
+def run_invite_path_rm_triage(
+    invited_client: DataLayerClient,
+    invited_actor: as_Actor,
+    offer: object,
+    report: as_VulnerabilityReport,
+    finder: as_Actor,
+    auth_client: DataLayerClient,
+    case: as_VulnerabilityCase,
+    invited_obj: as_Actor,
+    timeout_seconds: float = 20.0,
+) -> None:
+    """Run the full RM triage cycle for an invite-path participant (CM-11-002).
+
+    Invited actors join via Accept(Invite) and lack a VultronOfferRecord, so
+    the standard RM RECEIVED→VALID→ACCEPTED cycle requires a seeded record
+    before the validate-report trigger can succeed.
+
+    Steps:
+    1. Seed a VultronOfferRecord on the invited actor's DataLayer.
+    2. Trigger validate-report (RM → VALID).
+    3. Poll until CaseActor reflects RM.VALID or RM.ACCEPTED.
+    4. Trigger engage-case (RM → ACCEPTED).
+    5. Poll until CaseActor reflects RM.ACCEPTED.
+
+    Args:
+        invited_client: Client for the invited actor's container.
+        invited_actor: The invited actor's local replica (e.g. vendor2_in_vendor2).
+        offer: The original submit-report Offer activity.
+        report: The VulnerabilityReport in the case.
+        finder: The actor that originally submitted the Offer.
+        auth_client: Client for an actor that can see the CaseActor state
+            (e.g. the coordinating actor or vendor1_client).
+        case: The VulnerabilityCase.
+        invited_obj: The invited actor's top-level object (used for actor_id lookup).
+        timeout_seconds: Polling timeout per wait call (default 20s).
+    """
+    offer_id = getattr(offer, "id_", str(offer))
+
+    seed_offer_record_for_actor(
+        client=invited_client,
+        actor=invited_actor,
+        offer_id=offer_id,
+        report_id=report.id_,
+        offer_actor_id=finder.id_,
+    )
+
+    receiver_validates_report(
+        receiver_client=invited_client,
+        receiver=invited_actor,
+        offer_id=offer_id,
+    )
+
+    with demo_check(f"CaseActor reflects {invited_obj.id_} at RM.VALID"):
+        wait_for_participant_rm_state(
+            client=auth_client,
+            case_id=case.id_,
+            actor_id=invited_obj.id_,
+            expected_states={RM.VALID, RM.ACCEPTED},
+            timeout_seconds=timeout_seconds,
+        )
+    logger.info("✓ %s RM state reached VALID", invited_obj.id_)
+
+    receiver_engages_case(
+        receiver_client=invited_client,
+        receiver=invited_actor,
+        case_id=case.id_,
+    )
+
+    with demo_check(f"CaseActor reflects {invited_obj.id_} at RM.ACCEPTED"):
+        wait_for_participant_rm_state(
+            client=auth_client,
+            case_id=case.id_,
+            actor_id=invited_obj.id_,
+            expected_states={RM.ACCEPTED},
+            timeout_seconds=timeout_seconds,
+        )
+    logger.info("✓ %s RM state reached ACCEPTED", invited_obj.id_)
 
 
 def _report_id_from_offer_data(
