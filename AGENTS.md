@@ -574,7 +574,7 @@ message.
   scalar string. Schema: `vultron/metadata/notes/schema.py`.
 - **Docs links must be relative**: links in `docs/` MUST be relative and MUST NOT
   go above `docs/`. Run `uv run mkdocs build --strict` before committing docs.
-  Use `mkdocs.dev.yml` to validate `docs/developer/` locally.
+  `docs/developer/` pages are draft docs — visible in `mkdocs serve` but excluded from production builds.
 - **Demo script lifecycle logging**: see
   [`vultron/adapters/AGENTS.md`](vultron/adapters/AGENTS.md) for `demo_step` /
   `demo_check` pattern.

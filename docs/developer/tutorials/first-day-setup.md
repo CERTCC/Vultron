@@ -47,7 +47,7 @@ Notice that the final lines report the pytest summary.
 Run:
 
 ```bash
-uv run mkdocs serve --config-file mkdocs.dev.yml
+uv run mkdocs serve
 ```
 
 Now open <http://127.0.0.1:8000/developer/>.
@@ -72,7 +72,8 @@ dev-only maintainer docs.
 ## Troubleshooting
 
 - If `uv sync --dev` fails, verify Python 3.12+ and rerun `uv sync --dev`.
-- If `mkdocs serve` starts but `/developer/` is missing, confirm
-  `--config-file mkdocs.dev.yml` was used.
+- If `mkdocs serve` starts but `/developer/` is missing, confirm you are
+  running `mkdocs serve` (not `mkdocs build`) — draft pages are served locally
+  but excluded from production builds.
 - If Docker docs do not include maintainer pages, ensure you started the
   `docs` service from `docker/docker-compose.yml`.
