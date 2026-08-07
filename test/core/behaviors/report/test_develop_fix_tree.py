@@ -474,6 +474,7 @@ class TestTransitionCStoFixReady:
         case_with_vendor: VultronCase,
     ) -> None:
         _seed_rm_state(bt_scenario, CASE_ID, VENDOR_ACTOR_ID, RM.ACCEPTED)
+        _seed_vfd_state(bt_scenario, CASE_ID, VENDOR_ACTOR_ID, CS_vfd.Vfd)
         result_out: dict = {}
         node = TransitionCStoFixReady(
             case_id=CASE_ID, actor_id=VENDOR_ACTOR_ID, result_out=result_out
@@ -507,6 +508,7 @@ class TestTransitionCStoFixReady:
         import logging
 
         _seed_rm_state(bt_scenario, CASE_ID, VENDOR_ACTOR_ID, RM.ACCEPTED)
+        _seed_vfd_state(bt_scenario, CASE_ID, VENDOR_ACTOR_ID, CS_vfd.Vfd)
         node = TransitionCStoFixReady(
             case_id=CASE_ID, actor_id=VENDOR_ACTOR_ID, result_out={}
         )
@@ -524,9 +526,9 @@ class TestTransitionCStoFixReady:
         ]
         assert narrative, "Expected a CS narrative line at INFO"
         message = narrative[0].getMessage()
-        # The fixture participant starts at `vfd`, so this single write
-        # advances two sub-dimensions and the label names both.
-        assert f"Actor '{VENDOR_ACTOR_ID}' CS: vfd → VFd" in message
+        # The fixture participant starts at `Vfd` (seeded above), so this write
+        # advances the fix-ready sub-dimension only.
+        assert f"Actor '{VENDOR_ACTOR_ID}' CS: Vfd → VFd" in message
         assert "fix ready" in message
 
         detail = [
@@ -584,6 +586,7 @@ class TestEmitCFActivity:
     ) -> None:
         """SUCCESS when status_id present and CASE_MANAGER participant exists."""
         _seed_rm_state(bt_scenario, CASE_ID, VENDOR_ACTOR_ID, RM.ACCEPTED)
+        _seed_vfd_state(bt_scenario, CASE_ID, VENDOR_ACTOR_ID, CS_vfd.Vfd)
         result_out: dict = {}
         transition_node = TransitionCStoFixReady(
             case_id=CASE_ID, actor_id=VENDOR_ACTOR_ID, result_out=result_out

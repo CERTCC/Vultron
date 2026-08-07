@@ -308,7 +308,7 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
         request = AddParticipantStatusTriggerRequest(
             actor_id=self.actor.id_,
             case_id=self.case.id_,
-            rm_state=RM.ACCEPTED,
+            rm_state=RM.RECEIVED,  # START → RECEIVED is the valid first hop
         )
         before = set(self.dl.outbox_list_for_actor(self.actor.id_))
         SvcAddParticipantStatusUseCase(
@@ -348,7 +348,7 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
         request = AddParticipantStatusTriggerRequest(
             actor_id=self.actor.id_,
             case_id=self.case.id_,
-            rm_state=RM.ACCEPTED,
+            rm_state=RM.RECEIVED,  # START → RECEIVED is the valid first hop
         )
         result = SvcAddParticipantStatusUseCase(
             self.dl,
@@ -388,7 +388,7 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
         request = AddParticipantStatusTriggerRequest(
             actor_id=self.actor.id_,
             case_id=self.case.id_,
-            rm_state=RM.ACCEPTED,
+            rm_state=RM.RECEIVED,  # START → RECEIVED is the valid first hop
         )
         use_case = SvcAddParticipantStatusUseCase(
             self.dl,
@@ -398,13 +398,13 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
         use_case.execute()
 
         # On a second call, _resolve_current_participant_state must return
-        # RM.ACCEPTED (the state we just emitted), not RM.START.
+        # RM.RECEIVED (the state we just emitted), not RM.START.
         rm, _ = use_case._resolve_current_participant_state(
             self.dl, self.actor_participant.id_
         )
-        assert rm == RM.ACCEPTED, (
-            f"After execute() with rm_state=RM.ACCEPTED, "
-            f"_resolve_current_participant_state must return RM.ACCEPTED; "
+        assert rm == RM.RECEIVED, (
+            f"After execute() with rm_state=RM.RECEIVED, "
+            f"_resolve_current_participant_state must return RM.RECEIVED; "
             f"got {rm!r} (#624)"
         )
 
@@ -534,21 +534,21 @@ class TestCreateParticipantStatusNode:
         from vultron.core.states.rm import RM
 
         bt_result, result_out = self._run_node(
-            rm_state=RM.ACCEPTED, vfd_state=None, pxa_state=None
+            rm_state=RM.RECEIVED, vfd_state=None, pxa_state=None
         )
 
         status_id = result_out.get("status_id")
         assert isinstance(status_id, str), "result_out must contain status_id"
         stored = self.dl.read(status_id)
         assert isinstance(stored, ParticipantStatus)
-        assert stored.rm.state == RM.ACCEPTED
+        assert stored.rm.state == RM.RECEIVED
 
     def test_node_appends_status_to_participant(self):
         """CreateParticipantStatusNode appends the status to participant_statuses."""
         from vultron.core.states.rm import RM
 
         _, result_out = self._run_node(
-            rm_state=RM.ACCEPTED, vfd_state=None, pxa_state=None
+            rm_state=RM.RECEIVED, vfd_state=None, pxa_state=None
         )
 
         status_id = result_out.get("status_id")
@@ -647,7 +647,7 @@ class TestCreateParticipantStatusNode:
 
         with caplog.at_level(logging.INFO):
             self._run_node(
-                rm_state=RM.ACCEPTED, vfd_state=None, pxa_state=None
+                rm_state=RM.RECEIVED, vfd_state=None, pxa_state=None
             )
 
         assert not self._cs_narrative_records(caplog)
@@ -750,3 +750,197 @@ class TestCreateParticipantStatusNode:
             self._run_node(rm_state=None, vfd_state=CS_vfd.Vfd, pxa_state=None)
 
         assert not self._rm_narrative_records(caplog)
+
+    # -----------------------------------------------------------------------
+    # AC-1: VFD transition validation
+    # -----------------------------------------------------------------------
+
+    def test_invalid_vfd_transition_returns_failure(self):
+        """AC-1: vfd → VFD (skip Vfd/VFd) returns FAILURE, no status persisted."""
+        from py_trees.common import Status
+
+        bt_result, result_out = self._run_node(
+            rm_state=None, vfd_state=CS_vfd.VFD, pxa_state=None
+        )
+
+        assert bt_result.status == Status.FAILURE
+        assert "status_id" not in result_out
+
+    def test_invalid_vfd_transition_vfd_to_VFd_returns_failure(self):
+        """AC-1: vfd → VFd (skipping Vfd) is invalid and returns FAILURE."""
+        from py_trees.common import Status
+
+        bt_result, result_out = self._run_node(
+            rm_state=None, vfd_state=CS_vfd.VFd, pxa_state=None
+        )
+
+        assert bt_result.status == Status.FAILURE
+        assert "status_id" not in result_out
+
+    def test_valid_vfd_transition_vfd_to_Vfd_succeeds(self):
+        """AC-1 happy path: vfd → Vfd is valid and returns SUCCESS."""
+        from py_trees.common import Status
+
+        bt_result, result_out = self._run_node(
+            rm_state=None, vfd_state=CS_vfd.Vfd, pxa_state=None
+        )
+
+        # Participant starts at vfd; Vfd is the only valid next step.
+        # But participant has no prior statuses so current_vfd = vfd.
+        assert bt_result.status == Status.SUCCESS
+        assert "status_id" in result_out
+
+    # -----------------------------------------------------------------------
+    # AC-2: RM transition validation
+    # -----------------------------------------------------------------------
+
+    def test_invalid_rm_transition_returns_failure(self):
+        """AC-2: START → ACCEPTED (skipping RECEIVED/VALID) returns FAILURE."""
+        from py_trees.common import Status
+
+        bt_result, result_out = self._run_node(
+            rm_state=RM.ACCEPTED, vfd_state=None, pxa_state=None
+        )
+
+        assert bt_result.status == Status.FAILURE
+        assert "status_id" not in result_out
+
+    def test_valid_rm_transition_start_to_received_succeeds(self):
+        """AC-2 happy path: START → RECEIVED is valid."""
+        from py_trees.common import Status
+
+        bt_result, result_out = self._run_node(
+            rm_state=RM.RECEIVED, vfd_state=None, pxa_state=None
+        )
+
+        assert bt_result.status == Status.SUCCESS
+        assert "status_id" in result_out
+
+    # -----------------------------------------------------------------------
+    # AC-3: PXA transition validation
+    # -----------------------------------------------------------------------
+
+    def test_invalid_pxa_transition_backward_returns_failure(self):
+        """AC-3: Pxa → pxa (backward) returns FAILURE, no status persisted."""
+        from py_trees.common import Status
+        from vultron.core.states.cs import CS_pxa
+
+        # First, advance to Pxa so the participant has a known pxa_before.
+        bt_result, result_out = self._run_node(
+            rm_state=None, vfd_state=None, pxa_state=CS_pxa.Pxa
+        )
+        assert bt_result.status == Status.SUCCESS
+
+        # Now attempt a backward move: Pxa → pxa
+        bt_result2, result_out2 = self._run_node(
+            rm_state=None, vfd_state=None, pxa_state=CS_pxa.pxa
+        )
+
+        assert bt_result2.status == Status.FAILURE
+        assert "status_id" not in result_out2
+
+    def test_valid_pxa_transition_pxa_to_Pxa_succeeds(self):
+        """AC-3 happy path: pxa → Pxa is a valid forward transition."""
+        from py_trees.common import Status
+        from vultron.core.states.cs import CS_pxa
+
+        bt_result, result_out = self._run_node(
+            rm_state=None, vfd_state=None, pxa_state=CS_pxa.Pxa
+        )
+
+        assert bt_result.status == Status.SUCCESS
+        assert "status_id" in result_out
+
+    # -----------------------------------------------------------------------
+    # AC-4: Same-state writes succeed (status confirmation)
+    # -----------------------------------------------------------------------
+
+    def test_same_state_vfd_write_succeeds(self):
+        """AC-4: Writing the current VFD state again (vfd → vfd) is a valid no-op."""
+        from py_trees.common import Status
+
+        bt_result, result_out = self._run_node(
+            rm_state=None, vfd_state=CS_vfd.vfd, pxa_state=None
+        )
+
+        assert bt_result.status == Status.SUCCESS
+
+    def test_same_state_rm_write_succeeds(self):
+        """AC-4: Writing the current RM state again (START → START) is a valid no-op."""
+        from py_trees.common import Status
+
+        bt_result, result_out = self._run_node(
+            rm_state=RM.START, vfd_state=None, pxa_state=None
+        )
+
+        assert bt_result.status == Status.SUCCESS
+
+    def test_same_state_pxa_write_succeeds(self):
+        """AC-4: Re-asserting the current PXA state is a valid no-op."""
+        from py_trees.common import Status
+        from vultron.core.states.cs import CS_pxa
+
+        # Participant starts at pxa; writing pxa again is same-state.
+        bt_result, result_out = self._run_node(
+            rm_state=None, vfd_state=None, pxa_state=CS_pxa.pxa
+        )
+
+        assert bt_result.status == Status.SUCCESS
+
+    # -----------------------------------------------------------------------
+    # AC-5: None targets skip validation
+    # -----------------------------------------------------------------------
+
+    def test_none_vfd_skips_validation_and_succeeds(self):
+        """AC-5: vfd_state=None skips VFD validation and always proceeds."""
+        from py_trees.common import Status
+
+        bt_result, result_out = self._run_node(
+            rm_state=None, vfd_state=None, pxa_state=None
+        )
+
+        assert bt_result.status == Status.SUCCESS
+
+    def test_none_rm_skips_validation_and_succeeds(self):
+        """AC-5: rm_state=None skips RM validation and always proceeds."""
+        from py_trees.common import Status
+        from vultron.core.states.cs import CS_pxa
+
+        bt_result, result_out = self._run_node(
+            rm_state=None, vfd_state=None, pxa_state=CS_pxa.Pxa
+        )
+
+        assert bt_result.status == Status.SUCCESS
+
+    # -----------------------------------------------------------------------
+    # AC-6: Trigger-tree path rejects invalid VFD jump
+    # -----------------------------------------------------------------------
+
+    def test_trigger_bt_rejects_invalid_vfd_jump(self):
+        """AC-6: add_participant_status_trigger_bt rejects vfd → VFD (invalid skip)."""
+        from py_trees.common import Status
+
+        from vultron.core.behaviors.case.add_participant_status_trigger_tree import (
+            add_participant_status_trigger_bt,
+        )
+
+        result_out: dict = {}
+
+        def activity_builder(case_manager_id: str) -> list[str]:
+            return []
+
+        tree = add_participant_status_trigger_bt(
+            case_id=self.case.id_,
+            actor_id=self.actor.id_,
+            rm_state=None,
+            vfd_state=CS_vfd.VFD,  # invalid: participant is at vfd
+            pxa_state=None,
+            result_out=result_out,
+            activity_builder=activity_builder,
+        )
+        bt_result = self.bridge.execute_with_setup(
+            tree, actor_id=self.actor.id_
+        )
+
+        assert bt_result.status == Status.FAILURE
+        assert "status_id" not in result_out
