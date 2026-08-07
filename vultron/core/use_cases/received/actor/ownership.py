@@ -1,6 +1,7 @@
 """Use cases for case actor/participant invitation and suggestion activities."""
 
 import logging
+from typing import TYPE_CHECKING
 
 from py_trees.common import Status
 
@@ -26,6 +27,9 @@ from vultron.core.use_cases._helpers import (
     add_activity_to_outbox,
 )
 
+if TYPE_CHECKING:
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
+
 logger = logging.getLogger(__name__)
 
 
@@ -35,6 +39,7 @@ class OfferCaseOwnershipTransferReceivedUseCase:
         dl: CaseOutboxPersistence,
         request: OfferCaseOwnershipTransferReceivedEvent,
         sync_port: SyncActivityPort | None = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: OfferCaseOwnershipTransferReceivedEvent = request
@@ -117,6 +122,7 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
         dl: CaseOutboxPersistence,
         request: AcceptCaseOwnershipTransferReceivedEvent,
         sync_port: SyncActivityPort | None = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: AcceptCaseOwnershipTransferReceivedEvent = request

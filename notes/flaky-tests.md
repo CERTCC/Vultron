@@ -26,6 +26,8 @@ and fall through to Level 2 (GitHub label search).
 | Test node ID | Issue | Last blocked |
 |---|---|---|
 | `test/bt/test_vultrabot.py::MyTestCase::test_main` | — | 2026-05-05 |
+| `test/demo/test_pcr_bootstrap.py::TestBootstrapSequence::test_announce_creates_case_replica` | #2086 | 2026-08-07 |
+| `test/demo/test_pcr_bootstrap.py::TestBootstrapSequence::test_case_fields_preserved_in_replica` | #2086 | 2026-08-07 |
 
 > Note: `test_vultrabot` shows `SUBFAILED` in the full suite due to py_trees
 > blackboard global-state ordering, but exit code stays 0 (unittest subtest
