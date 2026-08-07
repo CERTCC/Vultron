@@ -299,6 +299,8 @@ validation:
     # declared in not_in_nav above. Surfaces future un-navved pages (e.g. new
     # ADRs) and fails any --strict build (see mkdocs-build-strict.sh). #1304.
     omitted_files: warn
+draft_docs: |
+  draft-*.md
 exclude_docs: |
   # Maintainer-focused docs are available in local/dev builds via mkdocs.dev.yml
   docs/developer/
