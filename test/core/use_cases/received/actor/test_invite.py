@@ -371,15 +371,14 @@ class TestInviteActorUseCases:
         participant_obj = cast(Any, participant_obj)
         assert embargo.id_ in participant_obj.accepted_embargo_ids
 
-    def test_accept_invite_participant_can_reach_rm_accepted(
+    def test_accept_invite_participant_recorded_at_rm_received(
         self, make_payload
     ):
-        """Accepted invite advances the participant to RM.ACCEPTED via BT.
+        """Accepted invite records the participant at RM.RECEIVED only.
 
-        PCR-08-010: Accept(Invite) IS the engage decision.  The use case
-        delegates to AcceptInviteActorToCaseBT which records the participant
-        at RM.ACCEPTED — no separate engage-case BT or proxy RmEngageCaseActivity
-        is emitted.
+        CM-11-001: Accept(Invite) signals willingness to join; the CaseActor
+        records RM.RECEIVED only.  The full triage cycle (VALID/ACCEPTED) is
+        a distinct step run by the invitee after the case replica is delivered.
         """
         from typing import Any, cast
 
@@ -414,7 +413,6 @@ class TestInviteActorUseCases:
         )
         event = make_payload(accept)
 
-        # No TriggerActivityAdapter needed: RM.ACCEPTED is reached via BT.
         AcceptInviteActorToCaseReceivedUseCase(
             dl, event, sync_port=MagicMock()
         ).execute()
@@ -422,14 +420,19 @@ class TestInviteActorUseCases:
         updated_case = cast(Any, dl.read(case.id_))
         participant_id = updated_case.actor_participant_index.get(invitee_id)
         participant_obj = cast(Any, dl.get(id_=participant_id))
+        rm_states = [s.rm.state for s in participant_obj.participant_statuses]
+        assert RM.VALID not in rm_states, "CM-11-001: no VALID at invite time"
+        assert (
+            RM.ACCEPTED not in rm_states
+        ), "CM-11-001: no ACCEPTED at invite time"
         latest_status = participant_obj.participant_statuses[-1]
-        assert latest_status.rm.state == RM.ACCEPTED
+        assert latest_status.rm.state == RM.RECEIVED
 
     def test_accept_invite_no_identity_spoofing(self, make_payload):
         """PCR-07-008: AcceptInviteActorToCaseReceivedUseCase MUST NOT emit
         RmEngageCaseActivity (Join) with actor=invitee_id from the Case Actor
-        context.  The Accept(Invite) IS the engage decision; the BT records
-        RM.ACCEPTED for the invitee without spoofing the invitee's identity.
+        context.  The BT records RM.RECEIVED for the invitee without spoofing
+        the invitee's identity (CM-11-001, PCR-08-010).
         """
         from typing import Any, cast
 
@@ -484,7 +487,7 @@ class TestInviteActorUseCases:
         ).execute()
 
         # PCR-07-008: no RmEngageCaseActivity (Join) with actor=invitee_id
-        # should be queued — the BT records RM.ACCEPTED for the invitee
+        # should be queued — the BT records RM.RECEIVED for the invitee
         # without spoofing the invitee's identity.
         outbox_items = dl.clone_for_actor(invitee_id).outbox_list()
         for item_id in outbox_items:
@@ -495,15 +498,20 @@ class TestInviteActorUseCases:
                     f"actor={invitee_id!r} found in outbox — identity spoofing"
                 )
 
-        # The participant should be at RM.ACCEPTED (via BT).
+        # The participant should be at RM.RECEIVED only (CM-11-001).
         updated_case = cast(Any, dl.read(case.id_))
         participant_id = updated_case.actor_participant_index.get(invitee_id)
         assert participant_id is not None
         participant_obj = cast(Any, dl.get(id_=participant_id))
         assert participant_obj is not None
+        rm_states = [s.rm.state for s in participant_obj.participant_statuses]
+        assert RM.VALID not in rm_states, "CM-11-001: no VALID at invite time"
+        assert (
+            RM.ACCEPTED not in rm_states
+        ), "CM-11-001: no ACCEPTED at invite time"
         latest_status = participant_obj.participant_statuses[-1]
-        assert latest_status.rm.state == RM.ACCEPTED, (
-            f"Expected RM.ACCEPTED after BT transition, "
+        assert latest_status.rm.state == RM.RECEIVED, (
+            f"Expected RM.RECEIVED after Accept(Invite) (CM-11-001), "
             f"got {latest_status.rm.state}"
         )
 
@@ -1050,7 +1058,7 @@ class TestInviteActorUseCases:
 
 
 class TestAcceptInviteRolesAC4:
-    """AC-4: CreateInviteeParticipantAtAcceptedNode reads roles from Invite."""
+    """AC-4: CreateInviteeParticipantAtReceivedNode reads roles from Invite."""
 
     def test_roles_from_invite_set_on_participant(self, make_payload):
         """AC-4: Accept(Invite) causes new participant to inherit roles from Invite."""
