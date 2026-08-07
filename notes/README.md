@@ -601,6 +601,15 @@ sync-log-entry context field, and testing patterns.
 the resolved design rationale for the trigger architecture, or auditing trigger
 classification (demo-only vs general-purpose).
 
+**`architecture-ratchet-corpus.md`**
+Design decisions and measurements for the shared corpus pattern in
+`test/architecture/`: why a module-level source cache beats a session fixture
+(timeout-window constraints), the prefilter approach, memory budget comparison,
+xdist compatibility notes, and alternatives considered.
+**Load when**: implementing or reviewing `test/architecture/_corpus.py`, adding
+a new architecture ratchet test, auditing full-suite performance, or evaluating
+xdist compatibility.
+
 **`flaky-tests.md`**
 Fast-lookup catalog of known flaky tests and CI jobs → tracking issue numbers.
 Used by `pr-execute` as a cache before querying GitHub. GitHub is ground truth;
