@@ -61,6 +61,9 @@ on:
       - "test/ci/**"
       - "pyproject.toml"
       - "uv.lock"
+      # Workflow and action changes must re-validate CI itself.
+      - ".github/workflows/demo-integration.yml"
+      - ".github/actions/build-demo-images/**"
   push:
     branches: ["main"]
     paths:
@@ -72,6 +75,8 @@ on:
       - "test/ci/**"
       - "pyproject.toml"
       - "uv.lock"
+      - ".github/workflows/demo-integration.yml"
+      - ".github/actions/build-demo-images/**"
   workflow_dispatch:
 
 # DEMOCI-02-011: cancel superseded PR runs; never cancel on-main runs.
