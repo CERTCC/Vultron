@@ -119,6 +119,10 @@ class AdvanceParticipantToRMClosedNode(DataLayerAction):
                 )
                 return Status.SUCCESS
 
+        # skip_transition_validation=True: Leave(VulnerabilityCase) is an
+        # explicit protocol action that closes the participant regardless of
+        # prior RM state (CM-23-002, CM-23-003). Normal flow is ACCEPTED→CLOSED
+        # but the protocol does not block departure from other active states.
         result_out: dict = {}
         node = CreateParticipantStatusNode(
             case_id=self._case_id,
@@ -128,6 +132,7 @@ class AdvanceParticipantToRMClosedNode(DataLayerAction):
             pxa_state=None,
             result_out=result_out,
             name=f"{self.name}.CreateParticipantStatus",
+            skip_transition_validation=True,
         )
         node.datalayer = self.datalayer
         node.actor_id = self._leaving_actor_id
@@ -222,6 +227,8 @@ class AdvanceCaseActorToRMClosedNode(DataLayerAction):
                 )
                 return Status.SUCCESS
 
+        # skip_transition_validation=True: case-actor self-closure is the
+        # authoritative close event (CM-23-002 step 2, ADR-0051).
         result_out: dict = {}
         node = CreateParticipantStatusNode(
             case_id=self._case_id,
@@ -231,6 +238,7 @@ class AdvanceCaseActorToRMClosedNode(DataLayerAction):
             pxa_state=None,
             result_out=result_out,
             name=f"{self.name}.CreateParticipantStatus",
+            skip_transition_validation=True,
         )
         node.datalayer = self.datalayer
         node.actor_id = self._case_actor_id
