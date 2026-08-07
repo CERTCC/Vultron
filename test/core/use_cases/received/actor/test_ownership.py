@@ -34,9 +34,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 class TestOwnershipTransferUseCases:
     """Tests for offer/accept/reject ownership transfer use cases."""
 
-    def test_offer_case_ownership_transfer_persists_offer(
-        self, monkeypatch, make_payload
-    ):
+    def test_offer_case_ownership_transfer_persists_offer(self, make_payload):
         """OfferCaseOwnershipTransferReceivedUseCase persists the offer."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
@@ -59,11 +57,17 @@ class TestOwnershipTransferUseCases:
         assert stored is not None
 
     def test_accept_case_ownership_transfer_updates_attributed_to(
-        self, monkeypatch, make_payload
+        self, make_payload
     ):
-        """AcceptCaseOwnershipTransferReceivedUseCase updates case.attributed_to to new owner."""
+        """AcceptCaseOwnershipTransferReceivedUseCase updates case.attributed_to to new owner.
+
+        receiving_actor_id is the CaseActor (coordinator); the guarded-commit
+        gate ensures the ledger entry is only written when the receiving actor
+        is the case manager (ADR-0053, CM-21-007).
+        """
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 
+        coordinator_id = "https://example.org/users/coordinator"
         dl = SqliteDataLayer("sqlite:///:memory:")
         case = as_VulnerabilityCase(
             id_="https://example.org/cases/case_ot2",
@@ -74,7 +78,7 @@ class TestOwnershipTransferUseCases:
 
         offer = offer_case_ownership_transfer_activity(
             case,
-            target="https://example.org/users/coordinator",
+            target=coordinator_id,
             actor="https://example.org/users/vendor",
             id_="https://example.org/activities/offer_ot2",
         )
@@ -82,9 +86,12 @@ class TestOwnershipTransferUseCases:
 
         activity = accept_case_ownership_transfer_activity(
             offer,
-            actor="https://example.org/users/coordinator",
+            actor=coordinator_id,
         )
-        event = make_payload(activity)
+        # receiving_actor_id must be set so AcceptCaseOwnershipTransferReceivedUseCase
+        # does not skip (CLP-10-005 guard). It represents the actor whose inbox
+        # received the Accept — here the coordinator (future CASE_OWNER).
+        event = make_payload(activity, receiving_actor_id=coordinator_id)
 
         AcceptCaseOwnershipTransferReceivedUseCase(dl, event).execute()
 
@@ -96,8 +103,66 @@ class TestOwnershipTransferUseCases:
             == "https://example.org/users/coordinator"
         )
 
+    def test_offer_cascade_forwards_to_transferee_outbox(self, make_payload):
+        """OfferCaseOwnershipTransferReceivedUseCase forwards offer to transferee's outbox.
+
+        When the receiving actor is the CaseActor (CASE_MANAGER), the offer is
+        recorded (idempotent_create) and then forwarded to the transferee via
+        add_activity_to_outbox (CM-21-005).  The BT guarded-commit succeeds
+        because the receiving actor holds CASE_MANAGER (ADR-0053).
+        """
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.base.objects.actors import as_Service
+        from vultron.enums.roles import CVDRole
+
+        case_actor_id = "https://example.org/actors/case-actor"
+        vendor_id = "https://example.org/users/vendor"
+        transferee_id = "https://example.org/users/coordinator"
+
+        dl = SqliteDataLayer("sqlite:///:memory:")
+
+        case = as_VulnerabilityCase(
+            id_="https://example.org/cases/case_ot4",
+            name="OT Cascade Case",
+            attributed_to=vendor_id,
+        )
+        # Seed CASE_MANAGER participant so _resolve_case_manager_id succeeds.
+        case_manager_participant = as_CaseParticipant(
+            attributed_to=case_actor_id,
+            context=case.id_,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        case.actor_participant_index[case_actor_id] = (
+            case_manager_participant.id_
+        )
+        case.case_participants.append(case_manager_participant.id_)
+        dl.create(case)
+        dl.create(case_manager_participant)
+
+        # Pass target as an inline actor object so the semantic dispatcher
+        # correctly distinguishes this from OfferCaseManagerRole (which also
+        # matches Offer(VulnerabilityCase) but checks target_=CASE_PARTICIPANT).
+        # A bare string is permissive-matched, causing misidentification.
+        transferee_actor = as_Service(id_=transferee_id, name="Coordinator")
+        activity = offer_case_ownership_transfer_activity(
+            case,
+            target=transferee_actor,
+            actor=vendor_id,
+            id_="https://example.org/activities/offer_ot4",
+        )
+        event = make_payload(activity, receiving_actor_id=case_actor_id)
+
+        OfferCaseOwnershipTransferReceivedUseCase(dl, event).execute()
+
+        # Offer must be forwarded to the transferee's outbox (CM-21-005).
+        transferee_outbox = dl.clone_for_actor(transferee_id).outbox_list()
+        assert activity.id_ in transferee_outbox
+
     def test_reject_case_ownership_transfer_logs_rejection(
-        self, monkeypatch, caplog, make_payload
+        self, caplog, make_payload
     ):
         """RejectCaseOwnershipTransferReceivedUseCase logs rejection; ownership unchanged."""
         case = as_VulnerabilityCase(

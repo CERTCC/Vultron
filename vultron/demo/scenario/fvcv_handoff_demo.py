@@ -52,15 +52,11 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     check_server_availability,
     demo_check,
     demo_step,
-    post_to_inbox_and_wait,
     post_to_trigger,
     reset_datalayer,
     reset_demo_failures,
     setup_demo_logging,
-    verify_object_stored,
 )
-
-# post_to_inbox_and_wait is retained for self-delivery (CONCERN-1653 exception).
 from vultron.demo.helpers.actions import (
     actor_closes_case,
     actor_notifies_fix_ready,
@@ -416,22 +412,6 @@ def _phase_ownership_handoff(
         "Coordinator sent Accept(Offer(VulnerabilityCase)): %s",
         accept_ownership.id_,
     )
-
-    # The trigger-side BT (TRIG-11-002) queues the Accept in Coordinator's
-    # outbox addressed only to the offerer (Vendor1); Coordinator's own
-    # DataLayer copy is therefore never updated by that path.  Deliver the
-    # Accept to Coordinator's own inbox so AcceptCaseOwnershipTransferReceived-
-    # UseCase runs locally and sets case.attributed_to = Coordinator on
-    # Coordinator's replica.  (Vendor1's copy updates automatically when
-    # Coordinator's outbox delivers the Accept to Vendor1's inbox.)
-    with demo_step("Delivering ownership Accept to Coordinator's own inbox"):
-        post_to_inbox_and_wait(
-            coordinator_client,
-            coordinator_in_coordinator.id_,
-            accept_ownership,
-        )
-    with demo_check("Ownership Accept stored in Coordinator's DataLayer"):
-        verify_object_stored(coordinator_client, accept_ownership.id_)
 
     # Verify Vendor1's case now shows Coordinator as attributed_to.
     with demo_check(

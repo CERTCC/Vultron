@@ -170,12 +170,14 @@ _SYNC_AND_TRIGGER_PORT_SEMANTICS = frozenset(
     {
         MessageSemantics.ACK_REPORT,
         MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
+        MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER,
         MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT,
         MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
         MessageSemantics.DEFER_CASE,
         MessageSemantics.ENGAGE_CASE,
         MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
         MessageSemantics.OFFER_CASE_MANAGER_ROLE,
+        MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER,
         MessageSemantics.OFFER_CASE_PARTICIPANT_ROLE,
         # REJECT_CASE_LEDGER_ENTRY needs trigger_activity so that
         # AnnounceCaseOnGenesisRejectNode can send Announce(VulnerabilityCase)
