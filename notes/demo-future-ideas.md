@@ -16,8 +16,9 @@ related_notes:
 
 Scenarios are named by the sequence of actor roles involved:
 
-- **F** = Finder, **V** = Vendor, **C** = Coordinator, **D** = Deployer
+- **R** = Reporter (preferred; replaces the older **F** = Finder convention for new scenarios), **V** = Vendor, **C** = Coordinator, **D** = Deployer
 - Numbers distinguish multiple actors of the same role (V1, V2, C1, C2)
+- Existing scenario names that use **F** (FV, FCV, FCVCV, etc.) are not renamed retroactively; new scenarios use **R**
 
 ## Implemented scenarios
 
@@ -71,13 +72,21 @@ the design decisions reached in the #1178 planning session.
 | Case split/merge | #1229 | Parent/child/sibling case relationships |
 | Multi-reporter | #1231 | Two Finders, one C consolidates into one case |
 
+### Embargo lifecycle scenarios
+
+| Scenario | Issue | Description | Status |
+|----------|-------|-------------|--------|
+| RCV-embargo | #1222 | R+C+V; post-submission negotiation (variation b) + deliberate termination (variation e); EP→EA→ET arc | planned — `rcv-embargo` CLI command + CI job (DEMOMA-20, DEMOCI-07) |
+| RCVV-embargo | #1222 | R+C+V1+V2; variations b+c+f+d; EP→EA→EV→EJ→auto-collapse via CS.P; V2 late-invite | planned — `rcvv-embargo` CLI command + CI job (DEMOMA-21, DEMOCI-07) |
+| Pre-submission negotiation | *(new Idea, child of epic #1083)* | EP before report submission (variation a); blocked by EP-04-003 protocol gap — no mechanism for reporter to include embargo proposal with/before report; see `notes/embargo-default-semantics.md` | idea-stage |
+
 ### Cross-cutting variations (composable with any scenario)
 
 | Variation | Issue | Description |
 |-----------|-------|-------------|
 | Invitation rejection | #1218 | Invited actor transitions RM:R→I→C |
 | Tentative rejection | #1221 | Invited actor transitions RM:R→I→V (reconsiders) |
-| Embargo variations | #1222 | Negotiation, collapse, deliberate delay |
+| Embargo variations | #1222 | Negotiation, collapse, deliberate delay (see embargo lifecycle scenarios above) |
 | CVD recipe injects | #1223 | Twists from the CERT Guide to CVD cvd_recipes |
 
 ### Pre-case ACK flow (`auto_create_case=False`)

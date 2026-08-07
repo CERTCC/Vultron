@@ -564,3 +564,86 @@ groups:
             spec_id: DEMOCI-06-002
           - rel_type: refines
             spec_id: DEMOCI-05-001
+
+  - id: DEMOCI-07
+    title: Embargo Lifecycle Scenario CI Registration (rcv-embargo, rcvv-embargo)
+    specs:
+      - id: DEMOCI-07-001
+        priority: MUST
+        kind: project
+        statement: >-
+          The `rcv-embargo` scenario MUST be added to the CI demo-integration
+          matrix in `.github/workflows/demo-integration.yml` with
+          `DEMO=rcv-embargo`, `full_suite_only: false`, and the actor services
+          `finder` (reporter role), `coordinator`, `vendor`, and `case-actor`
+          as container dependencies. The `test_file` matrix entry MUST point to
+          `test/ci/invariants/test_rcv_embargo_invariants.py`. The devlogs
+          directory for the CI run MUST use scenario-role names: `reporter`,
+          `coordinator`, `vendor`, `case-actor`.
+        rationale: >-
+          Adding both embargo scenarios with `full_suite_only: false` places
+          them in the PR validation set immediately, consistent with the
+          add-now/remove-later policy established in issue #1222 planning
+          (rather than the deferred approach that required a DEMOCI-06
+          amendment for earlier scenarios). The four actor-service names match
+          the scenario-role naming convention used by all post-DEMOMA-12
+          scenarios; CI log directories use these names so that invariant
+          harnesses can load devlogs by role rather than docker service name.
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-04-001
+          - rel_type: refines
+            spec_id: DEMOMA-20-005
+
+      - id: DEMOCI-07-002
+        priority: MUST
+        kind: project
+        statement: >-
+          The `rcvv-embargo` scenario MUST be added to the CI demo-integration
+          matrix in `.github/workflows/demo-integration.yml` with
+          `DEMO=rcvv-embargo`, `full_suite_only: false`, and the actor services
+          `finder` (reporter role), `coordinator`, `vendor`, `vendor2`, and
+          `case-actor` as container dependencies. The `test_file` matrix entry
+          MUST point to `test/ci/invariants/test_rcvv_embargo_invariants.py`.
+          The devlogs directory for the CI run MUST use scenario-role names:
+          `reporter`, `coordinator`, `vendor`, `vendor2`, `case-actor`.
+        rationale: >-
+          The rcvv-embargo scenario requires a fourth actor container (`vendor2`)
+          beyond the three used by rcv-embargo. Listing `vendor2` as a service
+          dependency ensures CI spins it up before the scenario runner starts.
+          Scenario-role names in devlogs match scenario code, making log
+          archaeology easier and consistent with the FCVCV pattern
+          (DEMOMA-19-007).
+        lint_suppress:
+          - phantom_path_ref
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-04-001
+          - rel_type: refines
+            spec_id: DEMOMA-21-006
+
+      - id: DEMOCI-07-003
+        priority: SHOULD
+        kind: project
+        statement: >-
+          A follow-up coverage analysis SHOULD be performed after `rcv-embargo`
+          and `rcvv-embargo` are implemented and passing in CI. The analysis
+          MUST evaluate whether the 3-scenario minimum PR set defined in
+          DEMOCI-06-002 requires expansion to preserve full embargo lifecycle
+          protocol coverage, and MUST update `notes/demo-ci-scenario-coverage.md`
+          and DEMOCI-06-002 accordingly. If the embargo scenarios introduce
+          protocol event types not covered by `fv`, `fvcv-handoff`, or `fcvcv`,
+          the minimum PR set MUST be expanded.
+        rationale: >-
+          DEMOCI-06-002 defined the minimum PR set before embargo-lifecycle
+          scenarios existed. The embargo protocol messages (EP, EA, EV, EJ, ET)
+          are not exercised by any scenario in the current minimum set.
+          This SHOULD-priority spec creates an explicit obligation to revisit
+          the coverage model rather than letting the gap go unnoticed.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-06-001
+          - rel_type: refines
+            spec_id: DEMOCI-06-002
