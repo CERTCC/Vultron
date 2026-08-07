@@ -326,7 +326,7 @@ def wait_for_contiguous_ledger_coverage(
     client: DataLayerClient,
     case_id: str,
     expected_tail_index: int,
-    timeout_seconds: float = 15.0,
+    timeout_seconds: float = 30.0,
     poll_interval: float = 0.5,
 ) -> None:
     """Poll *client*'s DataLayer until it holds all log indices 0…*expected_tail_index*.

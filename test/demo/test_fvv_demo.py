@@ -335,6 +335,28 @@ class TestWaitForContiguousLedgerCoverage:
                 poll_interval=0.05,
             )
 
+    def test_default_timeout_is_sufficient_for_ci_load(self):
+        """Default timeout must be >= 30s to survive CI scheduling latency.
+
+        The fv Demo Integration job intermittently failed with 2 cascading
+        demo_check failures when wait_for_contiguous_ledger_coverage timed out
+        after 15s in _phase_sync_verification under CI load (issue #1911).
+        The second failure (verify_finder_replica_state) cascades because it
+        runs immediately after and finds an empty replica.
+
+        Regression: ensure the default is at least 30s so the inter-container
+        Announce(CaseLedgerEntry) fan-out has time to complete under load.
+        """
+        import inspect
+
+        sig = inspect.signature(wait_for_contiguous_ledger_coverage)
+        default_timeout = sig.parameters["timeout_seconds"].default
+        assert default_timeout >= 30.0, (
+            f"wait_for_contiguous_ledger_coverage default timeout is "
+            f"{default_timeout}s — must be >= 30s to tolerate CI load "
+            f"(issue #1911)"
+        )
+
 
 # ---------------------------------------------------------------------------
 # Regression tests: Bug A — coverage-wait timeout must not crash demo
