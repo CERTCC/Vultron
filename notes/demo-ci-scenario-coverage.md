@@ -29,7 +29,7 @@ event types it exercises. Event types are those recorded as `event_type` in
 | fccv-handoff      | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |
 | fcvcv             | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |
 | fcv               | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |
-| fcv-reject        | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   | ✓ |
+| fcv-reject        | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   | ✓ |
 
 **Notes:**
 
@@ -46,10 +46,13 @@ event types it exercises. Event types are those recorded as `event_type` in
   approves a suggested participant. It fires only in scenarios that include the
   ADR-0026 suggest-actor flow: `fvcv-extension`, `fccv-extension`, and `fcvcv`.
 - `reject_invite_actor_to_case` is emitted by `RejectInviteActorToCaseReceivedUseCase`
-  on the CaseActor when an invitee sends `Reject(Invite(actor, case))`. It fires
-  only in `fcv-reject` (IDEA-1218): the Vendor accepts the invite (entering
-  RM.RECEIVED), then rejects the case as invalid (RI → RM.INVALID) and closes it
-  (RC → RM.CLOSED). No other current scenario exercises this ledger entry.
+  on the CaseActor when an invitee sends `Reject(Invite(actor, case))` — an
+  **invitation-layer** rejection (not an RM-state RI/RC message). It fires only in
+  `fcv-reject` (IDEA-1218): the Vendor receives the case invitation and sends
+  `Reject(Invite(actor, case))` to decline it, which triggers
+  `RejectInviteActorToCaseReceivedUseCase` on the CaseActor. Because the Vendor
+  rejects rather than accepts, `accept_invite_actor_to_case` does NOT appear in
+  this scenario. No other current scenario exercises this ledger entry.
 - `add_case_participant` is emitted by `AcceptInviteNode`
   (`vultron/core/behaviors/case/nodes/accept_invite.py:181`) on the CaseActor
   received-side when processing Accept(Invite). This event records the internal
@@ -97,22 +100,24 @@ advance the CVD protocol state and are recorded in the replicated case ledger.
 | `offer_case_participant` | Suggest-actor flow (ADR-0026) |
 | `accept_invite_actor_to_case` | Invitation acceptance |
 | `accept_actor_recommendation` | Recommendation approval (ADR-0026) |
+| `reject_invite_actor_to_case` | Invitation-layer rejection (`Reject(Invite(actor, case))`) |
 
 ### Dimensions covered outside Invariant 5
 
 | Dimension | Covered by | How verified |
 |---|---|---|
 | Ownership transfer | `fvcv-handoff`, `fccv-handoff` | `demo_check` assertions in scenario script (not a ledger event_type) |
-| CVD role variation | All 8 scenarios | Scenario scripts define actor roles (deployer/vendor-only/coordinator) |
+| CVD role variation | All 9 scenarios | Scenario scripts define actor roles (deployer/vendor-only/coordinator) |
 | Fix-ready / fix-deployed lifecycle (VFd vs VFD) | All scenarios run to RM closed | Invariant 7 (`test_invariant_7_log_terminates_all_rm_closed`) |
 | Multi-vendor vs single-vendor fix paths | `fvv`, `fcvcv`, `fvcv-extension` (multiple vendors) vs `fv`, `fcv` (single) | Scenario composition; covered by minimum set via `fcvcv` |
 | Embargo lifecycle phases | Scenarios with Coordinator actors | `demo_check` + EM state assertions in scenario scripts |
 
 ### Why the minimum set is sufficient
 
-The 3-scenario minimum set (`fv`, `fvcv-handoff`, `fcvcv`) covers all 8
-`event_type` columns and the ownership-transfer path. The additional dimensions
-(CVD role variation, multi-vendor fix paths, embargo phases) are either:
+The 4-scenario minimum set (`fv`, `fvcv-handoff`, `fcvcv`, `fcv-reject`) covers
+all 9 `event_type` columns and the ownership-transfer path. The additional
+dimensions (CVD role variation, multi-vendor fix paths, embargo phases) are
+either:
 
 - exercised by multiple minimum-set scenarios (multi-vendor: `fcvcv`), or
 - verified by separate invariants that do not require additional scenarios (RM
@@ -121,7 +126,9 @@ The 3-scenario minimum set (`fv`, `fvcv-handoff`, `fcvcv`) covers all 8
   of which CI tier it lands in.
 
 The 5 full-suite-only scenarios add regression depth but not breadth relative to
-the minimum set's event-type and protocol-path coverage.
+the minimum set's event-type and protocol-path coverage. (`fcv-reject` is the
+4th minimum-set member; it cannot be covered by any existing scenario since
+`reject_invite_actor_to_case` is unique to the invitation-rejection path.)
 
 ## Minimum PR Validation Set (DEMOCI-06-002)
 
@@ -132,7 +139,7 @@ the minimum set's event-type and protocol-path coverage.
 | fv | ✓ (member) | 2-actor baseline; covers all 4 universal event types with no invitation phases |
 | fvcv-handoff | ✓ (member) | Adds `invite_actor_to_case` + `accept_invite_actor_to_case` + ownership-transfer protocol path |
 | fcvcv | ✓ (member) | Adds `offer_case_participant` + `accept_actor_recommendation` + ≥3-actor invite/accept chains |
-| fcv-reject | ✓ (member) | Adds `reject_invite_actor_to_case` — the only scenario exercising the RM:R→I→C rejection path |
+| fcv-reject | ✓ (member) | Adds `reject_invite_actor_to_case` — the only scenario where the Vendor sends `Reject(Invite(actor, case))` (invitation-layer rejection) |
 | fvv | covered by fvcv-handoff | Same invite+accept coverage; no additional phases |
 | fvcv-extension | covered by fcvcv | Same offer+invite+accept coverage; no additional phases |
 | fccv-extension | covered by fcvcv | Same offer+invite+accept coverage; no additional phases |
