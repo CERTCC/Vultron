@@ -35,6 +35,7 @@ class OfferCaseOwnershipTransferReceivedUseCase:
         dl: CaseOutboxPersistence,
         request: OfferCaseOwnershipTransferReceivedEvent,
         sync_port: SyncActivityPort | None = None,
+        trigger_activity: object = None,
     ) -> None:
         self._dl = dl
         self._request: OfferCaseOwnershipTransferReceivedEvent = request
@@ -117,6 +118,7 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
         dl: CaseOutboxPersistence,
         request: AcceptCaseOwnershipTransferReceivedEvent,
         sync_port: SyncActivityPort | None = None,
+        trigger_activity: object = None,
     ) -> None:
         self._dl = dl
         self._request: AcceptCaseOwnershipTransferReceivedEvent = request

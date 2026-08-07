@@ -185,6 +185,7 @@ ENTRIES: list[SemanticEntry] = [
         use_case_class=AcceptCaseOwnershipTransferReceivedUseCase,
         phrase="{actor} accepted case ownership",
         wire_activity_class=_AcceptCaseOwnershipTransferActivity,
+        include_activity=True,
     ),
     SemanticEntry(
         semantics=MessageSemantics.REJECT_CASE_OWNERSHIP_TRANSFER,
