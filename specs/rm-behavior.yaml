@@ -1404,3 +1404,53 @@ groups:
       note: >-
         SHOULD communicate intent to adhere or terminate compliance when closing
         during an active embargo
+
+- id: RMB-15
+  title: RM Write-Boundary Transition Validation
+  description: >-
+    Requirements for RM state write paths to validate source→target transition
+    validity before persisting a ParticipantStatus snapshot. Complements
+    CSB-16 (VFD/PXA write-boundary validation) and SDO-02-002 (dimension
+    object transition contract) by requiring that the BT write node itself
+    is fail-closed regardless of upstream guard coverage.
+  specs:
+  - id: RMB-15-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A BT node or helper that writes an RM state to a ParticipantStatus
+      snapshot MUST validate that the (current_rm_state → target_rm_state)
+      transition is permitted by the RM state machine using
+      is_valid_rm_transition() before persisting. A same-state write is
+      permitted (status confirmation). An illegal jump or backward move
+      MUST cause the node to return Status.FAILURE without writing to the
+      DataLayer.
+    rationale: >-
+      ParticipantStatus.rm_state is written via direct-construction
+      (e.g. RmDimension(state=target)) at sites such as rm_transitions.py,
+      bypassing the transition() contract in SDO-02-002. Upstream BT guards
+      are necessary but insufficient: a weak or missing guard allows an
+      invalid RM state jump to reach the write node unchecked. Validating
+      at the write boundary makes illegal RM transitions fail-closed
+      regardless of guard coverage. Source: concern #1896.
+    testable: true
+    preconditions:
+    - description: A non-None RM target state is passed to a ParticipantStatus write node
+    steps:
+    - order: 1
+      actor: write_node
+      action: Read the participant's current RM state from the DataLayer
+      expected: Current RM state available
+    - order: 2
+      actor: write_node
+      action: >-
+        If target == current, proceed. If is_valid_rm_transition(current, target)
+        is True, proceed. Otherwise return Status.FAILURE.
+      expected: Only valid transitions or same-state writes reach the DataLayer
+    postconditions:
+    - description: No ParticipantStatus with an illegal RM state jump is persisted
+    relationships:
+    - rel_type: implements
+      spec_id: SDO-02-004
+    - rel_type: refines
+      spec_id: BTND-10-001
