@@ -83,11 +83,19 @@ shared state tracking.
 - Global state as (S, C) pair
 - *Source: `docs/reference/formal_protocol/index.md` (already written, near-verbatim)*
 
-### 3.2 The Three Tracking Dimensions
+### 3.2 Tracking Dimensions
+
+The protocol tracks coordination state across four dimensions, each
+implemented as a state machine:
 
 - Report Management (RM): lifecycle of a report from receipt to closure
-- Embargo Management (EM): negotiated disclosure timing
+- Embargo Management (EM): negotiated disclosure timing (case-level)
 - Case State (CS): multi-dimensional public knowledge state (VFD × PXA)
+- Participant Embargo Consent (PEC): per-participant embargo consent posture
+
+RM, EM, and CS were present in the original protocol design. PEC emerged
+during implementation (see §6.4) and is fully normative.
+
 - *Source: `docs/topics/process_models/`*
 
 ### 3.3 How the Dimensions Interact
