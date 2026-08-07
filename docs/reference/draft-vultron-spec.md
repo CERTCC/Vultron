@@ -453,49 +453,82 @@ coordination roles it claims). A conformance claim takes the form:
 
 > `L{n} / Role [+ Role ...]`
 
-Examples: `L1 / Reporter`, `L2 / Vendor`, `L2 / Vendor + Deployer`,
-`L3 / Coordinator + CNA`, `L3 / Coordinator + Case Owner`.
+Examples: `L1 / Reporter`, `L1 / Vendor`, `L1 / Vendor + Deployer`,
+`L2 / Coordinator + CNA`, `L2 / Coordinator + Case Owner`.
 
-Capability levels are cumulative: L2 implies L1; L3 implies L2 and L1.
+Capability levels are cumulative: L2 implies L1.
 Role obligations are additive and orthogonal: no role subsumes another.
 
 ### 7.2 Capability Levels
 
-#### L0 — Observer
+!!! note "What 'implement a state machine' means"
+    Implementing a state machine has two components:
+
+    1. **Track**: maintain a local instance of the machine and update it when
+       relevant protocol messages are received from other participants.
+    2. **Drive**: send the appropriate protocol messages when *this participant's
+       own* state transitions occur (per the "Avoid Surprise" principle).
+
+    Every participant must both track and drive the machines relevant to their
+    role. Tracking without driving means other participants are surprised by your
+    state changes. Driving without tracking means you are unaware of the case
+    state you are acting on.
+
+#### L0 — Consumer
 
 - MUST be able to receive and parse all Vultron message types
-- No state machine implementation required
-- No send obligations
-- The minimum to be "in" a case without acting on it
-- Holds the Observer process role
+- No state machine tracking required; no send obligations
+- The minimum for a monitoring or display tool that reads case state without
+  participating in the protocol
+- Does **not** hold a Participant role; cannot meaningfully act on a case
 
-#### L1 — Report Participant
+!!! note "L0 is not case participation"
+    An L0 implementation can observe a case but cannot be a Participant. An
+    actor that receives an invitation and accepts it has implicitly committed to
+    L1 behavior — it must now track state and send notifications.
 
-- MUST implement the RM state machine
-- MUST send the messages appropriate to claimed process roles when the
-  corresponding RM transitions occur
-- MUST receive and track RM state changes notified by other participants
-- *Source: `specs/vultron-protocol-spec.yaml`; `specs/state-machine.yaml`*
+#### L1 — Participant
 
-#### L2 — Embargo Participant
+Meaningful case participation requires all five state machines. An
+implementation that tracks RM but ignores EM cannot correctly gate its own
+embargo behavior; one that ignores CS cannot correctly evaluate disclosure
+timing. The machines are not independent add-ons — they are the protocol.
+
+- MUST implement all five state machines: **RM, EM, PEC, VFD, PXA**
+  (track and drive, per the definition above)
+- MUST send the messages appropriate to its claimed process roles when
+  state transitions occur
+- MUST receive and update local state when notified of other participants'
+  transitions
+- MUST participate in embargo negotiation as appropriate to role: responding
+  to `Offer(EmbargoEvent)`, sending consent/decline via PEC
+- Role-specific drive obligations (which machines a participant *drives* as
+  opposed to *tracks*) are governed by §7.4
+
+!!! note "Role-specific drive obligations"
+    All L1 participants track all five machines. Which transitions a participant
+    *drives* depends on its role: a Vendor drives VFD transitions; a Reporter
+    drives RM; any participant may report PXA observations. See §7.3 and §7.4.
+
+- *Source: `specs/vultron-protocol-spec.yaml`; `specs/state-machine.yaml`;
+  `specs/embargo-policy.yaml`; `specs/case-management.yaml` CM-18*
+
+#### L2 — Coordinator
+
+An L2 implementation provides multi-party case management on behalf of other
+participants. This is a coordination authority role, not an additional state
+machine requirement (those are already required at L1).
 
 - All L1 requirements, plus:
-- MUST implement the EM state machine (case-level collective embargo state)
-- MUST implement the PEC state machine (per-participant consent tracking)
-- MUST participate in embargo negotiation: sending and responding to
-  `Offer(EmbargoEvent)`, `Accept`, `Reject` as appropriate to role
-- MUST deliver embargo meta-protocol messages to all participants regardless
-  of their PEC state (see §6.4.5)
-- *Source: `specs/embargo-policy.yaml`; `specs/case-management.yaml` CM-18*
-
-#### L3 — Coordinator
-
-- All L2 requirements, plus:
-- MUST implement the CS state machine (VFD + PXA dimensions)
-- MUST broadcast CS state changes to case participants via `Announce(CaseStatus)`
+- MUST act as or host a **Case Actor**: maintain the authoritative canonical
+  case ledger and replicate it to participants via
+  `Announce(CaseLedgerEntry)`
 - MUST implement multi-party case management: participant invitation,
-  acceptance, role assignment, case ownership
-- MUST implement case ledger replication
+  acceptance, role assignment, and case ownership operations
+- MUST implement case ledger replication (see §6, sync/replication open
+  question)
+- MUST broadcast CS state changes to participants via `Announce(CaseStatus)`
+  when the Case Actor adopts a new canonical status
 - *Source: `specs/sync-ledger-replication.yaml`; `specs/case-management.yaml`*
 
 ### 7.3 Role Taxonomy
@@ -739,27 +772,26 @@ policy gate before adopting a reported status update.
    Operational Rules v4.1.0 criteria inline. Should the RFC cite these as
    normative external requirements, or treat the eligibility checks as
    implementation-defined?
-10. **Conformance level separation (L1/L2)** — Can report participation and
-    embargo participation really be separated into distinct capability levels?
-    A Reporter that cannot participate in embargo negotiation may be
-    protocol-compliant but practically unusable for coordinated disclosure.
-    Needs design review before L1/L2 boundary is finalized.
-11. **PEC placement in capability hierarchy** — Should PEC be required at L1
-    (alongside RM) rather than L2? Per-participant consent tracking is arguably
-    prerequisite to meaningful report participation, not just embargo
-    participation.
-12. **Coordinator responsibility accuracy** — The L3 / Coordinator capability
-    level conflates case management, multi-party coordination, and ledger
-    replication. Whether these should be separate capability tiers or bundled
-    requires further design.
-13. **Capability level reframing** — Should capability levels be reframed as
-    four progressive stages: *observation* (receive and parse), *state tracking*
-    (maintain local state machines), *participation* (send state-change
-    notifications), *coordination* (drive multi-party case management)? This
-    framing may align better with incremental implementation than the current
-    L0–L3 names.
+10. ~~**Conformance level separation (L1/L2)**~~ — Resolved. All five state
+    machines (RM, EM, PEC, VFD, PXA) are required at L1. You cannot
+    meaningfully participate in a case without tracking and driving all of them;
+    the machines are not independent add-ons. L2 is now coordination authority
+    (Case Actor / ledger replication), not an additional machine tier.
+11. ~~**PEC placement in capability hierarchy**~~ — Resolved as part of #10.
+    PEC is required at L1 alongside RM, EM, VFD, and PXA.
+12. ~~**Coordinator responsibility accuracy**~~ — Resolved. L2 now bundles Case
+    Actor hosting, ledger replication, and multi-party case management as a
+    single coordination-authority tier. These are inseparable: you cannot host
+    the Case Actor without replicating the ledger, and you cannot do multi-party
+    case management without hosting the Case Actor.
+13. ~~**Capability level reframing**~~ — Resolved. The reframe landed as: L0 =
+    consumer (parse only, not a Participant); L1 = Participant (all state
+    machines, role-appropriate drive obligations); L2 = Coordinator (Case Actor
+    - ledger + multi-party management). The observation/tracking/participation/
+    coordination progression informed the L1 "implement = track + drive"
+    definition.
 14. **Ledger-based status broadcast** — The current implementation may already
     communicate case status through ledger updates (`Announce(CaseLedgerEntry)`)
     rather than dedicated `Announce(CaseStatus)` broadcast messages. The spec
     should reflect whichever approach is authoritative; this needs verification
-    against the implementation before §7.2 L3 requirements are finalized.
+    against the implementation before §7.2 L2 requirements are finalized.
