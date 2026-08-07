@@ -907,9 +907,18 @@ groups:
     kind: protocol
     statement: When the CaseActor receives `Accept(Invite)` from the invitee, it MUST (1) commit a ledger entry for the Accept,
       (2) fan out the ledger entry to ALL existing participants, (3) create a `CaseParticipant` record for the invitee at
-      `RM.ACCEPTED` with the roles from the Invite, (4) sign embargo consent if `em_state == EM.ACTIVE` (CM-10-001), (5) send
+      `RM.RECEIVED` with the roles from the Invite, (4) sign embargo consent if `em_state == EM.ACTIVE` (CM-10-001), (5) send
       `Announce(VulnerabilityCase)` with the current full case snapshot to the invitee, and (6) backfill all prior `CaseLedgerEntry`
       records to the invitee in log-index order.
+    note: >-
+      Step (3) previously read `RM.ACCEPTED`. That contradicted CM-11-001, which requires the CaseActor to record
+      `RM.RECEIVED` on `Accept(Invite)` — `Accept(Invite)` signals willingness to join, not validation of the report.
+      The implementation follows CM-11-001 (`CreateInviteeParticipantAtReceivedNode` in
+      `vultron/core/behaviors/case/accept_invite_tree.py`); this text was not updated when CM-11-001 was corrected.
+      The ordering of steps (3), (4), and (5) is load-bearing: the gate on full case delivery is admission to the
+      case plus embargo consent, NOT completion of RM triage. The invitee is created at `RM.RECEIVED` (3), embargo
+      consent is signed if an embargo is active (4), and only then is the full case snapshot sent (5). See MV-10-005
+      as corrected, and MV-10-006 for the accept-implies-consent rule.
     relationships:
     - rel_type: implements
       spec_id: CM-11-001
@@ -923,8 +932,8 @@ groups:
     statement: The invitee MUST NOT appear in the case participant list until their `Accept(Invite)` has been received and
       processed by the CaseActor. A pending invitation (Invite sent, no response yet) is tracked only as a ledger entry, not
       as a participant record.
-    rationale: A participant record implies RM.ACCEPTED state and associated permissions. Creating one before the invitee
-      has consented would grant protocol access prematurely.
+    rationale: A participant record implies an active RM state (`RM.RECEIVED` per CM-17-004) and the associated permissions.
+      Creating one before the invitee has consented would grant protocol access prematurely.
   - id: CM-17-006
     priority: MUST
     kind: protocol
@@ -941,9 +950,14 @@ groups:
     kind: protocol
     statement: 'Each participant''s embargo consent MUST be tracked as a `ParticipantEmbargoConsent` (PEC) value with five
       possible states: `NO_EMBARGO` (no embargo is in scope for this participant), `INVITED` (invite sent, awaiting response),
-      `SIGNATORY` (accepted), `LAPSED` (timer expired with no response), and `DECLINED` (explicitly refused).'
+      `SIGNATORY` (accepted the current terms), `LAPSED` (was `SIGNATORY`; the case embargo entered `REVISE`, so prior consent
+      no longer covers the revised terms), and `DECLINED` (explicitly refused, or timed out without responding).'
     rationale: 'The five-state PEC machine formalizes the "pocket veto" mechanism: a participant who is invited but never
-      responds causes the embargo to lapse rather than block progress. Source: `notes/participant-embargo-consent.md`.
+      responds is recorded as `DECLINED` when the timer fires, rather than blocking progress indefinitely.
+      Source: `notes/participant-embargo-consent.md`.
+      `LAPSED` is NOT the timer path — it is reached only from `SIGNATORY` via the `REVISE` trigger (CM-18-002, CM-18-003).
+      Confusing `LAPSED` with the pocket-veto timeout is a known documentation pitfall; both timer paths
+      (`INVITED → DECLINED`, `LAPSED → DECLINED`) terminate in `DECLINED`.
       Per ADR-0048, `NO_EMBARGO` denotes the *absence of an embargo in scope*, not a "not yet consented" pre-consent state:
       it is correct for a participant in a case with `EM.NONE`, and it is the `RESET` destination when an embargo is
       terminated. It MUST NOT be read as implying that consent is pending or that an invitation is owed.'
