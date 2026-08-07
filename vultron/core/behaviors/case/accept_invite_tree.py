@@ -25,7 +25,7 @@ Tree structure::
     ├── CheckInviteeNotAlreadyParticipantNode  — idempotency guard
     ├── CapturePreCommitBackfillTargetNode     — snapshot ledger for resume case
     ├── GuardedCommitCaseLedgerEntryBT         — record receipt (CLP-10-006)
-    ├── CreateInviteeParticipantAtAcceptedNode — build participant at RM.ACCEPTED
+    ├── CreateInviteeParticipantAtReceivedNode — build participant at RM.RECEIVED
     ├── MaybeSignEmbargoConsentNode            — sign when embargo is EM.ACTIVE
     ├── PersistInviteeParticipantNode          — dl.create, attach, save case
     ├── EmitAddCaseParticipantNode             — emit Add(CaseParticipant), commit ledger
@@ -273,13 +273,13 @@ class CheckInviteeNotAlreadyParticipantNode(
         return None
 
 
-class CreateInviteeParticipantAtAcceptedNode(DataLayerAction):
-    """Build a ``VultronParticipant`` for the invitee at RM.ACCEPTED.
+class CreateInviteeParticipantAtReceivedNode(DataLayerAction):
+    """Build a ``VultronParticipant`` for the invitee at RM.RECEIVED.
 
-    Per PCR-08-010, ``Accept(Invite)`` IS the engage signal.  The
-    participant's full RECEIVED→VALID→ACCEPTED arc is implicit; the
-    CaseActor records RM.ACCEPTED directly in its own DataLayer rather
-    than running an engage-case BT as the invitee.
+    Per CM-11-001, ``Accept(Invite)`` signals willingness to join; the
+    CaseActor records RM.RECEIVED only.  The full triage cycle
+    (VALID/ACCEPTED) is a distinct subsequent step run by the invitee
+    after the case replica has been delivered (PCR-08-010).
 
     Writes ``new_invite_participant`` to the blackboard.
     """
@@ -384,18 +384,13 @@ class CreateInviteeParticipantAtAcceptedNode(DataLayerAction):
             id_=f"{self.case_id}/participants/{self.invitee_id.split('/')[-1]}",
             attributed_to=self.invitee_id,
             context=self.case_id,
-            case_roles=roles if roles else [],
+            case_roles=roles,
         )
-        # PCR-08-010: Accept(Invite) IS the engage signal; record all three
-        # RM transitions on behalf of the invitee in the CaseActor's DataLayer.
+        # CM-11-001: Accept(Invite) records RM.RECEIVED only. The full
+        # triage cycle is a distinct step run by the invitee after replica
+        # delivery (PCR-08-010).
         participant.append_rm_state(
             RM.RECEIVED, actor=self.invitee_id, context=self.case_id
-        )
-        participant.append_rm_state(
-            RM.VALID, actor=self.invitee_id, context=self.case_id
-        )
-        participant.append_rm_state(
-            RM.ACCEPTED, actor=self.invitee_id, context=self.case_id
         )
         if roles:
             self.logger.info(
@@ -407,8 +402,8 @@ class CreateInviteeParticipantAtAcceptedNode(DataLayerAction):
             )
         self.blackboard.new_invite_participant = participant
         self.logger.info(
-            "%s: created participant object for invitee '%s' at RM.ACCEPTED"
-            " (PCR-08-010)",
+            "%s: created participant object for invitee '%s' at RM.RECEIVED"
+            " (CM-11-001)",
             self.name,
             self.invitee_id,
         )
@@ -596,7 +591,7 @@ class PersistInviteeParticipantNode(DataLayerAction):
         self.datalayer.save(case)
         self.logger.info(
             "%s: participant '%s' persisted and attached to case '%s'"
-            " (RM.ACCEPTED, PCR-08-010)",
+            " (RM.RECEIVED, CM-11-001)",
             self.name,
             participant.id_,
             self.case_id,
@@ -832,7 +827,7 @@ def create_accept_invite_actor_to_case_tree(
         ├── CheckInviteeNotAlreadyParticipantNode  — idempotency guard
         ├── CapturePreCommitBackfillTargetNode     — snapshot ledger for resume case
         ├── GuardedCommitCaseLedgerEntryBT         — record receipt (CLP-10-006)
-        ├── CreateInviteeParticipantAtAcceptedNode — build participant at ACCEPTED
+        ├── CreateInviteeParticipantAtReceivedNode — build participant at RM.RECEIVED
         ├── MaybeSignEmbargoConsentNode            — sign when EM.ACTIVE
         ├── PersistInviteeParticipantNode          — persist, attach, save case
         ├── EmitAddCaseParticipantNode             — emit Add(CaseParticipant), commit ledger
@@ -865,7 +860,7 @@ def create_accept_invite_actor_to_case_tree(
             CapturePreCommitBackfillTargetNode(case_id=case_id),
         ],
         effect_nodes=[
-            CreateInviteeParticipantAtAcceptedNode(
+            CreateInviteeParticipantAtReceivedNode(
                 case_id=case_id, invitee_id=invitee_id
             ),
             MaybeSignEmbargoConsentNode(
@@ -888,7 +883,7 @@ def create_accept_invite_actor_to_case_tree(
 __all__ = [
     "CapturePreCommitBackfillTargetNode",
     "CheckInviteeNotAlreadyParticipantNode",
-    "CreateInviteeParticipantAtAcceptedNode",
+    "CreateInviteeParticipantAtReceivedNode",
     "EmitAddCaseParticipantNode",
     "MaybeSignEmbargoConsentNode",
     "PersistInviteeParticipantNode",

@@ -12,6 +12,9 @@
 # Dependabot PRs are skipped — python-app.yml still guards broken deps.
 # See DEMOCI-02-002, DEMOCI-02-003, DEMOCI-02-004.
 #
+# Concurrency: PR runs cancel in-progress superseded runs; on-main runs
+# always run to completion (DEMOCI-02-011, DEMOCI-05-002).
+#
 # Job structure per matrix entry (DEMOCI-04-001 through DEMOCI-04-003):
 #   demo           — builds images, runs docker-compose, uploads JSONL artifacts
 #   invariant-harness  — downloads JSONL, runs pytest; needs: demo, if: always()
@@ -32,11 +35,25 @@
 
 name: Demo Integration
 
+# Path filter for both pull_request and push triggers (DEMOCI-02-003).
+# Covers all files whose changes can affect demo container behaviour or the
+# invariant assertions that validate it. Excludes paths that cannot affect
+# demo behaviour at runtime:
+#   - vultron/metadata/** — pure tooling (spec/ADR/notes loaders, CLI entry
+#     points); never imported by actor services or the demo runner container.
+#   - vultron/bt/** — legacy simulation layer; vultron/demo/ is architecturally
+#     prohibited from importing it (test/architecture/test_demo_no_bt_imports.py).
+#   - docs/** — documentation only.
+# The push and pull_request filters MUST match so any change validated
+# pre-merge is also validated post-merge on main (DEMOCI-02-003).
+
 on:
   pull_request:
     branches: ["main"]
     paths:
       - "vultron/**"
+      - "!vultron/metadata/**"
+      - "!vultron/bt/**"
       - "docker/**"
       - "integration_tests/**"
       # Invariant harness / CI test changes must re-run the demos that feed
@@ -44,16 +61,28 @@ on:
       - "test/ci/**"
       - "pyproject.toml"
       - "uv.lock"
+      # Workflow and action changes must re-validate CI itself.
+      - ".github/workflows/demo-integration.yml"
+      - ".github/actions/build-demo-images/**"
   push:
     branches: ["main"]
     paths:
       - "vultron/**"
+      - "!vultron/metadata/**"
+      - "!vultron/bt/**"
       - "docker/**"
       - "integration_tests/**"
       - "test/ci/**"
       - "pyproject.toml"
       - "uv.lock"
+      - ".github/workflows/demo-integration.yml"
+      - ".github/actions/build-demo-images/**"
   workflow_dispatch:
+
+# DEMOCI-02-011: cancel superseded PR runs; never cancel on-main runs.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read
@@ -106,17 +135,22 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       # DEMOCI-02-007: Docker layer caching via Buildx GHA cache.
-      # This workflow only triggers on pull_request, so a cache it writes
-      # (scope=demo-integration) is only visible to that same PR branch —
-      # GitHub Actions cache entries from a branch aren't visible to other
-      # branches. cache-from-extra-scope reads the cache written by
-      # demo-image-cache-warm.yml on pushes to main, so a brand-new PR
-      # branch still gets a warm cache instead of starting fully cold.
+      # On push-to-main runs, write to the "demo-integration-main" scope so
+      # new PR branches can read it as a warm fallback (DEMOCI-05-003).
+      # On pull_request runs, write to "demo-integration" (visible only to
+      # the same PR branch) and read "demo-integration-main" as a fallback so
+      # a brand-new PR branch still gets a warm start.
       - name: Build Docker images
         uses: ./.github/actions/build-demo-images
         with:
-          cache-scope: demo-integration
-          cache-from-extra-scope: demo-integration-main
+          cache-scope: >-
+            ${{ github.ref == 'refs/heads/main'
+              && 'demo-integration-main'
+              || 'demo-integration' }}
+          cache-from-extra-scope: >-
+            ${{ github.ref != 'refs/heads/main'
+              && 'demo-integration-main'
+              || '' }}
 
       # DEMOCI-02-005, DEMOCI-02-006: run demo; detect failure via
       # exit code of the demo-runner container.

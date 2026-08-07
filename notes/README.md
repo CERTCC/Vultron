@@ -601,6 +601,15 @@ sync-log-entry context field, and testing patterns.
 the resolved design rationale for the trigger architecture, or auditing trigger
 classification (demo-only vs general-purpose).
 
+**`architecture-ratchet-corpus.md`**
+Design decisions and measurements for the shared corpus pattern in
+`test/architecture/`: why a module-level source cache beats a session fixture
+(timeout-window constraints), the prefilter approach, memory budget comparison,
+xdist compatibility notes, and alternatives considered.
+**Load when**: implementing or reviewing `test/architecture/_corpus.py`, adding
+a new architecture ratchet test, auditing full-suite performance, or evaluating
+xdist compatibility.
+
 **`flaky-tests.md`**
 Fast-lookup catalog of known flaky tests and CI jobs → tracking issue numbers.
 Used by `pr-execute` as a cache before querying GitHub. GitHub is ground truth;
@@ -629,6 +638,16 @@ Three-Actor (Finder + Vendor + Coordinator), MultiParty (ownership transfer).
 Describes what each scenario would demonstrate and open design questions.
 **Load when**: designing new demo scripts or extending the existing demo suite
 beyond the current FV scenario.
+
+**`cvd-recipe-injects.md`**
+Classification of all 21 CERT Guide to CVD problem-solving recipes as Vultron
+scenario injects. Each recipe is mapped to RM/EM/CS protocol constructs and
+assigned to a tier: A (implementable now), B (needs protocol/infra work), or
+C (out of scope). Tier A recipes each have a Task issue under epic #1160;
+Tier B recipes each have an Idea issue. Source: IDEA-1223.
+**Load when**: designing new failure-path or abnormal-flow demo scenarios,
+selecting which CVD recipes to implement as inject variations, or checking
+whether a recipe has already been classified and tracked.
 
 **`vultron/core/use_cases/triggers/AGENTS.md`**
 Trigger classification guidance: demo-specific vs general-purpose
