@@ -162,7 +162,12 @@ before proceeding. Do not open a PR with lint failures.
 uv run black vultron/ test/
 uv run flake8 vultron/ test/ && uv run mypy && uv run pyright
 uv run pytest --tb=short 2>&1 | tail -5
+uv run pytest -m integration --tb=short 2>&1 | tail -5
 ```
+
+Both suites must pass. The first pytest command covers the unit suite
+(integration tests excluded by `addopts`); the second explicitly runs the
+integration suite so demo-layer regressions are caught before the PR opens.
 
 If any step fails, fix, re-validate, and continue. Do not open a PR with
 failing tests or lint errors.

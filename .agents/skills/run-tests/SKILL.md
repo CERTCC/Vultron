@@ -26,10 +26,24 @@ outputs:
 | Integration | `uv run pytest -m integration --tb=short 2>&1 \| tail -5` |
 | All | `uv run pytest -m "" --tb=short 2>&1 \| tail -5` |
 
+## Pre-PR Validation (build and create-pr)
+
+Run **both** suites before opening a PR:
+
+```bash
+uv run pytest --tb=short 2>&1 | tail -5
+uv run pytest -m integration --tb=short 2>&1 | tail -5
+```
+
+The first command covers the unit suite (integration tests excluded by
+`addopts = "-m 'not integration'"`). The second explicitly runs the
+integration suite. Both must pass; a branch that only breaks integration
+tests must not reach a non-draft PR.
+
 ## Constraints
 
 - Run exactly once per validation cycle; do not use `-q` or change output formatting.
 - Do not change `tail -5`.
 - `filterwarnings = ["error"]` in `pyproject.toml` — warnings are test errors; fix root cause, do not suppress.
-- Integration tests are excluded from the default run; use `-m integration` for demo/datalayer validation.
+- Integration tests are excluded from the default interactive run; always run `-m integration` explicitly in pre-PR validation.
 - Treat all failures as branch-owned by default; clean-base proof is required before classifying as pre-existing.
