@@ -363,6 +363,9 @@ groups:
       The meta-ratchet makes the shared-corpus pattern self-enforcing. Without it, the
       next ratchet author can inadvertently reintroduce the pattern the corpus was
       designed to eliminate, and the problem silently recurs with each new ratchet.
+      The hygiene check itself MUST use plain substring scanning on source strings
+      (via `_corpus.py`) rather than calling `ast.parse()` directly — otherwise it
+      would violate the rule it enforces.
       Source: CONCERN-2020.
     relationships:
     - rel_type: refines
@@ -377,8 +380,10 @@ groups:
     rationale: >-
       The full-suite wall-clock is the metric that matters for developer feedback
       loops and CI cost. Per-test timeouts are a safety net, not a performance budget.
-      The 90 s target gives headroom above the current ~170 s baseline while keeping
-      the suite fast enough that developers run it locally. Source: CONCERN-2020.
+      The 90 s target is aspirational — well below the current ~170 s baseline and
+      achievable only after the shared corpus + xdist parallelisation work lands. It
+      leaves headroom for future test additions above any fully-optimised baseline.
+      Source: CONCERN-2020.
   - id: TB-13-005
     priority: SHOULD
     kind: project
