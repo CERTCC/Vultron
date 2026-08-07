@@ -101,13 +101,25 @@ during implementation (see §6.4) and is fully normative.
 ### 3.3 How the Dimensions Interact
 
 - RM drives case progression; EM gates publication; CS reflects observable reality
-- State transitions in one dimension can trigger obligations in others
-- *Source: `docs/topics/process_models/model_interactions/`, `notes/protocol-event-cascades.md`*
+- PEC captures whether each individual participant has consented to the active
+  embargo — EM and PEC are orthogonal: EM says whether a case has an embargo,
+  PEC says whether a given participant has agreed to it
+- State transitions in one dimension can trigger obligations in others (see §6.5)
+- *Source: `docs/topics/process_models/model_interactions/`, `notes/protocol-event-cascades.md`,
+  `notes/participant-embargo-consent.md`*
 
 ### 3.4 Participants and Roles
 
 - Roles are not exclusive; a participant may hold multiple roles
 - N = |Participants|, not |Roles|
+- Two distinct categories of roles are used in this protocol (see §7.3 for the
+  full taxonomy):
+  - **Operational/domain roles** — what an actor *does* within a case (Reporter,
+    Vendor, Coordinator, Deployer, CNA, Observer). These determine which
+    protocol transitions an actor is authorized to drive.
+  - **Protocol authority roles** — what an actor *controls* in the protocol
+    machinery (Case Owner, Case Manager). These confer specific protocol-layer
+    authority independent of domain activity.
 - Role assignment and changes over case lifetime
 - *Source: `docs/reference/formal_protocol/index.md` §"Number of Processes"*
 
@@ -144,17 +156,37 @@ during implementation (see §6.4) and is fully normative.
 
 ### 4.3 Activity Types and Canonical Message Forms
 
-- `Create`, `Offer`, `Accept`, `Reject`, `Announce`, `Update` as base verbs
+- Base AS2 verbs used by Vultron: `Create`, `Offer`, `Accept`, `Reject`,
+  `Announce`, `Update`, `Add`, `Remove`
+- Additional verbs used for invitation and participant management: `Invite`
+  (rendered as `Offer(CaseParticipant)` in current implementation)
 - Vultron-specific nested-object patterns (e.g., `Accept(Offer(EmbargoProposal))`)
 - Mapping table: protocol shorthand → AS2 activity type + object type
+- Implementation semantic mappings are defined in
+  `vultron/core/models/events/base.py` (`MessageSemantics` enum); this is the
+  authoritative source for which AS2 patterns correspond to which protocol
+  operations
 - *Source: `specs/vultron-as2-mapping.yaml`; `specs/message-semantics-mapping.yaml`*
 
 ### 4.4 Addressing and Channels
 
-- Actor URIs as process identifiers
-- Point-to-point vs. broadcast semantics
-- Inbox/outbox as the delivery model
-- *Source: `specs/outbox.yaml` (OX-01–OX-08); `notes/peer-broadcast-failure-semantics.md`*
+- Actor URIs as process identifiers (aligned with ActivityPub actor model)
+- Inbox/outbox as the delivery model: each actor exposes an inbox (receive)
+  and outbox (send/broadcast)
+- **Hub-and-spoke communication topology**: in the current implementation, the
+  Case Actor is the hub. Most case-scoped communication flows through the Case
+  Actor rather than directly between participants. The Case Actor maintains the
+  authoritative canonical case ledger and broadcasts state updates to
+  participants via `Announce(CaseLedgerEntry)` and `Announce(CaseStatus)`
+  activities. Participant-to-participant messaging is intentionally minimized.
+- This centralized design is a deliberate simplification that avoids the
+  complexity of a fully distributed ledger while preserving the actor-local
+  state model. The trade-off: coordination is simpler and consistency is easier
+  to guarantee, but the Case Actor is a single point of coordination authority.
+- Point-to-point messages (e.g., `Report Submission` from Reporter to Vendor)
+  are exceptions; these go directly to the target participant's inbox
+- *Source: `specs/outbox.yaml` (OX-01–OX-08); `notes/case-communication-model.md`;
+  `notes/peer-broadcast-failure-semantics.md`*
 
 ### 4.5 Serialization
 
@@ -174,7 +206,9 @@ during implementation (see §6.4) and is fully normative.
 - RD — Report Deferred
 - RA — Report Accepted (into a case)
 - RC — Report Closed
-- RE — Report Embargo (internal, no AS2 dispatch)
+- RK — Report Acknowledgement (formally defined; implementations may use AS2
+  `Read` activity for acknowledgement instead of a distinct RK dispatch)
+- RE — Report Error (unexpected RM message)
 - Mapping to RM state transitions
 - *Source: `specs/vultron-protocol-spec.yaml`; `specs/message-semantics-mapping.yaml`*
 
@@ -185,7 +219,10 @@ during implementation (see §6.4) and is fully normative.
 - EA — Embargo Accepted
 - EJ — Embargo Rejected
 - ET — Embargo Terminated
-- EE, EK — internal/no dispatch variants
+- EK — Embargo Acknowledgement (formally defined; current implementation uses
+  AS2 `Read` activity for acknowledgement rather than a distinct EK dispatch)
+- EE — Embargo Error (formally defined; current implementation uses AS2 `Note`
+  reply rather than a distinct EE dispatch)
 - Tacit acceptance semantics
 - *Source: `specs/embargo-policy.yaml`; `notes/embargo-lifecycle.md`; `notes/embargo-default-semantics.md`*
 
@@ -194,10 +231,13 @@ during implementation (see §6.4) and is fully normative.
 - CV — Vendor Aware
 - CF — Fix Ready
 - CD — Fix Deployed
-- CP — Publicly Aware
+- CP — Public Awareness
 - CX — Exploit Public
 - CA — Attacks Observed
-- CE, CK — internal/no dispatch variants
+- CK — CS Acknowledgement (formally defined; current implementation uses AS2
+  `Read` activity for acknowledgement rather than a distinct CK dispatch)
+- CE — CS Error (formally defined; current implementation uses AS2 `Note`
+  reply rather than a distinct CE dispatch)
 - *Source: `specs/vultron-protocol-spec.yaml`; `specs/message-semantics-mapping.yaml`*
 
 ### 5.4 Case Coordination Messages
@@ -492,6 +532,21 @@ machinery, not what it does in the world.
 | Case Owner | Authoritative decision-maker for a case; status updates are treated as authoritative without requiring approval; drives shared EM transitions |
 | Case Manager | AS actor performing case replica synchronization and case management on behalf of the case owner; always co-held with Coordinator |
 
+**Delegation scenarios**: Protocol responsibilities may transfer during a case
+lifecycle. For example, a Finder who initially creates a case may delegate
+coordination to a Coordinator (finder → coordinator hand-off), or a primary
+Vendor may bring in additional Vendors as the case grows. When a Case Owner
+transfers ownership (via `Offer(VulnerabilityCase)` / `Accept` handshake routed
+through the Case Actor), the receiving actor acquires Case Owner authority and
+the associated protocol responsibilities.
+
+!!! note "Open architectural question: Case Actor identity during ownership transfer"
+    Because the Case Actor's URI is the identity anchor for the canonical ledger,
+    transferring Case Actor ownership raises a re-keying question: future
+    cryptographic identity and case encryption designs make re-keying undesirable.
+    The design for ownership transfer across cryptographic boundaries requires
+    further work before this aspect can be normative.
+
 ### 7.4 Role-Specific Normative Requirements
 
 #### 7.4.1 Participant-Specific CS Transitions (VFD)
@@ -623,7 +678,10 @@ policy gate before adopting a reported status update.
 
 ### Annex B — Worked Example: Multi-Party CVD [I]
 
-- *Source: `docs/reference/fv-demo-protocol.md`*
+- Examples should be derived directly from current demo scripts, not older
+  design documents — the implementation is authoritative at this stage
+- *Source: `vultron/demo/scenario/fv_demo.py` (Finder-Vendor scenario);
+  `vultron/demo/scenario/fvcv_demo.py` (Finder-Vendor-Coordinator scenario)*
 
 ### Annex C — Notation Reference [I]
 
@@ -641,8 +699,14 @@ policy gate before adopting a reported status update.
 
 ### Annex F — Behavior Tree Reference Implementation [I]
 
-- BTs as one valid implementation pattern, not normative
-- *Source: `docs/topics/behavior_logic/`*
+- BTs are one valid implementation pattern, not normative — the spec does not
+  require a BT implementation; BTs are used in the reference implementation
+- **Implementation is authoritative**: at this stage, `vultron/core/behaviors/`
+  is the ground truth for BT structure. Documentation in
+  `docs/topics/behavior_logic/` should be verified against the implementation
+  before treating it as normative for the spec
+- *Source: `vultron/core/behaviors/` (authoritative); `docs/topics/behavior_logic/`
+  (narrative reference, verify against implementation)*
 
 ---
 
@@ -675,3 +739,27 @@ policy gate before adopting a reported status update.
    Operational Rules v4.1.0 criteria inline. Should the RFC cite these as
    normative external requirements, or treat the eligibility checks as
    implementation-defined?
+10. **Conformance level separation (L1/L2)** — Can report participation and
+    embargo participation really be separated into distinct capability levels?
+    A Reporter that cannot participate in embargo negotiation may be
+    protocol-compliant but practically unusable for coordinated disclosure.
+    Needs design review before L1/L2 boundary is finalized.
+11. **PEC placement in capability hierarchy** — Should PEC be required at L1
+    (alongside RM) rather than L2? Per-participant consent tracking is arguably
+    prerequisite to meaningful report participation, not just embargo
+    participation.
+12. **Coordinator responsibility accuracy** — The L3 / Coordinator capability
+    level conflates case management, multi-party coordination, and ledger
+    replication. Whether these should be separate capability tiers or bundled
+    requires further design.
+13. **Capability level reframing** — Should capability levels be reframed as
+    four progressive stages: *observation* (receive and parse), *state tracking*
+    (maintain local state machines), *participation* (send state-change
+    notifications), *coordination* (drive multi-party case management)? This
+    framing may align better with incremental implementation than the current
+    L0–L3 names.
+14. **Ledger-based status broadcast** — The current implementation may already
+    communicate case status through ledger updates (`Announce(CaseLedgerEntry)`)
+    rather than dedicated `Announce(CaseStatus)` broadcast messages. The spec
+    should reflect whichever approach is authoritative; this needs verification
+    against the implementation before §7.2 L3 requirements are finalized.
