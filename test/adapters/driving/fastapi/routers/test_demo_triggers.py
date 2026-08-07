@@ -249,6 +249,95 @@ class TestDemoAddNoteToCase:
         assert response.status_code == status.HTTP_202_ACCEPTED
 
 
+# ---------------------------------------------------------------------------
+# Tests: POST /actors/{actor_id}/demo/seed-offer-record  (TRIG-09-001)
+# ---------------------------------------------------------------------------
+
+
+class TestDemoSeedOfferRecord:
+    """Tests for the demo seed-offer-record endpoint (CM-11-002 / TRIG-09-001)."""
+
+    _OFFER_ID = "urn:uuid:offer-0000-0000-0000-000000000001"
+    _REPORT_ID = "urn:uuid:report-0000-0000-0000-000000000001"
+    _OFFER_ACTOR_ID = "urn:uuid:finder-0000-0000-0000-000000000001"
+
+    def _seed_body(self) -> dict:
+        return {
+            "offer_id": self._OFFER_ID,
+            "report_id": self._REPORT_ID,
+            "offer_actor_id": self._OFFER_ACTOR_ID,
+        }
+
+    def test_returns_201_on_first_seed(self, client_demo: TestClient, actor):
+        """First seed call returns HTTP 201 (TRIG-09-001)."""
+        response = client_demo.post(
+            f"/actors/{actor.id_}/demo/seed-offer-record",
+            json=self._seed_body(),
+        )
+        assert response.status_code == status.HTTP_201_CREATED
+
+    def test_response_keys_on_first_seed(self, client_demo: TestClient, actor):
+        """Response contains offer_record_id, report_id, and seeded=True."""
+        response = client_demo.post(
+            f"/actors/{actor.id_}/demo/seed-offer-record",
+            json=self._seed_body(),
+        )
+        assert response.status_code == status.HTTP_201_CREATED
+        data = response.json()
+        assert "offer_record_id" in data
+        assert data["report_id"] == self._REPORT_ID
+        assert data["seeded"] is True
+
+    def test_idempotent_second_call_returns_seeded_false(
+        self, client_demo: TestClient, actor
+    ):
+        """Second call with the same offer_id returns seeded=False (idempotent)."""
+        client_demo.post(
+            f"/actors/{actor.id_}/demo/seed-offer-record",
+            json=self._seed_body(),
+        )
+        response2 = client_demo.post(
+            f"/actors/{actor.id_}/demo/seed-offer-record",
+            json=self._seed_body(),
+        )
+        assert response2.status_code == status.HTTP_201_CREATED
+        assert response2.json()["seeded"] is False
+
+    def test_missing_offer_id_returns_422(
+        self, client_demo: TestClient, actor
+    ):
+        """Missing offer_id returns HTTP 422."""
+        body = self._seed_body()
+        del body["offer_id"]
+        response = client_demo.post(
+            f"/actors/{actor.id_}/demo/seed-offer-record",
+            json=body,
+        )
+        assert response.status_code == 422
+
+    def test_missing_report_id_returns_422(
+        self, client_demo: TestClient, actor
+    ):
+        """Missing report_id returns HTTP 422."""
+        body = self._seed_body()
+        del body["report_id"]
+        response = client_demo.post(
+            f"/actors/{actor.id_}/demo/seed-offer-record",
+            json=body,
+        )
+        assert response.status_code == 422
+
+    def test_extra_fields_ignored(self, client_demo: TestClient, actor):
+        """Unknown fields in the request body are silently ignored (TB-03-002)."""
+        body = self._seed_body()
+        body["unexpected_field"] = "ignored"
+        response = client_demo.post(
+            f"/actors/{actor.id_}/demo/seed-offer-record",
+            json=body,
+        )
+        assert response.status_code == status.HTTP_201_CREATED
+
+
 class TestDemoAddNoteToCaseNotAtTriggerPrefix:
     """Verify add-note-to-case is absent from the /trigger/ path (TRIG-10-003)."""
 
