@@ -214,6 +214,12 @@ class TriggerServicePort(Protocol):
         invite_id: str,
     ) -> dict[str, Any]: ...
 
+    def reject_case_invite(
+        self,
+        actor_id: str,
+        invite_id: str,
+    ) -> dict[str, Any]: ...
+
     def accept_actor_recommendation(
         self,
         actor_id: str,

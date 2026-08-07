@@ -317,6 +317,18 @@ class AcceptCaseInviteRequest(BaseModel):
     invite_id: NonEmptyString
 
 
+class RejectCaseInviteRequest(BaseModel):
+    """Request body for the reject-case-invite trigger endpoint.
+
+    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    invite_id identifies the RmInviteToCaseActivity to reject.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    invite_id: NonEmptyString
+
+
 class AcceptActorRecommendationRequest(BaseModel):
     """Request body for the accept-actor-recommendation trigger endpoint.
 

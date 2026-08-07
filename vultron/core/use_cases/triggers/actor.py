@@ -31,6 +31,7 @@ from vultron.core.behaviors.case.actor_trigger_trees import (
     invite_actor_to_case_trigger_bt,
     offer_case_manager_role_trigger_bt,
     offer_case_ownership_transfer_trigger_bt,
+    reject_case_invite_trigger_bt,
     suggest_actor_to_case_trigger_bt,
 )
 from vultron.core.models._helpers import _as_id
@@ -48,6 +49,7 @@ from vultron.core.use_cases.triggers.requests import (
     OfferCaseManagerRoleTriggerRequest,
     OfferCaseOwnershipTransferTriggerRequest,
     OfferCaseParticipantRoleTriggerRequest,
+    RejectCaseInviteTriggerRequest,
     SuggestActorToCaseTriggerRequest,
 )
 from vultron.errors import VultronNotFoundError
@@ -215,6 +217,39 @@ class SvcAcceptCaseInviteUseCase(SvcBTTriggerBase):
     def _handle_result(self) -> None:
         logger.info(
             "Actor '%s' accepted case invite '%s'",
+            self._actor_id,
+            self._invite_id,
+        )
+
+
+class SvcRejectCaseInviteUseCase(SvcBTTriggerBase):
+    """Reject a case invitation by emitting RmRejectInviteToCaseActivity.
+
+    The invitee actor reads the invite from the DataLayer and queues the
+    Reject activity for delivery to the Case Actor.
+    """
+
+    def _prepare(self) -> None:
+        request = cast(RejectCaseInviteTriggerRequest, self._request)
+        actor = resolve_actor(request.actor_id, self._dl)
+        self._actor_id = actor.id_
+
+        if self._dl.read(request.invite_id) is None:
+            raise VultronNotFoundError(
+                "RmInviteToCaseActivity", request.invite_id
+            )
+
+        self._invite_id = request.invite_id
+
+    def _build_tree(self) -> py_trees.behaviour.Behaviour:
+        return reject_case_invite_trigger_bt(
+            invite_id=self._invite_id,
+            captured=self._captured,
+        )
+
+    def _handle_result(self) -> None:
+        logger.info(
+            "Actor '%s' rejected case invite '%s'",
             self._actor_id,
             self._invite_id,
         )

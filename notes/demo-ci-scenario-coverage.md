@@ -181,12 +181,12 @@ regression coverage without increasing PR wall-clock cost.
    on `pull_request` events. Both `demo` and `invariant-harness` jobs carry the
    same gate condition so the artifact/download pairing stays consistent.
 
-When `fcv-reject` is implemented (IDEA-1218), the workflow MUST be updated in
-the same PR (DEMOCI-03-002) to:
+`fcv-reject` was implemented in PR #2047 (IDEA-1218). The workflow was updated
+in that same PR (DEMOCI-03-002):
 
-- Add `fcv-reject` as a matrix entry with `full_suite_only: false` (PR minimum
+- `fcv-reject` added as a matrix entry with `full_suite_only: false` (PR minimum
   set member per DEMOCI-06-002).
-- Update the full-suite scenario list from 8 to 9 scenarios.
+- Full-suite scenario list updated from 8 to 9 scenarios.
 
 See ADR-0052 for the accepted barrier + concurrency group design that DEMOCI-06
 finalises.

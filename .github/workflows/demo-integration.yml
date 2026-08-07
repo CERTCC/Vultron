@@ -5,9 +5,9 @@
 # concurrently on PRs.  See specs/demo-ci.yaml DEMOCI-02-001.
 #
 # Triggers:
-#   pull_request  — minimum PR validation set (3 scenarios, DEMOCI-06-002)
-#   push to main  — full 8-scenario suite (DEMOCI-06-003, DEMOCI-05-001)
-#   workflow_dispatch — full 8-scenario suite (for manual re-runs)
+#   pull_request  — minimum PR validation set (4 scenarios, DEMOCI-06-002)
+#   push to main  — full 9-scenario suite (DEMOCI-06-003, DEMOCI-05-001)
+#   workflow_dispatch — full 9-scenario suite (for manual re-runs)
 #
 # Dependabot PRs are skipped — python-app.yml still guards broken deps.
 # See DEMOCI-02-002, DEMOCI-02-003, DEMOCI-02-004.
@@ -22,16 +22,17 @@
 # This gives each scenario two independent pass/fail statuses on the PR so
 # invariant failures are visible even when the demo job itself fails.
 #
-# Minimum PR set (DEMOCI-06-002): fv, fvcv-handoff, fcvcv
+# Minimum PR set (DEMOCI-06-002): fv, fvcv-handoff, fcvcv, fcv-reject
 #   - fv covers the 4 universal event types (2-actor baseline)
 #   - fvcv-handoff adds invite_actor_to_case + accept_invite_actor_to_case
 #     + ownership-transfer protocol path
 #   - fcvcv adds offer_case_participant and ≥3-actor invite/accept chains
+#   - fcv-reject adds reject_invite_actor_to_case (RM invitation rejection)
 # Full set adds: fvv, fvcv-extension, fccv-extension, fccv-handoff, fcv
 #
 # The matrix includes a boolean `full_suite_only` field. On pull_request events
 # the job `if:` condition skips entries where full_suite_only==true, leaving
-# only the 3-scenario minimum PR set running. On push/dispatch all 8 run.
+# only the 4-scenario minimum PR set running. On push/dispatch all 9 run.
 
 name: Demo Integration
 
@@ -96,7 +97,7 @@ jobs:
     timeout-minutes: 15
     # DEMOCI-02-004: skip Dependabot PRs; python-app.yml guards broken deps.
     # DEMOCI-06-002: on pull_request, skip full-suite-only entries so only the
-    # minimum 3-scenario PR validation set runs.
+    # minimum 4-scenario PR validation set runs.
     if: >-
       !startsWith(github.head_ref, 'dependabot/') &&
       (github.event_name != 'pull_request' || matrix.full_suite_only != true)
@@ -114,6 +115,9 @@ jobs:
             full_suite_only: false
           - demo: fcvcv
             test_file: test/ci/invariants/test_fcvcv_invariants.py
+            full_suite_only: false
+          - demo: fcv-reject
+            test_file: test/ci/invariants/test_fcv_reject_invariants.py
             full_suite_only: false
           - demo: fvv
             test_file: test/ci/invariants/test_fvv_invariants.py
@@ -228,6 +232,9 @@ jobs:
             full_suite_only: false
           - demo: fcvcv
             test_file: test/ci/invariants/test_fcvcv_invariants.py
+            full_suite_only: false
+          - demo: fcv-reject
+            test_file: test/ci/invariants/test_fcv_reject_invariants.py
             full_suite_only: false
           - demo: fvv
             test_file: test/ci/invariants/test_fvv_invariants.py

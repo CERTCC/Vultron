@@ -37,6 +37,7 @@ from vultron.adapters.driving.fastapi.trigger_models import (
     OfferCaseManagerRoleRequest,
     OfferCaseOwnershipTransferRequest,
     OfferCaseParticipantRoleRequest,
+    RejectCaseInviteRequest,
     SuggestActorToCaseRequest,
 )
 from vultron.core.ports.datalayer import ActorScopedDataLayer, DataLayer
@@ -110,6 +111,41 @@ def trigger_accept_case_invite(
     """
     with domain_error_translation():
         result = svc.accept_case_invite(
+            actor_id=actor_id,
+            invite_id=body.invite_id,
+        )
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
+    return result
+
+
+@router.post(
+    "/{actor_id}/trigger/reject-case-invite",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Reject a case invitation.",
+    description=(
+        "Rejects an RmInviteToCaseActivity by emitting an "
+        "RmRejectInviteToCaseActivity queued in the actor's outbox for "
+        "delivery to the case owner."
+    ),
+    operation_id="actors_trigger_reject_case_invite",
+)
+def trigger_reject_case_invite(
+    actor_id: str,
+    body: RejectCaseInviteRequest,
+    background_tasks: BackgroundTasks,
+    svc: TriggerServicePort = Depends(get_trigger_service),
+    dl: DataLayer = Depends(get_trigger_dl),
+    actor_dl: ActorScopedDataLayer = Depends(get_canonical_actor_dl),
+) -> dict:
+    """
+    Trigger the reject-case-invite behavior for the given actor.
+
+    Implements:
+        TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
+        TB-04-001
+    """
+    with domain_error_translation():
+        result = svc.reject_case_invite(
             actor_id=actor_id,
             invite_id=body.invite_id,
         )

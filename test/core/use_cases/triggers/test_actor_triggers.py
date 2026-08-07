@@ -16,8 +16,8 @@
 """
 Unit tests for actor-level trigger use cases.
 Covers SvcInviteActorToCaseUseCase, SvcSuggestActorToCaseUseCase,
-SvcAcceptCaseInviteUseCase, SvcOfferCaseManagerRoleUseCase, and
-SvcAcceptActorRecommendationUseCase.
+SvcAcceptCaseInviteUseCase, SvcRejectCaseInviteUseCase,
+SvcOfferCaseManagerRoleUseCase, and SvcAcceptActorRecommendationUseCase.
 Includes DR-09 regression tests verifying that short UUIDs in actor_id
 are normalised to full URIs before use.
 """
@@ -36,6 +36,7 @@ from vultron.core.use_cases.triggers.actor import (
     SvcInviteActorToCaseUseCase,
     SvcOfferCaseManagerRoleUseCase,
     SvcOfferCaseParticipantRoleUseCase,
+    SvcRejectCaseInviteUseCase,
     SvcSuggestActorToCaseUseCase,
 )
 from vultron.core.use_cases.triggers.requests import (
@@ -44,6 +45,7 @@ from vultron.core.use_cases.triggers.requests import (
     InviteActorToCaseTriggerRequest,
     OfferCaseManagerRoleTriggerRequest,
     OfferCaseParticipantRoleTriggerRequest,
+    RejectCaseInviteTriggerRequest,
     SuggestActorToCaseTriggerRequest,
 )
 from vultron.errors import VultronNotFoundError, VultronValidationError
@@ -766,6 +768,91 @@ class TestSvcAcceptCaseInviteUseCase:
             invite_id=invite.id_,
         )
         result = SvcAcceptCaseInviteUseCase(
+            dl_invitee,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl_invitee),
+        ).execute()
+
+        assert result["activity"]["actor"] == _HTTP_ACTOR_ID
+
+
+class TestSvcRejectCaseInviteUseCase:
+    """Tests for the reject-case-invite trigger use case."""
+
+    def test_reject_creates_activity(self):
+        inviter, dl_inviter = _make_actor_dl("Coordinator")
+        invitee, dl_invitee = _make_actor_dl("Vendor")
+        dl_inviter.create(invitee)
+
+        case = as_VulnerabilityCase(
+            attributed_to=inviter.id_, name="Test Case", content="Content"
+        )
+        dl_inviter.create(case)
+
+        invite = rm_invite_to_case_activity(
+            invitee,
+            target=VulnerabilityCaseStub(id_=case.id_),
+            actor=inviter.id_,
+            to=[invitee.id_],
+        )
+        dl_invitee.create(inviter)
+        dl_invitee.create(invite)
+
+        request = RejectCaseInviteTriggerRequest(
+            actor_id=invitee.id_,
+            invite_id=invite.id_,
+        )
+        result = SvcRejectCaseInviteUseCase(
+            dl_invitee,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl_invitee),
+        ).execute()
+
+        assert "activity" in result
+        assert result["activity"]["actor"] == invitee.id_
+        assert result["activity"].get("to") == [inviter.id_]
+
+    def test_reject_raises_when_invite_missing(self):
+        _, dl = _make_actor_dl("Vendor")
+        request = RejectCaseInviteTriggerRequest(
+            actor_id=_HTTP_ACTOR_ID,
+            invite_id="https://example.org/activities/no-such-invite",
+        )
+        actor = as_Service(name="Vendor", id_=_HTTP_ACTOR_ID)
+        dl.create(actor)
+
+        with pytest.raises(VultronNotFoundError):
+            SvcRejectCaseInviteUseCase(
+                dl, request, trigger_activity=TriggerActivityAdapter(dl)
+            ).execute()
+
+    def test_reject_normalises_short_uuid_actor_id(self):
+        """DR-09: short UUID in actor_id is resolved to full URI."""
+        inviter, dl_inviter = _make_actor_dl("Coordinator")
+        invitee, dl_invitee = _make_actor_dl_with_http_id(
+            "Vendor", _HTTP_ACTOR_ID
+        )
+        dl_inviter.create(invitee)
+
+        case = as_VulnerabilityCase(
+            attributed_to=inviter.id_, name="Test Case", content="Content"
+        )
+        dl_inviter.create(case)
+
+        invite = rm_invite_to_case_activity(
+            invitee,
+            target=VulnerabilityCaseStub(id_=case.id_),
+            actor=inviter.id_,
+            to=[invitee.id_],
+        )
+        dl_invitee.create(inviter)
+        dl_invitee.create(invite)
+
+        request = RejectCaseInviteTriggerRequest(
+            actor_id=_UUID,
+            invite_id=invite.id_,
+        )
+        result = SvcRejectCaseInviteUseCase(
             dl_invitee,
             request,
             trigger_activity=TriggerActivityAdapter(dl_invitee),
