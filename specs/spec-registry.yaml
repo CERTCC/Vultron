@@ -275,10 +275,26 @@ groups:
     kind: project
     statement: The pytest integration SHOULD load the registry once per session (not per test) to avoid I/O overhead.
   - id: SR-05-004
-    priority: SHOULD
+    priority: MUST
     kind: project
-    statement: Tests SHOULD use `@pytest.mark.spec` to assert which requirement they verify, enabling coverage reporting by
-      spec ID.
+    statement: >-
+      Tests that verify a protocol-tier requirement (spec items with kind equal to "protocol") MUST carry
+      `@pytest.mark.spec("<ID>")` linking the test to the requirement it exercises. Tests for other requirement kinds
+      SHOULD use the marker to enable coverage reporting by spec ID.
+    rationale: >-
+      Protocol-kind requirements are conformance-critical. Without a marker, coverage for those requirements is
+      unverifiable and the CI floor ratchet (SR-05-005) cannot enforce it. The SHOULD for non-protocol kinds preserves
+      opt-in adoption for lower-stakes requirements.
+  - id: SR-05-005
+    priority: MUST
+    kind: project
+    statement: >-
+      CI MUST enforce a minimum `@pytest.mark.spec` coverage floor for protocol-tier requirements and fail the build if
+      coverage drops below the configured threshold, preventing marker adoption from drifting back toward zero.
+    rationale: >-
+      A SHOULD-only rule (the former SR-05-004) produced near-zero adoption with no enforcement signal. A CI-enforced
+      floor is the minimum mechanism that guarantees the ratchet cannot be accidentally broken by future commits that add
+      protocol requirements without linking tests.
 - id: SR-06
   title: Pre-commit Hook
   specs:
