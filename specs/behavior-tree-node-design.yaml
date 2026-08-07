@@ -502,6 +502,24 @@ groups:
       spec_id: BTND-08-001
     verification: In each `Selector(Sequence(IsFoo, ApplyFoo), AlwaysSuccess)` composite, confirm the `AlwaysSuccess` node's
       `name` ends with `"Skipped"`.
+- id: BTND-09
+  title: BT Error Handling Contract
+  specs:
+  - id: BTND-09-001
+    priority: MUST
+    kind: project
+    statement: 'BT helper functions MUST raise exceptions on error — they MUST NOT catch exceptions and return a sentinel
+      value. The `update()` method of the owning leaf node is the sole try/except boundary: it calls helpers, catches any
+      exceptions they raise, writes to the error result channel (BTND-03-006), and returns `FAILURE`.'
+    rationale: If helpers catch their own errors and return sentinels (e.g., `None`, `False`), the leaf's `update()` method
+      cannot distinguish a legitimate `None` return from a hidden failure. All error information travels via Python's exception
+      mechanism so that the single boundary point (`update()`) has complete diagnostic context.
+    relationships:
+    - rel_type: implements
+      spec_id: BTND-03-006
+    - rel_type: implements
+      spec_id: EH-02-001
+
 - id: BTND-10
   title: BT Status-Write Node Transition Validation
   specs:
@@ -558,21 +576,3 @@ groups:
       Unit tests: (1) invalid backward/skip jump returns Status.FAILURE and sets
       feedback_message; (2) valid forward transition succeeds; (3) same-state write
       succeeds; (4) None target skips validation.
-
-- id: BTND-09
-  title: BT Error Handling Contract
-  specs:
-  - id: BTND-09-001
-    priority: MUST
-    kind: project
-    statement: 'BT helper functions MUST raise exceptions on error — they MUST NOT catch exceptions and return a sentinel
-      value. The `update()` method of the owning leaf node is the sole try/except boundary: it calls helpers, catches any
-      exceptions they raise, writes to the error result channel (BTND-03-006), and returns `FAILURE`.'
-    rationale: If helpers catch their own errors and return sentinels (e.g., `None`, `False`), the leaf's `update()` method
-      cannot distinguish a legitimate `None` return from a hidden failure. All error information travels via Python's exception
-      mechanism so that the single boundary point (`update()`) has complete diagnostic context.
-    relationships:
-    - rel_type: implements
-      spec_id: BTND-03-006
-    - rel_type: implements
-      spec_id: EH-02-001
