@@ -1,5 +1,5 @@
 ---
-title: Demo CI: Scenario Coverage Matrix and Minimum PR Validation Set
+title: "Demo CI: Scenario Coverage Matrix and Minimum PR Validation Set"
 status: active
 related_specs:
   - specs/demo-ci.yaml
