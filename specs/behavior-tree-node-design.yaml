@@ -502,6 +502,63 @@ groups:
       spec_id: BTND-08-001
     verification: In each `Selector(Sequence(IsFoo, ApplyFoo), AlwaysSuccess)` composite, confirm the `AlwaysSuccess` node's
       `name` ends with `"Skipped"`.
+- id: BTND-10
+  title: BT Status-Write Node Transition Validation
+  specs:
+  - id: BTND-10-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A BT node that persists a ParticipantStatus snapshot containing a non-None
+      VFD, RM, or PXA state MUST validate that (current_state → target_state) is
+      a permitted transition before constructing or saving the new dimension object.
+      A same-state write (target == current) is permitted as a status confirmation.
+      An illegal jump (e.g. vfd → VFD, skipping Vfd) or a backward move MUST cause
+      the node to return Status.FAILURE with a descriptive feedback_message.
+    rationale: >-
+      The dimension objects' transition() machinery (SDO-02-002) and the
+      is_valid_*_transition() helpers in vultron/core/states/ enforce forward-only
+      state machine rules, but constructing VfdDimension(state=target) directly
+      bypasses them. A BT guard upstream is necessary but not sufficient: if the
+      guard is too weak (as in issue #1825) or absent (as in the trigger path),
+      an illegal state jump reaches the write boundary unchecked. Validating at
+      the write node makes illegal transitions fail-closed regardless of guard
+      coverage. Same-state writes are permitted because a ParticipantStatus
+      snapshot records current state; confirming "still at VFd" is a legitimate
+      protocol observation, not a transition error.
+    testable: true
+    preconditions:
+    - description: A non-None target VFD, RM, or PXA state is passed to the write node
+    steps:
+    - order: 1
+      actor: write_node
+      action: >-
+        Read the participant's current state for the dimension being written
+        (e.g. resolve_participant_state_from_dl)
+      expected: Current state available
+    - order: 2
+      actor: write_node
+      action: >-
+        If target == current, proceed (status confirmation). If
+        is_valid_*_transition(current, target) is True, proceed. Otherwise
+        return Status.FAILURE with a feedback_message identifying the illegal
+        source→target pair.
+      expected: Only valid forward transitions or same-state writes reach the
+        DataLayer persist step; invalid jumps return FAILURE.
+    postconditions:
+    - description: No ParticipantStatus record with an illegal state jump is persisted
+    relationships:
+    - rel_type: implements
+      spec_id: SDO-02-002
+      note: Write-node compliance with the transition() validation contract
+    - rel_type: implements
+      spec_id: BTND-09-001
+      note: Validation failure returns FAILURE from update(), consistent with error handling contract
+    verification: >-
+      Unit tests: (1) invalid backward/skip jump returns Status.FAILURE and sets
+      feedback_message; (2) valid forward transition succeeds; (3) same-state write
+      succeeds; (4) None target skips validation.
+
 - id: BTND-09
   title: BT Error Handling Contract
   specs:
