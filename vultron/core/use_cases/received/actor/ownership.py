@@ -92,8 +92,10 @@ class OfferCaseOwnershipTransferReceivedUseCase:
                 case_id,
                 BTBridge.get_failure_reason(tree),
             )
+            return
 
         # Forward the Offer to the transferee — CaseActor only (CM-21-005).
+        # Only runs when BT succeeded (ledger entry committed).
         case = self._dl.read(case_id)
         if isinstance(case, VulnerabilityCase):
             case_actor_id = _resolve_case_manager_id(case, self._dl)

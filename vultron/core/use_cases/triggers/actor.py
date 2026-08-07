@@ -33,6 +33,7 @@ from vultron.core.behaviors.case.actor_trigger_trees import (
     offer_case_ownership_transfer_trigger_bt,
     suggest_actor_to_case_trigger_bt,
 )
+from vultron.core.models._helpers import _as_id
 from vultron.core.use_cases._helpers import _find_case_actor_id
 from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
 from vultron.core.use_cases.triggers._helpers import (
@@ -328,8 +329,6 @@ class SvcAcceptCaseOwnershipTransferUseCase(SvcBTTriggerBase):
             )
 
         self._offer_id = request.offer_id
-
-        from vultron.core.models._helpers import _as_id  # noqa: PLC0415
 
         raw_case_id = _as_id(getattr(offer, "object_", None))
         if raw_case_id is None:
