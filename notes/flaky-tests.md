@@ -26,26 +26,47 @@ and fall through to Level 2 (GitHub label search).
 | Test node ID | Issue | Last blocked |
 |---|---|---|
 | `test/bt/test_vultrabot.py::MyTestCase::test_main` | — | 2026-05-05 |
-| `test/demo/test_pcr_bootstrap.py::TestBootstrapSequence::test_announce_creates_case_replica` | #2086 | 2026-08-08 |
-| `test/demo/test_pcr_bootstrap.py::TestBootstrapSequence::test_case_fields_preserved_in_replica` | #2086 | 2026-08-08 |
-| `test/demo/test_integration_script_scenarios.py::TestIntegrationScriptScenarios::test_valid_scenarios_matches_ci` | #2122 | 2026-08-08 |
-| `test/demo/test_integration_script_scenarios.py::TestIntegrationScriptScenarios::test_at_least_one_scenario_in_ci` | #2122 | 2026-08-08 |
 
-> Note: the two `test_integration_script_scenarios` entries are **hard-broken on
-> `main`, not flaky** — they fail deterministically. #2114 added a test that
+> Note: the two `test_integration_script_scenarios` entries were **hard-broken
+> on `main`, not flaky** — they failed deterministically. #2114 added a test that
 > scrapes `DEMO=` from `demo-integration.yml` while #2118/#2119 moved the
 > scenario matrix to `.github/demo-scenarios.json`, leaving nothing to scrape.
-> A semantic merge collision between two individually-correct PRs. See #2122.
+> A semantic merge collision between two individually-correct PRs. **Fixed by
+> #2123**; rows removed 2026-08-08.
 >
-> Note: the two `TestBootstrapSequence` entries are **genuinely
-> nondeterministic**. They pass reliably in isolation (`[0,0,0]` over 3 runs)
-> but running the whole `test/demo/` directory gives `[2,0,2]` failures over 3
-> identical invocations — so `-p no:randomly` does NOT stabilise them. No single
-> preceding file reproduces the failure when paired with the target (all 27
-> checked), meaning the trigger is cumulative accumulated state plus a
-> nondeterministic interaction, not a single polluting module. File-level
-> bisection cannot converge because clean results are false negatives. Verified
-> pre-existing on clean `origin/main`. See #2086 for the full data.
+> Note: the two `TestBootstrapSequence` entries were **deterministic
+> cross-module config leakage, not nondeterminism** — root-caused and **fixed by
+> #2126**; rows removed 2026-08-08.
+>
+> An earlier revision of this note claimed they were "genuinely
+> nondeterministic" because `pytest -m "" test/demo/` gave `[2,0,2]` bootstrap
+> failures over three identical runs. That reading was an artifact of the
+> measurement. `timeout = 5` with `timeout_method = "thread"`
+> (`pyproject.toml:123`) kills the **whole pytest process**, not just the slow
+> test, so a run that trips it emits no summary line and never reaches
+> `test_pcr_bootstrap.py` at all — scoring a phantom `0`. Re-running the same
+> command with a driver that records the `+++ Timeout +++` marker reproduces
+> `[2,0,2]` and shows the `0` run aborted mid-session.
+>
+> At any granularity that actually runs both modules to completion, the failure
+> is deterministic on clean `origin/main`:
+>
+> | Invocation (`-p no:randomly`, 3× each) | Bootstrap failures |
+> |---|---|
+> | `test_fvcv_handoff_demo.py` + `test_pcr_bootstrap.py` | `[2, 2, 2]` |
+> | `...::TestOwnershipTransferAnnounceReachesFinderAC5c` + bootstrap | `[2, 2, 2]` |
+> | `test_pcr_bootstrap.py` alone | `[0, 0, 0]` |
+>
+> The earlier pairwise bisect that found "no single polluting file (all 27
+> checked)" disagrees with the first row above; treat that sweep as unreliable.
+> The cause was `reload_config()` running before `monkeypatch.undo()` in four
+> demo fixture teardowns, pinning a fake CaseActor host into the module-level
+> config cache for the rest of the session. See #2086 and PR #2126.
+>
+> **Lesson for future triage here**: a pytest run that aborts on the global
+> thread-method timeout looks identical to a clean pass if you only count
+> `FAILED` lines. Always check for a summary line and the `+++ Timeout +++`
+> marker before concluding a test is nondeterministic.
 >
 > Note: `test_vultrabot` shows `SUBFAILED` in the full suite due to py_trees
 > blackboard global-state ordering, but exit code stays 0 (unittest subtest
