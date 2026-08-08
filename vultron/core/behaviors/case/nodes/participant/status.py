@@ -20,7 +20,7 @@ from py_trees.common import Status
 from vultron.core.behaviors.case.nodes.participant.common import (
     resolve_participant_state_from_dl,
 )
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.narrative_log import (
     log_cs_transition,
     log_rm_transition,
@@ -91,7 +91,7 @@ def _resolve_pxa_state(case: object, participant: object) -> CS_pxa:
     return _pxa_from_case(case) or CS_pxa.pxa
 
 
-class CreateParticipantStatusNode(DataLayerAction):
+class CreateParticipantStatusNode(DataLayerActionWithPorts):
     """Create a ParticipantStatus snapshot and append it to the participant."""
 
     def __init__(
