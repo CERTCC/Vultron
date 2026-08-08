@@ -26,9 +26,15 @@ and fall through to Level 2 (GitHub label search).
 | Test node ID | Issue | Last blocked |
 |---|---|---|
 | `test/bt/test_vultrabot.py::MyTestCase::test_main` | — | 2026-05-05 |
-| `test/demo/test_pcr_bootstrap.py::TestBootstrapSequence::test_announce_creates_case_replica` | #2086 | 2026-08-07 |
-| `test/demo/test_pcr_bootstrap.py::TestBootstrapSequence::test_case_fields_preserved_in_replica` | #2086 | 2026-08-07 |
+| `test/demo/test_pcr_bootstrap.py::TestBootstrapSequence::test_announce_creates_case_replica` | #2086 | 2026-08-08 |
+| `test/demo/test_pcr_bootstrap.py::TestBootstrapSequence::test_case_fields_preserved_in_replica` | #2086 | 2026-08-08 |
 
+> Note: the two `TestBootstrapSequence` entries are **order-dependent, not
+> timing-dependent**. They pass in isolation but fail whenever the whole
+> `test/demo/` directory runs together — reproduced with `-p no:randomly` and
+> on a clean `origin/main` worktree, so it is intra-`test/demo/` state leakage
+> rather than CI load. See #2086 for the reproduction table.
+>
 > Note: `test_vultrabot` shows `SUBFAILED` in the full suite due to py_trees
 > blackboard global-state ordering, but exit code stays 0 (unittest subtest
 > failures don't trigger pytest's failure exit code). Documented in
