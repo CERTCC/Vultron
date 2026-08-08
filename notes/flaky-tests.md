@@ -26,9 +26,27 @@ and fall through to Level 2 (GitHub label search).
 | Test node ID | Issue | Last blocked |
 |---|---|---|
 | `test/bt/test_vultrabot.py::MyTestCase::test_main` | — | 2026-05-05 |
-| `test/demo/test_pcr_bootstrap.py::TestBootstrapSequence::test_announce_creates_case_replica` | #2086 | 2026-08-07 |
-| `test/demo/test_pcr_bootstrap.py::TestBootstrapSequence::test_case_fields_preserved_in_replica` | #2086 | 2026-08-07 |
+| `test/demo/test_pcr_bootstrap.py::TestBootstrapSequence::test_announce_creates_case_replica` | #2086 | 2026-08-08 |
+| `test/demo/test_pcr_bootstrap.py::TestBootstrapSequence::test_case_fields_preserved_in_replica` | #2086 | 2026-08-08 |
+| `test/demo/test_integration_script_scenarios.py::TestIntegrationScriptScenarios::test_valid_scenarios_matches_ci` | #2122 | 2026-08-08 |
+| `test/demo/test_integration_script_scenarios.py::TestIntegrationScriptScenarios::test_at_least_one_scenario_in_ci` | #2122 | 2026-08-08 |
 
+> Note: the two `test_integration_script_scenarios` entries are **hard-broken on
+> `main`, not flaky** — they fail deterministically. #2114 added a test that
+> scrapes `DEMO=` from `demo-integration.yml` while #2118/#2119 moved the
+> scenario matrix to `.github/demo-scenarios.json`, leaving nothing to scrape.
+> A semantic merge collision between two individually-correct PRs. See #2122.
+>
+> Note: the two `TestBootstrapSequence` entries are **genuinely
+> nondeterministic**. They pass reliably in isolation (`[0,0,0]` over 3 runs)
+> but running the whole `test/demo/` directory gives `[2,0,2]` failures over 3
+> identical invocations — so `-p no:randomly` does NOT stabilise them. No single
+> preceding file reproduces the failure when paired with the target (all 27
+> checked), meaning the trigger is cumulative accumulated state plus a
+> nondeterministic interaction, not a single polluting module. File-level
+> bisection cannot converge because clean results are false negatives. Verified
+> pre-existing on clean `origin/main`. See #2086 for the full data.
+>
 > Note: `test_vultrabot` shows `SUBFAILED` in the full suite due to py_trees
 > blackboard global-state ordering, but exit code stays 0 (unittest subtest
 > failures don't trigger pytest's failure exit code). Documented in
