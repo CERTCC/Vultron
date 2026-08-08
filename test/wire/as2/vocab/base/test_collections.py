@@ -64,3 +64,11 @@ def test_round_trip_preserves_unique_items(item_a, item_b):
     # Duplicate still rejected after round-trip
     restored.append(as_Object(id_="https://example.com/objects/a"))
     assert restored.totalItems == 2
+
+
+def test_append_string_ref_always_added():
+    """String-ref items (bare URI strings) are not deduplicated — only object items with id_ are."""
+    col = as_Collection()
+    col.append("urn:uuid:abc123")
+    col.append("urn:uuid:abc123")
+    assert col.totalItems == 2
