@@ -28,7 +28,15 @@ and fall through to Level 2 (GitHub label search).
 | `test/bt/test_vultrabot.py::MyTestCase::test_main` | — | 2026-05-05 |
 | `test/demo/test_pcr_bootstrap.py::TestBootstrapSequence::test_announce_creates_case_replica` | #2086 | 2026-08-08 |
 | `test/demo/test_pcr_bootstrap.py::TestBootstrapSequence::test_case_fields_preserved_in_replica` | #2086 | 2026-08-08 |
+| `test/demo/test_integration_script_scenarios.py::TestIntegrationScriptScenarios::test_valid_scenarios_matches_ci` | #2122 | 2026-08-08 |
+| `test/demo/test_integration_script_scenarios.py::TestIntegrationScriptScenarios::test_at_least_one_scenario_in_ci` | #2122 | 2026-08-08 |
 
+> Note: the two `test_integration_script_scenarios` entries are **hard-broken on
+> `main`, not flaky** — they fail deterministically. #2114 added a test that
+> scrapes `DEMO=` from `demo-integration.yml` while #2118/#2119 moved the
+> scenario matrix to `.github/demo-scenarios.json`, leaving nothing to scrape.
+> A semantic merge collision between two individually-correct PRs. See #2122.
+>
 > Note: the two `TestBootstrapSequence` entries are **order-dependent, not
 > timing-dependent**. They pass in isolation but fail whenever the whole
 > `test/demo/` directory runs together — reproduced with `-p no:randomly` and
