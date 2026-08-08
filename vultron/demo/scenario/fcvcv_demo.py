@@ -292,6 +292,14 @@ def _phase_report_submission(
             case_id=case.id_,
         )
 
+    with demo_check(
+        "Finder's DataLayer received case replica before V1 RM triage"
+    ):
+        wait_for_case_on_container(
+            client=finder_client,
+            case_id=case.id_,
+        )
+
     run_invite_path_rm_triage(
         invited_client=v1_client,
         invited_actor=v1_in_v1,
@@ -376,6 +384,7 @@ def _phase_report_submission(
 
 
 def _phase_c2_suggests_v2(
+    finder_client: DataLayerClient,
     c1_client: DataLayerClient,
     c2_client: DataLayerClient,
     v2_client: DataLayerClient,
@@ -478,6 +487,15 @@ def _phase_c2_suggests_v2(
         timeout_seconds=40.0,
     )
     logger.info("✓ V2 joined case (6 participants)")
+
+    with demo_check(
+        "Finder's DataLayer received case replica before V2 RM triage"
+    ):
+        wait_for_case_on_container(
+            client=finder_client,
+            case_id=case.id_,
+            timeout_seconds=40.0,
+        )
 
     run_invite_path_rm_triage(
         invited_client=v2_client,
@@ -1103,6 +1121,7 @@ def run_fcvcv_demo(
     )
 
     _phase_c2_suggests_v2(
+        finder_client=finder_client,
         c1_client=c1_client,
         c2_client=c2_client,
         v2_client=v2_client,
