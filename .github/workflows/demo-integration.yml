@@ -15,7 +15,8 @@
 # Concurrency: PR runs cancel in-progress superseded runs; on-main runs
 # always run to completion (DEMOCI-02-011, DEMOCI-05-002).
 #
-# Job structure per matrix entry (DEMOCI-04-001 through DEMOCI-04-003):
+# Job structure (DEMOCI-04-001 through DEMOCI-04-003):
+#   scenarios      — selects the matrix for this event; emits it as JSON
 #   demo           — builds images, runs docker-compose, uploads JSONL artifacts
 #   invariant-harness  — downloads JSONL, runs pytest; needs: demo, if: always()
 #
@@ -30,9 +31,18 @@
 #   - fcv-reject adds reject_invite_actor_to_case (RM invitation rejection)
 # Full set adds: fvv, fvcv-extension, fccv-extension, fccv-handoff, fcv
 #
-# The matrix includes a boolean `full_suite_only` field. On pull_request events
-# the job `if:` condition skips entries where full_suite_only==true, leaving
-# only the 4-scenario minimum PR set running. On push/dispatch all 9 run.
+# Scenario selection (DEMOCI-06-002, DEMOCI-06-003): the scenario list lives in
+# .github/demo-scenarios.json, one entry per scenario carrying a boolean
+# `full_suite_only` field. The `scenarios` job filters that list — dropping
+# full_suite_only entries on pull_request events — and both downstream jobs
+# expand `fromJSON()` of its output as their matrix.
+#
+# The filter MUST NOT be expressed as a job-level `if:` on the matrix field
+# (e.g. `matrix.full_suite_only != true`). Job `if:` is evaluated before matrix
+# expansion, so the `matrix` context is unavailable there; GitHub rejects the
+# whole file with a startup failure that reports zero jobs and no logs. That
+# bug silently broke this workflow for 116 consecutive runs (#2118).
+# See DEMOCI-06-004.
 
 name: Demo Integration
 
@@ -65,6 +75,8 @@ on:
       # Workflow and action changes must re-validate CI itself.
       - ".github/workflows/demo-integration.yml"
       - ".github/actions/build-demo-images/**"
+      # The scenario matrix itself gates which demos run.
+      - ".github/demo-scenarios.json"
   push:
     branches: ["main"]
     paths:
@@ -78,6 +90,7 @@ on:
       - "uv.lock"
       - ".github/workflows/demo-integration.yml"
       - ".github/actions/build-demo-images/**"
+      - ".github/demo-scenarios.json"
   workflow_dispatch:
 
 # DEMOCI-02-011: cancel superseded PR runs; never cancel on-main runs.
@@ -90,50 +103,57 @@ permissions:
   actions: write  # needed for docker buildx bake cache-to: type=gha
 
 jobs:
+  # DEMOCI-06-002, DEMOCI-06-003: resolve the scenario matrix for this event.
+  # On pull_request, full_suite_only entries are dropped, leaving the
+  # 4-scenario minimum PR validation set. On push-to-main and
+  # workflow_dispatch, all 9 scenarios run.
+  #
+  # DEMOCI-02-004: the Dependabot guard lives here, on a job with no matrix, so
+  # a Dependabot PR resolves to an empty matrix and every downstream job is
+  # skipped rather than failing (see also DEMOCI-04-005).
+  # DEMOCI-05-004: github.head_ref is empty on push events, so the guard is a
+  # no-op there and the on-main run is never inadvertently skipped.
+  scenarios:
+    name: Select scenarios
+    runs-on: ubuntu-latest
+    if: "!startsWith(github.head_ref, 'dependabot/')"
+    outputs:
+      matrix: ${{ steps.select.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Select scenario matrix
+        id: select
+        env:
+          # true on pull_request events → drop full_suite_only scenarios.
+          PR_SET_ONLY: ${{ github.event_name == 'pull_request' }}
+        run: |
+          set -euo pipefail
+          if [ "$PR_SET_ONLY" = "true" ]; then
+            FILTER='[.[] | select(.full_suite_only == false)]'
+          else
+            FILTER='.'
+          fi
+          MATRIX="$(jq -c "$FILTER" .github/demo-scenarios.json)"
+          COUNT="$(jq -r 'length' <<<"$MATRIX")"
+          if [ "$COUNT" -eq 0 ]; then
+            echo "::error::Scenario matrix is empty — refusing to report success." >&2
+            exit 1
+          fi
+          echo "Selected $COUNT scenario(s):"
+          jq -r '.[] | "  - \(.demo)"' <<<"$MATRIX"
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+
   demo:
     name: "${{ matrix.demo }} Demo Integration"
     runs-on: ubuntu-latest
     # DEMOCI-02-009: 15-minute cap to prevent indefinite hangs.
     timeout-minutes: 15
-    # DEMOCI-02-004: skip Dependabot PRs; python-app.yml guards broken deps.
-    # DEMOCI-06-002: on pull_request, skip full-suite-only entries so only the
-    # minimum 4-scenario PR validation set runs.
-    if: >-
-      !startsWith(github.head_ref, 'dependabot/') &&
-      (github.event_name != 'pull_request' || matrix.full_suite_only != true)
+    needs: scenarios
     strategy:
       fail-fast: false
       matrix:
-        # DEMOCI-06-002 minimum PR validation set (full_suite_only: false).
-        # DEMOCI-06-003 additional scenarios (full_suite_only: true — push/dispatch only).
-        include:
-          - demo: fv
-            test_file: test/ci/invariants/test_fv_invariants.py
-            full_suite_only: false
-          - demo: fvcv-handoff
-            test_file: test/ci/invariants/test_fvcv_handoff_invariants.py
-            full_suite_only: false
-          - demo: fcvcv
-            test_file: test/ci/invariants/test_fcvcv_invariants.py
-            full_suite_only: false
-          - demo: fcv-reject
-            test_file: test/ci/invariants/test_fcv_reject_invariants.py
-            full_suite_only: false
-          - demo: fvv
-            test_file: test/ci/invariants/test_fvv_invariants.py
-            full_suite_only: true
-          - demo: fvcv-extension
-            test_file: test/ci/invariants/test_fvcv_extension_invariants.py
-            full_suite_only: true
-          - demo: fccv-extension
-            test_file: test/ci/invariants/test_fccv_extension_invariants.py
-            full_suite_only: true
-          - demo: fccv-handoff
-            test_file: test/ci/invariants/test_fccv_handoff_invariants.py
-            full_suite_only: true
-          - demo: fcv
-            test_file: test/ci/invariants/test_fcv_invariants.py
-            full_suite_only: true
+        include: ${{ fromJSON(needs.scenarios.outputs.matrix) }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -213,44 +233,18 @@ jobs:
     name: "${{ matrix.demo }} Invariant Harness"
     runs-on: ubuntu-latest
     # DEMOCI-04-002: always run after the demo job, even on demo failure.
-    # DEMOCI-02-004: skip Dependabot PRs (demo is skipped, no artifact exists).
-    # DEMOCI-06-002: mirror the demo job gate — skip full-suite-only entries on PR.
-    needs: demo
+    # DEMOCI-04-005, DEMOCI-02-004: the Dependabot guard is enforced upstream on
+    # the `scenarios` job; `always()` must not resurrect this job when that job
+    # was skipped or failed, so the condition tests the scenarios job directly
+    # rather than using a bare always().
+    needs: [scenarios, demo]
     if: >-
       always() &&
-      !startsWith(github.head_ref, 'dependabot/') &&
-      (github.event_name != 'pull_request' || matrix.full_suite_only != true)
+      needs.scenarios.result == 'success'
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - demo: fv
-            test_file: test/ci/invariants/test_fv_invariants.py
-            full_suite_only: false
-          - demo: fvcv-handoff
-            test_file: test/ci/invariants/test_fvcv_handoff_invariants.py
-            full_suite_only: false
-          - demo: fcvcv
-            test_file: test/ci/invariants/test_fcvcv_invariants.py
-            full_suite_only: false
-          - demo: fcv-reject
-            test_file: test/ci/invariants/test_fcv_reject_invariants.py
-            full_suite_only: false
-          - demo: fvv
-            test_file: test/ci/invariants/test_fvv_invariants.py
-            full_suite_only: true
-          - demo: fvcv-extension
-            test_file: test/ci/invariants/test_fvcv_extension_invariants.py
-            full_suite_only: true
-          - demo: fccv-extension
-            test_file: test/ci/invariants/test_fccv_extension_invariants.py
-            full_suite_only: true
-          - demo: fccv-handoff
-            test_file: test/ci/invariants/test_fccv_handoff_invariants.py
-            full_suite_only: true
-          - demo: fcv
-            test_file: test/ci/invariants/test_fcv_invariants.py
-            full_suite_only: true
+        include: ${{ fromJSON(needs.scenarios.outputs.matrix) }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1

@@ -1,0 +1,47 @@
+[
+  {
+    "demo": "fv",
+    "test_file": "test/ci/invariants/test_fv_invariants.py",
+    "full_suite_only": false
+  },
+  {
+    "demo": "fvcv-handoff",
+    "test_file": "test/ci/invariants/test_fvcv_handoff_invariants.py",
+    "full_suite_only": false
+  },
+  {
+    "demo": "fcvcv",
+    "test_file": "test/ci/invariants/test_fcvcv_invariants.py",
+    "full_suite_only": false
+  },
+  {
+    "demo": "fcv-reject",
+    "test_file": "test/ci/invariants/test_fcv_reject_invariants.py",
+    "full_suite_only": false
+  },
+  {
+    "demo": "fvv",
+    "test_file": "test/ci/invariants/test_fvv_invariants.py",
+    "full_suite_only": true
+  },
+  {
+    "demo": "fvcv-extension",
+    "test_file": "test/ci/invariants/test_fvcv_extension_invariants.py",
+    "full_suite_only": true
+  },
+  {
+    "demo": "fccv-extension",
+    "test_file": "test/ci/invariants/test_fccv_extension_invariants.py",
+    "full_suite_only": true
+  },
+  {
+    "demo": "fccv-handoff",
+    "test_file": "test/ci/invariants/test_fccv_handoff_invariants.py",
+    "full_suite_only": true
+  },
+  {
+    "demo": "fcv",
+    "test_file": "test/ci/invariants/test_fcv_invariants.py",
+    "full_suite_only": true
+  }
+]

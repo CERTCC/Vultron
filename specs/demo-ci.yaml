@@ -6,7 +6,7 @@ description: >-
   when the demo fails — closing the gap where tests pass while the demo produces
   silent failures. Includes requirements for the invariant harness to run as an
   independent CI gate so failures are visible even when the demo itself also fails.
-version: 1.4.0
+version: 1.5.0
 scope:
   - prototype
   - production
@@ -133,8 +133,9 @@ groups:
           filter, covering: vultron/** (excluding vultron/metadata/** and
           vultron/bt/**), docker/**, integration_tests/**, test/ci/**,
           pyproject.toml, uv.lock,
-          .github/workflows/demo-integration.yml, and
-          .github/actions/build-demo-images/**.
+          .github/workflows/demo-integration.yml,
+          .github/actions/build-demo-images/**, and
+          .github/demo-scenarios.json.
         rationale: >-
           These are the files whose changes can affect demo container behaviour
           or the invariant assertions that validate it. Filtering avoids running
@@ -149,6 +150,9 @@ groups:
           .github/workflows/demo-integration.yml and
           .github/actions/build-demo-images/** are included so that changes to
           the workflow or the shared build action itself trigger a validation run.
+          .github/demo-scenarios.json is included because it is the source of
+          truth for which scenarios run (DEMOCI-06-004), so a change to it
+          changes the demo matrix itself.
 
       - id: DEMOCI-02-004
         priority: MUST
@@ -391,16 +395,30 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          The invariant-harness job MUST carry the same Dependabot exclusion
-          guard as the demo job (DEMOCI-02-004): its `if:` condition MUST
-          include `!startsWith(github.head_ref, 'dependabot/')` in addition
-          to `always()`.
+          The invariant-harness job MUST NOT run for Dependabot PRs, matching
+          the demo job's exclusion (DEMOCI-02-004). The guard MUST be enforced
+          such that a bare `always()` cannot resurrect the job: because the
+          Dependabot exclusion is applied once on the upstream `scenarios` job
+          (DEMOCI-06-004), the invariant-harness `if:` MUST pair `always()`
+          with a check that the scenarios job succeeded — e.g.
+          `always() && needs.scenarios.result == 'success'`.
         rationale: >-
           Without the guard, a Dependabot PR skips the demo job (correct) but
           triggers the invariant-harness job, which immediately fails because
           `actions/download-artifact` finds no artifact — producing spurious
-          failing status checks on every Dependabot PR. The guard prevents this
-          by matching the skip condition of the upstream demo job.
+          failing status checks on every Dependabot PR.
+
+          This entry originally mandated the literal
+          `!startsWith(github.head_ref, 'dependabot/')` expression in this
+          job's own `if:`. That prescribed a mechanism rather than the outcome.
+          Once scenario selection moved into a `scenarios` job (DEMOCI-06-004),
+          duplicating the head_ref test in three places invited drift, so the
+          exclusion is now enforced once upstream and inherited via
+          `needs.scenarios.result`. The requirement is the outcome — no
+          invariant-harness run on Dependabot PRs — not the specific predicate.
+          Note that `always()` alone is insufficient: it runs the job even when
+          an upstream job was skipped, which is exactly the spurious-failure
+          case this entry exists to prevent.
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-04-002
@@ -552,7 +570,7 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          The full 8-scenario suite MUST run on push events to main, regardless
+          The full 9-scenario suite MUST run on push events to main, regardless
           of which subset runs for PR validation, so that all scenario variants
           continue to generate case-log invariant signals on the default branch.
           The `demo-integration.yml` workflow MUST include a `push: branches:
@@ -568,6 +586,51 @@ groups:
             spec_id: DEMOCI-06-002
           - rel_type: refines
             spec_id: DEMOCI-05-001
+
+      - id: DEMOCI-06-004
+        priority: MUST
+        kind: project
+        statement: >-
+          Per-event scenario selection (DEMOCI-06-002, DEMOCI-06-003) MUST be
+          implemented by resolving the matrix before matrix expansion, NOT by a
+          job-level `if:` condition that references the `matrix` context.
+          Specifically: the scenario list MUST live in a single declarative
+          source of truth (`.github/demo-scenarios.json`), each entry carrying a
+          boolean `full_suite_only` field; a `scenarios` job MUST filter that
+          list according to `github.event_name` and expose the result as a JSON
+          job output; and the `demo` and `invariant-harness` jobs MUST derive
+          their matrices via `fromJSON()` of that output.
+
+          A job-level `if:` referencing `matrix.*` MUST NOT be used to gate
+          matrix entries.
+        rationale: >-
+          GitHub evaluates job-level `if:` conditions BEFORE expanding the
+          matrix, so the `matrix` context does not exist at that point.
+          Referencing it is valid YAML — a YAML parser and `yaml.safe_load`
+          both accept the file — but GitHub rejects the entire workflow with a
+          startup failure: zero jobs scheduled, no logs, no annotations, no
+          per-job status, and a run whose `name` is reported as the file path
+          instead of the workflow name.
+
+          This failure mode is near-silent. It broke demo-integration.yml for
+          116 consecutive runs (2026-08-06 through 2026-08-07) across every
+          branch, including main. Because the same commit added the
+          push-to-main trigger, every push registered a startup failure before
+          the branch filter could be evaluated, so the red X appeared even on
+          branches the workflow was never meant to run on — which made the
+          signal read as noise rather than a real regression.
+
+          Deriving both matrices from one JSON file also removes the verbatim
+          9-entry matrix duplication between the `demo` and `invariant-harness`
+          jobs, where the two copies could silently drift apart.
+
+          Detection is delegated to `actionlint` in CI and pre-commit
+          (DEMOCI-08-001), which flags the illegal context reference directly.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-06-002
+          - rel_type: refines
+            spec_id: DEMOCI-06-003
 
   - id: DEMOCI-07
     title: Embargo Lifecycle Scenario CI Registration (rcv-embargo, rcvv-embargo)
@@ -658,3 +721,63 @@ groups:
             spec_id: DEMOCI-06-002
           - rel_type: refines
             spec_id: DEMOCI-06-003
+
+  - id: DEMOCI-08
+    title: Workflow Static Analysis (actionlint)
+    specs:
+      - id: DEMOCI-08-001
+        priority: MUST
+        kind: project
+        statement: >-
+          GitHub Actions workflow files MUST be statically analysed by
+          `actionlint` in CI, via a dedicated workflow
+          (`.github/workflows/actions-lint.yml`) whose path filter is scoped to
+          `.github/**`. The check MUST NOT be added to `python-app.yml`, whose
+          path filter is scoped to `vultron/**` and `test/**` and therefore
+          would not trigger on a workflow-only change. The same linter MUST be
+          registered as a pre-commit hook so the error is caught before push.
+          The actionlint version MUST be pinned, and the CI download MUST be
+          verified against a pinned SHA256 checksum.
+        rationale: >-
+          A workflow can be syntactically valid YAML yet be rejected by GitHub
+          at startup — the `matrix`-context-in-job-`if:` bug of DEMOCI-06-004 is
+          the motivating case. Startup failures produce no logs, no annotations,
+          and no job-level statuses, so nothing in the repository's own test or
+          lint suite can detect them and the only symptom is a bare red X.
+          `actionlint` resolves context availability per field and reports the
+          illegal reference as a one-line error with the exact position.
+
+          Pinning by version and checksum keeps CI reproducible and prevents a
+          retagged or compromised upstream release from silently altering what
+          executes in the pipeline.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-06-004
+
+      - id: DEMOCI-08-002
+        priority: MUST
+        kind: project
+        statement: >-
+          The `actions-lint.yml` workflow MUST validate
+          `.github/demo-scenarios.json` structurally: it MUST assert the file is
+          a non-empty array; that every entry has a non-empty string `demo`, a
+          non-empty string `test_file`, and a boolean (not string)
+          `full_suite_only`; that no `demo` name is duplicated; that at least
+          one entry has `full_suite_only: false`; and that every referenced
+          `test_file` exists in the repository.
+        rationale: >-
+          Once the matrix is data rather than inline YAML, malformed data
+          degrades silently instead of failing loudly. A string `"false"` is
+          truthy to `jq`'s equality test against `false` and would drop a
+          scenario from the PR set; a missing `test_file` key expands into a job
+          that runs `pytest ""`; a duplicated `demo` name collides on the
+          upload-artifact name and one scenario's logs overwrite the other's;
+          and an empty PR set would let `pull_request` runs report a vacuous
+          success with zero scenarios executed — the same false-green class of
+          failure that DEMOCI-06-004 exists to prevent. A non-existent
+          `test_file` is also caught here rather than 15 minutes into a demo run.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-08-001
+          - rel_type: refines
+            spec_id: DEMOCI-06-004
