@@ -28,6 +28,9 @@ from vultron.core.behaviors.case.nodes.conditions import (
 from vultron.core.behaviors.case.nodes.suggest_actor.conditions import (
     ActorAlreadyParticipantNode,
 )
+from vultron.core.behaviors.case.nodes.update import (
+    CheckCaseUpdateOwnerNode,
+)
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     CheckVendorRoleNode,
 )
@@ -131,5 +134,54 @@ class TestActorAlreadyParticipantNodePorts:
                 recommended_id=ACTOR_ID, case_id=CASE_ID
             ),
             actor_id=ACTOR_ID,
+        )
+        bt_scenario.assert_failure(result)
+
+
+# ---------------------------------------------------------------------------
+# update.py — CheckCaseUpdateOwnerNode
+# ---------------------------------------------------------------------------
+
+
+class TestCheckCaseUpdateOwnerNodePorts:
+    def test_missing_datalayer_raises_no_data_available(self) -> None:
+        node = CheckCaseUpdateOwnerNode(case_id=CASE_ID)
+        node.setup_ports()
+        with pytest.raises(NoDataAvailable):
+            node.get_input("datalayer")
+
+    def test_failure_when_case_not_found(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        result = bt_scenario.run(
+            CheckCaseUpdateOwnerNode(case_id=CASE_ID), actor_id=ACTOR_ID
+        )
+        bt_scenario.assert_failure(result)
+
+    def test_success_when_actor_owns_case(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        case = VulnerabilityCase(
+            id_=CASE_ID,
+            name="Test Case",
+            attributed_to=ACTOR_ID,
+        )
+        bt_scenario.seed(case)
+        result = bt_scenario.run(
+            CheckCaseUpdateOwnerNode(case_id=CASE_ID), actor_id=ACTOR_ID
+        )
+        bt_scenario.assert_success(result)
+
+    def test_failure_when_actor_is_not_owner(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        case = VulnerabilityCase(
+            id_=CASE_ID,
+            name="Test Case",
+            attributed_to="https://example.org/actors/other",
+        )
+        bt_scenario.seed(case)
+        result = bt_scenario.run(
+            CheckCaseUpdateOwnerNode(case_id=CASE_ID), actor_id=ACTOR_ID
         )
         bt_scenario.assert_failure(result)
