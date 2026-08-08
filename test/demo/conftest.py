@@ -244,6 +244,69 @@ def configure_case_actor_url_for_demo():
         reload_config()
 
 
+def config_url_snapshot() -> tuple[str, str]:
+    """Return the currently cached ``(server.base_url, case_actor_service_url)``.
+
+    These are the two settings demo tests repoint at their own fake hosts, and
+    the pair whose leakage caused #2086.
+    """
+    from vultron.config import get_config
+
+    cfg = get_config()
+    return (
+        str(cfg.server.base_url),
+        str(cfg.actor.case_actor_service_url),
+    )
+
+
+def restore_config_if_leaked(before: tuple[str, str]) -> bool:
+    """Reload the module-level config if the URL snapshot drifted from *before*.
+
+    Args:
+        before: Snapshot from :func:`config_url_snapshot` taken before the
+            code under test ran.
+
+    Returns:
+        ``True`` if a leak was detected and the config was reloaded.
+    """
+    from vultron.config.app import reload_config
+
+    after = config_url_snapshot()
+    if after == before:
+        return False
+    logger.warning(
+        "Demo test leaked config (server.base_url / "
+        "actor.case_actor_service_url): %s -> %s; reloading (#2086)",
+        before,
+        after,
+    )
+    reload_config()
+    return True
+
+
+@pytest.fixture(autouse=True)
+def restore_case_actor_url_after_each_test():
+    """Restore the session's CaseActor/server config after every demo test.
+
+    Guards against config leakage between demo tests (#2086).  Several demo
+    tests point ``VULTRON_SERVER__BASE_URL`` and
+    ``VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL`` at their own fake hosts and then
+    call ``reload_config()``.  If such a test reloads while its env patches are
+    still applied, the polluted values are cached in the module-level config for
+    the remainder of the session.  Every later test then addresses its
+    ``Create(CaseProposal)`` to a host no ``_TestClientRouter`` knows about, the
+    delivery is silently dropped, the CaseActor never creates the canonical
+    case, and ``validate-report`` fails with "no routable recipients".
+
+    Because that depends on test *order*, it presented as CI flakiness.  This
+    fixture snapshots the two URLs before each test and reloads config after if
+    they changed, so a leak cannot outlive the test that caused it.
+    """
+    before = config_url_snapshot()
+    yield
+    restore_config_if_leaked(before)
+
+
 @pytest.fixture(scope="module", autouse=True)
 def reset_datalayer_between_modules():
     """Reset all cached DataLayer instances before each demo test module.
