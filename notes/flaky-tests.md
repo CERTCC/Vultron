@@ -37,11 +37,15 @@ and fall through to Level 2 (GitHub label search).
 > scenario matrix to `.github/demo-scenarios.json`, leaving nothing to scrape.
 > A semantic merge collision between two individually-correct PRs. See #2122.
 >
-> Note: the two `TestBootstrapSequence` entries are **order-dependent, not
-> timing-dependent**. They pass in isolation but fail whenever the whole
-> `test/demo/` directory runs together — reproduced with `-p no:randomly` and
-> on a clean `origin/main` worktree, so it is intra-`test/demo/` state leakage
-> rather than CI load. See #2086 for the reproduction table.
+> Note: the two `TestBootstrapSequence` entries are **genuinely
+> nondeterministic**. They pass reliably in isolation (`[0,0,0]` over 3 runs)
+> but running the whole `test/demo/` directory gives `[2,0,2]` failures over 3
+> identical invocations — so `-p no:randomly` does NOT stabilise them. No single
+> preceding file reproduces the failure when paired with the target (all 27
+> checked), meaning the trigger is cumulative accumulated state plus a
+> nondeterministic interaction, not a single polluting module. File-level
+> bisection cannot converge because clean results are false negatives. Verified
+> pre-existing on clean `origin/main`. See #2086 for the full data.
 >
 > Note: `test_vultrabot` shows `SUBFAILED` in the full suite due to py_trees
 > blackboard global-state ordering, but exit code stays 0 (unittest subtest
