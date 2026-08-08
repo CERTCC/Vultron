@@ -169,6 +169,10 @@ def three_app_setup(monkeypatch):
     owner_iso.dl.close()
     reporter_iso.dl.close()
     late_joiner_iso.dl.close()
+    # Undo the env patches BEFORE reloading: monkeypatch's own undo runs after
+    # this teardown, so reloading first would re-cache this fixture's URLs into
+    # the module-level config for the rest of the session (#2086).
+    monkeypatch.undo()
     reload_config()
 
 
