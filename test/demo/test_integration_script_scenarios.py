@@ -44,6 +44,10 @@ _VALID_SCENARIOS_RE = re.compile(r'^VALID_SCENARIOS="([^"]+)"')
 def _ci_scenarios() -> set[str]:
     """Return the set of scenario names defined in .github/demo-scenarios.json."""
     entries = json.loads(_CI_SCENARIOS_JSON.read_text())
+    if not isinstance(entries, list):
+        raise AssertionError(
+            f"Expected a JSON array in {_CI_SCENARIOS_JSON}, got {type(entries).__name__}"
+        )
     return {entry["demo"] for entry in entries}
 
 
