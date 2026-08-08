@@ -29,6 +29,7 @@ from vultron.core.behaviors.case.update_support import (
 )
 from vultron.core.behaviors.helpers import (
     DataLayerAction,
+    DataLayerActionWithPorts,
     DataLayerCondition,
 )
 from vultron.core.models.events.case import UpdateCaseReceivedEvent
@@ -107,7 +108,7 @@ class CaptureCaseUpdateBroadcastExclusionsNode(DataLayerCondition):
         return Status.SUCCESS
 
 
-class ApplyCaseUpdateNode(DataLayerAction):
+class ApplyCaseUpdateNode(DataLayerActionWithPorts):
     """Apply mutable fields from the inbound update payload to the case."""
 
     def __init__(

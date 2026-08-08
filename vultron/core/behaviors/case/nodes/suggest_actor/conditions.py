@@ -28,14 +28,14 @@ Node classes:
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.models.protocol_pair import (
     INVITE_ACTOR_TO_CASE_REPLY_TYPES,
     OFFER_CASE_PARTICIPANT_REPLY_TYPES,
 )
 
 
-class ActorAlreadyParticipantNode(DataLayerAction):
+class ActorAlreadyParticipantNode(DataLayerActionWithPorts):
     """Return SUCCESS if the recommended actor is already a case participant.
 
     Reads ``VulnerabilityCase.actor_participant_index`` from the DataLayer.
@@ -73,7 +73,7 @@ class ActorAlreadyParticipantNode(DataLayerAction):
         return Status.FAILURE
 
 
-class InviteInFlightNode(DataLayerAction):
+class InviteInFlightNode(DataLayerActionWithPorts):
     """Return SUCCESS if an Invite to the recommended actor is in-flight.
 
     Queries the case ledger via ``find_protocol_pair`` with
@@ -116,7 +116,7 @@ class InviteInFlightNode(DataLayerAction):
         return Status.FAILURE
 
 
-class PendingOfferCaseParticipantNode(DataLayerAction):
+class PendingOfferCaseParticipantNode(DataLayerActionWithPorts):
     """Return SUCCESS if an Offer(CaseParticipant) to the Case Owner is pending.
 
     Queries the case ledger via ``find_protocol_pair`` with

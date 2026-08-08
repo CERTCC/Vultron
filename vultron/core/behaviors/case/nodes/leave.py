@@ -37,7 +37,7 @@ from py_trees.common import Status
 from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
 )
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.rm import RM
@@ -45,7 +45,7 @@ from vultron.core.states.rm import RM
 logger = logging.getLogger(__name__)
 
 
-class AdvanceParticipantToRMClosedNode(DataLayerAction):
+class AdvanceParticipantToRMClosedNode(DataLayerActionWithPorts):
     """Advance the leaving actor's RM state to ``RM.CLOSED`` in the DataLayer.
 
     Reads the leaving actor's :class:`~vultron.core.models.case_participant
@@ -152,7 +152,7 @@ class AdvanceParticipantToRMClosedNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class AdvanceCaseActorToRMClosedNode(DataLayerAction):
+class AdvanceCaseActorToRMClosedNode(DataLayerActionWithPorts):
     """Advance the Case Actor's own RM state to ``RM.CLOSED``.
 
     Reads the Case Actor's :class:`~vultron.core.models.case_participant
