@@ -27,7 +27,7 @@ from typing import Any, cast
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import (
-    DataLayerCondition,
+    DataLayerConditionWithPorts,
     FindParticipantByActorIdNode,
 )
 from vultron.core.models.case import VulnerabilityCase
@@ -111,7 +111,7 @@ class VerifySenderIsParticipantNode(FindParticipantByActorIdNode):
         return Status.SUCCESS
 
 
-class AllParticipantsRMClosedConditionNode(DataLayerCondition):
+class AllParticipantsRMClosedConditionNode(DataLayerConditionWithPorts):
     """Precondition: all CVD participants in the case have RM.CLOSED.
 
     Iterates ``case.actor_participant_index`` and returns ``FAILURE`` if any
@@ -190,7 +190,7 @@ class AllParticipantsRMClosedConditionNode(DataLayerCondition):
         return Status.SUCCESS
 
 
-class CloseNotYetEmittedConditionNode(DataLayerCondition):
+class CloseNotYetEmittedConditionNode(DataLayerConditionWithPorts):
     """Idempotency guard: no ``Leave(VulnerabilityCase)`` in the outbox yet.
 
     Queries the actor's outbox for existing activities and checks whether any

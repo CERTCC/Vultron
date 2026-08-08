@@ -28,14 +28,14 @@ the process-area root per BTND-07-003.
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
 )
 from vultron.core.models.case import VulnerabilityCase
 
 
-class SeedAnnouncedCaseNode(DataLayerAction):
+class SeedAnnouncedCaseNode(DataLayerActionWithPorts):
     """Persist a received ``VulnerabilityCase`` announcement in the DataLayer.
 
     On first receipt the node saves ``case_obj`` and stores any embedded
