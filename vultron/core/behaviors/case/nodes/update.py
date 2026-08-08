@@ -31,13 +31,14 @@ from vultron.core.behaviors.helpers import (
     DataLayerAction,
     DataLayerActionWithPorts,
     DataLayerCondition,
+    DataLayerConditionWithPorts,
 )
 from vultron.core.models.events.case import UpdateCaseReceivedEvent
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 
 
-class CheckCaseUpdateOwnerNode(DataLayerCondition):
+class CheckCaseUpdateOwnerNode(DataLayerConditionWithPorts):
     """Return SUCCESS when the current actor owns the case."""
 
     def __init__(self, case_id: str, name: str | None = None) -> None:
