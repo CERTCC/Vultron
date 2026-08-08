@@ -48,7 +48,9 @@ jobs:
 
       - name: Check ADR index and nav are in sync
         run: |
-          PYTHONPATH= uv run python -m vultron.metadata.adr.index_gen --check
+          # PYTHONPATH='' (quoted) is identical in effect to PYTHONPATH= but
+          # distinguishable by shellcheck, which flags the bare form as SC1007.
+          PYTHONPATH='' uv run python -m vultron.metadata.adr.index_gen --check
 
       - name: Build Site
         run: |

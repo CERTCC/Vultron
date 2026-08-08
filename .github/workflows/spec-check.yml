@@ -34,4 +34,6 @@ jobs:
       - name: Set up Python and uv
         uses: ./.github/actions/setup-python-uv
       - name: Run spec-lint
-        run: PYTHONPATH= uv run spec-lint specs/
+        # PYTHONPATH='' (quoted) is identical in effect to PYTHONPATH= but
+        # distinguishable by shellcheck, which flags the bare form as SC1007.
+        run: PYTHONPATH='' uv run spec-lint specs/

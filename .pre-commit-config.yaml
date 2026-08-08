@@ -6,6 +6,17 @@ repos:
         language_version: py313
         args: ["."]
 
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.7
+    hooks:
+      # Catches GitHub Actions errors that YAML parsing cannot: invalid context
+      # references, bad `if:` expressions, unknown action inputs. A job-level
+      # `if:` referencing the `matrix` context parses as valid YAML but makes
+      # GitHub reject the whole workflow with a zero-job startup failure.
+      # Uses the golang hook (not actionlint-docker) so pre-commit provisions
+      # its own toolchain; the devcontainer has neither docker nor go on PATH.
+      - id: actionlint
+
   - repo: local
     hooks:
       - id: markdownlint-cli2
