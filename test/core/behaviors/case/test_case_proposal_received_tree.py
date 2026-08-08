@@ -1703,3 +1703,140 @@ class TestAllParticipantsRMClosedIncludesCaseActor:
             "AllParticipantsRMClosed must return SUCCESS when all participants"
             " including the CaseActor are at RM.CLOSED (ADR-0051)"
         )
+
+
+# ---------------------------------------------------------------------------
+# Dual-DataLayer isolation: records land on the injected DL, not on the
+# global singleton.  Verifies the AC-2/AC-1 isolation invariant from
+# issue #1749.
+#
+# The regression this guards against: a BT node that calls get_datalayer()
+# (the process-global singleton) instead of self.datalayer would write records
+# to the singleton rather than to the DataLayer passed into the use case.
+# Each test resets the singleton before running (via the root conftest's
+# reset_datalayer fixture), then checks the singleton is still empty after the
+# BT completes — confirming all writes landed on the injected case_actor_dl.
+# ---------------------------------------------------------------------------
+
+
+class TestCreateCaseProposalReceivedBTCaseActorRecords:
+    """Records land on the injected DataLayer, not on the global singleton.
+
+    The CreateCaseProposalReceivedUseCase receives a single DataLayer
+    (``case_actor_dl``).  All writes (VulnerabilityCase, CaseParticipant,
+    CaseLedgerEntry, …) must appear in ``case_actor_dl``; the global
+    singleton returned by ``get_datalayer()`` must remain empty for those
+    types.
+
+    Without this test, a BT node that accidentally calls ``get_datalayer()``
+    instead of ``self.datalayer`` would write records to the singleton and
+    the existing single-DL tests would still pass.
+    """
+
+    def _run(self, make_payload, case_actor_dl):
+        """Run the full BT against *case_actor_dl*; seed report there too."""
+        _seed_report(case_actor_dl)
+        _run_full_bt(make_payload, case_actor_dl)
+
+    def test_vulnerability_case_on_injected_dl_not_singleton(
+        self, make_payload
+    ):
+        """VulnerabilityCase is written to case_actor_dl only (AC-1).
+
+        If any node leaks to the singleton via get_datalayer(), the singleton
+        would be non-empty after the run.
+        """
+        from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+
+        case_actor_dl = SqliteDataLayer("sqlite:///:memory:")
+        self._run(make_payload, case_actor_dl)
+
+        cases_on_injected = list(
+            case_actor_dl.list_objects("VulnerabilityCase")
+        )
+        cases_on_singleton = list(
+            get_datalayer().list_objects("VulnerabilityCase")
+        )
+
+        assert (
+            cases_on_injected
+        ), "VulnerabilityCase must be created on the injected DataLayer (AC-1)"
+        assert not cases_on_singleton, (
+            "VulnerabilityCase must NOT appear on the global singleton —"
+            " a BT node called get_datalayer() instead of self.datalayer"
+        )
+
+    def test_case_participants_on_injected_dl_not_singleton(
+        self, make_payload
+    ):
+        """CaseParticipant records land on case_actor_dl, not the singleton."""
+        from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+
+        case_actor_dl = SqliteDataLayer("sqlite:///:memory:")
+        self._run(make_payload, case_actor_dl)
+
+        participants_on_injected = list(
+            case_actor_dl.list_objects("CaseParticipant")
+        )
+        participants_on_singleton = list(
+            get_datalayer().list_objects("CaseParticipant")
+        )
+
+        assert (
+            participants_on_injected
+        ), "CaseParticipant records must be created on the injected DataLayer"
+        assert (
+            not participants_on_singleton
+        ), "CaseParticipant records must NOT appear on the global singleton"
+
+    def test_ledger_entries_on_injected_dl_not_singleton(self, make_payload):
+        """CaseLedgerEntry records land on case_actor_dl, not the singleton."""
+        from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+
+        case_actor_dl = SqliteDataLayer("sqlite:///:memory:")
+        self._run(make_payload, case_actor_dl)
+
+        entries_on_injected = list(
+            case_actor_dl.list_objects("CaseLedgerEntry")
+        )
+        entries_on_singleton = list(
+            get_datalayer().list_objects("CaseLedgerEntry")
+        )
+
+        assert entries_on_injected, (
+            "CaseLedgerEntry records must be created on the injected DataLayer"
+            " (ADR-0041)"
+        )
+        assert (
+            not entries_on_singleton
+        ), "CaseLedgerEntry records must NOT appear on the global singleton"
+
+    def test_vendor_participant_index_on_injected_dl(self, make_payload):
+        """Vendor appears in case_actor_dl's actor_participant_index, not in the singleton.
+
+        This is the sharpest regression guard: a node that accidentally routes
+        the VulnerabilityCase write through get_datalayer() would put the
+        vendor in the singleton's case index and leave case_actor_dl empty.
+        """
+        from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+        from vultron.core.models.case import VulnerabilityCase
+
+        case_actor_dl = SqliteDataLayer("sqlite:///:memory:")
+        self._run(make_payload, case_actor_dl)
+
+        cases_on_injected = list(
+            case_actor_dl.list_objects("VulnerabilityCase")
+        )
+        assert (
+            cases_on_injected
+        ), "VulnerabilityCase must exist on case_actor_dl"
+        case = cases_on_injected[0]
+        assert isinstance(case, VulnerabilityCase)
+        assert (
+            _VENDOR_URI in case.actor_participant_index
+        ), "Vendor must be in actor_participant_index on the injected DL"
+
+        assert not list(get_datalayer().list_objects("VulnerabilityCase")), (
+            "VulnerabilityCase must not appear on the global singleton — the"
+            " case-actor creates the case on the injected DL only (AC-1)"
+        )
