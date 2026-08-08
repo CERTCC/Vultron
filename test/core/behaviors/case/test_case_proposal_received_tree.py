@@ -1713,8 +1713,8 @@ class TestAllParticipantsRMClosedIncludesCaseActor:
 # The regression this guards against: a BT node that calls get_datalayer()
 # (the process-global singleton) instead of self.datalayer would write records
 # to the singleton rather than to the DataLayer passed into the use case.
-# Each test resets the singleton before running (via the root conftest's
-# reset_datalayer fixture), then checks the singleton is still empty after the
+# Each test resets the singleton before running (via the _reset_singleton
+# autouse fixture), then checks the singleton is still empty after the
 # BT completes — confirming all writes landed on the injected case_actor_dl.
 # ---------------------------------------------------------------------------
 
@@ -1732,6 +1732,14 @@ class TestCreateCaseProposalReceivedBTCaseActorRecords:
     instead of ``self.datalayer`` would write records to the singleton and
     the existing single-DL tests would still pass.
     """
+
+    @pytest.fixture(autouse=True)
+    def _reset_singleton(self):
+        from vultron.adapters.driven.datalayer_sqlite import reset_datalayer
+
+        reset_datalayer()
+        yield
+        reset_datalayer()
 
     def _run(self, make_payload, case_actor_dl):
         """Run the full BT against *case_actor_dl*; seed report there too."""
