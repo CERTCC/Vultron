@@ -77,7 +77,9 @@ groups:
     statement: Behavioral logic that belongs inside a BT MUST be expressed using BT composite idioms (Sequence, Selector/Fallback,
       Decorator) rather than procedural `if`/`else` chains.
     rationale: BT idioms make logic auditable, extractable, and explainable by anyone who can read the tree structure, without
-      reading implementation code. Procedural logic inside `update()` is opaque.
+      reading implementation code. Procedural logic inside `update()` is opaque. See also
+      notes/use-case-behavior-trees.md section "The Tree Is the Documentation" for the
+      design invariant that gives this rule its purpose.
     relationships:
     - rel_type: refines
       spec_id: BT-06-001
