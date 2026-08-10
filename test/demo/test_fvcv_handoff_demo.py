@@ -835,4 +835,9 @@ class TestOwnershipTransferAnnounceReachesFinderAC5c:
             vendor_iso.dl.close()
             coordinator_iso.dl.close()
             finder_iso.dl.close()
+            # Undo the env patches BEFORE reloading, otherwise the reload
+            # re-caches this test's coordinator URLs and every subsequent test
+            # in the session inherits them (#2086).  monkeypatch's own undo
+            # runs after this fixture teardown, which is too late.
+            monkeypatch.undo()
             reload_config()

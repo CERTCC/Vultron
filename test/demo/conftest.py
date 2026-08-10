@@ -244,6 +244,149 @@ def configure_case_actor_url_for_demo():
         reload_config()
 
 
+def config_snapshot() -> dict:
+    """Return the full currently-cached config as a plain dict.
+
+    Snapshotting every field rather than a hand-picked pair means a fixture
+    that leaks something other than the two #2086 URLs (e.g.
+    ``VULTRON_ACTOR__DEFAULT_CASE_ROLES``) is still detected.
+    """
+    from vultron.config import get_config
+
+    return get_config().model_dump(mode="json")
+
+
+def config_url_snapshot() -> tuple[str, str]:
+    """Return the currently cached ``(server.base_url, case_actor_service_url)``.
+
+    These are the two settings demo tests repoint at their own fake hosts, and
+    the pair whose leakage caused #2086.  Kept as a narrow, readable accessor
+    for tests that assert specifically on those URLs;
+    :func:`config_snapshot` is what the leak guard compares.
+    """
+    from vultron.config import get_config
+
+    cfg = get_config()
+    return (
+        str(cfg.server.base_url),
+        str(cfg.actor.case_actor_service_url),
+    )
+
+
+class ConfigLeakLedger:
+    """Session-wide record of config leaks the guard had to repair.
+
+    The guard repairs leaks so that one misordered teardown cannot cascade into
+    unrelated failures.  That repair also hides the leak, which would leave the
+    ``monkeypatch.undo()``-before-``reload_config()`` fixes in the demo modules
+    unenforced by any test.  Recording each detection here keeps the repair
+    while still giving :mod:`test.demo.test_config_leak_guard` something that
+    fails when a fixture teardown regresses (#2086).
+    """
+
+    def __init__(self) -> None:
+        self.leaks: list[str] = []
+
+    def record(self, before: dict, after: dict) -> None:
+        self.leaks.append(f"{_describe_drift(before, after)}")
+
+    def reset(self) -> None:
+        self.leaks.clear()
+
+
+#: Session-wide ledger; asserted on by ``test_config_leak_guard.py``.
+config_leak_ledger = ConfigLeakLedger()
+
+
+def _describe_drift(before: dict, after: dict) -> str:
+    """Summarise which config keys changed, for logs and assertion messages."""
+    drifted = sorted(
+        f"{key}: {before.get(key)!r} -> {after.get(key)!r}"
+        for key in set(before) | set(after)
+        if before.get(key) != after.get(key)
+    )
+    return "; ".join(drifted)
+
+
+def restore_config_if_leaked(before: dict) -> bool:
+    """Reload the module-level config if it drifted from the *before* snapshot.
+
+    The repair is :func:`reload_config`, which re-reads ``os.environ``.  That
+    only helps if the offending fixture also undid its env patches, so the
+    post-reload state is verified rather than assumed: a reload that fails to
+    restore *before* raises instead of reporting a success it did not achieve
+    (ARCH-15-001 — a fake success is the same bug as a silent ``None``).
+
+    Args:
+        before: Snapshot from :func:`config_snapshot` taken before the code
+            under test ran.
+
+    Returns:
+        ``True`` if a leak was detected and successfully repaired, ``False``
+        if the config never drifted.
+
+    Raises:
+        RuntimeError: if the config drifted and the reload did not restore it,
+            which means the environment itself is still polluted.
+    """
+    from vultron.config.app import reload_config
+
+    after = config_snapshot()
+    if after == before:
+        return False
+
+    drift = _describe_drift(before, after)
+    logger.warning(
+        "Demo test leaked config (%s); reloading (#2086)",
+        drift,
+    )
+    config_leak_ledger.record(before, after)
+    reload_config()
+
+    repaired = config_snapshot()
+    if repaired != before:
+        raise RuntimeError(
+            "Config leak could not be repaired by reload_config(): the "
+            "environment is still polluted. A fixture mutated the "
+            "environment without undoing it (see #2086). Residual drift: "
+            f"{_describe_drift(before, repaired)}"
+        )
+    return True
+
+
+@pytest.fixture(autouse=True)
+def restore_case_actor_url_after_each_test():
+    """Restore the session's CaseActor/server config after every demo test.
+
+    Guards against config leakage between demo tests (#2086).  Several demo
+    tests point ``VULTRON_SERVER__BASE_URL`` and
+    ``VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL`` at their own fake hosts and then
+    call ``reload_config()``.  If such a test reloads while its env patches are
+    still applied, the polluted values are cached in the module-level config for
+    the remainder of the session.  Every later test then addresses its
+    ``Create(CaseProposal)`` to a host no ``_TestClientRouter`` knows about, the
+    delivery is silently dropped, the CaseActor never creates the canonical
+    case, and ``validate-report`` fails with "no routable recipients".
+
+    Because that depends on test *order*, it presented as CI flakiness.  This
+    fixture snapshots the config before each test and reloads after if it
+    drifted.
+
+    **Scope limitation**: this fixture is function-scoped, so it only catches
+    *function-scoped* offenders.  A module-, class-, or session-scoped fixture
+    pollutes the cache *before* this guard takes its ``before`` snapshot, so
+    the drift is invisible here and that fixture's teardown runs after this
+    one's finalizer.  Higher-scoped fixtures must therefore still order
+    ``monkeypatch.undo()`` before ``reload_config()`` themselves — the guard is
+    not a substitute.  Any repair performed here is recorded on
+    :data:`config_leak_ledger` so ``test_config_leak_guard.py`` fails rather
+    than silently masking the regression.
+    """
+    before = config_snapshot()
+    yield
+    restore_config_if_leaked(before)
+
+
 @pytest.fixture(scope="module", autouse=True)
 def reset_datalayer_between_modules():
     """Reset all cached DataLayer instances before each demo test module.
