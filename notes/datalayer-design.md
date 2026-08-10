@@ -452,6 +452,7 @@ def test_records_on_injected_dl_not_singleton(self, make_payload):
 ```
 
 Key points:
+
 - `reset_datalayer()` before **and** after each test ensures test order
   independence — a previous test that did call `get_datalayer()` won't poison
   the singleton check.
