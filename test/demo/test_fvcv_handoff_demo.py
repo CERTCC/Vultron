@@ -903,9 +903,8 @@ class TestFinderCaseReplicaGenesisWaitInReportSubmission:
             if client is finder_client:
                 call_order.append("finder_genesis_wait")
 
-        def _post_to_trigger(**_kw):
-            call_order.append("invite_trigger")
-            return {"activity": {"id": "urn:test:act", "type": "Offer"}}
+        def _wait_for_case_participants(**_kw):
+            call_order.append("case_participants_wait")
 
         with (
             patch.object(demo, "reset_containers"),
@@ -925,13 +924,15 @@ class TestFinderCaseReplicaGenesisWaitInReportSubmission:
             patch.object(demo, "receiver_validates_report"),
             patch.object(demo, "find_case_for_offer", return_value=case),
             patch.object(demo, "receiver_engages_case"),
-            patch.object(demo, "wait_for_case_participants"),
+            patch.object(
+                demo,
+                "wait_for_case_participants",
+                side_effect=_wait_for_case_participants,
+            ),
             patch.object(
                 demo, "wait_for_case_on_container", side_effect=_wait_for_case
             ),
-            patch.object(
-                demo, "post_to_trigger", side_effect=_post_to_trigger
-            ),
+            patch.object(demo, "post_to_trigger"),
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
             patch.object(
                 demo,
@@ -961,21 +962,23 @@ class TestFinderCaseReplicaGenesisWaitInReportSubmission:
             "wait_for_case_on_container(finder_client) was never called in "
             "_phase_report_submission — genesis hash unavailable race (Bug #2120)"
         )
-        # The genesis wait must precede the first invite trigger
-        if "invite_trigger" in call_order:
-            genesis_idx = next(
-                i
-                for i, v in enumerate(call_order)
-                if v == "finder_genesis_wait"
-            )
-            trigger_idx = next(
-                i for i, v in enumerate(call_order) if v == "invite_trigger"
-            )
-            assert genesis_idx < trigger_idx, (
-                f"Finder genesis wait (index {genesis_idx}) must precede first "
-                f"invite trigger (index {trigger_idx}). "
-                f"Call order: {call_order} — Bug #2120 (CLP-08-005)"
-            )
+        # The genesis wait must come after wait_for_case_participants
+        assert (
+            "case_participants_wait" in call_order
+        ), "wait_for_case_participants was never called in _phase_report_submission"
+        participants_idx = next(
+            i
+            for i, v in enumerate(call_order)
+            if v == "case_participants_wait"
+        )
+        genesis_idx = next(
+            i for i, v in enumerate(call_order) if v == "finder_genesis_wait"
+        )
+        assert participants_idx < genesis_idx, (
+            f"wait_for_case_participants (index {participants_idx}) must precede "
+            f"Finder genesis wait (index {genesis_idx}). "
+            f"Call order: {call_order} — Bug #2120 (CLP-08-005)"
+        )
 
 
 # Bug #2120: finder case-replica must be seeded before Vendor2 RM triage
