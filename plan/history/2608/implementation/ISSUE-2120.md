@@ -22,3 +22,12 @@ of 3 run_invite_path_rm_triage call sites:
 verifying call-ordering invariant.
 
 PR: <https://github.com/CERTCC/Vultron/pull/2127>
+
+Follow-up PR #2151: added the missing genesis-level wait in `_phase_report_submission`
+(immediately after `wait_for_case_participants`) in both `fcvcv_demo.py` and
+`fvcv_handoff_demo.py`. PR #2127 addressed late-phase triage waits; this PR
+addresses the earlier race where `Announce(CaseLedgerEntry)` arrives before
+`Create(VulnerabilityCase)` is seeded. Regression tests added:
+`TestFinderCaseReplicaGenesisWaitInReportSubmission` in both test files.
+
+PR: <https://github.com/CERTCC/Vultron/pull/2151>
