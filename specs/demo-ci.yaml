@@ -6,7 +6,7 @@ description: >-
   when the demo fails — closing the gap where tests pass while the demo produces
   silent failures. Includes requirements for the invariant harness to run as an
   independent CI gate so failures are visible even when the demo itself also fails.
-version: 1.5.0
+version: 1.6.0
 scope:
   - prototype
   - production
@@ -781,3 +781,58 @@ groups:
             spec_id: DEMOCI-08-001
           - rel_type: refines
             spec_id: DEMOCI-06-004
+
+  - id: DEMOCI-09
+    title: Integration Branch Support
+    specs:
+      - id: DEMOCI-09-001
+        priority: MUST
+        kind: project
+        statement: >-
+          The `workflow_dispatch` trigger in `demo-integration.yml` MUST declare
+          an optional `ref` input (`type: string`, default empty string) whose
+          description explains that it accepts a branch, tag, or SHA to check out
+          before running the full demo suite. All three `actions/checkout` steps
+          in the workflow (in the `scenarios`, `demo`, and `invariant-harness`
+          jobs) MUST unconditionally pass `ref: ${{ inputs.ref || github.ref }}`.
+          When `inputs.ref` is non-empty the suite runs against that ref; when
+          `inputs.ref` is empty or absent (all non-`workflow_dispatch` events),
+          the expression transparently falls through to `github.ref` so normal
+          `pull_request` and `push` checkouts are unaffected.
+        rationale: >-
+          When multiple related bug-fix PRs land on a shared integration branch
+          (e.g. `fix/demo-ci`) rather than racing to `main`, the full demo suite
+          needs to be runnable against that branch without opening a dummy PR to
+          `main`. A `workflow_dispatch` `ref` input enables manual full-suite
+          validation at any point during the integration window with a single
+          button click in the GitHub UI. The unconditional expression form avoids
+          a conditional `if: inputs.ref != ''` guard that would silently break
+          normal checkout behaviour.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-05-001
+
+      - id: DEMOCI-09-002
+        priority: MUST
+        kind: project
+        statement: >-
+          While a `fix/demo-ci` integration branch is active, both the
+          `pull_request` and `push` triggers in `demo-integration.yml` MUST list
+          `fix/demo-ci` alongside `main` in their `branches:` arrays, so that
+          PRs targeting and direct pushes to the integration branch receive the
+          same Demo Integration CI gate as `main`. When the integration branch is
+          merged and no longer active, the `fix/demo-ci` entries MUST be removed
+          from both `branches:` arrays. The cleanup obligation MUST be tracked as
+          a GitHub issue so it is not silently forgotten (GitHub ignores deleted
+          branches in `branches:` arrays without warning).
+        rationale: >-
+          Child fix PRs targeting an integration branch must be validated against
+          that branch — not against `main` — so that each incremental fix is
+          confirmed not to perturb scenarios already green on the integration
+          branch. The same reasoning applies to direct pushes: when a child PR
+          merges into `fix/demo-ci`, the post-merge full-suite run validates the
+          cumulative result, closing the same "two green PRs break the shared
+          branch" gap that DEMOCI-05-001 closes for `main`.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-05-001

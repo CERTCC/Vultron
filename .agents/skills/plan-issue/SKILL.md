@@ -121,6 +121,17 @@ EPIC_NUMBER=$(gh api graphql -f query='{
 
 Use the title and body from `ISSUE_JSON` as source material throughout.
 
+### Phase 1b — Claim the Issue and Create Task Branch
+
+Claim the issue now — as soon as it is validated — so others can see work
+has started. Derive `<slug>` from the issue title (lowercase, hyphenated).
+Delegate to `claim-issue.sh` for idempotency guard, branch creation,
+assignee, and claim comment — exactly as `build` and `bugfix` do:
+
+```bash
+bash .agents/skills/shared/claim-issue.sh "${ISSUE_NUMBER}" plan "<slug>"
+```
+
 ### Phase 2 — Orient (invoke `orient-agent`)
 
 Invoke the `orient-agent` skill to load required baseline context.
@@ -156,18 +167,6 @@ Do **not** write anything until grill-me is complete.
 
 If the interview surfaces focus areas not covered in Phase 3, invoke
 `deepen-context` again with those additional hints before proceeding.
-
-### Phase 4b — Claim the Issue and Create Task Branch
-
-Always claim the issue, regardless of whether Phase 5 will produce doc
-changes. Re-sync first to catch any updates that landed during the planning
-session, then delegate to `claim-issue.sh` for idempotency guard, branch
-creation, assignee, and claim comment — exactly as `build` and `bugfix` do:
-
-```bash
-git fetch origin main && git reset --hard origin/main
-bash .agents/skills/shared/claim-issue.sh "${ISSUE_NUMBER}" plan "<slug>"
-```
 
 ### Phase 5 — Update Docs (conditional)
 
@@ -325,12 +324,11 @@ See the loaded companion file for the type-specific completion step:
 - [ ] Worktree reset to `origin/main` (Phase 0b — planning baseline)
 - [ ] Issue body fetched; type auto-detected (Idea, Concern, or Epic); issue is open
 - [ ] Type-specific companion file loaded (`idea.md`, `concern.md`, or `epic.md`)
+- [ ] Issue claimed via `claim-issue.sh` (`plan/<N>-<slug>`) — always (Phase 1b)
 - [ ] `orient-agent` invoked
 - [ ] `deepen-context` invoked with focus hints from the issue
 - [ ] All grill-me branches resolved (shared + type-specific)
 - [ ] `deepen-context` re-invoked if new focus areas emerged during grilling
-- [ ] Worktree re-synced to `origin/main` before branch creation (Phase 4b — catches updates during planning session)
-- [ ] Issue claimed via `claim-issue.sh` (`plan/<N>-<slug>`) — always
 - [ ] Docs updated — optional for all types (or consciously skipped with a note)
 - [ ] Markdown lint clean (if docs changed)
 - [ ] PR opened with `specs-notes` label — always
@@ -344,7 +342,7 @@ See the loaded companion file for the type-specific completion step:
 
 ## Conventions
 
-- **Branch name**: `plan/<N>-<slug>` (always created via `claim-issue.sh` in Phase 4b)
+- **Branch name**: `plan/<N>-<slug>` (always created via `claim-issue.sh` in Phase 1b)
 - **History source**: `IDEA-<N>` for Ideas; `CONCERN-<N>` for Concerns (not used for Epics)
 - **History type**: `idea` for Ideas; `learning` for Concerns (not used for Epics)
 - **Spec file names**: lowercase hyphenated `.yaml` in `specs/`

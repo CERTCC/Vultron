@@ -280,6 +280,14 @@ def _phase_report_submission(
         expected_count=3,
     )
 
+    with demo_check(
+        "Finder's DataLayer received case replica (genesis hash available)"
+    ):
+        wait_for_case_on_container(
+            client=finder_client,
+            case_id=case.id_,
+        )
+
     case = as_VulnerabilityCase.model_validate(
         vendor_client.get(f"/datalayer/{case.id_}")
     )
@@ -446,6 +454,7 @@ def _phase_ownership_handoff(
 
 
 def _phase_coordinator_invites_vendor2(
+    finder_client: DataLayerClient,
     vendor_client: DataLayerClient,
     coordinator_client: DataLayerClient,
     vendor2_client: DataLayerClient,
@@ -520,6 +529,15 @@ def _phase_coordinator_invites_vendor2(
         timeout_seconds=90.0,
     )
     logger.info("✓ Vendor2 joined case (%d participants)", 5)
+
+    with demo_check(
+        "Finder's DataLayer received case replica before Vendor2 RM triage"
+    ):
+        wait_for_case_on_container(
+            client=finder_client,
+            case_id=case.id_,
+            timeout_seconds=90.0,
+        )
 
     # CM-11-002: Vendor2 joined via invite-accept — run standard RM triage cycle.
     run_invite_path_rm_triage(
@@ -1096,6 +1114,7 @@ def run_fvcv_handoff_demo(
     )
 
     _phase_coordinator_invites_vendor2(
+        finder_client=finder_client,
         vendor_client=vendor_client,
         coordinator_client=coordinator_client,
         vendor2_client=vendor2_client,
