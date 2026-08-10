@@ -81,6 +81,8 @@ and fall through to Level 2 (GitHub label search).
 |---|---|---|
 | `fvcv-extension` | — | 2026-07-31 |
 | `fccv-extension` | — | 2026-07-31 |
+| `fcvcv Demo Integration` | #2134 | 2026-08-10 |
+| `fcvcv Invariant Harness` | #2134 | 2026-08-10 |
 
 > These jobs fail intermittently due to inter-container HTTP delivery timeouts
 > (async race windows). Root cause documented in `plan/incoming/learnings/`
